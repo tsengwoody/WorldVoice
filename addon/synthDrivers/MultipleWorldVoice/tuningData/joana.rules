@@ -1,0 +1,20 @@
+[header]
+language = ptp
+charset = utf-8
+
+[data]
+# Este ficheiro e respectivo conteúdo pertence à Tiflotecnia, Lda;
+# Só é permitida a utilização deste ficheiro com o Vocalizer Expressive para NVDA;
+# Copyright (C) 2012-2013 Todos os direitos reservados a: Ângelo Miguel Abrantes, Diogo Costa e Rui Fontes.
+# Palavras inteiras:
+/(\b)([Cc])(ATETO|ateto)(\b)/   -->   $1\e\/+ka0.'tE.tu\e\/+$4
+# Início de palavras:
+/(\b)([Ee])([Nn])([^AEIOUaeiou])([AEIOUaeiou])/   -->   $1\e\/+e%~\e\/+$4$5
+/(\b|\w)([Oo])(CTA|cta)(\w)/   -->   $1\e\/+.Okta0\e\/+$4
+/(\b|\w)([Oo])([Cc])(TE|te)/   -->   $1\e\/+Ok\e\/+$4
+# A regra que se segue falha em "profeta":
+/([Pp])(ROF|rof)([Ee])(\w)/   -->   $1$2$4
+# Final de palavras:
+/(\b|\w)([Bb])(ETO|eto)(\b)/   -->   $1\e\/+'bE.tu\e\/+$4
+/(\b|\w)([Cc])(RETO|reto)(\b)/   -->   $1\e\/+'kr6E.tu\e\/+$4
+/(\b|\w)([Qq])(UIETO|uieto)(\b)/   -->   $1\e\/+.ki'E.tu\e\/+$4

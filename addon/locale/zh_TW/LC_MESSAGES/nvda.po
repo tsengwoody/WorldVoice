@@ -1,0 +1,103 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the 'MultipleWorldVoice' package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 'MultipleWorldVoice' '3.1.1'\n"
+"Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
+"POT-Creation-Date: 2020-06-14 16:08+0800\n"
+"PO-Revision-Date: 2020-06-14 16:20+0800\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 2.3.1\n"
+"X-Poedit-Basepath: addon\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Poedit-SearchPath-0: .\n"
+
+#: globalPlugins/MultipleWorldVoice/__init__.py:33
+msgid "Automatic &Language Switching Settings"
+msgstr "自動語言切換設定(&L)"
+
+#: globalPlugins/MultipleWorldVoice/__init__.py:33
+msgid "Configure which voice is to be used for each language."
+msgstr "設定各別語言的語音"
+
+#: globalPlugins/MultipleWorldVoice/__init__.py:35
+msgid "&Speech Rate Settings"
+msgstr "語音速度(&S)"
+
+#: globalPlugins/MultipleWorldVoice/__init__.py:35
+msgid "Configure speech rate each voice."
+msgstr "設定各別語音的語速"
+
+#: globalPlugins/MultipleWorldVoice/__init__.py:37
+msgid "Vocalizer Expressive"
+msgstr ""
+
+#: globalPlugins/MultipleWorldVoice/__init__.py:54
+msgid ""
+"You have no Vocalizer voices installed.\n"
+"You need at least one voice installed to use Vocalizer for NVDA.\n"
+"You can download all Vocalizer voices from the product web page.\n"
+"Do you want to open the vocalizer for NVDA voices download page now?"
+msgstr ""
+
+#: globalPlugins/MultipleWorldVoice/__init__.py:58
+msgid "No voices installed."
+msgstr "尚未安裝語音"
+
+#: globalPlugins/MultipleWorldVoice/dialogs.py:13
+msgid "Automatic Language Switching Settings"
+msgstr "自動語言切換設定"
+
+#: globalPlugins/MultipleWorldVoice/dialogs.py:26
+#: globalPlugins/MultipleWorldVoice/speechRate.py:47
+msgid "Select a locale, and then configure the voice to be used:"
+msgstr "選擇一個地區，並為其設定一個語音："
+
+#: globalPlugins/MultipleWorldVoice/dialogs.py:30
+#: globalPlugins/MultipleWorldVoice/speechRate.py:51
+msgid "Locale Name:"
+msgstr "地區名稱"
+
+#: globalPlugins/MultipleWorldVoice/dialogs.py:37
+#: globalPlugins/MultipleWorldVoice/speechRate.py:58
+msgid "Voice Name:"
+msgstr "語音名稱"
+
+#: globalPlugins/MultipleWorldVoice/dialogs.py:44
+msgid "Detect text language based on unicode characters (experimental)"
+msgstr "用 unicode 編碼偵測文字語言（實驗性功能）。"
+
+#: globalPlugins/MultipleWorldVoice/dialogs.py:49
+msgid ""
+"Ignore numbers and common punctuation when detecting text language "
+"(experimental)"
+msgstr "偵測語言時忽略數字和常見標點符號（實驗性功能）"
+
+#: globalPlugins/MultipleWorldVoice/dialogs.py:55
+msgid "Language assumed for latin characters:"
+msgstr "拉丁字元假設的語言："
+
+#: globalPlugins/MultipleWorldVoice/speechRate.py:24
+msgid "Speech Rate Settings"
+msgstr "語音速度設定"
+
+#: globalPlugins/MultipleWorldVoice/speechRate.py:38
+#, python-format
+msgid ""
+"Your current speech synthesizer is the %s. Please select the Multiple World-"
+"Voice as the speech synthesizer in the NVDA speech settings."
+msgstr ""
+"你當前的語音合程器為 %s 。請在 NVDA 設定中選擇 Multiple World-Voice 語音合成"
+"器。"
+
+#: globalPlugins/MultipleWorldVoice/speechRate.py:64
+msgid "Speech Rate:"
+msgstr "語音速度："

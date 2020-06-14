@@ -1,0 +1,68 @@
+﻿[header]
+language = HUH
+charset = utf-8
+[data]
+#/0xc3a1/ --> "á"
+/([0-9]+)\.([0-9]+[0-9]+)/   -->   $1pont$2
+/([0-9]+)\.([0-9])/   -->   $1pont$2
+# a szám.szám kifejezések javítása
+/([0-9]|1\d|2[0-4]) óra/   -->   $1_óra
+/([0-9]|1\d|2[0-3]) óra/   -->   $1_óra
+/([1-9]|1\d|2[0-3]) óra/   -->   $1_óra
+# 12 óra
+/([0-9]+)p/   -->   $1_p
+/([0-9]+) p/   -->   $1_p
+# 1p
+#/4([1-9]\d)/   -->   négyszáz$1
+#/40([1-9])/   -->   négyszáz$1
+#/400/ --> "négy száz"
+#421
+/([aeiouöüóőúűéáí])sv([aeiouöüóőúűéáí])/   -->   $1s_v$2
+#ösvény
+/([aeiouöüóőúűéáí])szv([aeiouöüóőúűéáí])/   -->   $1_szv$2
+#részvény
+/([aeiouöüóőúűéáí])ncsz([aeiouöüóőúűéáí])/   -->   $1nc_sz$2
+/lánchíd/   -->   lánc_híd
+/Lánchíd/   -->   lánc_híd
+#láncszem, lánchíd
+/([aeiouöüóőúűéáíy])ck([aeiouöüóőúűéáíy])/   -->   $1c_k$2
+#kecki
+/([aeiouöüóőúűéáíy])ch([aeiouöüóőúűéáíy])/   -->   $1c_h$2
+#lacháza
+#/cr([aeiouöüóőúűéáíy])/   -->   _cr$1
+#crackel, nem javítható
+/([aeiouöüóőúűéáí])gysz([aeiouöüóőúűéáí])/   -->   $1_gysz$2
+#egyszerű
+/(\d+\s)+(\w)/   -->   $1_$2
+/(\d+\.+\s)+(\w)/   -->   $1_$2
+/(\d+\s\s)+(\w)/   -->   $1_$2
+/(\d+\.+\s\s)+(\w)/   -->   $1_$2
+/(\d+\s\s\s)+(\w)/   -->   $1_$2
+/(\d+.+\s\s\s)+(\w)/   -->   $1_$2
+#szám+hónap, pl. 12 november
+#/([aeiouöüóőúűéáí])zs([aeiouöüóőúűéáí])/   -->   $1_ss$2
+#egyezség, igazság
+/([aeiouöüóőúűéáí])szs([aeiouöüóőúűéáí])/   -->   $1_ss$2
+#egészséges
+/([aeiouöüóőúűéáí])rsv([aeiouöüóőúűéáí])/   -->   $1rs_v$2
+#gyorsvonat
+/hét/   -->   hét_
+/Hét/   -->   hét_
+#hétig
+/mail/   -->   mail_
+/Mail/   -->   mail_
+#Mail, gmail, etc
+/kisebb/   -->   kissebb
+/Kisebb/   -->   kissebb
+#kisebbik
+/user/   -->   us_er
+/User/   -->   us_er
+#users
+/online/   -->   on_line
+/Online/   -->   on_line
+/offline/   -->   offli_ne
+/Offline/   -->   offli_ne
+/firefox/   -->   firefox_
+/Firefox/   -->   firefox_
+/igazság/   -->   igasság
+/Igazság/   -->   igasság

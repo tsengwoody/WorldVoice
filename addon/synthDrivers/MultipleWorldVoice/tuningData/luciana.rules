@@ -1,0 +1,29 @@
+﻿[header]
+language = ptb
+charset = utf-8
+
+[data]
+# Este ficheiro e respectivo conteúdo pertence à Tiflotecnia, Lda;
+# Só é permitida a utilização deste ficheiro com o Nuance Vocalizer para o NVDA.
+# Números:
+# Não gosto da forma desta regra mas dá os resultados pretendidos:
+/(\d{1,3})( |	)(\d{3})/   -->   $1$2$2$3
+# Isto está supostamente errado em termos de expressões regulares, já que o ponto quer dizer qualquer caracter mas não funciona bem na forma correcta.
+/([Nn])(º|.º)/   -->   número
+/(\d{1,})(\X2e{0,1})(º)/   -->   $1º
+# Moedas:
+/(R\$)( {0,1})(\d{1,})/   -->   BRL$2$3
+# Graus centígrados:
+/(\D)(1{1})(\ºC)/   -->   $1$2GrauCentígrado
+/(0|2-9{1,})(\ºC)/   -->   $1GrausCentígrados
+# Palavras:
+/(\b)([Ee])([Nn])(\w)/   -->  $1\e\/+e%~\e\/+$4
+/(\b)([Ee])([Dd])([Ii])(\w)/   -->  $1\e\/+E.d&Zi.\e\/+$5
+/(\w)(guen)(\w)/   -->  $1gwen$3
+/(\w)(eia)(\w)/   -->  $1éia$3
+/(\w)(fox)(\w)/   -->  $1fóqs$3
+/(\w)(vox)(\w)/   -->  $1vóqs$3
+/(Sexa|sexa)(\w)/   -->   \e\/+'sE_k&sa0\e\/+$2
+/(\b)(Sexis|sexis|ssexis)(\w)/   -->   $1\e\/+'sE.'k&sis\e\/+$3
+/(Sexu|sexu|ssexu)(\w)/   -->   \e\/+'sE_k&su\e\/+$2
+/(\b)(Fix|fix)(\w)/   -->   $1\e\/+'fi.'k&s.\e\/+$3

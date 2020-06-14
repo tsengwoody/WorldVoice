@@ -1,0 +1,647 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: vocalizer_expressive_driver 3.0.7\n"
+"Report-Msgid-Bugs-To: nvda-translations@freelists.org\n"
+"POT-Creation-Date: 2014-12-14 13:05+0000\n"
+"PO-Revision-Date: 2013-10-13 21:49+0100\n"
+"Last-Translator: Grzegorz Zlotowicz <grzezlo@wp.pl>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 1.5.7\n"
+
+#, python-brace-format
+msgid ""
+"\n"
+"URL: {url}\n"
+"\n"
+"This product is composed of two independent components:\n"
+"- Nuance Vocalizer Expressive speech synthesizer.\n"
+"- NVDA speech driver and interface for Nuance Vocalizer.\n"
+"Licenses and conditions for these components are as follows:\n"
+"\n"
+"Nuance Vocalizer Expressive speech synthesizer:\n"
+"\n"
+"Copyright (C) 2013 Nuance Communications, Inc. All rights reserved.\n"
+"\n"
+"Synthesizer Version: {synthVersion}\n"
+"This copy of the Nuance Vocalizer synthesizer is licensed to be used "
+"exclusively with the NVDA screen reader (Non Visual Desktop Access).\n"
+"\n"
+"License management components are property of Tiflotecnia, LDA.\n"
+"Copyright (C) 2012, 2013 Tiflotecnia, LDA. All rights reserved.\n"
+"\n"
+"---\n"
+"\n"
+"NVDA speech driver and interface for Nuance Vocalizer Expressive:\n"
+"\n"
+"Copyright (C) 2012, 2013 Tiflotecnia, LDA.\n"
+"Copyright (C) 2012, 2013 Rui Batista.\n"
+"\n"
+"Version: {driverVersion}\n"
+"\n"
+"NVDA speech driver and interface for Nuance Vocalizer is covered by the GNU "
+"General Public License (Version 2). You are free to share or change this "
+"software in any way you like as long as it is accompanied by the license and "
+"you make all source code available to anyone who wants it. This applies to "
+"both original and modified copies of this software, plus any derivative "
+"works.\n"
+"For further details, you can view the license from the NVDA Help menu.\n"
+"It can also be viewed online at: http://www.gnu.org/licenses/old-licenses/"
+"gpl-2.0.html\n"
+"\n"
+"This component was developed by Tiflotecnia, LDA and Rui Batista, with "
+"contributions from many others. Special thanks goes to:\n"
+"{contributors}\n"
+msgstr ""
+"\n"
+"URL: {url}\n"
+"\n"
+"Ten produkt składa się z dwóch niezależnych komponentów:\n"
+"- Syntezator mowy Nuance Vocalizer Expressive.\n"
+"- Sterownik mowy dla NVDA i interfejs dla Nuance Vocalizer.\n"
+"Licencja i warunki dla tych komponentów są następujące:\n"
+"\n"
+"Syntezator mowy Nuance Vocalizer Expressive:\n"
+"\n"
+"Copyright (C) 2013 Nuance Communications, Inc. Wszystkie prawa zastrzeżone.\n"
+"\n"
+"Wersja syntezatora: {synthVersion}\n"
+"Ta kopia syntezatora Nuance Vocalizer jest licencjonowana wyłącznie do "
+"użytku z programem odczytu ekranu NVDA (Non Visual Desktop Access).\n"
+"\n"
+"Komponenty zarządzania licencją są własnością Tiflotecnia, LDA.\n"
+"Copyright (C) 2012, 2013 Tiflotecnia, LDA. Wszystkie prawa zastrzeżone.\n"
+"\n"
+"---\n"
+"\n"
+"Sterownik mowy dla NVDA i interfejs dla Nuance Vocalizer:\n"
+"\n"
+"Copyright (C) 2012, 2013 Tiflotecnia, LDA.\n"
+"Copyright (C) 2012, 2013 Rui Batista.\n"
+"\n"
+"Wersja: {driverVersion}\n"
+"\n"
+"Sterownik mowy dla NVDA i interfejs dla Nuance Vocalizer jest objęty "
+"licencją GNU General Public License (wersja 2). Możesz udostępniać i "
+"modyfikować to oprogramowanie w dowolny sposób pod warunkiem, że towarzyszy "
+"mu ta licencja i udostępnisz kod źródłowy dla wszystkich zainteresowanych. "
+"Dotyczy to oryginalnych i zmodyfikowanych wersji tego oprogramowania, oraz "
+"wszelkich utworów pochodnych.\n"
+"Aby uzyskać więcej szczegółów, możesz przejrzeć licencję z menu NVDA Pomoc.\n"
+"Licencja jest również dostępna online pod adresem: http://www.gnu.org/"
+"licenses/old-licenses/gpl-2.0.html\n"
+"\n"
+"Ten komponent został stworzony przez Tiflotecnia, LDA i Rui Batista, przy "
+"udziale wielu innych. Specjalne podziękowania dla:\n"
+"{contributors}\n"
+
+#. Translators :message that is presented to the user on renewal slcense error.
+msgid ""
+"Your license can not be verified. Please check the following:\n"
+"1. Your credentials (email and password) are correct (you can change them "
+"under the vocalizer expressive menu)\n"
+"2. You are not using someone else's activation or you are not using the same "
+"activation in different computers at the same time. This is not legal, and "
+"is against license terms.\n"
+"3. You are having internet problems.\n"
+"\n"
+"For further clarification, please contact tiflotecnia, Lda, or your local "
+"dealer."
+msgstr ""
+"Twoja licencja nie może zostać zweryfikowana. Proszę sprawdzić czy:\n"
+"1. Twoje poświadczenia (email i hasło) są poprawne (możesz je zmienić w menu "
+"vocalizer expressive )\n"
+"2. Nie używasz czyjejś aktywacji i nie używasz tej samej aktywacji na "
+"różnych komputerach w tym samym czasie. Nie jest to legalne i jest sprzeczne "
+"z warunkami licencji.\n"
+"3. Nie masz problemów z internetem.\n"
+"\n"
+"Dla dalszych wyjaśnień, skontaktuj się z tiflotecnia, Lda,  lub lokalnym "
+"dystrybutorem."
+
+#. Translators: Vocalizer for NVDA error dialog title.
+msgid "Vocalizer for NvDA Error"
+msgstr "Błąd Vocalizer for NvDA "
+
+#. Translators: Message telling the user his credentials are not set.
+msgid ""
+"Your Vocalizer for NVDA credentials are not set for this computer.\n"
+"You will need to set them to use vocalizer for NVDA for long time periods, "
+"so your license can be properly verified."
+msgstr ""
+"Twoje poświadczenia Vocalizer dla NVDA nie są ustawione dla tego komputera.\n"
+"Będziesz musiał je ustawić, aby używać vocalizer for NVDA przez długi czas, "
+"aby twoja licencja mogła zostać prawidłowo zweryfikowana."
+
+msgid "Vocalizer for NVDA warning"
+msgstr "Uwaga Vocalizer for NVDA"
+
+msgid "Automatic &Language Switching Settings"
+msgstr "Ustawienia &automatycznej zmiany języka"
+
+msgid "Configure which voice is to be used for each language."
+msgstr "Ustaw, jaki głos będzie używany dla każdego języka."
+
+#. Translators: Menu Item to enter Vocalizer license credentials and activate a license.
+msgid "Activate License"
+msgstr "Aktywuj licencję"
+
+#. Translators: Hint for the activation license menu
+msgid "Enter license credentials and activate for this computer."
+msgstr "Wprowadź poświadczenia licencji i aktywuj na tym komputerze."
+
+#. Translators: Menu item to open a dialog with vocalizer license information
+msgid "View License Information"
+msgstr "Przejrzyj informacje licencyjne"
+
+#. Translators: Hint for the license information menu item.
+msgid "Check information about your Vocalizer license."
+msgstr "Sprawdź informacje o twojej licencji Vocalizer."
+
+#. Translators: Check activation count menu option
+msgid "Check activation count"
+msgstr "Sprawdź liczbę aktywacji"
+
+#. Translators: Check activation count menu option tooltip.
+msgid "Allows you to check your Vocalizer for NVDA activation count."
+msgstr "Pozwala sprawdzić twoją liczbę aktywacji Vocalizer dla NVDA."
+
+#. Translators: Delete Activation menu option
+msgid "Delete Activation"
+msgstr "Usuń aktywację"
+
+#. Translators: Tooltip for deleting activation.
+msgid "Deletes the vocalizer for NVDA activation. Can not be reverted."
+msgstr "Nieodwracalnie usuwa aktywację vocalizer dla NVDA."
+
+#. Translators: Register license menu option
+msgid "Register this license."
+msgstr "Zarejestruj tę licencję."
+
+#. Translators: Tooltip for register license menu item.
+msgid "Register this license with a vocalizer for NVDA account."
+msgstr "Zarejestrój tę licencję przy użyciu konta vocalizer dla NVDA."
+
+#. Translators: Submenu with license related options
+msgid "License Options"
+msgstr "Opcje licencji"
+
+#. Translators: Change credentials menu item
+msgid "Change account credentials"
+msgstr "Zmień poświadczenia konta"
+
+#. Translators: Tooltip for change credentials option.
+msgid ""
+"Allows setting of email and password that are used to access the Vocalizer "
+"licenses service."
+msgstr ""
+"Pozwala ustawić email i hasło, używane dla uzyskania dostępu do usługi "
+"licencji Vocalizer."
+
+#. Translators: Menu item to Activate license on running portable copy.
+msgid "Activate on portable copy"
+msgstr "Aktywuj na kopii przenośnej"
+
+#. Translators: Help for activate on portable copy menu item.
+msgid ""
+"Activates a vocalizer for NVDA license on running portable copy, if an "
+"activation is already present on the computer"
+msgstr ""
+"Aktywuje licencję vocalizer dla NVDA na uruchomionej kopii przenośnej, jeśli "
+"aktywacja jest obecna na komputerze"
+
+msgid "Download More Voices"
+msgstr "Pobierz więcej głosów"
+
+msgid "Open the vocalizer voices download page."
+msgstr "Otwiera stronę pobierania głosów vocalizer."
+
+msgid "About Nuance Vocalizer for NVDA"
+msgstr "O Nuance Vocalizer dla NVDA"
+
+msgid "Vocalizer Expressive"
+msgstr "Vocalizer Expressive"
+
+#. Translators: Message asking the user if he wants to activate a license on the running portable copy
+msgid ""
+"Are you sure you want to activate your license on the running portable "
+"copy?\n"
+"Only do this if you are preparing a portable NVDA on a computer where\n"
+"a Vocalizer for NVDA license is present."
+msgstr ""
+"Czy jesteś pewien, że chcesz aktywować twoją licencję na uruchomionej kopii "
+"przenośnej?\n"
+"Zrób to tylko jeśli przygotowujesz przenośne NVDA na komputerze, na którym\n"
+"obecna jest licencja Vocalizer dla NVDA."
+
+#. Translators: title for delete activation dialog
+msgid "Are you sure?"
+msgstr "Czy jesteś pewien?"
+
+#. Translators: message telling the user he has no activations left.
+msgid ""
+"You have no activations left for your license. Please contact Tiflotecnia, "
+"lda, or your local distributor of Vocalizer for NVDA."
+msgstr ""
+"Nie masz aktywacji pozostałych dla twojej licencji. Proszę skontaktować się "
+"z Tiflotecnia, lda, albo lokalnym dystrybutorem Vocalizer dla NVDA."
+
+#. Translators: Title for the activation error message box.
+msgid "Activation Error"
+msgstr "Błąd aktywacji"
+
+#. Translators: Message telling the user its current license count and information, and asking if he wants to activate his license on this NVDA copy
+#, python-brace-format
+msgid ""
+"{name}, you currently have {remainingLicenses} activations left.\n"
+"Do you want to activate Nuance Vocalizer for NVDA on this installation?\n"
+"If you do so, your activation count will be decreased by one."
+msgstr ""
+"{name}, obecnie masz {remainingLicenses} dostępnych aktywacji.\n"
+"Czy chcesz aktywować Nuance Vocalizer dla NVDA na tej instalacji?\n"
+"Jeśli to zrobisz, liczba twoich aktywacji zostanie zmniejszona o jedną."
+
+#. Translators: Title for the activation dialog.
+msgid "Nuance Vocalizer Activation"
+msgstr "Aktywacja Nuance Vocalizer"
+
+#. Translators: Message telling the user activation was sucessful
+msgid ""
+"Your license is now enabled.\n"
+"NVDA will now be restarted.\n"
+"Thank you for using Vocalizer for NVDA."
+msgstr ""
+"Twoja licencja jest teraz aktywna.\n"
+"NVDA zostanie teraz uruchomiony ponownie.\n"
+"Dziękujemy za używanie Vocalizer dla NVDA."
+
+#. Translators: Successfull activation dialog title.
+msgid "Success!"
+msgstr "Sukces!"
+
+#. Translators: Title of the dialog telling the user to wait for communication with vocalizer server.
+msgid "Talking with Vocalizer for NVDA server."
+msgstr "Komunikacja z serwerem Vocalizer dla NVDA."
+
+#. Translators: Message telling the user to waith for the communication to server to happen.
+msgid ""
+"Please wait while the communication with Vocalizer for NVDA server is "
+"performed."
+msgstr "Proszę czekać, trwa komunikacja z serwerem Vocalizer dla NVDA."
+
+#. Translators: Information about vocalizer license:
+#, python-brace-format
+msgid ""
+"User Name:\t{userName}\n"
+"Email:\t{email}\n"
+"Distributor:\t{distributor}\n"
+"Activation Number:\t{number}\n"
+msgstr ""
+"Nazwa użytkownika:\t{userName}\n"
+"Email:\t{email}\n"
+"Dystrybutor:\t{distributor}\n"
+"Numer aktywacji:\t{number}\n"
+
+#. Translators: License information dialog title.
+msgid "License Information"
+msgstr "Informacja o licencji"
+
+#. Translators: General error information title.
+msgid "error"
+msgstr "Błąd"
+
+#. Translators: Error message telling the user that credentials are wrong.
+msgid "Yourr email or password is incorrect. Please set your credentials."
+msgstr "Email lub hasło są nieprawidłowe. Proszę ustawić swoje poświadczenia."
+
+#. Translators: Error message telling the user the requested license was not found
+msgid ""
+"License not found. Please check you have a vocalizer for NVDA license "
+"enabled."
+msgstr ""
+"Nie znaleziono licencji. Proszę sprawdzić, czy masz aktywną licencję "
+"vocalizer dla NVDA ."
+
+#. Translators: general error message
+#, python-brace-format
+msgid ""
+"Unknown error occured.\n"
+"Details: {error}"
+msgstr ""
+"Wystąpił nieznany błąd.\n"
+"Szczegóły: {error}"
+
+#. Translators: Message telling the user he has to set is credentials to remove the license
+msgid ""
+"You must set your vocalizer expressive account credentials before removing "
+"the license.\n"
+"Do you want to set them now?"
+msgstr ""
+"Musisz ustawić swoje poświadczenia konta vocalizer expressive przed "
+"usunięciem licencji.\n"
+"Czy chcesz ustawić je teraz?"
+
+#. Translators: Error
+msgid "Error"
+msgstr "Błąd"
+
+#. Translators: Message warning the user that removing an activation can not be reverted.
+msgid ""
+"Are you sure you want to delete this Nuance Vocalizer for NVDA activation?\n"
+"This action can not be reverted.\n"
+msgstr ""
+"Czy jesteś pewien, że chcesz usunąć tę aktywację Nuance Vocalizer dla NVDA?\n"
+"Ta czynność jest nieodwracalna.\n"
+
+#. Translators: Message confirming successfull activation removal.
+#, python-brace-format
+msgid ""
+"{name}, Your activation was deleted.\n"
+"You have {remainingLicenses} activations left.\n"
+"NVDA will now be restarted."
+msgstr ""
+"{name}, twoja aktywacja została usunięta.\n"
+"Masz {remainingLicenses} pozostałych aktywacji.\n"
+"NVDA Zostanie teraz uruchomiony ponownie."
+
+#. Translators: Title of successful activation removal dialog
+msgid "Activation Deleted."
+msgstr "Aktywacja usunięta."
+
+#. Translators: Message telling the user that he must register on the vocalizer web site first
+msgid ""
+"To register your license you must create an account on the vocalizer web "
+"site.If you already have an account you may just continue.~\n"
+"Do you want to create an account now?"
+msgstr ""
+"Aby zarejestrować licencję musisz utworzyć konto na stronie internetowej "
+"vocalizer.Jeśli masz już konto, możesz kontynuować.~\n"
+"Czy chcesz teraz utworzyć konto?"
+
+#. Translators: Title of register dialog message
+msgid "Vocalizer account needed"
+msgstr "Potrzebne konto Vocalizer"
+
+#. Translators: Error message in registering license.
+msgid ""
+"There was an error registering your license.Please contact your distributor "
+"for help. The log file may contain further information."
+msgstr ""
+"Wystąpił błąd podczas rejestracji twojej licencji.Proszę skontaktować się ze "
+"swoim dystrybutorem dla uzyskania pomocy. Plik logu może zawierać dalsze "
+"szczegóły."
+
+#. Translators: Register error message title
+msgid "Error registering license."
+msgstr "Błąd rejestracji licencji."
+
+#. Translators: Message telling the user registration was successful.
+msgid "Registration was successful. NVDA will now be restarted."
+msgstr ""
+"Rejestracja przebiegła pomyślnie. NVDA zostanie teraz uruchomiony ponownie."
+
+#. Translators: Title of successful registration message dialog
+msgid "Registration Successful."
+msgstr "Rejestracja udana."
+
+#. Translators: Message telling the user he must set his credentials to see his activation count.
+msgid ""
+"You must set your Vocalizer for NVDA credentials before checking your "
+"activation count."
+msgstr ""
+"Musisz ustawić poświadczenia swojego konta Vocalizer dla NVDA, aby móc "
+"sprawdzić liczbę aktywacji."
+
+#. Translators: Title of dialog informing the user he must set is credentials.
+msgid "No credentials set"
+msgstr "Nie ustawiono poświadczeń"
+
+#. Translators : Message reporting to the user his activation count.
+#, python-brace-format
+msgid "{name}, you have {remainingLicenses} activations left."
+msgstr "{name}, masz {remainingLicenses} pozostałych aktywacji."
+
+#. Translators: Activation count dialog title.
+msgid "Activation Count"
+msgstr "Liczba aktywacji"
+
+msgid "About Nuance Vocalizer Expressive for NVDA"
+msgstr "O Nuance Vocalizer Expressive dla NVDA"
+
+#. Translators: Message telling the user that demo license as expired.
+#, python-brace-format
+msgid ""
+"The Nuance Vocalizer for NVDA demonstration license has expired.\n"
+"To purchase a  license for Nuance Vocalizer for NVDA, please visit {url}, or "
+"contact an authorized distributor.\n"
+"Note that a percentage of the license's price is donated to NV Access, ltd, "
+"to help continuing the development of the NVDA screen reader."
+msgstr ""
+"Licencja demonstracyjna Nuance Vocalizer dla NVDA wygasła.\n"
+"Aby nabyć licencję na Nuance Vocalizer dla NVDA, proszę odwiedzić {url}, lub "
+"skontaktować się z autoryzowanym dystrybutorem.\n"
+"Zauważ, że procent od ceny licencji jest przekazywany dla NV Access, ltd, "
+"aby pomóc w dalszym rozwoju NVDA."
+
+msgid "Vocalizer Demo Expired"
+msgstr "Demonstracja Vocalizer wygasła"
+
+#. Translators: Message telling the user that he is running a demo license.
+#, python-brace-format
+msgid ""
+"You are running a demo version of Nuance Vocalizer expressive for NVDA.\n"
+"This demo will expire on {date}. To use the syntheciser after that,\n"
+"You must buy a license. You can do so at any time by visiting {url} or by "
+"contacting a local distributor.\n"
+"Thanks for testing Nuance Vocalizer expressive for NVDA."
+msgstr ""
+"Używasz wersji demonstracyjnej Nuance Vocalizer expressive dla NVDA.\n"
+"Ta wersja wygaśnie dnia {date}. Aby móc po tym czasie używać syntezatora,\n"
+"musisz zakupić licencję. Możesz to zrobić w każdej chwili, odwiedzając {url} "
+"lub kontaktując się z lokalnym dystrybutorem.\n"
+"Dziękujemy za wypróbowanie Nuance Vocalizer expressive dla NVDA."
+
+#. Translators: Title of vocalizer demo version dialog.
+msgid "Vocalizer Demo Version"
+msgstr "Vocalizer wersja demo"
+
+msgid ""
+"The Vocalizer license you are trying to use is invalid.\n"
+"This might be happening due to one of two reasons:\n"
+"1. The activation file is damaged.\n"
+"2. The license was disabled for security reasons, due to illegal use or its "
+"data beeing compromized.\n"
+"If you own a license for Nuance Vocalizer for NVDA, please contact "
+"Tiflotecnia, lda. or your local distributor, so the problem can be further "
+"investigated.\n"
+"If this Nuance Vocalizer for NVDA license activation doesn't belong to you, "
+"please reframe from using this product.\n"
+"Unauthorized use of this product (i.g. without a valid license) is not "
+"allowed by most international laws on software rights.\n"
+"Please note that a proportion of the price of Nuance Vocalizer for NVDA is "
+"donated for continuing NVDA's development.\n"
+"By sharing license activations you are working against NVDA and good and "
+"cheap accessibility for the blind across the world.\n"
+"Further more, Nuance Vocalizer for NVDA is priced at the lowest value "
+"possible, to allow as many people as possible to have a comercial quality "
+"syntheciser in NVDA.\n"
+"Please think twice about it.\n"
+"You can remove this invalid license using  the Vocalizer Expressive menu "
+"options."
+msgstr ""
+"Licencja Vocalizer, której próbujesz użyć, jest nieprawidłowa.\n"
+"Może to mieć miejsce z jednego z dwóch powodów:\n"
+"1. Plik aktywacji jest uszkodzony.\n"
+"2. Licencja została wyłączona z przyczyn bezpieczeństwa na skutek "
+"nielegalnego użycia, albo wycieku danych.\n"
+"Jeśli posiadasz licencję Nuance Vocalizer dla NVDA, proszę skontaktować się "
+"z Tiflotecnia, lda. albo lokalnym dystrybutorem, dla dalszego zbadania "
+"problemu.\n"
+"Jeśli ta aktywacja Nuance Vocalizer dla NVDA nie należy do ciebie, prosimy "
+"zaprzestać używania tego produktu.\n"
+"Nieautoryzowane używanie tego produktu (bez posiadania licencji) jest "
+"zabronione przez większość międzynarodowych praw dotyczących "
+"oprogramowania.\n"
+"Proszę pamiętać, że część ceny Nuance Vocalizer dla NVDA jest przekazywana "
+"dla kontynuowania rozwoju NVDA.\n"
+"Poprzez dzielenie się aktywacjami licencji działasz przeciw NVDA i dobrej, "
+"taniej dostępności dla niewidomych na całym świecie.\n"
+"Co więcej, Nuance Vocalizer dla NVDA jest w najniższej możliwej cenie, aby "
+"pozwolić tak wielu osobom jak to tylko możliwe na posiadanie w NVDA "
+"syntezatora mowy o jakości komercyjnej.\n"
+"Proszę pomyśleć o tym dwa razy.\n"
+"Możesz usunąć tę nieprawidłową licencję używając menu opcji Vocalizer "
+"Expressive ."
+
+msgid "Vocalizer License is Invalid."
+msgstr "Licencja Vocalizer jest nieprawidłowa."
+
+msgid ""
+"You have no Vocalizer voices installed.\n"
+"You need at least one voice installed to use Vocalizer for NVDA.\n"
+"You can download all Vocalizer voices from the product web page.\n"
+"Do you want to open the vocalizer for NVDA voices download page now?"
+msgstr ""
+"Nie masz zainstalowanych żadnych głosów Vocalizer.\n"
+"Musisz mieć  zainstalowany przynajmniej jeden głos, aby używać Vocalizer dla "
+"NVDA.\n"
+"Możesz pobrać wszystkie głosy Vocalizer ze strony domowej produktu.\n"
+"Czy chcesz teraz otworzyć stronę pobierania głosów vocalizer dla NVDA?"
+
+msgid "No voices installed."
+msgstr "Brak zainstalowanych głosów."
+
+msgid "Vocalizer Automatic Language Switching Settings"
+msgstr "Ustawienia automatycznej zmiany języka Vocalizer"
+
+msgid "Select a locale, and then configure the voice to be used:"
+msgstr "Wybierz region, a następnie ustaw używany głos:"
+
+msgid "Locale Name:"
+msgstr "Nazwa regionu:"
+
+msgid "Voice Name:"
+msgstr "Nazwa głosu"
+
+#. Translators: Wether to use or not unicode characters based language detection.
+msgid "Detect text language based on unicode characters (experimental)"
+msgstr "Wykryj język tekstu w oparciu o znaki Unicode (eksperymentalne)"
+
+#. Translators: Either to ignore or not ASCII punctuation and numbers when language detection is active
+msgid ""
+"Ignore numbers and common punctuation when detecting text language "
+"(experimental)"
+msgstr ""
+"Ignoruj liczby i wspólną interpunkcję podczas wykrywania języka tekstu "
+"(eksperymentalne)"
+
+#. Translators: Option to set what language to assume for latin characters, in language detection
+msgid "Language assumed for latin characters:"
+msgstr "Język dla znaków łacińskich:"
+
+#. Translators: Title of the dialog that prompts for vocalizer credentials.
+msgid "Enter your Vocalizer Credentials"
+msgstr "Wprowadź swoje poświadczenia Vocalizer"
+
+#. Translators: This is the email Address people use to identify on Vocalizer licenses.
+msgid "Email Address:"
+msgstr "Adres email:"
+
+#. Translators: This is the password people use to identify on Vocalizer licenses.
+msgid "Password:"
+msgstr "Hasło:"
+
+#. Translators: check box to prompt the user wether to store or not the password on this computer, when NVDA is installed.
+msgid "Store password on this computer (your password will be encrypted)"
+msgstr "Przechowuj hasło na tym komputerze (zostanie zaszyfrowane)"
+
+#. Translators: Store password on Portable configuration of NVDA
+msgid ""
+"Store Credentials in portable NVDA configuration (your password will be "
+"stored in clear text)"
+msgstr ""
+"Przechowaj poświadczenia w konfiguracji przenośnej kopii NVDA (twoje hasło "
+"zostanie zapisane czystym tekstem)"
+
+msgid "You must enter both email and password values."
+msgstr "Musisz wprowadzić e-mail oraz hasło."
+
+#, python-brace-format
+msgid "Error verifying credentials: {error}"
+msgstr "Błąd sprawdzania poświadczeń: {error}"
+
+msgid "Verifying credentials."
+msgstr "Sprawdzanie poświadczeń."
+
+msgid "Please wait while your credentials are being verified..."
+msgstr "Proszę czekać, trwa sprawdzanie poświadczeń..."
+
+#, python-brace-format
+msgid "Unknown HTTP error: {code}."
+msgstr "Nieznany błąd HTTP: {code}."
+
+msgid "Wrong email or password."
+msgstr "Nieprawidłowy email lub hasło."
+
+msgid "No account was found with given email address."
+msgstr "Brak konta o podanym adresie e-mail."
+
+msgid "Access is not allowed."
+msgstr "Dostęp niedozwolony."
+
+msgid ""
+"Can not connect to Vocalizer for NVDA server. Please check if your internet "
+"connection is working."
+msgstr ""
+"Nie można połączyć z serwerem Vocalizer dla NVDA. Proszę sprawdzić, czy "
+"twoje połączenie internetowe działa."
+
+msgid "Your credentials were verified successfully. Press OK to continue."
+msgstr ""
+"Twoje poświadczenia zostały pozytywnie zweryfikowane. Naciśnij OK by "
+"kontynuować."
+
+msgid "Success"
+msgstr "Sukces"
+
+#. Add-on description
+#. TRANSLATORS: Summary for this add-on to be shown on installation and add-on informaiton.
+msgid "Vocalizer Expressive 1.1 Driver"
+msgstr "Sterownik Vocalizer Expressive 1.1"
+
+#. Add-on description
+#. Translators: Long description to be shown for this add-on on installation and add-on information
+msgid ""
+" Driver and interfaces for Nuance Vocalizer\n"
+" expressive version 1.1."
+msgstr ""
+" Sterownik i interfejsy dla Nuance Vocalizer\n"
+" expressive wersja 1.1."

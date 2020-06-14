@@ -1,0 +1,632 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Vocalizer translation\n"
+"Report-Msgid-Bugs-To: nvda-translations@freelists.org\n"
+"POT-Creation-Date: 2014-12-14 13:05+0000\n"
+"PO-Revision-Date: \n"
+"Last-Translator: Him Prasad Gautam <drishtibachak@gmail.com>\n"
+"Language-Team: Him Prasad Gautam\n"
+"Language: ne\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 1.6.1\n"
+
+#, python-brace-format
+msgid ""
+"\n"
+"URL: {url}\n"
+"\n"
+"This product is composed of two independent components:\n"
+"- Nuance Vocalizer Expressive speech synthesizer.\n"
+"- NVDA speech driver and interface for Nuance Vocalizer.\n"
+"Licenses and conditions for these components are as follows:\n"
+"\n"
+"Nuance Vocalizer Expressive speech synthesizer:\n"
+"\n"
+"Copyright (C) 2013 Nuance Communications, Inc. All rights reserved.\n"
+"\n"
+"Synthesizer Version: {synthVersion}\n"
+"This copy of the Nuance Vocalizer synthesizer is licensed to be used "
+"exclusively with the NVDA screen reader (Non Visual Desktop Access).\n"
+"\n"
+"License management components are property of Tiflotecnia, LDA.\n"
+"Copyright (C) 2012, 2013 Tiflotecnia, LDA. All rights reserved.\n"
+"\n"
+"---\n"
+"\n"
+"NVDA speech driver and interface for Nuance Vocalizer Expressive:\n"
+"\n"
+"Copyright (C) 2012, 2013 Tiflotecnia, LDA.\n"
+"Copyright (C) 2012, 2013 Rui Batista.\n"
+"\n"
+"Version: {driverVersion}\n"
+"\n"
+"NVDA speech driver and interface for Nuance Vocalizer is covered by the GNU "
+"General Public License (Version 2). You are free to share or change this "
+"software in any way you like as long as it is accompanied by the license and "
+"you make all source code available to anyone who wants it. This applies to "
+"both original and modified copies of this software, plus any derivative "
+"works.\n"
+"For further details, you can view the license from the NVDA Help menu.\n"
+"It can also be viewed online at: http://www.gnu.org/licenses/old-licenses/"
+"gpl-2.0.html\n"
+"\n"
+"This component was developed by Tiflotecnia, LDA and Rui Batista, with "
+"contributions from many others. Special thanks goes to:\n"
+"{contributors}\n"
+msgstr ""
+"\n"
+"URL: {url}\n"
+"\n"
+"यो उत्पादन दुई वटा सहकर्मीहरू द्वारा  बनेको छ ।:\n"
+"- न्युवान्स भोकलाइजर गतिशिल वाचन शंस्लेषक\n"
+"- न्युवान्स भोकलाइजरका लागि नेत्रवाणी चालक र अन्तराकृति \n"
+"यी सहकर्मीहरू सम्बन्धी इजाजत र शर्तहरू निम्नानुसार छन्:\n"
+"\n"
+"न्युवान्स भोकलाइजर गतिशिल वाचन शंस्लेषक:\n"
+"\n"
+"प्रतिलिपी अधिकार(C) 2013 Nuance Communications, Inc. सर्वाधिकार सुरक्षित ।\n"
+"\n"
+"शंस्लेषक संस्करण: {synthVersion}\n"
+"न्युवान्स भोकलाईजर शंस्लेषकको यो प्रति नेत्रवाणी (न देख्नेहरूको डेस्कटपमा पहुँच-NVDA) मा मात्रै "
+"प्रयोग गर्ने अनुमति दिईएको छ ।\n"
+"\n"
+"इजाजत व्यबस्थापन Tiflotecnia, LDA का सम्पति हुन् ।\n"
+"प्रतिलिपी अधिकार (C) 2012, 2013 Tiflotecnia, LDA. सर्वाधिकार सुरक्षित ।\n"
+"\n"
+"---\n"
+"\n"
+"न्युवान्स भोकलाइजरका लागि नेत्रवाणी चालक र अन्तराकृति :\n"
+"\n"
+"प्रतिलिपी अधिकार  (C) 2012, 2013 Tiflotecnia, LDA.\n"
+"प्रतिलिपी अधिकार (C) 2012, 2013 Rui Batista.\n"
+"\n"
+"संस्करण: {driverVersion}\n"
+"\n"
+"न्युवान्स भोकलाइजरका लागि नेत्रवाणी चालक र अन्तराकृति  सामान्य सार्वजनिक इजाजत (संस्करण "
+"२) मातहतमा पर्दछ । तपाइ यही इजाजतका सर्तहरू लागू हुने र चाहना गर्ने लाई उपलब्ध हुने गरी "
+"सबै श्रोत कोड खुल्ला राखेर यो यन्त्रप्राणलाई आफूले चाहे अनुसार हेरफेर वा बाँड्चुड गर्न स्वतन्त्र "
+"हुनु हुन्छ । यो नियम यस यन्त्र प्राणको सुरुको वा परिवर्तित दुबै प्रतिमा एवम् यसका कुनै पनि "
+"सह-उत्पादनमा उतिकै रूपमा लागू हुन्छ । \n"
+"विस्तृत जानकारीका लागि नेत्रवाणीको सहयोग मेनु मार्फत इजाजत सम्बन्धी पाठ हेर्नु होला । \n"
+"यसलाई अनलाईन ठेगाना: http://www.gnu.org/licenses/old-licenses/gpl-2.0.html मा "
+"पनि हेर्न सकिन्छ ।\n"
+"\n"
+"यो सहकर्मी Tiflotecnia, LDA र Rui Batista ले अरू योगदानकर्ताहरूको सहयोगमा विकास "
+"गरेको हो ।\n"
+" विशेष धन्यवादका पात्रहरू :\n"
+"{contributors}\n"
+
+#. Translators :message that is presented to the user on renewal slcense error.
+msgid ""
+"Your license can not be verified. Please check the following:\n"
+"1. Your credentials (email and password) are correct (you can change them "
+"under the vocalizer expressive menu)\n"
+"2. You are not using someone else's activation or you are not using the same "
+"activation in different computers at the same time. This is not legal, and "
+"is against license terms.\n"
+"3. You are having internet problems.\n"
+"\n"
+"For further clarification, please contact tiflotecnia, Lda, or your local "
+"dealer."
+msgstr ""
+"तपाइको इजाजत अनुमोदन गर्न सकिदैन । कृपया निम्न कुराहरू जाच्नु होस्:\n"
+"१. तपाइको ओहदा (इमेलर गोप्यशब्द) सही छन कि छैनन् (भोकलाइजर मेनुबाट यीनिहरूलाई मिलाउन "
+"सकिन्छ)\n"
+"२. कतै तपाइले अरू कसैको सक्रियताको प्रयोग त गर्नु भएको छैन? तपाइले भिन्दा भिन्दै "
+"कल्पयन्त्रमा एक पटकमा एउटै सक्रियताको प्रयोग पो गर्नु भयो कि? यस्तो कार्य कानुन सम्मत छैन "
+"र यस्तो कृयाकलाप इजाजतका शर्तहरू बिपरित छ ।\n"
+"३. तपाइको अन्तरसञ्जालमा त्रूटि छ कि।\n"
+"\n"
+"विस्तृत जानकारीका लागि, कृपया tiflotecnia, Lda, अथवा आफ्नो स्थानीय वितरकसित सम्पर्क "
+"राख्नु होला ।"
+
+#. Translators: Vocalizer for NVDA error dialog title.
+msgid "Vocalizer for NvDA Error"
+msgstr "नेत्रवाणीका लागि भोकलाईजरको त्रूटि"
+
+#. Translators: Message telling the user his credentials are not set.
+msgid ""
+"Your Vocalizer for NVDA credentials are not set for this computer.\n"
+"You will need to set them to use vocalizer for NVDA for long time periods, "
+"so your license can be properly verified."
+msgstr ""
+"तपाइको  यो कल्पयन्त्रमा नेत्रवाणीका लागि निर्मित भोकलाइजर अनुकूलित गरिएको छैन ।\n"
+"तपाइले नेत्रवाणीका लागि निर्मित भोकलाइजरलामो अवधि सम्म प्रयोग गर्न र इजाजतको "
+"निरीक्षण गर्न यसलाइ अनुकूलित गर्नै पर्छ ।  "
+
+msgid "Vocalizer for NVDA warning"
+msgstr "नेत्रवाणीका लागि भोकलाईजरको चेतावनी"
+
+msgid "Automatic &Language Switching Settings"
+msgstr "&भाषाको स्वचालित परिवर्तन"
+
+msgid "Configure which voice is to be used for each language."
+msgstr "प्रत्येक भाषामा कुन छाही आवाज चलाउने हो सो को अभियोजन गर्नु होस् ।"
+
+#. Translators: Menu Item to enter Vocalizer license credentials and activate a license.
+msgid "Activate License"
+msgstr "इजाजतलाई सक्रिय बनाउ ।"
+
+#. Translators: Hint for the activation license menu
+msgid "Enter license credentials and activate for this computer."
+msgstr "यो कल्पयन्त्रमा इजाजत ओहदा प्रविष्टी गरी सक्रिय गर्नु होस् ।"
+
+#. Translators: Menu item to open a dialog with vocalizer license information
+msgid "View License Information"
+msgstr "इजाजत सम्बन्धी जानकारी हेर्नु होस् ।"
+
+#. Translators: Hint for the license information menu item.
+msgid "Check information about your Vocalizer license."
+msgstr "तपाइको भोकलाइजर इजाजत सम्बन्धी जानकारी जाँच गर्नु होस् ।"
+
+#. Translators: Check activation count menu option
+msgid "Check activation count"
+msgstr "सक्रिय गणनाको जाँच गर"
+
+#. Translators: Check activation count menu option tooltip.
+msgid "Allows you to check your Vocalizer for NVDA activation count."
+msgstr "तपाइलाइ  नेत्रवाणीका लागि भोकलाइजर सक्रियता गणनागर्न अनुमति दिनेछ ।"
+
+#. Translators: Delete Activation menu option
+msgid "Delete Activation"
+msgstr "सक्रियता मेटाउ ।"
+
+#. Translators: Tooltip for deleting activation.
+msgid "Deletes the vocalizer for NVDA activation. Can not be reverted."
+msgstr "नेत्रवाणीका लागि भोकलाइजर सक्रियता मेट्नु होस् । यसलाई फेरी उल्टाउन सकिदैन ।"
+
+#. Translators: Register license menu option
+msgid "Register this license."
+msgstr "यो इजाजतलाइ दर्ता गर ।"
+
+#. Translators: Tooltip for register license menu item.
+msgid "Register this license with a vocalizer for NVDA account."
+msgstr "यो इजाजतलाइ नेत्रवाणी भोकलाइजर खातामा दर्ता गर्नु होस् ।"
+
+#. Translators: Submenu with license related options
+msgid "License Options"
+msgstr "इजाजत विकल्पहरू"
+
+#. Translators: Change credentials menu item
+msgid "Change account credentials"
+msgstr "खाता ओहदा परिवर्तन गर ।"
+
+#. Translators: Tooltip for change credentials option.
+msgid ""
+"Allows setting of email and password that are used to access the Vocalizer "
+"licenses service."
+msgstr ""
+"भोकलाइजर इजाजत सेवाको पहुँचका लागि प्रयोग गरिने इमेल र गोप्यशब्दको अनुकूलित गर्ने अनुमति "
+"प्रदान गर्ने छ ।"
+
+#. Translators: Menu item to Activate license on running portable copy.
+msgid "Activate on portable copy"
+msgstr "फिरन्ते प्रतिमा सक्रिय बनाउ ।"
+
+#. Translators: Help for activate on portable copy menu item.
+msgid ""
+"Activates a vocalizer for NVDA license on running portable copy, if an "
+"activation is already present on the computer"
+msgstr ""
+"यदि प्रयोग गरिएको कल्पयन्त्रमा सक्रिय छ भने, सञ्चालित  नेत्रवाणीको फिरन्ते प्रतिमा "
+"भोकलाइजर इजाजत सक्रिय बनाउँछ, "
+
+msgid "Download More Voices"
+msgstr "थप अरू आवाजहरू डाउनलोड गर्नु होस् ।"
+
+msgid "Open the vocalizer voices download page."
+msgstr "भोकलाईजर आवाज डाउनलोड पृष्टलाई खोल्नु होस् ।"
+
+msgid "About Nuance Vocalizer for NVDA"
+msgstr "नेत्रवाणीका लागि उपलब्ध  Nuance Vocalizer को बारेमा । "
+
+msgid "Vocalizer Expressive"
+msgstr "गतिसिल भोकलाइजर "
+
+#. Translators: Message asking the user if he wants to activate a license on the running portable copy
+msgid ""
+"Are you sure you want to activate your license on the running portable "
+"copy?\n"
+"Only do this if you are preparing a portable NVDA on a computer where\n"
+"a Vocalizer for NVDA license is present."
+msgstr ""
+"के तपाइ नेत्रवाणीको सञ्चालित फिरन्ते प्रतिमा आफ्नो इजाजत सक्रिय गर्ने कुराम पक्का हुनु हुन्छ "
+"। ?\n"
+"यदि कल्पयन्त्रमा नेत्रवाणीका लागि भोकलाइजर इजाजत उपलब्ध छ भने  फिरन्ते नेत्रवाणी प्रयोग "
+"गरिने \n"
+"मात्र ।"
+
+#. Translators: title for delete activation dialog
+msgid "Are you sure?"
+msgstr "के तपाइ पक्का हुनु हुन्छ?"
+
+#. Translators: message telling the user he has no activations left.
+msgid ""
+"You have no activations left for your license. Please contact Tiflotecnia, "
+"lda, or your local distributor of Vocalizer for NVDA."
+msgstr ""
+"तपाइको इजाजत सक्रियता अब बांकि छैन । कृपया Tiflotecnia, lda, अथवा नेत्रवाणीका लागि "
+"भोकलाइजरको स्थानीय वितरक सित सम्पर्क गर्नु होला ।"
+
+#. Translators: Title for the activation error message box.
+msgid "Activation Error"
+msgstr "सक्रियता त्रुटी"
+
+#. Translators: Message telling the user its current license count and information, and asking if he wants to activate his license on this NVDA copy
+#, python-brace-format
+msgid ""
+"{name}, you currently have {remainingLicenses} activations left.\n"
+"Do you want to activate Nuance Vocalizer for NVDA on this installation?\n"
+"If you do so, your activation count will be decreased by one."
+msgstr ""
+"{name}, तपाइ सित {remainingLicenses} सक्रियता बाकि छ ।\n"
+"के तपाइ यो नेत्रवाणी स्थापनामा न्युवान्स भोकलाईजर सक्रिय गराउन चाहानु हुन्छ ?\n"
+"यदि यसो गर्नु भयो भने, तपाइको सक्रियताको गणना १ अङ्कले घट्ने छ ।"
+
+#. Translators: Title for the activation dialog.
+msgid "Nuance Vocalizer Activation"
+msgstr "न्युवान्स भोकलाइजरको सक्रियता ।"
+
+#. Translators: Message telling the user activation was sucessful
+msgid ""
+"Your license is now enabled.\n"
+"NVDA will now be restarted.\n"
+"Thank you for using Vocalizer for NVDA."
+msgstr ""
+"तपाइको इजाजत अब योग्य बनाइयो ।\n"
+"नेत्रवाणी अब पुनः आरम्भ हुनेछ ।\n"
+"नेत्रवाणीका लागी निर्मित भोकलाइजर प्रयोग गर्नु भएकोमा धन्यवाद ।."
+
+#. Translators: Successfull activation dialog title.
+msgid "Success!"
+msgstr "सफल"
+
+#. Translators: Title of the dialog telling the user to wait for communication with vocalizer server.
+msgid "Talking with Vocalizer for NVDA server."
+msgstr "नेत्रवाणी भोकलाइजर सर्वर सित वार्तालाप हुँदैछ ।."
+
+#. Translators: Message telling the user to waith for the communication to server to happen.
+msgid ""
+"Please wait while the communication with Vocalizer for NVDA server is "
+"performed."
+msgstr "कृपया नेत्रवाणी भोकलाइजर सर्वरमा कार्य सम्पादन न सकिए सम्म पर्खनु होस् ।"
+
+#. Translators: Information about vocalizer license:
+#, python-brace-format
+msgid ""
+"User Name:\t{userName}\n"
+"Email:\t{email}\n"
+"Distributor:\t{distributor}\n"
+"Activation Number:\t{number}\n"
+msgstr ""
+"उपभोक्ता नाम:\t{userName}\n"
+"इमेल:\t{email}\n"
+"वितरक:\t{distributor}\n"
+"सक्रियता सङ्ख्या:\t{number}\n"
+
+#. Translators: License information dialog title.
+msgid "License Information"
+msgstr "इजाजत सम्बन्धी जानकारी"
+
+#. Translators: General error information title.
+msgid "error"
+msgstr "त्रुटी"
+
+#. Translators: Error message telling the user that credentials are wrong.
+msgid "Yourr email or password is incorrect. Please set your credentials."
+msgstr "तपाइको इमेल वा गोप्यशब्द त्रूटी पूर्ण छ । कृपया तपाइको ओहदा अनुकूलित गर्नु होस् ।"
+
+#. Translators: Error message telling the user the requested license was not found
+msgid ""
+"License not found. Please check you have a vocalizer for NVDA license "
+"enabled."
+msgstr ""
+"इजाजत फेला परेन । नेत्रवाणीका लागि भोकलाईजर इजाजत सक्षम बनाएको यकिन गर्नु होस् ।"
+
+#. Translators: general error message
+#, python-brace-format
+msgid ""
+"Unknown error occured.\n"
+"Details: {error}"
+msgstr ""
+"अज्ञात त्रूटी भयो ।\n"
+"विवरण: {error}"
+
+#. Translators: Message telling the user he has to set is credentials to remove the license
+msgid ""
+"You must set your vocalizer expressive account credentials before removing "
+"the license.\n"
+"Do you want to set them now?"
+msgstr ""
+"इजाजतलाइ हटाउनु पुर्व तपाइले आफ्नो गतिसिल भोकलाइजर ओहदा खातालाई अनुकूलन गर्नु पर्छ ।\n"
+"के तपाइ अहिले नै यसलाई अनुकूलन गर्न चाहनु हुन्छ?"
+
+#. Translators: Error
+msgid "Error"
+msgstr "त्रुटी"
+
+#. Translators: Message warning the user that removing an activation can not be reverted.
+msgid ""
+"Are you sure you want to delete this Nuance Vocalizer for NVDA activation?\n"
+"This action can not be reverted.\n"
+msgstr ""
+"के तपाइ यो नेत्रवाणीका लागि न्युवान्स भोकलाइजरको सक्रियता मेटाउन चाहनु हुन्छ?\n"
+"यो कार्यलाई फेरि उल्टाउन सकिँदैन ।\n"
+
+#. Translators: Message confirming successfull activation removal.
+#, python-brace-format
+msgid ""
+"{name}, Your activation was deleted.\n"
+"You have {remainingLicenses} activations left.\n"
+"NVDA will now be restarted."
+msgstr ""
+"{name}, तपाइको सक्रियता मेटिए को रहेछ । \n"
+"तपाइ सित {remainingLicenses} सक्रियता बाँकि छ ।\n"
+"नेत्रवाणी अब पुनः आरम्भ हुनेछ ।"
+
+#. Translators: Title of successful activation removal dialog
+msgid "Activation Deleted."
+msgstr "सक्रियता मेटियो ।"
+
+#. Translators: Message telling the user that he must register on the vocalizer web site first
+msgid ""
+"To register your license you must create an account on the vocalizer web "
+"site.If you already have an account you may just continue.~\n"
+"Do you want to create an account now?"
+msgstr ""
+"तपाइको इजाजत दर्ता गर्न तपाइले भोकलाइजर वेभ साइटमा आफ्नो खाता खोल्नु पर्छ ।यदि पहिले "
+"नै खोलि सकेको भए यसलाई निरन्तरता पनि दिन सकिन्छ ।~\n"
+"के तपाइ अहिले नै नयाँ खाता खोल्न चाहनु हुन्छ?"
+
+#. Translators: Title of register dialog message
+msgid "Vocalizer account needed"
+msgstr "भोकलाइजर खाता आवश्यक छ ।"
+
+#. Translators: Error message in registering license.
+msgid ""
+"There was an error registering your license.Please contact your distributor "
+"for help. The log file may contain further information."
+msgstr ""
+"तपाइको इजाजत दर्ता गल्ति भएको पाइयो ।सहयोगका निमित आफ्नो वितरक सित सम्पर्क गर्नु "
+"होला ।The log file may contain further information."
+
+#. Translators: Register error message title
+msgid "Error registering license."
+msgstr "इजाजत दर्ता त्रूटी ।"
+
+#. Translators: Message telling the user registration was successful.
+msgid "Registration was successful. NVDA will now be restarted."
+msgstr "दर्ता सम्पन्न भयो । नेत्रवाणी अब पुनः आरम्भ हुनेछ ।"
+
+#. Translators: Title of successful registration message dialog
+msgid "Registration Successful."
+msgstr "दर्ता सफल भयो ।"
+
+#. Translators: Message telling the user he must set his credentials to see his activation count.
+msgid ""
+"You must set your Vocalizer for NVDA credentials before checking your "
+"activation count."
+msgstr ""
+"सक्रियता गणना गर्नु पुर्व तपाइले नेत्रवाणीका लागि निर्मित भोकलाइजर ओहदा अनुकूलन गर्नु पर्छ "
+"।"
+
+#. Translators: Title of dialog informing the user he must set is credentials.
+msgid "No credentials set"
+msgstr "कुनै ओहदा तय गरिएको छैन ।"
+
+#. Translators : Message reporting to the user his activation count.
+#, python-brace-format
+msgid "{name}, you have {remainingLicenses} activations left."
+msgstr "{name}, तपाइ सित {remainingLicenses} सक्रियता बांकि छ ।"
+
+#. Translators: Activation count dialog title.
+msgid "Activation Count"
+msgstr "सक्रियताको गणना"
+
+msgid "About Nuance Vocalizer Expressive for NVDA"
+msgstr "नेत्रवाणीका लागि न्युवान्स भोकलाइजर गतिसिल वाचनको बारेमा"
+
+#. Translators: Message telling the user that demo license as expired.
+#, python-brace-format
+msgid ""
+"The Nuance Vocalizer for NVDA demonstration license has expired.\n"
+"To purchase a  license for Nuance Vocalizer for NVDA, please visit {url}, or "
+"contact an authorized distributor.\n"
+"Note that a percentage of the license's price is donated to NV Access, ltd, "
+"to help continuing the development of the NVDA screen reader."
+msgstr ""
+"नेत्रवाणीका लागि न्युवान्स भोकलाईजर परिक्षण इजाजत म्याद समाप्त भयो ।\n"
+"To purchase a  license for Nuance Vocalizer for NVDA, please visit {url}, or "
+"contact an authorized distributor.\n"
+"Note that a percentage of the license's price is donated to NV Access, ltd, "
+"to help continuing the development of the NVDA screen reader."
+
+msgid "Vocalizer Demo Expired"
+msgstr "भोकलाइजर प्रदर्शनको म्याद समाप्त भयो ।"
+
+#. Translators: Message telling the user that he is running a demo license.
+#, python-brace-format
+msgid ""
+"You are running a demo version of Nuance Vocalizer expressive for NVDA.\n"
+"This demo will expire on {date}. To use the syntheciser after that,\n"
+"You must buy a license. You can do so at any time by visiting {url} or by "
+"contacting a local distributor.\n"
+"Thanks for testing Nuance Vocalizer expressive for NVDA."
+msgstr ""
+"तपाइ नेत्रवाणीका लागि निर्मित न्युवान्स भोकलाइजर गतिसिल परीक्षण प्रति चलाउँदै हुनु हुन्छ\n"
+"यो परीक्षण प्रति {date}. मा समाप्त हुनेछ । यो संश्लेषकलाई यस पछी प्रयोग गर्न ,\n"
+"तपाइ सित इजाजत हुनै पर्छ ।तपाइले यो कार्य कुनै पनि बेला {url} मा भ्रमण गर्न अथवा कुनै "
+"स्थानीय वितरक सित सम्पर्क गर्न सक्नु हुन्छ ।\n"
+"नेत्रवाणीका लागि निर्मित न्युवान्स भोकलाइजरको परीक्षण गर्नु भएकोमातपाइलाई धन्यवाद छ ।"
+
+#. Translators: Title of vocalizer demo version dialog.
+msgid "Vocalizer Demo Version"
+msgstr "भोकलाईजरपदर्शन संस्करण"
+
+msgid ""
+"The Vocalizer license you are trying to use is invalid.\n"
+"This might be happening due to one of two reasons:\n"
+"1. The activation file is damaged.\n"
+"2. The license was disabled for security reasons, due to illegal use or its "
+"data beeing compromized.\n"
+"If you own a license for Nuance Vocalizer for NVDA, please contact "
+"Tiflotecnia, lda. or your local distributor, so the problem can be further "
+"investigated.\n"
+"If this Nuance Vocalizer for NVDA license activation doesn't belong to you, "
+"please reframe from using this product.\n"
+"Unauthorized use of this product (i.g. without a valid license) is not "
+"allowed by most international laws on software rights.\n"
+"Please note that a proportion of the price of Nuance Vocalizer for NVDA is "
+"donated for continuing NVDA's development.\n"
+"By sharing license activations you are working against NVDA and good and "
+"cheap accessibility for the blind across the world.\n"
+"Further more, Nuance Vocalizer for NVDA is priced at the lowest value "
+"possible, to allow as many people as possible to have a comercial quality "
+"syntheciser in NVDA.\n"
+"Please think twice about it.\n"
+"You can remove this invalid license using  the Vocalizer Expressive menu "
+"options."
+msgstr ""
+"तपाइले प्रयोग गर्न चाहनु भएको भोकलाइजरको इजाजत अवैध छ ।\n"
+"यो निम्न दुईवटा कारणले भएको हुन सक्छ ।:\n"
+"१. सक्रियता फाइल भ्रष्ट भएको हुन सक्छ ।\n"
+"२. सुरक्षाको कारणले इजाजतलाई अयोग्य बनाइएको, अवैध प्रयोग वा त्थ्याङ्कको मेलमिलाप पनि "
+"हुन सक्छ\n"
+"यदि तपाइ सित नेत्रवाणिका लागि न्युवान्स भोकलाइजरको इजाजत  छ भने , कृपया "
+"Tiflotecnia, lda अथवा तपाइको स्थानीय वितरकलाई सम्पर्क गर्नु होला ता कि तपाइको "
+"समस्याको बारेमा खोजतलास गर्न सकियोस् ।\n"
+"यदि यो नेत्रवाणीका लागि न्युवान्स भोकलाइजरको इजाजत तपाइलाई प्रदान  गरिएको होइन भने, "
+"यो उत्पादनको प्रयोग न गर्नु होला । \n"
+"यो उत्पादनको अवैध (वैध इजाजत बिना) प्रयोगलाई प्रमुख अन्तराष्ट्रिय सफ्टवेयर अधिकार कानुनले "
+"गैह्र कानुनी ठहर्‍याएको छ ।\n"
+"कृपया ध्यानमा राखौं कि नेत्रवाणीका लागि न्युवान्स भोकलाइजर विक्रीको केही हिस्सा "
+"नेत्रवाणीको विकासको लागि प्रदान गरिन्छ ।\n"
+"इजाजत सक्रियतालाई अरू सित  बाँडचुड गरेर तपाइ  नेत्रवाणी र विश्व भरीका दृश्यहिन व्यक्तिका "
+"लागि असल र सस्तो पहुँच  पद्धतिको विरूद्धमा काम गर्दै हुनु हुन्छ ।\n"
+"यसका अतिरिक्त, नेत्रवाणीका लागि न्युवान्स भोकलाइजर धेरै भन्दा धेरै व्यक्तिलाई व्यबसायीक "
+"गुणस्तरकै संश्लेषक उपलब्ध होस् भनेर घटाउन सकिने सम्मको सस्तो मूल्यमा  वितरण गरिएको छ ।\n"
+"कृपया यसलाई दुई पटक मनन गर्नु होला ।\n"
+"तपाइ यो अवैध इजाजतलाई भोकलाइजर गतिसिल मेनु विकल्प मार्फत हटाउन सक्नु हुन्छ ।"
+
+msgid "Vocalizer License is Invalid."
+msgstr "भोकलाईजर इजाजत अवैध छ।"
+
+msgid ""
+"You have no Vocalizer voices installed.\n"
+"You need at least one voice installed to use Vocalizer for NVDA.\n"
+"You can download all Vocalizer voices from the product web page.\n"
+"Do you want to open the vocalizer for NVDA voices download page now?"
+msgstr ""
+"तपाइको कल्पयन्त्रमा कुनै पनि भोकलाइजर आवाज स्थापना गरिएको छैन ।\n"
+"कम्तिमा पनि नेत्रवाणीका लागि निर्मित एउटा भोकलाइजर स्थापना गरिएको हुनु पर्छ ।\n"
+"तपाइ सबै खाले भोकलाइजर आवाजहरू यसका उत्पादकको वेभ ठेगानाबाट डााउनलोड गर्नु सक्नु हुन्छ "
+"।\n"
+"के तपाइ नेत्रवाणीका लागि निर्मित भोकलाइजर डाउनलोड पृष्ठ अहिले नै  पल्टाउन चाहनु हुन्छ?"
+
+msgid "No voices installed."
+msgstr "कुनै आवाज भित्र्याइएको छैन ।"
+
+msgid "Vocalizer Automatic Language Switching Settings"
+msgstr "भोकलाइजरभाषाको अनुकूलताको स्वचालित परिवर्तन "
+
+msgid "Select a locale, and then configure the voice to be used:"
+msgstr "आफ्नो भाषा छान्नु होस् र , प्रयोग गरिने आवाजको अनुयोजन गर्नु होस् ।"
+
+msgid "Locale Name:"
+msgstr "स्थानीय नाम"
+
+msgid "Voice Name:"
+msgstr "आवाजको नाम:"
+
+#. Translators: Wether to use or not unicode characters based language detection.
+msgid "Detect text language based on unicode characters (experimental)"
+msgstr "बहु संहीता पाठका आधारमा भाषाको पहिचान गर ।(परीक्षण)"
+
+#. Translators: Either to ignore or not ASCII punctuation and numbers when language detection is active
+msgid ""
+"Ignore numbers and common punctuation when detecting text language "
+"(experimental)"
+msgstr "पाठ भाषाको पहिचानमा सङ्ख्या र साझा चिन्हलाई वेवास्ता गर (परीक्षण)"
+
+#. Translators: Option to set what language to assume for latin characters, in language detection
+msgid "Language assumed for latin characters:"
+msgstr "लेटिन अक्षर युक्त भाषाको अनुमान"
+
+#. Translators: Title of the dialog that prompts for vocalizer credentials.
+msgid "Enter your Vocalizer Credentials"
+msgstr "तपाइको भोकलाइजर इजाजत प्रविष्टी गर्नु होस् ।"
+
+#. Translators: This is the email Address people use to identify on Vocalizer licenses.
+msgid "Email Address:"
+msgstr "इमेल ठेगाना"
+
+#. Translators: This is the password people use to identify on Vocalizer licenses.
+msgid "Password:"
+msgstr "गोप्यशब्द"
+
+#. Translators: check box to prompt the user wether to store or not the password on this computer, when NVDA is installed.
+msgid "Store password on this computer (your password will be encrypted)"
+msgstr "यो कल्पयन्त्रमा गोप्यशब्दलाई सञ्चित गर्नु होस् (तपाइको गोप्यशब्द पाल्सीकृत हुनेछ)"
+
+#. Translators: Store password on Portable configuration of NVDA
+msgid ""
+"Store Credentials in portable NVDA configuration (your password will be "
+"stored in clear text)"
+msgstr ""
+"फिरन्ते नेत्रवाणी अभियोजनमा  तपाइको ओहदा दर्ता गर्नु होस् (तपाइको गोप्यशब्द स्प्रष्ट "
+"पाठको रूपमा सञ्चित हुनेछ)"
+
+msgid "You must enter both email and password values."
+msgstr "तपाइले इमेल र गोप्यशब्द दुबै प्रविष्टी गर्नु पर्छ ।"
+
+#, python-brace-format
+msgid "Error verifying credentials: {error}"
+msgstr "ओहदा परीक्षण त्रूटी: {error}"
+
+msgid "Verifying credentials."
+msgstr "ओहदाको परीक्षण"
+
+msgid "Please wait while your credentials are being verified..."
+msgstr "कृपया तपाइको ओहदाको परीक्षण हुँदा सम्म धैर्य गर्नु होस् ।"
+
+#, python-brace-format
+msgid "Unknown HTTP error: {code}."
+msgstr "अज्ञात HTTP त्रूटी: {code}."
+
+msgid "Wrong email or password."
+msgstr "गल्ती इमेल वा गोप्यशब्द ।"
+
+msgid "No account was found with given email address."
+msgstr "दिईएको इमेल ठेगानाको कुनै खाता पाइएन ।"
+
+msgid "Access is not allowed."
+msgstr "पहुँच अनुमति छैन ।"
+
+msgid ""
+"Can not connect to Vocalizer for NVDA server. Please check if your internet "
+"connection is working."
+msgstr ""
+"नेत्रवाणीका लागि निर्मित भोकलाइजर सर्वरमा जडान गर्न सकिएन ।अन्तरजाल सञ्झ्यालमा जडान "
+"भए नभएको पक्का गर्नु होस् ।"
+
+msgid "Your credentials were verified successfully. Press OK to continue."
+msgstr "तपाइको ओहदा परिक्षण सफल भयो । निरन्तरता राख्न ठिक टाँकलाई दबाउनु होला ।"
+
+msgid "Success"
+msgstr "सफल"
+
+#. Add-on description
+#. TRANSLATORS: Summary for this add-on to be shown on installation and add-on informaiton.
+msgid "Vocalizer Expressive 1.1 Driver"
+msgstr "गतिसिल भोकलाइजर १.१ चालक"
+
+#. Add-on description
+#. Translators: Long description to be shown for this add-on on installation and add-on information
+msgid ""
+" Driver and interfaces for Nuance Vocalizer\n"
+" expressive version 1.1."
+msgstr ""
+"न्युवान्स भोकलाइजरका लागि चालक र अन्तराकृति \n"
+"गतिसिल संस्करण १.०."
