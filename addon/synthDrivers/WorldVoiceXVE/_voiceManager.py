@@ -148,7 +148,7 @@ class VoiceManager(object):
 		if voiceName in _config.vocalizerConfig['voices']:
 			variant = _config.vocalizerConfig['voices'][voiceName]['variant']
 			if variant is not None:
-				_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, variant)
+				_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_VOICE_MODEL, variant)
 
 			try:
 				speechrate = _config.vocalizerConfig['voices'][voiceName]['speechrate']
@@ -166,7 +166,7 @@ class VoiceManager(object):
 
 	def onVoiceUnload(self, voiceName, instance):
 		""" Saves variant to be restored for each voice."""
-		variant = _vocalizer.getParameter(instance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
+		variant = _vocalizer.getParameter(instance, _vocalizer.VE_PARAM_VOICE_MODEL, type_=str)
 
 		import math
 		speechrate = _vocalizer.getParameter(instance, _vocalizer.VE_PARAM_SPEECHRATE)

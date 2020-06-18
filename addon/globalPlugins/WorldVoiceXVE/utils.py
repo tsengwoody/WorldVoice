@@ -12,9 +12,9 @@ _opened = False
 class VocalizerOpened(object):
 	def __enter__(self):
 		global _opened, _reentrancy
-		from synthDrivers import MultipleWorldVoice
-		from synthDrivers.MultipleWorldVoice import _vocalizer
-		if speech.getSynth().name != MultipleWorldVoice.SynthDriver.name and _reentrancy == 0:
+		from synthDrivers import WorldVoiceXVE
+		from synthDrivers.WorldVoiceXVE import _vocalizer
+		if speech.getSynth().name != WorldVoiceXVE.SynthDriver.name and _reentrancy == 0:
 			try:
 				_vocalizer.initialize()
 				_opened = True
@@ -26,10 +26,10 @@ class VocalizerOpened(object):
 
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		global _opened, _reentrancy
-		from synthDrivers import MultipleWorldVoice
-		from synthDrivers.MultipleWorldVoice import _vocalizer
+		from synthDrivers import WorldVoiceXVE
+		from synthDrivers.WorldVoiceXVE import _vocalizer
 		_reentrancy -= 1
-		if speech.getSynth().name != MultipleWorldVoice.SynthDriver.name and _opened and _reentrancy == 0:
+		if speech.getSynth().name != WorldVoiceXVE.SynthDriver.name and _opened and _reentrancy == 0:
 			try:
 				_vocalizer.terminate()
 			except _vocalizer.VeError:

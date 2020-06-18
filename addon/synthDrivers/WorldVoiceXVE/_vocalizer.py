@@ -200,6 +200,7 @@ def initialize(indexCallback=None):
 	)
 
 
+
 def open(voice=None):
 	""" Opens and returns a TTS instance."""
 	global installResources
@@ -218,9 +219,7 @@ def open(voice=None):
 	(VE_PARAM_INITMODE, VE_INITMODE_LOAD_ONCE_OPEN_ALL),
 	(VE_PARAM_WAITFACTOR, 1),
 	(VE_PARAM_TEXTMODE, VE_TEXTMODE_STANDARD),
-	(VE_PARAM_TYPE_OF_CHAR, VE_TYPE_OF_CHAR_UTF16),
-	(VE_PARAM_READMODE, VE_READMODE_SENT),
-	(VE_PARAM_FREQUENCY, 22)])
+	(VE_PARAM_TYPE_OF_CHAR, VE_TYPE_OF_CHAR_UTF8)])
 
 	# Set callback
 	outDevInfo = VE_OUTDEVINFO()
@@ -277,22 +276,13 @@ def postTerminate():
 
 def processText2Speech(instance, text):
 	""" Sends text to be spoken."""
-	inText = VE_INTEXT()
-	inText.eTextFormat = 0 # this is the only supported format...
-	# Text length in bytes (utf16 has 2).
-	inText.cntTextLength = c_size_t(len(text) * 2)
-	inText.szInText = cast(c_wchar_p(text), c_void_p)
-	_execWhenDone(_processText2Speech, instance, inText, mustBeAsync=True)
-
-'''def processText2Speech(instance, text):
-	""" Sends text to be spoken."""
 	# encode text to UTF-8
 	text = text.encode("utf-8", errors="surrogatepass")
 	inText = VE_INTEXT()
 	inText.eTextFormat = VE_NORM_TEXT # this is the only supported format...
-	inText.ulTextLength = c_uint(len(text))
+	inText.cntTextLength = c_uint(len(text))
 	inText.szInText = cast(c_char_p(text), c_void_p)
-	_execWhenDone(_processText2Speech, instance, inText, mustBeAsync=True)'''
+	_execWhenDone(_processText2Speech, instance, inText, mustBeAsync=True)
 
 def _processText2Speech(instance, inText):
 	global speakingInstance, _numBytesPushed

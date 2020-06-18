@@ -13,12 +13,12 @@ import config
 import gui
 import languageHandler
 from logHandler import log
-from synthDrivers.MultipleWorldVoice import _config, storage
-from synthDrivers.MultipleWorldVoice._voiceManager import VoiceManager
-from synthDrivers.MultipleWorldVoice import languageDetection
+from synthDrivers.WorldVoiceXVE import _config, storage
+from synthDrivers.WorldVoiceXVE._voiceManager import VoiceManager
+from synthDrivers.WorldVoiceXVE import languageDetection
 from .utils import VocalizerOpened
 import speech
-from synthDrivers.MultipleWorldVoice import _vocalizer
+from synthDrivers.WorldVoiceXVE import _vocalizer
 
 class SpeechRateSettingsDialog(gui.SettingsDialog):
 	title = _("Speech Rate Settings")
@@ -35,10 +35,10 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 		super(SpeechRateSettingsDialog, self).__init__(parent)
 
 	def makeSettings(self, sizer):
-		synthInfo = _('Your current speech synthesizer is the %s. Please select the Multiple World-Voice as the speech synthesizer in the NVDA speech settings.')
+		synthInfo = _('Your current speech synthesizer is the %s. Please select the WorldVoiceXVE as the speech synthesizer in the NVDA speech settings.')
 		synthName = speech.getSynth().description
 		synthInfo = synthInfo.replace('%s', synthName)
-		if ('MultipleWorldVoice' not in speech.getSynth().name):
+		if ('WorldVoiceXVE' not in speech.getSynth().name):
 			infoLabel = wx.StaticText(self, label = synthInfo)
 			infoLabel.Wrap(self.GetSize()[0])
 			sizer.Add(infoLabel)
@@ -72,10 +72,10 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 		sizer.Add(speechRateSizer)
 
 	def postInit(self):
-		self._speechRateSlider.Disable()
-		if not ('Multiple World-Voice' not in speech.getSynth().name):
+		if 'WorldVoiceXVE' in speech.getSynth().name:
 			self._updateVoicesSelection()
 			self._localesChoice.SetFocus()
+			self._speechRateSlider.Disable()
 
 	def _updateVoicesSelection(self):
 		localeIndex = self._localesChoice.GetCurrentSelection()

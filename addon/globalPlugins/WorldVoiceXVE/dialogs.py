@@ -5,8 +5,8 @@ addonHandler.initTranslation()
 import gui
 import languageHandler
 from logHandler import log
-from synthDrivers.MultipleWorldVoice import _config, languageDetection
-from synthDrivers.MultipleWorldVoice._voiceManager import VoiceManager
+from synthDrivers.WorldVoiceXVE import _config, languageDetection
+from synthDrivers.WorldVoiceXVE._voiceManager import VoiceManager
 from .utils import VocalizerOpened
 
 class VocalizerLanguageSettingsDialog(gui.SettingsDialog):

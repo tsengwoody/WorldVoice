@@ -8,4 +8,4 @@ addon/doc/en/
 *.py[co]
 *.nvda-addon
 .sconsign.dblite
-addon/synthDrivers/MultipleWorldVoice/common/*
+addon/synthDrivers/WorldVoiceXVE/common/*

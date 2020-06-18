@@ -12,7 +12,7 @@ from configobj.validate import Validator
 import globalVars
 from logHandler import log
 
-VOCALIZER_CONFIG_FILENAME = "MultipleWorldVoice.ini"
+VOCALIZER_CONFIG_FILENAME = "WorldVoiceXVE.ini"
 
 vocalizerConfig = None
 

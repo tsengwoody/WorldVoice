@@ -1,4 +1,4 @@
-#vocalizer/__init__.py
+﻿#vocalizer/__init__.py
 #A part of the vocalizer driver for NVDA (Non Visual Desktop Access)
 #Copyright (C) 2012 Rui Batista <ruiandrebatista@gmail.com>
 #Copyright (C) 2012 Tiflotecnia, lda. <www.tiflotecnia.com>
@@ -25,6 +25,12 @@ from ._voiceManager import VoiceManager
 from . import languageDetection
 from . import _config
 
+import addonHandler
+addonHandler.initTranslation()
+
+import re
+import driverHandler
+
 driverVersion = addonHandler.getCodeAddon().manifest['version']
 synthVersion = "1.1.1" # It would be great if the synth reported that...
 
@@ -40,16 +46,61 @@ voiceOperatingPointNames = {"full_vssq5f22" : "Premium High",
 	"dri40_155mrf22" : "Standard",
 	"bet3" : "Compact"}
 
+number_pattern = re.compile(r"[0-9]+")
+chinese_space_pattern = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
+
+english_number = {
+	ord("0"): "zero",
+	ord("1"): "one",
+	ord("2"): "two",
+	ord("3"): "three",
+	ord("4"): "four",
+	ord("5"): "five",
+	ord("6"): "six",
+	ord("7"): "seven",
+	ord("8"): "eight",
+	ord("9"): "nine",
+}
+english_number = {key: " {} ".format(value) for key, value in english_number.items()}
+chinese_number = {
+	ord("0"): u"\u96f6",
+	ord("1"): u"\u4e00",
+	ord("2"): u"\u4e8c",
+	ord("3"): u"\u4e09",
+	ord("4"): u"\u56db",
+	ord("5"): u"\u4e94",
+	ord("6"): u"\u516d",
+	ord("7"): u"\u4e03",
+	ord("8"): u"\u516b",
+	ord("9"): u"\u4e5d"
+}
 
 class SynthDriver(BaseDriver):
-	name = "MultipleWorldVoice"
-	description = "Multiple World-Voice"
+	name = "WorldVoiceXVE"
+	description = "WorldVoiceXVE"
 	supportedSettings = [
 		BaseDriver.VoiceSetting(),
-		BaseDriver.VariantSetting(),
+		# BaseDriver.VariantSetting(),
 		BaseDriver.RateSetting(),
 		BaseDriver.PitchSetting(),
 		BaseDriver.VolumeSetting(),
+		driverHandler.DriverSetting(
+			"num",
+			# Translators: Label for a setting in voice settings dialog.
+			_("&Number Mode"),
+			availableInSettingsRing=True,
+			# Translators: Label for a setting in synth settings ring.
+			displayName=_("Number Mode"),
+		),
+		driverHandler.NumericDriverSetting(
+			"chinesespace",
+			# Translators: Label for a setting in voice settings dialog.
+			_("&Chinese Space Break"),
+			minStep=1,
+			availableInSettingsRing=True,
+			# Translators: Label for a setting in synth settings ring.
+			displayName=_("Chinese Space Break"),
+		),
 	]
 	supportedCommands = {
 		speech.IndexCommand,
@@ -102,6 +153,11 @@ class SynthDriver(BaseDriver):
 		speech.speakSpelling = self.patchedSpeakSpelling
 		self._languageDetector = languageDetection.LanguageDetector(self._voiceManager.languages)
 
+		speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=self.patchedSpeak)
+		speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
+
+		self._nummod = "0"
+		self._chinesespace = "0"
 
 	def _onIndexReached(self, index):
 		if index is not None:
@@ -112,6 +168,10 @@ class SynthDriver(BaseDriver):
 	def terminate(self):
 		speech.speak = self._realSpeakFunc
 		speech.speakSpelling = self._realSpellingFunc
+
+		speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=speech.speak)
+		speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
+
 		try:
 			self.cancel()
 			self._voiceManager.close()
@@ -139,6 +199,7 @@ class SynthDriver(BaseDriver):
 			elif isinstance(command, speech.BreakCommand):
 				maxTime = 6553 if self.variant == "bet2" else 65535
 				breakTime = max(1, min(command.time, maxTime))
+				print(breakTime)
 				chunks.append(f" \x1b\\pause={breakTime}\\ ")
 			elif isinstance(command, speech.RateCommand):
 				boundedValue = max(0, min(command.newValue, 100))
@@ -185,6 +246,7 @@ class SynthDriver(BaseDriver):
 			_vocalizer.processText2Speech(voiceInstance, "".join(chunks))
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
+		speechSequence = self.patchedSpeechSequence(speechSequence)
 		if config.conf["speech"]["autoLanguageSwitching"] \
 			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
@@ -271,11 +333,11 @@ class SynthDriver(BaseDriver):
 		_vocalizer.sync()
 
 	def _get_variant(self):
-		return _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _veTypes.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
+		return _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOICE_MODEL, type_=str)
 
 	def _set_variant(self, name):
 		try:
-			self._voiceManager.setVoiceParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, name)
+			self._voiceManager.setVoiceParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOICE_MODEL, name)
 		except _vocalizer.VeError:
 			# some models may not be available.
 			log.debugWarning("Model not available: %s", name)
@@ -297,3 +359,52 @@ class SynthDriver(BaseDriver):
 		s = [self.description]
 		s.append("driver version %s" % driverVersion)
 		return ", ".join(s)
+
+	def _get_availableNums(self):
+		return {
+			"0": driverHandler.StringParameterInfo("0", _("default")),
+			"1": driverHandler.StringParameterInfo("1", _("automatic number")),
+			"2": driverHandler.StringParameterInfo("2", _("chinese number")),
+			"3": driverHandler.StringParameterInfo("3", _("english number")),
+		}
+
+	def _get_num(self):
+		return self._nummod
+
+	def _set_num(self,value):
+		self._nummod = value
+
+	def _get_chinesespace(self):
+		return self._chinesespace
+
+	def _set_chinesespace(self,value):
+		self._chinesespace = value
+
+	def patchedSpeechSequence(self, speechSequence):
+		if self._nummod == "1":
+			speechSequence = [number_pattern.sub(lambda m: ' '.join(m.group(0)), command) if isinstance(command, str) else command for command in speechSequence]
+		elif self._nummod == "2":
+			speechSequence = [command.translate(chinese_number) if isinstance(command, str) else command for command in speechSequence]
+		elif self._nummod == "3":
+			speechSequence = [command.translate(english_number) if isinstance(command, str) else command for command in speechSequence]
+
+		if not int(self._chinesespace) == 0:
+			break_speechSequence = []
+			for command in speechSequence:
+				if isinstance(command, str):
+					result = re.split(chinese_space_pattern, command)
+					if len(result) == 1:
+						break_speechSequence.append(command)
+					else:
+						print(result)
+						temp = []
+						for i in result:
+							temp.append(i)
+							temp.append(speech.BreakCommand(int(self._chinesespace) * 5))
+						temp = temp[:-1]
+						break_speechSequence += temp
+				else:
+					break_speechSequence.append(command)
+			speechSequence = break_speechSequence
+
+		return speechSequence
