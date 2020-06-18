@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoiceXVE' '1.0'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2020-06-18 10:30+0800\n"
-"PO-Revision-Date: 2020-06-18 10:33+0800\n"
+"POT-Creation-Date: 2020-06-18 14:05+0800\n"
+"PO-Revision-Date: 2020-06-18 14:06+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -20,63 +20,54 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 "X-Poedit-SearchPath-0: .\n"
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:44
+#: globalPlugins/WorldVoiceXVE/__init__.py:46
 msgid "Automatic &Language Switching Settings"
 msgstr "自動語言切換設定(&L)"
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:44
+#: globalPlugins/WorldVoiceXVE/__init__.py:46
 msgid "Configure which voice is to be used for each language."
 msgstr "設定各別語言的語音"
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:46
+#: globalPlugins/WorldVoiceXVE/__init__.py:48
 msgid "&Speech Rate Settings"
 msgstr "語音速度設定(&S)"
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:46
+#: globalPlugins/WorldVoiceXVE/__init__.py:48
 msgid "Configure speech rate each voice."
 msgstr "設定各別語音的語速"
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:48
+#: globalPlugins/WorldVoiceXVE/__init__.py:50
 msgid "&File Import"
 msgstr "檔案匯入(&F)"
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:48
+#: globalPlugins/WorldVoiceXVE/__init__.py:50
 msgid "Import File."
 msgstr "匯入檔案..."
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:50
+#: globalPlugins/WorldVoiceXVE/__init__.py:52
 msgid "WorldVoiceXVE"
 msgstr ""
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:61
+#: globalPlugins/WorldVoiceXVE/__init__.py:63
 msgid "Import file..."
 msgstr "匯入檔案..."
-
-#: globalPlugins/WorldVoiceXVE/__init__.py:73
-msgid "Import success"
-msgstr "匯入成功"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:75
 msgid "Import fail"
 msgstr "匯入失敗"
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:84
+#: globalPlugins/WorldVoiceXVE/__init__.py:76
+#: globalPlugins/WorldVoiceXVE/__init__.py:81
+msgid "Import File"
+msgstr "匯入檔案"
+
+#: globalPlugins/WorldVoiceXVE/__init__.py:80
 msgid ""
-"You have no Vocalizer voices installed.\n"
-"You need at least one voice installed to use WorldVoiceXVE.\n"
-"You can download all Vocalizer voices from the product web page.\n"
-"Do you want to open the vocalizer for NVDA voices download page now?"
-msgstr ""
-"您尚未安裝 Vocalizer 語音。\n"
-"您至少需要一個語音以便使用 WorldVoiceXVE。\n"
-"您可以從商品網頁下載所有 Vocalizer 語音。\n"
-"您是否要現在開啟 vocalizer for NVDA 語音下載頁面？"
+"For the new file to import, NVDA must be restarted. Are you want to restart "
+"NVDA now ?"
+msgstr "為了讓新檔案匯入， NVDA 必需重新啟動。您要立即重新啟動 NVDA 嗎？"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:88
-msgid "No voices installed."
-msgstr "尚未安裝語音"
-
-#: globalPlugins/WorldVoiceXVE/__init__.py:92
 msgid ""
 "You have no Vocalizer core installed.\n"
 "Do you want to install the Vocalizer core now?"
@@ -84,7 +75,7 @@ msgstr ""
 "您尚未安裝 Vocalizer 核心。\n"
 "您是否要現在進行 vocalizer 核心安裝？"
 
-#: globalPlugins/WorldVoiceXVE/__init__.py:94
+#: globalPlugins/WorldVoiceXVE/__init__.py:90
 msgid "No core installed."
 msgstr "尚未安裝核心"
 
@@ -168,6 +159,23 @@ msgstr "中文數字"
 #: synthDrivers/WorldVoiceXVE/__init__.py:368
 msgid "english number"
 msgstr "英文數字"
+
+#~ msgid "Import success"
+#~ msgstr "匯入成功"
+
+#~ msgid ""
+#~ "You have no Vocalizer voices installed.\n"
+#~ "You need at least one voice installed to use WorldVoiceXVE.\n"
+#~ "You can download all Vocalizer voices from the product web page.\n"
+#~ "Do you want to open the vocalizer for NVDA voices download page now?"
+#~ msgstr ""
+#~ "您尚未安裝 Vocalizer 語音。\n"
+#~ "您至少需要一個語音以便使用 WorldVoiceXVE。\n"
+#~ "您可以從商品網頁下載所有 Vocalizer 語音。\n"
+#~ "您是否要現在開啟 vocalizer for NVDA 語音下載頁面？"
+
+#~ msgid "No voices installed."
+#~ msgstr "尚未安裝語音"
 
 #~ msgid "Import Core DLL."
 #~ msgstr "匯入核心 DLL。"
