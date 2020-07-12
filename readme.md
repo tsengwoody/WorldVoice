@@ -1,4 +1,4 @@
-# WorldVoiceXVE
+﻿# WorldVoiceXVE
 
 WorldVoiceXVE 是依據 VE driver 為基礎開發而成的 addon。運行於 NVDA 2019.3 以上。
 
@@ -12,6 +12,10 @@ WorldVoiceXVE 是依據 VE driver 為基礎開發而成的 addon。運行於 NVD
 *	語音包安裝方式
 	*	基本：使用兼容於 Vocalizer for NVDA 的語音包addon，[官方下載點](https://vocalizer-nvda.com/downloads)。
 	*	進階：可透過各種語音包內直接複製其內的地區資料夾(ex: en, mnc, mnt)等並將其壓成 zip 壓縮包後透過 WorldVoiceXVE 介面的檔案匯入功能匯入addon內。(此種以匯入方式安裝的語音包優先權最高會優先被程式讀取使用)
+
+## 相依性套件
+
+除以上安裝外，為驅動 VE 核心，需安裝 [VC++ Redistributable Packages 2012](https://www.microsoft.com/en-US/download/details.aspx?id=30679)的 x86 版本 (VSU_4\vcredist_x86.exe) 後即可順利驅動。
 
 ## 使用
 
@@ -27,3 +31,15 @@ WorldVoiceXVE 是依據 VE driver 為基礎開發而成的 addon。運行於 NVD
 	*	同樣先選擇地區後語音列表會列出該地區可用的語音，再選擇好語音後，便可於速度滑桿調整數值。
 	*	速度是依不同語音區分，每個語音有各自不同的速度數值，而非依地區區分。
 *	 WorldVoiceXVE -> 檔案匯入：可匯入檔案，可用於匯入核心包與語音包。
+
+## 更新版本日誌
+
+### v1.1
+
+*	新增數字模式的選項，可選擇有安裝的語言朗讀數字並可分為數值與數字兩種。
+*	新增忽略文件中的語言資訊的選項，此主要是避免自動切換語言勾選且原始文件就有提供語言資訊但不正確時(例如中文文字確標示英文語言)可能導致無法正確朗讀；或是在 word 數字會被標示成英文語言導致自動改用英文語音朗讀的狀況。
+*	優化中文空白間隔，使中文物件與中文屬性間亦可停頓
+*	加入其他中文語系的介面翻譯
+*	略過從設定檔載入變聲功能，因目前 VE driver 底層的變聲功能無法正常使用且換語音時容易因設定值不符載入失敗導致要刪整個設定檔才能解決
+*	合併 VE driver 3.1.2 的更新
+*	其他細部優化

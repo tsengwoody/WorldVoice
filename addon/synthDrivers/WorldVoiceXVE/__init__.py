@@ -34,12 +34,6 @@ import driverHandler
 driverVersion = addonHandler.getCodeAddon().manifest['version']
 synthVersion = "1.1.1" # It would be great if the synth reported that...
 
-voiceModelNames = {"full_vssq5f22" : "Premium High",
-	"full_155mrf22" : "Premium",
-	"dri80_1175mrf22" : "Plus",
-	"dri40_155mrf22" : "Standard",
-	"bet3" : "Compact"}
-
 voiceOperatingPointNames = {"full_vssq5f22" : "Premium High",
 	"full_155mrf22" : "Premium",
 	"dri80_1175mrf22" : "Plus",
@@ -60,6 +54,7 @@ english_number = {
 	ord("7"): "seven",
 	ord("8"): "eight",
 	ord("9"): "nine",
+	# ord("."): "dot",
 }
 english_number = {key: " {} ".format(value) for key, value in english_number.items()}
 chinese_number = {
@@ -72,7 +67,8 @@ chinese_number = {
 	ord("6"): u"\u516d",
 	ord("7"): u"\u4e03",
 	ord("8"): u"\u516b",
-	ord("9"): u"\u4e5d"
+	ord("9"): u"\u4e5d",
+	ord("."): u"\u9ede",
 }
 
 class SynthDriver(BaseDriver):
@@ -100,6 +96,10 @@ class SynthDriver(BaseDriver):
 			availableInSettingsRing=True,
 			# Translators: Label for a setting in synth settings ring.
 			displayName=_("Chinese Space Break"),
+		),
+		driverHandler.BooleanDriverSetting(
+			"dli",
+			_("Ignore language information of document"),
 		),
 	]
 	supportedCommands = {
@@ -156,8 +156,12 @@ class SynthDriver(BaseDriver):
 		speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=self.patchedSpeak)
 		speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
 
-		self._nummod = "0"
+		self._nummod = "default"
 		self._chinesespace = "0"
+		self._dli = True
+		self._localeToVoices = self._voiceManager.localeToVoicesMap
+		self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
+		self._localeNames = list(map(self._getLocaleReadableName, self._locales))
 
 	def _onIndexReached(self, index):
 		if index is not None:
@@ -181,6 +185,7 @@ class SynthDriver(BaseDriver):
 
 
 	def speak(self, speechSequence):
+		speechSequence = self.patchedSpaceSpeechSequence(speechSequence)
 		voiceInstance = defaultInstance = self._voiceManager.defaultVoiceInstance
 		currentLanguage = defaultLanguage = self.language
 		chunks = []
@@ -199,7 +204,6 @@ class SynthDriver(BaseDriver):
 			elif isinstance(command, speech.BreakCommand):
 				maxTime = 6553 if self.variant == "bet2" else 65535
 				breakTime = max(1, min(command.time, maxTime))
-				print(breakTime)
 				chunks.append(f" \x1b\\pause={breakTime}\\ ")
 			elif isinstance(command, speech.RateCommand):
 				boundedValue = max(0, min(command.newValue, 100))
@@ -246,7 +250,9 @@ class SynthDriver(BaseDriver):
 			_vocalizer.processText2Speech(voiceInstance, "".join(chunks))
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
-		speechSequence = self.patchedSpeechSequence(speechSequence)
+		speechSequence = self.patchedNumSpeechSequence(speechSequence)
+		if self._dli:
+			speechSequence = self.removeLangChangeCommand(speechSequence)
 		if config.conf["speech"]["autoLanguageSwitching"] \
 			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
@@ -346,7 +352,6 @@ class SynthDriver(BaseDriver):
 		language = _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
 		voice = self.voice
 		dbs = _vocalizer.getSpeechDBList(language, voice)
-		# return OrderedDict([(d, VoiceInfo(d, voiceModelNames[d])) for d in dbs])
 		return OrderedDict([(d, VoiceInfo(d, d)) for d in dbs])
 	
 	def _get_availableLanguages(self):
@@ -361,12 +366,16 @@ class SynthDriver(BaseDriver):
 		return ", ".join(s)
 
 	def _get_availableNums(self):
-		return {
-			"0": driverHandler.StringParameterInfo("0", _("default")),
-			"1": driverHandler.StringParameterInfo("1", _("automatic number")),
-			"2": driverHandler.StringParameterInfo("2", _("chinese number")),
-			"3": driverHandler.StringParameterInfo("3", _("english number")),
-		}
+		return dict({
+			"default": driverHandler.StringParameterInfo("default", _("default")),
+			"automatic_number": driverHandler.StringParameterInfo("automatic_number", _("automatic number")),
+			"chinese_number": driverHandler.StringParameterInfo("chinese_number", _("chinese number")),
+			"english_number": driverHandler.StringParameterInfo("english_number", _("english number")),
+		}, **{
+			locale + "_number": driverHandler.StringParameterInfo(locale + "_number", _("number ") + name) for locale, name in zip(self._locales, self._localeNames)
+		}, **{
+			locale + "_value": driverHandler.StringParameterInfo(locale + "_value", _("value ") + name) for locale, name in zip(self._locales, self._localeNames)
+		})
 
 	def _get_num(self):
 		return self._nummod
@@ -380,31 +389,96 @@ class SynthDriver(BaseDriver):
 	def _set_chinesespace(self,value):
 		self._chinesespace = value
 
-	def patchedSpeechSequence(self, speechSequence):
-		if self._nummod == "1":
-			speechSequence = [number_pattern.sub(lambda m: ' '.join(m.group(0)), command) if isinstance(command, str) else command for command in speechSequence]
-		elif self._nummod == "2":
-			speechSequence = [command.translate(chinese_number) if isinstance(command, str) else command for command in speechSequence]
-		elif self._nummod == "3":
-			speechSequence = [command.translate(english_number) if isinstance(command, str) else command for command in speechSequence]
+	def _get_dli(self):
+		return self._dli
 
+	def _set_dli(self,value):
+		self._dli = value
+
+	def patchedNumSpeechSequence(self, speechSequence):
+		if self._nummod == "automatic_number":
+			speechSequence = [number_pattern.sub(lambda m: ' '.join(m.group(0)), command) if isinstance(command, str) else command for command in speechSequence]
+		elif self._nummod == "chinese_number":
+			speechSequence = [command.translate(chinese_number) if isinstance(command, str) else command for command in speechSequence]
+		elif self._nummod == "english_number":
+			speechSequence = [command.translate(english_number) if isinstance(command, str) else command for command in speechSequence]
+		elif self._nummod.endswith("_number"):
+			speechSequence = self.coercionNumberLangChange(speechSequence, self._nummod[:-6], 'number')
+		elif self._nummod.endswith("_value"):
+			speechSequence = self.coercionNumberLangChange(speechSequence, self._nummod[:-6], 'value')
+		return speechSequence
+
+	def patchedSpaceSpeechSequence(self, speechSequence):
 		if not int(self._chinesespace) == 0:
-			break_speechSequence = []
+			joinString = ""
+			tempSpeechSequence = []
+			for command in speechSequence:
+				if not isinstance(command, str):
+					tempSpeechSequence.append(joinString)
+					tempSpeechSequence.append(command)
+					joinString = ""
+				else:
+					joinString += command
+			tempSpeechSequence.append(joinString)
+			speechSequence = tempSpeechSequence
+
+			tempSpeechSequence = []
 			for command in speechSequence:
 				if isinstance(command, str):
 					result = re.split(chinese_space_pattern, command)
 					if len(result) == 1:
-						break_speechSequence.append(command)
+						tempSpeechSequence.append(command)
 					else:
-						print(result)
 						temp = []
 						for i in result:
 							temp.append(i)
 							temp.append(speech.BreakCommand(int(self._chinesespace) * 5))
 						temp = temp[:-1]
-						break_speechSequence += temp
+						tempSpeechSequence += temp
 				else:
-					break_speechSequence.append(command)
-			speechSequence = break_speechSequence
-
+					tempSpeechSequence.append(command)
+			speechSequence = tempSpeechSequence
 		return speechSequence
+
+	def removeLangChangeCommand(self, speechSequence):
+		result = []
+		for command in speechSequence:
+			if not isinstance(command, speech.LangChangeCommand):
+				result.append(command)
+		return result
+
+
+	def resplit(self, pattern, string, mode):
+		result = []
+		numbers = pattern.findall(string)
+		others = pattern.split(string)
+		for other, number in zip(others, numbers):
+			if mode == 'value':
+				result.extend([other, speech.LangChangeCommand('StartNumber'), number, speech.LangChangeCommand('EndNumber')])
+			elif mode == 'number':
+				result.extend([other, speech.LangChangeCommand('StartNumber'), ' '.join(number), speech.LangChangeCommand('EndNumber')])
+		result.append(others[-1])
+		return result
+
+	def coercionNumberLangChange(self, speechSequence, defaultLanguage, mode):
+		result = []
+		for command in speechSequence:
+			if isinstance(command, str):
+				result.extend(self.resplit(number_pattern, command, mode))
+			else:
+				result.append(command)
+
+		currentLang = None
+		for command in result:
+			if isinstance(command, speech.LangChangeCommand):
+				if command.lang == 'StartNumber':
+					command.lang = defaultLanguage
+				elif command.lang == 'EndNumber':
+					command.lang = currentLang
+				else:
+					currentLang = command.lang
+		return result
+
+	def _getLocaleReadableName(self, locale):
+		description = languageHandler.getLanguageDescription(locale)
+		return "%s" % (description) if description else locale

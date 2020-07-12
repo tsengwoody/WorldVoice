@@ -145,24 +145,25 @@ class VoiceManager(object):
 
 	def onVoiceLoad(self, voiceName, instance):
 		""" Restores variant and other settings if available, when a voice is loaded."""
-		if voiceName in _config.vocalizerConfig['voices']:
+		# if voiceName in _config.vocalizerConfig['voices']:
+		if False:
 			variant = _config.vocalizerConfig['voices'][voiceName]['variant']
 			if variant is not None:
 				_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_VOICE_MODEL, variant)
 
-			try:
-				speechrate = _config.vocalizerConfig['voices'][voiceName]['speechrate']
-			except:
-				speechrate = None
-			if speechrate is not None:
-				value = int(speechrate)
-				factor = 25.0 if value >= 50 else 50.0
-				norm = 2.0 ** ((value - 50.0) / factor)
-				speechrate = value = int(round(norm * 100))
-				_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_SPEECHRATE, speechrate)
-			else:
-				speechrate = 50
-				_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_SPEECHRATE, 150)
+		try:
+			speechrate = _config.vocalizerConfig['voices'][voiceName]['speechrate']
+		except:
+			speechrate = None
+		if speechrate is not None:
+			value = int(speechrate)
+			factor = 25.0 if value >= 50 else 50.0
+			norm = 2.0 ** ((value - 50.0) / factor)
+			speechrate = value = int(round(norm * 100))
+			_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_SPEECHRATE, speechrate)
+		else:
+			speechrate = 50
+			_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_SPEECHRATE, 150)
 
 	def onVoiceUnload(self, voiceName, instance):
 		""" Saves variant to be restored for each voice."""
