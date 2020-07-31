@@ -5,42 +5,48 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoiceXVE' '1.1'\n"
+"Project-Id-Version: 'WorldVoiceXVE' '1.2'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2020-07-09 19:55+0800\n"
-"PO-Revision-Date: 2020-07-10 16:12+0800\n"
+"POT-Creation-Date: 2020-07-26 20:52+0800\n"
+"PO-Revision-Date: 2020-07-27 20:05+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 2.3.1\n"
+"X-Generator: Poedit 2.4\n"
 "X-Poedit-Basepath: ../../..\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 "X-Poedit-SearchPath-0: .\n"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:46
+#: globalPlugins/WorldVoiceXVED2/__init__.py:43
 msgid "Automatic &Language Switching Settings"
 msgstr "自动语言切换设定(&L)"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:46
+#: globalPlugins/WorldVoiceXVED2/__init__.py:43
 msgid "Configure which voice is to be used for each language."
 msgstr "设定各别语言的语音"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:48
-msgid "&Speech Rate Settings"
-msgstr "语音速度设定(&S)"
+#: globalPlugins/WorldVoiceXVED2/__init__.py:45
+msgid "&Speech Settings"
+msgstr "语音设置 （_S）"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:48
+#: globalPlugins/WorldVoiceXVED2/__init__.py:45
 msgid "Configure speech rate each voice."
 msgstr "设定各别语音的语速"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:50
+#: globalPlugins/WorldVoiceXVED2/__init__.py:47
 msgid "&File Import"
 msgstr "档案汇入(&F)"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:50
+#: globalPlugins/WorldVoiceXVED2/__init__.py:47
 msgid "Import File."
 msgstr "汇入档案..."
 
@@ -49,19 +55,24 @@ msgid "WorldVoiceXVE"
 msgstr "WorldVoiceXVE"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:63
+#: globalPlugins/WorldVoiceXVED2/__init__.py:60
 msgid "Import file..."
 msgstr "汇入档案..."
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:75
+#: globalPlugins/WorldVoiceXVED2/__init__.py:72
 msgid "Import fail"
 msgstr "汇入失败"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:76
 #: globalPlugins/WorldVoiceXVE/__init__.py:81
+#: globalPlugins/WorldVoiceXVED2/__init__.py:73
+#: globalPlugins/WorldVoiceXVED2/__init__.py:78
 msgid "Import File"
 msgstr "汇入档案"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:80
+#: globalPlugins/WorldVoiceXVED2/__init__.py:77
 msgid ""
 "For the new file to import, NVDA must be restarted. Are you want to restart "
 "NVDA now ?"
@@ -69,54 +80,61 @@ msgstr "为了让新档案汇入， NVDA 必需重新启动。您要立即重新
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:88
 msgid ""
-"You have no Vocalizer core installed.\n"
-"Do you want to install the Vocalizer core now?"
+"You have no core installed.\n"
+"Do you want to install the core now?"
 msgstr ""
 "您尚未安装 Vocalizer 核心。\n"
-"您是否要现在进行 vocalizer 核心安装？"
+"您是否要现在进行核心安装？"
 
 #: globalPlugins/WorldVoiceXVE/__init__.py:90
+#: globalPlugins/WorldVoiceXVED2/__init__.py:87
 msgid "No core installed."
 msgstr "尚未安装核心"
 
 #: globalPlugins/WorldVoiceXVE/dialogs.py:13
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:12
 msgid "Automatic Language Switching Settings"
 msgstr "自动语言切换设定"
 
 #: globalPlugins/WorldVoiceXVE/dialogs.py:26
-#: globalPlugins/WorldVoiceXVE/speechRate.py:47
+#: globalPlugins/WorldVoiceXVE/speechRate.py:44
 msgid "Select a locale, and then configure the voice to be used:"
 msgstr "选择一个地区，并为其设定一个语音："
 
 #: globalPlugins/WorldVoiceXVE/dialogs.py:30
-#: globalPlugins/WorldVoiceXVE/speechRate.py:51
+#: globalPlugins/WorldVoiceXVE/speechRate.py:48
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:44
+#: globalPlugins/WorldVoiceXVED2/speechRate.py:47
 msgid "Locale Name:"
 msgstr "地区名称"
 
 #: globalPlugins/WorldVoiceXVE/dialogs.py:37
-#: globalPlugins/WorldVoiceXVE/speechRate.py:58
+#: globalPlugins/WorldVoiceXVE/speechRate.py:55
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:47
+#: globalPlugins/WorldVoiceXVED2/speechRate.py:50
 msgid "Voice Name:"
 msgstr "语音名称"
 
 #: globalPlugins/WorldVoiceXVE/dialogs.py:44
-msgid "Detect text language based on unicode characters (experimental)"
-msgstr "用 unicode 编码侦测文字语言（实验性功能）"
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:52
+msgid "Detect text language based on unicode characters"
+msgstr "用 unicode 编码侦测文字语言"
 
 #: globalPlugins/WorldVoiceXVE/dialogs.py:49
-msgid ""
-"Ignore numbers and common punctuation when detecting text language "
-"(experimental)"
-msgstr "侦测语言时忽略数字和常见标点符号（实验性功能）"
+msgid "Ignore numbers and common punctuation when detecting text language"
+msgstr "侦测语言时忽略数字和常见标点符号"
 
 #: globalPlugins/WorldVoiceXVE/dialogs.py:55
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:69
 msgid "Language assumed for latin characters:"
 msgstr "拉丁字符假设的语言："
 
 #: globalPlugins/WorldVoiceXVE/speechRate.py:24
+#: globalPlugins/WorldVoiceXVED2/speechRate.py:14
 msgid "Speech Rate Settings"
 msgstr "语音速度设定"
 
-#: globalPlugins/WorldVoiceXVE/speechRate.py:38
+#: globalPlugins/WorldVoiceXVE/speechRate.py:35
 #, python-format
 msgid ""
 "Your current speech synthesizer is the %s. Please select the WorldVoiceXVE "
@@ -124,53 +142,113 @@ msgid ""
 msgstr ""
 "你当前的语音合程器为 %s 。请在 NVDA 设定中选择 WorldVoiceXVE 语音合成器。"
 
-#: globalPlugins/WorldVoiceXVE/speechRate.py:64
-msgid "Speech Rate:"
-msgstr "语音速度："
+#: globalPlugins/WorldVoiceXVE/speechRate.py:61
+#: globalPlugins/WorldVoiceXVED2/speechRate.py:53
+msgid "&Rate:"
+msgstr "速度(&R)"
+
+#: globalPlugins/WorldVoiceXVED2/__init__.py:49
+msgid "WorldVoiceXVE(driver 2)"
+msgstr "WorldVoiceXVE(driver 2)"
+
+#: globalPlugins/WorldVoiceXVED2/__init__.py:85
+msgid ""
+"You have no core(driver 2) installed.\n"
+"Do you want to install the core(driver 2) now?"
+msgstr ""
+"您尚未安装核心（driver 2）。\n"
+"您是否要现在进行核心安装？"
+
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:39
+#: globalPlugins/WorldVoiceXVED2/speechRate.py:42
+msgid "Select a language, and then configure the voice to be used:"
+msgstr "选择一个地区，并为其设定一个语音："
+
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:58
+msgid "Ignore numbers when detecting text language"
+msgstr "侦测语言时忽略数字"
+
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:64
+msgid "Ignore common punctuation when detecting text language"
+msgstr "侦测语言时忽略数字和常见标点符号"
+
+#: globalPlugins/WorldVoiceXVED2/dialogs.py:79
+msgid "Language assumed for CJK characters:"
+msgstr "中日韩字符假设的语言："
+
+#: globalPlugins/WorldVoiceXVED2/speechRate.py:31
+#, python-format
+msgid ""
+"Your current speech synthesizer is the %s. Please select the "
+"WorldVoiceXVE(driver 2) as the speech synthesizer in the NVDA speech "
+"settings."
+msgstr ""
+"你当前的语音合程器为 %s 。请在 NVDA 设定中选择 WorldVoiceXVE(driver 2)语音合"
+"成器。"
+
+#: globalPlugins/WorldVoiceXVED2/speechRate.py:56
+msgid "&Pitch:"
+msgstr "音调（&P）"
+
+#: globalPlugins/WorldVoiceXVED2/speechRate.py:59
+msgid "V&olume:"
+msgstr "音量(&O)"
 
 #: synthDrivers/WorldVoiceXVE/__init__.py:86
+#: synthDrivers/WorldVoiceXVED2/__init__.py:69
 msgid "&Number Mode"
 msgstr "数字模式(&N)"
 
 #: synthDrivers/WorldVoiceXVE/__init__.py:89
+#: synthDrivers/WorldVoiceXVED2/__init__.py:72
 msgid "Number Mode"
 msgstr "数字模式"
 
 #: synthDrivers/WorldVoiceXVE/__init__.py:94
+#: synthDrivers/WorldVoiceXVED2/__init__.py:77
 msgid "&Chinese Space Break"
 msgstr "中文空白间隔(&C)"
 
 #: synthDrivers/WorldVoiceXVE/__init__.py:98
+#: synthDrivers/WorldVoiceXVED2/__init__.py:81
 msgid "Chinese Space Break"
 msgstr "中文空白间隔"
 
 #: synthDrivers/WorldVoiceXVE/__init__.py:102
+#: synthDrivers/WorldVoiceXVED2/__init__.py:85
 msgid "Ignore language information of document"
 msgstr "忽略文件中的语言信息"
 
-#: synthDrivers/WorldVoiceXVE/__init__.py:369
+#: synthDrivers/WorldVoiceXVE/__init__.py:371
+#: synthDrivers/WorldVoiceXVED2/__init__.py:327
 msgid "default"
 msgstr "预设"
 
-#: synthDrivers/WorldVoiceXVE/__init__.py:370
+#: synthDrivers/WorldVoiceXVE/__init__.py:372
+#: synthDrivers/WorldVoiceXVED2/__init__.py:328
 msgid "automatic number"
 msgstr "自动数字"
 
-#: synthDrivers/WorldVoiceXVE/__init__.py:371
+#: synthDrivers/WorldVoiceXVE/__init__.py:373
+#: synthDrivers/WorldVoiceXVED2/__init__.py:329
 msgid "chinese number"
 msgstr "中文数字"
 
-#: synthDrivers/WorldVoiceXVE/__init__.py:372
+#: synthDrivers/WorldVoiceXVE/__init__.py:374
+#: synthDrivers/WorldVoiceXVED2/__init__.py:330
 msgid "english number"
 msgstr "英文数字"
 
-#: synthDrivers/WorldVoiceXVE/__init__.py:374
+#: synthDrivers/WorldVoiceXVE/__init__.py:376
 msgid "number "
 msgstr "数字"
 
-#: synthDrivers/WorldVoiceXVE/__init__.py:376
+#: synthDrivers/WorldVoiceXVE/__init__.py:378
 msgid "value "
 msgstr "数值"
+
+#~ msgid "Speech Rate:"
+#~ msgstr "语音速度："
 
 #~ msgid "Import success"
 #~ msgstr "匯入成功"

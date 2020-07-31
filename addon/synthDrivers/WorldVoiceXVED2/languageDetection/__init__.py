@@ -1,40 +1,4 @@
 # -*- coding: utf-8 -*-
-# vocalizer/languageDetection/__init__.py
-# Copyright (C) 2012 - Rui Batista <ruiandrebatista@gmail.com>
-#
-# This code is heavily based on the Python guess_language library.
-# Copyright 2012 spirit <hiddenspirit@gmail.com>
-# https://bitbucket.org/spirit/guess_language/
-#
-# Original Python package:
-# Copyright (c) 2008, Kent S Johnson
-# http://code.google.com/p/guess-language/
-#
-# Original C++ version for KDE:
-# Copyright (c) 2006 Jacob R Rideout <kde@jacobrideout.net>
-# http://websvn.kde.org/branches/work/sonnet-refactoring/common/nlp/guesslanguage.cpp?view=markup
-#
-# Original Language::Guess Perl module:
-# Copyright (c) 2004-2006 Maciej Ceglowski
-# http://web.archive.org/web/20090228163219/http://languid.cantbedone.org/
-#
-# Note: Language::Guess is GPL-licensed. KDE developers received permission
-# from the author to distribute their port under LGPL:
-# http://lists.kde.org/?l=kde-sonnet&m=116910092228811&w=2
-#
-# This program is free software: you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published
-# by the Free Software Foundation, either version 3 of the License,
-# or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty
-# of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
-#
 
 from collections import defaultdict
 from io import StringIO
@@ -61,6 +25,7 @@ ALL_LATIN = BASIC_LATIN + EXTENDED_LATIN
 
 CYRILLIC = [u"ru", u"uk", u"kk", u"uz", u"mn", u"sr", u"mk", u"bg", u"ky"]
 ARABIC = [u"ar", u"fa", u"ps", u"ur"]
+CJK = [u"zh", u"ja", u"ko"]
 
 SINGLETONS = {
     u"Armenian" : u"hy",
@@ -85,7 +50,7 @@ SINGLETONS = {
 }
 
 # Config keys to get languages to revert to, when in dobt
-_configKeys = {}
+_configKeys = {'CJK Unified Ideographs': 'CJKCharactersLanguage'}
 for charset in ('Basic Latin', 'Extended Latin', 'Latin Extended-B'):
 	_configKeys[charset] = 'latinCharactersLanguage'
 
@@ -150,7 +115,8 @@ class LanguageDetector(object):
 				yield command
 				charset = None # Whatever will come, reset the charset.
 			elif isinstance(command, str):
-				sb.truncate(0)
+				sb = StringIO()
+				command = str(command)
 				prevInIgnore = False
 				for c in command:
 					# For non-alphanumeric characters, revert to  the currently set language if in the ASCII range
@@ -159,7 +125,10 @@ class LanguageDetector(object):
 						sb.write(c)
 						continue
 					if c.isdigit() or (not c.isalpha() and block <= 0x8):
-						if _config.vocalizerConfig['autoLanguageSwitching']['ignorePonctuationAndNumbersInLanguageDetection']:
+						if _config.vocalizerConfig['autoLanguageSwitching']['ignoreNumbersInLanguageDetection'] and c.isdigit():
+							sb.write(c)
+							continue
+						if _config.vocalizerConfig['autoLanguageSwitching']['ignorePunctuationInLanguageDetection'] and not c.isdigit():
 							sb.write(c)
 							continue
 						if prevInIgnore:
@@ -171,13 +140,14 @@ class LanguageDetector(object):
 						if tmpLang != curLang.split("_")[0]:
 							if sb.getvalue():
 								yield sb.getvalue()
-								sb.truncate(0)
+								sb = StringIO()
 							yield speech.LangChangeCommand(curLang)
 							tmpLang = curLang.split("_")[0]
 						sb.write(c)
 						continue
 
 						# Process alphanumeric characters.
+					prevInIgnore = False
 					try:
 						newCharset = BLOCKS[block]
 					except IndexError:
@@ -200,7 +170,7 @@ class LanguageDetector(object):
 					# First yield the string we already have.
 					if sb.getvalue():
 						yield sb.getvalue()
-						sb.truncate(0)
+						sb = StringIO()
 					tmpLang = newLangFirst
 					if newLang == curLang:
 						yield speech.LangChangeCommand(newLang)
@@ -242,7 +212,7 @@ class LanguageDetector(object):
 					if sb.getvalue():
 						yield sb.getvalue(), curLang
 					curLang = defaultLang
-					sb.truncate(0)
+					sb = StringIO()
 					sb.write(c)
 				continue
 			try:
@@ -261,7 +231,7 @@ class LanguageDetector(object):
 					continue
 				if sb.getvalue():
 					yield sb.getvalue(), curLang
-					sb.truncate(0)
+					sb = StringIO()
 				sb.write(c)
 				curLang = lang
 				if curLang == defaultLang.split("_")[0]:

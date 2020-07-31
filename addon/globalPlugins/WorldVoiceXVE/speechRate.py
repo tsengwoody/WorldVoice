@@ -27,18 +27,15 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 			manager = VoiceManager()
 			self._localeToVoices = manager.localeToVoicesMap
 			manager.close()
-		self._dataToPercist = defaultdict(lambda : {})
 		self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
-		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
-		self._latinLocales = sorted(list(latinSet))
 		self._synthInstance = speech.getSynth()
 		super(SpeechRateSettingsDialog, self).__init__(parent)
 
 	def makeSettings(self, sizer):
 		synthInfo = _('Your current speech synthesizer is the %s. Please select the WorldVoiceXVE as the speech synthesizer in the NVDA speech settings.')
-		synthName = speech.getSynth().description
+		synthName = self._synthInstance.description
 		synthInfo = synthInfo.replace('%s', synthName)
-		if ('WorldVoiceXVE' not in speech.getSynth().name):
+		if not self._synthInstance.name == 'WorldVoiceXVE':
 			infoLabel = wx.StaticText(self, label = synthInfo)
 			infoLabel.Wrap(self.GetSize()[0])
 			sizer.Add(infoLabel)
@@ -61,7 +58,7 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 		self.Bind(wx.EVT_CHOICE, self.onVoiceChange, self._voicesChoice)
 		voicesSizer.Add(self._voicesChoice)
 		speechRateSizer = wx.BoxSizer(wx.HORIZONTAL)
-		speechRateLabel = wx.StaticText(self, label=_("Speech Rate:"))
+		speechRateLabel = wx.StaticText(self, label=_("&Rate:"))
 		speechRateSizer.Add(speechRateLabel)
 		self._speechRateSlider = wx.Slider(self, value = 50, minValue = 0, maxValue = 100, style = wx.SL_HORIZONTAL)	
 		self.Bind(wx.EVT_SLIDER, self.onSpeechRateSliderScroll, self._speechRateSlider)
@@ -72,10 +69,10 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 		sizer.Add(speechRateSizer)
 
 	def postInit(self):
-		if 'WorldVoiceXVE' in speech.getSynth().name:
+		if self._synthInstance.name == 'WorldVoiceXVE':
 			self._updateVoicesSelection()
 			self._localesChoice.SetFocus()
-			self._speechRateSlider.Disable()
+			self.sliderDisable()
 
 	def _updateVoicesSelection(self):
 		localeIndex = self._localesChoice.GetCurrentSelection()
@@ -88,16 +85,15 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 			if locale in _config.vocalizerConfig['autoLanguageSwitching']:
 				voice = _config.vocalizerConfig['autoLanguageSwitching'][locale]['voice']
 				if voice:
-					self._speechRateSlider.Enable()
+					self.sliderEnable()
 					self._voicesChoice.Select(voices.index(voice))
+					self.onVoiceChange(None)
 
-					import math
-					voiceInstance = self._synthInstance._voiceManager.getVoiceInstance(voice)
-					value = _vocalizer.getParameter(voiceInstance, _vocalizer.VE_PARAM_SPEECHRATE)
-					norm = value / 100.0
-					factor = 25 if norm  >= 1 else 50
-					speechRate = int(round(50 + factor * math.log(norm, 2)))
-					self._speechRateSlider.SetValue(speechRate)
+	def sliderEnable(self):
+		self._speechRateSlider.Enable()
+
+	def sliderDisable(self):
+		self._speechRateSlider.Disable()
 
 	def onLocaleChanged(self, event):
 		self._updateVoicesSelection()
@@ -105,19 +101,12 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 	def onVoiceChange(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == '':
-			self._speechRateSlider.Disable()
+			self.sliderDisable()
 			return False
-		self._speechRateSlider.Enable()
-		localeIndex = self._localesChoice.GetCurrentSelection()
-		if localeIndex >= 0:
-			locale = self._locales[localeIndex]
-			self._dataToPercist[locale]['voice'] = self._voicesChoice.GetStringSelection()
-		else:
-			self._dataToPercist[locale]['voice'] = None
+		self.sliderEnable()
+		voiceInstance = self._synthInstance._voiceManager.getVoiceInstance(voiceName)
 
 		import math
-		voiceName = self._voicesChoice.GetStringSelection()
-		voiceInstance = self._synthInstance._voiceManager.getVoiceInstance(voiceName)
 		value = _vocalizer.getParameter(voiceInstance, _vocalizer.VE_PARAM_SPEECHRATE)
 		norm = value / 100.0
 		factor = 25 if norm  >= 1 else 50

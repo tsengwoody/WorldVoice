@@ -16,7 +16,7 @@ from .speechRate import *
 
 import os
 addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoiceXVE')
+synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoiceXVED2')
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
@@ -32,11 +32,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			wx.CallLater(2000, self.onNoCoreInstalled)
 			return
 		try:
-			with VocalizerOpened():
-				self.ve = True
-				self.createMenu()
-				from synthDrivers.WorldVoiceXVE import _config
-				_config.load()
+			self.ve = True
+			self.createMenu()
 		except:
 			self.createMenu()
 
@@ -49,7 +46,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(SpeechRateSettingsDialog), item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onFileImport, item)
-		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoiceXVE"), self.submenu_vocalizer)
+		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoiceXVE(driver 2)"), self.submenu_vocalizer)
 
 	def removeMenu(self):
 		if self.submenu_item is not None:
@@ -85,8 +82,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 					queueHandler.queueFunction(queueHandler.eventQueue,core.restart)
 
 	def onNoCoreInstalled(self):
-		if gui.messageBox(_("You have no core installed.\n"
-		"Do you want to install the core now?"),
+		if gui.messageBox(_("You have no core(driver 2) installed.\n"
+		"Do you want to install the core(driver 2) now?"),
 		caption=_("No core installed."), style=wx.YES_NO|wx.ICON_WARNING) == wx.YES:
 			self.onFileImport(None)
 

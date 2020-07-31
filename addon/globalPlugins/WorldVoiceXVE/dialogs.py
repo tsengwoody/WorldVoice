@@ -41,12 +41,12 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 		voicesSizer.Add(self._voicesChoice)
 		self._useUnicodeDetectionCheckBox = wx.CheckBox(self,
 		# Translators: Wether to use or not unicode characters based language detection.
-			label=_("Detect text language based on unicode characters (experimental)"))
+			label=_("Detect text language based on unicode characters"))
 		self._useUnicodeDetectionCheckBox.SetValue(_config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'])
 		
 		self._ignorePonctuationAndNumbersCheckBox = wx.CheckBox(self,
 		# Translators: Either to ignore or not ASCII punctuation and numbers when language detection is active
-		label=_("Ignore numbers and common punctuation when detecting text language (experimental)"))
+		label=_("Ignore numbers and common punctuation when detecting text language"))
 		self._ignorePonctuationAndNumbersCheckBox.SetValue(_config.vocalizerConfig['autoLanguageSwitching']['ignorePonctuationAndNumbersInLanguageDetection'])
 		
 		latinSizer = wx.BoxSizer(wx.HORIZONTAL)

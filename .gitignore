@@ -9,3 +9,5 @@ addon/doc/en/
 *.nvda-addon
 .sconsign.dblite
 addon/synthDrivers/WorldVoiceXVE/common/*
+addon/synthDrivers/WorldVoiceXVED2/common/*
+addon/synthDrivers/WorldVoiceXVED2/libs/*
