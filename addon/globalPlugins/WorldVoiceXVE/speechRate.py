@@ -13,7 +13,7 @@ import config
 import gui
 import languageHandler
 from logHandler import log
-from synthDrivers.WorldVoiceXVE import _config, storage
+from synthDrivers.WorldVoiceXVE import _config
 from synthDrivers.WorldVoiceXVE._voiceManager import VoiceManager
 from synthDrivers.WorldVoiceXVE import languageDetection
 from .utils import VocalizerOpened

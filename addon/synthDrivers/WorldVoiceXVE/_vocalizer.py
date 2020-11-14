@@ -16,7 +16,6 @@ import globalVars
 from logHandler import log
 import nvwave
 import winKernel
-from .storage import getLicenseData
 # Import Vocalizer type definitions, constants and helpers.
 from ._veTypes import *
 
@@ -144,17 +143,7 @@ def preInitialize():
 	installResources.pBinBrokerInfo = None
 	platformResources = VPLATFORM_RESOURCES()
 	platformResources.fmtVersion = VPLATFORM_CURRENT_VERSION
-	license = getLicenseData()
-	if license:
-		token = base64.b64decode(license['data'])
-		sessionKey = base64.b64decode(license['sessionKey'])
-		platformResources.licenseToken = token
-		platformResources.licenseTokenLen = len(token)
-		platformResources.licensor = license['licensor']
-		platformResources.sessionKey = sessionKey
-		platformResources.sessionKeyLen = len(sessionKey)
-	else:
-		platformResources.licenseToken = None
+	platformResources.licenseToken = None
 	platformResources.u16NbrOfDataInstall = c_ushort(len(voiceAddons) + 1)
 	platformResources.apDataInstall = (c_wchar_p * (len(voiceAddons) + 1))()
 	platformResources.apDataInstall[0] = c_wchar_p(_basePath)
