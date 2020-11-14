@@ -22,7 +22,7 @@ VOICE_PARAMETERS = [
 	(_vocalizer.VE_PARAM_VOLUME, "volume", int),
 ]
 
-number_pattern = re.compile(r"[0-9]+[0-9.:]*[0-9]+")
+number_pattern = re.compile(r"[0-9]+[0-9.:]*[0-9]+|[0-9]")
 chinese_space_pattern = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 english_number = {
@@ -455,7 +455,7 @@ class SynthDriver(SynthDriver):
 		result.append(others[-1])
 		return result
 
-	def coercionNumberLangChange(self, speechSequence, defaultLanguage, mode):
+	def coercionNumberLangChange(self, speechSequence, numberLanguage, mode):
 		result = []
 		for command in speechSequence:
 			if isinstance(command, str):
@@ -463,11 +463,11 @@ class SynthDriver(SynthDriver):
 			else:
 				result.append(command)
 
-		currentLang = None
+		currentLang = self.language
 		for command in result:
 			if isinstance(command, speech.LangChangeCommand):
 				if command.lang == 'StartNumber':
-					command.lang = defaultLanguage
+					command.lang = numberLanguage
 				elif command.lang == 'EndNumber':
 					command.lang = currentLang
 				else:
