@@ -1,3 +1,10 @@
+﻿import os
+import sys
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoiceXVED2')
+sys.path.insert(0, base_dir)
+
 from collections import OrderedDict
 import config
 from synthDriverHandler import SynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking
@@ -6,21 +13,16 @@ from logHandler import log
 import speech
 
 from . import _vocalizer
+from ._voiceManager import VoiceManager
 from . import languageDetection
 from . import _config
+from generics.models import SpeechSymbols
 
 import addonHandler
 addonHandler.initTranslation()
 
 import re
 import driverHandler
-
-VOICE_PARAMETERS = [
-	(_vocalizer.VE_PARAM_VOICE_OPERATING_POINT, "variant", str),
-	(_vocalizer.VE_PARAM_SPEECHRATE, "rate", int),
-	(_vocalizer.VE_PARAM_PITCH, "pitch", int),
-	(_vocalizer.VE_PARAM_VOLUME, "volume", int),
-]
 
 number_pattern = re.compile(r"[0-9]+[0-9.:]*[0-9]+|[0-9]")
 chinese_space_pattern = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
@@ -55,7 +57,7 @@ chinese_number = {
 
 class SynthDriver(SynthDriver):
 	name = "WorldVoiceXVED2"
-	description = "WorldVoiceXVE(driver 2)"
+	description = "WorldVoice(VE)"
 
 	supportedSettings = [
 		SynthDriver.VoiceSetting(),
@@ -89,6 +91,10 @@ class SynthDriver(SynthDriver):
 		speech.IndexCommand,
 		speech.CharacterModeCommand,
 		speech.LangChangeCommand,
+		speech.BreakCommand,
+		speech.PitchCommand,
+		speech.RateCommand,
+		speech.VolumeCommand,
 	}
 	supportedNotifications = {synthIndexReached, synthDoneSpeaking}
 
@@ -99,8 +105,17 @@ class SynthDriver(SynthDriver):
 
 	def __init__(self):
 		_config.load()
-		self._instanceCache = {}
-		self._voice = None
+		# Initialize the driver
+		try:
+			_vocalizer.initialize(self._onIndexReached)
+			log.debug("Vocalizer info: %s" % self._info())
+		except _vocalizer.VeError as e:
+			if e.code == _vocalizer.VAUTONVDA_ERROR_INVALID:
+				log.info("Vocalizer license for NVDA is Invalid")
+			elif e.code == _vocalizer.VAUTONVDA_ERROR_DEMO_EXPIRED:
+				log.info("Vocalizer demo license for NVDA as expired.")
+			raise
+		self._voiceManager = VoiceManager()
 
 		_vocalizer.initialize(self._onIndexReached)
 		self._resources = _vocalizer.getAvailableResources()
@@ -109,20 +124,15 @@ class SynthDriver(SynthDriver):
 		self._realSpellingFunc = speech.speakSpelling
 		speech.speak = self.patchedSpeak
 		speech.speakSpelling = self.patchedSpeakSpelling
-		self._languageDetector = languageDetection.LanguageDetector([l.id for l in self._resources])
+
+		speechSymbols = SpeechSymbols()
+		speechSymbols.load('unicode.dic')
+		self._languageDetector = languageDetection.LanguageDetector([l.id for l in self._resources], speechSymbols)
+
 		speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=self.patchedSpeak)
 		speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
 
-		self._localeToVoices = {}
-		with _vocalizer.preOpenVocalizer() as check:
-			if check:
-				for l, v in _vocalizer.getAvailableResources().items():
-					self._localeToVoices[l.id] = v
-					if "_" in l.id:
-						lang = l.id.split("_")[0]
-						if lang not in self._localeToVoices:
-							self._localeToVoices[lang] = []
-						self._localeToVoices[lang].extend(v)
+		self._localeToVoices = self._voiceManager.localeToVoicesMap
 		self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
 		self._localeNames = list(map(self._getLocaleReadableName, self._locales))
 
@@ -130,55 +140,11 @@ class SynthDriver(SynthDriver):
 		self._chinesespace = "0"
 		self._dli = True
 
-	def getVoiceInstance(self, voiceName):
-		try:
-			return self._instanceCache[voiceName]
-		except KeyError:
-			instance, name = _vocalizer.open(voiceName)
-			self.onVoiceLoad(voiceName, instance)
-			self._instanceCache[name] = instance
-			return instance
-
-	def getVoiceNameForLanguage(self, language):
-		lang = _config.vocalizerConfig["autoLanguageSwitching"].get(language, None)
-		if lang is not None:
-			if lang["voice"] in self.availableVoices:
-				return lang["voice"]
-
-		for l, voices in self._resources.items():
-			if l.id.startswith(language):
-				return voices[0].id
-
-	def onVoiceLoad(self, voiceName, instance):
-		""" Restores variant and other settings if available, when a voice is loaded."""
-
-		if voiceName in _config.vocalizerConfig['voices']:
-			for p, name, t in VOICE_PARAMETERS:
-				value = _config.vocalizerConfig['voices'][voiceName].get(name, None)
-				if value is None:
-					continue
-				_vocalizer.setParameter(instance, p, t(value))
-
-	def onVoiceUnload(self, voiceName, instance):
-		""" Saves variant to be restored for each voice."""
-
-		if voiceName not in _config.vocalizerConfig['voices']:
-			_config.vocalizerConfig['voices'][voiceName] = {}
-
-		for p, name, t in VOICE_PARAMETERS:
-			value = _vocalizer.getParameter(instance, p, type_=t)
-			_config.vocalizerConfig['voices'][voiceName][name] = value
-
-	def saveSettings(self):
-		for voiceName, instance in self._instanceCache.items():
-			self.onVoiceUnload(voiceName, instance)
-		super().saveSettings()
-
-	def loadSettings(self, onlyChanged=False):
-		self.cancel()
-		for voiceName, instance in self._instanceCache.items():
-			self.onVoiceLoad(voiceName, instance)
-		super().loadSettings(onlyChanged)
+	def _onIndexReached(self, index):
+		if index is not None:
+			synthIndexReached.notify(synth=self, index=index)
+		else:
+			synthDoneSpeaking.notify(synth=self)
 
 	def terminate(self):
 		speech.speak = self._realSpeakFunc
@@ -189,18 +155,20 @@ class SynthDriver(SynthDriver):
 
 		try:
 			self.cancel()
-			for voiceName, instance in self._instanceCache.items():
-				_vocalizer.close(instance)
+			self._voiceManager.close()
 			_vocalizer.terminate()
-			_config.save() # Flush the configuration file
 		except RuntimeError:
 			log.error("Vocalizer terminate", exc_info=True)
 
 	def speak(self, speechSequence):
+		if config.conf["speech"]["autoLanguageSwitching"] \
+			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
+			and _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
+			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
 		speechSequence = self.patchedNumSpeechSequence(speechSequence)
 		speechSequence = self.patchedSpaceSpeechSequence(speechSequence)
 
-		currentInstance = defaultInstance = self.voiceInstance
+		currentInstance = defaultInstance = self._voiceManager.defaultVoiceInstance
 		currentLanguage = defaultLanguage = self.language
 		chunks = []
 		hasText = False
@@ -241,12 +209,12 @@ class SynthDriver(SynthDriver):
 					continue
 				# Changed language, lets see what we have.
 				currentLanguage = command.lang
-				newVoiceName = self.getVoiceNameForLanguage(currentLanguage)
+				newVoiceName = self._voiceManager.getVoiceNameForLanguage(currentLanguage)
 				if newVoiceName is None:
 					# No voice for this language, use default.
 					newInstance = defaultInstance
 				else:
-					newInstance = self.getVoiceInstance(newVoiceName)
+					newInstance = self._voiceManager.getVoiceInstance(newVoiceName)
 				if newInstance == currentInstance:
 					# Same voice, next command.
 					continue
@@ -270,7 +238,8 @@ class SynthDriver(SynthDriver):
 		if self._dli:
 			speechSequence = self.removeLangChangeCommand(speechSequence)
 		if config.conf["speech"]["autoLanguageSwitching"] \
-			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection']:
+			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
+			and not _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
 		self._realSpeakFunc(speechSequence, symbolLevel, priority=priority)
 
@@ -291,74 +260,70 @@ class SynthDriver(SynthDriver):
 		else:
 			_vocalizer.resume()
 
-	def _onIndexReached(self, index):
-		if index is not None:
-			synthIndexReached.notify(synth=self, index=index)
-		else:
-			synthDoneSpeaking.notify(synth=self)
-
-	def _get_voiceInstance(self):
-		return self.getVoiceInstance(self.voice)
-
 	def _get_volume(self):
-		return _vocalizer.getParameter(self.voiceInstance, _vocalizer.VE_PARAM_VOLUME)
+		return _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOLUME)
 
 	def _set_volume(self, value):
-		_vocalizer.setParameter(self.voiceInstance, _vocalizer.VE_PARAM_VOLUME, int(value))
+		self._voiceManager.setVoiceParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOLUME, int(value))
 
 	def _get_rate(self):
-		rate = _vocalizer.getParameter(self.voiceInstance, _vocalizer.VE_PARAM_SPEECHRATE)
+		rate = _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_SPEECHRATE)
 		return self._paramToPercent(rate, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
 
 	def _set_rate(self, value):
-		rate = self._percentToParam(value, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
-		_vocalizer.setParameter(self.voiceInstance, _vocalizer.VE_PARAM_SPEECHRATE, rate)
+		value = self._percentToParam(value, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
+		self._voiceManager.setVoiceParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_SPEECHRATE, value)
 
 	def _get_pitch(self):
-		pitch = _vocalizer.getParameter(self.voiceInstance, _vocalizer.VE_PARAM_PITCH)
+		pitch = _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_PITCH)
 		return self._paramToPercent(pitch, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX)
 
 	def _set_pitch(self, value):
-		pitch = self._percentToParam(value, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX)
-		_vocalizer.setParameter(self.voiceInstance, _vocalizer.VE_PARAM_PITCH, pitch)
+		value = self._percentToParam(value, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX)
+		self._voiceManager.setVoiceParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_PITCH, value)
 
 	def _getAvailableVoices(self):
-		voices = []
-		for items in self._resources.values():
-			voices.extend(items)
-		return OrderedDict([(v.id, v) for v in voices])
+		return self._voiceManager.voiceInfos
 
 	def _get_voice(self):
-		if self._voice is None:
-			self._voice = self.getVoiceNameForLanguage(languageHandler.getLanguage())
-			if self._voice is None:
-				self._voice = list(self.availableVoices.keys())[0]
-		return self._voice
+		return self._voiceManager.defaultVoiceName
 
 	def _set_voice(self, voiceName):
-		if voiceName == self.voice: return
-		if voiceName not in self.availableVoices:
-			raise RuntimeError()
-		self.cancel()
-		self._voice = voiceName
+		if voiceName == self._voiceManager.defaultVoiceName:
+			return
+		# Stop speech before setting a new voice to avoid voice instances
+		# continuing speaking when changing voices for, e.g., say-all
+		# See NVDA ticket #3540
+		_vocalizer.stop()
+		self._voiceManager.setDefaultVoice(voiceName)
 		# Available variants are cached by default. As variants maybe different for each voice remove the cached value
-		if hasattr(self, "_availableVariants"):
+		if hasattr(self, '_availableVariants'):
 			del self._availableVariants
+		# Synchronize with the synth so the parameters
+		# we report are not from the previous voice.
+		_vocalizer.sync()
 
 	def _get_variant(self):
-		return _vocalizer.getParameter(self.voiceInstance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
+		return _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
 
 	def _set_variant(self, name):
 		self.cancel()
-		_vocalizer.setParameter(self.voiceInstance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, name)
+		_vocalizer.setParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, name)
 
 	def _getAvailableVariants(self):
-		language = _vocalizer.getParameter(self.voiceInstance, _vocalizer.VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
+		language = _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
 		dbs = _vocalizer.getSpeechDBList(language, self.voice)
 		return OrderedDict([(d, VoiceInfo(d, d)) for d in dbs])
 
+	def _get_availableLanguages(self):
+		return self._voiceManager.languages
+
 	def _get_language(self):
-		return self.availableVoices[self.voice].language
+		return self._voiceManager.getVoiceLanguage()
+
+	def _info(self):
+		s = [self.description]
+		return ", ".join(s)
 
 	def _get_availableNums(self):
 		return dict({

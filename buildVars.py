@@ -11,15 +11,15 @@ addon_info = {
 	# for previously unpublished addons, please follow the community guidelines at:
 	# https://bitbucket.org/nvdaaddonteam/todo/raw/master/guidelines.txt
 	# add-on Name, internal for nvda
-	"addon_name" : "WorldVoiceXVE",
+	"addon_name" : "WorldVoice",
 	# Add-on summary, usually the user visible name of the addon.
 	# Translators: Summary for this add-on to be shown on installation and add-on information.
-	"addon_summary" : _("WorldVoiceXVE"),
+	"addon_summary" : _("WorldVoice"),
 	# Add-on description
 	# Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-	"addon_description" : _("WorldVoiceXVE"),
+	"addon_description" : _("WorldVoice"),
 	# version
-	"addon_version" : "1.2",
+	"addon_version" : "1.3",
 	# Author(s)
 	"addon_author" : "Tseng Woody <tsengwoody.tw@gmail.com>",
 	# URL for the add-on documentation support
@@ -29,7 +29,7 @@ addon_info = {
 	# Minimum NVDA version supported (e.g. "2018.3.0", minor version is optional)
 	"addon_minimumNVDAVersion" : "2019.3",
 	# Last NVDA version supported/tested (e.g. "2018.4.0", ideally more recent than minimum version)
-	"addon_lastTestedNVDAVersion" : "2020.2",
+	"addon_lastTestedNVDAVersion" : "2020.3",
 	# Add-on update channel (default is None, denoting stable releases, and for development releases, use "dev"; do not change unless you know what you are doing)
 	"addon_updateChannel" : None,
 }

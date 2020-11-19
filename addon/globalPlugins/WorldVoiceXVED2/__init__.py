@@ -1,5 +1,12 @@
 ﻿# -*- coding: utf-8 -*-
 
+import os
+import sys
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoiceXVED2')
+sys.path.insert(0, base_dir)
+
 import webbrowser
 import wx
 
@@ -13,10 +20,8 @@ import speech
 
 from .dialogs import *
 from .speechRate import *
+from generics.views import SpeechSymbolsDialog
 
-import os
-addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoiceXVED2')
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
@@ -44,9 +49,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(VocalizerLanguageSettingsDialog), item)
 			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Speech Settings"), _("Configure speech rate each voice."))
 			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(SpeechRateSettingsDialog), item)
+			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Unicode Settings"), _("Configure unicode setting."))
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(SpeechSymbolsDialog), item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onFileImport, item)
-		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoiceXVE(driver 2)"), self.submenu_vocalizer)
+		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice(VE)"), self.submenu_vocalizer)
 
 	def removeMenu(self):
 		if self.submenu_item is not None:

@@ -215,6 +215,7 @@ def open(voice=None):
 		# Initialize to some voice and language so the synth will not complain...
 		language = getLanguageList()[0].szLanguage
 		voice = getVoiceList(language)[0].szVoiceName
+		voice = voice.decode('utf-8')
 	# Set Initial parameters
 	setParameters(instance,
 	[(VE_PARAM_VOICE, voice),

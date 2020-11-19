@@ -25,6 +25,7 @@ volume = integer(default=70,min=0,max=100)
 
 [autoLanguageSwitching]
 useUnicodeLanguageDetection = boolean(default=false)
+afterSymbolDetection = boolean(default=false)
 ignoreNumbersInLanguageDetection = boolean(default=false)
 ignorePunctuationInLanguageDetection = boolean(default=true)
 latinCharactersLanguage = string(default=en)

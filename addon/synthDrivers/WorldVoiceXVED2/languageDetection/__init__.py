@@ -57,7 +57,8 @@ for charset in ('Basic Latin', 'Extended Latin', 'Latin Extended-B'):
 class LanguageDetector(object):
 	""" Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
-	def __init__(self, availableLanguages):
+	def __init__(self, availableLanguages, speechSymbols=None):
+		self.speechSymbols = speechSymbols
 		# We only work with language codes yet, no dialects.
 		availableLanguages = frozenset(l.split("_")[0] for l in availableLanguages)
 		# Cache what are the unicode blocks supported by each language.
@@ -119,6 +120,43 @@ class LanguageDetector(object):
 				command = str(command)
 				prevInIgnore = False
 				for c in command:
+					if self.speechSymbols and c in self.speechSymbols.symbols:
+						block = ord(c) >> BLOCK_RSHIFT
+						symbol = self.speechSymbols.symbols[c]
+						c = symbol.replacement if symbol.replacement else c
+						if symbol.mode == 1:
+							newLang = symbol.language
+						elif symbol.mode == 0:
+							try:
+								newCharset = BLOCKS[block]
+							except IndexError:
+								newCharset = None
+							if newCharset == charset:
+								sb.write(c)
+								continue
+							charset = newCharset
+							if charset in self.languageBlocks[tmpLang]:
+								sb.write(c)
+								continue
+							# Find the new language to use
+							newLang = self.find_language_for_charset(charset, curLang)
+						else:
+							newLang = tmpLang
+						newLangFirst = newLang
+						if newLangFirst == tmpLang:
+							# Same old...
+							sb.write(c)
+							continue
+						# Change language
+						# First yield the string we already have.
+						if sb.getvalue():
+							yield sb.getvalue()
+							sb = StringIO()
+						yield speech.LangChangeCommand(newLang)
+						yield c
+						yield speech.LangChangeCommand(curLang)
+						continue
+
 					# For non-alphanumeric characters, revert to  the currently set language if in the ASCII range
 					block = ord(c) >> BLOCK_RSHIFT
 					if c.isspace():

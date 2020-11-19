@@ -1,10 +1,11 @@
+from collections import defaultdict
+
 import wx
 from gui import guiHelper
 import addonHandler
 import gui
-from collections import defaultdict
-import languageHandler
 from synthDrivers.WorldVoiceXVED2 import _config, languageDetection, _vocalizer
+from synthDrivers.WorldVoiceXVED2._voiceManager import VoiceManager
 
 addonHandler.initTranslation()
 
@@ -13,20 +14,18 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 
 	def __init__(self, parent):
 		_config.load()
-		self._localeToVoices = {}
-
+		self.ready = False
 		with _vocalizer.preOpenVocalizer() as check:
 			if check:
-				for l, v in _vocalizer.getAvailableResources().items():
-					self._localeToVoices[l.id] = v
-					if "_" in l.id:
-						lang = l.id.split("_")[0]
-						if lang not in self._localeToVoices:
-							self._localeToVoices[lang] = []
-						self._localeToVoices[lang].extend(v)
+				self.ready = True
+				_vocalizer.initialize(lambda x: None)
+				manager = VoiceManager()
+				self._localeToVoices = manager.localeToVoicesMap
+				self.localesToNames = manager.localesToNamesMap
+				manager.close()
+				self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
 
 		self._dataToPercist = defaultdict(lambda: {})
-		self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
 		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
 		self._latinLocales = sorted(list(latinSet))
 		CJKSet = set(languageDetection.CJK) & set(l for l in self._locales if len(l) == 2)
@@ -34,13 +33,20 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 		super(VocalizerLanguageSettingsDialog, self).__init__(parent)
 
 	def makeSettings(self, sizer):
+		synthInfo = _('Your current speech synthesizer is not ready.')
+		if not self.ready:
+			infoLabel = wx.StaticText(self, label = synthInfo)
+			infoLabel.Wrap(self.GetSize()[0])
+			sizer.Add(infoLabel)
+			return False
+
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 
 		helpLabel = wx.StaticText(self, label=_("Select a language, and then configure the voice to be used:"))
 		helpLabel.Wrap(self.GetSize()[0])
 		settingsSizerHelper.addItem(helpLabel)
 
-		localeNames = list(map(self._getLocaleReadableName, self._locales))
+		localeNames = [self.localesToNames[l] for l in self._locales]
 		self._localesChoice = settingsSizerHelper.addLabeledControl(_("Locale Name:"), wx.Choice, choices=localeNames)
 		self.Bind(wx.EVT_CHOICE, self.onLocaleChanged, self._localesChoice)
 
@@ -52,6 +58,12 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 			label=_("Detect text language based on unicode characters"))
 		self._useUnicodeDetectionCheckBox.SetValue(_config.vocalizerConfig["autoLanguageSwitching"]["useUnicodeLanguageDetection"])
 		settingsSizerHelper.addItem(self._useUnicodeDetectionCheckBox)
+
+		self._afterSymbolDetectionCheckBox = wx.CheckBox(self,
+		# Translators: Wether to use or not after symbol detection.
+			label=_("Detect text language after symbol process"))
+		self._afterSymbolDetectionCheckBox.SetValue(_config.vocalizerConfig["autoLanguageSwitching"]["afterSymbolDetection"])
+		settingsSizerHelper.addItem(self._afterSymbolDetectionCheckBox)
 
 		self._ignoreNumbersCheckBox = wx.CheckBox(self,
 		# Translators: Either to ignore or not numbers when language detection is active
@@ -65,7 +77,7 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 		self._ignorePunctuationCheckBox.SetValue(_config.vocalizerConfig["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"])
 		settingsSizerHelper.addItem(self._ignorePunctuationCheckBox)
 
-		latinChoiceLocaleNames = [self._getLocaleReadableName(l) for l in self._latinLocales]
+		latinChoiceLocaleNames = [self.localesToNames[l] for l in self._latinLocales]
 		self._latinChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for latin characters:"), wx.Choice, choices=latinChoiceLocaleNames)
 		latinLocale = _config.vocalizerConfig["autoLanguageSwitching"]["latinCharactersLanguage"]
 		try:
@@ -75,7 +87,7 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 		if not latinChoiceLocaleNames:
 			self._latinChoice.Disable()
 
-		CJKChoiceLocaleNames = [self._getLocaleReadableName(l) for l in self._CJKLocales]
+		CJKChoiceLocaleNames = [self.localesToNames[l] for l in self._CJKLocales]
 		self._CJKChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for CJK characters:"), wx.Choice, choices=CJKChoiceLocaleNames)
 		CJKLocale = _config.vocalizerConfig["autoLanguageSwitching"]["CJKCharactersLanguage"]
 		try:
@@ -86,8 +98,9 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 			self._CJKChoice.Disable()
 
 	def postInit(self):
-		self._updateVoicesSelection()
-		self._localesChoice.SetFocus()
+		if not self.ready:
+			self._updateVoicesSelection()
+			self._localesChoice.SetFocus()
 
 	def _updateVoicesSelection(self):
 		localeIndex = self._localesChoice.GetCurrentSelection()
@@ -95,7 +108,7 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 			self._voicesChoice.SetItems([])
 		else:
 			locale = self._locales[localeIndex]
-			voices = sorted([v.id for v in self._localeToVoices[locale]])
+			voices = sorted(self._localeToVoices[locale])
 			self._voicesChoice.SetItems(voices)
 			if locale in _config.vocalizerConfig["autoLanguageSwitching"]:
 				voice = _config.vocalizerConfig["autoLanguageSwitching"][locale]["voice"]
@@ -119,6 +132,7 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 			_config.vocalizerConfig["autoLanguageSwitching"][locale] = self._dataToPercist[locale]
 
 		_config.vocalizerConfig["autoLanguageSwitching"]["useUnicodeLanguageDetection"] = self._useUnicodeDetectionCheckBox.GetValue()
+		_config.vocalizerConfig["autoLanguageSwitching"]["afterSymbolDetection"] = self._afterSymbolDetectionCheckBox.GetValue()
 		_config.vocalizerConfig["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = self._ignoreNumbersCheckBox.GetValue()
 		_config.vocalizerConfig["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"] = self._ignorePunctuationCheckBox.GetValue()
 		if self._latinChoice.IsEnabled():
@@ -126,7 +140,3 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 		if self._CJKChoice.IsEnabled():
 			_config.vocalizerConfig["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[self._CJKChoice.GetCurrentSelection()]
 		super(VocalizerLanguageSettingsDialog, self).onOk(event)
-
-	def _getLocaleReadableName(self, locale):
-		description = languageHandler.getLanguageDescription(locale)
-		return "%s - %s" % (description, locale) if description else locale

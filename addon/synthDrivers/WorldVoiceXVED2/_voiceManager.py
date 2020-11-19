@@ -13,10 +13,15 @@ from logHandler import log
 from synthDriverHandler import VoiceInfo
 from . import _config
 from . import _languages
-from . import _tuningData
 from . import _vocalizer
 from functools import reduce
 
+VOICE_PARAMETERS = [
+	(_vocalizer.VE_PARAM_VOICE_OPERATING_POINT, "variant", str),
+	(_vocalizer.VE_PARAM_SPEECHRATE, "rate", int),
+	(_vocalizer.VE_PARAM_PITCH, "pitch", int),
+	(_vocalizer.VE_PARAM_VOLUME, "volume", int),
+]
 
 # PARAMETERS_TO_UPDATE = [_vocalizer.VE_PARAM_VOLUME, _vocalizer.VE_PARAM_SPEECHRATE, _vocalizer.VE_PARAM_PITCH]
 PARAMETERS_TO_UPDATE = [_vocalizer.VE_PARAM_VOLUME, _vocalizer.VE_PARAM_PITCH]
@@ -62,7 +67,6 @@ class VoiceManager(object):
 		return instance
 
 	def close(self):
-		_vocalizer.sync() # Don't close while someething is still running
 		for voiceName, instance in self._instanceCache.items():
 			self.onVoiceUnload(voiceName, instance)
 			_vocalizer.close(instance)
@@ -79,7 +83,7 @@ class VoiceManager(object):
 		# Keep lists of voices appropriate for each locale.
 		# Also collect existing voices for quick listing.
 		for l in languages:
-			voices = _vocalizer.getVoiceList(l.szLanguage.decode())
+			voices = _vocalizer.getVoiceList(l.szLanguage)
 			voiceInfos.extend([self._makeVoiceInfo(v) for v in voices])
 			voiceNames = [v.szVoiceName.decode() for v in voices]
 			self._localesToVoices[self._languageNamesToLocales[l.szLanguage.decode()]] = voiceNames
@@ -119,6 +123,10 @@ class VoiceManager(object):
 	def localeToVoicesMap(self):
 		return self._localesToVoices.copy()
 
+	@property
+	def localesToNamesMap(self):
+		return {locale: self._getLocaleReadableName(locale) for locale in self._localesToVoices}
+
 	def getVoiceNameForLanguage(self, language):
 		configured =  self._getConfiguredVoiceNameForLanguage(language)
 		if configured is not None and configured in self.voiceInfos:
@@ -145,40 +153,23 @@ class VoiceManager(object):
 
 	def onVoiceLoad(self, voiceName, instance):
 		""" Restores variant and other settings if available, when a voice is loaded."""
-		# if voiceName in _config.vocalizerConfig['voices']:
-		if False:
-			variant = _config.vocalizerConfig['voices'][voiceName]['variant']
-			if variant is not None:
-				_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_VOICE_MODEL, variant)
 
-		try:
-			speechrate = _config.vocalizerConfig['voices'][voiceName]['speechrate']
-		except:
-			speechrate = None
-		if speechrate is not None:
-			value = int(speechrate)
-			factor = 25.0 if value >= 50 else 50.0
-			norm = 2.0 ** ((value - 50.0) / factor)
-			speechrate = value = int(round(norm * 100))
-			_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_SPEECHRATE, speechrate)
-		else:
-			speechrate = 50
-			_vocalizer.setParameter(instance, _vocalizer.VE_PARAM_SPEECHRATE, 150)
+		if voiceName in _config.vocalizerConfig['voices']:
+			for p, name, t in VOICE_PARAMETERS:
+				value = _config.vocalizerConfig['voices'][voiceName].get(name, None)
+				if value is None:
+					continue
+				_vocalizer.setParameter(instance, p, t(value))
 
 	def onVoiceUnload(self, voiceName, instance):
 		""" Saves variant to be restored for each voice."""
-		variant = _vocalizer.getParameter(instance, _vocalizer.VE_PARAM_VOICE_MODEL, type_=str)
 
-		import math
-		speechrate = _vocalizer.getParameter(instance, _vocalizer.VE_PARAM_SPEECHRATE)
-		norm = speechrate / 100.0
-		factor = 25 if norm  >= 1 else 50
-	# Floating point madness...
-		speechrate = int(round(50 + factor * math.log(norm, 2)))
 		if voiceName not in _config.vocalizerConfig['voices']:
 			_config.vocalizerConfig['voices'][voiceName] = {}
-		_config.vocalizerConfig['voices'][voiceName]['variant'] = variant
-		_config.vocalizerConfig['voices'][voiceName]['speechrate'] = speechrate
+
+		for p, name, t in VOICE_PARAMETERS:
+			value = _vocalizer.getParameter(instance, p, type_=t)
+			_config.vocalizerConfig['voices'][voiceName][name] = value
 
 	def _localeGroupKey(self, localeName):
 		if '_' in localeName:
@@ -203,3 +194,7 @@ class VoiceManager(object):
 			langDescription = v.szLanguage.decode()
 		name = "%s - %s" % (v.szVoiceName.decode(), langDescription)
 		return VoiceInfo(v.szVoiceName.decode(), name, localeName or None)
+
+	def _getLocaleReadableName(self, locale):
+		description = languageHandler.getLanguageDescription(locale)
+		return "%s - %s" % (description, locale) if description else locale
