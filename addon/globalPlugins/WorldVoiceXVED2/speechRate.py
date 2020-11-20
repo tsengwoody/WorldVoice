@@ -18,15 +18,15 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 		with _vocalizer.preOpenVocalizer() as check:
 			if check:
 				self.ready = True
-				_vocalizer.initialize(lambda x: None)
-				manager = VoiceManager()
 				self._synthInstance = speech.getSynth()
 				if self._synthInstance.name == 'WorldVoiceXVED2':
 					self._manager = self._synthInstance._voiceManager
 				else:
+					_vocalizer.initialize(lambda x: None)
+					manager = VoiceManager()
 					self._manager = manager
-				self._localeToVoices = manager.localeToVoicesMap
-				self.localesToNames = manager.localesToNamesMap
+				self._localeToVoices = self._manager.localeToVoicesMap
+				self.localesToNames = self._manager.localesToNamesMap
 				self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
 		super(SpeechRateSettingsDialog, self).__init__(parent)
 
@@ -36,7 +36,7 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 			infoLabel = wx.StaticText(self, label = synthInfo)
 			infoLabel.Wrap(self.GetSize()[0])
 			sizer.Add(infoLabel)
-			return False
+			return
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 
@@ -62,7 +62,7 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 
 	def postInit(self):
 		if not self.ready:
-			return False
+			return
 		self._updateVoicesSelection()
 		self._localesChoice.SetFocus()
 		self.sliderDisable()
@@ -99,7 +99,7 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == '':
 			self.sliderDisable()
-			return False
+			return
 		self.sliderEnable()
 		voiceInstance = self._manager.getVoiceInstance(voiceName)
 
@@ -117,7 +117,7 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 	def onSpeechRateSliderScroll(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == '':
-			return False
+			return
 		voiceInstance = self._manager.getVoiceInstance(voiceName)
 		value = self._speechRateSlider.GetValue()
 		speechrate = percentToParam(value, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
@@ -126,7 +126,7 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 	def onPitchSliderScroll(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == '':
-			return False
+			return
 		voiceInstance = self._manager.getVoiceInstance(voiceName)
 		value = self._pitchSlider.GetValue()
 		pitch = percentToParam(value, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX)
@@ -135,7 +135,7 @@ class SpeechRateSettingsDialog(gui.SettingsDialog):
 	def onVolumeSliderScroll(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == '':
-			return False
+			return
 		voiceInstance = self._manager.getVoiceInstance(voiceName)
 		value = self._volumeSlider.GetValue()
 		_vocalizer.setParameter(voiceInstance, _vocalizer.VE_PARAM_VOLUME, int(value))

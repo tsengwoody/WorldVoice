@@ -4,6 +4,7 @@ import wx
 from gui import guiHelper
 import addonHandler
 import gui
+import speech
 from synthDrivers.WorldVoiceXVED2 import _config, languageDetection, _vocalizer
 from synthDrivers.WorldVoiceXVED2._voiceManager import VoiceManager
 
@@ -18,11 +19,15 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 		with _vocalizer.preOpenVocalizer() as check:
 			if check:
 				self.ready = True
-				_vocalizer.initialize(lambda x: None)
-				manager = VoiceManager()
-				self._localeToVoices = manager.localeToVoicesMap
-				self.localesToNames = manager.localesToNamesMap
-				manager.close()
+				self._synthInstance = speech.getSynth()
+				if self._synthInstance.name == 'WorldVoiceXVED2':
+					self._manager = self._synthInstance._voiceManager
+				else:
+					_vocalizer.initialize(lambda x: None)
+					manager = VoiceManager()
+					self._manager = manager
+				self._localeToVoices = self._manager.localeToVoicesMap
+				self.localesToNames = self._manager.localesToNamesMap
 				self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
 
 		self._dataToPercist = defaultdict(lambda: {})
@@ -38,7 +43,7 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 			infoLabel = wx.StaticText(self, label = synthInfo)
 			infoLabel.Wrap(self.GetSize()[0])
 			sizer.Add(infoLabel)
-			return False
+			return
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 
@@ -99,8 +104,9 @@ class VocalizerLanguageSettingsDialog(gui.SettingsDialog):
 
 	def postInit(self):
 		if not self.ready:
-			self._updateVoicesSelection()
-			self._localesChoice.SetFocus()
+			return
+		self._updateVoicesSelection()
+		self._localesChoice.SetFocus()
 
 	def _updateVoicesSelection(self):
 		localeIndex = self._localesChoice.GetCurrentSelection()

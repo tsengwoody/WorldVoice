@@ -301,7 +301,7 @@ class SynthDriver(SynthDriver):
 			del self._availableVariants
 		# Synchronize with the synth so the parameters
 		# we report are not from the previous voice.
-		_vocalizer.sync()
+		# _vocalizer.sync()
 
 	def _get_variant(self):
 		return _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
