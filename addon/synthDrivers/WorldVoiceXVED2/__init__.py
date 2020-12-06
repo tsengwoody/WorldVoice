@@ -58,7 +58,6 @@ chinese_number = {
 class SynthDriver(SynthDriver):
 	name = "WorldVoiceXVED2"
 	description = "WorldVoice(VE)"
-
 	supportedSettings = [
 		SynthDriver.VoiceSetting(),
 		# SynthDriver.VariantSetting(),
@@ -70,6 +69,7 @@ class SynthDriver(SynthDriver):
 			# Translators: Label for a setting in voice settings dialog.
 			_("&Number Mode"),
 			availableInSettingsRing=True,
+			defaultVal="default",
 			# Translators: Label for a setting in synth settings ring.
 			displayName=_("Number Mode"),
 		),
@@ -77,14 +77,16 @@ class SynthDriver(SynthDriver):
 			"chinesespace",
 			# Translators: Label for a setting in voice settings dialog.
 			_("&Chinese Space Break"),
-			minStep=1,
 			availableInSettingsRing=True,
+			defaultVal=0,
+			minStep=1,
 			# Translators: Label for a setting in synth settings ring.
 			displayName=_("Chinese Space Break"),
 		),
 		driverHandler.BooleanDriverSetting(
 			"dli",
 			_("Ignore language information of document"),
+			defaultVal=False,
 		),
 	]
 	supportedCommands = {
@@ -117,9 +119,6 @@ class SynthDriver(SynthDriver):
 			raise
 		self._voiceManager = VoiceManager()
 
-		_vocalizer.initialize(self._onIndexReached)
-		self._resources = _vocalizer.getAvailableResources()
-
 		self._realSpeakFunc = speech.speak
 		self._realSpellingFunc = speech.speakSpelling
 		speech.speak = self.patchedSpeak
@@ -127,7 +126,7 @@ class SynthDriver(SynthDriver):
 
 		speechSymbols = SpeechSymbols()
 		speechSymbols.load('unicode.dic')
-		self._languageDetector = languageDetection.LanguageDetector([l.id for l in self._resources], speechSymbols)
+		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.languages), speechSymbols)
 
 		speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=self.patchedSpeak)
 		speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
@@ -136,9 +135,7 @@ class SynthDriver(SynthDriver):
 		self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
 		self._localeNames = list(map(self._getLocaleReadableName, self._locales))
 
-		self._nummod = "default"
-		self._chinesespace = "0"
-		self._dli = True
+		self._voice = None
 
 	def _onIndexReached(self, index):
 		if index is not None:
@@ -165,10 +162,11 @@ class SynthDriver(SynthDriver):
 			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
 			and _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
+			speechSequence = list(speechSequence)
 		speechSequence = self.patchedNumSpeechSequence(speechSequence)
 		speechSequence = self.patchedSpaceSpeechSequence(speechSequence)
 
-		currentInstance = defaultInstance = self._voiceManager.defaultVoiceInstance
+		currentInstance = defaultInstance = self._voiceManager.defaultVoiceInstance.token
 		currentLanguage = defaultLanguage = self.language
 		chunks = []
 		hasText = False
@@ -214,7 +212,7 @@ class SynthDriver(SynthDriver):
 					# No voice for this language, use default.
 					newInstance = defaultInstance
 				else:
-					newInstance = self._voiceManager.getVoiceInstance(newVoiceName)
+					newInstance = self._voiceManager.getVoiceInstance(newVoiceName).token
 				if newInstance == currentInstance:
 					# Same voice, next command.
 					continue
@@ -224,7 +222,7 @@ class SynthDriver(SynthDriver):
 					hasText = False
 				currentInstance = newInstance
 			elif isinstance(command, speech.PitchCommand):
-				pitch = _vocalizer.getParameter(currentInstance, _vocalizer.VE_PARAM_PITCH, type_=int)
+				pitch = self._voiceManager.getVoiceParameter(currentInstance, _vocalizer.VE_PARAM_PITCH, type_=int)
 				pitchOffset = self._percentToParam(command.offset, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX) - _vocalizer.PITCH_MIN
 				chunks.append("\x1b\\pitch=%d\\" % (pitch+pitchOffset))
 		if chunks:
@@ -241,6 +239,7 @@ class SynthDriver(SynthDriver):
 			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
 			and not _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
+			speechSequence = list(speechSequence)
 		self._realSpeakFunc(speechSequence, symbolLevel, priority=priority)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
@@ -261,32 +260,32 @@ class SynthDriver(SynthDriver):
 			_vocalizer.resume()
 
 	def _get_volume(self):
-		return _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOLUME)
+		return self._voiceManager.defaultVoiceInstance.volume
 
 	def _set_volume(self, value):
-		self._voiceManager.setVoiceParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOLUME, int(value))
+		self._voiceManager.defaultVoiceInstance.volume = value
 
 	def _get_rate(self):
-		rate = _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_SPEECHRATE)
-		return self._paramToPercent(rate, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
+		return self._voiceManager.defaultVoiceInstance.rate
 
 	def _set_rate(self, value):
-		value = self._percentToParam(value, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
-		self._voiceManager.setVoiceParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_SPEECHRATE, value)
+		self._voiceManager.defaultVoiceInstance.rate = value
 
 	def _get_pitch(self):
-		pitch = _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_PITCH)
-		return self._paramToPercent(pitch, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX)
+		return self._voiceManager.defaultVoiceInstance.pitch
 
 	def _set_pitch(self, value):
-		value = self._percentToParam(value, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX)
-		self._voiceManager.setVoiceParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_PITCH, value)
+		self._voiceManager.defaultVoiceInstance.pitch = value
 
 	def _getAvailableVoices(self):
 		return self._voiceManager.voiceInfos
 
 	def _get_voice(self):
-		return self._voiceManager.defaultVoiceName
+		if self._voice is None:
+			self._voice = self._voiceManager.getVoiceNameForLanguage(languageHandler.getLanguage())
+			if self._voice is None:
+				self._voice = list(self.availableVoices.keys())[0]
+		return self._voice
 
 	def _set_voice(self, voiceName):
 		if voiceName == self._voiceManager.defaultVoiceName:
@@ -304,15 +303,14 @@ class SynthDriver(SynthDriver):
 		# _vocalizer.sync()
 
 	def _get_variant(self):
-		return _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
+		return self._voiceManager.defaultVoiceInstance.variant
 
 	def _set_variant(self, name):
 		self.cancel()
-		_vocalizer.setParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, name)
+		self._voiceManager.defaultVoiceInstance.variant = name
 
 	def _getAvailableVariants(self):
-		language = _vocalizer.getParameter(self._voiceManager.defaultVoiceInstance, _vocalizer.VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
-		dbs = _vocalizer.getSpeechDBList(language, self.voice)
+		dbs = self._voiceManager.defaultVoiceInstance.variants
 		return OrderedDict([(d, VoiceInfo(d, d)) for d in dbs])
 
 	def _get_availableLanguages(self):

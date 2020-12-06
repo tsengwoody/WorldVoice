@@ -19,9 +19,9 @@ vocalizerConfig = None
 _configSpec = u"""[voices]
 [[__many__]]
 variant = string(default=None)
-rate = integer(default=130,min=50,max=400)
-pitch = integer(default=95,min=50,max=200)
-volume = integer(default=70,min=0,max=100)
+rate = integer(default=50,min=0,max=100)
+pitch = integer(default=50,min=0,max=100)
+volume = integer(default=50,min=0,max=100)
 
 [autoLanguageSwitching]
 useUnicodeLanguageDetection = boolean(default=false)

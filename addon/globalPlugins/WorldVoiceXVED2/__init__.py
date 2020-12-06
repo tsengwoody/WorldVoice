@@ -18,8 +18,8 @@ import gui
 from logHandler import log
 import speech
 
-from .dialogs import *
-from .speechRate import *
+from .languageSettingsDialog import LanguageSettingsDialog
+from .speechSettingsDialog import SpeechSettingsDialog
 from generics.views import SpeechSymbolsDialog
 
 
@@ -46,9 +46,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.submenu_vocalizer = wx.Menu()
 		if self.ve:
 			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("Automatic &Language Switching Settings"), _("Configure which voice is to be used for each language."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(VocalizerLanguageSettingsDialog), item)
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(LanguageSettingsDialog()), item)
 			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Speech Settings"), _("Configure speech rate each voice."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(SpeechRateSettingsDialog), item)
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(SpeechSettingsDialog()), item)
 			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Unicode Settings"), _("Configure unicode setting."))
 			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(SpeechSymbolsDialog), item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))

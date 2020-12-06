@@ -119,30 +119,23 @@ class LanguageDetector(object):
 				sb = StringIO()
 				command = str(command)
 				prevInIgnore = False
+				rule = False
 				for c in command:
 					if self.speechSymbols and c in self.speechSymbols.symbols:
+						rule = True
 						block = ord(c) >> BLOCK_RSHIFT
+						try:
+							newCharset = BLOCKS[block]
+						except IndexError:
+							newCharset = None
+						charset = newCharset
 						symbol = self.speechSymbols.symbols[c]
 						c = symbol.replacement if symbol.replacement else c
 						if symbol.mode == 1:
 							newLang = symbol.language
-						elif symbol.mode == 0:
-							try:
-								newCharset = BLOCKS[block]
-							except IndexError:
-								newCharset = None
-							if newCharset == charset:
-								sb.write(c)
-								continue
-							charset = newCharset
-							if charset in self.languageBlocks[tmpLang]:
-								sb.write(c)
-								continue
-							# Find the new language to use
-							newLang = self.find_language_for_charset(charset, curLang)
 						else:
 							newLang = tmpLang
-						newLangFirst = newLang
+						newLangFirst = newLang.split("_")[0]
 						if newLangFirst == tmpLang:
 							# Same old...
 							sb.write(c)
@@ -152,9 +145,10 @@ class LanguageDetector(object):
 						if sb.getvalue():
 							yield sb.getvalue()
 							sb = StringIO()
+						tmpLang = newLangFirst
+						charset = None
 						yield speech.LangChangeCommand(newLang)
 						yield c
-						yield speech.LangChangeCommand(curLang)
 						continue
 
 					# For non-alphanumeric characters, revert to  the currently set language if in the ASCII range
@@ -169,7 +163,7 @@ class LanguageDetector(object):
 						if _config.vocalizerConfig['autoLanguageSwitching']['ignorePunctuationInLanguageDetection'] and not c.isdigit():
 							sb.write(c)
 							continue
-						if prevInIgnore:
+						if prevInIgnore and not rule:
 							# Digits and ascii punctuation. We already calculated
 							sb.write(c)
 							continue
@@ -190,13 +184,17 @@ class LanguageDetector(object):
 						newCharset = BLOCKS[block]
 					except IndexError:
 						newCharset = None
-					if newCharset == charset:
-						sb.write(c)
-						continue
-					charset = newCharset
-					if charset in self.languageBlocks[tmpLang]:
-						sb.write(c)
-						continue
+					if not rule:
+						if newCharset == charset:
+							sb.write(c)
+							continue
+						charset = newCharset
+						if charset in self.languageBlocks[tmpLang]:
+							sb.write(c)
+							continue
+					else:
+						charset = newCharset
+					rule = False
 					# Find the new language to use
 					newLang = self.find_language_for_charset(charset, curLang)
 					newLangFirst = newLang.split("_")[0]
