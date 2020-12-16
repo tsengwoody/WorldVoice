@@ -28,9 +28,9 @@ VOICE_PARAMETERS = [
 ]
 
 VOICE_PARAMETERS2 = [
-	("rate", "rate", int),
-	("pitch", "pitch", int),
-	("volume", "volume", int),
+	("rate", int),
+	("pitch", int),
+	("volume", int),
 ]
 
 # PARAMETERS_TO_UPDATE = [_vocalizer.VE_PARAM_VOLUME, _vocalizer.VE_PARAM_SPEECHRATE, _vocalizer.VE_PARAM_PITCH]
@@ -66,9 +66,23 @@ class Voice(object):
 		except AttributeError:
 			self.language = None
 
-		self.pitch = 50 # 33
 		self.rate = 14
+		self.pitch = 50
 		self.volume = 50
+
+		self.commitRate = 14
+		self.commitPitch = 50
+		self.commitVolume = 50
+
+	def commit(self):
+		self.commitRate = self.rate
+		self.commitPitch = self.pitch
+		self.commitVolume = self.volume
+
+	def rollback(self):
+		self.rate = self.commitRate
+		self.pitch = self.commitPitch
+		self.volume = self.commitVolume
 
 	@property
 	def rate(self):
@@ -282,11 +296,13 @@ class VoiceManager(object):
 		""" Restores variant and other settings if available, when a voice is loaded."""
 
 		if voiceName in _config.vocalizerConfig['voices']:
-			for p, name, t in VOICE_PARAMETERS2:
-				value = _config.vocalizerConfig['voices'][voiceName].get(name, None)
+			for p, t in VOICE_PARAMETERS2:
+				value = _config.vocalizerConfig['voices'][voiceName].get(p, None)
 				if value is None:
 					continue
+				# p = "commit" + p.capitalize()
 				setattr(instance, p, t(value))
+			instance.commit()
 
 	def onVoiceUnload(self, voiceName, instance):
 		""" Saves variant to be restored for each voice."""
@@ -294,9 +310,10 @@ class VoiceManager(object):
 		if voiceName not in _config.vocalizerConfig['voices']:
 			_config.vocalizerConfig['voices'][voiceName] = {}
 
-		for p, name, t in VOICE_PARAMETERS2:
+		for p, t in VOICE_PARAMETERS2:
+			# p = "commit" + p.capitalize()
 			value = t(getattr(instance, p))
-			_config.vocalizerConfig['voices'][voiceName][name] = value
+			_config.vocalizerConfig['voices'][voiceName][p] = value
 
 	def _localeGroupKey(self, localeName):
 		if '_' in localeName:

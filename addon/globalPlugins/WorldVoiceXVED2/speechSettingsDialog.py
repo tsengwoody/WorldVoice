@@ -3,6 +3,7 @@ from collections import defaultdict
 import wx
 from autoSettingsUtils.utils import paramToPercent, percentToParam
 import addonHandler
+import config
 import gui
 from gui import guiHelper
 import speech
@@ -73,14 +74,16 @@ def SpeechSettingsDialog():
 				self._voicesChoice.SetItems([])
 			else:
 				locale = self._locales[localeIndex]
-				voices = sorted(self._localeToVoices[locale])
+				voices = ["default"] + sorted(self._localeToVoices[locale])
 				self._voicesChoice.SetItems(voices)
 				if locale in _config.vocalizerConfig["autoLanguageSwitching"]:
 					voice = _config.vocalizerConfig["autoLanguageSwitching"][locale]["voice"]
 					if voice:
-						self.sliderEnable()
 						self._voicesChoice.Select(voices.index(voice))
 						self.onVoiceChange(None)
+				else:
+					self._voicesChoice.Select(0)
+					self.onVoiceChange(None)
 
 		def sliderEnable(self):
 			self._rateSlider.Enable()
@@ -97,7 +100,7 @@ def SpeechSettingsDialog():
 
 		def onVoiceChange(self, event):
 			voiceName = self._voicesChoice.GetStringSelection()
-			if voiceName == '':
+			if voiceName == "default":
 				self.sliderDisable()
 				return
 			self.sliderEnable()
@@ -128,7 +131,22 @@ def SpeechSettingsDialog():
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			voiceInstance.volume = self._volumeSlider.GetValue()
 
+		def onCancel(self, event):
+			for instance in self._manager._instanceCache.values():
+				instance.rollback()
+			return super(Dialog, self).onCancel(event)
+
 		def onOk(self, event):
+			for instance in self._manager._instanceCache.values():
+				instance.commit()
+				try:
+					if instance.name == config.conf["speech"][self._synthInstance.name]["voice"]:
+						config.conf["speech"][self._synthInstance.name]["rate"] = instance.rate
+						config.conf["speech"][self._synthInstance.name]["pitch"] = instance.pitch
+						config.conf["speech"][self._synthInstance.name]["volume"] = instance.volume
+				except:
+					pass
+
 			if not self._synthInstance.name == 'WorldVoiceXVED2':
 				self._manager.close()
 			return super(Dialog, self).onOk(event)

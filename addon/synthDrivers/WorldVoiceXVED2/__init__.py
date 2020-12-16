@@ -25,6 +25,7 @@ import re
 import driverHandler
 
 number_pattern = re.compile(r"[0-9]+[0-9.:]*[0-9]+|[0-9]")
+comma_number_pattern = re.compile(r"(?<=[0-9]),(?=[0-9])")
 chinese_space_pattern = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 english_number = {
@@ -65,23 +66,34 @@ class SynthDriver(SynthDriver):
 		SynthDriver.PitchSetting(),
 		SynthDriver.VolumeSetting(),
 		driverHandler.DriverSetting(
-			"num",
+			"numlan",
 			# Translators: Label for a setting in voice settings dialog.
-			_("&Number Mode"),
+			_("Number &Language"),
 			availableInSettingsRing=True,
 			defaultVal="default",
+			# Translators: Label for a setting in synth settings ring.
+			displayName=_("Number Mode"),
+		),
+		driverHandler.DriverSetting(
+			"nummod",
+			# Translators: Label for a setting in voice settings dialog.
+			_("Number &Mode"),
+			availableInSettingsRing=True,
+			defaultVal="value",
 			# Translators: Label for a setting in synth settings ring.
 			displayName=_("Number Mode"),
 		),
 		driverHandler.NumericDriverSetting(
 			"chinesespace",
 			# Translators: Label for a setting in voice settings dialog.
-			_("&Chinese Space Break"),
-			availableInSettingsRing=True,
+			_("Pause time when encountering spaces between Chinese"),
 			defaultVal=0,
 			minStep=1,
-			# Translators: Label for a setting in synth settings ring.
-			displayName=_("Chinese Space Break"),
+		),
+		driverHandler.BooleanDriverSetting(
+			"cni",
+			_("Ignore comma between number"),
+			defaultVal=False,
 		),
 		driverHandler.BooleanDriverSetting(
 			"dli",
@@ -233,6 +245,14 @@ class SynthDriver(SynthDriver):
 		_vocalizer.processText2Speech(voiceInstance, text)
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
+		if self._cni:
+			temp = []
+			for command in speechSequence:
+				if isinstance(command, str):
+					temp.append(comma_number_pattern.sub(lambda m:'', command))
+				else:
+					temp.append(command)
+			speechSequence = temp
 		if self._dli:
 			speechSequence = self.removeLangChangeCommand(speechSequence)
 		if config.conf["speech"]["autoLanguageSwitching"] \
@@ -244,7 +264,8 @@ class SynthDriver(SynthDriver):
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
 		if config.conf["speech"]["autoLanguageSwitching"] \
-			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection']:
+			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
+			and config.conf["speech"]["trustVoiceLanguage"]:
 				for text, loc in self._languageDetector.process_for_spelling(text, locale):
 					self._realSpellingFunc(text, loc, useCharacterDescriptions, priority=priority)
 		else:
@@ -264,30 +285,35 @@ class SynthDriver(SynthDriver):
 
 	def _set_volume(self, value):
 		self._voiceManager.defaultVoiceInstance.volume = value
+		self._voiceManager.defaultVoiceInstance.commit()
 
 	def _get_rate(self):
 		return self._voiceManager.defaultVoiceInstance.rate
 
 	def _set_rate(self, value):
 		self._voiceManager.defaultVoiceInstance.rate = value
+		self._voiceManager.defaultVoiceInstance.commit()
 
 	def _get_pitch(self):
 		return self._voiceManager.defaultVoiceInstance.pitch
 
 	def _set_pitch(self, value):
 		self._voiceManager.defaultVoiceInstance.pitch = value
+		self._voiceManager.defaultVoiceInstance.commit()
 
 	def _getAvailableVoices(self):
 		return self._voiceManager.voiceInfos
 
 	def _get_voice(self):
 		if self._voice is None:
-			self._voice = self._voiceManager.getVoiceNameForLanguage(languageHandler.getLanguage())
-			if self._voice is None:
-				self._voice = list(self.availableVoices.keys())[0]
-		return self._voice
+			voice = self._voiceManager.getVoiceNameForLanguage(languageHandler.getLanguage())
+			if voice is None:
+				voice = list(self.availableVoices.keys())[0]
+			return voice
+		return self._voiceManager.defaultVoiceName
 
 	def _set_voice(self, voiceName):
+		self._voice = voiceName
 		if voiceName == self._voiceManager.defaultVoiceName:
 			return
 		# Stop speech before setting a new voice to avoid voice instances
@@ -296,8 +322,8 @@ class SynthDriver(SynthDriver):
 		_vocalizer.stop()
 		self._voiceManager.setDefaultVoice(voiceName)
 		# Available variants are cached by default. As variants maybe different for each voice remove the cached value
-		if hasattr(self, '_availableVariants'):
-			del self._availableVariants
+		# if hasattr(self, '_availableVariants'):
+			# del self._availableVariants
 		# Synchronize with the synth so the parameters
 		# we report are not from the previous voice.
 		# _vocalizer.sync()
@@ -323,22 +349,32 @@ class SynthDriver(SynthDriver):
 		s = [self.description]
 		return ", ".join(s)
 
-	def _get_availableNums(self):
+	def _get_availableNumlans(self):
 		return dict({
 			"default": driverHandler.StringParameterInfo("default", _("default")),
-			"automatic_number": driverHandler.StringParameterInfo("automatic_number", _("automatic number")),
+		}, **{
+			locale: driverHandler.StringParameterInfo(locale, name) for locale, name in zip(self._locales, self._localeNames)
+		}, **{
 			"chinese_number": driverHandler.StringParameterInfo("chinese_number", _("chinese number")),
 			"english_number": driverHandler.StringParameterInfo("english_number", _("english number")),
-		}, **{
-			locale + "_number": driverHandler.StringParameterInfo(locale + "_number", _("number ") + name) for locale, name in zip(self._locales, self._localeNames)
-		}, **{
-			locale + "_value": driverHandler.StringParameterInfo(locale + "_value", _("value ") + name) for locale, name in zip(self._locales, self._localeNames)
 		})
 
-	def _get_num(self):
+	def _get_numlan(self):
+		return self._numlan
+
+	def _set_numlan(self,value):
+		self._numlan = value
+
+	def _get_availableNummods(self):
+		return dict({
+			"value": driverHandler.StringParameterInfo("value", _("value")),
+			"number": driverHandler.StringParameterInfo("number", _("number")),
+		})
+
+	def _get_nummod(self):
 		return self._nummod
 
-	def _set_num(self,value):
+	def _set_nummod(self,value):
 		self._nummod = value
 
 	def _get_chinesespace(self):
@@ -347,6 +383,12 @@ class SynthDriver(SynthDriver):
 	def _set_chinesespace(self,value):
 		self._chinesespace = value
 
+	def _get_cni(self):
+		return self._cni
+
+	def _set_cni(self,value):
+		self._cni = value
+
 	def _get_dli(self):
 		return self._dli
 
@@ -354,16 +396,14 @@ class SynthDriver(SynthDriver):
 		self._dli = value
 
 	def patchedNumSpeechSequence(self, speechSequence):
-		if self._nummod == "automatic_number":
-			speechSequence = [number_pattern.sub(lambda m: ' '.join(m.group(0)), command) if isinstance(command, str) else command for command in speechSequence]
-		elif self._nummod == "chinese_number":
+		if False:
+			pass
+		elif self._numlan == "chinese_number":
 			speechSequence = [command.translate(chinese_number) if isinstance(command, str) else command for command in speechSequence]
-		elif self._nummod == "english_number":
+		elif self._numlan == "english_number":
 			speechSequence = [command.translate(english_number) if isinstance(command, str) else command for command in speechSequence]
-		elif self._nummod.endswith("_number"):
-			speechSequence = self.coercionNumberLangChange(speechSequence, self._nummod[:-7], 'number')
-		elif self._nummod.endswith("_value"):
-			speechSequence = self.coercionNumberLangChange(speechSequence, self._nummod[:-6], 'value')
+		else:
+			speechSequence = self.coercionNumberLangChange(speechSequence, self._numlan, self._nummod)
 		return speechSequence
 
 	def patchedSpaceSpeechSequence(self, speechSequence):
