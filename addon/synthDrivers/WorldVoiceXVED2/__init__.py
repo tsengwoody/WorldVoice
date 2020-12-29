@@ -354,9 +354,9 @@ class SynthDriver(SynthDriver):
 			"default": driverHandler.StringParameterInfo("default", _("default")),
 		}, **{
 			locale: driverHandler.StringParameterInfo(locale, name) for locale, name in zip(self._locales, self._localeNames)
-		}, **{
-			"chinese_number": driverHandler.StringParameterInfo("chinese_number", _("chinese number")),
-			"english_number": driverHandler.StringParameterInfo("english_number", _("english number")),
+		# }, **{
+			# "chinese_number": driverHandler.StringParameterInfo("chinese_number", _("chinese number")),
+			# "english_number": driverHandler.StringParameterInfo("english_number", _("english number")),
 		})
 
 	def _get_numlan(self):

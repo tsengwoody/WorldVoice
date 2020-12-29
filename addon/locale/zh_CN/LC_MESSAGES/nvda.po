@@ -5,10 +5,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoiceXVE' '1.4'\n"
+"Project-Id-Version: 'WorldVoiceXVE' '1.5'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2020-12-07 20:21+0800\n"
-"PO-Revision-Date: 2020-12-07 20:30+0800\n"
+"POT-Creation-Date: 2020-12-28 20:55+0800\n"
+"PO-Revision-Date: 2020-12-28 21:02+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_CN\n"
@@ -22,11 +22,11 @@ msgstr ""
 
 #: generics/contextHelp.py:34
 msgid "No help available here."
-msgstr "无可用说明。"
+msgstr "无可用说明"
 
 #: generics/contextHelp.py:41
 msgid "No user guide found."
-msgstr "无找到用户指南。"
+msgstr "未找到用户指南。"
 
 #: generics/models.py:22
 msgid "context"
@@ -38,254 +38,282 @@ msgstr "强制"
 
 #: generics/views.py:33
 msgid "Add Symbol"
-msgstr "新增符号"
+msgstr "添加符号"
 
 #: generics/views.py:38
 msgid "&Symbol:"
 msgstr "符号(&S)"
 
-#: generics/views.py:56
+#: generics/views.py:61
 msgid "Unicode Setting"
-msgstr "Unicode 设定"
+msgstr "Unicode 设置"
 
-#: generics/views.py:80
+#: generics/views.py:85
 msgid "&Symbols"
 msgstr "符号(&S)"
 
-#: generics/views.py:90
+#: generics/views.py:95
 msgid "Unicode"
 msgstr "Unicode"
 
-#: generics/views.py:92
+#: generics/views.py:97
 msgid "Replacement"
 msgstr "替换文字"
 
-#: generics/views.py:94
+#: generics/views.py:99
 msgid "Language"
 msgstr "语言"
 
-#: generics/views.py:97
+#: generics/views.py:102
 msgid "Mode"
 msgstr "模式"
 
-#: generics/views.py:101
+#: generics/views.py:106
 msgid "Change selected symbol"
-msgstr "变更选择的符号"
+msgstr "更改选择的符号"
 
-#: generics/views.py:123
+#: generics/views.py:128
 msgid "&Replacement"
 msgstr "替换文字(&R)"
 
-#: generics/views.py:131
+#: generics/views.py:136
 msgid "&language"
 msgstr "语言(&L)"
 
-#: generics/views.py:136
+#: generics/views.py:141
 msgid "&Detect language mode"
-msgstr "侦测语言模式"
+msgstr "语言检测模式"
 
-#: generics/views.py:143
+#: generics/views.py:148
 msgid "&Add"
-msgstr "新增(&A)"
+msgstr "添加(&A)"
 
-#: generics/views.py:146
+#: generics/views.py:151
 msgid "Re&move"
 msgstr "移除(&R)"
 
-#: generics/views.py:251
+#: generics/views.py:256
 #, python-format
 msgid "Symbol \"%s\" is already present."
-msgstr "符号 \"%s\" 已存在。"
+msgstr "符号 \"%s\" 已存在"
 
-#: generics/views.py:252
+#: generics/views.py:257
 msgid "Error"
 msgstr "错误"
 
-#: generics/views.py:313
+#: generics/views.py:322
 msgid ""
 "For the edited unicode rule to apply, NVDA must be restarted. Press enter to "
 "restart NVDA, or cancel to exit at a later time."
-msgstr ""
-"为了让已编辑的 unicode 生效， NVDA 必需重新启动。您要立即重新启动 NVDA 吗？"
+msgstr "为了让已编辑的 Unicode 生效，必须重新启动 NVDA，您要立即重新启动吗？"
 
-#: generics/views.py:315
+#: generics/views.py:324
 msgid "unicode rule edited"
 msgstr "unicode 规则已编辑"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:48
-msgid "Automatic &Language Switching Settings"
-msgstr "自动语言切换设定(&L)"
-
-#: globalPlugins/WorldVoiceXVED2/__init__.py:48
-msgid "Configure which voice is to be used for each language."
-msgstr "设定各别语言的语音。"
-
-#: globalPlugins/WorldVoiceXVED2/__init__.py:50
+#: globalPlugins/WorldVoiceXVED2/__init__.py:51
 msgid "&Speech Settings"
 msgstr "语音设置（&S）"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:50
-msgid "Configure speech rate each voice."
-msgstr "设定各别语音的语速。"
+#: globalPlugins/WorldVoiceXVED2/__init__.py:51
+msgid "Speech Settings."
+msgstr "语音设置（&S）"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:52
+#: globalPlugins/WorldVoiceXVED2/__init__.py:53
 msgid "&Unicode Settings"
 msgstr "Unicode 设置（&U）"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:52
-msgid "Configure unicode setting."
-msgstr "设定 Unicode 设定。"
+#: globalPlugins/WorldVoiceXVED2/__init__.py:53
+msgid "Unicode Settings."
+msgstr "Unicode 设置"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:54
+#: globalPlugins/WorldVoiceXVED2/__init__.py:55
 msgid "&File Import"
-msgstr "档案汇入(&F)"
+msgstr "导入文件(&F)"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:54
+#: globalPlugins/WorldVoiceXVED2/__init__.py:55
 msgid "Import File."
-msgstr "汇入档案..."
+msgstr "导入文件"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:56
+#: globalPlugins/WorldVoiceXVED2/__init__.py:57
 msgid "WorldVoice(VE)"
 msgstr "WorldVoice(VE)"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:67
+#: globalPlugins/WorldVoiceXVED2/__init__.py:68
 msgid "Import file..."
-msgstr "汇入档案..."
-
-#: globalPlugins/WorldVoiceXVED2/__init__.py:79
-msgid "Import fail"
-msgstr "汇入失败"
+msgstr "导入文件"
 
 #: globalPlugins/WorldVoiceXVED2/__init__.py:80
-#: globalPlugins/WorldVoiceXVED2/__init__.py:85
-msgid "Import File"
-msgstr "汇入档案"
+msgid "Import fail"
+msgstr "导入失败"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:84
+#: globalPlugins/WorldVoiceXVED2/__init__.py:81
+#: globalPlugins/WorldVoiceXVED2/__init__.py:86
+msgid "Import File"
+msgstr "导入文件"
+
+#: globalPlugins/WorldVoiceXVED2/__init__.py:85
 msgid ""
 "For the new file to import, NVDA must be restarted. Are you want to restart "
 "NVDA now ?"
-msgstr "为了让新档案汇入， NVDA 必需重新启动。您要立即重新启动 NVDA 吗？"
+msgstr "为了使导入的文件生效， NVDA 必需重新启动。您要立即重新启动吗？"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:92
+#: globalPlugins/WorldVoiceXVED2/__init__.py:93
 msgid ""
 "You have no core(driver 2) installed.\n"
 "Do you want to install the core(driver 2) now?"
 msgstr ""
-"您尚未安装核心（driver 2）。\n"
-"您是否要现在进行核心安装？"
+"您尚未安装（driver 2）核心。\n"
+"您是否要现在安装？"
 
-#: globalPlugins/WorldVoiceXVED2/__init__.py:94
+#: globalPlugins/WorldVoiceXVED2/__init__.py:95
 msgid "No core installed."
-msgstr "尚未安装核心。"
+msgstr "尚未安装核心"
 
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:15
-msgid "Automatic Language Switching Settings"
-msgstr "自动语言切换设定"
+#: globalPlugins/WorldVoiceXVED2/__init__.py:108
+msgid "SpeechSettingsDialog have already been opened"
+msgstr "语音设置（&S）對話框已開啟"
 
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:40
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:34
-msgid "Your current speech synthesizer is not ready."
-msgstr "你当前的语音合程器尚未就绪。"
+#: globalPlugins/WorldVoiceXVED2/__init__.py:114
+msgid "SpeechSymbolsDialog have already been opened"
+msgstr "Unicode 設定對話框已開啟"
 
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:49
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:43
-msgid "Select a language, and then configure the voice to be used:"
-msgstr "选择一个地区，并为其设定一个语音："
+#: globalPlugins/WorldVoiceXVED2/__init__.py:118
+msgid "popup SpeechSettingsDialog"
+msgstr "弹出语音设置对话框（&S）"
 
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:54
+#: globalPlugins/WorldVoiceXVED2/__init__.py:126
+msgid "popup SpeechSymbolsDialog"
+msgstr "弹出 标点符号读音对话框"
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:17
+msgid "Speech Settings"
+msgstr "语音设置"
+
 #: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:48
-msgid "Locale Name:"
-msgstr "地区名称:"
-
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:57
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:51
-msgid "Voice Name:"
-msgstr "语音名称:"
-
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:62
-msgid "Detect text language based on unicode characters"
-msgstr "用 unicode 编码侦测文字语言"
-
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:68
-msgid "Detect text language after symbol process"
-msgstr "在符号处理后侦测文字语言"
-
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:74
-msgid "Ignore numbers when detecting text language"
-msgstr "侦测语言时忽略数字"
-
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:80
-msgid "Ignore common punctuation when detecting text language"
-msgstr "侦测语言时忽略数字和常见标点符号"
-
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:85
-msgid "Language assumed for latin characters:"
-msgstr "拉丁字符假设的语言："
-
-#: globalPlugins/WorldVoiceXVED2/languageSettingsDialog.py:95
-msgid "Language assumed for CJK characters:"
-msgstr "中日韩字符假设的语言："
-
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:15
-msgid "Speech Rate Settings"
-msgstr "语音速度设定"
-
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:54
-msgid "&Rate:"
-msgstr "速度(&R)"
+msgid "Your current speech synthesizer is not ready."
+msgstr "当前语音合成器未就绪"
 
 #: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:57
+msgid "Select a language, and then configure the voice to be used:"
+msgstr "选择一个地区，并为该地区选择一个语音角色："
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:62
+msgid "Locale Name:"
+msgstr "地区名称："
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:65
+msgid "Voice Name:"
+msgstr "语音名称"
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:68
+msgid "&Rate:"
+msgstr "语速(&R)"
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:70
 msgid "&Pitch:"
 msgstr "音调（&P）"
 
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:60
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:72
 msgid "V&olume:"
 msgstr "音量(&O)"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:70
-msgid "&Number Mode"
-msgstr "数字模式(&N)"
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:78
+msgid "Detect text language based on unicode characters"
+msgstr "用 unicode 编码检测文本语言"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:74
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:84
+msgid "Detect text language after symbol process"
+msgstr "在符号处理后检测文本语言"
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:90
+msgid "Ignore numbers when detecting text language"
+msgstr "检测语言时忽略数字"
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:96
+msgid "Ignore common punctuation when detecting text language"
+msgstr "检测语言时忽略数字和常见的标点符号"
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:101
+msgid "Language assumed for latin characters:"
+msgstr "拉丁字符对应的语言"
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:111
+msgid "Language assumed for CJK characters:"
+msgstr "中日韩字符对应的语言："
+
+#: synthDrivers/WorldVoiceXVED2/__init__.py:71
+msgid "Number &Language"
+msgstr "数字语言(&M)"
+
+#: synthDrivers/WorldVoiceXVED2/__init__.py:75
+#: synthDrivers/WorldVoiceXVED2/__init__.py:84
 msgid "Number Mode"
 msgstr "数字模式"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:79
-msgid "&Chinese Space Break"
-msgstr "中文空白间隔(&C)"
+#: synthDrivers/WorldVoiceXVED2/__init__.py:80
+msgid "Number &Mode"
+msgstr "数字模式(&M)"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:84
-msgid "Chinese Space Break"
-msgstr "中文空白间隔"
+#: synthDrivers/WorldVoiceXVED2/__init__.py:89
+msgid "Pause time when encountering spaces between Chinese"
+msgstr "中文空格暂停时间"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:88
+#: synthDrivers/WorldVoiceXVED2/__init__.py:95
+msgid "Ignore comma between number"
+msgstr "忽略数字中的逗号"
+
+#: synthDrivers/WorldVoiceXVED2/__init__.py:100
 msgid "Ignore language information of document"
-msgstr "忽略文件中的语言信息"
+msgstr "忽略文档中的语言信息"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:328
+#: synthDrivers/WorldVoiceXVED2/__init__.py:354
 msgid "default"
-msgstr "预设"
+msgstr "默认"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:329
-msgid "automatic number"
-msgstr "自动数字"
+#: synthDrivers/WorldVoiceXVED2/__init__.py:370
+msgid "value"
+msgstr "数值"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:330
-msgid "chinese number"
-msgstr "中文数字"
+#: synthDrivers/WorldVoiceXVED2/__init__.py:371
+msgid "number"
+msgstr "数字"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:331
-msgid "english number"
-msgstr "英文数字"
+#~ msgid "Automatic &Language Switching Settings"
+#~ msgstr "自动语言切换设定(&L)"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:333
-msgid "number "
-msgstr "数字 "
+#~ msgid "Configure which voice is to be used for each language."
+#~ msgstr "设定各别语言的语音。"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:335
-msgid "value "
-msgstr "数值 "
+#~ msgid "Configure speech rate each voice."
+#~ msgstr "设定各别语音的语速。"
+
+#~ msgid "Configure unicode setting."
+#~ msgstr "设定 Unicode 设定。"
+
+#~ msgid "Automatic Language Switching Settings"
+#~ msgstr "自动语言切换设定"
+
+#~ msgid "Speech Rate Settings"
+#~ msgstr "语音速度设定"
+
+#~ msgid "&Number Mode"
+#~ msgstr "数字模式(&N)"
+
+#~ msgid "&Chinese Space Break"
+#~ msgstr "中文空白间隔(&C)"
+
+#~ msgid "Chinese Space Break"
+#~ msgstr "中文空白间隔"
+
+#~ msgid "automatic number"
+#~ msgstr "自动数字"
+
+#~ msgid "chinese number"
+#~ msgstr "中文数字"
+
+#~ msgid "english number"
+#~ msgstr "英文数字"
 
 #~ msgid ""
 #~ "You have no core installed.\n"

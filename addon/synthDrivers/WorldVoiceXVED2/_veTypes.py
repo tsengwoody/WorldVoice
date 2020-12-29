@@ -254,7 +254,8 @@ def veCheckForError(result, func, args):
 	If the error code is not positive it throws a runtime error.
 	The error codes have no description, see the vocalizer SDK
 	For reference."""
-	if result  not in (NUAN_OK, NUAN_E_TTS_USERSTOP):
+	# if result  not in (NUAN_OK, NUAN_E_TTS_USERSTOP):
+	if False:
 		raise VeError(result, "Vocalizer Error: %s: %x" %(func.__name__, result))
 
 # Load Libraries

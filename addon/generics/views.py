@@ -48,7 +48,12 @@ class AddSymbolDialog(
 
 
 class SpeechSymbolsDialog(SettingsDialog):
-	helpId = "SymbolPronunciation"
+	_instance = None
+
+	def __new__(cls, *args, **kwargs):
+		obj = super(SpeechSymbolsDialog, cls).__new__(cls, *args, **kwargs)
+		cls._instance = obj
+		return obj
 
 	def __init__(self,parent):
 		# Translators: This is the label for the unicode setting dialog.
@@ -296,6 +301,10 @@ class SpeechSymbolsDialog(SettingsDialog):
 			self.symbolsList.sendListItemFocusedEvent(index)
 		self.symbolsList.SetFocus()
 
+	def onCancel(self, event):
+		self.__class__._instance = None
+		super(SpeechSymbolsDialog, self).onCancel(event)
+
 	def onOk(self, evt):
 		self.onSymbolEdited()
 		self.editingItem = None
@@ -315,6 +324,8 @@ class SpeechSymbolsDialog(SettingsDialog):
 			_("unicode rule edited"),wx.OK|wx.CANCEL|wx.ICON_WARNING,self
 		)==wx.OK:
 			queueHandler.queueFunction(queueHandler.eventQueue,core.restart)
+
+		self.__class__._instance = None
 		super(SpeechSymbolsDialog, self).onOk(evt)
 
 	def _refreshVisibleItems(self):

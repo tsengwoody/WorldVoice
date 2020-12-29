@@ -16,12 +16,15 @@ import globalPluginHandler
 import globalVars
 import gui
 from logHandler import log
+from scriptHandler import script
 import speech
+import ui
 
-from .languageSettingsDialog import LanguageSettingsDialog
 from .speechSettingsDialog import SpeechSettingsDialog
 from generics.views import SpeechSymbolsDialog
 
+ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
+SpeechSettingsDialog = SpeechSettingsDialog()
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
@@ -45,12 +48,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def createMenu(self):
 		self.submenu_vocalizer = wx.Menu()
 		if self.ve:
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("Automatic &Language Switching Settings"), _("Configure which voice is to be used for each language."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(LanguageSettingsDialog()), item)
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Speech Settings"), _("Configure speech rate each voice."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(SpeechSettingsDialog()), item)
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Unicode Settings"), _("Configure unicode setting."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , lambda e : gui.mainFrame._popupSettingsDialog(SpeechSymbolsDialog), item)
+			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Speech Settings"), _("Speech Settings."))
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSettingsDialog, item)
+			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Unicode Settings"), _("Unicode Settings."))
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.popup_SpeechSymbolsDialog, item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onFileImport, item)
 		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice(VE)"), self.submenu_vocalizer)
@@ -99,3 +100,31 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			self.removeMenu()
 		except wx.PyDeadObjectError:
 			pass
+
+	def popup_SpeechSettingsDialog(self, event):
+		if SpeechSettingsDialog._instance is None:
+			gui.mainFrame._popupSettingsDialog(SpeechSettingsDialog)
+		else:
+			ui.message(_("SpeechSettingsDialog have already been opened"))
+
+	def popup_SpeechSymbolsDialog(self, event):
+		if SpeechSymbolsDialog._instance is None:
+			gui.mainFrame._popupSettingsDialog(SpeechSymbolsDialog)
+		else:
+			ui.message(_("SpeechSymbolsDialog have already been opened"))
+
+	@script(
+		gesture="kb:NVDA+alt+s",
+		description=_("popup SpeechSettingsDialog"),
+		category=ADDON_SUMMARY,
+	)
+	def script_popup_SpeechSettingsDialog(self, gesture):
+		self.popup_SpeechSettingsDialog(None)
+
+	@script(
+		gesture="kb:NVDA+alt+u",
+		description=_("popup SpeechSymbolsDialog"),
+		category=ADDON_SUMMARY,
+	)
+	def script_popup_SpeechSymbolsDialog(self, gesture):
+		self.popup_SpeechSymbolsDialog(None)
