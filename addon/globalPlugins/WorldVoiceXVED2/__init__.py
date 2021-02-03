@@ -23,6 +23,7 @@ import ui
 from .speechSettingsDialog import SpeechSettingsDialog
 from generics.views import SpeechSymbolsDialog
 
+workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 SpeechSettingsDialog = SpeechSettingsDialog()
 
@@ -35,7 +36,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def initialize(self):
 		if globalVars.appArgs.secure:
 			return
-		if not os.path.isdir(os.path.join(synth_drivers_path, 'common')):
+		if (not os.path.isdir(os.path.join(workspace_path, 'common'))) and (not os.path.isdir(os.path.join(synth_drivers_path, 'common'))):
 			self.createMenu()
 			wx.CallLater(2000, self.onNoCoreInstalled)
 			return
@@ -74,6 +75,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				from zipfile import ZipFile
 				with ZipFile(path, 'r') as core_file:
 					core_file.testzip()
+					core_file.extractall(workspace_path)
 					core_file.extractall(synth_drivers_path)
 			except:
 				gui.messageBox(

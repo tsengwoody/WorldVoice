@@ -10,7 +10,7 @@ from logHandler import log
 import languageHandler
 import speech
 from .. import _config
-
+from .. import speechcommand
 
 BASIC_LATIN = [
     u"en", u"ha", u"so", u"id", u"la", u"sw", u"eu",
@@ -107,7 +107,7 @@ class LanguageDetector(object):
 		curLang = defaultLang
 		tmpLang = curLang.split("_")[0]
 		for command in speechSequence:
-			if isinstance(command, speech.LangChangeCommand):
+			if isinstance(command, speechcommand.WVLangChangeCommand):
 				if command.lang is None:
 					curLang = defaultLang
 				else:
@@ -147,7 +147,7 @@ class LanguageDetector(object):
 							sb = StringIO()
 						tmpLang = newLangFirst
 						charset = None
-						yield speech.LangChangeCommand(newLang)
+						yield speechcommand.WVLangChangeCommand(newLang)
 						yield c
 						continue
 
@@ -173,7 +173,7 @@ class LanguageDetector(object):
 							if sb.getvalue():
 								yield sb.getvalue()
 								sb = StringIO()
-							yield speech.LangChangeCommand(curLang)
+							yield speechcommand.WVLangChangeCommand(curLang)
 							tmpLang = curLang.split("_")[0]
 						sb.write(c)
 						continue
@@ -209,9 +209,9 @@ class LanguageDetector(object):
 						sb = StringIO()
 					tmpLang = newLangFirst
 					if newLang == curLang:
-						yield speech.LangChangeCommand(newLang)
+						yield speechcommand.WVLangChangeCommand(newLang)
 					else:
-						yield speech.LangChangeCommand(tmpLang)
+						yield speechcommand.WVLangChangeCommand(tmpLang)
 					sb.write(c)
 				# Send the string, if we have one:
 				if sb.getvalue():

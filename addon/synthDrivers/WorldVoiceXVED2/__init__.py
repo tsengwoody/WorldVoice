@@ -17,6 +17,7 @@ from ._voiceManager import VoiceManager
 from . import languageDetection
 from . import _config
 from generics.models import SpeechSymbols
+from . import speechcommand
 
 import addonHandler
 addonHandler.initTranslation()
@@ -27,34 +28,6 @@ import driverHandler
 number_pattern = re.compile(r"[0-9]+[0-9.:]*[0-9]+|[0-9]")
 comma_number_pattern = re.compile(r"(?<=[0-9]),(?=[0-9])")
 chinese_space_pattern = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
-
-english_number = {
-	ord("0"): "zero",
-	ord("1"): "one",
-	ord("2"): "two",
-	ord("3"): "three",
-	ord("4"): "four",
-	ord("5"): "five",
-	ord("6"): "six",
-	ord("7"): "seven",
-	ord("8"): "eight",
-	ord("9"): "nine",
-	# ord("."): "dot",
-}
-english_number = {key: " {} ".format(value) for key, value in english_number.items()}
-chinese_number = {
-	ord("0"): u"\u96f6",
-	ord("1"): u"\u4e00",
-	ord("2"): u"\u4e8c",
-	ord("3"): u"\u4e09",
-	ord("4"): u"\u56db",
-	ord("5"): u"\u4e94",
-	ord("6"): u"\u516d",
-	ord("7"): u"\u4e03",
-	ord("8"): u"\u516b",
-	ord("9"): u"\u4e5d",
-	ord("."): u"\u9ede",
-}
 
 class SynthDriver(SynthDriver):
 	name = "WorldVoiceXVED2"
@@ -72,7 +45,7 @@ class SynthDriver(SynthDriver):
 			availableInSettingsRing=True,
 			defaultVal="default",
 			# Translators: Label for a setting in synth settings ring.
-			displayName=_("Number Mode"),
+			displayName=_("Number Language"),
 		),
 		driverHandler.DriverSetting(
 			"nummod",
@@ -99,6 +72,13 @@ class SynthDriver(SynthDriver):
 			"dli",
 			_("Ignore language information of document"),
 			defaultVal=False,
+		),
+		driverHandler.BooleanDriverSetting(
+			"uwv",
+			_("Enable WorldVoice setting rules to detect text language"),
+			availableInSettingsRing=True,
+			defaultVal=True,
+			displayName=_("Enable WorldVoice rules"),
 		),
 	]
 	supportedCommands = {
@@ -170,7 +150,7 @@ class SynthDriver(SynthDriver):
 			log.error("Vocalizer terminate", exc_info=True)
 
 	def speak(self, speechSequence):
-		if config.conf["speech"]["autoLanguageSwitching"] \
+		if self.uwv \
 			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
 			and _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
@@ -208,7 +188,7 @@ class SynthDriver(SynthDriver):
 				charMode = command.state
 				s = "\x1b\\tn=spell\\" if command.state else "\x1b\\tn=normal\\"
 				chunks.append(s)
-			elif isinstance(command, speech.LangChangeCommand):
+			elif isinstance(command, speech.LangChangeCommand) or isinstance(command, speechcommand.WVLangChangeCommand):
 				if command.lang == currentLanguage:
 					# Keep on the same voice.
 					continue
@@ -237,6 +217,10 @@ class SynthDriver(SynthDriver):
 				pitch = self._voiceManager.getVoiceParameter(currentInstance, _vocalizer.VE_PARAM_PITCH, type_=int)
 				pitchOffset = self._percentToParam(command.offset, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX) - _vocalizer.PITCH_MIN
 				chunks.append("\x1b\\pitch=%d\\" % (pitch+pitchOffset))
+			elif isinstance(command, speechcommand.SplitCommand):
+				self._speak(currentInstance, chunks)
+				chunks = []
+				hasText = False
 		if chunks:
 			self._speak(currentInstance, chunks)
 
@@ -254,8 +238,8 @@ class SynthDriver(SynthDriver):
 					temp.append(command)
 			speechSequence = temp
 		if self._dli:
-			speechSequence = self.removeLangChangeCommand(speechSequence)
-		if config.conf["speech"]["autoLanguageSwitching"] \
+			speechSequence = self.patchedRemoveLangChangeCommandSpeechSequence(speechSequence)
+		if self.uwv \
 			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
 			and not _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
@@ -354,9 +338,6 @@ class SynthDriver(SynthDriver):
 			"default": driverHandler.StringParameterInfo("default", _("default")),
 		}, **{
 			locale: driverHandler.StringParameterInfo(locale, name) for locale, name in zip(self._locales, self._localeNames)
-		# }, **{
-			# "chinese_number": driverHandler.StringParameterInfo("chinese_number", _("chinese number")),
-			# "english_number": driverHandler.StringParameterInfo("english_number", _("english number")),
 		})
 
 	def _get_numlan(self):
@@ -396,15 +377,7 @@ class SynthDriver(SynthDriver):
 		self._dli = value
 
 	def patchedNumSpeechSequence(self, speechSequence):
-		if False:
-			pass
-		elif self._numlan == "chinese_number":
-			speechSequence = [command.translate(chinese_number) if isinstance(command, str) else command for command in speechSequence]
-		elif self._numlan == "english_number":
-			speechSequence = [command.translate(english_number) if isinstance(command, str) else command for command in speechSequence]
-		else:
-			speechSequence = self.coercionNumberLangChange(speechSequence, self._numlan, self._nummod)
-		return speechSequence
+		return self.coercionNumberLangChange(speechSequence, self._numlan, self._nummod)
 
 	def patchedSpaceSpeechSequence(self, speechSequence):
 		if not int(self._chinesespace) == 0:
@@ -438,13 +411,37 @@ class SynthDriver(SynthDriver):
 			speechSequence = tempSpeechSequence
 		return speechSequence
 
-	def removeLangChangeCommand(self, speechSequence):
+	def patchedRemoveLangChangeCommandSpeechSequence(self, speechSequence):
 		result = []
 		for command in speechSequence:
 			if not isinstance(command, speech.LangChangeCommand):
 				result.append(command)
 		return result
 
+	def patchedLengthSpeechSequence(self, speechSequence):
+		result = []
+		for command in speechSequence:
+			if isinstance(command, str):
+				result.extend(self.lengthsplit(command, 100))
+			else:
+				result.append(command)
+		return result
+
+	def lengthsplit(self, string, length):
+		result = []
+		pattern = re.compile(r"[\s]")
+		spaces = pattern.findall(string)
+		others = pattern.split(string)
+		fragment = ""
+		for other, space in zip(others, spaces):
+			fragment += other + space
+			if len(fragment) > length:
+				result.append(fragment)
+				result.append(speechcommand.SplitCommand())
+				fragment = ""
+		fragment += others[-1]
+		result.append(fragment)
+		return result
 
 	def resplit(self, pattern, string, mode):
 		result = []
@@ -454,7 +451,7 @@ class SynthDriver(SynthDriver):
 			if mode == 'value':
 				result.extend([other, speech.LangChangeCommand('StartNumber'), number, speech.LangChangeCommand('EndNumber')])
 			elif mode == 'number':
-				result.extend([other, speech.LangChangeCommand('StartNumber'), ' '.join(number), speech.LangChangeCommand('EndNumber')])
+				result.extend([other, speech.LangChangeCommand('StartNumber'), ' '.join(number).replace(" . ", "."), speech.LangChangeCommand('EndNumber')])
 		result.append(others[-1])
 		return result
 
