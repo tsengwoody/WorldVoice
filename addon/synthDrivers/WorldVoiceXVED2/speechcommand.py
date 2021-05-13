@@ -1,6 +1,9 @@
 from typing import Optional, Callable
 
-from speech import SynthCommand, SynthParamCommand
+try:
+	from speech import SynthCommand, SynthParamCommand
+except:
+	from speech.commands import SynthCommand, SynthParamCommand
 
 class WVLangChangeCommand(SynthParamCommand):
 	"""A command to switch the language within speech."""

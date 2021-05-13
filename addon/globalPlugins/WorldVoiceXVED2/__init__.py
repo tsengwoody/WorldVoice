@@ -21,7 +21,7 @@ import speech
 import ui
 
 from .speechSettingsDialog import SpeechSettingsDialog
-from generics.views import SpeechSymbolsDialog
+from generics.speechSymbols.views import SpeechSymbolsDialog
 
 workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
