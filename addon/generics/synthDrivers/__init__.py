@@ -106,7 +106,7 @@ class WorldVoiceBaseSynthDriver:
 		others = pattern.split(string)
 		for other, number in zip(others, numbers):
 			if mode == 'value':
-				result.extend([other, LangChangeCommand('StartNumber'), number.replace(".", " ."), LangChangeCommand('EndNumber')])
+				result.extend([other, LangChangeCommand('StartNumber'), number, LangChangeCommand('EndNumber')])
 			elif mode == 'number':
 				result.extend([other, LangChangeCommand('StartNumber'), ' '.join(number).replace(" . ", " ."), LangChangeCommand('EndNumber')])
 		result.append(others[-1])
