@@ -7,107 +7,107 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoiceXVE' '1.6'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2021-02-03 08:50+0800\n"
-"PO-Revision-Date: 2021-02-03 08:52+0800\n"
+"POT-Creation-Date: 2021-07-02 10:25+0800\n"
+"PO-Revision-Date: 2021-07-02 10:26+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 2.4.2\n"
+"X-Generator: Poedit 3.0\n"
 "X-Poedit-Basepath: ../../..\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 "X-Poedit-SearchPath-0: .\n"
 
-#: generics/contextHelp.py:34
+#: generics/speechSymbols/contextHelp.py:34
 msgid "No help available here."
 msgstr "无可用说明"
 
-#: generics/contextHelp.py:41
+#: generics/speechSymbols/contextHelp.py:41
 msgid "No user guide found."
 msgstr "未找到用户指南。"
 
-#: generics/models.py:22
+#: generics/speechSymbols/models.py:22
 msgid "context"
 msgstr "上下文"
 
-#: generics/models.py:23
+#: generics/speechSymbols/models.py:23
 msgid "force"
 msgstr "强制"
 
-#: generics/views.py:33
+#: generics/speechSymbols/views.py:33
 msgid "Add Symbol"
 msgstr "添加符号"
 
-#: generics/views.py:38
+#: generics/speechSymbols/views.py:38
 msgid "&Symbol:"
 msgstr "符号(&S)"
 
-#: generics/views.py:61
+#: generics/speechSymbols/views.py:61
 msgid "Unicode Setting"
 msgstr "Unicode 设置"
 
-#: generics/views.py:85
+#: generics/speechSymbols/views.py:85
 msgid "&Symbols"
 msgstr "符号(&S)"
 
-#: generics/views.py:95
+#: generics/speechSymbols/views.py:95
 msgid "Unicode"
 msgstr "Unicode"
 
-#: generics/views.py:97
+#: generics/speechSymbols/views.py:97
 msgid "Replacement"
 msgstr "替换文字"
 
-#: generics/views.py:99
+#: generics/speechSymbols/views.py:99
 msgid "Language"
 msgstr "语言"
 
-#: generics/views.py:102
+#: generics/speechSymbols/views.py:102
 msgid "Mode"
 msgstr "模式"
 
-#: generics/views.py:106
+#: generics/speechSymbols/views.py:106
 msgid "Change selected symbol"
 msgstr "更改选择的符号"
 
-#: generics/views.py:128
+#: generics/speechSymbols/views.py:128
 msgid "&Replacement"
 msgstr "替换文字(&R)"
 
-#: generics/views.py:136
+#: generics/speechSymbols/views.py:136
 msgid "&language"
 msgstr "语言(&L)"
 
-#: generics/views.py:141
+#: generics/speechSymbols/views.py:141
 msgid "&Detect language mode"
 msgstr "语言检测模式"
 
-#: generics/views.py:148
+#: generics/speechSymbols/views.py:148
 msgid "&Add"
 msgstr "添加(&A)"
 
-#: generics/views.py:151
+#: generics/speechSymbols/views.py:151
 msgid "Re&move"
 msgstr "移除(&R)"
 
-#: generics/views.py:256
+#: generics/speechSymbols/views.py:256
 #, python-format
 msgid "Symbol \"%s\" is already present."
 msgstr "符号 \"%s\" 已存在"
 
-#: generics/views.py:257
+#: generics/speechSymbols/views.py:257
 msgid "Error"
 msgstr "错误"
 
-#: generics/views.py:322
+#: generics/speechSymbols/views.py:322
 msgid ""
 "For the edited unicode rule to apply, NVDA must be restarted. Press enter to "
 "restart NVDA, or cancel to exit at a later time."
 msgstr "为了让已编辑的 Unicode 生效，必须重新启动 NVDA，您要立即重新启动吗？"
 
-#: generics/views.py:324
+#: generics/speechSymbols/views.py:324
 msgid "unicode rule edited"
 msgstr "unicode 规则已编辑"
 
@@ -218,63 +218,63 @@ msgstr "音调（&P）"
 msgid "V&olume:"
 msgstr "音量(&O)"
 
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:78
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:77
+msgid "Number dot replacement"
+msgstr "数字点替换文字"
+
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:84
 msgid "Detect text language based on unicode characters"
 msgstr "用 unicode 编码检测文本语言"
 
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:84
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:90
 msgid "Detect text language after symbol process"
 msgstr "在符号处理后检测文本语言"
 
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:90
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:96
 msgid "Ignore numbers when detecting text language"
 msgstr "检测语言时忽略数字"
 
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:96
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:102
 msgid "Ignore common punctuation when detecting text language"
 msgstr "检测语言时忽略数字和常见的标点符号"
 
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:101
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:107
 msgid "Language assumed for latin characters:"
 msgstr "拉丁字符对应的语言"
 
-#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:111
+#: globalPlugins/WorldVoiceXVED2/speechSettingsDialog.py:117
 msgid "Language assumed for CJK characters:"
 msgstr "中日韩字符对应的语言："
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:44
+#: synthDrivers/WorldVoiceXVED2/__init__.py:51
 msgid "Number &Language"
 msgstr "数字语言(&M)"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:48
+#: synthDrivers/WorldVoiceXVED2/__init__.py:55
 msgid "Number Language"
 msgstr "数字语言"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:53
+#: synthDrivers/WorldVoiceXVED2/__init__.py:60
 msgid "Number &Mode"
 msgstr "数字模式(&M)"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:57
+#: synthDrivers/WorldVoiceXVED2/__init__.py:64
 msgid "Number Mode"
 msgstr "数字模式"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:62
+#: synthDrivers/WorldVoiceXVED2/__init__.py:69
 msgid "Pause time when encountering spaces between Chinese"
 msgstr "中文空格暂停时间"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:68
+#: synthDrivers/WorldVoiceXVED2/__init__.py:75
 msgid "Ignore comma between number"
 msgstr "忽略数字中的逗号"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:73
-msgid "Ignore language information of document"
-msgstr "忽略文档中的语言信息"
-
-#: synthDrivers/WorldVoiceXVED2/__init__.py:78
+#: synthDrivers/WorldVoiceXVED2/__init__.py:80
 msgid "Enable WorldVoice setting rules to detect text language"
 msgstr "启用 WorldVoice 设定规则来检测文本语言"
 
-#: synthDrivers/WorldVoiceXVED2/__init__.py:81
+#: synthDrivers/WorldVoiceXVED2/__init__.py:83
 msgid "Enable WorldVoice rules"
 msgstr "启用 WorldVoice 规则"
 
@@ -289,6 +289,9 @@ msgstr "数值"
 #: synthDrivers/WorldVoiceXVED2/__init__.py:352
 msgid "number"
 msgstr "数字"
+
+#~ msgid "Ignore language information of document"
+#~ msgstr "忽略文档中的语言信息"
 
 #~ msgid "Automatic &Language Switching Settings"
 #~ msgstr "自动语言切换设定(&L)"

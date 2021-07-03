@@ -1,47 +1,22 @@
 ﻿import re
 
-import driverHandler
 import languageHandler
 import speech
 
 try:
-	from speech import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand
+	from speech import LangChangeCommand, BreakCommand
 except:
-	from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand
+	from speech.commands import LangChangeCommand, BreakCommand
+
+from synthDrivers.WorldVoiceXVED2 import _config
 
 number_pattern = re.compile(r"[0-9]+[0-9.:]*[0-9]+|[0-9]")
 comma_number_pattern = re.compile(r"(?<=[0-9]),(?=[0-9])")
 chinese_space_pattern = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 class WorldVoiceBaseSynthDriver:
-
-	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
-		if self._cni:
-			temp = []
-			for command in speechSequence:
-				if isinstance(command, str):
-					temp.append(comma_number_pattern.sub(lambda m:'', command))
-				else:
-					temp.append(command)
-			speechSequence = temp
-		if self.uwv \
-			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
-			and not _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
-			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
-			speechSequence = list(speechSequence)
-		self._realSpeakFunc(speechSequence, symbolLevel, priority=priority)
-
-	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
-		if config.conf["speech"]["autoLanguageSwitching"] \
-			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
-			and config.conf["speech"]["trustVoiceLanguage"]:
-				for text, loc in self._languageDetector.process_for_spelling(text, locale):
-					self._realSpellingFunc(text, loc, useCharacterDescriptions, priority=priority)
-		else:
-			self._realSpellingFunc(text, locale, useCharacterDescriptions, priority=priority)
-
 	def patchedNumSpeechSequence(self, speechSequence):
-		return self.coercionNumberLangChange(speechSequence, self._numlan, self._nummod)
+		return self.coercionNumberLangChange(speechSequence, self._nummod, self._numlan, self.speechSymbols)
 
 	def patchedSpaceSpeechSequence(self, speechSequence):
 		if not int(self._chinesespace) == 0:
@@ -100,23 +75,49 @@ class WorldVoiceBaseSynthDriver:
 		result.append(fragment)
 		return result
 
-	def resplit(self, pattern, string, mode):
+	def resplit(self, pattern, string, mode, numberLanguage, speechSymbols):
 		result = []
 		numbers = pattern.findall(string)
 		others = pattern.split(string)
 		for other, number in zip(others, numbers):
+			dot_count = len(number.split("."))
 			if mode == 'value':
-				result.extend([other, LangChangeCommand('StartNumber'), number, LangChangeCommand('EndNumber')])
+				number_str = number
 			elif mode == 'number':
-				result.extend([other, LangChangeCommand('StartNumber'), ' '.join(number).replace(" . ", " ."), LangChangeCommand('EndNumber')])
+				dot_count = dot_count +1
+				number_str = ' '.join(number).replace(" . ", ".")
+
+			translate_dict = {}
+			for c in "1234567890":
+				if speechSymbols and c in speechSymbols.symbols:
+					symbol = speechSymbols.symbols[c]
+					if symbol.language == numberLanguage or symbol.language == "Windows":
+						translate_dict[ord(c)] = symbol.replacement if symbol.replacement else c
+
+			nodot_str = number_str.split(".")
+			temp = ""
+			for n, d in zip(nodot_str, ["."]*(len(nodot_str) -1)):
+				if len(n) == 1:
+					n = n.translate(translate_dict)
+				temp = temp +n +d
+			n = nodot_str[-1]
+			if len(n) == 1:
+				n = n.translate(translate_dict)
+			temp = temp +n
+			number_str = temp
+
+			if dot_count > 2:
+				number_str = number_str.replace(".", _config.vocalizerConfig["autoLanguageSwitching"]["numberDotReplacement"])
+
+			result.extend([other, LangChangeCommand('StartNumber'), number_str, LangChangeCommand('EndNumber')])
 		result.append(others[-1])
 		return result
 
-	def coercionNumberLangChange(self, speechSequence, numberLanguage, mode):
+	def coercionNumberLangChange(self, speechSequence, mode, numberLanguage, speechSymbols):
 		result = []
 		for command in speechSequence:
 			if isinstance(command, str):
-				result.extend(self.resplit(number_pattern, command, mode))
+				result.extend(self.resplit(number_pattern, command, mode, numberLanguage, speechSymbols))
 			else:
 				result.append(command)
 

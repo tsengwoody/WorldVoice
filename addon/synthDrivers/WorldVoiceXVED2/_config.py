@@ -24,6 +24,7 @@ pitch = integer(default=50,min=0,max=100)
 volume = integer(default=50,min=0,max=100)
 
 [autoLanguageSwitching]
+numberDotReplacement = string(default=".")
 useUnicodeLanguageDetection = boolean(default=false)
 afterSymbolDetection = boolean(default=false)
 ignoreNumbersInLanguageDetection = boolean(default=false)
@@ -39,7 +40,7 @@ def load():
 	global vocalizerConfig
 	if not vocalizerConfig:
 		path = os.path.join(globalVars.appArgs.configPath, VOCALIZER_CONFIG_FILENAME)
-		vocalizerConfig = configobj.ConfigObj(path, configspec=StringIO(_configSpec), encoding="utf-8")
+		vocalizerConfig = configobj.ConfigObj(path, configspec=StringIO(_configSpec), encoding="utf-8", default_encoding='utf8')
 		vocalizerConfig.newlines = "\r\n"
 		vocalizerConfig.stringify = True
 		val = Validator()
