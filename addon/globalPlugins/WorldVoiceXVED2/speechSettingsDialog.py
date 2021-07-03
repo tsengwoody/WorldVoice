@@ -4,7 +4,7 @@ import wx
 import addonHandler
 import gui
 from gui import guiHelper
-import speech
+import synthDriverHandler
 
 addonHandler.initTranslation()
 
@@ -27,7 +27,7 @@ def SpeechSettingsDialog():
 			with _core.preOpen() as check:
 				if check:
 					self.ready = True
-					self._synthInstance = speech.getSynth()
+					self._synthInstance = synthDriverHandler.getSynth()
 					if self._synthInstance.name == 'WorldVoiceXVED2':
 						self._manager = self._synthInstance._voiceManager
 					else:

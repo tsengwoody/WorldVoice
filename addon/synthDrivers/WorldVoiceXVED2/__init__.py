@@ -1,4 +1,4 @@
-﻿import os
+import os
 import re
 import sys
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -113,17 +113,14 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			raise
 		self._voiceManager = VoiceManager()
 
-		self._realSpeakFunc = speech.speak
-		self._realSpellingFunc = speech.speakSpelling
-		speech.speak = self.patchedSpeak
-		speech.speakSpelling = self.patchedSpeakSpelling
+		self._realSpeakFunc = speech.speech.speak
+		self._realSpellingFunc = speech.speech.speakSpelling
+		speech.speech.speak = self.patchedSpeak
+		speech.speech.speakSpelling = self.patchedSpeakSpelling
 
 		speechSymbols = SpeechSymbols()
 		speechSymbols.load('unicode.dic')
 		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.languages), speechSymbols)
-
-		speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=self.patchedSpeak)
-		speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
 
 		self._localeToVoices = self._voiceManager.localeToVoicesMap
 		self._locales = sorted([l for l in self._localeToVoices if len(self._localeToVoices[l]) > 0])
@@ -138,11 +135,8 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			synthDoneSpeaking.notify(synth=self)
 
 	def terminate(self):
-		speech.speak = self._realSpeakFunc
-		speech.speakSpelling = self._realSpellingFunc
-
-		speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=speech.speak)
-		speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
+		speech.speech.speak = self._realSpeakFunc
+		speech.speech.speakSpelling = self._realSpellingFunc
 
 		try:
 			self.cancel()

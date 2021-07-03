@@ -8,7 +8,7 @@ from .blocks import BLOCKS, BLOCK_RSHIFT
 import config
 from logHandler import log
 import languageHandler
-import speech
+import synthDriverHandler
 from .. import _config
 from .. import speechcommand
 
@@ -103,7 +103,7 @@ class LanguageDetector(object):
 	def add_detected_language_commands(self, speechSequence):
 		sb = StringIO()
 		charset = None
-		defaultLang = speech.getSynth().language
+		defaultLang = synthDriverHandler.getSynth().language
 		curLang = defaultLang
 		tmpLang = curLang.split("_")[0]
 		for command in speechSequence:
@@ -232,7 +232,7 @@ class LanguageDetector(object):
 
 	def process_for_spelling(self, text, locale=None):
 		if locale is None:
-			defaultLang = speech.getSynth().language
+			defaultLang = synthDriverHandler.getSynth().language
 		else:
 			defaultLang = locale
 		curLang = defaultLang
