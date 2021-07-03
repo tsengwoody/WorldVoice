@@ -1,5 +1,3 @@
-﻿# coding: utf-8
-
 import copy
 import os
 import wx
@@ -319,9 +317,9 @@ class SpeechSymbolsDialog(SettingsDialog):
 		self.speechSymbols = None
 		if gui.messageBox(
 			# Translators: The message displayed
-			_("For the edited unicode rule to apply, NVDA must be restarted. Press enter to restart NVDA, or cancel to exit at a later time."),
+			_("For the edited unicode rule to apply, NVDA must be restarted. Do you want to restart NVDA now?"),
 			# Translators: The title of the dialog
-			_("unicode rule edited"),wx.OK|wx.CANCEL|wx.ICON_WARNING,self
+			_("unicode rule edited"), wx.OK|wx.CANCEL|wx.ICON_WARNING, self
 		)==wx.OK:
 			queueHandler.queueFunction(queueHandler.eventQueue,core.restart)
 

@@ -73,6 +73,12 @@ def SpeechSettingsDialog():
 			self.Bind(wx.EVT_SLIDER, self.onVolumeSliderScroll, self._volumeSlider)
 			self.sliderDisable()
 
+			self._dotText = settingsSizerHelper.addLabeledControl(
+				labelText=_("Number dot replacement"),
+				wxCtrlClass=wx.TextCtrl,
+				value=_config.vocalizerConfig["autoLanguageSwitching"]["numberDotReplacement"],
+			)
+
 			self._useUnicodeDetectionCheckBox = wx.CheckBox(self,
 			# Translators: Wether to use or not unicode characters based language detection.
 				label=_("Detect text language based on unicode characters"))
@@ -219,6 +225,7 @@ def SpeechSettingsDialog():
 					except BaseException as e:
 						pass
 
+			_config.vocalizerConfig["autoLanguageSwitching"]["numberDotReplacement"] = self._dotText.GetValue()
 			_config.vocalizerConfig["autoLanguageSwitching"]["useUnicodeLanguageDetection"] = self._useUnicodeDetectionCheckBox.GetValue()
 			_config.vocalizerConfig["autoLanguageSwitching"]["afterSymbolDetection"] = self._afterSymbolDetectionCheckBox.GetValue()
 			_config.vocalizerConfig["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = self._ignoreNumbersCheckBox.GetValue()

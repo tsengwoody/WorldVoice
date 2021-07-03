@@ -1,5 +1,3 @@
-﻿# -*- coding: utf-8 -*-
-
 import os
 import sys
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))

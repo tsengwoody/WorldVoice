@@ -1,5 +1,3 @@
-﻿# coding: utf-8
-
 import codecs
 import collections
 import os

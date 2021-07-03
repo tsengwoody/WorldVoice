@@ -118,9 +118,9 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 		speech.speak = self.patchedSpeak
 		speech.speakSpelling = self.patchedSpeakSpelling
 
-		speechSymbols = SpeechSymbols()
-		speechSymbols.load('unicode.dic')
-		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.languages), speechSymbols)
+		self.speechSymbols = SpeechSymbols()
+		self.speechSymbols.load('unicode.dic')
+		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.languages), self.speechSymbols)
 
 		speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=self.patchedSpeak)
 		speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
@@ -157,7 +157,6 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			and _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
 			speechSequence = list(speechSequence)
-		speechSequence = self.patchedNumSpeechSequence(speechSequence)
 		speechSequence = self.patchedSpaceSpeechSequence(speechSequence)
 
 		currentInstance = defaultInstance = self._voiceManager.defaultVoiceInstance.token
@@ -232,13 +231,8 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
 		if self._cni:
-			temp = []
-			for command in speechSequence:
-				if isinstance(command, str):
-					temp.append(comma_number_pattern.sub(lambda m:'', command))
-				else:
-					temp.append(command)
-			speechSequence = temp
+			speechSequence = [comma_number_pattern.sub(lambda m:'', command) if isinstance(command, str) else command for command in speechSequence]
+		speechSequence = self.patchedNumSpeechSequence(speechSequence)
 		if self.uwv \
 			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
 			and not _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
