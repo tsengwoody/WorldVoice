@@ -1,7 +1,6 @@
 ﻿import re
 
 import languageHandler
-import speech
 
 try:
 	from speech import LangChangeCommand, BreakCommand
@@ -9,6 +8,7 @@ except:
 	from speech.commands import LangChangeCommand, BreakCommand
 
 from synthDrivers.WorldVoiceXVED2 import _config
+from synthDrivers.WorldVoiceXVED2.speechcommand import WVLangChangeCommand
 
 number_pattern = re.compile(r"[0-9]+[0-9.:]*[0-9]+|[0-9]")
 comma_number_pattern = re.compile(r"(?<=[0-9]),(?=[0-9])")
@@ -76,6 +76,13 @@ class WorldVoiceBaseSynthDriver:
 		return result
 
 	def resplit(self, pattern, string, mode, numberLanguage, speechSymbols):
+		translate_dict = {}
+		for c in "1234567890":
+			if speechSymbols and c in speechSymbols.symbols:
+				symbol = speechSymbols.symbols[c]
+				if symbol.language == numberLanguage or symbol.language == "Windows":
+					translate_dict[ord(c)] = symbol.replacement if symbol.replacement else c
+
 		result = []
 		numbers = pattern.findall(string)
 		others = pattern.split(string)
@@ -87,29 +94,22 @@ class WorldVoiceBaseSynthDriver:
 				dot_count = dot_count +1
 				number_str = ' '.join(number).replace(" . ", ".")
 
-			translate_dict = {}
-			for c in "1234567890":
-				if speechSymbols and c in speechSymbols.symbols:
-					symbol = speechSymbols.symbols[c]
-					if symbol.language == numberLanguage or symbol.language == "Windows":
-						translate_dict[ord(c)] = symbol.replacement if symbol.replacement else c
-
-			nodot_str = number_str.split(".")
-			temp = ""
-			for n, d in zip(nodot_str, ["."]*(len(nodot_str) -1)):
-				if len(n) == 1:
-					n = n.translate(translate_dict)
-				temp = temp +n +d
-			n = nodot_str[-1]
-			if len(n) == 1:
-				n = n.translate(translate_dict)
-			temp = temp +n
-			number_str = temp
-
 			if dot_count > 2:
+				nodot_str = number_str.split(".")
+				temp = ""
+				for n, d in zip(nodot_str, ["."]*(len(nodot_str) -1)):
+					if len(n) == 1 or "number":
+						n = n.translate(translate_dict)
+					temp = temp +n +d
+				n = nodot_str[-1]
+				if len(n) == 1 or "number":
+					n = n.translate(translate_dict)
+				temp = temp +n
+				number_str = temp
+
 				number_str = number_str.replace(".", _config.vocalizerConfig["autoLanguageSwitching"]["numberDotReplacement"])
 
-			result.extend([other, LangChangeCommand('StartNumber'), number_str, LangChangeCommand('EndNumber')])
+			result.extend([other, WVLangChangeCommand('StartNumber'), number_str, WVLangChangeCommand('EndNumber')])
 		result.append(others[-1])
 		return result
 
@@ -123,7 +123,7 @@ class WorldVoiceBaseSynthDriver:
 
 		currentLang = self.language
 		for command in result:
-			if isinstance(command, LangChangeCommand):
+			if isinstance(command, WVLangChangeCommand):
 				if command.lang == 'StartNumber':
 					command.lang = numberLanguage
 				elif command.lang == 'EndNumber':
