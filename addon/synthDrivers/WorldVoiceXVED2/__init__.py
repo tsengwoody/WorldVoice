@@ -1,4 +1,4 @@
-﻿import os
+import os
 import re
 import sys
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
