@@ -113,10 +113,18 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			raise
 		self._voiceManager = VoiceManager()
 
-		self._realSpeakFunc = speech.speech.speak
-		self._realSpellingFunc = speech.speech.speakSpelling
-		speech.speech.speak = self.patchedSpeak
-		speech.speech.speakSpelling = self.patchedSpeakSpelling
+		try:
+			self._realSpeakFunc = speech.speech.speak
+			self._realSpellingFunc = speech.speech.speakSpelling
+			speech.speech.speak = self.patchedSpeak
+			speech.speech.speakSpelling = self.patchedSpeakSpelling
+		except:
+			self._realSpeakFunc = speech.speak
+			self._realSpellingFunc = speech.speakSpelling
+			speech.speak = self.patchedSpeak
+			speech.speakSpelling = self.patchedSpeakSpelling
+			speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=self.patchedSpeak)
+			speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
 
 		self.speechSymbols = SpeechSymbols()
 		self.speechSymbols.load('unicode.dic')
@@ -135,8 +143,14 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			synthDoneSpeaking.notify(synth=self)
 
 	def terminate(self):
-		speech.speech.speak = self._realSpeakFunc
-		speech.speech.speakSpelling = self._realSpellingFunc
+		try:
+			speech.speech.speak = self._realSpeakFunc
+			speech.speech.speakSpelling = self._realSpellingFunc
+		except:
+			speech.speak = self._realSpeakFunc
+			speech.speakSpelling = self._realSpellingFunc
+			speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=speech.speak)
+			speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
 
 		try:
 			self.cancel()

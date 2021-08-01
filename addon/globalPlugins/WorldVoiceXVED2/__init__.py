@@ -14,9 +14,6 @@ import globalVars
 import gui
 from logHandler import log
 from scriptHandler import script
-from speech import sayAll
-from speech.speechWithoutPauses import SpeechWithoutPauses
-from synthDriverHandler import getSynth
 import ui
 
 from .speechSettingsDialog import SpeechSettingsDialog
@@ -25,8 +22,6 @@ from generics.speechSymbols.views import SpeechSymbolsDialog
 workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 SpeechSettingsDialog = SpeechSettingsDialog()
-
-SCRCAT_TEXTREVIEW = _("Text review")
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
@@ -131,20 +126,3 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_popup_SpeechSymbolsDialog(self, gesture):
 		self.popup_SpeechSymbolsDialog(None)
-
-	@script(
-		description=_(
-			# Translators: Input help mode message for say all in review cursor command.
-			"Reads from the review cursor up to the end of the current text,"
-			" moving the review cursor as it goes"
-		),
-		category=SCRCAT_TEXTREVIEW,
-		gestures=("kb:numpadPlus", "kb(laptop):NVDA+shift+a", "ts(text):3finger_flickDown")
-	)
-	def script_review_sayAll(self,gesture):
-		synthInstance = getSynth()
-		if synthInstance.name == 'WorldVoiceXVED2':
-			SayAllHandler = sayAll._SayAllHandler(SpeechWithoutPauses(speakFunc=synthInstance.patchedSpeak))
-			SayAllHandler.readText(sayAll.CURSOR.REVIEW)
-		else:
-			sayAll.SayAllHandler.readText(sayAll.CURSOR.REVIEW)
