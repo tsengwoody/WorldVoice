@@ -12,11 +12,16 @@ import math
 import operator
 
 from autoSettingsUtils.utils import paramToPercent, percentToParam
+import config
 import languageHandler
 from logHandler import log
 from synthDriverHandler import VoiceInfo
 
-from . import _config
+try:
+	from synthDriverHandler import getSynth
+except:
+	from speech import getSynth
+
 from . import _languages
 from . import _vocalizer
 
@@ -27,7 +32,7 @@ VOICE_PARAMETERS = [
 	(_vocalizer.VE_PARAM_VOLUME, "volume", int),
 ]
 
-VOICE_PARAMETERS2 = [
+VOICE_PARAMETERS = [
 	("rate", int),
 	("pitch", int),
 	("volume", int),
@@ -66,42 +71,84 @@ class Voice(object):
 		except AttributeError:
 			self.language = None
 
-		self.rate = 14
+		self.rate = 50
 		self.pitch = 50
 		self.volume = 50
 
-		self.commitRate = 14
+		self.commitRate = 50
 		self.commitPitch = 50
 		self.commitVolume = 50
+
+		self.loadParameter()
+
+	def loadParameter(self):
+		voiceName = self.name
+		if voiceName in config.conf["WorldVoice"]["voices"]:
+			for p, t in VOICE_PARAMETERS:
+				if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+					try:
+						value = config.conf["speech"][getSynth().name].get(p, None)
+					except:
+						value = config.conf["WorldVoice"]['voices'][voiceName].get(p, None)
+				else:
+					value = config.conf["WorldVoice"]['voices'][voiceName].get(p, None)
+				if value is None:
+					continue
+				setattr(self, p, t(value))
+		else:
+			config.conf["WorldVoice"]["voices"][voiceName] = {}
+			for p, t in VOICE_PARAMETERS:
+				config.conf["WorldVoice"]['voices'][voiceName][p] = t(50)
+				setattr(self, p, t(50))
+
+		self.commitRate = self.rate
+		self.commitPitch = self.pitch
+		self.commitVolume = self.volume
 
 	def commit(self):
 		self.commitRate = self.rate
 		self.commitPitch = self.pitch
 		self.commitVolume = self.volume
 
+		voiceName = self.name
+		if voiceName not in config.conf["WorldVoice"]["voices"]:
+			config.conf["WorldVoice"]["voices"][voiceName] = {}
+
+		for p, t in VOICE_PARAMETERS:
+			value = t(getattr(self, p))
+			config.conf["WorldVoice"]["voices"][voiceName][p] = value
+
 	def rollback(self):
 		self.rate = self.commitRate
 		self.pitch = self.commitPitch
 		self.volume = self.commitVolume
 
+		voiceName = self.name
+		if voiceName not in config.conf["WorldVoice"]["voices"]:
+			config.conf["WorldVoice"]["voices"][voiceName] = {}
+
+		for p, t in VOICE_PARAMETERS:
+			value = t(getattr(self, p))
+			config.conf["WorldVoice"]["voices"][voiceName][p] = value
+
 	@property
 	def rate(self):
-		self._rate = _vocalizer.getParameter(self.token, _vocalizer.VE_PARAM_SPEECHRATE, type_=int)
-		return paramToPercent(self._rate, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
-		"""rate = self._rate = _vocalizer.getParameter(self.token, _vocalizer.VE_PARAM_SPEECHRATE, type_=int)
+		# self._rate = _vocalizer.getParameter(self.token, _vocalizer.VE_PARAM_SPEECHRATE, type_=int)
+		# return paramToPercent(self._rate, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
+		rate = self._rate = _vocalizer.getParameter(self.token, _vocalizer.VE_PARAM_SPEECHRATE, type_=int)
 		norm = rate / 100.0
 		factor = 25 if norm  >= 1 else 50
-		return int(round(50 + factor * math.log(norm, 2)))"""
+		return int(round(50 + factor * math.log(norm, 2)))
 
 	@rate.setter
 	def rate(self, percent):
-		self._rate = percentToParam(percent, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
-		_vocalizer.setParameter(self.token, _vocalizer.VE_PARAM_SPEECHRATE, self._rate)
-		"""value = percent
+		# self._rate = percentToParam(percent, _vocalizer.RATE_MIN, _vocalizer.RATE_MAX)
+		# _vocalizer.setParameter(self.token, _vocalizer.VE_PARAM_SPEECHRATE, self._rate)
+		value = percent
 		factor = 25.0 if value >= 50 else 50.0
 		norm = 2.0 ** ((value - 50.0) / factor)
 		self._rate = value = int(round(norm * 100))
-		_vocalizer.setParameter(self.token, _vocalizer.VE_PARAM_SPEECHRATE, self._rate)"""
+		_vocalizer.setParameter(self.token, _vocalizer.VE_PARAM_SPEECHRATE, self._rate)
 
 	@property
 	def pitch(self):
@@ -163,11 +210,10 @@ class Voice(object):
 
 class VoiceManager(object):
 	def __init__(self):
-		_config.load()
 		self._createCaches()
 		self._defaultInstance, self._defaultVoiceName = _vocalizer.open()
 		self._defaultVoiceInstance = Voice(self._defaultInstance, self._defaultVoiceName)
-		self.onVoiceLoad(self._defaultVoiceName, self._defaultVoiceInstance)
+		self._defaultVoiceInstance.loadParameter()
 		log.debug("Created voiceManager instance. Default voice is %s", self._defaultVoiceName)
 		self._instanceCache = {self._defaultVoiceName : self._defaultVoiceInstance}
 
@@ -201,14 +247,24 @@ class VoiceManager(object):
 		instance, name = _vocalizer.open(voiceName)
 		voiceInstance = Voice(instance, name)
 		self._instanceCache[name] = voiceInstance
-		self.onVoiceLoad(voiceName, voiceInstance)
+		voiceInstance.loadParameter()
 		return self._instanceCache[name]
+
+	def onVoiceParameterConsistent(self, baseInstance):
+		for voiceName, instance in self._instanceCache.items():
+			instance.rate = baseInstance.rate
+			instance.pitch = baseInstance.pitch
+			instance.volume = baseInstance.volume
+			instance.commit()
+
+	def reload(self):
+		for voiceName, instance in self._instanceCache.items():
+			instance.loadParameter()
 
 	def close(self):
 		for voiceName, instance in self._instanceCache.items():
-			self.onVoiceUnload(voiceName, instance)
+			instance.commit()
 			_vocalizer.close(instance.token)
-		_config.save() # Flush the configuration file
 
 	def _createCaches(self):
 		""" Create tables and caches to keep information that won't change on the synth. """
@@ -288,32 +344,9 @@ class VoiceManager(object):
 		return None
 
 	def _getConfiguredVoiceNameForLanguage(self, language):
-		if language in _config.vocalizerConfig['autoLanguageSwitching']:
-			return _config.vocalizerConfig['autoLanguageSwitching'][language]['voice']
+		if language in config.conf["WorldVoice"]['autoLanguageSwitching']:
+			return config.conf["WorldVoice"]['autoLanguageSwitching'][language]['voice']
 		return None
-
-	def onVoiceLoad(self, voiceName, instance):
-		""" Restores variant and other settings if available, when a voice is loaded."""
-
-		if voiceName in _config.vocalizerConfig['voices']:
-			for p, t in VOICE_PARAMETERS2:
-				value = _config.vocalizerConfig['voices'][voiceName].get(p, None)
-				if value is None:
-					continue
-				# p = "commit" + p.capitalize()
-				setattr(instance, p, t(value))
-			instance.commit()
-
-	def onVoiceUnload(self, voiceName, instance):
-		""" Saves variant to be restored for each voice."""
-
-		if voiceName not in _config.vocalizerConfig['voices']:
-			_config.vocalizerConfig['voices'][voiceName] = {}
-
-		for p, t in VOICE_PARAMETERS2:
-			# p = "commit" + p.capitalize()
-			value = t(getattr(instance, p))
-			_config.vocalizerConfig['voices'][voiceName][p] = value
 
 	def _localeGroupKey(self, localeName):
 		if '_' in localeName:

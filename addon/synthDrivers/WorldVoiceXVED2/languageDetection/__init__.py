@@ -14,7 +14,6 @@ try:
 except:
 	from speech import getSynth
 
-from .. import _config
 from .. import speechcommand
 
 BASIC_LATIN = [
@@ -135,7 +134,7 @@ class LanguageDetector(object):
 							newCharset = None
 						charset = newCharset
 						symbol = self.speechSymbols.symbols[c]
-						c = symbol.replacement if symbol.replacement else c
+						c = symbol.replacement if symbol.replacement and not c in [str(i) for i in range(10)] else c
 						if symbol.mode == 1:
 							newLang = symbol.language
 						else:
@@ -162,10 +161,10 @@ class LanguageDetector(object):
 						sb.write(c)
 						continue
 					if c.isdigit() or (not c.isalpha() and block <= 0x8):
-						if _config.vocalizerConfig['autoLanguageSwitching']['ignoreNumbersInLanguageDetection'] and c.isdigit():
+						if config.conf["WorldVoice"]['autoLanguageSwitching']['ignoreNumbersInLanguageDetection'] and c.isdigit():
 							sb.write(c)
 							continue
-						if _config.vocalizerConfig['autoLanguageSwitching']['ignorePunctuationInLanguageDetection'] and not c.isdigit():
+						if config.conf["WorldVoice"]['autoLanguageSwitching']['ignorePunctuationInLanguageDetection'] and not c.isdigit():
 							sb.write(c)
 							continue
 						if prevInIgnore and not rule:
@@ -231,7 +230,7 @@ class LanguageDetector(object):
 		# See if we have any configured language for this charset.
 		if charset in _configKeys:
 			configKey = _configKeys[charset]
-			lang = _config.vocalizerConfig['autoLanguageSwitching'][configKey]
+			lang = config.conf["WorldVoice"]['autoLanguageSwitching'][configKey]
 			return lang
 		return langs[0]
 

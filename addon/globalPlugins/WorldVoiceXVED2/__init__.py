@@ -8,24 +8,37 @@ sys.path.insert(0, base_dir)
 import wx
 
 import addonHandler
-addonHandler.initTranslation()
+import config
 import globalPluginHandler
 import globalVars
 import gui
 from logHandler import log
 from scriptHandler import script
+import speech
 import ui
 
 from .speechSettingsDialog import SpeechSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
+from synthDrivers.WorldVoiceXVED2 import _config
 
-workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
+addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 SpeechSettingsDialog = SpeechSettingsDialog()
+workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
-		super(GlobalPlugin, self).__init__()
+		super().__init__()
+		try:
+			from speech.sayAll import initialize as sayAllInitialize
+			sayAllInitialize(
+				speech.speech.speak,
+				speech.speech.speakObject,
+				speech.speech.getTextInfoSpeech,
+				speech.speech.SpeakTextInfoState,
+			)
+		except:
+			pass
 		self.ve = False
 		self.initialize()
 

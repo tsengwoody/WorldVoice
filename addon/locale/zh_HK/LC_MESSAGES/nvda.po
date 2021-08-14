@@ -5,10 +5,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoice' '1.7.3'\n"
+"Project-Id-Version: 'WorldVoice' '2.1'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2021-07-10 20:39+0800\n"
-"PO-Revision-Date: 2021-07-10 20:55+0800\n"
+"POT-Creation-Date: 2021-08-13 14:44+0800\n"
+"PO-Revision-Date: 2021-08-13 14:50+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_HK\n"
@@ -136,54 +136,54 @@ msgstr ""
 msgid "unicode rule edited"
 msgstr "unicode 規則已編輯"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:50
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:61
 msgid "&Speech Settings"
 msgstr "語音設定(&S)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:50
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:61
 msgid "Speech Settings."
 msgstr "語音設定。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:52
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:63
 msgid "&Unicode Settings"
 msgstr "&Unicode 設定"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:52
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:63
 msgid "Unicode Settings."
 msgstr "Unicode 設定。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:54
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:65
 msgid "&File Import"
 msgstr "檔案匯入(&F)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:54
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:65
 msgid "Import File."
 msgstr "匯入檔案..."
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:56
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:67
 msgid "WorldVoice(VE)"
 msgstr "WorldVoice(VE)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:67
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:78
 msgid "Import file..."
 msgstr "匯入檔案..."
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:80
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:91
 msgid "Import fail"
 msgstr "匯入失敗"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:81
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:86
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:92
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:97
 msgid "Import File"
 msgstr "匯入檔案"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:85
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:96
 msgid ""
 "For the new file to import, NVDA must be restarted. Are you want to restart "
 "NVDA now ?"
 msgstr "為了讓新檔案匯入， NVDA 必需重新啟動。您要立即重新啟動 NVDA 嗎？"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:93
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:104
 msgid ""
 "You have no core(driver 2) installed.\n"
 "Do you want to install the core(driver 2) now?"
@@ -191,89 +191,116 @@ msgstr ""
 "您尚未安裝核心(driver 2)。\n"
 "您是否要現在進行核心安裝？"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:95
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:106
 msgid "No core installed."
 msgstr "尚未安裝核心。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:108
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:119
 msgid "SpeechSettingsDialog have already been opened"
 msgstr "語音設定對話框已開啟"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:114
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:125
 msgid "SpeechSymbolsDialog have already been opened"
 msgstr "Unicode 設定對話框已開啟"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:118
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:129
 msgid "popup SpeechSettingsDialog"
 msgstr "彈出 SpeechSettingsDialog"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:126
+#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:137
 msgid "popup SpeechSymbolsDialog"
 msgstr "彈出 SpeechSymbolsDialog"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:17
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:25
 msgid "Speech Settings"
 msgstr "語音設定"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:48
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:55
 msgid "Your current speech synthesizer is not ready."
 msgstr "你當前的語音合程器尚未就緒。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:57
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:64
 msgid "Select a language, and then configure the voice to be used:"
 msgstr "選擇一個地區，並為其設定一個語音："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:62
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:69
 msgid "Locale Name:"
 msgstr "地區名稱:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:65
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:72
 msgid "Voice Name:"
 msgstr "語音名稱:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:68
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:75
 msgid "&Rate:"
 msgstr "速度(&R)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:70
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:77
 msgid "&Pitch:"
 msgstr "音調(&P)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:72
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:79
 msgid "V&olume:"
 msgstr "音量(&O)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:77
-msgid "Number dot replacement"
-msgstr "數字點替代文字"
-
-#. Translators: Wether to use or not unicode characters based language detection.
 #: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:84
+msgid "Keep main parameter and locale parameter consistent"
+msgstr "保持主要語音參數與地區語音參數一致"
+
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:90
+msgid "Keep main voice and locale voice consistent"
+msgstr "保持主要語音角色與地區語音角色一致"
+
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:95
 msgid "Detect text language based on unicode characters"
 msgstr "用 unicode 編碼偵測文字語言"
 
-#. Translators: Wether to use or not after symbol detection.
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:90
-msgid "Detect text language after symbol process"
-msgstr "在符號處理後偵測文字語言"
-
 #. Translators: Either to ignore or not numbers when language detection is active
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:96
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:101
 msgid "Ignore numbers when detecting text language"
 msgstr "偵測語言時忽略數字"
 
 #. Translators: Either to ignore or not ASCII punctuation when language detection is active
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:102
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:107
 msgid "Ignore common punctuation when detecting text language"
 msgstr "偵測語言時忽略常見標點符號"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:107
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:112
 msgid "Language assumed for latin characters:"
 msgstr "拉丁字元假設的語言："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:117
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:122
 msgid "Language assumed for CJK characters:"
 msgstr "中日韓字元假設的語言："
+
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:131
+msgid "before symbol process"
+msgstr "符號處理前"
+
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:131
+msgid "after symbol process"
+msgstr "符號處理後"
+
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:133
+msgid "Detect language timing:"
+msgstr "偵測語言時間點："
+
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:141
+msgid "Number dot replacement"
+msgstr "數字點替代文字"
+
+#. Translators: The message displayed
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:305
+msgid ""
+"For the detect language timing configuration to apply, NVDA must save "
+"configuration and be restarted. Do you want to do now?"
+msgstr ""
+"為了使偵測語言時間點設定生效， NVDA 必需儲存組態並重新啟動。您要立即執行嗎？"
+
+#. Translators: The title of the dialog
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:307
+msgid "Detect language timing Configuration Change"
+msgstr "偵測語言時間點設定變更"
 
 #. Translators: Label for a setting in voice settings dialog.
 #: addon\synthDrivers\WorldVoiceXVED2\__init__.py:51
@@ -312,15 +339,15 @@ msgstr "啟用 WorldVoice 設定規則來偵測文字語言"
 msgid "Enable WorldVoice rules"
 msgstr "啟用 WorldVoice 規則"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:332
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:374
 msgid "default"
 msgstr "預設"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:345
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:387
 msgid "value"
 msgstr "數值"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:346
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:388
 msgid "number"
 msgstr "數字"
 

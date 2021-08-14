@@ -1,45 +1,65 @@
-#vocalizer_expressive/_config.py
-#A part of the vocalizer driver for NVDA (Non Visual Desktop Access)
-#Copyright (C) 2012 Rui Batista <ruiandrebatista@gmail.com>
-#Copyright (C) 2012 Tiflotecnia, lda. <www.tiflotecnia.com>
-#This file is covered by the GNU General Public License.
-#See the file GPL.txt for more details.
-
 from io import StringIO
 import os.path
 import configobj
 from configobj.validate import Validator
+import config
 import globalVars
 from logHandler import log
 
-VOCALIZER_CONFIG_FILENAME = "WorldVoiceXVED2.ini"
+WORLDVOICE_CONFIG_FILENAME = "WorldVoiceXVED2.ini"
 
 vocalizerConfig = None
 
-_configSpec = u"""[voices]
-[[__many__]]
-variant = string(default=None)
-rate = integer(default=50,min=0,max=100)
-pitch = integer(default=50,min=0,max=100)
-volume = integer(default=50,min=0,max=100)
+_configSpec = """# WorldVoice spec
+[WorldVoice]
+	[[voices]]
+		[[[__many__]]]
+			variant = string(default=None)
+			rate = integer(default=50,min=0,max=100)
+			pitch = integer(default=50,min=0,max=100)
+			volume = integer(default=50,min=0,max=100)
 
-[autoLanguageSwitching]
-numberDotReplacement = string(default=".")
-useUnicodeLanguageDetection = boolean(default=false)
-afterSymbolDetection = boolean(default=false)
-ignoreNumbersInLanguageDetection = boolean(default=false)
-ignorePunctuationInLanguageDetection = boolean(default=true)
-latinCharactersLanguage = string(default=en)
-CJKCharactersLanguage = string(default=ja)
+	[[autoLanguageSwitching]]
+		numberDotReplacement = string(default=".")
+		useUnicodeLanguageDetection = boolean(default=true)
+		ignoreNumbersInLanguageDetection = boolean(default=false)
+		ignorePunctuationInLanguageDetection = boolean(default=false)
+		latinCharactersLanguage = string(default=en)
+		CJKCharactersLanguage = string(default=None)
+		DetectLanguageTiming = string(default=after)
+		KeepMainLocaleVoiceConsistent = boolean(default=true)
+		KeepMainLocaleParameterConsistent = boolean(default=false)
 
-[[__many__]]
-voice = string(default=None)
+		[[[__many__]]]
+			voice = string(default=None)
 """
 
-def load():
+config.conf.spec["WorldVoice"] = {
+	"autoLanguageSwitching" :{
+		"numberDotReplacement": "string(default='.')",
+		"useUnicodeLanguageDetection": "boolean(default=true)",
+		"ignoreNumbersInLanguageDetection": "boolean(default=false)",
+		"ignorePunctuationInLanguageDetection": "boolean(default=false)",
+		"latinCharactersLanguage": "string(default=en)",
+		"CJKCharactersLanguage": "string(default=ja)",
+		"DetectLanguageTiming": "string(default=after)",
+		"KeepMainLocaleVoiceConsistent": "boolean(default=true)",
+		"KeepMainLocaleParameterConsistent": "boolean(default=false)",
+	},
+	"voices": {
+		"__many__": {
+			"variant": "string(default=None)",
+			"rate": "integer(default=50,min=0,max=100)",
+			"pitch": "integer(default=50,min=0,max=100)",
+			"volume": "integer(default=50,min=0,max=100)",
+		}
+	}
+}
+
+def _load():
 	global vocalizerConfig
 	if not vocalizerConfig:
-		path = os.path.join(globalVars.appArgs.configPath, VOCALIZER_CONFIG_FILENAME)
+		path = os.path.join(globalVars.appArgs.configPath, WORLDVOICE_CONFIG_FILENAME)
 		vocalizerConfig = configobj.ConfigObj(path, configspec=StringIO(_configSpec), encoding="utf-8", default_encoding='utf8')
 		vocalizerConfig.newlines = "\r\n"
 		vocalizerConfig.stringify = True
@@ -48,10 +68,21 @@ def load():
 		if ret != True:
 			log.warning("Vocalizer configuration is invalid: %s", ret)
 
-def save():
+def _save():
 	global vocalizerConfig
 	if not vocalizerConfig:
 		raise RuntimeError("Vocalizer config is not loaded.")
 	val = Validator()
 	vocalizerConfig.validate(val, copy=True)
 	vocalizerConfig.write()
+
+def initialize():
+		path = os.path.join(globalVars.appArgs.configPath, WORLDVOICE_CONFIG_FILENAME)
+		WVConfig = configobj.ConfigObj(path, configspec=StringIO(_configSpec), encoding="utf-8", default_encoding='utf8')
+		WVConfig.newlines = "\r\n"
+		WVConfig.stringify = True
+		val = Validator()
+		ret = WVConfig.validate(val, preserve_errors=True, copy=True)
+		if ret != True:
+			log.warning("Vocalizer configuration is invalid: %s", ret)
+		config.conf["WorldVoice"] = WVConfig["WorldVoice"]

@@ -100,7 +100,6 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			return check
 
 	def __init__(self):
-		_config.load()
 		# Initialize the driver
 		try:
 			_vocalizer.initialize(self._onIndexReached)
@@ -113,15 +112,26 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			raise
 		self._voiceManager = VoiceManager()
 
+		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
+			try:
+				self._realSpeakFunc = speech.speech.speak
+				speech.speech.speak = self.patchedSpeak
+			except:
+				self._realSpeakFunc = speech.speak
+				speech.speak = self.patchedSpeak
+
 		try:
-			self._realSpeakFunc = speech.speech.speak
 			self._realSpellingFunc = speech.speech.speakSpelling
-			speech.speech.speak = self.patchedSpeak
 			speech.speech.speakSpelling = self.patchedSpeakSpelling
+			from speech.sayAll import initialize as sayAllInitialize
+			sayAllInitialize(
+				speech.speech.speak,
+				speech.speech.speakObject,
+				speech.speech.getTextInfoSpeech,
+				speech.speech.SpeakTextInfoState,
+			)
 		except:
-			self._realSpeakFunc = speech.speak
 			self._realSpellingFunc = speech.speakSpelling
-			speech.speak = self.patchedSpeak
 			speech.speakSpelling = self.patchedSpeakSpelling
 			speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=self.patchedSpeak)
 			speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
@@ -136,6 +146,10 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 
 		self._voice = None
 
+	def loadSettings(self, onlyChanged=False):
+		super().loadSettings(onlyChanged)
+		self._voiceManager.reload()
+
 	def _onIndexReached(self, index):
 		if index is not None:
 			synthIndexReached.notify(synth=self, index=index)
@@ -143,14 +157,15 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			synthDoneSpeaking.notify(synth=self)
 
 	def terminate(self):
-		try:
-			speech.speech.speak = self._realSpeakFunc
-			speech.speech.speakSpelling = self._realSpellingFunc
-		except:
-			speech.speak = self._realSpeakFunc
-			speech.speakSpelling = self._realSpellingFunc
-			speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=speech.speak)
-			speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
+		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
+			try:
+				speech.speech.speak = self._realSpeakFunc
+				speech.speech.speakSpelling = self._realSpellingFunc
+			except:
+				speech.speak = self._realSpeakFunc
+				speech.speakSpelling = self._realSpellingFunc
+				speech._speakWithoutPauses = speech.SpeechWithoutPauses(speakFunc=speech.speak)
+				speech.speakWithoutPauses = speech._speakWithoutPauses.speakWithoutPauses
 
 		try:
 			self.cancel()
@@ -160,11 +175,15 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			log.error("Vocalizer terminate", exc_info=True)
 
 	def speak(self, speechSequence):
-		if self.uwv \
-			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
-			and _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
-			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
-			speechSequence = list(speechSequence)
+		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
+			if self._cni:
+				speechSequence = [comma_number_pattern.sub(lambda m:'', command) if isinstance(command, str) else command for command in speechSequence]
+			speechSequence = self.patchedNumSpeechSequence(speechSequence)
+			if self.uwv \
+				and config.conf["WorldVoice"]['autoLanguageSwitching']['useUnicodeLanguageDetection']:
+				speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
+				speechSequence = list(speechSequence)
+
 		speechSequence = self.patchedSpaceSpeechSequence(speechSequence)
 
 		currentInstance = defaultInstance = self._voiceManager.defaultVoiceInstance.token
@@ -242,15 +261,14 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			speechSequence = [comma_number_pattern.sub(lambda m:'', command) if isinstance(command, str) else command for command in speechSequence]
 		speechSequence = self.patchedNumSpeechSequence(speechSequence)
 		if self.uwv \
-			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
-			and not _config.vocalizerConfig['autoLanguageSwitching']['afterSymbolDetection']:
+			and config.conf["WorldVoice"]['autoLanguageSwitching']['useUnicodeLanguageDetection']:
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
 			speechSequence = list(speechSequence)
 		self._realSpeakFunc(speechSequence, symbolLevel, priority=priority)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
-		if config.conf["speech"]["autoLanguageSwitching"] \
-			and _config.vocalizerConfig['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
+		if self.uwv \
+			and config.conf["WorldVoice"]['autoLanguageSwitching']['useUnicodeLanguageDetection'] \
 			and config.conf["speech"]["trustVoiceLanguage"]:
 				for text, loc in self._languageDetector.process_for_spelling(text, locale):
 					self._realSpellingFunc(text, loc, useCharacterDescriptions, priority=priority)
@@ -272,6 +290,8 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 	def _set_volume(self, value):
 		self._voiceManager.defaultVoiceInstance.volume = value
 		self._voiceManager.defaultVoiceInstance.commit()
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
 
 	def _get_rate(self):
 		return self._voiceManager.defaultVoiceInstance.rate
@@ -279,6 +299,8 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 	def _set_rate(self, value):
 		self._voiceManager.defaultVoiceInstance.rate = value
 		self._voiceManager.defaultVoiceInstance.commit()
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
 
 	def _get_pitch(self):
 		return self._voiceManager.defaultVoiceInstance.pitch
@@ -286,6 +308,8 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 	def _set_pitch(self, value):
 		self._voiceManager.defaultVoiceInstance.pitch = value
 		self._voiceManager.defaultVoiceInstance.commit()
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
 
 	def _getAvailableVoices(self):
 		return self._voiceManager.voiceInfos
@@ -307,6 +331,16 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 		# See NVDA ticket #3540
 		_vocalizer.stop()
 		self._voiceManager.setDefaultVoice(voiceName)
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
+			locale = self._voiceManager.defaultVoiceInstance.language if self._voiceManager.defaultVoiceInstance.language else languageHandler.getLanguage()
+			if not locale in config.conf["WorldVoice"]["autoLanguageSwitching"]:
+				config.conf["WorldVoice"]["autoLanguageSwitching"][locale] = {}
+			config.conf["WorldVoice"]["autoLanguageSwitching"][locale]['voice'] = self._voiceManager.defaultVoiceInstance.name
+			locale = locale.split("_")[0]
+			if not locale in config.conf["WorldVoice"]["autoLanguageSwitching"]:
+				config.conf["WorldVoice"]["autoLanguageSwitching"][locale] = {}
+			config.conf["WorldVoice"]["autoLanguageSwitching"][locale]['voice'] = self._voiceManager.defaultVoiceInstance.name
+
 		# Available variants are cached by default. As variants maybe different for each voice remove the cached value
 		# if hasattr(self, '_availableVariants'):
 			# del self._availableVariants

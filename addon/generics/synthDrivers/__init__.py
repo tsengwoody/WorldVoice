@@ -1,5 +1,6 @@
 import re
 
+import config
 import languageHandler
 
 try:
@@ -7,10 +8,9 @@ try:
 except:
 	from speech.commands import LangChangeCommand, BreakCommand
 
-from synthDrivers.WorldVoiceXVED2 import _config
 from synthDrivers.WorldVoiceXVED2.speechcommand import WVLangChangeCommand
 
-number_pattern = re.compile(r"[0-9]+[0-9.:]*[0-9]+|[0-9]")
+number_pattern = re.compile(r"[0-9\-\+]+[0-9.:]*[0-9]+|[0-9]")
 comma_number_pattern = re.compile(r"(?<=[0-9]),(?=[0-9])")
 chinese_space_pattern = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
@@ -91,10 +91,9 @@ class WorldVoiceBaseSynthDriver:
 			if mode == 'value':
 				number_str = number
 			elif mode == 'number':
-				dot_count = dot_count +1
 				number_str = ' '.join(number).replace(" . ", ".")
 
-			if dot_count > 2:
+			if dot_count > 2 or mode == 'number':
 				nodot_str = number_str.split(".")
 				temp = ""
 				for n, d in zip(nodot_str, ["."]*(len(nodot_str) -1)):
@@ -107,7 +106,7 @@ class WorldVoiceBaseSynthDriver:
 				temp = temp +n
 				number_str = temp
 
-				number_str = number_str.replace(".", _config.vocalizerConfig["autoLanguageSwitching"]["numberDotReplacement"])
+				number_str = number_str.replace(".", config.conf["WorldVoice"]["autoLanguageSwitching"]["numberDotReplacement"])
 
 			result.extend([other, WVLangChangeCommand('StartNumber'), number_str, WVLangChangeCommand('EndNumber')])
 		result.append(others[-1])
