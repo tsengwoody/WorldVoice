@@ -191,6 +191,10 @@ def SpeechSettingsDialog():
 
 		def onKeepParameterConsistentChange(self, event):
 			voiceName = self._voicesChoice.GetStringSelection()
+			if voiceName == "":
+				if self._keepParameterConsistentCheckBox.GetValue():
+					self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
+				return
 			if voiceName != "no-select":
 				self.sliderEnable()
 				voiceInstance = self._manager.getVoiceInstance(voiceName)
