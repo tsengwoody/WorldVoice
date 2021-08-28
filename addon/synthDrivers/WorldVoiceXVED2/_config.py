@@ -55,34 +55,3 @@ config.conf.spec["WorldVoice"] = {
 		}
 	}
 }
-
-def _load():
-	global vocalizerConfig
-	if not vocalizerConfig:
-		path = os.path.join(globalVars.appArgs.configPath, WORLDVOICE_CONFIG_FILENAME)
-		vocalizerConfig = configobj.ConfigObj(path, configspec=StringIO(_configSpec), encoding="utf-8", default_encoding='utf8')
-		vocalizerConfig.newlines = "\r\n"
-		vocalizerConfig.stringify = True
-		val = Validator()
-		ret = vocalizerConfig.validate(val, preserve_errors=True, copy=True)
-		if ret != True:
-			log.warning("Vocalizer configuration is invalid: %s", ret)
-
-def _save():
-	global vocalizerConfig
-	if not vocalizerConfig:
-		raise RuntimeError("Vocalizer config is not loaded.")
-	val = Validator()
-	vocalizerConfig.validate(val, copy=True)
-	vocalizerConfig.write()
-
-def initialize():
-		path = os.path.join(globalVars.appArgs.configPath, WORLDVOICE_CONFIG_FILENAME)
-		WVConfig = configobj.ConfigObj(path, configspec=StringIO(_configSpec), encoding="utf-8", default_encoding='utf8')
-		WVConfig.newlines = "\r\n"
-		WVConfig.stringify = True
-		val = Validator()
-		ret = WVConfig.validate(val, preserve_errors=True, copy=True)
-		if ret != True:
-			log.warning("Vocalizer configuration is invalid: %s", ret)
-		config.conf["WorldVoice"] = WVConfig["WorldVoice"]

@@ -119,6 +119,11 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			except:
 				self._realSpeakFunc = speech.speak
 				speech.speak = self.patchedSpeak
+		else:
+			try:
+				self._realSpeakFunc = speech.speech.speak
+			except:
+				self._realSpeakFunc = speech.speak
 
 		try:
 			self._realSpellingFunc = speech.speech.speakSpelling
@@ -257,13 +262,14 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 		_vocalizer.processText2Speech(voiceInstance, text)
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
-		if self._cni:
-			speechSequence = [comma_number_pattern.sub(lambda m:'', command) if isinstance(command, str) else command for command in speechSequence]
-		speechSequence = self.patchedNumSpeechSequence(speechSequence)
-		if self.uwv \
-			and config.conf["WorldVoice"]['autoLanguageSwitching']['useUnicodeLanguageDetection']:
-			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
-			speechSequence = list(speechSequence)
+		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
+			if self._cni:
+				speechSequence = [comma_number_pattern.sub(lambda m:'', command) if isinstance(command, str) else command for command in speechSequence]
+			speechSequence = self.patchedNumSpeechSequence(speechSequence)
+			if self.uwv \
+				and config.conf["WorldVoice"]['autoLanguageSwitching']['useUnicodeLanguageDetection']:
+				speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
+				speechSequence = list(speechSequence)
 		self._realSpeakFunc(speechSequence, symbolLevel, priority=priority)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):

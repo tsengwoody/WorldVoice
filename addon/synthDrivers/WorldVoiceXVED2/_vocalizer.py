@@ -127,7 +127,7 @@ bgQueue = None
 player = None
 
 # Vocalizer voices
-availableVoices = [addon.path for addon in addonHandler.getRunningAddons() if addon.name.startswith("vocalizer-expressive-voice")]
+availableVoices = [addon.path for addon in addonHandler.getRunningAddons() if addon.name.startswith("vocalizer-expressive-voice") or addon.name.startswith("vocalizer-expressive2-voice")]
 freedomScientificVoices = os.path.join(os.getenv("PROGRAMDATA", ""), "Freedom Scientific", "VocalizerExpressive", "2.2", "languages")
 try:
 	if os.listdir(freedomScientificVoices):

@@ -72,6 +72,9 @@ def SpeechSettingsDialog():
 			self._voicesChoice = settingsSizerHelper.addLabeledControl(_("Voice Name:"), wx.Choice, choices=[])
 			self.Bind(wx.EVT_CHOICE, self.onVoiceChange, self._voicesChoice)
 
+			self._variantsChoice = settingsSizerHelper.addLabeledControl(_("Variant:"), wx.Choice, choices=[])
+			self.Bind(wx.EVT_CHOICE, self.onVariantChange, self._variantsChoice)
+
 			self._rateSlider = settingsSizerHelper.addLabeledControl(_("&Rate:"), wx.Slider, value = 50, minValue = 0, maxValue = 100, style = wx.SL_HORIZONTAL)
 			self.Bind(wx.EVT_SLIDER, self.onSpeechRateSliderScroll, self._rateSlider)
 			self._pitchSlider = settingsSizerHelper.addLabeledControl(_("&Pitch:"), wx.Slider, value = 50, minValue = 0, maxValue = 100, style = wx.SL_HORIZONTAL)
@@ -166,6 +169,21 @@ def SpeechSettingsDialog():
 					self._voicesChoice.Select(0)
 					self.onVoiceChange(None)
 
+		def _updateVariantsSelection(self):
+			voiceName = self._voicesChoice.GetStringSelection()
+			if voiceName != "no-select":
+				voiceInstance = self._manager.getVoiceInstance(voiceName)
+				variants = [i for i in voiceInstance.variants if i != '']
+				variants = ['default'] + variants
+				variant = voiceInstance.variant
+				self._variantsChoice.SetItems(variants)
+				try:
+					self._variantsChoice.Select(variants.index(variant))
+				except ValueError:
+					self._variantsChoice.Select(0)
+			else:
+				self._variantsChoice.SetItems([])
+
 		def onLocaleChanged(self, event):
 			self._updateVoicesSelection()
 
@@ -188,6 +206,13 @@ def SpeechSettingsDialog():
 			else:
 				self._dataToPercist[locale]["voice"] = "no-select"
 				self.sliderDisable()
+			self._updateVariantsSelection()
+
+		def onVariantChange(self, event):
+			voiceName = self._voicesChoice.GetStringSelection()
+			if voiceName != "no-select":
+				voiceInstance = self._manager.getVoiceInstance(voiceName)
+				voiceInstance.variant = self._variantsChoice.GetStringSelection()
 
 		def onKeepParameterConsistentChange(self, event):
 			voiceName = self._voicesChoice.GetStringSelection()
@@ -302,17 +327,19 @@ def SpeechSettingsDialog():
 			if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
 				self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
 
-			if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] and config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == "after":
+			if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]:
+				previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 				config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
-				if gui.messageBox(
-					# Translators: The message displayed
-					_("For the detect language timing configuration to apply, NVDA must save configuration and be restarted. Do you want to do now?"),
-					# Translators: The title of the dialog
-					_("Detect language timing Configuration Change"),wx.OK|wx.CANCEL|wx.ICON_WARNING,self
-				)==wx.OK:
-					gui.mainFrame.onSaveConfigurationCommand(None)
-					# wx.CallAfter(gui.mainFrame.onSaveConfigurationCommand, None)
-					queueHandler.queueFunction(queueHandler.eventQueue,core.restart)
+				if previous_DLT == "after":
+					if gui.messageBox(
+						# Translators: The message displayed
+						_("For the detect language timing configuration to apply, NVDA must save configuration and be restarted. Do you want to do now?"),
+						# Translators: The title of the dialog
+						_("Detect language timing Configuration Change"),wx.OK|wx.CANCEL|wx.ICON_WARNING,self
+					)==wx.OK:
+						gui.mainFrame.onSaveConfigurationCommand(None)
+						# wx.CallAfter(gui.mainFrame.onSaveConfigurationCommand, None)
+						queueHandler.queueFunction(queueHandler.eventQueue,core.restart)
 
 			if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
 				locale = self._manager.defaultVoiceInstance.language if self._manager.defaultVoiceInstance.language else languageHandler.getLanguage()

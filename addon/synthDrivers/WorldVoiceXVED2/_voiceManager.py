@@ -26,20 +26,11 @@ from . import _languages
 from . import _vocalizer
 
 VOICE_PARAMETERS = [
-	(_vocalizer.VE_PARAM_VOICE_OPERATING_POINT, "variant", str),
-	(_vocalizer.VE_PARAM_SPEECHRATE, "rate", int),
-	(_vocalizer.VE_PARAM_PITCH, "pitch", int),
-	(_vocalizer.VE_PARAM_VOLUME, "volume", int),
+	("rate", int, 50),
+	("pitch", int, 50),
+	("volume", int, 50),
+	("variant", str, ""),
 ]
-
-VOICE_PARAMETERS = [
-	("rate", int),
-	("pitch", int),
-	("volume", int),
-]
-
-# PARAMETERS_TO_UPDATE = [_vocalizer.VE_PARAM_VOLUME, _vocalizer.VE_PARAM_SPEECHRATE, _vocalizer.VE_PARAM_PITCH]
-PARAMETERS_TO_UPDATE = [_vocalizer.VE_PARAM_VOLUME, _vocalizer.VE_PARAM_PITCH]
 
 
 class Voice(object):
@@ -74,6 +65,7 @@ class Voice(object):
 		self.rate = 50
 		self.pitch = 50
 		self.volume = 50
+		self.variant = ""
 
 		self.commitRate = 50
 		self.commitPitch = 50
@@ -84,7 +76,7 @@ class Voice(object):
 	def loadParameter(self):
 		voiceName = self.name
 		if voiceName in config.conf["WorldVoice"]["voices"]:
-			for p, t in VOICE_PARAMETERS:
+			for p, t, _ in VOICE_PARAMETERS:
 				if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
 					try:
 						value = config.conf["speech"][getSynth().name].get(p, None)
@@ -97,9 +89,9 @@ class Voice(object):
 				setattr(self, p, t(value))
 		else:
 			config.conf["WorldVoice"]["voices"][voiceName] = {}
-			for p, t in VOICE_PARAMETERS:
-				config.conf["WorldVoice"]['voices'][voiceName][p] = t(50)
-				setattr(self, p, t(50))
+			for p, t, d in VOICE_PARAMETERS:
+				config.conf["WorldVoice"]['voices'][voiceName][p] = t(d)
+				setattr(self, p, t(d))
 
 		self.commitRate = self.rate
 		self.commitPitch = self.pitch
@@ -113,10 +105,8 @@ class Voice(object):
 		voiceName = self.name
 		if voiceName not in config.conf["WorldVoice"]["voices"]:
 			config.conf["WorldVoice"]["voices"][voiceName] = {}
-
-		for p, t in VOICE_PARAMETERS:
-			value = t(getattr(self, p))
-			config.conf["WorldVoice"]["voices"][voiceName][p] = value
+		for p, t, _ in VOICE_PARAMETERS:
+			config.conf["WorldVoice"]["voices"][voiceName][p] = t(getattr(self, p))
 
 	def rollback(self):
 		self.rate = self.commitRate
@@ -126,10 +116,8 @@ class Voice(object):
 		voiceName = self.name
 		if voiceName not in config.conf["WorldVoice"]["voices"]:
 			config.conf["WorldVoice"]["voices"][voiceName] = {}
-
-		for p, t in VOICE_PARAMETERS:
-			value = t(getattr(self, p))
-			config.conf["WorldVoice"]["voices"][voiceName][p] = value
+		for p, t, _ in VOICE_PARAMETERS:
+			config.conf["WorldVoice"]["voices"][voiceName][p] = t(getattr(self, p))
 
 	@property
 	def rate(self):
@@ -189,10 +177,11 @@ class Voice(object):
 		self._variant = _vocalizer.getParameter(self.token, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
 		return self._variant
 
-	@volume.setter
+	@variant.setter
 	def variant(self, value):
 		self._variant = value
-		_vocalizer.setParameter(self.token, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, name)
+		_vocalizer.stop()
+		_vocalizer.setParameter(self.token, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, value)
 
 	def _makeVoiceInfo(self, v):
 		localeName = self._languageNamesToLocales.get(v.szLanguage.decode(), None)
@@ -300,13 +289,6 @@ class VoiceManager(object):
 
 	def setVoiceParameter(self, instance, param, value):
 		_vocalizer.setParameter(instance, param, value)
-		if param in PARAMETERS_TO_UPDATE and instance == self._defaultInstance:
-			self._voiceParametersCount[instance] += 1
-
-	def _updateParameters(self, instance):
-		newParams = [(param, _vocalizer.getParameter(self._defaultInstance, param)) for param in PARAMETERS_TO_UPDATE]
-		_vocalizer.setParameters(instance, newParams)
-		self._voiceParametersCount[instance] = self._voiceParametersCount[self._defaultInstance]
 
 	@property
 	def voiceInfos(self):

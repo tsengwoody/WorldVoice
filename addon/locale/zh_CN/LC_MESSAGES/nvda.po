@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoiceXVE' '2.1'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2021-08-13 14:44+0800\n"
-"PO-Revision-Date: 2021-08-13 14:50+0800\n"
+"POT-Creation-Date: 2021-08-19 15:25+0800\n"
+"PO-Revision-Date: 2021-08-20 19:58+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_CN\n"
@@ -232,65 +232,69 @@ msgid "Voice Name:"
 msgstr "语音名称："
 
 #: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:75
+msgid "Variant:"
+msgstr "变声："
+
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:78
 msgid "&Rate:"
 msgstr "语速(&R)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:77
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:80
 msgid "&Pitch:"
 msgstr "音调（&P）"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:79
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:82
 msgid "V&olume:"
 msgstr "音量(&O)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:84
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:87
 msgid "Keep main parameter and locale parameter consistent"
 msgstr "保持主要语音参数与地区语音参数一致"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:90
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:93
 msgid "Keep main voice and locale voice consistent"
 msgstr "保持主要语音角色与地区语音角色一致"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:95
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:98
 msgid "Detect text language based on unicode characters"
 msgstr "用 unicode 编码检测文本语言"
 
 #. Translators: Either to ignore or not numbers when language detection is active
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:101
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:104
 msgid "Ignore numbers when detecting text language"
 msgstr "检测语言时忽略数字"
 
 #. Translators: Either to ignore or not ASCII punctuation when language detection is active
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:107
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:110
 msgid "Ignore common punctuation when detecting text language"
 msgstr "检测语言时忽略数字和常见的标点符号"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:112
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:115
 msgid "Language assumed for latin characters:"
 msgstr "拉丁字符对应的语言："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:122
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:125
 msgid "Language assumed for CJK characters:"
 msgstr "中日韩字符对应的语言："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:131
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:134
 msgid "before symbol process"
 msgstr "符号处理前"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:131
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:134
 msgid "after symbol process"
 msgstr "符号处理后"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:133
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:136
 msgid "Detect language timing:"
 msgstr "检测语言时间点："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:141
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:144
 msgid "Number dot replacement"
 msgstr "数字点替换文字"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:305
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:327
 msgid ""
 "For the detect language timing configuration to apply, NVDA must save "
 "configuration and be restarted. Do you want to do now?"
@@ -298,7 +302,7 @@ msgstr ""
 "为了使侦测语言时间点设定生效， NVDA 必需储存组态并重新启动。您要立即执行吗？"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:307
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:329
 msgid "Detect language timing Configuration Change"
 msgstr "检测语言时间点设定变更"
 
