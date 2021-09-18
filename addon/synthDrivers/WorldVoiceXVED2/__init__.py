@@ -184,6 +184,8 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 		currentLanguage = defaultLanguage = self.language
 		chunks = []
 		charMode = False
+		hasText = False
+
 		for command in speechSequence:
 			if isinstance(command, str):
 				command = command.strip()
@@ -195,12 +197,14 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 					command = command.lower()
 				# replace the escape character since it is used for parameter changing
 				chunks.append(command.replace('\x1b', ''))
+				hasText = True
 			elif isinstance(command, IndexCommand):
 				# start and end The spaces here seem to be important
 				chunks.append(f"\x1b\\mrk={command.index}\\")
 			elif isinstance(command, BreakCommand):
 				voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 				chunks = []
+				hasText = False
 				voiceInstance.breaks(command.time)
 				# chunks.append(f"\x1b\\pause={breakTime}\\")
 			elif isinstance(command, RateCommand):
@@ -209,6 +213,10 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 				norm = 2.0 ** ((boundedValue - 50.0) / factor)
 				value = int(round(norm * 100))
 				chunks.append(f"\x1b\\rate={value}\\")
+			# elif isinstance(command, PitchCommand):
+				# pitch = voiceInstance._pitch
+				# pitchOffset = self._percentToParam(command.offset, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX) - _vocalizer.PITCH_MIN
+				# chunks.append("\x1b\\pitch=%d\\" % (pitch+pitchOffset))
 			elif isinstance(command, PitchCommand):
 				boundedValue = max(0, min(command.newValue, 100))
 				factor = 50.0
@@ -220,7 +228,8 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 				chunks.append(f"\x1b\\vol={value}\\")
 			elif isinstance(command, CharacterModeCommand):
 				charMode = command.state
-				s = " \x1b\\tn=spell\\ " if command.state else " \x1b\\tn=normal\\ "
+				s = "\x1b\\tn=spell\\" if command.state else "\x1b\\tn=normal\\"
+				# s = " \x1b\\tn=spell\\ " if command.state else " \x1b\\tn=normal\\ "
 				chunks.append(s)
 			elif isinstance(command, LangChangeCommand) or isinstance(command, speechcommand.WVLangChangeCommand):
 				if command.lang == currentLanguage:
@@ -240,13 +249,16 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 				if newInstance == voiceInstance:
 					# Same voice, next command.
 					continue
-				if chunks: # We changed voice, send what we already have to vocalizer.
+				if hasText: # We changed voice, send what we already have to vocalizer.
 					voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 					chunks = []
+					hasText = False
 				voiceInstance = newInstance
 			elif isinstance(command, speechcommand.SplitCommand):
 				self._speak(voiceInstance.token, chunks)
 				chunks = []
+				hasText = False
+
 		if chunks:
 			voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 
