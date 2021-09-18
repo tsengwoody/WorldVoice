@@ -17,7 +17,6 @@ import languageHandler
 from logHandler import log
 import speech
 
-from . import _vocalizer
 from ._voiceManager import VoiceManager
 from . import languageDetection
 from . import _config
@@ -96,22 +95,13 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 
 	@classmethod
 	def check(cls):
-		with _vocalizer.preOpenVocalizer() as check:
+		with VoiceManager.preOpen() as check:
 			return check
 
 	def __init__(self):
 		# Initialize the driver
-		try:
-			_vocalizer.initialize(self._onIndexReached)
-			log.debug("Vocalizer info: %s" % self._info())
-		except _vocalizer.VeError as e:
-			if e.code == _vocalizer.VAUTONVDA_ERROR_INVALID:
-				log.info("Vocalizer license for NVDA is Invalid")
-			elif e.code == _vocalizer.VAUTONVDA_ERROR_DEMO_EXPIRED:
-				log.info("Vocalizer demo license for NVDA as expired.")
-			raise
-		self._voiceManager = VoiceManager()
-
+		self._voiceManager = VoiceManager(self._onIndexReached)
+		log.debug("Vocalizer info: %s" % self._info())
 		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
 			try:
 				self._realSpeakFunc = speech.speech.speak
@@ -175,7 +165,6 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 		try:
 			self.cancel()
 			self._voiceManager.close()
-			_vocalizer.terminate()
 		except RuntimeError:
 			log.error("Vocalizer terminate", exc_info=True)
 
@@ -191,10 +180,9 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 
 		speechSequence = self.patchedSpaceSpeechSequence(speechSequence)
 
-		currentInstance = defaultInstance = self._voiceManager.defaultVoiceInstance.token
+		voiceInstance = defaultInstance = self._voiceManager.defaultVoiceInstance
 		currentLanguage = defaultLanguage = self.language
 		chunks = []
-		hasText = False
 		charMode = False
 		for command in speechSequence:
 			if isinstance(command, str):
@@ -205,21 +193,34 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 				# Because the synth does not allow to turn off the caps reporting
 				if charMode or len(command) == 1:
 					command = command.lower()
-				# replace the excape character since it is used for parameter changing
-				chunks.append(command.replace("\x1b", ""))
-				hasText = True
+				# replace the escape character since it is used for parameter changing
+				chunks.append(command.replace('\x1b', ''))
 			elif isinstance(command, IndexCommand):
-				chunks.append("\x1b\\mrk=%d\\" % command.index)
+				# start and end The spaces here seem to be important
+				chunks.append(f"\x1b\\mrk={command.index}\\")
 			elif isinstance(command, BreakCommand):
-				maxTime = 6553 if self.variant == "bet2" else 65535
-				breakTime = max(1, min(command.time, maxTime))
-				self._speak(currentInstance, chunks)
+				voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 				chunks = []
-				hasText = False
-				_vocalizer.processBreak(currentInstance, breakTime)
+				voiceInstance.breaks(command.time)
+				# chunks.append(f"\x1b\\pause={breakTime}\\")
+			elif isinstance(command, RateCommand):
+				boundedValue = max(0, min(command.newValue, 100))
+				factor = 25.0 if boundedValue >= 50 else 50.0
+				norm = 2.0 ** ((boundedValue - 50.0) / factor)
+				value = int(round(norm * 100))
+				chunks.append(f"\x1b\\rate={value}\\")
+			elif isinstance(command, PitchCommand):
+				boundedValue = max(0, min(command.newValue, 100))
+				factor = 50.0
+				norm = 2.0 ** ((boundedValue - 50.0) / factor)
+				value = int(round(norm * 100))
+				chunks.append(f"\x1b\\pitch={value}\\")
+			elif isinstance(command, VolumeCommand):
+				value = max(0, min(command.newValue, 100))
+				chunks.append(f"\x1b\\vol={value}\\")
 			elif isinstance(command, CharacterModeCommand):
 				charMode = command.state
-				s = "\x1b\\tn=spell\\" if command.state else "\x1b\\tn=normal\\"
+				s = " \x1b\\tn=spell\\ " if command.state else " \x1b\\tn=normal\\ "
 				chunks.append(s)
 			elif isinstance(command, LangChangeCommand) or isinstance(command, speechcommand.WVLangChangeCommand):
 				if command.lang == currentLanguage:
@@ -227,39 +228,27 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 					continue
 				if command.lang is None:
 					# No language, use default.
-					currentInstance = defaultInstance
+					voiceInstance = defaultInstance
 					currentLanguage = defaultLanguage
 					continue
 				# Changed language, lets see what we have.
+				newInstance = self._voiceManager.getVoiceInstanceForLanguage(command.lang)
 				currentLanguage = command.lang
-				newVoiceName = self._voiceManager.getVoiceNameForLanguage(currentLanguage)
-				if newVoiceName is None:
+				if newInstance is None:
 					# No voice for this language, use default.
 					newInstance = defaultInstance
-				else:
-					newInstance = self._voiceManager.getVoiceInstance(newVoiceName).token
-				if newInstance == currentInstance:
+				if newInstance == voiceInstance:
 					# Same voice, next command.
 					continue
-				if hasText: # We changed voice, send text we already have to vocalizer.
-					self._speak(currentInstance, chunks)
+				if chunks: # We changed voice, send what we already have to vocalizer.
+					voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 					chunks = []
-					hasText = False
-				currentInstance = newInstance
-			elif isinstance(command, PitchCommand):
-				pitch = self._voiceManager.getVoiceParameter(currentInstance, _vocalizer.VE_PARAM_PITCH, type_=int)
-				pitchOffset = self._percentToParam(command.offset, _vocalizer.PITCH_MIN, _vocalizer.PITCH_MAX) - _vocalizer.PITCH_MIN
-				chunks.append("\x1b\\pitch=%d\\" % (pitch+pitchOffset))
+				voiceInstance = newInstance
 			elif isinstance(command, speechcommand.SplitCommand):
-				self._speak(currentInstance, chunks)
+				self._speak(voiceInstance.token, chunks)
 				chunks = []
-				hasText = False
 		if chunks:
-			self._speak(currentInstance, chunks)
-
-	def _speak(self, voiceInstance, chunks):
-		text = speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b")
-		_vocalizer.processText2Speech(voiceInstance, text)
+			voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
 		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
@@ -282,13 +271,13 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 			self._realSpellingFunc(text, locale, useCharacterDescriptions, priority=priority)
 
 	def cancel(self):
-		_vocalizer.stop()
+		self._voiceManager.defaultVoiceInstance.stop()
 
 	def pause(self, switch):
 		if switch:
-			_vocalizer.pause()
+			self._voiceManager.defaultVoiceInstance.pause()
 		else:
-			_vocalizer.resume()
+			self._voiceManager.defaultVoiceInstance.resume()
 
 	def _get_volume(self):
 		return self._voiceManager.defaultVoiceInstance.volume
@@ -335,7 +324,7 @@ class SynthDriver(WorldVoiceBaseSynthDriver, SynthDriver):
 		# Stop speech before setting a new voice to avoid voice instances
 		# continuing speaking when changing voices for, e.g., say-all
 		# See NVDA ticket #3540
-		_vocalizer.stop()
+		self._voiceManager.defaultVoiceInstance.stop()
 		self._voiceManager.setDefaultVoice(voiceName)
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
 			locale = self._voiceManager.defaultVoiceInstance.language if self._voiceManager.defaultVoiceInstance.language else languageHandler.getLanguage()

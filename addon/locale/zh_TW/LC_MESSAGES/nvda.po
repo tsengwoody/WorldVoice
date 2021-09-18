@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '2.2'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2021-08-19 15:25+0800\n"
-"PO-Revision-Date: 2021-08-20 19:56+0800\n"
+"POT-Creation-Date: 2021-09-18 09:18+0800\n"
+"PO-Revision-Date: 2021-09-18 09:19+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -294,7 +294,7 @@ msgid "Number dot replacement"
 msgstr "數字點替代文字"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:327
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:336
 msgid ""
 "For the detect language timing configuration to apply, NVDA must save "
 "configuration and be restarted. Do you want to do now?"
@@ -302,56 +302,56 @@ msgstr ""
 "為了使偵測語言時間點設定生效， NVDA 必需儲存組態並重新啟動。您要立即執行嗎？"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:329
+#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:338
 msgid "Detect language timing Configuration Change"
 msgstr "偵測語言時間點設定變更"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:51
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:50
 msgid "Number &Language"
 msgstr "數字語言(&L)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:55
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:54
 msgid "Number Language"
 msgstr "數字語言"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:60
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:59
 msgid "Number &Mode"
 msgstr "數字模式(&M)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:64
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:63
 msgid "Number Mode"
 msgstr "數字模式"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:69
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:68
 msgid "Pause time when encountering spaces between Chinese"
 msgstr "當遇到中文與中文間的空白時暫停長度"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:75
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:74
 msgid "Ignore comma between number"
 msgstr "忽略在數字間的逗號"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:80
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:79
 msgid "Enable WorldVoice setting rules to detect text language"
 msgstr "啟用 WorldVoice 設定規則來偵測文字語言"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:83
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:82
 msgid "Enable WorldVoice rules"
 msgstr "啟用 WorldVoice 規則"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:374
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:369
 msgid "default"
 msgstr "預設"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:387
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:382
 msgid "value"
 msgstr "數值"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:388
+#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:383
 msgid "number"
 msgstr "數字"
 

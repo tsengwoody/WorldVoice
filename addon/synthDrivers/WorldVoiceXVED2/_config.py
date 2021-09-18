@@ -1,14 +1,4 @@
-from io import StringIO
-import os.path
-import configobj
-from configobj.validate import Validator
 import config
-import globalVars
-from logHandler import log
-
-WORLDVOICE_CONFIG_FILENAME = "WorldVoiceXVED2.ini"
-
-vocalizerConfig = None
 
 _configSpec = """# WorldVoice spec
 [WorldVoice]

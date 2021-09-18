@@ -73,6 +73,26 @@ class Voice(object):
 
 		self.loadParameter()
 
+	def speak(self, text):
+		_vocalizer.processText2Speech(self.token, text)
+
+	def breaks(self, time):
+		maxTime = 6553 if self.variant == "bet2" else 65535
+		breakTime = max(1, min(time, maxTime))
+		_vocalizer.processBreak(self.token, breakTime)
+
+	def stop(self):
+		_vocalizer.stop()
+
+	def pause(self):
+		_vocalizer.pause()
+
+	def resume(self):
+		_vocalizer.resume()
+
+	def close(self):
+		_vocalizer.close(self.token)
+
 	def loadParameter(self):
 		voiceName = self.name
 		if voiceName in config.conf["WorldVoice"]["voices"]:
@@ -198,7 +218,19 @@ class Voice(object):
 
 
 class VoiceManager(object):
-	def __init__(self):
+	@classmethod
+	def preOpen(self):
+		return _vocalizer.preOpenVocalizer()
+
+	def __init__(self, indexCallback):
+		try:
+			_vocalizer.initialize(indexCallback)
+		except _vocalizer.VeError as e:
+			if e.code == _vocalizer.VAUTONVDA_ERROR_INVALID:
+				log.info("Vocalizer license for NVDA is Invalid")
+			elif e.code == _vocalizer.VAUTONVDA_ERROR_DEMO_EXPIRED:
+				log.info("Vocalizer demo license for NVDA as expired.")
+			raise
 		self._createCaches()
 		self._defaultInstance, self._defaultVoiceName = _vocalizer.open()
 		self._defaultVoiceInstance = Voice(self._defaultInstance, self._defaultVoiceName)
@@ -228,8 +260,6 @@ class VoiceManager(object):
 			instance = self._instanceCache[voiceName]
 		except KeyError:
 			instance = self._createInstance(voiceName)
-		if self._voiceParametersCount[instance] < self._voiceParametersCount[self._defaultInstance]:
-			self._updateParameters(instance.token)
 		return instance
 
 	def _createInstance(self, voiceName):
@@ -253,12 +283,12 @@ class VoiceManager(object):
 	def close(self):
 		for voiceName, instance in self._instanceCache.items():
 			instance.commit()
-			_vocalizer.close(instance.token)
+			instance.close()
+		_vocalizer.terminate()
 
 	def _createCaches(self):
 		""" Create tables and caches to keep information that won't change on the synth. """
 		self._localesToVoices = {}
-		self._voiceParametersCount = defaultdict(lambda : 0)
 		languages = _vocalizer.getLanguageList()
 		voiceInfos = []
 		self._languageNamesToLocales = {l.szLanguage.decode() : _languages.getLocaleNameFromTLW(l.szLanguageTLW.decode()) for l in languages}
@@ -283,12 +313,6 @@ class VoiceManager(object):
 		voiceInfos = sorted(voiceInfos, key=lambda v: (v.language, v.id))
 		items = [(v.id, v) for v in voiceInfos]
 		self._voiceInfos = OrderedDict(items)
-
-	def getVoiceParameter(self, instance, param, type_):
-		return _vocalizer.getParameter(instance, param, type_=type_)
-
-	def setVoiceParameter(self, instance, param, value):
-		_vocalizer.setParameter(instance, param, value)
 
 	@property
 	def voiceInfos(self):
