@@ -105,9 +105,10 @@ def callback(instance, userData, message):
 		log.error("Vocalizer callback", exc_info=True)
 	return NUAN_OK
 
-_basePath = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
-if not os.path.isdir(os.path.join(_basePath, 'common')):
-	_basePath = os.path.dirname(__file__)
+
+_basePath = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "VE")
+# if not os.path.isdir(os.path.join(_basePath, 'VE', 'common')):
+	# _basePath = os.path.dirname(__file__)
 
 _tuningDataDir = os.path.join(_basePath, "tuningData")
 msvcrDll = None

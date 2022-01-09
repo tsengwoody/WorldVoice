@@ -2,7 +2,7 @@ import os
 import sys
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoiceXVED2')
+synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoice')
 sys.path.insert(0, base_dir)
 
 import wx
@@ -19,12 +19,12 @@ import ui
 
 from .speechSettingsDialog import SpeechSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
-from synthDrivers.WorldVoiceXVED2 import _config
+from synthDrivers.WorldVoice import _config
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 SpeechSettingsDialog = SpeechSettingsDialog()
-workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
+workspaceVE_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "VE")
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
@@ -45,7 +45,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def initialize(self):
 		if globalVars.appArgs.secure:
 			return
-		if (not os.path.isdir(os.path.join(workspace_path, 'common'))) and (not os.path.isdir(os.path.join(synth_drivers_path, 'common'))):
+		if not os.path.isdir(os.path.join(workspaceVE_path, 'common')):
 			self.createMenu()
 			wx.CallLater(2000, self.onNoCoreInstalled)
 			return
@@ -84,8 +84,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				from zipfile import ZipFile
 				with ZipFile(path, 'r') as core_file:
 					core_file.testzip()
-					core_file.extractall(workspace_path)
-					core_file.extractall(synth_drivers_path)
+					core_file.extractall(workspaceVE_path)
 			except:
 				gui.messageBox(
 					_("Import fail"),
@@ -125,7 +124,21 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			ui.message(_("SpeechSymbolsDialog have already been opened"))
 
 	@script(
-		gesture="kb:NVDA+alt+s",
+		gesture="kb:NVDA+alt+l",
+		description=_("popup SpeechSettingsDialog"),
+		category=ADDON_SUMMARY,
+	)
+	def script_demo(self, gesture):
+		from synthDriverHandler import getSynth
+		synthInstance = getSynth()
+		voiceManager = synthInstance._voiceManager
+		voiceManager.sapi5.rate = 20
+		voiceManager.sapi5.speak("hello world")
+		voiceManager._defaultVoiceInstance.speak("hello world")
+		voiceManager.sapi52.rate = 35
+		voiceManager.sapi52.speak("hello world")
+
+	@script(
 		description=_("popup SpeechSettingsDialog"),
 		category=ADDON_SUMMARY,
 	)
@@ -133,7 +146,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.popup_SpeechSettingsDialog(None)
 
 	@script(
-		gesture="kb:NVDA+alt+u",
 		description=_("popup SpeechSymbolsDialog"),
 		category=ADDON_SUMMARY,
 	)

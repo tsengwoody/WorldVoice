@@ -14,8 +14,8 @@ try:
 except:
 	from speech import getSynth
 
-from synthDrivers.WorldVoiceXVED2 import _core, VoiceManager
-from synthDrivers.WorldVoiceXVED2 import languageDetection
+from synthDrivers.WorldVoice import _core, VoiceManager
+from synthDrivers.WorldVoice import languageDetection
 
 addonHandler.initTranslation()
 
@@ -35,7 +35,7 @@ def SpeechSettingsDialog():
 				if check:
 					self.ready = True
 					self._synthInstance = getSynth()
-					if self._synthInstance.name == 'WorldVoiceXVED2':
+					if self._synthInstance.name == 'WorldVoice':
 						self._manager = self._synthInstance._voiceManager
 					else:
 						self._manager = VoiceManager()
@@ -348,11 +348,11 @@ def SpeechSettingsDialog():
 				except KeyError:
 					different = False
 				if different:
-					if self._synthInstance.name == 'WorldVoiceXVED2':
+					if self._synthInstance.name == 'WorldVoice':
 						self._synthInstance.voice = self._dataToPercist[locale]["voice"]
 					config.conf["speech"]["WorldVoiceXVED2"]["voice"] = self._dataToPercist[locale]["voice"]
 
-			if not self._synthInstance.name == 'WorldVoiceXVED2':
+			if not self._synthInstance.name == 'WorldVoice':
 				self._manager.close()
 
 			self.__class__._instance = None
