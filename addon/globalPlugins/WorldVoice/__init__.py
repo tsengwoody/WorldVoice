@@ -49,10 +49,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onFileImport, item)
 		if not VEVoice.install():
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&VE core install"), _("install VE core."))
+			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("VE Core Install"), _("Install VE Core."))
 			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onVECoreInstall, item)
 		if not AisoundVoice.install():
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&aisound core install"), _("install aisound core."))
+			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
 			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onAisoundCoreInstall, item)
 
 		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice"), self.submenu_vocalizer)

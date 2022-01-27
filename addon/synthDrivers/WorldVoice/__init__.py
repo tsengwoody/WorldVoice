@@ -87,7 +87,7 @@ class SynthDriver(SynthDriver):
 		),
 		NumericDriverSetting(
 			"waitfactor",
-			_("&Wait factor"),
+			_("Role switch &wait factor"),
 			availableInSettingsRing=True,
 			defaultVal=0,
 			minVal=0,
@@ -96,19 +96,19 @@ class SynthDriver(SynthDriver):
 			normalStep=1,
 			largeStep=1,
 			# Translators: Label for a setting in synth settings ring.
-			displayName=_("Wait Factor"),
+			displayName=_("Role Switch Wait Factor"),
+		),
+		NumericDriverSetting(
+			"chinesespace",
+			# Translators: Label for a setting in voice settings dialog.
+			_("Chinese space wait factor"),
+			defaultVal=0,
+			minStep=1,
 		),
 		DriverSetting(
 			"normalization",
 			_("&Normalization"),
 			defaultVal="OFF",
-		),
-		NumericDriverSetting(
-			"chinesespace",
-			# Translators: Label for a setting in voice settings dialog.
-			_("Pause time when encountering spaces between Chinese"),
-			defaultVal=0,
-			minStep=1,
 		),
 		BooleanDriverSetting(
 			"cni",
@@ -291,11 +291,9 @@ class SynthDriver(SynthDriver):
 					# start and end The spaces here seem to be important
 					chunks.append(f"\x1b\\mrk={command.index}\\")
 				elif isinstance(command, BreakCommand):
-					voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
-					chunks = []
-					hasText = False
-					voiceInstance.break_(command.time)
-					# chunks.append(f"\x1b\\pause={command.time}\\")
+					maxTime = 65535
+					breakTime = max(1, min(command.time, maxTime))
+					chunks.append(f"\x1b\\pause={breakTime}\\")
 				elif isinstance(command, RateCommand):
 					boundedValue = max(0, min(command.newValue, 100))
 					factor = 25.0 if boundedValue >= 50 else 50.0
