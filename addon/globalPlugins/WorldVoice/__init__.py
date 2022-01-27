@@ -1,9 +1,5 @@
 import os
 import sys
-base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoice')
-sys.path.insert(0, base_dir)
 
 import wx
 
@@ -13,18 +9,17 @@ import globalPluginHandler
 import globalVars
 import gui
 from logHandler import log
-from scriptHandler import script
+from scriptHandler import script, getLastScriptRepeatCount
 import speech
 import ui
 
 from .speechSettingsDialog import SpeechSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
-from synthDrivers.WorldVoice import _config
+from synthDrivers.WorldVoice import VEVoice, Sapi5Voice, AisoundVoice
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
-SpeechSettingsDialog = SpeechSettingsDialog()
-workspaceVE_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "VE")
+workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
@@ -39,32 +34,28 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			)
 		except:
 			pass
-		self.ve = False
-		self.initialize()
 
-	def initialize(self):
 		if globalVars.appArgs.secure:
 			return
-		if not os.path.isdir(os.path.join(workspaceVE_path, 'common')):
-			self.createMenu()
-			wx.CallLater(2000, self.onNoCoreInstalled)
-			return
-		try:
-			self.ve = True
-			self.createMenu()
-		except:
-			self.createMenu()
+		self.createMenu()
 
 	def createMenu(self):
 		self.submenu_vocalizer = wx.Menu()
-		if self.ve:
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Speech Settings"), _("Speech Settings."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSettingsDialog, item)
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Unicode Settings"), _("Unicode Settings."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.popup_SpeechSymbolsDialog, item)
+
+		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Speech Settings"), _("Speech Settings."))
+		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSettingsDialog, item)
+		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Unicode Settings"), _("Unicode Settings."))
+		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.popup_SpeechSymbolsDialog, item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onFileImport, item)
-		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice(VE)"), self.submenu_vocalizer)
+		if not VEVoice.install():
+			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&VE core install"), _("install VE core."))
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onVECoreInstall, item)
+		if not AisoundVoice.install():
+			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&aisound core install"), _("install aisound core."))
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onAisoundCoreInstall, item)
+
+		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice"), self.submenu_vocalizer)
 
 	def removeMenu(self):
 		if self.submenu_item is not None:
@@ -74,7 +65,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				pass
 			self.submenu_item.Destroy()
 
-	def onFileImport(self, event):
+	def fileImport(self, import_path):
 		with wx.FileDialog(gui.mainFrame, message=_("Import file..."), wildcard="zip files (*.zip)|*.zip") as entryDialog:
 			if entryDialog.ShowModal() != wx.ID_OK:
 				return
@@ -84,7 +75,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				from zipfile import ZipFile
 				with ZipFile(path, 'r') as core_file:
 					core_file.testzip()
-					core_file.extractall(workspaceVE_path)
+					core_file.extractall(import_path)
 			except:
 				gui.messageBox(
 					_("Import fail"),
@@ -99,11 +90,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 					import queueHandler
 					queueHandler.queueFunction(queueHandler.eventQueue,core.restart)
 
-	def onNoCoreInstalled(self):
-		if gui.messageBox(_("You have no core(driver 2) installed.\n"
-		"Do you want to install the core(driver 2) now?"),
-		caption=_("No core installed."), style=wx.YES_NO|wx.ICON_WARNING) == wx.YES:
-			self.onFileImport(None)
+	def onFileImport(self, event):
+		self.fileImport(workspace_path)
+
+	def onVECoreInstall(self, event):
+		self.fileImport(VEVoice.workspace)
+
+	def onAisoundCoreInstall(self, event):
+		self.fileImport(AisoundVoice.workspace)
 
 	def  terminate(self):
 		try:
@@ -124,29 +118,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			ui.message(_("SpeechSymbolsDialog have already been opened"))
 
 	@script(
-		gesture="kb:NVDA+alt+l",
-		description=_("popup SpeechSettingsDialog"),
-		category=ADDON_SUMMARY,
-	)
-	def script_demo(self, gesture):
-		from synthDriverHandler import getSynth
-		synthInstance = getSynth()
-		voiceManager = synthInstance._voiceManager
-		voiceManager.sapi5.rate = 20
-		voiceManager.sapi5.speak("hello world")
-		voiceManager._defaultVoiceInstance.speak("hello world")
-		voiceManager.sapi52.rate = 35
-		voiceManager.sapi52.speak("hello world")
-
-	@script(
-		description=_("popup SpeechSettingsDialog"),
+		description=_("popup speech settings dialog"),
 		category=ADDON_SUMMARY,
 	)
 	def script_popup_SpeechSettingsDialog(self, gesture):
 		self.popup_SpeechSettingsDialog(None)
 
 	@script(
-		description=_("popup SpeechSymbolsDialog"),
+		description=_("popup unicode settings dialog"),
 		category=ADDON_SUMMARY,
 	)
 	def script_popup_SpeechSymbolsDialog(self, gesture):

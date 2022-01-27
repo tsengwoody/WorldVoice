@@ -14,7 +14,7 @@ try:
 except:
 	from speech import getSynth
 
-from .. import speechcommand
+from .._speechcommand import WVLangChangeCommand
 
 BASIC_LATIN = [
     u"en", u"ha", u"so", u"id", u"la", u"sw", u"eu",
@@ -111,7 +111,7 @@ class LanguageDetector(object):
 		curLang = defaultLang
 		tmpLang = curLang.split("_")[0]
 		for command in speechSequence:
-			if isinstance(command, speechcommand.WVLangChangeCommand):
+			if isinstance(command, WVLangChangeCommand):
 				if command.lang is None:
 					curLang = defaultLang
 				else:
@@ -151,7 +151,7 @@ class LanguageDetector(object):
 							sb = StringIO()
 						tmpLang = newLangFirst
 						charset = None
-						yield speechcommand.WVLangChangeCommand(newLang)
+						yield WVLangChangeCommand(newLang)
 						yield c
 						continue
 
@@ -177,7 +177,7 @@ class LanguageDetector(object):
 							if sb.getvalue():
 								yield sb.getvalue()
 								sb = StringIO()
-							yield speechcommand.WVLangChangeCommand(curLang)
+							yield WVLangChangeCommand(curLang)
 							tmpLang = curLang.split("_")[0]
 						sb.write(c)
 						continue
@@ -213,9 +213,9 @@ class LanguageDetector(object):
 						sb = StringIO()
 					tmpLang = newLangFirst
 					if newLang == curLang:
-						yield speechcommand.WVLangChangeCommand(newLang)
+						yield WVLangChangeCommand(newLang)
 					else:
-						yield speechcommand.WVLangChangeCommand(tmpLang)
+						yield WVLangChangeCommand(tmpLang)
 					sb.write(c)
 				# Send the string, if we have one:
 				if sb.getvalue():

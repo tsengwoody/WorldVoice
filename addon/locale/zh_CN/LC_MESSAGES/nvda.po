@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoiceXVE' '2.2'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2021-09-18 09:18+0800\n"
-"PO-Revision-Date: 2021-09-18 09:20+0800\n"
+"POT-Creation-Date: 2022-01-20 19:45+0800\n"
+"PO-Revision-Date: 2022-01-20 19:48+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_CN\n"
@@ -136,165 +136,219 @@ msgstr ""
 msgid "unicode rule edited"
 msgstr "unicode 规则已编辑"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:61
+#: addon\globalPlugins\WorldVoice\__init__.py:58
 msgid "&Speech Settings"
 msgstr "语音设置（&S）"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:61
+#: addon\globalPlugins\WorldVoice\__init__.py:58
 msgid "Speech Settings."
 msgstr "语音设置（&S）"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:63
+#: addon\globalPlugins\WorldVoice\__init__.py:60
 msgid "&Unicode Settings"
 msgstr "Unicode 设置（&U）"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:63
+#: addon\globalPlugins\WorldVoice\__init__.py:60
 msgid "Unicode Settings."
 msgstr "Unicode 设置。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:65
+#: addon\globalPlugins\WorldVoice\__init__.py:62
 msgid "&File Import"
 msgstr "导入文件(&F)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:65
+#: addon\globalPlugins\WorldVoice\__init__.py:62
 msgid "Import File."
 msgstr "导入文件。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:67
-msgid "WorldVoice(VE)"
-msgstr "WorldVoice(VE)"
+#: addon\globalPlugins\WorldVoice\__init__.py:65
+#, fuzzy
+#| msgid "No core installed."
+msgid "&VE core install"
+msgstr "尚未安装核心。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:78
+#: addon\globalPlugins\WorldVoice\__init__.py:65
+msgid "install VE core."
+msgstr "安裝 VE 核心"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:68
+#, fuzzy
+#| msgid "No core installed."
+msgid "&aisound core install"
+msgstr "尚未安装核心。"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:68
+msgid "install aisound core."
+msgstr "安裝 aisound 核心"
+
+#. Add-on summary, usually the user visible name of the addon.
+#. Translators: Summary for this add-on
+#. to be shown on installation and add-on information found in Add-ons Manager.
+#. Add-on description
+#. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
+#: addon\globalPlugins\WorldVoice\__init__.py:71 buildVars.py:23
+#: buildVars.py:26
+msgid "WorldVoice"
+msgstr "WorldVoice"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:82
 msgid "Import file..."
 msgstr "导入文件。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:91
+#: addon\globalPlugins\WorldVoice\__init__.py:94
 msgid "Import fail"
 msgstr "导入失败"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:92
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:97
+#: addon\globalPlugins\WorldVoice\__init__.py:95
+#: addon\globalPlugins\WorldVoice\__init__.py:100
 msgid "Import File"
 msgstr "导入文件"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:96
+#: addon\globalPlugins\WorldVoice\__init__.py:99
 msgid ""
 "For the new file to import, NVDA must be restarted. Are you want to restart "
 "NVDA now ?"
 msgstr "为了使导入的文件生效， NVDA 必需重新启动。您要立即重新启动吗？"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:104
+#: addon\globalPlugins\WorldVoice\__init__.py:117
+#, fuzzy
+#| msgid ""
+#| "You have no core installed.\n"
+#| "Do you want to install the core now?"
 msgid ""
-"You have no core(driver 2) installed.\n"
-"Do you want to install the core(driver 2) now?"
+"You have no VE core installed.\n"
+"Do you want to install the VE core now?"
 msgstr ""
-"您尚未安装（driver 2）核心。\n"
-"您是否要现在安装？"
+"您尚未安装 Vocalizer 核心。\n"
+"您是否要现在进行核心安装？"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:106
-msgid "No core installed."
+#: addon\globalPlugins\WorldVoice\__init__.py:119
+#, fuzzy
+#| msgid "No core installed."
+msgid "No VE core installed."
 msgstr "尚未安装核心。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:119
+#: addon\globalPlugins\WorldVoice\__init__.py:123
+#, fuzzy
+#| msgid ""
+#| "You have no core installed.\n"
+#| "Do you want to install the core now?"
+msgid ""
+"You have no aisound core installed.\n"
+"Do you want to install the Aisound core now?"
+msgstr ""
+"您尚未安装 Vocalizer 核心。\n"
+"您是否要现在进行核心安装？"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:125
+#, fuzzy
+#| msgid "No core installed."
+msgid "No aisound core installed."
+msgstr "尚未安装核心。"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:138
 msgid "SpeechSettingsDialog have already been opened"
 msgstr "语音设置對話框已開啟"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:125
+#: addon\globalPlugins\WorldVoice\__init__.py:144
 msgid "SpeechSymbolsDialog have already been opened"
 msgstr "Unicode 设置對話框已開啟"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:129
+#: addon\globalPlugins\WorldVoice\__init__.py:147
 msgid "popup SpeechSettingsDialog"
 msgstr "弹出语音设置对话框（&S）"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:137
+#: addon\globalPlugins\WorldVoice\__init__.py:154
 msgid "popup SpeechSymbolsDialog"
 msgstr "弹出 标点符号读音对话框"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:25
+#: addon\globalPlugins\WorldVoice\__init__.py:161
+msgid "reset task manager"
+msgstr "重置任務管理器"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:24
 msgid "Speech Settings"
 msgstr "语音设置"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:55
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:48
 msgid "Your current speech synthesizer is not ready."
 msgstr "当前语音合成器未就绪。"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:64
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:55
 msgid "Select a language, and then configure the voice to be used:"
 msgstr "选择一个地区，并为该地区选择一个语音角色："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:69
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:59
 msgid "Locale Name:"
 msgstr "地区名称："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:72
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:61
 msgid "Voice Name:"
 msgstr "语音名称："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:75
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:63
 msgid "Variant:"
 msgstr "变声："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:78
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:65
 msgid "&Rate:"
 msgstr "语速(&R)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:80
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:67
 msgid "&Pitch:"
 msgstr "音调（&P）"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:82
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:69
 msgid "V&olume:"
 msgstr "音量(&O)"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:87
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:73
 msgid "Keep main parameter and locale parameter consistent"
 msgstr "保持主要语音参数与地区语音参数一致"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:93
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:78
 msgid "Keep main voice and locale voice consistent"
 msgstr "保持主要语音角色与地区语音角色一致"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:98
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:82
 msgid "Detect text language based on unicode characters"
 msgstr "用 unicode 编码检测文本语言"
 
 #. Translators: Either to ignore or not numbers when language detection is active
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:104
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:87
 msgid "Ignore numbers when detecting text language"
 msgstr "检测语言时忽略数字"
 
 #. Translators: Either to ignore or not ASCII punctuation when language detection is active
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:110
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:92
 msgid "Ignore common punctuation when detecting text language"
 msgstr "检测语言时忽略数字和常见的标点符号"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:115
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:96
 msgid "Language assumed for latin characters:"
 msgstr "拉丁字符对应的语言："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:125
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:105
 msgid "Language assumed for CJK characters:"
 msgstr "中日韩字符对应的语言："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:134
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:113
 msgid "before symbol process"
 msgstr "符号处理前"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:134
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:113
 msgid "after symbol process"
 msgstr "符号处理后"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:136
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:115
 msgid "Detect language timing:"
 msgstr "检测语言时间点："
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:144
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:122
 msgid "Number dot replacement"
 msgstr "数字点替换文字"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:336
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:292
 msgid ""
 "For the detect language timing configuration to apply, NVDA must save "
 "configuration and be restarted. Do you want to do now?"
@@ -302,67 +356,68 @@ msgstr ""
 "为了使侦测语言时间点设定生效， NVDA 必需储存组态并重新启动。您要立即执行吗？"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:338
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:294
 msgid "Detect language timing Configuration Change"
 msgstr "检测语言时间点设定变更"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:50
+#: addon\synthDrivers\WorldVoice\__init__.py:49
 msgid "Number &Language"
 msgstr "数字语言(&M)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:54
+#: addon\synthDrivers\WorldVoice\__init__.py:53
 msgid "Number Language"
 msgstr "数字语言"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:59
+#: addon\synthDrivers\WorldVoice\__init__.py:58
 msgid "Number &Mode"
 msgstr "数字模式(&M)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:63
+#: addon\synthDrivers\WorldVoice\__init__.py:62
 msgid "Number Mode"
 msgstr "数字模式"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:68
+#: addon\synthDrivers\WorldVoice\__init__.py:67
 msgid "Pause time when encountering spaces between Chinese"
 msgstr "中文空格暂停时间"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:74
+#: addon\synthDrivers\WorldVoice\__init__.py:73
 msgid "Ignore comma between number"
 msgstr "忽略数字中的逗号"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:79
+#: addon\synthDrivers\WorldVoice\__init__.py:78
 msgid "Enable WorldVoice setting rules to detect text language"
 msgstr "启用 WorldVoice 设定规则来检测文本语言"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:82
+#: addon\synthDrivers\WorldVoice\__init__.py:81
 msgid "Enable WorldVoice rules"
 msgstr "启用 WorldVoice 规则"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:369
+#: addon\synthDrivers\WorldVoice\__init__.py:543
 msgid "default"
 msgstr "默认"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:382
+#: addon\synthDrivers\WorldVoice\__init__.py:556
 msgid "value"
 msgstr "数值"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:383
+#: addon\synthDrivers\WorldVoice\__init__.py:557
 msgid "number"
 msgstr "数字"
 
-#. Add-on summary, usually the user visible name of the addon.
-#. Translators: Summary for this add-on
-#. to be shown on installation and add-on information found in Add-ons Manager.
-#. Add-on description
-#. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-#: buildVars.py:23 buildVars.py:26
-msgid "WorldVoice"
-msgstr "WorldVoice"
+#~ msgid "WorldVoice(VE)"
+#~ msgstr "WorldVoice(VE)"
+
+#~ msgid ""
+#~ "You have no core(driver 2) installed.\n"
+#~ "Do you want to install the core(driver 2) now?"
+#~ msgstr ""
+#~ "您尚未安装（driver 2）核心。\n"
+#~ "您是否要现在安装？"
 
 #~ msgid ""
 #~ "For the edited unicode rule to apply, NVDA must be restarted. Press enter "
@@ -408,13 +463,6 @@ msgstr "WorldVoice"
 
 #~ msgid "english number"
 #~ msgstr "英文数字"
-
-#~ msgid ""
-#~ "You have no core installed.\n"
-#~ "Do you want to install the core now?"
-#~ msgstr ""
-#~ "您尚未安装 Vocalizer 核心。\n"
-#~ "您是否要现在进行核心安装？"
 
 #~ msgid "Select a locale, and then configure the voice to be used:"
 #~ msgstr "选择一个地区，并为其设定一个语音："

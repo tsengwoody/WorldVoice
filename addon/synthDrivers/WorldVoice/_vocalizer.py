@@ -33,7 +33,7 @@ class BgThread(threading.Thread):
 		self.start()
 
 	def run(self):
-		global speakingInstance, feedBuf
+		global speakingInstance, feedBuf, voiceLock
 		while True:
 			breakCommand = False
 			instance, inText = self._bgQueue.get()
@@ -52,8 +52,14 @@ class BgThread(threading.Thread):
 					speakingInstance = None
 				except Exception:
 					log.error("Error running function from queue", exc_info=True)
-			self._bgQueue.task_done()
-
+			try:
+				self._bgQueue.task_done()
+			except Exception:
+				pass
+			try:
+				voiceLock.release()
+			except RuntimeError:
+				pass
 
 @VE_CBOUTNOTIFY
 def callback(instance, userData, message):
@@ -453,3 +459,5 @@ def preOpenVocalizer():
 	finally:
 		if player is None:
 			postTerminate()
+
+voiceLock = None
