@@ -5,17 +5,17 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoiceXVE' '2.2'\n"
-"Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2022-01-20 19:45+0800\n"
-"PO-Revision-Date: 2022-01-20 19:48+0800\n"
+"Project-Id-Version: 'WorldVoiceXVE'\n"
+"Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
+"POT-Creation-Date: 2022-01-29 12:21+0800\n"
+"PO-Revision-Date: 2022-01-29 12:31+0800\n"
 "Last-Translator: \n"
-"Language-Team: \n"
+"Language-Team: Cary-Rowen <manchen_0528@outlook.com>\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 3.0\n"
+"X-Generator: Poedit 2.4.3\n"
 "X-Poedit-Basepath: ../../..\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 "X-Poedit-SearchPath-0: .\n"
@@ -136,134 +136,90 @@ msgstr ""
 msgid "unicode rule edited"
 msgstr "unicode 规则已编辑"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:58
+#: addon\globalPlugins\WorldVoice\__init__.py:45
 msgid "&Speech Settings"
 msgstr "语音设置（&S）"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:58
+#: addon\globalPlugins\WorldVoice\__init__.py:45
 msgid "Speech Settings."
 msgstr "语音设置（&S）"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:60
+#: addon\globalPlugins\WorldVoice\__init__.py:47
 msgid "&Unicode Settings"
 msgstr "Unicode 设置（&U）"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:60
+#: addon\globalPlugins\WorldVoice\__init__.py:47
 msgid "Unicode Settings."
 msgstr "Unicode 设置。"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:62
+#: addon\globalPlugins\WorldVoice\__init__.py:49
 msgid "&File Import"
 msgstr "导入文件(&F)"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:62
+#: addon\globalPlugins\WorldVoice\__init__.py:49
 msgid "Import File."
 msgstr "导入文件。"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:65
-#, fuzzy
-#| msgid "No core installed."
-msgid "&VE core install"
-msgstr "尚未安装核心。"
+#: addon\globalPlugins\WorldVoice\__init__.py:52
+msgid "VE Core Install"
+msgstr "VE 语音内核安装"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:65
-msgid "install VE core."
-msgstr "安裝 VE 核心"
+#: addon\globalPlugins\WorldVoice\__init__.py:52
+msgid "Install VE Core."
+msgstr "安裝 VE 语音内核"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:68
-#, fuzzy
-#| msgid "No core installed."
-msgid "&aisound core install"
-msgstr "尚未安装核心。"
+#: addon\globalPlugins\WorldVoice\__init__.py:55
+msgid "&Aisound Core Install"
+msgstr "AISound 语音内核安装"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:68
-msgid "install aisound core."
-msgstr "安裝 aisound 核心"
+#: addon\globalPlugins\WorldVoice\__init__.py:55
+msgid "Install Aisound Core."
+msgstr "安裝 AISound 语音内核"
 
 #. Add-on summary, usually the user visible name of the addon.
 #. Translators: Summary for this add-on
 #. to be shown on installation and add-on information found in Add-ons Manager.
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-#: addon\globalPlugins\WorldVoice\__init__.py:71 buildVars.py:23
+#: addon\globalPlugins\WorldVoice\__init__.py:58 buildVars.py:23
 #: buildVars.py:26
 msgid "WorldVoice"
 msgstr "WorldVoice"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:82
+#: addon\globalPlugins\WorldVoice\__init__.py:69
 msgid "Import file..."
 msgstr "导入文件。"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:94
+#: addon\globalPlugins\WorldVoice\__init__.py:81
 msgid "Import fail"
 msgstr "导入失败"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:95
-#: addon\globalPlugins\WorldVoice\__init__.py:100
+#: addon\globalPlugins\WorldVoice\__init__.py:82
+#: addon\globalPlugins\WorldVoice\__init__.py:87
 msgid "Import File"
 msgstr "导入文件"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:99
+#: addon\globalPlugins\WorldVoice\__init__.py:86
 msgid ""
 "For the new file to import, NVDA must be restarted. Are you want to restart "
 "NVDA now ?"
 msgstr "为了使导入的文件生效， NVDA 必需重新启动。您要立即重新启动吗？"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:117
-#, fuzzy
-#| msgid ""
-#| "You have no core installed.\n"
-#| "Do you want to install the core now?"
-msgid ""
-"You have no VE core installed.\n"
-"Do you want to install the VE core now?"
-msgstr ""
-"您尚未安装 Vocalizer 核心。\n"
-"您是否要现在进行核心安装？"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:119
-#, fuzzy
-#| msgid "No core installed."
-msgid "No VE core installed."
-msgstr "尚未安装核心。"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:123
-#, fuzzy
-#| msgid ""
-#| "You have no core installed.\n"
-#| "Do you want to install the core now?"
-msgid ""
-"You have no aisound core installed.\n"
-"Do you want to install the Aisound core now?"
-msgstr ""
-"您尚未安装 Vocalizer 核心。\n"
-"您是否要现在进行核心安装？"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:125
-#, fuzzy
-#| msgid "No core installed."
-msgid "No aisound core installed."
-msgstr "尚未安装核心。"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:138
+#: addon\globalPlugins\WorldVoice\__init__.py:112
 msgid "SpeechSettingsDialog have already been opened"
 msgstr "语音设置對話框已開啟"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:144
+#: addon\globalPlugins\WorldVoice\__init__.py:118
 msgid "SpeechSymbolsDialog have already been opened"
 msgstr "Unicode 设置對話框已開啟"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:147
-msgid "popup SpeechSettingsDialog"
-msgstr "弹出语音设置对话框（&S）"
+#: addon\globalPlugins\WorldVoice\__init__.py:121
+msgid "popup speech settings dialog"
+msgstr "弹出语音设置对话框"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:154
-msgid "popup SpeechSymbolsDialog"
-msgstr "弹出 标点符号读音对话框"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:161
-msgid "reset task manager"
-msgstr "重置任務管理器"
+#: addon\globalPlugins\WorldVoice\__init__.py:128
+msgid "popup unicode settings dialog"
+msgstr "弹出 Unicode 设置对话框"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:24
 msgid "Speech Settings"
@@ -361,153 +317,67 @@ msgid "Detect language timing Configuration Change"
 msgstr "检测语言时间点设定变更"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:49
+#: addon\synthDrivers\WorldVoice\__init__.py:73
 msgid "Number &Language"
 msgstr "数字语言(&M)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:53
+#: addon\synthDrivers\WorldVoice\__init__.py:77
 msgid "Number Language"
 msgstr "数字语言"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:58
+#: addon\synthDrivers\WorldVoice\__init__.py:82
 msgid "Number &Mode"
 msgstr "数字模式(&M)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:62
+#: addon\synthDrivers\WorldVoice\__init__.py:86
 msgid "Number Mode"
 msgstr "数字模式"
 
-#. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:67
-msgid "Pause time when encountering spaces between Chinese"
-msgstr "中文空格暂停时间"
+#: addon\synthDrivers\WorldVoice\__init__.py:90
+msgid "Role switch &wait factor"
+msgstr "角色切换间隔(&W)"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:73
+#. Translators: Label for a setting in synth settings ring.
+#: addon\synthDrivers\WorldVoice\__init__.py:99
+msgid "Role Switch Wait Factor"
+msgstr "角色切换间隔"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\synthDrivers\WorldVoice\__init__.py:104
+msgid "Chinese space wait factor"
+msgstr "中文空白间隔时间"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:110
+msgid "&Normalization"
+msgstr "Unicode 编码规则(N)"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:115
 msgid "Ignore comma between number"
 msgstr "忽略数字中的逗号"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:78
+#: addon\synthDrivers\WorldVoice\__init__.py:120
 msgid "Enable WorldVoice setting rules to detect text language"
 msgstr "启用 WorldVoice 设定规则来检测文本语言"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:81
+#: addon\synthDrivers\WorldVoice\__init__.py:123
 msgid "Enable WorldVoice rules"
 msgstr "启用 WorldVoice 规则"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:543
+#: addon\synthDrivers\WorldVoice\__init__.py:552
+msgid "OFF"
+msgstr "关闭"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:600
 msgid "default"
 msgstr "默认"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:556
+#: addon\synthDrivers\WorldVoice\__init__.py:613
 msgid "value"
 msgstr "数值"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:557
+#: addon\synthDrivers\WorldVoice\__init__.py:614
 msgid "number"
 msgstr "数字"
-
-#~ msgid "WorldVoice(VE)"
-#~ msgstr "WorldVoice(VE)"
-
-#~ msgid ""
-#~ "You have no core(driver 2) installed.\n"
-#~ "Do you want to install the core(driver 2) now?"
-#~ msgstr ""
-#~ "您尚未安装（driver 2）核心。\n"
-#~ "您是否要现在安装？"
-
-#~ msgid ""
-#~ "For the edited unicode rule to apply, NVDA must be restarted. Press enter "
-#~ "to restart NVDA, or cancel to exit at a later time."
-#~ msgstr ""
-#~ "为了让已编辑的 Unicode 生效，必须重新启动 NVDA，您要立即重新启动吗？"
-
-#~ msgid "Ignore language information of document"
-#~ msgstr "忽略文档中的语言信息"
-
-#~ msgid "Automatic &Language Switching Settings"
-#~ msgstr "自动语言切换设定(&L)"
-
-#~ msgid "Configure which voice is to be used for each language."
-#~ msgstr "设定各别语言的语音。"
-
-#~ msgid "Configure speech rate each voice."
-#~ msgstr "设定各别语音的语速。"
-
-#~ msgid "Configure unicode setting."
-#~ msgstr "设定 Unicode 设定。"
-
-#~ msgid "Automatic Language Switching Settings"
-#~ msgstr "自动语言切换设定"
-
-#~ msgid "Speech Rate Settings"
-#~ msgstr "语音速度设定"
-
-#~ msgid "&Number Mode"
-#~ msgstr "数字模式(&N)"
-
-#~ msgid "&Chinese Space Break"
-#~ msgstr "中文空白间隔(&C)"
-
-#~ msgid "Chinese Space Break"
-#~ msgstr "中文空白间隔"
-
-#~ msgid "automatic number"
-#~ msgstr "自动数字"
-
-#~ msgid "chinese number"
-#~ msgstr "中文数字"
-
-#~ msgid "english number"
-#~ msgstr "英文数字"
-
-#~ msgid "Select a locale, and then configure the voice to be used:"
-#~ msgstr "选择一个地区，并为其设定一个语音："
-
-#~ msgid "Ignore numbers and common punctuation when detecting text language"
-#~ msgstr "侦测语言时忽略数字和常见标点符号"
-
-#, python-format
-#~ msgid ""
-#~ "Your current speech synthesizer is the %s. Please select the "
-#~ "WorldVoiceXVE as the speech synthesizer in the NVDA speech settings."
-#~ msgstr ""
-#~ "你当前的语音合程器为 %s 。请在 NVDA 设定中选择 WorldVoiceXVE 语音合成器。"
-
-#~ msgid "WorldVoiceXVE(driver 2)"
-#~ msgstr "WorldVoiceXVE(driver 2)"
-
-#, python-format
-#~ msgid ""
-#~ "Your current speech synthesizer is the %s. Please select the "
-#~ "WorldVoiceXVE(driver 2) as the speech synthesizer in the NVDA speech "
-#~ "settings."
-#~ msgstr ""
-#~ "你当前的语音合程器为 %s 。请在 NVDA 设定中选择 WorldVoiceXVE(driver 2)语音"
-#~ "合成器。"
-
-#~ msgid "Speech Rate:"
-#~ msgstr "语音速度："
-
-#~ msgid "Import success"
-#~ msgstr "匯入成功"
-
-#~ msgid ""
-#~ "You have no Vocalizer voices installed.\n"
-#~ "You need at least one voice installed to use WorldVoiceXVE.\n"
-#~ "You can download all Vocalizer voices from the product web page.\n"
-#~ "Do you want to open the vocalizer for NVDA voices download page now?"
-#~ msgstr ""
-#~ "您尚未安裝 Vocalizer 語音。\n"
-#~ "您至少需要一個語音以便使用 WorldVoiceXVE。\n"
-#~ "您可以從商品網頁下載所有 Vocalizer 語音。\n"
-#~ "您是否要現在開啟 vocalizer for NVDA 語音下載頁面？"
-
-#~ msgid "No voices installed."
-#~ msgstr "尚未安裝語音"
-
-#~ msgid "Import Core DLL."
-#~ msgstr "匯入核心 DLL。"
