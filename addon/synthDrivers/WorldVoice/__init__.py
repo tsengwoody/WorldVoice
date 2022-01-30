@@ -231,6 +231,7 @@ class SynthDriver(SynthDriver):
 			if isinstance(command, LangChangeCommand) or isinstance(command, WVLangChangeCommand):
 				unstables.insert(0, command)
 				stables.extend(unstables)
+				unstables.clear()
 			elif isinstance(command, str):
 				unstables.append(command)
 				stables.extend(unstables)
