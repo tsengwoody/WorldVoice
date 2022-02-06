@@ -8,14 +8,19 @@ import config
 import globalPluginHandler
 import globalVars
 import gui
-from logHandler import log
 from scriptHandler import script, getLastScriptRepeatCount
 import speech
+try:
+	from synthDriverHandler import getSynth
+except:
+	from speech import getSynth
 import ui
 
 from .speechSettingsDialog import SpeechSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
 from synthDrivers.WorldVoice import VEVoice, Sapi5Voice, AisoundVoice
+from synthDrivers.WorldVoice import WVStart, WVEnd
+from synthDrivers.WorldVoice.hook import Hook
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
@@ -37,7 +42,24 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 		if globalVars.appArgs.secure:
 			return
+
 		self.createMenu()
+
+		self.hookInstance = Hook()
+		if getSynth().name == "WorldVoice":
+			self.hookInstance.start()
+
+		WVStart.register(self.hookInstance.start)
+		WVEnd.register(self.hookInstance.end)
+
+	def terminate(self):
+		try:
+			self.removeMenu()
+		except wx.PyDeadObjectError:
+			pass
+
+		WVStart.unregister(self.hookInstance.start)
+		WVEnd.unregister(self.hookInstance.end)
 
 	def createMenu(self):
 		self.submenu_vocalizer = wx.Menu()
@@ -98,12 +120,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def onAisoundCoreInstall(self, event):
 		self.fileImport(AisoundVoice.workspace)
-
-	def  terminate(self):
-		try:
-			self.removeMenu()
-		except wx.PyDeadObjectError:
-			pass
 
 	def popup_SpeechSettingsDialog(self, event):
 		if SpeechSettingsDialog._instance is None:

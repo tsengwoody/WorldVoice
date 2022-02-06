@@ -2,22 +2,20 @@ from collections import OrderedDict
 import os
 import re
 import sys
-import threading
 import unicodedata
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-addon_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-synth_drivers_path = os.path.join(addon_path, 'synthDrivers', 'WorldVoice')
 sys.path.insert(0, base_dir)
 
 import addonHandler
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, DriverSetting, NumericDriverSetting
 from autoSettingsUtils.utils import StringParameterInfo
 import config
-from synthDriverHandler import SynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking
+import extensionPoints
 import languageHandler
 from logHandler import log
 import speech
+from synthDriverHandler import SynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking
 
 from .voiceManager import VoiceManager, VEVoice, Sapi5Voice, AisoundVoice
 from . import languageDetection
@@ -57,6 +55,9 @@ config.conf.spec["WorldVoice"] = {
 		}
 	}
 }
+
+WVStart = extensionPoints.Action()
+WVEnd = extensionPoints.Action()
 
 class SynthDriver(SynthDriver):
 	name = "WorldVoice"
@@ -180,7 +181,7 @@ class SynthDriver(SynthDriver):
 
 		self._voice = None
 
-		# self.hook_start()
+		WVStart.notify()
 
 	def loadSettings(self, onlyChanged=False):
 		super().loadSettings(onlyChanged)
@@ -203,7 +204,7 @@ class SynthDriver(SynthDriver):
 		except RuntimeError:
 			log.error("Vocalizer terminate", exc_info=True)
 
-		# self.hook_end()
+		WVEnd.notify()
 
 	def speak(self, speechSequence):
 		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
