@@ -3,19 +3,22 @@ from collections import defaultdict
 import wx
 import addonHandler
 import config
+import core
 import gui
 from gui import guiHelper
 import languageHandler
+from logHandler import log
 import queueHandler
-import core
+
 
 try:
 	from synthDriverHandler import getSynth
 except:
 	from speech import getSynth
 
-from synthDrivers.WorldVoice import VoiceManager
 from synthDrivers.WorldVoice import languageDetection
+from synthDrivers.WorldVoice import VoiceManager
+from synthDrivers.WorldVoice import WVConfigure
 
 addonHandler.initTranslation()
 
@@ -26,6 +29,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		obj = super().__new__(cls, *args, **kwargs)
 		cls._instance = obj
 		return obj
+
 	def __init__(self, parent):
 		self._synthInstance = getSynth()
 		if self._synthInstance.name == 'WorldVoice':
@@ -33,15 +37,6 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		else:
 			self._manager = VoiceManager()
 		self.ready = self._manager.ready()
-		self._localeToVoices = self._manager.localeToVoicesMap
-		self.localesToNames = self._manager.localesToNamesMap
-		self._locales = self._manager.languages
-
-		self._dataToPercist = defaultdict(lambda: {})
-		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
-		self._latinLocales = sorted(list(latinSet))
-		CJKSet = set(languageDetection.CJK) & set(l for l in self._locales if len(l) == 2)
-		self._CJKLocales = sorted(list(CJKSet))
 		super().__init__(parent)
 
 	def makeSettings(self, sizer):
@@ -51,6 +46,22 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			infoLabel.Wrap(self.GetSize()[0])
 			sizer.Add(infoLabel)
 			return
+
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
+			self._manager.engine = self._manager._defaultVoiceInstance.engine
+		else:
+			self._manager.engine = 'ALL'
+
+		self._localeToVoices = self._manager.localeToVoicesMapEngineFilter
+		self.localesToNames = self._manager.localesToNamesMapEngineFilter
+		self._locales = self._manager.languagesEngineFilter
+
+		self._dataToPercist = defaultdict(lambda: {})
+		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
+		self._latinLocales = sorted(list(latinSet))
+		CJKSet = set(languageDetection.CJK) & set(l for l in self._locales if len(l) == 2)
+		self._CJKLocales = sorted(list(CJKSet))
+
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 		helpLabel = wx.StaticText(self, label=_("Select a language, and then configure the voice to be used:"))
 		helpLabel.Wrap(self.GetSize()[0])
@@ -69,29 +80,41 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		self._volumeSlider = settingsSizerHelper.addLabeledControl(_("V&olume:"), wx.Slider, value = 50, minValue = 0, maxValue = 100, style = wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onVolumeSliderScroll, self._volumeSlider)
 		self.sliderDisable()
+
+		self._keepEngineConsistentCheckBox = wx.CheckBox(self,
+			label=_("Keep main engine and locale engine consistent"))
+		self._keepEngineConsistentCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"])
+		settingsSizerHelper.addItem(self._keepEngineConsistentCheckBox)
+		self.Bind(wx.EVT_CHECKBOX, self.onKeepEngineConsistentChange, self._keepEngineConsistentCheckBox)
+
 		self._keepParameterConsistentCheckBox = wx.CheckBox(self,
 			label=_("Keep main parameter and locale parameter consistent"))
 		self._keepParameterConsistentCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"])
 		settingsSizerHelper.addItem(self._keepParameterConsistentCheckBox)
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepParameterConsistentChange, self._keepParameterConsistentCheckBox)
+
 		self._keepConsistentCheckBox = wx.CheckBox(self,
 			label=_("Keep main voice and locale voice consistent"))
 		self._keepConsistentCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"])
 		settingsSizerHelper.addItem(self._keepConsistentCheckBox)
+
 		self._useUnicodeDetectionCheckBox = wx.CheckBox(self,
 			label=_("Detect text language based on unicode characters"))
 		self._useUnicodeDetectionCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"])
 		settingsSizerHelper.addItem(self._useUnicodeDetectionCheckBox)
+
 		self._ignoreNumbersCheckBox = wx.CheckBox(self,
 		# Translators: Either to ignore or not numbers when language detection is active
 		label=_("Ignore numbers when detecting text language"))
 		self._ignoreNumbersCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"])
 		settingsSizerHelper.addItem(self._ignoreNumbersCheckBox)
+
 		self._ignorePunctuationCheckBox = wx.CheckBox(self,
 		# Translators: Either to ignore or not ASCII punctuation when language detection is active
 		label=_("Ignore common punctuation when detecting text language"))
 		self._ignorePunctuationCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"])
 		settingsSizerHelper.addItem(self._ignorePunctuationCheckBox)
+
 		latinChoiceLocaleNames = [self.localesToNames[l] for l in self._latinLocales]
 		self._latinChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for latin characters:"), wx.Choice, choices=latinChoiceLocaleNames)
 		latinLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"]
@@ -101,6 +124,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			self._latinChoice.Select(0)
 		if not latinChoiceLocaleNames:
 			self._latinChoice.Disable()
+
 		CJKChoiceLocaleNames = [self.localesToNames[l] for l in self._CJKLocales]
 		self._CJKChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for CJK characters:"), wx.Choice, choices=CJKChoiceLocaleNames)
 		CJKLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"]
@@ -110,6 +134,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			self._CJKChoice.Select(0)
 		if not CJKChoiceLocaleNames:
 			self._CJKChoice.Disable()
+
 		DetectLanguageTimingLabel = [_("before symbol process"), _("after symbol process")]
 		self._DetectLanguageTimingValue = ["before", "after"]
 		self._DLTChoice = settingsSizerHelper.addLabeledControl(_("Detect language timing:"), wx.Choice, choices=DetectLanguageTimingLabel)
@@ -118,16 +143,19 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			self._DLTChoice.Select(self._DetectLanguageTimingValue.index(self._DetectLanguageTiming))
 		except ValueError:
 			self._DLTChoice.Select(0)
+
 		self._dotText = settingsSizerHelper.addLabeledControl(
 			labelText=_("Number dot replacement"),
 			wxCtrlClass=wx.TextCtrl,
 			value=config.conf["WorldVoice"]["autoLanguageSwitching"]["numberDotReplacement"],
 		)
+
 	def postInit(self):
 		if not self.ready:
 			return
 		self._updateVoicesSelection()
 		self._localesChoice.SetFocus()
+
 	def _updateVoicesSelection(self):
 		localeIndex = self._localesChoice.GetCurrentSelection()
 		if localeIndex < 0:
@@ -137,13 +165,22 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			voices = ["no-select"] + self._localeToVoices[locale]
 			self._voicesChoice.SetItems(voices)
 			if locale in config.conf["WorldVoice"]["autoLanguageSwitching"]:
-				voice = config.conf["WorldVoice"]["autoLanguageSwitching"][locale]["voice"]
+				try:
+					voice = config.conf["WorldVoice"]["autoLanguageSwitching"][locale]["voice"]
+				except:
+					self._voicesChoice.Select(0)
+					self.onVoiceChange(None)
+					return
 				if voice:
-					self._voicesChoice.Select(voices.index(voice))
+					try:
+						self._voicesChoice.Select(voices.index(voice))
+					except ValueError:
+						self._voicesChoice.Select(0)
 					self.onVoiceChange(None)
 			else:
 				self._voicesChoice.Select(0)
 				self.onVoiceChange(None)
+
 	def _updateVariantsSelection(self):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName != "no-select":
@@ -158,8 +195,10 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 				self._variantsChoice.Select(0)
 		else:
 			self._variantsChoice.SetItems([])
+
 	def onLocaleChanged(self, event):
 		self._updateVoicesSelection()
+
 	def onVoiceChange(self, event):
 		localeIndex = self._localesChoice.GetCurrentSelection()
 		locale = self._locales[localeIndex]
@@ -180,11 +219,26 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			self._dataToPercist[locale]["voice"] = "no-select"
 			self.sliderDisable()
 		self._updateVariantsSelection()
+
 	def onVariantChange(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName != "no-select":
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			voiceInstance.variant = self._variantsChoice.GetStringSelection()
+
+	def onKeepEngineConsistentChange(self, event):
+		if self._keepEngineConsistentCheckBox.GetValue():
+			self._manager.engine = self._manager._defaultVoiceInstance.engine
+		else:
+			self._manager.engine = 'ALL'
+		self._manager.onKeepEngineConsistent()
+
+		self._localeToVoices = self._manager.localeToVoicesMapEngineFilter
+		self.localesToNames = self._manager.localesToNamesMapEngineFilter
+		self._locales = self._manager.languagesEngineFilter
+		self._localesChoice.SetItems([self.localesToNames[l] for l in self._locales])
+		self._updateVoicesSelection()
+
 	def onKeepParameterConsistentChange(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == "":
@@ -206,14 +260,17 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			self.sliderDisable()
 		if self._keepParameterConsistentCheckBox.GetValue():
 			self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
+
 	def sliderEnable(self):
 		self._rateSlider.Enable()
 		self._pitchSlider.Enable()
 		self._volumeSlider.Enable()
+
 	def sliderDisable(self):
 		self._rateSlider.Disable()
 		self._pitchSlider.Disable()
 		self._volumeSlider.Disable()
+
 	def onSpeechRateSliderScroll(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == '':
@@ -222,6 +279,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		voiceInstance.rate = self._rateSlider.GetValue()
 		if self._keepParameterConsistentCheckBox.GetValue():
 			self._manager.onVoiceParameterConsistent(voiceInstance)
+
 	def onPitchSliderScroll(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == '':
@@ -230,6 +288,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		voiceInstance.pitch = self._pitchSlider.GetValue()
 		if self._keepParameterConsistentCheckBox.GetValue():
 			self._manager.onVoiceParameterConsistent(voiceInstance)
+
 	def onVolumeSliderScroll(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == '':
@@ -238,6 +297,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		voiceInstance.volume = self._volumeSlider.GetValue()
 		if self._keepParameterConsistentCheckBox.GetValue():
 			self._manager.onVoiceParameterConsistent(voiceInstance)
+
 	def onCancel(self, event):
 		if not self.ready:
 			self.__class__._instance = None
@@ -247,6 +307,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			instance.rollback()
 		self.__class__._instance = None
 		super().onCancel(event)
+
 	def onOk(self, event):
 		import config
 		if not self.ready:
@@ -254,15 +315,28 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			super().onOk(event)
 			return
 		# Update Configuration
+
+		temp = defaultdict(lambda: {})
+		for key, value in config.conf["WorldVoice"]["autoLanguageSwitching"].items():
+			if isinstance(value, config.AggregatedSection):
+				try:
+					temp[key]['voice'] = config.conf["WorldVoice"]["autoLanguageSwitching"][key]["voice"]
+				except KeyError:
+					pass
+
 		for locale in self._dataToPercist:
 			if self._dataToPercist[locale]["voice"] != "no-select":
-				config.conf["WorldVoice"]["autoLanguageSwitching"][locale] = self._dataToPercist[locale]
+				temp[locale] = self._dataToPercist[locale]
 			else:
 				try:
-					del config.conf["WorldVoice"]["autoLanguageSwitching"][locale]
+					del temp[locale]
 				except BaseException as e:
 					pass
+
+		config.conf["WorldVoice"]["autoLanguageSwitching"] = temp
+
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["numberDotReplacement"] = self._dotText.GetValue()
+		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] = self._keepEngineConsistentCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = self._keepParameterConsistentCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] = self._keepConsistentCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"] = self._useUnicodeDetectionCheckBox.GetValue()
@@ -305,7 +379,10 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			if different:
 				if self._synthInstance.name == 'WorldVoice':
 					self._synthInstance.voice = self._dataToPercist[locale]["voice"]
-				config.conf["speech"]["WorldVoiceXVED2"]["voice"] = self._dataToPercist[locale]["voice"]
+				config.conf["speech"]["WorldVoice"]["voice"] = self._dataToPercist[locale]["voice"]
+
+		WVConfigure.notify()
+
 		if not self._synthInstance.name == 'WorldVoice':
 			self._manager.close()
 		self.__class__._instance = None

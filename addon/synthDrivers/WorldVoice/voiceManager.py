@@ -307,10 +307,13 @@ class VEVoice(Voice):
 			_vocalizer.processText2Speech(self.tts, text)
 		taskManager.add_dispatch_task((self, _speak),)
 
-	def break_(self, time):
+	def breaks(self, time):
 		maxTime = 6553 if self.variant == "bet2" else 65535
 		breakTime = max(1, min(time, maxTime))
-		_vocalizer.processBreak(self.tts, breakTime)
+		def _breaks():
+			_vocalizer.processBreak(self.tts, breakTime)
+		taskManager.add_dispatch_task((self, _breaks),)
+
 
 	def stop(self):
 		_vocalizer.stop()
@@ -764,17 +767,23 @@ class VoiceManager(object):
 		return result
 
 	def __init__(self):
-		lock = threading.Lock()
-
 		global taskManager
-		taskManager = TaskManager(lock)
-		self.taskManager = taskManager
-
+		lock = threading.Lock()
 		for item in self.voice_class.values():
 			if item.ready():
 				item.engineOn(lock, taskManager)
 
-		self._createCaches()
+		table = []
+		for item in self.voice_class.values():
+			table.extend(item.voices())
+
+		taskManager = TaskManager(lock=lock, table=table)
+		self.taskManager = taskManager
+
+
+		self._setVoiceDatas()
+		self.engine = 'ALL'
+
 		self._instanceCache = {}
 		self.waitfactor = 0
 
@@ -846,15 +855,47 @@ class VoiceManager(object):
 			instance.volume = baseInstance.volume
 			instance.commit()
 
+	def onKeepEngineConsistent(self):
+		temp = defaultdict(lambda: {})
+		for key, value in config.conf["WorldVoice"]["autoLanguageSwitching"].items():
+			if isinstance(value, config.AggregatedSection):
+				try:
+					temp[key]['voice'] = config.conf["WorldVoice"]["autoLanguageSwitching"][key]["voice"]
+				except KeyError:
+					pass
+			else:
+				temp[key] = config.conf["WorldVoice"]["autoLanguageSwitching"][key]
+
+		for locale, data in config.conf["WorldVoice"]['autoLanguageSwitching'].items():
+			if isinstance(data, config.AggregatedSection):
+				if (locale not in self.localeToVoicesMapEngineFilter) or ('voice' in data and data['voice'] not in self.localeToVoicesMapEngineFilter[locale]):
+					try:
+						del temp[locale]
+					except BaseException as e:
+						pass
+					try:
+						log.info("locale {locale} voice {voice} not available on {engine} engine".format(
+							locale=locale,
+							voice=data['voice'],
+							engine=self.engine,
+						))
+					except:
+						pass
+
+		config.conf["WorldVoice"]["autoLanguageSwitching"] = temp
+		taskManager.reset_block()
+
 	def reload(self):
 		for voiceName, instance in self._instanceCache.items():
 			instance.loadParameter()
 
 	def cancel(self):
+		if self.taskManager and not self.taskManager.block:
+			for voiceName, instance in self._instanceCache.items():
+				instance.stop()
 		taskManager.cancel()
 
-	def _createCaches(self):
-		""" Create tables and caches to keep information that won't change on the synth. """
+	def _setVoiceDatas(self):
 		self.table = []
 		for item in self.voice_class.values():
 			self.table.extend(item.voices())
@@ -862,14 +903,9 @@ class VoiceManager(object):
 
 		self._localesToVoices = {
 			**groupByField(self.table, 'locale', lambda i: i, lambda i: i['name']),
+			# For locales with no country (i.g. "en") use all voices from all sub-locales
 			**groupByField(self.table, 'locale', lambda i: i.split('_')[0], lambda i: i['name']),
 		}
-
-		# For locales with no country (i.g. "en") use all voices from all sub-locales
-		# locales = sorted(self._localesToVoices, key=lambda l: l.split('_')[0])
-		# for key, locales in itertools.groupby(locales, key=lambda l: l.split('_')[0]):
-			# if key not in self._localesToVoices:
-				# self._localesToVoices[key] = reduce(operator.add, [self._localesToVoices[l] for l in locales])
 
 		self._voicesToEngines = {}
 		for item in self.table:
@@ -881,6 +917,41 @@ class VoiceManager(object):
 
 		# Kepp a list with existing voices in VoiceInfo objects.
 		self._voiceInfos = OrderedDict([(v.id, v) for v in voiceInfos])
+
+	def _setVoiceDatasEngineFilter(self):
+		self.tableEngineFilter = []
+		for item in self.voice_class.values():
+			self.tableEngineFilter.extend(item.voices())
+		self.tableEngineFilter = sorted(self.tableEngineFilter, key=lambda item: (item['engine'], item['language'], item['name']))
+		self.tableEngineFilter = list(filter(lambda item: self.engine == 'ALL' or item['engine'] == self.engine, self.tableEngineFilter))
+
+		self._localesToVoicesEngineFilter = {
+			**groupByField(self.tableEngineFilter, 'locale', lambda i: i, lambda i: i['name']),
+			# For locales with no country (i.g. "en") use all voices from all sub-locales
+			**groupByField(self.tableEngineFilter, 'locale', lambda i: i.split('_')[0], lambda i: i['name']),
+		}
+
+		self._voicesToEnginesEngineFilter = {}
+		for item in self.tableEngineFilter:
+			self._voicesToEnginesEngineFilter[item["name"]] = item["engine"]
+
+		voiceInfos = []
+		for item in self.tableEngineFilter:
+			voiceInfos.append(VoiceInfo(item["name"], item["description"], item["language"]))
+
+		# Kepp a list with existing voices in VoiceInfo objects.
+		self._voiceInfosEngineFilter = OrderedDict([(v.id, v) for v in voiceInfos])
+
+	@property
+	def engine(self):
+		return self._engine
+
+	@engine.setter
+	def engine(self, value):
+		if value not in ["ALL"] + list(self.voice_class.keys()):
+			raise ValueError("engine setted is not valid")
+		self._engine = value
+		self._setVoiceDatasEngineFilter()
 
 	@property
 	def voiceInfos(self):
@@ -898,14 +969,26 @@ class VoiceManager(object):
 	def localesToNamesMap(self):
 		return {locale: self._getLocaleReadableName(locale) for locale in self._localesToVoices}
 
+	@property
+	def languagesEngineFilter(self):
+		return sorted([l for l in self._localesToVoicesEngineFilter if len(self._localesToVoicesEngineFilter[l]) > 0])
+
+	@property
+	def localeToVoicesMapEngineFilter(self):
+		return self._localesToVoicesEngineFilter.copy()
+
+	@property
+	def localesToNamesMapEngineFilter(self):
+		return {locale: self._getLocaleReadableName(locale) for locale in self._localesToVoicesEngineFilter}
+
 	def getVoiceNameForLanguage(self, language):
 		configured =  self._getConfiguredVoiceNameForLanguage(language)
 		if configured is not None and configured in self.voiceInfos:
 			return configured
-		voices = self._localesToVoices.get(language, None)
+		voices = self._localesToVoicesEngineFilter.get(language, None)
 		if voices is None:
 			if '_' in language:
-				voices = self._localesToVoices.get(language.split('_')[0], None)
+				voices = self._localesToVoicesEngineFilter.get(language.split('_')[0], None)
 		if voices is None:
 			return None
 		voice = self.defaultVoiceName if self.defaultVoiceName in voices else voices[0]
@@ -919,7 +1002,11 @@ class VoiceManager(object):
 
 	def _getConfiguredVoiceNameForLanguage(self, language):
 		if language in config.conf["WorldVoice"]['autoLanguageSwitching']:
-			return config.conf["WorldVoice"]['autoLanguageSwitching'][language]['voice']
+			try:
+				voice = config.conf["WorldVoice"]['autoLanguageSwitching'][language]['voice']
+				return voice
+			except:
+				pass
 		return None
 
 	def _getLocaleReadableName(self, locale):

@@ -44,6 +44,7 @@ config.conf.spec["WorldVoice"] = {
 		"DetectLanguageTiming": "string(default=after)",
 		"KeepMainLocaleVoiceConsistent": "boolean(default=true)",
 		"KeepMainLocaleParameterConsistent": "boolean(default=false)",
+		"KeepMainLocaleEngineConsistent": "boolean(default=false)",
 	},
 	"voices": {
 		"__many__": {
@@ -58,6 +59,7 @@ config.conf.spec["WorldVoice"] = {
 
 WVStart = extensionPoints.Action()
 WVEnd = extensionPoints.Action()
+WVConfigure = extensionPoints.Action()
 
 class SynthDriver(SynthDriver):
 	name = "WorldVoice"
@@ -103,6 +105,7 @@ class SynthDriver(SynthDriver):
 			"chinesespace",
 			# Translators: Label for a setting in voice settings dialog.
 			_("Chinese space wait factor"),
+			availableInSettingsRing=True,
 			defaultVal=0,
 			minStep=1,
 		),
@@ -293,9 +296,11 @@ class SynthDriver(SynthDriver):
 					# start and end The spaces here seem to be important
 					chunks.append(f"\x1b\\mrk={command.index}\\")
 				elif isinstance(command, BreakCommand):
-					maxTime = 65535
-					breakTime = max(1, min(command.time, maxTime))
-					chunks.append(f"\x1b\\pause={breakTime}\\")
+					voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
+					chunks = []
+					hasText = False
+					voiceInstance.breaks(command.time)
+					# chunks.append(f"\x1b\\pause={breakTime}\\")
 				elif isinstance(command, RateCommand):
 					boundedValue = max(0, min(command.newValue, 100))
 					factor = 25.0 if boundedValue >= 50 else 50.0
@@ -592,6 +597,12 @@ class SynthDriver(SynthDriver):
 			if not locale in config.conf["WorldVoice"]["autoLanguageSwitching"]:
 				config.conf["WorldVoice"]["autoLanguageSwitching"][locale] = {}
 			config.conf["WorldVoice"]["autoLanguageSwitching"][locale]['voice'] = self._voiceManager.defaultVoiceInstance.name
+
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
+			self._voiceManager.engine = self._voiceManager._defaultVoiceInstance.engine
+		else:
+			self._voiceManager.engine = 'ALL'
+		self._voiceManager.onKeepEngineConsistent()
 
 	def _info(self):
 		s = [self.description]

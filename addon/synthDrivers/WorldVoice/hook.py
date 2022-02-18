@@ -37,6 +37,10 @@ class Hook:
 		keyhook.free()
 
 	def hook_callback(self, **kwargs):
+		if not voiceManager.taskManager:
+			return False
+		if not voiceManager.taskManager.block:
+			return False
 		if kwargs['pressed'] and not kwargs['vk_code'] in [
 			VK_SHIFT,
 			VK_LSHIFT,

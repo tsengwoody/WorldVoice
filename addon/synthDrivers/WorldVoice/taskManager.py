@@ -1,22 +1,68 @@
 import queue
 import threading
 
+import config
 from logHandler import log
-
+try:
+	from synthDriverHandler import getSynth
+except:
+	from speech import getSynth
 
 class TaskManager:
-	def __init__(self, lock):
-		super().__init__()
+	def __init__(self, lock, table):
+		self.lock = lock
+		self._table = table
+
 		self.dispatchQueue = queue.Queue()
 		self.listenQueue = {}
 		self.speakingVoiceInstance = None
-		self.lock = lock
+
+		self.reset_block()
+		from synthDrivers.WorldVoice import WVConfigure
+		WVConfigure.register(self.reset_block)
 
 		self.dispatch_thread = None
 		self.dispatch_start()
 
 	def __del__(self):
 		self.dispatch_end()
+
+	@property
+	def block(self):
+		if isinstance(self._block, bool):
+			return self._block
+		self._block = False
+		voice = getSynth().voice if getSynth() else None
+		if not voice:
+			engine = None
+		else:
+			row = list(filter(lambda row: row['name'] == voice, self._table))[0]
+			engine = row['engine']
+
+		for key, value in config.conf["WorldVoice"]['autoLanguageSwitching'].items():
+			if isinstance(value, config.AggregatedSection):
+				try:
+					row = list(filter(lambda row: row['name'] == value['voice'], self._table))[0]
+				except:
+					result = True
+					break
+				if engine is None:
+					engine = row['engine']
+				if not engine == row['engine'] or row['engine'] == 'SAPI5':
+					self._block = True
+					break
+
+		return self._block
+
+	@block.setter
+	def block(self, value):
+		if value is not None:
+			raise ValueError("block setter only accept None")
+		self._block = value
+
+	def reset_block(self):
+		self._block = None
+		log.info("reset task block to {}".format(self.block))
 
 	def add_listen_queue(self, key, queue):
 		self.listenQueue[key] = queue
@@ -94,16 +140,16 @@ class TaskManager:
 			if not voiceInstance:
 				break
 
-			self.speakingVoiceInstance = voiceInstance
-			self.lock.acquire()
+			if self._block:
+				self.speakingVoiceInstance = voiceInstance
+				self.lock.acquire()
 			try:
 				task()
 			except Exception:
 				log.error("Error running function from queue", exc_info=True)
 			self.dispatchQueue.task_done()
 
-			self.lock.acquire()
-			self.lock.release()
-			# for q in self.listenQueue.values():
-				# q.join()
-			self.speakingVoiceInstance = None
+			if self._block:
+				self.lock.acquire()
+				self.lock.release()
+				self.speakingVoiceInstance = None
