@@ -87,16 +87,16 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		settingsSizerHelper.addItem(self._keepEngineConsistentCheckBox)
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepEngineConsistentChange, self._keepEngineConsistentCheckBox)
 
+		self._keepConsistentCheckBox = wx.CheckBox(self,
+			label=_("Keep main voice and locale voice consistent"))
+		self._keepConsistentCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"])
+		settingsSizerHelper.addItem(self._keepConsistentCheckBox)
+
 		self._keepParameterConsistentCheckBox = wx.CheckBox(self,
 			label=_("Keep main parameter and locale parameter consistent"))
 		self._keepParameterConsistentCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"])
 		settingsSizerHelper.addItem(self._keepParameterConsistentCheckBox)
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepParameterConsistentChange, self._keepParameterConsistentCheckBox)
-
-		self._keepConsistentCheckBox = wx.CheckBox(self,
-			label=_("Keep main voice and locale voice consistent"))
-		self._keepConsistentCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"])
-		settingsSizerHelper.addItem(self._keepConsistentCheckBox)
 
 		self._useUnicodeDetectionCheckBox = wx.CheckBox(self,
 			label=_("Detect text language based on unicode characters"))

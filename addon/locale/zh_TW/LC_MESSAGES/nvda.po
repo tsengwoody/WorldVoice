@@ -5,10 +5,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoice' '3.0'\n"
+"Project-Id-Version: 'WorldVoice' '3.1'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2022-02-08 20:26+0800\n"
-"PO-Revision-Date: 2022-02-08 20:26+0800\n"
+"POT-Creation-Date: 2022-02-18 11:47+0800\n"
+"PO-Revision-Date: 2022-02-18 11:48+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -354,35 +354,35 @@ msgstr "角色切換停頓參數"
 msgid "Chinese space wait factor"
 msgstr "中文空白停頓參數"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:113
+#: addon\synthDrivers\WorldVoice\__init__.py:114
 msgid "&Normalization"
 msgstr "正規化"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:118
+#: addon\synthDrivers\WorldVoice\__init__.py:119
 msgid "Ignore comma between number"
 msgstr "忽略在數字間的逗號"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:123
+#: addon\synthDrivers\WorldVoice\__init__.py:124
 msgid "Enable WorldVoice setting rules to detect text language"
 msgstr "啟用 WorldVoice 設定規則來偵測文字語言"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:126
+#: addon\synthDrivers\WorldVoice\__init__.py:127
 msgid "Enable WorldVoice rules"
 msgstr "啟用 WorldVoice 規則"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:556
+#: addon\synthDrivers\WorldVoice\__init__.py:559
 msgid "OFF"
 msgstr "關"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:610
+#: addon\synthDrivers\WorldVoice\__init__.py:613
 msgid "default"
 msgstr "預設"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:623
+#: addon\synthDrivers\WorldVoice\__init__.py:626
 msgid "value"
 msgstr "數值"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:624
+#: addon\synthDrivers\WorldVoice\__init__.py:627
 msgid "number"
 msgstr "數字"
 

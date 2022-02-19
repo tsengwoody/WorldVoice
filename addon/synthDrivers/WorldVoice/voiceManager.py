@@ -582,6 +582,10 @@ class AisoundVoice(Voice):
 
 		super().__init__()
 
+	def rollback(self):
+		super().rollback()
+		self.active()
+
 	@property
 	def inflection(self):
 		return paramToPercent(self._inflection, 0, 2)
