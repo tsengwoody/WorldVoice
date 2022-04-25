@@ -632,7 +632,7 @@ class AisoundVoice(Voice):
 
 	@property
 	def volume(self):
-		return paramToPercent(self._pitch, -32768, 32767)
+		return paramToPercent(self._volume, -32768, 32767)
 
 	@volume.setter
 	def volume(self, percent):

@@ -32,17 +32,19 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 
 	def __init__(self, parent):
 		self._synthInstance = getSynth()
-		if self._synthInstance.name == 'WorldVoice':
-			self._manager = self._synthInstance._voiceManager
-		else:
-			self._manager = VoiceManager()
-		self.ready = self._manager.ready()
 		super().__init__(parent)
 
 	def makeSettings(self, sizer):
-		synthInfo = _('Your current speech synthesizer is not ready.')
+		if not self._synthInstance.name == 'WorldVoice':
+			infoLabel = wx.StaticText(self, label = _('Your current speech synthesizer is not WorldVoice.'))
+			infoLabel.Wrap(self.GetSize()[0])
+			sizer.Add(infoLabel)
+			return
+
+		self._manager = self._synthInstance._voiceManager
+		self.ready = self._manager.ready()
 		if not self.ready:
-			infoLabel = wx.StaticText(self, label = synthInfo)
+			infoLabel = wx.StaticText(self, label = _('Your current speech synthesizer is not ready.'))
 			infoLabel.Wrap(self.GetSize()[0])
 			sizer.Add(infoLabel)
 			return
@@ -151,7 +153,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		)
 
 	def postInit(self):
-		if not self.ready:
+		if not self._synthInstance.name == 'WorldVoice':
 			return
 		self._updateVoicesSelection()
 		self._localesChoice.SetFocus()
@@ -299,7 +301,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			self._manager.onVoiceParameterConsistent(voiceInstance)
 
 	def onCancel(self, event):
-		if not self.ready:
+		if not self._synthInstance.name == 'WorldVoice':
 			self.__class__._instance = None
 			super().onCancel(event)
 			return
@@ -309,8 +311,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		super().onCancel(event)
 
 	def onOk(self, event):
-		import config
-		if not self.ready:
+		if not self._synthInstance.name == 'WorldVoice':
 			self.__class__._instance = None
 			super().onOk(event)
 			return
@@ -333,6 +334,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 				except BaseException as e:
 					pass
 
+		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 		config.conf["WorldVoice"]["autoLanguageSwitching"] = temp
 
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["numberDotReplacement"] = self._dotText.GetValue()
@@ -357,8 +359,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 				pass
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
 			self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
-		if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]:
-			previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
+		if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != previous_DLT:
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
 			if previous_DLT == "after":
 				if gui.messageBox(

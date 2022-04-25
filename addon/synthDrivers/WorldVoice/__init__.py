@@ -44,7 +44,7 @@ config.conf.spec["WorldVoice"] = {
 		"DetectLanguageTiming": "string(default=after)",
 		"KeepMainLocaleVoiceConsistent": "boolean(default=true)",
 		"KeepMainLocaleParameterConsistent": "boolean(default=false)",
-		"KeepMainLocaleEngineConsistent": "boolean(default=false)",
+		"KeepMainLocaleEngineConsistent": "boolean(default=true)",
 	},
 	"voices": {
 		"__many__": {
