@@ -16,9 +16,9 @@ workspaceAisound_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-
 lastSpeakInstance = None
 synthRef = None
 
-aisound_callback_t=CFUNCTYPE(None,c_int,c_void_p)
-SPEECH_BEGIN=0
-SPEECH_END=1
+aisound_callback_t = CFUNCTYPE(None,c_int,c_void_p)
+SPEECH_BEGIN = 0
+SPEECH_END = 1
 
 class FunctionHooker(object):
 
@@ -99,7 +99,7 @@ def callback(type,cbData):
 		if aisoundQueue:
 			try:
 				aisoundQueue.task_done()
-			except:
+			except BaseException:
 				pass
 		if voiceLock:
 			try:

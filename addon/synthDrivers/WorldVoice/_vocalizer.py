@@ -107,15 +107,12 @@ def callback(instance, userData, message):
 			player.idle()
 			onIndexReached(None)
 			speakingInstance = None
-	except:
+	except BaseException:
 		log.error("Vocalizer callback", exc_info=True)
 	return NUAN_OK
 
 
 _basePath = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "VE")
-# if not os.path.isdir(os.path.join(_basePath, 'VE', 'common')):
-	# _basePath = os.path.dirname(__file__)
-
 _tuningDataDir = os.path.join(_basePath, "tuningData")
 msvcrDll = None
 veDll = None

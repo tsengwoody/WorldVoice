@@ -1,30 +1,29 @@
 import os
-import sys
 
 import wx
 
 import addonHandler
-import config
 import globalPluginHandler
 import globalVars
 import gui
-from scriptHandler import script, getLastScriptRepeatCount
+from scriptHandler import script
 import speech
 try:
 	from synthDriverHandler import getSynth
-except:
+except BaseException:
 	from speech import getSynth
 import ui
 
 from .speechSettingsDialog import SpeechSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
-from synthDrivers.WorldVoice import VEVoice, Sapi5Voice, AisoundVoice
+from synthDrivers.WorldVoice.voiceManager import VEVoice, AisoundVoice
 from synthDrivers.WorldVoice import WVStart, WVEnd
 from synthDrivers.WorldVoice.hook import Hook
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
+
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
@@ -37,7 +36,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				speech.speech.getTextInfoSpeech,
 				speech.speech.SpeakTextInfoState,
 			)
-		except:
+		except BaseException:
 			pass
 
 		if globalVars.appArgs.secure:
@@ -67,15 +66,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Speech Settings"), _("Speech Settings."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSettingsDialog, item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Unicode Settings"), _("Unicode Settings."))
-		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.popup_SpeechSymbolsDialog, item)
+		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSymbolsDialog, item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
-		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onFileImport, item)
+		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onFileImport, item)
 		if not VEVoice.install():
 			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("VE Core Install"), _("Install VE Core."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onVECoreInstall, item)
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onVECoreInstall, item)
 		if not AisoundVoice.install():
 			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU , self.onAisoundCoreInstall, item)
+			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onAisoundCoreInstall, item)
 
 		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice"), self.submenu_vocalizer)
 
@@ -83,7 +82,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		if self.submenu_item is not None:
 			try:
 				gui.mainFrame.sysTrayIcon.menu.Remove(self.submenu_item)
-			except AttributeError: # We can get this somehow from wx python when NVDA is shuttingdown, just ignore
+			except AttributeError:  # We can get this somehow from wx python when NVDA is shuttingdown, just ignore
 				pass
 			self.submenu_item.Destroy()
 
@@ -98,19 +97,19 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				with ZipFile(path, 'r') as core_file:
 					core_file.testzip()
 					core_file.extractall(import_path)
-			except:
+			except BaseException:
 				gui.messageBox(
 					_("Import fail"),
-					_("Import File"),wx.OK
+					_("Import File"), wx.OK
 				)
 			else:
 				if gui.messageBox(
 					_("For the new file to import, NVDA must be restarted. Are you want to restart NVDA now ?"),
-					_("Import File"),wx.OK|wx.CANCEL|wx.ICON_WARNING
-				)==wx.OK:
+					_("Import File"), wx.OK | wx.CANCEL | wx.ICON_WARNING
+				) == wx.OK:
 					import core
 					import queueHandler
-					queueHandler.queueFunction(queueHandler.eventQueue,core.restart)
+					queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 	def onFileImport(self, event):
 		self.fileImport(workspace_path)

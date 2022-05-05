@@ -5,8 +5,9 @@ import config
 from logHandler import log
 try:
 	from synthDriverHandler import getSynth
-except:
+except BaseException:
 	from speech import getSynth
+
 
 class TaskManager:
 	def __init__(self, lock, table):
@@ -43,8 +44,8 @@ class TaskManager:
 			if isinstance(value, config.AggregatedSection):
 				try:
 					row = list(filter(lambda row: row['name'] == value['voice'], self._table))[0]
-				except:
-					result = True
+				except BaseException:
+					self._block = True
 					break
 				if engine is None:
 					engine = row['engine']
@@ -62,7 +63,7 @@ class TaskManager:
 
 	def reset_block(self):
 		self._block = None
-		log.info("reset task block to {}".format(self.block))
+		log.debug("WorldVoice reset task block to {}".format(self.block))
 
 	def add_listen_queue(self, key, queue):
 		self.listenQueue[key] = queue
@@ -77,24 +78,24 @@ class TaskManager:
 		try:
 			while True:
 				self.dispatchQueue.get_nowait()
-		except:
+		except BaseException:
 			pass
 		try:
 			while True:
 				self.dispatchQueue.task_done()
-		except:
+		except BaseException:
 			pass
 
 		for q in self.listenQueue.values():
 			try:
 				while True:
 					q.get_nowait()
-			except:
+			except BaseException:
 				pass
 			"""try:
 				while True:
 					q.task_done()
-			except:
+			except BaseException:
 				pass"""
 
 		try:
@@ -107,7 +108,7 @@ class TaskManager:
 			while True:
 				self.dispatchQueue.get_nowait()
 				self.dispatchQueue.task_done()
-		except:
+		except BaseException:
 			pass
 
 		for q in self.listenQueue.values():
@@ -115,7 +116,7 @@ class TaskManager:
 				while True:
 					q.get_nowait()
 					q.task_done()
-			except:
+			except BaseException:
 				pass
 
 	def cancel(self):

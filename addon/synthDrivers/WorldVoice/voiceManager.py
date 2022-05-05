@@ -1,27 +1,21 @@
 from collections import OrderedDict, defaultdict
-from functools import reduce
-import itertools
 import math
-import operator
 import os
 import threading
-import weakref
 
 from autoSettingsUtils.utils import paramToPercent, percentToParam
 import comtypes.client
 from comtypes import COMError
 import config
-from enum import IntEnum
 import globalVars
 import languageHandler
 import locale
 from logHandler import log
-import nvwave
 from synthDriverHandler import VoiceInfo, synthIndexReached, synthDoneSpeaking
 
 try:
 	from synthDriverHandler import getSynth
-except:
+except BaseException:
 	from speech import getSynth
 
 from . import _languages
@@ -41,19 +35,21 @@ VOICE_PARAMETERS = [
 
 taskManager = None
 
+
 def joinObjectArray(srcArr1, srcArr2, key):
 	mergeArr = []
 	for srcObj2 in srcArr2:
 		def exist(existObj):
-			mergeObj = {};
+			mergeObj = {}
 			if len(existObj) > 0:
 				mergeObj = {**existObj[0], **srcObj2}
-				mergeArr.append(mergeObj);
+				mergeArr.append(mergeObj)
 		exist(
 			list(filter(lambda srcObj1: srcObj1[key] == srcObj2[key], srcArr1))
 		)
 
-	return mergeArr;
+	return mergeArr
+
 
 def groupByField(arrSrc, field, applyKey, applyValue):
 	temp = {}
@@ -63,6 +59,7 @@ def groupByField(arrSrc, field, applyKey, applyValue):
 		temp[key].append(applyValue(item))
 
 	return temp
+
 
 class Voice(object):
 	speaking = threading.Lock()
@@ -174,7 +171,7 @@ class Voice(object):
 				if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
 					try:
 						value = config.conf["speech"][getSynth().name].get(p, None)
-					except:
+					except BaseException:
 						value = config.conf["WorldVoice"]['voices'][voiceName].get(p, None)
 				else:
 					value = config.conf["WorldVoice"]['voices'][voiceName].get(p, None)
@@ -216,6 +213,7 @@ class Voice(object):
 
 class VEVoice(Voice):
 	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "VE")
+
 	def __init__(self, name, language=None):
 		self.engine = "VE"
 		self.tts, self.name = _vocalizer.open(name) if name != "default" else _vocalizer.open()
@@ -223,7 +221,7 @@ class VEVoice(Voice):
 		if not language:
 			language = "unknown"
 			languages = _vocalizer.getLanguageList()
-			languageNamesToLocales = {l.szLanguage.decode() : _languages.getLocaleNameFromTLW(l.szLanguageTLW.decode()) for l in languages}
+			languageNamesToLocales = {l.szLanguage.decode(): _languages.getLocaleNameFromTLW(l.szLanguageTLW.decode()) for l in languages}
 			for l in languages:
 				voices = _vocalizer.getVoiceList(l.szLanguage)
 				for voice in voices:
@@ -239,7 +237,7 @@ class VEVoice(Voice):
 	def rate(self):
 		rate = self._rate = _vocalizer.getParameter(self.tts, _vocalizer.VE_PARAM_SPEECHRATE, type_=int)
 		norm = rate / 100.0
-		factor = 25 if norm  >= 1 else 50
+		factor = 25 if norm >= 1 else 50
 		return int(round(50 + factor * math.log(norm, 2)))
 
 	@rate.setter
@@ -278,7 +276,7 @@ class VEVoice(Voice):
 	@property
 	def variants(self):
 		language = _vocalizer.getParameter(self.tts, _vocalizer.VE_PARAM_LANGUAGE, type_=str)
-		self._variants = dbs = _vocalizer.getSpeechDBList(language, self.name)
+		self._variants = _vocalizer.getSpeechDBList(language, self.name)
 		return self._variants
 
 	@property
@@ -310,10 +308,10 @@ class VEVoice(Voice):
 	def breaks(self, time):
 		maxTime = 6553 if self.variant == "bet2" else 65535
 		breakTime = max(1, min(time, maxTime))
+
 		def _breaks():
 			_vocalizer.processBreak(self.tts, breakTime)
 		taskManager.add_dispatch_task((self, _breaks),)
-
 
 	def stop(self):
 		_vocalizer.stop()
@@ -336,7 +334,7 @@ class VEVoice(Voice):
 		try:
 			with _vocalizer.preOpenVocalizer() as check:
 				return check
-		except:
+		except BaseException:
 			return False
 
 	@classmethod
@@ -379,7 +377,7 @@ class VEVoice(Voice):
 			return result
 
 		languages = _vocalizer.getLanguageList()
-		languageNamesToLocales = {l.szLanguage.decode() : _languages.getLocaleNameFromTLW(l.szLanguageTLW.decode()) for l in languages}
+		languageNamesToLocales = {l.szLanguage.decode(): _languages.getLocaleNameFromTLW(l.szLanguageTLW.decode()) for l in languages}
 		for language in languages:
 			voices = _vocalizer.getVoiceList(language.szLanguage)
 			for voice in voices:
@@ -409,9 +407,9 @@ class Sapi5Voice(Voice):
 		self.name = self.tts.voice.getattribute('name')
 		if not language:
 			try:
-				language = locale.windows_locale[int(self.tts.voice.getattribute('language').split(';')[0],16)]
+				language = locale.windows_locale[int(self.tts.voice.getattribute('language').split(';')[0], 16)]
 			except KeyError:
-				language=None
+				language = None
 		self.language = language
 
 		super().__init__()
@@ -419,7 +417,7 @@ class Sapi5Voice(Voice):
 	@property
 	def rate(self):
 		self._rate = self.tts.Rate
-		return (self._rate*5) + 50
+		return (self._rate * 5) + 50
 
 	@rate.setter
 	def rate(self, percent):
@@ -428,7 +426,7 @@ class Sapi5Voice(Voice):
 
 	@property
 	def pitch(self):
-		return (self._pitch + 25)*2
+		return (self._pitch + 25) * 2
 
 	@pitch.setter
 	def pitch(self, percent):
@@ -486,7 +484,7 @@ class Sapi5Voice(Voice):
 			# Therefore instruct the underlying audio interface to pause instead.
 			if self.ttsAudioStream:
 				self.ttsAudioStream.setState(SPAudioState.PAUSE, 0)
-		except:
+		except BaseException:
 			pass
 
 	def resume(self):
@@ -496,7 +494,7 @@ class Sapi5Voice(Voice):
 			# Therefore instruct the underlying audio interface to pause instead.
 			if self.ttsAudioStream:
 				self.ttsAudioStream.setState(SPAudioState.RUN, 0)
-		except:
+		except BaseException:
 			pass
 
 	def close(self):
@@ -516,7 +514,7 @@ class Sapi5Voice(Voice):
 	def engineOn(cls, lock=None, taskManager=None):
 		try:
 			_sapi5.initialize(getSynth)
-		except:
+		except BaseException:
 			raise
 
 		if lock:
@@ -549,7 +547,7 @@ class Sapi5Voice(Voice):
 				try:
 					language = locale.windows_locale[int(voice.getattribute('language').split(';')[0], 16)]
 				except KeyError:
-					language="unknown"
+					language = "unknown"
 
 				langDescription = languageHandler.getLanguageDescription(language)
 				if not langDescription:
@@ -574,6 +572,7 @@ class Sapi5Voice(Voice):
 
 class AisoundVoice(Voice):
 	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
+
 	def __init__(self, name, language=None):
 		self.engine = "aisound"
 		self.aisound = _aisound.Aisound()
@@ -593,7 +592,7 @@ class AisoundVoice(Voice):
 	@inflection.setter
 	def inflection(self, value):
 		param = self._inflection = percentToParam(value, 0, 2)
-		self.aisound.Configure("style", "%d"%param)
+		self.aisound.Configure("style", "%d" % param)
 
 	def active(self):
 		if _aisound.lastSpeakInstance == self.aisound:
@@ -618,8 +617,8 @@ class AisoundVoice(Voice):
 
 	@rate.setter
 	def rate(self, percent):
-		param = self._rate = percentToParam(percent,-32768,32767)
-		self.aisound.Configure("speed", "%d"%param)
+		param = self._rate = percentToParam(percent, -32768, 32767)
+		self.aisound.Configure("speed", "%d" % param)
 
 	@property
 	def pitch(self):
@@ -627,8 +626,8 @@ class AisoundVoice(Voice):
 
 	@pitch.setter
 	def pitch(self, percent):
-		param = self._pitch = percentToParam(percent,-32768,32767)
-		self.aisound.Configure("pitch", "%d"%param)
+		param = self._pitch = percentToParam(percent, -32768, 32767)
+		self.aisound.Configure("pitch", "%d" % param)
 
 	@property
 	def volume(self):
@@ -636,8 +635,8 @@ class AisoundVoice(Voice):
 
 	@volume.setter
 	def volume(self, percent):
-		param = self._volume = percentToParam(percent,-32768,32767)
-		self.aisound.Configure("volume","%d"%param)
+		param = self._volume = percentToParam(percent, -32768, 32767)
+		self.aisound.Configure("volume", "%d" % param)
 
 	def speak(self, text):
 		def _speak():
@@ -674,7 +673,7 @@ class AisoundVoice(Voice):
 	def engineOn(cls, lock=None, taskManager=None):
 		try:
 			_aisound.initialize(getSynth)
-		except:
+		except BaseException:
 			raise
 
 		if lock:
@@ -784,7 +783,6 @@ class VoiceManager(object):
 		taskManager = TaskManager(lock=lock, table=table)
 		self.taskManager = taskManager
 
-
 		self._setVoiceDatas()
 		self.engine = 'ALL'
 
@@ -803,11 +801,10 @@ class VoiceManager(object):
 		for item in self.voice_class.values():
 			try:
 				item.engineOff()
-			except:
+			except BaseException:
 				pass
 
 		global taskManager
-		del taskManager
 		taskManager = None
 
 	@property
@@ -844,7 +841,7 @@ class VoiceManager(object):
 		return instance
 
 	def _createVoiceInstance(self, voiceName):
-		item = list(filter(lambda item: item["name"]==voiceName, self.table))[0]
+		item = list(filter(lambda item: item["name"] == voiceName, self.table))[0]
 		voiceInstance = self.voice_class[item["engine"]](name=item["name"], language=item["language"])
 		voiceInstance.loadParameter()
 		voiceInstance.waitfactor = self.waitfactor
@@ -870,20 +867,20 @@ class VoiceManager(object):
 			else:
 				temp[key] = config.conf["WorldVoice"]["autoLanguageSwitching"][key]
 
-		for locale, data in config.conf["WorldVoice"]['autoLanguageSwitching'].items():
+		for localelo, data in config.conf["WorldVoice"]['autoLanguageSwitching'].items():
 			if isinstance(data, config.AggregatedSection):
-				if (locale not in self.localeToVoicesMapEngineFilter) or ('voice' in data and data['voice'] not in self.localeToVoicesMapEngineFilter[locale]):
+				if (localelo not in self.localeToVoicesMapEngineFilter) or ('voice' in data and data['voice'] not in self.localeToVoicesMapEngineFilter[localelo]):
 					try:
-						del temp[locale]
-					except BaseException as e:
+						del temp[localelo]
+					except BaseException:
 						pass
 					try:
 						log.info("locale {locale} voice {voice} not available on {engine} engine".format(
-							locale=locale,
+							locale=localelo,
 							voice=data['voice'],
 							engine=self.engine,
 						))
-					except:
+					except BaseException:
 						pass
 
 		config.conf["WorldVoice"]["autoLanguageSwitching"] = temp
@@ -894,10 +891,11 @@ class VoiceManager(object):
 			instance.loadParameter()
 
 	def cancel(self):
+		taskManager.cancel()
+		self._defaultVoiceInstance.stop()
 		if self.taskManager and not self.taskManager.block:
 			for voiceName, instance in self._instanceCache.items():
 				instance.stop()
-		taskManager.cancel()
 
 	def _setVoiceDatas(self):
 		self.table = []
@@ -986,7 +984,7 @@ class VoiceManager(object):
 		return {locale: self._getLocaleReadableName(locale) for locale in self._localesToVoicesEngineFilter}
 
 	def getVoiceNameForLanguage(self, language):
-		configured =  self._getConfiguredVoiceNameForLanguage(language)
+		configured = self._getConfiguredVoiceNameForLanguage(language)
 		if configured is not None and configured in self.voiceInfos:
 			return configured
 		voices = self._localesToVoicesEngineFilter.get(language, None)
@@ -1009,7 +1007,7 @@ class VoiceManager(object):
 			try:
 				voice = config.conf["WorldVoice"]['autoLanguageSwitching'][language]['voice']
 				return voice
-			except:
+			except BaseException:
 				pass
 		return None
 

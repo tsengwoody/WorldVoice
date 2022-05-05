@@ -2,11 +2,11 @@ import ctypes
 import threading
 
 from logHandler import log
-import tones
 from winUser import WM_QUIT, VK_SHIFT, VK_LSHIFT, VK_RSHIFT, VK_VOLUME_DOWN, VK_VOLUME_UP
 
 from . import keyboard_hook
 from . import voiceManager
+
 
 class Hook:
 	def __init__(self):

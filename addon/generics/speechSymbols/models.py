@@ -17,8 +17,8 @@ SYMMOD_CONTEXT = 0
 SYMMOD_FORCE = 1
 
 SPEECH_SYMBOL_MODE_LABELS = {
-		SYMMOD_CONTEXT: _("context"),
-		SYMMOD_FORCE: _("force"),
+	SYMMOD_CONTEXT: _("context"),
+	SYMMOD_FORCE: _("force"),
 }
 
 
@@ -171,10 +171,14 @@ class SpeechSymbols(object):
 				self.IDENTIFIER_ESCAPES_OUTPUT[identifier[0]], identifier[1:])
 		except KeyError:
 			pass
-		fields = [identifier,
+		fields = [
+			identifier,
 			self._saveSymbolField(symbol.replacement),
 			self._saveSymbolField(symbol.language),
-			self._saveSymbolField(symbol.mode, self.MODE_OUTPUT)
+			self._saveSymbolField(
+				symbol.mode,
+				self.MODE_OUTPUT
+			)
 		]
 		# Strip optional fields with default values.
 		for field in reversed(fields[2:]):

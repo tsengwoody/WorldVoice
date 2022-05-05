@@ -1,17 +1,16 @@
 import copy
-import os
 import wx
 
 import addonHandler
 import core
 import globalVars
 import gui
-from gui import nvdaControls
-from gui import guiHelper
+from gui import guiHelper, nvdaControls
 from gui.settingsDialogs import SettingsDialog
+from logHandler import log
 import queueHandler
 
-from .contextHelp import *
+from .contextHelp import ContextHelpMixin
 from .models import SpeechSymbols, SpeechSymbol, SPEECH_SYMBOL_LANGUAGE_LABELS, SPEECH_SYMBOL_MODE_LABELS
 
 addonHandler.initTranslation()
@@ -29,7 +28,7 @@ class AddSymbolDialog(
 	def __init__(self, parent):
 		# Translators: This is the label for the add symbol dialog.
 		super().__init__(parent, title=_("Add Symbol"))
-		mainSizer=wx.BoxSizer(wx.VERTICAL)
+		mainSizer = wx.BoxSizer(wx.VERTICAL)
 		sHelper = guiHelper.BoxSizerHelper(self, orientation=wx.VERTICAL)
 
 		# Translators: This is the label for the edit field in the add symbol dialog.
@@ -53,7 +52,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 		cls._instance = obj
 		return obj
 
-	def __init__(self,parent):
+	def __init__(self, parent):
 		# Translators: This is the label for the unicode setting dialog.
 		self.speechSymbols = None
 		self.title = _("Unicode Setting")
@@ -73,7 +72,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 		# Translators: The label of a text field to search for symbols in the speech symbols dialog.
 		filterText = pgettext("speechSymbols", "&Filter by:")
 		self.filterEdit = sHelper.addLabeledControl(
-			labelText = filterText,
+			labelText=filterText,
 			wxCtrlClass=wx.TextCtrl,
 			size=(self.scaleSize(310), -1),
 		)
@@ -115,7 +114,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 		# generally the advice on the wx documentation is: "In general, it is recommended to skip all non-command events
 		# to allow the default handling to take place. The command events are, however, normally not skipped as usually
 		# a single command such as a button click or menu item selection must only be processed by one handler."
-		def skipEventAndCall(handler):	
+		def skipEventAndCall(handler):
 			def wrapWithEventSkip(event):
 				if event:
 					event.Skip()
@@ -246,13 +245,16 @@ class SpeechSymbolsDialog(SettingsDialog):
 			if not identifier:
 				return
 		# Clean the filter, so we can select the new entry.
-		self.filterEdit.Value=""
+		self.filterEdit.Value = ""
 		self.filter()
 		for index, symbol in enumerate(self.symbols):
 			if identifier == symbol.identifier:
 				# Translators: An error reported in the Symbol Pronunciation dialog when adding a symbol that is already present.
-				gui.messageBox(_('Symbol "%s" is already present.') % identifier,
-					_("Error"), wx.OK | wx.ICON_ERROR)
+				gui.messageBox(
+					_('Symbol "%s" is already present.') % identifier,
+					_("Error"),
+					wx.OK | wx.ICON_ERROR
+				)
 				self.symbolsList.Select(index)
 				self.symbolsList.Focus(index)
 				self.symbolsList.SetFocus()
@@ -319,9 +321,9 @@ class SpeechSymbolsDialog(SettingsDialog):
 			# Translators: The message displayed
 			_("For the edited unicode rule to apply, NVDA must be restarted. Do you want to restart NVDA now?"),
 			# Translators: The title of the dialog
-			_("unicode rule edited"), wx.OK|wx.CANCEL|wx.ICON_WARNING, self
-		)==wx.OK:
-			queueHandler.queueFunction(queueHandler.eventQueue,core.restart)
+			_("unicode rule edited"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
+		) == wx.OK:
+			queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 		self.__class__._instance = None
 		super(SpeechSymbolsDialog, self).onOk(evt)
@@ -329,7 +331,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 	def _refreshVisibleItems(self):
 		count = self.symbolsList.GetCountPerPage()
 		first = self.symbolsList.GetTopItem()
-		self.symbolsList.RefreshItems(first, first+count)
+		self.symbolsList.RefreshItems(first, first + count)
 
 	def onFilterEditTextChange(self, evt):
 		self.filter(self.filterEdit.Value)

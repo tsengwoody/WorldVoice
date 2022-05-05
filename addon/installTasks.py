@@ -2,8 +2,7 @@ import os
 from zipfile import ZipFile
 
 import globalVars
-import gui
-import wx
+
 
 def onInstall():
 	for path, import_path in [
@@ -16,7 +15,7 @@ def onInstall():
 				core_file.testzip()
 				core_file.extractall(import_path)
 			os.remove(path)
-		except:
+		except BaseException:
 			pass
 		else:
 			pass

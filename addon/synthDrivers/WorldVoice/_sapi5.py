@@ -1,13 +1,14 @@
 from enum import IntEnum
 import queue
 import threading
-import weakref
 
 import comtypes.client
+from comtypes import COMError
 import config
 from logHandler import log
 from synthDriverHandler import synthIndexReached, synthDoneSpeaking
 import nvwave
+
 
 class Sapi5Error(RuntimeError):
 	def __init__(self, code, msg):
@@ -53,7 +54,7 @@ class SapiSink(object):
 		q = sapi5Queue
 		try:
 			q.task_done()
-		except:
+		except BaseException:
 			pass
 
 
@@ -105,7 +106,7 @@ class Sapi5Thread(threading.Thread):
 				q = sapi5Queue
 				try:
 					q.task_done()
-				except:
+				except BaseException:
 					pass
 				# log.error("Error running function from queue", exc_info=True)
 
@@ -113,6 +114,7 @@ class Sapi5Thread(threading.Thread):
 synthRef = None
 sapi5Queue = None
 sapi5Thread = None
+
 
 def initialize(getSynth):
 	global synthRef
@@ -133,9 +135,8 @@ def terminate():
 	if sapi5Thread:
 		sapi5Queue.put((None, None),)
 		sapi5Thread.join()
-	del sapi5Queue
-	del sapi5Thread
 	sapi5Thread, sapi5Queue = None, None
+
 
 def open(name=None):
 	tts = comtypes.client.CreateObject("SAPI.SPVoice")
@@ -151,20 +152,22 @@ def open(name=None):
 		raise Sapi5Error(500, "SAPI5 voice {} not found".format(name))
 
 	tts.voice = voice
-	outputDeviceID=nvwave.outputDeviceNameToID(config.conf["speech"]["outputDevice"], True)
-	if outputDeviceID>=0:
+	outputDeviceID = nvwave.outputDeviceNameToID(config.conf["speech"]["outputDevice"], True)
+	if outputDeviceID >= 0:
 		tts.audioOutput = tts.getAudioOutputs()[outputDeviceID]
 	from comInterfaces.SpeechLib import ISpAudio
 	try:
 		ttsAudioStream = tts.audioOutputStream.QueryInterface(ISpAudio)
 	except COMError:
-		log.debugWarning("SAPI5 voice does not support ISPAudio") 
-		ttsAudioStream=None
+		log.debugWarning("SAPI5 voice does not support ISPAudio")
+		ttsAudioStream = None
 
 	return tts, ttsAudioStream
 
+
 def processText2Speech(instance, text):
 	sapi5Queue.put((instance, text),)
+
 
 def stop():
 	try:
@@ -174,16 +177,19 @@ def stop():
 	except queue.Empty:
 		pass
 
+
 def pause():
 	global speakingInstance
-	if speakingInstance  is not None:
+	if speakingInstance is not None:
 		instance = speakingInstance
 		instance.pause()
 
+
 def resume():
 	global speakingInstance
-	if speakingInstance  is not None:
+	if speakingInstance is not None:
 		instance = speakingInstance
 		instance.resume()
+
 
 voiceLock = None

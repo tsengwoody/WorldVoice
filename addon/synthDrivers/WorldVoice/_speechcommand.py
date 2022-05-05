@@ -1,9 +1,10 @@
-from typing import Optional, Callable
+from typing import Optional
 
 try:
 	from speech import SynthCommand, SynthParamCommand
-except:
+except BaseException:
 	from speech.commands import SynthCommand, SynthParamCommand
+
 
 class WVLangChangeCommand(SynthParamCommand):
 	"""A command to switch the language within speech."""
@@ -16,7 +17,8 @@ class WVLangChangeCommand(SynthParamCommand):
 		self.isDefault = not lang
 
 	def __repr__(self):
-		return "WVLangChangeCommand (%r)"%self.lang
+		return "WVLangChangeCommand (%r)" % self.lang
+
 
 class SplitCommand(SynthCommand):
 	"""Insert a split command when text exceed max length.
