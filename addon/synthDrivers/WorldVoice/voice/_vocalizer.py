@@ -1,3 +1,4 @@
+import time
 from ctypes import *
 import os
 import contextlib
@@ -52,14 +53,17 @@ class BgThread(threading.Thread):
 					speakingInstance = None
 				except Exception:
 					log.error("Error running function from queue", exc_info=True)
+
+			q = self._bgQueue
 			try:
-				self._bgQueue.task_done()
+				q.task_done()
 			except Exception:
 				pass
-			try:
-				voiceLock.release()
-			except RuntimeError:
-				pass
+			if voiceLock:
+				try:
+					voiceLock.release()
+				except RuntimeError:
+					pass
 
 @VE_CBOUTNOTIFY
 def callback(instance, userData, message):
@@ -299,6 +303,58 @@ def processText2Speech(instance, text):
 
 def processBreak(instance, breakTime):
 	bgQueue.put((instance, breakTime),)
+
+def speakBlock(instance, arg):
+	global speakingInstance, feedBuf, voiceLock
+
+	breakCommand = False
+	if isinstance(arg, int):
+		time.sleep(arg/1000)
+		breakCommand = True
+	if not instance:
+		return
+	if not breakCommand:
+		text = arg
+		""" Sends text to be spoken."""
+		inText = VE_INTEXT()
+		inText.eTextFormat = 0 # this is the only supported format...
+		# Text length in bytes (utf16 has 2).
+		inText.cntTextLength = c_size_t(len(text) * 2)
+		inText.szInText = cast(c_wchar_p(text), c_void_p)
+		try:
+			speakingInstance = instance
+			feedBuf = BytesIO()
+			veDll.ve_ttsProcessText2Speech(instance, byref(inText))
+			# We use the callback to stop speech but if this returns make sure isSpeaking is False
+			# Sometimes the synth don't deliver all messages
+			speakingInstance = None
+		except Exception as e:
+			log.error("Error running function from queue", exc_info=True)
+
+	if voiceLock:
+		try:
+			voiceLock.release()
+		except RuntimeError:
+			pass
+
+def stopBlock():
+	""" Stops speaking of some text. """
+	global speakingInstance
+	if speakingInstance is not None:
+		instance = speakingInstance
+		try:
+			veDll.ve_ttsStop(instance)
+		except VeError as e:
+			# Sometimes we may stop the synth when it is already stoped due to lake of proper synchronization.
+			# As this is a rare case we just catch the expception for wrong state
+			# that is returned by vocalizer.
+			# This avoids  the overhead of synchronization but should be further investigated.
+			if e.code == NUAN_E_WRONG_STATE:
+				log.debug("Wrong state when stopping vocalizer")
+			else:
+				raise
+		finally:
+			player.stop()
 
 def stop():
 	""" Stops speaking of some text. """

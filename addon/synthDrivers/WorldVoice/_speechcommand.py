@@ -1,9 +1,6 @@
 from typing import Optional
 
-try:
-	from speech import SynthCommand, SynthParamCommand
-except BaseException:
-	from speech.commands import SynthCommand, SynthParamCommand
+from speech.commands import SynthCommand, SynthParamCommand
 
 
 class WVLangChangeCommand(SynthParamCommand):

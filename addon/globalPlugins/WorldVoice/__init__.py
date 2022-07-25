@@ -8,13 +8,10 @@ import globalVars
 import gui
 from scriptHandler import script
 import speech
-try:
-	from synthDriverHandler import getSynth
-except BaseException:
-	from speech import getSynth
+from synthDriverHandler import getSynth
 import ui
 
-from .speechSettingsDialog import SpeechSettingsDialog
+from .speechSettingsDialog import WorldVoiceSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
 from synthDrivers.WorldVoice.voiceManager import VEVoice, AisoundVoice
 from synthDrivers.WorldVoice import WVStart, WVEnd
@@ -28,16 +25,14 @@ workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspa
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
 		super().__init__()
-		try:
-			from speech.sayAll import initialize as sayAllInitialize
-			sayAllInitialize(
-				speech.speech.speak,
-				speech.speech.speakObject,
-				speech.speech.getTextInfoSpeech,
-				speech.speech.SpeakTextInfoState,
-			)
-		except BaseException:
-			pass
+
+		from speech.sayAll import initialize as sayAllInitialize
+		sayAllInitialize(
+			speech.speech.speak,
+			speech.speech.speakObject,
+			speech.speech.getTextInfoSpeech,
+			speech.speech.SpeakTextInfoState,
+		)
 
 		if globalVars.appArgs.secure:
 			return
@@ -121,10 +116,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.fileImport(AisoundVoice.workspace)
 
 	def popup_SpeechSettingsDialog(self, event):
-		if SpeechSettingsDialog._instance is None:
-			gui.mainFrame._popupSettingsDialog(SpeechSettingsDialog)
-		else:
-			ui.message(_("SpeechSettingsDialog have already been opened"))
+		wx.CallAfter(gui.mainFrame._popupSettingsDialog, WorldVoiceSettingsDialog)
 
 	def popup_SpeechSymbolsDialog(self, event):
 		if SpeechSymbolsDialog._instance is None:
@@ -145,3 +137,27 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_popup_SpeechSymbolsDialog(self, gesture):
 		self.popup_SpeechSymbolsDialog(None)
+
+	@script(
+		description=_("test"),
+		category=ADDON_SUMMARY,
+		gesture="kb:NVDA+alt+t",
+	)
+	def script_test(self, gesture):
+		from synthDrivers.WorldVoice.voice.RHVoice import RHVoice
+
+		taskManager = getSynth()._voiceManager.taskManager
+
+		rs = RHVoice.voices()
+
+		r = rs[0]
+		rhVoice = RHVoice(id=r['id'], name=r['name'], language=r['language'], taskManager=taskManager)
+		rhVoice.speak(["WorldVoice is good!"])
+
+		r = rs[1]
+		rhVoice = RHVoice(id=r['id'], name=r['name'], language=r['language'], taskManager=taskManager)
+		rhVoice.speak(["WorldVoice is good!"])
+
+		r = rs[2]
+		rhVoice = RHVoice(id=r['id'], name=r['name'], language=r['language'], taskManager=taskManager)
+		rhVoice.speak(["WorldVoice is good!"])

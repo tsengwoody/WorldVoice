@@ -1,6 +1,4 @@
 from enum import IntEnum
-import queue
-import threading
 
 import comtypes.client
 from comtypes import COMError
@@ -45,18 +43,11 @@ class SapiSink(object):
 		synthDoneSpeaking.notify(synth=synth)
 
 		global voiceLock
-		try:
-			voiceLock.release()
-		except RuntimeError:
-			pass
-
-		global sapi5Queue
-		q = sapi5Queue
-		try:
-			q.task_done()
-		except BaseException:
-			pass
-
+		if voiceLock:
+			try:
+				voiceLock.release()
+			except RuntimeError:
+				pass
 
 class SPAudioState(IntEnum):
 	# https://docs.microsoft.com/en-us/previous-versions/windows/desktop/ms720596(v=vs.85)
@@ -80,62 +71,17 @@ class SpeechVoiceEvents(IntEnum):
 	Bookmark = 16
 
 
-class Sapi5Thread(threading.Thread):
-	def __init__(self, sapi5Queue):
-		super().__init__()
-		self.sapi5Queue = sapi5Queue
-		self.setDaemon(True)
-		self.start()
-
-	def run(self):
-		while True:
-			voiceInstance, text = self.sapi5Queue.get()
-			if not voiceInstance:
-				break
-			try:
-				# flags = SpeechVoiceSpeakFlags.IsXML
-				flags = SpeechVoiceSpeakFlags.IsXML | SpeechVoiceSpeakFlags.Async
-				voiceInstance.tts.Speak(text, flags)
-			except Exception:
-				global voiceLock
-				try:
-					voiceLock.release()
-				except RuntimeError:
-					pass
-				global sapi5Queue
-				q = sapi5Queue
-				try:
-					q.task_done()
-				except BaseException:
-					pass
-				# log.error("Error running function from queue", exc_info=True)
-
-
 synthRef = None
-sapi5Queue = None
-sapi5Thread = None
 
 
 def initialize(getSynth):
 	global synthRef
 	synthRef = getSynth
 
-	global sapi5Thread, sapi5Queue
-	sapi5Queue = queue.Queue()
-	sapi5Thread = Sapi5Thread(
-		sapi5Queue=sapi5Queue
-	)
-
 
 def terminate():
 	global synthRef
 	synthRef = None
-
-	global sapi5Thread, sapi5Queue
-	if sapi5Thread:
-		sapi5Queue.put((None, None),)
-		sapi5Thread.join()
-	sapi5Thread, sapi5Queue = None, None
 
 
 def open(name=None):
@@ -165,17 +111,21 @@ def open(name=None):
 	return tts, ttsAudioStream
 
 
-def processText2Speech(instance, text):
-	sapi5Queue.put((instance, text),)
-
-
-def stop():
+def speakBlock(instance, arg):
+	voiceInstance = instance
+	text = arg
+	if not voiceInstance:
+		return
 	try:
-		while True:
-			sapi5Queue.get_nowait()
-			sapi5Queue.task_done()
-	except queue.Empty:
-		pass
+		# flags = SpeechVoiceSpeakFlags.IsXML
+		flags = SpeechVoiceSpeakFlags.IsXML | SpeechVoiceSpeakFlags.Async
+		voiceInstance.tts.Speak(text, flags)
+	except Exception:
+		global voiceLock
+		try:
+			voiceLock.release()
+		except RuntimeError:
+			pass
 
 
 def pause():

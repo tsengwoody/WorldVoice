@@ -1,12 +1,10 @@
 import queue
 import threading
+import time
 
 import config
 from logHandler import log
-try:
-	from synthDriverHandler import getSynth
-except BaseException:
-	from speech import getSynth
+from synthDriverHandler import getSynth
 
 
 class TaskManager:
@@ -18,9 +16,10 @@ class TaskManager:
 		self.listenQueue = {}
 		self.speakingVoiceInstance = None
 
-		self.reset_block()
+		self.reset_SAPI5()
+
 		from synthDrivers.WorldVoice import WVConfigure
-		WVConfigure.register(self.reset_block)
+		WVConfigure.register(self.reset_SAPI5)
 
 		self.dispatch_thread = None
 		self.dispatch_start()
@@ -29,47 +28,33 @@ class TaskManager:
 		self.dispatch_end()
 
 	@property
-	def block(self):
-		if isinstance(self._block, bool):
-			return self._block
-		self._block = False
+	def SAPI5(self):
+		if isinstance(self._SAPI5, bool):
+			return self._SAPI5
+		self._SAPI5 = False
 		voice = getSynth().voice if getSynth() else None
-		if not voice:
-			engine = None
-		else:
+		if voice:
 			row = list(filter(lambda row: row['name'] == voice, self._table))[0]
-			engine = row['engine']
+			if row['engine'] == "SAPI5":
+				self._SAPI5 = True
+				return self._SAPI5
 
-		for key, value in config.conf["WorldVoice"]['autoLanguageSwitching'].items():
+		for key, value in config.conf["WorldVoice"]['speechRole'].items():
 			if isinstance(value, config.AggregatedSection):
 				try:
 					row = list(filter(lambda row: row['name'] == value['voice'], self._table))[0]
-				except BaseException:
-					self._block = True
+				except BaseException as e:
+					self._SAPI5 = True
 					break
-				if engine is None:
-					engine = row['engine']
-				if not engine == row['engine'] or row['engine'] == 'SAPI5':
-					self._block = True
+				if row['engine'] == "SAPI5":
+					self._SAPI5 = True
 					break
 
-		return self._block
+		return self._SAPI5
 
-	@block.setter
-	def block(self, value):
-		if value is not None:
-			raise ValueError("block setter only accept None")
-		self._block = value
-
-	def reset_block(self):
-		self._block = None
-		log.debug("WorldVoice reset task block to {}".format(self.block))
-
-	def add_listen_queue(self, key, queue):
-		self.listenQueue[key] = queue
-
-	def remove_listen_queue(self, key):
-		del self.listenQueue[key]
+	def reset_SAPI5(self):
+		self._SAPI5 = None
+		log.debug("WorldVoice reset task SAPI5 to {}".format(self.SAPI5))
 
 	def add_dispatch_task(self, item):
 		self.dispatchQueue.put(item)
@@ -86,18 +71,6 @@ class TaskManager:
 		except BaseException:
 			pass
 
-		for q in self.listenQueue.values():
-			try:
-				while True:
-					q.get_nowait()
-			except BaseException:
-				pass
-			"""try:
-				while True:
-					q.task_done()
-			except BaseException:
-				pass"""
-
 		try:
 			self.lock.release()
 		except RuntimeError:
@@ -111,16 +84,13 @@ class TaskManager:
 		except BaseException:
 			pass
 
-		for q in self.listenQueue.values():
-			try:
-				while True:
-					q.get_nowait()
-					q.task_done()
-			except BaseException:
-				pass
-
 	def cancel(self):
 		self.clear()
+		try:
+			if not self.SAPI5:
+				self.lock.release()
+		except:
+			pass
 		if self.speakingVoiceInstance:
 			self.speakingVoiceInstance.stop()
 
@@ -141,16 +111,18 @@ class TaskManager:
 			if not voiceInstance:
 				break
 
-			if self._block:
-				self.speakingVoiceInstance = voiceInstance
-				self.lock.acquire()
+			self.lock.acquire()
+			self.speakingVoiceInstance = voiceInstance
+
 			try:
 				task()
 			except Exception:
 				log.error("Error running function from queue", exc_info=True)
-			self.dispatchQueue.task_done()
 
-			if self._block:
-				self.lock.acquire()
-				self.lock.release()
+			with self.lock:
 				self.speakingVoiceInstance = None
+
+			try:
+				self.dispatchQueue.task_done()
+			except:
+				pass

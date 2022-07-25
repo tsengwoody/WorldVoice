@@ -1,11 +1,12 @@
 import ctypes
 import threading
+import tones
 
 from logHandler import log
 from winUser import WM_QUIT, VK_SHIFT, VK_LSHIFT, VK_RSHIFT, VK_VOLUME_DOWN, VK_VOLUME_UP
 
 from . import keyboard_hook
-from . import voiceManager
+from synthDriverHandler import getSynth
 
 
 class Hook:
@@ -37,9 +38,10 @@ class Hook:
 		keyhook.free()
 
 	def hook_callback(self, **kwargs):
-		if not voiceManager.taskManager:
-			return False
-		if not voiceManager.taskManager.block:
+		if not getSynth().name == "WorldVoice":
+			return
+		taskManager = getSynth()._voiceManager.taskManager
+		if taskManager.SAPI5:
 			return False
 		if kwargs['pressed'] and not kwargs['vk_code'] in [
 			VK_SHIFT,
@@ -49,11 +51,9 @@ class Hook:
 			VK_VOLUME_UP,
 		]:
 			if self.reset_flag:
-				# tones.beep(100, 100)
 				self.reset_flag = False
-				if voiceManager.taskManager:
-					voiceManager.taskManager.reset()
-					voiceManager.taskManager.cancel()
+				taskManager.reset()
+				taskManager.cancel()
 			self.pressed.add(kwargs['vk_code'])
 		elif not kwargs['pressed']:
 			try:
@@ -61,8 +61,8 @@ class Hook:
 			except KeyError:
 				pass
 		self.pressed_max_count = max(self.pressed_max_count, len(self.pressed))
+		if self.pressed_max_count >= 1 and self.pressed_max_count < 3:
+			self.reset_flag = True
 		if len(self.pressed) == 0:
-			if self.pressed_max_count >= 1 and self.pressed_max_count < 3:
-				self.reset_flag = True
 			self.pressed_max_count = 0
 		return False

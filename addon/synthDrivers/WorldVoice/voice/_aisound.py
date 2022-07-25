@@ -2,8 +2,6 @@
 #A part of NVDA AiSound 5 Synthesizer Add-On
 
 import os
-import queue
-import threading
 
 import audioDucking
 import globalVars
@@ -85,7 +83,7 @@ def ensureWaveOutHooks(dllPath):
 @aisound_callback_t
 def callback(type,cbData):
 	global lastSpeakInstance, synthRef
-	global aisoundQueue, voiceLock
+	global voiceLock
 	if type==SPEECH_BEGIN:
 		if cbData==None:
 			lastSpeakInstance.lastIndex=0
@@ -96,11 +94,6 @@ def callback(type,cbData):
 		lastSpeakInstance.isPlaying=False
 		synthDoneSpeaking.notify(synth=synthRef())
 
-		if aisoundQueue:
-			try:
-				aisoundQueue.task_done()
-			except BaseException:
-				pass
 		if voiceLock:
 			try:
 				voiceLock.release()
@@ -110,6 +103,7 @@ def callback(type,cbData):
 
 class Aisound(object):
 	def __init__(self):
+		self.id = ""
 		self.wrapperDLL = None
 		self.isPlaying = False
 		self.lastIndex = None
@@ -157,52 +151,28 @@ class Aisound(object):
 	def Resume(self):
 		return self.wrapperDLL.aisound_resume()
 
-class AisoundThread(threading.Thread):
-	def __init__(self, aisoundQueue):
-		super().__init__()
-		self.aisoundQueue = aisoundQueue
-		self.setDaemon(True)
-		self.start()
-
-	def run(self):
-		while True:
-			voiceInstance, text, mode = self.aisoundQueue.get()
-			if not voiceInstance:
-				break
-			try:
-				voiceInstance.active()
-				if mode == "speak":
-					voiceInstance.aisound.Speak(text, None)
-				elif mode == "speak_index":
-					voiceInstance.aisound.Speak("", text)
-			except Exception:
-				log.error("Error running function from queue", exc_info=True)
-			# self.aisoundQueue.task_done()
-
-
-aisoundQueue = None
-aisoundThread = None
 
 def initialize(getSynth):
 	global synthRef
 	synthRef = getSynth
 
-	global aisoundThread, aisoundQueue
-	aisoundQueue = queue.Queue()
-	aisoundThread = AisoundThread(
-		aisoundQueue=aisoundQueue
-	)
 
 def terminate():
 	global synthRef
 	synthRef = None
 
-	global aisoundThread, aisoundQueue
-	if aisoundThread:
-		aisoundQueue.put((None, None, None),)
-		aisoundThread.join()
-	del aisoundQueue
-	del aisoundThread
-	aisoundThread, aisoundQueue = None, None
 
 voiceLock = None
+
+def speakBlock(instance, arg, mode):
+	voiceInstance = instance
+	text = arg
+	if not voiceInstance:
+		return
+	try:
+		if mode == "speak":
+			voiceInstance.core.Speak(text, None)
+		elif mode == "speak_index":
+			voiceInstance.core.Speak("", text)
+	except Exception:
+		log.error("Error running function from queue", exc_info=True)

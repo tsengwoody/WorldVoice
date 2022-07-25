@@ -1,19 +1,14 @@
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import wx
 import addonHandler
 import config
 import core
-import gui
 from gui import guiHelper
+from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsDialog, SettingsPanel
 import languageHandler
 import queueHandler
-
-
-try:
-	from synthDriverHandler import getSynth
-except BaseException:
-	from speech import getSynth
+from synthDriverHandler import getSynth
 
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice import WVConfigure
@@ -21,14 +16,51 @@ from synthDrivers.WorldVoice import WVConfigure
 addonHandler.initTranslation()
 
 
-class SpeechSettingsDialog(gui.SettingsDialog):
-	_instance = None
-	title = _("Speech Settings")
+class BaseSettingsPanel(SettingsPanel):
+	# Translators: Title of a setting dialog.
+	title = _("WorldVoice")
+	settings = OrderedDict({})
+	field = "WorldVoice"
 
-	def __new__(cls, *args, **kwargs):
-		obj = super().__new__(cls, *args, **kwargs)
-		cls._instance = obj
-		return obj
+	def makeSettings(self, settingsSizer):
+		sHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+		for k, v in self.settings.items():
+			if "options" in v:
+				attr = k + "Selection"
+				options = v["options"]
+				widget = sHelper.addLabeledControl(v["label"], wx.Choice, choices=list(options.values()))
+				setattr(self, attr, widget)
+				try:
+					index = list(v["options"].keys()).index(str(config.conf["WorldVoice"][self.field][k]))
+				except BaseException:
+					index = 0
+					tones.beep(100, 100)
+				widget.Selection = index
+			else:
+				setattr(self, k + "CheckBox", sHelper.addItem(wx.CheckBox(self, label=v["label"])))
+				value = config.conf["WorldVoice"][self.field][k]
+				getattr(self, k + "CheckBox").SetValue(value)
+
+	def onSave(self):
+		try:
+			for k, v in self.settings.items():
+				if "options" in v:
+					attr = k + "Selection"
+					widget = getattr(self, attr)
+					config.conf["WorldVoice"][self.field][k] = list(v["options"].keys())[widget.GetSelection()]
+				else:
+					config.conf["WorldVoice"][self.field][k] = getattr(self, k + "CheckBox").IsChecked()
+		except BaseException:
+			for k, v in self.settings.items():
+				if "options" in v:
+					config.conf["WorldVoice"][self.field][k] = list(v["options"].keys())[0]
+				else:
+					config.conf["WorldVoice"][self.field][k] = True
+			tones.beep(100, 100)
+
+
+class SpeechRoleSettingsPanel(SettingsPanel):
+	title = _("Speech Role")
 
 	def __init__(self, parent):
 		self._synthInstance = getSynth()
@@ -106,64 +138,6 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		settingsSizerHelper.addItem(self._keepParameterConsistentCheckBox)
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepParameterConsistentChange, self._keepParameterConsistentCheckBox)
 
-		self._useUnicodeDetectionCheckBox = wx.CheckBox(
-			self,
-			label=_("Detect text language based on unicode characters")
-		)
-		self._useUnicodeDetectionCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"])
-		settingsSizerHelper.addItem(self._useUnicodeDetectionCheckBox)
-
-		self._ignoreNumbersCheckBox = wx.CheckBox(
-			self,
-			# Translators: Either to ignore or not numbers when language detection is active
-			label=_("Ignore numbers when detecting text language")
-		)
-		self._ignoreNumbersCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"])
-		settingsSizerHelper.addItem(self._ignoreNumbersCheckBox)
-
-		self._ignorePunctuationCheckBox = wx.CheckBox(
-			self,
-			# Translators: Either to ignore or not ASCII punctuation when language detection is active
-			label=_("Ignore common punctuation when detecting text language")
-		)
-		self._ignorePunctuationCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"])
-		settingsSizerHelper.addItem(self._ignorePunctuationCheckBox)
-
-		latinChoiceLocaleNames = [self.localesToNames[l] for l in self._latinLocales]
-		self._latinChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for latin characters:"), wx.Choice, choices=latinChoiceLocaleNames)
-		latinLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"]
-		try:
-			self._latinChoice.Select(self._latinLocales.index(latinLocale))
-		except ValueError:
-			self._latinChoice.Select(0)
-		if not latinChoiceLocaleNames:
-			self._latinChoice.Disable()
-
-		CJKChoiceLocaleNames = [self.localesToNames[l] for l in self._CJKLocales]
-		self._CJKChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for CJK characters:"), wx.Choice, choices=CJKChoiceLocaleNames)
-		CJKLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"]
-		try:
-			self._CJKChoice.Select(self._CJKLocales.index(CJKLocale))
-		except ValueError:
-			self._CJKChoice.Select(0)
-		if not CJKChoiceLocaleNames:
-			self._CJKChoice.Disable()
-
-		DetectLanguageTimingLabel = [_("before symbol process"), _("after symbol process")]
-		self._DetectLanguageTimingValue = ["before", "after"]
-		self._DLTChoice = settingsSizerHelper.addLabeledControl(_("Detect language timing:"), wx.Choice, choices=DetectLanguageTimingLabel)
-		self._DetectLanguageTiming = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
-		try:
-			self._DLTChoice.Select(self._DetectLanguageTimingValue.index(self._DetectLanguageTiming))
-		except ValueError:
-			self._DLTChoice.Select(0)
-
-		self._dotText = settingsSizerHelper.addLabeledControl(
-			labelText=_("Number dot replacement"),
-			wxCtrlClass=wx.TextCtrl,
-			value=config.conf["WorldVoice"]["autoLanguageSwitching"]["numberDotReplacement"],
-		)
-
 	def postInit(self):
 		if not self._synthInstance.name == 'WorldVoice':
 			return
@@ -178,9 +152,9 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 			locale = self._locales[localeIndex]
 			voices = ["no-select"] + self._localeToVoices[locale]
 			self._voicesChoice.SetItems(voices)
-			if locale in config.conf["WorldVoice"]["autoLanguageSwitching"]:
+			if locale in config.conf["WorldVoice"]["speechRole"]:
 				try:
-					voice = config.conf["WorldVoice"]["autoLanguageSwitching"][locale]["voice"]
+					voice = config.conf["WorldVoice"]["speechRole"][locale]["voice"]
 				except BaseException:
 					self._voicesChoice.Select(0)
 					self.onVoiceChange(None)
@@ -312,28 +286,16 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 		if self._keepParameterConsistentCheckBox.GetValue():
 			self._manager.onVoiceParameterConsistent(voiceInstance)
 
-	def onCancel(self, event):
-		if not self._synthInstance.name == 'WorldVoice':
-			self.__class__._instance = None
-			super().onCancel(event)
-			return
+	def onDiscard(self):
 		for instance in self._manager._instanceCache.values():
 			instance.rollback()
-		self.__class__._instance = None
-		super().onCancel(event)
 
-	def onOk(self, event):
-		if not self._synthInstance.name == 'WorldVoice':
-			self.__class__._instance = None
-			super().onOk(event)
-			return
-		# Update Configuration
-
+	def onSave(self):
 		temp = defaultdict(lambda: {})
-		for key, value in config.conf["WorldVoice"]["autoLanguageSwitching"].items():
+		for key, value in config.conf["WorldVoice"]["speechRole"].items():
 			if isinstance(value, config.AggregatedSection):
 				try:
-					temp[key]['voice'] = config.conf["WorldVoice"]["autoLanguageSwitching"][key]["voice"]
+					temp[key]['voice'] = config.conf["WorldVoice"]["speechRole"][key]["voice"]
 				except KeyError:
 					pass
 
@@ -346,20 +308,12 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 				except BaseException:
 					pass
 
-		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
-		config.conf["WorldVoice"]["autoLanguageSwitching"] = temp
+		config.conf["WorldVoice"]["speechRole"] = temp
 
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["numberDotReplacement"] = self._dotText.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] = self._keepEngineConsistentCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = self._keepParameterConsistentCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] = self._keepConsistentCheckBox.GetValue()
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"] = self._useUnicodeDetectionCheckBox.GetValue()
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = self._ignoreNumbersCheckBox.GetValue()
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"] = self._ignorePunctuationCheckBox.GetValue()
-		if self._latinChoice.IsEnabled():
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"] = self._latinLocales[self._latinChoice.GetCurrentSelection()]
-		if self._CJKChoice.IsEnabled():
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[self._CJKChoice.GetCurrentSelection()]
+
 		for instance in self._manager._instanceCache.values():
 			instance.commit()
 			try:
@@ -371,18 +325,7 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 				pass
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
 			self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
-		if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != previous_DLT:
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
-			if previous_DLT == "after":
-				if gui.messageBox(
-					# Translators: The message displayed
-					_("For the detect language timing configuration to apply, NVDA must save configuration and be restarted. Do you want to do now?"),
-					# Translators: The title of the dialog
-					_("Detect language timing Configuration Change"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
-				) == wx.OK:
-					gui.mainFrame.onSaveConfigurationCommand(None)
-					# wx.CallAfter(gui.mainFrame.onSaveConfigurationCommand, None)
-					queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
+
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
 			locale = self._manager.defaultVoiceInstance.language if self._manager.defaultVoiceInstance.language else languageHandler.getLanguage()
 			try:
@@ -396,7 +339,173 @@ class SpeechSettingsDialog(gui.SettingsDialog):
 
 		WVConfigure.notify()
 
+
+class LanguageSwitchingSettingsPanel(SettingsPanel):
+	title = _("Language Switching")
+
+	def __init__(self, parent):
+		self._synthInstance = getSynth()
+		super().__init__(parent)
+
+	def makeSettings(self, sizer):
 		if not self._synthInstance.name == 'WorldVoice':
-			self._manager.close()
-		self.__class__._instance = None
-		super().onOk(event)
+			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not WorldVoice.'))
+			infoLabel.Wrap(self.GetSize()[0])
+			sizer.Add(infoLabel)
+			return
+
+		self._manager = self._synthInstance._voiceManager
+		self.ready = self._manager.ready()
+		if not self.ready:
+			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not ready.'))
+			infoLabel.Wrap(self.GetSize()[0])
+			sizer.Add(infoLabel)
+			return
+
+		self.localesToNames = self._manager.localesToNamesMapEngineFilter
+		self._locales = self._manager.languagesEngineFilter
+
+		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
+		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
+		self._latinLocales = sorted(list(latinSet))
+		CJKSet = set(languageDetection.CJK) & set(l for l in self._locales if len(l) == 2)
+		self._CJKLocales = sorted(list(CJKSet))
+
+		self._useUnicodeDetectionCheckBox = wx.CheckBox(
+			self,
+			label=_("Detect text language based on unicode characters")
+		)
+		self._useUnicodeDetectionCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"])
+		settingsSizerHelper.addItem(self._useUnicodeDetectionCheckBox)
+
+		self._ignoreNumbersCheckBox = wx.CheckBox(
+			self,
+			# Translators: Either to ignore or not numbers when language detection is active
+			label=_("Ignore numbers when detecting text language")
+		)
+		self._ignoreNumbersCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"])
+		settingsSizerHelper.addItem(self._ignoreNumbersCheckBox)
+
+		self._ignorePunctuationCheckBox = wx.CheckBox(
+			self,
+			# Translators: Either to ignore or not ASCII punctuation when language detection is active
+			label=_("Ignore common punctuation when detecting text language")
+		)
+		self._ignorePunctuationCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"])
+		settingsSizerHelper.addItem(self._ignorePunctuationCheckBox)
+
+		latinChoiceLocaleNames = [self.localesToNames[l] for l in self._latinLocales]
+		self._latinChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for latin characters:"), wx.Choice, choices=latinChoiceLocaleNames)
+		latinLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"]
+		try:
+			self._latinChoice.Select(self._latinLocales.index(latinLocale))
+		except ValueError:
+			self._latinChoice.Select(0)
+		if not latinChoiceLocaleNames:
+			self._latinChoice.Disable()
+
+		CJKChoiceLocaleNames = [self.localesToNames[l] for l in self._CJKLocales]
+		self._CJKChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for CJK characters:"), wx.Choice, choices=CJKChoiceLocaleNames)
+		CJKLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"]
+		try:
+			self._CJKChoice.Select(self._CJKLocales.index(CJKLocale))
+		except ValueError:
+			self._CJKChoice.Select(0)
+		if not CJKChoiceLocaleNames:
+			self._CJKChoice.Disable()
+
+		DetectLanguageTimingLabel = [_("before symbol process"), _("after symbol process")]
+		self._DetectLanguageTimingValue = ["before", "after"]
+		self._DLTChoice = settingsSizerHelper.addLabeledControl(_("Detect language timing:"), wx.Choice, choices=DetectLanguageTimingLabel)
+		self._DetectLanguageTiming = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
+		try:
+			self._DLTChoice.Select(self._DetectLanguageTimingValue.index(self._DetectLanguageTiming))
+		except ValueError:
+			self._DLTChoice.Select(0)
+
+	def onSave(self):
+		config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"] = self._useUnicodeDetectionCheckBox.GetValue()
+		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = self._ignoreNumbersCheckBox.GetValue()
+		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"] = self._ignorePunctuationCheckBox.GetValue()
+		if self._latinChoice.IsEnabled():
+			config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"] = self._latinLocales[self._latinChoice.GetCurrentSelection()]
+		if self._CJKChoice.IsEnabled():
+			config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[self._CJKChoice.GetCurrentSelection()]
+		config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
+
+
+class OtherSettingsPanel(SettingsPanel):
+	# Translators: Title of a setting dialog.
+	title = _("Other")
+
+	def __init__(self, parent):
+		self._synthInstance = getSynth()
+		super().__init__(parent)
+
+	def makeSettings(self, sizer):
+		if not self._synthInstance.name == 'WorldVoice':
+			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not WorldVoice.'))
+			infoLabel.Wrap(self.GetSize()[0])
+			sizer.Add(infoLabel)
+			return
+
+		self._manager = self._synthInstance._voiceManager
+		self.ready = self._manager.ready()
+		if not self.ready:
+			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not ready.'))
+			infoLabel.Wrap(self.GetSize()[0])
+			sizer.Add(infoLabel)
+			return
+
+		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
+
+		self._RateBoostCheckBox = wx.CheckBox(
+			self,
+			label=_("OneCore rate boost")
+		)
+		self._RateBoostCheckBox.SetValue(config.conf["WorldVoice"]["other"]["RateBoost"])
+		settingsSizerHelper.addItem(self._RateBoostCheckBox)
+
+		self._WaitFactorValue = [i for i in range(10)]
+		self._WaitFactorDisplay = [str(i) for i in range(10)]
+		self._WaitFactorChoice = settingsSizerHelper.addLabeledControl(_("VE wait factor:"), wx.Choice, choices=self._WaitFactorDisplay)
+		try:
+			self._WaitFactorChoice.Select(self._WaitFactorValue.index(config.conf["WorldVoice"]["other"]["WaitFactor"]))
+		except ValueError:
+						self._WaitFactorChoice.Select(0)
+
+		self._dotText = settingsSizerHelper.addLabeledControl(
+			labelText=_("Number dot replacement"),
+			wxCtrlClass=wx.TextCtrl,
+			value=config.conf["WorldVoice"]["other"]["numberDotReplacement"],
+		)
+
+	def onSave(self):
+		config.conf["WorldVoice"]["other"]["RateBoost"] = self._RateBoostCheckBox.GetValue()
+		try:
+			config.conf["WorldVoice"]["other"]["WaitFactor"] = self._WaitFactorValue[self._WaitFactorChoice.GetSelection()]
+		except BaseException as e:
+			config.conf["WorldVoice"]["other"]["WaitFactor"] = 1
+		config.conf["WorldVoice"]["other"]["numberDotReplacement"] = self._dotText.GetValue()
+
+		if self._synthInstance.name == 'WorldVoice':
+			self._synthInstance._voiceManager.waitfactor = config.conf["WorldVoice"]["other"]["WaitFactor"]
+			if self._synthInstance._voiceManager.voice_class["OneCore"].core:
+				self._synthInstance._voiceManager.voice_class["OneCore"].core.rateBoost = config.conf["WorldVoice"]["other"]["RateBoost"]
+
+
+class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
+	# translators: title of the dialog.
+	dialogTitle = _("Speech Settings")
+	title = "% s - %s" % (_("WorldVoice"), dialogTitle)
+	INITIAL_SIZE = (1000, 480)
+	MIN_SIZE = (470, 240)
+
+	categoryClasses = [
+		SpeechRoleSettingsPanel,
+		LanguageSwitchingSettingsPanel,
+		OtherSettingsPanel,
+	]
+
+	def __init__(self, parent, initialCategory=None):
+		super().__init__(parent, initialCategory)
