@@ -49,6 +49,7 @@ class SapiSink(object):
 			except RuntimeError:
 				pass
 
+
 class SPAudioState(IntEnum):
 	# https://docs.microsoft.com/en-us/previous-versions/windows/desktop/ms720596(v=vs.85)
 	CLOSED = 0

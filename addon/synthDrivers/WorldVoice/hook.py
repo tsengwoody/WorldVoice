@@ -1,6 +1,5 @@
 import ctypes
 import threading
-import tones
 
 from logHandler import log
 from winUser import WM_QUIT, VK_SHIFT, VK_LSHIFT, VK_RSHIFT, VK_VOLUME_DOWN, VK_VOLUME_UP
@@ -38,6 +37,8 @@ class Hook:
 		keyhook.free()
 
 	def hook_callback(self, **kwargs):
+		if not getSynth():
+			return
 		if not getSynth().name == "WorldVoice":
 			return
 		taskManager = getSynth()._voiceManager.taskManager

@@ -1,6 +1,7 @@
 import threading
 
 import config
+from synthDriverHandler import getSynth
 
 VOICE_PARAMETERS = [
 	("rate", int, 50),

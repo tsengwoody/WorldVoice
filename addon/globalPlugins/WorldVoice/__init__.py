@@ -137,27 +137,3 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_popup_SpeechSymbolsDialog(self, gesture):
 		self.popup_SpeechSymbolsDialog(None)
-
-	@script(
-		description=_("test"),
-		category=ADDON_SUMMARY,
-		gesture="kb:NVDA+alt+t",
-	)
-	def script_test(self, gesture):
-		from synthDrivers.WorldVoice.voice.RHVoice import RHVoice
-
-		taskManager = getSynth()._voiceManager.taskManager
-
-		rs = RHVoice.voices()
-
-		r = rs[0]
-		rhVoice = RHVoice(id=r['id'], name=r['name'], language=r['language'], taskManager=taskManager)
-		rhVoice.speak(["WorldVoice is good!"])
-
-		r = rs[1]
-		rhVoice = RHVoice(id=r['id'], name=r['name'], language=r['language'], taskManager=taskManager)
-		rhVoice.speak(["WorldVoice is good!"])
-
-		r = rs[2]
-		rhVoice = RHVoice(id=r['id'], name=r['name'], language=r['language'], taskManager=taskManager)
-		rhVoice.speak(["WorldVoice is good!"])

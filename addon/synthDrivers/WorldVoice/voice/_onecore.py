@@ -18,14 +18,11 @@ from typing import (
 	Tuple,
 	Union
 )
-from collections import OrderedDict
 import ctypes
 import winreg
 import wave
 from synthDriverHandler import (
-	findAndSetNextSynth,
 	isDebugForSynthDriver,
-	SynthDriver,
 	synthDoneSpeaking,
 	synthIndexReached,
 )
@@ -35,10 +32,8 @@ import config
 import nvwave
 import queueHandler
 from speech.types import SpeechSequence
-import speech
 import speechXml
 import languageHandler
-import winVersion
 import NVDAHelper
 
 from speech.commands import (

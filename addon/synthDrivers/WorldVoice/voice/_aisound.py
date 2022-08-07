@@ -124,7 +124,7 @@ class Aisound(object):
 		self.wrapperDLL.aisound_initialize()
 		self.wrapperDLL.aisound_callback(callback)
 
-	def Terminate(self):
+	def terminate(self):
 		self.wrapperDLL.aisound_terminate()
 
 	def Configure(self, name,value):

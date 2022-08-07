@@ -3,12 +3,11 @@ from collections import defaultdict, OrderedDict
 import wx
 import addonHandler
 import config
-import core
 from gui import guiHelper
-from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsDialog, SettingsPanel
+from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 import languageHandler
-import queueHandler
 from synthDriverHandler import getSynth
+import tones
 
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice import WVConfigure
@@ -472,7 +471,7 @@ class OtherSettingsPanel(SettingsPanel):
 		try:
 			self._WaitFactorChoice.Select(self._WaitFactorValue.index(config.conf["WorldVoice"]["other"]["WaitFactor"]))
 		except ValueError:
-						self._WaitFactorChoice.Select(0)
+			self._WaitFactorChoice.Select(0)
 
 		self._dotText = settingsSizerHelper.addLabeledControl(
 			labelText=_("Number dot replacement"),
@@ -484,7 +483,7 @@ class OtherSettingsPanel(SettingsPanel):
 		config.conf["WorldVoice"]["other"]["RateBoost"] = self._RateBoostCheckBox.GetValue()
 		try:
 			config.conf["WorldVoice"]["other"]["WaitFactor"] = self._WaitFactorValue[self._WaitFactorChoice.GetSelection()]
-		except BaseException as e:
+		except BaseException:
 			config.conf["WorldVoice"]["other"]["WaitFactor"] = 1
 		config.conf["WorldVoice"]["other"]["numberDotReplacement"] = self._dotText.GetValue()
 

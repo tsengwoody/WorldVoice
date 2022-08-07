@@ -491,7 +491,7 @@ class SynthDriver(SynthDriver):
 			if chunks:
 				voiceInstance.speak(chunks)
 		elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH":
-				voiceInstance.speak(chunks)
+			voiceInstance.speak(chunks)
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
 		if self._cni:

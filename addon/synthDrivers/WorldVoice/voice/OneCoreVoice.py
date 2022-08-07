@@ -1,17 +1,7 @@
-import languageHandler
-from logHandler import log
-import NVDAHelper
-from synthDriverHandler import getSynth
-import winreg
 import winVersion
 
 from ._onecore import OneCoreManager
 from . import Voice
-
-import ctypes
-import os
-
-ocSpeech_Callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p)
 
 
 class OneCoreVoice(Voice):

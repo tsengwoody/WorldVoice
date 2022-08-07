@@ -3,9 +3,7 @@ from collections import OrderedDict, defaultdict
 import threading
 
 import config
-import globalVars
 import languageHandler
-import locale
 from logHandler import log
 from synthDriverHandler import VoiceInfo
 
@@ -59,7 +57,7 @@ class VoiceManager(object):
 		return result
 
 	def __init__(self):
-		self.lock = lock = threading.Lock()
+		self.lock = threading.Lock()
 
 		active_engine = []
 		for item in self.voice_class.values():
@@ -67,7 +65,7 @@ class VoiceManager(object):
 				try:
 					item.engineOn(self.lock)
 					active_engine.append(item)
-				except:
+				except BaseException:
 					pass
 
 		self.table = []
@@ -87,18 +85,17 @@ class VoiceManager(object):
 		log.debug("Created voiceManager instance. Default voice is %s", self._defaultVoiceInstance.name)
 
 	def terminate(self):
-		global taskManager
 		for voiceName, instance in self._instanceCache.items():
 			instance.commit()
 			instance.close()
 
 		for item in self.voice_class.values():
 			try:
-				item.engineOff(taskManager)
+				item.engineOff()
 			except BaseException:
 				pass
 
-		taskManager = self.taskManager = None
+		self.taskManager = None
 
 	@property
 	def defaultVoiceInstance(self):
@@ -264,7 +261,7 @@ class VoiceManager(object):
 
 	@property
 	def localesToNamesMap(self):
-		return {locale: self._getLocaleReadableName(locale) for locale in self._localesToVoices}
+		return {item: self._getLocaleReadableName(item) for item in self._localesToVoices}
 
 	@property
 	def languagesEngineFilter(self):
@@ -318,6 +315,6 @@ class VoiceManager(object):
 					pass
 		return voice
 
-	def _getLocaleReadableName(self, locale):
-		description = languageHandler.getLanguageDescription(locale)
-		return "%s - %s" % (description, locale) if description else locale
+	def _getLocaleReadableName(self, locale_):
+		description = languageHandler.getLanguageDescription(locale_)
+		return "%s - %s" % (description, locale_) if description else locale_

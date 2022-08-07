@@ -1,18 +1,5 @@
-import globalVars
-import languageHandler
-from logHandler import log
-import NVDAHelper
-from synthDriverHandler import getSynth
-import winreg
-import winVersion
-
 from .RH import RHManager
 from . import Voice
-
-import ctypes
-import os
-
-ocSpeech_Callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p)
 
 
 class RHVoice(Voice):

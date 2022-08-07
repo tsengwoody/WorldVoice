@@ -1,6 +1,5 @@
 import queue
 import threading
-import time
 
 import config
 from logHandler import log
@@ -43,7 +42,7 @@ class TaskManager:
 			if isinstance(value, config.AggregatedSection):
 				try:
 					row = list(filter(lambda row: row['name'] == value['voice'], self._table))[0]
-				except BaseException as e:
+				except BaseException:
 					self._SAPI5 = True
 					break
 				if row['engine'] == "SAPI5":
@@ -89,7 +88,7 @@ class TaskManager:
 		try:
 			if not self.SAPI5:
 				self.lock.release()
-		except:
+		except BaseException:
 			pass
 		if self.speakingVoiceInstance:
 			self.speakingVoiceInstance.stop()
@@ -124,5 +123,5 @@ class TaskManager:
 
 			try:
 				self.dispatchQueue.task_done()
-			except:
+			except BaseException:
 				pass
