@@ -3,9 +3,12 @@ from collections import defaultdict, OrderedDict
 import wx
 import addonHandler
 import config
+import core
+import gui
 from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 import languageHandler
+import queueHandler
 from synthDriverHandler import getSynth
 import tones
 
@@ -430,7 +433,19 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"] = self._latinLocales[self._latinChoice.GetCurrentSelection()]
 		if self._CJKChoice.IsEnabled():
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[self._CJKChoice.GetCurrentSelection()]
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
+		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
+		if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != previous_DLT:
+			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
+			if previous_DLT == "after":
+				if gui.messageBox(
+					# Translators: The message displayed
+					_("For the detect language timing configuration to apply, NVDA must save configuration and be restarted. Do you want to do now?"),
+					# Translators: The title of the dialog
+					_("Detect language timing Configuration Change"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
+				) == wx.OK:
+					gui.mainFrame.onSaveConfigurationCommand(None)
+					# wx.CallAfter(gui.mainFrame.onSaveConfigurationCommand, None)
+					queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 
 class OtherSettingsPanel(SettingsPanel):

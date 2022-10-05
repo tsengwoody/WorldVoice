@@ -18,6 +18,7 @@ from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
 from . import languageDetection
 from ._speechcommand import SplitCommand, WVLangChangeCommand
+from .voice import Voice
 from .voiceManager import VoiceManager
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -92,7 +93,15 @@ class SynthDriver(SynthDriver):
 			displayName=_("Number Mode"),
 		),
 		NumericDriverSetting(
-			"chinesespace",
+			"itemwaitfactor",
+			# Translators: Label for a setting in voice settings dialog.
+			_("item wait factor"),
+			availableInSettingsRing=True,
+			defaultVal=0,
+			minStep=1,
+		),
+		NumericDriverSetting(
+			"chinesespacewaitfactor",
 			# Translators: Label for a setting in voice settings dialog.
 			_("Chinese space wait factor"),
 			availableInSettingsRing=True,
@@ -138,8 +147,12 @@ class SynthDriver(SynthDriver):
 		if self._voiceManager.voice_class["OneCore"].core:
 			self._voiceManager.voice_class["OneCore"].core.rateBoost = config.conf["WorldVoice"]["other"]["RateBoost"]
 
-		self._realSpeakFunc = speech.speech.speak
-		speech.speech.speak = self.patchedSpeak
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == 'before':
+			self._realSpeakFunc = speech.speech.speak
+			speech.speech.speak = self.patchedSpeak
+		else:
+			self._realSpeakFunc = speech.speech.speak
+
 		self._realSpellingFunc = speech.speech.speakSpelling
 		speech.speech.speakSpelling = self.patchedSpeakSpelling
 
@@ -166,7 +179,9 @@ class SynthDriver(SynthDriver):
 		self._voiceManager.reload()
 
 	def terminate(self):
-		speech.speech.speak = self._realSpeakFunc
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == 'before':
+			speech.speech.speak = self._realSpeakFunc
+
 		speech.speech.speakSpelling = self._realSpellingFunc
 
 		sayAllInitialize(
@@ -186,7 +201,7 @@ class SynthDriver(SynthDriver):
 
 	def speak(self, speechSequence):
 		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
-			speechSequence = self.patchedNumSpeechSequence(speechSequence)
+			speechSequence = self.patchedNumLangSpeechSequence(speechSequence)
 			if self.uwv \
 			and config.conf["WorldVoice"]['autoLanguageSwitching']['useUnicodeLanguageDetection']:
 				speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
@@ -218,6 +233,44 @@ class SynthDriver(SynthDriver):
 
 		voiceInstance = defaultInstance = self._voiceManager.defaultVoiceInstance
 		currentLanguage = defaultLanguage = self.language
+		temp = []
+		for command in speechSequence:
+			if isinstance(command, LangChangeCommand) or isinstance(command, WVLangChangeCommand):
+				if command.lang == currentLanguage:
+					# Keep on the same voice.
+					continue
+				# Changed language, lets see what we have.
+				if command.lang is None:
+					# No language, use default.
+					newInstance = defaultInstance
+					currentLanguage = defaultLanguage
+				else:
+					newInstance = self._voiceManager.getVoiceInstanceForLanguage(command.lang)
+					currentLanguage = command.lang
+					if newInstance is None:
+						# No voice for this language, use default.
+						newInstance = defaultInstance
+				if newInstance == voiceInstance:
+					# Same voice, next command.
+					continue
+				temp.append(newInstance)
+				voiceInstance = newInstance
+			else:
+				temp.append(command)
+		speechSequence = temp
+
+		if self._itemwaitfactor > 0:
+			result = []
+			for command in speechSequence:
+				if isinstance(command, str):
+					if command.strip():
+						result.append(command)
+				else:
+					result.append(command)
+			speechSequence = result
+			speechSequence = self.patchedStrItemSpeechSequence(speechSequence)
+		else:
+			speechSequence = self.patchedNumSpaceSpeechSequence(speechSequence)
 
 		chunks = []
 		hasText = False
@@ -251,12 +304,13 @@ class SynthDriver(SynthDriver):
 				# Pitch must always be specified in the markup.
 				tags["pitch"] = {"absmiddle": voiceInstance._pitch}
 
+		voiceInstance = defaultInstance = self._voiceManager.defaultVoiceInstance
 		for command in speechSequence:
 			if voiceInstance.engine == "VE":
 				if isinstance(command, str):
-					command = command.strip()
-					if not command:
-						continue
+					# command = command.strip()
+					# if not command:
+						# continue
 					# If character mode is on use lower case characters
 					# Because the synth does not allow to turn off the caps reporting
 					if charMode or len(command) == 1:
@@ -297,24 +351,8 @@ class SynthDriver(SynthDriver):
 					voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 					chunks = []
 					hasText = False
-				elif isinstance(command, LangChangeCommand) or isinstance(command, WVLangChangeCommand):
-					if command.lang == currentLanguage:
-						# Keep on the same voice.
-						continue
-					if command.lang is None:
-						# No language, use default.
-						voiceInstance = defaultInstance
-						currentLanguage = defaultLanguage
-						continue
-					# Changed language, lets see what we have.
-					newInstance = self._voiceManager.getVoiceInstanceForLanguage(command.lang)
-					currentLanguage = command.lang
-					if newInstance is None:
-						# No voice for this language, use default.
-						newInstance = defaultInstance
-					if newInstance == voiceInstance:
-						# Same voice, next command.
-						continue
+				elif isinstance(command, voice.Voice):
+					newInstance = command
 					if hasText:  # We changed voice, send what we already have to vocalizer.
 						voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 					chunks = []
@@ -376,25 +414,8 @@ class SynthDriver(SynthDriver):
 						log.debugWarning("Couldn't convert character in IPA string: %s" % item.ipa)
 						if item.text:
 							textList.append(item.text)
-				elif isinstance(command, LangChangeCommand) or isinstance(command, WVLangChangeCommand):
-					if command.lang == currentLanguage:
-						# Keep on the same voice.
-						continue
-					if command.lang is None:
-						# No language, use default.
-						voiceInstance = defaultInstance
-						currentLanguage = defaultLanguage
-						continue
-					# Changed language, lets see what we have.
-					newInstance = self._voiceManager.getVoiceInstanceForLanguage(command.lang)
-					currentLanguage = command.lang
-					if newInstance is None:
-						# No voice for this language, use default.
-						newInstance = defaultInstance
-					if newInstance == voiceInstance:
-						# Same voice, next command.
-						continue
-
+				elif isinstance(command, voice.Voice):
+					newInstance = command
 					tags.clear()
 					tagsChanged[0] = True
 					outputTags()
@@ -422,24 +443,8 @@ class SynthDriver(SynthDriver):
 					voiceInstance.index(item.index)
 				elif isinstance(item, CharacterModeCommand):
 					charMode = item.state
-				elif isinstance(command, LangChangeCommand) or isinstance(command, WVLangChangeCommand):
-					if command.lang == currentLanguage:
-						# Keep on the same voice.
-						continue
-					if command.lang is None:
-						# No language, use default.
-						voiceInstance = defaultInstance
-						currentLanguage = defaultLanguage
-						continue
-					# Changed language, lets see what we have.
-					newInstance = self._voiceManager.getVoiceInstanceForLanguage(command.lang)
-					currentLanguage = command.lang
-					if newInstance is None:
-						# No voice for this language, use default.
-						newInstance = defaultInstance
-					if newInstance == voiceInstance:
-						# Same voice, next command.
-						continue
+				elif isinstance(command, voice.Voice):
+					newInstance = command
 					charMode = False
 					voiceInstance = newInstance
 					if voiceInstance.engine == "SAPI5":
@@ -450,24 +455,8 @@ class SynthDriver(SynthDriver):
 				else:
 					log.error("Unknown speech: %s" % item)
 			elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH":
-				if isinstance(command, LangChangeCommand) or isinstance(command, WVLangChangeCommand):
-					if command.lang == currentLanguage:
-						# Keep on the same voice.
-						continue
-					if command.lang is None:
-						# No language, use default.
-						voiceInstance = defaultInstance
-						currentLanguage = defaultLanguage
-						continue
-					# Changed language, lets see what we have.
-					newInstance = self._voiceManager.getVoiceInstanceForLanguage(command.lang)
-					currentLanguage = command.lang
-					if newInstance is None:
-						# No voice for this language, use default.
-						newInstance = defaultInstance
-					if newInstance == voiceInstance:
-						# Same voice, next command.
-						continue
+				if isinstance(command, voice.Voice):
+					newInstance = command
 					voiceInstance.speak(chunks)
 					chunks = []
 					voiceInstance = newInstance
@@ -496,9 +485,10 @@ class SynthDriver(SynthDriver):
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
 		if self._cni:
 			speechSequence = [comma_number_pattern.sub(lambda m:'', command) if isinstance(command, str) else command for command in speechSequence]
-		speechSequence = self.patchedSpaceSpeechSequence(speechSequence)
+		if not int(self._chinesespacewaitfactor) == 0:
+			speechSequence = self.patchedChineseSpaceWaitFactorSpeechSequence(speechSequence)
 		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
-			speechSequence = self.patchedNumSpeechSequence(speechSequence)
+			speechSequence = self.patchedNumLangSpeechSequence(speechSequence)
 			if self.uwv \
 			and config.conf["WorldVoice"]['autoLanguageSwitching']['useUnicodeLanguageDetection']:
 				speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
@@ -631,11 +621,17 @@ class SynthDriver(SynthDriver):
 	def _set_nummod(self, value):
 		self._nummod = value
 
-	def _get_chinesespace(self):
-		return self._chinesespace
+	def _get_itemwaitfactor(self):
+		return self._itemwaitfactor
 
-	def _set_chinesespace(self, value):
-		self._chinesespace = value
+	def _set_itemwaitfactor(self, value):
+		self._itemwaitfactor = value
+
+	def _get_chinesespacewaitfactor(self):
+		return self._chinesespacewaitfactor
+
+	def _set_chinesespacewaitfactor(self, value):
+		self._chinesespacewaitfactor = value
 
 	def _get_cni(self):
 		return self._cni
@@ -643,39 +639,152 @@ class SynthDriver(SynthDriver):
 	def _set_cni(self, value):
 		self._cni = value
 
-	def patchedNumSpeechSequence(self, speechSequence):
+	def patchedNumSpaceSpeechSequence(self, speechSequence):
+		result = []
+		for command in speechSequence:
+			if isinstance(command, str):
+				if not command.strip():
+					continue
+			result.append(command)
+		speechSequence = result
+
+		'''result = []
+		state = 0
+		for command in speechSequence:
+			if isinstance(command, str):
+				if not command.strip():
+					if state == 1:
+						state = 2
+					else:
+						state = 0
+				else:
+					if number_pattern.match(command):
+						if state == 2:
+							state = 3
+						else:
+							state = 1
+					else:
+						state = 0
+			else:
+				state = 0
+			if state == 3:
+				state = 1
+				result.append(BreakCommand(1))
+				result.append(command)
+			else:
+				result.append(command)
+		speechSequence = result'''
+
+		result = []
+		state = 0
+		for command in speechSequence:
+			if isinstance(command, str):
+				if number_pattern.match(command):
+					if state == 1:
+						state = 2
+					else:
+						state = 1
+				else:
+					state = 0
+			else:
+				state = 0
+			if state == 2:
+				state = 1
+				result.append(BreakCommand(1))
+				result.append(command)
+			else:
+				result.append(command)
+		speechSequence = result
+
+		return speechSequence
+
+	def patchedStrItemSpeechSequence(self, speechSequence):
+		result = []
+		state = 0
+		for command in speechSequence:
+			if isinstance(command, str):
+				if state == 1:
+					state = 2
+				else:
+					state = 1
+			else:
+				state = 0
+			if state == 2:
+				state = 1
+				result.append(BreakCommand(int(self._itemwaitfactor) * 5))
+				result.append(command)
+			else:
+				result.append(command)
+
+		return result
+
+	"""def patchedNumSpaceSpeechSequence(self, speechSequence):
+		# only insert break when space after number
+		result = []
+		prenumber = False
+		for command in speechSequence:
+			if isinstance(command, str):
+				if not command.strip():
+					if prenumber:
+						result.append(BreakCommand(1))
+					else:
+						pass
+				else:
+					result.append(command)
+					if number_pattern.match(command):
+						prenumber = True
+						continue
+			else:
+				result.append(command)
+			prenumber = False
+		return result
+
+	def patchedStrItemSpeechSequence(self, speechSequence):
+		result = []
+		prestr = False
+		for command in speechSequence:
+			if isinstance(command, str):
+				if prestr:
+					result.append(BreakCommand(1))
+				result.append(command)
+				prestr = True
+			else:
+				result.append(command)
+				prestr = False
+		return result"""
+
+	def patchedNumLangSpeechSequence(self, speechSequence):
 		return self.coercionNumberLangChange(speechSequence, self._nummod, self._numlan, self.speechSymbols)
 
-	def patchedSpaceSpeechSequence(self, speechSequence):
-		if not int(self._chinesespace) == 0:
-			joinString = ""
-			tempSpeechSequence = []
-			for command in speechSequence:
-				if not isinstance(command, str):
-					tempSpeechSequence.append(joinString)
-					tempSpeechSequence.append(command)
-					joinString = ""
-				else:
-					joinString += command
-			tempSpeechSequence.append(joinString)
-			speechSequence = tempSpeechSequence
+	def patchedChineseSpaceWaitFactorSpeechSequence(self, speechSequence):
+		'''joinString = ""
+		tempSpeechSequence = []
+		for command in speechSequence:
+			if not isinstance(command, str):
+				tempSpeechSequence.append(joinString)
+				tempSpeechSequence.append(command)
+				joinString = ""
+			else:
+				joinString += command
+		tempSpeechSequence.append(joinString)
+		speechSequence = tempSpeechSequence'''
 
-			tempSpeechSequence = []
-			for command in speechSequence:
-				if isinstance(command, str):
-					result = re.split(chinese_space_pattern, command)
-					if len(result) == 1:
-						tempSpeechSequence.append(command)
-					else:
-						temp = []
-						for i in result:
-							temp.append(i)
-							temp.append(BreakCommand(int(self._chinesespace) * 5))
-						temp = temp[:-1]
-						tempSpeechSequence += temp
-				else:
+		tempSpeechSequence = []
+		for command in speechSequence:
+			if isinstance(command, str):
+				result = re.split(chinese_space_pattern, command)
+				if len(result) == 1:
 					tempSpeechSequence.append(command)
-			speechSequence = tempSpeechSequence
+				else:
+					temp = []
+					for i in result:
+						temp.append(i)
+						temp.append(BreakCommand(int(self._chinesespacewaitfactor) * 5))
+					temp = temp[:-1]
+					tempSpeechSequence += temp
+			else:
+				tempSpeechSequence.append(command)
+		speechSequence = tempSpeechSequence
 		return speechSequence
 
 	def patchedLengthSpeechSequence(self, speechSequence):
@@ -752,7 +861,7 @@ class SynthDriver(SynthDriver):
 		for command in result:
 			if isinstance(command, WVLangChangeCommand):
 				if command.lang == 'StartNumber':
-					command.lang = numberLanguage
+					command.lang = numberLanguage if numberLanguage != 'default' else self.language
 				elif command.lang == 'EndNumber':
 					command.lang = currentLang
 				else:

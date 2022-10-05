@@ -624,15 +624,5 @@ class OneCoreManager:
 		"""
 		return paramToPercent(current, min, max)
 
-	@classmethod
-	def _percentToParam(cls, percent: int, min: int, max: int) -> int:
-		"""Convert a percentage to a raw parameter value given the current percentage and the minimum and maximum
-		raw parameter values.
-		@param percent: The current percentage.
-		@param min: The minimum raw parameter value.
-		@param max: The maximum raw parameter value.
-		"""
-		return percentToParam(percent, min, max)
-
 class VoiceUnsupportedError(RuntimeError):
 	pass
