@@ -421,7 +421,7 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			_("after NVDA processing")
 		]
 		self._DetectLanguageTimingValue = ["before", "after"]
-		self._DLTChoice = settingsSizerHelper.addLabeledControl(_("Detect language timing:"), wx.Choice, choices=DetectLanguageTimingLabel)
+		self._DLTChoice = settingsSizerHelper.addLabeledControl(_("Enhance speech commands:"), wx.Choice, choices=DetectLanguageTimingLabel)
 		self._DetectLanguageTiming = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 		try:
 			self._DLTChoice.Select(self._DetectLanguageTimingValue.index(self._DetectLanguageTiming))

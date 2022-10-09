@@ -118,7 +118,7 @@ class SynthDriver(SynthDriver):
 		),
 		# '''DriverSetting(
 		#	"speechcommandsgenerate",
-		#	_("&SpeechCommands patched generate timing"),
+		#	_("SpeechCommands generate timing"),
 		#	defaultVal="BNP",
 		#),
 		DriverSetting(
@@ -213,6 +213,7 @@ class SynthDriver(SynthDriver):
 		WVEnd.notify()
 
 	def speak(self, speechSequence):
+		print(speechSequence)
 		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
 			if self._cni:
 				speechSequence = [comma_number_pattern.sub(lambda m:'', command) if isinstance(command, str) else command for command in speechSequence]
@@ -680,15 +681,8 @@ class SynthDriver(SynthDriver):
 		result = []
 		for command in speechSequence:
 			if isinstance(command, str):
-				if not command.strip():
-					continue
-			result.append(command)
-
-		result = []
-		for command in speechSequence:
-			if isinstance(command, str):
 				if command.strip():
-					result.append(command)
+					result.append(command.strip())
 			else:
 				result.append(command)
 
