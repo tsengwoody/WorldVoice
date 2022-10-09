@@ -416,7 +416,10 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 		if not CJKChoiceLocaleNames:
 			self._CJKChoice.Disable()
 
-		DetectLanguageTimingLabel = [_("before symbol process"), _("after symbol process")]
+		DetectLanguageTimingLabel = [
+			_("before NVDA processing"),
+			_("after NVDA processing")
+		]
 		self._DetectLanguageTimingValue = ["before", "after"]
 		self._DLTChoice = settingsSizerHelper.addLabeledControl(_("Detect language timing:"), wx.Choice, choices=DetectLanguageTimingLabel)
 		self._DetectLanguageTiming = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]

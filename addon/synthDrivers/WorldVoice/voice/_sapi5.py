@@ -4,6 +4,7 @@ import comtypes.client
 from comtypes import COMError
 import config
 from logHandler import log
+from synthDriverHandler import getSynth
 from synthDriverHandler import synthIndexReached, synthDoneSpeaking
 import nvwave
 
@@ -19,24 +20,21 @@ class SapiSink(object):
 	See https://msdn.microsoft.com/en-us/library/ms723587(v=vs.85).aspx
 	"""
 
-	def __init__(self):
-		self.synthRef = synthRef
-
 	def StartStream(self, streamNum, pos):
-		synth = self.synthRef()
+		synth = getSynth()
 		if synth is None:
 			log.debugWarning("Called StartStream method on SapiSink while driver is dead")
 			return
 
 	def Bookmark(self, streamNum, pos, bookmark, bookmarkId):
-		synth = self.synthRef()
+		synth = getSynth()
 		if synth is None:
 			log.debugWarning("Called Bookmark method on SapiSink while driver is dead")
 			return
 		synthIndexReached.notify(synth=synth, index=bookmarkId)
 
 	def EndStream(self, streamNum, pos):
-		synth = self.synthRef()
+		synth = getSynth()
 		if synth is None:
 			log.debugWarning("Called Bookmark method on EndStream while driver is dead")
 			return
@@ -71,18 +69,16 @@ class SpeechVoiceEvents(IntEnum):
 	EndInputStream = 4
 	Bookmark = 16
 
+voiceLock = None
 
-synthRef = None
-
-
-def initialize(getSynth):
-	global synthRef
-	synthRef = getSynth
+def initialize(lock):
+	global voiceLock
+	voiceLock = lock
 
 
 def terminate():
-	global synthRef
-	synthRef = None
+	global voiceLock
+	voiceLock = None
 
 
 def open(name=None):
@@ -142,5 +138,3 @@ def resume():
 		instance = speakingInstance
 		instance.resume()
 
-
-voiceLock = None

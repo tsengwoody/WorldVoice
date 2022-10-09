@@ -25,6 +25,7 @@ from synthDriverHandler import (
 	isDebugForSynthDriver,
 	synthDoneSpeaking,
 	synthIndexReached,
+	getSynth,
 )
 import io
 from logHandler import log
@@ -368,6 +369,7 @@ class OneCoreManager:
 			if isDebugForSynthDriver():
 				log.debug("Calling idle on audio player")
 			self._player.idle()
+			synthDoneSpeaking.notify(synth=getSynth())
 			try:
 				self.lock.release()
 			except:
@@ -440,7 +442,7 @@ class OneCoreManager:
 			pos = pos * self._bytesPerSec // HUNDRED_NS_PER_SEC
 			# Push audio up to this marker.
 			self._player.feed(data[prevPos:pos],
-				onDone=lambda index=index: synthIndexReached.notify(synth=self, index=index))
+				onDone=lambda index=index: synthIndexReached.notify(synth=getSynth(), index=index))
 			prevPos = pos
 		if self._wasCancelled:
 			if isDebugForSynthDriver():

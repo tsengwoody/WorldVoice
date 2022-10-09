@@ -1,8 +1,6 @@
 import globalVars
 import languageHandler
 from logHandler import log
-from synthDriverHandler import synthIndexReached, synthDoneSpeaking
-from synthDriverHandler import getSynth
 
 from . import _languages
 from . import _vocalizer
@@ -10,6 +8,7 @@ from . import Voice
 
 import math
 import os
+import threading
 
 
 class VEVoice(Voice):
@@ -114,8 +113,8 @@ class VEVoice(Voice):
 		breakTime = max(1, min(time, maxTime))
 
 		def _breaks():
-			_vocalizer.speakBlock(self.tts, breakTime)
-			# _vocalizer.processBreak(self.tts, breakTime)
+			threading.Thread(target=_vocalizer.breakBlock, args=(self.tts, breakTime)).start()
+			# _vocalizer.breakBlock(self.tts, breakTime)
 		self.taskManager.add_dispatch_task((self, _breaks),)
 
 	def stop(self):
@@ -144,24 +143,15 @@ class VEVoice(Voice):
 			return False
 
 	@classmethod
-	def engineOn(cls, lock=None):
-		def _onIndexReached(index):
-			if index is not None:
-				synthIndexReached.notify(synth=getSynth(), index=index)
-			else:
-				synthDoneSpeaking.notify(synth=getSynth())
-
+	def engineOn(cls, lock):
 		try:
-			_vocalizer.initialize(_onIndexReached)
+			_vocalizer.initialize(lock)
 		except _vocalizer.VeError as e:
 			if e.code == _vocalizer.VAUTONVDA_ERROR_INVALID:
 				log.info("Vocalizer license for NVDA is Invalid")
 			elif e.code == _vocalizer.VAUTONVDA_ERROR_DEMO_EXPIRED:
 				log.info("Vocalizer demo license for NVDA as expired.")
 			raise
-
-		if lock:
-			_vocalizer.voiceLock = lock
 
 	@classmethod
 	def engineOff(cls):

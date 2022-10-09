@@ -8,11 +8,11 @@ import globalVars
 import NVDAHelper
 from ctypes import *
 from logHandler import log
+from synthDriverHandler import getSynth
 from synthDriverHandler import synthIndexReached,synthDoneSpeaking
 
 workspaceAisound_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
 lastSpeakInstance = None
-synthRef = None
 
 aisound_callback_t = CFUNCTYPE(None,c_int,c_void_p)
 SPEECH_BEGIN = 0
@@ -82,17 +82,17 @@ def ensureWaveOutHooks(dllPath):
 
 @aisound_callback_t
 def callback(type,cbData):
-	global lastSpeakInstance, synthRef
+	global lastSpeakInstance
 	global voiceLock
 	if type==SPEECH_BEGIN:
 		if cbData==None:
 			lastSpeakInstance.lastIndex=0
 		else:
 			lastSpeakInstance.lastIndex=cbData
-			synthIndexReached.notify(synth=synthRef(),index=lastSpeakInstance.lastIndex)
+			synthIndexReached.notify(synth=getSynth(),index=lastSpeakInstance.lastIndex)
 	elif type==SPEECH_END:
 		lastSpeakInstance.isPlaying=False
-		synthDoneSpeaking.notify(synth=synthRef())
+		synthDoneSpeaking.notify(synth=getSynth())
 
 		if voiceLock:
 			try:
@@ -152,17 +152,15 @@ class Aisound(object):
 		return self.wrapperDLL.aisound_resume()
 
 
-def initialize(getSynth):
-	global synthRef
-	synthRef = getSynth
+voiceLock = None
 
+def initialize(lock):
+	global voiceLock
+	voiceLock = lock
 
 def terminate():
-	global synthRef
-	synthRef = None
-
-
-voiceLock = None
+	global voiceLock
+	voiceLock = None
 
 def speakBlock(instance, arg, mode):
 	voiceInstance = instance

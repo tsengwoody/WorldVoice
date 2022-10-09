@@ -3,7 +3,6 @@ from comtypes import COMError
 import languageHandler
 import locale
 from logHandler import log
-from synthDriverHandler import getSynth
 
 from . import _sapi5
 from . import Voice
@@ -127,12 +126,9 @@ class Sapi5Voice(Voice):
 	@classmethod
 	def engineOn(cls, lock=None):
 		try:
-			_sapi5.initialize(getSynth)
+			_sapi5.initialize(lock)
 		except BaseException:
 			raise
-
-		if lock:
-			_sapi5.voiceLock = lock
 
 	@classmethod
 	def engineOff(cls):

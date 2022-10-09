@@ -278,7 +278,7 @@ class audio_player(object):
 			if index is None:
 				player.feed(data)
 			else:
-				player.feed(data,onDone=lambda synth=self.__synth,next_index=index: nvda_notification_synthIndexReached.notify(synth,index=next_index))
+				player.feed(data,onDone=lambda synth=self.__synth,next_index=index: nvda_notification_synthIndexReached.notify(synthDriverHandler.getSynth(),index=next_index))
 			if self.__cancel_flag.is_set():
 				player.stop()
 
@@ -397,13 +397,13 @@ class done_callback(object):
 			self.__player.idle()
 			if self.__cancel_flag.is_set():
 				return
-			nvda_notification_synthDoneSpeaking.notify(self.__synth)
+			nvda_notification_synthDoneSpeaking.notify(synthDriverHandler.getSynth())
 		except:
 			log.error("RHVoice done callback",exc_info=True)
 		try:
 			self.lock.release()
-		except BaseException as e:
-			print(e)
+		except RuntimeError:
+			pass
 
 class speak_text(object):
 	def __init__(self,lib,tts_engine,text,cancel_flag,player):

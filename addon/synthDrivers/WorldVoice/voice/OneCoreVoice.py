@@ -110,7 +110,7 @@ class OneCoreVoice(Voice):
 		return winVersion.getWinVer() >= winVersion.WIN10
 
 	@classmethod
-	def engineOn(cls, lock=None):
+	def engineOn(cls, lock):
 		if not cls.core:
 			cls.core = OneCoreManager(lock)
 

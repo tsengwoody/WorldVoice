@@ -1,7 +1,6 @@
 from autoSettingsUtils.utils import paramToPercent, percentToParam
 import globalVars
 import languageHandler
-from synthDriverHandler import getSynth
 
 from . import _aisound
 from . import Voice
@@ -113,16 +112,13 @@ class AisoundVoice(Voice):
 		return os.path.isfile(os.path.join(cls.workspace, 'aisound.dll'))
 
 	@classmethod
-	def engineOn(cls, lock=None):
+	def engineOn(cls, lock):
 		if not cls.core:
 			cls.core = _aisound.Aisound()
 		try:
-			_aisound.initialize(getSynth)
+			_aisound.initialize(lock)
 		except BaseException:
 			raise
-
-		if lock:
-			_aisound.voiceLock = lock
 
 	@classmethod
 	def engineOff(cls):

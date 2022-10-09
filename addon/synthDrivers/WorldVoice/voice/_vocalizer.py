@@ -9,6 +9,7 @@ from io import BytesIO
 
 import addonHandler
 import synthDriverHandler
+from synthDriverHandler import getSynth, synthIndexReached, synthDoneSpeaking
 import config
 import globalVars
 from logHandler import log
@@ -170,11 +171,18 @@ def preInitialize():
 	veDll.ve_ttsInitialize(byref(installResources), byref(hSpeechClass))
 
 
-def initialize(indexCallback=None):
+def initialize(lock):
 	""" Initializes communication with vocalizer libraries. """
 	global veDll, platformDll, hSpeechClass, installResources, bgThread, bgQueue
 	global pcmBuf, pcmBufLen, feedBuf, markBufSize, markBuf, player, onIndexReached
-	onIndexReached = indexCallback
+
+	def _onIndexReached(index):
+		if index is not None:
+			synthIndexReached.notify(synth=getSynth(), index=index)
+		else:
+			synthDoneSpeaking.notify(synth=getSynth())
+	onIndexReached = _onIndexReached
+
 	# load dlls and stuff:
 	preInitialize()
 	# Start background thread
@@ -189,6 +197,9 @@ def initialize(indexCallback=None):
 	#sampleRate = sampleRateConversions[getParameter(VE_PARAM_FREQUENCY)]
 	sampleRate = 22050
 	player = nvwave.WavePlayer(1, sampleRate, 16, outputDevice=config.conf["speech"]["outputDevice"])
+
+	global voiceLock
+	voiceLock = lock
 
 def _onVoiceLoad(instance, voiceName):
 	# Ruleset
@@ -262,6 +273,9 @@ def terminate():
 	player = None
 	postTerminate()
 
+	global voiceLock
+	voiceLock = None
+
 # FIXME: this should be moved to NVDA's winKernel
 def freeLibrary(handle):
 	if winKernel.kernel32.FreeLibrary(handle) == 0:
@@ -307,29 +321,37 @@ def processBreak(instance, breakTime):
 def speakBlock(instance, arg):
 	global speakingInstance, feedBuf, voiceLock
 
-	breakCommand = False
-	if isinstance(arg, int):
-		time.sleep(arg/1000)
-		breakCommand = True
 	if not instance:
 		return
-	if not breakCommand:
-		text = arg
-		""" Sends text to be spoken."""
-		inText = VE_INTEXT()
-		inText.eTextFormat = 0 # this is the only supported format...
-		# Text length in bytes (utf16 has 2).
-		inText.cntTextLength = c_size_t(len(text) * 2)
-		inText.szInText = cast(c_wchar_p(text), c_void_p)
+
+	text = arg
+	""" Sends text to be spoken."""
+	inText = VE_INTEXT()
+	inText.eTextFormat = 0 # this is the only supported format...
+	# Text length in bytes (utf16 has 2).
+	inText.cntTextLength = c_size_t(len(text) * 2)
+	inText.szInText = cast(c_wchar_p(text), c_void_p)
+	try:
+		speakingInstance = instance
+		feedBuf = BytesIO()
+		veDll.ve_ttsProcessText2Speech(instance, byref(inText))
+		# We use the callback to stop speech but if this returns make sure isSpeaking is False
+		# Sometimes the synth don't deliver all messages
+		speakingInstance = None
+	except Exception as e:
+		log.error("Error running function from queue", exc_info=True)
+
+	if voiceLock:
 		try:
-			speakingInstance = instance
-			feedBuf = BytesIO()
-			veDll.ve_ttsProcessText2Speech(instance, byref(inText))
-			# We use the callback to stop speech but if this returns make sure isSpeaking is False
-			# Sometimes the synth don't deliver all messages
-			speakingInstance = None
-		except Exception as e:
-			log.error("Error running function from queue", exc_info=True)
+			voiceLock.release()
+		except RuntimeError:
+			pass
+
+def breakBlock(instance, arg):
+	print(arg)
+	global speakingInstance, feedBuf, voiceLock
+
+	time.sleep(arg/1000)
 
 	if voiceLock:
 		try:
