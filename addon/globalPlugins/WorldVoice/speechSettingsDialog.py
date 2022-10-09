@@ -64,18 +64,14 @@ class BaseSettingsPanel(SettingsPanel):
 class SpeechRoleSettingsPanel(SettingsPanel):
 	title = _("Speech Role")
 
-	def __init__(self, parent):
-		self._synthInstance = getSynth()
-		super().__init__(parent)
-
 	def makeSettings(self, sizer):
-		if not self._synthInstance.name == 'WorldVoice':
+		if not getSynth().name == 'WorldVoice':
 			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not WorldVoice.'))
 			infoLabel.Wrap(self.GetSize()[0])
 			sizer.Add(infoLabel)
 			return
 
-		self._manager = self._synthInstance._voiceManager
+		self._manager = getSynth()._voiceManager
 		self.ready = self._manager.ready()
 		if not self.ready:
 			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not ready.'))
@@ -141,7 +137,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepParameterConsistentChange, self._keepParameterConsistentCheckBox)
 
 	def postInit(self):
-		if not self._synthInstance.name == 'WorldVoice':
+		if not getSynth().name == 'WorldVoice':
 			return
 		self._updateVoicesSelection()
 		self._localesChoice.SetFocus()
@@ -289,10 +285,14 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self._manager.onVoiceParameterConsistent(voiceInstance)
 
 	def onDiscard(self):
+		if not getSynth().name == 'WorldVoice':
+			return
 		for instance in self._manager._instanceCache.values():
 			instance.rollback()
 
 	def onSave(self):
+		if not getSynth().name == 'WorldVoice':
+			return
 		temp = defaultdict(lambda: {})
 		for key, value in config.conf["WorldVoice"]["speechRole"].items():
 			if isinstance(value, config.AggregatedSection):
@@ -319,10 +319,10 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		for instance in self._manager._instanceCache.values():
 			instance.commit()
 			try:
-				if instance.name == config.conf["speech"][self._synthInstance.name]["voice"]:
-					config.conf["speech"][self._synthInstance.name]["rate"] = instance.rate
-					config.conf["speech"][self._synthInstance.name]["pitch"] = instance.pitch
-					config.conf["speech"][self._synthInstance.name]["volume"] = instance.volume
+				if instance.name == config.conf["speech"][getSynth().name]["voice"]:
+					config.conf["speech"][getSynth().name]["rate"] = instance.rate
+					config.conf["speech"][getSynth().name]["pitch"] = instance.pitch
+					config.conf["speech"][getSynth().name]["volume"] = instance.volume
 			except BaseException:
 				pass
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
@@ -335,8 +335,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			except KeyError:
 				different = False
 			if different:
-				if self._synthInstance.name == 'WorldVoice':
-					self._synthInstance.voice = self._dataToPercist[locale]["voice"]
+				if getSynth().name == 'WorldVoice':
+					getSynth().voice = self._dataToPercist[locale]["voice"]
 				config.conf["speech"]["WorldVoice"]["voice"] = self._dataToPercist[locale]["voice"]
 
 		WVConfigure.notify()
@@ -523,6 +523,3 @@ class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
 		LanguageSwitchingSettingsPanel,
 		OtherSettingsPanel,
 	]
-
-	def __init__(self, parent, initialCategory=None):
-		super().__init__(parent, initialCategory)

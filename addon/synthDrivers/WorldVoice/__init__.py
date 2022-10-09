@@ -213,7 +213,6 @@ class SynthDriver(SynthDriver):
 		WVEnd.notify()
 
 	def speak(self, speechSequence):
-		print(speechSequence)
 		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
 			if self._cni:
 				speechSequence = [comma_number_pattern.sub(lambda m:'', command) if isinstance(command, str) else command for command in speechSequence]
