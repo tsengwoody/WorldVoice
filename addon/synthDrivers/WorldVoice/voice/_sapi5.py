@@ -69,7 +69,9 @@ class SpeechVoiceEvents(IntEnum):
 	EndInputStream = 4
 	Bookmark = 16
 
+
 voiceLock = None
+
 
 def initialize(lock):
 	global voiceLock
@@ -137,4 +139,3 @@ def resume():
 	if speakingInstance is not None:
 		instance = speakingInstance
 		instance.resume()
-

@@ -116,11 +116,6 @@ class SynthDriver(SynthDriver):
 			defaultVal=0,
 			minStep=1,
 		),
-		# '''DriverSetting(
-		#	"speechcommandsgenerate",
-		#	_("SpeechCommands generate timing"),
-		#	defaultVal="BNP",
-		#),
 		DriverSetting(
 			"normalization",
 			_("Normalization"),
@@ -299,7 +294,7 @@ class SynthDriver(SynthDriver):
 				if isinstance(command, str):
 					# command = command.strip()
 					# if not command:
-						# continue
+					# 	continue
 					# If character mode is on use lower case characters
 					# Because the synth does not allow to turn off the caps reporting
 					if charMode or len(command) == 1:
@@ -340,7 +335,7 @@ class SynthDriver(SynthDriver):
 					voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 					chunks = []
 					hasText = False
-				elif isinstance(command, voice.Voice):
+				elif isinstance(command, Voice):
 					newInstance = command
 					if hasText:  # We changed voice, send what we already have to vocalizer.
 						voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
@@ -403,7 +398,7 @@ class SynthDriver(SynthDriver):
 						log.debugWarning("Couldn't convert character in IPA string: %s" % item.ipa)
 						if item.text:
 							textList.append(item.text)
-				elif isinstance(command, voice.Voice):
+				elif isinstance(command, Voice):
 					newInstance = command
 					tags.clear()
 					tagsChanged[0] = True
@@ -432,7 +427,7 @@ class SynthDriver(SynthDriver):
 					voiceInstance.index(item.index)
 				elif isinstance(item, CharacterModeCommand):
 					charMode = item.state
-				elif isinstance(command, voice.Voice):
+				elif isinstance(command, Voice):
 					newInstance = command
 					charMode = False
 					voiceInstance = newInstance
@@ -444,7 +439,7 @@ class SynthDriver(SynthDriver):
 				else:
 					log.error("Unknown speech: %s" % item)
 			elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH":
-				if isinstance(command, voice.Voice):
+				if isinstance(command, Voice):
 					newInstance = command
 					voiceInstance.speak(chunks)
 					chunks = []
@@ -583,20 +578,6 @@ class SynthDriver(SynthDriver):
 	def _set_normalization(self, value):
 		if value in self.availableNormalizations:
 			self._normalization = value
-
-	def _get_availableSpeechcommandsgenerates(self):
-		values = OrderedDict([
-			("BNP", StringParameterInfo("BNP", _("before NVDA processing"))),
-			("ANP", StringParameterInfo("ANP", _("after NVDA processing"))),
-		])
-		return values
-
-	def _get_speechcommandsgenerate(self):
-		return self._speechcommandsgenerate
-
-	def _set_speechcommandsgenerate(self, value):
-		if value in self.availableSpeechcommandsgenerates:
-			self._speechcommandsgenerate = value
 
 	def _get_availableNumlans(self):
 		return dict(
