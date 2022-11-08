@@ -17,13 +17,13 @@ except:
 from .._speechcommand import WVLangChangeCommand
 
 BASIC_LATIN = [
-    u"en", u"ha", u"so", u"id", u"la", u"sw", u"eu",
+    u"en", u"ha", u"so", u"id", u"la", u"ms", u"sw", u"eu",
     u"nr", u"zu", u"xh", u"ss", u"st", u"tn", u"ts"
 ]
 EXTENDED_LATIN = [
     u"cs", u"af", u"pl", u"hr", u"ro", u"sk", u"sl", u"tr", u"hu", u"az",
     u"et", u"sq", u"ca", u"es", u"gl", u"fr", u"de", u"nl", u"it", u"da", u"is", u"nb", u"sv",
-    u"fi", u"lv", u"pt", u"ve", u"lt", u"tl", u"cy", u"vi", "no"
+    u"fi", u"lv", u"pt", u"ve", u"lt", u"tl", u"cy", u"vi", u"no"
 ]
 ALL_LATIN = BASIC_LATIN + EXTENDED_LATIN
 
@@ -34,10 +34,13 @@ CJK = [u"zh", u"ja", u"ko"]
 SINGLETONS = {
     u"Armenian" : u"hy",
     u"Hebrew" : u"he",
+    u"Bhojpuri" : u"bh",
     u"Bengali" : u"bn",
-    u"Gurmukhi": u"pa",
+    u"Gurmukhi" : u"pa",
     u"Greek" : u"el",
     u"Gujarati" : u"gu",
+    u"Hindi" : u"hi",
+    u"Marathi" : u"mr",
     u"Oriya" : u"or",
     u"Tamil" : u"ta",
     u"Telugu" : u"te",
