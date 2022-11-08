@@ -6,7 +6,7 @@ from synthDriverHandler import getSynth
 VOICE_PARAMETERS = [
 	("rate", int, 50),
 	("pitch", int, 50),
-	("volume", int, 50),
+	("volume", int, 80),
 	("variant", str, ""),
 	# ("waitfactor", int, 0),
 ]
