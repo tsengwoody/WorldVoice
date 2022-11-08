@@ -9,6 +9,9 @@ _vautoTLWToLocaleNames = {
 	"PTB": "pt_BR", # Brazilian Portuguese
 	"ENG": "en_GB", # British English
 	"FRC": "fr_CA", # Canadian French
+	"FAI": "fa_IR", # Farsi
+	"MSM": "ms_MS", # Malay
+	"VIV": "vi_VN", # Vietnamese
 	"CAE": "ca", # Catalan
 	"MNC": "zh_CN", # Chinese Mandarin
 	"CZC": "cs_CZ", # Czech
@@ -42,6 +45,7 @@ _vautoTLWToLocaleNames = {
 	"PTP": "pt_PT", # Portuguese
 	"ROR": "ro_RO", # Romanian
 	"RUR": "ru_RU", # Russian
+	"UKU": "uk_UA", # Ukrainian
 	"ENZ": "en_ZA", # South African  English
 	"ENS": "en_SC", # Scottish English
 	"SPE": "es_ES", # Spanish (spain)
