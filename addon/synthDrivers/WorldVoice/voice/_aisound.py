@@ -59,7 +59,7 @@ def waveOutOpen(pWaveOutHandle,deviceID,wfx,callback,callbackInstance,flags):
 	if res==0 and pWaveOutHandle:
 		h=pWaveOutHandle.contents.value
 		d=audioDucking.AudioDucker()
-		d.enable()
+		# d.enable()
 		_duckersByHandle[h]=d
 	return res
 

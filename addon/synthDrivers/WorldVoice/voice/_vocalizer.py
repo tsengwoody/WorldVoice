@@ -348,7 +348,6 @@ def speakBlock(instance, arg):
 			pass
 
 def breakBlock(instance, arg):
-	print(arg)
 	global speakingInstance, feedBuf, voiceLock
 
 	time.sleep(arg/1000)

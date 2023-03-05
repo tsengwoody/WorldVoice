@@ -17,7 +17,7 @@ class TaskManager:
 
 		self.reset_SAPI5()
 
-		from synthDrivers.WorldVoice import WVConfigure
+		from . import WVConfigure
 		WVConfigure.register(self.reset_SAPI5)
 
 		self.dispatch_thread = None

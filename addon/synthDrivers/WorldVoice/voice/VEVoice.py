@@ -103,6 +103,12 @@ class VEVoice(Voice):
 		_vocalizer.setParameter(self.tts, _vocalizer.VE_PARAM_WAITFACTOR, value)
 
 	def speak(self, text):
+		temps = ""
+		for c in text:
+			if ord(c) > 65535:
+				c = chr(65535)
+			temps += c
+		text = temps
 		def _speak():
 			# _vocalizer.processText2Speech(self.tts, text)
 			_vocalizer.speakBlock(self.tts, text)

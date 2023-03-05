@@ -5,10 +5,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoice' '3.4'\n"
+"Project-Id-Version: 'WorldVoice' '3.5'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2022-10-09 20:03+0800\n"
-"PO-Revision-Date: 2022-10-09 20:05+0800\n"
+"POT-Creation-Date: 2023-03-05 09:25+0800\n"
+"PO-Revision-Date: 2023-03-05 09:26+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -16,7 +16,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Poedit 3.1.1\n"
+"X-Generator: Poedit 3.2.2\n"
 "X-Poedit-Basepath: ../../..\n"
 "X-Poedit-SearchPath-0: .\n"
 
@@ -220,55 +220,55 @@ msgstr "彈出 Unicode 設定對話框"
 msgid "Speech Role"
 msgstr "語音角色"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:73
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:69
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:354
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:464
 msgid "Your current speech synthesizer is not WorldVoice."
 msgstr "您當前的語音合成器不是 WorldVoice。"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:81
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:77
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:362
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:472
 msgid "Your current speech synthesizer is not ready."
 msgstr "您當前的語音合程器尚未就緒。"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:102
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:98
 msgid "Select a language, and then configure the voice to be used:"
 msgstr "選擇一個地區，並為其設定一個語音："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:106
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:102
 msgid "Locale Name:"
 msgstr "地區名稱:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:108
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:104
 msgid "Voice Name:"
 msgstr "語音名稱:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:110
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:106
 msgid "Variant:"
 msgstr "變聲："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:112
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:108
 msgid "&Rate:"
 msgstr "速度(&R)"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:114
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:110
 msgid "&Pitch:"
 msgstr "音調(&P)"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:116
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:112
 msgid "V&olume:"
 msgstr "音量(&O)"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:122
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:118
 msgid "Keep main engine and locale engine consistent"
 msgstr "保持主要語音引擎與地區語音引擎一致"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:130
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:126
 msgid "Keep main voice and locale voice consistent"
 msgstr "保持主要語音角色與地區語音角色一致"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:137
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:133
 msgid "Keep main parameter and locale parameter consistent"
 msgstr "保持主要語音參數與地區語音參數一致"
 
@@ -299,12 +299,10 @@ msgid "Language assumed for CJK characters:"
 msgstr "中日韓字元假設的語言："
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:420
-#: addon\synthDrivers\WorldVoice\__init__.py:590
 msgid "before NVDA processing"
 msgstr "在 NVDA 處理前"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:421
-#: addon\synthDrivers\WorldVoice\__init__.py:591
 msgid "after NVDA processing"
 msgstr "在 NVDA 處理後"
 
@@ -382,35 +380,35 @@ msgstr "項目停頓參數"
 msgid "Chinese space wait factor"
 msgstr "中文空白停頓參數"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:126
+#: addon\synthDrivers\WorldVoice\__init__.py:121
 msgid "Normalization"
 msgstr "正規化"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:131
+#: addon\synthDrivers\WorldVoice\__init__.py:126
 msgid "Ignore comma between number"
 msgstr "忽略在數字間的逗號"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:136
+#: addon\synthDrivers\WorldVoice\__init__.py:131
 msgid "Enable WorldVoice setting rules to detect text language"
 msgstr "啟用 WorldVoice 設定規則來偵測文字語言"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:139
+#: addon\synthDrivers\WorldVoice\__init__.py:134
 msgid "Enable WorldVoice rules"
 msgstr "啟用 WorldVoice 規則"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:576
+#: addon\synthDrivers\WorldVoice\__init__.py:570
 msgid "OFF"
 msgstr "關"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:605
+#: addon\synthDrivers\WorldVoice\__init__.py:585
 msgid "default"
 msgstr "預設"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:620
+#: addon\synthDrivers\WorldVoice\__init__.py:600
 msgid "value"
 msgstr "數值"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:621
+#: addon\synthDrivers\WorldVoice\__init__.py:601
 msgid "number"
 msgstr "數字"
 
