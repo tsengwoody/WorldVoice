@@ -103,6 +103,17 @@ class VEVoice(Voice):
 		_vocalizer.setParameter(self.tts, _vocalizer.VE_PARAM_WAITFACTOR, value)
 
 	def speak(self, text):
+		try:
+			text.encode('utf-8').decode('utf-8')
+		except:
+			temp = ""
+			for c in text:
+				try:
+					temp += c.encode('utf8').decode('utf8')
+				except:
+					pass
+			text = temp
+
 		temps = ""
 		for c in text:
 			if ord(c) > 65535:
