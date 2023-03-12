@@ -80,9 +80,9 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			return
 
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
-			self._manager.engine = self._manager._defaultVoiceInstance.engine
+			self._manager.activeEngines = [self._manager._defaultVoiceInstance.engine]
 		else:
-			self._manager.engine = 'ALL'
+			self._manager.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
 
 		self._localeToVoices = self._manager.localeToVoicesMapEngineFilter
 		self.localesToNames = self._manager.localesToNamesMapEngineFilter
@@ -214,9 +214,10 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	def onKeepEngineConsistentChange(self, event):
 		if self._keepEngineConsistentCheckBox.GetValue():
-			self._manager.engine = self._manager._defaultVoiceInstance.engine
+			self._manager.activeEngines = [self._manager._defaultVoiceInstance.engine]
 		else:
-			self._manager.engine = 'ALL'
+			self._manager.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
+
 		self._manager.onKeepEngineConsistent()
 
 		self._localeToVoices = self._manager.localeToVoicesMapEngineFilter
@@ -438,7 +439,6 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[self._CJKChoice.GetCurrentSelection()]
 		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 		if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != previous_DLT:
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
 			if previous_DLT == "after":
 				if gui.messageBox(
 					# Translators: The message displayed
@@ -446,9 +446,58 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 					# Translators: The title of the dialog
 					_("Detect language timing Configuration Change"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
 				) == wx.OK:
+					config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
 					gui.mainFrame.onSaveConfigurationCommand(None)
-					# wx.CallAfter(gui.mainFrame.onSaveConfigurationCommand, None)
 					queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
+
+
+class SpeechEngineSettingsPanel(BaseSettingsPanel):
+	# Translators: Title of a setting dialog.
+	title = _("Speech Engine")
+	settings = OrderedDict({
+		"VE": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate VE")
+		},
+		"OneCore": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate OneCore")
+		},
+		"aisound": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate aisound")
+		},
+		"SAPI5": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate SAPI5")
+		},
+		"RH": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate RH")
+		},
+	})
+	field = "engine"
+
+	def makeSettings(self, sizer):
+		super().makeSettings(sizer)
+		self.previousActiveEngine = set([key for key, value in config.conf["WorldVoice"]["engine"].items() if value])
+
+	def onSave(self):
+		activeEngine = set()
+		for k, v in self.settings.items():
+			if getattr(self, k + "CheckBox").IsChecked():
+				activeEngine.add(k)
+
+		if activeEngine != self.previousActiveEngine:
+			if gui.messageBox(
+				# Translators: The message displayed
+				_("For the active speech engine configuration to apply, NVDA must save configuration and be restarted. Do you want to do now?"),
+				# Translators: The title of the dialog
+				_("active engine Configuration Change"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
+			) == wx.OK:
+				super().onSave()
+				gui.mainFrame.onSaveConfigurationCommand(None)
+				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 
 class OtherSettingsPanel(SettingsPanel):
@@ -521,5 +570,6 @@ class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
 	categoryClasses = [
 		SpeechRoleSettingsPanel,
 		LanguageSwitchingSettingsPanel,
+		SpeechEngineSettingsPanel,
 		OtherSettingsPanel,
 	]

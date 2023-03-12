@@ -44,6 +44,13 @@ config.conf.spec["WorldVoice"] = {
 		"KeepMainLocaleEngineConsistent": "boolean(default=true)",
 	},
 	"speechRole": {},
+	"engine": {
+		"VE": "boolean(default=true)",
+		"OneCore": "boolean(default=true)",
+		"aisound": "boolean(default=true)",
+		"SAPI5": "boolean(default=false)",
+		"RH": "boolean(default=false)",
+	},
 	"other": {
 		"WaitFactor": "integer(default=1,min=0,max=9)",
 		"RateBoost": "boolean(default=true)",

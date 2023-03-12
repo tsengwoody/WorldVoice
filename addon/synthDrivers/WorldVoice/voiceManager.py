@@ -59,29 +59,39 @@ class VoiceManager(object):
 	def __init__(self):
 		self.lock = threading.Lock()
 
-		active_engine = []
+		self.installEngine = []
 		for item in self.voice_class.values():
 			if item.ready():
 				try:
 					item.engineOn(self.lock)
-					active_engine.append(item)
+					self.installEngine.append(item)
 				except BaseException:
 					pass
 
-		self.table = []
-		for item in active_engine:
-			self.table.extend(item.voices())
-
+		self._setVoiceDatas()
 		self.taskManager = TaskManager(lock=self.lock, table=self.table)
 
-		self._setVoiceDatas()
-		self.engine = 'ALL'
+		self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
 
 		self._instanceCache = {}
 		self.waitfactor = 0
 
-		self._defaultVoiceInstance = self.getVoiceInstance(self.table[0]["name"])
+		try:
+			item = list(filter(lambda item: item["language"] == languageHandler.getLanguage(), self.table))[0]
+		except IndexError:
+			item = self.table[0]
+
+		defaultVoiceName = item["name"]
+		self._defaultVoiceInstance = self.getVoiceInstance(defaultVoiceName)
 		self._defaultVoiceInstance.loadParameter()
+
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
+			self.activeEngines = [self._defaultVoiceInstance.engine]
+		else:
+			self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
+
+		self.onKeepEngineConsistent()
+
 		log.debug("Created voiceManager instance. Default voice is %s", self._defaultVoiceInstance.name)
 
 	def terminate(self):
@@ -111,6 +121,7 @@ class VoiceManager(object):
 			log.debugWarning("Voice not available, using default voice.")
 			return
 		self._defaultVoiceInstance = self.getVoiceInstance(name)
+		self.onKeepEngineConsistent()
 
 	@property
 	def waitfactor(self):
@@ -191,9 +202,10 @@ class VoiceManager(object):
 
 	def _setVoiceDatas(self):
 		self.table = []
-		for item in self.voice_class.values():
+		for item in self.installEngine:
 			self.table.extend(item.voices())
 		self.table = sorted(self.table, key=lambda item: (item['engine'], item['language'], item['name']))
+		self.table = list(filter(lambda item: item['engine'] in [key for key, value in config.conf["WorldVoice"]["engine"].items() if value], self.table))
 
 		self._localesToVoices = {
 			**groupByField(self.table, 'locale', lambda i: i, lambda i: i['name']),
@@ -217,7 +229,7 @@ class VoiceManager(object):
 		for item in self.voice_class.values():
 			self.tableEngineFilter.extend(item.voices())
 		self.tableEngineFilter = sorted(self.tableEngineFilter, key=lambda item: (item['engine'], item['language'], item['name']))
-		self.tableEngineFilter = list(filter(lambda item: self.engine == 'ALL' or item['engine'] == self.engine, self.tableEngineFilter))
+		self.tableEngineFilter = list(filter(lambda item: item['engine'] in self.engines, self.tableEngineFilter))
 
 		self._localesToVoicesEngineFilter = {
 			**groupByField(self.tableEngineFilter, 'locale', lambda i: i, lambda i: i['name']),
@@ -237,15 +249,19 @@ class VoiceManager(object):
 		self._voiceInfosEngineFilter = OrderedDict([(v.id, v) for v in voiceInfos])
 
 	@property
-	def engine(self):
-		return self._engine
+	def activeEngines(self):
+		return self._activeEngines
 
-	@engine.setter
-	def engine(self, value):
-		if value not in ["ALL"] + list(self.voice_class.keys()):
+	@activeEngines.setter
+	def activeEngines(self, value):
+		if not set(value).issubset(set(self.voice_class.keys())):
 			raise ValueError("engine setted is not valid")
-		self._engine = value
+		self._activeEngines = value
 		self._setVoiceDatasEngineFilter()
+
+	@property
+	def engines(self):
+		return self.activeEngines
 
 	@property
 	def voiceInfos(self):
