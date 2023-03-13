@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '3.5'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2023-03-11 23:19+0800\n"
-"PO-Revision-Date: 2023-03-11 23:20+0800\n"
+"POT-Creation-Date: 2023-03-12 22:21+0800\n"
+"PO-Revision-Date: 2023-03-12 22:23+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -181,7 +181,7 @@ msgstr "安裝 Aisound 核心。"
 #. to be shown on installation and add-on information found in Add-ons Manager.
 #: addon\globalPlugins\WorldVoice\__init__.py:74
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:23
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:566 buildVars.py:23
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:577 buildVars.py:23
 msgid "WorldVoice"
 msgstr "WorldVoice"
 
@@ -222,13 +222,13 @@ msgstr "語音角色"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:69
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:355
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:513
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:524
 msgid "Your current speech synthesizer is not WorldVoice."
 msgstr "您當前的語音合成器不是 WorldVoice。"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:77
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:363
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:521
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:532
 msgid "Your current speech synthesizer is not ready."
 msgstr "您當前的語音合程器尚未就緒。"
 
@@ -311,7 +311,7 @@ msgid "Enhance speech commands:"
 msgstr "增強語音命令："
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:445
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:448
 msgid ""
 "For the detect language timing configuration to apply, NVDA must save "
 "configuration and be restarted. Do you want to do now?"
@@ -319,42 +319,54 @@ msgstr ""
 "為了使偵測語言時間點設定生效， NVDA 必需儲存組態並重新啟動。您要立即執行嗎？"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:447
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:450
 msgid "Detect language timing Configuration Change"
 msgstr "偵測語言時間點設定變更"
 
 #. Translators: Title of a setting dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:456
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:458
 msgid "Speech Engine"
 msgstr "語音引擎"
 
 #. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:460
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:462
 msgid "Activate VE"
 msgstr "啟用 VE"
 
 #. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:464
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:466
 msgid "Activate OneCore"
 msgstr "啟用 OneCore"
 
 #. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:468
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:470
 msgid "Activate aisound"
 msgstr "啟用 aisound"
 
 #. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:472
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:474
 msgid "Activate SAPI5"
 msgstr "啟用 SAPI5"
 
 #. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:476
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:478
 msgid "Activate RH"
 msgstr "啟用 RH"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:494
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:496
+msgid ""
+"Speech engine configuration changes will not to save because no speech "
+"engines are activated."
+msgstr "語音引擎設定變更不會儲存，因為沒有啟用任何語音引擎。"
+
+#. Translators: The title of the dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:498
+msgid "No speech engines are activated"
+msgstr "沒有啟用任何語音引擎"
+
+#. Translators: The message displayed
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:505
 msgid ""
 "For the active speech engine configuration to apply, NVDA must save "
 "configuration and be restarted. Do you want to do now?"
@@ -362,29 +374,29 @@ msgstr ""
 "為了使啟用語音引擎的設定生效， NVDA 必需儲存組態並重新啟動。您要立即執行嗎？"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:496
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:507
 msgid "active engine Configuration Change"
 msgstr "啟用的"
 
 #. Translators: Title of a setting dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:505
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:516
 msgid "Other"
 msgstr "其他"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:530
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:541
 msgid "OneCore rate boost"
 msgstr "OneCore 提高語速"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:537
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:548
 msgid "VE wait factor:"
 msgstr "VE 停頓參數："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:544
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:555
 msgid "Number dot replacement"
 msgstr "數字點替代文字"
 
 #. translators: title of the dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:565
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:576
 msgid "Speech Settings"
 msgstr "語音設定"
 

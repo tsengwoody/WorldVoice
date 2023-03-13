@@ -79,7 +79,11 @@ class VoiceManager(object):
 		try:
 			item = list(filter(lambda item: item["language"] == languageHandler.getLanguage(), self.table))[0]
 		except IndexError:
-			item = self.table[0]
+			try:
+				item = self.table[0]
+			except IndexError:
+				config.conf["WorldVoice"]["engine"]["SAPI5"] = True
+				item = self.table[0]
 
 		defaultVoiceName = item["name"]
 		self._defaultVoiceInstance = self.getVoiceInstance(defaultVoiceName)

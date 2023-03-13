@@ -430,6 +430,8 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			self._DLTChoice.Select(0)
 
 	def onSave(self):
+		if not self._synthInstance.name == 'WorldVoice':
+			return False
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"] = self._useUnicodeDetectionCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = self._ignoreNumbersCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"] = self._ignorePunctuationCheckBox.GetValue()
@@ -439,6 +441,7 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[self._CJKChoice.GetCurrentSelection()]
 		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 		if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != previous_DLT:
+			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
 			if previous_DLT == "after":
 				if gui.messageBox(
 					# Translators: The message displayed
@@ -446,7 +449,6 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 					# Translators: The title of the dialog
 					_("Detect language timing Configuration Change"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
 				) == wx.OK:
-					config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
 					gui.mainFrame.onSaveConfigurationCommand(None)
 					queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
@@ -487,6 +489,15 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		for k, v in self.settings.items():
 			if getattr(self, k + "CheckBox").IsChecked():
 				activeEngine.add(k)
+
+		if len(activeEngine) == 0:
+			gui.messageBox(
+				# Translators: The message displayed
+				_("Speech engine configuration changes will not to save because no speech engines are activated."),
+				# Translators: The title of the dialog
+				_("No speech engines are activated"), wx.OK | wx.ICON_WARNING, self
+			)
+			return False
 
 		if activeEngine != self.previousActiveEngine:
 			if gui.messageBox(
