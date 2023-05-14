@@ -30,6 +30,8 @@ addon_info = {
 	"addon_author" : "Tseng Woody <tsengwoody.tw@gmail.com>",
 	# URL for the add-on documentation support
 	"addon_url" : "https://github.com/tsengwoody/WorldVoice",
+	# URL for the add-on repository where the source code can be found
+	"addon_sourceURL": "https://github.com/tsengwoody/WorldVoice",
 	# Documentation file name
 	"addon_docFileName": "readme.html",
 	# Minimum NVDA version supported (e.g. "2018.3.0", minor version is optional)
@@ -40,6 +42,10 @@ addon_info = {
 	# and for development releases, use "dev".)
 	# Do not change unless you know what you are doing!
 	"addon_updateChannel": None,
+	# Add-on license such as GPL 2
+	"addon_license": None,
+	# URL for the license document the ad-on is licensed under
+	"addon_licenseURL": None,
 }
 
 # Define the python files that are the sources of your add-on.
@@ -73,4 +79,4 @@ baseLanguage = "en"
 # If you need to add support for markup such as tables, fill out the below list.
 # Extensions string must be of the form "markdown.extensions.extensionName"
 # e.g. "markdown.extensions.tables" to add tables.
-markdownExtensions = []
+markdownExtensions = ['markdown.extensions.tables']

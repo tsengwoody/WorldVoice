@@ -1,34 +1,33 @@
 # WorldVoice
 
-在高度網路化及國際化的年代，語言的學習更顯其重要性，在語言學習教材中通常是以母語輔助解釋外國語言的辭彙、句意，二種語言以上的夾雜撰寫的情形非常普遍。日常生活中，我們也經常在交流討論時夾雜多種語言文字。在書報、網絡文章中也時常能看多種語言穿插撰寫傳達資訊，更有甚者在同一語句以中英文、中日文等文字拼湊形式呈現。
+In this highly interconnected and globalized era, language learning has become increasingly important. In language learning materials, native languages are often used to help explain foreign vocabulary and sentences, and multiple languages are often mixed together. In daily communication, we also often mix multiple languages and scripts. In books, newspapers, and online articles, multiple languages are often used to convey information, sometimes even within the same sentence, using Chinese and English or Chinese and Japanese.
 
-不同數位內容（語言學習、數理學門、文學作品）的文字組成、上下文語意、跨語系頻率等等特性皆會有差異，相對語音報讀的方式亦可能需依不同數位內容而有所微調以更符合該類文件的需求。
+The text composition, contextual meaning, and cross-lingual frequency of different digital content, such as language learning, mathematics, and literary works, may differ, and the corresponding speech reading method may also need to be adjusted accordingly to better meet the needs of different types of documents.
 
-WorldVoice 提供豐富的客製化設定選項讓使用者在不同情境下可有不同的設定能力，最大化滿足不同族群使用者的需求。
+WorldVoice is a multi-language speech reading NVDA add-on, which supports five speech engines (VE, OneCore, Aisound, SAPI5, and RHVoice) and provides a variety of customization options. Users can adjust their settings for different contexts, maximizing the satisfaction of different user groups.
 
-WorldVoice 是一款多國語音朗讀 NVDA 附加元件，可使用在高於 2020.1 版以上的 NVDA 中。
+Its main features include:
 
-主要包括功能：
+*	Automatic switching between multiple languages
+*	Individual speech parameter settings (speed, pitch, volume)
+*	Multi-speech engine selection
+*	Switching between numeric reading modes (digits and numerical values)
+*	Customizable speech reading behavior (pause length for numbers, items, Chinese space, comma ignore between numbers)
+*	Customizable text region.
 
-*	多國語系語音自動切換
-*	各別語音參數(速度、音調、音量)設定
-*	多語音引擎互相搭配選用
-*	數字讀法切換(數字與數值)
-*	朗讀行為客製(角色切換停頓長度、中文空白停頓長度、忽略在數字間的逗號)
-*	自訂文字所屬地區
+## install
 
-WorldVoice 支援 Aisound, OneCore, RHVoice, SAPI5, VE 五種語音引擎互相搭配選用
+In addition to the general NVDA addon installation steps, if you want to use the VE and aisound voices, you need to install the core packages. If you want to use the VE and RHVoice voices, you need to install the voice packages.
 
-## 安裝
+Here are the steps to install the core packages:
 
-*	安裝 WorldVoice 附加元件
-*	Aisound 與 VE 需額外安裝核心包後才可使用
-	*	安裝核心包：透過 WorldVoice -> VE 核心安裝、 Aisound 核心安裝，將對應的核心包 zip 檔匯入附加元件工作區。
-	*	為了驅動 VE 核心，作業系統內需安裝 [VC++ Redistributable Packages 2012](https://www.microsoft.com/en-US/download/details.aspx?id=30679)的 x86 版本 (VSU_4\vcredist_x86.exe) ，如您已安裝核心包與語音包後仍無法載入 WorldVoice 合成器，請試著安裝此元件。
-*	RHVoice 與 VE 需額外安裝語音包後才可使用
-	*	RHVoice 附加元件形式：使用官方提供的語音包附加元件，[官方下載點](https://rhvoice.org/languages/)。
-	*	VE 附加元件形式：使用兼容於 Vocalizer for NVDA 的語音包附加元件，[官方下載點](https://vocalizer-nvda.com/downloads)。
-	*	VE 壓縮包形式：可透過各種語音包內直接複製其內的地區資料夾(ex: en, mnc, mnt)等並將其壓成 zip 壓縮包後透過 WorldVoice 介面的檔案匯入功能匯入 addon 內，如無特殊需求建議使用 addon 版本安裝。
+*	Go to WorldVoice -> VE Core Installation, Aisound Core Installation, and import the corresponding core package zip files into the WorldVoice addon workspace.
+*	If you are using the VE core, you also need to install the x86 version of [VC++ Redistributable Packages 2012](https://www.microsoft.com/en-US/download/details.aspx?id=30679) in your operating system (VSU_4\vcredist_x86.exe). If you have already installed the core and voice packages but still cannot load the WorldVoice synthesizer, try installing this component.
+
+Here are the steps to install the voice packages:
+
+*	If you want to use the RHVoice voice, please download the corresponding voice package addon from the official website. [Official download page](https://rhvoice.org/languages/).
+*	If you want to use the VE voice, you can directly copy the regional folders (such as en, mnc, mnt, etc.) from the VE voice package addon and compress them into a zip file. Then, import it into the WorldVoice workspace through the "File Import" function in the WorldVoice interface. Since the addon form may be incompatible due to the NVDA version, causing the VE voice package to fail to load normally after updating NVDA, it is recommended to install the voice package in this file import method. Alternatively, you can use the VE addon voice package form, and download the corresponding voice package from the official website compatible with Vocalizer for NVDA. [Official download page](https://vocalizer-nvda.com/downloads).
 
 ## 設定
 
@@ -40,7 +39,7 @@ NVDA+ctrl+S 切換為 WorldVoice 語音合成器。
 
 *	語音速度、音調、音量設定
 *	數字讀法：分為 2 個設定選項「數字語言」與「數字模式」，數字語言設定數字朗讀時使用的語音角色、數字模式分為數值與數字兩種
-*	中文空白停頓長度：設定中文間空白時停頓的長度，數字愈小停頓愈短， 0 為不停頓。
+*	數字、項目、中文空白停頓參數可設定不同情境下的語音間停頓時長，數字愈小停頓愈短， 0 為不停頓。
 *	忽略在數字間的逗號：選項勾選時會忽略數字中間的逗號，可讓數字位數的逗號標錯位置仍能正常朗讀數值。
 *	啟用 WorldVoice 設定規則來偵測文字語言：當選項勾選時，會使用語音設定內的規則來偵測文字語言並切換語音朗讀。在部份情境此選項會與 NVDA 自動切換語言有相容性問題，建議兩者不要同時勾選。
 
@@ -60,7 +59,7 @@ NVDA+ctrl+S 切換為 WorldVoice 語音合成器。
 
 *	用 unicode 編碼偵測文字語言勾選後，程式會根據讀到的字元偵測文字所屬地區。
 *	偵測語言時忽略數字、偵測語言時忽略常見標點符號勾選後，數字與標點符號會判定為主要語音的地區文字。
-*	偵測語言時間點：文字自動偵測語言時間點在 NVDA 的符號處理前或後進行。當選擇「符號處理後」項目時，可防止與其他使用到語音模組附加元件(ex: Instant Translate)的衝突。
+*	增強語音命令：文字自動偵測語言、停頓語音指令的判斷與加入時間點是在 NVDA 的符號處理前或符號處理後進行。當選擇「符號處理後」項目時，可防止與其他使用到語音模組附加元件(ex: Instant Translate)的衝突。
 
 語音引擎：可選擇要啟用的語音引擎，預設為 VE, OneCore, aisound
 
