@@ -1,0 +1,484 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the 'WorldVoice' package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: 'WorldVoice' '3.5'\n"
+"Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
+"POT-Creation-Date: 2023-06-20 11:14+0300\n"
+"PO-Revision-Date: 2023-06-29 11:12+0300\n"
+"Last-Translator: Heorhii <nvda.translation.uk@gmail.com>\n"
+"Language-Team: \n"
+"Language: uk_UA\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.3.2\n"
+
+#. Translators: Message indicating no context sensitive help is available for the control or dialog.
+#: addon\generics\speechSymbols\contextHelp.py:34
+msgid "No help available here."
+msgstr "Немає доступної довідки."
+
+#. Translators: Message shown when trying to display context sensitive help,
+#. indicating that	the user guide could not be found.
+#: addon\generics\speechSymbols\contextHelp.py:41
+msgid "No user guide found."
+msgstr "Посібник користувача не знайдено."
+
+#: addon\generics\speechSymbols\models.py:20
+msgid "context"
+msgstr "контекст"
+
+#: addon\generics\speechSymbols\models.py:21
+msgid "force"
+msgstr "прискорення"
+
+#. Translators: This is the label for the add symbol dialog.
+#: addon\generics\speechSymbols\views.py:30
+msgid "Add Symbol"
+msgstr "Додати символ"
+
+#. Translators: This is the label for the edit field in the add symbol dialog.
+#: addon\generics\speechSymbols\views.py:35
+msgid "&Symbol:"
+msgstr "&Символ:"
+
+#: addon\generics\speechSymbols\views.py:58
+msgid "Unicode Setting"
+msgstr "Налаштування Юнікоду"
+
+#. Translators: The label of a text field to search for symbols in the speech symbols dialog.
+#: addon\generics\speechSymbols\views.py:73
+msgctxt "speechSymbols"
+msgid "&Filter by:"
+msgstr "&Фільтрувати за:"
+
+#. Translators: The label for symbols list in symbol pronunciation dialog.
+#: addon\generics\speechSymbols\views.py:82
+msgid "&Symbols"
+msgstr "&Символи"
+
+#. Translators: The label for a column in symbols list used to identify a symbol.
+#: addon\generics\speechSymbols\views.py:92
+msgid "Unicode"
+msgstr "Юнікод"
+
+#. Translators: The label for a column in symbols list used to identify a replacement.
+#: addon\generics\speechSymbols\views.py:94
+msgid "Replacement"
+msgstr "Заміна"
+
+#. Translators: The label for a column in symbols list used to identify a symbol's speech level (either none, some, most, all or character).
+#: addon\generics\speechSymbols\views.py:96
+msgid "Language"
+msgstr "Мова"
+
+#. Translators: The label for a column in symbols list which specifies when the actual symbol will be sent to the synthesizer (preserved).
+#. See the "Punctuation/Symbol Pronunciation" section of the User Guide for details.
+#: addon\generics\speechSymbols\views.py:99
+msgid "Mode"
+msgstr "Режим"
+
+#. Translators: The label for the group of controls in symbol pronunciation dialog to change the pronunciation of a symbol.
+#: addon\generics\speechSymbols\views.py:103
+msgid "Change selected symbol"
+msgstr "Змінити виділений символ"
+
+#. Translators: The label for the edit field in symbol pronunciation dialog to change the replacement text of a symbol.
+#: addon\generics\speechSymbols\views.py:125
+msgid "&Replacement"
+msgstr "&Заміна"
+
+#: addon\generics\speechSymbols\views.py:133
+msgid "&language"
+msgstr "&мова"
+
+#: addon\generics\speechSymbols\views.py:138
+msgid "&Detect language mode"
+msgstr "&Визначити режим мови"
+
+#. Translators: The label for a button in the Symbol Pronunciation dialog to add a new symbol.
+#: addon\generics\speechSymbols\views.py:145
+msgid "&Add"
+msgstr "&Додати"
+
+#. Translators: The label for a button in the Symbol Pronunciation dialog to remove a symbol.
+#: addon\generics\speechSymbols\views.py:148
+msgid "Re&move"
+msgstr "&Видалити"
+
+#: addon\generics\speechSymbols\views.py:254
+#, python-format
+msgid "Symbol \"%s\" is already present."
+msgstr "Символ \"%s\" уже присутній."
+
+#: addon\generics\speechSymbols\views.py:255
+msgid "Error"
+msgstr "Помилка"
+
+#. Translators: The message displayed
+#: addon\generics\speechSymbols\views.py:322
+msgid ""
+"For the edited unicode rule to apply, NVDA must be restarted. Do you want to "
+"restart NVDA now?"
+msgstr ""
+"Щоб відредаговане правило юнікоду було застосовано, потрібно перезапустити "
+"NVDA. Ви хочете перезапустити NVDA зараз?"
+
+#. Translators: The title of the dialog
+#: addon\generics\speechSymbols\views.py:324
+msgid "unicode rule edited"
+msgstr "правило Юнікоду відредаговано"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:61
+msgid "&Speech Settings"
+msgstr "&Налаштування мовлення"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:61
+msgid "Speech Settings."
+msgstr "Налаштування мовлення."
+
+#: addon\globalPlugins\WorldVoice\__init__.py:63
+msgid "&Unicode Settings"
+msgstr "&Налаштування Юнікоду"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:63
+msgid "Unicode Settings."
+msgstr "Налаштування Юнікоду."
+
+#: addon\globalPlugins\WorldVoice\__init__.py:65
+msgid "&File Import"
+msgstr "&Імпорт файлу"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:65
+msgid "Import File."
+msgstr "Імпорт файлу."
+
+#: addon\globalPlugins\WorldVoice\__init__.py:68
+msgid "VE Core Install"
+msgstr "встановити ядро VE"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:68
+msgid "Install VE Core."
+msgstr "Встановити ядро VE."
+
+#: addon\globalPlugins\WorldVoice\__init__.py:71
+msgid "&Aisound Core Install"
+msgstr "&Встановити ядро Aisound"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:71
+msgid "Install Aisound Core."
+msgstr "Встановити ядро Aisound."
+
+#. Translators: Title of a setting dialog.
+#. Add-on summary, usually the user visible name of the addon.
+#. Translators: Summary for this add-on
+#. to be shown on installation and add-on information found in Add-ons Manager.
+#: addon\globalPlugins\WorldVoice\__init__.py:74
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:23
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:577 buildVars.py:23
+msgid "WorldVoice"
+msgstr "WorldVoice"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:85
+msgid "Import file..."
+msgstr "Імпорт файлу..."
+
+#: addon\globalPlugins\WorldVoice\__init__.py:97
+msgid "Import fail"
+msgstr "Помилка імпорту"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:98
+#: addon\globalPlugins\WorldVoice\__init__.py:103
+msgid "Import File"
+msgstr "Імпорт файлу"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:102
+msgid ""
+"For the new file to import, NVDA must be restarted. Are you want to restart "
+"NVDA now ?"
+msgstr ""
+"Для імпорту нового файлу потрібно перезапустити NVDA. Ви хочете "
+"перезапустити NVDA зараз?"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:125
+msgid "SpeechSymbolsDialog have already been opened"
+msgstr "Діалог мовленнєвих символів вже відкрито"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:128
+msgid "popup speech settings dialog"
+msgstr "відкриває діалог налаштувань мовлення"
+
+#: addon\globalPlugins\WorldVoice\__init__.py:135
+msgid "popup unicode settings dialog"
+msgstr "відкриває діалог налаштувань Юнікоду"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:65
+msgid "Speech Role"
+msgstr "Роль мовлення"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:69
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:355
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:524
+msgid "Your current speech synthesizer is not WorldVoice."
+msgstr "Ваш поточний синтезатор мовлення не є WorldVoice."
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:77
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:363
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:532
+msgid "Your current speech synthesizer is not ready."
+msgstr "Ваш поточний синтезатор мовлення не готовий."
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:98
+msgid "Select a language, and then configure the voice to be used:"
+msgstr "Виберіть мову, а потім налаштуйте голос, який буде використовуватися:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:102
+msgid "Locale Name:"
+msgstr "Назва мови:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:104
+msgid "Voice Name:"
+msgstr "Назва голосу:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:106
+msgid "Variant:"
+msgstr "Варіант:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:108
+msgid "&Rate:"
+msgstr "&Швидкість:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:110
+msgid "&Pitch:"
+msgstr "&Висота:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:112
+msgid "V&olume:"
+msgstr "&Гучність:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:118
+msgid "Keep main engine and locale engine consistent"
+msgstr "Зберігати узгодженість основного та додаткового синтезаторів"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:126
+msgid "Keep main voice and locale voice consistent"
+msgstr "Зберігати узгодженість між основним та додатковим голосом"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:133
+msgid "Keep main parameter and locale parameter consistent"
+msgstr "Зберігати узгодженість параметрів основного й додаткового голосів"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:347
+msgid "Language Switching"
+msgstr "Перемикання мови"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:379
+msgid "Detect text language based on unicode characters"
+msgstr "Визначати мову тексту на основі символів юнікоду"
+
+#. Translators: Either to ignore or not numbers when language detection is active
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:387
+msgid "Ignore numbers when detecting text language"
+msgstr "Ігнорувати цифри при визначенні мови тексту"
+
+#. Translators: Either to ignore or not ASCII punctuation when language detection is active
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:395
+msgid "Ignore common punctuation when detecting text language"
+msgstr "Ігнорувати поширені розділові знаки при визначенні мови тексту"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:401
+msgid "Language assumed for latin characters:"
+msgstr "Передбачена мова для латинських символів:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:411
+msgid "Language assumed for CJK characters:"
+msgstr "Передбачена мова для символів CJK:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:421
+msgid "before NVDA processing"
+msgstr "до обробки NVDA"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:422
+msgid "after NVDA processing"
+msgstr "після обробки NVDA"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:425
+msgid "Enhance speech commands:"
+msgstr "Поліпшити команди мовлення:"
+
+#. Translators: The message displayed
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:448
+msgid ""
+"For the detect language timing configuration to apply, NVDA must save "
+"configuration and be restarted. Do you want to do now?"
+msgstr ""
+"Щоб застосувати конфігурацію часового проміжку виявлення мови, NVDA має "
+"зберегти конфігурацію і перезапуститися. Ви хочете зробити це зараз?"
+
+#. Translators: The title of the dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:450
+msgid "Detect language timing Configuration Change"
+msgstr "Змінити конфігурацію часового проміжку виявлення мови"
+
+#. Translators: Title of a setting dialog.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:458
+msgid "Speech Engine"
+msgstr "Синтезатор мовлення"
+
+#. Translators: The label of an option in the Engine settings dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:462
+msgid "Activate VE"
+msgstr "Увімкнути VE"
+
+#. Translators: The label of an option in the Engine settings dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:466
+msgid "Activate OneCore"
+msgstr "Увімкнути OneCore"
+
+#. Translators: The label of an option in the Engine settings dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:470
+msgid "Activate aisound"
+msgstr "Увімкнути aisound"
+
+#. Translators: The label of an option in the Engine settings dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:474
+msgid "Activate SAPI5"
+msgstr "Увімкнути SAPI5"
+
+#. Translators: The label of an option in the Engine settings dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:478
+msgid "Activate RH"
+msgstr "Увімкнути RH"
+
+#. Translators: The message displayed
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:496
+msgid ""
+"Speech engine configuration changes will not to save because no speech "
+"engines are activated."
+msgstr ""
+"Зміни конфігурації синтезаторів мовлення не будуть збережені, оскільки "
+"жодний з них не активовано."
+
+#. Translators: The title of the dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:498
+msgid "No speech engines are activated"
+msgstr "Не активованого жодного синтезатора мовлення"
+
+#. Translators: The message displayed
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:505
+msgid ""
+"For the active speech engine configuration to apply, NVDA must save "
+"configuration and be restarted. Do you want to do now?"
+msgstr ""
+"Щоб застосувати активну конфігурацію синтезатора мовлення, NVDA має зберегти "
+"конфігурацію і перезапуститися. Ви хочете зробити це зараз?"
+
+#. Translators: The title of the dialog
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:507
+msgid "active engine Configuration Change"
+msgstr "змінити конфігурацію активного синтезатора"
+
+#. Translators: Title of a setting dialog.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:516
+msgid "Other"
+msgstr "Інше"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:541
+msgid "OneCore rate boost"
+msgstr "Підвищення швидкості OneCore"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:548
+msgid "VE wait factor:"
+msgstr "Пауза між VE:"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:555
+msgid "Number dot replacement"
+msgstr "Заміна цифрової крапки"
+
+#. translators: title of the dialog.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:576
+msgid "Speech Settings"
+msgstr "Налаштування мовлення"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\synthDrivers\WorldVoice\__init__.py:87
+msgid "Number &Language"
+msgstr "&Мова цифр"
+
+#. Translators: Label for a setting in synth settings ring.
+#: addon\synthDrivers\WorldVoice\__init__.py:91
+msgid "Number Language"
+msgstr "Мова цифр"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\synthDrivers\WorldVoice\__init__.py:96
+msgid "Number &Mode"
+msgstr "&Режим цифр"
+
+#. Translators: Label for a setting in synth settings ring.
+#: addon\synthDrivers\WorldVoice\__init__.py:100
+msgid "Number Mode"
+msgstr "Режим цифр"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\synthDrivers\WorldVoice\__init__.py:105
+msgid "Number wait factor"
+msgstr "Пауза між цифрами"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\synthDrivers\WorldVoice\__init__.py:113
+msgid "item wait factor"
+msgstr "пауза між елементами"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\synthDrivers\WorldVoice\__init__.py:121
+msgid "Chinese space wait factor"
+msgstr "Тривалість паузи для китайських пробілів"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:128
+msgid "Normalization"
+msgstr "Нормалізація"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:133
+msgid "Ignore comma between number"
+msgstr "Ігнорувати кому між числами"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:138
+msgid "Enable WorldVoice setting rules to detect text language"
+msgstr "Увімкнути правила налаштування WorldVoice для визначення мови тексту"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:141
+msgid "Enable WorldVoice rules"
+msgstr "Увімкнути правила WorldVoice"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:577
+msgid "OFF"
+msgstr "ВИМКНЕНО"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:592
+msgid "default"
+msgstr "стандартно"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:607
+msgid "value"
+msgstr "цілі числа"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:608
+msgid "number"
+msgstr "по цифрах"
+
+#. Add-on description
+#. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
+#: buildVars.py:26
+msgid ""
+"Multilingual synthesizers add-on: Automatically switch speech role according "
+"to text language; Integrated Aisound, OneCore, RHVoice, SAPI5, VE speech "
+"engine"
+msgstr ""
+"Додаток для багатомовних синтезаторів: Автоматичне перемикання мов "
+"відповідно до мови тексту; інтегровано синтезатори мовлення Aisound, "
+"OneCore, RHVoice, SAPI5, VE speech engine"
