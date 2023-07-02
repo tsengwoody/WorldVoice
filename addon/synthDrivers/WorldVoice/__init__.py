@@ -13,7 +13,6 @@ import languageHandler
 from logHandler import log
 import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, PhonemeCommand, SpeechCommand
-from speech.sayAll import initialize as sayAllInitialize
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
 from . import languageDetection
@@ -162,21 +161,12 @@ class SynthDriver(SynthDriver):
 		if self._voiceManager.voice_class["OneCore"].core:
 			self._voiceManager.voice_class["OneCore"].core.rateBoost = config.conf["WorldVoice"]["other"]["RateBoost"]
 
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == 'before':
-			self._realSpeakFunc = speech.speech.speak
-			speech.speech.speak = self.patchedSpeak
-		else:
-			self._realSpeakFunc = speech.speech.speak
-
+		self._realSpeakFunc = speech.speech.speak
 		self._realSpellingFunc = speech.speech.speakSpelling
-		speech.speech.speakSpelling = self.patchedSpeakSpelling
 
-		sayAllInitialize(
-			speech.speech.speak,
-			speech.speech.speakObject,
-			speech.speech.getTextInfoSpeech,
-			speech.speech.SpeakTextInfoState,
-		)
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == 'before':
+			speech.speech.speak = self.patchedSpeak
+		speech.speech.speakSpelling = self.patchedSpeakSpelling
 
 		self.speechSymbols = SpeechSymbols()
 		self.speechSymbols.load('unicode.dic')
@@ -196,15 +186,7 @@ class SynthDriver(SynthDriver):
 	def terminate(self):
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == 'before':
 			speech.speech.speak = self._realSpeakFunc
-
 		speech.speech.speakSpelling = self._realSpellingFunc
-
-		sayAllInitialize(
-			speech.speech.speak,
-			speech.speech.speakObject,
-			speech.speech.getTextInfoSpeech,
-			speech.speech.SpeakTextInfoState,
-		)
 
 		try:
 			self.cancel()
@@ -553,21 +535,6 @@ class SynthDriver(SynthDriver):
 		# See NVDA ticket #3540
 		self._voiceManager.defaultVoiceInstance.stop()
 		self._voiceManager.defaultVoiceName = voiceName
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
-			locale = self._voiceManager.defaultVoiceInstance.language if self._voiceManager.defaultVoiceInstance.language else languageHandler.getLanguage()
-			if locale not in config.conf["WorldVoice"]["speechRole"]:
-				config.conf["WorldVoice"]["speechRole"][locale] = {}
-			config.conf["WorldVoice"]["speechRole"][locale]['voice'] = self._voiceManager.defaultVoiceInstance.name
-			locale = locale.split("_")[0]
-			if locale not in config.conf["WorldVoice"]["speechRole"]:
-				config.conf["WorldVoice"]["speechRole"][locale] = {}
-			config.conf["WorldVoice"]["speechRole"][locale]['voice'] = self._voiceManager.defaultVoiceInstance.name
-
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
-			self._voiceManager.engine = self._voiceManager._defaultVoiceInstance.engine
-		else:
-			self._voiceManager.engine = 'ALL'
-		self._voiceManager.onKeepEngineConsistent()
 
 	def _info(self):
 		s = [self.description]

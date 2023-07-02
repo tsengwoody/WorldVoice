@@ -6,11 +6,11 @@ import core
 import globalVars
 import gui
 from gui import guiHelper, nvdaControls
+from gui.contextHelp import ContextHelpMixin
 from gui.settingsDialogs import SettingsDialog
 from logHandler import log
 import queueHandler
 
-from .contextHelp import ContextHelpMixin
 from .models import SpeechSymbols, SpeechSymbol, SPEECH_SYMBOL_LANGUAGE_LABELS, SPEECH_SYMBOL_MODE_LABELS
 
 addonHandler.initTranslation()

@@ -13,9 +13,11 @@ import ui
 
 from .speechSettingsDialog import WorldVoiceSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
-from synthDrivers.WorldVoice.voiceManager import VEVoice, AisoundVoice
+
 from synthDrivers.WorldVoice import WVStart, WVEnd
 from synthDrivers.WorldVoice.hook import Hook
+from synthDrivers.WorldVoice.sayAll import patch, unpatch
+from synthDrivers.WorldVoice.voiceManager import VEVoice, AisoundVoice
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
@@ -26,25 +28,19 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
 		super().__init__()
 
-		from speech.sayAll import initialize as sayAllInitialize
-		sayAllInitialize(
-			speech.speech.speak,
-			speech.speech.speakObject,
-			speech.speech.getTextInfoSpeech,
-			speech.speech.SpeakTextInfoState,
-		)
-
 		if globalVars.appArgs.secure:
 			return
 
 		self.createMenu()
 
 		self.hookInstance = Hook()
-		if getSynth().name == "WorldVoice":
-			self.hookInstance.start()
 
 		WVStart.register(self.hookInstance.start)
 		WVEnd.register(self.hookInstance.end)
+		WVStart.register(patch)
+		WVEnd.register(unpatch)
+		if getSynth().name == "WorldVoice":
+			WVStart.notify()
 
 	def terminate(self):
 		try:
@@ -52,8 +48,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		except wx.PyDeadObjectError:
 			pass
 
+		if getSynth().name == "WorldVoice":
+			WVEnd.notify()
 		WVStart.unregister(self.hookInstance.start)
 		WVEnd.unregister(self.hookInstance.end)
+		WVStart.unregister(patch)
+		WVEnd.unregister(unpatch)
 
 	def createMenu(self):
 		self.submenu_vocalizer = wx.Menu()

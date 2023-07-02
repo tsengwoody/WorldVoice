@@ -71,8 +71,6 @@ class VoiceManager(object):
 		self._setVoiceDatas()
 		self.taskManager = TaskManager(lock=self.lock, table=self.table)
 
-		self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
-
 		self._instanceCache = {}
 		self.waitfactor = 0
 
@@ -85,16 +83,11 @@ class VoiceManager(object):
 				config.conf["WorldVoice"]["engine"]["SAPI5"] = True
 				item = self.table[0]
 
+		self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
+
 		defaultVoiceName = item["name"]
 		self._defaultVoiceInstance = self.getVoiceInstance(defaultVoiceName)
 		self._defaultVoiceInstance.loadParameter()
-
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
-			self.activeEngines = [self._defaultVoiceInstance.engine]
-		else:
-			self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
-
-		self.onKeepEngineConsistent()
 
 		log.debug("Created voiceManager instance. Default voice is %s", self._defaultVoiceInstance.name)
 
@@ -126,6 +119,7 @@ class VoiceManager(object):
 			return
 		self._defaultVoiceInstance = self.getVoiceInstance(name)
 		self.onKeepEngineConsistent()
+		self.onKeepMainLocaleVoiceConsistent()
 
 	@property
 	def waitfactor(self):
@@ -162,6 +156,11 @@ class VoiceManager(object):
 			instance.commit()
 
 	def onKeepEngineConsistent(self):
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
+			self.activeEngines = [self._defaultVoiceInstance.engine]
+		else:
+			self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
+
 		temp = defaultdict(lambda: {})
 		for key, value in config.conf["WorldVoice"]["speechRole"].items():
 			if isinstance(value, config.AggregatedSection):
@@ -191,6 +190,17 @@ class VoiceManager(object):
 		config.conf["WorldVoice"]["speechRole"] = temp
 		if self.taskManager:
 			self.taskManager.reset_SAPI5()
+
+	def onKeepMainLocaleVoiceConsistent(self):
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
+			locale = self.defaultVoiceInstance.language if self.defaultVoiceInstance.language else languageHandler.getLanguage()
+			if locale not in config.conf["WorldVoice"]["speechRole"]:
+				config.conf["WorldVoice"]["speechRole"][locale] = {}
+			config.conf["WorldVoice"]["speechRole"][locale]['voice'] = self.defaultVoiceInstance.name
+			locale = locale.split("_")[0]
+			if locale not in config.conf["WorldVoice"]["speechRole"]:
+				config.conf["WorldVoice"]["speechRole"][locale] = {}
+			config.conf["WorldVoice"]["speechRole"][locale]['voice'] = self.defaultVoiceInstance.name
 
 	def reload(self):
 		for voiceName, instance in self._instanceCache.items():
