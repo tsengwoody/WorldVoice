@@ -126,7 +126,8 @@ class _TextReader(sayAll._TextReader):
 		)
 		seq = list(_flattenNestedSequences(speechGen))
 		seq.insert(0, cb)
-		seq.append(BreakCommand(300))
+		if config.conf["speech"]["WorldVoice"]["sayallwaitfactor"] > 0:
+			seq.append(BreakCommand(config.conf["speech"]["WorldVoice"]["sayallwaitfactor"] * 5))
 		# Speak the speech sequence.
 		spoke = self.handler.speechWithoutPausesInstance.speakWithoutPauses(seq)
 		# Update the textInfo state ready for when speaking the next line.
@@ -150,25 +151,12 @@ class _TextReader(sayAll._TextReader):
 				self.numBufferedLines -= 1
 
 
-class _CaretTextReader(_TextReader):
-	def getInitialTextInfo(self) -> textInfos.TextInfo:
-		try:
-			return api.getCaretObject().makeTextInfo(textInfos.POSITION_CARET)
-		except (NotImplementedError, RuntimeError) as e:
-			raise NotImplementedError("Unable to make TextInfo: ", e)
-
-	def updateCaret(self, updater: textInfos.TextInfo) -> None:
-		updater.updateCaret()
-		if config.conf["reviewCursor"]["followCaret"]:
-			api.setReviewPosition(updater, isCaret=True)
+class _CaretTextReader(_TextReader, sayAll._CaretTextReader):
+	pass
 
 
-class _ReviewTextReader(_TextReader):
-	def getInitialTextInfo(self) -> textInfos.TextInfo:
-		return api.getReviewPosition()
-
-	def updateCaret(self, updater: textInfos.TextInfo) -> None:
-		api.setReviewPosition(updater, isCaret=False)
+class _ReviewTextReader(_TextReader, sayAll._ReviewTextReader):
+	pass
 
 
 class _TableTextReader(_CaretTextReader):

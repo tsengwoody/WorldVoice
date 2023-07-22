@@ -6,25 +6,27 @@ from logHandler import log
 from synthDriverHandler import getSynth
 
 
+
 class TaskManager:
 	def __init__(self, lock, table):
 		self.lock = lock
 		self._table = table
-
-		self.dispatchQueue = queue.Queue()
-		self.listenQueue = {}
-		self.speakingVoiceInstance = None
-
 		self.reset_SAPI5()
+
+		self.speakingVoiceInstance = None
+		self.dispatchQueue = queue.Queue()
+		self.dispatch_thread = None
+
+		self.dispatch_start()
 
 		from . import WVConfigure
 		WVConfigure.register(self.reset_SAPI5)
 
-		self.dispatch_thread = None
-		self.dispatch_start()
-
 	def __del__(self):
 		self.dispatch_end()
+
+		from . import WVConfigure
+		WVConfigure.unregister(self.hookInstance.start)
 
 	@property
 	def SAPI5(self):

@@ -115,6 +115,14 @@ class SynthDriver(SynthDriver):
 			minStep=1,
 		),
 		NumericDriverSetting(
+			"sayallwaitfactor",
+			# Translators: Label for a setting in voice settings dialog.
+			_("Say all wait factor"),
+			availableInSettingsRing=True,
+			defaultVal=0,
+			minStep=1,
+		),
+		NumericDriverSetting(
 			"chinesespacewaitfactor",
 			# Translators: Label for a setting in voice settings dialog.
 			_("Chinese space wait factor"),
