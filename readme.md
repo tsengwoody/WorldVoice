@@ -12,8 +12,7 @@ Its main features include:
 *	Individual speech parameter settings (speed, pitch, volume)
 *	Multi-speech engine selection
 *	Switching between numeric reading modes (digits and numerical values)
-*	Customizable speech reading behavior (pause length for numbers, items, Chinese space, comma ignore between numbers)
-*	Customizable text region.
+*	Customizable speech reading behavior (pause length for numbers, items, Chinese space, say all, comma ignore between numbers)
 
 ## install
 
@@ -29,21 +28,83 @@ Here are the steps to install the voice packages:
 *	If you want to use the RHVoice voice, please download the corresponding voice package addon from the official website. [Official download page](https://rhvoice.org/languages/).
 *	If you want to use the VE voice, you can directly copy the regional folders (such as en, mnc, mnt, etc.) from the VE voice package addon and compress them into a zip file. Then, import it into the WorldVoice workspace through the "File Import" function in the WorldVoice interface. Since the addon form may be incompatible due to the NVDA version, causing the VE voice package to fail to load normally after updating NVDA, it is recommended to install the voice package in this file import method. Alternatively, you can use the VE addon voice package form, and download the corresponding voice package from the official website compatible with Vocalizer for NVDA. [Official download page](https://vocalizer-nvda.com/downloads).
 
-## 設定
+## Main Speech Role Settings
 
-NVDA+ctrl+S 切換為 WorldVoice 語音合成器。
+In NVDA Settings: Speech(NVDA+Ctrl+V) Configure basic speech roles and common behaviors.
 
-### 主要語音角色設定
+* speed, pitch, and volume of main speech role.
+* Numeric reading: It has two options, "Number Language" and "Number mode". Number language sets the prefer language used for numeric text, and number mode set reading numbers text as numerical values or individual digits.
+* Pause duration for numbers, items, Chinese spaces, and say all parameters. Smaller values result in shorter pauses, with 0 meaning no pause.
+* Ignore comma between number: When selected, NVDA will ignore commas in numbers, allowing correct reading of numerical values with misplaced commas.
+* Enable WorldVoice setting rules to detect text language: When selected, NVDA will use the rules from the voice settings to detect the language of the text and switch the voice accordingly. Note that this option may have compatibility issues with NVDA's "Automatic language switching (when supported)", so it is advisable not to select both simultaneously.
 
-透過 NVDA 設定: 語音(NVDA+ctrl+V) 設定基底語音角色與共通行為
+## WorldVoice Voice Settings (NVDA Menu -> WorldVoice -> Voice Settings)
+
+Speech Role: You can configure speech roles for different regions, including individual settings for speed, pitch, volume, and consistency between the main speech role and regional speech roles.
+
+* Selecting a region will display a list of available speech roles for that region. Choosing a speech role will establish the association between the selected region and speech role.
+* After selecting a speech role, the list of voice modifiers will show available pitch adjustments for that speech role. Choosing a modifier will associate it with the selected speech role.
+* Once a speech role is chosen, the speed, pitch, and volume sliders below will display the settings for that speech role.
+* Speed, pitch, and volume settings are specific to each speech role and not tied to regions.
+* Keep main engine and locale engine consistent: This option synchronizes the main speech role in NVDA's voice settings with the regional speech role in WorldVoice. Adjusting the main voice settings will also adjust the regional voice engine to be the same.
+* Keep main voice and locale voice consistent: This option ensures that the main speech role in NVDA's voice settings matches the regional speech role in WorldVoice. Any changes to the main or regional speech role will be synchronized between the two.
+Keep main parameter and locale parameter consistent
+
+Language Switching:
+
+* Detect language using Unicode encoding: When checked, the program will detect the language based on the characters it reads.
+* Ignore numbers when detecting language, ignore common punctuation when detecting language: When checked, numbers and common punctuation will be considered part of the main speech role's language.
+* Enhance voice commands: This allows the program to automatically detect language and determine when to add pauses for voice commands before or after NVDA's symbol processing. Selecting "after symbol processing" can prevent conflicts with other voice module add-ons (e.g., Instant Translate).
+
+Speech Engine: You can choose the voice engine you want to enable, with VE, OneCore, and aisound as the default options.
+
+Others:
+
+* OneCore rate boost: When checked, OneCore's speech role will be faster.
+* VE wait factor: Set the pause length for VE voice sessions to start and end (each session ends when encountering a period or switching speech roles, then starts a new session).
+
+# WorldVoice
+
+在高度網路化和國際化的時代，語言學習變得越來越重要。在語言學習教材中，通常使用母語輔助解釋外國語言的詞彙和句子，並且經常出現兩種或以上語言混合的情況。在日常生活中，我們也經常在交流討論時夾雜多種語言和文字。在書報、網路文章中也常常能看到多種語言穿插撰寫以傳達資訊，有些甚至在同一句子中以中英文、中日文等方式呈現。
+
+不同數位內容（例如語言學習、數理學門和文學作品）的文字組成、上下文語意和跨語言頻率等特性會有所不同，相對的語音報讀方式也可能需要依據不同的數位內容進行微調，以更符合該類文件的需求。
+
+WorldVoice 是一款多國語音朗讀 NVDA 附加元件，支援 VE, OneCore, Aisound, SAPI5, RHVoice 五種語音引擎互相搭配選用並提供了豐富的客製化設定選項，讓使用者可以在不同情境下進行不同的設定，最大化滿足不同族群使用者的需求。
+
+主要功能有：
+
+*	多國語系語音自動切換
+*	各別語音參數(速度、音調、音量)設定
+*	多語音引擎互相搭配選用
+*	數字讀法切換(數字與數值)
+*	朗讀行為客製(數字、項目、中文空白停頓長度、忽略在數字間的逗號)
+*	自訂文字所屬地區
+
+## 安裝
+
+除了一般的 NVDA 附加元件安裝步驟之外，如果您想使用 VE 和 aisound 語音，您需要額外安裝核心包；如果您想使用 VE 和 RHVoice 語音，您需要安裝語音包。
+
+安裝核心包的步驟如下：
+
+*	前往 WorldVoice -> VE 核心安裝、Aisound 核心安裝，並將相應的核心包 zip 檔案匯入 WorldVoice 附加元件工作區。
+*	如果您使用 VE 核心，還需要在作業系統中安裝 [VC++ Redistributable Packages 2012](https://www.microsoft.com/en-US/download/details.aspx?id=30679) 的 x86 版本(VSU_4\vcredist_x86.exe)，如果您已安裝核心包和語音包，但仍無法載入 WorldVoice 合成器，請嘗試安裝此元件。
+
+安裝語音包的步驟如下：
+
+*	如果欲使用 RHVoice 的語音，請從官方網站下載相應的語音包附加元件。[官方下載點](https://rhvoice.org/languages/)。
+*	如果欲使用 VE 語音，您可以直接從 VE 語音包附加元件內複製地區資料夾（例如 en、mnc、mnt 等），將其壓縮成 zip 壓縮包後，透過 WorldVoice 介面的「檔案匯入」功能匯入 WorldVoice 工作區內。由於附加元件形式可能因 NVDA 身版導致不相容，造成更新 NVDA 後無法正常載入 VE 語音包，推薦使用此種檔案匯入語音包的方式安裝。或是您可以使用 VE 附加元件語音包形式，請從兼容於 Vocalizer for NVDA 的語音包附加元件官方網站下載相應的語音包。[官方下載點](https://vocalizer-nvda.com/downloads)。
+
+## 主要語音角色設定
+
+在 NVDA 設定: 語音(NVDA+ctrl+V) 設定基礎語音角色與共通行為
 
 *	語音速度、音調、音量設定
 *	數字讀法：分為 2 個設定選項「數字語言」與「數字模式」，數字語言設定數字朗讀時使用的語音角色、數字模式分為數值與數字兩種
-*	數字、項目、中文空白停頓參數可設定不同情境下的語音間停頓時長，數字愈小停頓愈短， 0 為不停頓。
+*	針對數字、項目、中文空白、讀出全部的語音間停頓時長，數字愈小停頓愈短， 0 為不停頓。
 *	忽略在數字間的逗號：選項勾選時會忽略數字中間的逗號，可讓數字位數的逗號標錯位置仍能正常朗讀數值。
 *	啟用 WorldVoice 設定規則來偵測文字語言：當選項勾選時，會使用語音設定內的規則來偵測文字語言並切換語音朗讀。在部份情境此選項會與 NVDA 自動切換語言有相容性問題，建議兩者不要同時勾選。
 
-### WorldVoice 語音設定（NVDA 功能表 -> WorldVoice -> 語音設定）
+## WorldVoice 語音設定（NVDA 功能表 -> WorldVoice -> 語音設定）
 
 語音角色：可設定不同地區所使用的語音角色、各別語音角色速度、音調、音量、主要語音角色與地區語音角色一致性設定。
 
@@ -67,17 +128,16 @@ NVDA+ctrl+S 切換為 WorldVoice 語音合成器。
 
 *	OneCore 提高語速：勾選後 OneCore 的語音角色速度會更快
 *	VE 停頓參數：設定 VE 語音 session 開始與結束的停頓長度。（遇到句號或語音角色切換時皆會結束當前這條語音 session 並重啟一條新的語音 session）
-*	數字點替代文字：設定數字中的小數點朗讀方式
 
-### 其他設定：
+# 更新版本日誌
 
-WorldVoice -> Unicode 設定：可定義字元所隸屬的地區並依上下文或強制模式來判斷字元的地區，當「用 unicode 編碼偵測文字語言」勾選後自動偵測的判斷會加入此設定檔的規則，此功能可解決 NVDA 內部的 symbol 轉換規則造成在自動切換語言下不朗讀之問題。例如在某些情形下「.」不讀取時則可試著在規則中加入「.」的符號並選擇語言與模式來使其正確讀出。
+## v3.6
 
-WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
+* 新增讀出全部停頓功能，可在讀出全部時的片段間停頓
+* 修正特定情境中無法保存設定的問題
+* 加入烏克蘭語翻譯，感謝 VovaMobile 的貢獻
 
-## 更新版本日誌
-
-### v3.5
+## v3.5
 
 *	修正 aisound 音量回避 bug
 *	修正 VE 遇 utf8 4bit 字元會讓後續文字不朗讀的問題
@@ -85,7 +145,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	在語音設定新增引擎分類，可選擇要啟用的語音引擎，預設為 VE, OneCore, aisound
 *	相容於 NVDA 版本 2023.1
 
-### v3.4
+## v3.4
 
 * 新增數字間停頓，提身數字內容聽讀判斷
 * 新增項目間停頓功能，提身物件資訊聽讀判斷
@@ -94,7 +154,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 * 修正 VE 開啟「游標移動時延遲讀出字元的字詞解釋」後遊標移動卡頓問題
 * 修正 OneCore 與 RHVoice 「游標移動時延遲讀出字元的字詞解釋」無效的問題
 
-### v3.3
+## v3.3
 
 * 支援 OneCore engine
 * 地區與語音角色對應為 No Select 時使用主語音朗讀
@@ -103,7 +163,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 * 在語音設定中的其他分類下加入 OneCore 加快語速開關
 * 支援 RHVoice engine
 
-### v3.2
+## v3.2
 
 *	修正在語音合成器非選擇 WorldVoice 時，語音設定問題，改以顯示提示文字
 *	修正 aisound 音量調整問題
@@ -112,7 +172,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	修正多項語意問題(flake8)
 *	相容於 NVDA 版本 2022.1
 
-### v3.1
+## v3.1
 
 *	在網頁瀏覽中中斷無聲報讀
 *	shift 可暫停/繼續語音報讀
@@ -120,7 +180,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	保持主要語音引擎與地區語音引擎一致功能
 *	修正 VE 停頓的方式
 
-### v3.0
+## v3.0
 
 *	支援 SAPI5 語音引擎
 *	支援 Aisound 語音引擎
@@ -128,13 +188,13 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	語音設定內新增 unicode 正規化方式選項
 *	語音角色排序方式調整依語音引擎、語音角色名稱排序
 
-### v2.2
+## v2.2
 
 *	語音設定內新增變聲選項，需依序設定地區、語音、變聲選項
 *	修政偵測語言時間點選「符號處理前」後無法再變更之問題
 *	新增阿拉伯語系翻譯
 
-### v2.1
+## v2.1
 
 *	相容於 NVDA 版本 2019.3~ 2021.1
 *	可套用 NVDA 不同組態設定
@@ -145,16 +205,16 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	保持主要語音參數與地區語音參數一致：將 NVDA 語音設定中的語音（主要語音）與 WorldVoice 語音設定中的地區對應語音（地區語音）參數（速度、音調、音量）一致，當主要語音或地區語音設定調整時，同步調整雙方的語音參數設定
 *	保持主要語音角色與地區語音角色一致：將 NVDA 語音設定中的語音（主要語音）角色與 WorldVoice 語音設定中的地區對應語音（地區語音）角色一致，當主要語音或地區語音設定調整時，同步調整雙方的語音角色設定
 
-### v2.0
+## v2.0
 
 *	相容 NVDA 2021.1
 
-### v1.7
+## v1.7
 
 *	小數點不讀修正(三數字間皆有小數點情形)
 *	相容 NVDA 2021.1 以前的最後一版
 
-### v1.6
+## v1.6
 
 *	修正數字模式下小數點不朗讀問題
 *	更新 VE 核心包工作目錄，未來更新時可無需重新匯入
@@ -162,7 +222,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	修正啟用 unicode 自動語言針測時，預設語音與 NVDA 語言地區不相同但同語系時無法切換的問題
 *	修正自動切換語言無勾選時 WorldVoice 變更語音語言命令被濾掉的問題
 
-### v1.5
+## v1.5
 
 *	數字讀法分為 2 個設定選項「數字語言」與「數字模式」，將選項分為 2 維度以利選擇
 *	忽略數字間逗點選項使數值報讀更正確
@@ -173,7 +233,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	地區與語音對應加入 no-select 用來取消對應
 *	支援快速鍵彈出語音設定與 Unicode 設定
 
-### v1.4
+## v1.4
 
 *	修正檢視報讀內容開啟時無語音
 *	音調內部數值換算百分比改非線性計算，讓預設值為 50
@@ -181,7 +241,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	修正初始值類型錯誤導致語音設定對話框無法顯示
 *	初始語音改優先使用預設語言之語音
 
-### v1.3
+## v1.3
 
 *	加入 unicode 設定功能
 *	修正單數字不會自動切換的問題
@@ -189,7 +249,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	移除 v1.2 的第1驅動
 *	調整程式結構並預支援更多 TTS
 
-### v1.2
+## v1.2
 
 *	提供第 2 驅動核心，整體相比第 1 驅動核心順暢，無偶爾速度不一致與小爆音問題
 *	第 2 驅動功能比照第 1 驅動包括數字模式、中文空白間隔、忽略文件中的語言資訊等選項
@@ -199,7 +259,7 @@ WorldVoice -> 檔案匯入：可匯入檔案，可用於匯入語音包。
 *	修正數字模式在選擇各數字語音下無正確使用選擇的語音的問題
 *	調整數字模式與忽略文件中的語言資訊處理順序，更符合預期朗讀邏輯
 
-### v1.1
+## v1.1
 
 *	新增數字模式的選項，可選擇有安裝的語言朗讀數字並可分為數值與數字兩種。
 *	新增忽略文件中的語言資訊的選項，此主要是避免自動切換語言勾選且原始文件就有提供語言資訊但不正確時(例如中文文字確標示英文語言)可能導致無法正確朗讀；或是在 word 數字會被標示成英文語言導致自動改用英文語音朗讀的狀況。
