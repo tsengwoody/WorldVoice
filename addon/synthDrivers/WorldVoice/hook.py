@@ -38,11 +38,11 @@ class Hook:
 
 	def hook_callback(self, **kwargs):
 		if not getSynth():
-			return
+			return False
 		if not getSynth().name == "WorldVoice":
-			return
+			return False
 		taskManager = getSynth()._voiceManager.taskManager
-		if taskManager.SAPI5:
+		if not taskManager.SAPI5:
 			return False
 		if kwargs['pressed'] and not kwargs['vk_code'] in [
 			VK_SHIFT,

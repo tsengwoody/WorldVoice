@@ -15,7 +15,7 @@ import textInfos
 import queueHandler
 import speech
 from speech import sayAll
-from speech.sayAll import CURSOR
+from speech.sayAll import CURSOR, _ObjectsReader
 from utils.security import objectBelowLockScreenAndWindowsIsLocked
 
 from speech.commands import BreakCommand, CallbackCommand
