@@ -131,6 +131,12 @@ WorldVoice 是一款多國語音朗讀 NVDA 附加元件，支援 VE, OneCore, A
 
 # 更新版本日誌
 
+## v3.7
+
+* 修正 NVDA+b 功能無法使用的問題
+* 修正睡眠模式下按鍵盤任意鍵語音中斷問題(語音角色設定中有任意 SAPI5 語音則不適用)(Workaround Solution)
+* 同步 OneCore 程式與 NVDA 內 OneCore 做法
+
 ## v3.6
 
 * 新增讀出全部停頓功能，可在讀出全部時的片段間停頓
