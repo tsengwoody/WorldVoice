@@ -82,13 +82,14 @@ class Sapi5Voice(Voice):
 		self.taskManager.add_dispatch_task((self, _speak),)
 
 	def stop(self):
-		# SAPI5's default means of stopping speech can sometimes lag at end of speech, especially with Win8 / Win 10 Microsoft Voices.
-		# Therefore  instruct the underlying audio interface to stop first, before interupting and purging any remaining speech.
-		if self.ttsAudioStream:
-			self.ttsAudioStream.setState(SPAudioState.STOP, 0)
-		self.tts.Speak(None, SpeechVoiceSpeakFlags.Async | SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
-
-		# _sapi5.stop()
+		try:
+			# SAPI5's default means of stopping speech can sometimes lag at end of speech, especially with Win8 / Win 10 Microsoft Voices.
+			# Therefore  instruct the underlying audio interface to stop first, before interupting and purging any remaining speech.
+			if self.ttsAudioStream:
+				self.ttsAudioStream.setState(SPAudioState.STOP, 0)
+			self.tts.Speak(None, SpeechVoiceSpeakFlags.Async | SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
+		except COMError:
+			log.warning("Could not interupting and purging any remaining speech and instruct the underlying audio interface to stop...")
 
 	def pause(self):
 		try:

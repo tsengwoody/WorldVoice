@@ -6,7 +6,6 @@ from logHandler import log
 from synthDriverHandler import getSynth
 
 
-
 class TaskManager:
 	def __init__(self, lock, table):
 		self.lock = lock

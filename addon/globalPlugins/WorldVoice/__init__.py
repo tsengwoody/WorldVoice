@@ -7,7 +7,6 @@ import globalPluginHandler
 import globalVars
 import gui
 from scriptHandler import script
-import speech
 from synthDriverHandler import getSynth
 import ui
 

@@ -97,10 +97,7 @@ class VoiceManager(object):
 			instance.close()
 
 		for item in self.voice_class.values():
-			try:
-				item.engineOff()
-			except BaseException:
-				pass
+			item.engineOff()
 
 		self.taskManager = None
 

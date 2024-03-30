@@ -10,7 +10,6 @@ import weakref
 from logHandler import log
 import config
 import controlTypes
-import api
 import textInfos
 import queueHandler
 import speech

@@ -3,17 +3,10 @@
 from collections import defaultdict
 from io import StringIO
 
-from .blocks import BLOCKS, BLOCK_RSHIFT
-
 import config
-from logHandler import log
-import languageHandler
+from synthDriverHandler import getSynth
 
-try:
-	from synthDriverHandler import getSynth
-except:
-	from speech import getSynth
-
+from .blocks import BLOCKS, BLOCK_RSHIFT
 from .._speechcommand import WVLangChangeCommand
 
 BASIC_LATIN = [
@@ -58,6 +51,7 @@ _configKeys = {'CJK Unified Ideographs': 'CJKCharactersLanguage'}
 for charset in ('Basic Latin', 'Extended Latin', 'Latin Extended-B'):
 	_configKeys[charset] = 'latinCharactersLanguage'
 
+
 class LanguageDetector(object):
 	""" Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
@@ -67,7 +61,7 @@ class LanguageDetector(object):
 		availableLanguages = frozenset(l.split("_")[0] for l in availableLanguages)
 		# Cache what are the unicode blocks supported by each language.
 		# Only cache for languages we have available
-		languageBlocks = defaultdict(lambda : [])
+		languageBlocks = defaultdict(lambda: [])
 		# Basic latin and extended latin are considered the same.
 		for l in (set(ALL_LATIN) & availableLanguages):
 			languageBlocks[l].extend([u"Basic Latin", u"Extended Latin"])
@@ -97,12 +91,11 @@ class LanguageDetector(object):
 		self.languageBlocks = languageBlocks
 
 		# cache a reversed version of the hash table too.
-		blockLanguages = defaultdict(lambda : [])
+		blockLanguages = defaultdict(lambda: [])
 		for k, v in languageBlocks.items():
 			for i in v:
 				blockLanguages[i].append(k)
 		self.blockLanguages = blockLanguages
-
 
 	def add_detected_language_commands(self, speechSequence):
 		sb = StringIO()
@@ -134,7 +127,7 @@ class LanguageDetector(object):
 							newCharset = None
 						charset = newCharset
 						symbol = self.speechSymbols.symbols[c]
-						c = symbol.replacement if symbol.replacement and not c in [str(i) for i in range(10)] else c
+						c = symbol.replacement if symbol.replacement and c not in [str(i) for i in range(10)] else c
 						if symbol.mode == 1:
 							newLang = symbol.language
 						else:
@@ -280,4 +273,3 @@ class LanguageDetector(object):
 				sb.write(c)
 		if sb.getvalue():
 			yield sb.getvalue(), curLang
-

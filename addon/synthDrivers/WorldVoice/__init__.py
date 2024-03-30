@@ -199,8 +199,8 @@ class SynthDriver(SynthDriver):
 		try:
 			self.cancel()
 			self._voiceManager.terminate()
-		except RuntimeError:
-			log.error("Vocalizer terminate", exc_info=True)
+		except BaseException:
+			log.error("WorldVoice terminate", exc_info=True)
 
 		WVEnd.notify()
 
