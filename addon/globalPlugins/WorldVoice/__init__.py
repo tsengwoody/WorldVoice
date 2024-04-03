@@ -115,11 +115,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.fileImport(AisoundVoice.workspace)
 
 	def popup_SpeechSettingsDialog(self, event):
-		wx.CallAfter(gui.mainFrame._popupSettingsDialog, WorldVoiceSettingsDialog)
+		wx.CallAfter(gui.mainFrame.popupSettingsDialog, WorldVoiceSettingsDialog)
 
 	def popup_SpeechSymbolsDialog(self, event):
 		if SpeechSymbolsDialog._instance is None:
-			gui.mainFrame._popupSettingsDialog(SpeechSymbolsDialog)
+			gui.mainFrame.popupSettingsDialog(SpeechSymbolsDialog)
 		else:
 			ui.message(_("SpeechSymbolsDialog have already been opened"))
 

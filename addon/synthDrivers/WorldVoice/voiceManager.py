@@ -13,6 +13,7 @@ from .voice.Sapi5Voice import Sapi5Voice
 from .voice.AisoundVoice import AisoundVoice
 from .voice.OneCoreVoice import OneCoreVoice
 from .voice.RHVoice import RHVoice
+from .voice.EspeakVoice import EspeakVoice
 
 
 def joinObjectArray(srcArr1, srcArr2, key):
@@ -47,6 +48,7 @@ class VoiceManager(object):
 		"aisound": AisoundVoice,
 		"OneCore": OneCoreVoice,
 		"RH": RHVoice,
+		"Espeak": EspeakVoice,
 	}
 
 	@classmethod
@@ -65,7 +67,8 @@ class VoiceManager(object):
 				try:
 					item.engineOn(self.lock)
 					self.installEngine.append(item)
-				except BaseException:
+				except BaseException as e:
+					print(e)
 					pass
 
 		self._setVoiceDatas()
@@ -126,8 +129,8 @@ class VoiceManager(object):
 	def waitfactor(self, value):
 		self._waitfactor = value
 		for voiceName, instance in self._instanceCache.items():
-			instance.waitfactor = value
-			instance.commit()
+			if isinstance(instance, VEVoice):
+				instance.waitfactor = value
 
 	def getVoiceInstance(self, voiceName):
 		try:

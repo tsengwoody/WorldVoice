@@ -4,21 +4,18 @@ from . import Voice
 
 class RHVoice(Voice):
 	core = None
+	engine = "RH"
 
 	def __init__(self, id, name, taskManager, language=None):
-		self.engine = "RH"
-		self.id = id
-		self.taskManager = taskManager
 		self.name = name
 		self.language = language if language else "unknown"
 
-		super().__init__()
+		super().__init__(id=id, taskManager=taskManager)
 
 	def active(self):
 		if self.core.voice == self.id:
 			return
 		self.core.voice = self.id
-		self.core.language = self.language
 		self.core.pitch = self._pitch
 		self.core.rate = self._rate
 		self.core.volume = self._volume

@@ -3,29 +3,36 @@ import threading
 import config
 from synthDriverHandler import getSynth
 
+
+def boolean(value):
+	if isinstance(value, str):
+		if value in ["False", "false"]:
+			return False
+		else:
+			return True
+	else:
+		return bool(value)
+
+
 VOICE_PARAMETERS = [
 	("rate", int, 50),
 	("pitch", int, 50),
 	("volume", int, 50),
-	("variant", str, ""),
-	# ("waitfactor", int, 0),
+	("variant", str, "default"),
+	("rateBoost", boolean, False),
 ]
 
 
 class Voice(object):
 	speaking = threading.Lock()
 
-	def __init__(self):
-		self.rate = 50
-		self.pitch = 50
-		self.volume = 50
+	def __init__(self, id, taskManager):
+		self.id = id
+		self.taskManager = taskManager
 
-		self.variant = ""
-		self.waitfactor = 0
-
-		self.commitRate = 50
-		self.commitPitch = 50
-		self.commitVolume = 50
+		for p, t, d in VOICE_PARAMETERS:
+			setattr(self, p, t(d))
+			setattr(self, "commit_" + p, t(d))
 
 		self.loadParameter()
 
@@ -67,12 +74,12 @@ class Voice(object):
 		self._variant = value
 
 	@property
-	def waitfactor(self):
-		return self._waitfactor
+	def rateBoost(self):
+		return self._rateBoost
 
-	@waitfactor.setter
-	def waitfactor(self, value):
-		self._waitfactor = value
+	@rateBoost.setter
+	def rateBoost(self, value):
+		self._rateBoost = value
 
 	def speak(self, text):
 		raise NotImplementedError
@@ -131,28 +138,30 @@ class Voice(object):
 				config.conf["WorldVoice"]['voices'][voiceName][p] = t(d)
 				setattr(self, p, t(d))
 
-		self.commitRate = self.rate
-		self.commitPitch = self.pitch
-		self.commitVolume = self.volume
+		for p, t, _ in VOICE_PARAMETERS:
+			value = t(getattr(self, p))
+			setattr(self, "commit_" + p, value)
 
 	def commit(self):
-		self.commitRate = self.rate
-		self.commitPitch = self.pitch
-		self.commitVolume = self.volume
+		for p, t, _ in VOICE_PARAMETERS:
+			value = t(getattr(self, p))
+			setattr(self, "commit_" + p, value)
 
 		voiceName = self.name
 		if voiceName not in config.conf["WorldVoice"]["voices"]:
 			config.conf["WorldVoice"]["voices"][voiceName] = {}
 		for p, t, _ in VOICE_PARAMETERS:
-			config.conf["WorldVoice"]["voices"][voiceName][p] = t(getattr(self, p))
+			value = t(getattr(self, p))
+			config.conf["WorldVoice"]["voices"][voiceName][p] = value
 
 	def rollback(self):
-		self.rate = self.commitRate
-		self.pitch = self.commitPitch
-		self.volume = self.commitVolume
+		for p, t, _ in VOICE_PARAMETERS:
+			value = t(getattr(self, "commit_" + p))
+			setattr(self, p, value)
 
 		voiceName = self.name
 		if voiceName not in config.conf["WorldVoice"]["voices"]:
 			config.conf["WorldVoice"]["voices"][voiceName] = {}
 		for p, t, _ in VOICE_PARAMETERS:
-			config.conf["WorldVoice"]["voices"][voiceName][p] = t(getattr(self, p))
+			value = t(getattr(self, p))
+			config.conf["WorldVoice"]["voices"][voiceName][p] = value

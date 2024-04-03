@@ -105,12 +105,21 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self.Bind(wx.EVT_CHOICE, self.onVoiceChange, self._voicesChoice)
 		self._variantsChoice = settingsSizerHelper.addLabeledControl(_("Variant:"), wx.Choice, choices=[])
 		self.Bind(wx.EVT_CHOICE, self.onVariantChange, self._variantsChoice)
+
 		self._rateSlider = settingsSizerHelper.addLabeledControl(_("&Rate:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onSpeechRateSliderScroll, self._rateSlider)
 		self._pitchSlider = settingsSizerHelper.addLabeledControl(_("&Pitch:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onPitchSliderScroll, self._pitchSlider)
 		self._volumeSlider = settingsSizerHelper.addLabeledControl(_("V&olume:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onVolumeSliderScroll, self._volumeSlider)
+
+		self._rateBoostCheckBox = wx.CheckBox(
+			self,
+			label=_("Rate boos&t")
+		)
+		settingsSizerHelper.addItem(self._rateBoostCheckBox)
+		self.Bind(wx.EVT_CHECKBOX, self.onRateBoostChange, self._rateBoostCheckBox)
+
 		self.sliderDisable()
 
 		self._keepEngineConsistentCheckBox = wx.CheckBox(
@@ -142,6 +151,14 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._updateVoicesSelection()
 		self._localesChoice.SetFocus()
 
+	@property
+	def voiceInstance(self):
+		voiceName = self._voicesChoice.GetStringSelection()
+		if voiceName == '' or voiceName == 'no-select':
+			return
+		voiceInstance = self._manager.getVoiceInstance(voiceName)
+		return voiceInstance
+
 	def _updateVoicesSelection(self):
 		localeIndex = self._localesChoice.GetCurrentSelection()
 		if localeIndex < 0:
@@ -171,7 +188,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName != "no-select":
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
-			variants = [i for i in voiceInstance.variants if i != '']
+			variants = [i["id"] for i in voiceInstance.variants if i != '']
 			variants = ['default'] + variants
 			variant = voiceInstance.variant
 			self._variantsChoice.SetItems(variants)
@@ -191,20 +208,22 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName != "no-select":
 			self._dataToPercist[locale]["voice"] = self._voicesChoice.GetStringSelection()
-			self.sliderEnable()
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			if self._keepParameterConsistentCheckBox.GetValue():
 				mainVoiceInstance = self._manager._defaultVoiceInstance
 				voiceInstance.rate = mainVoiceInstance.rate
 				voiceInstance.pitch = mainVoiceInstance.pitch
 				voiceInstance.volume = mainVoiceInstance.volume
+				voiceInstance.rateBoost = mainVoiceInstance.rateBoost
 			self._rateSlider.SetValue(voiceInstance.rate)
 			self._pitchSlider.SetValue(voiceInstance.pitch)
 			self._volumeSlider.SetValue(voiceInstance.volume)
+			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
 		else:
 			self._dataToPercist[locale]["voice"] = "no-select"
-			self.sliderDisable()
 		self._updateVariantsSelection()
+		self.sliderDisable()
+		self.sliderEnable()
 
 	def onVariantChange(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
@@ -240,50 +259,53 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 				voiceInstance.rate = mainVoiceInstance.rate
 				voiceInstance.pitch = mainVoiceInstance.pitch
 				voiceInstance.volume = mainVoiceInstance.volume
+				voiceInstance.rateBoost = mainVoiceInstance.rateBoost
 			self._rateSlider.SetValue(voiceInstance.rate)
 			self._pitchSlider.SetValue(voiceInstance.pitch)
 			self._volumeSlider.SetValue(voiceInstance.volume)
+			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
 		else:
 			self.sliderDisable()
 		if self._keepParameterConsistentCheckBox.GetValue():
 			self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
 
 	def sliderEnable(self):
-		self._rateSlider.Enable()
-		self._pitchSlider.Enable()
-		self._volumeSlider.Enable()
+		if self.voiceInstance:
+			self._rateSlider.Enable()
+			self._pitchSlider.Enable()
+			self._volumeSlider.Enable()
+		if self.voiceInstance and self.voiceInstance.engine in ["OneCore", "RH", "Espeak"]:
+			self._rateBoostCheckBox.Enable()
 
 	def sliderDisable(self):
 		self._rateSlider.Disable()
 		self._pitchSlider.Disable()
 		self._volumeSlider.Disable()
+		self._rateBoostCheckBox.Disable()
 
 	def onSpeechRateSliderScroll(self, event):
-		voiceName = self._voicesChoice.GetStringSelection()
-		if voiceName == '':
-			return
-		voiceInstance = self._manager.getVoiceInstance(voiceName)
-		voiceInstance.rate = self._rateSlider.GetValue()
-		if self._keepParameterConsistentCheckBox.GetValue():
-			self._manager.onVoiceParameterConsistent(voiceInstance)
+		if self.voiceInstance:
+			self.voiceInstance.rate = self._rateSlider.GetValue()
+			if self._keepParameterConsistentCheckBox.GetValue():
+				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
 	def onPitchSliderScroll(self, event):
-		voiceName = self._voicesChoice.GetStringSelection()
-		if voiceName == '':
-			return
-		voiceInstance = self._manager.getVoiceInstance(voiceName)
-		voiceInstance.pitch = self._pitchSlider.GetValue()
-		if self._keepParameterConsistentCheckBox.GetValue():
-			self._manager.onVoiceParameterConsistent(voiceInstance)
+		if self.voiceInstance:
+			self.voiceInstance.pitch = self._pitchSlider.GetValue()
+			if self._keepParameterConsistentCheckBox.GetValue():
+				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
 	def onVolumeSliderScroll(self, event):
-		voiceName = self._voicesChoice.GetStringSelection()
-		if voiceName == '':
-			return
-		voiceInstance = self._manager.getVoiceInstance(voiceName)
-		voiceInstance.volume = self._volumeSlider.GetValue()
-		if self._keepParameterConsistentCheckBox.GetValue():
-			self._manager.onVoiceParameterConsistent(voiceInstance)
+		if self.voiceInstance:
+			self.voiceInstance.volume = self._volumeSlider.GetValue()
+			if self._keepParameterConsistentCheckBox.GetValue():
+				self._manager.onVoiceParameterConsistent(self.voiceInstance)
+
+	def onRateBoostChange(self, event):
+		if self.voiceInstance:
+			self.voiceInstance.rateBoost = self._rateBoostCheckBox.GetValue()
+			if self._keepParameterConsistentCheckBox.GetValue():
+				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
 	def onDiscard(self):
 		if not getSynth().name == 'WorldVoice':
@@ -477,6 +499,10 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 			# Translators: The label of an option in the Engine settings dialog
 			"label": _("Activate RH")
 		},
+		"Espeak": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate Espeak")
+		},
 	})
 	field = "engine"
 
@@ -536,13 +562,6 @@ class OtherSettingsPanel(SettingsPanel):
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 
-		self._RateBoostCheckBox = wx.CheckBox(
-			self,
-			label=_("OneCore rate boost")
-		)
-		self._RateBoostCheckBox.SetValue(config.conf["WorldVoice"]["other"]["RateBoost"])
-		settingsSizerHelper.addItem(self._RateBoostCheckBox)
-
 		self._WaitFactorValue = [i for i in range(10)]
 		self._WaitFactorDisplay = [str(i) for i in range(10)]
 		self._WaitFactorChoice = settingsSizerHelper.addLabeledControl(_("VE wait factor:"), wx.Choice, choices=self._WaitFactorDisplay)
@@ -558,7 +577,6 @@ class OtherSettingsPanel(SettingsPanel):
 		)
 
 	def onSave(self):
-		config.conf["WorldVoice"]["other"]["RateBoost"] = self._RateBoostCheckBox.GetValue()
 		try:
 			config.conf["WorldVoice"]["other"]["WaitFactor"] = self._WaitFactorValue[self._WaitFactorChoice.GetSelection()]
 		except BaseException:
@@ -567,8 +585,6 @@ class OtherSettingsPanel(SettingsPanel):
 
 		if self._synthInstance.name == 'WorldVoice':
 			self._synthInstance._voiceManager.waitfactor = config.conf["WorldVoice"]["other"]["WaitFactor"]
-			if self._synthInstance._voiceManager.voice_class["OneCore"].core:
-				self._synthInstance._voiceManager.voice_class["OneCore"].core.rateBoost = config.conf["WorldVoice"]["other"]["RateBoost"]
 
 
 class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):

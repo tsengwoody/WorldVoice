@@ -9,6 +9,7 @@ from autoSettingsUtils.driverSetting import BooleanDriverSetting, DriverSetting,
 from autoSettingsUtils.utils import StringParameterInfo
 import config
 import extensionPoints
+import gui
 import languageHandler
 from logHandler import log
 import speech
@@ -19,6 +20,7 @@ from . import languageDetection
 from ._speechcommand import SplitCommand, WVLangChangeCommand
 from .voice import Voice
 from .voiceManager import VoiceManager
+from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, base_dir)
@@ -49,6 +51,7 @@ config.conf.spec["WorldVoice"] = {
 		"aisound": "boolean(default=true)",
 		"SAPI5": "boolean(default=false)",
 		"RH": "boolean(default=false)",
+		"Espeak": "boolean(default=true)",
 	},
 	"other": {
 		"WaitFactor": "integer(default=1,min=0,max=9)",
@@ -74,80 +77,6 @@ WVConfigure = extensionPoints.Action()
 class SynthDriver(SynthDriver):
 	name = "WorldVoice"
 	description = "WorldVoice"
-	supportedSettings = [
-		SynthDriver.VoiceSetting(),
-		# SynthDriver.VariantSetting(),
-		SynthDriver.RateSetting(),
-		SynthDriver.PitchSetting(),
-		SynthDriver.VolumeSetting(),
-		DriverSetting(
-			"numlan",
-			# Translators: Label for a setting in voice settings dialog.
-			_("Number &Language"),
-			availableInSettingsRing=True,
-			defaultVal="default",
-			# Translators: Label for a setting in synth settings ring.
-			displayName=_("Number Language"),
-		),
-		DriverSetting(
-			"nummod",
-			# Translators: Label for a setting in voice settings dialog.
-			_("Number &Mode"),
-			availableInSettingsRing=True,
-			defaultVal="value",
-			# Translators: Label for a setting in synth settings ring.
-			displayName=_("Number Mode"),
-		),
-		NumericDriverSetting(
-			"numberwaitfactor",
-			# Translators: Label for a setting in voice settings dialog.
-			_("Number wait factor"),
-			availableInSettingsRing=True,
-			defaultVal=0,
-			minStep=1,
-		),
-		NumericDriverSetting(
-			"itemwaitfactor",
-			# Translators: Label for a setting in voice settings dialog.
-			_("item wait factor"),
-			availableInSettingsRing=True,
-			defaultVal=0,
-			minStep=1,
-		),
-		NumericDriverSetting(
-			"sayallwaitfactor",
-			# Translators: Label for a setting in voice settings dialog.
-			_("Say all wait factor"),
-			availableInSettingsRing=True,
-			defaultVal=0,
-			minStep=1,
-		),
-		NumericDriverSetting(
-			"chinesespacewaitfactor",
-			# Translators: Label for a setting in voice settings dialog.
-			_("Chinese space wait factor"),
-			availableInSettingsRing=True,
-			defaultVal=0,
-			minStep=1,
-		),
-		DriverSetting(
-			"normalization",
-			_("Normalization"),
-			defaultVal="OFF",
-		),
-		BooleanDriverSetting(
-			"cni",
-			_("Ignore comma between number"),
-			defaultVal=False,
-		),
-		BooleanDriverSetting(
-			"uwv",
-			_("Enable WorldVoice setting rules to detect text language"),
-			availableInSettingsRing=True,
-			defaultVal=True,
-			displayName=_("Enable WorldVoice rules"),
-		),
-	]
 	supportedCommands = {
 		IndexCommand,
 		CharacterModeCommand,
@@ -163,11 +92,172 @@ class SynthDriver(SynthDriver):
 	def check(cls):
 		return VoiceManager.ready()
 
+	@property
+	def supportedSettings(self):
+		settings = [
+			SynthDriver.VoiceSetting(),
+		]
+		settings.append(SynthDriver.VariantSetting())
+		settings.append(SynthDriver.RateSetting())
+		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "RH", "Espeak"]:
+			settings.append(SynthDriver.RateBoostSetting())
+		settings.extend([
+			SynthDriver.PitchSetting(),
+			SynthDriver.VolumeSetting(),
+			DriverSetting(
+				"numlan",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Number &Language"),
+				availableInSettingsRing=True,
+				defaultVal="default",
+				# Translators: Label for a setting in synth settings ring.
+				displayName=_("Number Language"),
+			),
+			DriverSetting(
+				"nummod",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Number &Mode"),
+				availableInSettingsRing=True,
+				defaultVal="value",
+				# Translators: Label for a setting in synth settings ring.
+				displayName=_("Number Mode"),
+			),
+			NumericDriverSetting(
+				"numberwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Number wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
+				"itemwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("item wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
+				"sayallwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Say all wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
+				"chinesespacewaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Chinese space wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			DriverSetting(
+				"normalization",
+				_("Normalization"),
+				defaultVal="OFF",
+			),
+			BooleanDriverSetting(
+				"cni",
+				_("Ignore comma between number"),
+				defaultVal=False,
+			),
+			BooleanDriverSetting(
+				"uwv",
+				_("Enable WorldVoice setting rules to detect text language"),
+				availableInSettingsRing=True,
+				defaultVal=True,
+				displayName=_("Enable WorldVoice rules"),
+			),
+		])
+		return settings
+
+	@property
+	def allSupportedSettings(self):
+		settings = [
+			SynthDriver.VoiceSetting(),
+			SynthDriver.VariantSetting(),
+			SynthDriver.RateSetting(),
+			SynthDriver.RateBoostSetting(),
+			SynthDriver.PitchSetting(),
+			SynthDriver.VolumeSetting(),
+			DriverSetting(
+				"numlan",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Number &Language"),
+				availableInSettingsRing=True,
+				defaultVal="default",
+				# Translators: Label for a setting in synth settings ring.
+				displayName=_("Number Language"),
+			),
+			DriverSetting(
+				"nummod",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Number &Mode"),
+				availableInSettingsRing=True,
+				defaultVal="value",
+				# Translators: Label for a setting in synth settings ring.
+				displayName=_("Number Mode"),
+			),
+			NumericDriverSetting(
+				"numberwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Number wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
+				"itemwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("item wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
+				"sayallwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Say all wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
+				"chinesespacewaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Chinese space wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			DriverSetting(
+				"normalization",
+				_("Normalization"),
+				defaultVal="OFF",
+			),
+			BooleanDriverSetting(
+				"cni",
+				_("Ignore comma between number"),
+				defaultVal=False,
+			),
+			BooleanDriverSetting(
+				"uwv",
+				_("Enable WorldVoice setting rules to detect text language"),
+				availableInSettingsRing=True,
+				defaultVal=True,
+				displayName=_("Enable WorldVoice rules"),
+			),
+		]
+		return settings
+
 	def __init__(self):
+		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
+		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
 		self._voiceManager = VoiceManager()
 		self._voiceManager.waitfactor = config.conf["WorldVoice"]["other"]["WaitFactor"]
-		if self._voiceManager.voice_class["OneCore"].core:
-			self._voiceManager.voice_class["OneCore"].core.rateBoost = config.conf["WorldVoice"]["other"]["RateBoost"]
 
 		self._realSpeakFunc = speech.speech.speak
 		self._realSpellingFunc = speech.speech.speakSpelling
@@ -187,11 +277,8 @@ class SynthDriver(SynthDriver):
 
 		WVStart.notify()
 
-	def loadSettings(self, onlyChanged=False):
-		super().loadSettings(onlyChanged)
-		self._voiceManager.reload()
-
 	def terminate(self):
+		gui.settingsDialogs.VoiceSettingsPanel = self.OriginVoiceSettingsPanel
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == 'before':
 			speech.speech.speak = self._realSpeakFunc
 		speech.speech.speakSpelling = self._realSpellingFunc
@@ -203,6 +290,10 @@ class SynthDriver(SynthDriver):
 			log.error("WorldVoice terminate", exc_info=True)
 
 		WVEnd.notify()
+
+	def loadSettings(self, onlyChanged=False):
+		super().loadSettings(onlyChanged)
+		self._voiceManager.reload()
 
 	def speak(self, speechSequence):
 		if config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
@@ -435,7 +526,7 @@ class SynthDriver(SynthDriver):
 					log.debugWarning("Unsupported speech command: %s" % item)
 				else:
 					log.error("Unknown speech: %s" % item)
-			elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH":
+			elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH" or voiceInstance.engine == "Espeak":
 				if isinstance(command, Voice):
 					newInstance = command
 					voiceInstance.speak(chunks)
@@ -460,7 +551,7 @@ class SynthDriver(SynthDriver):
 		elif voiceInstance.engine == "aisound":
 			if chunks:
 				voiceInstance.speak(chunks)
-		elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH":
+		elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH" or voiceInstance.engine == "Espeak":
 			voiceInstance.speak(chunks)
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
@@ -544,9 +635,23 @@ class SynthDriver(SynthDriver):
 		self._voiceManager.defaultVoiceInstance.stop()
 		self._voiceManager.defaultVoiceName = voiceName
 
-	def _info(self):
-		s = [self.description]
-		return ", ".join(s)
+	def _get_availableVariants(self):
+		values = OrderedDict([("default", StringParameterInfo("default", _("default")))])
+		for item in self._voiceManager.defaultVoiceInstance.variants:
+			values[item["id"]] = StringParameterInfo(item["id"], item["name"])
+		return values
+
+	def _get_variant(self):
+		return self._voiceManager.defaultVoiceInstance.variant
+
+	def _set_variant(self, value):
+		self._voiceManager.defaultVoiceInstance.variant = value
+
+	def _get_rateBoost(self):
+		return self._voiceManager.defaultVoiceInstance.rateBoost
+
+	def _set_rateBoost(self, enable):
+		self._voiceManager.defaultVoiceInstance.rateBoost = enable
 
 	def _get_availableNormalizations(self):
 		values = OrderedDict([("OFF", StringParameterInfo("OFF", _("OFF")))])

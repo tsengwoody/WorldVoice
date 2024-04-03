@@ -10,10 +10,9 @@ from ._sapi5 import SPAudioState, SpeechVoiceSpeakFlags, SapiSink, SpeechVoiceEv
 
 
 class Sapi5Voice(Voice):
+	engine = "SAPI5"
+
 	def __init__(self, id, name, taskManager, language=None):
-		self.engine = "SAPI5"
-		self.id = id
-		self.taskManager = taskManager
 		self.tts, self.ttsAudioStream = _sapi5.open(name) if name != "default" else _sapi5.open()
 		self.tts.EventInterests = SpeechVoiceEvents.Bookmark | SpeechVoiceEvents.StartInputStream | SpeechVoiceEvents.EndInputStream
 		self._eventsConnection = comtypes.client.GetEvents(self.tts, SapiSink())
@@ -25,7 +24,7 @@ class Sapi5Voice(Voice):
 				language = None
 		self.language = language
 
-		super().__init__()
+		super().__init__(id=id, taskManager=taskManager)
 
 	@property
 	def rate(self):

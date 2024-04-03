@@ -1,12 +1,10 @@
-import winVersion
-
-from ._onecore import OneCoreManager
+from .Espeak import EspeakManager
 from . import Voice
 
 
-class OneCoreVoice(Voice):
+class EspeakVoice(Voice):
 	core = None
-	engine = "OneCore"
+	engine = "Espeak"
 
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
@@ -14,19 +12,13 @@ class OneCoreVoice(Voice):
 
 		super().__init__(id=id, taskManager=taskManager)
 
-		self.core.voice = self.id
-		self.core.language = self.language
-		self.core.pitch = self._pitch
-		self.core.rate = self._rate
-		self.core.volume = self._volume
-
 	def active(self):
 		if self.core.voice != self.id:
 			self.core.voice = self.id
 			self.core.pitch = self._pitch
 			self.core.rate = self._rate
 			self.core.volume = self._volume
-			self.core.rateBoost = self._rateBoost
+			self.core.variant = self.variant
 
 	@property
 	def name(self):
@@ -65,8 +57,10 @@ class OneCoreVoice(Voice):
 
 	@property
 	def variants(self):
-		self._variants = []
-		return self._variants
+		return [{
+			"id": id,
+			"name": name,
+		} for id, name in self.core._variantDict.items()]
 
 	@property
 	def variant(self):
@@ -75,6 +69,7 @@ class OneCoreVoice(Voice):
 	@variant.setter
 	def variant(self, value):
 		self._variant = value
+		self.core.variant = self._variant
 
 	@property
 	def rateBoost(self):
@@ -105,12 +100,12 @@ class OneCoreVoice(Voice):
 
 	@classmethod
 	def ready(cls):
-		return winVersion.getWinVer() >= winVersion.WIN10
+		return True
 
 	@classmethod
-	def engineOn(cls, lock):
+	def engineOn(cls, lock=None):
 		if not cls.core:
-			cls.core = OneCoreManager(lock)
+			cls.core = EspeakManager(lock)
 
 	@classmethod
 	def engineOff(cls):
@@ -120,7 +115,6 @@ class OneCoreVoice(Voice):
 
 	@classmethod
 	def voices(cls):
-		result = []
-		if not cls.ready() or not cls.core:
-			return result
+		if not cls.core:
+			return []
 		return cls.core.availableVoices

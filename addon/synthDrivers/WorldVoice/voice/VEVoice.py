@@ -1,3 +1,4 @@
+import config
 import globalVars
 import languageHandler
 from logHandler import log
@@ -12,12 +13,10 @@ import threading
 
 
 class VEVoice(Voice):
+	engine = "VE"
 	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "VE")
 
 	def __init__(self, id, name, taskManager, language=None):
-		self.engine = "VE"
-		self.id = id
-		self.taskManager = taskManager
 		self.tts, self.name = _vocalizer.open(name) if name != "default" else _vocalizer.open()
 
 		if not language:
@@ -33,7 +32,7 @@ class VEVoice(Voice):
 						break
 		self.language = language
 
-		super().__init__()
+		super().__init__(id=id, taskManager=taskManager)
 
 	@property
 	def rate(self):
@@ -78,12 +77,15 @@ class VEVoice(Voice):
 	@property
 	def variants(self):
 		language = _vocalizer.getParameter(self.tts, _vocalizer.VE_PARAM_LANGUAGE, type_=str)
-		self._variants = _vocalizer.getSpeechDBList(language, self.name)
-		return self._variants
+		variants = _vocalizer.getSpeechDBList(language, self.name)
+		return [{
+			"id": item,
+			"name": item,
+		} for item in variants]
 
 	@property
 	def variant(self):
-		self._variant = _vocalizer.getParameter(self.tts, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
+		# self._variant = _vocalizer.getParameter(self.tts, _vocalizer.VE_PARAM_VOICE_OPERATING_POINT, type_=str)
 		return self._variant
 
 	@variant.setter
@@ -105,12 +107,12 @@ class VEVoice(Voice):
 	def speak(self, text):
 		try:
 			text.encode('utf-8').decode('utf-8')
-		except:
+		except BaseException:
 			temp = ""
 			for c in text:
 				try:
 					temp += c.encode('utf8').decode('utf8')
-				except:
+				except BaseException:
 					pass
 			text = temp
 
@@ -120,6 +122,7 @@ class VEVoice(Voice):
 				c = chr(65535)
 			temps += c
 		text = temps
+
 		def _speak():
 			# _vocalizer.processText2Speech(self.tts, text)
 			_vocalizer.speakBlock(self.tts, text)
@@ -203,3 +206,7 @@ class VEVoice(Voice):
 				})
 
 		return result
+
+	def loadParameter(self):
+		self.waitfactor = config.conf["WorldVoice"]["other"]["WaitFactor"]
+		super().loadParameter()

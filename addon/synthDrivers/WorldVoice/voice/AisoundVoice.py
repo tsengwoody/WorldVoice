@@ -11,15 +11,13 @@ import os
 class AisoundVoice(Voice):
 	core = None
 	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
+	engine = "aisound"
 
 	def __init__(self, id, name, taskManager, language=None):
-		self.engine = "aisound"
-		self.id = id
-		self.taskManager = taskManager
 		self.name = name
 		self.language = language if language else "unknown"
 
-		super().__init__()
+		super().__init__(id=id, taskManager=taskManager)
 
 	def rollback(self):
 		super().rollback()

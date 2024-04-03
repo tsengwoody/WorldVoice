@@ -1,3 +1,4 @@
+# Requirements for automated linting (flake8 --config flake8.ini addon)
 ####### requirements.txt #######
 #
 ###### Requirements for automated lint ######
