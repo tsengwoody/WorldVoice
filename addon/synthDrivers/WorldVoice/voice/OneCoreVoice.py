@@ -7,7 +7,6 @@ from . import Voice
 class OneCoreVoice(Voice):
 	core = None
 	engine = "OneCore"
-
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
 		self.language = language if language else "unknown"
@@ -19,9 +18,11 @@ class OneCoreVoice(Voice):
 		self.core.pitch = self._pitch
 		self.core.rate = self._rate
 		self.core.volume = self._volume
+		self.core.rateBoost = self._rateBoost
 
 	def active(self):
 		if self.core.voice != self.id:
+			self.core.language = self.language
 			self.core.voice = self.id
 			self.core.pitch = self._pitch
 			self.core.rate = self._rate
