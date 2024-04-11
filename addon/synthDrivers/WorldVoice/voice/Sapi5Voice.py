@@ -67,14 +67,6 @@ class Sapi5Voice(Voice):
 	def variant(self, value):
 		self._variant = value
 
-	@property
-	def waitfactor(self):
-		return self._waitfactor
-
-	@waitfactor.setter
-	def waitfactor(self, value):
-		self._waitfactor = value
-
 	def speak(self, text):
 		def _speak():
 			_sapi5.speakBlock(self, text)

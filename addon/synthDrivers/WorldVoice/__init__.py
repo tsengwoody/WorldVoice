@@ -15,6 +15,7 @@ from logHandler import log
 import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, PhonemeCommand, SpeechCommand
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
+import tones
 
 from . import languageDetection
 from ._speechcommand import SplitCommand, WVLangChangeCommand
@@ -51,7 +52,9 @@ config.conf.spec["WorldVoice"] = {
 		"aisound": "boolean(default=true)",
 		"SAPI5": "boolean(default=false)",
 		"RH": "boolean(default=false)",
-		"Espeak": "boolean(default=true)",
+		"espeak": "boolean(default=true)",
+		"piper": "boolean(default=true)",
+		"IBM": "boolean(default=false)",
 	},
 	"other": {
 		"WaitFactor": "integer(default=1,min=0,max=9)",
@@ -99,10 +102,14 @@ class SynthDriver(SynthDriver):
 		]
 		settings.append(SynthDriver.VariantSetting())
 		settings.append(SynthDriver.RateSetting())
-		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "RH", "Espeak"]:
+		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "RH", "espeak", "piper"]:
 			settings.append(SynthDriver.RateBoostSetting())
 		settings.extend([
 			SynthDriver.PitchSetting(),
+		])
+		if self._voiceManager.defaultVoiceInstance.engine in ["aisound"]:
+			settings.append(SynthDriver.InflectionSetting())
+		settings.extend([
 			SynthDriver.VolumeSetting(),
 			DriverSetting(
 				"numlan",
@@ -182,6 +189,7 @@ class SynthDriver(SynthDriver):
 			SynthDriver.RateSetting(),
 			SynthDriver.RateBoostSetting(),
 			SynthDriver.PitchSetting(),
+			SynthDriver.InflectionSetting(),
 			SynthDriver.VolumeSetting(),
 			DriverSetting(
 				"numlan",
@@ -526,7 +534,7 @@ class SynthDriver(SynthDriver):
 					log.debugWarning("Unsupported speech command: %s" % item)
 				else:
 					log.error("Unknown speech: %s" % item)
-			elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH" or voiceInstance.engine == "Espeak":
+			elif voiceInstance.engine in ["OneCore", "RH", "espeak", "piper", "IBM"]:
 				if isinstance(command, Voice):
 					newInstance = command
 					voiceInstance.speak(chunks)
@@ -551,7 +559,7 @@ class SynthDriver(SynthDriver):
 		elif voiceInstance.engine == "aisound":
 			if chunks:
 				voiceInstance.speak(chunks)
-		elif voiceInstance.engine == "OneCore" or voiceInstance.engine == "RH" or voiceInstance.engine == "Espeak":
+		elif voiceInstance.engine in ["OneCore", "RH", "espeak", "piper", "IBM"]:
 			voiceInstance.speak(chunks)
 
 	def patchedSpeak(self, speechSequence, symbolLevel=None, priority=None):
@@ -613,6 +621,12 @@ class SynthDriver(SynthDriver):
 		self._voiceManager.defaultVoiceInstance.commit()
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
 			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
+
+	def _get_inflection(self):
+		return self._voiceManager.defaultVoiceInstance.inflection
+
+	def _set_inflection(self, value):
+		self._voiceManager.defaultVoiceInstance.inflection = value
 
 	def _getAvailableVoices(self):
 		return self._voiceManager.voiceInfos

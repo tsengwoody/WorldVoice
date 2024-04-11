@@ -1,10 +1,10 @@
-from .Espeak import EspeakManager
+from .Espeak import (SynthDriver as EspeakManager)
 from . import Voice
 
 
 class EspeakVoice(Voice):
 	core = None
-	engine = "Espeak"
+	engine = "espeak"
 
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
@@ -19,6 +19,7 @@ class EspeakVoice(Voice):
 			self.core.rate = self._rate
 			self.core.volume = self._volume
 			self.core.variant = self.variant
+			self.core.rateBoost = self._rateBoost
 
 	@property
 	def name(self):

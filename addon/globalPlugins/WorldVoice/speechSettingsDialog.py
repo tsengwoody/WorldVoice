@@ -108,10 +108,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 		self._rateSlider = settingsSizerHelper.addLabeledControl(_("&Rate:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onSpeechRateSliderScroll, self._rateSlider)
-		self._pitchSlider = settingsSizerHelper.addLabeledControl(_("&Pitch:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
-		self.Bind(wx.EVT_SLIDER, self.onPitchSliderScroll, self._pitchSlider)
-		self._volumeSlider = settingsSizerHelper.addLabeledControl(_("V&olume:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
-		self.Bind(wx.EVT_SLIDER, self.onVolumeSliderScroll, self._volumeSlider)
 
 		self._rateBoostCheckBox = wx.CheckBox(
 			self,
@@ -119,6 +115,15 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		)
 		settingsSizerHelper.addItem(self._rateBoostCheckBox)
 		self.Bind(wx.EVT_CHECKBOX, self.onRateBoostChange, self._rateBoostCheckBox)
+
+		self._pitchSlider = settingsSizerHelper.addLabeledControl(_("&Pitch:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
+		self.Bind(wx.EVT_SLIDER, self.onPitchSliderScroll, self._pitchSlider)
+
+		self._inflectionSlider = settingsSizerHelper.addLabeledControl(_("I&nflection:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
+		self.Bind(wx.EVT_SLIDER, self.onInflectionSliderScroll, self._inflectionSlider)
+
+		self._volumeSlider = settingsSizerHelper.addLabeledControl(_("V&olume:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
+		self.Bind(wx.EVT_SLIDER, self.onVolumeSliderScroll, self._volumeSlider)
 
 		self.sliderDisable()
 
@@ -214,10 +219,12 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 				voiceInstance.rate = mainVoiceInstance.rate
 				voiceInstance.pitch = mainVoiceInstance.pitch
 				voiceInstance.volume = mainVoiceInstance.volume
+				voiceInstance.inflection = mainVoiceInstance.inflection
 				voiceInstance.rateBoost = mainVoiceInstance.rateBoost
 			self._rateSlider.SetValue(voiceInstance.rate)
 			self._pitchSlider.SetValue(voiceInstance.pitch)
 			self._volumeSlider.SetValue(voiceInstance.volume)
+			self._inflectionSlider.SetValue(voiceInstance.inflection)
 			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
 		else:
 			self._dataToPercist[locale]["voice"] = "no-select"
@@ -259,10 +266,12 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 				voiceInstance.rate = mainVoiceInstance.rate
 				voiceInstance.pitch = mainVoiceInstance.pitch
 				voiceInstance.volume = mainVoiceInstance.volume
+				voiceInstance.inflection = mainVoiceInstance.inflection
 				voiceInstance.rateBoost = mainVoiceInstance.rateBoost
 			self._rateSlider.SetValue(voiceInstance.rate)
 			self._pitchSlider.SetValue(voiceInstance.pitch)
 			self._volumeSlider.SetValue(voiceInstance.volume)
+			self._inflectionSlider.SetValue(voiceInstance.inflection)
 			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
 		else:
 			self.sliderDisable()
@@ -274,13 +283,16 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self._rateSlider.Enable()
 			self._pitchSlider.Enable()
 			self._volumeSlider.Enable()
-		if self.voiceInstance and self.voiceInstance.engine in ["OneCore", "RH", "Espeak"]:
-			self._rateBoostCheckBox.Enable()
+			if self.voiceInstance.engine in ["aisound", "IBM", "Espeak"]:
+				self._inflectionSlider.Enable()
+			if self.voiceInstance.engine in ["OneCore", "RH", "Espeak"]:
+				self._rateBoostCheckBox.Enable()
 
 	def sliderDisable(self):
 		self._rateSlider.Disable()
 		self._pitchSlider.Disable()
 		self._volumeSlider.Disable()
+		self._inflectionSlider.Disable()
 		self._rateBoostCheckBox.Disable()
 
 	def onSpeechRateSliderScroll(self, event):
@@ -298,6 +310,12 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	def onVolumeSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.volume = self._volumeSlider.GetValue()
+			if self._keepParameterConsistentCheckBox.GetValue():
+				self._manager.onVoiceParameterConsistent(self.voiceInstance)
+
+	def onInflectionSliderScroll(self, event):
+		if self.voiceInstance:
+			self.voiceInstance.inflection = self._inflectionSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
 				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
@@ -346,6 +364,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 					config.conf["speech"][getSynth().name]["rate"] = instance.rate
 					config.conf["speech"][getSynth().name]["pitch"] = instance.pitch
 					config.conf["speech"][getSynth().name]["volume"] = instance.volume
+					config.conf["speech"][getSynth().name]["inflection"] = instance.inflection
+					config.conf["speech"][getSynth().name]["rateBoost"] = instance.rateBoost
 			except BaseException:
 				pass
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
@@ -499,9 +519,17 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 			# Translators: The label of an option in the Engine settings dialog
 			"label": _("Activate RH")
 		},
-		"Espeak": {
+		"espeak": {
 			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate Espeak")
+			"label": _("Activate espeak")
+		},
+		"piper": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate piper")
+		},
+		"IBM": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate IBM")
 		},
 	})
 	field = "engine"

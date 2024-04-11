@@ -14,6 +14,8 @@ from .voice.AisoundVoice import AisoundVoice
 from .voice.OneCoreVoice import OneCoreVoice
 from .voice.RHVoice import RHVoice
 from .voice.EspeakVoice import EspeakVoice
+from .voice.PiperVoice import PiperVoice
+from .voice.IBMVoice import IBMVoice
 
 
 def joinObjectArray(srcArr1, srcArr2, key):
@@ -48,7 +50,9 @@ class VoiceManager(object):
 		"aisound": AisoundVoice,
 		"OneCore": OneCoreVoice,
 		"RH": RHVoice,
-		"Espeak": EspeakVoice,
+		"espeak": EspeakVoice,
+		"piper": PiperVoice,
+		"IBM": IBMVoice,
 	}
 
 	@classmethod
@@ -153,6 +157,8 @@ class VoiceManager(object):
 			instance.rate = baseInstance.rate
 			instance.pitch = baseInstance.pitch
 			instance.volume = baseInstance.volume
+			instance.inflection = baseInstance.inflection
+			instance.rateBoost = baseInstance.rateBoost
 			instance.commit()
 
 	def onKeepEngineConsistent(self):

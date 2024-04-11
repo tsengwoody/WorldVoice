@@ -12,7 +12,6 @@ class AisoundVoice(Voice):
 	core = None
 	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
 	engine = "aisound"
-
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
 		self.language = language if language else "unknown"
@@ -67,6 +66,15 @@ class AisoundVoice(Voice):
 	def pitch(self, percent):
 		param = self._pitch = percentToParam(percent, -32768, 32767)
 		self.core.Configure("pitch", "%d" % param)
+
+	@property
+	def inflection(self):
+		return paramToPercent(self._inflection, 0, 2)
+
+	@inflection.setter
+	def inflection(self, percent):
+		param = self._inflection = percentToParam(percent, 0, 2)
+		self.core.Configure("style", "%d" % param)
 
 	@property
 	def volume(self):

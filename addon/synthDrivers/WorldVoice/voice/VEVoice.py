@@ -107,12 +107,12 @@ class VEVoice(Voice):
 	def speak(self, text):
 		try:
 			text.encode('utf-8').decode('utf-8')
-		except BaseException:
+		except:
 			temp = ""
 			for c in text:
 				try:
 					temp += c.encode('utf8').decode('utf8')
-				except BaseException:
+				except:
 					pass
 			text = temp
 
@@ -122,7 +122,6 @@ class VEVoice(Voice):
 				c = chr(65535)
 			temps += c
 		text = temps
-
 		def _speak():
 			# _vocalizer.processText2Speech(self.tts, text)
 			_vocalizer.speakBlock(self.tts, text)

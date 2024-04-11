@@ -458,7 +458,7 @@ class SsmlConverter(speechXml.SsmlConverter):
         return speechXml.SetAttrCommand("voice", "xml:lang", lang)
 
 
-class RHManager(SynthDriver):
+class SynthDriver(SynthDriver):
     name = "RHVoice"
     description = "RHVoice"
 
@@ -628,43 +628,33 @@ class RHManager(SynthDriver):
     def _get_language(self):
         return self.__voice_languages[self.__profile.split("+")[0]]
 
-    @property
-    def rate(self):
+    def _get_rate(self):
         return self.__rate
 
-    @rate.setter
-    def rate(self, rate):
+    def _set_rate(self, rate):
         self.__rate = self.clamp(rate)
 
-    @property
-    def pitch(self):
+    def _get_pitch(self):
         return self.__pitch
 
-    @pitch.setter
-    def pitch(self, pitch):
+    def _set_pitch(self, pitch):
         self.__pitch = self.clamp(pitch)
 
-    @property
-    def volume(self):
+    def _get_volume(self):
         return self.__volume
 
-    @volume.setter
-    def volume(self, volume):
+    def _set_volume(self, volume):
         self.__volume = self.clamp(volume)
 
-    @property
-    def voice(self):
+    def _get_voice(self):
         return self.__profile
 
-    @voice.setter
-    def voice(self, voice):
+    def _set_voice(self, voice):
         if voice in self.__profiles:
             self.__profile = voice
 
-    @property
-    def rateBoost(self):
+    def _get_rateBoost(self):
         return self.__rate_boost
 
-    @rateBoost.setter
-    def rateBoost(self, flag):
+    def _set_rateBoost(self, flag):
         self.__rate_boost = flag

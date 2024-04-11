@@ -19,6 +19,7 @@ VOICE_PARAMETERS = [
 	("pitch", int, 50),
 	("volume", int, 50),
 	("variant", str, "default"),
+	("inflection", int, 50),
 	("rateBoost", boolean, False),
 ]
 
@@ -72,6 +73,14 @@ class Voice(object):
 	@variant.setter
 	def variant(self, value):
 		self._variant = value
+
+	@property
+	def inflection(self):
+		return self._inflection
+
+	@inflection.setter
+	def inflection(self, value):
+		self._inflection = value
 
 	@property
 	def rateBoost(self):

@@ -1,4 +1,4 @@
-from .RH import RHManager
+from .RH import (SynthDriver as RHManager)
 from . import Voice
 
 
@@ -13,12 +13,12 @@ class RHVoice(Voice):
 		super().__init__(id=id, taskManager=taskManager)
 
 	def active(self):
-		if self.core.voice == self.id:
-			return
-		self.core.voice = self.id
-		self.core.pitch = self._pitch
-		self.core.rate = self._rate
-		self.core.volume = self._volume
+		if self.core.voice != self.id:
+			self.core.voice = self.id
+			self.core.pitch = self._pitch
+			self.core.rate = self._rate
+			self.core.volume = self._volume
+			self.core.rateBoost = self._rateBoost
 
 	@property
 	def name(self):
@@ -69,12 +69,13 @@ class RHVoice(Voice):
 		self._variant = value
 
 	@property
-	def waitfactor(self):
-		return self._waitfactor
+	def rateBoost(self):
+		return self._rateBoost
 
-	@waitfactor.setter
-	def waitfactor(self, value):
-		self._waitfactor = value
+	@rateBoost.setter
+	def rateBoost(self, value):
+		self._rateBoost = value
+		self.core.rateBoost = self._rateBoost
 
 	def speak(self, text):
 		def _speak():

@@ -35,7 +35,7 @@ from speech.commands import (
 	PhonemeCommand,
 )
 
-class EspeakManager(SynthDriver):
+class SynthDriver(SynthDriver):
 	name = "espeak"
 	description = "eSpeak NG"
 
@@ -396,27 +396,23 @@ class EspeakManager(SynthDriver):
 		self._rateBoost = enable
 		self.rate = rate
 
-	@property
-	def rate(self):
+	def _get_rate(self):
 		val=_espeak.getParameter(_espeak.espeakRATE,1)
 		if self._rateBoost:
 			val=int(val/self.RATE_BOOST_MULTIPLIER)
 		return self._paramToPercent(val,_espeak.minRate,_espeak.maxRate)
 
-	@rate.setter
-	def rate(self,rate):
+	def _set_rate(self,rate):
 		val=self._percentToParam(rate, _espeak.minRate, _espeak.maxRate)
 		if self._rateBoost:
 			val=int(val*self.RATE_BOOST_MULTIPLIER)
 		_espeak.setParameter(_espeak.espeakRATE,val,0)
 
-	@property
-	def pitch(self):
+	def _get_pitch(self):
 		val=_espeak.getParameter(_espeak.espeakPITCH,1)
 		return self._paramToPercent(val,_espeak.minPitch,_espeak.maxPitch)
 
-	@pitch.setter
-	def pitch(self,pitch):
+	def _set_pitch(self,pitch):
 		val=self._percentToParam(pitch, _espeak.minPitch, _espeak.maxPitch)
 		_espeak.setParameter(_espeak.espeakPITCH,val,0)
 
@@ -428,12 +424,10 @@ class EspeakManager(SynthDriver):
 		val=self._percentToParam(val, _espeak.minPitch, _espeak.maxPitch)
 		_espeak.setParameter(_espeak.espeakRANGE,val,0)
 
-	@property
-	def volume(self) -> int:
+	def _get_volume(self) -> int:
 		return _espeak.getParameter(_espeak.espeakVOLUME,1)
 
-	@volume.setter
-	def volume(self, volume: int):
+	def _set_volume(self, volume: int):
 		_espeak.setParameter(_espeak.espeakVOLUME,volume,0)
 
 	@property
@@ -457,12 +451,11 @@ class EspeakManager(SynthDriver):
 				"language": language,
 				"langDescription": langDescription,
 				"description": "%s - %s" % (name, langDescription),
-				"engine": "Espeak",
+				"engine": "espeak",
 			})
 		return result
 
-	@property
-	def voice(self):
+	def _get_voice(self):
 		curVoice=getattr(self,'_voice',None)
 		if curVoice: return curVoice
 		curVoice = _espeak.getCurrentVoice()
@@ -471,8 +464,7 @@ class EspeakManager(SynthDriver):
 		# #5783: For backwards compatibility, voice identifies should always be lowercase
 		return _espeak.decodeEspeakString(curVoice.identifier).split('+')[0].lower()
 
-	@voice.setter
-	def voice(self, identifier):
+	def _set_voice(self, identifier):
 		if not identifier:
 			return
 		# #5783: For backwards compatibility, voice identifies should always be lowercase
@@ -500,12 +492,10 @@ class EspeakManager(SynthDriver):
 	def terminate(self):
 		_espeak.terminate()
 
-	@property
-	def variant(self):
+	def _get_variant(self):
 		return self._variant
 
-	@variant.setter
-	def variant(self,val):
+	def _set_variant(self,val):
 		self._variant = val if val in self._variantDict else "max"
 		_espeak.setVoiceAndVariant(variant=self._variant)
 

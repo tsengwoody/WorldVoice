@@ -60,8 +60,17 @@ Speech Engine: You can choose the voice engine you want to enable, with VE, OneC
 
 Others:
 
-* OneCore rate boost: When checked, OneCore's speech role will be faster.
 * VE wait factor: Set the pause length for VE voice sessions to start and end (each session ends when encountering a period or switching speech roles, then starts a new session).
+
+# WorldVoice update log
+
+## WorldVoice v4.0 Update
+
+* Integrate the espeak engine into WorldVoice-supported engines.
+* Add speech rate boost setting in NVDA - speech setting dialog.
+* Add speech variant value setting in NVDA - speech setting dialog.
+* NVDA - speech setting dialog will dynamically display rate boost setting UI if the engine/voice is supported.
+* Users can set rate boost for individual voices in the WorldVoice speech setting dialog.
 
 # WorldVoice
 
@@ -126,7 +135,6 @@ WorldVoice 是一款多國語音朗讀 NVDA 附加元件，支援 VE, OneCore, A
 
 其他：
 
-*	OneCore 提高語速：勾選後 OneCore 的語音角色速度會更快
 *	VE 停頓參數：設定 VE 語音 session 開始與結束的停頓長度。（遇到句號或語音角色切換時皆會結束當前這條語音 session 並重啟一條新的語音 session）
 
 # 更新版本日誌
