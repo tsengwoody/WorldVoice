@@ -1,3 +1,7 @@
+WorldVoice does not include those commercial TTS libraries (core dll). You must purchase a license from the original developer/company in order to use it, WorldVoice is just the driver for it.
+We also cannot guarantee compatibility with the latest versions sold by the developer/company, so please consider carefully before making a purchase if you intend to use those commercial TTS with WorldVoice.
+WorldVoice only focuses on TTS engines open source/free and does not prioritize maintaining compatibility with those commercial TTS engines.
+
 # WorldVoice
 
 In this highly interconnected and globalized era, language learning has become increasingly important. In language learning materials, native languages are often used to help explain foreign vocabulary and sentences, and multiple languages are often mixed together. In daily communication, we also often mix multiple languages and scripts. In books, newspapers, and online articles, multiple languages are often used to convey information, sometimes even within the same sentence, using Chinese and English or Chinese and Japanese.
