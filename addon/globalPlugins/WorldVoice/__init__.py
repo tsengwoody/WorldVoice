@@ -63,9 +63,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSymbolsDialog, item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onFileImport, item)
-		if not VEVoice.install():
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("VE Core Install"), _("Install VE Core."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onVECoreInstall, item)
 		if not AisoundVoice.install():
 			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
 			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onAisoundCoreInstall, item)
@@ -107,9 +104,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def onFileImport(self, event):
 		self.fileImport(workspace_path)
-
-	def onVECoreInstall(self, event):
-		self.fileImport(VEVoice.workspace)
 
 	def onAisoundCoreInstall(self, event):
 		self.fileImport(AisoundVoice.workspace)
