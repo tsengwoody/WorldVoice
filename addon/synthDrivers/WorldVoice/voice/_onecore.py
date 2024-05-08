@@ -230,7 +230,7 @@ class OneCoreManager:
 	def terminate(self):
 		# prevent any pending callbacks from interacting further with the synth.
 		self._earlyExitCB = True
-		super().terminate()
+		# super().terminate()
 		# Terminate the synth, the callback function should no longer be called after this returns.
 		self._dll.ocSpeech_terminate(self._ocSpeechToken)
 		# Drop the ctypes function instance for the callback and handle,

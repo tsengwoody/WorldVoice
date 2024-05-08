@@ -25,7 +25,7 @@ addon_info = {
 	# Translators: Long description to be shown for this add-on on add-on information from add-ons manager
 	"addon_description" : _("Multilingual synthesizers add-on: Automatically switch speech role according to text language; Integrated Aisound, OneCore, RHVoice, SAPI5, VE speech engine"),
 	# version
-	"addon_version" : "3.7",
+	"addon_version" : "3.8",
 	# Author(s)
 	"addon_author" : "Tseng Woody <tsengwoody.tw@gmail.com>",
 	# URL for the add-on documentation support
