@@ -16,7 +16,7 @@ from generics.speechSymbols.views import SpeechSymbolsDialog
 from synthDrivers.WorldVoice import WVStart, WVEnd
 from synthDrivers.WorldVoice.hook import Hook
 from synthDrivers.WorldVoice.sayAll import patch, unpatch
-from synthDrivers.WorldVoice.voiceManager import VEVoice, AisoundVoice
+from synthDrivers.WorldVoice.voiceManager import AisoundVoice
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]

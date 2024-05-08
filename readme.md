@@ -81,11 +81,7 @@ WorldVoice 是一款多國語音朗讀 NVDA 附加元件，支援 VE, OneCore, A
 
 ## 安裝
 
-除了一般的 NVDA 附加元件安裝步驟之外，如果您想使用 RHVoice 語音，您需要安裝語音包。
-
-安裝語音包的步驟如下：
-
-*	如果欲使用 RHVoice 的語音，請從官方網站下載相應的語音包附加元件。[官方下載點](https://rhvoice.org/languages/)。
+除了一般的 NVDA 附加元件安裝步驟之外，如果您想使用 RHVoice 語音，請從官方網站下載相應的語音包附加元件。[官方下載點](https://rhvoice.org/languages/)。
 
 ## 主要語音角色設定
 
