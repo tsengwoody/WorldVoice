@@ -499,10 +499,6 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 	# Translators: Title of a setting dialog.
 	title = _("Speech Engine")
 	settings = OrderedDict({
-		"VE": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate VE")
-		},
 		"OneCore": {
 			# Translators: The label of an option in the Engine settings dialog
 			"label": _("Activate OneCore")

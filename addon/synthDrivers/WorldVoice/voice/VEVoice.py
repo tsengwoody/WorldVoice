@@ -174,7 +174,10 @@ class VEVoice(Voice):
 
 	@classmethod
 	def engineOff(cls):
-		_vocalizer.terminate()
+		try:
+			_vocalizer.terminate()
+		except BaseException:
+			pass
 
 	@classmethod
 	def voices(cls):
