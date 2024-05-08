@@ -519,10 +519,10 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 			# Translators: The label of an option in the Engine settings dialog
 			"label": _("Activate espeak")
 		},
-		"piper": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate piper")
-		},
+		# "piper": {
+			# # Translators: The label of an option in the Engine settings dialog
+			# "label": _("Activate piper")
+		# },
 		"IBM": {
 			# Translators: The label of an option in the Engine settings dialog
 			"label": _("Activate IBM")

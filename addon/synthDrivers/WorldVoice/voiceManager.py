@@ -14,7 +14,7 @@ from .voice.AisoundVoice import AisoundVoice
 from .voice.OneCoreVoice import OneCoreVoice
 from .voice.RHVoice import RHVoice
 from .voice.EspeakVoice import EspeakVoice
-from .voice.PiperVoice import PiperVoice
+# from .voice.PiperVoice import PiperVoice
 from .voice.IBMVoice import IBMVoice
 
 
@@ -51,7 +51,7 @@ class VoiceManager(object):
 		"OneCore": OneCoreVoice,
 		"RH": RHVoice,
 		"espeak": EspeakVoice,
-		"piper": PiperVoice,
+		# "piper": PiperVoice,
 		"IBM": IBMVoice,
 	}
 
