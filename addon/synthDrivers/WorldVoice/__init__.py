@@ -53,7 +53,7 @@ config.conf.spec["WorldVoice"] = {
 		"SAPI5": "boolean(default=false)",
 		"RH": "boolean(default=false)",
 		"espeak": "boolean(default=true)",
-		"piper": "boolean(default=true)",
+		# "piper": "boolean(default=true)",
 		"IBM": "boolean(default=false)",
 	},
 	"other": {
