@@ -4,7 +4,7 @@
 
 不同數位內容（例如語言學習、數理學門和文學作品）的文字組成、上下文語意和跨語言頻率等特性會有所不同，相對的語音報讀方式也可能需要依據不同的數位內容進行微調，以更符合該類文件的需求。
 
-WorldVoice 是一款多國語音朗讀 NVDA 附加元件，支援 VE, OneCore, Aisound, SAPI5, RHVoice 五種語音引擎互相搭配選用並提供了豐富的客製化設定選項，讓使用者可以在不同情境下進行不同的設定，最大化滿足不同族群使用者的需求。
+WorldVoice 是一款多國語音朗讀 NVDA 附加元件，支援 Espeak, OneCore, RHVoice, SAPI5, Piper 五種語音引擎互相搭配選用並提供了豐富的客製化設定選項，讓使用者可以在不同情境下進行不同的設定，最大化滿足不同族群使用者的需求。
 
 主要功能有：
 
@@ -17,17 +17,7 @@ WorldVoice 是一款多國語音朗讀 NVDA 附加元件，支援 VE, OneCore, A
 
 ## 安裝
 
-除了一般的 NVDA 附加元件安裝步驟之外，如果您想使用 VE 和 aisound 語音，您需要額外安裝核心包；如果您想使用 VE 和 RHVoice 語音，您需要安裝語音包。
-
-安裝核心包的步驟如下：
-
-*	前往 WorldVoice -> VE 核心安裝、Aisound 核心安裝，並將相應的核心包 zip 檔案匯入 WorldVoice 附加元件工作區。
-*	如果您使用 VE 核心，還需要在作業系統中安裝 [VC++ Redistributable Packages 2012](https://www.microsoft.com/en-US/download/details.aspx?id=30679) 的 x86 版本(VSU_4\vcredist_x86.exe)，如果您已安裝核心包和語音包，但仍無法載入 WorldVoice 合成器，請嘗試安裝此元件。
-
-安裝語音包的步驟如下：
-
-*	如果欲使用 RHVoice 的語音，請從官方網站下載相應的語音包附加元件。[官方下載點](https://rhvoice.org/languages/)。
-*	如果欲使用 VE 語音，您可以直接從 VE 語音包附加元件內複製地區資料夾（例如 en、mnc、mnt 等），將其壓縮成 zip 壓縮包後，透過 WorldVoice 介面的「檔案匯入」功能匯入 WorldVoice 工作區內。由於附加元件形式可能因 NVDA 身版導致不相容，造成更新 NVDA 後無法正常載入 VE 語音包，推薦使用此種檔案匯入語音包的方式安裝。或是您可以使用 VE 附加元件語音包形式，請從兼容於 Vocalizer for NVDA 的語音包附加元件官方網站下載相應的語音包。[官方下載點](https://vocalizer-nvda.com/downloads)。
+除了一般的 NVDA 附加元件安裝步驟之外，如果您想使用 RHVoice 語音，請從官方網站下載相應的語音包附加元件。[官方下載點](https://rhvoice.org/languages/)。
 
 ## 主要語音角色設定
 
@@ -57,14 +47,15 @@ WorldVoice 是一款多國語音朗讀 NVDA 附加元件，支援 VE, OneCore, A
 *	偵測語言時忽略數字、偵測語言時忽略常見標點符號勾選後，數字與標點符號會判定為主要語音的地區文字。
 *	增強語音命令：文字自動偵測語言、停頓語音指令的判斷與加入時間點是在 NVDA 的符號處理前或符號處理後進行。當選擇「符號處理後」項目時，可防止與其他使用到語音模組附加元件(ex: Instant Translate)的衝突。
 
-語音引擎：可選擇要啟用的語音引擎，預設為 VE, OneCore, aisound
-
-其他：
-
-*	OneCore 提高語速：勾選後 OneCore 的語音角色速度會更快
-*	VE 停頓參數：設定 VE 語音 session 開始與結束的停頓長度。（遇到句號或語音角色切換時皆會結束當前這條語音 session 並重啟一條新的語音 session）
+語音引擎：可選擇要啟用的語音引擎。
 
 # 更新版本日誌
+
+## v3.7
+
+* 修正 NVDA+b 功能無法使用的問題
+* 修正睡眠模式下按鍵盤任意鍵語音中斷問題(語音角色設定中有任意 SAPI5 語音則不適用)(Workaround Solution)
+* 同步 OneCore 程式與 NVDA 內 OneCore 做法
 
 ## v3.6
 
