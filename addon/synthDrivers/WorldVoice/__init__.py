@@ -349,7 +349,6 @@ class SynthDriver(SynthDriver):
 				temp.append(command)
 		speechSequence = temp
 
-		speechSequence = self.patchedSpaceFilterSpaceSpeechSequence(speechSequence)
 		speechSequence = self.patchedNumSpaceSpeechSequence(speechSequence)
 
 		chunks = []
@@ -756,18 +755,6 @@ class SynthDriver(SynthDriver):
 				unstables.append(command)
 		stables.extend(unstables)
 		return stables
-
-	def patchedSpaceFilterSpaceSpeechSequence(self, speechSequence):
-		# filter blank string
-		result = []
-		for command in speechSequence:
-			if isinstance(command, str):
-				if command.strip():
-					result.append(command.strip())
-			else:
-				result.append(command)
-
-		return result
 
 	def patchedNumSpaceSpeechSequence(self, speechSequence):
 		numberwaitfactor = self._numberwaitfactor * 5 if self._numberwaitfactor > 0 else 1
