@@ -46,19 +46,37 @@ def initialize(
 
 
 class _SayAllHandler(sayAll._SayAllHandler):
-	def readObjects(self, obj: 'NVDAObjects.NVDAObject'):
+	def readObjects(self, obj: "NVDAObjects.NVDAObject", startedFromScript: bool | None = False):
+		"""Start or restarts the object reader.
+		:param obj: the object to be read
+		:param startedFromScript: whether the current say all action was initially started from a script; use None to keep
+			the last value unmodified, e.g. when the say all action is resumed during skim reading.
+		"""
+		if startedFromScript is not None:
+			self.startedFromScript = startedFromScript
 		reader = _ObjectsReader(self, obj)
 		self._getActiveSayAll = weakref.ref(reader)
 		reader.next()
 
 	def readText(
-			self,
-			cursor: CURSOR,
-			startPos: Optional[textInfos.TextInfo] = None,
-			nextLineFunc: Optional[Callable[[textInfos.TextInfo], textInfos.TextInfo]] = None,
-			shouldUpdateCaret: bool = True,
+		self,
+		cursor: CURSOR,
+		startPos: Optional[textInfos.TextInfo] = None,
+		nextLineFunc: Optional[Callable[[textInfos.TextInfo], textInfos.TextInfo]] = None,
+		shouldUpdateCaret: bool = True,
+		startedFromScript: bool | None = False,
 	) -> None:
+		"""Start or restarts the reader
+		:param cursor: the type of cursor used for say all
+		:param startPos: start position (only used for table say all)
+		:param nextLineFunc: function called to read the next line (only used for table say all)
+		:param shouldUpdateCaret: whether the caret should be updated during say all (only used for table say all)
+		:param startedFromScript: whether the current say all action was initially started from a script; use None to keep
+			the last value unmodified, e.g. when the say all action is resumed during skim reading.
+		"""
 		self.lastSayAllMode = cursor
+		if startedFromScript is not None:
+			self.startedFromScript = startedFromScript
 		try:
 			if cursor == CURSOR.CARET:
 				reader = _CaretTextReader(self)
@@ -110,7 +128,7 @@ class _TextReader(sayAll._TextReader):
 
 		cb = CallbackCommand(
 			_onLineReached,
-			name="say-all:lineReached"
+			name="say-all:lineReached",
 		)
 
 		# Generate the speech sequence for the reader textInfo
@@ -121,7 +139,7 @@ class _TextReader(sayAll._TextReader):
 			self.reader,
 			unit=textInfos.UNIT_READINGCHUNK,
 			reason=controlTypes.OutputReason.SAYALL,
-			useCache=state
+			useCache=state,
 		)
 		seq = list(_flattenNestedSequences(speechGen))
 		seq.insert(0, cb)
@@ -160,11 +178,11 @@ class _ReviewTextReader(_TextReader, sayAll._ReviewTextReader):
 
 class _TableTextReader(_CaretTextReader):
 	def __init__(
-			self,
-			handler: _SayAllHandler,
-			startPos: Optional[textInfos.TextInfo] = None,
-			nextLineFunc: Optional[Callable[[textInfos.TextInfo], textInfos.TextInfo]] = None,
-			shouldUpdateCaret: bool = True,
+		self,
+		handler: _SayAllHandler,
+		startPos: Optional[textInfos.TextInfo] = None,
+		nextLineFunc: Optional[Callable[[textInfos.TextInfo], textInfos.TextInfo]] = None,
+		shouldUpdateCaret: bool = True,
 	):
 		self.startPos = startPos
 		self.nextLineFunc = nextLineFunc
