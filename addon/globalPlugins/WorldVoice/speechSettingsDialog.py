@@ -84,9 +84,9 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		else:
 			self._manager.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
 
-		self._localeToVoices = self._manager.localeToVoicesMapEngineFilter
-		self.localesToNames = self._manager.localesToNamesMapEngineFilter
-		self._locales = self._manager.languagesEngineFilter
+		self._localeToVoices = self._manager.localeToVoicesMap
+		self.localesToNames = self._manager.localesToNamesMap
+		self._locales = self._manager.languages
 
 		self._dataToPercist = defaultdict(lambda: {})
 		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
@@ -246,9 +246,9 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 		self._manager.onKeepEngineConsistent()
 
-		self._localeToVoices = self._manager.localeToVoicesMapEngineFilter
-		self.localesToNames = self._manager.localesToNamesMapEngineFilter
-		self._locales = self._manager.languagesEngineFilter
+		self._localeToVoices = self._manager.localeToVoicesMap
+		self.localesToNames = self._manager.localesToNamesMap
+		self._locales = self._manager.languages
 		self._localesChoice.SetItems([self.localesToNames[l] for l in self._locales])
 		self._updateVoicesSelection()
 
@@ -407,8 +407,8 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			sizer.Add(infoLabel)
 			return
 
-		self.localesToNames = self._manager.localesToNamesMapEngineFilter
-		self._locales = self._manager.languagesEngineFilter
+		self.localesToNames = self._manager.localesToNamesMap
+		self._locales = self._manager.languages
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
@@ -499,6 +499,10 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 	# Translators: Title of a setting dialog.
 	title = _("Speech Engine")
 	settings = OrderedDict({
+		"VE": {
+			# Translators: The label of an option in the Engine settings dialog
+			"label": _("Activate VE")
+		},
 		"OneCore": {
 			# Translators: The label of an option in the Engine settings dialog
 			"label": _("Activate OneCore")
@@ -549,6 +553,8 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 			)
 			return False
 
+		print(activeEngine)
+		print(self.previousActiveEngine)
 		if activeEngine != self.previousActiveEngine:
 			if gui.messageBox(
 				# Translators: The message displayed

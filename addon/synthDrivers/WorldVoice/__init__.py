@@ -93,7 +93,7 @@ class SynthDriver(SynthDriver):
 
 	@classmethod
 	def check(cls):
-		return VoiceManager.ready()
+		return True
 
 	@property
 	def supportedSettings(self):

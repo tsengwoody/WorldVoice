@@ -57,22 +57,23 @@ class VoiceManager(object):
 
 	@classmethod
 	def ready(cls):
-		result = False
-		for item in cls.voice_class.values():
-			result |= item.ready()
-		return result
+		return True
 
 	def __init__(self):
 		self.lock = threading.Lock()
 
+		self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
 		self.installEngine = []
-		for item in self.voice_class.values():
+		for key in self.activeEngines:
+			try:
+				item = self.voice_class[key]
+			except BaseException as e:
+				continue
 			if item.ready():
 				try:
 					item.engineOn(self.lock)
 					self.installEngine.append(item)
 				except BaseException as e:
-					print(e)
 					pass
 
 		self._setVoiceDatas()
@@ -89,8 +90,6 @@ class VoiceManager(object):
 			except IndexError:
 				config.conf["WorldVoice"]["engine"]["SAPI5"] = True
 				item = self.table[0]
-
-		self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
 
 		defaultVoiceName = item["name"]
 		self._defaultVoiceInstance = self.getVoiceInstance(defaultVoiceName)
@@ -179,7 +178,7 @@ class VoiceManager(object):
 
 		for localelo, data in config.conf["WorldVoice"]['speechRole'].items():
 			if isinstance(data, config.AggregatedSection):
-				if (localelo not in self.localeToVoicesMapEngineFilter) or ('voice' in data and data['voice'] not in self.localeToVoicesMapEngineFilter[localelo]):
+				if (localelo not in self.localeToVoicesMap) or ('voice' in data and data['voice'] not in self.localeToVoicesMap[localelo]):
 					try:
 						del temp[localelo]
 					except BaseException:
@@ -225,7 +224,7 @@ class VoiceManager(object):
 		for item in self.installEngine:
 			self.table.extend(item.voices())
 		self.table = sorted(self.table, key=lambda item: (item['engine'], item['language'], item['name']))
-		self.table = list(filter(lambda item: item['engine'] in [key for key, value in config.conf["WorldVoice"]["engine"].items() if value], self.table))
+		self.table = list(filter(lambda item: item['engine'] in self.activeEngines, self.table))
 
 		self._localesToVoices = {
 			**groupByField(self.table, 'locale', lambda i: i, lambda i: i['name']),
@@ -244,44 +243,15 @@ class VoiceManager(object):
 		# Kepp a list with existing voices in VoiceInfo objects.
 		self._voiceInfos = OrderedDict([(v.id, v) for v in voiceInfos])
 
-	def _setVoiceDatasEngineFilter(self):
-		self.tableEngineFilter = []
-		for item in self.voice_class.values():
-			self.tableEngineFilter.extend(item.voices())
-		self.tableEngineFilter = sorted(self.tableEngineFilter, key=lambda item: (item['engine'], item['language'], item['name']))
-		self.tableEngineFilter = list(filter(lambda item: item['engine'] in self.engines, self.tableEngineFilter))
-
-		self._localesToVoicesEngineFilter = {
-			**groupByField(self.tableEngineFilter, 'locale', lambda i: i, lambda i: i['name']),
-			# For locales with no country (i.g. "en") use all voices from all sub-locales
-			**groupByField(self.tableEngineFilter, 'locale', lambda i: i.split('_')[0], lambda i: i['name']),
-		}
-
-		self._voicesToEnginesEngineFilter = {}
-		for item in self.tableEngineFilter:
-			self._voicesToEnginesEngineFilter[item["name"]] = item["engine"]
-
-		voiceInfos = []
-		for item in self.tableEngineFilter:
-			voiceInfos.append(VoiceInfo(item["name"], item["description"], item["language"]))
-
-		# Kepp a list with existing voices in VoiceInfo objects.
-		self._voiceInfosEngineFilter = OrderedDict([(v.id, v) for v in voiceInfos])
-
 	@property
 	def activeEngines(self):
 		return self._activeEngines
 
 	@activeEngines.setter
 	def activeEngines(self, value):
-		if not set(value).issubset(set(self.voice_class.keys())):
-			raise ValueError("engine setted is not valid")
+		# if not set(value).issubset(set(self.voice_class.keys())):
+			# raise ValueError("engine setted is not valid")
 		self._activeEngines = value
-		self._setVoiceDatasEngineFilter()
-
-	@property
-	def engines(self):
-		return self.activeEngines
 
 	@property
 	def voiceInfos(self):
@@ -298,18 +268,6 @@ class VoiceManager(object):
 	@property
 	def localesToNamesMap(self):
 		return {item: self._getLocaleReadableName(item) for item in self._localesToVoices}
-
-	@property
-	def languagesEngineFilter(self):
-		return sorted([l for l in self._localesToVoicesEngineFilter if len(self._localesToVoicesEngineFilter[l]) > 0])
-
-	@property
-	def localeToVoicesMapEngineFilter(self):
-		return self._localesToVoicesEngineFilter.copy()
-
-	@property
-	def localesToNamesMapEngineFilter(self):
-		return {locale: self._getLocaleReadableName(locale) for locale in self._localesToVoicesEngineFilter}
 
 	def getVoiceNameForLanguage(self, language):
 		configured = self._getConfiguredVoiceNameForLanguage(language)
