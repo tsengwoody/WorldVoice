@@ -16,7 +16,7 @@ from generics.speechSymbols.views import SpeechSymbolsDialog
 from synthDrivers.WorldVoice import WVStart, WVEnd
 from synthDrivers.WorldVoice.hook import Hook
 from synthDrivers.WorldVoice.sayAll import patch, unpatch
-from synthDrivers.WorldVoice.voiceManager import AisoundVoice
+# from synthDrivers.WorldVoice.voiceManager import AisoundVoice
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
@@ -63,9 +63,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSymbolsDialog, item)
 		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onFileImport, item)
-		if not AisoundVoice.install():
-			item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
-			gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onAisoundCoreInstall, item)
+		# if not AisoundVoice.install():
+		# 	item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
+		# 	gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onAisoundCoreInstall, item)
 
 		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice"), self.submenu_vocalizer)
 

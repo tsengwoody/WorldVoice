@@ -224,7 +224,7 @@ class OneCoreManager:
 			channels=wav.getnchannels(),
 			samplesPerSec=samplesPerSec,
 			bitsPerSample=bytesPerSample * 8,
-			outputDevice=config.conf["speech"]["outputDevice"]
+			outputDevice=config.conf["audio"]["outputDevice"]
 		)
 
 	def terminate(self):

@@ -196,7 +196,7 @@ def initialize(lock):
 	# Create a wave player
 	#sampleRate = sampleRateConversions[getParameter(VE_PARAM_FREQUENCY)]
 	sampleRate = 22050
-	player = nvwave.WavePlayer(1, sampleRate, 16, outputDevice=config.conf["speech"]["outputDevice"])
+	player = nvwave.WavePlayer(1, sampleRate, 16, outputDevice=config.conf["audio"]["outputDevice"])
 
 	global voiceLock
 	voiceLock = lock

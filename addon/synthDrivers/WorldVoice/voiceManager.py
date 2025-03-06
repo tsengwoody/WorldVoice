@@ -10,11 +10,10 @@ from synthDriverHandler import VoiceInfo
 from .taskManager import TaskManager
 from .voice.VEVoice import VEVoice
 from .voice.Sapi5Voice import Sapi5Voice
-from .voice.AisoundVoice import AisoundVoice
+# from .voice.AisoundVoice import AisoundVoice
 from .voice.OneCoreVoice import OneCoreVoice
 from .voice.RHVoice import RHVoice
 from .voice.EspeakVoice import EspeakVoice
-# from .voice.PiperVoice import PiperVoice
 from .voice.IBMVoice import IBMVoice
 
 
@@ -47,11 +46,10 @@ class VoiceManager(object):
 	voice_class = {
 		"VE": VEVoice,
 		"SAPI5": Sapi5Voice,
-		"aisound": AisoundVoice,
+		# "aisound": AisoundVoice,
 		"OneCore": OneCoreVoice,
 		"RH": RHVoice,
 		"espeak": EspeakVoice,
-		# "piper": PiperVoice,
 		"IBM": IBMVoice,
 	}
 
@@ -69,12 +67,13 @@ class VoiceManager(object):
 				item = self.voice_class[key]
 			except BaseException as e:
 				continue
+
 			if item.ready():
 				try:
 					item.engineOn(self.lock)
 					self.installEngine.append(item)
 				except BaseException as e:
-					pass
+					log.error("engine on error: %s", str(e))
 
 		self._setVoiceDatas()
 		self.taskManager = TaskManager(lock=self.lock, table=self.table)
@@ -181,16 +180,9 @@ class VoiceManager(object):
 				if (localelo not in self.localeToVoicesMap) or ('voice' in data and data['voice'] not in self.localeToVoicesMap[localelo]):
 					try:
 						del temp[localelo]
-					except BaseException:
+					except KeyError:
 						pass
-					try:
-						log.info("locale {locale} voice {voice} not available on {engine} engine".format(
-							locale=localelo,
-							voice=data['voice'],
-							engine=self.engine,
-						))
-					except BaseException:
-						pass
+					log.info(f"locale {localelo} voice {data['voice']} not available")
 
 		config.conf["WorldVoice"]["speechRole"] = temp
 		if self.taskManager:
@@ -215,9 +207,8 @@ class VoiceManager(object):
 		self._defaultVoiceInstance.stop()
 		if self.taskManager:
 			self.taskManager.cancel()
-			if True or not self.taskManager.block:
-				for voiceName, instance in self._instanceCache.items():
-					instance.stop()
+			for voiceName, instance in self._instanceCache.items():
+				instance.stop()
 
 	def _setVoiceDatas(self):
 		self.table = []
@@ -275,16 +266,6 @@ class VoiceManager(object):
 			return configured
 		return self.defaultVoiceName
 
-		# deprecation
-		voices = self._localesToVoicesEngineFilter.get(language, None)
-		if voices is None:
-			if '_' in language:
-				voices = self._localesToVoicesEngineFilter.get(language.split('_')[0], None)
-		if voices is None:
-			return None
-		voice = self.defaultVoiceName if self.defaultVoiceName in voices else voices[0]
-		return voice
-
 	def getVoiceInstanceForLanguage(self, language):
 		voiceName = self.getVoiceNameForLanguage(language)
 		if voiceName:
@@ -296,7 +277,7 @@ class VoiceManager(object):
 		if language in config.conf["WorldVoice"]['speechRole']:
 			try:
 				voice = config.conf["WorldVoice"]['speechRole'][language]['voice']
-			except BaseException:
+			except KeyError:
 				pass
 		if not voice:
 			if '_' not in language:
@@ -305,7 +286,7 @@ class VoiceManager(object):
 			if language in config.conf["WorldVoice"]['speechRole']:
 				try:
 					voice = config.conf["WorldVoice"]['speechRole'][language]['voice']
-				except BaseException:
+				except KeyError:
 					pass
 		return voice
 

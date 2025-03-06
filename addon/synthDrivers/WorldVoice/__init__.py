@@ -2,6 +2,7 @@ from collections import OrderedDict
 import os
 import re
 import sys
+from typing import Any
 import unicodedata
 
 import addonHandler
@@ -22,6 +23,8 @@ from ._speechcommand import SplitCommand, WVLangChangeCommand
 from .voice import Voice
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
+
+_: Any
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, base_dir)

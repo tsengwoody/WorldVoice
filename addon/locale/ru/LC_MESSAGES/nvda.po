@@ -1,99 +1,98 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoice' '4.0'\n"
-"POT-Creation-Date: 2025-01-01 10:59+0500\n"
-"PO-Revision-Date: 2025-01-08 17:49+0500\n"
+"Project-Id-Version: WorldVoice\n"
+"POT-Creation-Date: 2024-05-10 12:14+0300\n"
+"PO-Revision-Date: 2024-05-14 10:39+0300\n"
 "Last-Translator: \n"
 "Language-Team: nvda.ru\n"
 "Language: ru_RU\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
-"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
-"X-Generator: Poedit 3.5\n"
-"X-Poedit-Basepath: ../../../..\n"
+"X-Generator: Poedit 1.8.6\n"
+"X-Poedit-Basepath: ../../..\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
+"%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 "X-Poedit-SourceCharset: UTF-8\n"
-"X-Poedit-SearchPath-0: addon/generics\n"
-"X-Poedit-SearchPath-1: addon/globalPlugins\n"
-"X-Poedit-SearchPath-2: addon/synthDrivers\n"
-"X-Poedit-SearchPath-3: addon/installTasks.py\n"
-"X-Poedit-SearchPath-4: buildVars.py\n"
+"X-Poedit-SearchPath-0: generics\n"
+"X-Poedit-SearchPath-1: globalPlugins\n"
+"X-Poedit-SearchPath-2: synthDrivers\n"
+"X-Poedit-SearchPath-3: installTasks.py\n"
 
-#: addon/generics/speechSymbols/models.py:20
+#: generics/speechSymbols/models.py:20
 msgid "context"
 msgstr "контекст"
 
-#: addon/generics/speechSymbols/models.py:21
+#: generics/speechSymbols/models.py:21
 msgid "force"
 msgstr "ускорение"
 
-#: addon/generics/speechSymbols/views.py:30
+#: generics/speechSymbols/views.py:30
 msgid "Add Symbol"
 msgstr "Добавить символ"
 
-#: addon/generics/speechSymbols/views.py:35
+#: generics/speechSymbols/views.py:35
 msgid "&Symbol:"
 msgstr "&Символ:"
 
-#: addon/generics/speechSymbols/views.py:58
+#: generics/speechSymbols/views.py:58
 msgid "Unicode Setting"
 msgstr "Настройка Юникода"
 
-#: addon/generics/speechSymbols/views.py:82
+#: generics/speechSymbols/views.py:82
 msgid "&Symbols"
 msgstr "&Символы"
 
-#: addon/generics/speechSymbols/views.py:92
+#: generics/speechSymbols/views.py:92
 msgid "Unicode"
 msgstr "Юникод"
 
-#: addon/generics/speechSymbols/views.py:94
+#: generics/speechSymbols/views.py:94
 msgid "Replacement"
 msgstr "Замена"
 
-#: addon/generics/speechSymbols/views.py:96
+#: generics/speechSymbols/views.py:96
 msgid "Language"
 msgstr "Язык"
 
-#: addon/generics/speechSymbols/views.py:99
+#: generics/speechSymbols/views.py:99
 msgid "Mode"
 msgstr "Режим"
 
-#: addon/generics/speechSymbols/views.py:103
+#: generics/speechSymbols/views.py:103
 msgid "Change selected symbol"
 msgstr "Изменить выбранный символ"
 
-#: addon/generics/speechSymbols/views.py:125
+#: generics/speechSymbols/views.py:125
 msgid "&Replacement"
 msgstr "&Замена"
 
-#: addon/generics/speechSymbols/views.py:133
+#: generics/speechSymbols/views.py:133
 msgid "&language"
 msgstr "&язык"
 
-#: addon/generics/speechSymbols/views.py:138
+#: generics/speechSymbols/views.py:138
 msgid "&Detect language mode"
 msgstr "&Определить режим речи"
 
-#: addon/generics/speechSymbols/views.py:145
+#: generics/speechSymbols/views.py:145
 msgid "&Add"
 msgstr "&Добавить"
 
-#: addon/generics/speechSymbols/views.py:148
+#: generics/speechSymbols/views.py:148
 msgid "Re&move"
 msgstr "Уд&алить"
 
-#: addon/generics/speechSymbols/views.py:254
+#: generics/speechSymbols/views.py:254
 #, python-format
 msgid "Symbol \"%s\" is already present."
 msgstr "Символ «%s» уже существует."
 
-#: addon/generics/speechSymbols/views.py:255
+#: generics/speechSymbols/views.py:255
 msgid "Error"
 msgstr "Ошибка"
 
-#: addon/generics/speechSymbols/views.py:322
+#: generics/speechSymbols/views.py:322
 msgid ""
 "For the edited unicode rule to apply, NVDA must be restarted. Do you want to "
 "restart NVDA now?"
@@ -101,62 +100,62 @@ msgstr ""
 "Чтобы было применено отредактированное правило Юникода, необходимо "
 "перезапустить NVDA. Вы хотите перезапустить NVDA сейчас?"
 
-#: addon/generics/speechSymbols/views.py:324
+#: generics/speechSymbols/views.py:324
 msgid "unicode rule edited"
 msgstr "правило Юникода отредактировано"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:60
+#: globalPlugins/WorldVoice/__init__.py:60
 msgid "&Speech Settings"
 msgstr "&Настройки речи"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:60
+#: globalPlugins/WorldVoice/__init__.py:60
 msgid "Speech Settings."
 msgstr "Настройки речи."
 
-#: addon/globalPlugins/WorldVoice/__init__.py:62
+#: globalPlugins/WorldVoice/__init__.py:62
 msgid "&Unicode Settings"
 msgstr "&Настройки Юникода"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:62
+#: globalPlugins/WorldVoice/__init__.py:62
 msgid "Unicode Settings."
 msgstr "Настройки Юникода."
 
-#: addon/globalPlugins/WorldVoice/__init__.py:64
+#: globalPlugins/WorldVoice/__init__.py:64
 msgid "&File Import"
 msgstr "&Импорт голосов из ZIP"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:64
+#: globalPlugins/WorldVoice/__init__.py:64
 msgid "Import File."
 msgstr "Импортировать голоса из ZIP-архива."
 
-#: addon/globalPlugins/WorldVoice/__init__.py:67
+#: globalPlugins/WorldVoice/__init__.py:67
 msgid "&Aisound Core Install"
 msgstr "&Установка ядра AiSound"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:67
+#: globalPlugins/WorldVoice/__init__.py:67
 msgid "Install Aisound Core."
 msgstr "Установить ядро AiSound."
 
-#: addon/globalPlugins/WorldVoice/__init__.py:70
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:23
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:623 buildVars.py:23
+#: globalPlugins/WorldVoice/__init__.py:70
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:23
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:617
 msgid "WorldVoice"
 msgstr "WorldVoice"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:81
+#: globalPlugins/WorldVoice/__init__.py:81
 msgid "Import file..."
 msgstr "Импортировать файл..."
 
-#: addon/globalPlugins/WorldVoice/__init__.py:93
+#: globalPlugins/WorldVoice/__init__.py:93
 msgid "Import fail"
 msgstr "Сбой импорта"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:94
-#: addon/globalPlugins/WorldVoice/__init__.py:99
+#: globalPlugins/WorldVoice/__init__.py:94
+#: globalPlugins/WorldVoice/__init__.py:99
 msgid "Import File"
 msgstr "Импорт файла"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:98
+#: globalPlugins/WorldVoice/__init__.py:98
 msgid ""
 "For the new file to import, NVDA must be restarted. Are you want to restart "
 "NVDA now ?"
@@ -164,121 +163,121 @@ msgstr ""
 "Для импорта нового файла необходимо перезапустить NVDA. Вы хотите "
 "перезапустить NVDA прямо сейчас ?"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:118
+#: globalPlugins/WorldVoice/__init__.py:118
 msgid "SpeechSymbolsDialog have already been opened"
 msgstr "Диалог речевых символов уже открыт"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:121
+#: globalPlugins/WorldVoice/__init__.py:121
 msgid "popup speech settings dialog"
 msgstr "открывает диалог настроек речи"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:128
+#: globalPlugins/WorldVoice/__init__.py:128
 msgid "popup unicode settings dialog"
 msgstr "открывает диалог настроек Юникода"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:65
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:65
 msgid "Speech Role"
 msgstr "Роль речи"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:69
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:397
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:580
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:69
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:397
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:574
 msgid "Your current speech synthesizer is not WorldVoice."
 msgstr "Ваш текущий синтезатор речи - не WorldVoice."
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:77
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:405
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:588
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:77
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:405
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:582
 msgid "Your current speech synthesizer is not ready."
 msgstr "Ваш текущий синтезатор речи не готов."
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:98
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:98
 msgid "Select a language, and then configure the voice to be used:"
 msgstr "Выберите язык, а затем настройте голос, который будет использоваться:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:102
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:102
 msgid "Locale Name:"
 msgstr "Название языка:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:104
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:104
 msgid "Voice Name:"
 msgstr "Название голоса:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:106
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:106
 msgid "Variant:"
 msgstr "Вариант:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:109
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:109
 msgid "&Rate:"
 msgstr "&Скорость:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:114
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:204
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:114
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:204
 msgid "Rate boos&t"
 msgstr "&Повышение скорости"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:119
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:119
 msgid "&Pitch:"
 msgstr "&Тембр:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:122
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:122
 msgid "I&nflection:"
-msgstr "&Отклонение:"
+msgstr "&Отклонение"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:125
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:125
 msgid "V&olume:"
 msgstr "&Громкость:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:132
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:132
 msgid "Keep main engine and locale engine consistent"
 msgstr "Сохранять согласованность основного и дополнительного синтезаторов"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:140
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:140
 msgid "Keep main voice and locale voice consistent"
 msgstr "Сохранять согласованность между основным и дополнительным голосом"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:147
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:147
 msgid "Keep main parameter and locale parameter consistent"
 msgstr ""
 "Сохранять согласованность параметров основного и дополнительного голосов"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:389
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:389
 msgid "Language Switching"
 msgstr "Переключение языка"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:421
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:421
 msgid "Detect text language based on unicode characters"
 msgstr "Определение языка текста на основе символов юникода"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:429
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:429
 msgid "Ignore numbers when detecting text language"
 msgstr "Игнорировать числа при определении языка текста"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:437
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:437
 msgid "Ignore common punctuation when detecting text language"
 msgstr "Игнорировать обычную пунктуацию при определении языка текста"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:443
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:443
 msgid "Language assumed for latin characters:"
 msgstr "Предполагаемый язык для латинских символов:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:453
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:453
 msgid "Language assumed for CJK characters:"
 msgstr "Предполагаемый язык для символов CJK:"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:463
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:463
 msgid "before NVDA processing"
 msgstr "перед обработкой NVDA"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:464
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:464
 msgid "after NVDA processing"
 msgstr "после обработки NVDA"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:467
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:467
 msgid "Enhance speech commands:"
-msgstr "Улучшить команды речи:"
+msgstr "Улучшить команды речи:\\"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:490
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:490
 msgid ""
 "For the detect language timing configuration to apply, NVDA must save "
 "configuration and be restarted. Do you want to do now?"
@@ -287,43 +286,39 @@ msgstr ""
 "должно сохранить конфигурацию и перезапуститься. Вы хотите сделать это "
 "сейчас?"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:492
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:492
 msgid "Detect language timing Configuration Change"
 msgstr "Изменить конфигурацию временного интервала обнаружения языка"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:500
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:500
 msgid "Speech Engine"
 msgstr "Речевой движок"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:504
-msgid "Activate VE"
-msgstr "Активировать Vocalizer Expressive"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:508
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:504
 msgid "Activate OneCore"
 msgstr "Активировать OneCore"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:512
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:508
 msgid "Activate aisound"
 msgstr "Активировать AiSound"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:516
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:512
 msgid "Activate SAPI5"
 msgstr "Активировать SAPI5"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:520
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:516
 msgid "Activate RH"
 msgstr "Активировать RHVoice"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:524
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:520
 msgid "Activate espeak"
 msgstr "Активировать eSpeak"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:532
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:528
 msgid "Activate IBM"
 msgstr "Активировать IBM"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:550
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:546
 msgid ""
 "Speech engine configuration changes will not to save because no speech "
 "engines are activated."
@@ -331,11 +326,11 @@ msgstr ""
 "Изменения конфигурации речевых движков не сохранятся, поскольку ни один "
 "речевой движок не активирован."
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:552
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:548
 msgid "No speech engines are activated"
 msgstr "Ни один речевой движок не активирован"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:561
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:555
 msgid ""
 "For the active speech engine configuration to apply, NVDA must save "
 "configuration and be restarted. Do you want to do now?"
@@ -343,229 +338,221 @@ msgstr ""
 "Чтобы активная конфигурация речевого движка была применена, NVDA должна "
 "сохранить конфигурацию и быть перезапущена. Хотите ли вы сделать это сейчас?"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:563
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:557
 msgid "active engine Configuration Change"
 msgstr "изменить конфигурацию активного движка"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:572
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:566
 msgid "Other"
 msgstr "Другое"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:597
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:591
 msgid "VE wait factor:"
-msgstr "Коэффициент ожидания для синтезаторов Vocalizer Expressive:"
+msgstr "Коэффициент ожидания для VE :"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:604
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:598
 msgid "Number dot replacement"
 msgstr "Замена числовой точки"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:622
+#: globalPlugins/WorldVoice/speechSettingsDialog.py:616
 msgid "Speech Settings"
 msgstr "Настройки речи"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:117
-#: addon/synthDrivers/WorldVoice/__init__.py:197
+#: synthDrivers/WorldVoice/__init__.py:117
+#: synthDrivers/WorldVoice/__init__.py:197
 msgid "Number &Language"
 msgstr "&Язык чисел"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:121
-#: addon/synthDrivers/WorldVoice/__init__.py:201
+#: synthDrivers/WorldVoice/__init__.py:121
+#: synthDrivers/WorldVoice/__init__.py:201
 msgid "Number Language"
 msgstr "Язык чисел"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:126
-#: addon/synthDrivers/WorldVoice/__init__.py:206
+#: synthDrivers/WorldVoice/__init__.py:126
+#: synthDrivers/WorldVoice/__init__.py:206
 msgid "Number &Mode"
 msgstr "&Режим чисел"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:130
-#: addon/synthDrivers/WorldVoice/__init__.py:210
+#: synthDrivers/WorldVoice/__init__.py:130
+#: synthDrivers/WorldVoice/__init__.py:210
 msgid "Number Mode"
 msgstr "Режим чисел"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:135
-#: addon/synthDrivers/WorldVoice/__init__.py:215
+#: synthDrivers/WorldVoice/__init__.py:135
+#: synthDrivers/WorldVoice/__init__.py:215
 msgid "Number wait factor"
 msgstr "Пауза между цифрами"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:143
-#: addon/synthDrivers/WorldVoice/__init__.py:223
+#: synthDrivers/WorldVoice/__init__.py:143
+#: synthDrivers/WorldVoice/__init__.py:223
 msgid "item wait factor"
-msgstr "пауза между фрагментами"
+msgstr "пауза между элементами"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:151
-#: addon/synthDrivers/WorldVoice/__init__.py:231
+#: synthDrivers/WorldVoice/__init__.py:151
+#: synthDrivers/WorldVoice/__init__.py:231
 msgid "Say all wait factor"
-msgstr "Пауза между фрагментами в режиме непрерывного чтения"
+msgstr "Паузы между фрагментами в режиме Читать всё"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:159
-#: addon/synthDrivers/WorldVoice/__init__.py:239
+#: synthDrivers/WorldVoice/__init__.py:159
+#: synthDrivers/WorldVoice/__init__.py:239
 msgid "Chinese space wait factor"
 msgstr "Продолжительность паузы китайских пробелов"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:166
-#: addon/synthDrivers/WorldVoice/__init__.py:246
+#: synthDrivers/WorldVoice/__init__.py:166
+#: synthDrivers/WorldVoice/__init__.py:246
 msgid "Normalization"
 msgstr "Нормализация"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:171
-#: addon/synthDrivers/WorldVoice/__init__.py:251
+#: synthDrivers/WorldVoice/__init__.py:171
+#: synthDrivers/WorldVoice/__init__.py:251
 msgid "Ignore comma between number"
-msgstr "Игнорировать запятую между цифрами"
+msgstr "Игнорировать запятую между числом"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:176
-#: addon/synthDrivers/WorldVoice/__init__.py:256
+#: synthDrivers/WorldVoice/__init__.py:176
+#: synthDrivers/WorldVoice/__init__.py:256
 msgid "Enable WorldVoice setting rules to detect text language"
 msgstr "Включить правила настройки WorldVoice для определения языка текста"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:179
-#: addon/synthDrivers/WorldVoice/__init__.py:259
+#: synthDrivers/WorldVoice/__init__.py:179
+#: synthDrivers/WorldVoice/__init__.py:259
 msgid "Enable WorldVoice rules"
 msgstr "Включить правила WorldVoice"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:653
-#: addon/synthDrivers/WorldVoice/__init__.py:686
+#: synthDrivers/WorldVoice/__init__.py:653
+#: synthDrivers/WorldVoice/__init__.py:686
 msgid "default"
 msgstr "по умолчанию"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:671
+#: synthDrivers/WorldVoice/__init__.py:671
 msgid "OFF"
 msgstr "отключено"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:701
+#: synthDrivers/WorldVoice/__init__.py:701
 msgid "value"
-msgstr "целым числом"
+msgstr "Целым числом"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:702
+#: synthDrivers/WorldVoice/__init__.py:702
 msgid "number"
-msgstr "по цифре"
+msgstr "По цифре"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:92
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:92
 msgid "Castilian Spanish"
 msgstr "Кастильский испанский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:93
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:93
 msgid "Latin American Spanish"
 msgstr "Латиноамериканский испанский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:94
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:94
 msgid "Brazilian Portuguese"
 msgstr "Бразильский португальский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:95
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:95
 msgid "French"
 msgstr "Французский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:96
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:96
 msgid "French Canadian"
 msgstr "Французский Канадский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:97
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:97
 msgid "Finnish"
 msgstr "Финский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:98
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:98
 msgid "Chinese"
 msgstr "Китайский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:99
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:99
 msgid "Japanese"
 msgstr "Японский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:100
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:100
 msgid "Korean"
 msgstr "Корейский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:101
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:101
 msgid "German"
 msgstr "Немецкий"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:102
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:102
 msgid "Italian"
 msgstr "Итальянский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:103
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:103
 msgid "American English"
 msgstr "Американский английский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:104
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:104
 msgid "British English"
 msgstr "Британский английский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:105
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:105
 msgid "Swedish"
 msgstr "Шведский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:106
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:106
 msgid "Norwegian"
 msgstr "Норвежский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:107
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:107
 msgid "Danish"
 msgstr "Датский"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:108
+#: synthDrivers/WorldVoice/voice/IBM/_ibmeci.py:108
 msgid "Hong Kong Cantonese"
 msgstr "Гонконгский кантонский диалект"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:206
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:206
 msgid "Hea&d size"
 msgstr "&Размер заголовка"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:207
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:207
 msgid "Rou&ghness"
 msgstr "&Волнение"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:208
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:208
 msgid "Breathi&ness"
 msgstr "&Дыхание"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:209
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:209
 msgid "Enable backquote voice &tags"
 msgstr "&Включить голосовые теги с обратными кавычками"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:210
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:210
 msgid "Enable &abbreviation expansion"
-msgstr "&Включить расшифровку аббревиатур"
+msgstr "&Включить расширение аббревиатур"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:211
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:211
 msgid "Enable phras&e prediction"
 msgstr "&Включить предсказание фраз"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:212
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:212
 msgid "&Pauses"
 msgstr "&Паузы"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:213
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:213
 msgid "Al&ways Send Current Speech Settings"
 msgstr "&Всегда передавать текущие настройки речи"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:214
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:214
 msgid "Sa&mple Rate"
 msgstr "&Частота дискретизации"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:565
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:565
 msgid "Do not shorten"
 msgstr "Не сокращать"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:566
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:566
 msgid "Shorten at end of text only"
 msgstr "Сокращать только в конце текста"
 
-#: addon/synthDrivers/WorldVoice/voice/IBM/ibmeci.py:567
+#: synthDrivers/WorldVoice/voice/IBM/ibmeci.py:567
 msgid "Shorten all pauses"
 msgstr "Сокращать все паузы"
 
-#: buildVars.py:26
-msgid ""
-"Multilingual synthesizers add-on: Automatically switch speech role according "
-"to text language; Integrated Espeak, OneCore, RHVoice, SAPI5, Piper speech "
-"engine"
-msgstr ""
-"Дополнение WorldVoice это драйвер для многоязычных синтезаторов речи с "
-"возможностью автоматического переключения языков в соответствии с языком "
-"текста. Драйвер позволяет настроить переключение языков между следующими "
-"синтезаторами речи: Espeak, OneCore, RHVoice, SAPI5, Piper"
+#~ msgid "Activate VE"
+#~ msgstr "Активировать Vocalizer Expressive"
 
 #~ msgid "OneCore rate boost"
 #~ msgstr "Повышение скорости OneCore"
