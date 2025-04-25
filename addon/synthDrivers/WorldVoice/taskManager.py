@@ -7,10 +7,8 @@ from synthDriverHandler import getSynth
 
 
 class TaskManager:
-	def __init__(self, lock, table):
+	def __init__(self, lock):
 		self.lock = lock
-		self._table = table
-		self.reset_SAPI5()
 
 		self.speakingVoiceInstance = None
 		self.dispatchQueue = queue.Queue()
@@ -18,43 +16,8 @@ class TaskManager:
 
 		self.dispatch_start()
 
-		from . import WVConfigure
-		WVConfigure.register(self.reset_SAPI5)
-
 	def __del__(self):
 		self.dispatch_end()
-
-		from . import WVConfigure
-		WVConfigure.unregister(self.hookInstance.start)
-
-	@property
-	def SAPI5(self):
-		if isinstance(self._SAPI5, bool):
-			return self._SAPI5
-		self._SAPI5 = False
-		voice = getSynth().voice if getSynth() else None
-		if voice:
-			row = list(filter(lambda row: row['name'] == voice, self._table))[0]
-			if row['engine'] == "SAPI5":
-				self._SAPI5 = True
-				return self._SAPI5
-
-		for key, value in config.conf["WorldVoice"]['speechRole'].items():
-			if isinstance(value, config.AggregatedSection):
-				try:
-					row = list(filter(lambda row: row['name'] == value['voice'], self._table))[0]
-				except BaseException:
-					self._SAPI5 = True
-					break
-				if row['engine'] == "SAPI5":
-					self._SAPI5 = True
-					break
-
-		return self._SAPI5
-
-	def reset_SAPI5(self):
-		self._SAPI5 = None
-		log.debug("WorldVoice reset task SAPI5 to {}".format(self.SAPI5))
 
 	def add_dispatch_task(self, item):
 		self.dispatchQueue.put(item)
@@ -87,8 +50,7 @@ class TaskManager:
 	def cancel(self):
 		self.clear()
 		try:
-			if not self.SAPI5:
-				self.lock.release()
+			self.lock.release()
 		except BaseException:
 			pass
 		if self.speakingVoiceInstance:

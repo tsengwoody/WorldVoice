@@ -2,6 +2,7 @@ import ctypes
 import threading
 
 from logHandler import log
+import tones
 from winUser import WM_QUIT, VK_SHIFT, VK_LSHIFT, VK_RSHIFT, VK_VOLUME_DOWN, VK_VOLUME_UP
 
 from . import keyboard_hook
@@ -37,12 +38,14 @@ class Hook:
 		keyhook.free()
 
 	def hook_callback(self, **kwargs):
+		# if kwargs['pressed']:
+			# tones.beep(100, 100)
 		if not getSynth():
 			return False
 		if not getSynth().name == "WorldVoice":
 			return False
 		taskManager = getSynth()._voiceManager.taskManager
-		if not taskManager.SAPI5:
+		if True:
 			return False
 		if kwargs['pressed'] and not kwargs['vk_code'] in [
 			VK_SHIFT,

@@ -321,7 +321,6 @@ class SynthDriver(SynthDriver):
 				"description": "%s - %s" % (name, langDescription),
 				"engine": "SAPI5",
 			})
-		print(result)
 		return result
 
 	def _getVoiceTokens(self):

@@ -11,9 +11,9 @@ import languageHandler
 import queueHandler
 from synthDriverHandler import getSynth
 import tones
-
 from synthDrivers.WorldVoice import languageDetection
-from synthDrivers.WorldVoice import WVConfigure
+from synthDrivers.WorldVoice.voiceEngine import EngineType
+
 
 addonHandler.initTranslation()
 
@@ -78,11 +78,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			infoLabel.Wrap(self.GetSize()[0])
 			sizer.Add(infoLabel)
 			return
-
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
-			self._manager.activeEngines = [self._manager._defaultVoiceInstance.engine]
-		else:
-			self._manager.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
 
 		self._localeToVoices = self._manager.localeToVoicesMap
 		self.localesToNames = self._manager.localesToNamesMap
@@ -239,16 +234,13 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			voiceInstance.variant = self._variantsChoice.GetStringSelection()
 
 	def onKeepEngineConsistentChange(self, event):
-		if self._keepEngineConsistentCheckBox.GetValue():
-			self._manager.activeEngines = [self._manager._defaultVoiceInstance.engine]
-		else:
-			self._manager.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
-
+		self._manager.keepMainLocaleEngineConsistent = self._keepEngineConsistentCheckBox.GetValue()
 		self._manager.onKeepEngineConsistent()
 
 		self._localeToVoices = self._manager.localeToVoicesMap
 		self.localesToNames = self._manager.localesToNamesMap
 		self._locales = self._manager.languages
+
 		self._localesChoice.SetItems([self.localesToNames[l] for l in self._locales])
 		self._updateVoicesSelection()
 
@@ -382,8 +374,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 					getSynth().voice = self._dataToPercist[locale]["voice"]
 				config.conf["speech"]["WorldVoice"]["voice"] = self._dataToPercist[locale]["voice"]
 
-		WVConfigure.notify()
-
 
 class LanguageSwitchingSettingsPanel(SettingsPanel):
 	title = _("Language Switching")
@@ -415,13 +405,6 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 		self._latinLocales = sorted(list(latinSet))
 		CJKSet = set(languageDetection.CJK) & set(l for l in self._locales if len(l) == 2)
 		self._CJKLocales = sorted(list(CJKSet))
-
-		self._useUnicodeDetectionCheckBox = wx.CheckBox(
-			self,
-			label=_("Detect text language based on unicode characters")
-		)
-		self._useUnicodeDetectionCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"])
-		settingsSizerHelper.addItem(self._useUnicodeDetectionCheckBox)
 
 		self._ignoreNumbersCheckBox = wx.CheckBox(
 			self,
@@ -474,7 +457,6 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 	def onSave(self):
 		if not self._synthInstance.name == 'WorldVoice':
 			return False
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["useUnicodeLanguageDetection"] = self._useUnicodeDetectionCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = self._ignoreNumbersCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"] = self._ignorePunctuationCheckBox.GetValue()
 		if self._latinChoice.IsEnabled():
@@ -498,43 +480,13 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 class SpeechEngineSettingsPanel(BaseSettingsPanel):
 	# Translators: Title of a setting dialog.
 	title = _("Speech Engine")
-	settings = OrderedDict({
-		"VE": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate VE")
-		},
-		"OneCore": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate OneCore")
-		},
-		"aisound": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate aisound")
-		},
-		"SAPI5": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate SAPI5")
-		},
-		"RH": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate RH")
-		},
-		"espeak": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate espeak")
-		},
-		# "piper": {
-			# # Translators: The label of an option in the Engine settings dialog
-			# "label": _("Activate piper")
-		# },
-		"IBM": {
-			# Translators: The label of an option in the Engine settings dialog
-			"label": _("Activate IBM")
-		},
-	})
 	field = "engine"
 
 	def makeSettings(self, sizer):
+		self.settings = OrderedDict({
+			eng.name: {"label": eng.label}
+			for eng in EngineType
+		})
 		super().makeSettings(sizer)
 		self.previousActiveEngine = set([key for key, value in config.conf["WorldVoice"]["engine"].items() if value])
 
@@ -553,8 +505,6 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 			)
 			return False
 
-		print(activeEngine)
-		print(self.previousActiveEngine)
 		if activeEngine != self.previousActiveEngine:
 			if gui.messageBox(
 				# Translators: The message displayed

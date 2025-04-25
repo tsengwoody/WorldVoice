@@ -1,6 +1,10 @@
 from collections import OrderedDict, defaultdict
-
+from dataclasses import dataclass
+from enum import Enum
+import importlib
+from operator import attrgetter
 import threading
+from typing import Callable, TypeVar, Dict, List, Tuple
 
 import config
 import languageHandler
@@ -8,100 +12,79 @@ from logHandler import log
 from synthDriverHandler import VoiceInfo
 
 from .taskManager import TaskManager
-from .voice.VEVoice import VEVoice
-from .voice.Sapi5Voice import Sapi5Voice
-# from .voice.AisoundVoice import AisoundVoice
-from .voice.OneCoreVoice import OneCoreVoice
-from .voice.RHVoice import RHVoice
-from .voice.EspeakVoice import EspeakVoice
-from .voice.IBMVoice import IBMVoice
+from .voiceEngine import EngineType
+
+T = TypeVar("T")
+K = TypeVar("K")
+V = TypeVar("V")
 
 
-def joinObjectArray(srcArr1, srcArr2, key):
-	mergeArr = []
-	for srcObj2 in srcArr2:
-		def exist(existObj):
-			mergeObj = {}
-			if len(existObj) > 0:
-				mergeObj = {**existObj[0], **srcObj2}
-				mergeArr.append(mergeObj)
-		exist(
-			list(filter(lambda srcObj1: srcObj1[key] == srcObj2[key], srcArr1))
-		)
-
-	return mergeArr
-
-
-def groupByField(arrSrc, field, applyKey, applyValue):
-	temp = {}
+def groupByField(
+	arrSrc: List[T],
+	field: str,
+	applyKey: Callable[[str], K],
+	applyValue: Callable[[T], V]
+) -> Dict[K, List[V]]:
+	groups: Dict[K, List[V]] = defaultdict(list)
 	for item in arrSrc:
-		key = applyKey(item[field])
-		temp[key] = temp[key] if key in temp else []
-		temp[key].append(applyValue(item))
+		val = getattr(item, field)
+		key = applyKey(val)
+		groups[key].append(applyValue(item))
+	return groups
 
-	return temp
+
+@dataclass(frozen=True)
+class VoiceMeta:
+	id: str
+	name: str
+	description: str
+	language: str
+	engine: str
+	locale: str
 
 
 class VoiceManager(object):
-	voice_class = {
-		"VE": VEVoice,
-		"SAPI5": Sapi5Voice,
-		# "aisound": AisoundVoice,
-		"OneCore": OneCoreVoice,
-		"RH": RHVoice,
-		"espeak": EspeakVoice,
-		"IBM": IBMVoice,
-	}
-
 	@classmethod
 	def ready(cls):
 		return True
 
 	def __init__(self):
+		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]
 		self.lock = threading.Lock()
+		self.taskManager = TaskManager(lock=self.lock)
 
-		self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
+		enabled = [
+			eng for eng in EngineType
+			if config.conf["WorldVoice"]["engine"].get(eng.name, False)
+		]
+
+		self.voice_classes: Dict[str, type] = self._load_voice_classes(enabled)
+
 		self.installEngine = []
-		for key in self.activeEngines:
+		for eng in enabled:
+			cls = self.voice_classes[eng.name]
 			try:
-				item = self.voice_class[key]
-			except BaseException as e:
-				continue
-
-			if item.ready():
-				try:
-					item.engineOn(self.lock)
-					self.installEngine.append(item)
-				except BaseException as e:
-					log.error("engine on error: %s", str(e))
+				if cls.ready():
+					cls.engineOn(self.lock)
+					self.installEngine.append(cls)
+			except Exception as e:
+				log.error("engine %s on error: %s", eng.name, e)
 
 		self._setVoiceDatas()
-		self.taskManager = TaskManager(lock=self.lock, table=self.table)
-
 		self._instanceCache = {}
 		self.waitfactor = 0
 
-		try:
-			item = list(filter(lambda item: item["language"] == languageHandler.getLanguage(), self.table))[0]
-		except IndexError:
-			try:
-				item = self.table[0]
-			except IndexError:
-				config.conf["WorldVoice"]["engine"]["SAPI5"] = True
-				item = self.table[0]
-
-		defaultVoiceName = item["name"]
-		self._defaultVoiceInstance = self.getVoiceInstance(defaultVoiceName)
+		default_meta: VoiceMeta = self._getDefaultVoiceMeta()
+		self._defaultVoiceInstance = self.getVoiceInstance(default_meta.name)
 		self._defaultVoiceInstance.loadParameter()
-
-		log.debug("Created voiceManager instance. Default voice is %s", self._defaultVoiceInstance.name)
+		log.debug("Created voiceManager instance. Default voice is %s", default_meta.name)
 
 	def terminate(self):
 		for voiceName, instance in self._instanceCache.items():
 			instance.commit()
 			instance.close()
 
-		for item in self.voice_class.values():
+		for item in self.voice_classes.values():
 			item.engineOff()
 
 		self.taskManager = None
@@ -131,8 +114,32 @@ class VoiceManager(object):
 	def waitfactor(self, value):
 		self._waitfactor = value
 		for voiceName, instance in self._instanceCache.items():
-			if isinstance(instance, VEVoice):
-				instance.waitfactor = value
+			try:
+				if isinstance(instance, self.voice_classes["VE"]):
+					instance.waitfactor = value
+			except KeyError:
+				pass
+
+	def _load_voice_classes(self, engines: List[EngineType]) -> Dict[str, type]:
+		"""
+		Dynamically import voice classes based on EngineType definitions.
+		Returns a dict mapping engine-name (e.g. "VE") to the class object.
+		"""
+		classes: Dict[str, type] = {}
+		for eng in engines:
+			module_path = eng.module_path	  # e.g. "voice.VEVoice"
+			class_name = eng.class_name	   # e.g. "VEVoice"
+			module = importlib.import_module(module_path)
+			cls = getattr(module, class_name)
+			classes[eng.name] = cls
+		return classes
+
+	def _getDefaultVoiceMeta(self) -> VoiceMeta:
+		lang = languageHandler.getLanguage()
+		try:
+			return next(v for v in self.table if v.language == lang)
+		except StopIteration:
+			return self.table[0]
 
 	def getVoiceInstance(self, voiceName):
 		try:
@@ -141,14 +148,20 @@ class VoiceManager(object):
 			instance = self._createVoiceInstance(voiceName)
 		return instance
 
-	def _createVoiceInstance(self, voiceName):
-		item = list(filter(lambda item: item["name"] == voiceName, self.table))[0]
-		voiceInstance = self.voice_class[item["engine"]](id=item["id"], name=item["name"], language=item["language"], taskManager=self.taskManager)
+	def _createVoiceInstance(self, voiceName: str):
+		voiceMeta = next(v for v in self.table if v.name == voiceName)
+		cls = self.voice_classes[voiceMeta.engine]
+		voiceInstance = cls(
+			id=voiceMeta.id,
+			name=voiceMeta.name,
+			language=voiceMeta.language,
+			taskManager=self.taskManager
+		)
 		voiceInstance.loadParameter()
 		voiceInstance.waitfactor = self.waitfactor
 
 		self._instanceCache[voiceInstance.name] = voiceInstance
-		return self._instanceCache[voiceInstance.name]
+		return voiceInstance
 
 	def onVoiceParameterConsistent(self, baseInstance):
 		for voiceName, instance in self._instanceCache.items():
@@ -160,11 +173,6 @@ class VoiceManager(object):
 			instance.commit()
 
 	def onKeepEngineConsistent(self):
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]:
-			self.activeEngines = [self._defaultVoiceInstance.engine]
-		else:
-			self.activeEngines = [key for key, value in config.conf["WorldVoice"]["engine"].items() if value]
-
 		temp = defaultdict(lambda: {})
 		for key, value in config.conf["WorldVoice"]["speechRole"].items():
 			if isinstance(value, config.AggregatedSection):
@@ -182,11 +190,9 @@ class VoiceManager(object):
 						del temp[localelo]
 					except KeyError:
 						pass
-					log.info(f"locale {localelo} voice {data['voice']} not available")
+					# log.info(f"locale {localelo} voice {data['voice']} not available")
 
 		config.conf["WorldVoice"]["speechRole"] = temp
-		if self.taskManager:
-			self.taskManager.reset_SAPI5()
 
 	def onKeepMainLocaleVoiceConsistent(self):
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
@@ -211,54 +217,76 @@ class VoiceManager(object):
 				instance.stop()
 
 	def _setVoiceDatas(self):
-		self.table = []
-		for item in self.installEngine:
-			self.table.extend(item.voices())
-		self.table = sorted(self.table, key=lambda item: (item['engine'], item['language'], item['name']))
-		self.table = list(filter(lambda item: item['engine'] in self.activeEngines, self.table))
+		self.table: List[VoiceMeta] = []
+		for cls in self.installEngine:
+			for v in cls.voices():
+				try:
+					self.table.append(VoiceMeta(
+						id=v["id"],
+						name=v["name"],
+						description=v.get("description", ""),
+						language=v["language"],
+						engine=v["engine"],
+						locale=v.get("locale", v["language"]),
+					))
+				except KeyError as e:
+					log.error("Invalid voice data: missing %s", e)
 
-		self._localesToVoices = {
-			**groupByField(self.table, 'locale', lambda i: i, lambda i: i['name']),
-			# For locales with no country (i.g. "en") use all voices from all sub-locales
-			**groupByField(self.table, 'locale', lambda i: i.split('_')[0], lambda i: i['name']),
-		}
+		self.table.sort(key=attrgetter("engine", "language", "name"))
 
-		self._voicesToEngines = {}
-		for item in self.table:
-			self._voicesToEngines[item["name"]] = item["engine"]
-
-		voiceInfos = []
-		for item in self.table:
-			voiceInfos.append(VoiceInfo(item["name"], item["description"], item["language"]))
-
-		# Kepp a list with existing voices in VoiceInfo objects.
-		self._voiceInfos = OrderedDict([(v.id, v) for v in voiceInfos])
-
-	@property
-	def activeEngines(self):
-		return self._activeEngines
-
-	@activeEngines.setter
-	def activeEngines(self, value):
-		# if not set(value).issubset(set(self.voice_class.keys())):
-			# raise ValueError("engine setted is not valid")
-		self._activeEngines = value
+		voiceInfos = [VoiceInfo(v.name, v.description, v.language) for v in self.table]
+		self._voiceInfos = OrderedDict((v.id, v) for v in voiceInfos)
 
 	@property
 	def voiceInfos(self):
 		return self._voiceInfos
 
 	@property
+	def allLanguages(self):
+		table = [v for v in self.table]
+		_localesToVoices: dict[str, list[str]] = {
+			**groupByField(table, 'locale', lambda i: i, lambda i: i.name),
+			**groupByField(table, 'locale', lambda i: i.split('_')[0], lambda i: i.name),
+		}
+		return sorted([l for l in _localesToVoices if len(_localesToVoices[l]) > 0])
+
+	@property
 	def languages(self):
-		return sorted([l for l in self._localesToVoices if len(self._localesToVoices[l]) > 0])
+		if self.keepMainLocaleEngineConsistent:
+			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
+		else:
+			table = [v for v in self.table]
+		_localesToVoices: dict[str, list[str]] = {
+			**groupByField(table, 'locale', lambda i: i, lambda i: i.name),
+			**groupByField(table, 'locale', lambda i: i.split('_')[0], lambda i: i.name),
+		}
+		return sorted([l for l in _localesToVoices if len(_localesToVoices[l]) > 0])
 
 	@property
 	def localeToVoicesMap(self):
-		return self._localesToVoices.copy()
+		if self.keepMainLocaleEngineConsistent:
+			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
+		else:
+			table = [v for v in self.table]
+
+		_localesToVoices: dict[str, list[str]] = {
+			**groupByField(table, 'locale', lambda i: i, lambda i: i.name),
+			**groupByField(table, 'locale', lambda i: i.split('_')[0], lambda i: i.name),
+		}
+		return _localesToVoices
 
 	@property
 	def localesToNamesMap(self):
-		return {item: self._getLocaleReadableName(item) for item in self._localesToVoices}
+		if self.keepMainLocaleEngineConsistent:
+			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
+		else:
+			table = [v for v in self.table]
+
+		_localesToVoices: dict[str, list[str]] = {
+			**groupByField(table, 'locale', lambda i: i, lambda i: i.name),
+			**groupByField(table, 'locale', lambda i: i.split('_')[0], lambda i: i.name),
+		}
+		return {item: self._getLocaleReadableName(item) for item in _localesToVoices}
 
 	def getVoiceNameForLanguage(self, language):
 		configured = self._getConfiguredVoiceNameForLanguage(language)
