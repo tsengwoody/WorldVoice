@@ -1,11 +1,10 @@
 import re
 from itertools import chain, pairwise
 from typing import Iterable, Iterator, Union
-import unicodedata
 
 import config
 from logHandler import log
-from speech.commands import LangChangeCommand, BreakCommand
+from speech.commands import BreakCommand, CharacterModeCommand, LangChangeCommand
 from synthDriverHandler import getSynth
 
 from ._speechcommand import SplitCommand, WVLangChangeCommand
@@ -43,12 +42,6 @@ def ignore_comma_between_number(speechSequence):
 	yield from (comma_number_pattern.sub(lambda m: '', command) if isinstance(command, str) else command for command in speechSequence)
 
 
-@with_order_log("normalization")
-def normalization(speechSequence):
-	synth = getSynth()
-	yield from (unicodedata.normalize(synth._normalization, command) if isinstance(command, str) else command for command in speechSequence)
-
-
 @with_order_log("item_wait_factor")
 def item_wait_factor(
 	speechSequence: Iterable[SpeechCmd],
@@ -60,7 +53,7 @@ def item_wait_factor(
 	Implemented with itertools.pairwise() for clarity.
 	"""
 	synth = getSynth()
-	wait_factor = synth._itemwaitfactor
+	wait_factor = synth._globalwaitfactor * synth.itemwaitfactor
 	if wait_factor <= 0:
 		# feature disabled → passthrough
 		yield from speechSequence
@@ -110,8 +103,9 @@ def number_wait_factor(
 	Implemented with itertools.pairwise() for clarity.
 	"""
 	synth = getSynth()
-	numberwaitfactor = synth._numberwaitfactor * 5 if synth._numberwaitfactor > 0 else 1
-	break_cmd = BreakCommand(numberwaitfactor)
+	waitfactor = synth._globalwaitfactor * synth.numberwaitfactor
+	waitfactor = waitfactor if waitfactor > 0 else 1
+	break_cmd = BreakCommand(waitfactor)
 
 	# Convert to iterator so we can check length‑1 cases quickly.
 	it = iter(speechSequence)
@@ -239,23 +233,26 @@ def lang_cmd_to_voice(
 
 
 def _translate_number(raw: str, mode: str, table: dict[int, str]) -> str:
-	"""Convert *raw* numeric text into the spoken form."""
-	if mode == "number":					   # spell out each digit
-		spoken = " ".join(raw).replace(" . ", ".")
-	else:									  # read the whole value
-		spoken = raw
-
-	# Replace single-digit segments when necessary
-	if spoken.count(".") > 2 or mode == "number":
-		parts = spoken.split(".")
-		spoken = ".".join(
-			n.translate(table) if len(n) == 1 or mode == "number" else n
+	if mode == "number":
+		parts = raw.split(".")
+		raw = ".".join(
+			n.translate(table)
 			for n in parts
 		)
-
-	# Custom dot replacement (e.g. say “點” instead of “.”)
-	dot_rep = config.conf["WorldVoice"]["other"]["numberDotReplacement"]
-	return spoken.replace(".", dot_rep)
+		if len(raw) > 1:
+			yield CharacterModeCommand(True)
+			yield raw
+			yield CharacterModeCommand(False)
+		else:
+			yield raw
+	else:
+		if raw.count(".") != 1:
+			parts = raw.split(".")
+			raw = ".".join(
+				n.translate(table) if len(n) == 1 else n
+				for n in parts
+			)
+		yield raw
 
 
 @with_order_log("inject_number_langchange")
@@ -330,7 +327,7 @@ def inject_number_langchangei(
 			# Start-number language switch
 			yield WVLangChangeCommand(num_lang)
 			# Spoken representation of the number
-			yield _translate_number(number_raw, mode, translate_table)
+			yield from _translate_number(number_raw, mode, translate_table)
 			# End-number switch back to original language
 			yield WVLangChangeCommand(current_lang)
 
@@ -349,13 +346,13 @@ def inject_chinese_space_pause(
 	pattern as `inject_number_langchange`.
 	"""
 	synth = getSynth()
-	wait_factor = synth._chinesespacewaitfactor
-	if wait_factor <= 0:
+	waitfactor = synth._globalwaitfactor * synth.chinesespacewaitfactor
+	if waitfactor <= 0:
 		# feature disabled → passthrough
 		yield from speechSequence
 		return
 
-	pause_cmd = BreakCommand(wait_factor * 5)
+	pause_cmd = BreakCommand(waitfactor)
 
 	for item in speechSequence:
 		# non-string commands flow through untouched
@@ -414,29 +411,3 @@ def inject_langchange_reorder(
 	# flush any trailing commands at end of sequence
 	if buffer:
 		yield from buffer
-
-
-# def order_before_register():
-def order_after_register():
-	# queue: first in first out
-	filter_speechSequence.moveToEnd(remove_space, False)
-	filter_speechSequence.moveToEnd(number_wait_factor, False)
-	filter_speechSequence.moveToEnd(item_wait_factor, False)
-
-	filter_speechSequence.moveToEnd(inject_chinese_space_pause, False)
-	filter_speechSequence.moveToEnd(inject_number_langchange, False)
-
-	filter_speechSequence.moveToEnd(normalization, False)
-	filter_speechSequence.moveToEnd(ignore_comma_between_number, False)
-
-
-def order_after_register2():
-	# stack: first in last out
-	filter_speechSequence.moveToEnd(remove_space, True)
-	filter_speechSequence.moveToEnd(number_wait_factor, True)
-	filter_speechSequence.moveToEnd(item_wait_factor, True)
-	filter_speechSequence.moveToEnd(inject_chinese_space_pause, True)
-	filter_speechSequence.moveToEnd(inject_number_langchange, True)
-
-	filter_speechSequence.moveToEnd(normalization, True)
-	filter_speechSequence.moveToEnd(ignore_comma_between_number, True)

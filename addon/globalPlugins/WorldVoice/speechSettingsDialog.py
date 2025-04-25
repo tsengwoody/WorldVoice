@@ -376,7 +376,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 
 class LanguageSwitchingSettingsPanel(SettingsPanel):
-	title = _("Language Switching")
+	title = _("Unicode Detection")
 
 	def __init__(self, parent):
 		self._synthInstance = getSynth()
@@ -443,11 +443,15 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			self._CJKChoice.Disable()
 
 		DetectLanguageTimingLabel = [
-			_("before NVDA processing"),
-			_("after NVDA processing")
+			_("Before NVDA processes speech commands"),
+			_("After NVDA processes speech commands")
 		]
 		self._DetectLanguageTimingValue = ["before", "after"]
-		self._DLTChoice = settingsSizerHelper.addLabeledControl(_("Enhance speech commands:"), wx.Choice, choices=DetectLanguageTimingLabel)
+		self._DLTChoice = settingsSizerHelper.addLabeledControl(
+			_("Language detection timing:"),
+		wx.Choice,
+		choices=DetectLanguageTimingLabel
+	)
 		self._DetectLanguageTiming = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 		try:
 			self._DLTChoice.Select(self._DetectLanguageTimingValue.index(self._DetectLanguageTiming))
@@ -463,18 +467,14 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"] = self._latinLocales[self._latinChoice.GetCurrentSelection()]
 		if self._CJKChoice.IsEnabled():
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[self._CJKChoice.GetCurrentSelection()]
+
 		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
-		if self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()] != previous_DLT:
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
-			if previous_DLT == "after":
-				if gui.messageBox(
-					# Translators: The message displayed
-					_("For the detect language timing configuration to apply, NVDA must save configuration and be restarted. Do you want to do now?"),
-					# Translators: The title of the dialog
-					_("Detect language timing Configuration Change"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
-				) == wx.OK:
-					gui.mainFrame.onSaveConfigurationCommand(None)
-					queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
+		current_DLT = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
+		if current_DLT != previous_DLT:
+			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = current_DLT
+
+			# trigger register/unregister language detector
+			self._synthInstance.uwv = self._synthInstance.uwv
 
 
 class SpeechEngineSettingsPanel(BaseSettingsPanel):
@@ -517,56 +517,6 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 
-class OtherSettingsPanel(SettingsPanel):
-	# Translators: Title of a setting dialog.
-	title = _("Other")
-
-	def __init__(self, parent):
-		self._synthInstance = getSynth()
-		super().__init__(parent)
-
-	def makeSettings(self, sizer):
-		if not self._synthInstance.name == 'WorldVoice':
-			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not WorldVoice.'))
-			infoLabel.Wrap(self.GetSize()[0])
-			sizer.Add(infoLabel)
-			return
-
-		self._manager = self._synthInstance._voiceManager
-		self.ready = self._manager.ready()
-		if not self.ready:
-			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not ready.'))
-			infoLabel.Wrap(self.GetSize()[0])
-			sizer.Add(infoLabel)
-			return
-
-		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
-
-		self._WaitFactorValue = [i for i in range(10)]
-		self._WaitFactorDisplay = [str(i) for i in range(10)]
-		self._WaitFactorChoice = settingsSizerHelper.addLabeledControl(_("VE wait factor:"), wx.Choice, choices=self._WaitFactorDisplay)
-		try:
-			self._WaitFactorChoice.Select(self._WaitFactorValue.index(config.conf["WorldVoice"]["other"]["WaitFactor"]))
-		except ValueError:
-			self._WaitFactorChoice.Select(0)
-
-		self._dotText = settingsSizerHelper.addLabeledControl(
-			labelText=_("Number dot replacement"),
-			wxCtrlClass=wx.TextCtrl,
-			value=config.conf["WorldVoice"]["other"]["numberDotReplacement"],
-		)
-
-	def onSave(self):
-		try:
-			config.conf["WorldVoice"]["other"]["WaitFactor"] = self._WaitFactorValue[self._WaitFactorChoice.GetSelection()]
-		except BaseException:
-			config.conf["WorldVoice"]["other"]["WaitFactor"] = 1
-		config.conf["WorldVoice"]["other"]["numberDotReplacement"] = self._dotText.GetValue()
-
-		if self._synthInstance.name == 'WorldVoice':
-			self._synthInstance._voiceManager.waitfactor = config.conf["WorldVoice"]["other"]["WaitFactor"]
-
-
 class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
 	# translators: title of the dialog.
 	dialogTitle = _("Speech Settings")
@@ -578,5 +528,4 @@ class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
 		SpeechRoleSettingsPanel,
 		LanguageSwitchingSettingsPanel,
 		SpeechEngineSettingsPanel,
-		OtherSettingsPanel,
 	]

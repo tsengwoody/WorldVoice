@@ -22,12 +22,12 @@ from . import languageDetection
 
 from .pipeline import (
 	ignore_comma_between_number,
-	normalization,
 	item_wait_factor,
 	number_wait_factor,
 	remove_space,
 	inject_number_langchange,
 	inject_chinese_space_pause,
+	inject_langchange_reorder,
 	deduplicate_language_command,
 	lang_cmd_to_voice,
 )
@@ -47,7 +47,6 @@ addonHandler.initTranslation()
 
 config.conf.spec["WorldVoice"] = {
 	"autoLanguageSwitching": {
-		"useUnicodeLanguageDetection": "boolean(default=true)",
 		"ignoreNumbersInLanguageDetection": "boolean(default=false)",
 		"ignorePunctuationInLanguageDetection": "boolean(default=false)",
 		"latinCharactersLanguage": "string(default=en)",
@@ -61,11 +60,6 @@ config.conf.spec["WorldVoice"] = {
 	"engine": {
 		eng.name: f"boolean(default={str(eng.default_enabled)})"
 		for eng in EngineType
-	},
-	"other": {
-		"WaitFactor": "integer(default=1,min=0,max=9)",
-		"RateBoost": "boolean(default=true)",
-		"numberDotReplacement": "string(default='.')",
 	},
 	"voices": {
 		"__many__": {
@@ -82,38 +76,7 @@ WVStart = extensionPoints.Action()
 WVEnd = extensionPoints.Action()
 
 
-def inject_langchange_reorder(speechSequence):
-	"""
-	Re-order language-change commands so that any LangChangeCommand /
-	WVLangChangeCommand is emitted *before* the group of commands and
-	text it belongs to.
-	* LangChangeCmd ─→ prepend to current buffer, then flush buffer.
-	* plain string   ─→ append to buffer, then flush buffer.
-	* other commands ─→ just accumulate.
-	"""
-	buffer: List[SpeechCmd] = []
 
-	for cmd in speechSequence:
-		if isinstance(cmd, (LangChangeCommand, WVLangChangeCommand)):
-			# 1. put language switch at the *front* of this mini-chunk
-			buffer.insert(0, cmd)
-			# 2. flush the whole chunk in order
-			yield from buffer
-			buffer.clear()
-
-		elif isinstance(cmd, str):
-			# accumulate text, then flush together with prior controls
-			buffer.append(cmd)
-			yield from buffer
-			buffer.clear()
-
-		else:
-			# other control commands: keep buffering
-			buffer.append(cmd)
-
-	# flush any trailing commands at end of sequence
-	if buffer:
-		yield from buffer
 
 
 def order_move_to_start_register():
@@ -125,14 +88,12 @@ def order_move_to_start_register():
 	filter_speechSequence.moveToEnd(inject_chinese_space_pause, False)
 	filter_speechSequence.moveToEnd(inject_number_langchange, False)
 
-	filter_speechSequence.moveToEnd(normalization, False)
 	filter_speechSequence.moveToEnd(ignore_comma_between_number, False)
 
 
 def order_move_to_end_register():
 	# queue: first in first out
 	filter_speechSequence.moveToEnd(ignore_comma_between_number, True)
-	filter_speechSequence.moveToEnd(normalization, True)
 
 	filter_speechSequence.moveToEnd(inject_number_langchange, True)
 	filter_speechSequence.moveToEnd(inject_chinese_space_pause, True)
@@ -167,7 +128,7 @@ class SynthDriver(SynthDriver):
 		]
 		settings.append(SynthDriver.VariantSetting())
 		settings.append(SynthDriver.RateSetting())
-		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "RH", "espeak", "piper"]:
+		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "RH", "espeak"]:
 			settings.append(SynthDriver.RateBoostSetting())
 		settings.extend([
 			SynthDriver.PitchSetting(),
@@ -176,6 +137,18 @@ class SynthDriver(SynthDriver):
 			settings.append(SynthDriver.InflectionSetting())
 		settings.extend([
 			SynthDriver.VolumeSetting(),
+			BooleanDriverSetting(
+				"uwv",
+				_("Detect language based on Unicode characters"),
+				availableInSettingsRing=True,
+				defaultVal=True,
+				displayName=_("Detect language based on Unicode characters"),
+			),
+			BooleanDriverSetting(
+				"cni",
+				_("Ignore comma between number"),
+				defaultVal=False,
+			),
 			DriverSetting(
 				"numlan",
 				# Translators: Label for a setting in voice settings dialog.
@@ -193,6 +166,14 @@ class SynthDriver(SynthDriver):
 				defaultVal="value",
 				# Translators: Label for a setting in synth settings ring.
 				displayName=_("Number Mode"),
+			),
+			NumericDriverSetting(
+				"globalwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Global wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=50,
+				minStep=10,
 			),
 			NumericDriverSetting(
 				"numberwaitfactor",
@@ -225,23 +206,6 @@ class SynthDriver(SynthDriver):
 				availableInSettingsRing=True,
 				defaultVal=0,
 				minStep=1,
-			),
-			DriverSetting(
-				"normalization",
-				_("Normalization"),
-				defaultVal="OFF",
-			),
-			BooleanDriverSetting(
-				"cni",
-				_("Ignore comma between number"),
-				defaultVal=False,
-			),
-			BooleanDriverSetting(
-				"uwv",
-				_("Enable WorldVoice setting rules to detect text language"),
-				availableInSettingsRing=True,
-				defaultVal=True,
-				displayName=_("Enable WorldVoice rules"),
 			),
 		])
 		return settings
@@ -256,6 +220,18 @@ class SynthDriver(SynthDriver):
 			SynthDriver.PitchSetting(),
 			SynthDriver.InflectionSetting(),
 			SynthDriver.VolumeSetting(),
+			BooleanDriverSetting(
+				"uwv",
+				_("Detect language based on Unicode characters"),
+				availableInSettingsRing=True,
+				defaultVal=True,
+				displayName=_("Detect language based on Unicode characters"),
+			),
+			BooleanDriverSetting(
+				"cni",
+				_("Ignore comma between number"),
+				defaultVal=False,
+			),
 			DriverSetting(
 				"numlan",
 				# Translators: Label for a setting in voice settings dialog.
@@ -273,6 +249,14 @@ class SynthDriver(SynthDriver):
 				defaultVal="value",
 				# Translators: Label for a setting in synth settings ring.
 				displayName=_("Number Mode"),
+			),
+			NumericDriverSetting(
+				"globalwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Global wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=50,
+				minStep=10,
 			),
 			NumericDriverSetting(
 				"numberwaitfactor",
@@ -306,44 +290,31 @@ class SynthDriver(SynthDriver):
 				defaultVal=0,
 				minStep=1,
 			),
-			DriverSetting(
-				"normalization",
-				_("Normalization"),
-				defaultVal="OFF",
-			),
-			BooleanDriverSetting(
-				"cni",
-				_("Ignore comma between number"),
-				defaultVal=False,
-			),
-			BooleanDriverSetting(
-				"uwv",
-				_("Enable WorldVoice setting rules to detect text language"),
-				availableInSettingsRing=True,
-				defaultVal=True,
-				displayName=_("Enable WorldVoice rules"),
-			),
 		]
 		return settings
 
 	def __init__(self):
 		self.order = 0
+
 		filter_speechSequence.register(inject_chinese_space_pause)
 		filter_speechSequence.register(inject_number_langchange)
 		filter_speechSequence.register(remove_space)
 		filter_speechSequence.register(number_wait_factor)
 		order_move_to_start_register()
 
+		config.post_configProfileSwitch.register(self.detect_language_timing)
+
 		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
 		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
+
 		self._voiceManager = VoiceManager()
-		self._voiceManager.waitfactor = config.conf["WorldVoice"]["other"]["WaitFactor"]
 
 		self._realSpellingFunc = speech.speech.speakSpelling
 		speech.speech.speakSpelling = self.patchedSpeakSpelling
 
 		self.speechSymbols = SpeechSymbols()
 		self.speechSymbols.load('unicode.dic')
+
 		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.allLanguages), self.speechSymbols)
 
 		self._voice = None
@@ -351,14 +322,16 @@ class SynthDriver(SynthDriver):
 		WVStart.notify()
 
 	def terminate(self):
-		filter_speechSequence.unregister(item_wait_factor)
-		filter_speechSequence.unregister(normalization)
 		filter_speechSequence.unregister(ignore_comma_between_number)
 
 		filter_speechSequence.unregister(inject_chinese_space_pause)
 		filter_speechSequence.unregister(inject_number_langchange)
+
+		filter_speechSequence.unregister(item_wait_factor)
 		filter_speechSequence.unregister(remove_space)
 		filter_speechSequence.unregister(number_wait_factor)
+
+		config.post_configProfileSwitch.unregister(self.detect_language_timing)
 
 		gui.settingsDialogs.VoiceSettingsPanel = self.OriginVoiceSettingsPanel
 
@@ -399,9 +372,9 @@ class SynthDriver(SynthDriver):
 		for command in speechSequence:
 			if voiceInstance.engine == "VE":
 				if isinstance(command, str):
-					# command = command.strip()
-					# if not command:
-					# 	continue
+					command = command.strip()
+					if not command:
+						continue
 					# If character mode is on use lower case characters
 					# Because the synth does not allow to turn off the caps reporting
 					if charMode or len(command) == 1:
@@ -482,12 +455,9 @@ class SynthDriver(SynthDriver):
 				else:
 					chunks.append(command)
 
-		if voiceInstance.engine == "VE":
+		if voiceInstance.engine in ["VE", "aisound"]:
 			if chunks:
 				voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
-		elif voiceInstance.engine == "aisound":
-			if chunks:
-				voiceInstance.speak(chunks)
 		elif voiceInstance.engine in ["OneCore", "RH", "espeak", "piper", "IBM", "SAPI5"]:
 			voiceInstance.speak(chunks)
 
@@ -580,23 +550,6 @@ class SynthDriver(SynthDriver):
 	def _set_rateBoost(self, enable):
 		self._voiceManager.defaultVoiceInstance.rateBoost = enable
 
-	def _get_availableNormalizations(self):
-		values = OrderedDict([("OFF", StringParameterInfo("OFF", _("OFF")))])
-		for form in ("NFC", "NFKC", "NFD", "NFKD"):
-			values[form] = StringParameterInfo(form, form)
-		return values
-
-	def _get_normalization(self):
-		return self._normalization
-
-	def _set_normalization(self, value):
-		self._normalization = value
-		if value != "OFF":
-			filter_speechSequence.register(normalization)
-			order_move_to_start_register()
-		else:
-			filter_speechSequence.unregister(normalization)
-
 	def _get_availableNumlans(self):
 		return dict(
 			{
@@ -630,11 +583,21 @@ class SynthDriver(SynthDriver):
 
 	def _set_uwv(self, value):
 		self._uwv = value
-		if value and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
+		self.detect_language_timing()
+
+	def detect_language_timing(self):
+		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
 			filter_speechSequence.register(self._languageDetector.add_detected_language_commands)
 			order_move_to_start_register()
 		else:
 			filter_speechSequence.unregister(self._languageDetector.add_detected_language_commands)
+
+	def _get_globalwaitfactor(self):
+		return self._globalwaitfactor * 10
+
+	def _set_globalwaitfactor(self, value):
+		self._globalwaitfactor = value // 10
+		self._voiceManager.waitfactor = value
 
 	def _get_itemwaitfactor(self):
 		return self._itemwaitfactor

@@ -8,13 +8,14 @@
 from typing import Callable, Optional
 import weakref
 from logHandler import log
-import config
+
 import controlTypes
 import textInfos
 import queueHandler
 import speech
 from speech import sayAll
 from speech.sayAll import CURSOR, _ObjectsReader
+from synthDriverHandler import getSynth
 from utils.security import objectBelowLockScreenAndWindowsIsLocked
 
 from speech.commands import BreakCommand, CallbackCommand
@@ -143,8 +144,11 @@ class _TextReader(sayAll._TextReader):
 		)
 		seq = list(_flattenNestedSequences(speechGen))
 		seq.insert(0, cb)
-		if config.conf["speech"]["WorldVoice"]["sayallwaitfactor"] > 0:
-			seq.append(BreakCommand(config.conf["speech"]["WorldVoice"]["sayallwaitfactor"] * 5))
+
+		synth = getSynth()
+		waitfactor = synth._globalwaitfactor * synth.sayallwaitfactor
+		if waitfactor:
+			seq.append(BreakCommand(waitfactor))
 		# Speak the speech sequence.
 		spoke = self.handler.speechWithoutPausesInstance.speakWithoutPauses(seq)
 		# Update the textInfo state ready for when speaking the next line.

@@ -208,7 +208,3 @@ class VEVoice(Voice):
 				})
 
 		return result
-
-	def loadParameter(self):
-		self.waitfactor = config.conf["WorldVoice"]["other"]["WaitFactor"]
-		super().loadParameter()
