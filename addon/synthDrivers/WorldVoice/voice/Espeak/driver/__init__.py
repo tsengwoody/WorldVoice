@@ -463,7 +463,7 @@ class SynthDriver(SynthDriver):
 				"language": language,
 				"langDescription": langDescription,
 				"description": "%s - %s" % (name, langDescription),
-				"engine": "espeak",
+				"engine": "Espeak",
 			})
 		return result
 

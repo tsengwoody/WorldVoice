@@ -1,26 +1,38 @@
 import os
 
-import wx
-
 import addonHandler
+import config
 import globalPluginHandler
 import globalVars
 import gui
 from scriptHandler import script
 from synthDriverHandler import getSynth
 import ui
+import wx
 
 from .speechSettingsDialog import WorldVoiceSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
 
 from synthDrivers.WorldVoice import WVStart, WVEnd
+from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister as pipeline_unregister
 from synthDrivers.WorldVoice.hook import Hook
 from synthDrivers.WorldVoice.sayAll import patch, unpatch
-# from synthDrivers.WorldVoice.voiceManager import AisoundVoice
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
+
+
+def register():
+	if config.conf["WorldVoice"]["synthesizer"]["enable"]:
+		static_register()
+		dynamic_register()
+		order_move_to_start_register()
+
+
+def unregister():
+	if config.conf["WorldVoice"]["synthesizer"]["enable"]:
+		pipeline_unregister()
 
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
@@ -32,14 +44,17 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 		self.createMenu()
 
-		self.hookInstance = Hook()
+		# self.hookInstance = Hook()
 
-		WVStart.register(self.hookInstance.start)
-		WVEnd.register(self.hookInstance.end)
-		WVStart.register(patch)
-		WVEnd.register(unpatch)
-		if getSynth().name == "WorldVoice":
-			WVStart.notify()
+		# WVStart.register(self.hookInstance.start)
+		# WVEnd.register(self.hookInstance.end)
+
+		WVStart.register(unregister)
+		WVEnd.register(register)
+
+		patch()
+		if getSynth().name != "WorldVoice":
+			register()
 
 	def terminate(self):
 		try:
@@ -47,12 +62,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		except wx.PyDeadObjectError:
 			pass
 
-		if getSynth().name == "WorldVoice":
-			WVEnd.notify()
-		WVStart.unregister(self.hookInstance.start)
-		WVEnd.unregister(self.hookInstance.end)
-		WVStart.unregister(patch)
-		WVEnd.unregister(unpatch)
+		unpatch()
+		if config.conf["WorldVoice"]["synthesizer"]["enable"] and getSynth().name != "WorldVoice":
+			unregister()
+
+		# WVStart.unregister(self.hookInstance.start)
+		# WVEnd.unregister(self.hookInstance.end)
+
+		WVStart.unregister(unregister)
+		WVEnd.unregister(register)
 
 	def createMenu(self):
 		self.submenu_vocalizer = wx.Menu()

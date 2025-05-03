@@ -3,9 +3,9 @@ import globalVars
 import languageHandler
 from logHandler import log
 
-from . import _languages
-from . import _vocalizer
-from . import Voice
+from .driver import _languages
+from .driver import _vocalizer
+from .. import Voice
 
 import math
 import os

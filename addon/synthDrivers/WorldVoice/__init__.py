@@ -23,13 +23,12 @@ from . import languageDetection
 from .pipeline import (
 	ignore_comma_between_number,
 	item_wait_factor,
-	number_wait_factor,
-	remove_space,
-	inject_number_langchange,
-	inject_chinese_space_pause,
 	inject_langchange_reorder,
 	deduplicate_language_command,
 	lang_cmd_to_voice,
+	order_move_to_start_register,
+	static_register,
+	unregister,
 )
 from ._speechcommand import SplitCommand, WVLangChangeCommand
 from .voice import Voice
@@ -56,6 +55,16 @@ config.conf.spec["WorldVoice"] = {
 		"KeepMainLocaleParameterConsistent": "boolean(default=false)",
 		"KeepMainLocaleEngineConsistent": "boolean(default=true)",
 	},
+	"synthesizer": {
+		"enable": "boolean(default=false)",
+		"ignore_comma_between_number": "boolean(default=false)",
+		"number_mode": "string(default=value)",
+		"global_wait_factor": "integer(default=50,min=0,max=100)",
+		"number_wait_factor": "integer(default=50,min=0,max=100)",
+		"item_wait_factor": "integer(default=50,min=0,max=100)",
+		"sayall_wait_factor": "integer(default=50,min=0,max=100)",
+		"chinesespace_wait_factor": "integer(default=50,min=0,max=100)",
+	},
 	"speechRole": {},
 	"engine": {
 		eng.name: f"boolean(default={str(eng.default_enabled)})"
@@ -74,33 +83,6 @@ config.conf.spec["WorldVoice"] = {
 
 WVStart = extensionPoints.Action()
 WVEnd = extensionPoints.Action()
-
-
-
-
-
-def order_move_to_start_register():
-	# stack: first in last out
-	filter_speechSequence.moveToEnd(number_wait_factor, False)
-	filter_speechSequence.moveToEnd(remove_space, False)
-	filter_speechSequence.moveToEnd(item_wait_factor, False)
-
-	filter_speechSequence.moveToEnd(inject_chinese_space_pause, False)
-	filter_speechSequence.moveToEnd(inject_number_langchange, False)
-
-	filter_speechSequence.moveToEnd(ignore_comma_between_number, False)
-
-
-def order_move_to_end_register():
-	# queue: first in first out
-	filter_speechSequence.moveToEnd(ignore_comma_between_number, True)
-
-	filter_speechSequence.moveToEnd(inject_number_langchange, True)
-	filter_speechSequence.moveToEnd(inject_chinese_space_pause, True)
-
-	filter_speechSequence.moveToEnd(item_wait_factor, True)
-	filter_speechSequence.moveToEnd(remove_space, True)
-	filter_speechSequence.moveToEnd(number_wait_factor, True)
 
 
 class SynthDriver(SynthDriver):
@@ -294,12 +276,11 @@ class SynthDriver(SynthDriver):
 		return settings
 
 	def __init__(self):
+		WVStart.notify()
+
 		self.order = 0
 
-		filter_speechSequence.register(inject_chinese_space_pause)
-		filter_speechSequence.register(inject_number_langchange)
-		filter_speechSequence.register(remove_space)
-		filter_speechSequence.register(number_wait_factor)
+		static_register()
 		order_move_to_start_register()
 
 		config.post_configProfileSwitch.register(self.detect_language_timing)
@@ -319,17 +300,8 @@ class SynthDriver(SynthDriver):
 
 		self._voice = None
 
-		WVStart.notify()
-
 	def terminate(self):
-		filter_speechSequence.unregister(ignore_comma_between_number)
-
-		filter_speechSequence.unregister(inject_chinese_space_pause)
-		filter_speechSequence.unregister(inject_number_langchange)
-
-		filter_speechSequence.unregister(item_wait_factor)
-		filter_speechSequence.unregister(remove_space)
-		filter_speechSequence.unregister(number_wait_factor)
+		unregister()
 
 		config.post_configProfileSwitch.unregister(self.detect_language_timing)
 
@@ -354,8 +326,7 @@ class SynthDriver(SynthDriver):
 		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
 			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
 
-		# speechSequence = self.patchedOrderLangChangeCommandSpeechSequence(speechSequence)
-		inject_langchange_reorder(speechSequence)
+		speechSequence = inject_langchange_reorder(speechSequence)
 
 		speechSequence = deduplicate_language_command(speechSequence)
 		speechSequence = lang_cmd_to_voice(
@@ -446,7 +417,7 @@ class SynthDriver(SynthDriver):
 					log.debugWarning("Unsupported speech command: %s" % item)
 				else:
 					log.error("Unknown speech: %s" % item)
-			elif voiceInstance.engine in ["OneCore", "RH", "espeak", "piper", "IBM", "SAPI5"]:
+			elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5"]:
 				if isinstance(command, Voice):
 					newInstance = command
 					voiceInstance.speak(chunks)
@@ -458,7 +429,7 @@ class SynthDriver(SynthDriver):
 		if voiceInstance.engine in ["VE", "aisound"]:
 			if chunks:
 				voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
-		elif voiceInstance.engine in ["OneCore", "RH", "espeak", "piper", "IBM", "SAPI5"]:
+		elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5"]:
 			voiceInstance.speak(chunks)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
@@ -592,12 +563,29 @@ class SynthDriver(SynthDriver):
 		else:
 			filter_speechSequence.unregister(self._languageDetector.add_detected_language_commands)
 
+	def _get_cni(self):
+		return self._cni
+
+	def _set_cni(self, value):
+		self._cni = value
+		if value:
+			filter_speechSequence.register(ignore_comma_between_number)
+			order_move_to_start_register()
+		else:
+			filter_speechSequence.unregister(ignore_comma_between_number)
+
 	def _get_globalwaitfactor(self):
 		return self._globalwaitfactor * 10
 
 	def _set_globalwaitfactor(self, value):
 		self._globalwaitfactor = value // 10
 		self._voiceManager.waitfactor = value
+
+	def _get_numberwaitfactor(self):
+		return self._numberwaitfactor
+
+	def _set_numberwaitfactor(self, value):
+		self._numberwaitfactor = value
 
 	def _get_itemwaitfactor(self):
 		return self._itemwaitfactor
@@ -610,45 +598,17 @@ class SynthDriver(SynthDriver):
 		else:
 			filter_speechSequence.unregister(item_wait_factor)
 
-	def _get_numberwaitfactor(self):
-		return self._numberwaitfactor
+	def _get_sayallwaitfactor(self):
+		return self._sayallwaitfactor
 
-	def _set_numberwaitfactor(self, value):
-		self._numberwaitfactor = value
+	def _set_sayallwaitfactor(self, value):
+		self._sayallwaitfactor = value
 
 	def _get_chinesespacewaitfactor(self):
 		return self._chinesespacewaitfactor
 
 	def _set_chinesespacewaitfactor(self, value):
 		self._chinesespacewaitfactor = value
-
-	def _get_cni(self):
-		return self._cni
-
-	def _set_cni(self, value):
-		self._cni = value
-		if value:
-			filter_speechSequence.register(ignore_comma_between_number)
-			order_move_to_start_register()
-		else:
-			filter_speechSequence.unregister(ignore_comma_between_number)
-
-	def patchedOrderLangChangeCommandSpeechSequence(self, speechSequence):
-		stables = []
-		unstables = []
-		for command in speechSequence:
-			if isinstance(command, LangChangeCommand) or isinstance(command, WVLangChangeCommand):
-				unstables.insert(0, command)
-				stables.extend(unstables)
-				unstables.clear()
-			elif isinstance(command, str):
-				unstables.append(command)
-				stables.extend(unstables)
-				unstables.clear()
-			else:
-				unstables.append(command)
-		stables.extend(unstables)
-		return stables
 
 	def patchedLengthSpeechSequence(self, speechSequence):
 		result = []

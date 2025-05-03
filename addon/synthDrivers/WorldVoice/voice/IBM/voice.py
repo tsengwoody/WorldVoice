@@ -1,10 +1,15 @@
-from .RH import (SynthDriver as RHManager)
-from . import Voice
+import os
+
+import globalVars
+
+from .driver.ibmeci import (SynthDriver as IBMManager)
+from .. import Voice
 
 
-class RHVoice(Voice):
+class IBMVoice(Voice):
 	core = None
-	engine = "RH"
+	engine = "IBM"
+	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "IBM")
 
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
@@ -14,6 +19,7 @@ class RHVoice(Voice):
 
 	def active(self):
 		if self.core.voice != self.id:
+			self.core.language = self.language
 			self.core.voice = self.id
 			self.core.pitch = self._pitch
 			self.core.rate = self._rate
@@ -102,7 +108,7 @@ class RHVoice(Voice):
 	@classmethod
 	def engineOn(cls, lock=None):
 		if not cls.core:
-			cls.core = RHManager(lock)
+			cls.core = IBMManager(lock)
 
 	@classmethod
 	def engineOff(cls):

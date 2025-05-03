@@ -1,21 +1,24 @@
-import os
+import winVersion
 
-import globalVars
-
-from .IBM.ibmeci import (SynthDriver as IBMManager)
-from . import Voice
+from .driver._onecore import OneCoreManager
+from .. import Voice
 
 
-class IBMVoice(Voice):
+class OneCoreVoice(Voice):
 	core = None
-	engine = "IBM"
-	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "IBM")
-
+	engine = "OneCore"
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
 		self.language = language if language else "unknown"
 
 		super().__init__(id=id, taskManager=taskManager)
+
+		self.core.voice = self.id
+		self.core.language = self.language
+		self.core.pitch = self._pitch
+		self.core.rate = self._rate
+		self.core.volume = self._volume
+		self.core.rateBoost = self._rateBoost
 
 	def active(self):
 		if self.core.voice != self.id:
@@ -103,12 +106,12 @@ class IBMVoice(Voice):
 
 	@classmethod
 	def ready(cls):
-		return True
+		return winVersion.getWinVer() >= winVersion.WIN10
 
 	@classmethod
-	def engineOn(cls, lock=None):
+	def engineOn(cls, lock):
 		if not cls.core:
-			cls.core = IBMManager(lock)
+			cls.core = OneCoreManager(lock)
 
 	@classmethod
 	def engineOff(cls):
@@ -118,6 +121,7 @@ class IBMVoice(Voice):
 
 	@classmethod
 	def voices(cls):
-		if not cls.core:
-			return []
+		result = []
+		if not cls.ready() or not cls.core:
+			return result
 		return cls.core.availableVoices

@@ -1,14 +1,10 @@
-WorldVoice does not include those commercial TTS libraries (core dll). You must purchase a license from the original developer/company in order to use it, WorldVoice is just the driver for it.
-We also cannot guarantee compatibility with the latest versions sold by the developer/company, so please consider carefully before making a purchase if you intend to use those commercial TTS with WorldVoice.
-WorldVoice only focuses on TTS engines open source/free and does not prioritize maintaining compatibility with those commercial TTS engines.
-
 # WorldVoice
 
 In this highly interconnected and globalized era, language learning has become increasingly important. In language learning materials, native languages are often used to help explain foreign vocabulary and sentences, and multiple languages are often mixed together. In daily communication, we also often mix multiple languages and scripts. In books, newspapers, and online articles, multiple languages are often used to convey information, sometimes even within the same sentence, using Chinese and English or Chinese and Japanese.
 
 The text composition, contextual meaning, and cross-lingual frequency of different digital content, such as language learning, mathematics, and literary works, may differ, and the corresponding speech reading method may also need to be adjusted accordingly to better meet the needs of different types of documents.
 
-WorldVoice is a multi-language speech reading NVDA add-on, which supports five speech engines (Espeak, OneCore, RHVoice, SAPI5, Piper) and provides a variety of customization options. Users can adjust their settings for different contexts, maximizing the satisfaction of different user groups.
+WorldVoice is a multi-language speech reading NVDA add-on, which supports Espeak, OneCore, RHVoice, SAPI5 speech engines and provides a variety of customization options. Users can adjust their settings for different contexts, maximizing the satisfaction of different user groups.
 
 Its main features include:
 
@@ -17,10 +13,6 @@ Its main features include:
 *	Multi-speech engine selection
 *	Switching between numeric reading modes (digits and numerical values)
 *	Customizable speech reading behavior (pause length for numbers, items, Chinese space, say all, comma ignore between numbers)
-
-## install
-
-In addition to the general NVDA addon installation steps, if you want to use the aisound voices, you need to install the core packages. If you want to use the RHVoice voice, please download the corresponding voice package addon from the official website. [Official download page](https://rhvoice.org/languages/).
 
 ## Main Speech Role Settings
 
@@ -44,13 +36,12 @@ Speech Role: You can configure speech roles for different regions, including ind
 * Keep main voice and locale voice consistent: This option ensures that the main speech role in NVDA's voice settings matches the regional speech role in WorldVoice. Any changes to the main or regional speech role will be synchronized between the two.
 Keep main parameter and locale parameter consistent
 
-Language Switching:
+## Unicode detection
 
-* Detect language using Unicode encoding: When checked, the program will detect the language based on the characters it reads.
 * Ignore numbers when detecting language, ignore common punctuation when detecting language: When checked, numbers and common punctuation will be considered part of the main speech role's language.
-* Enhance voice commands: This allows the program to automatically detect language and determine when to add pauses for voice commands before or after NVDA's symbol processing. Selecting "after symbol processing" can prevent conflicts with other voice module add-ons (e.g., Instant Translate).
+* Enhance voice commands: This allows the program to automatically detect language and determine when to add pauses for voice commands before or after NVDA's symbol processing.
 
-Speech Engine: You can choose the voice engine you want to enable.
+If you want to use the aisound voices, you need to install the core packages. If you want to use the RHVoice voice, please download the corresponding voice package addon from the official website. [Official download page](https://rhvoice.org/languages/).
 
 # WorldVoice update log
 

@@ -1,5 +1,5 @@
-from .sapi5 import SynthDriver as Sapi5Manager
-from . import Voice
+from .driver import SynthDriver as Sapi5Manager
+from .. import Voice
 
 
 class Sapi5Voice(Voice):

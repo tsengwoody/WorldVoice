@@ -1,36 +1,40 @@
 from enum import Enum
 
+import addonHandler
+
+addonHandler.initTranslation()
+
 
 class EngineType(Enum):
-	VE = (
-		"synthDrivers.WorldVoice.voice.VEVoice",
-		"VEVoice",
-		_("Activate VE")
-	)
-	SAPI5 = (
-		"synthDrivers.WorldVoice.voice.Sapi5Voice",
-		"Sapi5Voice",
-		_("Activate SAPI5")
-	)
 	OneCore = (
-		"synthDrivers.WorldVoice.voice.OneCoreVoice",
+		"synthDrivers.WorldVoice.voice.OneCore.voice",
 		"OneCoreVoice",
 		_("Activate OneCore")
 	)
-	RH = (
-		"synthDrivers.WorldVoice.voice.RHVoice",
-		"RHVoice",
-		_("Activate RH")
+	SAPI5 = (
+		"synthDrivers.WorldVoice.voice.SAPI5.voice",
+		"Sapi5Voice",
+		_("Activate SAPI5")
 	)
 	Espeak = (
-		"synthDrivers.WorldVoice.voice.EspeakVoice",
+		"synthDrivers.WorldVoice.voice.Espeak.voice",
 		"EspeakVoice",
 		_("Activate Espeak")
 	)
+	RH = (
+		"synthDrivers.WorldVoice.voice.RH.voice",
+		"RHVoice",
+		_("Activate RH")
+	)
 	IBM = (
-		"synthDrivers.WorldVoice.voice.IBMVoice",
+		"synthDrivers.WorldVoice.voice.IBM.voice",
 		"IBMVoice",
 		_("Activate IBM")
+	)
+	VE = (
+		"synthDrivers.WorldVoice.voice.VE.voice",
+		"VEVoice",
+		_("Activate VE")
 	)
 
 	@property

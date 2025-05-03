@@ -1,10 +1,10 @@
-from .Espeak import (SynthDriver as EspeakManager)
-from . import Voice
+from .driver import (SynthDriver as EspeakManager)
+from .. import Voice
 
 
 class EspeakVoice(Voice):
 	core = None
-	engine = "espeak"
+	engine = "Espeak"
 
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name

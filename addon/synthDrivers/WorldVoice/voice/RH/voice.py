@@ -1,28 +1,19 @@
-import winVersion
-
-from ._onecore import OneCoreManager
-from . import Voice
+from .driver import (SynthDriver as RHManager)
+from .. import Voice
 
 
-class OneCoreVoice(Voice):
+class RHVoice(Voice):
 	core = None
-	engine = "OneCore"
+	engine = "RH"
+
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
 		self.language = language if language else "unknown"
 
 		super().__init__(id=id, taskManager=taskManager)
 
-		self.core.voice = self.id
-		self.core.language = self.language
-		self.core.pitch = self._pitch
-		self.core.rate = self._rate
-		self.core.volume = self._volume
-		self.core.rateBoost = self._rateBoost
-
 	def active(self):
 		if self.core.voice != self.id:
-			self.core.language = self.language
 			self.core.voice = self.id
 			self.core.pitch = self._pitch
 			self.core.rate = self._rate
@@ -106,12 +97,12 @@ class OneCoreVoice(Voice):
 
 	@classmethod
 	def ready(cls):
-		return winVersion.getWinVer() >= winVersion.WIN10
+		return True
 
 	@classmethod
-	def engineOn(cls, lock):
+	def engineOn(cls, lock=None):
 		if not cls.core:
-			cls.core = OneCoreManager(lock)
+			cls.core = RHManager(lock)
 
 	@classmethod
 	def engineOff(cls):
@@ -121,7 +112,6 @@ class OneCoreVoice(Voice):
 
 	@classmethod
 	def voices(cls):
-		result = []
-		if not cls.ready() or not cls.core:
-			return result
+		if not cls.core:
+			return []
 		return cls.core.availableVoices

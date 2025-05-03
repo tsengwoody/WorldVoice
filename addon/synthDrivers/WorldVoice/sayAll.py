@@ -9,6 +9,7 @@ from typing import Callable, Optional
 import weakref
 from logHandler import log
 
+import config
 import controlTypes
 import textInfos
 import queueHandler
@@ -28,6 +29,18 @@ from speech.types import (
 
 
 SayAllHandler = None
+
+
+def get_sayall_wait_factor():
+	synth = getSynth()
+	if synth.name == 'WorldVoice':
+		wait_factor = synth._globalwaitfactor * synth.sayallwaitfactor
+	else:
+		if config.conf["WorldVoice"]["synthesizer"]["enable"]:
+			wait_factor = config.conf["WorldVoice"]["synthesizer"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["synthesizer"]["sayall_wait_factor"]
+		else:
+			wait_factor = 0
+	return wait_factor
 
 
 def initialize(
@@ -146,9 +159,10 @@ class _TextReader(sayAll._TextReader):
 		seq.insert(0, cb)
 
 		synth = getSynth()
-		waitfactor = synth._globalwaitfactor * synth.sayallwaitfactor
-		if waitfactor:
-			seq.append(BreakCommand(waitfactor))
+		waitfactor = get_sayall_wait_factor()
+		print(waitfactor)
+		if waitfactor > 0:
+			seq.append(BreakCommand(waitfactor + 100))
 		# Speak the speech sequence.
 		spoke = self.handler.speechWithoutPausesInstance.speakWithoutPauses(seq)
 		# Update the textInfo state ready for when speaking the next line.

@@ -5,6 +5,7 @@ from typing import Iterable, Iterator, Union
 import config
 from logHandler import log
 from speech.commands import BreakCommand, CharacterModeCommand, LangChangeCommand
+from speech.extensions import filter_speechSequence
 from synthDriverHandler import getSynth
 
 from ._speechcommand import SplitCommand, WVLangChangeCommand
@@ -37,9 +38,47 @@ def with_order_log(label: str):
 	return decorator
 
 
+def get_ignore_comma_between_number():
+	synth = getSynth()
+	if synth.name == 'WorldVoice':
+		return synth._cni
+	else:
+		return config.conf["WorldVoice"]["synthesizer"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["synthesizer"]["ignore_comma_between_number"]
+
+
+def get_item_wait_factor():
+	synth = getSynth()
+	if synth.name == 'WorldVoice':
+		wait_factor = synth._globalwaitfactor * synth.itemwaitfactor
+	else:
+		wait_factor = config.conf["WorldVoice"]["synthesizer"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["synthesizer"]["item_wait_factor"]
+	return wait_factor
+
+
+def get_number_wait_factor():
+	synth = getSynth()
+	if synth.name == 'WorldVoice':
+		wait_factor = synth._globalwaitfactor * synth.numberwaitfactor
+	else:
+		wait_factor = config.conf["WorldVoice"]["synthesizer"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["synthesizer"]["number_wait_factor"]
+	return wait_factor
+
+
+def get_chinesespace_wait_factor():
+	synth = getSynth()
+	if synth.name == 'WorldVoice':
+		wait_factor = synth._globalwaitfactor * synth.chinesespacewaitfactor
+	else:
+		wait_factor = config.conf["WorldVoice"]["synthesizer"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["synthesizer"]["chinesespace_wait_factor"]
+	return wait_factor
+
+
 @with_order_log("ignore_comma_between_number")
 def ignore_comma_between_number(speechSequence):
-	yield from (comma_number_pattern.sub(lambda m: '', command) if isinstance(command, str) else command for command in speechSequence)
+	if get_ignore_comma_between_number():
+		yield from (comma_number_pattern.sub(lambda m: '', command) if isinstance(command, str) else command for command in speechSequence)
+	else:
+		yield from speechSequence
 
 
 @with_order_log("item_wait_factor")
@@ -48,18 +87,14 @@ def item_wait_factor(
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert a BreakCommand between every two consecutive plain‑text items.
-
-	The inserted pause length equals synth._itemwaitfactor × 5.
 	Implemented with itertools.pairwise() for clarity.
 	"""
-	synth = getSynth()
-	wait_factor = synth._globalwaitfactor * synth.itemwaitfactor
+	wait_factor = get_item_wait_factor()
 	if wait_factor <= 0:
-		# feature disabled → passthrough
 		yield from speechSequence
 		return
 
-	break_cmd = BreakCommand(wait_factor * 5)
+	break_cmd = BreakCommand(wait_factor)
 
 	# Convert to iterator so we can check length‑1 cases quickly.
 	it = iter(speechSequence)
@@ -92,8 +127,55 @@ def item_wait_factor(
 	yield current
 
 
-@with_order_log("number_wait_factor")
-def number_wait_factor(
+def _insert_BreakCommand_between_CharacterModeCommand(
+	speech_sequence: Iterable[SpeechCmd],
+) -> Iterator[SpeechCmd]:
+	"""
+	Yield *speech_sequence* unchanged **except** that a BreakCommand
+	is inserted between any *adjacent* pair of CharacterModeCommand
+	whose `enable` flags differ (True→False or False→True).
+
+	┌───────────────┬─────────────────────────────────────────────┐
+	│ Input tokens  │ Output tokens							   │
+	├───────────────┼─────────────────────────────────────────────┤
+	│ …, True,False │ …, True, BreakCommand, False				│
+	│ …, False,True │ …, False, BreakCommand, True				│
+	└───────────────┴─────────────────────────────────────────────┘
+	"""
+	wait_factor = get_number_wait_factor()
+	if wait_factor <= 0:
+		yield from speech_sequence
+		return
+
+	it = iter(speech_sequence)
+
+	try:
+		previous = next(it)				 # First token
+	except StopIteration:			   # Empty input
+		return
+
+	# Build a BreakCommand whose length honours currentrent synthesiser settings.
+	break_cmd = BreakCommand(wait_factor)
+
+	for current in it:
+		# Insert a pause **between** two opposite-polarity char-mode commands.
+		if (
+			isinstance(previous, CharacterModeCommand)
+			and isinstance(current, CharacterModeCommand)
+			and previous.state != current.state
+		):
+			yield previous
+			yield break_cmd	 # ⟵   the newly inserted pause
+		else:
+			yield previous
+
+		previous = current			  # Slide window forward
+
+	# Emit the final token.
+	yield previous
+
+
+def _insert_BreakCommand_between_number(
 	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
@@ -102,10 +184,12 @@ def number_wait_factor(
 	The inserted pause length equals synth._itemwaitfactor × 5.
 	Implemented with itertools.pairwise() for clarity.
 	"""
-	synth = getSynth()
-	waitfactor = synth._globalwaitfactor * synth.numberwaitfactor
-	waitfactor = waitfactor if waitfactor > 0 else 1
-	break_cmd = BreakCommand(waitfactor)
+	wait_factor = get_number_wait_factor()
+	if wait_factor <= 0:
+		yield from speechSequence
+		return
+
+	break_cmd = BreakCommand(wait_factor)
 
 	# Convert to iterator so we can check length‑1 cases quickly.
 	it = iter(speechSequence)
@@ -139,8 +223,7 @@ def number_wait_factor(
 	yield current
 
 
-@with_order_log("remove_space")
-def remove_space(
+def _remove_space(
 	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
@@ -163,6 +246,16 @@ def remove_space(
 			# Blank strings are skipped entirely.
 		else:
 			yield cmd
+
+
+@with_order_log("number_wait_factor")
+def number_wait_factor(
+	speechSequence: Iterable[SpeechCmd],
+) -> Iterator[SpeechCmd]:
+	speechSequence = _remove_space(speechSequence)
+	speechSequence = _insert_BreakCommand_between_number(speechSequence)
+	speechSequence = _insert_BreakCommand_between_CharacterModeCommand(speechSequence)
+	yield from speechSequence
 
 
 def deduplicate_language_command(speechSequence):
@@ -213,6 +306,14 @@ def deduplicate_language_command(speechSequence):
 			yield command
 
 
+def remove_language_command(speechSequence):
+	for command in speechSequence:
+		# Handle language-change commands
+		if isinstance(command, WVLangChangeCommand):
+			continue
+		else:
+			yield command
+
 
 def lang_cmd_to_voice(
 	speechSequence: Iterable[SpeechCmd],
@@ -241,7 +342,8 @@ def _translate_number(raw: str, mode: str, table: dict[int, str]) -> str:
 		)
 		if len(raw) > 1:
 			yield CharacterModeCommand(True)
-			yield raw
+			# yield raw
+			yield ' '.join(raw).replace(" . ", ".")
 			yield CharacterModeCommand(False)
 		else:
 			yield raw
@@ -255,16 +357,7 @@ def _translate_number(raw: str, mode: str, table: dict[int, str]) -> str:
 		yield raw
 
 
-@with_order_log("inject_number_langchange")
-def inject_number_langchange(
-	speechSequence: Iterable[SpeechCmd],
-) -> Iterator[SpeechCmd]:
-	speechSequence = inject_number_langchangei(speechSequence)
-	speechSequence = deduplicate_language_command(speechSequence)
-	yield from speechSequence
-
-
-def inject_number_langchangei(
+def _insert_WVLangChangeCommand_between_number(
 	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
@@ -336,19 +429,57 @@ def inject_number_langchangei(
 			yield item[pos:]
 
 
+def _change_number_mode(
+	speechSequence: Iterable[SpeechCmd],
+) -> Iterator[SpeechCmd]:
+	mode = config.conf["WorldVoice"]["synthesizer"]["number_mode"]
+	for item in speechSequence:
+		# Forward non-string commands; update current_lang for explicit changes
+		if not isinstance(item, str):
+			yield item
+			continue
+
+		pos = 0
+		for m in _NUMBER_RE.finditer(item):
+			start, end = m.span()
+			number_raw = m.group()
+
+			# Emit the text before the numeric match
+			if start > pos:
+				yield item[pos:start]
+			pos = end
+
+			# Spoken representation of the number
+			yield from _translate_number(number_raw, mode, {})
+
+		# Emit trailing text after the last match
+		if pos < len(item):
+			yield item[pos:]
+
+
+@with_order_log("inject_number_langchange")
+def inject_number_langchange(
+	speechSequence: Iterable[SpeechCmd],
+) -> Iterator[SpeechCmd]:
+	synth = getSynth()
+	if hasattr(synth, "_voiceManager"):
+		speechSequence = _insert_WVLangChangeCommand_between_number(speechSequence)
+		speechSequence = deduplicate_language_command(speechSequence)
+		yield from speechSequence
+		return
+	else:
+		speechSequence = _change_number_mode(speechSequence)
+		speechSequence = remove_language_command(speechSequence)
+		yield from speechSequence
+		return
+
+
 @with_order_log("inject_chinese_space_pause")
 def inject_chinese_space_pause(
 	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
-	"""
-	Insert BreakCommand(self._chinesespacewaitfactor×5) whenever a space
-	appears *between* two CJK characters, using the same start/end/pos
-	pattern as `inject_number_langchange`.
-	"""
-	synth = getSynth()
-	waitfactor = synth._globalwaitfactor * synth.chinesespacewaitfactor
+	waitfactor = get_chinesespace_wait_factor()
 	if waitfactor <= 0:
-		# feature disabled → passthrough
 		yield from speechSequence
 		return
 
@@ -411,3 +542,52 @@ def inject_langchange_reorder(
 	# flush any trailing commands at end of sequence
 	if buffer:
 		yield from buffer
+
+
+def order_move_to_start_register():
+	# stack: first in last out
+	filter_speechSequence.moveToEnd(number_wait_factor, False)
+	filter_speechSequence.moveToEnd(item_wait_factor, False)
+
+	filter_speechSequence.moveToEnd(inject_chinese_space_pause, False)
+	filter_speechSequence.moveToEnd(inject_number_langchange, False)
+
+	filter_speechSequence.moveToEnd(ignore_comma_between_number, False)
+
+
+def order_move_to_end_register():
+	# queue: first in first out
+	filter_speechSequence.moveToEnd(ignore_comma_between_number, True)
+
+	filter_speechSequence.moveToEnd(inject_number_langchange, True)
+	filter_speechSequence.moveToEnd(inject_chinese_space_pause, True)
+
+	filter_speechSequence.moveToEnd(item_wait_factor, True)
+	filter_speechSequence.moveToEnd(number_wait_factor, True)
+
+
+def static_register():
+	print("static register")
+
+	filter_speechSequence.register(inject_chinese_space_pause)
+	filter_speechSequence.register(inject_number_langchange)
+	filter_speechSequence.register(number_wait_factor)
+
+
+def dynamic_register():
+	print("dynamic register")
+
+	filter_speechSequence.register(ignore_comma_between_number)
+	filter_speechSequence.register(item_wait_factor)
+
+
+def unregister():
+	print("unregister")
+
+	filter_speechSequence.unregister(ignore_comma_between_number)
+
+	filter_speechSequence.unregister(inject_chinese_space_pause)
+	filter_speechSequence.unregister(inject_number_langchange)
+
+	filter_speechSequence.unregister(item_wait_factor)
+	filter_speechSequence.unregister(number_wait_factor)
