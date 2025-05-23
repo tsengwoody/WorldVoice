@@ -36,8 +36,8 @@ def get_sayall_wait_factor():
 	if synth.name == 'WorldVoice':
 		wait_factor = synth._globalwaitfactor * synth.sayallwaitfactor
 	else:
-		if config.conf["WorldVoice"]["synthesizer"]["enable"]:
-			wait_factor = config.conf["WorldVoice"]["synthesizer"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["synthesizer"]["sayall_wait_factor"]
+		if config.conf["WorldVoice"]["pipeline"]["enable"]:
+			wait_factor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"]
 		else:
 			wait_factor = 0
 	return wait_factor

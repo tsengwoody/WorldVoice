@@ -9,32 +9,32 @@ class EngineType(Enum):
 	OneCore = (
 		"synthDrivers.WorldVoice.voice.OneCore.voice",
 		"OneCoreVoice",
-		_("Activate OneCore")
+		_("Enable OneCore")
 	)
 	SAPI5 = (
 		"synthDrivers.WorldVoice.voice.SAPI5.voice",
 		"Sapi5Voice",
-		_("Activate SAPI5")
+		_("Enable SAPI5")
 	)
 	Espeak = (
 		"synthDrivers.WorldVoice.voice.Espeak.voice",
 		"EspeakVoice",
-		_("Activate Espeak")
+		_("Enable Espeak")
 	)
 	RH = (
 		"synthDrivers.WorldVoice.voice.RH.voice",
 		"RHVoice",
-		_("Activate RH")
+		_("Enable RH")
 	)
 	IBM = (
 		"synthDrivers.WorldVoice.voice.IBM.voice",
 		"IBMVoice",
-		_("Activate IBM")
+		_("Enable IBM")
 	)
 	VE = (
 		"synthDrivers.WorldVoice.voice.VE.voice",
 		"VEVoice",
-		_("Activate VE")
+		_("Enable VE")
 	)
 
 	@property

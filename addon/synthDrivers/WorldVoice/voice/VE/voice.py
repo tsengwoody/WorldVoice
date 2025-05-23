@@ -32,23 +32,49 @@ class VEVoice(Voice):
 						break
 		self.language = language
 
+		# self._rateBoost = False
 		super().__init__(id=id, taskManager=taskManager)
+
+	def active(self):
+		if self._rateBoost:
+			_vocalizer.sonicStream.speed = self._rate
+		else:
+			_vocalizer.sonicStream.speed = 1.0
 
 	@property
 	def rate(self):
-		rate = self._rate = _vocalizer.getParameter(self.tts, _vocalizer.VE_PARAM_SPEECHRATE, type_=int)
-		norm = rate / 100.0
-		factor = 25 if norm >= 1 else 50
-		return int(round(50 + factor * math.log(norm, 2)))
+		if hasattr(self, "_rateBoost") and self._rateBoost:
+			rate = self._rate
+			return self._paramToPercent(rate, 0.5, 6.0)
+		else:
+			rate = self._rate = _vocalizer.getParameter(self.tts, _vocalizer.VE_PARAM_SPEECHRATE, type_=int)
+			norm = rate / 100.0
+			factor = 25 if norm >= 1 else 50
+			return int(round(50 + factor * math.log(norm, 2)))
 
 	@rate.setter
 	def rate(self, percent):
-		# _vocalizer.setParameter(self.tts, _vocalizer.VE_PARAM_SPEECHRATE, self._rate)
-		value = percent
-		factor = 25.0 if value >= 50 else 50.0
-		norm = 2.0 ** ((value - 50.0) / factor)
-		self._rate = value = int(round(norm * 100))
-		_vocalizer.setParameter(self.tts, _vocalizer.VE_PARAM_SPEECHRATE, self._rate)
+		if hasattr(self, "_rateBoost") and self._rateBoost:
+			self._rate = self._percentToParam(percent, 0.5, 6.0)
+			_vocalizer.setParameter(self.tts, _vocalizer.VE_PARAM_SPEECHRATE, 100)
+			_vocalizer.sonicStream.speed = self._rate
+		else:
+			value = percent
+			factor = 25.0 if value >= 50 else 50.0
+			norm = 2.0 ** ((value - 50.0) / factor)
+			self._rate = value = int(round(norm * 100))
+			_vocalizer.setParameter(self.tts, _vocalizer.VE_PARAM_SPEECHRATE, self._rate)
+			_vocalizer.sonicStream.speed = 1.0
+
+	@property
+	def rateBoost(self):
+		return self._rateBoost
+
+	@rateBoost.setter
+	def rateBoost(self, value):
+		rate = self.rate
+		self._rateBoost = value
+		self.rate = rate
 
 	@property
 	def pitch(self):
@@ -122,8 +148,10 @@ class VEVoice(Voice):
 				c = chr(65535)
 			temps += c
 		text = temps
+
 		def _speak():
 			# _vocalizer.processText2Speech(self.tts, text)
+			self.active()
 			_vocalizer.speakBlock(self.tts, text)
 		self.taskManager.add_dispatch_task((self, _speak),)
 
@@ -208,3 +236,15 @@ class VEVoice(Voice):
 				})
 
 		return result
+
+	@classmethod
+	def _paramToPercent(self, param: float, minVal: float, maxVal: float) -> int:
+		if maxVal == minVal:
+			return 0
+		percent = (param - minVal) / (maxVal - minVal) * 100
+		percent = round(max(0.0, min(100.0, percent)))
+		return int(percent)
+
+	@classmethod
+	def _percentToParam(self, percent: int, minVal: float, maxVal: float) -> float:
+		return float(percent) / 100 * (maxVal - minVal) + minVal

@@ -32,7 +32,7 @@ from .pipeline import (
 )
 from ._speechcommand import SplitCommand, WVLangChangeCommand
 from .voice import Voice
-from .voiceEngine import EngineType
+from .voice.engine import EngineType
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
@@ -50,13 +50,15 @@ config.conf.spec["WorldVoice"] = {
 		"ignorePunctuationInLanguageDetection": "boolean(default=false)",
 		"latinCharactersLanguage": "string(default=en)",
 		"CJKCharactersLanguage": "string(default=ja)",
+		"arabicCharactersLanguage": "string(default=ar)",
 		"DetectLanguageTiming": "string(default=after)",
 		"KeepMainLocaleVoiceConsistent": "boolean(default=true)",
 		"KeepMainLocaleParameterConsistent": "boolean(default=false)",
 		"KeepMainLocaleEngineConsistent": "boolean(default=true)",
 	},
-	"synthesizer": {
-		"enable": "boolean(default=false)",
+	"pipeline": {
+		"enable": "boolean(default=true)",
+		"scope": "string(default=all)",
 		"ignore_comma_between_number": "boolean(default=false)",
 		"number_mode": "string(default=value)",
 		"global_wait_factor": "integer(default=50,min=0,max=100)",
@@ -69,6 +71,15 @@ config.conf.spec["WorldVoice"] = {
 	"engine": {
 		eng.name: f"boolean(default={str(eng.default_enabled)})"
 		for eng in EngineType
+	},
+	"log": {
+		"enable": "boolean(default=false)",
+		"ignore_comma_between_number": "boolean(default=false)",
+		"number_mode": "boolean(default=false)",
+		"number_language": "boolean(default=false)",
+		"number_wait_factor": "boolean(default=false)",
+		"item_wait_factor": "boolean(default=false)",
+		"chinesespace_wait_factor": "boolean(default=false)",
 	},
 	"voices": {
 		"__many__": {
@@ -110,7 +121,7 @@ class SynthDriver(SynthDriver):
 		]
 		settings.append(SynthDriver.VariantSetting())
 		settings.append(SynthDriver.RateSetting())
-		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "RH", "espeak"]:
+		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "RH", "espeak", "VE"]:
 			settings.append(SynthDriver.RateBoostSetting())
 		settings.extend([
 			SynthDriver.PitchSetting(),
@@ -317,9 +328,26 @@ class SynthDriver(SynthDriver):
 
 		WVEnd.notify()
 
-	def loadSettings(self, onlyChanged=False):
-		super().loadSettings(onlyChanged)
+	def loadSettings(self, *args, **kwargs):
+		super().loadSettings(*args, **kwargs)
 		self._voiceManager.reload()
+		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self.cni
+		config.conf["WorldVoice"]["pipeline"]["number_mode"] = self.nummod
+		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self.globalwaitfactor
+		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self.numberwaitfactor
+		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self.itemwaitfactor
+		config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"] = self.sayallwaitfactor
+		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
+
+	def saveSettings(self, *args, **kwargs):
+		super().saveSettings(*args, **kwargs)
+		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self.cni
+		config.conf["WorldVoice"]["pipeline"]["number_mode"] = self.nummod
+		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self.globalwaitfactor
+		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self.numberwaitfactor
+		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self.itemwaitfactor
+		config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"] = self.sayallwaitfactor
+		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
 
 	def speak(self, speechSequence):
 		self.order = 0
@@ -521,6 +549,32 @@ class SynthDriver(SynthDriver):
 	def _set_rateBoost(self, enable):
 		self._voiceManager.defaultVoiceInstance.rateBoost = enable
 
+	def _get_uwv(self):
+		return self._uwv
+
+	def _set_uwv(self, value):
+		self._uwv = value
+		self.detect_language_timing()
+
+	def detect_language_timing(self):
+		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
+			filter_speechSequence.register(self._languageDetector.add_detected_language_commands)
+			order_move_to_start_register()
+		else:
+			filter_speechSequence.unregister(self._languageDetector.add_detected_language_commands)
+
+	def _get_cni(self):
+		return self._cni
+
+	def _set_cni(self, value):
+		self._cni = value
+		if value:
+			filter_speechSequence.register(ignore_comma_between_number)
+			order_move_to_start_register()
+		else:
+			filter_speechSequence.unregister(ignore_comma_between_number)
+		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self.cni
+
 	def _get_availableNumlans(self):
 		return dict(
 			{
@@ -548,31 +602,7 @@ class SynthDriver(SynthDriver):
 
 	def _set_nummod(self, value):
 		self._nummod = value
-
-	def _get_uwv(self):
-		return self._uwv
-
-	def _set_uwv(self, value):
-		self._uwv = value
-		self.detect_language_timing()
-
-	def detect_language_timing(self):
-		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
-			filter_speechSequence.register(self._languageDetector.add_detected_language_commands)
-			order_move_to_start_register()
-		else:
-			filter_speechSequence.unregister(self._languageDetector.add_detected_language_commands)
-
-	def _get_cni(self):
-		return self._cni
-
-	def _set_cni(self, value):
-		self._cni = value
-		if value:
-			filter_speechSequence.register(ignore_comma_between_number)
-			order_move_to_start_register()
-		else:
-			filter_speechSequence.unregister(ignore_comma_between_number)
+		config.conf["WorldVoice"]["pipeline"]["number_mode"] = self.nummod
 
 	def _get_globalwaitfactor(self):
 		return self._globalwaitfactor * 10
@@ -580,12 +610,14 @@ class SynthDriver(SynthDriver):
 	def _set_globalwaitfactor(self, value):
 		self._globalwaitfactor = value // 10
 		self._voiceManager.waitfactor = value
+		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self.globalwaitfactor
 
 	def _get_numberwaitfactor(self):
 		return self._numberwaitfactor
 
 	def _set_numberwaitfactor(self, value):
 		self._numberwaitfactor = value
+		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self.numberwaitfactor
 
 	def _get_itemwaitfactor(self):
 		return self._itemwaitfactor
@@ -597,18 +629,21 @@ class SynthDriver(SynthDriver):
 			order_move_to_start_register()
 		else:
 			filter_speechSequence.unregister(item_wait_factor)
+		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self.itemwaitfactor
 
 	def _get_sayallwaitfactor(self):
 		return self._sayallwaitfactor
 
 	def _set_sayallwaitfactor(self, value):
 		self._sayallwaitfactor = value
+		config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"] = self.sayallwaitfactor
 
 	def _get_chinesespacewaitfactor(self):
 		return self._chinesespacewaitfactor
 
 	def _set_chinesespacewaitfactor(self, value):
 		self._chinesespacewaitfactor = value
+		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
 
 	def patchedLengthSpeechSequence(self, speechSequence):
 		result = []

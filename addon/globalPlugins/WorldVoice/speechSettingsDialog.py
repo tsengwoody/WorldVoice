@@ -12,8 +12,8 @@ import languageHandler
 import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
-from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister
-from synthDrivers.WorldVoice.voiceEngine import EngineType
+from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister, pl
+from synthDrivers.WorldVoice.voice.engine import EngineType
 import tones
 
 
@@ -26,13 +26,14 @@ class BaseSettingsPanel(SettingsPanel):
 	settings = OrderedDict({})
 	field = "WorldVoice"
 
-	def makeSettings(self, settingsSizer):
-		sHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+	def makeSettings(self, settingsSizer, settingsSizerHelper=None):
+		if not settingsSizerHelper:
+			settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
 		for k, v in self.settings.items():
 			if "options" in v:
 				attr = k + "Selection"
 				options = v["options"]
-				widget = sHelper.addLabeledControl(v["label"], wx.Choice, choices=list(options.values()))
+				widget = settingsSizerHelper.addLabeledControl(v["label"], wx.Choice, choices=list(options.values()))
 				setattr(self, attr, widget)
 				try:
 					index = list(v["options"].keys()).index(str(config.conf["WorldVoice"][self.field][k]))
@@ -41,9 +42,10 @@ class BaseSettingsPanel(SettingsPanel):
 					tones.beep(100, 100)
 				widget.Selection = index
 			else:
-				setattr(self, k + "CheckBox", sHelper.addItem(wx.CheckBox(self, label=v["label"])))
+				setattr(self, k + "CheckBox", settingsSizerHelper.addItem(wx.CheckBox(self, label=v["label"])))
 				value = config.conf["WorldVoice"][self.field][k]
 				getattr(self, k + "CheckBox").SetValue(value)
+		return settingsSizerHelper
 
 	def onSave(self):
 		try:
@@ -63,9 +65,8 @@ class BaseSettingsPanel(SettingsPanel):
 			tones.beep(100, 100)
 
 
-class GlobalSynthesizerSettingsPanel(SettingsPanel):
-	# Translators: Title of a setting dialog.
-	title = _("Global Synthesizer")
+class SpeechPipelinePanel(SettingsPanel):
+	title = _("Speech Pipeline")
 
 	def __init__(self, parent):
 		self._synthInstance = getSynth()
@@ -74,13 +75,21 @@ class GlobalSynthesizerSettingsPanel(SettingsPanel):
 	def makeSettings(self, sizer):
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 
-		self._enable_checkbox = wx.CheckBox(
-			self,
-			label=_("Apply WorldVoice’s speech command pipeline globally")
+		scope_label = [
+			_("All Synthesizers (Global)"),
+			_("Only WorldVoice Synthesizer"),
+		]
+		self._scope_value = ["all", "WorldVoice"]
+		self._scope_choice = settingsSizerHelper.addLabeledControl(
+			_("Effect Scope:"),
+			wx.Choice,
+			choices=scope_label
 		)
-		settingsSizerHelper.addItem(self._enable_checkbox)
-		self.Bind(wx.EVT_CHECKBOX, self.onEnableCheckboxChange, self._enable_checkbox)
-		self._enable_checkbox.SetValue(config.conf["WorldVoice"]["synthesizer"]["enable"])
+		self._scope = config.conf["WorldVoice"]["pipeline"]["scope"]
+		try:
+			self._scope_choice.Select(self._scope_value.index(self._scope))
+		except ValueError:
+			self._scope_choice.Select(0)
 
 		self._ignore_comma_between_number_checkbox = wx.CheckBox(
 			self,
@@ -88,7 +97,7 @@ class GlobalSynthesizerSettingsPanel(SettingsPanel):
 		)
 		settingsSizerHelper.addItem(self._ignore_comma_between_number_checkbox)
 		self.Bind(wx.EVT_CHECKBOX, self.onIgnoreCommaBetweenNumberCheckboxChange, self._ignore_comma_between_number_checkbox)
-		self._ignore_comma_between_number_checkbox.SetValue(config.conf["WorldVoice"]["synthesizer"]["ignore_comma_between_number"])
+		self._ignore_comma_between_number_checkbox.SetValue(config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"])
 
 		number_mode_label = [
 			_("value"),
@@ -103,47 +112,45 @@ class GlobalSynthesizerSettingsPanel(SettingsPanel):
 		)
 
 		try:
-			self._number_mode_choice.Select(self.number_mode_value.index(config.conf["WorldVoice"]["synthesizer"]["number_mode"]))
+			self._number_mode_choice.Select(self.number_mode_value.index(config.conf["WorldVoice"]["pipeline"]["number_mode"]))
 		except ValueError:
 			self._number_mode_choice.Select(0)
 
 		self._global_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("global wait factor:"), wx.Slider, value=5, minValue=0, maxValue=10, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onGlobalWaitFactorSliderScroll, self._global_wait_factor_slider)
-		self._global_wait_factor_slider.SetValue(config.conf["WorldVoice"]["synthesizer"]["global_wait_factor"] // 10)
+		self._global_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10)
 
 		self._number_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("number wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onNumberWaitFactorSliderScroll, self._number_wait_factor_slider)
-		self._number_wait_factor_slider.SetValue(config.conf["WorldVoice"]["synthesizer"]["number_wait_factor"])
+		self._number_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["number_wait_factor"])
 
 		self._item_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("item wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onItemWaitFactorSliderScroll, self._item_wait_factor_slider)
-		self._item_wait_factor_slider.SetValue(config.conf["WorldVoice"]["synthesizer"]["item_wait_factor"])
+		self._item_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["item_wait_factor"])
 
 		self._sayall_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("sayall wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onSayallWaitFactorSliderScroll, self._sayall_wait_factor_slider)
-		self._sayall_wait_factor_slider.SetValue(config.conf["WorldVoice"]["synthesizer"]["sayall_wait_factor"])
+		self._sayall_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"])
 
 		self._chinesespace_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("chinese space wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onChinesespaceWaitFactorSliderScroll, self._chinesespace_wait_factor_slider)
-		self._chinesespace_wait_factor_slider.SetValue(config.conf["WorldVoice"]["synthesizer"]["chinesespace_wait_factor"])
+		self._chinesespace_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"])
 
-		self.onEnableCheckboxChange(None)
-
-	def onEnableCheckboxChange(self, event):
-		if self._enable_checkbox.GetValue():
-			self.sliderEnable()
+	def onScopeSelectionChange(self, event):
+		value = self._scope_value[self._scope_choice.GetCurrentSelection()]
+		if value == "all":
 			if self._synthInstance.name != "WorldVoice":
 				static_register()
 				dynamic_register()
 				order_move_to_start_register()
-		else:
-			self.sliderDisable()
+		elif value == "WorldVoice":
 			if self._synthInstance.name != "WorldVoice":
 				unregister()
 
 	def onIgnoreCommaBetweenNumberCheckboxChange(self, event):
-		if self._synthInstance.name == 'WorldVoice':
-			self._synthInstance._cni = self._ignore_comma_between_number_checkbox.GetValue()
+		pass
+		# if self._synthInstance.name == 'WorldVoice':
+		#	self._synthInstance._cni = self._ignore_comma_between_number_checkbox.GetValue()
 
 	def onGlobalWaitFactorSliderScroll(self, event):
 		pass
@@ -179,14 +186,36 @@ class GlobalSynthesizerSettingsPanel(SettingsPanel):
 		self._chinesespace_wait_factor_slider.Disable()
 
 	def onSave(self):
-		config.conf["WorldVoice"]["synthesizer"]["enable"] = self._enable_checkbox.GetValue()
-		config.conf["WorldVoice"]["synthesizer"]["ignore_comma_between_number"] = self._ignore_comma_between_number_checkbox.GetValue()
-		config.conf["WorldVoice"]["synthesizer"]["number_mode"] = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
-		config.conf["WorldVoice"]["synthesizer"]["global_wait_factor"] = self._global_wait_factor_slider.GetValue() * 10
-		config.conf["WorldVoice"]["synthesizer"]["number_wait_factor"] = self._number_wait_factor_slider.GetValue()
-		config.conf["WorldVoice"]["synthesizer"]["item_wait_factor"] = self._item_wait_factor_slider.GetValue()
-		config.conf["WorldVoice"]["synthesizer"]["sayall_wait_factor"] = self._sayall_wait_factor_slider.GetValue()
-		config.conf["WorldVoice"]["synthesizer"]["chinesespace_wait_factor"] = self._chinesespace_wait_factor_slider.GetValue()
+		config.conf["WorldVoice"]["pipeline"]["scope"] = self._scope_value[self._scope_choice.GetCurrentSelection()]
+
+		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self._ignore_comma_between_number_checkbox.GetValue()
+		config.conf["WorldVoice"]["pipeline"]["number_mode"] = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
+		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self._global_wait_factor_slider.GetValue() * 10
+		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self._number_wait_factor_slider.GetValue()
+		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self._item_wait_factor_slider.GetValue()
+		config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"] = self._sayall_wait_factor_slider.GetValue()
+		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self._chinesespace_wait_factor_slider.GetValue()
+
+		self.onScopeSelectionChange(None)
+
+		if self._synthInstance.name == 'WorldVoice':
+			self._synthInstance.cni = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
+			self._synthInstance.nummod = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
+			self._synthInstance.globalwaitfactor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"]
+			self._synthInstance.numberwaitfactor = config.conf["WorldVoice"]["pipeline"]["number_wait_factor"]
+			self._synthInstance.itemwaitfactor = config.conf["WorldVoice"]["pipeline"]["item_wait_factor"]
+			self._synthInstance.sayallwaitfactor = config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"]
+			self._synthInstance.chinesespacewaitfactor = config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"]
+			self._synthInstance.saveSettings()
+		else:
+			config.conf["speech"]["WorldVoice"]["cni"] = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
+			config.conf["speech"]["WorldVoice"]["cni"] = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
+			config.conf["speech"]["WorldVoice"]["nummod"] = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
+			config.conf["speech"]["WorldVoice"]["globalwaitfactor"] = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"]
+			config.conf["speech"]["WorldVoice"]["numberwaitfactor"] = config.conf["WorldVoice"]["pipeline"]["number_wait_factor"]
+			config.conf["speech"]["WorldVoice"]["itemwaitfactor"] = config.conf["WorldVoice"]["pipeline"]["item_wait_factor"]
+			config.conf["speech"]["WorldVoice"]["sayallwaitfactor"] = config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"]
+			config.conf["speech"]["WorldVoice"]["chinesespacewaitfactor"] = config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"]
 
 
 class SpeechRoleSettingsPanel(SettingsPanel):
@@ -212,10 +241,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._locales = self._manager.languages
 
 		self._dataToPercist = defaultdict(lambda: {})
-		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
-		self._latinLocales = sorted(list(latinSet))
-		CJKSet = set(languageDetection.CJK) & set(l for l in self._locales if len(l) == 2)
-		self._CJKLocales = sorted(list(CJKSet))
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 		helpLabel = wx.StaticText(self, label=_("Select a language, and then configure the voice to be used:"))
@@ -231,6 +256,13 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 		self._rateSlider = settingsSizerHelper.addLabeledControl(_("&Rate:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onSpeechRateSliderScroll, self._rateSlider)
+
+		self._rateBoostCheckBox = wx.CheckBox(
+			self,
+			label=_("Rate boost")
+		)
+		settingsSizerHelper.addItem(self._rateBoostCheckBox)
+		self.Bind(wx.EVT_CHECKBOX, self.onRateBoostChange, self._rateBoostCheckBox)
 
 		self._pitchSlider = settingsSizerHelper.addLabeledControl(_("&Pitch:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onPitchSliderScroll, self._pitchSlider)
@@ -341,6 +373,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self._pitchSlider.SetValue(voiceInstance.pitch)
 			self._volumeSlider.SetValue(voiceInstance.volume)
 			self._inflectionSlider.SetValue(voiceInstance.inflection)
+			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
 		else:
 			self._dataToPercist[locale]["voice"] = "no-select"
 		self._updateVariantsSelection()
@@ -384,6 +417,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self._pitchSlider.SetValue(voiceInstance.pitch)
 			self._volumeSlider.SetValue(voiceInstance.volume)
 			self._inflectionSlider.SetValue(voiceInstance.inflection)
+			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
 		else:
 			self.sliderDisable()
 		if self._keepParameterConsistentCheckBox.GetValue():
@@ -396,12 +430,15 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self._volumeSlider.Enable()
 			if self.voiceInstance.engine in ["aisound", "IBM", "Espeak"]:
 				self._inflectionSlider.Enable()
+			if self.voiceInstance.engine in ["OneCore", "RH", "Espeak", "SAPI5", "VE"]:
+				self._rateBoostCheckBox.Enable()
 
 	def sliderDisable(self):
 		self._rateSlider.Disable()
 		self._pitchSlider.Disable()
 		self._volumeSlider.Disable()
 		self._inflectionSlider.Disable()
+		self._rateBoostCheckBox.Disable()
 
 	def onSpeechRateSliderScroll(self, event):
 		if self.voiceInstance:
@@ -424,6 +461,12 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	def onInflectionSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.inflection = self._inflectionSlider.GetValue()
+			if self._keepParameterConsistentCheckBox.GetValue():
+				self._manager.onVoiceParameterConsistent(self.voiceInstance)
+
+	def onRateBoostChange(self, event):
+		if self.voiceInstance:
+			self.voiceInstance.rateBoost = self._rateBoostCheckBox.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
 				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
@@ -485,7 +528,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 				config.conf["speech"]["WorldVoice"]["voice"] = self._dataToPercist[locale]["voice"]
 
 
-class LanguageSwitchingSettingsPanel(SettingsPanel):
+class UnicodeDetectionSettingsPanel(SettingsPanel):
 	title = _("Unicode Detection")
 
 	def __init__(self, parent):
@@ -515,6 +558,8 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 		self._latinLocales = sorted(list(latinSet))
 		CJKSet = set(languageDetection.CJK) & set(l for l in self._locales if len(l) == 2)
 		self._CJKLocales = sorted(list(CJKSet))
+		arabicSet = set(languageDetection.ARABIC) & set(l for l in self._locales if len(l) == 2)
+		self._arabicLocales = sorted(list(arabicSet))
 
 		self._ignoreNumbersCheckBox = wx.CheckBox(
 			self,
@@ -551,6 +596,16 @@ class LanguageSwitchingSettingsPanel(SettingsPanel):
 			self._CJKChoice.Select(0)
 		if not CJKChoiceLocaleNames:
 			self._CJKChoice.Disable()
+
+		arabicChoiceLocaleNames = [self.localesToNames[l] for l in self._arabicLocales]
+		self._arabicChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for arabic characters:"), wx.Choice, choices=arabicChoiceLocaleNames)
+		arabicLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["arabicCharactersLanguage"]
+		try:
+			self._arabicChoice.Select(self._arabicLocales.index(arabicLocale))
+		except ValueError:
+			self._arabicChoice.Select(0)
+		if not arabicChoiceLocaleNames:
+			self._arabicChoice.Disable()
 
 		DetectLanguageTimingLabel = [
 			_("Before NVDA processes speech commands"),
@@ -619,31 +674,37 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 			if key in self.readyEngine and value
 		])
 
-	def onSave(self):
-		activeEngine = set()
+	def isValid(self) -> bool:
+		self.activeEngine = set()
 		for k, v in self.settings.items():
 			if getattr(self, k + "CheckBox").IsChecked():
-				activeEngine.add(k)
+				self.activeEngine.add(k)
 
-		if len(activeEngine) == 0:
+		if len(self.activeEngine) == 0:
 			gui.messageBox(
 				# Translators: The message displayed
-				_("Speech engine configuration changes will not to save because no speech engines are activated."),
+				_("Changes to speech-engine settings can’t be saved because no speech engine is enabled."),
 				# Translators: The title of the dialog
-				_("No speech engines are activated"), wx.OK | wx.ICON_WARNING, self
+				_("No Speech Engine Enabled"), wx.OK | wx.ICON_WARNING, self
 			)
 			return False
-
-		if activeEngine != self.previousActiveEngine:
-			if gui.messageBox(
+		if self.activeEngine != self.previousActiveEngine:
+			self.confirm = gui.messageBox(
 				# Translators: The message displayed
-				_("For the active speech engine configuration to apply, NVDA must save configuration and be restarted. Do you want to do now?"),
+				_("To enable or disable the speech engine, NVDA needs to save your configuration and restart. Would you like to restart now?"),
 				# Translators: The title of the dialog
-				_("active engine Configuration Change"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
-			) == wx.OK:
-				super().onSave()
+				_("Speech Engine Change"), wx.YES | wx.NO | wx.CANCEL | wx.ICON_WARNING, self
+			)
+			if self.confirm == wx.CANCEL:
+				return False
+		return True
+
+	def onSave(self):
+		if self.activeEngine != self.previousActiveEngine:
+			if self.confirm == wx.YES:
 				gui.mainFrame.onSaveConfigurationCommand(None)
 				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
+			super().onSave()
 
 	def _load_voice_classes(self, engines: list[EngineType]) -> dict[str, type]:
 		"""
@@ -660,6 +721,83 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		return classes
 
 
+class LogSettingsPanel(BaseSettingsPanel):
+	# Translators: Title of a setting dialog.
+	title = _("Log Record")
+	field = "log"
+	settings = OrderedDict({
+		"ignore_comma_between_number": {"label": _("Ignore comma between number")},
+		"number_mode": {"label": _("Number mode")},
+		"number_language": {"label": _("Number language")},
+		"number_wait_factor": {"label": _("number wait factor")},
+		"item_wait_factor": {"label": _("item wait factor")},
+		"chinesespace_wait_factor": {"label": _("chinese space wait factor")},
+	})
+
+	def makeSettings(self, settingsSizer):
+		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+		self._enable_checkbox = wx.CheckBox(
+			self,
+			label=_("Enable logging of WorldVoice’s speech pipeline")
+		)
+		settingsSizerHelper.addItem(self._enable_checkbox)
+		self.Bind(wx.EVT_CHECKBOX, self.onEnableCheckboxChange, self._enable_checkbox)
+		self._enable_checkbox.SetValue(config.conf["WorldVoice"]["log"]["enable"])
+		super().makeSettings(settingsSizer, settingsSizerHelper=settingsSizerHelper)
+		self.onEnableCheckboxChange(None)
+
+	def onEnableCheckboxChange(self, event):
+		if self._enable_checkbox.GetValue():
+			self.sliderEnable()
+		else:
+			self.sliderDisable()
+
+	def sliderEnable(self):
+		for k, v in self.settings.items():
+			getattr(self, k + "CheckBox").Enable()
+
+	def sliderDisable(self):
+		for k, v in self.settings.items():
+			getattr(self, k + "CheckBox").Disable()
+
+	def isValid(self) -> bool:
+		enabled_before = config.conf["WorldVoice"]["log"]["enable"]
+		enabled_after  = self._enable_checkbox.GetValue()
+		if enabled_before != enabled_after:
+			if enabled_after:
+				self.confirm = gui.messageBox(
+					# Translators: The message displayed
+					_("Enabling logging of WorldVoice’s speech pipeline will reduce speech response speed. If you are not debugging, we recommend keeping it disabled. Would you like to enable it anyway?"),
+					# Translators: The title of the dialog
+					_("Speech Pipeline Logging"),
+					wx.YES | wx.NO | wx.CANCEL, gui.mainFrame
+				)
+				if self.confirm == wx.CANCEL:
+					self._enable_checkbox.SetValue(False)
+					return False
+		return True
+
+	def onSave(self):
+		enabled_before = config.conf["WorldVoice"]["log"]["enable"]
+		enabled_after  = self._enable_checkbox.GetValue()
+		if enabled_before != enabled_after:
+			if enabled_after:
+				if self.confirm == wx.YES:
+					config.conf["WorldVoice"]["log"]["enable"] = True
+			else:
+				config.conf["WorldVoice"]["log"]["enable"] = False
+				if gui.messageBox(
+					# Translators: The message displayed
+					_("Logging of WorldVoice’s speech pipeline has been disabled. Would you like to export the pipeline log now?"),
+					# Translators: The title of the dialog
+					_("Speech Pipeline Logging"),
+					wx.YES | wx.NO, gui.mainFrame
+				) == wx.YES:
+					wx.CallAfter(pl.export)
+
+		super().onSave()
+
+
 class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
 	# translators: title of the dialog.
 	dialogTitle = _("Speech Settings")
@@ -668,8 +806,9 @@ class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
 	MIN_SIZE = (470, 240)
 
 	categoryClasses = [
-		GlobalSynthesizerSettingsPanel,
+		SpeechPipelinePanel,
 		SpeechRoleSettingsPanel,
-		LanguageSwitchingSettingsPanel,
 		SpeechEngineSettingsPanel,
+		UnicodeDetectionSettingsPanel,
+		LogSettingsPanel,
 	]

@@ -14,8 +14,7 @@ from .speechSettingsDialog import WorldVoiceSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
 
 from synthDrivers.WorldVoice import WVStart, WVEnd
-from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister as pipeline_unregister
-from synthDrivers.WorldVoice.hook import Hook
+from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister as pipeline_unregister, pl
 from synthDrivers.WorldVoice.sayAll import patch, unpatch
 
 addonHandler.initTranslation()
@@ -24,30 +23,20 @@ workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspa
 
 
 def register():
-	if config.conf["WorldVoice"]["synthesizer"]["enable"]:
+	if config.conf["WorldVoice"]["pipeline"]["scope"] == "all":
 		static_register()
 		dynamic_register()
 		order_move_to_start_register()
 
 
 def unregister():
-	if config.conf["WorldVoice"]["synthesizer"]["enable"]:
+	if config.conf["WorldVoice"]["pipeline"]["scope"] == "all":
 		pipeline_unregister()
 
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
 		super().__init__()
-
-		if globalVars.appArgs.secure:
-			return
-
-		self.createMenu()
-
-		# self.hookInstance = Hook()
-
-		# WVStart.register(self.hookInstance.start)
-		# WVEnd.register(self.hookInstance.end)
 
 		WVStart.register(unregister)
 		WVEnd.register(register)
@@ -56,6 +45,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		if getSynth().name != "WorldVoice":
 			register()
 
+		if globalVars.appArgs.secure:
+			return
+
+		self.createMenu()
+
+		wx.CallAfter(self.check_log_record)
+
 	def terminate(self):
 		try:
 			self.removeMenu()
@@ -63,11 +59,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			pass
 
 		unpatch()
-		if config.conf["WorldVoice"]["synthesizer"]["enable"] and getSynth().name != "WorldVoice":
+		if getSynth().name != "WorldVoice":
 			unregister()
-
-		# WVStart.unregister(self.hookInstance.start)
-		# WVEnd.unregister(self.hookInstance.end)
 
 		WVStart.unregister(unregister)
 		WVEnd.unregister(register)
@@ -146,5 +139,57 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		description=_("popup unicode settings dialog"),
 		category=ADDON_SUMMARY,
 	)
-	def script_popup_SpeechSymbolsDialog(self, gesture):
+	def script_popup_unicode_settings_dialog(self, gesture):
 		self.popup_SpeechSymbolsDialog(None)
+
+	@script(
+		description=_("switch log record"),
+		category=ADDON_SUMMARY,
+	)
+	def script_switch_log_record(self, gesture):
+		config.conf["WorldVoice"]["log"]["enable"] = not config.conf["WorldVoice"]["log"]["enable"]
+		if config.conf["WorldVoice"]["log"]["enable"]:
+			wx.CallAfter(self.enable_log_record)
+		else:
+			wx.CallAfter(self.disable_log_record)
+
+	def check_log_record(self):
+		if config.conf["WorldVoice"]["log"]["enable"]:
+			if gui.messageBox(
+				# Translators: The message displayed
+				_("Logging of WorldVoice’s speech pipeline is enabled. This may reduce speech response speed. If you are not debugging, we recommend disabling it. Would you like to disable it now?"),
+				# Translators: The title of the dialog
+				_("Speech Pipeline Logging"),
+				wx.YES | wx.NO, gui.mainFrame
+			) == wx.YES:
+				config.conf["WorldVoice"]["log"]["enable"] = False
+				try:
+					pl.export()
+				except:
+					pass
+
+	def enable_log_record(self):
+		if gui.messageBox(
+			# Translators: The message displayed
+			_("Enabling logging of WorldVoice’s speech pipeline will reduce speech response speed. If you are not debugging, we recommend keeping it disabled. Would you like to enable it anyway?"),
+			# Translators: The title of the dialog
+			_("Speech Pipeline Logging"),
+			wx.YES | wx.NO, gui.mainFrame
+		) == wx.YES:
+			config.conf["WorldVoice"]["log"]["enable"] = True
+			ui.message(_("turn on WorldVoice`s log record"))
+
+	def disable_log_record(self):
+		config.conf["WorldVoice"]["log"]["enable"] = False
+		if gui.messageBox(
+			# Translators: The message displayed
+			_("Logging of WorldVoice’s speech pipeline has been disabled. Would you like to export the pipeline log now?"),
+			# Translators: The title of the dialog
+			_("Speech Pipeline Logging"),
+			wx.YES | wx.NO, gui.mainFrame
+		) == wx.YES:
+			try:
+				pl.export()
+			except:
+				pass
+			ui.message(_("turn off WorldVoice`s log record"))

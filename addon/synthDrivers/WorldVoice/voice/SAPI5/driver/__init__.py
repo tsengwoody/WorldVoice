@@ -32,7 +32,7 @@ from speech.commands import (
 	PhonemeCommand,
 	SpeechCommand,
 )
-from ._sonic import SonicStream, initialize as sonicInitialize
+from synthDrivers._sonic import SonicStream, initialize as sonicInitialize
 
 
 class SpeechVoiceSpeakFlags(IntEnum):

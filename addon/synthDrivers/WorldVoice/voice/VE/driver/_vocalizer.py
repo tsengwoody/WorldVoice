@@ -26,6 +26,11 @@ TEXT_RULESET_CONTENT_TYPE = "application/x-vocalizer-rettt+text"
 
 _voiceDicts = {}
 
+from synthDrivers._sonic import SonicStream, initialize as sonicInitialize
+
+sonicInitialize()
+
+
 class BgThread(threading.Thread):
 
 	def __init__(self, bgQueue):
@@ -88,8 +93,18 @@ def callback(instance, userData, message):
 			# Sound data and mark buffers were produced by vocalizer.
 			# Send wave data to be played:
 			if outData.contents.cntPcmBufLen > 0:
-				data = string_at(outData.contents.pOutPcmBuf, size=outData.contents.cntPcmBufLen)
-				feedBuf.write(data)
+				# data = string_at(outData.contents.pOutPcmBuf, size=outData.contents.cntPcmBufLen)
+				# feedBuf.write(data)
+
+				sonicStream.writeShort(
+					outData.contents.pOutPcmBuf,
+					outData.contents.cntPcmBufLen // 2
+				)
+				spedArr = sonicStream.readShort()      # ctypes array('h', ...)
+				if spedArr:                            # 可能暫時沒有可用樣本
+					data = bytes(spedArr)              # 轉成 bytes 物件
+					feedBuf.write(data)
+
 				if feedBuf.tell() >= pcmBufLen:
 					player.feed(feedBuf.getvalue())
 					feedBuf = BytesIO()
@@ -105,6 +120,16 @@ def callback(instance, userData, message):
 			# Synth was resumed
 			player.pause(False)
 		elif messageType == VE_MSG_ENDPROCESS:
+			sonicStream.flush()
+			tailArr = sonicStream.readShort()
+			if tailArr:
+				data = bytes(tailArr)
+				feedBuf.write(data)
+
+			if speakingInstance is not None and feedBuf.tell():
+				player.feed(feedBuf.getvalue())
+				feedBuf = BytesIO()
+				player.idle()
 			# Speaking ended (because there is no more text or it was stopped)
 			if speakingInstance is not None:
 				player.feed(feedBuf.getvalue())
@@ -134,6 +159,7 @@ markBufSize = 100
 feedBuf = None
 bgQueue = None
 player = None
+sonicStream = None
 
 # Vocalizer voices
 availableVoices = [addon.path for addon in addonHandler.getRunningAddons() if addon.name.startswith("vocalizer-expressive-voice") or addon.name.startswith("vocalizer-expressive2-voice")]
@@ -198,8 +224,13 @@ def initialize(lock):
 	sampleRate = 22050
 	player = nvwave.WavePlayer(1, sampleRate, 16, outputDevice=config.conf["audio"]["outputDevice"])
 
+	global sonicStream
+	sonicStream = SonicStream(sampleRate, 1)   # 1 = mono
+	sonicStream.speed = 1.0                    # default normal
+
 	global voiceLock
 	voiceLock = lock
+
 
 def _onVoiceLoad(instance, voiceName):
 	# Ruleset
