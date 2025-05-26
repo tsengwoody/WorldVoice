@@ -1,49 +1,78 @@
-# WorldVoice
+# WorldVoice User Guide
 
-In this highly interconnected and globalized era, language learning has become increasingly important. In language learning materials, native languages are often used to help explain foreign vocabulary and sentences, and multiple languages are often mixed together. In daily communication, we also often mix multiple languages and scripts. In books, newspapers, and online articles, multiple languages are often used to convey information, sometimes even within the same sentence, using Chinese and English or Chinese and Japanese.
+As globalization becomes more widespread, exposure to multilingual content has become increasingly common. From educational materials to leisure reading, it’s not unusual to see multiple languages mixed, even within the same sentence.
 
-The text composition, contextual meaning, and cross-lingual frequency of different digital content, such as language learning, mathematics, and literary works, may differ, and the corresponding speech reading method may also need to be adjusted accordingly to better meet the needs of different types of documents.
+Digital content, such as language textbooks, mathematical information, or literature, differs in textual structure, context, and frequency of language mixing. Therefore, the ability to flexibly adjust reading methods according to content characteristics and personal preferences is a crucial feature when using screen readers.
 
-WorldVoice is a multi-language speech reading NVDA add-on, which supports Espeak, OneCore, RHVoice, SAPI5 speech engines and provides a variety of customization options. Users can adjust their settings for different contexts, maximizing the satisfaction of different user groups.
+WorldVoice is an NVDA add-on that supports automatic switching among various role of speech engines, including Espeak, OneCore, RHVoice, and SAPI5, and provides diverse customization settings. Users can easily adjust speech settings to suit various scenarios and individual needs.
 
-Its main features include:
+## Features
 
-*	Automatic switching between multiple languages
-*	Individual speech parameter settings (speed, pitch, volume)
-*	Multi-speech engine selection
-*	Switching between numeric reading modes (digits and numerical values)
-*	Customizable speech reading behavior (pause length for numbers, items, Chinese space, say all, comma ignore between numbers)
+* Independent setting of speech rate, pitch, and volume for each speech role.
+* Supports automatic switching of speech roles from various speech engines.
+* Switching between numeric reading mode (numeric or digit-by-digit).
+* Adjustable speech pause durations for various contexts, including between numbers, items, Chinese space and during say-all reading.
+* Automatic language detection based on Unicode characters.
 
-## Main Speech Role Settings
+## speech role
 
-In NVDA Settings: Speech(NVDA+Ctrl+V) Configure basic speech roles and common behaviors.
+In the WorldVoice speech role settings panel, you can assign specific speech roles to different region, adjusting parameters such as speed, pitch, and volume individually.
 
-* speed, pitch, and volume of main speech role.
-* Numeric reading: It has two options, "Number Language" and "Number mode". Number language sets the prefer language used for numeric text, and number mode set reading numbers text as numerical values or individual digits.
-* Pause duration for numbers, items, Chinese spaces, and say all parameters. Smaller values result in shorter pauses, with 0 meaning no pause.
-* Ignore comma between number: When selected, NVDA will ignore commas in numbers, allowing correct reading of numerical values with misplaced commas.
-* Enable WorldVoice setting rules to detect text language: When selected, NVDA will use the rules from the voice settings to detect the language of the text and switch the voice accordingly. Note that this option may have compatibility issues with NVDA's "Automatic language switching (when supported)", so it is advisable not to select both simultaneously.
+WorldVoice independently stores the settings for each speech role. When a role is switched, its corresponding parameters—such as rate, pitch, and volume—are automatically applied, allowing each role to Keep its own voice characteristics. This feature is especially helpful for reading content in non-native languages.
 
-## WorldVoice Voice Settings (NVDA Menu -> WorldVoice -> Voice Settings)
+* After selecting a region, available speech roles for that region are displayed. Choosing a speech role completes the region-to-voice-role mapping.
+* If the selected speech role supports voice variant, variant options will be available for selection.
+* Upon selecting a speech role, sliders for speed, pitch, volume, and the boost speed checkbox will adjust to that role’s settings. Adjustments apply only to the selected role independently.
 
-Speech Role: You can configure speech roles for different regions, including individual settings for speed, pitch, volume, and consistency between the main speech role and regional speech roles.
+### Consistency Settings:
 
-* Selecting a region will display a list of available speech roles for that region. Choosing a speech role will establish the association between the selected region and speech role.
-* After selecting a speech role, the list of voice modifiers will show available pitch adjustments for that speech role. Choosing a modifier will associate it with the selected speech role.
-* Once a speech role is chosen, the speed, pitch, and volume sliders below will display the settings for that speech role.
-* Speed, pitch, and volume settings are specific to each speech role and not tied to regions.
-* Keep main engine and locale engine consistent: This option synchronizes the main speech role in NVDA's voice settings with the regional speech role in WorldVoice. Adjusting the main voice settings will also adjust the regional voice engine to be the same.
-* Keep main voice and locale voice consistent: This option ensures that the main speech role in NVDA's voice settings matches the regional speech role in WorldVoice. Any changes to the main or regional speech role will be synchronized between the two.
-Keep main parameter and locale parameter consistent
+* Keep main speech engine consistency with regional speech engines: Ensures the main and regional speech roles use the same speech engine. If a main speech role adjustment involves a different engine, regional speech roles reset and require re-selection.
+* Keep main speech role consistency with regional speech roles: Keeps the main and regional speech roles identical. Adjusting one automatically synchronizes the other.
+* Keep parameter consistency between speech roles: Synchronizes parameters like speed, pitch, volume, and boost speed settings across all speech roles. Adjustments to one role affect all others.
 
-## Unicode detection
+The main speech is configured through the NVDA voice settings panel, while regional speechs are configured through WorldVoice’s speech role settings panel.
 
-* Ignore numbers when detecting language, ignore common punctuation when detecting language: When checked, numbers and common punctuation will be considered part of the main speech role's language.
-* Enhance voice commands: This allows the program to automatically detect language and determine when to add pauses for voice commands before or after NVDA's symbol processing.
+## Speech Pipeline
 
-If you want to use the aisound voices, you need to install the core packages. If you want to use the RHVoice voice, please download the corresponding voice package addon from the official website. [Official download page](https://rhvoice.org/languages/).
+Through WorldVoice’s speech pipeline panel, you can configure settings for various speech processes and select the scope of the speech pipeline (global or WorldVoice-only).
+
+* Globally supported speech pipeline settings: Ignore commas between numbers, number reading mode, pauses between items, pauses between numbers, pauses between Chinese characters, and pauses during say-all reading.
+* WorldVoice-only supported speech pipeline settings: Language detection based on Unicode characters, number language.
+
+* Language Detection Based on Unicode Characters: Automatically detects the language region from Unicode characters and switches speech roles accordingly. Note: This feature may conflict with NVDA’s automatic language switching, so concurrent use is not recommended.
+* Number Language: Specifies the regional speech role for reading numbers.
+* Number Mode:
+ * Numeric Mode: Reads numbers as values, e.g., "12345" as "twelve thousand three hundred forty-five."
+ * Digit Mode: Reads numbers digit-by-digit, e.g., "12345" as "one two three four five."
+* Speech Pause Adjustment: Sets the duration of pauses between numbers, items, Chinese characters, and say-all reading. Lower values indicate shorter pauses; zero means no pause.
+* Ignore Commas Between Numbers: Skips commas during number reading to enhance accuracy for specific speech roles.
+
+Globally supported speech pipeline settings can be adjusted through NVDA’s speech settings panel or WorldVoice’s speech pipeline panel. WorldVoice-only supported speech pipeline must be adjusted through NVDA’s speech settings panel.
+
+## Unicode Detection
+
+* Ignore numbers during language detection: Numbers are excluded from language detection, using the current speech role.
+* Ignore common punctuation during language detection: Punctuation marks are excluded from language detection, using the current speech role.
+* Language detection timing: Determines when Unicode-based language detection and language-switching commands are processed—either before or after NVDA’s speech pipeline.
+* Assumed language for character sets: Sets a default language assumption for character sets shared by multiple languages in Unicode, including Latin, CJK (Chinese, Japanese, Korean), and Arabic.
+
+## Notes
+
+If you want to disable specific speech engines, uncheck the corresponding checkboxes in the WorldVoice speech engine settings panel.
+
+To use the RHVoice speech engine, download the appropriate voice pack add-on from the official RHVoice website.
 
 # WorldVoice update log
+
+## WorldVoice v5.0 Update
+
+* **Add new s features and setting panels:** Speech Pipeline and Log Record
+* **Remove deprecated features and setting panels:** Unicode normalization, number-dot replacement, and other outdated items
+* **Add speech pipeline feature:** Enable WorldVoice’s speech pipeline for all synthesizers
+* **Add log record feature:** Capture pipeline data before and after each speech sequence to facilitate debugging
+* **Add boost-rate feature:** Allow speed boosts for specific speech engines
+* **Enhance UX:** Improve interactions in the Speech Engine and Log Record dialogs
+* **Revise UI text:** Update UI text for style
 
 ## WorldVoice v4.0 Update
 
