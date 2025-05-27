@@ -425,7 +425,7 @@ class SynthDriver(SynthDriver):
 					log.debugWarning("Unsupported speech command: %s" % command)
 				else:
 					log.error("Unknown speech: %s" % command)
-			elif voiceInstance.engine == "aisound":
+			elif voiceInstance.engine == "Aisound":
 				item = command
 				if isinstance(item, str):
 					if charMode:
@@ -454,7 +454,7 @@ class SynthDriver(SynthDriver):
 				else:
 					chunks.append(command)
 
-		if voiceInstance.engine in ["VE", "aisound"]:
+		if voiceInstance.engine in ["VE", "Aisound"]:
 			if chunks:
 				voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
 		elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5"]:

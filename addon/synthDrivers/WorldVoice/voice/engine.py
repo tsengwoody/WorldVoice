@@ -31,6 +31,11 @@ class EngineType(Enum):
 		"IBMVoice",
 		_("Enable IBM")
 	)
+	Aisound = (
+		"synthDrivers.WorldVoice.voice.Aisound.voice",
+		"AisoundVoice",
+		_("Enable Aisound")
+	)
 	VE = (
 		"synthDrivers.WorldVoice.voice.VE.voice",
 		"VEVoice",

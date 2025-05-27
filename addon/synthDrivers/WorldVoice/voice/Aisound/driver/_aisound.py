@@ -7,6 +7,7 @@ import audioDucking
 import globalVars
 import NVDAHelper
 from ctypes import *
+from ctypes.wintypes import HANDLE, WORD, DWORD, UINT, LPUINT
 from logHandler import log
 from synthDriverHandler import getSynth
 from synthDriverHandler import synthIndexReached,synthDoneSpeaking
@@ -17,6 +18,37 @@ lastSpeakInstance = None
 aisound_callback_t = CFUNCTYPE(None,c_int,c_void_p)
 SPEECH_BEGIN = 0
 SPEECH_END = 1
+
+
+HWAVEOUT = HANDLE
+LPHWAVEOUT = POINTER(HWAVEOUT)
+
+
+class WAVEFORMATEX(Structure):
+	_fields_ = [
+		("wFormatTag", WORD),
+		("nChannels", WORD),
+		("nSamplesPerSec", DWORD),
+		("nAvgBytesPerSec", DWORD),
+		("nBlockAlign", WORD),
+		("wBitsPerSample", WORD),
+		("cbSize", WORD),
+	]
+
+
+LPWAVEFORMATEX = POINTER(WAVEFORMATEX)
+
+# Set argument types.
+windll.winmm.waveOutOpen.argtypes = (
+	LPHWAVEOUT,
+	UINT,
+	LPWAVEFORMATEX,
+	DWORD,
+	DWORD,
+	DWORD
+)
+windll.winmm.waveOutGetID.argtypes = (HWAVEOUT, LPUINT)
+
 
 class FunctionHooker(object):
 

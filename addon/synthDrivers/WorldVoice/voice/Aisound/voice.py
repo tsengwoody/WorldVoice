@@ -2,8 +2,8 @@ from autoSettingsUtils.utils import paramToPercent, percentToParam
 import globalVars
 import languageHandler
 
-from . import _aisound
-from . import Voice
+from .driver import _aisound
+from .. import Voice
 
 import os
 
@@ -11,7 +11,7 @@ import os
 class AisoundVoice(Voice):
 	core = None
 	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
-	engine = "aisound"
+	engine = "Aisound"
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
 		self.language = language if language else "unknown"
@@ -192,7 +192,7 @@ class AisoundVoice(Voice):
 				"language": language,
 				"langDescription": langDescription,
 				"description": "%s - %s" % (name, langDescription),
-				"engine": "aisound",
+				"engine": "Aisound",
 			})
 
 		return result
