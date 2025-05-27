@@ -66,19 +66,19 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		WVEnd.unregister(register)
 
 	def createMenu(self):
-		self.submenu_vocalizer = wx.Menu()
+		self.submenu_WorldVoice = wx.Menu()
 
-		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Speech Settings"), _("Speech Settings."))
+		item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Settings"), _("Settings."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSettingsDialog, item)
-		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Unicode Settings"), _("Unicode Settings."))
+		item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Unicode Settings"), _("Unicode Settings."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSymbolsDialog, item)
-		item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
+		item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onFileImport, item)
 		# if not AisoundVoice.install():
-		# 	item = self.submenu_vocalizer.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
+		# 	item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
 		# 	gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onAisoundCoreInstall, item)
 
-		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice"), self.submenu_vocalizer)
+		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(2, wx.ID_ANY, _("WorldVoice"), self.submenu_WorldVoice)
 
 	def removeMenu(self):
 		if self.submenu_item is not None:
@@ -115,9 +115,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def onFileImport(self, event):
 		self.fileImport(workspace_path)
-
-	def onAisoundCoreInstall(self, event):
-		self.fileImport(AisoundVoice.workspace)
 
 	def popup_SpeechSettingsDialog(self, event):
 		wx.CallAfter(gui.mainFrame.popupSettingsDialog, WorldVoiceSettingsDialog)

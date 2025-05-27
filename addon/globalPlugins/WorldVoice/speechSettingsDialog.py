@@ -5,6 +5,7 @@ import wx
 import addonHandler
 import config
 import core
+import globalVars
 import gui
 from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
@@ -16,8 +17,16 @@ from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, stati
 from synthDrivers.WorldVoice.voice.engine import EngineType
 import tones
 
+from .utils import guard_errors
+
 
 addonHandler.initTranslation()
+
+
+def got_error_callback(self):
+	dialog_class = self.Parent.Parent.__class__
+	dialog_class.wvd.onCancel(None)
+	wx.CallAfter(gui.mainFrame.popupSettingsDialog, dialog_class)
 
 
 class BaseSettingsPanel(SettingsPanel):
@@ -67,10 +76,6 @@ class BaseSettingsPanel(SettingsPanel):
 
 class SpeechPipelinePanel(SettingsPanel):
 	title = _("Speech Pipeline")
-
-	def __init__(self, parent):
-		self._synthInstance = getSynth()
-		super().__init__(parent)
 
 	def makeSettings(self, sizer):
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
@@ -139,18 +144,18 @@ class SpeechPipelinePanel(SettingsPanel):
 	def onScopeSelectionChange(self, event):
 		value = self._scope_value[self._scope_choice.GetCurrentSelection()]
 		if value == "all":
-			if self._synthInstance.name != "WorldVoice":
+			if getSynth().name != "WorldVoice":
 				static_register()
 				dynamic_register()
 				order_move_to_start_register()
 		elif value == "WorldVoice":
-			if self._synthInstance.name != "WorldVoice":
+			if getSynth().name != "WorldVoice":
 				unregister()
 
 	def onIgnoreCommaBetweenNumberCheckboxChange(self, event):
 		pass
-		# if self._synthInstance.name == 'WorldVoice':
-		#	self._synthInstance._cni = self._ignore_comma_between_number_checkbox.GetValue()
+		# if getSynth().name == 'WorldVoice':
+		#	getSynth()._cni = self._ignore_comma_between_number_checkbox.GetValue()
 
 	def onGlobalWaitFactorSliderScroll(self, event):
 		pass
@@ -198,15 +203,15 @@ class SpeechPipelinePanel(SettingsPanel):
 
 		self.onScopeSelectionChange(None)
 
-		if self._synthInstance.name == 'WorldVoice':
-			self._synthInstance.cni = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
-			self._synthInstance.nummod = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
-			self._synthInstance.globalwaitfactor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"]
-			self._synthInstance.numberwaitfactor = config.conf["WorldVoice"]["pipeline"]["number_wait_factor"]
-			self._synthInstance.itemwaitfactor = config.conf["WorldVoice"]["pipeline"]["item_wait_factor"]
-			self._synthInstance.sayallwaitfactor = config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"]
-			self._synthInstance.chinesespacewaitfactor = config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"]
-			self._synthInstance.saveSettings()
+		if getSynth().name == 'WorldVoice':
+			getSynth().cni = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
+			getSynth().nummod = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
+			getSynth().globalwaitfactor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"]
+			getSynth().numberwaitfactor = config.conf["WorldVoice"]["pipeline"]["number_wait_factor"]
+			getSynth().itemwaitfactor = config.conf["WorldVoice"]["pipeline"]["item_wait_factor"]
+			getSynth().sayallwaitfactor = config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"]
+			getSynth().chinesespacewaitfactor = config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"]
+			getSynth().saveSettings()
 		else:
 			config.conf["speech"]["WorldVoice"]["cni"] = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
 			config.conf["speech"]["WorldVoice"]["cni"] = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
@@ -222,18 +227,29 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	title = _("Speech Role")
 
 	def makeSettings(self, sizer):
+		self.disable = False
 		if not getSynth().name == 'WorldVoice':
-			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not WorldVoice.'))
-			infoLabel.Wrap(self.GetSize()[0])
-			sizer.Add(infoLabel)
+			infoCtrl = wx.TextCtrl(
+				self,
+				value=_('Your current speech synthesizer is not WorldVoice.'),
+				style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE
+			)
+			infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
+			sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
+			self.disable = True
 			return
 
 		self._manager = getSynth()._voiceManager
 		self.ready = self._manager.ready()
 		if not self.ready:
-			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not ready.'))
-			infoLabel.Wrap(self.GetSize()[0])
-			sizer.Add(infoLabel)
+			infoCtrl = wx.TextCtrl(
+				self,
+				value=_('Your current speech synthesizer is not ready.'),
+				style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE
+			)
+			infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
+			sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
+			self.disable = True
 			return
 
 		self._localeToVoices = self._manager.localeToVoicesMap
@@ -299,8 +315,9 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepParameterConsistentChange, self._keepParameterConsistentCheckBox)
 
 	def postInit(self):
-		if not getSynth().name == 'WorldVoice':
+		if self.disable:
 			return
+
 		self._updateVoicesSelection()
 		self._localesChoice.SetFocus()
 
@@ -352,9 +369,11 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		else:
 			self._variantsChoice.SetItems([])
 
+	@guard_errors(callback=got_error_callback)
 	def onLocaleChanged(self, event):
 		self._updateVoicesSelection()
 
+	@guard_errors(callback=got_error_callback)
 	def onVoiceChange(self, event):
 		localeIndex = self._localesChoice.GetCurrentSelection()
 		locale = self._locales[localeIndex]
@@ -380,12 +399,14 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self.sliderDisable()
 		self.sliderEnable()
 
+	@guard_errors(callback=got_error_callback)
 	def onVariantChange(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName != "no-select":
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			voiceInstance.variant = self._variantsChoice.GetStringSelection()
 
+	@guard_errors(callback=got_error_callback)
 	def onKeepEngineConsistentChange(self, event):
 		self._manager.keepMainLocaleEngineConsistent = self._keepEngineConsistentCheckBox.GetValue()
 		self._manager.onKeepEngineConsistent()
@@ -397,6 +418,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._localesChoice.SetItems([self.localesToNames[l] for l in self._locales])
 		self._updateVoicesSelection()
 
+	@guard_errors(callback=got_error_callback)
 	def onKeepParameterConsistentChange(self, event):
 		voiceName = self._voicesChoice.GetStringSelection()
 		if voiceName == "":
@@ -440,44 +462,54 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._inflectionSlider.Disable()
 		self._rateBoostCheckBox.Disable()
 
+	@guard_errors(callback=got_error_callback)
 	def onSpeechRateSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.rate = self._rateSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
 				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
+	@guard_errors(callback=got_error_callback)
 	def onPitchSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.pitch = self._pitchSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
 				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
+	@guard_errors(callback=got_error_callback)
 	def onVolumeSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.volume = self._volumeSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
 				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
+	@guard_errors(callback=got_error_callback)
 	def onInflectionSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.inflection = self._inflectionSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
 				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
+	@guard_errors(callback=got_error_callback)
 	def onRateBoostChange(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.rateBoost = self._rateBoostCheckBox.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
 				self._manager.onVoiceParameterConsistent(self.voiceInstance)
 
+	@guard_errors(callback=lambda self: None)
 	def onDiscard(self):
-		if not getSynth().name == 'WorldVoice':
+		if self.disable or not getSynth().name == 'WorldVoice':
 			return
-		for instance in self._manager._instanceCache.values():
-			instance.rollback()
+		try:
+			for instance in self._manager._instanceCache.values():
+				instance.rollback()
+		except:
+			pass
 
+	@guard_errors(callback=got_error_callback)
 	def onSave(self):
-		if not getSynth().name == 'WorldVoice':
+		if self.disable or not getSynth().name == 'WorldVoice':
 			return
 		temp = defaultdict(lambda: {})
 		for key, value in config.conf["WorldVoice"]["speechRole"].items():
@@ -531,23 +563,30 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 class UnicodeDetectionSettingsPanel(SettingsPanel):
 	title = _("Unicode Detection")
 
-	def __init__(self, parent):
-		self._synthInstance = getSynth()
-		super().__init__(parent)
-
 	def makeSettings(self, sizer):
-		if not self._synthInstance.name == 'WorldVoice':
-			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not WorldVoice.'))
-			infoLabel.Wrap(self.GetSize()[0])
-			sizer.Add(infoLabel)
+		self.disable = False
+		if not getSynth().name == 'WorldVoice':
+			infoCtrl = wx.TextCtrl(
+				self,
+				value=_('Your current speech synthesizer is not WorldVoice.'),
+				style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE
+			)
+			infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
+			sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
+			self.disable = True
 			return
 
-		self._manager = self._synthInstance._voiceManager
+		self._manager = getSynth()._voiceManager
 		self.ready = self._manager.ready()
 		if not self.ready:
-			infoLabel = wx.StaticText(self, label=_('Your current speech synthesizer is not ready.'))
-			infoLabel.Wrap(self.GetSize()[0])
-			sizer.Add(infoLabel)
+			infoCtrl = wx.TextCtrl(
+				self,
+				value=_('Your current speech synthesizer is not ready.'),
+				style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE
+			)
+			infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
+			sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
+			self.disable = True
 			return
 
 		self.localesToNames = self._manager.localesToNamesMap
@@ -624,8 +663,8 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			self._DLTChoice.Select(0)
 
 	def onSave(self):
-		if not self._synthInstance.name == 'WorldVoice':
-			return False
+		if self.disable or not getSynth().name == 'WorldVoice':
+			return
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = self._ignoreNumbersCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"] = self._ignorePunctuationCheckBox.GetValue()
 		if self._latinChoice.IsEnabled():
@@ -639,7 +678,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = current_DLT
 
 			# trigger register/unregister language detector
-			self._synthInstance.uwv = self._synthInstance.uwv
+			getSynth().uwv = getSynth().uwv
 
 
 class SpeechEngineSettingsPanel(BaseSettingsPanel):
@@ -799,16 +838,31 @@ class LogSettingsPanel(BaseSettingsPanel):
 
 
 class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
-	# translators: title of the dialog.
-	dialogTitle = _("Speech Settings")
-	title = "% s - %s" % (_("WorldVoice"), dialogTitle)
+	dialogTitle = _("Settings")
 	INITIAL_SIZE = (1000, 480)
 	MIN_SIZE = (470, 240)
 
-	categoryClasses = [
-		SpeechPipelinePanel,
-		SpeechRoleSettingsPanel,
-		SpeechEngineSettingsPanel,
-		UnicodeDetectionSettingsPanel,
-		LogSettingsPanel,
-	]
+	def __init__(self, parent):
+		if getSynth().name == 'WorldVoice':
+			self.categoryClasses = [
+				SpeechPipelinePanel,
+				SpeechRoleSettingsPanel,
+				SpeechEngineSettingsPanel,
+				UnicodeDetectionSettingsPanel,
+				LogSettingsPanel,
+			]
+		else:
+			self.categoryClasses = [
+				SpeechPipelinePanel,
+				SpeechEngineSettingsPanel,
+				LogSettingsPanel,
+			]
+		super().__init__(parent)  # 這時父類別會讀取 self.categoryClasses
+		self.SetTitle(_("WorldVoice - %s") % self.dialogTitle)
+
+		self.__class__.wvd = self
+		self.Bind(wx.EVT_WINDOW_DESTROY, self._onDestroy)
+
+	def _onDestroy(self, evt):
+		self.__class__.wvd = None
+		evt.Skip()
