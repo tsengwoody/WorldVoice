@@ -58,7 +58,7 @@ config.conf.spec["WorldVoice"] = {
 	},
 	"pipeline": {
 		"enable": "boolean(default=true)",
-		"scope": "string(default=all)",
+		"scope": "string(default=WorldVoice)",
 		"ignore_comma_between_number": "boolean(default=false)",
 		"number_mode": "string(default=value)",
 		"global_wait_factor": "integer(default=50,min=0,max=100)",
@@ -67,7 +67,7 @@ config.conf.spec["WorldVoice"] = {
 		"sayall_wait_factor": "integer(default=50,min=0,max=100)",
 		"chinesespace_wait_factor": "integer(default=50,min=0,max=100)",
 	},
-	"speechRole": {},
+	"role": {},
 	"engine": {
 		eng.name: f"boolean(default={str(eng.default_enabled)})"
 		for eng in EngineType
@@ -294,8 +294,6 @@ class SynthDriver(SynthDriver):
 		static_register()
 		order_move_to_start_register()
 
-		config.post_configProfileSwitch.register(self.detect_language_timing)
-
 		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
 		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
 
@@ -313,8 +311,6 @@ class SynthDriver(SynthDriver):
 
 	def terminate(self):
 		unregister()
-
-		config.post_configProfileSwitch.unregister(self.detect_language_timing)
 
 		gui.settingsDialogs.VoiceSettingsPanel = self.OriginVoiceSettingsPanel
 

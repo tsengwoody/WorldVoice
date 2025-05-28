@@ -174,16 +174,16 @@ class VoiceManager(object):
 
 	def onKeepEngineConsistent(self):
 		temp = defaultdict(lambda: {})
-		for key, value in config.conf["WorldVoice"]["speechRole"].items():
+		for key, value in config.conf["WorldVoice"]["role"].items():
 			if isinstance(value, config.AggregatedSection):
 				try:
-					temp[key]['voice'] = config.conf["WorldVoice"]["speechRole"][key]["voice"]
+					temp[key]['voice'] = config.conf["WorldVoice"]["role"][key]["voice"]
 				except KeyError:
 					pass
 			else:
-				temp[key] = config.conf["WorldVoice"]["speechRole"][key]
+				temp[key] = config.conf["WorldVoice"]["role"][key]
 
-		for localelo, data in config.conf["WorldVoice"]['speechRole'].items():
+		for localelo, data in config.conf["WorldVoice"]["role"].items():
 			if isinstance(data, config.AggregatedSection):
 				if (localelo not in self.localeToVoicesMap) or ('voice' in data and data['voice'] not in self.localeToVoicesMap[localelo]):
 					try:
@@ -192,18 +192,18 @@ class VoiceManager(object):
 						pass
 					# log.info(f"locale {localelo} voice {data['voice']} not available")
 
-		config.conf["WorldVoice"]["speechRole"] = temp
+		config.conf["WorldVoice"]["role"] = temp
 
 	def onKeepMainLocaleVoiceConsistent(self):
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
 			locale = self.defaultVoiceInstance.language if self.defaultVoiceInstance.language else languageHandler.getLanguage()
-			if locale not in config.conf["WorldVoice"]["speechRole"]:
-				config.conf["WorldVoice"]["speechRole"][locale] = {}
-			config.conf["WorldVoice"]["speechRole"][locale]['voice'] = self.defaultVoiceInstance.name
+			if locale not in config.conf["WorldVoice"]["role"]:
+				config.conf["WorldVoice"]["role"][locale] = {}
+			config.conf["WorldVoice"]["role"][locale]['voice'] = self.defaultVoiceInstance.name
 			locale = locale.split("_")[0]
-			if locale not in config.conf["WorldVoice"]["speechRole"]:
-				config.conf["WorldVoice"]["speechRole"][locale] = {}
-			config.conf["WorldVoice"]["speechRole"][locale]['voice'] = self.defaultVoiceInstance.name
+			if locale not in config.conf["WorldVoice"]["role"]:
+				config.conf["WorldVoice"]["role"][locale] = {}
+			config.conf["WorldVoice"]["role"][locale]['voice'] = self.defaultVoiceInstance.name
 
 	def reload(self):
 		for voiceName, instance in self._instanceCache.items():
@@ -302,18 +302,18 @@ class VoiceManager(object):
 
 	def _getConfiguredVoiceNameForLanguage(self, language):
 		voice = None
-		if language in config.conf["WorldVoice"]['speechRole']:
+		if language in config.conf["WorldVoice"]["role"]:
 			try:
-				voice = config.conf["WorldVoice"]['speechRole'][language]['voice']
+				voice = config.conf["WorldVoice"]["role"][language]['voice']
 			except KeyError:
 				pass
 		if not voice:
 			if '_' not in language:
 				return voice
 			language = language.split('_')[0]
-			if language in config.conf["WorldVoice"]['speechRole']:
+			if language in config.conf["WorldVoice"]["role"]:
 				try:
-					voice = config.conf["WorldVoice"]['speechRole'][language]['voice']
+					voice = config.conf["WorldVoice"]["role"][language]['voice']
 				except KeyError:
 					pass
 		return voice

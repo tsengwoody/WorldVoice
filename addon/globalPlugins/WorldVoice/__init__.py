@@ -22,14 +22,14 @@ ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
 
 
-def register():
+def global_pipeline_register():
 	if config.conf["WorldVoice"]["pipeline"]["scope"] == "all":
 		static_register()
 		dynamic_register()
 		order_move_to_start_register()
 
 
-def unregister():
+def global_pipeline_unregister():
 	if config.conf["WorldVoice"]["pipeline"]["scope"] == "all":
 		pipeline_unregister()
 
@@ -38,12 +38,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
 		super().__init__()
 
-		WVStart.register(unregister)
-		WVEnd.register(register)
+		WVStart.register(global_pipeline_unregister)
+		WVEnd.register(global_pipeline_register)
 
 		patch()
 		if getSynth().name != "WorldVoice":
-			register()
+			global_pipeline_register()
 
 		if globalVars.appArgs.secure:
 			return
@@ -60,10 +60,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 		unpatch()
 		if getSynth().name != "WorldVoice":
-			unregister()
+			global_pipeline_unregister()
 
-		WVStart.unregister(unregister)
-		WVEnd.unregister(register)
+		WVStart.unregister(global_pipeline_unregister)
+		WVEnd.unregister(global_pipeline_register)
 
 	def createMenu(self):
 		self.submenu_WorldVoice = wx.Menu()

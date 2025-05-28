@@ -337,9 +337,9 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			locale = self._locales[localeIndex]
 			voices = ["no-select"] + self._localeToVoices[locale]
 			self._voicesChoice.SetItems(voices)
-			if locale in config.conf["WorldVoice"]["speechRole"]:
+			if locale in config.conf["WorldVoice"]["role"]:
 				try:
-					voice = config.conf["WorldVoice"]["speechRole"][locale]["voice"]
+					voice = config.conf["WorldVoice"]["role"][locale]["voice"]
 				except BaseException:
 					self._voicesChoice.Select(0)
 					self.onVoiceChange(None)
@@ -512,10 +512,10 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		if self.disable or not getSynth().name == 'WorldVoice':
 			return
 		temp = defaultdict(lambda: {})
-		for key, value in config.conf["WorldVoice"]["speechRole"].items():
+		for key, value in config.conf["WorldVoice"]["role"].items():
 			if isinstance(value, config.AggregatedSection):
 				try:
-					temp[key]['voice'] = config.conf["WorldVoice"]["speechRole"][key]["voice"]
+					temp[key]['voice'] = config.conf["WorldVoice"]["role"][key]["voice"]
 				except KeyError:
 					pass
 
@@ -528,7 +528,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 				except BaseException:
 					pass
 
-		config.conf["WorldVoice"]["speechRole"] = temp
+		config.conf["WorldVoice"]["role"] = temp
 
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] = self._keepEngineConsistentCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = self._keepParameterConsistentCheckBox.GetValue()
@@ -813,6 +813,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 				)
 				if self.confirm == wx.CANCEL:
 					self._enable_checkbox.SetValue(False)
+					self.onEnableCheckboxChange(None)
 					return False
 		return True
 
