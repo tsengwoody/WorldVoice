@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: 'WorldVoice' '5.0'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
 "POT-Creation-Date: 2025-05-29 16:11+0800\n"
-"PO-Revision-Date: 2025-05-29 16:12+0800\n"
+"PO-Revision-Date: 2025-05-29 20:02+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -353,10 +353,8 @@ msgid "Keep main engine and locale engine consistent"
 msgstr "保持主要語音引擎與地區語音引擎一致"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:302
-#, fuzzy
-#| msgid "Keep main parameter and locale parameter consistent"
 msgid "Keep main speech role and locale speech role consistent"
-msgstr "保持主要語音參數與地區語音參數一致"
+msgstr "保持主要語音角色與地區語音角色一致"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:309
 msgid "Keep parameter settings consistent between different speech roles"
