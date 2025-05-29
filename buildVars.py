@@ -25,7 +25,7 @@ addon_info = {
 	# Translators: Long description to be shown for this add-on on add-on information from add-ons manager
 	"addon_description" : _("Multilingual synthesizers add-on: Automatically switch speech role according to text language; Integrated Espeak, OneCore, RHVoice, SAPI5, Piper speech engine"),
 	# version
-	"addon_version" : "2025.5.28",
+	"addon_version" : "2025.5.29",
 	# Author(s)
 	"addon_author" : "Tseng Woody <tsengwoody.tw@gmail.com>",
 	# URL for the add-on documentation support

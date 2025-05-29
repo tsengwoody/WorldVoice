@@ -299,14 +299,14 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 		self._keepConsistentCheckBox = wx.CheckBox(
 			self,
-			label=_("Keep main voice and locale voice consistent")
+			label=_("Keep main speech role and locale speech role consistent")
 		)
 		self._keepConsistentCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"])
 		settingsSizerHelper.addItem(self._keepConsistentCheckBox)
 
 		self._keepParameterConsistentCheckBox = wx.CheckBox(
 			self,
-			label=_("Keep main parameter and locale parameter consistent")
+			label=_("Keep parameter settings consistent between different speech roles")
 		)
 		self._keepParameterConsistentCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"])
 		settingsSizerHelper.addItem(self._keepParameterConsistentCheckBox)
