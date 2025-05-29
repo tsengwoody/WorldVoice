@@ -5,11 +5,11 @@ import wx
 import addonHandler
 import config
 import core
-import globalVars
 import gui
 from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 import languageHandler
+from logHandler import log
 import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
@@ -154,8 +154,6 @@ class SpeechPipelinePanel(SettingsPanel):
 
 	def onIgnoreCommaBetweenNumberCheckboxChange(self, event):
 		pass
-		# if getSynth().name == 'WorldVoice':
-		#	getSynth()._cni = self._ignore_comma_between_number_checkbox.GetValue()
 
 	def onGlobalWaitFactorSliderScroll(self, event):
 		pass
@@ -501,11 +499,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	def onDiscard(self):
 		if self.disable or not getSynth().name == 'WorldVoice':
 			return
-		try:
-			for instance in self._manager._instanceCache.values():
-				instance.rollback()
-		except:
-			pass
+		for instance in self._manager._instanceCache.values():
+			instance.rollback()
 
 	@guard_errors(callback=got_error_callback)
 	def onSave(self):
@@ -653,9 +648,9 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		self._DetectLanguageTimingValue = ["before", "after"]
 		self._DLTChoice = settingsSizerHelper.addLabeledControl(
 			_("Language detection timing:"),
-		wx.Choice,
-		choices=DetectLanguageTimingLabel
-	)
+			wx.Choice,
+			choices=DetectLanguageTimingLabel
+		)
 		self._DetectLanguageTiming = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 		try:
 			self._DLTChoice.Select(self._DetectLanguageTimingValue.index(self._DetectLanguageTiming))
@@ -688,7 +683,7 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 
 	def makeSettings(self, sizer):
 		enabled = [eng for eng in EngineType]
-		self.voice_classes: Dict[str, type] = self._load_voice_classes(enabled)
+		self.voice_classes: dict[str, type] = self._load_voice_classes(enabled)
 
 		self.readyEngine = []
 		for eng in enabled:
@@ -750,7 +745,7 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		Dynamically import voice classes based on EngineType definitions.
 		Returns a dict mapping engine-name (e.g. "VE") to the class object.
 		"""
-		classes: Dict[str, type] = {}
+		classes: dict[str, type] = {}
 		for eng in engines:
 			module_path = eng.module_path	  # e.g. "voice.VEVoice"
 			class_name = eng.class_name	   # e.g. "VEVoice"
@@ -801,7 +796,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 
 	def isValid(self) -> bool:
 		enabled_before = config.conf["WorldVoice"]["log"]["enable"]
-		enabled_after  = self._enable_checkbox.GetValue()
+		enabled_after = self._enable_checkbox.GetValue()
 		if enabled_before != enabled_after:
 			if enabled_after:
 				self.confirm = gui.messageBox(
@@ -819,7 +814,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 
 	def onSave(self):
 		enabled_before = config.conf["WorldVoice"]["log"]["enable"]
-		enabled_after  = self._enable_checkbox.GetValue()
+		enabled_after = self._enable_checkbox.GetValue()
 		if enabled_before != enabled_after:
 			if enabled_after:
 				if self.confirm == wx.YES:

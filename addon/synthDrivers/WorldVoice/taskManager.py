@@ -1,9 +1,7 @@
 import queue
 import threading
 
-import config
 from logHandler import log
-from synthDriverHandler import getSynth
 
 
 class TaskManager:

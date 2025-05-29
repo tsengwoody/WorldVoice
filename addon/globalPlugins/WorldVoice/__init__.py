@@ -162,7 +162,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				config.conf["WorldVoice"]["log"]["enable"] = False
 				try:
 					pl.export()
-				except:
+				except Exception:
 					pass
 
 	def enable_log_record(self):
@@ -187,6 +187,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		) == wx.YES:
 			try:
 				pl.export()
-			except:
+			except Exception:
 				pass
 			ui.message(_("turn off WorldVoice`s log record"))

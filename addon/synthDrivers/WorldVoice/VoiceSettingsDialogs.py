@@ -1,5 +1,4 @@
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
-import config
 import gui
 from gui.settingsDialogs import VoiceSettingsPanel
 from logHandler import log

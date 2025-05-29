@@ -1,7 +1,8 @@
 import wx
 from functools import wraps
 from logHandler import log
-import gui  # NVDA helper for wx.MessageBox
+import gui
+
 
 def guard_errors(callback=None):
 	"""
@@ -22,7 +23,7 @@ def guard_errors(callback=None):
 				log.error(f"Unhandled exception in {func.__qualname__}", exc_info=True)
 
 				# show a modal error dialog
-				result = gui.messageBox(
+				gui.messageBox(
 					# Body text
 					_("An unexpected error occurred while processing your action.\n\n"
 					  "Details: {err}\n\n"

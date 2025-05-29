@@ -4,9 +4,7 @@ import shutil
 import time
 
 import addonHandler
-import config
 import gui
-import ui
 import wx
 
 addonHandler.initTranslation()
@@ -15,6 +13,7 @@ parent_dir = script_dir.parent.parent
 
 log_dir = parent_dir / "log"
 log_dir.mkdir(parents=True, exist_ok=True)
+
 
 class PipelineLog:
 	FIELDNAMES = ["id", "label", "timing", "timestamp", "sequence"]
@@ -28,7 +27,6 @@ class PipelineLog:
 				writer.writeheader()
 
 	def write(self, _id, label, timing, sequence):
-		file_exists = self.log_file.exists()
 		with self.log_file.open(mode="a", encoding="utf-8", newline="") as csvfile:
 			writer = csv.DictWriter(csvfile, fieldnames=self.FIELDNAMES)
 			writer.writerow({

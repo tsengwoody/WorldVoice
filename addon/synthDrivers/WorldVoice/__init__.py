@@ -16,7 +16,6 @@ import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
-import tones
 
 from . import languageDetection
 
@@ -30,7 +29,7 @@ from .pipeline import (
 	static_register,
 	unregister,
 )
-from ._speechcommand import SplitCommand, WVLangChangeCommand
+from ._speechcommand import SplitCommand
 from .voice import Voice
 from .voice.engine import EngineType
 from .voiceManager import VoiceManager
@@ -363,7 +362,7 @@ class SynthDriver(SynthDriver):
 		hasText = False
 		charMode = False
 
-		voiceInstance = defaultInstance = self._voiceManager.defaultVoiceInstance
+		voiceInstance = self._voiceManager.defaultVoiceInstance
 		for command in speechSequence:
 			if voiceInstance.engine == "VE":
 				if isinstance(command, str):

@@ -73,12 +73,12 @@ class _SayAllHandler(sayAll._SayAllHandler):
 		reader.next()
 
 	def readText(
-		self,
-		cursor: CURSOR,
-		startPos: Optional[textInfos.TextInfo] = None,
-		nextLineFunc: Optional[Callable[[textInfos.TextInfo], textInfos.TextInfo]] = None,
-		shouldUpdateCaret: bool = True,
-		startedFromScript: bool | None = False,
+			self,
+			cursor: CURSOR,
+			startPos: Optional[textInfos.TextInfo] = None,
+			nextLineFunc: Optional[Callable[[textInfos.TextInfo], textInfos.TextInfo]] = None,
+			shouldUpdateCaret: bool = True,
+			startedFromScript: bool | None = False,
 	) -> None:
 		"""Start or restarts the reader
 		:param cursor: the type of cursor used for say all
@@ -158,9 +158,7 @@ class _TextReader(sayAll._TextReader):
 		seq = list(_flattenNestedSequences(speechGen))
 		seq.insert(0, cb)
 
-		synth = getSynth()
 		waitfactor = get_sayall_wait_factor()
-		print(waitfactor)
 		if waitfactor > 0:
 			seq.append(BreakCommand(waitfactor + 100))
 		# Speak the speech sequence.
@@ -196,11 +194,11 @@ class _ReviewTextReader(_TextReader, sayAll._ReviewTextReader):
 
 class _TableTextReader(_CaretTextReader):
 	def __init__(
-		self,
-		handler: _SayAllHandler,
-		startPos: Optional[textInfos.TextInfo] = None,
-		nextLineFunc: Optional[Callable[[textInfos.TextInfo], textInfos.TextInfo]] = None,
-		shouldUpdateCaret: bool = True,
+			self,
+			handler: _SayAllHandler,
+			startPos: Optional[textInfos.TextInfo] = None,
+			nextLineFunc: Optional[Callable[[textInfos.TextInfo], textInfos.TextInfo]] = None,
+			shouldUpdateCaret: bool = True,
 	):
 		self.startPos = startPos
 		self.nextLineFunc = nextLineFunc

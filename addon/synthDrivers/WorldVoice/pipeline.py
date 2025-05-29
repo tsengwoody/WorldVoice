@@ -5,11 +5,11 @@ import uuid
 
 import config
 from logHandler import log
-from speech.commands import BreakCommand, CharacterModeCommand, LangChangeCommand
+from speech.commands import BreakCommand, LangChangeCommand
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import getSynth
 
-from ._speechcommand import SplitCommand, WVLangChangeCommand
+from ._speechcommand import WVLangChangeCommand
 from .log import PipelineLog
 
 SpeechCmd = Union[str, "BaseSpeechCommand"]
@@ -29,7 +29,7 @@ def with_order_log(label: str):
 					synth = getSynth()
 					synth.order += 1
 					log.debug(f"{label} order {synth.order}")
-				except:
+				except Exception:
 					pass
 			yield from func(speechSequence)
 		return wrapper
@@ -85,7 +85,6 @@ def get_translate_table():
 		number_language = "Windows"
 		speech_symbols = None
 
-
 	# Build translation table for single digits
 	translate_table: dict[int, str] = {}
 	if speech_symbols:
@@ -137,7 +136,7 @@ def ignore_comma_between_number(speechSequence):
 # @with_order_log("item_wait_factor")
 @with_speech_sequence_log("item_wait_factor")
 def item_wait_factor(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert a BreakCommand between every two consecutive plain‑text items.
@@ -182,7 +181,7 @@ def item_wait_factor(
 
 
 def _insert_BreakCommand_between_number(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert a BreakCommand between every two consecutive plain‑text items.
@@ -222,7 +221,7 @@ def _insert_BreakCommand_between_number(
 	for previous, current in pairwise(full_iter):
 		yield previous					   # Always emit the previousious element.
 		if isinstance(previous, str) and _NUMBER_RE.match(previous) \
-			and isinstance(current, str) and _NUMBER_RE.match(current):
+		and isinstance(current, str) and _NUMBER_RE.match(current):
 			yield break_cmd			  # Insert pause when both are strings.
 
 	# pairwise() stops before the last element, so emit it here.
@@ -230,7 +229,7 @@ def _insert_BreakCommand_between_number(
 
 
 def _remove_space(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Yield items from *speechSequence* while removing blank strings on the fly.
@@ -257,7 +256,7 @@ def _remove_space(
 # @with_order_log("number_wait_factor")
 @with_speech_sequence_log("number_wait_factor")
 def number_wait_factor(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	speechSequence = _remove_space(speechSequence)
 	speechSequence = _insert_BreakCommand_between_number(speechSequence)
@@ -274,7 +273,7 @@ def remove_language_command(speechSequence):
 
 
 def _insert_WVLangChangeCommand_between_number(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Yield *speechSequence* while wrapping every numeric fragment with
@@ -326,7 +325,7 @@ def _insert_WVLangChangeCommand_between_number(
 # @with_order_log("number_language")
 @with_speech_sequence_log("number_language")
 def inject_number_langchange(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	synth = getSynth()
 	if hasattr(synth, "_voiceManager"):
@@ -379,14 +378,14 @@ def _translate_number(raw: str, mode: str, table: dict[int, str]) -> str:
 # @with_order_log("number_mode")
 @with_speech_sequence_log("number_mode")
 def change_number_mode(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	speechSequence = _change_number_mode(speechSequence)
 	yield from speechSequence
 
 
 def _change_number_mode(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	mode = get_number_mode()
 	translate_table = get_translate_table()
@@ -418,7 +417,7 @@ def _change_number_mode(
 # @with_order_log("chinesespace_wait_factor")
 @with_speech_sequence_log("chinesespace_wait_factor")
 def inject_chinese_space_pause(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	waitfactor = get_chinesespace_wait_factor()
 	if waitfactor <= 0:
@@ -466,8 +465,8 @@ def deduplicate_language_command(speechSequence):
 	synth = getSynth()
 
 	# Initial voice / language
-	voice_instance   = default_instance   = synth._voiceManager.defaultVoiceInstance
-	current_language = default_language   = synth.language
+	voice_instance = default_instance = synth._voiceManager.defaultVoiceInstance
+	current_language = default_language = synth.language
 
 	for command in speechSequence:
 		# Handle language-change commands
@@ -478,7 +477,7 @@ def deduplicate_language_command(speechSequence):
 
 			# Resolve the new language and its voice instance
 			if command.lang is None:					   # Revert to default language
-				new_instance	= default_instance
+				new_instance = default_instance
 				current_language = default_language
 			else:
 				new_instance = synth._voiceManager.getVoiceInstanceForLanguage(command.lang)
@@ -499,9 +498,9 @@ def deduplicate_language_command(speechSequence):
 
 
 def lang_cmd_to_voice(
-	speechSequence: Iterable[SpeechCmd],
-	voice_manager: "VoiceManager",
-	default_instance: "Voice",
+		speechSequence: Iterable[SpeechCmd],
+		voice_manager: "VoiceManager",
+		default_instance: "Voice",
 ) -> Iterator[SpeechCmd]:
 	"""
 	Convert each LangChangeCommand / WVLangChangeCommand into a Voice instance.
@@ -517,7 +516,7 @@ def lang_cmd_to_voice(
 
 
 def inject_langchange_reorder(
-	speechSequence: Iterable[SpeechCmd],
+		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Re-order language-change commands so that any LangChangeCommand /
@@ -527,7 +526,7 @@ def inject_langchange_reorder(
 	* plain string   ─→ append to buffer, then flush buffer.
 	* other commands ─→ just accumulate.
 	"""
-	buffer: List[SpeechCmd] = []
+	buffer: list[SpeechCmd] = []
 
 	for cmd in speechSequence:
 		if isinstance(cmd, (LangChangeCommand, WVLangChangeCommand)):

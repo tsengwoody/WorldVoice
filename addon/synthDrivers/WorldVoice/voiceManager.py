@@ -1,10 +1,9 @@
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
-from enum import Enum
 import importlib
 from operator import attrgetter
 import threading
-from typing import Callable, TypeVar, Dict, List, Tuple
+from typing import Callable, TypeVar, Dict, List
 
 import config
 import languageHandler
@@ -20,10 +19,10 @@ V = TypeVar("V")
 
 
 def groupByField(
-	arrSrc: List[T],
-	field: str,
-	applyKey: Callable[[str], K],
-	applyValue: Callable[[T], V]
+		arrSrc: List[T],
+		field: str,
+		applyKey: Callable[[str], K],
+		applyValue: Callable[[T], V]
 ) -> Dict[K, List[V]]:
 	groups: Dict[K, List[V]] = defaultdict(list)
 	for item in arrSrc:
