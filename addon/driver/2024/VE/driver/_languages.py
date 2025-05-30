@@ -1,6 +1,7 @@
 # Conversion from Vocalizer proprietary locale naming to NVDA locales.
 _vautoTLWToLocaleNames = {
 	"ARW": "ar", # Arabic
+	"ARG": "ar", # Gulf Arabic
 	"ENU": "en_US", # American English
 	"ENA": "en_AU", # Australian English
 	"BAE": "eu", # Basque
@@ -8,9 +9,19 @@ _vautoTLWToLocaleNames = {
 	"DUB": "nl_BE", # Belgian Dutch
 	"PTB": "pt_BR", # Brazilian Portuguese
 	"ENG": "en_GB", # British English
+	"FRB": "fr_BE", # Belgian French
 	"FRC": "fr_CA", # Canadian French
+	"FAI": "fa_IR", # Farsi
+	"MSM": "ms_MS", # Malay
+	"VIV": "vi_VN", # Vietnamese
 	"CAE": "ca", # Catalan
+	"SXC": "sx_CN", # Chinese Shanxiese
+	"SHC": "sh_CN", # Chinese Shanhaiese
+	"DOC": "db_CN", # Chinese Dontbei
+	"SIC": "sc_CN", # Chinese Sichuanese
 	"MNC": "zh_CN", # Chinese Mandarin
+	"MNT": "zh_TW", # Taiwanese Mandarin
+	"CAH": "zh_HK", # Hong Kong Cantonese
 	"CZC": "cs_CZ", # Czech
 	"HRH": "hr_HR", # Croatian
 	"BHI": "bh_IN", # bhojpuri
@@ -18,6 +29,7 @@ _vautoTLWToLocaleNames = {
 	"KAI": "kn_IN", # kannada
 	"MAI": "mr_IN", # marathi
 	"SPL": "es_CH", # spanish chile
+	"SLS": "SL_SI", # Slovenian
 	"TAI": "ta_IN", # tamil
 	"TEI": "te_IN", # telugu
 	"DAD": "da_DK", # Danish
@@ -28,7 +40,6 @@ _vautoTLWToLocaleNames = {
 	"GRG": "el_GR", # Greek
 	"HEI": "he_IL", # Hebrew
 	"HII": "hi_IN", # Hindi
-	"CAH": "zh_HK", # Hong Kong Cantonese
 	"HUH": "hu_HU", # Hungarian
 	"ENI": "en_IN", # Indian English
 	"IDI": "id_ID", # Indonesian
@@ -42,12 +53,12 @@ _vautoTLWToLocaleNames = {
 	"PTP": "pt_PT", # Portuguese
 	"ROR": "ro_RO", # Romanian
 	"RUR": "ru_RU", # Russian
+	"UKU": "uk_UA", # Ukrainian
 	"ENZ": "en_ZA", # South African  English
 	"ENS": "en_SC", # Scottish English
 	"SPE": "es_ES", # Spanish (spain)
 	"SKS": "sk", # Slovac
 	"SWS": "sv_SE", # Swedish (Sweden)
-	"MNT": "zh_TW", # Taiwanese Mandarin
 	"THT": "th_TH", # Thai (tahiland)
 	"TRT": "tr_TR", # Turkish
 	"GLE": "gl_ES", # Galician (spain)
