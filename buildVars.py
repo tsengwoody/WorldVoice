@@ -23,7 +23,7 @@ addon_info = {
 	"addon_summary" : _("WorldVoice"),
 	# Add-on description
 	# Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-	"addon_description" : _("Multilingual synthesizers add-on: Automatically switch speech role according to text language; Integrated Espeak, OneCore, RHVoice, SAPI5, Piper speech engine"),
+	"addon_description" : _("Multilingual synthesizer add-on: auto-switches voices across eSpeak, OneCore, SAPI5 & RHVoice based on text language."),
 	# version
 	"addon_version" : "2025.5.29",
 	# Author(s)
