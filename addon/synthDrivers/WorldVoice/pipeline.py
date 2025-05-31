@@ -4,6 +4,7 @@ from typing import Iterable, Iterator, Union
 import uuid
 
 import config
+from gui import speechViewer
 from logHandler import log
 from speech.commands import BreakCommand, LangChangeCommand
 from speech.extensions import filter_speechSequence
@@ -22,6 +23,7 @@ _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 
 def with_order_log(label: str):
+	""" The order numbers are reversed because of recursion: the order number assigned earlier execution is greater than that of a later execution."""
 	def decorator(func):
 		def wrapper(speechSequence):
 			if config.conf["general"]["loggingLevel"] == "DEBUG":
@@ -30,8 +32,8 @@ def with_order_log(label: str):
 					synth.order += 1
 					log.debug(f"{label} order {synth.order}")
 				except Exception:
-					pass
-			yield from func(speechSequence)
+					PASS
+			return func(speechSequence)
 		return wrapper
 	return decorator
 
@@ -54,7 +56,7 @@ def with_speech_sequence_log(label: str):
 					pl.write(_id, label, "after", speechSequence)
 			else:
 				speechSequence = func(speechSequence)
-			yield from speechSequence
+			return speechSequence
 		return wrapper
 	return decorator
 
@@ -122,6 +124,15 @@ def get_chinesespace_wait_factor():
 	else:
 		wait_factor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"]
 	return wait_factor
+
+
+# @with_order_log("speech_view")
+@with_speech_sequence_log("speech_viewer")
+def speech_viewer(speechSequence):
+	if speechViewer.isActive:
+		return list(speechSequence)
+	else:
+		return speechSequence
 
 
 # @with_order_log("ignore_comma_between_number")
@@ -553,6 +564,7 @@ def inject_langchange_reorder(
 
 def order_move_to_start_register():
 	# stack: first in last out
+	filter_speechSequence.moveToEnd(speech_viewer, False)
 	filter_speechSequence.moveToEnd(number_wait_factor, False)
 	filter_speechSequence.moveToEnd(item_wait_factor, False)
 
@@ -574,25 +586,29 @@ def order_move_to_end_register():
 	filter_speechSequence.moveToEnd(item_wait_factor, True)
 	filter_speechSequence.moveToEnd(number_wait_factor, True)
 
+	filter_speechSequence.moveToEnd(speech_viewer, True)
+
 
 def static_register():
-	print("static register")
+	log.debug("static register")
 
 	filter_speechSequence.register(inject_chinese_space_pause)
 	filter_speechSequence.register(inject_number_langchange)
 	filter_speechSequence.register(change_number_mode)
 	filter_speechSequence.register(number_wait_factor)
 
+	filter_speechSequence.register(speech_viewer)
+
 
 def dynamic_register():
-	print("dynamic register")
+	log.debug("dynamic register")
 
 	filter_speechSequence.register(ignore_comma_between_number)
 	filter_speechSequence.register(item_wait_factor)
 
 
 def unregister():
-	print("unregister")
+	log.debug("unregister")
 
 	filter_speechSequence.unregister(ignore_comma_between_number)
 
@@ -602,3 +618,5 @@ def unregister():
 
 	filter_speechSequence.unregister(item_wait_factor)
 	filter_speechSequence.unregister(number_wait_factor)
+
+	filter_speechSequence.unregister(speech_viewer)

@@ -144,8 +144,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		category=ADDON_SUMMARY,
 	)
 	def script_switch_log_record(self, gesture):
-		config.conf["WorldVoice"]["log"]["enable"] = not config.conf["WorldVoice"]["log"]["enable"]
-		if config.conf["WorldVoice"]["log"]["enable"]:
+		if not config.conf["WorldVoice"]["log"]["enable"]:
 			wx.CallAfter(self.enable_log_record)
 		else:
 			wx.CallAfter(self.disable_log_record)
