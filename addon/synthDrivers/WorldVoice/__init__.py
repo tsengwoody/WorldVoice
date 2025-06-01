@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import importlib
 import os
 import re
 import sys
@@ -7,6 +8,7 @@ from typing import Any
 import addonHandler
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, DriverSetting, NumericDriverSetting
 from autoSettingsUtils.utils import StringParameterInfo
+import buildVersion
 import config
 import extensionPoints
 import gui
@@ -33,6 +35,11 @@ from ._speechcommand import SplitCommand
 from .engine import EngineType
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
+
+version = "2024" if buildVersion.formatBuildVersionString().split(".")[0] == "2024" else "2025"
+module = importlib.import_module(f"synthDrivers.WorldVoice.driver.{version}")
+Voice = getattr(module, "Voice")
+
 
 _: Any
 
@@ -78,7 +85,6 @@ config.conf.spec["WorldVoice"] = {
 		"number_wait_factor": "boolean(default=false)",
 		"item_wait_factor": "boolean(default=false)",
 		"chinesespace_wait_factor": "boolean(default=false)",
-		"speech_viewer": "boolean(default=false)",
 	},
 	"voices": {
 		"__many__": {
