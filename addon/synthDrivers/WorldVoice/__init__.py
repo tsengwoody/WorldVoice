@@ -30,8 +30,7 @@ from .pipeline import (
 	unregister,
 )
 from ._speechcommand import SplitCommand
-from .voice import Voice
-from .voice.engine import EngineType
+from .engine import EngineType
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
@@ -79,7 +78,6 @@ config.conf.spec["WorldVoice"] = {
 		"number_wait_factor": "boolean(default=false)",
 		"item_wait_factor": "boolean(default=false)",
 		"chinesespace_wait_factor": "boolean(default=false)",
-		"speech_viewer": "boolean(default=false)",
 	},
 	"voices": {
 		"__many__": {

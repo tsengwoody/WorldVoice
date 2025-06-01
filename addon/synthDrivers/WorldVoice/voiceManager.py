@@ -11,7 +11,7 @@ from logHandler import log
 from synthDriverHandler import VoiceInfo
 
 from .taskManager import TaskManager
-from .voice.engine import EngineType
+from .engine import EngineType
 
 T = TypeVar("T")
 K = TypeVar("K")

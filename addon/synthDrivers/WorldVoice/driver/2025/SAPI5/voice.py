@@ -2,7 +2,7 @@ from .driver import SynthDriver as Sapi5Manager
 from .. import Voice
 
 
-class Sapi5Voice(Voice):
+class SAPI5Voice(Voice):
 	core = None
 	engine = "SAPI5"
 

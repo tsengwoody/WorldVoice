@@ -14,7 +14,7 @@ import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister, pl
-from synthDrivers.WorldVoice.voice.engine import EngineType
+from synthDrivers.WorldVoice.engine import EngineType
 import tones
 
 from .utils import guard_errors
@@ -766,7 +766,6 @@ class LogSettingsPanel(BaseSettingsPanel):
 		"number_wait_factor": {"label": _("number wait factor")},
 		"item_wait_factor": {"label": _("item wait factor")},
 		"chinesespace_wait_factor": {"label": _("chinese space wait factor")},
-		"speech_viewer": {"label": _("speech viewer")},
 	})
 
 	def makeSettings(self, settingsSizer):
