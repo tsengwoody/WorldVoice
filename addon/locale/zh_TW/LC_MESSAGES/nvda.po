@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '5.0'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2025-05-29 16:11+0800\n"
-"PO-Revision-Date: 2025-05-29 20:02+0800\n"
+"POT-Creation-Date: 2025-06-01 19:44+0800\n"
+"PO-Revision-Date: 2025-06-01 19:50+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -196,7 +196,7 @@ msgid "switch log record"
 msgstr "切換日誌紀錄"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\__init__.py:157
+#: addon\globalPlugins\WorldVoice\__init__.py:156
 msgid ""
 "Logging of WorldVoice’s speech pipeline is enabled. This may reduce speech "
 "response speed. If you are not debugging, we recommend disabling it. Would "
@@ -206,17 +206,17 @@ msgstr ""
 "議停用。您現在要停用嗎？"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\__init__.py:159
-#: addon\globalPlugins\WorldVoice\__init__.py:173
-#: addon\globalPlugins\WorldVoice\__init__.py:185
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:806
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:828
+#: addon\globalPlugins\WorldVoice\__init__.py:158
+#: addon\globalPlugins\WorldVoice\__init__.py:172
+#: addon\globalPlugins\WorldVoice\__init__.py:184
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:807
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:829
 msgid "Speech Pipeline Logging"
 msgstr "語音流程日誌"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\__init__.py:171
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:804
+#: addon\globalPlugins\WorldVoice\__init__.py:170
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:805
 msgid ""
 "Enabling logging of WorldVoice’s speech pipeline will reduce speech response "
 "speed. If you are not debugging, we recommend keeping it disabled. Would you "
@@ -225,19 +225,19 @@ msgstr ""
 "啟用 WorldVoice 語音流程日誌。啟用後將會降低語音回應速度。如非偵錯所需，建議"
 "維持關閉。是否仍要啟用？"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:177
+#: addon\globalPlugins\WorldVoice\__init__.py:176
 msgid "turn on WorldVoice`s log record"
 msgstr "開啟 WorldVoice 的日誌紀錄"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\__init__.py:183
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:826
+#: addon\globalPlugins\WorldVoice\__init__.py:182
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:827
 msgid ""
 "Logging of WorldVoice’s speech pipeline has been disabled. Would you like to "
 "export the pipeline log now?"
 msgstr "WorldVoice 語音流程日誌已停用。您是否要現在匯出日誌？"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:192
+#: addon\globalPlugins\WorldVoice\__init__.py:191
 msgid "turn off WorldVoice`s log record"
 msgstr "關閉 WorldVoice 的日誌紀錄"
 
@@ -259,18 +259,18 @@ msgstr "作用範圍："
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:101
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:763
-#: addon\synthDrivers\WorldVoice\__init__.py:141
-#: addon\synthDrivers\WorldVoice\__init__.py:224
+#: addon\synthDrivers\WorldVoice\__init__.py:148
+#: addon\synthDrivers\WorldVoice\__init__.py:231
 msgid "Ignore comma between number"
 msgstr "忽略在數字間的逗號"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:108
-#: addon\synthDrivers\WorldVoice\__init__.py:591
+#: addon\synthDrivers\WorldVoice\__init__.py:598
 msgid "value"
 msgstr "數值"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:109
-#: addon\synthDrivers\WorldVoice\__init__.py:592
+#: addon\synthDrivers\WorldVoice\__init__.py:599
 msgid "number"
 msgstr "數字"
 
@@ -447,8 +447,8 @@ msgstr "數字停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:767
-#: addon\synthDrivers\WorldVoice\__init__.py:181
-#: addon\synthDrivers\WorldVoice\__init__.py:264
+#: addon\synthDrivers\WorldVoice\__init__.py:188
+#: addon\synthDrivers\WorldVoice\__init__.py:271
 msgid "item wait factor"
 msgstr "項目停頓參數"
 
@@ -456,16 +456,20 @@ msgstr "項目停頓參數"
 msgid "chinese space wait factor"
 msgstr "中文空白停頓參數"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:775
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:769
+msgid "speech viewer"
+msgstr "語音檢視器"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:776
 msgid "Enable logging of WorldVoice’s speech pipeline"
 msgstr "啟用 WorldVoice 的語音流程日誌"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:837
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:838
 msgid "Settings"
 msgstr "設定"
 
 #. 這時父類別會讀取 self.categoryClasses
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:857
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:858
 #, python-format
 msgid "WorldVoice - %s"
 msgstr "WorldVoice - %s"
@@ -491,65 +495,69 @@ msgstr ""
 msgid "WorldVoice Setting Dialog - Error"
 msgstr "WorldVoice 設定 - 錯誤"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:134
-#: addon\synthDrivers\WorldVoice\__init__.py:137
-#: addon\synthDrivers\WorldVoice\__init__.py:217
-#: addon\synthDrivers\WorldVoice\__init__.py:220
+#: addon\synthDrivers\WorldVoice\__init__.py:141
+#: addon\synthDrivers\WorldVoice\__init__.py:144
+#: addon\synthDrivers\WorldVoice\__init__.py:224
+#: addon\synthDrivers\WorldVoice\__init__.py:227
 msgid "Detect language based on Unicode characters"
 msgstr "根據 Unicode 字元偵測語言"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:147
-#: addon\synthDrivers\WorldVoice\__init__.py:230
+#: addon\synthDrivers\WorldVoice\__init__.py:154
+#: addon\synthDrivers\WorldVoice\__init__.py:237
 msgid "Number &Language"
 msgstr "數字語言(&L)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:151
-#: addon\synthDrivers\WorldVoice\__init__.py:234
+#: addon\synthDrivers\WorldVoice\__init__.py:158
+#: addon\synthDrivers\WorldVoice\__init__.py:241
 msgid "Number Language"
 msgstr "數字語言"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:156
-#: addon\synthDrivers\WorldVoice\__init__.py:239
+#: addon\synthDrivers\WorldVoice\__init__.py:163
+#: addon\synthDrivers\WorldVoice\__init__.py:246
 msgid "Number &Mode"
 msgstr "數字模式(&M)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:160
-#: addon\synthDrivers\WorldVoice\__init__.py:243
+#: addon\synthDrivers\WorldVoice\__init__.py:167
+#: addon\synthDrivers\WorldVoice\__init__.py:250
 msgid "Number Mode"
 msgstr "數字模式"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:165
-#: addon\synthDrivers\WorldVoice\__init__.py:248
+#: addon\synthDrivers\WorldVoice\__init__.py:172
+#: addon\synthDrivers\WorldVoice\__init__.py:255
 msgid "Global wait factor"
 msgstr "全域停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:173
-#: addon\synthDrivers\WorldVoice\__init__.py:256
+#: addon\synthDrivers\WorldVoice\__init__.py:180
+#: addon\synthDrivers\WorldVoice\__init__.py:263
 msgid "Number wait factor"
 msgstr "數字停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:189
-#: addon\synthDrivers\WorldVoice\__init__.py:272
+#: addon\synthDrivers\WorldVoice\__init__.py:196
+#: addon\synthDrivers\WorldVoice\__init__.py:279
 msgid "Say all wait factor"
 msgstr "讀出全部停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:197
-#: addon\synthDrivers\WorldVoice\__init__.py:280
+#: addon\synthDrivers\WorldVoice\__init__.py:204
+#: addon\synthDrivers\WorldVoice\__init__.py:287
 msgid "Chinese space wait factor"
 msgstr "中文空白停頓參數"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:530
-#: addon\synthDrivers\WorldVoice\__init__.py:576
+#: addon\synthDrivers\WorldVoice\__init__.py:537
+#: addon\synthDrivers\WorldVoice\__init__.py:583
 msgid "default"
 msgstr "預設"
+
+#: addon\synthDrivers\WorldVoice\engine.py:14
+msgid "Enable "
+msgstr "啟用 "
 
 #. Translators: The title of the Export pipeline log file window
 #: addon\synthDrivers\WorldVoice\log.py:43
@@ -576,45 +584,33 @@ msgstr ""
 "無法匯出日誌到 {}:\n"
 "{}"
 
-#: addon\synthDrivers\WorldVoice\voice\engine.py:12
-msgid "Enable OneCore"
-msgstr "啟用 OneCore"
-
-#: addon\synthDrivers\WorldVoice\voice\engine.py:17
-msgid "Enable SAPI5"
-msgstr "啟用 SAPI5"
-
-#: addon\synthDrivers\WorldVoice\voice\engine.py:22
-msgid "Enable Espeak"
-msgstr "啟用 Espeak"
-
-#: addon\synthDrivers\WorldVoice\voice\engine.py:27
-msgid "Enable RH"
-msgstr "啟用 RH"
-
-#: addon\synthDrivers\WorldVoice\voice\engine.py:32
-msgid "Enable IBM"
-msgstr "啟用 IBM"
-
-#: addon\synthDrivers\WorldVoice\voice\engine.py:37
-msgid "Enable Aisound"
-msgstr "啟用 Aisound"
-
-#: addon\synthDrivers\WorldVoice\voice\engine.py:42
-msgid "Enable VE"
-msgstr "啟用  VE"
-
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
 #: buildVars.py:26
 msgid ""
-"Multilingual synthesizers add-on: Automatically switch speech role according "
-"to text language; Integrated Espeak, OneCore, RHVoice, SAPI5, Piper speech "
-"engine"
+"Multilingual synthesizer add-on: auto-switches voices across eSpeak, "
+"OneCore, SAPI5 & RHVoice based on text language."
 msgstr ""
-"Multilingual synthesizers add-on: Automatically switch speech role according "
-"to text language; Integrated Espeak, OneCore, RHVoice, SAPI5, Piper speech "
-"engine"
+"多語系語音合成器附加元件：根據文字語言自動切換語音角色，跨 eSpeak、OneCore、"
+"SAPI5 與 RHVoice 。"
+
+#~ msgid "Enable OneCore"
+#~ msgstr "啟用 OneCore"
+
+#~ msgid "Enable SAPI5"
+#~ msgstr "啟用 SAPI5"
+
+#~ msgid "Enable Espeak"
+#~ msgstr "啟用 Espeak"
+
+#~ msgid "Enable IBM"
+#~ msgstr "啟用 IBM"
+
+#~ msgid "Enable Aisound"
+#~ msgstr "啟用 Aisound"
+
+#~ msgid "Enable VE"
+#~ msgstr "啟用  VE"
 
 #~ msgid "Keep main voice and locale voice consistent"
 #~ msgstr "保持主要語音角色與地區語音角色一致"
