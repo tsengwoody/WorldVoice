@@ -766,6 +766,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 		"number_wait_factor": {"label": _("number wait factor")},
 		"item_wait_factor": {"label": _("item wait factor")},
 		"chinesespace_wait_factor": {"label": _("chinese space wait factor")},
+		"speech_viewer": {"label": _("speech viewer")},
 	})
 
 	def makeSettings(self, settingsSizer):
