@@ -100,9 +100,9 @@ class RHVoice(Voice):
 		return True
 
 	@classmethod
-	def engineOn(cls, lock=None):
+	def engineOn(cls):
 		if not cls.core:
-			cls.core = RHManager(lock)
+			cls.core = RHManager()
 
 	@classmethod
 	def engineOff(cls):

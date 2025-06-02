@@ -210,11 +210,6 @@ class SapiSink(COMObject):
 		synth.isSpeaking = False
 		synthDoneSpeaking.notify(synth=synth)
 
-		try:
-			synth.lock.release()
-		except RuntimeError:
-			pass
-
 	def onIndexReached(self, streamNum: int, index: int):
 		synth = self.synthRef()
 		if synth is None:
@@ -264,12 +259,11 @@ class SynthDriver(SynthDriver):
 		except:  # noqa: E722
 			return False
 
-	def __init__(self, lock, _defaultVoiceToken=None):
+	def __init__(self, _defaultVoiceToken=None):
 		"""
 		@param _defaultVoiceToken: an optional sapi voice token which should be used as the default voice (only useful for subclasses)
 		@type _defaultVoiceToken: ISpeechObjectToken
 		"""
-		self.lock = lock
 		self._pitch = 50
 		self._rate = 50
 		self._volume = 100

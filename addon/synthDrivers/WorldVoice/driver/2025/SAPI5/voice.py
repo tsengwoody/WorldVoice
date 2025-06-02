@@ -106,9 +106,9 @@ class SAPI5Voice(Voice):
 		return True
 
 	@classmethod
-	def engineOn(cls, lock):
+	def engineOn(cls):
 		if not cls.core:
-			cls.core = Sapi5Manager(lock)
+			cls.core = Sapi5Manager()
 
 	@classmethod
 	def engineOff(cls):

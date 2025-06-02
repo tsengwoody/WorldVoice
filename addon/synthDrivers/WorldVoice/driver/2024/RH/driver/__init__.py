@@ -330,8 +330,7 @@ class MarkCallback:
 
 
 class DoneCallback:
-    def __init__(self, synth, lib, player, cancel_flag, lock):
-        self.lock = lock
+    def __init__(self, synth, lib, player, cancel_flag):
         self.__synth = synth
         self.__lib = lib
         self.__player = player
@@ -345,14 +344,9 @@ class DoneCallback:
             self.__player.idle()
             if self.__cancel_flag.is_set():
                 return
-            # synthDoneSpeaking.notify(synth=self.__synth)
+            synthDoneSpeaking.notify(synth=self.__synth)
         except Exception:
             log.error("RHVoice done callback", exc_info=True)
-
-        try:
-            self.lock.release()
-        except RuntimeError:
-            pass
 
 
 class SpeakText:
@@ -502,8 +496,7 @@ class SynthDriver(SynthDriver):
             for name in ["data", "langdata", "lang2data"]
             if os.path.isdir(os.path.join(addon.path, name))]
 
-    def __init__(self, lock):
-        self.lock = lock
+    def __init__(self):
         self.__lib = load_tts_library()
         self.__cancel_flag = threading.Event()
         self.__player = AudioPlayer(self, self.__cancel_flag)
@@ -513,7 +506,7 @@ class SynthDriver(SynthDriver):
         self.__c_speech_callback = RHVoice_callback_types.play_speech(self.__speech_callback)
         self.__mark_callback = MarkCallback(self.__lib, self.__player)
         self.__c_mark_callback = RHVoice_callback_types.process_mark(self.__mark_callback)
-        self.__done_callback = DoneCallback(self, self.__lib, self.__player, self.__cancel_flag, self.lock)
+        self.__done_callback = DoneCallback(self, self.__lib, self.__player, self.__cancel_flag)
         self.__c_done_callback = RHVoice_callback_types.done(self.__done_callback)
         resource_paths = self.__get_resource_paths()
         c_resource_paths = (c_char_p*(len(resource_paths)+1))(*(resource_paths+[None]))

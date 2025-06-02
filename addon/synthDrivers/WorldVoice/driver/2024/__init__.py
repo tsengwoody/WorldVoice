@@ -25,7 +25,7 @@ VOICE_PARAMETERS = [
 
 
 class Voice(object):
-	speaking = threading.Lock()
+	# speaking = threading.Lock()
 
 	def __init__(self, id, taskManager):
 		self.id = id
@@ -116,11 +116,11 @@ class Voice(object):
 		raise NotImplementedError
 
 	@classmethod
-	def engineOn(cls, lock=None, taskManager=None):
+	def engineOn(cls):
 		raise NotImplementedError
 
 	@classmethod
-	def engineOff(cls, taskManager=None):
+	def engineOff(cls):
 		raise NotImplementedError
 
 	@classmethod

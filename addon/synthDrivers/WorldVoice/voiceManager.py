@@ -42,6 +42,16 @@ class VoiceMeta:
 	locale: str
 
 
+lock = threading.Lock()
+
+def unlock_action():
+	global lock
+	try:
+		lock.release()
+	except RuntimeError:
+		pass
+	log.info("unlock")
+
 class VoiceManager(object):
 	@classmethod
 	def ready(cls):
@@ -49,7 +59,9 @@ class VoiceManager(object):
 
 	def __init__(self):
 		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]
-		self.lock = threading.Lock()
+		global lock
+		self.lock = lock
+		# self.lock = threading.Lock()
 		self.taskManager = TaskManager(lock=self.lock)
 
 		enabled = [
@@ -64,7 +76,7 @@ class VoiceManager(object):
 			cls = self.voice_classes[eng.name]
 			try:
 				if cls.ready():
-					cls.engineOn(self.lock)
+					cls.engineOn()
 					self.installEngine.append(cls)
 			except Exception as e:
 				log.error("engine %s on error: %s", eng.name, e)

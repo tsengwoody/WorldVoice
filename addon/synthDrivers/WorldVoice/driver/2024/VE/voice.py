@@ -190,9 +190,9 @@ class VEVoice(Voice):
 			return False
 
 	@classmethod
-	def engineOn(cls, lock):
+	def engineOn(cls):
 		try:
-			_vocalizer.initialize(lock)
+			_vocalizer.initialize()
 		except _vocalizer.VeError as e:
 			if e.code == _vocalizer.VAUTONVDA_ERROR_INVALID:
 				log.info("Vocalizer license for NVDA is Invalid")

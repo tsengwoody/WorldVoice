@@ -33,7 +33,7 @@ from .pipeline import (
 )
 from ._speechcommand import SplitCommand
 from .engine import EngineType
-from .voiceManager import VoiceManager
+from .voiceManager import VoiceManager, unlock_action
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
 version = "2024" if buildVersion.formatBuildVersionString().split(".")[0] == "2024" else "2025"
@@ -100,6 +100,10 @@ config.conf.spec["WorldVoice"] = {
 
 WVStart = extensionPoints.Action()
 WVEnd = extensionPoints.Action()
+
+def hint():
+	pass
+	# tones.beep(100, 100)
 
 
 class SynthDriver(SynthDriver):
@@ -293,6 +297,7 @@ class SynthDriver(SynthDriver):
 		return settings
 
 	def __init__(self):
+		synthDoneSpeaking.register(unlock_action)
 		WVStart.notify()
 
 		self.order = 0

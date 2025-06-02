@@ -211,8 +211,7 @@ class SynthDriver(SynthDriver):
 	def check(cls):
 		return True
 
-	def __init__(self, lock):
-		self.lock = lock
+	def __init__(self):
 		_espeak.initialize(self._onIndexReached)
 		log.info("Using eSpeak NG version %s" % _espeak.info())
 		lang = getLanguage()
@@ -483,11 +482,7 @@ class SynthDriver(SynthDriver):
 		if index is not None:
 			synthIndexReached.notify(synth=self, index=index)
 		else:
-			# synthDoneSpeaking.notify(synth=self)
-			try:
-				self.lock.release()
-			except RuntimeError:
-				pass
+			synthDoneSpeaking.notify(synth=self)
 
 	def terminate(self):
 		_espeak.terminate()

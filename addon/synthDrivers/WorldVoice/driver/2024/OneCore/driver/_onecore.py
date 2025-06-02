@@ -173,9 +173,8 @@ class OneCoreManager:
 	def supportsProsodyOptions(self):
 		return self._dll.ocSpeech_supportsProsodyOptions()
 
-	def __init__(self, lock):
+	def __init__(self):
 		super().__init__()
-		self.lock = lock
 		self._dll = NVDAHelper.getHelperLocalWin10Dll()
 		self._dll.ocSpeech_getCurrentVoiceLanguage.restype = ctypes.c_wchar_p
 		# Set initial values for parameters that can't be queried when prosody is not supported.
@@ -377,10 +376,6 @@ class OneCoreManager:
 				log.debug("Calling idle on audio player")
 			self._player.idle()
 			synthDoneSpeaking.notify(synth=getSynth())
-			try:
-				self.lock.release()
-			except:
-				pass
 		while self._queuedSpeech:
 			item = self._queuedSpeech.pop(0)
 			if isinstance(item, tuple):

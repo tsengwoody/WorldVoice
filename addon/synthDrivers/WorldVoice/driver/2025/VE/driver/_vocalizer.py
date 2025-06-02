@@ -36,11 +36,11 @@ class BgThread(threading.Thread):
 	def __init__(self, bgQueue):
 		super().__init__()
 		self._bgQueue = bgQueue
-		self.setDaemon(True)
+		self.daemon = True
 		self.start()
 
 	def run(self):
-		global speakingInstance, feedBuf, voiceLock
+		global speakingInstance, feedBuf
 		while True:
 			breakCommand = False
 			instance, inText = self._bgQueue.get()
@@ -65,11 +65,8 @@ class BgThread(threading.Thread):
 				q.task_done()
 			except Exception:
 				pass
-			if voiceLock:
-				try:
-					voiceLock.release()
-				except RuntimeError:
-					pass
+
+			synthDoneSpeaking.notify(synth=getSynth())
 
 @VE_CBOUTNOTIFY
 def callback(instance, userData, message):
@@ -197,7 +194,7 @@ def preInitialize():
 	veDll.ve_ttsInitialize(byref(installResources), byref(hSpeechClass))
 
 
-def initialize(lock):
+def initialize():
 	""" Initializes communication with vocalizer libraries. """
 	global veDll, platformDll, hSpeechClass, installResources, bgThread, bgQueue
 	global pcmBuf, pcmBufLen, feedBuf, markBufSize, markBuf, player, onIndexReached
@@ -227,9 +224,6 @@ def initialize(lock):
 	global sonicStream
 	sonicStream = SonicStream(sampleRate, 1)   # 1 = mono
 	sonicStream.speed = 1.0                    # default normal
-
-	global voiceLock
-	voiceLock = lock
 
 
 def _onVoiceLoad(instance, voiceName):
@@ -304,8 +298,6 @@ def terminate():
 	player = None
 	postTerminate()
 
-	global voiceLock
-	voiceLock = None
 
 # FIXME: this should be moved to NVDA's winKernel
 def freeLibrary(handle):
@@ -350,7 +342,7 @@ def processBreak(instance, breakTime):
 	bgQueue.put((instance, breakTime),)
 
 def speakBlock(instance, arg):
-	global speakingInstance, feedBuf, voiceLock
+	global speakingInstance, feedBuf
 
 	if not instance:
 		return
@@ -372,22 +364,14 @@ def speakBlock(instance, arg):
 	except Exception as e:
 		log.error("Error running function from queue", exc_info=True)
 
-	if voiceLock:
-		try:
-			voiceLock.release()
-		except RuntimeError:
-			pass
+	synthDoneSpeaking.notify(synth=getSynth())
 
 def breakBlock(instance, arg):
-	global speakingInstance, feedBuf, voiceLock
+	global speakingInstance, feedBuf
 
 	time.sleep(arg/1000)
 
-	if voiceLock:
-		try:
-			voiceLock.release()
-		except RuntimeError:
-			pass
+	synthDoneSpeaking.notify(synth=getSynth())
 
 def stopBlock():
 	""" Stops speaking of some text. """
@@ -564,5 +548,3 @@ def preOpenVocalizer():
 	finally:
 		if player is None:
 			postTerminate()
-
-voiceLock = None

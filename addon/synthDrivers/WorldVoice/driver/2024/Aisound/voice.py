@@ -118,21 +118,15 @@ class AisoundVoice(Voice):
 		return os.path.isfile(os.path.join(cls.workspace, 'aisound.dll'))
 
 	@classmethod
-	def engineOn(cls, lock):
+	def engineOn(cls):
 		if not cls.core:
 			cls.core = _aisound.Aisound()
-		try:
-			_aisound.initialize(lock)
-		except BaseException:
-			raise
 
 	@classmethod
 	def engineOff(cls):
 		if cls.core:
 			cls.core.terminate()
 			cls.core = None
-
-		_aisound.terminate()
 
 	@classmethod
 	def voices(cls):

@@ -106,9 +106,9 @@ class IBMVoice(Voice):
 		return True
 
 	@classmethod
-	def engineOn(cls, lock=None):
+	def engineOn(cls):
 		if not cls.core:
-			cls.core = IBMManager(lock)
+			cls.core = IBMManager()
 
 	@classmethod
 	def engineOff(cls):

@@ -83,7 +83,6 @@ def ensureWaveOutHooks(dllPath):
 @aisound_callback_t
 def callback(type,cbData):
 	global lastSpeakInstance
-	global voiceLock
 	if type==SPEECH_BEGIN:
 		if cbData==None:
 			lastSpeakInstance.lastIndex=0
@@ -93,12 +92,6 @@ def callback(type,cbData):
 	elif type==SPEECH_END:
 		lastSpeakInstance.isPlaying=False
 		synthDoneSpeaking.notify(synth=getSynth())
-
-		if voiceLock:
-			try:
-				voiceLock.release()
-			except RuntimeError:
-				pass
 
 
 class Aisound(object):
@@ -151,16 +144,6 @@ class Aisound(object):
 	def Resume(self):
 		return self.wrapperDLL.aisound_resume()
 
-
-voiceLock = None
-
-def initialize(lock):
-	global voiceLock
-	voiceLock = lock
-
-def terminate():
-	global voiceLock
-	voiceLock = None
 
 def speakBlock(instance, arg, mode):
 	voiceInstance = instance

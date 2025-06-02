@@ -104,9 +104,9 @@ class EspeakVoice(Voice):
 		return True
 
 	@classmethod
-	def engineOn(cls, lock=None):
+	def engineOn(cls):
 		if not cls.core:
-			cls.core = EspeakManager(lock)
+			cls.core = EspeakManager()
 
 	@classmethod
 	def engineOff(cls):
