@@ -10,7 +10,6 @@ import languageHandler
 from logHandler import log
 from synthDriverHandler import VoiceInfo
 
-from .taskManager import TaskManager
 from .engine import EngineType
 
 T = TypeVar("T")
@@ -42,27 +41,14 @@ class VoiceMeta:
 	locale: str
 
 
-lock = threading.Lock()
-
-def unlock_action():
-	global lock
-	try:
-		lock.release()
-	except RuntimeError:
-		pass
-	log.info("unlock")
-
 class VoiceManager(object):
 	@classmethod
 	def ready(cls):
 		return True
 
-	def __init__(self):
+	def __init__(self, taskManager):
 		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]
-		global lock
-		self.lock = lock
-		# self.lock = threading.Lock()
-		self.taskManager = TaskManager(lock=self.lock)
+		self.taskManager = taskManager
 
 		enabled = [
 			eng for eng in EngineType

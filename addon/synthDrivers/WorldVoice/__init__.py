@@ -3,6 +3,7 @@ import importlib
 import os
 import re
 import sys
+import threading
 from typing import Any
 
 import addonHandler
@@ -13,14 +14,14 @@ import config
 import extensionPoints
 import gui
 import languageHandler
-from logHandler import log
+from logHandler import log as NVDAlog
 import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
 from . import languageDetection
-
+from .engine import EngineType
 from .pipeline import (
 	ignore_comma_between_number,
 	item_wait_factor,
@@ -32,8 +33,8 @@ from .pipeline import (
 	unregister,
 )
 from ._speechcommand import SplitCommand
-from .engine import EngineType
-from .voiceManager import VoiceManager, unlock_action
+from .taskManager import TaskManager
+from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
 version = "2024" if buildVersion.formatBuildVersionString().split(".")[0] == "2024" else "2025"
@@ -101,9 +102,16 @@ config.conf.spec["WorldVoice"] = {
 WVStart = extensionPoints.Action()
 WVEnd = extensionPoints.Action()
 
-def hint():
-	pass
-	# tones.beep(100, 100)
+log = NVDAlog
+lock = threading.Lock()
+
+
+def unlock_action():
+	global lock
+	try:
+		lock.release()
+	except RuntimeError:
+		pass
 
 
 class SynthDriver(SynthDriver):
@@ -308,7 +316,9 @@ class SynthDriver(SynthDriver):
 		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
 		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
 
-		self._voiceManager = VoiceManager()
+		global lock
+		self.taskManager = TaskManager(lock=lock)
+		self._voiceManager = VoiceManager(taskManager=self.taskManager)
 
 		self._realSpellingFunc = speech.speech.speakSpelling
 		speech.speech.speakSpelling = self.patchedSpeakSpelling
@@ -329,11 +339,14 @@ class SynthDriver(SynthDriver):
 
 		try:
 			self.cancel()
-			self._voiceManager.terminate()
 		except BaseException:
 			log.error("WorldVoice terminate", exc_info=True)
 
+		self._voiceManager.terminate()
+		self._voiceManager = None
+
 		WVEnd.notify()
+		synthDoneSpeaking.unregister(unlock_action)
 
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)
