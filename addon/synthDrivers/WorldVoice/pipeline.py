@@ -32,7 +32,7 @@ def with_order_log(label: str):
 					synth.order += 1
 					log.debug(f"{label} order {synth.order}")
 				except Exception:
-					PASS
+					pass
 			return func(speechSequence)
 		return wrapper
 	return decorator

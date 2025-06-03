@@ -22,7 +22,6 @@ DEFAULT_ENABLED = {"VE", "OneCore", "SAPI5"}
 EngineType = Enum("EngineType", ENGINE_SPECS)
 
 
-
 def module_path(self) -> str:
 	return self.value[0]
 

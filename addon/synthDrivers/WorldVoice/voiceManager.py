@@ -2,7 +2,6 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 import importlib
 from operator import attrgetter
-import threading
 from typing import Callable, TypeVar, Dict, List
 
 import config
