@@ -11,7 +11,7 @@ ENGINE_SPECS = {
 	key: (
 		f"synthDrivers.WorldVoice.driver.{version}.{key}.voice",
 		f"{key}Voice",
-		_("Enable ") + key
+		key
 	) for key in ["OneCore", "SAPI5", "Espeak", "RH", "Aisound", "IBM", "VE"]
 }
 

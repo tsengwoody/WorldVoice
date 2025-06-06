@@ -682,6 +682,17 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 	field = "engine"
 
 	def makeSettings(self, sizer):
+		infoCtrl = wx.TextCtrl(
+			self,
+			value=_('Please select one or more speech engines to enable.'),
+			style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE
+		)
+		infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
+		sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
+
+		group_sizer = wx.StaticBoxSizer(wx.StaticBox(self, label=_("Select Speech Engines to Enable")), wx.VERTICAL)
+		sizer.Add(group_sizer, proportion=1, flag=wx.EXPAND)
+
 		enabled = [eng for eng in EngineType]
 		self.voice_classes: dict[str, type] = self._load_voice_classes(enabled)
 
@@ -700,7 +711,7 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 			if eng.name in self.readyEngine
 		})
 
-		super().makeSettings(sizer)
+		super().makeSettings(group_sizer)
 
 		self.previousActiveEngine = set([
 			key
