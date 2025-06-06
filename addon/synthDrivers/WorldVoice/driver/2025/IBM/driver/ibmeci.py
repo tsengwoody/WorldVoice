@@ -4,7 +4,7 @@
 #synthDrivers/ibmeci.py
 
 import six, synthDriverHandler, languageHandler, os, re
-from synthDriverHandler import synthDoneSpeaking, SynthDriver, synthIndexReached, VoiceInfo
+from synthDriverHandler import synthDoneSpeaking, SynthDriver, synthIndexReached, VoiceInfo, getSynth
 
 from collections import OrderedDict
 from six import string_types
@@ -46,12 +46,12 @@ english_fixes = {
 	#Don't break UK formatted dates.
 	re.compile(br"\b(\d+)  (January|February|March|April|May|June|July|August|September|October|November|December)\b"): br"\1 \2",
 	#Crash words, formerly part of anticrash_res.
-	re.compile(br'\b(.*?)c(ae|\xe6)sur(e)?', re.I): br'\1seizur',
+	re.compile(br'c(ae|\xe6)sur(e)?', re.I): br'seizur',
 	re.compile(br"\b(|\d+|\W+)h'(r|v)[e]", re.I): br"\1h \2e",
-	re.compile(br"\b(\w+[bdfhjlmnqrvz])(h[he]s)([abcdefghjklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
+	re.compile(br"\b(\w+[bdfhjlmnqrvyz])(h[he]s)([abcdefghjklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
 	re.compile(br"\b(\w+[bdfhjlmnqrvz])(h[he]s)(iron+[degins]?)", re.I): br"\1 \2\3",
-	re.compile(br"\b(\w+'{1,}[bcdfghjklmnpqrstvwxz])'*(h+[he]s)([abcdefghijklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
-	re.compile(br"\b(\w+[bcdfghjklmnpqrstvwxz])('{1,}h+[he]s)([abcdefghijklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
+	re.compile(br"\b(\w+'{1,}[bcdfghjklmnpqrstvwxyz])'*(h+[he]s)([abcdefghijklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
+	re.compile(br"\b(\w+[bcdfghjklmnpqrstvwxyz])('{1,}h+[he]s)([abcdefghijklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
 	re.compile(br"(\d):(\d\d[snrt][tdh])", re.I): br"\1 \2",
 	re.compile(br"\b([bcdfghjklmnpqrstvwxz]+)'([bcdefghjklmnpqrstvwxz']+)'([drtv][aeiou]?)", re.I): br"\1 \2 \3",
 	re.compile(br"\b(you+)'(re)+'([drv]e?)", re.I): br"\1 \2 \3",
@@ -75,12 +75,12 @@ english_ibm_fixes = {
 	#Mostly duplicates english_fixes, but removes unneded replacements.
 	#This won't crash, but ViaVoice doesn't like spaces in Mc names.
 	re.compile(br"\b(Mc)\s+([A-Z][a-z]|[A-Z][A-Z]+)"): br"\1\2",
-	re.compile(br'\b(.*?)c(ae|\xe6)sur(e)?', re.I): br'\1seizur',
+	re.compile(br'c(ae|\xe6)sur(e)?', re.I): br'seizur',
 	re.compile(br"\b(|\d+|\W+)h'(r|v)[e]", re.I): br"\1h \2e",
-	re.compile(br"\b(\w+[bdfhjlmnqrvz])(h[he]s)([abcdefghjklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
-	re.compile(br"\b(\w+[bdfhjlmnqrvz])(h[he]s)(iron+[degins]?)", re.I): br"\1 \2\3",
-	re.compile(br"\b(\w+'{1,}[bcdfghjklmnpqrstvwxz])'*(h+[he]s)([abcdefghijklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
-	re.compile(br"\b(\w+[bcdfghjklmnpqrstvwxz])('{1,}h+[he]s)([abcdefghijklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
+	re.compile(br"\b(\w+[bdfhjlmnqrvyz])(h[he]s)([abcdefghjklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
+	re.compile(br"\b(\w+[bdfhjlmnqrvyz])(h[he]s)(iron+[degins]?)", re.I): br"\1 \2\3",
+	re.compile(br"\b(\w+'{1,}[bcdfghjklmnpqrstvwxyz])'*(h+[he]s)([abcdefghijklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
+	re.compile(br"\b(\w+[bcdfghjklmnpqrstvwxyz])('{1,}h+[he]s)([abcdefghijklmnopqrstvwy]\w+)\b", re.I): br"\1 \2\3",
 	re.compile(br"(\d):(\d\d[snrt][tdh])", re.I): br"\1 \2",
 	re.compile(br"\b([bcdfghjklmnpqrstvwxz]+)'([bcdefghjklmnpqrstvwxz']+)'([drtv][aeiou]?)", re.I): br"\1 \2 \3",
 	re.compile(br"\b(you+)'(re)+'([drv]e?)", re.I): br"\1 \2 \3",
@@ -117,15 +117,16 @@ spanish_ibm_anticrash = {
 	re.compile(br'(\d{12,}[123679])(\xaa)'): br'\1 \2',
 }
 german_fixes = {
-# Crash words.
-	re.compile(br'dane-ben', re.I): br'dane- ben',
-	re.compile(br'dage-gen', re.I): br'dage- gen',
-	re.compile(br'(audio|video)(-)(en[bcdfghjklmnpqrsvwxz][a-z]+)', re.I): br'\1\2 \3',
+	# Crash words.
+	re.compile(br'dane-ben', re.I): br'dane `0 ben',
+	re.compile(br'dage-gen', re.I): br'dage `0 gen',
+	re.compile(br'(audio|video)(-)(en[bcdfghjklmnpqrsvwxz][a-z]+)', re.I): br'\1 `0 \3',
+	re.compile(br'(macro)(-)(en[a-z]+)', re.I): br'\1 `0 \3',
 }
 german_ibm_fixes = {
-# Just like english_ibm_fixes, also avoids unneeded replacements
-	re.compile(br'dane-ben', re.I): br'dane- ben',
-	re.compile(br'dage-gen', re.I): br'dage- gen',
+	# Just like english_ibm_fixes, also avoids unneeded replacements
+	re.compile(br'dane-ben', re.I): br'dane `0 ben',
+	re.compile(br'dage-gen', re.I): br'dage `0 gen',
 }
 portuguese_ibm_fixes = {
 	re.compile(br'(\d{1,2}):(00):(\d{1,2})'): br'\1:\2 \3',
@@ -241,6 +242,7 @@ class SynthDriver(synthDriverHandler.SynthDriver):
 		self.rate=50
 		self.speakingLanguage=lang
 		self.variant="1"
+		# self.currentEncoding = "cp1252"
 		self.currentEncoding = "mbcs"
 		self._pause_mode=2
 		self.sampleRate = '1'
@@ -359,6 +361,8 @@ class SynthDriver(synthDriverHandler.SynthDriver):
 		#this converts to ansi for anticrash. If this breaks with foreign langs, we can remove it.
 		text = text.encode(self.currentEncoding, 'replace') # special unicode symbols may encode to backquote. For this reason, backquote processing is after this.
 		text = text.rstrip()
+		if not self._backquoteVoiceTags:
+			text=text.replace(b'`', b' ') # no embedded commands. This needs to be before regex substitution to fix hyphen-based crash words in German while replicating the intonation patterns that would normally be introduced by the hyphens with emphasis tags.
 		# language crash fixes.
 		curLang = _ibmeci.params[_ibmeci.ECIParam.eciLanguageDialect]
 		if _ibmeci.isIBM:
@@ -384,8 +388,6 @@ class SynthDriver(synthDriverHandler.SynthDriver):
 				text = resub(french_fixes, text)
 			if curLang in ('deu', EciLangs.StandardGerman):
 				text = resub(german_fixes, text)
-		if not self._backquoteVoiceTags:
-			text=text.replace(b'`', b' ') # no embedded commands
 		if self._pause_mode == 2:
 			if _ibmeci.isIBM:
 				text = ibm_pause_re.sub(br'\1 `p1\2\3\4', text) # this enforces short, JAWS-like pauses.
@@ -498,26 +500,12 @@ class SynthDriver(synthDriverHandler.SynthDriver):
 		return _ibmeci.getVParam(ECIVoiceParam.eciBreathiness)
 
 	def _getAvailableVoices(self):
-		result = []
+		o = OrderedDict()
 		for name in os.listdir(_ibmeci.ttsPath):
 			if name.lower().endswith('.syn'):
 				info = _ibmeci.langs[name.lower()[:3]]
-				# o[str(info[0])] = VoiceInfo(str(info[0]), info[1], info[2])
-
-				ID = info[0]
-				name = info[1]
-				language = info[2]
-				langDescription = languageHandler.getLanguageDescription(language)
-				result.append({
-					"id": ID,
-					"name": name,
-					"locale": language,
-					"language": language,
-					"langDescription": langDescription,
-					"description": "%s - %s" % (name, langDescription),
-					"engine": "IBM",
-				})
-		return result
+				o[str(info[0])] = VoiceInfo(str(info[0]), info[1], info[2])
+		return o
 
 	def _get_voice(self):
 		return str(_ibmeci.params[_ibmeci.ECIParam.eciLanguageDialect])
@@ -537,7 +525,7 @@ class SynthDriver(synthDriverHandler.SynthDriver):
 		elif lang == EciLangs.HongKongCantonese:
 			self.currentEncoding = "big5"
 		else:
-			self.currentEncoding = "mbcs"
+			self.currentEncoding = "cp1252"
 
 	def _get_availableSamplerates(self):
 		rates = {}
@@ -595,17 +583,15 @@ class SynthDriver(synthDriverHandler.SynthDriver):
 
 	def _get_variant(self): return self._variant
 
-	def _onIndexReached(self, index): synthIndexReached.notify(synth=self, index=index)
+	def _onIndexReached(self, index): synthIndexReached.notify(synth=getSynth(), index=index)
 
-	def _onDoneSpeaking(self):
-		synthDoneSpeaking.notify(synth=self)
+	def _onDoneSpeaking(self): synthDoneSpeaking.notify(synth=getSynth())
 
 	def _get_language(self):
 		return self._language
 
 	def _set_language(self, value):
 		self._language = value
-
 
 def resub(dct, s):
 	for r in six.iterkeys(dct):

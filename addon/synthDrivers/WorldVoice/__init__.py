@@ -139,7 +139,7 @@ class SynthDriver(SynthDriver):
 		]
 		settings.append(SynthDriver.VariantSetting())
 		settings.append(SynthDriver.RateSetting())
-		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "RH", "espeak", "VE"]:
+		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "Espeak", "RH", "VE"]:
 			settings.append(SynthDriver.RateBoostSetting())
 		settings.extend([
 			SynthDriver.PitchSetting(),

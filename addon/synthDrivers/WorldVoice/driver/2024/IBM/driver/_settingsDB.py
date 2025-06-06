@@ -19,7 +19,7 @@ class _AppConfig:
 appConfig = registerConfig(_AppConfig)
 # appConfig.TTSPath = os.path.join(BASE_PATH, appConfig.TTSPath)#.replace("\\", "/")
 
-@configSpec("speech")
+@configSpec("audio")
 class _SpeechConfig:
 	ibmtts = ""
 	outputDevice = ""

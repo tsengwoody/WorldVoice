@@ -4,7 +4,6 @@
 # This file is covered by the GNU General Public License.
 # See the file COPYING for more details.
 
-import languageHandler
 import os
 from collections import OrderedDict
 from typing import (
@@ -19,7 +18,7 @@ from languageHandler import (
 	getLanguage,
 	stripLocaleFromLangCode,
 )
-from synthDriverHandler import SynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking
+from synthDriverHandler import SynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking, getSynth
 from logHandler import log
 
 from speech.types import SpeechSequence
@@ -434,37 +433,16 @@ class SynthDriver(SynthDriver):
 	def _set_volume(self, volume: int):
 		_espeak.setParameter(_espeak.espeakVOLUME, volume, 0)
 
-	@property
-	def availableVoices(self):
-		result = []
-		for v in _espeak.getVoiceList():
-			l=_espeak.decodeEspeakString(v.languages[1:])
-			# #7167: Some languages names contain unicode characters EG: Norwegian Bokmål
-			name=_espeak.decodeEspeakString(v.name)
-			# #5783: For backwards compatibility, voice identifies should always be lowercase
-			identifier=os.path.basename(_espeak.decodeEspeakString(v.identifier)).lower()
-
+	def _getAvailableVoices(self):
+		voices = OrderedDict()
 		for v in _espeak.getVoiceList():
 			l = _espeak.decodeEspeakString(v.languages[1:])  # noqa: E741
 			# #7167: Some languages names contain unicode characters EG: Norwegian Bokmål
 			name = _espeak.decodeEspeakString(v.name)
 			# #5783: For backwards compatibility, voice identifies should always be lowercase
 			identifier = os.path.basename(_espeak.decodeEspeakString(v.identifier)).lower()
-
-			ID = identifier
-			language = l.split("-")[0]
-			langDescription = languageHandler.getLanguageDescription(language)
-			langDescription = langDescription if langDescription else l
-			result.append({
-				"id": ID,
-				"name": name,
-				"locale": language,
-				"language": language,
-				"langDescription": langDescription,
-				"description": "%s - %s" % (name, langDescription),
-				"engine": "Espeak",
-			})
-		return result
+			voices[identifier] = VoiceInfo(identifier, name, l)
+		return voices
 
 	def _get_voice(self):
 		curVoice = getattr(self, "_voice", None)
@@ -489,13 +467,13 @@ class SynthDriver(SynthDriver):
 		except:
 			self._voice = None
 			raise
-		# self._language = super(SynthDriver, self).language
+		self._language = super(SynthDriver, self).language
 
 	def _onIndexReached(self, index):
 		if index is not None:
-			synthIndexReached.notify(synth=self, index=index)
+			synthIndexReached.notify(synth=getSynth(), index=index)
 		else:
-			synthDoneSpeaking.notify(synth=self)
+			synthDoneSpeaking.notify(synth=getSynth())
 
 	def terminate(self):
 		_espeak.terminate()
@@ -507,6 +485,5 @@ class SynthDriver(SynthDriver):
 		self._variant = val if val in self._variantDict else "max"
 		_espeak.setVoiceAndVariant(variant=self._variant)
 
-	@property
-	def AvailableVariants(self):
+	def _getAvailableVariants(self):
 		return OrderedDict((ID, VoiceInfo(ID, name)) for ID, name in self._variantDict.items())

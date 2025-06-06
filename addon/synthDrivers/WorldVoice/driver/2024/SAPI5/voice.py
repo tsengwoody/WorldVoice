@@ -1,3 +1,8 @@
+from collections import OrderedDict
+
+import languageHandler
+import locale
+
 from .driver import SynthDriver as Sapi5Manager
 from .. import Voice
 
@@ -121,4 +126,37 @@ class SAPI5Voice(Voice):
 		result = []
 		if not cls.ready() or not cls.core:
 			return result
-		return cls.core.availableVoices
+
+		voices = OrderedDict()
+		v = cls.core._getVoiceTokens()
+		# #2629: Iterating uses IEnumVARIANT and GetBestInterface doesn't work on tokens returned by some token enumerators.
+		# Therefore, fetch the items by index, as that method explicitly returns the correct interface.
+		for i in range(len(v)):
+			try:
+				ID = v[i].Id
+				name = v[i].getattribute('name')
+				description = v[i].GetDescription()
+				try:
+					language = locale.windows_locale[int(v[i].getattribute("language").split(";")[0], 16)]
+				except KeyError:
+					language = "unknown"
+			except COMError:
+				log.warning("Could not get the voice info. Skipping...")
+
+			langDescription = languageHandler.getLanguageDescription(language)
+			if not langDescription:
+				try:
+					langDescription = description.split("-")[1]
+				except IndexError:
+					langDescription = language
+
+			result.append({
+				"id": ID,
+				"name": name,
+				"locale": language,
+				"language": language,
+				"langDescription": langDescription,
+				"description": "%s - %s" % (name, langDescription),
+				"engine": "SAPI5",
+			})
+		return result

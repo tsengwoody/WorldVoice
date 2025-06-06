@@ -1,6 +1,7 @@
+import languageHandler
 import winVersion
 
-from .driver._onecore import OneCoreManager
+from .driver import OneCoreSynthDriver
 from .. import Voice
 
 
@@ -111,7 +112,7 @@ class OneCoreVoice(Voice):
 	@classmethod
 	def engineOn(cls):
 		if not cls.core:
-			cls.core = OneCoreManager()
+			cls.core = OneCoreSynthDriver()
 
 	@classmethod
 	def engineOff(cls):
@@ -124,4 +125,25 @@ class OneCoreVoice(Voice):
 		result = []
 		if not cls.ready() or not cls.core:
 			return result
-		return cls.core.availableVoices
+		# Fetch the full list of voices that OneCore speech knows about.
+		# Note that it may give back voices that are uninstalled or broken.
+		# Refer to _isVoiceValid for information on uninstalled or broken voices.
+		voicesStr = cls.core._dll.ocSpeech_getVoices(cls.core._ocSpeechToken).split("|")
+		for index, voiceStr in enumerate(voicesStr):
+			ID, language, name = voiceStr.split(":")
+			language = language.replace("-", "_")
+			# Filter out any invalid voices.
+			if not cls.core._isVoiceValid(ID):
+				continue
+
+			langDescription = languageHandler.getLanguageDescription(language)
+			result.append({
+				"id": ID,
+				"name": name,
+				"locale": language,
+				"language": language,
+				"langDescription": langDescription,
+				"description": "%s - %s" % (name, langDescription),
+				"engine": "OneCore",
+			})
+		return result

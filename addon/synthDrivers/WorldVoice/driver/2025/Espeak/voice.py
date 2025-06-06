@@ -1,4 +1,9 @@
+import os
+
+import languageHandler
+
 from .driver import (SynthDriver as EspeakManager)
+from .driver import _espeak
 from .. import Voice
 
 
@@ -116,6 +121,28 @@ class EspeakVoice(Voice):
 
 	@classmethod
 	def voices(cls):
+		result = []
 		if not cls.core:
-			return []
-		return cls.core.availableVoices
+			return result
+
+		for v in _espeak.getVoiceList():
+			l = _espeak.decodeEspeakString(v.languages[1:])  # noqa: E741
+			# #7167: Some languages names contain unicode characters EG: Norwegian Bokmål
+			name = _espeak.decodeEspeakString(v.name)
+			# #5783: For backwards compatibility, voice identifies should always be lowercase
+			identifier = os.path.basename(_espeak.decodeEspeakString(v.identifier)).lower()
+
+			ID = identifier
+			language = l.split("-")[0]
+			langDescription = languageHandler.getLanguageDescription(language)
+			langDescription = langDescription if langDescription else l
+			result.append({
+				"id": ID,
+				"name": name,
+				"locale": language,
+				"language": language,
+				"langDescription": langDescription,
+				"description": "%s - %s" % (name, langDescription),
+				"engine": "Espeak",
+			})
+		return result

@@ -15,7 +15,7 @@ from comtypes import COMError, COMObject, IUnknown, hresult
 import winreg
 import nvwave
 from objidl import _LARGE_INTEGER, _ULARGE_INTEGER, IStream
-from synthDriverHandler import SynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking
+from synthDriverHandler import SynthDriver, VoiceInfo, synthIndexReached, synthDoneSpeaking, getSynth
 import config
 from logHandler import log
 import weakref
@@ -208,14 +208,14 @@ class SapiSink(COMObject):
 				synthIndexReached.notify(synth=synth, index=bookmark)
 			del synth._streamBookmarks[streamNum]
 		synth.isSpeaking = False
-		synthDoneSpeaking.notify(synth=synth)
+		synthDoneSpeaking.notify(synth=getSynth())
 
 	def onIndexReached(self, streamNum: int, index: int):
 		synth = self.synthRef()
 		if synth is None:
 			log.debugWarning("Called onIndexReached method on SapiSink while driver is dead")
 			return
-		synthIndexReached.notify(synth=synth, index=index)
+		synthIndexReached.notify(synth=getSynth(), index=index)
 		# remove already triggered bookmarks
 		if streamNum in synth._streamBookmarks:
 			bookmarks = synth._streamBookmarks[streamNum]
@@ -282,7 +282,6 @@ class SynthDriver(SynthDriver):
 			self.player = None
 
 	def _getAvailableVoices(self):
-		result = []
 		voices = OrderedDict()
 		v = self._getVoiceTokens()
 		# #2629: Iterating uses IEnumVARIANT and GetBestInterface doesn't work on tokens returned by some token enumerators.
@@ -290,32 +289,15 @@ class SynthDriver(SynthDriver):
 		for i in range(len(v)):
 			try:
 				ID = v[i].Id
-				name = v[i].getattribute('name')
-				description = v[i].GetDescription()
+				name = v[i].GetDescription()
 				try:
 					language = locale.windows_locale[int(v[i].getattribute("language").split(";")[0], 16)]
 				except KeyError:
-					language = "unknown"
+					language = None
 			except COMError:
 				log.warning("Could not get the voice info. Skipping...")
-
-			langDescription = languageHandler.getLanguageDescription(language)
-			if not langDescription:
-				try:
-					langDescription = description.split("-")[1]
-				except IndexError:
-					langDescription = language
-
-			result.append({
-				"id": ID,
-				"name": name,
-				"locale": language,
-				"language": language,
-				"langDescription": langDescription,
-				"description": "%s - %s" % (name, langDescription),
-				"engine": "SAPI5",
-			})
-		return result
+			voices[ID] = VoiceInfo(ID, name, language)
+		return voices
 
 	def _getVoiceTokens(self):
 		"""Provides a collection of sapi5 voice tokens. Can be overridden by subclasses if tokens should be looked for in some other registry location."""
@@ -344,7 +326,7 @@ class SynthDriver(SynthDriver):
 			return None
 
 	@classmethod
-	def _percentToParam(self, percent, min, max) -> float:
+	def _percentToParam(cls, percent, min, max) -> float:
 		"""Overrides SynthDriver._percentToParam to return floating point parameter values."""
 		return float(percent) / 100 * (max - min) + min
 
@@ -578,6 +560,8 @@ class SynthDriver(SynthDriver):
 		# Therefore  instruct the audio player to stop first, before interupting and purging any remaining speech.
 		self.isSpeaking = False
 		self.player.stop()
+		self.sonicStream.flush()
+		self.sonicStream.readShort()  # discard data left in stream
 		self.tts.Speak(None, SpeechVoiceSpeakFlags.Async | SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
 
 	def pause(self, switch: bool):

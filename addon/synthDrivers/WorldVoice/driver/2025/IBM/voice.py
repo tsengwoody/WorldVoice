@@ -1,7 +1,9 @@
 import os
 
 import globalVars
+import languageHandler
 
+from .driver import _ibmeci
 from .driver.ibmeci import (SynthDriver as IBMManager)
 from .. import Voice
 
@@ -118,6 +120,28 @@ class IBMVoice(Voice):
 
 	@classmethod
 	def voices(cls):
+		result = []
 		if not cls.core:
-			return []
-		return cls.core.availableVoices
+			return result
+
+		result = []
+
+		for name in os.listdir(_ibmeci.ttsPath):
+			if name.lower().endswith('.syn'):
+				info = _ibmeci.langs[name.lower()[:3]]
+				# o[str(info[0])] = VoiceInfo(str(info[0]), info[1], info[2])
+
+				ID = info[0]
+				name = info[1]
+				language = info[2]
+				langDescription = languageHandler.getLanguageDescription(language)
+				result.append({
+					"id": ID,
+					"name": name,
+					"locale": language,
+					"language": language,
+					"langDescription": langDescription,
+					"description": "%s - %s" % (name, langDescription),
+					"engine": "IBM",
+				})
+		return result
