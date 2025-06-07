@@ -9,7 +9,6 @@ from typing import Any
 import addonHandler
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, DriverSetting, NumericDriverSetting
 from autoSettingsUtils.utils import StringParameterInfo
-import buildVersion
 import config
 import extensionPoints
 import gui
@@ -18,7 +17,7 @@ from logHandler import log as NVDAlog
 import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
 from speech.extensions import filter_speechSequence
-from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
+from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking, getSynth
 
 from . import languageDetection
 from .engine import EngineType
@@ -37,8 +36,7 @@ from .taskManager import TaskManager
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
-version = "2024" if buildVersion.formatBuildVersionString().split(".")[0] == "2024" else "2025"
-module = importlib.import_module(f"synthDrivers.WorldVoice.driver.{version}")
+module = importlib.import_module(f"synthDrivers.WorldVoice.driver")
 Voice = getattr(module, "Voice")
 
 
@@ -106,12 +104,23 @@ log = NVDAlog
 lock = threading.Lock()
 
 
-def unlock_action():
-	global lock
-	try:
-		lock.release()
-	except RuntimeError:
-		pass
+def IndexReached_notify_forward(synth, index):
+	if hasattr(synth, "wv"):
+		synthIndexReached.notify(synth=getSynth(), index=index)
+
+
+def DoneSpeaking_notify_forward(synth):
+	if hasattr(synth, "wv"):
+		synthDoneSpeaking.notify(synth=getSynth())
+
+
+def unlock_action(synth):
+	if synth == getSynth():
+		global lock
+		try:
+			lock.release()
+		except RuntimeError:
+			pass
 
 
 class SynthDriver(SynthDriver):
@@ -306,6 +315,9 @@ class SynthDriver(SynthDriver):
 
 	def __init__(self):
 		synthDoneSpeaking.register(unlock_action)
+		synthDoneSpeaking.register(DoneSpeaking_notify_forward)
+		synthIndexReached.register(IndexReached_notify_forward)
+
 		WVStart.notify()
 
 		self.order = 0
@@ -346,6 +358,9 @@ class SynthDriver(SynthDriver):
 		self._voiceManager = None
 
 		WVEnd.notify()
+
+		synthIndexReached.unregister(IndexReached_notify_forward)
+		synthDoneSpeaking.unregister(DoneSpeaking_notify_forward)
 		synthDoneSpeaking.unregister(unlock_action)
 
 	def loadSettings(self, *args, **kwargs):
