@@ -573,7 +573,7 @@ class OneCoreSynthDriver(SynthDriver):
 			return False
 		return True
 
-	def _get_voice(self):
+	def _get_language(self):
 		return self._language
 
 	def _set_language(self, value):
