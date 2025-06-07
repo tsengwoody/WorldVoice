@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '2025.6.6'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2025-06-06 18:03+0800\n"
-"PO-Revision-Date: 2025-06-06 21:58+0800\n"
+"POT-Creation-Date: 2025-06-07 12:42+0800\n"
+"PO-Revision-Date: 2025-06-07 12:47+0800\n"
 "Last-Translator: Alan <alanzhangmw@outlook.com>\n"
 "Language-Team: \n"
 "Language: zh_CN\n"
@@ -403,7 +403,7 @@ msgstr "语音引擎"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:687
 msgid "Please select one or more speech engines to enable."
-msgstr "请选择一个duo或个要启用的语音引擎。"
+msgstr "请选择一个或多个要启用的语音引擎。"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:693
 msgid "Select Speech Engines to Enable"
