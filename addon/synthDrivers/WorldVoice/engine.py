@@ -1,15 +1,12 @@
-import buildVersion
-
 from enum import Enum
 
 import addonHandler
 
 addonHandler.initTranslation()
 
-version = "2024" if buildVersion.formatBuildVersionString().split(".")[0] == "2024" else "2025"
 ENGINE_SPECS = {
 	key: (
-		f"synthDrivers.WorldVoice.driver.{version}.{key}.voice",
+		f"synthDrivers.WorldVoice.driver.{key}.voice",
 		f"{key}Voice",
 		key
 	) for key in ["OneCore", "SAPI5", "Espeak", "RH", "Aisound", "IBM", "VE"]
