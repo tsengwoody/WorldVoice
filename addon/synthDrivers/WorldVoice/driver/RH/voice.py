@@ -1,24 +1,19 @@
-from .driver import (SynthDriver as RHManager)
+import languageHandler
+
+from .driver import SynthDriver
 from .. import Voice
 
 
 class RHVoice(Voice):
 	core = None
 	engine = "RH"
+	synth_driver_class = SynthDriver
 
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
 		self.language = language if language else "unknown"
 
 		super().__init__(id=id, taskManager=taskManager)
-
-	def active(self):
-		if self.core.voice != self.id:
-			self.core.voice = self.id
-			self.core.pitch = self._pitch
-			self.core.rate = self._rate
-			self.core.volume = self._volume
-			self.core.rateBoost = self._rateBoost
 
 	@property
 	def name(self):
@@ -27,33 +22,6 @@ class RHVoice(Voice):
 	@name.setter
 	def name(self, name):
 		self._name = name
-
-	@property
-	def rate(self):
-		return self._rate
-
-	@rate.setter
-	def rate(self, percent):
-		self._rate = percent
-		self.core.rate = self._rate
-
-	@property
-	def pitch(self):
-		return self._pitch
-
-	@pitch.setter
-	def pitch(self, percent):
-		self._pitch = percent
-		self.core.pitch = self._pitch
-
-	@property
-	def volume(self):
-		return self._volume
-
-	@volume.setter
-	def volume(self, percent):
-		self._volume = percent
-		self.core.volume = self._volume
 
 	@property
 	def variants(self):
@@ -68,50 +36,24 @@ class RHVoice(Voice):
 	def variant(self, value):
 		self._variant = value
 
-	@property
-	def rateBoost(self):
-		return self._rateBoost
-
-	@rateBoost.setter
-	def rateBoost(self, value):
-		self._rateBoost = value
-		self.core.rateBoost = self._rateBoost
-
-	def speak(self, text):
-		def _speak():
-			self.active()
-			self.core.speak(text)
-		self.taskManager.add_dispatch_task((self, _speak),)
-
-	def stop(self):
-		self.core.cancel()
-
-	def pause(self):
-		self.core.pause(True)
-
-	def resume(self):
-		self.core.pause(False)
-
-	def close(self):
-		pass
-
 	@classmethod
 	def ready(cls):
 		return True
 
 	@classmethod
-	def engineOn(cls):
-		if not cls.core:
-			cls.core = RHManager()
-
-	@classmethod
-	def engineOff(cls):
-		if cls.core:
-			cls.core.terminate()
-			cls.core = None
-
-	@classmethod
 	def voices(cls):
-		if not cls.core:
-			return []
-		return cls.core.availableVoices
+		result = []
+		for profile in cls.core.profiles:
+			ID = name = profile
+			language = cls.core.voice_languages[profile.split("+")[0]]
+			langDescription = languageHandler.getLanguageDescription(language)
+			result.append({
+				"id": ID,
+				"name": name,
+				"locale": language,
+				"language": language,
+				"langDescription": langDescription,
+				"description": "%s - %s" % (name, langDescription),
+				"engine": "RH",
+			})
+		return result

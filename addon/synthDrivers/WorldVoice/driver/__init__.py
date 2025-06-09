@@ -1,5 +1,3 @@
-import threading
-
 import config
 from synthDriverHandler import getSynth
 
@@ -24,8 +22,25 @@ VOICE_PARAMETERS = [
 ]
 
 
+def percent_property(attr):
+	"""Return a property that keeps self._<attr> in sync with self.core.<attr>."""
+	private_name = f"_{attr}"
+
+	def getter(self):
+		return getattr(self, private_name)
+
+	def setter(self, percent):
+		setattr(self, private_name, percent)
+		if self.core and attr in [i.id for i in self.core.supportedSettings]:
+			setattr(self.core, attr, percent)
+
+	return property(getter, setter)
+
+
 class Voice(object):
-	speaking = threading.Lock()
+	core = None
+	engine = ""
+	synth_driver_class = None
 
 	def __init__(self, id, taskManager):
 		self.id = id
@@ -36,30 +51,13 @@ class Voice(object):
 			setattr(self, "commit_" + p, t(d))
 
 		self.loadParameter()
+		self.setCoreParameter()
 
-	@property
-	def rate(self):
-		raise NotImplementedError
-
-	@rate.setter
-	def rate(self, percent):
-		raise NotImplementedError
-
-	@property
-	def pitch(self):
-		raise NotImplementedError
-
-	@pitch.setter
-	def pitch(self, percent):
-		raise NotImplementedError
-
-	@property
-	def volume(self):
-		raise NotImplementedError
-
-	@volume.setter
-	def volume(self, percent):
-		raise NotImplementedError
+	rate   = percent_property("rate")
+	pitch  = percent_property("pitch")
+	volume = percent_property("volume")
+	inflection = percent_property("inflection")
+	rateBoost = percent_property("rateBoost")
 
 	@property
 	def variants(self):
@@ -74,42 +72,33 @@ class Voice(object):
 	def variant(self, value):
 		self._variant = value
 
-	@property
-	def inflection(self):
-		return self._inflection
-
-	@inflection.setter
-	def inflection(self, value):
-		self._inflection = value
-
-	@property
-	def rateBoost(self):
-		return self._rateBoost
-
-	@rateBoost.setter
-	def rateBoost(self, value):
-		self._rateBoost = value
-
-	def speak(self, text):
-		raise NotImplementedError
-
 	def break_(self, time):
 		raise NotImplementedError
 
 	def index(self, index):
 		raise NotImplementedError
 
+	def active(self):
+		if self.core and self.core.voice != self.id:
+			self.setCoreParameter()
+
+	def speak(self, text):
+		def _speak():
+			self.active()
+			self.core.speak(text)
+		self.taskManager.add_dispatch_task((self, _speak),)
+
 	def stop(self):
-		raise NotImplementedError
+		self.core.cancel()
 
 	def pause(self):
-		raise NotImplementedError
+		self.core.pause(True)
 
 	def resume(self):
-		raise NotImplementedError
+		self.core.pause(False)
 
 	def close(self):
-		raise NotImplementedError
+		pass
 
 	@classmethod
 	def ready(cls):
@@ -117,15 +106,29 @@ class Voice(object):
 
 	@classmethod
 	def engineOn(cls):
-		raise NotImplementedError
+		if not cls.core:
+			cls.core = cls.synth_driver_class()
+			cls.core.wv = cls.engine
 
 	@classmethod
 	def engineOff(cls):
-		raise NotImplementedError
+		if cls.core:
+			cls.core.terminate()
+			cls.core = None
 
 	@classmethod
 	def voices(cls):
 		raise NotImplementedError
+
+	def setCoreParameter(self):
+		if self.core:
+			self.core.voice = self.id
+			vp = [i[0] for i in VOICE_PARAMETERS]
+			ss = [i.id for i in self.core.supportedSettings]
+			for attr in list(set(ss) & set(vp) - set(["variant"])):
+				private_name = f"_{attr}"
+				percent = getattr(self, private_name)
+				setattr(self.core, attr, percent)
 
 	def loadParameter(self):
 		voiceName = self.name

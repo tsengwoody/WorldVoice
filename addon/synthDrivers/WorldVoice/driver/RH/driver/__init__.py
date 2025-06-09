@@ -602,23 +602,8 @@ class SynthDriver(SynthDriver):
     def _get_lastIndex(self):
         return self.__mark_callback.index
 
-    @property
-    def availableVoices(self):
-        result = []
-        for profile in self.__profiles:
-            ID = name = profile
-            language = self.__voice_languages[profile.split("+")[0]]
-            langDescription = languageHandler.getLanguageDescription(language)
-            result.append({
-                "id": ID,
-                "name": name,
-                "locale": language,
-                "language": language,
-                "langDescription": langDescription,
-                "description": "%s - %s" % (name, langDescription),
-                "engine": "RH",
-            })
-        return result
+    def _get_availableVoices(self):
+        return OrderedDict((profile, VoiceInfo(profile, profile, self.__voice_languages[profile.split("+")[0]])) for profile in self.__profiles)
 
     def _get_language(self):
         return self.__voice_languages[self.__profile.split("+")[0]]
@@ -653,3 +638,11 @@ class SynthDriver(SynthDriver):
 
     def _set_rateBoost(self, flag):
         self.__rate_boost = flag
+
+    @property
+    def profiles(self):
+        return self.__profiles
+
+    @property
+    def voice_languages(self):
+        return self.__voice_languages
