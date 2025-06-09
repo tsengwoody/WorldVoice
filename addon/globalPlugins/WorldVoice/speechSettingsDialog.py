@@ -780,16 +780,18 @@ class LogSettingsPanel(BaseSettingsPanel):
 		"speech_viewer": {"label": _("speech viewer")},
 	})
 
-	def makeSettings(self, settingsSizer):
-		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+	def makeSettings(self, sizer):
 		self._enable_checkbox = wx.CheckBox(
 			self,
 			label=_("Enable logging of WorldVoice’s speech pipeline")
 		)
-		settingsSizerHelper.addItem(self._enable_checkbox)
+		sizer.Add(self._enable_checkbox, proportion=1, flag=wx.EXPAND)
+		group_sizer = wx.StaticBoxSizer(wx.StaticBox(self, label=_("Select Speech Pipelines to Enable")), wx.VERTICAL)
+		sizer.Add(group_sizer, proportion=1, flag=wx.EXPAND)
+
 		self.Bind(wx.EVT_CHECKBOX, self.onEnableCheckboxChange, self._enable_checkbox)
 		self._enable_checkbox.SetValue(config.conf["WorldVoice"]["log"]["enable"])
-		super().makeSettings(settingsSizer, settingsSizerHelper=settingsSizerHelper)
+		super().makeSettings(group_sizer)
 		self.onEnableCheckboxChange(None)
 
 	def onEnableCheckboxChange(self, event):
