@@ -16,7 +16,7 @@ def onInstall():
 			with ZipFile(path, 'r') as core_file:
 				core_file.testzip()
 				core_file.extractall(import_path)
-			# os.remove(path)
+			os.remove(path)
 		except Exception:
 			pass
 		else:
