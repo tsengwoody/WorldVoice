@@ -2,7 +2,6 @@
 
 As globalization becomes more widespread, exposure to multilingual content has become increasingly common. Whether it’s educational materials or leisure reading, it’s not unusual to encounter multiple languages mixed together—in some cases, Chinese, English, and Japanese characters may even appear within a single sentence.
 
-
 Digital content—whether language textbooks, mathematical materials, or literary works—differs in textual structure, context, and frequency of language mixing. As a result, having the flexibility to adjust how content is read based on both its characteristics and personal preferences is an essential feature for screen reader users.
 
 WorldVoice is an NVDA add-on that supports automatic switching across roles of different speech engines—including Espeak, OneCore, RHVoice, and SAPI5—and provides a variety of customization settings. Users can easily adjust speech settings to suit various scenarios and personal preferences.
