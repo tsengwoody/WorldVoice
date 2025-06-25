@@ -4,7 +4,6 @@ from typing import Iterable, Iterator, Union
 import uuid
 
 import config
-from gui import speechViewer
 from logHandler import log
 from speech.commands import BreakCommand, LangChangeCommand
 from speech.extensions import filter_speechSequence
@@ -129,10 +128,7 @@ def get_chinesespace_wait_factor():
 # @with_order_log("speech_view")
 @with_speech_sequence_log("speech_viewer")
 def speech_viewer(speechSequence):
-	if speechViewer.isActive:
-		return list(speechSequence)
-	else:
-		return speechSequence
+	return list(speechSequence)
 
 
 # @with_order_log("ignore_comma_between_number")
