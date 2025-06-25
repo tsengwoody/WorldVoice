@@ -515,7 +515,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 					pass
 
 		for locale in self._dataToPercist:
-			if self._dataToPercist[locale]["voice"] != "no-select":
+			if "voice" in self._dataToPercist[locale] and self._dataToPercist[locale]["voice"] != "no-select":
 				temp[locale] = self._dataToPercist[locale]
 			else:
 				try:
