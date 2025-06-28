@@ -143,95 +143,13 @@ class SynthDriver(SynthDriver):
 
 	@property
 	def supportedSettings(self):
-		settings = [
-			SynthDriver.VoiceSetting(),
-		]
-		settings.append(SynthDriver.VariantSetting())
-		settings.append(SynthDriver.RateSetting())
-		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "Espeak", "RH", "VE"]:
-			settings.append(SynthDriver.RateBoostSetting())
-		settings.extend([
-			SynthDriver.PitchSetting(),
-		])
-		if self._voiceManager.defaultVoiceInstance.engine in ["aisound"]:
-			settings.append(SynthDriver.InflectionSetting())
-		settings.extend([
-			SynthDriver.VolumeSetting(),
-			BooleanDriverSetting(
-				"uwv",
-				_("Detect language based on Unicode characters"),
-				availableInSettingsRing=True,
-				defaultVal=True,
-				displayName=_("Detect language based on Unicode characters"),
-			),
-			BooleanDriverSetting(
-				"cni",
-				_("Ignore comma between number"),
-				defaultVal=False,
-			),
-			DriverSetting(
-				"numlan",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number &Language"),
-				availableInSettingsRing=True,
-				defaultVal="default",
-				# Translators: Label for a setting in synth settings ring.
-				displayName=_("Number Language"),
-			),
-			DriverSetting(
-				"nummod",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number &Mode"),
-				availableInSettingsRing=True,
-				defaultVal="value",
-				# Translators: Label for a setting in synth settings ring.
-				displayName=_("Number Mode"),
-			),
-			NumericDriverSetting(
-				"globalwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Global wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=50,
-				minStep=10,
-			),
-			NumericDriverSetting(
-				"numberwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"itemwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("item wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"sayallwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Say all wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"chinesespacewaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Chinese space wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-		])
-		return settings
-
-	@property
-	def allSupportedSettings(self):
+		"""
+		This property returns ALL settings the driver might ever support.
+		NVDA's settings dialog will automatically check which ones are currently
+		supported by the active voice (using the isSupported method) and show/hide them.
+		This eliminates the need for 'allSupportedSettings' and makes the driver
+		compatible with the standard VoiceSettingsPanel.
+		"""
 		settings = [
 			SynthDriver.VoiceSetting(),
 			SynthDriver.VariantSetting(),
