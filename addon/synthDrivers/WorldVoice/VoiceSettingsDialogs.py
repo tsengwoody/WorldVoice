@@ -26,7 +26,9 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		if gui._isDebug():
 			log.debug(f"Current sizerDict: {self.sizerDict!r}")
 			log.debug(f"Current supportedSettings: {self.getSettings().supportedSettings!r}")
-		for setting in settingsInst.allSupportedSettings:
+
+		supportedSettings = settingsInst.allSupportedSettings if hasattr(settingsInst, "allSupportedSettings") else settingsInst.supportedSettings
+		for setting in supportedSettings:
 			if setting.id == changedSetting:
 				# Changing a setting shouldn't cause that setting's own values to change.
 				continue
