@@ -508,9 +508,11 @@ class SynthDriver(SynthDriver):
 
 	def pause(self, switch):
 		if switch:
-			self._voiceManager.defaultVoiceInstance.pause()
+			if self.taskManager.speakingVoiceInstance:
+				self.taskManager.speakingVoiceInstance.pause()
 		else:
-			self._voiceManager.defaultVoiceInstance.resume()
+			if self.taskManager.speakingVoiceInstance:
+				self.taskManager.speakingVoiceInstance.resume()
 
 	def _get_volume(self):
 		return self._voiceManager.defaultVoiceInstance.volume

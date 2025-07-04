@@ -68,9 +68,6 @@ class TaskManager:
 	def dispatch(self):
 		while True:
 			voiceInstance, task = self.dispatchQueue.get()
-			if not voiceInstance:
-				break
-
 			self.lock.acquire()
 			self.speakingVoiceInstance = voiceInstance
 
@@ -86,3 +83,5 @@ class TaskManager:
 				self.dispatchQueue.task_done()
 			except BaseException:
 				pass
+
+			self.speakingVoiceInstance = None
