@@ -10,7 +10,7 @@ from ctypes import *
 from ctypes.wintypes import HANDLE, WORD, DWORD, UINT, LPUINT
 from logHandler import log
 from synthDriverHandler import getSynth
-from synthDriverHandler import synthIndexReached,synthDoneSpeaking
+from synthDriverHandler import SynthDriver, synthIndexReached,synthDoneSpeaking
 
 workspaceAisound_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
 lastSpeakInstance = None
@@ -127,6 +127,14 @@ def callback(type,cbData):
 
 
 class Aisound(object):
+	supportedSettings=(
+		SynthDriver.VoiceSetting(),
+		SynthDriver.RateSetting(),
+		SynthDriver.PitchSetting(),
+		SynthDriver.InflectionSetting(),
+		SynthDriver.VolumeSetting()
+	)
+
 	def __init__(self):
 		self.id = ""
 		self.wrapperDLL = None
