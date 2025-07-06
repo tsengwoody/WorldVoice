@@ -1,9 +1,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: World Voice\n"
-"Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2023-03-12 22:21+0800\n"
-"PO-Revision-Date: 2023-03-20 18:38+0300\n"
+"Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
+"POT-Creation-Date: 2025-07-05 15:06+0000\n"
+"PO-Revision-Date: 2025-07-05 20:10+0300\n"
 "Last-Translator: Umut KORKMAZ <umutkork@gmail.com>\n"
 "Language-Team: Umut KORKMAZ <umutkork@gmail.com>\n"
 "Language: tr_TR\n"
@@ -12,115 +12,104 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
-"X-Generator: Poedit 3.2.2\n"
+"X-Generator: Poedit 3.6\n"
 "X-Poedit-Basepath: ../../..\n"
 "X-Poedit-SourceCharset: UTF-8\n"
 "X-Poedit-SearchPath-0: .\n"
 
-#. Translators: Message indicating no context sensitive help is available for the control or dialog.
-#: addon\generics\speechSymbols\contextHelp.py:34
-msgid "No help available here."
-msgstr "Yardım Bulunamadı."
-
-#. Translators: Message shown when trying to display context sensitive help,
-#. indicating that	the user guide could not be found.
-#: addon\generics\speechSymbols\contextHelp.py:41
-msgid "No user guide found."
-msgstr "Kullanıcı kılavuzu bulunamadı."
-
-#: addon\generics\speechSymbols\models.py:20
+#: addon/generics/speechSymbols/models.py:20
 msgid "context"
 msgstr "bağlam"
 
-#: addon\generics\speechSymbols\models.py:21
+#: addon/generics/speechSymbols/models.py:21
 msgid "force"
 msgstr "güç"
 
 #. Translators: This is the label for the add symbol dialog.
-#: addon\generics\speechSymbols\views.py:30
+#: addon/generics/speechSymbols/views.py:30
 msgid "Add Symbol"
 msgstr "Sembol Ekle"
 
 #. Translators: This is the label for the edit field in the add symbol dialog.
-#: addon\generics\speechSymbols\views.py:35
+#: addon/generics/speechSymbols/views.py:35
 msgid "&Symbol:"
 msgstr "&Sembol:"
 
-#: addon\generics\speechSymbols\views.py:58
+#: addon/generics/speechSymbols/views.py:58
 msgid "Unicode Setting"
 msgstr "Unicode Ayarı"
 
 #. Translators: The label of a text field to search for symbols in the speech symbols dialog.
-#: addon\generics\speechSymbols\views.py:73
+#: addon/generics/speechSymbols/views.py:73
 msgctxt "speechSymbols"
 msgid "&Filter by:"
 msgstr "&filtre:"
 
 #. Translators: The label for symbols list in symbol pronunciation dialog.
-#: addon\generics\speechSymbols\views.py:82
+#: addon/generics/speechSymbols/views.py:82
 msgid "&Symbols"
 msgstr "&Semboller"
 
 #. Translators: The label for a column in symbols list used to identify a symbol.
-#: addon\generics\speechSymbols\views.py:92
+#: addon/generics/speechSymbols/views.py:92
 msgid "Unicode"
 msgstr "Unicode"
 
 #. Translators: The label for a column in symbols list used to identify a replacement.
-#: addon\generics\speechSymbols\views.py:94
+#: addon/generics/speechSymbols/views.py:94
 msgid "Replacement"
 msgstr "Değiştir"
 
 #. Translators: The label for a column in symbols list used to identify a symbol's speech level (either none, some, most, all or character).
-#: addon\generics\speechSymbols\views.py:96
+#: addon/generics/speechSymbols/views.py:96
 msgid "Language"
 msgstr "Dil"
 
 #. Translators: The label for a column in symbols list which specifies when the actual symbol will be sent to the synthesizer (preserved).
 #. See the "Punctuation/Symbol Pronunciation" section of the User Guide for details.
-#: addon\generics\speechSymbols\views.py:99
+#: addon/generics/speechSymbols/views.py:99
 msgid "Mode"
 msgstr "Mod"
 
 #. Translators: The label for the group of controls in symbol pronunciation dialog to change the pronunciation of a symbol.
-#: addon\generics\speechSymbols\views.py:103
+#: addon/generics/speechSymbols/views.py:103
 msgid "Change selected symbol"
 msgstr "Seçilen sembolü değiştir"
 
 #. Translators: The label for the edit field in symbol pronunciation dialog to change the replacement text of a symbol.
-#: addon\generics\speechSymbols\views.py:125
+#: addon/generics/speechSymbols/views.py:125
 msgid "&Replacement"
 msgstr "&Değiştir"
 
-#: addon\generics\speechSymbols\views.py:133
+#: addon/generics/speechSymbols/views.py:133
 msgid "&language"
 msgstr "&dil"
 
-#: addon\generics\speechSymbols\views.py:138
+#: addon/generics/speechSymbols/views.py:138
 msgid "&Detect language mode"
 msgstr "&Dil modunu algıla"
 
 #. Translators: The label for a button in the Symbol Pronunciation dialog to add a new symbol.
-#: addon\generics\speechSymbols\views.py:145
+#: addon/generics/speechSymbols/views.py:145
 msgid "&Add"
 msgstr "&Ekle"
 
 #. Translators: The label for a button in the Symbol Pronunciation dialog to remove a symbol.
-#: addon\generics\speechSymbols\views.py:148
+#: addon/generics/speechSymbols/views.py:148
 msgid "Re&move"
 msgstr "&Kaldır"
 
-#: addon\generics\speechSymbols\views.py:254
+#: addon/generics/speechSymbols/views.py:254
 #, python-format
 msgid "Symbol \"%s\" is already present."
 msgstr "\"%s\" sembolü zaten var."
 
-#: addon\generics\speechSymbols\views.py:255
+#: addon/generics/speechSymbols/views.py:255
 msgid "Error"
 msgstr "Hata"
 
 #. Translators: The message displayed
-#: addon\generics\speechSymbols\views.py:322
+#: addon/generics/speechSymbols/views.py:322
 msgid ""
 "For the edited unicode rule to apply, NVDA must be restarted. Do you want to "
 "restart NVDA now?"
@@ -129,74 +118,61 @@ msgstr ""
 "başlatılması gerekir. NVDA'yı şimdi yeniden başlatmak istiyor musunuz?"
 
 #. Translators: The title of the dialog
-#: addon\generics\speechSymbols\views.py:324
+#: addon/generics/speechSymbols/views.py:324
 msgid "unicode rule edited"
 msgstr "unicode kuralı düzenlendi"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:61
-msgid "&Speech Settings"
-msgstr "&Konuşma Ayarları"
+#: addon/globalPlugins/WorldVoice/__init__.py:71
+msgid "&Settings"
+msgstr "&Ayarlar"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:61
-msgid "Speech Settings."
-msgstr "Konuşma Ayarları."
+#: addon/globalPlugins/WorldVoice/__init__.py:71
+#| msgid "Speech Settings."
+msgid "Settings."
+msgstr "Ayarlar."
 
-#: addon\globalPlugins\WorldVoice\__init__.py:63
+#: addon/globalPlugins/WorldVoice/__init__.py:73
 msgid "&Unicode Settings"
 msgstr "&Unicode Ayarları"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:63
+#: addon/globalPlugins/WorldVoice/__init__.py:73
 msgid "Unicode Settings."
 msgstr "Unicode Ayarları."
 
-#: addon\globalPlugins\WorldVoice\__init__.py:65
+#: addon/globalPlugins/WorldVoice/__init__.py:75
 msgid "&File Import"
-msgstr "&Dosya İçe Aktar"
+msgstr "&Dosyayı İçe Aktar"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:65
+#: addon/globalPlugins/WorldVoice/__init__.py:75
 msgid "Import File."
-msgstr "Dosya İçe Aktar."
+msgstr "Dosyayı İçe Aktar."
 
-#: addon\globalPlugins\WorldVoice\__init__.py:68
-msgid "VE Core Install"
-msgstr "VE Çekirdek Kurulumu"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:68
-msgid "Install VE Core."
-msgstr "VE çekirdeğini kur."
-
-#: addon\globalPlugins\WorldVoice\__init__.py:71
-msgid "&Aisound Core Install"
-msgstr "&Aisound Çekirdek Kurulumu"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:71
-msgid "Install Aisound Core."
-msgstr "Aisound çekirdeğini kur."
-
+#. if not AisoundVoice.install():
+#. item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
+#. gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onAisoundCoreInstall, item)
 #. Translators: Title of a setting dialog.
 #. Add-on summary, usually the user visible name of the addon.
 #. Translators: Summary for this add-on
 #. to be shown on installation and add-on information found in Add-ons Manager.
-#: addon\globalPlugins\WorldVoice\__init__.py:74
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:23
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:577 buildVars.py:23
+#: addon/globalPlugins/WorldVoice/__init__.py:81
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:34 buildVars.py:23
 msgid "WorldVoice"
 msgstr "WorldVoice"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:85
+#: addon/globalPlugins/WorldVoice/__init__.py:92
 msgid "Import file..."
-msgstr "Dosya İçe Aktar..."
+msgstr "Dosyayı İçe Aktar..."
 
-#: addon\globalPlugins\WorldVoice\__init__.py:97
+#: addon/globalPlugins/WorldVoice/__init__.py:104
 msgid "Import fail"
 msgstr "İçe aktarma başarısız"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:98
-#: addon\globalPlugins\WorldVoice\__init__.py:103
+#: addon/globalPlugins/WorldVoice/__init__.py:105
+#: addon/globalPlugins/WorldVoice/__init__.py:110
 msgid "Import File"
-msgstr "Dosya içe aktar"
+msgstr "Dosyayı içe aktar"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:102
+#: addon/globalPlugins/WorldVoice/__init__.py:109
 msgid ""
 "For the new file to import, NVDA must be restarted. Are you want to restart "
 "NVDA now ?"
@@ -204,314 +180,658 @@ msgstr ""
 "Yeni dosyanın içe aktarılması için NVDA'nın yeniden başlatılması gerekir. "
 "NVDA'yı şimdi yeniden başlatmak istiyor musunuz?"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:125
+#: addon/globalPlugins/WorldVoice/__init__.py:126
 msgid "SpeechSymbolsDialog have already been opened"
 msgstr "Konuşma Sembolleri İletişim Kutusu zaten açık"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:128
+#: addon/globalPlugins/WorldVoice/__init__.py:129
 msgid "popup speech settings dialog"
 msgstr "açılır konuşma ayarları iletişim kutusu"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:135
+#: addon/globalPlugins/WorldVoice/__init__.py:136
 msgid "popup unicode settings dialog"
 msgstr "açılır unicode ayarları iletişim kutusu"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:65
+#: addon/globalPlugins/WorldVoice/__init__.py:143
+msgid "switch log record"
+msgstr "günlük kaydını değiştirir"
+
+#. Translators: The message displayed
+#: addon/globalPlugins/WorldVoice/__init__.py:156
+msgid ""
+"Logging of WorldVoice’s speech pipeline is enabled. This may reduce speech "
+"response speed. If you are not debugging, we recommend disabling it. Would "
+"you like to disable it now?"
+msgstr ""
+"Konuşma İşlem hattı günlük kaydını etkinleştir, WorldVoice'un konuşma yanıt "
+"hızını düşürecektir. Hata ayıklama yapmıyorsanız, devre dışı bırakmanızı "
+"öneririz. Yine de etkinleştirmek ister misiniz?"
+
+#. Translators: The title of the dialog
+#: addon/globalPlugins/WorldVoice/__init__.py:158
+#: addon/globalPlugins/WorldVoice/__init__.py:172
+#: addon/globalPlugins/WorldVoice/__init__.py:184
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:820
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:842
+#| msgid "Speech Engine"
+msgid "Speech Pipeline Logging"
+msgstr "Konuşma İşlem Hattı Günlük Kaydı"
+
+#. Translators: The message displayed
+#: addon/globalPlugins/WorldVoice/__init__.py:170
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:818
+msgid ""
+"Enabling logging of WorldVoice’s speech pipeline will reduce speech response "
+"speed. If you are not debugging, we recommend keeping it disabled. Would you "
+"like to enable it anyway?"
+msgstr ""
+"Konuşma İşlem hattı günlük kaydını etkinleştirmek, WorldVoice'un konuşma "
+"yanıt hızını düşürecektir. Hata ayıklama yapmıyorsanız, devre dışı "
+"bırakmanızı öneririz. Yine de etkinleştirmek ister misiniz?"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:176
+msgid "turn on WorldVoice`s log record"
+msgstr "worldVoice'in günlük kaydını açar"
+
+#. Translators: The message displayed
+#: addon/globalPlugins/WorldVoice/__init__.py:182
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:840
+msgid ""
+"Logging of WorldVoice’s speech pipeline has been disabled. Would you like to "
+"export the pipeline log now?"
+msgstr ""
+"WorldVoice konuşma İşlem hattının günlük kaydı devre dışı bırakıldı. Günlük "
+"kaydını şimdi dışa aktarmak ister misiniz?"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:191
+msgid "turn off WorldVoice`s log record"
+msgstr "worldVoice'in günlük kaydını kapatır"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:78
+#| msgid "Speech Engine"
+msgid "Speech Pipeline"
+msgstr "Konuşma İşlem hattı"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:84
+msgid "All Synthesizers (Global)"
+msgstr "Tüm sentezleyiciler (global)"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:85
+#| msgid "Enable WorldVoice rules"
+msgid "Only WorldVoice Synthesizer"
+msgstr "Sadece WorldVoice sentezleyici"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:89
+msgid "Effect Scope:"
+msgstr "Etki Kapsamı:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:101
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:774
+#: addon/synthDrivers/WorldVoice/__init__.py:169
+#: addon/synthDrivers/WorldVoice/__init__.py:252
+msgid "Ignore comma between number"
+msgstr "Sayılar arasında virgülü yoksay"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:108
+#: addon/synthDrivers/WorldVoice/__init__.py:633
+msgid "value"
+msgstr "değer"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:109
+#: addon/synthDrivers/WorldVoice/__init__.py:634
+msgid "number"
+msgstr "sayı"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:114
+msgid "Number mode:"
+msgstr "Sayı Modu:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:124
+msgid "global wait factor:"
+msgstr "global bekleme faktörü:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:128
+msgid "number wait factor:"
+msgstr "sayı bekleme faktörü:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:132
+msgid "item wait factor:"
+msgstr "öğe bekleme faktörü:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:136
+#| msgid "Say all wait factor"
+msgid "sayall wait factor:"
+msgstr "tümünü Okul Bekleme Faktörü:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:140
+msgid "chinese space wait factor:"
+msgstr "çince Boşluk bekleme faktörü:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:225
 msgid "Speech Role"
 msgstr "Konuşma kuralı"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:69
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:355
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:524
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:232
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:566
 msgid "Your current speech synthesizer is not WorldVoice."
 msgstr "Mevcut konuşma sentezleyiciniz WorldVoice değil."
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:77
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:363
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:532
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:245
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:579
 msgid "Your current speech synthesizer is not ready."
 msgstr "Mevcut konuşma sentezleyiciniz hazır değil."
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:98
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:260
 msgid "Select a language, and then configure the voice to be used:"
 msgstr "Bir dil seçin ve ardından kullanılacak sesi yapılandırın:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:102
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:264
 msgid "Locale Name:"
 msgstr "Dil Adı:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:104
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:266
 msgid "Voice Name:"
 msgstr "Ses Adı:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:106
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:268
 msgid "Variant:"
 msgstr "Varyant:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:108
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:271
 msgid "&Rate:"
 msgstr "&Hız:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:110
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:276
+#| msgid "Rate boos&t"
+msgid "Rate boost"
+msgstr "Hız artışı"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:281
 msgid "&Pitch:"
 msgstr "&Perde:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:112
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:284
+msgid "I&nflection:"
+msgstr "&Çekim:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:287
 msgid "V&olume:"
 msgstr "&Ses seviyesi:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:118
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:294
 msgid "Keep main engine and locale engine consistent"
 msgstr "Ana motoru ve yerel motoru tutarlı tut"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:126
-msgid "Keep main voice and locale voice consistent"
-msgstr "Ana sesi ve yerel sesi tutarlı tut"
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:133
-msgid "Keep main parameter and locale parameter consistent"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:302
+#| msgid "Keep main parameter and locale parameter consistent"
+msgid "Keep main speech role and locale speech role consistent"
 msgstr "Ana parametreyi ve yerel parametreyi tutarlı tut"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:347
-msgid "Language Switching"
-msgstr "Dil Değiştirme"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:309
+msgid "Keep parameter settings consistent between different speech roles"
+msgstr "Farklı konuşma rolleri arasında parametre ayarlarını tutarlı tut"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:379
-msgid "Detect text language based on unicode characters"
-msgstr "Unicode karakterlere dayalı metin dilini tespit ed"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:559
+#| msgid "Unicode Setting"
+msgid "Unicode Detection"
+msgstr "Unicode algılama"
 
 #. Translators: Either to ignore or not numbers when language detection is active
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:387
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:601
 msgid "Ignore numbers when detecting text language"
 msgstr "Metin dilini algılarken sayıları yoksay"
 
 #. Translators: Either to ignore or not ASCII punctuation when language detection is active
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:395
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:609
 msgid "Ignore common punctuation when detecting text language"
 msgstr "Metin dilini algılarken yaygın noktalama işaretlerini yoksay"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:401
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:615
 msgid "Language assumed for latin characters:"
 msgstr "Latin karakterleri için varsayılan dil:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:411
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:625
 msgid "Language assumed for CJK characters:"
 msgstr "CJK karakterleri için varsayılan dil:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:421
-msgid "before NVDA processing"
-msgstr "nvda işleminden önce"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:635
+#| msgid "Language assumed for latin characters:"
+msgid "Language assumed for arabic characters:"
+msgstr "Arapça karakterler için varsayılan dil:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:422
-msgid "after NVDA processing"
-msgstr "nvda işleminden sonra"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:645
+#| msgid "before NVDA processing"
+msgid "Before NVDA processes speech commands"
+msgstr "NVDA konuşma komutlarını işlemeden önce"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:425
-msgid "Enhance speech commands:"
-msgstr "Konuşma komutlarını geliştirin:"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:646
+#| msgid "after NVDA processing"
+msgid "After NVDA processes speech commands"
+msgstr "NVDA konuşma komutlarını işledikten sonra"
 
-#. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:448
-msgid ""
-"For the detect language timing configuration to apply, NVDA must save "
-"configuration and be restarted. Do you want to do now?"
-msgstr ""
-"Algılama dili zamanlaması yapılandırmasının uygulanabilmesi için, NVDA'nın "
-"yapılandırmayı kaydetmesi ve yeniden başlatılması gerekir. Şimdi yeniden "
-"başlatmak ister misiniz?"
-
-#. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:450
-msgid "Detect language timing Configuration Change"
-msgstr "Dil zamanlamasını algıla Yapılandırma Değişikliği"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:650
+#| msgid "Language Switching"
+msgid "Language detection timing:"
+msgstr "Dil algılama süresi:"
 
 #. Translators: Title of a setting dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:458
-#| msgid "Speech Role"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:681
 msgid "Speech Engine"
 msgstr "Konuşma Motoru"
 
-#. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:462
-msgid "Activate VE"
-msgstr "VE'yi etkinleştir"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:687
+msgid "Please select one or more speech engines to enable."
+msgstr "Lütfen etkinleştirilecek bir veya daha fazla konuşma motoru seçin."
 
-#. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:466
-msgid "Activate OneCore"
-msgstr "OneCore'u etkinleştir"
-
-#. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:470
-msgid "Activate aisound"
-msgstr "AIsound'u etkinleştir"
-
-#. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:474
-msgid "Activate SAPI5"
-msgstr "SAPI5'i etkinleştir"
-
-#. Translators: The label of an option in the Engine settings dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:478
-msgid "Activate RH"
-msgstr "RH'yi etkinleştir"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:693
+msgid "Select Speech Engines to Enable"
+msgstr "Etkinleştirmek için konuşma motorlarını seçin"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:496
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:731
+#| msgid ""
+#| "Speech engine configuration changes will not to save because no speech "
+#| "engines are activated."
 msgid ""
-"Speech engine configuration changes will not to save because no speech "
-"engines are activated."
+"Changes to speech-engine settings can’t be saved because no speech engine is "
+"enabled."
 msgstr ""
-"Hiçbir konuşma motoru etkinleştirilmediğinden, konuşma motoru yapılandırma "
-"değişiklikleri kaydedilmeyecek."
+"Konuşma motoru etkinleştirilmediği için konuşma motoru ayarları "
+"kaydedilemiyor."
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:498
-msgid "No speech engines are activated"
-msgstr "Hiçbir konuşma motoru etkin değil"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:733
+#| msgid "Speech Engine"
+msgid "No Speech Engine Enabled"
+msgstr "Konuşma Motoru Etkin Değil"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:505
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:739
 #| msgid ""
-#| "For the detect language timing configuration to apply, NVDA must save "
+#| "For the active speech engine configuration to apply, NVDA must save "
 #| "configuration and be restarted. Do you want to do now?"
 msgid ""
-"For the active speech engine configuration to apply, NVDA must save "
-"configuration and be restarted. Do you want to do now?"
+"To enable or disable the speech engine, NVDA needs to save your "
+"configuration and restart. Would you like to restart now?"
 msgstr ""
-"Etkin konuşma motoru yapılandırmasının uygulanabilmesi için NVDA'nın "
-"yapılandırmayı kaydetmesi ve yeniden başlatılması gerekir. Şimdi yeniden "
+"Konuşma motorunu etkinleştirmek veya devre dışı bırakmak için NVDA'nın "
+"yapılandırmanızı kaydetmesi ve yeniden başlatılması gerekiyor. Şimdi yeniden "
 "başlatmak ister misiniz?"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:507
-#| msgid "Detect language timing Configuration Change"
-msgid "active engine Configuration Change"
-msgstr "aktif motor yapılandırma Değişikliği"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:741
+#| msgid "Speech Engine"
+msgid "Speech Engine Change"
+msgstr "Konuşma Motoru Değişikliği"
 
 #. Translators: Title of a setting dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:516
-msgid "Other"
-msgstr "Diğer"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:771
+msgid "Log Record"
+msgstr "Günlük kaydı"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:541
-msgid "OneCore rate boost"
-msgstr "OneCore hız artışı"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:775
+#| msgid "Number Mode"
+msgid "Number mode"
+msgstr "Sayı Modu"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:548
-msgid "VE wait factor:"
-msgstr "VE bekleme faktörü:"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:776
+msgid "Number language"
+msgstr "Sayı Dili"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:555
-msgid "Number dot replacement"
-msgstr "Sayı nokta değiştirme"
-
-#. translators: title of the dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:576
-msgid "Speech Settings"
-msgstr "Konuşma Ayarları"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:777
+msgid "number wait factor"
+msgstr "sayı bekleme faktörü"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:87
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:778
+#: addon/synthDrivers/WorldVoice/__init__.py:209
+#: addon/synthDrivers/WorldVoice/__init__.py:292
+msgid "item wait factor"
+msgstr "öğe bekleme faktörü"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:779
+#| msgid "Chinese space wait factor"
+msgid "chinese space wait factor"
+msgstr "çince boşluk Bekleme Faktörü"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:780
+#| msgid "Speech Engine"
+msgid "speech viewer"
+msgstr "konuşma izleyicisi"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:786
+msgid "Enable logging of WorldVoice’s speech pipeline"
+msgstr "WorldVoice konuşma İşlem hattının günlük kaydını etkinleştir"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:789
+msgid "Select Speech Pipelines to Enable"
+msgstr "Etkinleştirmek için konuşma İşlem hatlarını seçin"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:851
+msgid "Settings"
+msgstr "Ayarlar"
+
+#. 這時父類別會讀取 self.categoryClasses
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:871
+#, python-format
+#| msgid "WorldVoice"
+msgid "WorldVoice - %s"
+msgstr "WorldVoice - %s"
+
+#. Body text
+#: addon/globalPlugins/WorldVoice/utils.py:28
+#, python-brace-format
+msgid ""
+"An unexpected error occurred while processing your action.\n"
+"\n"
+"Details: {err}\n"
+"\n"
+"A full stack trace has been written to the NVDA log."
+msgstr ""
+"İşleminiz işlenirken beklenmedik bir hata oluştu.\n"
+"\n"
+"Detaylar: {err}\n"
+"\n"
+"NVDA günlüğüne tam bir yığın izi yazıldı."
+
+#. Caption
+#: addon/globalPlugins/WorldVoice/utils.py:33
+msgid "WorldVoice Setting Dialog - Error"
+msgstr "WorldVoice Ayar iletişim kutusu - Hata"
+
+#: addon/synthDrivers/WorldVoice/__init__.py:162
+#: addon/synthDrivers/WorldVoice/__init__.py:165
+#: addon/synthDrivers/WorldVoice/__init__.py:245
+#: addon/synthDrivers/WorldVoice/__init__.py:248
+#| msgid "Detect text language based on unicode characters"
+msgid "Detect language based on Unicode characters"
+msgstr "Unicode karakterlere dayalı metin dilini tespit ed"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon/synthDrivers/WorldVoice/__init__.py:175
+#: addon/synthDrivers/WorldVoice/__init__.py:258
 msgid "Number &Language"
 msgstr "Sayı Di&li"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:91
+#: addon/synthDrivers/WorldVoice/__init__.py:179
+#: addon/synthDrivers/WorldVoice/__init__.py:262
 msgid "Number Language"
 msgstr "Sayı Dili"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:96
+#: addon/synthDrivers/WorldVoice/__init__.py:184
+#: addon/synthDrivers/WorldVoice/__init__.py:267
 msgid "Number &Mode"
 msgstr "Sayı &Modu"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:100
+#: addon/synthDrivers/WorldVoice/__init__.py:188
+#: addon/synthDrivers/WorldVoice/__init__.py:271
 msgid "Number Mode"
 msgstr "Sayı Modu"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:105
+#: addon/synthDrivers/WorldVoice/__init__.py:193
+#: addon/synthDrivers/WorldVoice/__init__.py:276
+#| msgid "Say all wait factor"
+msgid "Global wait factor"
+msgstr "Global Bekleme Faktörü"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon/synthDrivers/WorldVoice/__init__.py:201
+#: addon/synthDrivers/WorldVoice/__init__.py:284
 msgid "Number wait factor"
 msgstr "Sayı bekleme faktörü"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:113
-msgid "item wait factor"
-msgstr "öğe bekleme faktörü"
+#: addon/synthDrivers/WorldVoice/__init__.py:217
+#: addon/synthDrivers/WorldVoice/__init__.py:300
+msgid "Say all wait factor"
+msgstr "Tümünü oku bekleme faktörü"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:121
+#: addon/synthDrivers/WorldVoice/__init__.py:225
+#: addon/synthDrivers/WorldVoice/__init__.py:308
 msgid "Chinese space wait factor"
 msgstr "Çince Boşluk bekleme faktörü"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:128
-msgid "Normalization"
-msgstr "Normalleştirme"
-
-#: addon\synthDrivers\WorldVoice\__init__.py:133
-msgid "Ignore comma between number"
-msgstr "Sayılar arasında virgülü yoksay"
-
-#: addon\synthDrivers\WorldVoice\__init__.py:138
-msgid "Enable WorldVoice setting rules to detect text language"
-msgstr "Metin dilini algılamak için WorldVoice ayar kurallarını etkinleştir"
-
-#: addon\synthDrivers\WorldVoice\__init__.py:141
-msgid "Enable WorldVoice rules"
-msgstr "WorldVoice kurallarını etkinleştir"
-
-#: addon\synthDrivers\WorldVoice\__init__.py:577
-msgid "OFF"
-msgstr "KAPALI"
-
-#: addon\synthDrivers\WorldVoice\__init__.py:592
+#: addon/synthDrivers/WorldVoice/__init__.py:572
+#: addon/synthDrivers/WorldVoice/__init__.py:618
 msgid "default"
 msgstr "varsayılan"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:607
-msgid "value"
-msgstr "değer"
+#. Translators: The title of the Export pipeline log file window
+#: addon/synthDrivers/WorldVoice/log.py:43
+msgid "Export pipeline log files..."
+msgstr "İşlem Hattı Günlük Dosyalarını Dışa Aktar ..."
 
-#: addon\synthDrivers\WorldVoice\__init__.py:608
-msgid "number"
-msgstr "sayı"
+#: addon/synthDrivers/WorldVoice/log.py:57
+msgid ""
+"Log exported to:\n"
+"{}"
+msgstr ""
+"Günlük şurada dışa aktarıldı:\n"
+"{}"
+
+#: addon/synthDrivers/WorldVoice/log.py:58
+msgid "Success"
+msgstr "Başarılı"
+
+#: addon/synthDrivers/WorldVoice/log.py:63
+msgid ""
+"Cannot export log to {}:\n"
+"{}"
+msgstr ""
+"Günlüğü {} olarak dışa aktarılamıyor:\n"
+"{}"
 
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
 #: buildVars.py:26
+#| msgid ""
+#| "Multilingual synthesizers add-on: Automatically switch speech role "
+#| "according to text language; Integrated Aisound, OneCore, RHVoice, SAPI5, "
+#| "VE speech engine"
 msgid ""
-"Multilingual synthesizers add-on: Automatically switch speech role according "
-"to text language; Integrated Aisound, OneCore, RHVoice, SAPI5, VE speech "
-"engine"
+"Multilingual synthesizer add-on: auto-switches voices across eSpeak, "
+"OneCore, SAPI5 & RHVoice based on text language."
 msgstr ""
-"Çok dilli sentezleyici eklentisi: Metin diline göre konuşma rolünü otomatik "
-"olarak değiştirin; Entegre Aisound, OneCore, RHVoice, SAPI5, VE konuşma "
-"motoru"
+"Çok Dilli Sentezleyici Eklentisi: Metin diline göre eSpeak, OneCore, SAPI5 "
+"ve RHVoice arasında sesleri otomatik olarak değiştirir."
 
-msgid "VE"
-msgstr "VE"
+#~ msgid "&Aisound Core Install"
+#~ msgstr "&Aisound Çekirdek Kurulumu"
 
-msgid "SAPI5"
-msgstr "SAPI5"
+#~ msgid "Install Aisound Core."
+#~ msgstr "Aisound çekirdeğini kur."
 
-msgid "RH"
-msgstr "RH"
+#~ msgid "Keep main voice and locale voice consistent"
+#~ msgstr "Ana sesi ve yerel sesi tutarlı tut"
+
+#~ msgid "Enhance speech commands:"
+#~ msgstr "Konuşma komutlarını geliştirin:"
+
+#~ msgid ""
+#~ "For the detect language timing configuration to apply, NVDA must save "
+#~ "configuration and be restarted. Do you want to do now?"
+#~ msgstr ""
+#~ "Algılama dili zamanlaması yapılandırmasının uygulanabilmesi için, "
+#~ "NVDA'nın yapılandırmayı kaydetmesi ve yeniden başlatılması gerekir. Şimdi "
+#~ "yeniden başlatmak ister misiniz?"
+
+#~ msgid "Detect language timing Configuration Change"
+#~ msgstr "Dil zamanlamasını algıla Yapılandırma Değişikliği"
+
+#~ msgid "Activate OneCore"
+#~ msgstr "OneCore'u etkinleştir"
+
+#~ msgid "Activate aisound"
+#~ msgstr "AIsound'u etkinleştir"
+
+#~ msgid "Activate SAPI5"
+#~ msgstr "SAPI5'i etkinleştir"
+
+#~ msgid "Activate RH"
+#~ msgstr "RH'yi etkinleştir"
+
+#~| msgid "Activate OneCore"
+#~ msgid "Activate espeak"
+#~ msgstr "Espeak'i etkinleştir"
+
+#~| msgid "Activate VE"
+#~ msgid "Activate IBM"
+#~ msgstr "IBM'i etkinleştir"
+
+#~ msgid "No speech engines are activated"
+#~ msgstr "Hiçbir konuşma motoru etkin değil"
+
+#~ msgid "active engine Configuration Change"
+#~ msgstr "aktif motor yapılandırma Değişikliği"
+
+#~ msgid "Other"
+#~ msgstr "Diğer"
+
+#~ msgid "Number dot replacement"
+#~ msgstr "Sayı nokta değiştirme"
+
+#~ msgid "Normalization"
+#~ msgstr "Normalleştirme"
+
+#~ msgid "Enable WorldVoice setting rules to detect text language"
+#~ msgstr "Metin dilini algılamak için WorldVoice ayar kurallarını etkinleştir"
+
+#~ msgid "OFF"
+#~ msgstr "KAPALI"
+
+#~ msgid "Castilian Spanish"
+#~ msgstr "Kastilya İspanyolcası"
+
+#~ msgid "Latin American Spanish"
+#~ msgstr "Latin Amerika İspanyolcası"
+
+#~ msgid "Brazilian Portuguese"
+#~ msgstr "Brezilya Portekizcesi"
+
+#~ msgid "French"
+#~ msgstr "Fransızca"
+
+#~ msgid "French Canadian"
+#~ msgstr "Fransızca Kanada"
+
+#~ msgid "Finnish"
+#~ msgstr "Fince"
+
+#~ msgid "Chinese"
+#~ msgstr "Çince"
+
+#~ msgid "Japanese"
+#~ msgstr "Japonca"
+
+#~ msgid "Korean"
+#~ msgstr "Korece"
+
+#~ msgid "German"
+#~ msgstr "Almanca"
+
+#~ msgid "Italian"
+#~ msgstr "İtalyanca"
+
+#~ msgid "American English"
+#~ msgstr "Amerikan İngilizcesi"
+
+#~ msgid "British English"
+#~ msgstr "İngiltere İngilizcesi"
+
+#~ msgid "Swedish"
+#~ msgstr "İsveççe"
+
+#~ msgid "Norwegian"
+#~ msgstr "Norveççe"
+
+#~ msgid "Danish"
+#~ msgstr "Danca"
+
+#~ msgid "Hong Kong Cantonese"
+#~ msgstr "Hong Kong Kantoncası"
+
+#~ msgid "Hea&d size"
+#~ msgstr "K&afa büyüklüğü"
+
+#~ msgid "Rou&ghness"
+#~ msgstr "&Prüzlülük"
+
+#~ msgid "Breathi&ness"
+#~ msgstr "&Nefes Alma"
+
+#~ msgid "Enable backquote voice &tags"
+#~ msgstr "Geri alıntı ses e&tiketlerini etkinleştir"
+
+#~ msgid "Enable &abbreviation expansion"
+#~ msgstr "Kıs&altma genişletmeyi etkinleştir"
+
+#~ msgid "Enable phras&e prediction"
+#~ msgstr "Cüml&e tahminini etkinleştir"
+
+#~ msgid "&Pauses"
+#~ msgstr "&Duraklamalar"
+
+#~| msgid "&Speech Settings"
+#~ msgid "Al&ways Send Current Speech Settings"
+#~ msgstr "&Her Zaman Geçerli Konuşma Ayarlarını Gönder"
+
+#~ msgid "Sa&mple Rate"
+#~ msgstr "&Örnek Hızı"
+
+#~ msgid "Do not shorten"
+#~ msgstr "Kısaltma yapma"
+
+#~ msgid "Shorten at end of text only"
+#~ msgstr "Yalnızca metnin sonunu kısalt"
+
+#~ msgid "Shorten all pauses"
+#~ msgstr "Tüm duraklamaları kısalt"
+
+#~ msgid "Activate VE"
+#~ msgstr "VE'yi etkinleştir"
+
+#~ msgid "OneCore rate boost"
+#~ msgstr "OneCore hız artışı"
+
+#~ msgid "VE Core Install"
+#~ msgstr "VE Çekirdek Kurulumu"
+
+#~ msgid "Install VE Core."
+#~ msgstr "VE çekirdeğini kur."
+
+#~ msgid "No help available here."
+#~ msgstr "Yardım Bulunamadı."
+
+#~ msgid "No user guide found."
+#~ msgstr "Kullanıcı kılavuzu bulunamadı."
+
+#~ msgid "SpeechSettingsDialog have already been opened"
+#~ msgstr "Konuşma Ayarları İletişim Kutusu zaten açık"
+
+#~ msgid "Detect language timing:"
+#~ msgstr "Dil zamanlamasını algıla:"
+
+#~ msgid "Role Switch Wait Factor"
+#~ msgstr "Rol Değiştirme Bekleme Faktörü"
+
+#~ msgid "VE"
+#~ msgstr "VE"
+
+#~ msgid "SAPI5"
+#~ msgstr "SAPI5"
+
+#~ msgid "RH"
+#~ msgstr "RH"
 
 #, fuzzy
 #~| msgid "Speech Role"
 #~ msgid "Engine"
 #~ msgstr "Konuşma kuralı"
-
-#~ msgid "Detect language timing:"
-#~ msgstr "Dil zamanlamasını algıla:"
-
-#~ msgid "SpeechSettingsDialog have already been opened"
-#~ msgstr "Konuşma Ayarları İletişim Kutusu zaten açık"
-
-#~ msgid "Role Switch Wait Factor"
-#~ msgstr "Rol Değiştirme Bekleme Faktörü"
 
 #~ msgid "Pause time when encountering spaces between Chinese"
 #~ msgstr "Çince arasındaki boşluklarla karşılaşıldığında süreyi duraklat"
