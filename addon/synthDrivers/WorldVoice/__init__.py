@@ -123,6 +123,15 @@ def unlock_action(synth):
 			pass
 
 
+def listable(func):
+	def wrapper(speechSequence):
+		speechSequence = list(speechSequence)
+		speechSequence = func(speechSequence)
+		speechSequence = list(speechSequence)
+		return speechSequence
+	return wrapper
+
+
 class SynthDriver(SynthDriver):
 	name = "WorldVoice"
 	description = "WorldVoice"
@@ -339,6 +348,7 @@ class SynthDriver(SynthDriver):
 		self.speechSymbols.load('unicode.dic')
 
 		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.allLanguages), self.speechSymbols)
+		self.add_detected_language_commands = listable(self._languageDetector.add_detected_language_commands)
 
 		self._voice = None
 
@@ -387,7 +397,7 @@ class SynthDriver(SynthDriver):
 	def speak(self, speechSequence):
 		self.order = 0
 		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
-			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
+			speechSequence = self.add_detected_language_commands(speechSequence)
 
 		speechSequence = inject_langchange_reorder(speechSequence)
 
@@ -595,10 +605,10 @@ class SynthDriver(SynthDriver):
 
 	def detect_language_timing(self):
 		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
-			filter_speechSequence.register(self._languageDetector.add_detected_language_commands)
+			filter_speechSequence.register(self.add_detected_language_commands)
 			order_move_to_start_register()
 		else:
-			filter_speechSequence.unregister(self._languageDetector.add_detected_language_commands)
+			filter_speechSequence.unregister(self.add_detected_language_commands)
 
 	def _get_cni(self):
 		return self._cni
