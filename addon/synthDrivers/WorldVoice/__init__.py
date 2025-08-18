@@ -30,6 +30,7 @@ from .pipeline import (
 	order_move_to_start_register,
 	static_register,
 	unregister,
+	listable,
 )
 from ._speechcommand import SplitCommand
 from .taskManager import TaskManager
@@ -121,15 +122,6 @@ def unlock_action(synth):
 			lock.release()
 		except RuntimeError:
 			pass
-
-
-def listable(func):
-	def wrapper(speechSequence):
-		speechSequence = list(speechSequence)
-		speechSequence = func(speechSequence)
-		speechSequence = list(speechSequence)
-		return speechSequence
-	return wrapper
 
 
 class SynthDriver(SynthDriver):
