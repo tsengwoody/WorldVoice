@@ -30,6 +30,7 @@ from .pipeline import (
 	order_move_to_start_register,
 	static_register,
 	unregister,
+	listable,
 )
 from ._speechcommand import SplitCommand
 from .taskManager import TaskManager
@@ -65,7 +66,7 @@ config.conf.spec["WorldVoice"] = {
 		"scope": "string(default=WorldVoice)",
 		"ignore_comma_between_number": "boolean(default=false)",
 		"number_mode": "string(default=value)",
-		"global_wait_factor": "integer(default=50,min=0,max=100)",
+		"global_wait_factor": "integer(default=10,min=0,max=100)",
 		"number_wait_factor": "integer(default=50,min=0,max=100)",
 		"item_wait_factor": "integer(default=50,min=0,max=100)",
 		"sayall_wait_factor": "integer(default=50,min=0,max=100)",
@@ -339,6 +340,7 @@ class SynthDriver(SynthDriver):
 		self.speechSymbols.load('unicode.dic')
 
 		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.allLanguages), self.speechSymbols)
+		self.add_detected_language_commands = listable(self._languageDetector.add_detected_language_commands)
 
 		self._voice = None
 
@@ -387,7 +389,7 @@ class SynthDriver(SynthDriver):
 	def speak(self, speechSequence):
 		self.order = 0
 		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
-			speechSequence = self._languageDetector.add_detected_language_commands(speechSequence)
+			speechSequence = self.add_detected_language_commands(speechSequence)
 
 		speechSequence = inject_langchange_reorder(speechSequence)
 
@@ -508,9 +510,11 @@ class SynthDriver(SynthDriver):
 
 	def pause(self, switch):
 		if switch:
-			self._voiceManager.defaultVoiceInstance.pause()
+			if self.taskManager.speakingVoiceInstance:
+				self.taskManager.speakingVoiceInstance.pause()
 		else:
-			self._voiceManager.defaultVoiceInstance.resume()
+			if self.taskManager.speakingVoiceInstance:
+				self.taskManager.speakingVoiceInstance.resume()
 
 	def _get_volume(self):
 		return self._voiceManager.defaultVoiceInstance.volume
@@ -593,10 +597,10 @@ class SynthDriver(SynthDriver):
 
 	def detect_language_timing(self):
 		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
-			filter_speechSequence.register(self._languageDetector.add_detected_language_commands)
+			filter_speechSequence.register(self.add_detected_language_commands)
 			order_move_to_start_register()
 		else:
-			filter_speechSequence.unregister(self._languageDetector.add_detected_language_commands)
+			filter_speechSequence.unregister(self.add_detected_language_commands)
 
 	def _get_cni(self):
 		return self._cni
