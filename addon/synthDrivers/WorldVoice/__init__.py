@@ -66,7 +66,7 @@ config.conf.spec["WorldVoice"] = {
 		"scope": "string(default=WorldVoice)",
 		"ignore_comma_between_number": "boolean(default=false)",
 		"number_mode": "string(default=value)",
-		"global_wait_factor": "integer(default=50,min=0,max=100)",
+		"global_wait_factor": "integer(default=10,min=0,max=100)",
 		"number_wait_factor": "integer(default=50,min=0,max=100)",
 		"item_wait_factor": "integer(default=50,min=0,max=100)",
 		"sayall_wait_factor": "integer(default=50,min=0,max=100)",
