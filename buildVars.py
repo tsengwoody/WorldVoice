@@ -23,10 +23,7 @@ addon_info = AddonInfo(
 	# Translators: Long description to be shown for this add-on on add-on information from add-on store
 	addon_description=_("Multilingual synthesizer add-on: auto-switches voices across eSpeak, OneCore, SAPI5 & RHVoice based on text language."),
 	# version
-	addon_version="5.1",
-	# Brief changelog for this version
-	# Translators: what's new content for the add-on version to be shown in the add-on store
-	addon_changelog=_("""Changelog for the add-on version. It can span multiple lines."""),
+	addon_version="5.2",
 	# Author(s)
 	addon_author="Tseng Woody <tsengwoody.tw@gmail.com>",
 	# URL for the add-on documentation support
@@ -44,9 +41,9 @@ addon_info = AddonInfo(
 	# Do not change unless you know what you are doing!
 	addon_updateChannel=None,
 	# Add-on license such as GPL 2
-	addon_license=None,
+	addon_license="GPL v2",
 	# URL for the license document the ad-on is licensed under
-	addon_licenseURL=None,
+	addon_licenseURL="https://www.gnu.org/licenses/gpl-2.0.html",
 )
 
 # Define the python files that are the sources of your add-on.
