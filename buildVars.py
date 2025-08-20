@@ -24,6 +24,9 @@ addon_info = AddonInfo(
 	addon_description=_("Multilingual synthesizer add-on: auto-switches voices across eSpeak, OneCore, SAPI5 & RHVoice based on text language."),
 	# version
 	addon_version="5.2",
+	# Brief changelog for this version
+	# Translators: what's new content for the add-on version to be shown in the add-on store
+	addon_changelog=_("Add pipeline and logging features"),
 	# Author(s)
 	addon_author="Tseng Woody <tsengwoody.tw@gmail.com>",
 	# URL for the add-on documentation support
