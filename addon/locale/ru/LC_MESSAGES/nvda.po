@@ -1,8 +1,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: WorldVoice 4.0\n"
-"POT-Creation-Date: 2025-07-02 19:38+0500\n"
-"PO-Revision-Date: 2025-08-19 19:44+0500\n"
+"Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
+"POT-Creation-Date: 2025-08-21 09:24+0500\n"
+"PO-Revision-Date: 2025-08-21 09:25+0500\n"
 "Last-Translator: \n"
 "Language-Team: Russian translation team <nvda.ru>, Danil Kostenkov "
 "<danilkostenkov38@gmail.com>\n"
@@ -132,7 +133,7 @@ msgid "Import File."
 msgstr "Импортировать голоса из ZIP-архива."
 
 #: addon/globalPlugins/WorldVoice/__init__.py:81
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:34 buildVars.py:23
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:34 buildVars.py:21
 msgid "WorldVoice"
 msgstr "WorldVoice"
 
@@ -237,18 +238,18 @@ msgstr "Область применения эффекта:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:101
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:774
-#: addon/synthDrivers/WorldVoice/__init__.py:169
-#: addon/synthDrivers/WorldVoice/__init__.py:252
+#: addon/synthDrivers/WorldVoice/__init__.py:170
+#: addon/synthDrivers/WorldVoice/__init__.py:253
 msgid "Ignore comma between number"
 msgstr "Игнорировать запятую между числом"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:108
-#: addon/synthDrivers/WorldVoice/__init__.py:631
+#: addon/synthDrivers/WorldVoice/__init__.py:635
 msgid "value"
 msgstr "целым числом"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:109
-#: addon/synthDrivers/WorldVoice/__init__.py:632
+#: addon/synthDrivers/WorldVoice/__init__.py:636
 msgid "number"
 msgstr "по цифре"
 
@@ -429,8 +430,8 @@ msgid "number wait factor"
 msgstr "пауза между цифрами"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:778
-#: addon/synthDrivers/WorldVoice/__init__.py:209
-#: addon/synthDrivers/WorldVoice/__init__.py:292
+#: addon/synthDrivers/WorldVoice/__init__.py:210
+#: addon/synthDrivers/WorldVoice/__init__.py:293
 msgid "item wait factor"
 msgstr "пауза между элементами"
 
@@ -478,55 +479,55 @@ msgstr ""
 msgid "WorldVoice Setting Dialog - Error"
 msgstr "Ошибка диалога настроек WorldVoice"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:162
-#: addon/synthDrivers/WorldVoice/__init__.py:165
-#: addon/synthDrivers/WorldVoice/__init__.py:245
-#: addon/synthDrivers/WorldVoice/__init__.py:248
+#: addon/synthDrivers/WorldVoice/__init__.py:163
+#: addon/synthDrivers/WorldVoice/__init__.py:166
+#: addon/synthDrivers/WorldVoice/__init__.py:246
+#: addon/synthDrivers/WorldVoice/__init__.py:249
 msgid "Detect language based on Unicode characters"
 msgstr "Определять язык текста на основе символов Unicode"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:175
-#: addon/synthDrivers/WorldVoice/__init__.py:258
+#: addon/synthDrivers/WorldVoice/__init__.py:176
+#: addon/synthDrivers/WorldVoice/__init__.py:259
 msgid "Number &Language"
 msgstr "&Язык чисел"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:179
-#: addon/synthDrivers/WorldVoice/__init__.py:262
+#: addon/synthDrivers/WorldVoice/__init__.py:180
+#: addon/synthDrivers/WorldVoice/__init__.py:263
 msgid "Number Language"
 msgstr "Язык чисел"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:184
-#: addon/synthDrivers/WorldVoice/__init__.py:267
+#: addon/synthDrivers/WorldVoice/__init__.py:185
+#: addon/synthDrivers/WorldVoice/__init__.py:268
 msgid "Number &Mode"
 msgstr "&Режим чисел"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:188
-#: addon/synthDrivers/WorldVoice/__init__.py:271
+#: addon/synthDrivers/WorldVoice/__init__.py:189
+#: addon/synthDrivers/WorldVoice/__init__.py:272
 msgid "Number Mode"
 msgstr "Режим чисел"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:193
-#: addon/synthDrivers/WorldVoice/__init__.py:276
+#: addon/synthDrivers/WorldVoice/__init__.py:194
+#: addon/synthDrivers/WorldVoice/__init__.py:277
 msgid "Global wait factor"
 msgstr "Коэффициент ожидания"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:201
-#: addon/synthDrivers/WorldVoice/__init__.py:284
+#: addon/synthDrivers/WorldVoice/__init__.py:202
+#: addon/synthDrivers/WorldVoice/__init__.py:285
 msgid "Number wait factor"
 msgstr "Пауза между цифрами"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:217
-#: addon/synthDrivers/WorldVoice/__init__.py:300
+#: addon/synthDrivers/WorldVoice/__init__.py:218
+#: addon/synthDrivers/WorldVoice/__init__.py:301
 msgid "Say all wait factor"
 msgstr "Паузы между фрагментами в режиме непрерывного чтения"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:225
-#: addon/synthDrivers/WorldVoice/__init__.py:308
+#: addon/synthDrivers/WorldVoice/__init__.py:226
+#: addon/synthDrivers/WorldVoice/__init__.py:309
 msgid "Chinese space wait factor"
 msgstr "Продолжительность паузы китайских пробелов"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:570
-#: addon/synthDrivers/WorldVoice/__init__.py:616
+#: addon/synthDrivers/WorldVoice/__init__.py:574
+#: addon/synthDrivers/WorldVoice/__init__.py:620
 msgid "default"
 msgstr "по умолчанию"
 
@@ -678,7 +679,7 @@ msgstr ""
 "Не удаётся экспортировать журнал в {}:\n"
 "{}"
 
-#: buildVars.py:26
+#: buildVars.py:24
 msgid ""
 "Multilingual synthesizer add-on: auto-switches voices across eSpeak, "
 "OneCore, SAPI5 & RHVoice based on text language."
@@ -686,3 +687,11 @@ msgstr ""
 "Это дополнение - драйвер для многоязычных синтезаторов речи: позволяет "
 "настроить автоматическое переключение голосов между синтезаторами речи "
 "eSpeak, OneCore, SAPI5 и RHVoice в зависимости от языка текста."
+
+#: buildVars.py:29
+msgid "Add pipeline and logging features"
+msgstr "Добавить речевой канал и ведения журнала"
+
+#~ msgctxt "speechSymbols"
+#~ msgid "&Filter by:"
+#~ msgstr "Фи&льтровать по:"
