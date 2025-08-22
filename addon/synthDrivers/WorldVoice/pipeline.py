@@ -412,7 +412,12 @@ def inject_number_mode(
 		if not isinstance(item, str):
 			yield item
 			continue
-		yield from merge_consecutive_strings(deduplicate_language_command(iter_number_speech_segments_mode(item, mode, translate_table)))
+
+		synth = getSynth()
+		if synth.name == 'WorldVoice':
+			yield from merge_consecutive_strings(deduplicate_language_command(iter_number_speech_segments_mode(item, mode, translate_table)))
+		else:
+			yield from merge_consecutive_strings(iter_number_speech_segments_mode(item, mode, translate_table))
 
 
 def iter_number_speech_segments_mode(item, mode, translate_table, number_re=_NUMBER_RE):
