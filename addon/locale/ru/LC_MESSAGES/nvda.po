@@ -1,9 +1,9 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: WorldVoice 4.0\n"
+"Project-Id-Version: WorldVoice 5.2.1\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
-"POT-Creation-Date: 2025-08-21 09:24+0500\n"
-"PO-Revision-Date: 2025-08-21 09:25+0500\n"
+"POT-Creation-Date: 2025-08-23 08:58+0500\n"
+"PO-Revision-Date: 2025-08-23 09:14+0500\n"
 "Last-Translator: \n"
 "Language-Team: Russian translation team <nvda.ru>, Danil Kostenkov "
 "<danilkostenkov38@gmail.com>\n"
@@ -22,6 +22,24 @@ msgstr ""
 "X-Poedit-SearchPath-3: addon/globalPlugins/WorldVoice\n"
 "X-Poedit-SearchPath-4: addon/synthDrivers/WorldVoice\n"
 "X-Poedit-SearchPath-5: addon/synthDrivers/WorldVoice/languageDetection\n"
+"X-Poedit-SearchPath-6: addon/synthDrivers/WorldVoice\n"
+"X-Poedit-SearchPath-7: addon/synthDrivers/WorldVoice/languageDetection\n"
+"X-Poedit-SearchPath-8: addon/synthDrivers/WorldVoice/driver\n"
+"X-Poedit-SearchPath-9: addon/synthDrivers/WorldVoice/driver/Aisound\n"
+"X-Poedit-SearchPath-10: addon/synthDrivers/WorldVoice/driver/Aisound/driver\n"
+"X-Poedit-SearchPath-11: addon/synthDrivers/WorldVoice/driver/Espeak\n"
+"X-Poedit-SearchPath-12: addon/synthDrivers/WorldVoice/driver/Espeak/driver\n"
+"X-Poedit-SearchPath-13: addon/synthDrivers/WorldVoice/driver/IBM\n"
+"X-Poedit-SearchPath-14: addon/synthDrivers/WorldVoice/driver/IBM/driver\n"
+"X-Poedit-SearchPath-15: addon/synthDrivers/WorldVoice/driver/OneCore\n"
+"X-Poedit-SearchPath-16: addon/synthDrivers/WorldVoice/driver/OneCore/driver\n"
+"X-Poedit-SearchPath-17: addon/synthDrivers/WorldVoice/driver/RH\n"
+"X-Poedit-SearchPath-18: addon/synthDrivers/WorldVoice/driver/RH/driver\n"
+"X-Poedit-SearchPath-19: addon/synthDrivers/WorldVoice/driver/SAPI5\n"
+"X-Poedit-SearchPath-20: addon/synthDrivers/WorldVoice/driver/SAPI5/driver\n"
+"X-Poedit-SearchPath-21: addon/synthDrivers/WorldVoice/driver/sonic\n"
+"X-Poedit-SearchPath-22: addon/synthDrivers/WorldVoice/driver/VE\n"
+"X-Poedit-SearchPath-23: addon/synthDrivers/WorldVoice/driver/VE/driver\n"
 
 #: addon/generics/speechSymbols/models.py:20
 msgid "context"
@@ -77,7 +95,7 @@ msgstr "&язык"
 
 #: addon/generics/speechSymbols/views.py:138
 msgid "&Detect language mode"
-msgstr "&Определить режим речи"
+msgstr "&Режим определения языка"
 
 #: addon/generics/speechSymbols/views.py:145
 msgid "&Add"
@@ -101,8 +119,8 @@ msgid ""
 "For the edited unicode rule to apply, NVDA must be restarted. Do you want to "
 "restart NVDA now?"
 msgstr ""
-"Чтобы было применено отредактированное правило Юникода, необходимо "
-"перезапустить NVDA. Вы хотите перезапустить NVDA сейчас?"
+"Для применения отредактированного правила Юникода необходимо перезапустить "
+"NVDA. Хотите сделать это NVDA сейчас?"
 
 #: addon/generics/speechSymbols/views.py:324
 msgid "unicode rule edited"
@@ -234,14 +252,14 @@ msgstr "Только синтезатор WorldVoice"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:89
 msgid "Effect Scope:"
-msgstr "Область применения эффекта:"
+msgstr "Область применения:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:101
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:774
 #: addon/synthDrivers/WorldVoice/__init__.py:170
 #: addon/synthDrivers/WorldVoice/__init__.py:253
 msgid "Ignore comma between number"
-msgstr "Игнорировать запятую между числом"
+msgstr "Игнорировать запятую между цифрами"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:108
 #: addon/synthDrivers/WorldVoice/__init__.py:635
@@ -255,7 +273,7 @@ msgstr "по цифре"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:114
 msgid "Number mode:"
-msgstr "Режим чисел:"
+msgstr "Режим проговаривания чисел:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:124
 msgid "global wait factor:"
@@ -419,7 +437,7 @@ msgstr "Запись журнала"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:775
 msgid "Number mode"
-msgstr "Режим чисел"
+msgstr "Режим проговаривания чисел"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:776
 msgid "Number language"
@@ -458,7 +476,7 @@ msgstr "Настройки"
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:871
 #, python-format
 msgid "WorldVoice - %s"
-msgstr "WorldVoice  - %s"
+msgstr "%s - WorldVoice"
 
 #: addon/globalPlugins/WorldVoice/utils.py:28
 #, python-brace-format
@@ -499,12 +517,12 @@ msgstr "Язык чисел"
 #: addon/synthDrivers/WorldVoice/__init__.py:185
 #: addon/synthDrivers/WorldVoice/__init__.py:268
 msgid "Number &Mode"
-msgstr "&Режим чисел"
+msgstr "&Режим проговаривания чисел"
 
 #: addon/synthDrivers/WorldVoice/__init__.py:189
 #: addon/synthDrivers/WorldVoice/__init__.py:272
 msgid "Number Mode"
-msgstr "Режим чисел"
+msgstr "Режим проговаривания чисел"
 
 #: addon/synthDrivers/WorldVoice/__init__.py:194
 #: addon/synthDrivers/WorldVoice/__init__.py:277
