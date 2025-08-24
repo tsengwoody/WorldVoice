@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: WorldVoice 5.2.1\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
 "POT-Creation-Date: 2025-08-23 08:58+0500\n"
-"PO-Revision-Date: 2025-08-23 09:14+0500\n"
+"PO-Revision-Date: 2025-08-24 14:23+0500\n"
 "Last-Translator: \n"
 "Language-Team: Russian translation team <nvda.ru>, Danil Kostenkov "
 "<danilkostenkov38@gmail.com>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
-"X-Generator: Poedit 3.6\n"
+"X-Generator: Poedit 3.7\n"
 "X-Poedit-Basepath: ../../../..\n"
 "X-Poedit-SourceCharset: UTF-8\n"
 "X-Poedit-SearchPath-0: .\n"
@@ -47,7 +47,7 @@ msgstr "контекст"
 
 #: addon/generics/speechSymbols/models.py:21
 msgid "force"
-msgstr "ускорение"
+msgstr "принудительное применение"
 
 #: addon/generics/speechSymbols/views.py:30
 msgid "Add Symbol"
@@ -119,12 +119,12 @@ msgid ""
 "For the edited unicode rule to apply, NVDA must be restarted. Do you want to "
 "restart NVDA now?"
 msgstr ""
-"Для применения отредактированного правила Юникода необходимо перезапустить "
-"NVDA. Хотите сделать это NVDA сейчас?"
+"Для применения изменённого правила Юникода необходимо перезапустить NVDA. "
+"Хотите сделать это сейчас?"
 
 #: addon/generics/speechSymbols/views.py:324
 msgid "unicode rule edited"
-msgstr "правило Юникода отредактировано"
+msgstr "правило Юникода изменено"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:71
 msgid "&Settings"
@@ -269,7 +269,7 @@ msgstr "целым числом"
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:109
 #: addon/synthDrivers/WorldVoice/__init__.py:636
 msgid "number"
-msgstr "по цифре"
+msgstr "по цифрам"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:114
 msgid "Number mode:"
@@ -277,23 +277,23 @@ msgstr "Режим проговаривания чисел:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:124
 msgid "global wait factor:"
-msgstr "коэффициент ожидания:"
+msgstr "общая длительность пауз:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:128
 msgid "number wait factor:"
-msgstr "пауза между цифрами:"
+msgstr "длительность пауз между цифрами:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:132
 msgid "item wait factor:"
-msgstr "пауза между элементами:"
+msgstr "длительность пауз между элементами:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:136
 msgid "sayall wait factor:"
-msgstr "паузы между фрагментами в режиме непрерывного чтения:"
+msgstr "длительность пауз в режиме непрерывного чтения:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:140
 msgid "chinese space wait factor:"
-msgstr "продолжительность паузы китайских пробелов:"
+msgstr "длительность пауз китайских пробелов:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:225
 msgid "Speech Role"
@@ -302,24 +302,24 @@ msgstr "Роль речи"
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:232
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:566
 msgid "Your current speech synthesizer is not WorldVoice."
-msgstr "Ваш текущий синтезатор речи - не WorldVoice."
+msgstr "Текущий синтезатор речи - не WorldVoice."
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:245
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:579
 msgid "Your current speech synthesizer is not ready."
-msgstr "Ваш текущий синтезатор речи не готов."
+msgstr "Текущий синтезатор речи не готов."
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:260
 msgid "Select a language, and then configure the voice to be used:"
-msgstr "Выберите язык, а затем настройте голос, который будет использоваться:"
+msgstr "Выберите язык и настройте используемый голос:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:264
 msgid "Locale Name:"
-msgstr "Название языка:"
+msgstr "Язык:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:266
 msgid "Voice Name:"
-msgstr "Название голоса:"
+msgstr "Голос:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:268
 msgid "Variant:"
@@ -335,11 +335,11 @@ msgstr "Дополнительное ускорение"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:281
 msgid "&Pitch:"
-msgstr "&Тембр:"
+msgstr "&Высота:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:284
 msgid "I&nflection:"
-msgstr "&Отклонение:"
+msgstr "&Интонация:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:287
 msgid "V&olume:"
@@ -347,15 +347,15 @@ msgstr "&Громкость:"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:294
 msgid "Keep main engine and locale engine consistent"
-msgstr "Сохранять согласованность основного и дополнительного синтезаторов"
+msgstr "Синхронизировать основной и дополнительный синтезаторы"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:302
 msgid "Keep main speech role and locale speech role consistent"
-msgstr "Сохранять согласованность параметров основной и локальной роли речи"
+msgstr "Синхронизировать параметры основной и локальной роли речи"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:309
 msgid "Keep parameter settings consistent between different speech roles"
-msgstr "Сохранять согласованность параметров для различных ролей речи"
+msgstr "Синхронизировать параметры между разными ролями речи"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:559
 msgid "Unicode Detection"
@@ -367,7 +367,7 @@ msgstr "Игнорировать цифры при определении язы
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:609
 msgid "Ignore common punctuation when detecting text language"
-msgstr "Игнорировать обычную пунктуацию при определении языка текста"
+msgstr "Игнорировать знаки препинания при определении языка текста"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:615
 msgid "Language assumed for latin characters:"
@@ -400,7 +400,7 @@ msgstr "Речевой движок"
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:687
 msgid "Please select one or more speech engines to enable."
 msgstr ""
-"Пожалуйста, выберите один или несколько речевых движков, которые вы хотите "
+"Пожалуйста, выберите один или несколько речевых движков, которые хотите "
 "включить."
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:693
@@ -425,7 +425,7 @@ msgid ""
 "configuration and restart. Would you like to restart now?"
 msgstr ""
 "Для включения или отключения речевого движка необходимо сохранить "
-"конфигурацию и перезапустить NVDA. Хотите ли вы сделать это сейчас?"
+"конфигурацию и перезапустить NVDA. Хотите сделать это сейчас?"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:741
 msgid "Speech Engine Change"
@@ -445,21 +445,21 @@ msgstr "Язык чисел"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:777
 msgid "number wait factor"
-msgstr "пауза между цифрами"
+msgstr "длительность пауз между цифрами"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:778
 #: addon/synthDrivers/WorldVoice/__init__.py:210
 #: addon/synthDrivers/WorldVoice/__init__.py:293
 msgid "item wait factor"
-msgstr "пауза между элементами"
+msgstr "длительность пауз между элементами"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:779
 msgid "chinese space wait factor"
-msgstr "продолжительность паузы китайских пробелов"
+msgstr "длительность пауз китайских пробелов"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:780
 msgid "speech viewer"
-msgstr "просмотр речи"
+msgstr "просмотрщик речи"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:786
 msgid "Enable logging of WorldVoice’s speech pipeline"
@@ -527,22 +527,22 @@ msgstr "Режим проговаривания чисел"
 #: addon/synthDrivers/WorldVoice/__init__.py:194
 #: addon/synthDrivers/WorldVoice/__init__.py:277
 msgid "Global wait factor"
-msgstr "Коэффициент ожидания"
+msgstr "Общая длительность пауз"
 
 #: addon/synthDrivers/WorldVoice/__init__.py:202
 #: addon/synthDrivers/WorldVoice/__init__.py:285
 msgid "Number wait factor"
-msgstr "Пауза между цифрами"
+msgstr "Длительность пауз между цифрами"
 
 #: addon/synthDrivers/WorldVoice/__init__.py:218
 #: addon/synthDrivers/WorldVoice/__init__.py:301
 msgid "Say all wait factor"
-msgstr "Паузы между фрагментами в режиме непрерывного чтения"
+msgstr "Длительность пауз в режиме непрерывного чтения"
 
 #: addon/synthDrivers/WorldVoice/__init__.py:226
 #: addon/synthDrivers/WorldVoice/__init__.py:309
 msgid "Chinese space wait factor"
-msgstr "Продолжительность паузы китайских пробелов"
+msgstr "Длительность пауз китайских пробелов"
 
 #: addon/synthDrivers/WorldVoice/__init__.py:574
 #: addon/synthDrivers/WorldVoice/__init__.py:620
