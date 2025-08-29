@@ -3,16 +3,14 @@ msgstr ""
 "Project-Id-Version: WorldVoice 5.2.1\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
 "POT-Creation-Date: 2025-08-23 08:58+0500\n"
-"PO-Revision-Date: 2025-08-24 14:23+0500\n"
+"PO-Revision-Date: 2025-08-29 07:51+0500\n"
 "Last-Translator: \n"
-"Language-Team: Russian translation team <nvda.ru>, Danil Kostenkov "
-"<danilkostenkov38@gmail.com>\n"
+"Language-Team: Russian translation team <nvda.ru>, Danil Kostenkov <danilkostenkov38@gmail.com>\n"
 "Language: ru_RU\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
-"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 "X-Generator: Poedit 3.7\n"
 "X-Poedit-Basepath: ../../../..\n"
 "X-Poedit-SourceCharset: UTF-8\n"
@@ -59,7 +57,13 @@ msgstr "&Символ:"
 
 #: addon/generics/speechSymbols/views.py:58
 msgid "Unicode Setting"
-msgstr "Настройка Юникода"
+msgstr "Настройки Юникода"
+
+#. Translators: The label of a text field to search for symbols in the speech symbols dialog.
+#: addon/generics/speechSymbols/views.py:73
+msgctxt "speechSymbols"
+msgid "&Filter by:"
+msgstr "&Фильтр:"
 
 #: addon/generics/speechSymbols/views.py:82
 msgid "&Symbols"
@@ -115,12 +119,8 @@ msgid "Error"
 msgstr "Ошибка"
 
 #: addon/generics/speechSymbols/views.py:322
-msgid ""
-"For the edited unicode rule to apply, NVDA must be restarted. Do you want to "
-"restart NVDA now?"
-msgstr ""
-"Для применения изменённого правила Юникода необходимо перезапустить NVDA. "
-"Хотите сделать это сейчас?"
+msgid "For the edited unicode rule to apply, NVDA must be restarted. Do you want to restart NVDA now?"
+msgstr "Для применения изменённого правила Юникода необходимо перезапустить NVDA. Хотите сделать это сейчас?"
 
 #: addon/generics/speechSymbols/views.py:324
 msgid "unicode rule edited"
@@ -169,12 +169,8 @@ msgid "Import File"
 msgstr "Импорт файла"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:109
-msgid ""
-"For the new file to import, NVDA must be restarted. Are you want to restart "
-"NVDA now ?"
-msgstr ""
-"Для импорта нового файла необходимо перезапустить NVDA. Вы хотите "
-"перезапустить NVDA прямо сейчас ?"
+msgid "For the new file to import, NVDA must be restarted. Are you want to restart NVDA now ?"
+msgstr "Для импорта нового файла необходимо перезапустить NVDA. Вы хотите перезапустить NVDA прямо сейчас ?"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:126
 msgid "SpeechSymbolsDialog have already been opened"
@@ -193,14 +189,8 @@ msgid "switch log record"
 msgstr "переключить запись журнала"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:156
-msgid ""
-"Logging of WorldVoice’s speech pipeline is enabled. This may reduce speech "
-"response speed. If you are not debugging, we recommend disabling it. Would "
-"you like to disable it now?"
-msgstr ""
-"Включено ведение журнала речевого канала WorldVoice. Это может снизить "
-"скорость речевого отклика. Если вы не выполняете отладку, мы рекомендуем "
-"отключить его. Хотите отключить его сейчас?"
+msgid "Logging of WorldVoice’s speech pipeline is enabled. This may reduce speech response speed. If you are not debugging, we recommend disabling it. Would you like to disable it now?"
+msgstr "Включено ведение журнала речевого канала WorldVoice. Это может снизить скорость речевого отклика. Если вы не выполняете отладку, мы рекомендуем отключить его. Хотите отключить его сейчас?"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:158
 #: addon/globalPlugins/WorldVoice/__init__.py:172
@@ -212,14 +202,8 @@ msgstr "Ведение журнала речевого канала"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:170
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:818
-msgid ""
-"Enabling logging of WorldVoice’s speech pipeline will reduce speech response "
-"speed. If you are not debugging, we recommend keeping it disabled. Would you "
-"like to enable it anyway?"
-msgstr ""
-"Включение ведения журнала речевого канала WorldVoice снизит скорость "
-"речевого отклика. Если вы не выполняете отладку, мы рекомендуем отключить "
-"эту функцию. Всё равно хотите включить её?"
+msgid "Enabling logging of WorldVoice’s speech pipeline will reduce speech response speed. If you are not debugging, we recommend keeping it disabled. Would you like to enable it anyway?"
+msgstr "Включение ведения журнала речевого канала WorldVoice снизит скорость речевого отклика. Если вы не выполняете отладку, мы рекомендуем отключить эту функцию. Всё равно хотите включить её?"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:176
 msgid "turn on WorldVoice`s log record"
@@ -227,12 +211,8 @@ msgstr "включить запись журнала WorldVoice"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:182
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:840
-msgid ""
-"Logging of WorldVoice’s speech pipeline has been disabled. Would you like to "
-"export the pipeline log now?"
-msgstr ""
-"Ведение журнала речевого канала WorldVoice отключено. Хотите экспортировать "
-"журнал канала прямо сейчас?"
+msgid "Logging of WorldVoice’s speech pipeline has been disabled. Would you like to export the pipeline log now?"
+msgstr "Ведение журнала речевого канала WorldVoice отключено. Хотите экспортировать журнал канала прямо сейчас?"
 
 #: addon/globalPlugins/WorldVoice/__init__.py:191
 msgid "turn off WorldVoice`s log record"
@@ -399,33 +379,23 @@ msgstr "Речевой движок"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:687
 msgid "Please select one or more speech engines to enable."
-msgstr ""
-"Пожалуйста, выберите один или несколько речевых движков, которые хотите "
-"включить."
+msgstr "Пожалуйста, выберите один или несколько речевых движков, которые хотите включить."
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:693
 msgid "Select Speech Engines to Enable"
 msgstr "Выберите, какие речевые движки вы хотите включить"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:731
-msgid ""
-"Changes to speech-engine settings can’t be saved because no speech engine is "
-"enabled."
-msgstr ""
-"Изменения в настройках речевого движка не могут быть сохранены, поскольку "
-"речевой движок отключен."
+msgid "Changes to speech-engine settings can’t be saved because no speech engine is enabled."
+msgstr "Изменения в настройках речевого движка не могут быть сохранены, поскольку речевой движок отключен."
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:733
 msgid "No Speech Engine Enabled"
 msgstr "Нет включённых речевых движков"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:739
-msgid ""
-"To enable or disable the speech engine, NVDA needs to save your "
-"configuration and restart. Would you like to restart now?"
-msgstr ""
-"Для включения или отключения речевого движка необходимо сохранить "
-"конфигурацию и перезапустить NVDA. Хотите сделать это сейчас?"
+msgid "To enable or disable the speech engine, NVDA needs to save your configuration and restart. Would you like to restart now?"
+msgstr "Для включения или отключения речевого движка необходимо сохранить конфигурацию и перезапустить NVDA. Хотите сделать это сейчас?"
 
 #: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:741
 msgid "Speech Engine Change"
@@ -698,18 +668,9 @@ msgstr ""
 "{}"
 
 #: buildVars.py:24
-msgid ""
-"Multilingual synthesizer add-on: auto-switches voices across eSpeak, "
-"OneCore, SAPI5 & RHVoice based on text language."
-msgstr ""
-"Это дополнение - драйвер для многоязычных синтезаторов речи: позволяет "
-"настроить автоматическое переключение голосов между синтезаторами речи "
-"eSpeak, OneCore, SAPI5 и RHVoice в зависимости от языка текста."
+msgid "Multilingual synthesizer add-on: auto-switches voices across eSpeak, OneCore, SAPI5 & RHVoice based on text language."
+msgstr "Это дополнение - драйвер для многоязычных синтезаторов речи: позволяет настроить автоматическое переключение голосов между синтезаторами речи eSpeak, OneCore, SAPI5 и RHVoice в зависимости от языка текста."
 
 #: buildVars.py:29
 msgid "Add pipeline and logging features"
 msgstr "Добавить речевой канал и ведения журнала"
-
-#~ msgctxt "speechSymbols"
-#~ msgid "&Filter by:"
-#~ msgstr "Фи&льтровать по:"
