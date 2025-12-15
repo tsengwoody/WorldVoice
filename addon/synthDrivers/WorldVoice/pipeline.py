@@ -21,6 +21,7 @@ _PURE_NUMBER_RE = re.compile(r"[0-9]+")
 _NUMBER_RE = re.compile(r"[0-9\-\+]+[0-9.:]*[0-9]+|[0-9]")
 _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
+_SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
 
 def with_order_log(label: str):
 	""" The order numbers are reversed because of recursion: the order number assigned earlier execution is greater than that of a later execution."""
@@ -364,41 +365,32 @@ def inject_number_language(
 		return
 
 
-def _translate_number(raw: str, mode: str, table: dict[int, str]) -> str:
-	if mode == "number":
-		parts = raw.split(".")
-		raw = ".".join(
-			n.translate(table) if len(n) == 1 else n
-			for n in parts
-		)
-		if len(raw) > 1:
-			pos = 0
-			for m in _PURE_NUMBER_RE.finditer(raw):
-				start, end = m.span()
-				number_raw = m.group()
-
-				# Emit the text before the numeric match
-				if start > pos:
-					yield raw[pos:start]
-				pos = end
-
-				# Spoken representation of the number
-				yield ' '.join(number_raw)
-
-			# Emit trailing text after the last match
-			if pos < len(raw):
-				yield raw[pos:]
-		else:
-			yield raw
-	else:
-		if raw.count(".") != 1:
-			parts = raw.split(".")
-			raw = ".".join(
-				n.translate(table) if len(n) == 1 else n
-				for n in parts
-			)
-		yield raw
-
+def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[str]:
+	parts = raw.split(".")
+	for i, part in enumerate(parts):
+		if i > 0:
+			# Add spaces around the separator to prevent synth merging
+			yield " . "
+		if not part:
+			continue
+		# If "value" mode, keep the first part (integer) intact.
+		if mode == "value" and i == 0:
+			yield part
+			continue
+		if len(part) == 1:
+			yield " " + part.translate(table)
+			continue
+		pos = 0
+		for m in _PURE_NUMBER_RE.finditer(part):
+			start, end = m.span()
+			if start > pos:
+				yield " " + part[pos:start] + " "
+			digits = m.group()
+			# Emit digits spaced out and translated
+			yield " " + " ".join(d.translate(table) for d in digits)
+			pos = end
+		if pos < len(part):
+			yield " " + part[pos:]
 
 # @with_order_log("number_mode")
 @with_speech_sequence_log("number_mode")
@@ -425,16 +417,22 @@ def iter_number_speech_segments_mode(item, mode, translate_table, number_re=_NUM
 	for m in number_re.finditer(item):
 		start, end = m.span()
 		number_raw = m.group()
-
-		# Emit the text before the numeric match
-		if start > pos:
-			yield item[pos:start]
+		prefix = item[pos:start]
+		if prefix:
+			yield prefix
+		# Switch to 'number' mode for spaced decimals (e.g. " .123")
+		effective_mode = mode
+		if mode == "value":
+			stripped = prefix.strip()
+			if stripped == "." and not prefix.endswith(" "):
+				effective_mode = "number"
+		yield from _translate_number(number_raw, effective_mode, translate_table)
+		# Check trailing text to preserve sentence breaks.
+		# If it looks like end of sentence (e.g. "123."), don't add space.
+		tail = item[end:]
+		if not _SENTENCE_END_RE.match(tail):
+			yield " "
 		pos = end
-
-		# Spoken representation of the number
-		yield from _translate_number(number_raw, mode, translate_table)
-
-	# Emit trailing text after the last match
 	if pos < len(item):
 		yield item[pos:]
 
