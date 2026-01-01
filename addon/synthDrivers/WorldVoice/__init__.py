@@ -648,7 +648,7 @@ class SynthDriver(SynthDriver):
 
 	def _set_globalwaitfactor(self, value):
 		self._globalwaitfactor = value // 10
-		self._voiceManager.waitfactor = value
+		self._voiceManager.waitfactor = value // 10
 		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self.globalwaitfactor
 
 	def _get_numberwaitfactor(self):
