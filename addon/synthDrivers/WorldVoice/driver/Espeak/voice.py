@@ -2,8 +2,10 @@ import os
 
 import languageHandler
 
-from .driver import SynthDriver
-from .driver import _espeak
+from .driver import EspeakSynthDriver as SynthDriver
+# from .driver import SynthDriver
+from synthDrivers import _espeak
+# from .driver import _espeak
 from .. import Voice
 
 

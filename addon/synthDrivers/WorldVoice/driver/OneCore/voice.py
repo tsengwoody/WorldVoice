@@ -1,7 +1,7 @@
 import languageHandler
 import winVersion
 
-from .driver import SynthDriver
+from .driver import OneCoreSynthDriver as SynthDriver
 from .. import Voice
 
 

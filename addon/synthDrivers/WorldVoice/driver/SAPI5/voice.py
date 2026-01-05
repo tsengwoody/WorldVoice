@@ -3,7 +3,7 @@ from collections import OrderedDict
 import languageHandler
 import locale
 
-from .driver import SynthDriver
+from .driver import SAPI5SynthDriver as SynthDriver
 from .. import Voice
 
 
