@@ -1,6 +1,5 @@
 from ctypes import *
 
-
 #Constant definitions
 VE_CURRENT_VERSION = 0x0520
 VE_MAX_STRING_LENGTH = 128
@@ -12,27 +11,31 @@ NUAN_E_TTS_USERSTOP = 0x80000807
 NUAN_E_WRONG_STATE = 0x80000011
 NUAN_E_NOTFOUND = 0x80000014
 
-# Maximum and minimum values of pitch, rate and volume
+# Minimum and maximum values of some voice parameters
 PITCH_MAX = 200
 PITCH_MIN = 50
 RATE_MAX = 400
 RATE_MIN = 50
 VOLUME_MAX = 100
 VOLUME_MIN = 0
+WAITFACTOR_MAX = 9
+WAITFACTOR_MIN = 0
 
 # Text formats
 VE_NORM_TEXT = 0
 VE_SSML_TEXT = 1
 
 # Parameter ids
+## Voice configuration
 VE_PARAM_LANGUAGE = 1
 VE_PARAM_VOICE                  = 2
 VE_PARAM_VOICE_OPERATING_POINT  = 3
 VE_PARAM_FREQUENCY              = 4
 VE_PARAM_EXTRAESCLANG           = 5
 VE_PARAM_EXTRAESCTN             = 6
+## Input text attributes
 VE_PARAM_TYPE_OF_CHAR           = 7
-
+## Speech output controls
 VE_PARAM_VOLUME                 = 8
 VE_PARAM_SPEECHRATE             = 9
 VE_PARAM_PITCH                  = 10
@@ -44,28 +47,40 @@ VE_PARAM_LIDSCOPE               = 15
 VE_PARAM_LIDVOICESWITCH         = 16
 VE_PARAM_LIDMODE                = 17
 VE_PARAM_LIDLANGUAGES           = 18
+## Marker output controls
 VE_PARAM_MARKER_MODE            = 19
+## Operating mode controls
 VE_PARAM_INITMODE               = 20
+VE_PARAM_VOP_VERSION = 21
+VE_PARAM_DISABLE_FINAL_SILENCE = 22
 
-
-# Init Modes
+# Init modes
+## Load and open all modules once (modules remain loaded until ve_ttsClose is called)
 VE_INITMODE_LOAD_ONCE_OPEN_ALL = 0xC
+## Load and open all modules for each speak request
 VE_INITMODE_LOAD_OPEN_ALL_EACH_TIME = 0x3
 
 # Text modes
+## No preprocessor is active
 VE_TEXTMODE_STANDARD = 1
+## SMS preprocessor is active
 VE_TEXTMODE_SMS = 2
 
 # Reading modes
+## Sentence-by-sentence (default)
 VE_READMODE_SENT = 1
+## Character-by-character
 VE_READMODE_CHAR = 2
+## Word-by-word
 VE_READMODE_WORD = 3
+## Line-by-line
 VE_READMODE_LINE = 4
 
 # Marker modes
+## @emem run-time marker notifications are disabled
 VE_MRK_OFF = 0
+## @emem run-time marker notifications are enabled
 VE_MRK_ON = 1
-
 
 # LID voice switch
 VE_LIDVOICESWITCH_OFF = 0
@@ -75,6 +90,9 @@ VE_LIDVOICESWITCH_ON = 1
 VE_LIDMODE_MEMORY_BIASED = 0
 VE_LIDMODE_FORCED_CHOICE = 1
 
+# LIDSCOPE
+VE_LIDSCOPE_NONE         = 0
+VE_LIDSCOPE_USERDEFINED  = 1
 
 # Message types
 VE_MSG_BEGINPROCESS   = 0x00000001
@@ -91,13 +109,19 @@ VE_MSG_TAIBUFREQ      = 0x00000400
 VE_MSG_TAIBUFDONE     = 0x00000800
 
 # Mark types
-VE_MRK_BOOKMARK= 0x0008
+VE_MRK_TEXTUNIT = 0x0001
+VE_MRK_WORD = 0x0002
+VE_MRK_PHONEME = 0x0004
+VE_MRK_BOOKMARK = 0x0008
+VE_MRK_PROMPT = 0x0010
 
 # Character encodings
+## Unicode UTF-16, the default
 VE_TYPE_OF_CHAR_UTF16   = 1
+## Unicode UTF-8
 VE_TYPE_OF_CHAR_UTF8    = 2
 
-# PCM State
+# PCM state. Indicates the status of the text unit in a VE_CALLBACKMSG
 VE_PCMSTAT_TXTUNIT_NEW = 1
 VE_PCMSTAT_TXTUNIT_MID = 2
 VE_PCMSTAT_DONE = 0xFFFF
@@ -247,63 +271,3 @@ class VeError(RuntimeError):
 	def __init__(self, code, msg):
 		self.code = code
 		super(RuntimeError, self).__init__(msg)
-
-def veCheckForError(result, func, args):
-	""" Checks for errors in a function from the vocalizer dlls and platform.
-	
-	If the error code is not positive it throws a runtime error.
-	The error codes have no description, see the vocalizer SDK
-	For reference."""
-	# if result  not in (NUAN_OK, NUAN_E_TTS_USERSTOP):
-	if False:
-		raise VeError(result, "Vocalizer Error: %s: %x" %(func.__name__, result))
-
-# Load Libraries
-def loadVeDll(path):
-	veDll = cdll.LoadLibrary(path)
-	# Basic runtime type checks...
-	veDll.ve_ttsInitialize.errcheck = veCheckForError
-	veDll.ve_ttsInitialize.restype = c_uint
-	veDll.ve_ttsOpen.errcheck = veCheckForError
-	veDll.ve_ttsOpen.restype = c_uint
-	veDll.ve_ttsOpen.argtypes = (VE_HSAFE, c_void_p, c_void_p, POINTER(VE_HSAFE))
-	veDll.ve_ttsProcessText2Speech.errcheck = veCheckForError
-	veDll.ve_ttsProcessText2Speech.restype = c_uint
-	veDll.ve_ttsStop.errcheck = veCheckForError
-	veDll.ve_ttsStop.restype = c_uint
-	veDll.ve_ttsPause.errcheck = veCheckForError
-	veDll.ve_ttsPause.restype = c_uint
-	veDll.ve_ttsResume.errcheck = veCheckForError
-	veDll.ve_ttsResume.restype = c_uint
-	veDll.ve_ttsSetParamList.errcheck = veCheckForError
-	veDll.ve_ttsSetParamList.restype = c_uint
-	veDll.ve_ttsGetParamList.errcheck = veCheckForError
-	veDll.ve_ttsGetParamList.restype = c_uint
-	veDll.ve_ttsGetLanguageList.errcheck = veCheckForError
-	veDll.ve_ttsGetLanguageList.restype = c_uint
-	veDll.ve_ttsGetVoiceList.restype = c_uint
-	veDll.ve_ttsGetVoiceList.errcheck = veCheckForError
-	veDll.ve_ttsGetSpeechDBList.restype = c_uint
-	veDll.ve_ttsGetSpeechDBList.errcheck = veCheckForError
-	veDll.ve_ttsClose.restype = c_uint
-	veDll.ve_ttsClose.errcheck = veCheckForError
-	veDll.ve_ttsUnInitialize.restype = c_uint
-	veDll.ve_ttsUnInitialize.errcheck = veCheckForError
-	veDll.ve_ttsSetOutDevice.errcheck = veCheckForError
-	veDll.ve_ttsSetOutDevice.restype = c_uint
-	veDll.ve_ttsResourceLoad.errcheck = veCheckForError
-	veDll.ve_ttsGetProductVersion.restype = c_uint
-	veDll.ve_ttsGetProductVersion.errcheck = veCheckForError
-	veDll.ve_ttsGetAdditionalProductInfo.restype = c_uint
-	veDll.ve_ttsGetAdditionalProductInfo.errcheck = veCheckForError
-	veDll.ve_ttsResourceLoad.restype = c_uint
-	return veDll
-
-def loadPlatformDll(path):
-	platformDll = cdll.LoadLibrary(path)
-	platformDll.vplatform_GetInterfaces.errcheck = veCheckForError
-	platformDll.vplatform_GetInterfaces.restype = c_uint
-	platformDll.vplatform_GetInterfaces.argtypes = (POINTER(VE_INSTALL), POINTER(VPLATFORM_RESOURCES))
-	platformDll.vplatform_ReleaseInterfaces.errcheck = veCheckForError
-	platformDll.vplatform_ReleaseInterfaces.restype = c_uint
-	return platformDll

@@ -3,7 +3,6 @@ import importlib
 import os
 import re
 import sys
-import threading
 from typing import Any
 
 import addonHandler
@@ -17,7 +16,7 @@ from logHandler import log as NVDAlog
 import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
 from speech.extensions import filter_speechSequence
-from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking, getSynth
+from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
 from . import languageDetection
 from .engine import EngineType
@@ -102,26 +101,6 @@ WVStart = extensionPoints.Action()
 WVEnd = extensionPoints.Action()
 
 log = NVDAlog
-lock = threading.Lock()
-
-
-def IndexReached_notify_forward(synth, index):
-	if hasattr(synth, "wv"):
-		synthIndexReached.notify(synth=getSynth(), index=index)
-
-
-def DoneSpeaking_notify_forward(synth):
-	if hasattr(synth, "wv"):
-		synthDoneSpeaking.notify(synth=getSynth())
-
-
-def unlock_action(synth):
-	if synth == getSynth():
-		global lock
-		try:
-			lock.release()
-		except RuntimeError:
-			pass
 
 
 class SynthDriver(SynthDriver):
@@ -315,10 +294,6 @@ class SynthDriver(SynthDriver):
 		return settings
 
 	def __init__(self):
-		synthDoneSpeaking.register(unlock_action)
-		synthDoneSpeaking.register(DoneSpeaking_notify_forward)
-		synthIndexReached.register(IndexReached_notify_forward)
-
 		WVStart.notify()
 
 		self.order = 0
@@ -329,8 +304,7 @@ class SynthDriver(SynthDriver):
 		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
 		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
 
-		global lock
-		self.taskManager = TaskManager(lock=lock)
+		self.taskManager = TaskManager()
 		self._voiceManager = VoiceManager(taskManager=self.taskManager)
 
 		self._realSpellingFunc = speech.speech.speakSpelling
@@ -361,10 +335,6 @@ class SynthDriver(SynthDriver):
 
 		WVEnd.notify()
 
-		synthIndexReached.unregister(IndexReached_notify_forward)
-		synthDoneSpeaking.unregister(DoneSpeaking_notify_forward)
-		synthDoneSpeaking.unregister(unlock_action)
-
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)
 		self._voiceManager.reload()
@@ -392,8 +362,8 @@ class SynthDriver(SynthDriver):
 			speechSequence = self.add_detected_language_commands(speechSequence)
 
 		speechSequence = inject_langchange_reorder(speechSequence)
-
 		speechSequence = deduplicate_language_command(speechSequence)
+
 		speechSequence = lang_cmd_to_voice(
 			speechSequence=speechSequence,
 			voice_manager=self._voiceManager,
@@ -405,64 +375,9 @@ class SynthDriver(SynthDriver):
 		charMode = False
 
 		voiceInstance = self._voiceManager.defaultVoiceInstance
+
 		for command in speechSequence:
-			if voiceInstance.engine == "VE":
-				if isinstance(command, str):
-					command = command.strip()
-					if not command:
-						continue
-					# If character mode is on use lower case characters
-					# Because the synth does not allow to turn off the caps reporting
-					if charMode or len(command) == 1:
-						command = command.lower()
-					# replace the escape character since it is used for parameter changing
-					chunks.append(command.replace('\x1b', ''))
-					hasText = True
-				elif isinstance(command, IndexCommand):
-					# start and end The spaces here seem to be important
-					chunks.append(f"\x1b\\mrk={command.index}\\")
-				elif isinstance(command, BreakCommand):
-					voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
-					chunks = []
-					hasText = False
-					voiceInstance.breaks(command.time)
-					# chunks.append(f"\x1b\\pause={breakTime}\\")
-				elif isinstance(command, RateCommand):
-					boundedValue = max(0, min(command.newValue, 100))
-					factor = 25.0 if boundedValue >= 50 else 50.0
-					norm = 2.0 ** ((boundedValue - 50.0) / factor)
-					value = int(round(norm * 100))
-					chunks.append(f"\x1b\\rate={value}\\")
-				elif isinstance(command, PitchCommand):
-					boundedValue = max(0, min(command.newValue, 100))
-					factor = 50.0
-					norm = 2.0 ** ((boundedValue - 50.0) / factor)
-					value = int(round(norm * 100))
-					chunks.append(f"\x1b\\pitch={value}\\")
-				elif isinstance(command, VolumeCommand):
-					value = max(0, min(command.newValue, 100))
-					chunks.append(f"\x1b\\vol={value}\\")
-				elif isinstance(command, CharacterModeCommand):
-					charMode = command.state
-					s = "\x1b\\tn=spell\\" if command.state else "\x1b\\tn=normal\\"
-					# s = " \x1b\\tn=spell\\ " if command.state else " \x1b\\tn=normal\\ "
-					chunks.append(s)
-				elif isinstance(command, SplitCommand):
-					voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
-					chunks = []
-					hasText = False
-				elif isinstance(command, Voice):
-					newInstance = command
-					if hasText:  # We changed voice, send what we already have to vocalizer.
-						voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
-					chunks = []
-					hasText = False
-					voiceInstance = newInstance
-				elif isinstance(command, SpeechCommand):
-					log.debugWarning("Unsupported speech command: %s" % command)
-				else:
-					log.error("Unknown speech: %s" % command)
-			elif voiceInstance.engine == "Aisound":
+			if voiceInstance.engine == "Aisound2":
 				item = command
 				if isinstance(item, str):
 					if charMode:
@@ -482,20 +397,27 @@ class SynthDriver(SynthDriver):
 					log.debugWarning("Unsupported speech command: %s" % item)
 				else:
 					log.error("Unknown speech: %s" % item)
-			elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5"]:
+			elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5", "VE", "Aisound"]:
 				if isinstance(command, Voice):
 					newInstance = command
-					voiceInstance.speak(chunks)
+					if chunks:
+						voiceInstance.speak(chunks)
 					chunks = []
 					voiceInstance = newInstance
+				elif isinstance(command, BreakCommand):
+					if chunks:
+						voiceInstance.speak(chunks)
+					chunks = []
+					voiceInstance.breaks(command.time / 1000)
 				else:
 					chunks.append(command)
 
-		if voiceInstance.engine in ["VE", "Aisound"]:
+		if voiceInstance.engine in ["Aisound2"]:
 			if chunks:
 				voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
-		elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5"]:
-			voiceInstance.speak(chunks)
+		elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5", "VE", "Aisound"]:
+			if chunks:
+				voiceInstance.speak(chunks)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
 		if self.uwv \
@@ -510,11 +432,11 @@ class SynthDriver(SynthDriver):
 
 	def pause(self, switch):
 		if switch:
-			if self.taskManager.speakingVoiceInstance:
-				self.taskManager.speakingVoiceInstance.pause()
+			if self.taskManager._current_voice:
+				self.taskManager._current_voice.pause()
 		else:
-			if self.taskManager.speakingVoiceInstance:
-				self.taskManager.speakingVoiceInstance.resume()
+			if self.taskManager._current_voice:
+				self.taskManager._current_voice.resume()
 
 	def _get_volume(self):
 		return self._voiceManager.defaultVoiceInstance.volume
@@ -648,7 +570,7 @@ class SynthDriver(SynthDriver):
 
 	def _set_globalwaitfactor(self, value):
 		self._globalwaitfactor = value // 10
-		self._voiceManager.waitfactor = value // 10
+		self._voiceManager.waitfactor = min(value // 10, 9)
 		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self.globalwaitfactor
 
 	def _get_numberwaitfactor(self):

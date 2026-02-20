@@ -23,7 +23,7 @@ addon_info = AddonInfo(
 	# Translators: Long description to be shown for this add-on on add-on information from add-on store
 	addon_description=_("Multilingual synthesizer add-on: auto-switches voices across eSpeak, OneCore, SAPI5 & RHVoice based on text language."),
 	# version
-	addon_version="2026.1.5",
+	addon_version="2026.2.20",
 	# Brief changelog for this version
 	# Translators: what's new content for the add-on version to be shown in the add-on store
 	addon_changelog=_("Add pipeline and logging features"),

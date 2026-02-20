@@ -1,3 +1,5 @@
+import time
+
 import config
 from synthDriverHandler import getSynth
 
@@ -31,7 +33,12 @@ def percent_property(attr):
 
 	def setter(self, percent):
 		setattr(self, private_name, percent)
-		if self.core and attr in [i.id for i in self.core.supportedSettings]:
+
+		if (
+			self.core
+			and getattr(self.core, "voice", None) == self.id
+			and attr in [i.id for i in self.core.supportedSettings]
+		):
 			setattr(self.core, attr, percent)
 
 	return property(getter, setter)
@@ -72,9 +79,6 @@ class Voice(object):
 	def variant(self, value):
 		self._variant = value
 
-	def break_(self, time):
-		raise NotImplementedError
-
 	def index(self, index):
 		raise NotImplementedError
 
@@ -86,7 +90,13 @@ class Voice(object):
 		def _speak():
 			self.active()
 			self.core.speak(text)
-		self.taskManager.add_dispatch_task((self, _speak),)
+		# self.taskManager.add_dispatch_task((self, _speak),)
+		self.taskManager.add_speak_task(self, _speak)
+
+	def breaks(self, sec):
+		def _breaks():
+			time.sleep(sec)
+		self.taskManager.add_task(self, _breaks)
 
 	def stop(self):
 		self.core.cancel()

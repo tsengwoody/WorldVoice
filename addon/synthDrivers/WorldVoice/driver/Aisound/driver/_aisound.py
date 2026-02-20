@@ -2,22 +2,31 @@
 #A part of NVDA AiSound 5 Synthesizer Add-On
 
 import os
-
+import threading
+import weakref
 import audioDucking
 import globalVars
 import NVDAHelper
 from ctypes import *
 from ctypes.wintypes import HANDLE, WORD, DWORD, UINT, LPUINT
 from logHandler import log
-from synthDriverHandler import getSynth
-from synthDriverHandler import SynthDriver, synthIndexReached,synthDoneSpeaking
+from synthDriverHandler import synthIndexReached,synthDoneSpeaking
 
 workspaceAisound_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
-lastSpeakInstance = None
+wrapperDLL=None
+lastIndex=None
+isPlaying=False
+synthRef=None
+_currentGeneration=0
+_nextCbToken=1
+_tokenToGeneration={}
+_tokenToIndex={}
+_generationPending={}
+_stateLock=threading.Lock()
 
-aisound_callback_t = CFUNCTYPE(None,c_int,c_void_p)
-SPEECH_BEGIN = 0
-SPEECH_END = 1
+aisound_callback_t=CFUNCTYPE(None,c_int,c_void_p)
+SPEECH_BEGIN=0
+SPEECH_END=1
 
 
 HWAVEOUT = HANDLE
@@ -91,7 +100,7 @@ def waveOutOpen(pWaveOutHandle,deviceID,wfx,callback,callbackInstance,flags):
 	if res==0 and pWaveOutHandle:
 		h=pWaveOutHandle.contents.value
 		d=audioDucking.AudioDucker()
-		# d.enable()
+		d.enable()
 		_duckersByHandle[h]=d
 	return res
 
@@ -114,86 +123,117 @@ def ensureWaveOutHooks(dllPath):
 
 @aisound_callback_t
 def callback(type,cbData):
-	global lastSpeakInstance
+	global lastIndex,isPlaying,synthRef
+	token = int(cbData) if cbData else None
 	if type==SPEECH_BEGIN:
-		if cbData==None:
-			lastSpeakInstance.lastIndex=0
-		else:
-			lastSpeakInstance.lastIndex=cbData
-			synthIndexReached.notify(synth=getSynth(),index=lastSpeakInstance.lastIndex)
+		if token is None:
+			lastIndex=0
+			return
+		with _stateLock:
+			index = _tokenToIndex.get(token)
+		if index is not None:
+			lastIndex=index
+			synthIndexReached.notify(synth=synthRef(),index=lastIndex)
 	elif type==SPEECH_END:
-		lastSpeakInstance.isPlaying=False
-		synthDoneSpeaking.notify(synth=getSynth())
+		shouldNotify=False
+		with _stateLock:
+			if token is None:
+				return
+			gen = _tokenToGeneration.pop(token, None)
+			_tokenToIndex.pop(token, None)
+			if gen is None:
+				# stale callback from canceled/cleared state
+				return
+			remaining = _generationPending.get(gen, 0)
+			if remaining > 1:
+				_generationPending[gen] = remaining - 1
+			elif remaining == 1:
+				_generationPending.pop(gen, None)
+			currentPending = _generationPending.get(_currentGeneration, 0)
+			isPlaying = currentPending > 0
+			shouldNotify = (gen == _currentGeneration and currentPending == 0)
+		if shouldNotify:
+			synthDoneSpeaking.notify(synth=synthRef())
+
+def Initialize(synth: weakref.ReferenceType):
+	global wrapperDLL,isPlaying,synthRef
+	synthRef = synth
+	if wrapperDLL==None:
+		dllPath=os.path.abspath(os.path.join(os.path.dirname(__file__), r"aisound.dll"))
+		dllPath=os.path.join(workspaceAisound_path, "aisound.dll")
+		ensureWaveOutHooks(dllPath)
+		wrapperDLL=cdll.LoadLibrary(dllPath)
+		wrapperDLL.aisound_callback.restype=c_bool
+		wrapperDLL.aisound_callback.argtypes=[aisound_callback_t]
+		wrapperDLL.aisound_configure.restype=c_bool
+		wrapperDLL.aisound_configure.argtypes=[c_char_p,c_char_p]
+		wrapperDLL.aisound_speak.restype=c_bool
+		wrapperDLL.aisound_speak.argtypes=[c_char_p,c_void_p]
+		wrapperDLL.aisound_cancel.restype=c_bool
+		wrapperDLL.aisound_pause.restype=c_bool
+		wrapperDLL.aisound_resume.restype=c_bool
+	wrapperDLL.aisound_initialize()
+	wrapperDLL.aisound_callback(callback)
+
+def Terminate():
+	global wrapperDLL
+	wrapperDLL.aisound_terminate()
+
+def Configure(name,value):
+	global wrapperDLL
+	return wrapperDLL.aisound_configure(name.encode("utf-8"),value.encode("utf-8"))
+
+def Speak(text,index=None):
+	global wrapperDLL,isPlaying,_nextCbToken
+	with _stateLock:
+		token = _nextCbToken
+		_nextCbToken += 1
+		# c_void_p(0) becomes None on callback; keep token non-zero.
+		if _nextCbToken > 0x7FFFFFFF:
+			_nextCbToken = 1
+		gen = _currentGeneration
+		_tokenToGeneration[token] = gen
+		if index is not None:
+			_tokenToIndex[token] = index
+		_generationPending[gen] = _generationPending.get(gen, 0) + 1
+		isPlaying=True
+	ok = wrapperDLL.aisound_speak(text.encode("utf-8"),c_void_p(token))
+	if not ok:
+		shouldNotify=False
+		with _stateLock:
+			failGen = _tokenToGeneration.pop(token, None)
+			_tokenToIndex.pop(token, None)
+			if failGen is not None:
+				remaining = _generationPending.get(failGen, 0)
+				if remaining > 1:
+					_generationPending[failGen] = remaining - 1
+				elif remaining == 1:
+					_generationPending.pop(failGen, None)
+			currentPending = _generationPending.get(_currentGeneration, 0)
+			isPlaying = currentPending > 0
+			shouldNotify = (failGen == _currentGeneration and currentPending == 0)
+		if shouldNotify:
+			synthDoneSpeaking.notify(synth=synthRef())
+	return ok
+
+def Cancel():
+	global wrapperDLL,isPlaying,synthRef,_currentGeneration
+	with _stateLock:
+		_currentGeneration += 1
+		_tokenToGeneration.clear()
+		_tokenToIndex.clear()
+		_generationPending.clear()
+		isPlaying=False
+	synthDoneSpeaking.notify(synth=synthRef())
+	return wrapperDLL.aisound_cancel()
+
+def Pause():
+	global wrapperDLL
+	return wrapperDLL.aisound_pause()
+
+def Resume():
+	global wrapperDLL
+	return wrapperDLL.aisound_resume()
 
 
-class Aisound(object):
-	supportedSettings=(
-		SynthDriver.VoiceSetting(),
-		SynthDriver.RateSetting(),
-		SynthDriver.PitchSetting(),
-		SynthDriver.InflectionSetting(),
-		SynthDriver.VolumeSetting()
-	)
-
-	def __init__(self):
-		self.id = ""
-		self.wrapperDLL = None
-		self.isPlaying = False
-		self.lastIndex = None
-
-		if self.wrapperDLL==None:
-			dllPath=os.path.join(workspaceAisound_path, "aisound.dll")
-			ensureWaveOutHooks(dllPath)
-			self.wrapperDLL=cdll.LoadLibrary(dllPath)
-			self.wrapperDLL.aisound_callback.restype=c_bool
-			self.wrapperDLL.aisound_callback.argtypes=[aisound_callback_t]
-			self.wrapperDLL.aisound_configure.restype=c_bool
-			self.wrapperDLL.aisound_configure.argtypes=[c_char_p,c_char_p]
-			self.wrapperDLL.aisound_speak.restype=c_bool
-			self.wrapperDLL.aisound_speak.argtypes=[c_char_p,c_void_p]
-			self.wrapperDLL.aisound_cancel.restype=c_bool
-			self.wrapperDLL.aisound_pause.restype=c_bool
-			self.wrapperDLL.aisound_resume.restype=c_bool
-		self.wrapperDLL.aisound_initialize()
-		self.wrapperDLL.aisound_callback(callback)
-
-	def terminate(self):
-		self.wrapperDLL.aisound_terminate()
-
-	def Configure(self, name,value):
-		return self.wrapperDLL.aisound_configure(name.encode("utf-8"),value.encode("utf-8"))
-
-	def Speak(self, text,index=None):
-		global lastSpeakInstance
-		if index==None:
-			cbData=0
-		else:
-			cbData=index
-		self.isPlaying=True
-		lastSpeakInstance = self
-
-		return self.wrapperDLL.aisound_speak(text.encode("utf-8"),c_void_p(cbData))
-
-	def Cancel(self):
-		self.isPlaying=False
-		return self.wrapperDLL.aisound_cancel()
-
-	def Pause(self):
-		return self.wrapperDLL.aisound_pause()
-
-	def Resume(self):
-		return self.wrapperDLL.aisound_resume()
-
-
-def speakBlock(instance, arg, mode):
-	voiceInstance = instance
-	text = arg
-	if not voiceInstance:
-		return
-	try:
-		if mode == "speak":
-			voiceInstance.core.Speak(text, None)
-		elif mode == "speak_index":
-			voiceInstance.core.Speak("", text)
-	except Exception:
-		log.error("Error running function from queue", exc_info=True)
+# vim: set tabstop=4 shiftwidth=4 wm=0:

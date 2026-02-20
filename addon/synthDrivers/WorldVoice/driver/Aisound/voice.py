@@ -1,44 +1,19 @@
-from autoSettingsUtils.utils import paramToPercent, percentToParam
-import globalVars
 import languageHandler
 
-from .driver import _aisound
+from .driver import SynthDriver
 from .. import Voice
-
-import os
 
 
 class AisoundVoice(Voice):
 	core = None
-	workspace = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
 	engine = "Aisound"
+	synth_driver_class = SynthDriver
+
 	def __init__(self, id, name, taskManager, language=None):
 		self.name = name
 		self.language = language if language else "unknown"
 
 		super().__init__(id=id, taskManager=taskManager)
-
-	def rollback(self):
-		super().rollback()
-		self.active()
-
-	@property
-	def inflection(self):
-		return paramToPercent(self._inflection, 0, 2)
-
-	@inflection.setter
-	def inflection(self, value):
-		param = self._inflection = percentToParam(value, 0, 2)
-		self.core.Configure("style", "%d" % param)
-
-	def active(self):
-		if self.core.id == self.id:
-			return
-		self.core.id = self.id
-		self.name = self.name
-		self.rate = self.rate
-		self.pitch = self.pitch
-		self.volume = self.volume
 
 	@property
 	def name(self):
@@ -46,87 +21,24 @@ class AisoundVoice(Voice):
 
 	@name.setter
 	def name(self, name):
-		param = self._name = name
-		self.core.Configure("voice", param)
+		self._name = name
 
 	@property
-	def rate(self):
-		return paramToPercent(self._rate, -32768, 32767)
-
-	@rate.setter
-	def rate(self, percent):
-		param = self._rate = percentToParam(percent, -32768, 32767)
-		self.core.Configure("speed", "%d" % param)
+	def variants(self):
+		self._variants = []
+		return self._variants
 
 	@property
-	def pitch(self):
-		return paramToPercent(self._pitch, -32768, 32767)
+	def variant(self):
+		return self._variant
 
-	@pitch.setter
-	def pitch(self, percent):
-		param = self._pitch = percentToParam(percent, -32768, 32767)
-		self.core.Configure("pitch", "%d" % param)
-
-	@property
-	def inflection(self):
-		return paramToPercent(self._inflection, 0, 2)
-
-	@inflection.setter
-	def inflection(self, percent):
-		param = self._inflection = percentToParam(percent, 0, 2)
-		self.core.Configure("style", "%d" % param)
-
-	@property
-	def volume(self):
-		return paramToPercent(self._volume, -32768, 32767)
-
-	@volume.setter
-	def volume(self, percent):
-		param = self._volume = percentToParam(percent, -32768, 32767)
-		self.core.Configure("volume", "%d" % param)
-
-	def speak(self, text):
-		def _speak():
-			self.active()
-			_aisound.speakBlock(self, text, "speak")
-		self.taskManager.add_dispatch_task((self, _speak),)
-
-	def stop(self):
-		self.core.Cancel()
-
-	def pause(self):
-		self.core.Pause()
-
-	def resume(self):
-		self.core.Resume()
-
-	def index(self, index):
-		def _speak():
-			_aisound.speakBlock(self, index, "speak_index")
-		self.taskManager.add_dispatch_task((self, _speak),)
-
-	def close(self):
-		pass
-
-	@classmethod
-	def install(cls):
-		workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "aisound")
-		return os.path.isfile(os.path.join(workspace_path, 'aisound.dll'))
+	@variant.setter
+	def variant(self, value):
+		self._variant = value
 
 	@classmethod
 	def ready(cls):
-		return os.path.isfile(os.path.join(cls.workspace, 'aisound.dll'))
-
-	@classmethod
-	def engineOn(cls):
-		if not cls.core:
-			cls.core = _aisound.Aisound()
-
-	@classmethod
-	def engineOff(cls):
-		if cls.core:
-			cls.core.terminate()
-			cls.core = None
+		return True
 
 	@classmethod
 	def voices(cls):
