@@ -1,6 +1,4 @@
-import time
 import math
-import tones
 import threading
 import unicodedata
 import os
@@ -24,7 +22,6 @@ from .ve2.veTypes import *
 from synthDrivers._sonic import SonicStream, initialize as sonicInitialize
 
 addonHandler.initTranslation()
-sonicInitialize()
 
 BIN_DICT_CONTENT_TYPE = "application/edct-bin-dictionary"
 TEXT_RULESET_CONTENT_TYPE = "application/x-vocalizer-rettt+text"
@@ -42,8 +39,8 @@ VOICE_PARAMETERS = [
 def getResourcePaths():
 	resourcePaths = [addon.path for addon in addonHandler.getRunningAddons() if addon.name.startswith("vocalizer-expressive2-voice")]
 
-	import globalVars
-	WVW_PATH = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace", "VE")
+	user_folder = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))))))
+	WVW_PATH = os.path.join(user_folder, "WorldVoice-workspace", "VE")
 	resourcePaths.append(WVW_PATH)
 
 	programdata = os.getenv("PROGRAMDATA")
@@ -82,7 +79,8 @@ markBufSize = 100
 
 class VECallback(object):
 
-	def __init__(self, player, isSilence, onIndexReached, sampleRate):
+	def __init__(self, player, isSilence, onIndexReached):
+		sampleRate = 22050
 		self._player = player
 		self._isSilence = isSilence
 		self._onIndexReached = onIndexReached
@@ -212,6 +210,7 @@ class SynthDriver(SynthDriver):
 			return success
 
 	def __init__(self):
+		sonicInitialize()
 		resources = getResourcePaths()
 		if not resources:
 			raise RuntimeError("no resources available")
@@ -225,10 +224,9 @@ class SynthDriver(SynthDriver):
 		except KeyError:
 			# Older NVDA versions
 			outputDevice = config.conf["speech"]["outputDevice"]
-		sampleRate = 22050
-		self._player = nvwave.WavePlayer(channels=1, samplesPerSec=sampleRate, bitsPerSample=16, outputDevice=outputDevice)
+		self._player = nvwave.WavePlayer(channels=1, samplesPerSec=22050, bitsPerSample=16, outputDevice=outputDevice)
 		self._isSilence = threading.Event()
-		self._veCallbackHandler = VECallback(self._player, self._isSilence, self._onIndexReached, sampleRate)
+		self._veCallbackHandler = VECallback(self._player, self._isSilence, self._onIndexReached)
 		self._veCallback = VE_CBOUTNOTIFY(self._veCallbackHandler)
 
 		self._resources = getAvailableResources()
@@ -345,8 +343,6 @@ class SynthDriver(SynthDriver):
 				chunks.append(f"\x1b\\pitch={pitch+pitchOffset}\\")
 			elif isinstance(command, BreakCommand):
 				# Supported range is 1-65535 msec
-				# breakTime = max(1, min(command.time, 8192))
-				# time.sleep(breakTime / 1000)
 				breakTime = max(1, min(command.time, 65535))
 				chunks.append(f"\x1b\\pause={breakTime}\\")
 			# old method

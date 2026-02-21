@@ -68,29 +68,31 @@ class VEVoice(Voice):
 	@classmethod
 	def voices(cls):
 		result = []
-		if not cls.ready():
+		if not cls.ready() or not cls.core:
 			return result
 
-		languages = ve2.getLanguageList()
-		languageNamesToLocales = {l.szLanguage.decode(): ve2.getLocaleNameFromTLW(l.szLanguageTLW.decode()) for l in languages}
-		for language in languages:
-			voices = ve2.getVoiceList(language.szLanguage)
-			for voice in voices:
-				localeName = languageNamesToLocales.get(voice.szLanguage.decode(), "unknown")
-				if not isinstance(localeName, str):
-					localeName = "unknown"
-				langDescription = languageHandler.getLanguageDescription(localeName)
-				if not langDescription:
-					langDescription = voice.szLanguage.decode()
-				name = voice.szVoiceName.decode()
-				result.append({
-					"id": name,
-					"name": name,
-					"locale": localeName,
-					"language": localeName,
-					"langDescription": langDescription,
-					"description": "%s - %s" % (name, langDescription),
-					"engine": "VE",
-				})
+		try:
+			voices = cls.core.availableVoices.values()
+		except Exception:
+			return result
+
+		for voice in voices:
+			localeName = voice.language or "unknown"
+			langDescription = languageHandler.getLanguageDescription(localeName)
+			if not langDescription:
+				if " - " in voice.displayName:
+					langDescription = voice.displayName.split(" - ", 1)[1]
+				else:
+					langDescription = localeName
+			name = voice.id
+			result.append({
+				"id": name,
+				"name": name,
+				"locale": localeName,
+				"language": localeName,
+				"langDescription": langDescription,
+				"description": "%s - %s" % (name, langDescription),
+				"engine": "VE",
+			})
 
 		return result
