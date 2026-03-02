@@ -1,6 +1,7 @@
 from functools import wraps
 from itertools import chain, pairwise
 import re
+import string
 from typing import Iterable, Iterator, Union
 import uuid
 
@@ -430,7 +431,11 @@ def iter_number_speech_segments_mode(item, mode, translate_table, number_re=_NUM
 		# Check trailing text to preserve sentence breaks.
 		# If it looks like end of sentence (e.g. "123."), don't add space.
 		tail = item[end:]
-		if not _SENTENCE_END_RE.match(tail):
+		# if not _SENTENCE_END_RE.match(tail):
+		if (
+			not _SENTENCE_END_RE.match(tail)
+			and not (tail and tail[0] in string.ascii_letters)
+		):
 			yield " "
 		pos = end
 	if pos < len(item):

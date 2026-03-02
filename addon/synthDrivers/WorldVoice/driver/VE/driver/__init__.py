@@ -11,7 +11,7 @@ import nvwave
 import languageHandler
 import addonHandler
 import speech
-from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, BreakCommand, SpeechCommand
+from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, BreakCommand, SpeechCommand, RateCommand, VolumeCommand
 from synthDriverHandler import SynthDriver, LanguageInfo, VoiceInfo, synthIndexReached, synthDoneSpeaking
 from autoSettingsUtils.driverSetting import DriverSetting
 from autoSettingsUtils.utils import StringParameterInfo
@@ -19,7 +19,6 @@ from logHandler import log
 
 from . import ve2
 from .ve2.veTypes import *
-from synthDrivers._sonic import SonicStream, initialize as sonicInitialize
 
 addonHandler.initTranslation()
 
@@ -80,7 +79,6 @@ markBufSize = 100
 class VECallback(object):
 
 	def __init__(self, player, isSilence, onIndexReached):
-		sampleRate = 22050
 		self._player = player
 		self._isSilence = isSilence
 		self._onIndexReached = onIndexReached
@@ -88,8 +86,40 @@ class VECallback(object):
 		self._pcmBuf = (c_byte * pcmBufLen)()
 		self._markBuf = (VE_MARKINFO * markBufSize)()
 		self._feedBuf = BytesIO()
-		self.sonicStream = SonicStream(sampleRate, 1)
-		self.sonicStream.speed = 1.0
+		self._sampleRate = 22050
+		self._sonicInitTried = False
+		self._sonicEnabled = False
+		self._sonicSpeed = 1.0
+		self.sonicStream = None
+
+	def _ensureSonicStream(self):
+		if self._sonicEnabled:
+			return True
+		if self._sonicInitTried:
+			return False
+		self._sonicInitTried = True
+		try:
+			from synthDrivers._sonic import SonicStream, initialize as sonicInitialize
+			sonicInitialize()
+			self.sonicStream = SonicStream(self._sampleRate, 1)
+			self.sonicStream.speed = self._sonicSpeed
+			self._sonicEnabled = True
+			return True
+		except Exception:
+			log.warning("Sonic unavailable in VE; using native speed path.", exc_info=True)
+			self.sonicStream = None
+			self._sonicEnabled = False
+			return False
+
+	def getSpeed(self):
+		if self._sonicEnabled and self.sonicStream is not None:
+			return float(self.sonicStream.speed)
+		return float(self._sonicSpeed)
+
+	def setSpeed(self, speed):
+		self._sonicSpeed = float(speed)
+		if self._sonicEnabled and self.sonicStream is not None:
+			self.sonicStream.speed = self._sonicSpeed
 
 	def __call__(self, instance, userData, message):
 		""" Callback to handle assynchronous requests and messages from the synthecizer. """
@@ -110,16 +140,20 @@ class VECallback(object):
 				# Sound data and mark buffers were produced by vocalizer.
 				# Send wave data to be played:
 				if outData.contents.cntPcmBufLen > 0:
-					self.sonicStream.writeShort(
-						outData.contents.pOutPcmBuf,
-						outData.contents.cntPcmBufLen // 2,
-					)
-					spedArr = self.sonicStream.readShort()
-					if spedArr:
-						self._feedBuf.write(bytes(spedArr))
-					if self._feedBuf.tell() >= pcmBufLen:
-						self._player.feed(self._feedBuf.getvalue())
-						self._feedBuf = BytesIO()
+					if self._ensureSonicStream():
+						self.sonicStream.writeShort(
+							outData.contents.pOutPcmBuf,
+							outData.contents.cntPcmBufLen // 2,
+						)
+						spedArr = self.sonicStream.readShort()
+						if spedArr:
+							self._feedBuf.write(bytes(spedArr))
+						if self._feedBuf.tell() >= pcmBufLen:
+							self._player.feed(self._feedBuf.getvalue())
+							self._feedBuf = BytesIO()
+					else:
+						data = string_at(outData.contents.pOutPcmBuf, outData.contents.cntPcmBufLen)
+						self._player.feed(data)
 				# Make sure that the speech is not interrupted by the user
 				if self._isSilence.isSet():
 					self._feedBuf = BytesIO()
@@ -129,10 +163,11 @@ class VECallback(object):
 					if outData.contents.pMrkList[i].eMrkType == VE_MRK_BOOKMARK:
 						self._onIndexReached(outData.contents.pMrkList[i].ulMrkId)
 			elif messageType == VE_MSG_ENDPROCESS:
-				self.sonicStream.flush()
-				tailArr = self.sonicStream.readShort()
-				if tailArr and not self._isSilence.isSet():
-					self._feedBuf.write(bytes(tailArr))
+				if self._sonicEnabled and self.sonicStream is not None:
+					self.sonicStream.flush()
+					tailArr = self.sonicStream.readShort()
+					if tailArr and not self._isSilence.isSet():
+						self._feedBuf.write(bytes(tailArr))
 				if self._feedBuf.tell() and not self._isSilence.isSet():
 					self._player.feed(self._feedBuf.getvalue())
 				self._feedBuf = BytesIO()
@@ -210,7 +245,6 @@ class SynthDriver(SynthDriver):
 			return success
 
 	def __init__(self):
-		sonicInitialize()
 		resources = getResourcePaths()
 		if not resources:
 			raise RuntimeError("no resources available")
@@ -404,7 +438,7 @@ class SynthDriver(SynthDriver):
 
 	def _get_rate(self):
 		if self._rateBoost:
-			rate = self._rate = self._veCallbackHandler.sonicStream.speed
+			rate = self._rate = self._veCallbackHandler.getSpeed()
 			return self._paramToPercentFloat(rate, 0.5, 6.0)
 		else:
 			rate = self._rate = self.getParameter(self.voiceInstance, VE_PARAM_SPEECHRATE)
@@ -417,13 +451,13 @@ class SynthDriver(SynthDriver):
 		if self._rateBoost:
 			self._rate = self._percentToParamFloat(value, 0.5, 6.0)
 			TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, 100))()
-			self._veCallbackHandler.sonicStream.speed = self._rate
+			self._veCallbackHandler.setSpeed(self._rate)
 		else:
 			factor = 25.0 if value >= 50 else 50.0
 			norm = 2.0 ** ((value - 50.0) / factor)
 			self._rate = rate = int(round(norm * 100))
 			TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, rate))()
-			self._veCallbackHandler.sonicStream.speed = 1.0
+			self._veCallbackHandler.setSpeed(1.0)
 
 	def _get_rateBoost(self):
 		return self._rateBoost
