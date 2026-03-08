@@ -11,14 +11,14 @@ import nvwave
 import languageHandler
 import addonHandler
 import speech
-from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, BreakCommand, SpeechCommand, RateCommand, VolumeCommand
+from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, BreakCommand, SpeechCommand
 from synthDriverHandler import SynthDriver, LanguageInfo, VoiceInfo, synthIndexReached, synthDoneSpeaking
 from autoSettingsUtils.driverSetting import DriverSetting
 from autoSettingsUtils.utils import StringParameterInfo
 from logHandler import log
 
-from . import ve2
-from .ve2.veTypes import *
+from . import ttsapi
+from .ttsapi.veTypes import *
 
 addonHandler.initTranslation()
 
@@ -36,10 +36,10 @@ VOICE_PARAMETERS = [
 ]
 
 def getResourcePaths():
-	resourcePaths = [addon.path for addon in addonHandler.getRunningAddons() if addon.name.startswith("vocalizer-expressive2-voice")]
+	resourcePaths = [addon.path for addon in addonHandler.getRunningAddons() if addon.name.startswith("CerenceTTS-voice")]
 
 	user_folder = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))))))
-	WVW_PATH = os.path.join(user_folder, "WorldVoice-workspace", "VE")
+	WVW_PATH = os.path.join(user_folder, "WorldVoice-workspace", "Cerence")
 	resourcePaths.append(WVW_PATH)
 
 	programdata = os.getenv("PROGRAMDATA")
@@ -56,8 +56,8 @@ def getResourcePaths():
 
 def getAvailableResources():
 	resources = OrderedDict()
-	for l in ve2.getLanguageList():
-		langCode = ve2.getLocaleNameFromTLW(l.szLanguageTLW.decode("utf-8"))
+	for l in ttsapi.getLanguageList():
+		langCode = ttsapi.getLocaleNameFromTLW(l.szLanguageTLW.decode("utf-8"))
 		if langCode is None: # Unknown language, skip it
 			continue
 		languageInfo = LanguageInfo(langCode)
@@ -66,7 +66,7 @@ def getAvailableResources():
 			languageInfo.displayName = l.szLanguage
 		resources[languageInfo] = []
 
-		for v in ve2.getVoiceList(l.szLanguage):
+		for v in ttsapi.getVoiceList(l.szLanguage):
 			name = f'{v.szVoiceName.decode("utf-8")} - {languageInfo.displayName}'
 			voiceInfo = VoiceInfo(v.szVoiceName.decode("utf-8"), name, languageInfo.id or None)
 			resources[languageInfo].append(voiceInfo)
@@ -106,7 +106,7 @@ class VECallback(object):
 			self._sonicEnabled = True
 			return True
 		except Exception:
-			log.warning("Sonic unavailable in VE64; using native speed path.", exc_info=True)
+			log.warning("Sonic unavailable in CerenceTTS; using native speed path.", exc_info=True)
 			self.sonicStream = None
 			self._sonicEnabled = False
 			return False
@@ -160,8 +160,8 @@ class VECallback(object):
 					return NUAN_E_TTS_USERSTOP
 				# And check for bookmarks
 				for i in range(int(outData.contents.cntMrkListLen)):
-					if outData.contents.pMrkList[i].eMrkType == VE_MRK_BOOKMARK:
-						self._onIndexReached(outData.contents.pMrkList[i].ulMrkId)
+						if outData.contents.pMrkList[i].eMrkType == VE_MRK_BOOKMARK:
+							self._onIndexReached(int(outData.contents.pMrkList[i].szValue))
 			elif messageType == VE_MSG_ENDPROCESS:
 				if self._sonicEnabled and self.sonicStream is not None:
 					self.sonicStream.flush()
@@ -172,7 +172,7 @@ class VECallback(object):
 					self._player.feed(self._feedBuf.getvalue())
 				self._feedBuf = BytesIO()
 		except:
-			log.error("Vocalizer callback", exc_info=True)
+			log.error("CerenceTTS callback", exc_info=True)
 		return NUAN_OK
 
 class ProcessText2Speech(object):
@@ -182,7 +182,7 @@ class ProcessText2Speech(object):
 		self._text = text
 
 	def __call__(self):
-		ve2.processText2Speech(self._instance, self._text)
+		ttsapi.processText2Speech(self._instance, self._text)
 
 class TtsSetParamList(object):
 
@@ -199,7 +199,7 @@ class TtsSetParamList(object):
 		return self._idAndValues
 
 	def __call__(self):
-		ve2.setParamList(self._instance, *self._idAndValues)
+		ttsapi.setParamList(self._instance, *self._idAndValues)
 
 class DoneSpeaking(object):
 
@@ -212,8 +212,8 @@ class DoneSpeaking(object):
 		self._onIndexReached(None)
 
 class SynthDriver(SynthDriver):
-	name = "vocalizer_expressive2"
-	description = "Nuance Vocalizer expressive 2.2"
+	name = "CerenceTTS"
+	description = "Cerence Embedded TTS"
 
 	supportedSettings = [
 		SynthDriver.VoiceSetting(),
@@ -239,16 +239,16 @@ class SynthDriver(SynthDriver):
 		resources = getResourcePaths()
 		if not resources:
 			return False
-		with ve2.preOpenVocalizer(resources) as success:
+		with ttsapi.preOpenVocalizer(resources) as success:
 			if not success:
-				log.debugWarning("Vocalizer not available.", exc_info=True)
+				log.debugWarning("CerenceTTS not available", exc_info=True)
 			return success
 
 	def __init__(self):
 		resources = getResourcePaths()
 		if not resources:
 			raise RuntimeError("no resources available")
-		ve2.initialize(resources)
+		ttsapi.initialize(resources)
 
 		self._instanceCache = {}
 
@@ -278,7 +278,7 @@ class SynthDriver(SynthDriver):
 				content = f.read()
 			log.debug(f"Loading ruleset from {rulesetPath}")
 			try:
-				ve2.resourceLoad(TEXT_RULESET_CONTENT_TYPE, content, instance)
+				ttsapi.resourceLoad(TEXT_RULESET_CONTENT_TYPE, content, instance)
 			except VeError:
 				log.warning(f"Error Loading vocalizer rules from {rulesetPath}", exc_info=True)
 		# Load custom dictionary if one exists
@@ -290,7 +290,7 @@ class SynthDriver(SynthDriver):
 					log.debug(f"Loading vocalizer dictionary from {dictPath}")
 		if voiceName in _voiceDicts:
 			try:
-				ve2.resourceLoad(BIN_DICT_CONTENT_TYPE, _voiceDicts[voiceName], instance)
+				ttsapi.resourceLoad(BIN_DICT_CONTENT_TYPE, _voiceDicts[voiceName], instance)
 			except VeError:
 				log.warning("Error loading Vocalizer dictionary.", exc_info=True)
 
@@ -299,7 +299,7 @@ class SynthDriver(SynthDriver):
 			return self._instanceCache[voiceName]
 		except KeyError:
 			pass
-		instance, name = ve2.open(voiceName, self._veCallback)
+		instance, name = ttsapi.open(voiceName, self._veCallback)
 		log.debug(f"Created synth instance for voice {name}")
 		self._onVoiceTuning(instance, name)
 		self._instanceCache[name] = instance
@@ -309,11 +309,11 @@ class SynthDriver(SynthDriver):
 		self.cancel()
 		try:
 			for voiceName, instance in self._instanceCache.items():
-				ve2.close(instance)
+				ttsapi.close(instance)
 			self._instanceCache.clear()
-			ve2.terminate()
+			ttsapi.terminate()
 		except RuntimeError:
-			log.error("Vocalizer terminate", exc_info=True)
+			log.error("CerenceTTS terminate", exc_info=True)
 		self._player.close()
 		self._veCallback = None
 
@@ -381,22 +381,6 @@ class SynthDriver(SynthDriver):
 				# Supported range is 1-65535 msec
 				breakTime = max(1, min(command.time, 65535))
 				chunks.append(f"\x1b\\pause={breakTime}\\")
-			# old method
-			elif isinstance(command, RateCommand):
-				boundedValue = max(0, min(command.newValue, 100))
-				factor = 25.0 if boundedValue >= 50 else 50.0
-				norm = 2.0 ** ((boundedValue - 50.0) / factor)
-				value = int(round(norm * 100))
-				chunks.append(f"\x1b\\rate={value}\\")
-			elif isinstance(command, PitchCommand):
-				boundedValue = max(0, min(command.newValue, 100))
-				factor = 50.0
-				norm = 2.0 ** ((boundedValue - 50.0) / factor)
-				value = int(round(norm * 100))
-				chunks.append(f"\x1b\\pitch={value}\\")
-			elif isinstance(command, VolumeCommand):
-				value = max(0, min(command.newValue, 100))
-				chunks.append(f"\x1b\\vol={value}\\")
 			elif isinstance(command, SpeechCommand):
 				log.debugWarning(f"Unsupported speech command: {command}")
 			else:
@@ -427,7 +411,7 @@ class SynthDriver(SynthDriver):
 		return self.getParameters(instance, (paramId, type_))[0]
 
 	def getParameters(self, instance, *idAndTypes):
-		return ve2.getParamList(instance, *idAndTypes)
+		return ttsapi.getParamList(instance, *idAndTypes)
 
 	def _get_voiceInstance(self):
 		return self.getVoiceInstance(self.voice)
@@ -442,23 +426,22 @@ class SynthDriver(SynthDriver):
 		if self._rateBoost:
 			rate = self._rate = self._veCallbackHandler.getSpeed()
 			return self._paramToPercentFloat(rate, 0.5, 6.0)
-		else:
-			rate = self._rate = self.getParameter(self.voiceInstance, VE_PARAM_SPEECHRATE)
-			norm = rate / 100.0
-			factor = 25 if norm >= 1 else 50
-			return int(round(50 + factor * math.log(norm, 2)))
+		rate = self._rate = self.getParameter(self.voiceInstance, VE_PARAM_SPEECHRATE)
+		norm = rate / 100.0
+		factor = 25 if norm >= 1 else 50
+		return int(round(50 + factor * math.log(norm, 2)))
 
 	def _set_rate(self, value):
 		if self._rateBoost:
 			self._rate = self._percentToParamFloat(value, 0.5, 6.0)
 			TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, 100))()
 			self._veCallbackHandler.setSpeed(self._rate)
-		else:
-			factor = 25.0 if value >= 50 else 50.0
-			norm = 2.0 ** ((value - 50.0) / factor)
-			self._rate = rate = int(round(norm * 100))
-			TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, rate))()
-			self._veCallbackHandler.setSpeed(1.0)
+			return
+		factor = 25.0 if value >= 50 else 50.0
+		norm = 2.0 ** ((value - 50.0) / factor)
+		self._rate = rate = int(round(norm * 100))
+		TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, rate))()
+		self._veCallbackHandler.setSpeed(1.0)
 
 	def _get_rateBoost(self):
 		return self._rateBoost
@@ -491,27 +474,22 @@ class SynthDriver(SynthDriver):
 		return self._voice
 
 	def _set_voice(self, voice):
-		if voice == self.voice: return
-		if voice not in self.availableVoices:
-			raise RuntimeError("Unavailable voice: %s" % voice)
-		self._voice = voice
-		# Available variants are cached by default. As variants maybe different for each voice remove the cached value
-		if hasattr(self, "_availableVariants"):
-			del self._availableVariants
+		if voice in self.availableVoices and voice != self.voice:
+			self._voice = voice
+			# Available variants are cached by default. As variants maybe different for each voice remove the cached value
+			if hasattr(self, "_availableVariants"):
+				del self._availableVariants
 
 	def _get_variant(self):
 		return self.getParameter(self.voiceInstance, VE_PARAM_VOICE_OPERATING_POINT, type_=str)
 
 	def _set_variant(self, variant):
-		if variant == self.variant: return
-		if variant not in self.availableVariants:
-			log.warning("Unavailable variant: %s" % variant)
-			return
-		TtsSetParamList(self.voiceInstance, (VE_PARAM_VOICE_OPERATING_POINT, variant))()
+		if variant in self.availableVariants and variant != self.variant:
+			TtsSetParamList(self.voiceInstance, (VE_PARAM_VOICE_OPERATING_POINT, variant))()
 
 	def _getAvailableVariants(self):
 		language = self.getParameter(self.voiceInstance, VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
-		dbs = ve2.getSpeechDBList(language, self.voice)
+		dbs = ttsapi.getSpeechDBList(language, self.voice)
 		return OrderedDict([(d, VoiceInfo(d, d)) for d in dbs])
 
 	def _get_waitfactor(self):

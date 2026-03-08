@@ -1,3 +1,4 @@
+import sys
 import os
 import contextlib
 from ctypes import *
@@ -7,20 +8,15 @@ from .veTypes import *
 from .languages import getLocaleNameFromTLW
 
 # global variables
-msvcrDll = None
 veDll = None
 platformDll = None
 hSpeechClass = None
 installResources = None
 
 def veCheckForError(result, func, args):
-	""" Checks for errors in a function from the vocalizer dlls and platform.
-	
-	If the error code is not positive it throws a runtime error.
-	The error codes have no description, see the vocalizer SDK
-	For reference."""
 	if result not in (NUAN_OK, NUAN_E_TTS_USERSTOP):
-		raise VeError(result, "Vocalizer Error: %s: %x" % (func.__name__, result))
+		msg = veDll.ve_ttsGetErrorString(result)
+		raise VeError(result, f"CerenceTTS error: {func.__name__}: {msg.decode('utf-8')}")
 
 def _newCopy(src):
 	"""Returns a new ctypes object which is a bitwise copy of an existing one"""
@@ -35,7 +31,6 @@ def _freeLibrary(handle):
 
 def _loadVeDll(path):
 	veDll = cdll.LoadLibrary(path)
-	# Basic runtime type checks...
 	veDll.ve_ttsInitialize.errcheck = veCheckForError
 	veDll.ve_ttsInitialize.restype = c_uint
 	veDll.ve_ttsOpen.errcheck = veCheckForError
@@ -71,6 +66,7 @@ def _loadVeDll(path):
 	veDll.ve_ttsGetAdditionalProductInfo.restype = c_uint
 	veDll.ve_ttsGetAdditionalProductInfo.errcheck = veCheckForError
 	veDll.ve_ttsResourceLoad.restype = c_uint
+	veDll.ve_ttsGetErrorString.restype = c_char_p
 	return veDll
 
 def _loadPlatformDll(path):
@@ -84,15 +80,13 @@ def _loadPlatformDll(path):
 	return platformDll
 
 def initialize(resourcePaths):
-	""" Initializes communication with vocalizer libraries. """
-	global msvcrDll, veDll, platformDll, hSpeechClass, installResources
+	global veDll, platformDll, hSpeechClass, installResources
 	# module_dir = os.path.dirname(__file__)
-	module_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))))))), "WorldVoice-workspace", "VE")
+	module_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))))))), "WorldVoice-workspace", "Cerence")
 	resourcePaths.insert(0, os.path.join(module_dir, "common"))
 	# Load dlls
-	arch = os.environ["PROCESSOR_ARCHITECTURE"]
+	arch = "x64" if sys.maxsize > 2**32 else "x32"
 	lib_dir = os.path.join(module_dir, "lib", arch)
-	msvcrDll = cdll.LoadLibrary(os.path.join(lib_dir, "msvcr110.dll")) # required for ve.dll
 	veDll = _loadVeDll(os.path.join(lib_dir, "ve.dll"))
 	platformDll = _loadPlatformDll(os.path.join(lib_dir, "vplatform.dll"))
 	# Provide external services to vocalizer
@@ -146,8 +140,7 @@ def close(instance):
 	veDll.ve_ttsClose(instance)
 
 def terminate():
-	""" Terminates communication with vocalizer, freeing resources."""
-	global msvcrDll, veDll, platformDll, hSpeechClass, installResources
+	global veDll, platformDll, hSpeechClass, installResources
 	if hSpeechClass is not None:
 		try:
 			veDll.ve_ttsUnInitialize(hSpeechClass)
@@ -160,11 +153,9 @@ def terminate():
 	try:
 		_freeLibrary(veDll._handle)
 		_freeLibrary(platformDll._handle)
-		_freeLibrary(msvcrDll._handle)
 	finally:
 		veDll = None
 		platformDll = None
-		msvcrDll = None
 
 def processText2Speech(instance, text):
 	text = text.encode("utf-8", "replace")

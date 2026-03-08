@@ -1,6 +1,5 @@
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
-import importlib
 from operator import attrgetter
 from typing import Callable, TypeVar, Dict, List
 
@@ -9,7 +8,7 @@ import languageHandler
 from logHandler import log
 from synthDriverHandler import VoiceInfo
 
-from .engine import EngineType
+from .engine import EngineType, READY_ENGINE_CLASS
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -54,15 +53,15 @@ class VoiceManager(object):
 			if config.conf["WorldVoice"]["engine"].get(eng.name, False)
 		]
 
-		self.voice_classes: Dict[str, type] = self._load_voice_classes(enabled)
-
 		self.installEngine = []
 		for eng in enabled:
-			cls = self.voice_classes[eng.name]
 			try:
-				if cls.ready():
-					cls.engineOn()
-					self.installEngine.append(cls)
+				cls = READY_ENGINE_CLASS[eng.name]
+			except KeyError:
+				continue
+			try:
+				cls.engineOn()
+				self.installEngine.append(cls)
 			except Exception as e:
 				log.error("engine %s on error: %s", eng.name, e)
 
@@ -80,7 +79,7 @@ class VoiceManager(object):
 			instance.commit()
 			instance.close()
 
-		for item in self.voice_classes.values():
+		for item in READY_ENGINE_CLASS.values():
 			item.engineOff()
 
 		self.taskManager = None
@@ -111,24 +110,10 @@ class VoiceManager(object):
 		self._waitfactor = value
 		for voiceName, instance in self._instanceCache.items():
 			try:
-				if isinstance(instance, self.voice_classes["VE"]):
+				if isinstance(instance, READY_ENGINE_CLASS["VE"]):
 					instance.waitfactor = value
 			except KeyError:
 				pass
-
-	def _load_voice_classes(self, engines: List[EngineType]) -> Dict[str, type]:
-		"""
-		Dynamically import voice classes based on EngineType definitions.
-		Returns a dict mapping engine-name (e.g. "VE") to the class object.
-		"""
-		classes: Dict[str, type] = {}
-		for eng in engines:
-			module_path = eng.module_path	  # e.g. "voice.VEVoice"
-			class_name = eng.class_name	   # e.g. "VEVoice"
-			module = importlib.import_module(module_path)
-			cls = getattr(module, class_name)
-			classes[eng.name] = cls
-		return classes
 
 	def _getDefaultVoiceMeta(self) -> VoiceMeta:
 		lang = languageHandler.getLanguage()
@@ -146,7 +131,7 @@ class VoiceManager(object):
 
 	def _createVoiceInstance(self, voiceName: str):
 		voiceMeta = next(v for v in self.table if v.name == voiceName)
-		cls = self.voice_classes[voiceMeta.engine]
+		cls = READY_ENGINE_CLASS[voiceMeta.engine]
 		voiceInstance = cls(
 			id=voiceMeta.id,
 			name=voiceMeta.name,

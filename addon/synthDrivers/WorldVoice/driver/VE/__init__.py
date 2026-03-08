@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 import languageHandler
 import locale
 from synthDriverHandler import LanguageInfo
@@ -7,10 +5,10 @@ from synthDriverHandler import LanguageInfo
 from .driver import SynthDriver, TtsSetParamList
 from .driver import ve2
 from .driver.ve2.veTypes import VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT, VeError
-from .. import Voice
+from synthDrivers.WorldVoice.driver import Voice
 
 
-class VEVoice(Voice):
+class Voice(Voice):
 	core = None
 	engine = "VE"
 	synth_driver_class = SynthDriver
@@ -20,14 +18,6 @@ class VEVoice(Voice):
 		self.language = language if language else "unknown"
 
 		super().__init__(id=id, taskManager=taskManager)
-
-	@property
-	def name(self):
-		return self._name
-
-	@name.setter
-	def name(self, name):
-		self._name = name
 
 	@property
 	def variant(self):
@@ -62,10 +52,6 @@ class VEVoice(Voice):
 			self.core.waitfactor = value
 
 	@classmethod
-	def ready(cls):
-		return True
-
-	@classmethod
 	def voices(cls):
 		result = []
 		if not cls.ready() or not cls.core:
@@ -91,8 +77,8 @@ class VEVoice(Voice):
 				"locale": localeName,
 				"language": localeName,
 				"langDescription": langDescription,
-				"description": "%s - %s" % (name, langDescription),
-				"engine": "VE",
+				"description": "[%s] %s - %s" % (cls.engine, name, langDescription),
+				"engine": cls.engine,
 			})
 
 		return result

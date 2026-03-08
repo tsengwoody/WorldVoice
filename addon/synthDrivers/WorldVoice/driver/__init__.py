@@ -1,6 +1,7 @@
 import time
 
 import config
+import languageHandler
 from synthDriverHandler import getSynth
 
 
@@ -67,6 +68,14 @@ class Voice(object):
 	rateBoost = percent_property("rateBoost")
 
 	@property
+	def name(self):
+		return self._name
+
+	@name.setter
+	def name(self, name):
+		self._name = name
+
+	@property
 	def variants(self):
 		self._variants = []
 		return self._variants
@@ -78,6 +87,38 @@ class Voice(object):
 	@variant.setter
 	def variant(self, value):
 		self._variant = value
+
+	@classmethod
+	def voices(cls):
+		result = []
+		if not cls.ready() or not cls.core:
+			return result
+
+		try:
+			voices = cls.core.availableVoices.values()
+		except Exception:
+			return result
+
+		for voice in voices:
+			localeName = voice.language or "unknown"
+			langDescription = languageHandler.getLanguageDescription(localeName)
+			if not langDescription:
+				if " - " in voice.displayName:
+					langDescription = voice.displayName.split(" - ", 1)[1]
+				else:
+					langDescription = localeName
+			name = voice.displayName
+			result.append({
+				"id": voice.id,
+				"name": name,
+				"locale": localeName,
+				"language": localeName,
+				"langDescription": langDescription,
+				"description": "[%s] %s - %s" % (cls.engine, name, langDescription),
+				"engine": cls.engine,
+			})
+
+		return result
 
 	def index(self, index):
 		raise NotImplementedError
@@ -112,7 +153,7 @@ class Voice(object):
 
 	@classmethod
 	def ready(cls):
-		raise NotImplementedError
+		return True
 
 	@classmethod
 	def engineOn(cls):
@@ -125,10 +166,6 @@ class Voice(object):
 		if cls.core:
 			cls.core.terminate()
 			cls.core = None
-
-	@classmethod
-	def voices(cls):
-		raise NotImplementedError
 
 	def setCoreParameter(self):
 		if self.core:

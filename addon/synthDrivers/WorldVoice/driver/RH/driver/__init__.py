@@ -36,8 +36,7 @@ from synthDriverHandler import (
     SynthDriver,
     synthDoneSpeaking,
     synthIndexReached,
-    VoiceInfo,
-    getSynth
+    VoiceInfo
 )
 from speech.commands import (
     CharacterModeCommand,
@@ -350,6 +349,7 @@ class DoneCallback:
         except Exception:
             log.error("RHVoice done callback", exc_info=True)
 
+
 class SpeakText:
     def __init__(self, lib, tts_engine, text, cancel_flag, player):
         self.__lib = lib
@@ -638,11 +638,3 @@ class SynthDriver(SynthDriver):
 
     def _set_rateBoost(self, flag):
         self.__rate_boost = flag
-
-    @property
-    def profiles(self):
-        return self.__profiles
-
-    @property
-    def voice_languages(self):
-        return self.__voice_languages

@@ -93,6 +93,14 @@ _duckersByHandle={}
 
 @WINFUNCTYPE(windll.winmm.waveOutOpen.restype,*windll.winmm.waveOutOpen.argtypes,use_errno=False,use_last_error=False)
 def waveOutOpen(pWaveOutHandle,deviceID,wfx,callback,callbackInstance,flags):
+	# Normalize callback pointers to the current winmm argtypes. This avoids
+	# ctypes rejecting equivalent pointer types when the module has been reloaded.
+	expected_handle_type = windll.winmm.waveOutOpen.argtypes[0]
+	expected_wfx_type = windll.winmm.waveOutOpen.argtypes[2]
+	if pWaveOutHandle:
+		pWaveOutHandle = cast(pWaveOutHandle, expected_handle_type)
+	if wfx:
+		wfx = cast(wfx, expected_wfx_type)
 	try:
 		res=windll.winmm.waveOutOpen(pWaveOutHandle,deviceID,wfx,callback,callbackInstance,flags) or 0
 	except WindowsError as e:

@@ -14,7 +14,7 @@ import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister, pl
-from synthDrivers.WorldVoice.engine import EngineType
+from synthDrivers.WorldVoice.engine import EngineType, READY_ENGINE_CLASS
 import tones
 
 from .utils import guard_errors
@@ -693,17 +693,9 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		group_sizer = wx.StaticBoxSizer(wx.StaticBox(self, label=_("Select Speech Engines to Enable")), wx.VERTICAL)
 		sizer.Add(group_sizer, proportion=1, flag=wx.EXPAND)
 
-		enabled = [eng for eng in EngineType]
-		self.voice_classes: dict[str, type] = self._load_voice_classes(enabled)
+		# enabled = [eng for eng in EngineType]
 
-		self.readyEngine = []
-		for eng in enabled:
-			cls = self.voice_classes[eng.name]
-			try:
-				if cls.ready():
-					self.readyEngine.append(eng.name)
-			except Exception as e:
-				log.error("engine %s not ready: %s", eng.name, e)
+		self.readyEngine = READY_ENGINE_CLASS.keys()
 
 		self.settings = OrderedDict({
 			eng.name: {"label": eng.label}
@@ -750,20 +742,6 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 				gui.mainFrame.onSaveConfigurationCommand(None)
 				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 			super().onSave()
-
-	def _load_voice_classes(self, engines: list[EngineType]) -> dict[str, type]:
-		"""
-		Dynamically import voice classes based on EngineType definitions.
-		Returns a dict mapping engine-name (e.g. "VE") to the class object.
-		"""
-		classes: dict[str, type] = {}
-		for eng in engines:
-			module_path = eng.module_path	  # e.g. "voice.VEVoice"
-			class_name = eng.class_name	   # e.g. "VEVoice"
-			module = importlib.import_module(module_path)
-			cls = getattr(module, class_name)
-			classes[eng.name] = cls
-		return classes
 
 
 class LogSettingsPanel(BaseSettingsPanel):

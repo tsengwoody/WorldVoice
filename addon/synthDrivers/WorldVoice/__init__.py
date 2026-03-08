@@ -19,7 +19,7 @@ from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
 from . import languageDetection
-from .engine import EngineType
+from .engine import EngineType, READY_ENGINE_CLASS
 from .pipeline import (
 	ignore_comma_between_number,
 	item_wait_factor,
@@ -33,11 +33,9 @@ from .pipeline import (
 )
 from ._speechcommand import SplitCommand
 from .taskManager import TaskManager
+from .driver import Voice
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
-
-module = importlib.import_module(f"synthDrivers.WorldVoice.driver")
-Voice = getattr(module, "Voice")
 
 
 _: Any
@@ -128,7 +126,7 @@ class SynthDriver(SynthDriver):
 		]
 		settings.append(SynthDriver.VariantSetting())
 		settings.append(SynthDriver.RateSetting())
-		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "Espeak", "RH", "VE"]:
+		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "Espeak", "RH", "VE", "Cerence", "MSC", "YongDe"]:
 			settings.append(SynthDriver.RateBoostSetting())
 		settings.extend([
 			SynthDriver.PitchSetting(),
@@ -377,27 +375,7 @@ class SynthDriver(SynthDriver):
 		voiceInstance = self._voiceManager.defaultVoiceInstance
 
 		for command in speechSequence:
-			if voiceInstance.engine == "Aisound2":
-				item = command
-				if isinstance(item, str):
-					if charMode:
-						text = ' '.join([x for x in item])
-					else:
-						text = item
-					voiceInstance.speak(text)
-				elif isinstance(item, IndexCommand):
-					voiceInstance.index(item.index)
-				elif isinstance(item, CharacterModeCommand):
-					charMode = item.state
-				elif isinstance(command, Voice):
-					newInstance = command
-					charMode = False
-					voiceInstance = newInstance
-				elif isinstance(item, SpeechCommand):
-					log.debugWarning("Unsupported speech command: %s" % item)
-				else:
-					log.error("Unknown speech: %s" % item)
-			elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5", "VE", "Aisound"]:
+			if voiceInstance.engine in READY_ENGINE_CLASS.keys():
 				if isinstance(command, Voice):
 					newInstance = command
 					if chunks:
@@ -412,10 +390,7 @@ class SynthDriver(SynthDriver):
 				else:
 					chunks.append(command)
 
-		if voiceInstance.engine in ["Aisound2"]:
-			if chunks:
-				voiceInstance.speak(speech.CHUNK_SEPARATOR.join(chunks).replace("  \x1b", "\x1b"))
-		elif voiceInstance.engine in ["OneCore", "RH", "Espeak", "piper", "IBM", "SAPI5", "VE", "Aisound"]:
+		if voiceInstance.engine in READY_ENGINE_CLASS.keys():
 			if chunks:
 				voiceInstance.speak(chunks)
 

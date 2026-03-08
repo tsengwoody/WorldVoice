@@ -155,7 +155,12 @@ class VE_INSTALL(Structure):
 	('pIDataMapping', c_void_p),
 	('hDataClass', c_void_p),
 	('pILog', c_void_p),
-	('hLog', c_void_p))
+	('hLog', c_void_p),
+	('pIClock', c_void_p),
+	('hClock', c_void_p),
+	('pIThread', c_void_p),
+	('pISemaphore', c_void_p),
+	('hThdClass', c_void_p))
 
 class VPLATFORM_MEMBLOCK(Structure):
 	_fields_ = [('start', c_void_p),
@@ -211,7 +216,8 @@ class VE_VOICEINFO(Structure):
 	('szLanguage', (c_char * VE_MAX_STRING_LENGTH)),
 	('szVoiceName', (c_char * VE_MAX_STRING_LENGTH)),
 	('szVoiceAge', (c_char * VE_MAX_STRING_LENGTH)),
-	('szVoiceType', (c_char * VE_MAX_STRING_LENGTH)))
+	('szVoiceType', (c_char * VE_MAX_STRING_LENGTH)),
+	('szForeignLanguages', (c_char * VE_MAX_STRING_LENGTH)))
 
 	def __eq__(self, other):
 		return isinstance(other, type(self)) and addressof(self) == addressof(other)
@@ -224,16 +230,14 @@ class VE_SPEECHDBINFO(Structure):
 	('u16Freq', c_ushort))
 
 class VE_MARKINFO(Structure):
-	_fields_ = [('ulMrkInfo', c_uint),
-	('eMrkType', c_uint),
+	_fields_ = [('eMrkType', c_uint),
 	('cntSrcPos', c_size_t),
 	('cntSrcTextLen', c_size_t),
 	('cntDestPos', c_size_t),
-	('cntDestLen', c_size_t),
-	('usPhoneme', c_ushort),
-	('ulMrkId', c_uint),
-	('ulParam', c_uint),
-	('szPromptID', c_char_p)]
+	('cntDestLen', c_uint),
+	('usValue', c_uint),
+	('ulValue', c_uint),
+	('szValue', c_char_p)]
 
 class VE_OUTDATA(Structure):
 	_fields_ = (('eAudioFormat', c_uint),
