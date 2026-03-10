@@ -6,6 +6,7 @@ from io import BytesIO
 from collections import OrderedDict
 from ctypes import *
 
+import buildVersion
 import config
 import nvwave
 import languageHandler
@@ -99,7 +100,10 @@ class VECallback(object):
 			return False
 		self._sonicInitTried = True
 		try:
-			from synthDrivers._sonic import SonicStream, initialize as sonicInitialize
+			if buildVersion.version_year >= 2025:
+				from synthDrivers._sonic import SonicStream, initialize as sonicInitialize
+			else:
+				from synthDrivers.WorldVoice.driver.sonic._sonic import SonicStream, initialize as sonicInitialize
 			sonicInitialize()
 			self.sonicStream = SonicStream(self._sampleRate, 1)
 			self.sonicStream.speed = self._sonicSpeed
