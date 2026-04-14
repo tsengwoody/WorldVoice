@@ -126,12 +126,12 @@ class SynthDriver(SynthDriver):
 		]
 		settings.append(SynthDriver.VariantSetting())
 		settings.append(SynthDriver.RateSetting())
-		if self._voiceManager.defaultVoiceInstance.engine in ["OneCore", "SAPI5", "Espeak", "RH", "VE", "Cerence", "MSC", "YongDe"]:
+		if "rateBoost" in self._voiceManager.defaultVoiceInstance.__class__.supportedSettings():
 			settings.append(SynthDriver.RateBoostSetting())
 		settings.extend([
 			SynthDriver.PitchSetting(),
 		])
-		if self._voiceManager.defaultVoiceInstance.engine in ["aisound"]:
+		if 'inflection' in self._voiceManager.defaultVoiceInstance.__class__.supportedSettings():
 			settings.append(SynthDriver.InflectionSetting())
 		settings.extend([
 			SynthDriver.VolumeSetting(),

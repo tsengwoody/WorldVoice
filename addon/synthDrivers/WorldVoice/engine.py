@@ -31,8 +31,8 @@ SUPPORT_ENGINE = [
 	"VE",
 	"Cerence",
 	"IBM",
-	"MSC",
 	"Aisound",
+	"MSC",
 	"YongDe",
 ]
 DEFAULT_ENABLED = {"OneCore", "SAPI5", "VE"}

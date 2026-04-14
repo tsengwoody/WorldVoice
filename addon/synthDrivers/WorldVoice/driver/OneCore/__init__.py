@@ -13,3 +13,7 @@ class Voice(Voice):
 		self.core.language = self.language
 
 		super().__init__(id=id, taskManager=taskManager)
+
+	@classmethod
+	def supportedSettings(cls):
+		return ['voice', 'rate', 'rateBoost', 'pitch', 'volume', 'useWasapi']

@@ -120,6 +120,16 @@ class Voice(object):
 
 		return result
 
+	@classmethod
+	def supportedSettings(cls):
+		if cls.synth_driver_class:
+			try:
+				return [i.id for i in cls.synth_driver_class.supportedSettings]
+			except TypeError:
+				return []
+		else:
+			return []
+
 	def index(self, index):
 		raise NotImplementedError
 
