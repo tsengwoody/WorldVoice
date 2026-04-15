@@ -2,13 +2,14 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from operator import attrgetter
 from typing import Callable, TypeVar, Dict, List
+import re
 
 import config
 import languageHandler
 from logHandler import log
 from synthDriverHandler import VoiceInfo
 
-from .engine import EngineType, READY_ENGINE_CLASS
+from .engine import EngineType, READY_ENGINE_CLASS, get_engine_enabled, refresh_ready_engine_classes
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -29,6 +30,17 @@ def groupByField(
 	return groups
 
 
+def getPrimaryLocale(locale: str) -> str:
+	"""Return the primary language subtag from locale strings like en_US / en-US."""
+	if not locale:
+		return locale
+	return re.split(r"[-_]", locale, maxsplit=1)[0]
+
+
+def groupVoicesByPrimaryLocale(table: list["VoiceMeta"]) -> dict[str, list[str]]:
+	return groupByField(table, "locale", getPrimaryLocale, lambda i: i.name)
+
+
 @dataclass(frozen=True)
 class VoiceMeta:
 	id: str
@@ -47,10 +59,11 @@ class VoiceManager(object):
 	def __init__(self, taskManager):
 		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]
 		self.taskManager = taskManager
+		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
 
 		enabled = [
 			eng for eng in EngineType
-			if config.conf["WorldVoice"]["engine"].get(eng.name, False)
+			if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
 		]
 
 		self.installEngine = []
@@ -225,10 +238,7 @@ class VoiceManager(object):
 	@property
 	def allLanguages(self):
 		table = [v for v in self.table]
-		_localesToVoices: dict[str, list[str]] = {
-			**groupByField(table, 'locale', lambda i: i, lambda i: i.name),
-			**groupByField(table, 'locale', lambda i: i.split('_')[0], lambda i: i.name),
-		}
+		_localesToVoices = groupVoicesByPrimaryLocale(table)
 		return sorted([l for l in _localesToVoices if len(_localesToVoices[l]) > 0])
 
 	@property
@@ -237,10 +247,7 @@ class VoiceManager(object):
 			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
 		else:
 			table = [v for v in self.table]
-		_localesToVoices: dict[str, list[str]] = {
-			**groupByField(table, 'locale', lambda i: i, lambda i: i.name),
-			**groupByField(table, 'locale', lambda i: i.split('_')[0], lambda i: i.name),
-		}
+		_localesToVoices = groupVoicesByPrimaryLocale(table)
 		return sorted([l for l in _localesToVoices if len(_localesToVoices[l]) > 0])
 
 	@property
@@ -249,12 +256,7 @@ class VoiceManager(object):
 			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
 		else:
 			table = [v for v in self.table]
-
-		_localesToVoices: dict[str, list[str]] = {
-			**groupByField(table, 'locale', lambda i: i, lambda i: i.name),
-			**groupByField(table, 'locale', lambda i: i.split('_')[0], lambda i: i.name),
-		}
-		return _localesToVoices
+		return groupVoicesByPrimaryLocale(table)
 
 	@property
 	def localesToNamesMap(self):
@@ -262,11 +264,7 @@ class VoiceManager(object):
 			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
 		else:
 			table = [v for v in self.table]
-
-		_localesToVoices: dict[str, list[str]] = {
-			**groupByField(table, 'locale', lambda i: i, lambda i: i.name),
-			**groupByField(table, 'locale', lambda i: i.split('_')[0], lambda i: i.name),
-		}
+		_localesToVoices = groupVoicesByPrimaryLocale(table)
 		return {item: self._getLocaleReadableName(item) for item in _localesToVoices}
 
 	def getVoiceNameForLanguage(self, language):
@@ -289,9 +287,9 @@ class VoiceManager(object):
 			except KeyError:
 				pass
 		if not voice:
-			if '_' not in language:
+			if '_' not in language and '-' not in language:
 				return voice
-			language = language.split('_')[0]
+			language = getPrimaryLocale(language)
 			if language in config.conf["WorldVoice"]["role"]:
 				try:
 					voice = config.conf["WorldVoice"]["role"][language]['voice']

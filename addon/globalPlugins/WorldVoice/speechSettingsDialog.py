@@ -14,7 +14,7 @@ import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister, pl
-from synthDrivers.WorldVoice.engine import EngineType, READY_ENGINE_CLASS
+from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
 import tones
 
 from .utils import guard_errors
@@ -27,6 +27,12 @@ def got_error_callback(self):
 	dialog_class = self.Parent.Parent.__class__
 	dialog_class.wvd.onCancel(None)
 	wx.CallAfter(gui.mainFrame.popupSettingsDialog, dialog_class)
+
+
+def _as_bool(value):
+	if isinstance(value, str):
+		return value.lower() not in {"false", "0", ""}
+	return bool(value)
 
 
 class BaseSettingsPanel(SettingsPanel):
@@ -52,8 +58,8 @@ class BaseSettingsPanel(SettingsPanel):
 				widget.Selection = index
 			else:
 				setattr(self, k + "CheckBox", settingsSizerHelper.addItem(wx.CheckBox(self, label=v["label"])))
-				value = config.conf["WorldVoice"][self.field][k]
-				getattr(self, k + "CheckBox").SetValue(value)
+				value = config.conf["WorldVoice"][self.field].get(k, v.get("default", False))
+				getattr(self, k + "CheckBox").SetValue(_as_bool(value))
 		return settingsSizerHelper
 
 	def onSave(self):
@@ -223,6 +229,7 @@ class SpeechPipelinePanel(SettingsPanel):
 
 class SpeechRoleSettingsPanel(SettingsPanel):
 	title = _("Speech Role")
+	NO_SELECT = "no-select"
 
 	def makeSettings(self, sizer):
 		self.disable = False
@@ -253,6 +260,12 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._localeToVoices = self._manager.localeToVoicesMap
 		self.localesToNames = self._manager.localesToNamesMap
 		self._locales = self._manager.languages
+		self._voiceDescriptions = {v.name: v.description for v in self._manager.table}
+		self._voiceNameByDescription = {}
+		for voiceName, description in self._voiceDescriptions.items():
+			if description and description not in self._voiceNameByDescription:
+				self._voiceNameByDescription[description] = voiceName
+		self._voiceNamesByChoiceIndex = []
 
 		self._dataToPercist = defaultdict(lambda: {})
 
@@ -321,20 +334,46 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	@property
 	def voiceInstance(self):
-		voiceName = self._voicesChoice.GetStringSelection()
-		if voiceName == '' or voiceName == 'no-select':
+		voiceName = self._getSelectedVoiceName()
+		if not voiceName:
 			return
 		voiceInstance = self._manager.getVoiceInstance(voiceName)
 		return voiceInstance
 
+	def _getSelectedVoiceName(self):
+		index = self._voicesChoice.GetCurrentSelection()
+		if index == wx.NOT_FOUND:
+			return ""
+		if index < 0 or index >= len(self._voiceNamesByChoiceIndex):
+			return ""
+		return self._voiceNamesByChoiceIndex[index]
+
+	def _resolveVoiceName(self, value):
+		"""Resolve a voice key from UI/maps to canonical voice name."""
+		if not value:
+			return ""
+		if value in self._voiceDescriptions:
+			return value
+		return self._voiceNameByDescription.get(value, value)
+
 	def _updateVoicesSelection(self):
 		localeIndex = self._localesChoice.GetCurrentSelection()
 		if localeIndex < 0:
+			self._voiceNamesByChoiceIndex = []
 			self._voicesChoice.SetItems([])
 		else:
 			locale = self._locales[localeIndex]
-			voices = ["no-select"] + self._localeToVoices[locale]
-			self._voicesChoice.SetItems(voices)
+			rawVoiceValues = list(self._localeToVoices.get(locale, []))
+			voiceNames = []
+			for value in rawVoiceValues:
+				resolved = self._resolveVoiceName(value)
+				if resolved and resolved not in voiceNames:
+					voiceNames.append(resolved)
+			self._voiceNamesByChoiceIndex = [""] + voiceNames
+			voiceLabels = [self.NO_SELECT] + [
+				self._voiceDescriptions.get(name, name) for name in voiceNames
+			]
+			self._voicesChoice.SetItems(voiceLabels)
 			if locale in config.conf["WorldVoice"]["role"]:
 				try:
 					voice = config.conf["WorldVoice"]["role"][locale]["voice"]
@@ -344,17 +383,21 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 					return
 				if voice:
 					try:
-						self._voicesChoice.Select(voices.index(voice))
+						self._voicesChoice.Select(voiceNames.index(voice) + 1)
 					except ValueError:
-						self._voicesChoice.Select(0)
+						resolvedVoice = self._resolveVoiceName(voice)
+						if resolvedVoice in voiceNames:
+							self._voicesChoice.Select(voiceNames.index(resolvedVoice) + 1)
+						else:
+							self._voicesChoice.Select(0)
 					self.onVoiceChange(None)
 			else:
 				self._voicesChoice.Select(0)
 				self.onVoiceChange(None)
 
 	def _updateVariantsSelection(self):
-		voiceName = self._voicesChoice.GetStringSelection()
-		if voiceName != "no-select":
+		voiceName = self._getSelectedVoiceName()
+		if voiceName:
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			variants = [i["id"] for i in voiceInstance.variants if i != '']
 			variants = ['default'] + variants
@@ -375,9 +418,9 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	def onVoiceChange(self, event):
 		localeIndex = self._localesChoice.GetCurrentSelection()
 		locale = self._locales[localeIndex]
-		voiceName = self._voicesChoice.GetStringSelection()
-		if voiceName != "no-select":
-			self._dataToPercist[locale]["voice"] = self._voicesChoice.GetStringSelection()
+		voiceName = self._getSelectedVoiceName()
+		if voiceName:
+			self._dataToPercist[locale]["voice"] = voiceName
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			if self._keepParameterConsistentCheckBox.GetValue():
 				mainVoiceInstance = self._manager._defaultVoiceInstance
@@ -392,15 +435,15 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self._inflectionSlider.SetValue(voiceInstance.inflection)
 			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
 		else:
-			self._dataToPercist[locale]["voice"] = "no-select"
+			self._dataToPercist[locale]["voice"] = self.NO_SELECT
 		self._updateVariantsSelection()
 		self.sliderDisable()
 		self.sliderEnable()
 
 	@guard_errors(callback=got_error_callback)
 	def onVariantChange(self, event):
-		voiceName = self._voicesChoice.GetStringSelection()
-		if voiceName != "no-select":
+		voiceName = self._getSelectedVoiceName()
+		if voiceName:
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			voiceInstance.variant = self._variantsChoice.GetStringSelection()
 
@@ -418,12 +461,12 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	@guard_errors(callback=got_error_callback)
 	def onKeepParameterConsistentChange(self, event):
-		voiceName = self._voicesChoice.GetStringSelection()
-		if voiceName == "":
+		if self._voicesChoice.GetCurrentSelection() == wx.NOT_FOUND:
 			if self._keepParameterConsistentCheckBox.GetValue():
 				self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
 			return
-		if voiceName != "no-select":
+		voiceName = self._getSelectedVoiceName()
+		if voiceName:
 			self.sliderEnable()
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			if self._keepParameterConsistentCheckBox.GetValue():
@@ -693,22 +736,17 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		group_sizer = wx.StaticBoxSizer(wx.StaticBox(self, label=_("Select Speech Engines to Enable")), wx.VERTICAL)
 		sizer.Add(group_sizer, proportion=1, flag=wx.EXPAND)
 
-		# enabled = [eng for eng in EngineType]
-
-		self.readyEngine = READY_ENGINE_CLASS.keys()
-
 		self.settings = OrderedDict({
-			eng.name: {"label": eng.label}
+			eng.name: {"label": eng.label, "default": eng.default_enabled}
 			for eng in EngineType
-			if eng.name in self.readyEngine
 		})
 
 		super().makeSettings(group_sizer)
 
 		self.previousActiveEngine = set([
-			key
-			for key, value in config.conf["WorldVoice"]["engine"].items()
-			if key in self.readyEngine and value
+			eng.name
+			for eng in EngineType
+			if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
 		])
 
 	def isValid(self) -> bool:

@@ -19,7 +19,7 @@ from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
 from . import languageDetection
-from .engine import EngineType, READY_ENGINE_CLASS
+from .engine import READY_ENGINE_CLASS
 from .pipeline import (
 	ignore_comma_between_number,
 	item_wait_factor,
@@ -71,8 +71,7 @@ config.conf.spec["WorldVoice"] = {
 	},
 	"role": {},
 	"engine": {
-		eng.name: f"boolean(default={str(eng.default_enabled)})"
-		for eng in EngineType
+		"__many__": "boolean(default=false)"
 	},
 	"log": {
 		"enable": "boolean(default=false)",
