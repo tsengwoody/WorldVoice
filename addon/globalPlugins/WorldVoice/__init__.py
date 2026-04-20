@@ -1,10 +1,12 @@
 import os
+from zipfile import ZipFile, BadZipFile
 
 import addonHandler
 import config
 import globalPluginHandler
 import globalVars
 import gui
+from logHandler import log
 from scriptHandler import script
 from synthDriverHandler import getSynth
 import ui
@@ -88,33 +90,55 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				pass
 			self.submenu_item.Destroy()
 
-	def fileImport(self, import_path):
+	def onFileImport(self, event):
 		with wx.FileDialog(gui.mainFrame, message=_("Import file..."), wildcard="zip files (*.zip)|*.zip") as entryDialog:
 			if entryDialog.ShowModal() != wx.ID_OK:
 				return
+			core_zip_path = entryDialog.GetPath()
 
-			path = entryDialog.GetPath()
-			try:
-				from zipfile import ZipFile
-				with ZipFile(path, 'r') as core_file:
+		workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
+
+		try:
+			os.makedirs(workspace_path, exist_ok=True)
+
+			with ZipFile(core_zip_path, 'r') as core_file:
+				try:
 					core_file.testzip()
-					core_file.extractall(import_path)
-			except BaseException:
-				gui.messageBox(
-					_("Import fail"),
-					_("Import File"), wx.OK
-				)
-			else:
-				if gui.messageBox(
-					_("For the new file to import, NVDA must be restarted. Are you want to restart NVDA now ?"),
-					_("Import File"), wx.OK | wx.CANCEL | wx.ICON_WARNING
-				) == wx.OK:
-					import core
-					import queueHandler
-					queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
+				except (BadZipFile, RuntimeError) as e:
+					log.error(f"Cannot extract corrupted archive '{os.path.basename(core_zip_path)}': {e}")
+					return
 
-	def onFileImport(self, event):
-		self.fileImport(workspace_path)
+				skipped_files = []
+				for member in core_file.infolist():
+					try:
+						core_file.extract(member, path=workspace_path)
+					except Exception as e:
+						# Catching a broad Exception is intentional. Locked files (e.g., in-use DLLs)
+						# can raise different errors on different OSes. This safely skips them.
+						log.warning(f"Could not extract '{member.filename}' (likely in use): {e}")
+						skipped_files.append(member.filename)
+
+				if skipped_files:
+					log.warning(f"Update complete. Skipped {len(skipped_files)} in-use file(s): {skipped_files}")
+				else:
+					log.info("All components extracted successfully.")
+
+		except Exception:
+			# Catch any other unexpected errors during I/O or ZipFile init.
+			log.exception(f"An unexpected error occurred while processing '{os.path.basename(core_zip_path)}'")
+
+			gui.messageBox(
+				_("Import fail"),
+				_("Import File"), wx.OK
+			)
+		else:
+			if gui.messageBox(
+				_("For the new file to import, NVDA must be restarted. Are you want to restart NVDA now ?"),
+				_("Import File"), wx.OK | wx.CANCEL | wx.ICON_WARNING
+			) == wx.OK:
+				import core
+				import queueHandler
+				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 	def popup_SpeechSettingsDialog(self, event):
 		wx.CallAfter(gui.mainFrame.popupSettingsDialog, WorldVoiceSettingsDialog)

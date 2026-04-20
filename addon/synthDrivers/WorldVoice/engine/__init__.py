@@ -12,7 +12,9 @@ from .discovery import (
 addonHandler.initTranslation()
 
 PACKAGE_ROOT = os.path.dirname(os.path.dirname(__file__))
-user_folder = os.path.dirname(os.path.dirname(os.path.dirname(PACKAGE_ROOT)))
+# PACKAGE_ROOT is .../addons/WorldVoice/synthDrivers/WorldVoice, so climb four levels
+# to get back to NVDA's config path where WorldVoice-workspace lives.
+user_folder = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(PACKAGE_ROOT))))
 WVW_PATH = os.path.join(user_folder, "WorldVoice-workspace")
 
 INTERNAL_DRIVER_ROOT = os.path.join(PACKAGE_ROOT, "driver")

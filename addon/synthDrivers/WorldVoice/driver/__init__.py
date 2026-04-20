@@ -50,8 +50,10 @@ class Voice(object):
 	engine = ""
 	synth_driver_class = None
 
-	def __init__(self, id, taskManager):
+	def __init__(self, id, name, taskManager, language=None):
 		self.id = id
+		self.name = name
+		self.language = language or "unknown"
 		self.taskManager = taskManager
 
 		for p, t, d in VOICE_PARAMETERS:

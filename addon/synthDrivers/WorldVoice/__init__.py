@@ -12,7 +12,7 @@ import config
 import extensionPoints
 import gui
 import languageHandler
-from logHandler import log as NVDAlog
+from logHandler import log
 import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
 from speech.extensions import filter_speechSequence
@@ -96,8 +96,6 @@ config.conf.spec["WorldVoice"] = {
 
 WVStart = extensionPoints.Action()
 WVEnd = extensionPoints.Action()
-
-log = NVDAlog
 
 
 class SynthDriver(SynthDriver):
