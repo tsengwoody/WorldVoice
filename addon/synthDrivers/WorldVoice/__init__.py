@@ -481,6 +481,7 @@ class SynthDriver(SynthDriver):
 
 	def _set_rateBoost(self, enable):
 		self._voiceManager.defaultVoiceInstance.rateBoost = enable
+		self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
 
 	def _get_uwv(self):
 		return self._uwv
