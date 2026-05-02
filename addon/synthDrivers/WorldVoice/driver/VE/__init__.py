@@ -45,9 +45,10 @@ class Voice(Voice):
 
 	@waitfactor.setter
 	def waitfactor(self, value):
-		self._waitfactor = int(value)
+		waitfactor = int(value)
 		if self.core:
-			TtsSetParamList(self.core.getVoiceInstance(self.name), (VE_PARAM_WAITFACTOR, self._waitfactor))()
+			TtsSetParamList(self.core.getVoiceInstance(self.name), (VE_PARAM_WAITFACTOR, waitfactor))()
+		self._waitfactor = waitfactor
 
 	@classmethod
 	def voices(cls):
