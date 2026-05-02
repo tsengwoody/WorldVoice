@@ -118,12 +118,19 @@ class VoiceManager(object):
 	def waitfactor(self):
 		return self._waitfactor
 
+	def _setInstanceWaitfactor(self, voiceName, instance, value):
+		if not hasattr(type(instance), "waitfactor"):
+			return
+		try:
+			instance.waitfactor = value
+		except Exception:
+			log.debugWarning(f"Unable to set waitfactor for voice {voiceName}", exc_info=True)
+
 	@waitfactor.setter
 	def waitfactor(self, value):
 		self._waitfactor = value
 		for voiceName, instance in self._instanceCache.items():
-			if ("Cerence" in READY_ENGINE_CLASS and isinstance(instance, READY_ENGINE_CLASS["Cerence"])) or ("VE" in READY_ENGINE_CLASS and isinstance(instance, READY_ENGINE_CLASS["VE"])):
-				instance.waitfactor = value
+			self._setInstanceWaitfactor(voiceName, instance, value)
 
 	def _getDefaultVoiceMeta(self) -> VoiceMeta:
 		lang = languageHandler.getLanguage()
@@ -149,7 +156,7 @@ class VoiceManager(object):
 			taskManager=self.taskManager
 		)
 		voiceInstance.loadParameter()
-		voiceInstance.waitfactor = self.waitfactor
+		self._setInstanceWaitfactor(voiceInstance.name, voiceInstance, self.waitfactor)
 
 		self._instanceCache[voiceInstance.name] = voiceInstance
 		return voiceInstance

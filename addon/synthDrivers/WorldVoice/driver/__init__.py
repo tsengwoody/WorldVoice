@@ -1,8 +1,8 @@
-import time
-
 import config
 import languageHandler
 from synthDriverHandler import getSynth
+
+from ..taskManager import CancellationToken
 
 
 def boolean(value):
@@ -147,9 +147,12 @@ class Voice(object):
 		self.taskManager.add_speak_task(self, _speak)
 
 	def breaks(self, sec):
+		token = CancellationToken()
+
 		def _breaks():
-			time.sleep(sec)
-		self.taskManager.add_task(self, _breaks)
+			token.wait(max(0, sec))
+
+		self.taskManager.add_task(self, _breaks, token=token)
 
 	def stop(self):
 		self.core.cancel()

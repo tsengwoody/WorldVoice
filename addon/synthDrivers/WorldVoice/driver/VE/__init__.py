@@ -4,7 +4,7 @@ from synthDriverHandler import LanguageInfo
 
 from .driver import SynthDriver, TtsSetParamList
 from .driver import ve2
-from .driver.ve2.veTypes import VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT, VeError
+from .driver.ve2.veTypes import VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT, VE_PARAM_WAITFACTOR, VeError
 from synthDrivers.WorldVoice.driver import Voice
 
 
@@ -37,13 +37,17 @@ class Voice(Voice):
 	@property
 	def waitfactor(self):
 		if self.core:
-			self._waitfactor = self.core.waitfactor
-		return self._waitfactor
+			try:
+				self._waitfactor = int(self.core.getParameter(self.core.getVoiceInstance(self.name), VE_PARAM_WAITFACTOR))
+			except (VeError, RuntimeError, TypeError, ValueError):
+				pass
+		return getattr(self, "_waitfactor", 0)
 
 	@waitfactor.setter
 	def waitfactor(self, value):
+		self._waitfactor = int(value)
 		if self.core:
-			self.core.waitfactor = value
+			TtsSetParamList(self.core.getVoiceInstance(self.name), (VE_PARAM_WAITFACTOR, self._waitfactor))()
 
 	@classmethod
 	def voices(cls):
