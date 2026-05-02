@@ -442,6 +442,9 @@ class SynthDriver(SynthDriver):
 
 	def _set_inflection(self, value):
 		self._voiceManager.defaultVoiceInstance.inflection = value
+		self._voiceManager.defaultVoiceInstance.commit()
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
 
 	def _getAvailableVoices(self):
 		return self._voiceManager.voiceInfos
@@ -475,12 +478,18 @@ class SynthDriver(SynthDriver):
 
 	def _set_variant(self, value):
 		self._voiceManager.defaultVoiceInstance.variant = value
+		self._voiceManager.defaultVoiceInstance.commit()
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
 
 	def _get_rateBoost(self):
 		return self._voiceManager.defaultVoiceInstance.rateBoost
 
 	def _set_rateBoost(self, enable):
 		self._voiceManager.defaultVoiceInstance.rateBoost = enable
+		self._voiceManager.defaultVoiceInstance.commit()
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
 
 	def _get_uwv(self):
 		return self._uwv

@@ -122,11 +122,8 @@ class VoiceManager(object):
 	def waitfactor(self, value):
 		self._waitfactor = value
 		for voiceName, instance in self._instanceCache.items():
-			try:
-				if isinstance(instance, READY_ENGINE_CLASS["VE"]):
-					instance.waitfactor = value
-			except KeyError:
-				pass
+			if ("Cerence" in READY_ENGINE_CLASS and isinstance(instance, READY_ENGINE_CLASS["Cerence"])) or ("VE" in READY_ENGINE_CLASS and isinstance(instance, READY_ENGINE_CLASS["VE"])):
+				instance.waitfactor = value
 
 	def _getDefaultVoiceMeta(self) -> VoiceMeta:
 		lang = languageHandler.getLanguage()
