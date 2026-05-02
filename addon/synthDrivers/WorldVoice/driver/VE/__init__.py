@@ -1,5 +1,6 @@
 import languageHandler
 import locale
+from logHandler import log
 from synthDriverHandler import LanguageInfo
 
 from .driver import SynthDriver, TtsSetParamList
@@ -19,11 +20,19 @@ class Voice(Voice):
 
 	@variant.setter
 	def variant(self, value):
-		self._variant = value
 		try:
-			TtsSetParamList(self.core.getVoiceInstance(self.name), (VE_PARAM_VOICE_OPERATING_POINT, value))()
-		except VeError:
-			pass
+			variantIds = [item["id"] for item in self.variants]
+		except (VeError, RuntimeError, TypeError, ValueError, AttributeError):
+			variantIds = []
+		if variantIds and value not in variantIds:
+			value = variantIds[0]
+		if self.core:
+			try:
+				TtsSetParamList(self.core.getVoiceInstance(self.name), (VE_PARAM_VOICE_OPERATING_POINT, value))()
+			except Exception:
+				log.debugWarning(f"Unable to set variant for voice {self.name}", exc_info=True)
+				return
+		self._variant = value
 
 	@property
 	def variants(self):

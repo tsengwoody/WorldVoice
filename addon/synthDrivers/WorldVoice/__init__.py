@@ -121,7 +121,8 @@ class SynthDriver(SynthDriver):
 		settings = [
 			SynthDriver.VoiceSetting(),
 		]
-		settings.append(SynthDriver.VariantSetting())
+		if self._defaultVoiceHasVariants():
+			settings.append(SynthDriver.VariantSetting())
 		settings.append(SynthDriver.RateSetting())
 		if "rateBoost" in self._voiceManager.defaultVoiceInstance.__class__.supportedSettings():
 			settings.append(SynthDriver.RateBoostSetting())
@@ -287,6 +288,12 @@ class SynthDriver(SynthDriver):
 			),
 		]
 		return settings
+
+	def _defaultVoiceHasVariants(self):
+		try:
+			return len(self._voiceManager.defaultVoiceInstance.variants) > 0
+		except Exception:
+			return False
 
 	def __init__(self):
 		WVStart.notify()
@@ -487,9 +494,16 @@ class SynthDriver(SynthDriver):
 		return values
 
 	def _get_variant(self):
-		return self._voiceManager.defaultVoiceInstance.variant
+		variant = self._voiceManager.defaultVoiceInstance.variant
+		availableVariants = self._get_availableVariants()
+		if variant not in availableVariants:
+			return next(iter(availableVariants))
+		return variant
 
 	def _set_variant(self, value):
+		availableVariants = self._get_availableVariants()
+		if value not in availableVariants:
+			value = next(iter(availableVariants))
 		self._voiceManager.defaultVoiceInstance.variant = value
 		self._voiceManager.defaultVoiceInstance.commit()
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:

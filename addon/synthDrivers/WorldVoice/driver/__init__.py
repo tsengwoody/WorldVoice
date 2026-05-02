@@ -1,5 +1,6 @@
 import config
 import languageHandler
+from logHandler import log
 from synthDriverHandler import getSynth
 
 from ..taskManager import CancellationToken
@@ -79,8 +80,20 @@ class Voice(object):
 
 	@property
 	def variants(self):
-		self._variants = []
-		return self._variants
+		if not self.core or "variant" not in self.__class__.supportedSettings():
+			return []
+		try:
+			availableVariants = self.core.availableVariants
+		except Exception:
+			return []
+		return [{
+			"id": str(getattr(variantInfo, "id", variantId)),
+			"name": (
+				getattr(variantInfo, "displayName", None)
+				or getattr(variantInfo, "name", None)
+				or str(variantInfo)
+			),
+		} for variantId, variantInfo in availableVariants.items()]
 
 	@property
 	def variant(self):
@@ -88,6 +101,19 @@ class Voice(object):
 
 	@variant.setter
 	def variant(self, value):
+		variantIds = [item["id"] for item in self.variants]
+		if not variantIds:
+			value = "default"
+		elif value not in variantIds:
+			value = variantIds[0]
+		if self.core and variantIds:
+			try:
+				if getattr(self.core, "voice", None) != self.id:
+					self.core.voice = self.id
+				self.core.variant = value
+			except Exception:
+				log.debugWarning(f"Unable to set variant for voice {self.name}", exc_info=True)
+				return
 		self._variant = value
 
 	@classmethod
