@@ -148,23 +148,26 @@ class TaskManager:
 			pass
 
 	def shutdown(self):
-		self.cancel()
-		self._stop.set()
-		self._q.put(None)
-		self._thread.join()
-
 		try:
-			synthIndexReached.unregister(IndexReached_notify_forward)
-		except Exception:
-			pass
-		try:
-			synthDoneSpeaking.unregister(DoneSpeaking_notify_forward)
-		except Exception:
-			pass
-		try:
-			synthDoneSpeaking.unregister(self._on_done_speaking)
-		except Exception:
-			pass
+			self.cancel()
+			self._stop.set()
+			self._q.put(None)
+			self._thread.join(timeout=2)
+			if self._thread.is_alive():
+				log.debugWarning("WorldVoice task manager worker did not stop in time")
+		finally:
+			try:
+				synthIndexReached.unregister(IndexReached_notify_forward)
+			except Exception:
+				pass
+			try:
+				synthDoneSpeaking.unregister(DoneSpeaking_notify_forward)
+			except Exception:
+				pass
+			try:
+				synthDoneSpeaking.unregister(self._on_done_speaking)
+			except Exception:
+				pass
 
 	# ----------------------------
 	# Worker

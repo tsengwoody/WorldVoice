@@ -88,12 +88,21 @@ class VoiceManager(object):
 		log.debug("Created voiceManager instance. Default voice is %s", default_meta.name)
 
 	def terminate(self):
-		for voiceName, instance in self._instanceCache.items():
-			instance.commit()
-			instance.close()
+		for voiceName, instance in list(self._instanceCache.items()):
+			try:
+				instance.commit()
+			except Exception:
+				log.error("voice %s commit error", voiceName, exc_info=True)
+			try:
+				instance.close()
+			except Exception:
+				log.error("voice %s close error", voiceName, exc_info=True)
 
 		for item in READY_ENGINE_CLASS.values():
-			item.engineOff()
+			try:
+				item.engineOff()
+			except Exception:
+				log.error("engine %s off error", getattr(item, "engine", item), exc_info=True)
 
 		self.taskManager = None
 

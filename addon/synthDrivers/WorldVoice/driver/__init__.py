@@ -173,14 +173,19 @@ class Voice(object):
 	@classmethod
 	def engineOn(cls):
 		if not cls.core:
+			driverName = getattr(cls.synth_driver_class, "name", None)
+			if driverName and driverName not in config.conf["speech"]:
+				config.conf["speech"][driverName] = {}
 			cls.core = cls.synth_driver_class()
 			cls.core.wv = cls.engine
 
 	@classmethod
 	def engineOff(cls):
 		if cls.core:
-			cls.core.terminate()
-			cls.core = None
+			try:
+				cls.core.terminate()
+			finally:
+				cls.core = None
 
 	def setCoreParameter(self):
 		if self.core:

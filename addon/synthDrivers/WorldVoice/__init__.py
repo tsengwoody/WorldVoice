@@ -323,10 +323,23 @@ class SynthDriver(SynthDriver):
 		try:
 			self.cancel()
 		except BaseException:
-			log.error("WorldVoice terminate", exc_info=True)
+			log.error("WorldVoice terminate cancel", exc_info=True)
 
-		self._voiceManager.terminate()
-		self._voiceManager = None
+		try:
+			if self.taskManager:
+				self.taskManager.shutdown()
+		except BaseException:
+			log.error("WorldVoice taskManager shutdown", exc_info=True)
+		finally:
+			self.taskManager = None
+
+		try:
+			if self._voiceManager:
+				self._voiceManager.terminate()
+		except BaseException:
+			log.error("WorldVoice voiceManager terminate", exc_info=True)
+		finally:
+			self._voiceManager = None
 
 		WVEnd.notify()
 
