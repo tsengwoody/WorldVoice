@@ -56,26 +56,17 @@ class Voice(Voice):
 		except Exception:
 			return result
 
-		# Helper to ensure we have a clean string
-		def clean_str(val):
-			# 1. If it's actually bytes, decode it
-			if isinstance(val, bytes):
-				return val.decode('utf-8', errors='ignore')
-			
-			# 2. Convert to string
-			s = str(val)
-			
-			# 3. The Brute Force: If the string literally starts with b' and ends with '
-			if s.startswith("b'") and s.endswith("'"):
-				return s[2:-1] 
-				
-			return s
-
 		for voice in voices:
-			# Decode properties from the voice object
-			v_id = clean_str(voice.id)
-			v_displayName = clean_str(voice.displayName)
-			localeName = clean_str(voice.language or "unknown")
+			# Decodes bytes AND strips literal b'...' prefixes if they exist
+			def fix(v):
+				s = v.decode('utf-8', 'ignore') if isinstance(v, bytes) else str(v)
+				return s.strip("b'").strip("'") if (s.startswith("b'") and s.endswith("'")) else s
+
+			v_id = fix(voice.id)
+			v_displayName = fix(voice.displayName)
+			
+			localeName = (voice.language or "unknown")
+			localeName = fix(localeName)
 			
 			langDescription = languageHandler.getLanguageDescription(localeName)
 			
@@ -85,8 +76,7 @@ class Voice(Voice):
 				else:
 					langDescription = localeName
 			
-			# Clean the description before formatting
-			langDescription = clean_str(langDescription)
+			langDescription = fix(langDescription)
 
 			result.append({
 				"id": v_id,
