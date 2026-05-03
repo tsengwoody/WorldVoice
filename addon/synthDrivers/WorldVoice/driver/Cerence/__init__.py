@@ -61,22 +61,45 @@ class Voice(Voice):
 		except Exception:
 			return result
 
+		# Helper to ensure we have a clean string
+		def clean_str(val):
+			# 1. If it's actually bytes, decode it
+			if isinstance(val, bytes):
+				return val.decode('utf-8', errors='ignore')
+			
+			# 2. Convert to string
+			s = str(val)
+			
+			# 3. The Brute Force: If the string literally starts with b' and ends with '
+			# This happens when another part of the code did str(bytes_object)
+			if s.startswith("b'") and s.endswith("'"):
+				return s[2:-1] # Strip the first two chars (b') and the last char (')
+				
+			return s
 		for voice in voices:
-			localeName = voice.language or "unknown"
+			# Decode the raw properties from the voice object
+			v_id = clean_str(voice.id)
+			v_displayName = clean_str(voice.displayName)
+			localeName = clean_str(voice.language or "unknown")
+			
 			langDescription = languageHandler.getLanguageDescription(localeName)
+			
 			if not langDescription:
-				if " - " in voice.displayName:
-					langDescription = voice.displayName.split(" - ", 1)[1]
+				if " - " in v_displayName:
+					langDescription = v_displayName.split(" - ", 1)[1]
 				else:
 					langDescription = localeName
-			name = voice.id
+			
+			# Ensure langDescription itself is a clean string for formatting
+			langDescription = clean_str(langDescription)
+
 			result.append({
-				"id": name,
-				"name": name,
+				"id": v_id,
+				"name": v_id,
 				"locale": localeName,
 				"language": localeName,
 				"langDescription": langDescription,
-				"description": "[%s] %s - %s" % (cls.engine, name, langDescription),
+				"description": "[%s] %s - %s" % (cls.engine, v_id, langDescription),
 				"engine": "Cerence",
 			})
 
