@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from operator import attrgetter
 from typing import Callable, TypeVar, Dict, List
 import re
+import time
 
 import config
 import languageHandler
@@ -57,35 +58,76 @@ class VoiceManager(object):
 		return True
 
 	def __init__(self, taskManager):
+		init_start = time.perf_counter()
 		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]
 		self.taskManager = taskManager
-		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
 
+		step_start = time.perf_counter()
+		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
+		log.debug("WorldVoice init timing: VoiceManager refresh_ready_engine_classes %.3fs", time.perf_counter() - step_start)
+
+		step_start = time.perf_counter()
 		enabled = [
 			eng for eng in EngineType
 			if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
 		]
+		log.debug(
+			"WorldVoice init timing: VoiceManager enabled engine filter %.3fs (%s)",
+			time.perf_counter() - step_start,
+			", ".join(eng.name for eng in enabled),
+		)
 
+		step_start = time.perf_counter()
 		self.installEngine = []
 		for eng in enabled:
 			try:
 				cls = READY_ENGINE_CLASS[eng.name]
 			except KeyError:
+				log.debug("WorldVoice init timing: VoiceManager engine %s not ready", eng.name)
 				continue
 			try:
+				engine_start = time.perf_counter()
 				cls.engineOn()
+				log.debug(
+					"WorldVoice init timing: VoiceManager eager engineOn %s %.3fs",
+					eng.name,
+					time.perf_counter() - engine_start,
+				)
 				self.installEngine.append(cls)
 			except Exception as e:
 				log.error("engine %s on error: %s", eng.name, e)
+		log.debug(
+			"WorldVoice init timing: VoiceManager installEngine build %.3fs (%s)",
+			time.perf_counter() - step_start,
+			", ".join(cls.engine for cls in self.installEngine),
+		)
 
+		step_start = time.perf_counter()
 		self._setVoiceDatas()
+		log.debug("WorldVoice init timing: VoiceManager _setVoiceDatas total %.3fs", time.perf_counter() - step_start)
+		if not self.table:
+			raise RuntimeError("No WorldVoice voices are available from enabled speech engines.")
 		self._instanceCache = {}
 		self.waitfactor = 0
 
+		step_start = time.perf_counter()
 		default_meta: VoiceMeta = self._getDefaultVoiceMeta()
+		log.debug(
+			"WorldVoice init timing: VoiceManager default voice select %.3fs (%s/%s)",
+			time.perf_counter() - step_start,
+			default_meta.engine,
+			default_meta.name,
+		)
+
+		step_start = time.perf_counter()
 		self._defaultVoiceInstance = self.getVoiceInstance(default_meta.name)
+		log.debug("WorldVoice init timing: VoiceManager default getVoiceInstance %.3fs", time.perf_counter() - step_start)
+
+		step_start = time.perf_counter()
 		self._defaultVoiceInstance.loadParameter()
+		log.debug("WorldVoice init timing: VoiceManager default loadParameter %.3fs", time.perf_counter() - step_start)
 		log.debug("Created voiceManager instance. Default voice is %s", default_meta.name)
+		log.debug("WorldVoice init timing: VoiceManager total %.3fs", time.perf_counter() - init_start)
 
 	def terminate(self):
 		for voiceName, instance in self._instanceCache.items():
@@ -142,13 +184,27 @@ class VoiceManager(object):
 	def _createVoiceInstance(self, voiceName: str):
 		voiceMeta = next(v for v in self.table if v.name == voiceName)
 		cls = READY_ENGINE_CLASS[voiceMeta.engine]
+		step_start = time.perf_counter()
 		voiceInstance = cls(
 			id=voiceMeta.id,
 			name=voiceMeta.name,
 			language=voiceMeta.language,
 			taskManager=self.taskManager
 		)
+		log.debug(
+			"WorldVoice init timing: create voice instance %s/%s %.3fs",
+			voiceMeta.engine,
+			voiceMeta.name,
+			time.perf_counter() - step_start,
+		)
+		step_start = time.perf_counter()
 		voiceInstance.loadParameter()
+		log.debug(
+			"WorldVoice init timing: voice instance loadParameter %s/%s %.3fs",
+			voiceMeta.engine,
+			voiceMeta.name,
+			time.perf_counter() - step_start,
+		)
 		voiceInstance.waitfactor = self.waitfactor
 
 		self._instanceCache[voiceInstance.name] = voiceInstance
@@ -210,7 +266,10 @@ class VoiceManager(object):
 	def _setVoiceDatas(self):
 		self.table: List[VoiceMeta] = []
 		for cls in self.installEngine:
+			step_start = time.perf_counter()
+			voice_count = 0
 			for v in cls.voices():
+				voice_count += 1
 				try:
 					self.table.append(VoiceMeta(
 						id=v["id"],
@@ -222,11 +281,25 @@ class VoiceManager(object):
 					))
 				except KeyError as e:
 					log.error("Invalid voice data: missing %s", e)
+			log.debug(
+				"WorldVoice init timing: voices discovery %s %.3fs (%d voices)",
+				cls.engine,
+				time.perf_counter() - step_start,
+				voice_count,
+			)
 
+		step_start = time.perf_counter()
 		self.table.sort(key=attrgetter("engine", "language", "name"))
+		log.debug(
+			"WorldVoice init timing: voice table sort %.3fs (%d total voices)",
+			time.perf_counter() - step_start,
+			len(self.table),
+		)
 
+		step_start = time.perf_counter()
 		voiceInfos = [VoiceInfo(v.name, v.description, v.language) for v in self.table]
 		self._voiceInfos = OrderedDict((v.id, v) for v in voiceInfos)
+		log.debug("WorldVoice init timing: voiceInfos build %.3fs", time.perf_counter() - step_start)
 
 	@property
 	def voiceInfos(self):

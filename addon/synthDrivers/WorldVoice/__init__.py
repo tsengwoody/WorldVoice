@@ -3,6 +3,7 @@ import importlib
 import os
 import re
 import sys
+import time
 from typing import Any
 
 import addonHandler
@@ -12,7 +13,7 @@ import config
 import extensionPoints
 import gui
 import languageHandler
-from logHandler import log
+from logHandler import log as nvdaLog
 import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
 from speech.extensions import filter_speechSequence
@@ -289,29 +290,51 @@ class SynthDriver(SynthDriver):
 		return settings
 
 	def __init__(self):
+		init_start = time.perf_counter()
+		step_start = init_start
 		WVStart.notify()
+		nvdaLog.debug("WorldVoice init timing: WVStart.notify %.3fs", time.perf_counter() - step_start)
 
 		self.order = 0
 
+		step_start = time.perf_counter()
 		static_register()
 		order_move_to_start_register()
+		nvdaLog.debug("WorldVoice init timing: pipeline register %.3fs", time.perf_counter() - step_start)
 
+		step_start = time.perf_counter()
 		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
 		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
+		nvdaLog.debug("WorldVoice init timing: voice settings panel patch %.3fs", time.perf_counter() - step_start)
 
+		step_start = time.perf_counter()
 		self.taskManager = TaskManager()
-		self._voiceManager = VoiceManager(taskManager=self.taskManager)
+		nvdaLog.debug("WorldVoice init timing: TaskManager %.3fs", time.perf_counter() - step_start)
 
+		step_start = time.perf_counter()
+		self._voiceManager = VoiceManager(taskManager=self.taskManager)
+		nvdaLog.debug("WorldVoice init timing: VoiceManager %.3fs", time.perf_counter() - step_start)
+
+		step_start = time.perf_counter()
 		self._realSpellingFunc = speech.speech.speakSpelling
 		speech.speech.speakSpelling = self.patchedSpeakSpelling
+		nvdaLog.debug("WorldVoice init timing: speakSpelling patch %.3fs", time.perf_counter() - step_start)
 
+		step_start = time.perf_counter()
 		self.speechSymbols = SpeechSymbols()
-		self.speechSymbols.load('unicode.dic')
+		nvdaLog.debug("WorldVoice init timing: SpeechSymbols construct %.3fs", time.perf_counter() - step_start)
 
+		step_start = time.perf_counter()
+		self.speechSymbols.load('unicode.dic')
+		nvdaLog.debug("WorldVoice init timing: SpeechSymbols.load unicode.dic %.3fs", time.perf_counter() - step_start)
+
+		step_start = time.perf_counter()
 		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.allLanguages), self.speechSymbols)
 		self.add_detected_language_commands = listable(self._languageDetector.add_detected_language_commands)
+		nvdaLog.debug("WorldVoice init timing: LanguageDetector %.3fs", time.perf_counter() - step_start)
 
 		self._voice = None
+		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
 
 	def terminate(self):
 		unregister()
@@ -323,7 +346,7 @@ class SynthDriver(SynthDriver):
 		try:
 			self.cancel()
 		except BaseException:
-			log.error("WorldVoice terminate", exc_info=True)
+			nvdaLog.error("WorldVoice terminate", exc_info=True)
 
 		self._voiceManager.terminate()
 		self._voiceManager = None
