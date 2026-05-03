@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 from typing import Any
 
 
@@ -94,8 +95,6 @@ def _get_internal_import_root(internal_root: Path, internal_package: str) -> str
 
 
 def _load_module(module_name: str, import_root: str):
-	importlib.invalidate_caches()
-	sys.modules.pop(module_name, None)
 	if import_root not in sys.path:
 		sys.path.insert(0, import_root)
 	return importlib.import_module(module_name)
@@ -142,9 +141,28 @@ def load_enabled_engine_classes(
 	for spec in engine_specs:
 		if not get_engine_enabled(engine_config, spec):
 			continue
+		engine_start = time.perf_counter()
 		try:
-			module = _load_module(spec.module_name, spec.import_root)
+			step_start = time.perf_counter()
+			try:
+				module = _load_module(spec.module_name, spec.import_root)
+			finally:
+				_log(
+					logger,
+					"debug",
+					"WorldVoice init timing: ready check %s module import %.3fs",
+					spec.name,
+					time.perf_counter() - step_start,
+				)
+			step_start = time.perf_counter()
 			voice = getattr(module, "Voice", None)
+			_log(
+				logger,
+				"debug",
+				"WorldVoice init timing: ready check %s Voice lookup %.3fs",
+				spec.name,
+				time.perf_counter() - step_start,
+			)
 			if voice is None:
 				_log(logger, "warning", "Skipping %s engine candidate: Voice export missing", spec.name)
 				continue
@@ -152,11 +170,30 @@ def load_enabled_engine_classes(
 			if voice_engine is not None and voice_engine != spec.name:
 				_log(logger, "warning", "Skipping %s engine candidate: Voice.engine mismatch (%s)", spec.name, voice_engine)
 				continue
-			if not voice.ready():
+			step_start = time.perf_counter()
+			try:
+				is_ready = voice.ready()
+			finally:
+				_log(
+					logger,
+					"debug",
+					"WorldVoice init timing: ready check %s voice.ready %.3fs",
+					spec.name,
+					time.perf_counter() - step_start,
+				)
+			if not is_ready:
 				continue
 			ready[spec.name] = voice
 		except Exception as error:  # noqa: BLE001
 			_log(logger, "error", "Failed to load ready state for %s: %s", spec.name, error)
+		finally:
+			_log(
+				logger,
+				"debug",
+				"WorldVoice init timing: ready check %s total %.3fs",
+				spec.name,
+				time.perf_counter() - engine_start,
+			)
 	return ready
 
 
