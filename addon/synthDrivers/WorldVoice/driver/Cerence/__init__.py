@@ -61,12 +61,16 @@ class Voice(Voice):
 		except Exception:
 			return result
 
+		def clean(s):
+			return s.strip("b'").strip("'") if (s.startswith("b'") and s.endswith("'")) else s
+
 		for voice in voices:
 			localeName = voice.language or "unknown"
 			langDescription = languageHandler.getLanguageDescription(localeName)
 			if not langDescription:
 				if " - " in voice.displayName:
 					langDescription = voice.displayName.split(" - ", 1)[1]
+					langDescription = clean(langDescription)
 				else:
 					langDescription = localeName
 			name = voice.id
