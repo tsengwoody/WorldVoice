@@ -5,7 +5,7 @@ from .driver import SynthDriver
 from .driver import TtsSetParamList
 from .driver import ttsapi
 from .driver.ttsapi.veTypes import VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT, VeError
-from synthDrivers.WorldVoice.driver import Voice
+from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
 
 
 class Voice(Voice):
@@ -21,7 +21,7 @@ class Voice(Voice):
 	def variant(self, value):
 		self._variant = value
 		try:
-			TtsSetParamList(self.core.getVoiceInstance(self.name), (VE_PARAM_VOICE_OPERATING_POINT, value))()
+			TtsSetParamList(self.core.getVoiceInstance(self.id), (VE_PARAM_VOICE_OPERATING_POINT, value))()
 		except VeError:
 			pass
 		except BaseException:
@@ -30,8 +30,8 @@ class Voice(Voice):
 	@property
 	def variants(self):
 		try:
-			language = self.core.getParameter(self.core.getVoiceInstance(self.name), VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
-			dbs = ttsapi.getSpeechDBList(language, self.name)
+			language = self.core.getParameter(self.core.getVoiceInstance(self.id), VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
+			dbs = ttsapi.getSpeechDBList(language, self.id)
 			return [{
 				"id": item,
 				"name": item,
@@ -72,7 +72,7 @@ class Voice(Voice):
 			name = voice.id
 			result.append({
 				"id": name,
-				"name": name,
+				"name": getVoiceKey(cls.engine, name),
 				"locale": localeName,
 				"language": localeName,
 				"langDescription": langDescription,

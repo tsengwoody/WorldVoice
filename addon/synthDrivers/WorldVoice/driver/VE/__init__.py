@@ -5,7 +5,7 @@ from synthDriverHandler import LanguageInfo
 from .driver import SynthDriver, TtsSetParamList
 from .driver import ve2
 from .driver.ve2.veTypes import VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT, VeError
-from synthDrivers.WorldVoice.driver import Voice
+from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
 
 
 class Voice(Voice):
@@ -21,14 +21,14 @@ class Voice(Voice):
 	def variant(self, value):
 		self._variant = value
 		try:
-			TtsSetParamList(self.core.getVoiceInstance(self.name), (VE_PARAM_VOICE_OPERATING_POINT, value))()
+			TtsSetParamList(self.core.getVoiceInstance(self.id), (VE_PARAM_VOICE_OPERATING_POINT, value))()
 		except VeError:
 			pass
 
 	@property
 	def variants(self):
-		language = self.core.getParameter(self.core.getVoiceInstance(self.name), VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
-		dbs = ve2.getSpeechDBList(language, self.name)
+		language = self.core.getParameter(self.core.getVoiceInstance(self.id), VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
+		dbs = ve2.getSpeechDBList(language, self.id)
 		return [{
 			"id": item,
 			"name": item,
@@ -67,7 +67,7 @@ class Voice(Voice):
 			name = voice.id
 			result.append({
 				"id": name,
-				"name": name,
+				"name": getVoiceKey(cls.engine, name),
 				"locale": localeName,
 				"language": localeName,
 				"langDescription": langDescription,

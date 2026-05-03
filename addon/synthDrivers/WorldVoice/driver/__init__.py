@@ -15,6 +15,10 @@ def boolean(value):
 		return bool(value)
 
 
+def getVoiceKey(engine, voiceId):
+	return "%s:%s" % (engine, voiceId)
+
+
 VOICE_PARAMETERS = [
 	("rate", int, 50),
 	("pitch", int, 50),
@@ -91,6 +95,25 @@ class Voice(object):
 		self._variant = value
 
 	@classmethod
+	def voiceInfoToMetadata(cls, voice):
+		localeName = voice.language or "unknown"
+		langDescription = languageHandler.getLanguageDescription(localeName)
+		if not langDescription:
+			if " - " in voice.displayName:
+				langDescription = voice.displayName.split(" - ", 1)[1]
+			else:
+				langDescription = localeName
+		return {
+			"id": voice.id,
+			"name": getVoiceKey(cls.engine, voice.id),
+			"locale": localeName,
+			"language": localeName,
+			"langDescription": langDescription,
+			"description": "[%s] %s - %s" % (cls.engine, voice.displayName, langDescription),
+			"engine": cls.engine,
+		}
+
+	@classmethod
 	def voices(cls):
 		result = []
 		if not cls.ready() or not cls.core:
@@ -102,23 +125,7 @@ class Voice(object):
 			return result
 
 		for voice in voices:
-			localeName = voice.language or "unknown"
-			langDescription = languageHandler.getLanguageDescription(localeName)
-			if not langDescription:
-				if " - " in voice.displayName:
-					langDescription = voice.displayName.split(" - ", 1)[1]
-				else:
-					langDescription = localeName
-			name = voice.displayName
-			result.append({
-				"id": voice.id,
-				"name": name,
-				"locale": localeName,
-				"language": localeName,
-				"langDescription": langDescription,
-				"description": "[%s] %s - %s" % (cls.engine, name, langDescription),
-				"engine": cls.engine,
-			})
+			result.append(cls.voiceInfoToMetadata(voice))
 
 		return result
 

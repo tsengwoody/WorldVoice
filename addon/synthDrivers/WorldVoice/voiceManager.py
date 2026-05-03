@@ -42,6 +42,10 @@ def groupVoicesByPrimaryLocale(table: list["VoiceMeta"]) -> dict[str, list[str]]
 	return groupByField(table, "locale", getPrimaryLocale, lambda i: i.name)
 
 
+def getVoiceKey(engine: str, voiceId: str) -> str:
+	return "%s:%s" % (engine, voiceId)
+
+
 @dataclass(frozen=True)
 class VoiceMeta:
 	id: str
@@ -271,12 +275,14 @@ class VoiceManager(object):
 			for v in cls.voices():
 				voice_count += 1
 				try:
+					engine = v["engine"]
+					voiceId = v["id"]
 					self.table.append(VoiceMeta(
-						id=v["id"],
-						name=v["name"],
+						id=voiceId,
+						name=getVoiceKey(engine, voiceId),
 						description=v.get("description", ""),
 						language=v["language"],
-						engine=v["engine"],
+						engine=engine,
 						locale=v.get("locale", v["language"]),
 					))
 				except KeyError as e:
