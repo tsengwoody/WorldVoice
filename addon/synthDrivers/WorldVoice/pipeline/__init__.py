@@ -11,8 +11,9 @@ from speech.commands import BreakCommand, LangChangeCommand
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import getSynth
 
-from ._speechcommand import WVLangChangeCommand
-from .log import PipelineLog
+from .._speechcommand import WVLangChangeCommand
+from ..log import PipelineLog
+from .settings import get_effective_pipeline_settings
 
 SpeechCmd = Union[str, "BaseSpeechCommand"]
 pl = PipelineLog("pipeline.csv")
@@ -76,20 +77,13 @@ def listable(func):
 
 
 def get_ignore_comma_between_number():
-	synth = getSynth()
-	if synth.name == 'WorldVoice':
-		return synth._cni
-	else:
-		return config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
+	settings = get_effective_pipeline_settings()
+	return settings.ignore_comma_between_number
 
 
 def get_number_mode():
-	synth = getSynth()
-	if synth.name == 'WorldVoice':
-		result = synth._nummod
-	else:
-		result = config.conf["WorldVoice"]["pipeline"]["number_mode"]
-	return result
+	settings = get_effective_pipeline_settings()
+	return settings.number_mode
 
 
 def get_translate_table():
@@ -114,30 +108,18 @@ def get_translate_table():
 
 
 def get_item_wait_factor():
-	synth = getSynth()
-	if synth.name == 'WorldVoice':
-		wait_factor = synth._globalwaitfactor * synth.itemwaitfactor
-	else:
-		wait_factor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["pipeline"]["item_wait_factor"]
-	return wait_factor
+	settings = get_effective_pipeline_settings()
+	return settings.scaled_item_wait()
 
 
 def get_number_wait_factor():
-	synth = getSynth()
-	if synth.name == 'WorldVoice':
-		wait_factor = synth._globalwaitfactor * synth.numberwaitfactor
-	else:
-		wait_factor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["pipeline"]["number_wait_factor"]
-	return wait_factor
+	settings = get_effective_pipeline_settings()
+	return settings.scaled_number_wait()
 
 
 def get_chinesespace_wait_factor():
-	synth = getSynth()
-	if synth.name == 'WorldVoice':
-		wait_factor = synth._globalwaitfactor * synth.chinesespacewaitfactor
-	else:
-		wait_factor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"]
-	return wait_factor
+	settings = get_effective_pipeline_settings()
+	return settings.scaled_chinesespace_wait()
 
 
 # @with_order_log("speech_view")

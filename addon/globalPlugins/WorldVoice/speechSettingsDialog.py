@@ -13,7 +13,15 @@ from logHandler import log
 import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
-from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister, pl
+from synthDrivers.WorldVoice.pipeline import pl
+from synthDrivers.WorldVoice.pipeline.settings import (
+	PipelineSettings,
+	apply_global_pipeline_scope,
+	apply_pipeline_settings_to_speech_config,
+	apply_pipeline_settings_to_synth,
+	load_pipeline_settings,
+	save_pipeline_settings,
+)
 from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
 import tones
 
@@ -85,6 +93,7 @@ class SpeechPipelinePanel(SettingsPanel):
 
 	def makeSettings(self, sizer):
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
+		pipeline_settings = load_pipeline_settings()
 
 		scope_label = [
 			_("All Synthesizers (Global)"),
@@ -96,7 +105,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			wx.Choice,
 			choices=scope_label
 		)
-		self._scope = config.conf["WorldVoice"]["pipeline"]["scope"]
+		self._scope = pipeline_settings.scope
 		try:
 			self._scope_choice.Select(self._scope_value.index(self._scope))
 		except ValueError:
@@ -108,7 +117,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		)
 		settingsSizerHelper.addItem(self._ignore_comma_between_number_checkbox)
 		self.Bind(wx.EVT_CHECKBOX, self.onIgnoreCommaBetweenNumberCheckboxChange, self._ignore_comma_between_number_checkbox)
-		self._ignore_comma_between_number_checkbox.SetValue(config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"])
+		self._ignore_comma_between_number_checkbox.SetValue(pipeline_settings.ignore_comma_between_number)
 
 		number_mode_label = [
 			_("value"),
@@ -123,40 +132,43 @@ class SpeechPipelinePanel(SettingsPanel):
 		)
 
 		try:
-			self._number_mode_choice.Select(self.number_mode_value.index(config.conf["WorldVoice"]["pipeline"]["number_mode"]))
+			self._number_mode_choice.Select(self.number_mode_value.index(pipeline_settings.number_mode))
 		except ValueError:
 			self._number_mode_choice.Select(0)
 
 		self._global_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("global wait factor:"), wx.Slider, value=5, minValue=0, maxValue=10, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onGlobalWaitFactorSliderScroll, self._global_wait_factor_slider)
-		self._global_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10)
+		self._global_wait_factor_slider.SetValue(pipeline_settings.global_wait_factor // 10)
 
 		self._number_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("number wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onNumberWaitFactorSliderScroll, self._number_wait_factor_slider)
-		self._number_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["number_wait_factor"])
+		self._number_wait_factor_slider.SetValue(pipeline_settings.number_wait_factor)
 
 		self._item_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("item wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onItemWaitFactorSliderScroll, self._item_wait_factor_slider)
-		self._item_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["item_wait_factor"])
+		self._item_wait_factor_slider.SetValue(pipeline_settings.item_wait_factor)
 
 		self._sayall_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("sayall wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onSayallWaitFactorSliderScroll, self._sayall_wait_factor_slider)
-		self._sayall_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"])
+		self._sayall_wait_factor_slider.SetValue(pipeline_settings.sayall_wait_factor)
 
 		self._chinesespace_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("chinese space wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onChinesespaceWaitFactorSliderScroll, self._chinesespace_wait_factor_slider)
-		self._chinesespace_wait_factor_slider.SetValue(config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"])
+		self._chinesespace_wait_factor_slider.SetValue(pipeline_settings.chinesespace_wait_factor)
 
 	def onScopeSelectionChange(self, event):
 		value = self._scope_value[self._scope_choice.GetCurrentSelection()]
-		if value == "all":
-			if getSynth().name != "WorldVoice":
-				static_register()
-				dynamic_register()
-				order_move_to_start_register()
-		elif value == "WorldVoice":
-			if getSynth().name != "WorldVoice":
-				unregister()
+		settings = PipelineSettings(
+			scope=value,
+			ignore_comma_between_number=self._ignore_comma_between_number_checkbox.GetValue(),
+			number_mode=self.number_mode_value[self._number_mode_choice.GetCurrentSelection()],
+			global_wait_factor=self._global_wait_factor_slider.GetValue() * 10,
+			number_wait_factor=self._number_wait_factor_slider.GetValue(),
+			item_wait_factor=self._item_wait_factor_slider.GetValue(),
+			sayall_wait_factor=self._sayall_wait_factor_slider.GetValue(),
+			chinesespace_wait_factor=self._chinesespace_wait_factor_slider.GetValue(),
+		)
+		apply_global_pipeline_scope(settings, getSynth().name)
 
 	def onIgnoreCommaBetweenNumberCheckboxChange(self, event):
 		pass
@@ -195,36 +207,25 @@ class SpeechPipelinePanel(SettingsPanel):
 		self._chinesespace_wait_factor_slider.Disable()
 
 	def onSave(self):
-		config.conf["WorldVoice"]["pipeline"]["scope"] = self._scope_value[self._scope_choice.GetCurrentSelection()]
-
-		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self._ignore_comma_between_number_checkbox.GetValue()
-		config.conf["WorldVoice"]["pipeline"]["number_mode"] = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
-		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self._global_wait_factor_slider.GetValue() * 10
-		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self._number_wait_factor_slider.GetValue()
-		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self._item_wait_factor_slider.GetValue()
-		config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"] = self._sayall_wait_factor_slider.GetValue()
-		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self._chinesespace_wait_factor_slider.GetValue()
+		settings = PipelineSettings(
+			scope=self._scope_value[self._scope_choice.GetCurrentSelection()],
+			ignore_comma_between_number=self._ignore_comma_between_number_checkbox.GetValue(),
+			number_mode=self.number_mode_value[self._number_mode_choice.GetCurrentSelection()],
+			global_wait_factor=self._global_wait_factor_slider.GetValue() * 10,
+			number_wait_factor=self._number_wait_factor_slider.GetValue(),
+			item_wait_factor=self._item_wait_factor_slider.GetValue(),
+			sayall_wait_factor=self._sayall_wait_factor_slider.GetValue(),
+			chinesespace_wait_factor=self._chinesespace_wait_factor_slider.GetValue(),
+		)
+		save_pipeline_settings(settings)
 
 		self.onScopeSelectionChange(None)
 
 		if getSynth().name == 'WorldVoice':
-			getSynth().cni = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
-			getSynth().nummod = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
-			getSynth().globalwaitfactor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"]
-			getSynth().numberwaitfactor = config.conf["WorldVoice"]["pipeline"]["number_wait_factor"]
-			getSynth().itemwaitfactor = config.conf["WorldVoice"]["pipeline"]["item_wait_factor"]
-			getSynth().sayallwaitfactor = config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"]
-			getSynth().chinesespacewaitfactor = config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"]
+			apply_pipeline_settings_to_synth(getSynth(), settings)
 			getSynth().saveSettings()
 		else:
-			config.conf["speech"]["WorldVoice"]["cni"] = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
-			config.conf["speech"]["WorldVoice"]["cni"] = config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"]
-			config.conf["speech"]["WorldVoice"]["nummod"] = self.number_mode_value[self._number_mode_choice.GetCurrentSelection()]
-			config.conf["speech"]["WorldVoice"]["globalwaitfactor"] = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"]
-			config.conf["speech"]["WorldVoice"]["numberwaitfactor"] = config.conf["WorldVoice"]["pipeline"]["number_wait_factor"]
-			config.conf["speech"]["WorldVoice"]["itemwaitfactor"] = config.conf["WorldVoice"]["pipeline"]["item_wait_factor"]
-			config.conf["speech"]["WorldVoice"]["sayallwaitfactor"] = config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"]
-			config.conf["speech"]["WorldVoice"]["chinesespacewaitfactor"] = config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"]
+			apply_pipeline_settings_to_speech_config(settings)
 
 
 class SpeechRoleSettingsPanel(SettingsPanel):

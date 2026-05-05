@@ -28,9 +28,13 @@ from .pipeline import (
 	deduplicate_language_command,
 	lang_cmd_to_voice,
 	order_move_to_start_register,
-	static_register,
-	unregister,
 	listable,
+)
+from .pipeline.settings import (
+	apply_worldvoice_pipeline,
+	clear_pipeline,
+	get_effective_pipeline_settings,
+	save_pipeline_settings,
 )
 from ._speechcommand import SplitCommand
 from .taskManager import TaskManager
@@ -60,7 +64,6 @@ config.conf.spec["WorldVoice"] = {
 		"KeepMainLocaleEngineConsistent": "boolean(default=true)",
 	},
 	"pipeline": {
-		"enable": "boolean(default=true)",
 		"scope": "string(default=WorldVoice)",
 		"ignore_comma_between_number": "boolean(default=false)",
 		"number_mode": "string(default=value)",
@@ -298,8 +301,7 @@ class SynthDriver(SynthDriver):
 		self.order = 0
 
 		step_start = time.perf_counter()
-		static_register()
-		order_move_to_start_register()
+		apply_worldvoice_pipeline()
 		nvdaLog.debug("WorldVoice init timing: pipeline register %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
@@ -337,7 +339,7 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
 
 	def terminate(self):
-		unregister()
+		clear_pipeline()
 
 		gui.settingsDialogs.VoiceSettingsPanel = self.OriginVoiceSettingsPanel
 
@@ -356,23 +358,11 @@ class SynthDriver(SynthDriver):
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)
 		self._voiceManager.reload()
-		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self.cni
-		config.conf["WorldVoice"]["pipeline"]["number_mode"] = self.nummod
-		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self.globalwaitfactor
-		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self.numberwaitfactor
-		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self.itemwaitfactor
-		config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"] = self.sayallwaitfactor
-		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
+		save_pipeline_settings(get_effective_pipeline_settings(synth=self))
 
 	def saveSettings(self, *args, **kwargs):
 		super().saveSettings(*args, **kwargs)
-		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self.cni
-		config.conf["WorldVoice"]["pipeline"]["number_mode"] = self.nummod
-		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self.globalwaitfactor
-		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self.numberwaitfactor
-		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self.itemwaitfactor
-		config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"] = self.sayallwaitfactor
-		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
+		save_pipeline_settings(get_effective_pipeline_settings(synth=self))
 
 	def speak(self, speechSequence):
 		self.order = 0

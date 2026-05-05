@@ -16,7 +16,13 @@ from .speechSettingsDialog import WorldVoiceSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
 
 from synthDrivers.WorldVoice import WVStart, WVEnd
-from synthDrivers.WorldVoice.pipeline import order_move_to_start_register, static_register, dynamic_register, unregister as pipeline_unregister, pl
+from synthDrivers.WorldVoice.pipeline import pl
+from synthDrivers.WorldVoice.pipeline.settings import (
+	apply_global_pipeline_scope,
+	apply_pipeline_after_worldvoice_end,
+	clear_global_pipeline_scope,
+	load_pipeline_settings,
+)
 from synthDrivers.WorldVoice.sayAll import patch, unpatch
 
 addonHandler.initTranslation()
@@ -24,28 +30,24 @@ ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
 
 
-def global_pipeline_register():
-	if config.conf["WorldVoice"]["pipeline"]["scope"] == "all":
-		static_register()
-		dynamic_register()
-		order_move_to_start_register()
+def on_worldvoice_start():
+	clear_global_pipeline_scope(load_pipeline_settings())
 
 
-def global_pipeline_unregister():
-	if config.conf["WorldVoice"]["pipeline"]["scope"] == "all":
-		pipeline_unregister()
+def on_worldvoice_end():
+	apply_pipeline_after_worldvoice_end(load_pipeline_settings())
 
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
 		super().__init__()
 
-		WVStart.register(global_pipeline_unregister)
-		WVEnd.register(global_pipeline_register)
+		WVStart.register(on_worldvoice_start)
+		WVEnd.register(on_worldvoice_end)
 
 		patch()
 		if getSynth().name != "WorldVoice":
-			global_pipeline_register()
+			apply_global_pipeline_scope(load_pipeline_settings(), getSynth().name)
 
 		if globalVars.appArgs.secure:
 			return
@@ -62,10 +64,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 		unpatch()
 		if getSynth().name != "WorldVoice":
-			global_pipeline_unregister()
+			clear_global_pipeline_scope(load_pipeline_settings())
 
-		WVStart.unregister(global_pipeline_unregister)
-		WVEnd.unregister(global_pipeline_register)
+		WVStart.unregister(on_worldvoice_start)
+		WVEnd.unregister(on_worldvoice_end)
 
 	def createMenu(self):
 		self.submenu_WorldVoice = wx.Menu()

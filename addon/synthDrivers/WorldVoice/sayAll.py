@@ -9,14 +9,12 @@ from typing import Callable, Optional
 import weakref
 from logHandler import log
 
-import config
 import controlTypes
 import textInfos
 import queueHandler
 import speech
 from speech import sayAll
 from speech.sayAll import CURSOR, _ObjectsReader
-from synthDriverHandler import getSynth
 from utils.security import objectBelowLockScreenAndWindowsIsLocked
 
 from speech.commands import BreakCommand, CallbackCommand
@@ -27,20 +25,10 @@ from speech.types import (
 	_flattenNestedSequences,
 )
 
+from .pipeline.settings import get_effective_pipeline_settings
+
 
 SayAllHandler = None
-
-
-def get_sayall_wait_factor():
-	synth = getSynth()
-	if synth.name == 'WorldVoice':
-		wait_factor = synth._globalwaitfactor * synth.sayallwaitfactor
-	else:
-		if config.conf["WorldVoice"]["pipeline"]["enable"]:
-			wait_factor = config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] // 10 * config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"]
-		else:
-			wait_factor = 0
-	return wait_factor
 
 
 def initialize(
@@ -158,7 +146,7 @@ class _TextReader(sayAll._TextReader):
 		seq = list(_flattenNestedSequences(speechGen))
 		seq.insert(0, cb)
 
-		waitfactor = get_sayall_wait_factor()
+		waitfactor = get_effective_pipeline_settings().scaled_sayall_wait()
 		if waitfactor > 0:
 			seq.append(BreakCommand(waitfactor + 100))
 		# Speak the speech sequence.
