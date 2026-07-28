@@ -23,6 +23,7 @@ from synthDrivers.WorldVoice.pipeline.settings import (
 	save_pipeline_settings,
 )
 from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
+from synthDrivers.WorldVoice.voiceManager import getPrimaryLocale
 import tones
 
 from .utils import guard_errors
@@ -596,6 +597,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
 			locale = self._manager.defaultVoiceInstance.language if self._manager.defaultVoiceInstance.language else languageHandler.getLanguage()
+			locale = getPrimaryLocale(locale)
 			try:
 				different = self._dataToPercist[locale]["voice"] != self._manager.defaultVoiceInstance.name and self._dataToPercist[locale]["voice"] != "no-select"
 			except KeyError:

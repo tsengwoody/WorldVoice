@@ -35,7 +35,7 @@ def getPrimaryLocale(locale: str) -> str:
 	"""Return the primary language subtag from locale strings like en_US / en-US."""
 	if not locale:
 		return locale
-	return re.split(r"[-_]", locale, maxsplit=1)[0]
+	return re.split(r"[-_]", locale, maxsplit=1)[0].lower()
 
 
 def groupVoicesByPrimaryLocale(table: list["VoiceMeta"]) -> dict[str, list[str]]:
@@ -248,10 +248,7 @@ class VoiceManager(object):
 	def onKeepMainLocaleVoiceConsistent(self):
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
 			locale = self.defaultVoiceInstance.language if self.defaultVoiceInstance.language else languageHandler.getLanguage()
-			if locale not in config.conf["WorldVoice"]["role"]:
-				config.conf["WorldVoice"]["role"][locale] = {}
-			config.conf["WorldVoice"]["role"][locale]['voice'] = self.defaultVoiceInstance.name
-			locale = locale.split("_")[0]
+			locale = getPrimaryLocale(locale)
 			if locale not in config.conf["WorldVoice"]["role"]:
 				config.conf["WorldVoice"]["role"][locale] = {}
 			config.conf["WorldVoice"]["role"][locale]['voice'] = self.defaultVoiceInstance.name
@@ -363,12 +360,10 @@ class VoiceManager(object):
 			except KeyError:
 				pass
 		if not voice:
-			if '_' not in language and '-' not in language:
-				return voice
-			language = getPrimaryLocale(language)
-			if language in config.conf["WorldVoice"]["role"]:
+			locale = getPrimaryLocale(language)
+			if locale in config.conf["WorldVoice"]["role"]:
 				try:
-					voice = config.conf["WorldVoice"]["role"][language]['voice']
+					voice = config.conf["WorldVoice"]["role"][locale]['voice']
 				except KeyError:
 					pass
 		return voice
