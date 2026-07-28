@@ -14,6 +14,7 @@ from synthDriverHandler import getSynth
 
 from .._speechcommand import WVLangChangeCommand
 from ..log import PipelineLog
+from . import speech_dictionary
 from .settings import get_effective_pipeline_settings
 
 SpeechCmd = Union[str, "BaseSpeechCommand"]
@@ -613,6 +614,7 @@ def order_move_to_end_register():
 def static_register():
 	log.debug("static register")
 
+	speech_dictionary.install()
 	filter_speechSequence.register(apply_speech_dictionaries)
 	filter_speechSequence.register(inject_chinese_space_pause)
 	filter_speechSequence.register(inject_number_language)
@@ -639,3 +641,4 @@ def unregister():
 	filter_speechSequence.unregister(item_wait_factor)
 	filter_speechSequence.unregister(number_wait_factor)
 	filter_speechSequence.unregister(speech_viewer)
+	speech_dictionary.uninstall()
