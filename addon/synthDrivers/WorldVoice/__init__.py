@@ -54,7 +54,6 @@ addonHandler.initTranslation()
 config.conf.spec["WorldVoice"] = {
 	"autoLanguageSwitching": {
 		"ignoreNumbersInLanguageDetection": "boolean(default=false)",
-		"ignorePunctuationInLanguageDetection": "boolean(default=false)",
 		"latinCharactersLanguage": "string(default=en)",
 		"CJKCharactersLanguage": "string(default=ja)",
 		"arabicCharactersLanguage": "string(default=ar)",

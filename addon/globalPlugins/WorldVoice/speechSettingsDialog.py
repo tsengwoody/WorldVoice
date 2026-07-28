@@ -489,13 +489,20 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	def sliderEnable(self):
 		if self.voiceInstance:
+			supportedSettings = self._getVoiceSupportedSettings()
 			self._rateSlider.Enable()
 			self._pitchSlider.Enable()
 			self._volumeSlider.Enable()
-			if self.voiceInstance.engine in ["aisound", "IBM", "Espeak"]:
+			if "inflection" in supportedSettings:
 				self._inflectionSlider.Enable()
-			if self.voiceInstance.engine in ["OneCore", "RH", "Espeak", "SAPI5", "VE"]:
+			if "rateBoost" in supportedSettings:
 				self._rateBoostCheckBox.Enable()
+
+	def _getVoiceSupportedSettings(self):
+		try:
+			return set(self.voiceInstance.__class__.supportedSettings())
+		except (AttributeError, TypeError):
+			return set()
 
 	def sliderDisable(self):
 		self._rateSlider.Disable()
@@ -647,14 +654,6 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		self._ignoreNumbersCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"])
 		settingsSizerHelper.addItem(self._ignoreNumbersCheckBox)
 
-		self._ignorePunctuationCheckBox = wx.CheckBox(
-			self,
-			# Translators: Either to ignore or not ASCII punctuation when language detection is active
-			label=_("Ignore common punctuation when detecting text language")
-		)
-		self._ignorePunctuationCheckBox.SetValue(config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"])
-		settingsSizerHelper.addItem(self._ignorePunctuationCheckBox)
-
 		latinChoiceLocaleNames = [self.localesToNames[l] for l in self._latinLocales]
 		self._latinChoice = settingsSizerHelper.addLabeledControl(_("Language assumed for latin characters:"), wx.Choice, choices=latinChoiceLocaleNames)
 		latinLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"]
@@ -705,11 +704,12 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		if self.disable or not getSynth().name == 'WorldVoice':
 			return
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = self._ignoreNumbersCheckBox.GetValue()
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignorePunctuationInLanguageDetection"] = self._ignorePunctuationCheckBox.GetValue()
 		if self._latinChoice.IsEnabled():
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"] = self._latinLocales[self._latinChoice.GetCurrentSelection()]
 		if self._CJKChoice.IsEnabled():
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[self._CJKChoice.GetCurrentSelection()]
+		if self._arabicChoice.IsEnabled():
+			config.conf["WorldVoice"]["autoLanguageSwitching"]["arabicCharactersLanguage"] = self._arabicLocales[self._arabicChoice.GetCurrentSelection()]
 
 		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 		current_DLT = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
