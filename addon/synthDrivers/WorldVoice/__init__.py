@@ -339,21 +339,32 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
 
 	def terminate(self):
-		clear_pipeline()
+		def _run_cleanup(name, cleanup):
+			try:
+				cleanup()
+			except BaseException:
+				nvdaLog.error("WorldVoice terminate: %s", name, exc_info=True)
 
-		gui.settingsDialogs.VoiceSettingsPanel = self.OriginVoiceSettingsPanel
+		_run_cleanup("pipeline cleanup", clear_pipeline)
+		_run_cleanup(
+			"voice settings panel restore",
+			lambda: setattr(gui.settingsDialogs, "VoiceSettingsPanel", self.OriginVoiceSettingsPanel),
+		)
+		_run_cleanup(
+			"spelling function restore",
+			lambda: setattr(speech.speech, "speakSpelling", self._realSpellingFunc),
+		)
+		_run_cleanup("cancel", self.cancel)
 
-		speech.speech.speakSpelling = self._realSpellingFunc
+		taskManager = self.taskManager
+		_run_cleanup("task manager shutdown", taskManager.shutdown)
+		self.taskManager = None
 
-		try:
-			self.cancel()
-		except BaseException:
-			nvdaLog.error("WorldVoice terminate", exc_info=True)
-
-		self._voiceManager.terminate()
+		voiceManager = self._voiceManager
+		_run_cleanup("voice manager terminate", voiceManager.terminate)
 		self._voiceManager = None
 
-		WVEnd.notify()
+		_run_cleanup("end notification", WVEnd.notify)
 
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)
