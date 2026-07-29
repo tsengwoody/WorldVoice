@@ -10,4 +10,5 @@ manifest.ini
 .sconsign.dblite
 /[0-9]*.[0-9]*.[0-9]*.json
 
-.codex
+ref
+storage
