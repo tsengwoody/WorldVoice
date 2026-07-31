@@ -22,7 +22,7 @@ pl = PipelineLog("pipeline.csv")
 
 _COMMA_NUMBER_RE = re.compile(r"(?<=[0-9]),(?=[0-9])")
 _PURE_NUMBER_RE = re.compile(r"[0-9]+")
-_NUMBER_RE = re.compile(r"[0-9\-\+]+[0-9.:]*[0-9]+|[0-9]")
+_NUMBER_RE = re.compile(r"[+-]?[0-9]+(?:\.[0-9]+)?")
 _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 _SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
@@ -361,31 +361,17 @@ def inject_number_language(
 
 
 def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[str]:
-	parts = raw.split(".")
-	for i, part in enumerate(parts):
-		if i > 0:
-			# Add spaces around the separator to prevent synth merging
-			yield " . "
-		if not part:
-			continue
-		# If "value" mode, keep the first part (integer) intact.
-		if mode == "value" and i == 0:
-			yield part
-			continue
-		if len(part) == 1:
-			yield " " + part.translate(table)
-			continue
-		pos = 0
-		for m in _PURE_NUMBER_RE.finditer(part):
-			start, end = m.span()
-			if start > pos:
-				yield " " + part[pos:start] + " "
-			digits = m.group()
-			# Emit digits spaced out and translated
-			yield " " + " ".join(d.translate(table) for d in digits)
-			pos = end
-		if pos < len(part):
-			yield " " + part[pos:]
+	if mode == "value":
+		yield raw
+		return
+
+	previous_was_digit = False
+	for character in raw:
+		is_digit = character.isdigit()
+		if is_digit and previous_was_digit:
+			yield " "
+		yield character.translate(table)
+		previous_was_digit = is_digit
 
 # @with_order_log("number_mode")
 @with_speech_sequence_log("number_mode")
@@ -409,31 +395,25 @@ def inject_number_mode(
 
 def iter_number_speech_segments_mode(item, mode, translate_table, number_re=_NUMBER_RE):
 	pos = 0
+	previous_was_number = False
 	for m in number_re.finditer(item):
 		start, end = m.span()
 		number_raw = m.group()
 		prefix = item[pos:start]
 		if prefix:
+			if previous_was_number and prefix[0] == ".":
+				yield " "
 			yield prefix
-		# Switch to 'number' mode for spaced decimals (e.g. " .123")
-		effective_mode = mode
-		if mode == "value":
-			stripped = prefix.strip()
-			if stripped == "." and not prefix.endswith(" "):
-				effective_mode = "number"
-		yield from _translate_number(number_raw, effective_mode, translate_table)
-		# Check trailing text to preserve sentence breaks.
-		# If it looks like end of sentence (e.g. "123."), don't add space.
-		tail = item[end:]
-		# if not _SENTENCE_END_RE.match(tail):
-		if (
-			not _SENTENCE_END_RE.match(tail)
-			and not (tail and tail[0] in string.ascii_letters)
-		):
+		if prefix.endswith("."):
 			yield " "
+		yield from _translate_number(number_raw, mode, translate_table)
 		pos = end
+		previous_was_number = True
 	if pos < len(item):
-		yield item[pos:]
+		tail = item[pos:]
+		if previous_was_number and tail[0] == ".":
+			yield " "
+		yield tail
 
 
 def merge_consecutive_strings(items):
