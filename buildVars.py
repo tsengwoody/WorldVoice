@@ -26,7 +26,7 @@ addon_info = AddonInfo(
 	addon_version="6.2",
 	# Brief changelog for this version
 	# Translators: what's new content for the add-on version to be shown in the add-on store
-	addon_changelog=_("Added support for NVDA 2026"),
+	addon_changelog=_("Improved language detection, speech segmentation, and number parsing."),
 	# Author(s)
 	addon_author="Tseng Woody <tsengwoody.tw@gmail.com>",
 	# URL for the add-on documentation support
@@ -38,7 +38,7 @@ addon_info = AddonInfo(
 	# Minimum NVDA version supported (e.g. "2019.3.0", minor version is optional)
 	addon_minimumNVDAVersion="2024.1",
 	# Last NVDA version supported/tested (e.g. "2024.4.0", ideally more recent than minimum version)
-	addon_lastTestedNVDAVersion="2026.1",
+	addon_lastTestedNVDAVersion="2026.1.1",
 	# Add-on update channel (default is None, denoting stable releases,
 	# and for development releases, use "dev".)
 	# Do not change unless you know what you are doing!
