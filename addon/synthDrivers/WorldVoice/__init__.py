@@ -69,6 +69,7 @@ config.conf.spec["WorldVoice"] = {
 		"number_mode": "string(default=value)",
 		"global_wait_factor": "integer(default=10,min=0,max=100)",
 		"number_wait_factor": "integer(default=10,min=0,max=100)",
+		"pair_wait_factor": "integer(default=0,min=0,max=100)",
 		"item_wait_factor": "integer(default=10,min=0,max=100)",
 		"sayall_wait_factor": "integer(default=10,min=0,max=100)",
 		"chinesespace_wait_factor": "integer(default=10,min=0,max=100)",
@@ -189,6 +190,14 @@ class SynthDriver(SynthDriver):
 				minStep=1,
 			),
 			NumericDriverSetting(
+				"pairwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Pair wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
 				"itemwaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
 				_("item wait factor"),
@@ -284,6 +293,14 @@ class SynthDriver(SynthDriver):
 				"numberwaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
 				_("Number wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
+				"pairwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Pair wait factor"),
 				availableInSettingsRing=True,
 				defaultVal=0,
 				minStep=1,
@@ -601,6 +618,7 @@ class SynthDriver(SynthDriver):
 		return dict({
 			"value": StringParameterInfo("value", _("value")),
 			"number": StringParameterInfo("number", _("number")),
+			"pair": StringParameterInfo("pair", _("pair")),
 		})
 
 	def _get_nummod(self):
@@ -624,6 +642,15 @@ class SynthDriver(SynthDriver):
 	def _set_numberwaitfactor(self, value):
 		self._numberwaitfactor = value
 		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self.numberwaitfactor
+
+	def _get_pairwaitfactor(self):
+		# Defensive: the attribute may not exist yet when the driver was
+		# upgraded from a version without this setting.
+		return getattr(self, "_pairwaitfactor", 0)
+
+	def _set_pairwaitfactor(self, value):
+		self._pairwaitfactor = value
+		config.conf["WorldVoice"]["pipeline"]["pair_wait_factor"] = self.pairwaitfactor
 
 	def _get_itemwaitfactor(self):
 		return self._itemwaitfactor

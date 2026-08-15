@@ -36,7 +36,7 @@ The main speech role is configured through the NVDA voice settings panel, while 
 
 Speech pipeline settings control reading behavior related to numbers, pauses, and language processing. You can choose whether these settings apply to all supported synthesizers or only within WorldVoice.
 
-* Globally supported speech pipeline settings: ignore commas between numbers, number mode, item pause, number pause, Chinese pause, say-all pause
+* Globally supported speech pipeline settings: ignore commas between numbers, number mode, item pause, number pause, pair pause, Chinese pause, say-all pause
 * WorldVoice-only speech pipeline settings: detect language based on Unicode characters, number language
 
 * Detect language based on Unicode characters: When enabled, WorldVoice automatically determines the language or region from the text's Unicode characters and switches speech roles accordingly. Note: This feature may conflict with NVDA's automatic language switching, so it is recommended not to enable both at the same time.
@@ -44,7 +44,8 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
 * Number mode:
   * Numeric mode: Reads numbers as values. For example, "12345" is read as "twelve thousand three hundred forty-five."
   * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five."
-* Speech pause adjustment: Sets the pause length between numbers, items, Chinese text, and say-all reading. Smaller values mean shorter pauses, and 0 means no pause.
+  * Pair mode: Reads long connected digit strings in pairs from the left. For example, "12345678" is read as "twelve thirty-four fifty-six seventy-eight."
+* Speech pause adjustment: Sets the pause length between numbers, pairs, items, Chinese text, and say-all reading. Smaller values mean shorter pauses, and 0 means no pause.
 * Ignore commas between numbers: Ignores commas between digits when reading numbers to improve number-reading accuracy for specific speech roles.
 
 Globally supported speech pipeline settings can be adjusted through the NVDA speech settings panel or the WorldVoice speech pipeline panel. Speech pipeline settings that are not globally supported can only be adjusted through the NVDA speech settings panel.

@@ -27,6 +27,17 @@ _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 _SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
 
+
+class PairBreakCommand(BreakCommand):
+	"""
+	BreakCommand inserted between digit pairs in pair number mode.
+
+	The subclass exists so that remove_silence (which strips every
+	BreakCommand when the punctuation wait factor is 0) can leave the
+	user-requested pair pauses intact: pair pauses are controlled by the
+	independent pair wait factor, not by the punctuation wait factor.
+	"""
+
 def with_order_log(label: str):
 	""" The order numbers are reversed because of recursion: the order number assigned earlier execution is greater than that of a later execution."""
 	def decorator(func):
@@ -137,6 +148,11 @@ def get_punctuation_pause_chars():
 def get_punctuation_pause_enabled():
 	settings = get_effective_pipeline_settings()
 	return settings.punctuation_pause_enabled
+
+
+def get_pair_wait_factor():
+	settings = get_effective_pipeline_settings()
+	return settings.scaled_pair_wait()
 
 
 # @with_order_log("speech_view")
@@ -382,9 +398,29 @@ def inject_number_language(
 		return
 
 
-def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[str]:
+def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[SpeechCmd]:
 	if mode == "value":
 		yield raw
+		return
+
+	if mode == "pair":
+		# Decimal numbers are read as a single value; only pure digit runs
+		# are grouped into pairs read from the left.
+		if "." in raw:
+			yield raw
+			return
+		sign = ""
+		digits = raw
+		if digits and digits[0] in "+-":
+			sign = digits[0]
+			digits = digits[1:]
+		pairs = [digits[i:i + 2] for i in range(0, len(digits), 2)]
+		pause = get_pair_wait_factor()
+		separator: SpeechCmd = PairBreakCommand(pause) if pause > 0 else " "
+		for index, pair in enumerate(pairs):
+			if index > 0:
+				yield separator
+			yield (sign + pair) if index == 0 else pair
 		return
 
 	previous_was_digit = False
@@ -645,7 +681,7 @@ def remove_silence(
 	regex = _get_punctuation_removal_regex(chars) if chars else None
 
 	for command in speechSequence:
-		if isinstance(command, BreakCommand):
+		if isinstance(command, BreakCommand) and not isinstance(command, PairBreakCommand):
 			continue
 		if isinstance(command, str) and regex is not None:
 			command = regex.sub("", command)

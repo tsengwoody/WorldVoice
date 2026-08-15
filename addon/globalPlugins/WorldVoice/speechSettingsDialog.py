@@ -123,8 +123,9 @@ class SpeechPipelinePanel(SettingsPanel):
 		number_mode_label = [
 			_("value"),
 			_("number"),
+			_("pair"),
 		]
-		self.number_mode_value = ["value", "number"]
+		self.number_mode_value = ["value", "number", "pair"]
 
 		self._number_mode_choice = settingsSizerHelper.addLabeledControl(
 			_("Number mode:"),
@@ -144,6 +145,10 @@ class SpeechPipelinePanel(SettingsPanel):
 		self._number_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("number wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onNumberWaitFactorSliderScroll, self._number_wait_factor_slider)
 		self._number_wait_factor_slider.SetValue(pipeline_settings.number_wait_factor)
+
+		self._pair_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("pair wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
+		self.Bind(wx.EVT_SLIDER, self.onPairWaitFactorSliderScroll, self._pair_wait_factor_slider)
+		self._pair_wait_factor_slider.SetValue(pipeline_settings.pair_wait_factor)
 
 		self._item_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("item wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onItemWaitFactorSliderScroll, self._item_wait_factor_slider)
@@ -187,6 +192,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			punctuation_wait_factor=self._punctuation_wait_factor_slider.GetValue(),
 			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
 			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
+			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
 		)
 		apply_global_pipeline_scope(settings, getSynth().name)
 
@@ -197,6 +203,9 @@ class SpeechPipelinePanel(SettingsPanel):
 		pass
 
 	def onNumberWaitFactorSliderScroll(self, event):
+		pass
+
+	def onPairWaitFactorSliderScroll(self, event):
 		pass
 
 	def onItemWaitFactorSliderScroll(self, event):
@@ -221,6 +230,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		self._number_mode_choice.Enable()
 		self._global_wait_factor_slider.Enable()
 		self._number_wait_factor_slider.Enable()
+		self._pair_wait_factor_slider.Enable()
 		self._item_wait_factor_slider.Enable()
 		self._sayall_wait_factor_slider.Enable()
 		self._chinesespace_wait_factor_slider.Enable()
@@ -234,6 +244,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		self._number_mode_choice.Disable()
 		self._global_wait_factor_slider.Disable()
 		self._number_wait_factor_slider.Disable()
+		self._pair_wait_factor_slider.Disable()
 		self._item_wait_factor_slider.Disable()
 		self._sayall_wait_factor_slider.Disable()
 		self._chinesespace_wait_factor_slider.Disable()
@@ -254,6 +265,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			punctuation_wait_factor=self._punctuation_wait_factor_slider.GetValue(),
 			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
 			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
+			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
 		)
 		save_pipeline_settings(settings)
 

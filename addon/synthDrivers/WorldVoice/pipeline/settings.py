@@ -17,6 +17,7 @@ DEFAULT_PIPELINE_SETTINGS = {
 	"punctuation_wait_factor": 0,
 	"punctuation_pause_enabled": True,
 	"punctuation_pause_characters": "،؛,.;:!؟?…",
+	"pair_wait_factor": 0,
 }
 
 PIPELINE_CONFIG_KEYS = (
@@ -31,6 +32,7 @@ PIPELINE_CONFIG_KEYS = (
 	"punctuation_wait_factor",
 	"punctuation_pause_enabled",
 	"punctuation_pause_characters",
+	"pair_wait_factor",
 )
 
 # Maximum pause (in milliseconds) injected after a punctuation mark.
@@ -43,6 +45,11 @@ MAX_PUNCTUATION_WAIT_MS = 500
 # global wait factor. This keeps the punctuation pause audible even when the
 # global wait factor is 0.
 PUNCTUATION_WAIT_UNIT_MS = 5
+
+# Pair pauses use the same unit scaling as punctuation pauses so that both
+# pause families behave consistently and remain audible regardless of the
+# global wait factor.
+PAIR_WAIT_UNIT_MS = 5
 
 _last_scope_application: tuple[str, str] | None = None
 
@@ -60,6 +67,7 @@ class PipelineSettings:
 	punctuation_wait_factor: int
 	punctuation_pause_enabled: bool
 	punctuation_pause_characters: str
+	pair_wait_factor: int
 
 	@property
 	def global_factor_units(self) -> int:
@@ -80,6 +88,12 @@ class PipelineSettings:
 	def scaled_punctuation_wait(self) -> int:
 		return min(
 			self.punctuation_wait_factor * PUNCTUATION_WAIT_UNIT_MS,
+			MAX_PUNCTUATION_WAIT_MS,
+		)
+
+	def scaled_pair_wait(self) -> int:
+		return min(
+			self.pair_wait_factor * PAIR_WAIT_UNIT_MS,
 			MAX_PUNCTUATION_WAIT_MS,
 		)
 
@@ -115,6 +129,7 @@ def load_pipeline_settings(conf: Any = config.conf) -> PipelineSettings:
 		punctuation_wait_factor=int(_get_value(pipeline, "punctuation_wait_factor")),
 		punctuation_pause_enabled=bool(_get_value(pipeline, "punctuation_pause_enabled")),
 		punctuation_pause_characters=punctuation_pause_characters,
+		pair_wait_factor=int(_get_value(pipeline, "pair_wait_factor")),
 	)
 
 
@@ -149,6 +164,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 			settings.chinesespace_wait_factor = 0
 			settings.punctuation_wait_factor = 0
 			settings.punctuation_pause_enabled = False
+			settings.pair_wait_factor = 0
 			return settings
 		settings.ignore_comma_between_number = bool(
 			settings.global_factor_units * settings.ignore_comma_between_number
@@ -196,6 +212,14 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 			)
 		),
 		punctuation_pause_characters=str(settings.punctuation_pause_characters),
+		pair_wait_factor=int(
+			_runtime_value(
+				synth,
+				"pairwaitfactor",
+				"_pairwaitfactor",
+				settings.pair_wait_factor,
+			)
+		),
 	)
 
 
@@ -209,6 +233,7 @@ def apply_pipeline_settings_to_synth(synth: Any, settings: PipelineSettings) -> 
 	synth.chinesespacewaitfactor = settings.chinesespace_wait_factor
 	synth.punctuationwaitfactor = settings.punctuation_wait_factor
 	synth.punctuationpauseenabled = settings.punctuation_pause_enabled
+	synth.pairwaitfactor = settings.pair_wait_factor
 
 
 def apply_pipeline_settings_to_speech_config(settings: PipelineSettings, conf: Any = config.conf) -> None:
@@ -222,6 +247,7 @@ def apply_pipeline_settings_to_speech_config(settings: PipelineSettings, conf: A
 	speech_settings["chinesespacewaitfactor"] = settings.chinesespace_wait_factor
 	speech_settings["punctuationwaitfactor"] = settings.punctuation_wait_factor
 	speech_settings["punctuationpauseenabled"] = settings.punctuation_pause_enabled
+	speech_settings["pairwaitfactor"] = settings.pair_wait_factor
 
 
 def _load_scope_functions():
