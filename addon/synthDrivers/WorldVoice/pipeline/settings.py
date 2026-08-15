@@ -15,6 +15,7 @@ DEFAULT_PIPELINE_SETTINGS = {
 	"sayall_wait_factor": 10,
 	"chinesespace_wait_factor": 10,
 	"punctuation_wait_factor": 0,
+	"punctuation_pause_enabled": True,
 	"punctuation_pause_characters": "،؛,.;:!؟?…",
 }
 
@@ -28,6 +29,7 @@ PIPELINE_CONFIG_KEYS = (
 	"sayall_wait_factor",
 	"chinesespace_wait_factor",
 	"punctuation_wait_factor",
+	"punctuation_pause_enabled",
 	"punctuation_pause_characters",
 )
 
@@ -56,6 +58,7 @@ class PipelineSettings:
 	sayall_wait_factor: int
 	chinesespace_wait_factor: int
 	punctuation_wait_factor: int
+	punctuation_pause_enabled: bool
 	punctuation_pause_characters: str
 
 	@property
@@ -110,6 +113,7 @@ def load_pipeline_settings(conf: Any = config.conf) -> PipelineSettings:
 		sayall_wait_factor=int(_get_value(pipeline, "sayall_wait_factor")),
 		chinesespace_wait_factor=int(_get_value(pipeline, "chinesespace_wait_factor")),
 		punctuation_wait_factor=int(_get_value(pipeline, "punctuation_wait_factor")),
+		punctuation_pause_enabled=bool(_get_value(pipeline, "punctuation_pause_enabled")),
 		punctuation_pause_characters=punctuation_pause_characters,
 	)
 
@@ -144,6 +148,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 			settings.sayall_wait_factor = 0
 			settings.chinesespace_wait_factor = 0
 			settings.punctuation_wait_factor = 0
+			settings.punctuation_pause_enabled = False
 			return settings
 		settings.ignore_comma_between_number = bool(
 			settings.global_factor_units * settings.ignore_comma_between_number
@@ -182,6 +187,14 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 				settings.punctuation_wait_factor,
 			)
 		),
+		punctuation_pause_enabled=bool(
+			_runtime_value(
+				synth,
+				"punctuationpauseenabled",
+				"_punctuationpauseenabled",
+				settings.punctuation_pause_enabled,
+			)
+		),
 		punctuation_pause_characters=str(settings.punctuation_pause_characters),
 	)
 
@@ -195,6 +208,7 @@ def apply_pipeline_settings_to_synth(synth: Any, settings: PipelineSettings) -> 
 	synth.sayallwaitfactor = settings.sayall_wait_factor
 	synth.chinesespacewaitfactor = settings.chinesespace_wait_factor
 	synth.punctuationwaitfactor = settings.punctuation_wait_factor
+	synth.punctuationpauseenabled = settings.punctuation_pause_enabled
 
 
 def apply_pipeline_settings_to_speech_config(settings: PipelineSettings, conf: Any = config.conf) -> None:
@@ -207,6 +221,7 @@ def apply_pipeline_settings_to_speech_config(settings: PipelineSettings, conf: A
 	speech_settings["sayallwaitfactor"] = settings.sayall_wait_factor
 	speech_settings["chinesespacewaitfactor"] = settings.chinesespace_wait_factor
 	speech_settings["punctuationwaitfactor"] = settings.punctuation_wait_factor
+	speech_settings["punctuationpauseenabled"] = settings.punctuation_pause_enabled
 
 
 def _load_scope_functions():

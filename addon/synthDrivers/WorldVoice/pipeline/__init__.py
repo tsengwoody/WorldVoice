@@ -134,6 +134,11 @@ def get_punctuation_pause_chars():
 	return settings.punctuation_pause_characters.strip()
 
 
+def get_punctuation_pause_enabled():
+	settings = get_effective_pipeline_settings()
+	return settings.punctuation_pause_enabled
+
+
 # @with_order_log("speech_view")
 @with_speech_sequence_log("speech_viewer")
 def speech_viewer(speechSequence):
@@ -553,6 +558,10 @@ def inject_punctuation_pause(
 	* An existing BreakCommand between two text items suppresses this pause,
 	  so the punctuation pause and item_wait_factor never stack.
 	"""
+	if not get_punctuation_pause_enabled():
+		yield from speechSequence
+		return
+
 	wait_factor = get_punctuation_wait_factor()
 	if wait_factor <= 0:
 		yield from speechSequence
@@ -624,6 +633,10 @@ def remove_silence(
 	* When the factor is greater than 0 the sequence passes through
 	  unchanged, so the pauses requested by the other settings are preserved.
 	"""
+	if not get_punctuation_pause_enabled():
+		yield from speechSequence
+		return
+
 	if get_punctuation_wait_factor() > 0:
 		yield from speechSequence
 		return

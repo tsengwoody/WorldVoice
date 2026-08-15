@@ -73,6 +73,7 @@ config.conf.spec["WorldVoice"] = {
 		"sayall_wait_factor": "integer(default=10,min=0,max=100)",
 		"chinesespace_wait_factor": "integer(default=10,min=0,max=100)",
 		"punctuation_wait_factor": "integer(default=0,min=0,max=100)",
+		"punctuation_pause_enabled": "boolean(default=true)",
 		"punctuation_pause_characters": "string(default=\"،؛,.;:!؟?…\")",
 	},
 	"role": {},
@@ -211,6 +212,15 @@ class SynthDriver(SynthDriver):
 				defaultVal=0,
 				minStep=1,
 			),
+			BooleanDriverSetting(
+				"punctuationpauseenabled",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Enable punctuation pause control"),
+				availableInSettingsRing=True,
+				defaultVal=True,
+				# Translators: Label for a setting in synth settings ring.
+				displayName=_("Punctuation pauses"),
+			),
 			NumericDriverSetting(
 				"punctuationwaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
@@ -298,6 +308,23 @@ class SynthDriver(SynthDriver):
 				"chinesespacewaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
 				_("Chinese space wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			BooleanDriverSetting(
+				"punctuationpauseenabled",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Enable punctuation pause control"),
+				availableInSettingsRing=True,
+				defaultVal=True,
+				# Translators: Label for a setting in synth settings ring.
+				displayName=_("Punctuation pauses"),
+			),
+			NumericDriverSetting(
+				"punctuationwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Punctuation wait factor"),
 				availableInSettingsRing=True,
 				defaultVal=0,
 				minStep=1,
@@ -623,6 +650,15 @@ class SynthDriver(SynthDriver):
 	def _set_chinesespacewaitfactor(self, value):
 		self._chinesespacewaitfactor = value
 		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
+
+	def _get_punctuationpauseenabled(self):
+		# Defensive: the attribute may not exist yet when the driver was
+		# upgraded from a version without this setting.
+		return getattr(self, "_punctuationpauseenabled", True)
+
+	def _set_punctuationpauseenabled(self, value):
+		self._punctuationpauseenabled = value
+		config.conf["WorldVoice"]["pipeline"]["punctuation_pause_enabled"] = self.punctuationpauseenabled
 
 	def _get_punctuationwaitfactor(self):
 		# Defensive: the attribute may not exist yet when the driver was
