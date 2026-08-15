@@ -24,6 +24,7 @@ from .engine import READY_ENGINE_CLASS
 from .pipeline import (
 	ignore_comma_between_number,
 	item_wait_factor,
+	inject_punctuation_pause,
 	inject_langchange_reorder,
 	deduplicate_language_command,
 	lang_cmd_to_voice,
@@ -71,6 +72,8 @@ config.conf.spec["WorldVoice"] = {
 		"item_wait_factor": "integer(default=10,min=0,max=100)",
 		"sayall_wait_factor": "integer(default=10,min=0,max=100)",
 		"chinesespace_wait_factor": "integer(default=10,min=0,max=100)",
+		"punctuation_wait_factor": "integer(default=0,min=0,max=100)",
+		"punctuation_pause_characters": "string(default=\"،؛,.;:!؟?…\")",
 	},
 	"role": {},
 	"engine": {
@@ -84,6 +87,8 @@ config.conf.spec["WorldVoice"] = {
 		"number_wait_factor": "boolean(default=false)",
 		"item_wait_factor": "boolean(default=false)",
 		"chinesespace_wait_factor": "boolean(default=false)",
+		"punctuation_wait_factor": "boolean(default=false)",
+		"remove_silence": "boolean(default=false)",
 		"speech_viewer": "boolean(default=false)",
 		"apply_speech_dictionaries": "boolean(default=false)",
 	},
@@ -202,6 +207,14 @@ class SynthDriver(SynthDriver):
 				"chinesespacewaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
 				_("Chinese space wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
+				"punctuationwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Punctuation wait factor"),
 				availableInSettingsRing=True,
 				defaultVal=0,
 				minStep=1,
@@ -610,6 +623,20 @@ class SynthDriver(SynthDriver):
 	def _set_chinesespacewaitfactor(self, value):
 		self._chinesespacewaitfactor = value
 		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
+
+	def _get_punctuationwaitfactor(self):
+		# Defensive: the attribute may not exist yet when the driver was
+		# upgraded from a version without this setting.
+		return getattr(self, "_punctuationwaitfactor", 0)
+
+	def _set_punctuationwaitfactor(self, value):
+		self._punctuationwaitfactor = value
+		if value > 0:
+			filter_speechSequence.register(inject_punctuation_pause)
+			order_move_to_start_register()
+		else:
+			filter_speechSequence.unregister(inject_punctuation_pause)
+		config.conf["WorldVoice"]["pipeline"]["punctuation_wait_factor"] = self.punctuationwaitfactor
 
 	def patchedLengthSpeechSequence(self, speechSequence):
 		result = []

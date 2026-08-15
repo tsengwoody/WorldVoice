@@ -14,6 +14,8 @@ DEFAULT_PIPELINE_SETTINGS = {
 	"item_wait_factor": 10,
 	"sayall_wait_factor": 10,
 	"chinesespace_wait_factor": 10,
+	"punctuation_wait_factor": 0,
+	"punctuation_pause_characters": "،؛,.;:!؟?…",
 }
 
 PIPELINE_CONFIG_KEYS = (
@@ -25,7 +27,20 @@ PIPELINE_CONFIG_KEYS = (
 	"item_wait_factor",
 	"sayall_wait_factor",
 	"chinesespace_wait_factor",
+	"punctuation_wait_factor",
+	"punctuation_pause_characters",
 )
+
+# Maximum pause (in milliseconds) injected after a punctuation mark.
+# The pause is intentionally capped so the voice never falls fully silent
+# at punctuation, no matter how high the configured factor is.
+MAX_PUNCTUATION_WAIT_MS = 500
+
+# Milliseconds of pause per unit of punctuation_wait_factor (0..100),
+# so the full slider range maps to 0..500ms on its own, independent of the
+# global wait factor. This keeps the punctuation pause audible even when the
+# global wait factor is 0.
+PUNCTUATION_WAIT_UNIT_MS = 5
 
 _last_scope_application: tuple[str, str] | None = None
 
@@ -40,6 +55,8 @@ class PipelineSettings:
 	item_wait_factor: int
 	sayall_wait_factor: int
 	chinesespace_wait_factor: int
+	punctuation_wait_factor: int
+	punctuation_pause_characters: str
 
 	@property
 	def global_factor_units(self) -> int:
@@ -56,6 +73,12 @@ class PipelineSettings:
 
 	def scaled_chinesespace_wait(self) -> int:
 		return self.global_factor_units * self.chinesespace_wait_factor
+
+	def scaled_punctuation_wait(self) -> int:
+		return min(
+			self.punctuation_wait_factor * PUNCTUATION_WAIT_UNIT_MS,
+			MAX_PUNCTUATION_WAIT_MS,
+		)
 
 
 def _pipeline_section(conf: Any) -> Any:
@@ -74,6 +97,9 @@ def _get_value(section: Any, key: str) -> Any:
 
 def load_pipeline_settings(conf: Any = config.conf) -> PipelineSettings:
 	pipeline = _pipeline_section(conf)
+	punctuation_pause_characters = str(
+		_get_value(pipeline, "punctuation_pause_characters")
+	).strip()
 	return PipelineSettings(
 		scope=str(_get_value(pipeline, "scope")),
 		ignore_comma_between_number=bool(_get_value(pipeline, "ignore_comma_between_number")),
@@ -83,6 +109,8 @@ def load_pipeline_settings(conf: Any = config.conf) -> PipelineSettings:
 		item_wait_factor=int(_get_value(pipeline, "item_wait_factor")),
 		sayall_wait_factor=int(_get_value(pipeline, "sayall_wait_factor")),
 		chinesespace_wait_factor=int(_get_value(pipeline, "chinesespace_wait_factor")),
+		punctuation_wait_factor=int(_get_value(pipeline, "punctuation_wait_factor")),
+		punctuation_pause_characters=punctuation_pause_characters,
 	)
 
 
@@ -115,6 +143,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 			settings.item_wait_factor = 0
 			settings.sayall_wait_factor = 0
 			settings.chinesespace_wait_factor = 0
+			settings.punctuation_wait_factor = 0
 			return settings
 		settings.ignore_comma_between_number = bool(
 			settings.global_factor_units * settings.ignore_comma_between_number
@@ -145,6 +174,15 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 				settings.chinesespace_wait_factor,
 			)
 		),
+		punctuation_wait_factor=int(
+			_runtime_value(
+				synth,
+				"punctuationwaitfactor",
+				"_punctuationwaitfactor",
+				settings.punctuation_wait_factor,
+			)
+		),
+		punctuation_pause_characters=str(settings.punctuation_pause_characters),
 	)
 
 
@@ -156,6 +194,7 @@ def apply_pipeline_settings_to_synth(synth: Any, settings: PipelineSettings) -> 
 	synth.itemwaitfactor = settings.item_wait_factor
 	synth.sayallwaitfactor = settings.sayall_wait_factor
 	synth.chinesespacewaitfactor = settings.chinesespace_wait_factor
+	synth.punctuationwaitfactor = settings.punctuation_wait_factor
 
 
 def apply_pipeline_settings_to_speech_config(settings: PipelineSettings, conf: Any = config.conf) -> None:
@@ -167,6 +206,7 @@ def apply_pipeline_settings_to_speech_config(settings: PipelineSettings, conf: A
 	speech_settings["itemwaitfactor"] = settings.item_wait_factor
 	speech_settings["sayallwaitfactor"] = settings.sayall_wait_factor
 	speech_settings["chinesespacewaitfactor"] = settings.chinesespace_wait_factor
+	speech_settings["punctuationwaitfactor"] = settings.punctuation_wait_factor
 
 
 def _load_scope_functions():

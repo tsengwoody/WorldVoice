@@ -48,8 +48,8 @@ def with_speech_sequence_log(label: str):
 	def decorator(func):
 		@wraps(func)
 		def wrapper(speechSequence):
-			_id = uuid.uuid4().hex
 			if (config.conf["general"]["loggingLevel"] == "DEBUG" or config.conf["WorldVoice"]["log"]["enable"]) and config.conf["WorldVoice"]["log"][label]:
+				_id = uuid.uuid4().hex
 				speechSequence = list(speechSequence)
 				if config.conf["general"]["loggingLevel"] == "DEBUG":
 					log.debug(f"speech sequence before {label} pipeline: {speechSequence}")
@@ -122,6 +122,16 @@ def get_number_wait_factor():
 def get_chinesespace_wait_factor():
 	settings = get_effective_pipeline_settings()
 	return settings.scaled_chinesespace_wait()
+
+
+def get_punctuation_wait_factor():
+	settings = get_effective_pipeline_settings()
+	return settings.scaled_punctuation_wait()
+
+
+def get_punctuation_pause_chars():
+	settings = get_effective_pipeline_settings()
+	return settings.punctuation_pause_characters.strip()
 
 
 # @with_order_log("speech_view")
@@ -351,6 +361,13 @@ def inject_number_language(
 ) -> Iterator[SpeechCmd]:
 	synth = getSynth()
 	if hasattr(synth, "_voiceManager"):
+		if synth._numlan == "default":
+			# The number-language wrapper commands are always dropped by
+			# deduplicate_language_command in this case, so the pass-through
+			# below is behavior-identical and avoids scanning every string
+			# for numbers.
+			yield from speechSequence
+			return
 		speechSequence = _insert_WVLangChangeCommand_between_number(speechSequence)
 		yield from speechSequence
 		return
@@ -465,6 +482,166 @@ def inject_chinese_space_pause(
 			yield item[pos:]
 
 
+_PUNCTUATION_RE_CACHE: dict[str, re.Pattern] = {}
+_PUNCTUATION_REMOVAL_RE_CACHE: dict[str, re.Pattern] = {}
+
+
+def _get_punctuation_regex(chars: str) -> re.Pattern:
+	regex = _PUNCTUATION_RE_CACHE.get(chars)
+	if regex is None:
+		# A punctuation run (one or more configured marks in a row) is only
+		# treated as a pause point when it is not directly surrounded by
+		# digits, so "12,500" and "3.5" are left untouched.
+		regex = re.compile(rf"(?<![0-9])[{re.escape(chars)}]+(?!\d)")
+		_PUNCTUATION_RE_CACHE[chars] = regex
+	return regex
+
+
+def _get_punctuation_removal_regex(chars: str) -> re.Pattern:
+	regex = _PUNCTUATION_REMOVAL_RE_CACHE.get(chars)
+	if regex is None:
+		# Unlike the pause-detection regex above, the lookbehind guard is
+		# omitted on purpose: a mark directly preceded by a digit may still be
+		# a sentence ending (e.g. the trailing period in "I have 5.") and must
+		# be removed. The lookahead alone protects real decimals such as
+		# "3.5" and thousands separators such as "12,500".
+		regex = re.compile(rf"[{re.escape(chars)}]+(?!\d)")
+		_PUNCTUATION_REMOVAL_RE_CACHE[chars] = regex
+	return regex
+
+
+def _split_punctuation_segments(
+		text: str,
+		regex: re.Pattern,
+) -> Iterator[tuple[str, str]]:
+	"""
+	Split *text* into ("text"|"punct", value) segments.
+
+	Consecutive punctuation marks form a single "punct" segment, and any
+	punctuation run surrounded by digits (e.g. the comma in "12,500" or the
+	dot in "3.5") is part of a "text" segment.
+	"""
+	pos = 0
+	for match in regex.finditer(text):
+		if match.start() > pos:
+			yield ("text", text[pos:match.start()])
+		yield ("punct", match.group())
+		pos = match.end()
+	if pos < len(text):
+		yield ("text", text[pos:])
+
+
+# @with_order_log("punctuation_wait_factor")
+@with_speech_sequence_log("punctuation_wait_factor")
+def inject_punctuation_pause(
+		speechSequence: Iterable[SpeechCmd],
+) -> Iterator[SpeechCmd]:
+	"""
+	Insert a short BreakCommand after a punctuation mark so the TTS does not
+	run the text following the punctuation straight into it.
+
+	* Works both between consecutive text items and *inside* a single text
+	  item, because a screen reader usually sends a whole sentence as one
+	  command.
+	* Consecutive punctuation marks count as a single pause point, and
+	  numeric punctuation such as the comma in "12,500" is skipped.
+	* The pause is only inserted when real text follows, and never as the
+	  last command of a sequence, so the voice cannot fall silent at the end.
+	* The pause length is capped (see PipelineSettings.scaled_punctuation_wait),
+	  so the voice never stops for a long silence at punctuation no matter how
+	  high the configured factor is.
+	* An existing BreakCommand between two text items suppresses this pause,
+	  so the punctuation pause and item_wait_factor never stack.
+	"""
+	wait_factor = get_punctuation_wait_factor()
+	if wait_factor <= 0:
+		yield from speechSequence
+		return
+
+	chars = get_punctuation_pause_chars()
+	if not chars:
+		yield from speechSequence
+		return
+
+	pause_cmd = BreakCommand(wait_factor)
+	regex = _get_punctuation_regex(chars)
+
+	def is_non_blank_text(command: SpeechCmd) -> bool:
+		return isinstance(command, str) and bool(command.strip())
+
+	def emit(item: SpeechCmd, text_follows: bool) -> Iterator[SpeechCmd]:
+		if not isinstance(item, str):
+			yield item
+			return
+		parts = list(_split_punctuation_segments(item, regex))
+		for index, (kind, value) in enumerate(parts):
+			if kind == "text":
+				yield value
+				continue
+			yield value
+			if any(
+				pkind == "text" and pvalue.strip()
+				for pkind, pvalue in parts[index + 1:]
+			):
+				yield pause_cmd
+		# The item ends with a punctuation mark (its last significant
+		# character is a configured one); pause before the next text item.
+		stripped = item.rstrip()
+		if stripped and stripped[-1] in chars and text_follows:
+			yield pause_cmd
+
+	it = iter(speechSequence)
+	try:
+		previous = next(it)
+	except StopIteration:
+		return
+
+	for current in it:
+		yield from emit(previous, is_non_blank_text(current))
+		previous = current
+
+	yield from emit(previous, False)
+
+
+# @with_order_log("remove_silence")
+@with_speech_sequence_log("remove_silence")
+def remove_silence(
+		speechSequence: Iterable[SpeechCmd],
+) -> Iterator[SpeechCmd]:
+	"""
+	When the punctuation wait factor is 0, drop every BreakCommand from the
+	sequence so the voice is never silent between sentences - not even for a
+	fraction of a second.
+
+	* The pause is removed no matter which filter produced it (item wait,
+	  number wait, chinese space) or whether the caller inserted it, because
+	  this filter runs last in the pipeline.
+	* The configured punctuation-pause characters are stripped from the text
+	  as well, because the TTS engine itself pauses at marks such as "." or
+	  "؟" in the string it receives. Without stripping them the engine would
+	  still be silent even though no BreakCommand is left.
+	* A mark directly followed by a digit is preserved ("3.5", "12,500").
+	* When the factor is greater than 0 the sequence passes through
+	  unchanged, so the pauses requested by the other settings are preserved.
+	"""
+	if get_punctuation_wait_factor() > 0:
+		yield from speechSequence
+		return
+
+	chars = get_punctuation_pause_chars()
+	regex = _get_punctuation_removal_regex(chars) if chars else None
+
+	for command in speechSequence:
+		if isinstance(command, BreakCommand):
+			continue
+		if isinstance(command, str) and regex is not None:
+			command = regex.sub("", command)
+			if command:
+				yield command
+			continue
+		yield command
+
+
 def deduplicate_language_command(speechSequence):
 	"""
 	Stream *speech_sequence* and emit only the language-change commands
@@ -570,7 +747,9 @@ def inject_langchange_reorder(
 def order_move_to_start_register():
 	# stack: first in last out
 	filter_speechSequence.moveToEnd(speech_viewer, False)
+	filter_speechSequence.moveToEnd(remove_silence, False)
 	filter_speechSequence.moveToEnd(number_wait_factor, False)
+	filter_speechSequence.moveToEnd(inject_punctuation_pause, False)
 	filter_speechSequence.moveToEnd(item_wait_factor, False)
 	filter_speechSequence.moveToEnd(inject_chinese_space_pause, False)
 	filter_speechSequence.moveToEnd(inject_number_mode, False)
@@ -587,7 +766,9 @@ def order_move_to_end_register():
 	filter_speechSequence.moveToEnd(inject_number_mode, True)
 	filter_speechSequence.moveToEnd(inject_chinese_space_pause, True)
 	filter_speechSequence.moveToEnd(item_wait_factor, True)
+	filter_speechSequence.moveToEnd(inject_punctuation_pause, True)
 	filter_speechSequence.moveToEnd(number_wait_factor, True)
+	filter_speechSequence.moveToEnd(remove_silence, True)
 	filter_speechSequence.moveToEnd(speech_viewer, True)
 
 
@@ -600,6 +781,7 @@ def static_register():
 	filter_speechSequence.register(inject_number_language)
 	filter_speechSequence.register(inject_number_mode)
 	filter_speechSequence.register(number_wait_factor)
+	filter_speechSequence.register(remove_silence)
 	filter_speechSequence.register(speech_viewer)
 
 
@@ -608,6 +790,7 @@ def dynamic_register():
 
 	filter_speechSequence.register(ignore_comma_between_number)
 	filter_speechSequence.register(item_wait_factor)
+	filter_speechSequence.register(inject_punctuation_pause)
 
 
 def unregister():
@@ -619,6 +802,8 @@ def unregister():
 	filter_speechSequence.unregister(inject_number_mode)
 	filter_speechSequence.unregister(inject_number_language)
 	filter_speechSequence.unregister(item_wait_factor)
+	filter_speechSequence.unregister(inject_punctuation_pause)
 	filter_speechSequence.unregister(number_wait_factor)
+	filter_speechSequence.unregister(remove_silence)
 	filter_speechSequence.unregister(speech_viewer)
 	speech_dictionary.uninstall()

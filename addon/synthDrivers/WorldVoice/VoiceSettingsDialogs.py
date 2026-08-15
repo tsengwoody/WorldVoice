@@ -1,13 +1,41 @@
+import addonHandler
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
+import config
 import gui
+from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
 from logHandler import log
+import wx
+
+from .pipeline.settings import DEFAULT_PIPELINE_SETTINGS
+
+
+addonHandler.initTranslation()
 
 
 class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 	def makeSettings(self, settingsSizer):
 		self.createDriverSettings()
 		super().makeSettings(settingsSizer)
+		self._addPunctuationPauseCharactersControl(settingsSizer)
+
+	def _addPunctuationPauseCharactersControl(self, settingsSizer):
+		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+		self.punctuationPauseCharactersEdit = settingsSizerHelper.addLabeledControl(
+			_("Punctuation pause characters:"),
+			wx.TextCtrl,
+		)
+		self.punctuationPauseCharactersEdit.SetValue(
+			config.conf["WorldVoice"]["pipeline"].get(
+				"punctuation_pause_characters",
+				DEFAULT_PIPELINE_SETTINGS["punctuation_pause_characters"],
+			)
+		)
+
+	def onSave(self):
+		value = self.punctuationPauseCharactersEdit.GetValue().strip()
+		config.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] = value
+		super().onSave()
 
 	def createDriverSettings(self, changedSetting=None):
 		"""
