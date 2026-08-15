@@ -1,7 +1,6 @@
 from collections import OrderedDict
 import importlib
 import os
-import re
 import sys
 import time
 from typing import Any
@@ -37,7 +36,6 @@ from .pipeline.settings import (
 	get_effective_pipeline_settings,
 	save_pipeline_settings,
 )
-from ._speechcommand import SplitCommand
 from .taskManager import TaskManager
 from .driver import Voice
 from .voiceManager import VoiceManager
@@ -700,31 +698,6 @@ class SynthDriver(SynthDriver):
 		else:
 			filter_speechSequence.unregister(inject_punctuation_pause)
 		config.conf["WorldVoice"]["pipeline"]["punctuation_wait_factor"] = self.punctuationwaitfactor
-
-	def patchedLengthSpeechSequence(self, speechSequence):
-		result = []
-		for command in speechSequence:
-			if isinstance(command, str):
-				result.extend(self.lengthsplit(command, 100))
-			else:
-				result.append(command)
-		return result
-
-	def lengthsplit(self, string, length):
-		result = []
-		pattern = re.compile(r"[\s]")
-		spaces = pattern.findall(string)
-		others = pattern.split(string)
-		fragment = ""
-		for other, space in zip(others, spaces):
-			fragment += other + space
-			if len(fragment) > length:
-				result.append(fragment)
-				result.append(SplitCommand())
-				fragment = ""
-		fragment += others[-1]
-		result.append(fragment)
-		return result
 
 	def _getLocaleReadableName(self, locale):
 		description = languageHandler.getLanguageDescription(locale)

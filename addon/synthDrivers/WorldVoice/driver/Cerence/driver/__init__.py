@@ -20,6 +20,7 @@ from logHandler import log
 
 from . import ttsapi
 from .ttsapi.veTypes import *
+from synthDrivers.WorldVoice.driver.chunker import split_speech_text_pieces
 
 addonHandler.initTranslation()
 
@@ -396,7 +397,8 @@ class SynthDriver(SynthDriver):
 	def _speak(self, voiceInstance, chunks):
 		text = "".join(chunks)
 		self._isSilence.clear()
-		ProcessText2Speech(voiceInstance, text)()
+		for piece in split_speech_text_pieces(text):
+			ProcessText2Speech(voiceInstance, piece)()
 
 	def cancel(self):
 		self._isSilence.set()
