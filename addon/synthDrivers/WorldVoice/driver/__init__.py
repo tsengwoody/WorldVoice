@@ -155,13 +155,16 @@ class Voice(object):
 		self.taskManager.add_break_task(self, sec)
 
 	def stop(self):
-		self.core.cancel()
+		if self.core:
+			self.core.cancel()
 
 	def pause(self):
-		self.core.pause(True)
+		if self.core:
+			self.core.pause(True)
 
 	def resume(self):
-		self.core.pause(False)
+		if self.core:
+			self.core.pause(False)
 
 	def close(self):
 		pass
