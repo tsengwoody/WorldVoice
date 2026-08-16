@@ -1,7 +1,6 @@
 from collections import OrderedDict
 import importlib
 import os
-import re
 import sys
 import time
 from typing import Any
@@ -24,6 +23,7 @@ from .engine import READY_ENGINE_CLASS
 from .pipeline import (
 	ignore_comma_between_number,
 	item_wait_factor,
+	inject_punctuation_pause,
 	inject_langchange_reorder,
 	deduplicate_language_command,
 	lang_cmd_to_voice,
@@ -36,7 +36,6 @@ from .pipeline.settings import (
 	get_effective_pipeline_settings,
 	save_pipeline_settings,
 )
-from ._speechcommand import SplitCommand
 from .taskManager import TaskManager
 from .driver import Voice
 from .voiceManager import VoiceManager
@@ -68,9 +67,13 @@ config.conf.spec["WorldVoice"] = {
 		"number_mode": "string(default=value)",
 		"global_wait_factor": "integer(default=10,min=0,max=100)",
 		"number_wait_factor": "integer(default=10,min=0,max=100)",
+		"pair_wait_factor": "integer(default=0,min=0,max=100)",
 		"item_wait_factor": "integer(default=10,min=0,max=100)",
 		"sayall_wait_factor": "integer(default=10,min=0,max=100)",
 		"chinesespace_wait_factor": "integer(default=10,min=0,max=100)",
+		"punctuation_wait_factor": "integer(default=0,min=0,max=100)",
+		"punctuation_pause_enabled": "boolean(default=true)",
+		"punctuation_pause_characters": "string(default=\"،؛,.;:!؟?…\")",
 	},
 	"role": {},
 	"engine": {
@@ -84,6 +87,8 @@ config.conf.spec["WorldVoice"] = {
 		"number_wait_factor": "boolean(default=false)",
 		"item_wait_factor": "boolean(default=false)",
 		"chinesespace_wait_factor": "boolean(default=false)",
+		"punctuation_wait_factor": "boolean(default=false)",
+		"remove_silence": "boolean(default=false)",
 		"speech_viewer": "boolean(default=false)",
 		"apply_speech_dictionaries": "boolean(default=false)",
 	},
@@ -183,6 +188,14 @@ class SynthDriver(SynthDriver):
 				minStep=1,
 			),
 			NumericDriverSetting(
+				"pairwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Pair wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
 				"itemwaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
 				_("item wait factor"),
@@ -202,6 +215,23 @@ class SynthDriver(SynthDriver):
 				"chinesespacewaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
 				_("Chinese space wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			BooleanDriverSetting(
+				"punctuationpauseenabled",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Enable punctuation pause control"),
+				availableInSettingsRing=True,
+				defaultVal=True,
+				# Translators: Label for a setting in synth settings ring.
+				displayName=_("Punctuation pauses"),
+			),
+			NumericDriverSetting(
+				"punctuationwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Punctuation wait factor"),
 				availableInSettingsRing=True,
 				defaultVal=0,
 				minStep=1,
@@ -266,6 +296,14 @@ class SynthDriver(SynthDriver):
 				minStep=1,
 			),
 			NumericDriverSetting(
+				"pairwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Pair wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			NumericDriverSetting(
 				"itemwaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
 				_("item wait factor"),
@@ -285,6 +323,23 @@ class SynthDriver(SynthDriver):
 				"chinesespacewaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
 				_("Chinese space wait factor"),
+				availableInSettingsRing=True,
+				defaultVal=0,
+				minStep=1,
+			),
+			BooleanDriverSetting(
+				"punctuationpauseenabled",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Enable punctuation pause control"),
+				availableInSettingsRing=True,
+				defaultVal=True,
+				# Translators: Label for a setting in synth settings ring.
+				displayName=_("Punctuation pauses"),
+			),
+			NumericDriverSetting(
+				"punctuationwaitfactor",
+				# Translators: Label for a setting in voice settings dialog.
+				_("Punctuation wait factor"),
 				availableInSettingsRing=True,
 				defaultVal=0,
 				minStep=1,
@@ -561,6 +616,7 @@ class SynthDriver(SynthDriver):
 		return dict({
 			"value": StringParameterInfo("value", _("value")),
 			"number": StringParameterInfo("number", _("number")),
+			"pair": StringParameterInfo("pair", _("pair")),
 		})
 
 	def _get_nummod(self):
@@ -584,6 +640,15 @@ class SynthDriver(SynthDriver):
 	def _set_numberwaitfactor(self, value):
 		self._numberwaitfactor = value
 		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self.numberwaitfactor
+
+	def _get_pairwaitfactor(self):
+		# Defensive: the attribute may not exist yet when the driver was
+		# upgraded from a version without this setting.
+		return getattr(self, "_pairwaitfactor", 0)
+
+	def _set_pairwaitfactor(self, value):
+		self._pairwaitfactor = value
+		config.conf["WorldVoice"]["pipeline"]["pair_wait_factor"] = self.pairwaitfactor
 
 	def _get_itemwaitfactor(self):
 		return self._itemwaitfactor
@@ -611,30 +676,28 @@ class SynthDriver(SynthDriver):
 		self._chinesespacewaitfactor = value
 		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
 
-	def patchedLengthSpeechSequence(self, speechSequence):
-		result = []
-		for command in speechSequence:
-			if isinstance(command, str):
-				result.extend(self.lengthsplit(command, 100))
-			else:
-				result.append(command)
-		return result
+	def _get_punctuationpauseenabled(self):
+		# Defensive: the attribute may not exist yet when the driver was
+		# upgraded from a version without this setting.
+		return getattr(self, "_punctuationpauseenabled", True)
 
-	def lengthsplit(self, string, length):
-		result = []
-		pattern = re.compile(r"[\s]")
-		spaces = pattern.findall(string)
-		others = pattern.split(string)
-		fragment = ""
-		for other, space in zip(others, spaces):
-			fragment += other + space
-			if len(fragment) > length:
-				result.append(fragment)
-				result.append(SplitCommand())
-				fragment = ""
-		fragment += others[-1]
-		result.append(fragment)
-		return result
+	def _set_punctuationpauseenabled(self, value):
+		self._punctuationpauseenabled = value
+		config.conf["WorldVoice"]["pipeline"]["punctuation_pause_enabled"] = self.punctuationpauseenabled
+
+	def _get_punctuationwaitfactor(self):
+		# Defensive: the attribute may not exist yet when the driver was
+		# upgraded from a version without this setting.
+		return getattr(self, "_punctuationwaitfactor", 0)
+
+	def _set_punctuationwaitfactor(self, value):
+		self._punctuationwaitfactor = value
+		if value > 0:
+			filter_speechSequence.register(inject_punctuation_pause)
+			order_move_to_start_register()
+		else:
+			filter_speechSequence.unregister(inject_punctuation_pause)
+		config.conf["WorldVoice"]["pipeline"]["punctuation_wait_factor"] = self.punctuationwaitfactor
 
 	def _getLocaleReadableName(self, locale):
 		description = languageHandler.getLanguageDescription(locale)

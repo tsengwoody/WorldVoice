@@ -123,8 +123,9 @@ class SpeechPipelinePanel(SettingsPanel):
 		number_mode_label = [
 			_("value"),
 			_("number"),
+			_("pair"),
 		]
-		self.number_mode_value = ["value", "number"]
+		self.number_mode_value = ["value", "number", "pair"]
 
 		self._number_mode_choice = settingsSizerHelper.addLabeledControl(
 			_("Number mode:"),
@@ -145,6 +146,10 @@ class SpeechPipelinePanel(SettingsPanel):
 		self.Bind(wx.EVT_SLIDER, self.onNumberWaitFactorSliderScroll, self._number_wait_factor_slider)
 		self._number_wait_factor_slider.SetValue(pipeline_settings.number_wait_factor)
 
+		self._pair_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("pair wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
+		self.Bind(wx.EVT_SLIDER, self.onPairWaitFactorSliderScroll, self._pair_wait_factor_slider)
+		self._pair_wait_factor_slider.SetValue(pipeline_settings.pair_wait_factor)
+
 		self._item_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("item wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onItemWaitFactorSliderScroll, self._item_wait_factor_slider)
 		self._item_wait_factor_slider.SetValue(pipeline_settings.item_wait_factor)
@@ -157,6 +162,22 @@ class SpeechPipelinePanel(SettingsPanel):
 		self.Bind(wx.EVT_SLIDER, self.onChinesespaceWaitFactorSliderScroll, self._chinesespace_wait_factor_slider)
 		self._chinesespace_wait_factor_slider.SetValue(pipeline_settings.chinesespace_wait_factor)
 
+		self._punctuation_pause_enabled_checkbox = wx.CheckBox(
+			self,
+			label=_("Enable punctuation pause control")
+		)
+		settingsSizerHelper.addItem(self._punctuation_pause_enabled_checkbox)
+		self.Bind(wx.EVT_CHECKBOX, self.onPunctuationPauseEnabledChange, self._punctuation_pause_enabled_checkbox)
+		self._punctuation_pause_enabled_checkbox.SetValue(pipeline_settings.punctuation_pause_enabled)
+
+		self._punctuation_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("punctuation wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
+		self.Bind(wx.EVT_SLIDER, self.onPunctuationWaitFactorSliderScroll, self._punctuation_wait_factor_slider)
+		self._punctuation_wait_factor_slider.SetValue(pipeline_settings.punctuation_wait_factor)
+
+		self._punctuation_pause_characters_edit = settingsSizerHelper.addLabeledControl(_("Punctuation pause characters:"), wx.TextCtrl)
+		self._punctuation_pause_characters_edit.SetValue(pipeline_settings.punctuation_pause_characters)
+		self.onPunctuationPauseEnabledChange(None)
+
 	def onScopeSelectionChange(self, event):
 		value = self._scope_value[self._scope_choice.GetCurrentSelection()]
 		settings = PipelineSettings(
@@ -168,6 +189,10 @@ class SpeechPipelinePanel(SettingsPanel):
 			item_wait_factor=self._item_wait_factor_slider.GetValue(),
 			sayall_wait_factor=self._sayall_wait_factor_slider.GetValue(),
 			chinesespace_wait_factor=self._chinesespace_wait_factor_slider.GetValue(),
+			punctuation_wait_factor=self._punctuation_wait_factor_slider.GetValue(),
+			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
+			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
+			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
 		)
 		apply_global_pipeline_scope(settings, getSynth().name)
 
@@ -180,6 +205,9 @@ class SpeechPipelinePanel(SettingsPanel):
 	def onNumberWaitFactorSliderScroll(self, event):
 		pass
 
+	def onPairWaitFactorSliderScroll(self, event):
+		pass
+
 	def onItemWaitFactorSliderScroll(self, event):
 		pass
 
@@ -189,23 +217,40 @@ class SpeechPipelinePanel(SettingsPanel):
 	def onChinesespaceWaitFactorSliderScroll(self, event):
 		pass
 
+	def onPunctuationPauseEnabledChange(self, event):
+		enabled = self._punctuation_pause_enabled_checkbox.GetValue()
+		self._punctuation_wait_factor_slider.Enable(enabled)
+		self._punctuation_pause_characters_edit.Enable(enabled)
+
+	def onPunctuationWaitFactorSliderScroll(self, event):
+		pass
+
 	def sliderEnable(self):
 		self._ignore_comma_between_number_checkbox.Enable()
 		self._number_mode_choice.Enable()
 		self._global_wait_factor_slider.Enable()
 		self._number_wait_factor_slider.Enable()
+		self._pair_wait_factor_slider.Enable()
 		self._item_wait_factor_slider.Enable()
 		self._sayall_wait_factor_slider.Enable()
 		self._chinesespace_wait_factor_slider.Enable()
+		self._punctuation_pause_enabled_checkbox.Enable()
+		if self._punctuation_pause_enabled_checkbox.GetValue():
+			self._punctuation_wait_factor_slider.Enable()
+			self._punctuation_pause_characters_edit.Enable()
 
 	def sliderDisable(self):
 		self._ignore_comma_between_number_checkbox.Disable()
 		self._number_mode_choice.Disable()
 		self._global_wait_factor_slider.Disable()
 		self._number_wait_factor_slider.Disable()
+		self._pair_wait_factor_slider.Disable()
 		self._item_wait_factor_slider.Disable()
 		self._sayall_wait_factor_slider.Disable()
 		self._chinesespace_wait_factor_slider.Disable()
+		self._punctuation_pause_enabled_checkbox.Disable()
+		self._punctuation_wait_factor_slider.Disable()
+		self._punctuation_pause_characters_edit.Disable()
 
 	def onSave(self):
 		settings = PipelineSettings(
@@ -217,6 +262,10 @@ class SpeechPipelinePanel(SettingsPanel):
 			item_wait_factor=self._item_wait_factor_slider.GetValue(),
 			sayall_wait_factor=self._sayall_wait_factor_slider.GetValue(),
 			chinesespace_wait_factor=self._chinesespace_wait_factor_slider.GetValue(),
+			punctuation_wait_factor=self._punctuation_wait_factor_slider.GetValue(),
+			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
+			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
+			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
 		)
 		save_pipeline_settings(settings)
 

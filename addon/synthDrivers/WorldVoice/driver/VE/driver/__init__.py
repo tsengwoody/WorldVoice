@@ -20,6 +20,7 @@ from logHandler import log
 
 from . import ve2
 from .ve2.veTypes import *
+from synthDrivers.WorldVoice.driver.chunker import split_speech_text_pieces, break_repeated_runs
 
 addonHandler.initTranslation()
 
@@ -411,8 +412,10 @@ class SynthDriver(SynthDriver):
 
 	def _speak(self, voiceInstance, chunks):
 		text = "".join(chunks)
+		text = break_repeated_runs(text)
 		self._isSilence.clear()
-		ProcessText2Speech(voiceInstance, text)()
+		for piece in split_speech_text_pieces(text):
+			ProcessText2Speech(voiceInstance, piece)()
 
 	def cancel(self):
 		self._isSilence.set()

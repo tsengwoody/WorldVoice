@@ -1,13 +1,71 @@
+import addonHandler
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
+import config
 import gui
+from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
 from logHandler import log
+import wx
+
+from .pipeline.settings import DEFAULT_PIPELINE_SETTINGS
+
+
+addonHandler.initTranslation()
 
 
 class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 	def makeSettings(self, settingsSizer):
 		self.createDriverSettings()
 		super().makeSettings(settingsSizer)
+		self._addPunctuationPauseCharactersControl(settingsSizer)
+		self._bindPunctuationPauseEnabledToggle()
+
+	def _bindPunctuationPauseEnabledToggle(self):
+		"""
+		Hook the "Enable punctuation pause control" checkbox so the
+		"Punctuation wait factor" slider is hidden while the feature is
+		disabled, mirroring the initial state on dialog open.
+		"""
+		checkbox = getattr(self, "punctuationpauseenabledCheckbox", None)
+		sliderSizer = self.sizerDict.get("punctuationwaitfactor")
+		if checkbox is None or sliderSizer is None:
+			return
+		checkbox.Bind(wx.EVT_CHECKBOX, self._onPunctuationPauseEnabledToggle)
+		self._applyPunctuationWaitFactorVisibility()
+
+	def _onPunctuationPauseEnabledToggle(self, evt):
+		evt.Skip()
+		setattr(self._getSettingsStorage(), "punctuationpauseenabled", evt.IsChecked())
+		self._applyPunctuationWaitFactorVisibility()
+
+	def _applyPunctuationWaitFactorVisibility(self):
+		checkbox = getattr(self, "punctuationpauseenabledCheckbox", None)
+		sliderSizer = self.sizerDict.get("punctuationwaitfactor")
+		if checkbox is None or sliderSizer is None:
+			return
+		if checkbox.GetValue():
+			self.settingsSizer.Show(sliderSizer)
+		else:
+			self.settingsSizer.Hide(sliderSizer)
+		self.settingsSizer.Layout()
+
+	def _addPunctuationPauseCharactersControl(self, settingsSizer):
+		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+		self.punctuationPauseCharactersEdit = settingsSizerHelper.addLabeledControl(
+			_("Punctuation pause characters:"),
+			wx.TextCtrl,
+		)
+		self.punctuationPauseCharactersEdit.SetValue(
+			config.conf["WorldVoice"]["pipeline"].get(
+				"punctuation_pause_characters",
+				DEFAULT_PIPELINE_SETTINGS["punctuation_pause_characters"],
+			)
+		)
+
+	def onSave(self):
+		value = self.punctuationPauseCharactersEdit.GetValue().strip()
+		config.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] = value
+		super().onSave()
 
 	def createDriverSettings(self, changedSetting=None):
 		"""
