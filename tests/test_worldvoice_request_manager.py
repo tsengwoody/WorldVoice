@@ -34,8 +34,14 @@ class Buses:
 		self.outer_indexes = []
 		self.done_seen = threading.Event()
 		self.index_seen = threading.Event()
+		self.before_get_synth = None
 		self.done = EventStub(self._record_done)
 		self.index = EventStub(self._record_index)
+
+	def get_synth(self):
+		if self.before_get_synth:
+			self.before_get_synth()
+		return self.current
 
 	def _record_done(self, synth):
 		if synth is self.owner:
@@ -65,7 +71,7 @@ def task_module(monkeypatch, buses):
 		sys.modules,
 		"synthDriverHandler",
 		types.SimpleNamespace(
-			getSynth=lambda: buses.current,
+			getSynth=buses.get_synth,
 			synthDoneSpeaking=buses.done,
 			synthIndexReached=buses.index,
 		),
@@ -257,6 +263,65 @@ def test_cancelled_request_does_not_emit_done(manager, buses, two_voices):
 	buses.done.notify(synth=voice.core)
 	assert request.tasks[0].future.cancelled() or request.token.is_cancelled()
 	assert buses.outer_done == []
+
+
+def test_cancel_after_completion_acceptance_suppresses_old_done(manager, buses, two_voices):
+	voice, _ = two_voices
+	accepted = threading.Event()
+	release_delivery = threading.Event()
+	request = manager.new_request()
+	manager.append_speech(request, voice, voice.start_async)
+	assert manager.submit_request(request)
+	assert voice.entered.wait(1)
+
+	def block_delivery():
+		accepted.set()
+		assert release_delivery.wait(2)
+
+	buses.before_get_synth = block_delivery
+	try:
+		buses.done.notify(synth=voice.core)
+		assert accepted.wait(1)
+		assert request.done_sent
+		old_epoch = request.epoch
+		manager.cancel([voice])
+		assert manager._epoch == old_epoch + 1
+	finally:
+		release_delivery.set()
+		buses.before_get_synth = None
+	manager._q.join()
+	assert buses.outer_done == []
+
+
+def test_cancel_after_index_acceptance_suppresses_old_index(manager, buses, two_voices):
+	voice, _ = two_voices
+	accepted = threading.Event()
+	release_delivery = threading.Event()
+	request = manager.new_request()
+	manager.append_speech(request, voice, voice.start_async)
+	assert manager.submit_request(request)
+	assert voice.entered.wait(1)
+
+	def block_delivery():
+		accepted.set()
+		assert release_delivery.wait(2)
+
+	buses.before_get_synth = block_delivery
+	index_thread = threading.Thread(target=buses.index.notify, kwargs={"synth": voice.core, "index": 23})
+	index_thread.start()
+	try:
+		assert accepted.wait(1)
+		with manager._state_cond:
+			assert 23 in manager._current_indexes
+		old_epoch = request.epoch
+		manager.cancel([voice])
+		assert manager._epoch == old_epoch + 1
+	finally:
+		release_delivery.set()
+		buses.before_get_synth = None
+		index_thread.join(1)
+	assert not index_thread.is_alive()
+	assert buses.outer_indexes == []
 
 
 @pytest.mark.parametrize("failure_at", ["active", "speak"])

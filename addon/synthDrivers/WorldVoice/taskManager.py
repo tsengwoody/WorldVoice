@@ -91,6 +91,7 @@ class TaskManager:
 		self._q: queue.Queue[_Task | None] = queue.Queue()
 		self._stop = threading.Event()
 		self._state_cond = threading.Condition()
+		self._delivery_lock = threading.RLock()
 		self._epoch = 0
 		self._next_request_id = 1
 		self._requests = {}
@@ -193,15 +194,16 @@ class TaskManager:
 	def cancel(self, voices=()):
 		# Resolve voice properties outside the state lock.
 		voice_cores = [getattr(voice, "core", None) for voice in voices]
-		with self._state_cond:
-			self._epoch += 1
-			for request_id, request in tuple(self._requests.items()):
-				request.token.cancel()
-				if not request.remaining:
-					self._requests.pop(request_id, None)
-			self._wake_current_locked()
-			cores = self._ordered_unique_cores_locked(voice_cores)
-			self._stops_in_flight += 1
+		with self._delivery_lock:
+			with self._state_cond:
+				self._epoch += 1
+				for request_id, request in tuple(self._requests.items()):
+					request.token.cancel()
+					if not request.remaining:
+						self._requests.pop(request_id, None)
+				self._wake_current_locked()
+				cores = self._ordered_unique_cores_locked(voice_cores)
+				self._stops_in_flight += 1
 		try:
 			for core in cores:
 				try:
@@ -252,7 +254,12 @@ class TaskManager:
 				return
 			self._current_indexes.add(index)
 		if getSynth() is self.owner:
-			synthIndexReached.notify(synth=self.owner, index=index)
+			with self._delivery_lock:
+				with self._state_cond:
+					valid = (self._current_task is current and self._current_phase == "awaiting_done"
+						and not self._current_done_event.is_set() and self._valid_locked(current))
+				if valid:
+					synthIndexReached.notify(synth=self.owner, index=index)
 
 	def _valid_locked(self, task):
 		return (not self._stop.is_set() and not task.future.cancelled()
@@ -365,7 +372,11 @@ class TaskManager:
 				self._current_indexes = set()
 				notify_done = self._finish_task_locked(task)
 			if notify_done and getSynth() is self.owner:
-				synthDoneSpeaking.notify(synth=self.owner)
+				with self._delivery_lock:
+					with self._state_cond:
+						valid = task.request.epoch == self._epoch
+					if valid:
+						synthDoneSpeaking.notify(synth=self.owner)
 
 	def _finish_task_locked(self, task):
 		request = task.request
