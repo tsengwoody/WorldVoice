@@ -75,9 +75,8 @@ class _Task:
 	wait_done: bool
 	future: SpeechFuture
 	token: CancellationToken | None = None
-	timeout: float | None = None
 	request: SpeechRequest | None = None
-	kind: str = "legacy"
+	kind: str = "speech"
 	expected_core: object = None
 
 
@@ -103,9 +102,7 @@ class TaskManager:
 		self._current_indexes = set()
 
 		self._thread = threading.Thread(target=self._worker, daemon=True)
-		synthDoneSpeaking.register(self._forward_legacy_done)
 		synthDoneSpeaking.register(self._on_core_done)
-		synthIndexReached.register(self._forward_legacy_index)
 		synthIndexReached.register(self._on_core_index)
 		self._thread.start()
 
@@ -151,33 +148,6 @@ class TaskManager:
 			for task in request.tasks:
 				self._q.put(task)
 			return True
-
-	# Kept until the caller switches to whole-request submission.
-	def _add_legacy_task(self, voiceInstance, fn, wait_done, token=None, timeout=None):
-		request = self.new_request()
-		if token is not None:
-			with self._state_cond:
-				request.token = token
-		fut = SpeechFuture()
-		with self._state_cond:
-			request.has_speech = wait_done
-			request.tasks.append(_Task(
-				voiceInstance, fn, wait_done, fut, request.token, timeout,
-				request=request,
-			))
-		if not self.submit_request(request):
-			fut.cancel()
-		return fut
-
-	def add_task(self, voiceInstance, fn, *, token: CancellationToken | None = None):
-		return self._add_legacy_task(voiceInstance, fn, False, token)
-
-	def add_break_task(self, voiceInstance, seconds: float):
-		token = CancellationToken()
-		return self.add_task(voiceInstance, lambda: token.wait(seconds), token=token)
-
-	def add_speak_task(self, voiceInstance, speak_fn, *, token: CancellationToken | None = None, timeout=None):
-		return self._add_legacy_task(voiceInstance, speak_fn, True, token, timeout)
 
 	def _wake_current_locked(self):
 		if self._current_task and self._current_task.token:
@@ -249,9 +219,7 @@ class TaskManager:
 		self._q.put(None)
 		self._thread.join()
 		for event, handler in (
-			(synthIndexReached, self._forward_legacy_index),
 			(synthIndexReached, self._on_core_index),
-			(synthDoneSpeaking, self._forward_legacy_done),
 			(synthDoneSpeaking, self._on_core_done),
 		):
 			try:
@@ -262,30 +230,6 @@ class TaskManager:
 	# ----------------------------
 	# Worker
 	# ----------------------------
-
-	def _forward_legacy_done(self, synth):
-		with self._state_cond:
-			current = self._current_task
-			if (current is None or self._current_request is not None
-				or current.kind != "legacy" or synth is not current.expected_core
-				or self._current_phase != "awaiting_done"
-				or (self._current_done_event and self._current_done_event.is_set())
-				or not self._valid_locked(current)):
-				return
-			if self._current_done_event:
-				self._current_done_event.set()
-		synthDoneSpeaking.notify(synth=getSynth())
-
-	def _forward_legacy_index(self, synth, index):
-		with self._state_cond:
-			current = self._current_task
-			if (current is None or self._current_request is not None
-				or current.kind != "legacy" or synth is not current.expected_core
-				or self._current_phase != "awaiting_done"
-				or (self._current_done_event and self._current_done_event.is_set())
-				or not self._valid_locked(current)):
-				return
-		synthIndexReached.notify(synth=getSynth(), index=index)
 
 	def _on_core_done(self, synth):
 		with self._state_cond:
@@ -338,7 +282,7 @@ class TaskManager:
 			else:
 				task.expected_core = expected_core
 				self._current_task = task
-				self._current_request = task.request if task.kind != "legacy" else None
+				self._current_request = task.request
 				self._current_phase = "starting"
 				self._current_indexes = set()
 				if task.wait_done:
@@ -430,8 +374,7 @@ class TaskManager:
 		request.remaining -= 1
 		if request.remaining == 0:
 			self._requests.pop(request.request_id, None)
-		if (request.has_speech and (task.kind != "legacy" or request.failed)
-			and not request.done_sent and request.epoch == self._epoch
+		if (request.has_speech and not request.done_sent and request.epoch == self._epoch
 			and (request.failed or (request.remaining == 0 and not request.token.is_cancelled()))):
 			request.done_sent = True
 			return True

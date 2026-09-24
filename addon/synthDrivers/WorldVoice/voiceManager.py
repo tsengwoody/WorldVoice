@@ -258,11 +258,14 @@ class VoiceManager(object):
 			instance.loadParameter()
 
 	def cancel(self):
-		self._defaultVoiceInstance.stop()
 		if self.taskManager:
-			self.taskManager.cancel()
-			for voiceName, instance in self._instanceCache.items():
-				instance.stop()
+			voices = []
+			seen = set()
+			for voice in (self._defaultVoiceInstance, *self._instanceCache.values()):
+				if id(voice) not in seen:
+					seen.add(id(voice))
+					voices.append(voice)
+			self.taskManager.cancel(voices)
 
 	def _setVoiceDatas(self):
 		self.table: List[VoiceMeta] = []

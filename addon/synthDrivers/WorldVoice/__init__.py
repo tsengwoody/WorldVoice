@@ -14,7 +14,7 @@ import gui
 import languageHandler
 from logHandler import log as nvdaLog
 import speech
-from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, BreakCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
+from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
@@ -36,7 +36,7 @@ from .pipeline.settings import (
 	save_pipeline_settings,
 )
 from .taskManager import TaskManager
-from .driver import Voice
+from .requestBuilder import queue_speech_sequence
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
@@ -378,7 +378,7 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: voice settings panel patch %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
-		self.taskManager = TaskManager()
+		self.taskManager = TaskManager(self)
 		nvdaLog.debug("WorldVoice init timing: TaskManager %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
@@ -457,31 +457,12 @@ class SynthDriver(SynthDriver):
 			default_instance=self._voiceManager.defaultVoiceInstance,
 		)
 
-		chunks = []
-		hasText = False
-		charMode = False
-
-		voiceInstance = self._voiceManager.defaultVoiceInstance
-
-		for command in speechSequence:
-			if voiceInstance.engine in READY_ENGINE_CLASS.keys():
-				if isinstance(command, Voice):
-					newInstance = command
-					if chunks:
-						voiceInstance.speak(chunks)
-					chunks = []
-					voiceInstance = newInstance
-				elif isinstance(command, BreakCommand):
-					if chunks:
-						voiceInstance.speak(chunks)
-					chunks = []
-					voiceInstance.breaks(command.time / 1000)
-				else:
-					chunks.append(command)
-
-		if voiceInstance.engine in READY_ENGINE_CLASS.keys():
-			if chunks:
-				voiceInstance.speak(chunks)
+		queue_speech_sequence(
+			self.taskManager,
+			speechSequence,
+			self._voiceManager.defaultVoiceInstance,
+			READY_ENGINE_CLASS,
+		)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
 		if self.uwv \
@@ -495,12 +476,7 @@ class SynthDriver(SynthDriver):
 		self._voiceManager.cancel()
 
 	def pause(self, switch):
-		if switch:
-			if self.taskManager._current_voice:
-				self.taskManager._current_voice.pause()
-		else:
-			if self.taskManager._current_voice:
-				self.taskManager._current_voice.resume()
+		self.taskManager.pause_current(switch)
 
 	def _get_volume(self):
 		return self._voiceManager.defaultVoiceInstance.volume

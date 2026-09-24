@@ -307,24 +307,11 @@ def test_pause_current_uses_valid_voice_snapshot(manager, buses, two_voices):
 
 def test_handlers_unregister_on_shutdown(task_module, buses):
 	manager = task_module.TaskManager(owner=buses.owner)
-	assert len(buses.done.handlers) == 2
-	assert len(buses.index.handlers) == 2
+	assert len(buses.done.handlers) == 1
+	assert len(buses.index.handlers) == 1
 	manager.shutdown()
 	assert buses.done.handlers == []
 	assert buses.index.handlers == []
-
-
-def test_legacy_core_notifications_forward_only_during_legacy_work(manager, buses, two_voices):
-	voice, _ = two_voices
-	voice.core.wv = object()
-	legacy = manager.add_speak_task(voice, voice.start_async)
-	assert voice.entered.wait(1)
-	buses.index.notify(synth=voice.core, index=4)
-	buses.done.notify(synth=voice.core)
-	buses.done.notify(synth=voice.core)
-	assert legacy.result(timeout=1) is True
-	assert buses.outer_indexes == [4]
-	assert buses.outer_done == [manager.owner]
 
 
 def test_cancelled_request_built_before_submit_is_not_enqueued(manager, voice):
@@ -467,22 +454,32 @@ def test_cancel_during_speak_stops_core_again_after_speak_returns(manager, voice
 	assert voice.core.cancel_count == 2
 
 
-def test_legacy_pending_speech_is_cancelled_but_new_speech_runs(manager, voice):
+def test_pending_speech_is_cancelled_but_new_request_runs(manager, voice, buses):
 	first_entered = threading.Event()
 	old_entered = threading.Event()
 	new_entered = threading.Event()
-	manager.add_speak_task(voice, first_entered.set)
+	first = manager.new_request()
+	manager.append_speech(first, voice, first_entered.set)
+	assert manager.submit_request(first)
 	assert first_entered.wait(1)
-	old_future = manager.add_speak_task(voice, old_entered.set)
+	old = manager.new_request()
+	manager.append_speech(old, voice, old_entered.set)
+	assert manager.submit_request(old)
+	old_future = old.tasks[0].future
 	old_done = threading.Event()
 	old_future.add_done_callback(lambda _: old_done.set())
 	manager.cancel([voice])
-	new_future = manager.add_speak_task(voice, new_entered.set)
+	new = manager.new_request()
+	manager.append_speech(new, voice, new_entered.set)
+	assert manager.submit_request(new)
+	new_future = new.tasks[0].future
 	assert old_done.wait(1)
 	assert old_future.cancelled()
 	assert new_entered.wait(1)
 	assert not old_entered.is_set()
 	assert not new_future.cancelled()
+	buses.done.notify(synth=voice.core)
+	assert new_future.result(timeout=1) is True
 
 
 def test_failed_speech_marks_request_failed(manager, voice):

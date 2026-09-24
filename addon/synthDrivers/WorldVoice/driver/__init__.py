@@ -144,15 +144,21 @@ class Voice(object):
 		if self.core and self.core.voice != self.id:
 			self.setCoreParameter()
 
-	def speak(self, text):
+	def speak(self, text, request):
 		def _speak():
+			if request.token.is_cancelled():
+				return
 			self.active()
-			self.core.speak(text)
-		# self.taskManager.add_dispatch_task((self, _speak),)
-		self.taskManager.add_speak_task(self, _speak)
+			if request.token.is_cancelled():
+				return
+			if getattr(self.core, "supportsCancellationToken", False):
+				self.core.speak(text, cancellationToken=request.token)
+			else:
+				self.core.speak(text)
+		self.taskManager.append_speech(request, self, _speak)
 
-	def breaks(self, sec):
-		self.taskManager.add_break_task(self, sec)
+	def breaks(self, sec, request):
+		self.taskManager.append_break(request, self, sec)
 
 	def stop(self):
 		self.core.cancel()
