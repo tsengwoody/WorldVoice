@@ -667,3 +667,37 @@ def test_failed_speech_marks_request_failed(manager, voice):
 	with pytest.raises(ValueError, match="core failure"):
 		request.tasks[0].future.result(timeout=1)
 	assert request.failed
+
+
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
+def test_direct_wrapper_stop_mid_speech_lets_next_segment_run(manager, buses, monkeypatch, engine):
+	from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
+
+	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
+	monkeypatch.setattr(harness.original_driver, "synthDoneSpeaking", buses.done)
+	monkeypatch.setattr(harness.original_driver, "synthIndexReached", buses.index)
+	core = harness.new_core()
+	core.voiceInstance = "voice"
+	core.language = "en"
+	core._normalization = "OFF"
+	spoken = []
+	second_spoken = threading.Event()
+
+	def native(instance, text):
+		spoken.append(text)
+		if text == "first":
+			# Like SynthDriver._set_voice(): stop the core without cancelling the request.
+			core.cancel()
+		else:
+			second_spoken.set()
+
+	monkeypatch.setattr(harness.native, "processText2Speech", native)
+	voice = types.SimpleNamespace(core=core, active=lambda: None)
+	request = manager.new_request()
+	for text in ("first", "second"):
+		manager.append_speech(request, voice,
+			lambda text=text: core.speak([text], cancellationToken=request.token))
+	assert manager.submit_request(request)
+	assert second_spoken.wait(1)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert spoken == ["first", "second"]

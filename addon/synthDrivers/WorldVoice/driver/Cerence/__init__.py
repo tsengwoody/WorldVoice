@@ -19,7 +19,10 @@ class _SilenceGate(threading.Event):
 		self._inside_native_call = False
 
 	def cancelled(self):
-		return super().is_set() or bool(self._token and self._token.is_cancelled())
+		return super().is_set() or self.token_cancelled()
+
+	def token_cancelled(self):
+		return bool(self._token and self._token.is_cancelled())
 
 	def is_set(self):
 		if not self._inside_native_call:
@@ -147,7 +150,11 @@ class CancellableSynthDriver(SynthDriver):
 	def _onIndexReached(self, index):
 		if not self._guard_installed:
 			return super()._onIndexReached(index)
-		if self._isSilence.cancelled():
+		if index is None:
+			# A direct core.cancel() still reports done, as the original driver does.
+			if self._isSilence.token_cancelled():
+				return
+		elif self._isSilence.cancelled():
 			return
 		return super()._onIndexReached(index)
 

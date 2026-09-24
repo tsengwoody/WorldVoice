@@ -355,6 +355,47 @@ def test_cancelled_request_drops_index_and_done_notifications(engine_harness, mo
 	assert dones == [{"synth": core}]
 
 
+@pytest.mark.parametrize("use_token", [True, False])
+def test_direct_core_cancel_still_reports_done(engine_harness, monkeypatch, use_token):
+	core = ready_core(engine_harness)
+	token = Token() if use_token else None
+	indexes, dones = [], []
+	monkeypatch.setattr(engine_harness.original_driver.synthIndexReached, "notify",
+		lambda **kwargs: indexes.append(kwargs))
+	monkeypatch.setattr(engine_harness.original_driver.synthDoneSpeaking, "notify",
+		lambda **kwargs: dones.append(kwargs))
+
+	def native(instance, text):
+		core.cancel()
+		core._onIndexReached(7)
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	core.speak(["old"], cancellationToken=token)
+	assert indexes == []
+	assert dones == [{"synth": core}]
+	assert core._real_player.idles == 0
+
+
+def test_cancelled_token_before_core_cancel_reports_nothing(engine_harness, monkeypatch):
+	core, token = ready_core(engine_harness), Token()
+	indexes, dones = [], []
+	monkeypatch.setattr(engine_harness.original_driver.synthIndexReached, "notify",
+		lambda **kwargs: indexes.append(kwargs))
+	monkeypatch.setattr(engine_harness.original_driver.synthDoneSpeaking, "notify",
+		lambda **kwargs: dones.append(kwargs))
+
+	def native(instance, text):
+		token.cancel()
+		core._onIndexReached(7)
+		core.cancel()
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	core.speak(["old"], cancellationToken=token)
+	assert indexes == []
+	assert dones == []
+	assert core._real_player.idles == 0
+
+
 def test_new_request_drops_old_callback_buffer_and_sonic_tail(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	callback = core._veCallbackHandler
