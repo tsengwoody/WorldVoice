@@ -170,6 +170,14 @@ class SpeechPipelinePanel(SettingsPanel):
 		self.Bind(wx.EVT_CHECKBOX, self.onPunctuationPauseEnabledChange, self._punctuation_pause_enabled_checkbox)
 		self._punctuation_pause_enabled_checkbox.SetValue(pipeline_settings.punctuation_pause_enabled)
 
+		self._remove_punctuation_characters_checkbox = wx.CheckBox(
+			self,
+			label=_("Remove configured punctuation at pause points"),
+		)
+		settingsSizerHelper.addItem(self._remove_punctuation_characters_checkbox)
+		self.Bind(wx.EVT_CHECKBOX, self.onRemovePunctuationCharactersChange, self._remove_punctuation_characters_checkbox)
+		self._remove_punctuation_characters_checkbox.SetValue(pipeline_settings.remove_punctuation_characters)
+
 		self._punctuation_wait_factor_slider = settingsSizerHelper.addLabeledControl(_("punctuation wait factor:"), wx.Slider, value=50, minValue=0, maxValue=100, style=wx.SL_HORIZONTAL)
 		self.Bind(wx.EVT_SLIDER, self.onPunctuationWaitFactorSliderScroll, self._punctuation_wait_factor_slider)
 		self._punctuation_wait_factor_slider.SetValue(pipeline_settings.punctuation_wait_factor)
@@ -191,6 +199,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			chinesespace_wait_factor=self._chinesespace_wait_factor_slider.GetValue(),
 			punctuation_wait_factor=self._punctuation_wait_factor_slider.GetValue(),
 			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
+			remove_punctuation_characters=self._remove_punctuation_characters_checkbox.GetValue(),
 			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
 			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
 		)
@@ -220,7 +229,15 @@ class SpeechPipelinePanel(SettingsPanel):
 	def onPunctuationPauseEnabledChange(self, event):
 		enabled = self._punctuation_pause_enabled_checkbox.GetValue()
 		self._punctuation_wait_factor_slider.Enable(enabled)
-		self._punctuation_pause_characters_edit.Enable(enabled)
+		self._punctuation_pause_characters_edit.Enable(
+			enabled or self._remove_punctuation_characters_checkbox.GetValue()
+		)
+
+	def onRemovePunctuationCharactersChange(self, event):
+		self._punctuation_pause_characters_edit.Enable(
+			self._punctuation_pause_enabled_checkbox.GetValue()
+			or self._remove_punctuation_characters_checkbox.GetValue()
+		)
 
 	def onPunctuationWaitFactorSliderScroll(self, event):
 		pass
@@ -235,8 +252,10 @@ class SpeechPipelinePanel(SettingsPanel):
 		self._sayall_wait_factor_slider.Enable()
 		self._chinesespace_wait_factor_slider.Enable()
 		self._punctuation_pause_enabled_checkbox.Enable()
+		self._remove_punctuation_characters_checkbox.Enable()
 		if self._punctuation_pause_enabled_checkbox.GetValue():
 			self._punctuation_wait_factor_slider.Enable()
+		if self._punctuation_pause_enabled_checkbox.GetValue() or self._remove_punctuation_characters_checkbox.GetValue():
 			self._punctuation_pause_characters_edit.Enable()
 
 	def sliderDisable(self):
@@ -249,6 +268,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		self._sayall_wait_factor_slider.Disable()
 		self._chinesespace_wait_factor_slider.Disable()
 		self._punctuation_pause_enabled_checkbox.Disable()
+		self._remove_punctuation_characters_checkbox.Disable()
 		self._punctuation_wait_factor_slider.Disable()
 		self._punctuation_pause_characters_edit.Disable()
 
@@ -264,6 +284,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			chinesespace_wait_factor=self._chinesespace_wait_factor_slider.GetValue(),
 			punctuation_wait_factor=self._punctuation_wait_factor_slider.GetValue(),
 			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
+			remove_punctuation_characters=self._remove_punctuation_characters_checkbox.GetValue(),
 			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
 			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
 		)

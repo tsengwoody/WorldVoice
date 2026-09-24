@@ -565,8 +565,8 @@ def inject_punctuation_pause(
 		speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
-	Insert a short BreakCommand after a punctuation mark so the TTS does not
-	run the text following the punctuation straight into it.
+	Insert pauses at eligible punctuation and optionally omit those marks
+	from the text sent to the synthesizer.
 
 	* Works both between consecutive text items and *inside* a single text
 	  item, because a screen reader usually sends a whole sentence as one
@@ -580,46 +580,61 @@ def inject_punctuation_pause(
 	  high the configured factor is.
 	* An existing BreakCommand between two text items suppresses this pause,
 	  so the punctuation pause and item_wait_factor never stack.
+	* When removal is enabled, eligible punctuation is omitted even when the
+	  pause duration is zero or an existing BreakCommand supplies the pause.
 	"""
-	if not get_punctuation_pause_enabled():
+	settings = get_effective_pipeline_settings()
+	wait_factor = settings.scaled_punctuation_wait() if settings.punctuation_pause_enabled else 0
+	remove_punctuation = settings.remove_punctuation_characters
+	if wait_factor <= 0 and not remove_punctuation:
 		yield from speechSequence
 		return
 
-	wait_factor = get_punctuation_wait_factor()
-	if wait_factor <= 0:
-		yield from speechSequence
-		return
-
-	chars = get_punctuation_pause_chars()
+	chars = settings.punctuation_pause_characters.strip()
 	if not chars:
 		yield from speechSequence
 		return
 
-	pause_cmd = PunctuationBreakCommand(wait_factor)
+	pause_cmd = PunctuationBreakCommand(wait_factor) if wait_factor > 0 else None
 	regex = _get_punctuation_regex(chars)
 
 	def is_non_blank_text(command: SpeechCmd) -> bool:
 		return isinstance(command, str) and bool(command.strip())
 
-	def emit(item: SpeechCmd, text_follows: bool) -> Iterator[SpeechCmd]:
+	def emit(item: SpeechCmd, pause_text_follows: bool, removal_text_follows: bool) -> Iterator[SpeechCmd]:
 		if not isinstance(item, str):
 			yield item
 			return
 		parts = list(_split_punctuation_segments(item, regex))
+		stripped = item.rstrip()
+		boundary_eligible = bool(stripped and stripped[-1] in chars and removal_text_follows)
+		boundary_pause = bool(pause_cmd is not None and stripped and stripped[-1] in chars and pause_text_follows)
+		last_punctuation_index = max(
+			(index for index, (kind, _) in enumerate(parts) if kind == "punct"),
+			default=-1,
+		)
+		internal_pause_points = {
+			index for index, (kind, _) in enumerate(parts)
+			if kind == "punct" and any(
+				later_kind == "text" and later_value.strip()
+				for later_kind, later_value in parts[index + 1:]
+			)
+		}
+		if remove_punctuation and not internal_pause_points and not boundary_eligible:
+			yield item
+			return
 		for index, (kind, value) in enumerate(parts):
 			if kind == "text":
 				yield value
 				continue
-			yield value
-			if any(
-				pkind == "text" and pvalue.strip()
-				for pkind, pvalue in parts[index + 1:]
-			):
+			eligible_here = index in internal_pause_points
+			if not remove_punctuation or not (eligible_here or boundary_eligible and index == last_punctuation_index):
+				yield value
+			if eligible_here and pause_cmd is not None:
 				yield pause_cmd
 		# The item ends with a punctuation mark (its last significant
 		# character is a configured one); pause before the next text item.
-		stripped = item.rstrip()
-		if stripped and stripped[-1] in chars and text_follows:
+		if boundary_pause and pause_cmd is not None:
 			yield pause_cmd
 
 	it = iter(speechSequence)
@@ -628,11 +643,19 @@ def inject_punctuation_pause(
 	except StopIteration:
 		return
 
+	pending_breaks = []
 	for current in it:
-		yield from emit(previous, is_non_blank_text(current))
+		if isinstance(current, BreakCommand):
+			pending_breaks.append(current)
+			continue
+		text_follows = is_non_blank_text(current)
+		yield from emit(previous, text_follows and not pending_breaks, text_follows)
+		yield from pending_breaks
+		pending_breaks.clear()
 		previous = current
 
-	yield from emit(previous, False)
+	yield from emit(previous, False, False)
+	yield from pending_breaks
 
 
 def deduplicate_language_command(speechSequence):
@@ -772,6 +795,7 @@ def static_register():
 	filter_speechSequence.register(inject_number_language)
 	filter_speechSequence.register(inject_number_mode)
 	filter_speechSequence.register(number_wait_factor)
+	filter_speechSequence.register(inject_punctuation_pause)
 	filter_speechSequence.register(speech_viewer)
 
 
@@ -780,7 +804,6 @@ def dynamic_register():
 
 	filter_speechSequence.register(ignore_comma_between_number)
 	filter_speechSequence.register(item_wait_factor)
-	filter_speechSequence.register(inject_punctuation_pause)
 
 
 def unregister():

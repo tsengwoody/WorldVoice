@@ -23,7 +23,6 @@ from .engine import READY_ENGINE_CLASS
 from .pipeline import (
 	ignore_comma_between_number,
 	item_wait_factor,
-	inject_punctuation_pause,
 	inject_langchange_reorder,
 	deduplicate_language_command,
 	lang_cmd_to_voice,
@@ -73,6 +72,7 @@ config.conf.spec["WorldVoice"] = {
 		"chinesespace_wait_factor": "integer(default=10,min=0,max=100)",
 		"punctuation_wait_factor": "integer(default=0,min=0,max=100)",
 		"punctuation_pause_enabled": "boolean(default=true)",
+		"remove_punctuation_characters": "boolean(default=false)",
 		"punctuation_pause_characters": "string(default=\"،؛,.;:!؟?…\")",
 	},
 	"role": {},
@@ -227,6 +227,13 @@ class SynthDriver(SynthDriver):
 				# Translators: Label for a setting in synth settings ring.
 				displayName=_("Punctuation pauses"),
 			),
+			BooleanDriverSetting(
+				"removepunctuationcharacters",
+				_("Remove configured punctuation at pause points"),
+				availableInSettingsRing=True,
+				defaultVal=False,
+				displayName=_("Remove punctuation at pause points"),
+			),
 			NumericDriverSetting(
 				"punctuationwaitfactor",
 				# Translators: Label for a setting in voice settings dialog.
@@ -334,6 +341,13 @@ class SynthDriver(SynthDriver):
 				defaultVal=True,
 				# Translators: Label for a setting in synth settings ring.
 				displayName=_("Punctuation pauses"),
+			),
+			BooleanDriverSetting(
+				"removepunctuationcharacters",
+				_("Remove configured punctuation at pause points"),
+				availableInSettingsRing=True,
+				defaultVal=False,
+				displayName=_("Remove punctuation at pause points"),
 			),
 			NumericDriverSetting(
 				"punctuationwaitfactor",
@@ -684,6 +698,13 @@ class SynthDriver(SynthDriver):
 		self._punctuationpauseenabled = value
 		config.conf["WorldVoice"]["pipeline"]["punctuation_pause_enabled"] = self.punctuationpauseenabled
 
+	def _get_removepunctuationcharacters(self):
+		return getattr(self, "_removepunctuationcharacters", False)
+
+	def _set_removepunctuationcharacters(self, value):
+		self._removepunctuationcharacters = value
+		config.conf["WorldVoice"]["pipeline"]["remove_punctuation_characters"] = self.removepunctuationcharacters
+
 	def _get_punctuationwaitfactor(self):
 		# Defensive: the attribute may not exist yet when the driver was
 		# upgraded from a version without this setting.
@@ -691,11 +712,6 @@ class SynthDriver(SynthDriver):
 
 	def _set_punctuationwaitfactor(self, value):
 		self._punctuationwaitfactor = value
-		if value > 0:
-			filter_speechSequence.register(inject_punctuation_pause)
-			order_move_to_start_register()
-		else:
-			filter_speechSequence.unregister(inject_punctuation_pause)
 		config.conf["WorldVoice"]["pipeline"]["punctuation_wait_factor"] = self.punctuationwaitfactor
 
 	def _getLocaleReadableName(self, locale):
