@@ -130,6 +130,11 @@ class VoiceManager(object):
 		step_start = time.perf_counter()
 		self._defaultVoiceInstance.loadParameter()
 		log.debug("WorldVoice init timing: VoiceManager default loadParameter %.3fs", time.perf_counter() - step_start)
+
+		step_start = time.perf_counter()
+		self._lazyTurnOffUnusedEngines()
+		log.debug("WorldVoice init timing: VoiceManager lazy engine off %.3fs", time.perf_counter() - step_start)
+
 		log.debug("Created voiceManager instance. Default voice is %s", default_meta.name)
 		log.debug("WorldVoice init timing: VoiceManager total %.3fs", time.perf_counter() - init_start)
 
@@ -189,6 +194,10 @@ class VoiceManager(object):
 		voiceMeta = next(v for v in self.table if v.name == voiceName)
 		cls = READY_ENGINE_CLASS[voiceMeta.engine]
 		step_start = time.perf_counter()
+		# Ensure the engine is running before constructing the Voice, since
+		# Voice.__init__ pushes parameters onto cls.core (and OneCore also
+		# reads self.core.language). engineOn is a no-op when already on.
+		cls.engineOn()
 		voiceInstance = cls(
 			id=voiceMeta.id,
 			name=voiceMeta.name,
@@ -213,6 +222,23 @@ class VoiceManager(object):
 
 		self._instanceCache[voiceInstance.name] = voiceInstance
 		return voiceInstance
+
+	def _lazyTurnOffUnusedEngines(self):
+		"""Turn off every enabled engine except the default voice's one.
+
+		Voice enumeration and the default voice are unaffected; any other
+		engine is restarted on demand inside _createVoiceInstance the first
+		time one of its voices is used. This keeps steady-state memory down
+		without breaking language switching or the voice settings dialog.
+		"""
+		default_engine = self._defaultVoiceInstance.engine
+		for name, cls in READY_ENGINE_CLASS.items():
+			if name == default_engine:
+				continue
+			try:
+				cls.engineOff()
+			except Exception as e:
+				log.debugWarning("WorldVoice: failed to lazy off engine %s: %s", name, e)
 
 	def onVoiceParameterConsistent(self, baseInstance):
 		for voiceName, instance in self._instanceCache.items():
