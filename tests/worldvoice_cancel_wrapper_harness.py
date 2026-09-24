@@ -11,6 +11,8 @@ class FakePlayer:
 		self.fed = []
 		self.stops = 0
 		self.idles = 0
+		self.pauses = []
+		self.closes = 0
 
 	def feed(self, data):
 		self.fed.append(data)
@@ -21,10 +23,17 @@ class FakePlayer:
 	def idle(self):
 		self.idles += 1
 
+	def pause(self, switch):
+		self.pauses.append(switch)
 
-def load_ve_harness(monkeypatch):
+	def close(self):
+		self.closes += 1
+
+
+def load_real_driver_with_native_stubs(monkeypatch, engine):
 	root = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
-	ve_path = root / "VE"
+	engine_path = root / engine
+	native_name = "ve2" if engine == "VE" else "ttsapi"
 	def module(name, **attributes):
 		value = types.ModuleType(name)
 		value.__dict__.update(attributes)
@@ -98,9 +107,9 @@ def load_ve_harness(monkeypatch):
 		spec.loader.exec_module(loaded)
 		return loaded
 
-	original = load("synthDrivers.WorldVoice.driver.VE.driver", ve_path / "driver/__init__.py", True)
-	wrapped = load("synthDrivers.WorldVoice.driver.VE", ve_path / "__init__.py", True)
-	parent_calls = []
+	original = load(f"synthDrivers.WorldVoice.driver.{engine}.driver",
+		engine_path / "driver/__init__.py", True)
+	wrapped = load(f"synthDrivers.WorldVoice.driver.{engine}", engine_path / "__init__.py", True)
 
 	def fake_init(self):
 		self._player = FakePlayer()
@@ -127,5 +136,6 @@ def load_ve_harness(monkeypatch):
 			patch.setattr(original.SynthDriver, "__init__", custom_init)
 			return wrapped.CancellableSynthDriver()
 
-	return types.SimpleNamespace(module=wrapped, original_driver=original, types=original.ve2.veTypes,
-		new_core=new_core, parent_speak_calls=parent_calls)
+	return types.SimpleNamespace(engine=engine, module=wrapped, original_driver=original,
+		native=getattr(original, native_name), types=getattr(original, native_name).veTypes,
+		new_core=new_core)
