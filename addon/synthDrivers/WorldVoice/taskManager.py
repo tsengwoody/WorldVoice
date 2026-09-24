@@ -139,7 +139,10 @@ class TaskManager:
 			request.token.wait(seconds)
 
 		with self._state_cond:
-			request.tasks.append(_Task(voice, wait_for_break, False, SpeechFuture(), request.token, request=request, kind="break"))
+			request.tasks.append(_Task(
+				voice, wait_for_break, False, SpeechFuture(), request.token,
+				request=request, kind="break",
+			))
 
 	def submit_request(self, request) -> bool:
 		with self._state_cond:
