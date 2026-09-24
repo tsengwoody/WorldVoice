@@ -27,6 +27,15 @@ _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 _SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
 
+
+class PairNumberBreakCommand(BreakCommand):
+	"""Pause between digit pairs in pair number mode."""
+
+
+class PunctuationBreakCommand(BreakCommand):
+	"""Pause after a configured punctuation mark."""
+
+
 def with_order_log(label: str):
 	""" The order numbers are reversed because of recursion: the order number assigned earlier execution is greater than that of a later execution."""
 	def decorator(func):
@@ -48,8 +57,8 @@ def with_speech_sequence_log(label: str):
 	def decorator(func):
 		@wraps(func)
 		def wrapper(speechSequence):
-			_id = uuid.uuid4().hex
 			if (config.conf["general"]["loggingLevel"] == "DEBUG" or config.conf["WorldVoice"]["log"]["enable"]) and config.conf["WorldVoice"]["log"][label]:
+				_id = uuid.uuid4().hex
 				speechSequence = list(speechSequence)
 				if config.conf["general"]["loggingLevel"] == "DEBUG":
 					log.debug(f"speech sequence before {label} pipeline: {speechSequence}")
@@ -122,6 +131,26 @@ def get_number_wait_factor():
 def get_chinesespace_wait_factor():
 	settings = get_effective_pipeline_settings()
 	return settings.scaled_chinesespace_wait()
+
+
+def get_punctuation_wait_factor():
+	settings = get_effective_pipeline_settings()
+	return settings.scaled_punctuation_wait()
+
+
+def get_punctuation_pause_chars():
+	settings = get_effective_pipeline_settings()
+	return settings.punctuation_pause_characters.strip()
+
+
+def get_punctuation_pause_enabled():
+	settings = get_effective_pipeline_settings()
+	return settings.punctuation_pause_enabled
+
+
+def get_pair_wait_factor():
+	settings = get_effective_pipeline_settings()
+	return settings.scaled_pair_wait()
 
 
 # @with_order_log("speech_view")
@@ -351,6 +380,13 @@ def inject_number_language(
 ) -> Iterator[SpeechCmd]:
 	synth = getSynth()
 	if hasattr(synth, "_voiceManager"):
+		if synth._numlan == "default":
+			# The number-language wrapper commands are always dropped by
+			# deduplicate_language_command in this case, so the pass-through
+			# below is behavior-identical and avoids scanning every string
+			# for numbers.
+			yield from speechSequence
+			return
 		speechSequence = _insert_WVLangChangeCommand_between_number(speechSequence)
 		yield from speechSequence
 		return
@@ -360,9 +396,29 @@ def inject_number_language(
 		return
 
 
-def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[str]:
+def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[SpeechCmd]:
 	if mode == "value":
 		yield raw
+		return
+
+	if mode == "pair":
+		# Decimal numbers are read as a single value; only pure digit runs
+		# are grouped into pairs read from the left.
+		if "." in raw:
+			yield raw
+			return
+		sign = ""
+		digits = raw
+		if digits and digits[0] in "+-":
+			sign = digits[0]
+			digits = digits[1:]
+		pairs = [digits[i:i + 2] for i in range(0, len(digits), 2)]
+		pause = get_pair_wait_factor()
+		separator: SpeechCmd = PairNumberBreakCommand(pause) if pause > 0 else " "
+		for index, pair in enumerate(pairs):
+			if index > 0:
+				yield separator
+			yield (sign + pair) if index == 0 else pair
 		return
 
 	previous_was_digit = False
@@ -463,6 +519,120 @@ def inject_chinese_space_pause(
 		# emit any tail text after the last match
 		if pos < len(item):
 			yield item[pos:]
+
+
+_PUNCTUATION_RE_CACHE: dict[str, re.Pattern] = {}
+
+
+def _get_punctuation_regex(chars: str) -> re.Pattern:
+	regex = _PUNCTUATION_RE_CACHE.get(chars)
+	if regex is None:
+		# Match the entire punctuation run only when it is not followed by
+		# a digit. This preserves "12,500" and "3.5", while allowing a
+		# sentence-ending mark after a digit, as in "There are 5. Next".
+		# Checking for another configured mark also prevents backtracking
+		# into a partial run when the complete run precedes a digit.
+		escaped_chars = re.escape(chars)
+		regex = re.compile(rf"[{escaped_chars}]+(?![{escaped_chars}\d])")
+		_PUNCTUATION_RE_CACHE[chars] = regex
+	return regex
+
+
+def _split_punctuation_segments(
+		text: str,
+		regex: re.Pattern,
+) -> Iterator[tuple[str, str]]:
+	"""
+	Split *text* into ("text"|"punct", value) segments.
+
+	Consecutive punctuation marks form a single "punct" segment, and any
+	punctuation run surrounded by digits (e.g. the comma in "12,500" or the
+	dot in "3.5") is part of a "text" segment.
+	"""
+	pos = 0
+	for match in regex.finditer(text):
+		if match.start() > pos:
+			yield ("text", text[pos:match.start()])
+		yield ("punct", match.group())
+		pos = match.end()
+	if pos < len(text):
+		yield ("text", text[pos:])
+
+
+# @with_order_log("punctuation_wait_factor")
+@with_speech_sequence_log("punctuation_wait_factor")
+def inject_punctuation_pause(
+		speechSequence: Iterable[SpeechCmd],
+) -> Iterator[SpeechCmd]:
+	"""
+	Insert a short BreakCommand after a punctuation mark so the TTS does not
+	run the text following the punctuation straight into it.
+
+	* Works both between consecutive text items and *inside* a single text
+	  item, because a screen reader usually sends a whole sentence as one
+	  command.
+	* Consecutive punctuation marks count as a single pause point, and
+	  numeric punctuation such as the comma in "12,500" is skipped.
+	* The pause is only inserted when real text follows, and never as the
+	  last command of a sequence, so the voice cannot fall silent at the end.
+	* The pause length is capped (see PipelineSettings.scaled_punctuation_wait),
+	  so the voice never stops for a long silence at punctuation no matter how
+	  high the configured factor is.
+	* An existing BreakCommand between two text items suppresses this pause,
+	  so the punctuation pause and item_wait_factor never stack.
+	"""
+	if not get_punctuation_pause_enabled():
+		yield from speechSequence
+		return
+
+	wait_factor = get_punctuation_wait_factor()
+	if wait_factor <= 0:
+		yield from speechSequence
+		return
+
+	chars = get_punctuation_pause_chars()
+	if not chars:
+		yield from speechSequence
+		return
+
+	pause_cmd = PunctuationBreakCommand(wait_factor)
+	regex = _get_punctuation_regex(chars)
+
+	def is_non_blank_text(command: SpeechCmd) -> bool:
+		return isinstance(command, str) and bool(command.strip())
+
+	def emit(item: SpeechCmd, text_follows: bool) -> Iterator[SpeechCmd]:
+		if not isinstance(item, str):
+			yield item
+			return
+		parts = list(_split_punctuation_segments(item, regex))
+		for index, (kind, value) in enumerate(parts):
+			if kind == "text":
+				yield value
+				continue
+			yield value
+			if any(
+				pkind == "text" and pvalue.strip()
+				for pkind, pvalue in parts[index + 1:]
+			):
+				yield pause_cmd
+		# The item ends with a punctuation mark (its last significant
+		# character is a configured one); pause before the next text item.
+		stripped = item.rstrip()
+		if stripped and stripped[-1] in chars and text_follows:
+			yield pause_cmd
+
+	it = iter(speechSequence)
+	try:
+		previous = next(it)
+	except StopIteration:
+		return
+
+	for current in it:
+		yield from emit(previous, is_non_blank_text(current))
+		previous = current
+
+	yield from emit(previous, False)
 
 
 def deduplicate_language_command(speechSequence):
@@ -571,6 +741,7 @@ def order_move_to_start_register():
 	# stack: first in last out
 	filter_speechSequence.moveToEnd(speech_viewer, False)
 	filter_speechSequence.moveToEnd(number_wait_factor, False)
+	filter_speechSequence.moveToEnd(inject_punctuation_pause, False)
 	filter_speechSequence.moveToEnd(item_wait_factor, False)
 	filter_speechSequence.moveToEnd(inject_chinese_space_pause, False)
 	filter_speechSequence.moveToEnd(inject_number_mode, False)
@@ -587,6 +758,7 @@ def order_move_to_end_register():
 	filter_speechSequence.moveToEnd(inject_number_mode, True)
 	filter_speechSequence.moveToEnd(inject_chinese_space_pause, True)
 	filter_speechSequence.moveToEnd(item_wait_factor, True)
+	filter_speechSequence.moveToEnd(inject_punctuation_pause, True)
 	filter_speechSequence.moveToEnd(number_wait_factor, True)
 	filter_speechSequence.moveToEnd(speech_viewer, True)
 
@@ -608,6 +780,7 @@ def dynamic_register():
 
 	filter_speechSequence.register(ignore_comma_between_number)
 	filter_speechSequence.register(item_wait_factor)
+	filter_speechSequence.register(inject_punctuation_pause)
 
 
 def unregister():
@@ -619,6 +792,7 @@ def unregister():
 	filter_speechSequence.unregister(inject_number_mode)
 	filter_speechSequence.unregister(inject_number_language)
 	filter_speechSequence.unregister(item_wait_factor)
+	filter_speechSequence.unregister(inject_punctuation_pause)
 	filter_speechSequence.unregister(number_wait_factor)
 	filter_speechSequence.unregister(speech_viewer)
 	speech_dictionary.uninstall()
