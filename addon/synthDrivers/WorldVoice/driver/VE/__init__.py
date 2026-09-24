@@ -1,13 +1,16 @@
 import languageHandler
 import locale
 import threading
+from io import BytesIO
 from synthDriverHandler import LanguageInfo
 from logHandler import log
 
-from .driver import SynthDriver, TtsSetParamList
+from .driver import SynthDriver, TtsSetParamList, ProcessText2Speech
 from .driver import ve2
 from .driver.ve2.veTypes import VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT, VeError
 from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
+from synthDrivers.WorldVoice.driver.arabic_text import break_repeated_runs
+from synthDrivers.WorldVoice.driver.chunker import split_speech_text_pieces
 
 
 class _SilenceGate(threading.Event):
@@ -105,28 +108,54 @@ class CancellableSynthDriver(SynthDriver):
 	def speak(self, speechSequence, cancellationToken=None):
 		if not self._guard_installed:
 			return super().speak(speechSequence)
-		return super().speak(speechSequence)
+		with self._speechStateLock:
+			if cancellationToken and cancellationToken.is_cancelled():
+				return
+			self._isSilence.begin(cancellationToken)
+		try:
+			self._reset_callback_audio()
+			return super().speak(speechSequence)
+		finally:
+			self._isSilence._inside_native_call = False
+
+	def _reset_callback_audio(self):
+		callback = self._veCallbackHandler
+		callback._feedBuf = BytesIO()
+		callback.sonicStream = None
+		callback._sonicEnabled = False
+		callback._sonicInitTried = False
 
 	def _speak(self, voiceInstance, chunks):
 		if not self._guard_installed:
 			return super()._speak(voiceInstance, chunks)
-		return super()._speak(voiceInstance, chunks)
+		for piece in split_speech_text_pieces(break_repeated_runs("".join(chunks))):
+			if self._isSilence.cancelled():
+				break
+			self._isSilence._inside_native_call = True
+			try:
+				ProcessText2Speech(voiceInstance, piece)()
+			finally:
+				self._isSilence._inside_native_call = False
 
 	def cancel(self):
 		if not self._guard_installed:
 			return super().cancel()
-		return super().cancel()
+		with self._speechStateLock:
+			self._isSilence.set()
+		self._real_player.stop()
 
 	def _onIndexReached(self, index):
 		if not self._guard_installed:
 			return super()._onIndexReached(index)
+		if self._isSilence.cancelled():
+			return
 		return super()._onIndexReached(index)
 
 
 class Voice(Voice):
 	core = None
 	engine = "VE"
-	synth_driver_class = SynthDriver
+	synth_driver_class = CancellableSynthDriver
 
 	@property
 	def variant(self):
