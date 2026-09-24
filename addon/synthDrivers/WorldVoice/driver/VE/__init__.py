@@ -81,15 +81,19 @@ class CancellableSynthDriver(SynthDriver):
 			self._player = player
 			callback._player = player
 		except Exception:
+			restoration_errors = []
 			for obj, name, value in (
 				(self, "_isSilence", original[0]), (self, "_player", original[1]),
 				(callback, "_isSilence", original[2]), (callback, "_player", original[3]),
 			):
 				try:
 					setattr(obj, name, value)
-				except Exception:
+				except Exception as error:
+					restoration_errors.append(error)
 					log.warning("VE cancellation guard restoration failed", exc_info=True)
 			log.warning("VE cancellation guard installation failed", exc_info=True)
+			if restoration_errors:
+				raise RuntimeError("VE cancellation guard restoration failed") from restoration_errors[0]
 			return
 		self._real_player = original[1]
 		self._guard_installed = True

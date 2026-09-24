@@ -96,6 +96,29 @@ def test_ve_assignment_failure_restores_all_four_references(ve_harness):
 	assert core._veCallbackHandler._player is original["callback_player"]
 
 
+def test_ve_restoration_failure_raises_instead_of_returning_partial_core(ve_harness):
+	created = []
+
+	class FailInstallAndRestoreProxy:
+		def __init__(self, real):
+			object.__setattr__(self, "real", real)
+			created.append(self)
+
+		def __getattr__(self, name):
+			return getattr(self.real, name)
+
+		def __setattr__(self, name, value):
+			if name == "_player":
+				raise RuntimeError("installation setter failed")
+			if name == "_isSilence" and type(value) is threading.Event:
+				raise RuntimeError("restoration setter failed")
+			setattr(self.real, name, value)
+
+	with pytest.raises(RuntimeError, match="restoration"):
+		ve_harness.new_core(callback_proxy=FailInstallAndRestoreProxy)
+	assert isinstance(created[0].real._isSilence, ve_harness.module._SilenceGate)
+
+
 def test_ve_gate_checks_token_only_during_native_call(ve_harness):
 	gate = ve_harness.module._SilenceGate()
 	token = type("Token", (), {"is_cancelled": lambda self: False})()
