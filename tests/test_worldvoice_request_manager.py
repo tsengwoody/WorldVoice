@@ -312,6 +312,99 @@ def test_handlers_unregister_on_shutdown(task_module, buses):
 	manager.shutdown()
 	assert buses.done.handlers == []
 	assert buses.index.handlers == []
+	buses.done.notify(synth=object())
+	buses.index.notify(synth=object(), index=99)
+	assert buses.outer_done == []
+	assert buses.outer_indexes == []
+
+
+def test_cancel_during_first_active_rejects_stale_ve_events_before_neural_and_ve(manager, buses):
+	active_entered = threading.Event()
+	release_active = threading.Event()
+	neural_entered = threading.Event()
+	ve_entered = threading.Event()
+	raw_events = []
+
+	class Core:
+		def __init__(self):
+			self.spoken = []
+			self.spoken_after_cancel = []
+			self.cancelled = False
+
+		def speak(self, text):
+			(self.spoken_after_cancel if self.cancelled else self.spoken).append(text)
+
+		def cancel(self):
+			self.cancelled = True
+
+	stale_ve_core = Core()
+	neural_core = Core()
+	new_ve_core = Core()
+	old_voice = types.SimpleNamespace(
+		core=stale_ve_core,
+		active=lambda: (active_entered.set(), release_active.wait(1)),
+	)
+	neural_voice = types.SimpleNamespace(core=neural_core, active=lambda: None)
+	new_ve_voice = types.SimpleNamespace(core=new_ve_core, active=lambda: None)
+	old_request = manager.new_request()
+	manager.append_speech(old_request, old_voice, lambda: stale_ve_core.speak("old VE"))
+	assert manager.submit_request(old_request)
+	assert active_entered.wait(1)
+	manager.cancel([old_voice])
+	assert old_request.token.is_cancelled()
+	release_active.set()
+	new_request = manager.new_request()
+	manager.append_speech(new_request, neural_voice, neural_entered.set)
+	manager.append_speech(new_request, new_ve_voice, ve_entered.set)
+	assert manager.submit_request(new_request)
+	assert neural_entered.wait(1)
+	for kind, value in (("index", 9), ("done", None)):
+		raw_events.append((kind, stale_ve_core, value))
+		if kind == "index":
+			buses.index.notify(synth=stale_ve_core, index=value)
+		else:
+			buses.done.notify(synth=stale_ve_core)
+	assert not new_request.tasks[0].future.done()
+	assert buses.outer_indexes == []
+	assert buses.outer_done == []
+	buses.index.notify(synth=neural_core, index=12)
+	buses.done.notify(synth=neural_core)
+	assert ve_entered.wait(1)
+	buses.index.notify(synth=new_ve_core, index=13)
+	buses.done.notify(synth=new_ve_core)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert raw_events == [("index", stale_ve_core, 9), ("done", stale_ve_core, None)]
+	assert stale_ve_core.spoken_after_cancel == []
+	assert stale_ve_core.spoken == []
+	assert buses.outer_indexes == [12, 13]
+	assert buses.outer_done.count(manager.owner) == 1
+
+
+def test_cancel_before_synchronous_core_done_discards_old_completion(manager, buses):
+	native_entered = threading.Event()
+	release_native = threading.Event()
+	old_core = types.SimpleNamespace(cancel=lambda: None)
+	old_voice = types.SimpleNamespace(core=old_core, active=lambda: None)
+	raw_done = []
+
+	def speak_then_done():
+		native_entered.set()
+		assert release_native.wait(1)
+		raw_done.append(old_core)
+		buses.done.notify(synth=old_core)
+
+	old_request = manager.new_request()
+	manager.append_speech(old_request, old_voice, speak_then_done)
+	assert manager.submit_request(old_request)
+	assert native_entered.wait(1)
+	manager.cancel([old_voice])
+	assert old_request.token.is_cancelled()
+	release_native.set()
+	with pytest.raises(CancelledError):
+		old_request.tasks[0].future.result(timeout=1)
+	assert raw_done == [old_core]
+	assert buses.outer_done == []
+	assert buses.outer_indexes == []
 
 
 def test_cancelled_request_built_before_submit_is_not_enqueued(manager, voice):
@@ -340,12 +433,17 @@ def test_new_request_waits_for_old_stop(manager, blocking_voice):
 	assert blocking_voice.new_entered.wait(1)
 
 
-def test_two_concurrent_cancels_must_both_finish_before_new_speech(manager, voice):
+def test_two_concurrent_cancels_must_both_finish_before_new_speech(manager, voice, buses):
 	entered = [threading.Event(), threading.Event()]
 	release = [threading.Event(), threading.Event()]
 	lock = threading.Lock()
 	count = 0
+	old_entered = threading.Event()
 	new_entered = threading.Event()
+	old = manager.new_request()
+	manager.append_speech(old, voice, old_entered.set)
+	assert manager.submit_request(old)
+	assert old_entered.wait(1)
 
 	def cancel_core():
 		nonlocal count
@@ -360,6 +458,7 @@ def test_two_concurrent_cancels_must_both_finish_before_new_speech(manager, voic
 	for stopper in stoppers:
 		stopper.start()
 	assert all(event.wait(1) for event in entered)
+	assert old.token.is_cancelled()
 	request = manager.new_request()
 	manager.append_speech(request, voice, new_entered.set)
 	assert manager.submit_request(request)
@@ -371,6 +470,9 @@ def test_two_concurrent_cancels_must_both_finish_before_new_speech(manager, voic
 	stoppers[1].join(1)
 	assert not stoppers[1].is_alive()
 	assert new_entered.wait(1)
+	assert buses.outer_done == []
+	buses.done.notify(synth=voice.core)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
 
 
 def test_cancel_wakes_break_token_and_allows_new_request(manager, voice):

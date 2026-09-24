@@ -41,6 +41,7 @@ def modules(monkeypatch):
 	owner = object()
 	done_seen = threading.Event()
 	done_calls = []
+	outer_indexes = []
 
 	def record_done(synth):
 		if synth is owner:
@@ -48,7 +49,7 @@ def modules(monkeypatch):
 			done_seen.set()
 
 	done = EventStub(record_done)
-	index = EventStub()
+	index = EventStub(lambda synth, index: outer_indexes.append(index) if synth is owner else None)
 	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
 		getSynth=lambda: owner,
 		synthDoneSpeaking=done,
@@ -76,7 +77,7 @@ def modules(monkeypatch):
 	return types.SimpleNamespace(
 		driver=driver, manager_module=manager_module, builder=builder,
 		BreakCommand=BreakCommand, done=done, done_seen=done_seen,
-		done_calls=done_calls, owner=owner,
+		done_calls=done_calls, index=index, outer_indexes=outer_indexes, owner=owner,
 	)
 
 
@@ -125,6 +126,67 @@ def test_builder_submits_complete_multivoice_request_once(modules, manager):
 	assert submitted[0][1] == [("speech", zh), ("speech", en), ("break", en)]
 	assert zh.spoken == [["中"]]
 	assert en.spoken == [["English"]]
+
+
+@pytest.mark.parametrize("engines,texts,indexes", [
+	(("VE", "Neural", "VE"), ("中", "English", "再見"), (11, 22, 33)),
+	(("Cerence", "OneCore"), ("Bonjour", "Hello"), (41, 52)),
+])
+def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_break(
+	modules, manager, engines, texts, indexes,
+):
+	voices = []
+	raw_events = []
+	core_calls = []
+	break_entered = threading.Event()
+	release_break = threading.Event()
+	requests = []
+	original_submit = manager.submit_request
+
+	def submit(request):
+		requests.append(request)
+		request.token.wait = lambda seconds: (break_entered.set(), release_break.wait(1))
+		return original_submit(request)
+
+	manager.submit_request = submit
+	for engine, index in zip(engines, indexes):
+		voice = object.__new__(modules.driver.Voice)
+		voice.engine = engine
+		voice.taskManager = manager
+		voice.active = lambda: None
+		core = types.SimpleNamespace(supportsCancellationToken=engine in ("VE", "Cerence"))
+		core.cancel = lambda: None
+
+		def speak(chunks, *, current_core=core, current_index=index, **kwargs):
+			core_calls.append((current_core, list(chunks), kwargs))
+			raw_events.append(("index", current_core, current_index))
+			modules.index.notify(synth=current_core, index=current_index)
+			raw_events.append(("done", current_core))
+			modules.done.notify(synth=current_core)
+
+		core.speak = speak
+		voice.core = core
+		voices.append(voice)
+	sequence = []
+	for voice, value in zip(voices, texts):
+		sequence.extend((voice, value))
+	sequence.append(modules.BreakCommand(200))
+	assert modules.builder.queue_speech_sequence(manager, sequence, voices[0], set(engines))
+	assert break_entered.wait(1)
+	assert [call[1] for call in core_calls] == [[value] for value in texts]
+	assert [event[0] for event in raw_events] == ["index", "done"] * len(voices)
+	assert modules.outer_indexes == list(indexes)
+	assert modules.done_calls == []
+	assert len(requests) == 1
+	assert [task.kind for task in requests[0].tasks] == ["speech"] * len(voices) + ["break"]
+	for voice, _, kwargs in core_calls:
+		if voice.supportsCancellationToken:
+			assert kwargs == {"cancellationToken": requests[0].token}
+		else:
+			assert kwargs == {}
+	release_break.set()
+	assert modules.done_seen.wait(1)
+	assert modules.done_calls.count(manager.owner) == 1
 
 
 @pytest.mark.parametrize("supports_token", [True, False, None])

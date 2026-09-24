@@ -262,6 +262,40 @@ def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harn
 	assert core._real_player.idles == 0
 
 
+def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(engine_harness, monkeypatch):
+	core, token = ready_core(engine_harness), Token()
+	native_entered = threading.Event()
+	release_native = threading.Event()
+	spoken_after_cancel = []
+	callback_results = []
+	monkeypatch.setattr(engine_harness.module, "split_speech_text_pieces",
+		lambda text: ["first", "second"], raising=False)
+
+	def native(instance, text):
+		if token.is_cancelled():
+			spoken_after_cancel.append(text)
+		native_entered.set()
+		assert release_native.wait(1)
+		out_data = engine_harness.types.VE_OUTDATA()
+		callback_results.append(core._veCallbackHandler(None, None, native_message(
+			engine_harness.types, engine_harness.types.VE_MSG_OUTBUFREQ, out_data,
+		)))
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	worker = threading.Thread(target=core.speak, args=(["old"],),
+		kwargs={"cancellationToken": token})
+	worker.start()
+	assert native_entered.wait(1)
+	token.cancel()
+	release_native.set()
+	worker.join(1)
+	assert not worker.is_alive()
+	assert callback_results == [engine_harness.types.NUAN_E_TTS_USERSTOP]
+	assert spoken_after_cancel == []
+	assert core._real_player.fed == []
+	assert core._real_player.idles == 0
+
+
 def test_cancel_during_real_callback_feed_stops_after_feed(engine_harness, monkeypatch):
 	core, token = ready_core(engine_harness), Token()
 	feed_entered, release_feed = threading.Event(), threading.Event()
