@@ -358,12 +358,18 @@ def test_cancel_during_first_active_rejects_stale_ve_events_before_neural_and_ve
 	manager.append_speech(new_request, new_ve_voice, ve_entered.set)
 	assert manager.submit_request(new_request)
 	assert neural_entered.wait(1)
+	with manager._state_cond:
+		neural_done_event = manager._current_done_event
+	assert neural_done_event is not None
 	for kind, value in (("index", 9), ("done", None)):
 		raw_events.append((kind, stale_ve_core, value))
 		if kind == "index":
 			buses.index.notify(synth=stale_ve_core, index=value)
 		else:
 			buses.done.notify(synth=stale_ve_core)
+	# Core notifications dispatch synchronously; a wrongly accepted stale done sets this event.
+	assert not neural_done_event.is_set()
+	assert not ve_entered.is_set()
 	assert not new_request.tasks[0].future.done()
 	assert buses.outer_indexes == []
 	assert buses.outer_done == []
@@ -402,6 +408,8 @@ def test_cancel_before_synchronous_core_done_discards_old_completion(manager, bu
 	release_native.set()
 	with pytest.raises(CancelledError):
 		old_request.tasks[0].future.result(timeout=1)
+	# The future can settle before cleanup and external event emission finish.
+	manager._q.join()
 	assert raw_done == [old_core]
 	assert buses.outer_done == []
 	assert buses.outer_indexes == []
