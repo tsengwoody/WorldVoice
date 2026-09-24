@@ -35,7 +35,8 @@ def modules(monkeypatch):
 	package.__path__ = [str(WORLDVOICE)]
 	monkeypatch.setitem(sys.modules, package_name, package)
 	monkeypatch.setitem(sys.modules, "config", types.SimpleNamespace(conf={}))
-	monkeypatch.setitem(sys.modules, "languageHandler", types.SimpleNamespace(getLanguageDescription=lambda language: language))
+	monkeypatch.setitem(sys.modules, "languageHandler",
+		types.SimpleNamespace(getLanguageDescription=lambda language: language))
 	log = types.SimpleNamespace(debug=lambda *args, **kwargs: None, error=lambda *args, **kwargs: None)
 	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=log))
 	owner = object()
@@ -73,7 +74,8 @@ def modules(monkeypatch):
 
 	driver = load("driver", WORLDVOICE / "driver/__init__.py")
 	manager_module = load("taskManager", WORLDVOICE / "taskManager.py")
-	builder = load("requestBuilder", WORLDVOICE / "requestBuilder.py") if (WORLDVOICE / "requestBuilder.py").exists() else None
+	builder_path = WORLDVOICE / "requestBuilder.py"
+	builder = load("requestBuilder", builder_path) if builder_path.exists() else None
 	return types.SimpleNamespace(
 		driver=driver, manager_module=manager_module, builder=builder,
 		BreakCommand=BreakCommand, done=done, done_seen=done_seen,
