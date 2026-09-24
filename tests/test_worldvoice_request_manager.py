@@ -2,6 +2,7 @@ import importlib.util
 import sys
 import threading
 import types
+from concurrent.futures import CancelledError
 from pathlib import Path
 
 import pytest
@@ -281,6 +282,8 @@ def test_failure_stops_core_and_completes_once(manager, buses, two_voices, failu
 	assert buses.wait_for_outer_done(1) == [manager.owner]
 	assert request.failed
 	assert stops == ["stopped"]
+	with pytest.raises(CancelledError):
+		request.tasks[1].future.result(timeout=1)
 	assert request.tasks[1].future.cancelled()
 	assert not other.entered.is_set()
 
