@@ -8,8 +8,9 @@ import pytest
 
 
 class EventStub:
-	def __init__(self):
+	def __init__(self, on_notify=None):
 		self.handlers = []
+		self.on_notify = on_notify
 
 	def register(self, handler):
 		self.handlers.append(handler)
@@ -18,21 +19,54 @@ class EventStub:
 		self.handlers.remove(handler)
 
 	def notify(self, **kwargs):
+		if self.on_notify:
+			self.on_notify(**kwargs)
 		for handler in tuple(self.handlers):
 			handler(**kwargs)
 
 
+class Buses:
+	def __init__(self):
+		self.owner = object()
+		self.current = self.owner
+		self.outer_done = []
+		self.outer_indexes = []
+		self.done_seen = threading.Event()
+		self.index_seen = threading.Event()
+		self.done = EventStub(self._record_done)
+		self.index = EventStub(self._record_index)
+
+	def _record_done(self, synth):
+		if synth is self.owner:
+			self.outer_done.append(synth)
+			self.done_seen.set()
+
+	def _record_index(self, synth, index):
+		if synth is self.owner:
+			self.outer_indexes.append(index)
+			self.index_seen.set()
+
+	def wait_for_outer_done(self, timeout):
+		assert self.done_seen.wait(timeout)
+		return self.outer_done
+
+
 @pytest.fixture
-def task_module(monkeypatch):
+def buses():
+	return Buses()
+
+
+@pytest.fixture
+def task_module(monkeypatch, buses):
 	log = types.SimpleNamespace(debug=lambda *a, **k: None, error=lambda *a, **k: None)
 	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=log))
 	monkeypatch.setitem(
 		sys.modules,
 		"synthDriverHandler",
 		types.SimpleNamespace(
-			getSynth=lambda: None,
-			synthDoneSpeaking=EventStub(),
-			synthIndexReached=EventStub(),
+			getSynth=lambda: buses.current,
+			synthDoneSpeaking=buses.done,
+			synthIndexReached=buses.index,
 		),
 	)
 	path = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/taskManager.py"
@@ -44,8 +78,8 @@ def task_module(monkeypatch):
 
 
 @pytest.fixture
-def manager(task_module):
-	instance = task_module.TaskManager()
+def manager(task_module, buses):
+	instance = task_module.TaskManager(owner=buses.owner)
 	yield instance
 	instance.shutdown()
 
@@ -94,6 +128,200 @@ def blocking_voice(voice):
 	voice.start_new = start_new
 	voice.core.cancel = cancel
 	return voice
+
+
+@pytest.fixture
+def two_voices():
+	class Voice:
+		def __init__(self):
+			self.core = types.SimpleNamespace(cancel=lambda: None)
+			self.entered = threading.Event()
+
+		def active(self):
+			pass
+
+		def speak_and_notify(self, event):
+			event.notify(synth=self.core)
+
+		def start_async(self):
+			self.entered.set()
+
+		def finish_and_notify_twice(self, event):
+			event.notify(synth=self.core)
+			event.notify(synth=self.core)
+
+	return Voice(), Voice()
+
+
+def test_synchronous_done_and_duplicate_notification_complete_once(manager, buses, two_voices):
+	first, second = two_voices
+	request = manager.new_request()
+	manager.append_speech(request, first, lambda: first.speak_and_notify(buses.done))
+	manager.append_speech(request, second, second.start_async)
+	assert manager.submit_request(request)
+	assert second.entered.wait(1)
+	assert buses.outer_done == []
+	second.finish_and_notify_twice(buses.done)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+
+
+def test_wrong_core_event_cannot_release_current_segment(manager, buses, two_voices):
+	voice, _ = two_voices
+	request = manager.new_request()
+	manager.append_speech(request, voice, voice.start_async)
+	manager.submit_request(request)
+	assert voice.entered.wait(1)
+	buses.done.notify(synth=object())
+	buses.index.notify(synth=object(), index=7)
+	assert buses.outer_done == []
+	assert buses.outer_indexes == []
+	assert not request.tasks[0].future.done()
+	buses.done.notify(synth=voice.core)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+
+
+def test_old_epoch_events_are_discarded(manager, buses, two_voices):
+	old_voice, new_voice = two_voices
+	old = manager.new_request()
+	manager.append_speech(old, old_voice, old_voice.start_async)
+	assert manager.submit_request(old)
+	assert old_voice.entered.wait(1)
+	manager.cancel([old_voice])
+	new = manager.new_request()
+	manager.append_speech(new, new_voice, new_voice.start_async)
+	assert manager.submit_request(new)
+	assert new_voice.entered.wait(1)
+	buses.done.notify(synth=old_voice.core)
+	buses.index.notify(synth=old_voice.core, index=9)
+	assert buses.outer_done == []
+	assert buses.outer_indexes == []
+	assert not new.tasks[0].future.done()
+	buses.done.notify(synth=new_voice.core)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+
+
+def test_valid_index_is_forwarded_once_and_owner_event_is_ignored(manager, buses, two_voices):
+	voice, _ = two_voices
+	request = manager.new_request()
+	manager.append_speech(request, voice, voice.start_async)
+	assert manager.submit_request(request)
+	assert voice.entered.wait(1)
+	buses.index.notify(synth=voice.core, index=7)
+	assert buses.index_seen.wait(1)
+	assert buses.outer_indexes == [7]
+	buses.index.notify(synth=voice.core, index=7)
+	buses.done.notify(synth=buses.owner)
+	assert buses.outer_indexes == [7]
+	assert not request.tasks[0].future.done()
+	buses.done.notify(synth=voice.core)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+
+
+def test_index_after_core_done_is_not_forwarded(manager, buses, two_voices):
+	voice, _ = two_voices
+
+	def speak():
+		buses.done.notify(synth=voice.core)
+		buses.index.notify(synth=voice.core, index=11)
+
+	request = manager.new_request()
+	manager.append_speech(request, voice, speak)
+	assert manager.submit_request(request)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.outer_indexes == []
+
+
+def test_trailing_break_delays_completion(manager, buses, two_voices):
+	voice, _ = two_voices
+	request = manager.new_request()
+	manager.append_speech(request, voice, lambda: voice.speak_and_notify(buses.done))
+	break_entered = threading.Event()
+	break_release = threading.Event()
+	manager.append_break(request, voice, 60)
+	request.token.wait = lambda seconds: (break_entered.set(), break_release.wait(1))
+	assert manager.submit_request(request)
+	assert break_entered.wait(1)
+	assert buses.outer_done == []
+	break_release.set()
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+
+
+def test_cancelled_request_does_not_emit_done(manager, buses, two_voices):
+	voice, _ = two_voices
+	request = manager.new_request()
+	manager.append_speech(request, voice, voice.start_async)
+	assert manager.submit_request(request)
+	assert voice.entered.wait(1)
+	manager.cancel([voice])
+	buses.done.notify(synth=voice.core)
+	assert request.tasks[0].future.cancelled() or request.token.is_cancelled()
+	assert buses.outer_done == []
+
+
+@pytest.mark.parametrize("failure_at", ["active", "speak"])
+def test_failure_stops_core_and_completes_once(manager, buses, two_voices, failure_at):
+	voice, other = two_voices
+	stops = []
+	voice.core.cancel = lambda: stops.append("stopped")
+
+	def fail():
+		raise ValueError(failure_at)
+
+	if failure_at == "active":
+		voice.active = fail
+		run = voice.start_async
+	else:
+		run = fail
+	request = manager.new_request()
+	manager.append_speech(request, voice, run)
+	manager.append_speech(request, other, other.start_async)
+	assert manager.submit_request(request)
+	with pytest.raises(ValueError, match=failure_at):
+		request.tasks[0].future.result(timeout=1)
+	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert request.failed
+	assert stops == ["stopped"]
+	assert request.tasks[1].future.cancelled()
+	assert not other.entered.is_set()
+
+
+def test_pause_current_uses_valid_voice_snapshot(manager, buses, two_voices):
+	voice, _ = two_voices
+	calls = []
+	voice.pause = lambda: calls.append("pause")
+	voice.resume = lambda: calls.append("resume")
+	request = manager.new_request()
+	manager.append_speech(request, voice, voice.start_async)
+	assert manager.submit_request(request)
+	assert voice.entered.wait(1)
+	manager.pause_current(True)
+	manager.pause_current(False)
+	assert calls == ["pause", "resume"]
+	manager.cancel([voice])
+	manager.pause_current(True)
+	assert calls == ["pause", "resume"]
+
+
+def test_handlers_unregister_on_shutdown(task_module, buses):
+	manager = task_module.TaskManager(owner=buses.owner)
+	assert len(buses.done.handlers) == 2
+	assert len(buses.index.handlers) == 2
+	manager.shutdown()
+	assert buses.done.handlers == []
+	assert buses.index.handlers == []
+
+
+def test_legacy_core_notifications_forward_only_during_legacy_work(manager, buses, two_voices):
+	voice, _ = two_voices
+	voice.core.wv = object()
+	legacy = manager.add_speak_task(voice, voice.start_async)
+	assert voice.entered.wait(1)
+	buses.index.notify(synth=voice.core, index=4)
+	buses.done.notify(synth=voice.core)
+	buses.done.notify(synth=voice.core)
+	assert legacy.result(timeout=1) is True
+	assert buses.outer_indexes == [4]
+	assert buses.outer_done == [manager.owner]
 
 
 def test_cancelled_request_built_before_submit_is_not_enqueued(manager, voice):

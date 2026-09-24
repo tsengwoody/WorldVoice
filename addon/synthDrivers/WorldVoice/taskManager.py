@@ -1,6 +1,5 @@
 import queue
 import threading
-import time
 from dataclasses import dataclass
 from concurrent.futures import Future
 
@@ -82,17 +81,6 @@ class _Task:
 	expected_core: object = None
 
 
-def IndexReached_notify_forward(synth, index):
-	if hasattr(synth, "wv"):
-		synthIndexReached.notify(synth=getSynth(), index=index)
-
-
-def DoneSpeaking_notify_forward(synth):
-	if hasattr(synth, "wv"):
-		synthDoneSpeaking.notify(synth=getSynth())
-
-
-
 # ----------------------------
 # SpeechExecutor
 # ----------------------------
@@ -109,13 +97,16 @@ class TaskManager:
 		self._requests = {}
 		self._stops_in_flight = 0
 		self._current_task = None
+		self._current_request = None
 		self._current_phase = None
 		self._current_done_event = None
+		self._current_indexes = set()
 
 		self._thread = threading.Thread(target=self._worker, daemon=True)
-		synthDoneSpeaking.register(DoneSpeaking_notify_forward)
-		synthDoneSpeaking.register(self._on_done_speaking)
-		synthIndexReached.register(IndexReached_notify_forward)
+		synthDoneSpeaking.register(self._forward_legacy_done)
+		synthDoneSpeaking.register(self._on_core_done)
+		synthIndexReached.register(self._forward_legacy_index)
+		synthIndexReached.register(self._on_core_index)
 		self._thread.start()
 
 	# ----------------------------
@@ -221,6 +212,14 @@ class TaskManager:
 			except Exception:
 				log.debug("Failed to stop current core", exc_info=True)
 
+	def pause_current(self, switch: bool):
+		with self._state_cond:
+			current = self._current_task
+			voice = (current.voiceInstance if current and self._valid_locked(current)
+				and self._current_phase in ("starting", "awaiting_done") else None)
+		if voice is not None:
+			(voice.pause if switch else voice.resume)()
+
 	def cancel(self, voices=()):
 		# Resolve voice properties outside the state lock.
 		voice_cores = [getattr(voice, "core", None) for voice in voices]
@@ -250,9 +249,10 @@ class TaskManager:
 		self._q.put(None)
 		self._thread.join()
 		for event, handler in (
-			(synthIndexReached, IndexReached_notify_forward),
-			(synthDoneSpeaking, DoneSpeaking_notify_forward),
-			(synthDoneSpeaking, self._on_done_speaking),
+			(synthIndexReached, self._forward_legacy_index),
+			(synthIndexReached, self._on_core_index),
+			(synthDoneSpeaking, self._forward_legacy_done),
+			(synthDoneSpeaking, self._on_core_done),
 		):
 			try:
 				event.unregister(handler)
@@ -263,20 +263,58 @@ class TaskManager:
 	# Worker
 	# ----------------------------
 
-	def _on_done_speaking(self, synth):
-		try:
-			if synth != getSynth():
-				return
-		except Exception:
-			return
+	def _forward_legacy_done(self, synth):
 		with self._state_cond:
+			current = self._current_task
+			if (current is None or self._current_request is not None
+				or current.kind != "legacy" or synth is not current.expected_core
+				or self._current_phase != "awaiting_done"
+				or (self._current_done_event and self._current_done_event.is_set())
+				or not self._valid_locked(current)):
+				return
 			if self._current_done_event:
 				self._current_done_event.set()
+		synthDoneSpeaking.notify(synth=getSynth())
+
+	def _forward_legacy_index(self, synth, index):
+		with self._state_cond:
+			current = self._current_task
+			if (current is None or self._current_request is not None
+				or current.kind != "legacy" or synth is not current.expected_core
+				or self._current_phase != "awaiting_done"
+				or (self._current_done_event and self._current_done_event.is_set())
+				or not self._valid_locked(current)):
+				return
+		synthIndexReached.notify(synth=getSynth(), index=index)
+
+	def _on_core_done(self, synth):
+		with self._state_cond:
+			current = self._current_task
+			if (synth is self.owner or current is None or current.kind != "speech"
+				or current.request is not self._current_request
+				or synth is not current.expected_core or self._current_phase != "awaiting_done"
+				or not self._valid_locked(current)):
+				return
+			self._current_done_event.set()
+
+	def _on_core_index(self, synth, index):
+		with self._state_cond:
+			current = self._current_task
+			if (synth is self.owner or current is None or current.kind != "speech"
+				or current.request is not self._current_request
+				or synth is not current.expected_core or self._current_phase != "awaiting_done"
+				or self._current_done_event.is_set()
+				or not self._valid_locked(current) or index in self._current_indexes):
+				return
+			self._current_indexes.add(index)
+		if getSynth() is self.owner:
+			synthIndexReached.notify(synth=self.owner, index=index)
 
 	def _valid_locked(self, task):
 		return (not self._stop.is_set() and not task.future.cancelled()
 			and not (task.token and task.token.is_cancelled())
-			and (task.request is None or task.request.epoch == self._epoch))
+			and (task.request is None or (task.request.epoch == self._epoch
+				and not task.request.failed)))
 
 	def _worker(self):
 		while not self._stop.is_set():
@@ -300,13 +338,16 @@ class TaskManager:
 			else:
 				task.expected_core = expected_core
 				self._current_task = task
+				self._current_request = task.request if task.kind != "legacy" else None
 				self._current_phase = "starting"
+				self._current_indexes = set()
 				if task.wait_done:
 					self._current_done_event = threading.Event()
 		if not valid:
 			task.future.cancel()
 			return
 
+		failed = False
 		try:
 			if task.kind == "speech":
 				task.voiceInstance.active()
@@ -318,6 +359,9 @@ class TaskManager:
 			# A cancellation during active() or before core entry skips the call.
 			with self._state_cond:
 				valid = self._valid_locked(task)
+				if valid and task.wait_done:
+					# A core can emit done synchronously from speak().
+					self._current_phase = "awaiting_done"
 			if not valid:
 				task.future.cancel()
 				return
@@ -337,42 +381,58 @@ class TaskManager:
 				else:
 					task.future.set_result(result)
 				return
-			with self._state_cond:
-				self._current_phase = "awaiting_done"
-				done = self._current_done_event
-			start = time.monotonic()
+			done = self._current_done_event
 			while True:
 				with self._state_cond:
 					valid = self._valid_locked(task)
 				if not valid:
 					task.future.cancel()
 					return
-				if task.timeout is not None and time.monotonic() - start > task.timeout:
-					if task.request is not None:
-						with self._state_cond:
-							task.request.failed = True
-					task.future.set_exception(TimeoutError("Speech timeout"))
+				# Cancellation sets this event; there is no polling timeout.
+				done.wait()
+				with self._state_cond:
+					valid = self._valid_locked(task)
+				if not valid:
+					task.future.cancel()
 					return
-				if done.wait(0.05):
+				if done.is_set():
 					task.future.set_result(True)
 					return
 		except Exception as e:
 			if task.request is not None:
 				with self._state_cond:
-					task.request.failed = True
+					if task.request.epoch == self._epoch and not task.token.is_cancelled():
+						task.request.failed = True
+						task.token.cancel()
+						failed = True
 			task.future.set_exception(e)
 			log.error("SpeechExecutor task error", exc_info=True)
 		finally:
+			if failed and task.expected_core is not None:
+				try:
+					task.expected_core.cancel()
+				except Exception:
+					log.debug("Failed to stop failed core", exc_info=True)
 			with self._state_cond:
 				self._current_task = None
+				self._current_request = None
 				self._current_phase = None
 				self._current_done_event = None
-				self._finish_task_locked(task)
+				self._current_indexes = set()
+				notify_done = self._finish_task_locked(task)
+			if notify_done and getSynth() is self.owner:
+				synthDoneSpeaking.notify(synth=self.owner)
 
 	def _finish_task_locked(self, task):
 		request = task.request
 		if request is None:
-			return
+			return False
 		request.remaining -= 1
 		if request.remaining == 0:
 			self._requests.pop(request.request_id, None)
+		if (request.has_speech and (task.kind != "legacy" or request.failed)
+			and not request.done_sent and request.epoch == self._epoch
+			and (request.failed or (request.remaining == 0 and not request.token.is_cancelled()))):
+			request.done_sent = True
+			return True
+		return False
