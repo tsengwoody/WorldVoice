@@ -420,6 +420,25 @@ def test_new_request_drops_old_callback_buffer_and_sonic_tail(engine_harness, mo
 	assert core._real_player.fed == [b"new"]
 
 
+def test_failed_sonic_init_is_not_retried_on_next_speak(engine_harness, monkeypatch):
+	core = ready_core(engine_harness)
+	callback = core._veCallbackHandler
+	callback._sonicInitTried = True
+	callback._sonicEnabled = False
+	callback.sonicStream = None
+	callback._feedBuf = BytesIO(b"old buffered")
+	seen = []
+
+	def native(instance, text):
+		seen.append((callback._sonicInitTried, callback._sonicEnabled, callback._feedBuf.getvalue()))
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	core.speak(["first"], cancellationToken=Token())
+	core.speak(["second"], cancellationToken=Token())
+	assert seen == [(True, False, b"")] * 2
+	assert callback._ensureSonicStream() is False
+
+
 def test_untokened_speech_and_cancel_remain_usable(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	core._veCallbackHandler._ensureSonicStream = lambda: False

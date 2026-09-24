@@ -123,9 +123,11 @@ class CancellableSynthDriver(SynthDriver):
 	def _reset_callback_audio(self):
 		callback = self._veCallbackHandler
 		callback._feedBuf = BytesIO()
-		callback.sonicStream = None
-		callback._sonicEnabled = False
-		callback._sonicInitTried = False
+		if getattr(callback, "_sonicEnabled", False):
+			# Drop the old Sonic tail; a failed Sonic init stays failed and is not retried.
+			callback.sonicStream = None
+			callback._sonicEnabled = False
+			callback._sonicInitTried = False
 
 	def _speak(self, voiceInstance, chunks):
 		if not self._guard_installed:
