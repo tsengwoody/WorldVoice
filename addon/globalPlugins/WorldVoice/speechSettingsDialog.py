@@ -495,12 +495,14 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self._dataToPercist[locale]["voice"] = voiceName
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			if self._keepParameterConsistentCheckBox.GetValue():
-				mainVoiceInstance = self._manager._defaultVoiceInstance
-				voiceInstance.rate = mainVoiceInstance.rate
-				voiceInstance.pitch = mainVoiceInstance.pitch
-				voiceInstance.volume = mainVoiceInstance.volume
-				voiceInstance.inflection = mainVoiceInstance.inflection
-				voiceInstance.rateBoost = mainVoiceInstance.rateBoost
+				base = self._manager._defaultVoiceInstance.snapshot()
+				voiceInstance.update_settings(
+					rate=base.rate,
+					pitch=base.pitch,
+					volume=base.volume,
+					inflection=base.inflection,
+					rateBoost=base.rateBoost,
+				)
 			self._rateSlider.SetValue(voiceInstance.rate)
 			self._pitchSlider.SetValue(voiceInstance.pitch)
 			self._volumeSlider.SetValue(voiceInstance.volume)
@@ -542,12 +544,14 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self.sliderEnable()
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
 			if self._keepParameterConsistentCheckBox.GetValue():
-				mainVoiceInstance = self._manager._defaultVoiceInstance
-				voiceInstance.rate = mainVoiceInstance.rate
-				voiceInstance.pitch = mainVoiceInstance.pitch
-				voiceInstance.volume = mainVoiceInstance.volume
-				voiceInstance.inflection = mainVoiceInstance.inflection
-				voiceInstance.rateBoost = mainVoiceInstance.rateBoost
+				base = self._manager._defaultVoiceInstance.snapshot()
+				voiceInstance.update_settings(
+					rate=base.rate,
+					pitch=base.pitch,
+					volume=base.volume,
+					inflection=base.inflection,
+					rateBoost=base.rateBoost,
+				)
 			self._rateSlider.SetValue(voiceInstance.rate)
 			self._pitchSlider.SetValue(voiceInstance.pitch)
 			self._volumeSlider.SetValue(voiceInstance.volume)

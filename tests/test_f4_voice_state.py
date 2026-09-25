@@ -345,3 +345,69 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	manager_instance.previewVoiceParameterConsistent(a)
 	assert updates == [{"rate": 72, "pitch": 60, "volume": 70,
 		"inflection": 55, "rateBoost": True}]
+
+
+@pytest.mark.parametrize("action", ["onVoiceChange", "onKeepParameterConsistentChange"])
+def test_ui_consistency_copy_is_atomic_for_worker_activation(monkeypatch, action):
+	(a, b), config = _voices(monkeypatch)
+	from f4_test_worldvoice.driver.engineSession import EngineSession
+	a.update_settings(rate=72, pitch=61, volume=73, inflection=44, rateBoost=True)
+	core = RecordingCore()
+	a.__class__.core = core
+	b.session = EngineSession(core)
+	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
+	manager_instance = object.__new__(manager_module.VoiceManager)
+	manager_instance._instanceCache = {a.name: a, b.name: b}
+	manager_instance._defaultVoiceInstance = a
+	manager_instance.getVoiceInstance = lambda name: manager_instance._instanceCache[name]
+	panel = _load_panel_class(config)()
+	panel._manager = manager_instance
+	panel._localesChoice = types.SimpleNamespace(GetCurrentSelection=lambda: 0)
+	panel._locales = ["fr"]
+	panel._voicesChoice = types.SimpleNamespace(GetCurrentSelection=lambda: 1)
+	panel._voiceNamesByChoiceIndex = [a.name, b.name]
+	panel._dataToPercist = defaultdict(dict)
+	panel._keepParameterConsistentCheckBox = types.SimpleNamespace(GetValue=lambda: True)
+	for name in ("_rateSlider", "_pitchSlider", "_volumeSlider", "_inflectionSlider",
+			"_rateBoostCheckBox"):
+		setattr(panel, name, types.SimpleNamespace(SetValue=lambda value: None))
+	panel._updateVariantsSelection = lambda: None
+	panel.sliderDisable = lambda: None
+	panel.sliderEnable = lambda: None
+
+	rate_written = threading.Event()
+	release_copy = threading.Event()
+	worker_done = threading.Event()
+	errors = []
+	property_rate = type(b).rate
+	def gated_rate(instance, value):
+		property_rate.fset(instance, value)
+		if instance is b and value == 72 and not rate_written.is_set():
+			rate_written.set()
+			release_copy.wait(2)
+	monkeypatch.setattr(type(b), "rate", property(property_rate.fget, gated_rate))
+
+	def activate_b():
+		try:
+			b.active()
+		except Exception as error:
+			errors.append(error)
+		finally:
+			worker_done.set()
+
+	ui_thread = threading.Thread(target=lambda: getattr(panel, action)(None))
+	worker_thread = threading.Thread(target=activate_b)
+	ui_thread.start()
+	try:
+		assert rate_written.wait(1)
+		worker_thread.start()
+		assert not worker_done.wait(0.05), "worker observed settings during the UI copy"
+	finally:
+		release_copy.set()
+		ui_thread.join(1)
+		if worker_thread.ident is not None:
+			worker_thread.join(1)
+	assert not ui_thread.is_alive() and not worker_thread.is_alive()
+	assert errors == []
+	assert (core.voice, core.rate, core.pitch, core.volume, core.inflection,
+		core.rateBoost) == ("b", 72, 61, 73, 44, True)
