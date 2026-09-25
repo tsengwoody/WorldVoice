@@ -1,6 +1,9 @@
 import config
 import languageHandler
+import threading
 from synthDriverHandler import getSynth
+
+from .engineSession import EngineSession, VoiceSnapshot
 
 
 def boolean(value):
@@ -28,31 +31,34 @@ VOICE_PARAMETERS = [
 
 
 def percent_property(attr):
-	"""Return a property that keeps self._<attr> in sync with self.core.<attr>."""
+	"""Return a property for a pending voice setting."""
 	private_name = f"_{attr}"
 
 	def getter(self):
-		return getattr(self, private_name)
+		with self._settingsLock:
+			return getattr(self, private_name)
 
-	def setter(self, percent):
-		setattr(self, private_name, percent)
-
-		if (
-			self.core
-			and getattr(self.core, "voice", None) == self.id
-			and attr in [i.id for i in self.core.supportedSettings]
-		):
-			setattr(self.core, attr, percent)
+	def setter(self, value):
+		with self._settingsLock:
+			if getattr(self, private_name, None) != value:
+				setattr(self, private_name, value)
+				if not self._initializing:
+					self._revision += 1
 
 	return property(getter, setter)
 
 
 class Voice(object):
 	core = None
+	session = None
 	engine = ""
 	synth_driver_class = None
 
 	def __init__(self, id, name, taskManager, language=None):
+		self._settingsLock = threading.RLock()
+		self._revision = 0
+		self._initializing = True
+		self._waitfactor = 0
 		self.id = id
 		self.name = name
 		self.language = language or "unknown"
@@ -63,13 +69,38 @@ class Voice(object):
 			setattr(self, "commit_" + p, t(d))
 
 		self.loadParameter()
-		self.setCoreParameter()
+		self._initializing = False
+		self._revision = 0
 
 	rate   = percent_property("rate")
 	pitch  = percent_property("pitch")
 	volume = percent_property("volume")
 	inflection = percent_property("inflection")
 	rateBoost = percent_property("rateBoost")
+	variant = percent_property("variant")
+	waitfactor = percent_property("waitfactor")
+
+	@property
+	def revision(self):
+		with self._settingsLock:
+			return self._revision
+
+	def update_settings(self, **values):
+		allowed = {name for name, _, _ in VOICE_PARAMETERS} | {"waitfactor"}
+		if set(values) - allowed:
+			raise ValueError("Unknown voice setting")
+		with self._settingsLock:
+			for name, value in values.items():
+				setattr(self, name, value)
+
+	def snapshot(self):
+		with self._settingsLock:
+			return VoiceSnapshot(self.id, self._revision, self.language,
+				self._rate, self._pitch, self._volume, self._variant,
+				self._inflection, self._rateBoost, self._waitfactor)
+
+	def applyEngineSettings(self, core, snapshot):
+		return None
 
 	@property
 	def name(self):
@@ -83,14 +114,6 @@ class Voice(object):
 	def variants(self):
 		self._variants = []
 		return self._variants
-
-	@property
-	def variant(self):
-		return self._variant
-
-	@variant.setter
-	def variant(self, value):
-		self._variant = value
 
 	@classmethod
 	def voiceInfoToMetadata(cls, voice):
@@ -141,14 +164,10 @@ class Voice(object):
 		raise NotImplementedError
 
 	def active(self):
-		if self.core and self.core.voice != self.id:
-			self.setCoreParameter()
+		return self.session.activate(self.snapshot(), self.applyEngineSettings)
 
 	def speak(self, text, request):
 		def _speak():
-			if request.token.is_cancelled():
-				return
-			self.active()
 			if request.token.is_cancelled():
 				return
 			if getattr(self.core, "supportsCancellationToken", False):
@@ -181,46 +200,41 @@ class Voice(object):
 		if not cls.core:
 			cls.core = cls.synth_driver_class()
 			cls.core.wv = cls.engine
+			cls.session = EngineSession(cls.core)
 
 	@classmethod
 	def engineOff(cls):
-		if cls.core:
-			cls.core.terminate()
+		try:
+			if cls.core:
+				cls.core.terminate()
+		finally:
+			cls.session = None
 			cls.core = None
 
-	def setCoreParameter(self):
-		if self.core:
-			self.core.voice = self.id
-			vp = [i[0] for i in VOICE_PARAMETERS]
-			ss = [i.id for i in self.core.supportedSettings]
-			for attr in list(set(ss) & set(vp) - set(["variant"])):
-				private_name = f"_{attr}"
-				percent = getattr(self, private_name)
-				setattr(self.core, attr, percent)
-
 	def loadParameter(self):
-		voiceName = self.name
-		if voiceName in config.conf["WorldVoice"]["voices"]:
-			for p, t, _ in VOICE_PARAMETERS:
-				if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
-					try:
-						value = config.conf["speech"][getSynth().name].get(p, None)
-					except BaseException:
+		with self._settingsLock:
+			voiceName = self.name
+			if voiceName in config.conf["WorldVoice"]["voices"]:
+				for p, t, _ in VOICE_PARAMETERS:
+					if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+						try:
+							value = config.conf["speech"][getSynth().name].get(p, None)
+						except BaseException:
+							value = config.conf["WorldVoice"]['voices'][voiceName].get(p, None)
+					else:
 						value = config.conf["WorldVoice"]['voices'][voiceName].get(p, None)
-				else:
-					value = config.conf["WorldVoice"]['voices'][voiceName].get(p, None)
-				if value is None:
-					continue
-				setattr(self, p, t(value))
-		else:
-			config.conf["WorldVoice"]["voices"][voiceName] = {}
-			for p, t, d in VOICE_PARAMETERS:
-				config.conf["WorldVoice"]['voices'][voiceName][p] = t(d)
-				setattr(self, p, t(d))
+					if value is None:
+						continue
+					setattr(self, p, t(value))
+			else:
+				config.conf["WorldVoice"]["voices"][voiceName] = {}
+				for p, t, d in VOICE_PARAMETERS:
+					config.conf["WorldVoice"]['voices'][voiceName][p] = t(d)
+					setattr(self, p, t(d))
 
-		for p, t, _ in VOICE_PARAMETERS:
-			value = t(getattr(self, p))
-			setattr(self, "commit_" + p, value)
+			for p, t, _ in VOICE_PARAMETERS:
+				value = t(getattr(self, p))
+				setattr(self, "commit_" + p, value)
 
 	def commit(self):
 		for p, t, _ in VOICE_PARAMETERS:
@@ -235,13 +249,14 @@ class Voice(object):
 			config.conf["WorldVoice"]["voices"][voiceName][p] = value
 
 	def rollback(self):
-		for p, t, _ in VOICE_PARAMETERS:
-			value = t(getattr(self, "commit_" + p))
-			setattr(self, p, value)
+		with self._settingsLock:
+			for p, t, _ in VOICE_PARAMETERS:
+				value = t(getattr(self, "commit_" + p))
+				setattr(self, p, value)
 
-		voiceName = self.name
-		if voiceName not in config.conf["WorldVoice"]["voices"]:
-			config.conf["WorldVoice"]["voices"][voiceName] = {}
-		for p, t, _ in VOICE_PARAMETERS:
-			value = t(getattr(self, p))
-			config.conf["WorldVoice"]["voices"][voiceName][p] = value
+			voiceName = self.name
+			if voiceName not in config.conf["WorldVoice"]["voices"]:
+				config.conf["WorldVoice"]["voices"][voiceName] = {}
+			for p, t, _ in VOICE_PARAMETERS:
+				value = t(getattr(self, p))
+				config.conf["WorldVoice"]["voices"][voiceName][p] = value

@@ -195,6 +195,7 @@ class VoiceManager(object):
 			language=voiceMeta.language,
 			taskManager=self.taskManager
 		)
+		voiceInstance.session = cls.session
 		log.debug(
 			"WorldVoice init timing: create voice instance %s/%s %.3fs",
 			voiceMeta.engine,
