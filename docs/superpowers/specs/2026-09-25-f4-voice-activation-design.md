@@ -26,7 +26,7 @@ Session 記錄上次**成功套用**的 `(core 身分／世代, Voice ID, revisi
 2. 同一 Voice、版本不同：套用新快照後播放。
 3. Voice 不同，或 `core` 重建：完整套用該 Voice 的快照後播放，即使該 Voice 的版本未變。
 
-每段固定成本為取得一次快照與比較記錄值；不重新讀設定檔，也不逐項比對 `core` 的參數。若 Session 在套用設定期間發生錯誤，不更新已套用記錄。
+每段固定成本為取得一次快照與比較記錄值；不重新讀設定檔，也不逐項比對 `core` 的參數。若 Session 在套用設定期間發生錯誤，清除已套用記錄，因為 `core` 可能已部分改變。
 
 ## 語音工作流程與引擎差異
 
@@ -40,7 +40,7 @@ TaskManager 的 speech task 是「下一段開始」的邊界。worker 取快照
 
 TaskManager 繼續直接取消目前的 `core`，並直接對目前語音執行暫停／恢復；這些控制操作不等待下一段。已取消的 task 在套用設定前或呼叫 `speak()` 前，沿用既有 token 檢查。取消後已成功套用的 Session 記錄可保留；下段仍會按 Voice ID 與版本重新判斷。
 
-若設定套用失敗，該段不得用舊的 `core` 狀態繼續播放；讓目前 speech task 走既有錯誤／完成流程，記錄錯誤，並保留上次成功套用的記錄，以便後續段落重試。引擎關閉或重新建立時，Session 清除已套用記錄。Session 的關閉順序沿用 VoiceManager 與 TaskManager 現有生命週期，確保不在 worker 使用 `core` 時終止它。
+若設定套用失敗，該段不得用舊的 `core` 狀態繼續播放；讓目前 speech task 走既有錯誤／完成流程，記錄錯誤，並清除已套用記錄，讓後續段落完整重試。引擎關閉或重新建立時，Session 也清除已套用記錄。Session 的關閉順序沿用 VoiceManager 與 TaskManager 現有生命週期，確保不在 worker 使用 `core` 時終止它。
 
 ## 驗收情境
 
