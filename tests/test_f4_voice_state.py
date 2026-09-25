@@ -4,7 +4,7 @@ import types
 
 import pytest
 
-from test_voice_settings_transaction import _create_voices
+from test_voice_settings_transaction import _create_voices, _load_panel_class
 from test_worldvoice_lifecycle import _load_voice_manager
 from test_worldvoice_request_manager import buses, manager, task_module
 
@@ -206,3 +206,49 @@ def test_activation_error_fails_request_before_speech(manager, buses):
 	assert buses.wait_for_outer_done(1) == [manager.owner]
 	assert request.failed
 	assert core.spoken == []
+
+
+def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypatch):
+	(a, b), config = _voices(monkeypatch)
+	from lifecycle_test_worldvoice.driver.engineSession import EngineSession
+	core = RecordingCore()
+	a.__class__.core = core
+	session = EngineSession(core)
+	a.session = b.session = session
+	a.active()
+	current_writes = list(core.writes)
+	manager_module = sys.modules["lifecycle_test_worldvoice.voiceManager"]
+	manager_instance = object.__new__(manager_module.VoiceManager)
+	manager_instance._instanceCache = {a.name: a, b.name: b}
+	manager_instance.getVoiceInstance = lambda name: manager_instance._instanceCache[name]
+	panel_type = _load_panel_class(config, lambda: types.SimpleNamespace(name="WorldVoice"))
+	panel = panel_type()
+	panel.disable = False
+	panel._manager = manager_instance
+	panel._initialKeepEngineConsistent = False
+	panel._voicesChoice = types.SimpleNamespace(GetCurrentSelection=lambda: 1)
+	panel._voiceNamesByChoiceIndex = [a.name, b.name]
+	panel._rateSlider = types.SimpleNamespace(GetValue=lambda: 72)
+	panel._keepParameterConsistentCheckBox = types.SimpleNamespace(GetValue=lambda: True)
+	panel.onSpeechRateSliderScroll(None)
+	assert (a.rate, b.rate) == (72, 72)
+	assert core.writes == current_writes
+	b.active()
+	assert (core.voice, core.rate) == ("b", 72)
+	panel.onDiscard()
+	assert (a.rate, b.rate) == (50, 50)
+	b.active()
+	assert (core.voice, core.rate) == ("b", 50)
+
+
+def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
+	(a, b), _ = _voices(monkeypatch)
+	manager_module = sys.modules["lifecycle_test_worldvoice.voiceManager"]
+	manager_instance = object.__new__(manager_module.VoiceManager)
+	manager_instance._instanceCache = {a.name: a, b.name: b}
+	updates = []
+	b.update_settings = lambda **values: updates.append(values)
+	a.update_settings(rate=72, pitch=60, volume=70, inflection=55, rateBoost=True)
+	manager_instance.previewVoiceParameterConsistent(a)
+	assert updates == [{"rate": 72, "pitch": 60, "volume": 70,
+		"inflection": 55, "rateBoost": True}]

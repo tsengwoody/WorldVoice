@@ -217,11 +217,13 @@ class VoiceManager(object):
 
 	def onVoiceParameterConsistent(self, baseInstance):
 		for voiceName, instance in self._instanceCache.items():
-			instance.rate = baseInstance.rate
-			instance.pitch = baseInstance.pitch
-			instance.volume = baseInstance.volume
-			instance.inflection = baseInstance.inflection
-			instance.rateBoost = baseInstance.rateBoost
+			instance.update_settings(
+				rate=baseInstance.rate,
+				pitch=baseInstance.pitch,
+				volume=baseInstance.volume,
+				inflection=baseInstance.inflection,
+				rateBoost=baseInstance.rateBoost,
+			)
 			instance.commit()
 
 	def onKeepEngineConsistent(self):

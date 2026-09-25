@@ -6,7 +6,7 @@ from logHandler import log
 
 from .driver import SynthDriver, TtsSetParamList, ProcessText2Speech
 from .driver import ttsapi
-from .driver.ttsapi.veTypes import VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT, VeError
+from .driver.ttsapi.veTypes import VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT
 from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
 from synthDrivers.WorldVoice.driver.arabic_text import break_repeated_runs
 from synthDrivers.WorldVoice.driver.chunker import split_speech_text_pieces
@@ -166,19 +166,17 @@ class Voice(Voice):
 	engine = "Cerence"
 	synth_driver_class = CancellableSynthDriver
 
-	@property
-	def variant(self):
-		return self._variant
-
-	@variant.setter
-	def variant(self, value):
-		self._variant = value
-		try:
-			TtsSetParamList(self.core.getVoiceInstance(self.id), (VE_PARAM_VOICE_OPERATING_POINT, value))()
-		except VeError:
-			pass
-		except BaseException:
-			pass
+	def applyEngineSettings(self, core, snapshot):
+		instance = core.getVoiceInstance(snapshot.voice_id)
+		if getattr(self, "_defaultVariantCore", None) is not core:
+			self._defaultVariant = core.getParameter(
+				instance, VE_PARAM_VOICE_OPERATING_POINT, type_=str)
+			self._defaultVariantCore = core
+		if snapshot.variant != "default" and snapshot.variant not in core.availableVariants:
+			raise ValueError(f"Unavailable variant: {snapshot.variant}")
+		selected = self._defaultVariant if snapshot.variant == "default" else snapshot.variant
+		TtsSetParamList(instance, (VE_PARAM_VOICE_OPERATING_POINT, selected))()
+		core.waitfactor = snapshot.waitfactor
 
 	@property
 	def variants(self):
@@ -191,17 +189,6 @@ class Voice(Voice):
 			} for item in dbs]
 		except BaseException:
 			return []
-
-	@property
-	def waitfactor(self):
-		if self.core:
-			self._waitfactor = self.core.waitfactor
-		return self._waitfactor
-
-	@waitfactor.setter
-	def waitfactor(self, value):
-		if self.core:
-			self.core.waitfactor = value
 
 	@classmethod
 	def voices(cls):

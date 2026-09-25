@@ -7,9 +7,8 @@ class Voice(Voice):
 	engine = "OneCore"
 	synth_driver_class = SynthDriver
 
-	def __init__(self, id, name, taskManager, language=None):
-		super().__init__(id=id, name=name, taskManager=taskManager, language=language)
-		self.core.language = self.language
+	def applyEngineSettings(self, core, snapshot):
+		core.language = snapshot.language
 
 	@classmethod
 	def supportedSettings(cls):
