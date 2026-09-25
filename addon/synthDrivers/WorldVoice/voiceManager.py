@@ -215,7 +215,7 @@ class VoiceManager(object):
 		self._instanceCache[voiceInstance.name] = voiceInstance
 		return voiceInstance
 
-	def onVoiceParameterConsistent(self, baseInstance):
+	def previewVoiceParameterConsistent(self, baseInstance):
 		for voiceName, instance in self._instanceCache.items():
 			instance.update_settings(
 				rate=baseInstance.rate,
@@ -224,6 +224,10 @@ class VoiceManager(object):
 				inflection=baseInstance.inflection,
 				rateBoost=baseInstance.rateBoost,
 			)
+
+	def onVoiceParameterConsistent(self, baseInstance):
+		self.previewVoiceParameterConsistent(baseInstance)
+		for instance in self._instanceCache.values():
 			instance.commit()
 
 	def onKeepEngineConsistent(self):

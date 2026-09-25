@@ -1,19 +1,91 @@
+import ast
+from collections import defaultdict
+import importlib.util
 import sys
 import threading
 import types
+from pathlib import Path
 
 import pytest
 
-from test_voice_settings_transaction import _create_voices, _load_panel_class
-from test_worldvoice_lifecycle import _load_voice_manager
 from test_worldvoice_request_manager import buses, manager, task_module
+
+
+WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
+PANEL_PATH = WORLDVOICE.parents[1] / "globalPlugins/WorldVoice/speechSettingsDialog.py"
+
+
+def _load_voice_manager(monkeypatch, engine_classes):
+	package_name = "f4_test_worldvoice"
+	package = types.ModuleType(package_name)
+	package.__path__ = [str(WORLDVOICE)]
+	monkeypatch.setitem(sys.modules, package_name, package)
+	config = types.SimpleNamespace(conf={"WorldVoice": {
+		"voices": {},
+		"autoLanguageSwitching": {
+			"KeepMainLocaleEngineConsistent": False,
+			"KeepMainLocaleParameterConsistent": False,
+		},
+		"engine": {},
+	}})
+	monkeypatch.setitem(sys.modules, "config", config)
+	monkeypatch.setitem(sys.modules, "languageHandler", types.SimpleNamespace(
+		getLanguage=lambda: "en", getLanguageDescription=lambda language: language))
+	log = types.SimpleNamespace(
+		debug=lambda *args: None,
+		error=lambda *args, **kwargs: None,
+	)
+	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=log))
+	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
+		VoiceInfo=object, getSynth=lambda: types.SimpleNamespace(name="WorldVoice")))
+	engine_name = f"{package_name}.engine"
+	engine = types.ModuleType(engine_name)
+	engine.EngineType = [types.SimpleNamespace(name=name) for name in engine_classes]
+	engine.READY_ENGINE_CLASS = dict(engine_classes)
+	engine.get_engine_enabled = lambda *args: True
+	engine.refresh_ready_engine_classes = lambda *args: None
+	monkeypatch.setitem(sys.modules, engine_name, engine)
+	name = f"{package_name}.voiceManager"
+	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "voiceManager.py")
+	module = importlib.util.module_from_spec(spec)
+	monkeypatch.setitem(sys.modules, name, module)
+	spec.loader.exec_module(module)
+	return module
+
+
+def _create_voices(monkeypatch, config):
+	name = "f4_test_worldvoice.driver"
+	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "driver/__init__.py")
+	module = importlib.util.module_from_spec(spec)
+	monkeypatch.setitem(sys.modules, name, module)
+	spec.loader.exec_module(module)
+	return (
+		module.Voice("a", "A:a", None, "en"),
+		module.Voice("b", "B:b", None, "fr"),
+	)
+
+
+def _load_panel_class(config):
+	tree = ast.parse(PANEL_PATH.read_text(encoding="utf-8"))
+	panel = next(node for node in tree.body
+		if isinstance(node, ast.ClassDef) and node.name == "SpeechRoleSettingsPanel")
+	environment = {
+		"SettingsPanel": object,
+		"_": lambda value: value,
+		"guard_errors": lambda **kwargs: lambda method: method,
+		"got_error_callback": lambda self: None,
+		"config": config,
+		"getSynth": lambda: types.SimpleNamespace(name="WorldVoice"),
+		"wx": types.SimpleNamespace(NOT_FOUND=-1),
+		"defaultdict": defaultdict,
+	}
+	exec(compile(ast.Module(body=[panel], type_ignores=[]), str(PANEL_PATH), "exec"), environment)
+	return environment["SpeechRoleSettingsPanel"]
 
 
 def _voices(monkeypatch):
 	_load_voice_manager(monkeypatch, {})
 	config = sys.modules["config"]
-	monkeypatch.setattr(sys.modules["synthDriverHandler"], "getSynth",
-		lambda: types.SimpleNamespace(name="WorldVoice"), raising=False)
 	return _create_voices(monkeypatch, config), config
 
 
@@ -67,7 +139,7 @@ def test_voice_settings_are_pending_and_revision_tracks_real_changes(monkeypatch
 
 def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
-	from lifecycle_test_worldvoice.driver.engineSession import EngineSession
+	from f4_test_worldvoice.driver.engineSession import EngineSession
 	core = RecordingCore()
 	a.__class__.core = core
 	a.session = EngineSession(core)
@@ -103,7 +175,7 @@ def test_speech_closure_does_not_activate_voice(monkeypatch):
 
 def test_manager_assigns_engine_session_to_new_voice(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
-	module = sys.modules["lifecycle_test_worldvoice.voiceManager"]
+	module = sys.modules["f4_test_worldvoice.voiceManager"]
 	engine = a.__class__
 	engine.session = object()
 	module.READY_ENGINE_CLASS["A"] = engine
@@ -210,18 +282,32 @@ def test_activation_error_fails_request_before_speech(manager, buses):
 
 def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypatch):
 	(a, b), config = _voices(monkeypatch)
-	from lifecycle_test_worldvoice.driver.engineSession import EngineSession
-	core = RecordingCore()
+	from f4_test_worldvoice.driver.engineSession import EngineSession
+	class BlockingCore(RecordingCore):
+		def __init__(self):
+			super().__init__()
+			self.entered = threading.Event()
+			self.release = threading.Event()
+
+		def speak(self, text):
+			super().speak(text)
+			self.entered.set()
+			self.release.wait(2)
+
+	core = BlockingCore()
 	a.__class__.core = core
 	session = EngineSession(core)
 	a.session = b.session = session
 	a.active()
+	playback = threading.Thread(target=core.speak, args=("A is speaking",))
+	playback.start()
+	assert core.entered.wait(1)
 	current_writes = list(core.writes)
-	manager_module = sys.modules["lifecycle_test_worldvoice.voiceManager"]
+	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
 	manager_instance._instanceCache = {a.name: a, b.name: b}
 	manager_instance.getVoiceInstance = lambda name: manager_instance._instanceCache[name]
-	panel_type = _load_panel_class(config, lambda: types.SimpleNamespace(name="WorldVoice"))
+	panel_type = _load_panel_class(config)
 	panel = panel_type()
 	panel.disable = False
 	panel._manager = manager_instance
@@ -230,9 +316,16 @@ def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypa
 	panel._voiceNamesByChoiceIndex = [a.name, b.name]
 	panel._rateSlider = types.SimpleNamespace(GetValue=lambda: 72)
 	panel._keepParameterConsistentCheckBox = types.SimpleNamespace(GetValue=lambda: True)
-	panel.onSpeechRateSliderScroll(None)
-	assert (a.rate, b.rate) == (72, 72)
-	assert core.writes == current_writes
+	try:
+		panel.onSpeechRateSliderScroll(None)
+		assert (a.rate, b.rate) == (72, 72)
+		assert playback.is_alive()
+		assert core.spoken == ["A is speaking"]
+		assert core.writes == current_writes
+	finally:
+		core.release.set()
+		playback.join(1)
+	assert not playback.is_alive()
 	b.active()
 	assert (core.voice, core.rate) == ("b", 72)
 	panel.onDiscard()
@@ -243,7 +336,7 @@ def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypa
 
 def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	(a, b), _ = _voices(monkeypatch)
-	manager_module = sys.modules["lifecycle_test_worldvoice.voiceManager"]
+	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
 	manager_instance._instanceCache = {a.name: a, b.name: b}
 	updates = []

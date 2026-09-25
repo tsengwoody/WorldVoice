@@ -535,7 +535,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	def onKeepParameterConsistentChange(self, event):
 		if self._voicesChoice.GetCurrentSelection() == wx.NOT_FOUND:
 			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
+				self._manager.previewVoiceParameterConsistent(self._manager._defaultVoiceInstance)
 			return
 		voiceName = self._getSelectedVoiceName()
 		if voiceName:
@@ -556,7 +556,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		else:
 			self.sliderDisable()
 		if self._keepParameterConsistentCheckBox.GetValue():
-			self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
+			self._manager.previewVoiceParameterConsistent(self._manager._defaultVoiceInstance)
 
 	def sliderEnable(self):
 		if self.voiceInstance:
@@ -587,35 +587,35 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		if self.voiceInstance:
 			self.voiceInstance.rate = self._rateSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.onVoiceParameterConsistent(self.voiceInstance)
+				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
 
 	@guard_errors(callback=got_error_callback)
 	def onPitchSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.pitch = self._pitchSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.onVoiceParameterConsistent(self.voiceInstance)
+				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
 
 	@guard_errors(callback=got_error_callback)
 	def onVolumeSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.volume = self._volumeSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.onVoiceParameterConsistent(self.voiceInstance)
+				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
 
 	@guard_errors(callback=got_error_callback)
 	def onInflectionSliderScroll(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.inflection = self._inflectionSlider.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.onVoiceParameterConsistent(self.voiceInstance)
+				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
 
 	@guard_errors(callback=got_error_callback)
 	def onRateBoostChange(self, event):
 		if self.voiceInstance:
 			self.voiceInstance.rateBoost = self._rateBoostCheckBox.GetValue()
 			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.onVoiceParameterConsistent(self.voiceInstance)
+				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
 
 	@guard_errors(callback=lambda self: None)
 	def onDiscard(self):
