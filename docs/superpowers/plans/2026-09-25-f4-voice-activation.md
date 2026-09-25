@@ -51,7 +51,7 @@
 - Consumes: 具有 `voice`、`supportedSettings` 及參數 setter 的既有 core 介面。
 - Produces: `VoiceSnapshot`（下列固定欄位）；`EngineSession(core)`、`activate(snapshot, apply_engine)`、`replace_core(core)`、`invalidate()`。`activate` 回傳是否實際套用設定。
 
-- [ ] **Step 1: 寫失敗的單元測試。** 測試檔以 `importlib.util.spec_from_file_location` 載入不依賴 NVDA 的新模組，建立記錄 setter 呼叫的 fake core，並涵蓋相同 stamp、版本改變、A → B → A、core 更換及部分失敗後重試。關鍵案例：
+- [x] **Step 1: 寫失敗的單元測試。** 測試檔以 `importlib.util.spec_from_file_location` 載入不依賴 NVDA 的新模組，建立記錄 setter 呼叫的 fake core，並涵蓋相同 stamp、版本改變、A → B → A、core 更換及部分失敗後重試。關鍵案例：
 
 ```python
 def test_same_stamp_skips_setters_and_voice_switch_reapplies(session, snap):
@@ -75,13 +75,13 @@ def test_partial_failure_invalidates_stamp(session, snap):
 
 測試 fixture `snap` 建立 `VoiceSnapshot(voice_id=id, revision=rev, language="en", rate=50, pitch=50, volume=50, variant="default", inflection=50, rateBoost=False, waitfactor=0)`；fake core 的 `supportedSettings` 含 `rate`、`pitch`、`volume`，`__setattr__` 把這些欄位及 `voice` 寫入 `writes`。更換 core 的案例呼叫 `session.replace_core(new_core)`，再驗證同一快照仍被套用。
 
-- [ ] **Step 2: 執行新測試，確認因模組不存在而失敗。**
+- [x] **Step 2: 執行新測試，確認因模組不存在而失敗。**
 
 Run: `python3 -m pytest tests/test_f4_engine_session.py -q -p no:cacheprovider`
 
 Expected: FAIL，尚無 `engineSession.py`。
 
-- [ ] **Step 3: 建立最小實作。** 將快照欄位明確列在 frozen dataclass；Session 只記錄成功套用的 stamp，按固定順序設定通用參數，並在任何 setter 失敗時 `invalidate()` 後重新拋出：
+- [x] **Step 3: 建立最小實作。** 將快照欄位明確列在 frozen dataclass；Session 只記錄成功套用的 stamp，按固定順序設定通用參數，並在任何 setter 失敗時 `invalidate()` 後重新拋出：
 
 ```python
 from dataclasses import dataclass
@@ -135,13 +135,13 @@ class EngineSession:
         return True
 ```
 
-- [ ] **Step 4: 執行新測試並確認通過。**
+- [x] **Step 4: 執行新測試並確認通過。**
 
 Run: `python3 -m pytest tests/test_f4_engine_session.py -q -p no:cacheprovider`
 
 Expected: PASS。
 
-- [ ] **Step 5: 只提交本任務的模組與測試。**
+- [x] **Step 5: 只提交本任務的模組與測試。**
 
 ```bash
 git add addon/synthDrivers/WorldVoice/driver/engineSession.py tests/test_f4_engine_session.py
@@ -160,7 +160,7 @@ git commit -m "feat: add per-engine voice activation session"
 - Consumes: Task 1 的 `VoiceSnapshot`、`EngineSession.activate()`、`invalidate()`。
 - Produces: `Voice.snapshot() -> VoiceSnapshot`、`Voice.update_settings(**values)`、`Voice.applyEngineSettings(core, snapshot)`；`Voice.active()` 只在 worker 呼叫 Session；`VoiceManager._createVoiceInstance()` 把 `cls.session` 指派給 Voice。
 
-- [ ] **Step 1: 寫失敗的 Voice／排程測試。** 沿用 `tests/test_worldvoice_lifecycle.py::_load_voice_manager` 與 `tests/test_voice_settings_transaction.py::_create_voices` 的 NVDA stub，驗證建構及設定 setter 不寫 core、revision 從 0 開始、相同值不加版、`rollback()` 還原後加版，以及快照讀取後的修改留到下一次 `active()`。接上 Task 1 的 fake core／Session，驗證同一 Voice 連續兩段時第二段只在 revision 有變時才再次寫 core。另以收集 `append_speech` 閉包的 fake TaskManager，確認閉包本身不再啟用 Voice；現有 `TaskManager._run_one()` 仍啟用一次。關鍵斷言：
+- [x] **Step 1: 寫失敗的 Voice／排程測試。** 沿用 `tests/test_worldvoice_lifecycle.py::_load_voice_manager` 與 `tests/test_voice_settings_transaction.py::_create_voices` 的 NVDA stub，驗證建構及設定 setter 不寫 core、revision 從 0 開始、相同值不加版、`rollback()` 還原後加版，以及快照讀取後的修改留到下一次 `active()`。接上 Task 1 的 fake core／Session，驗證同一 Voice 連續兩段時第二段只在 revision 有變時才再次寫 core。另以收集 `append_speech` 閉包的 fake TaskManager，確認閉包本身不再啟用 Voice；現有 `TaskManager._run_one()` 仍啟用一次。關鍵斷言：
 
 ```python
 a, b = _create_voices(monkeypatch, config)
@@ -179,13 +179,13 @@ assert (a.rate, a.revision) == (50, 3)
 
 另外覆蓋修改中的取消：worker 在啟用後、呼叫 `speak` 前若 token 已取消，不呼叫 `core.speak`；用 `tests/test_worldvoice_request_manager.py` 的事件 fixture 加一個有同步閘門的案例。再讓 `active()` 拋出 `RuntimeError("apply failed")`，斷言 `core.speak` 未被呼叫、task future 帶有該例外、request 的既有失敗完成流程仍執行。
 
-- [ ] **Step 2: 執行新案例，確認因缺少 revision／snapshot 而失敗。**
+- [x] **Step 2: 執行新案例，確認因缺少 revision／snapshot 而失敗。**
 
 Run: `python3 -m pytest tests/test_f4_voice_state.py -q -p no:cacheprovider`
 
 Expected: FAIL，Voice 尚無 `revision` 與 `snapshot()`。
 
-- [ ] **Step 3: 改造 Voice 的待生效狀態。** 在 Voice 建構最先建立 `threading.RLock()`、`_revision = 0`、`_initializing = True`、`_waitfactor = 0`；保留原有預設值與 `loadParameter()`，結束後設 `_initializing = False`、`_revision = 0`，刪除建構時 `setCoreParameter()`。通用 property、`variant`、`waitfactor` 都以同一個鎖處理，且只在值不同時增加 revision。對多欄位的 `loadParameter()`、`rollback()`、`update_settings()` 以外層 RLock 包住整批變更。
+- [x] **Step 3: 改造 Voice 的待生效狀態。** 在 Voice 建構最先建立 `threading.RLock()`、`_revision = 0`、`_initializing = True`、`_waitfactor = 0`；保留原有預設值與 `loadParameter()`，結束後設 `_initializing = False`、`_revision = 0`，刪除建構時 `setCoreParameter()`。通用 property、`variant`、`waitfactor` 都以同一個鎖處理，且只在值不同時增加 revision。對多欄位的 `loadParameter()`、`rollback()`、`update_settings()` 以外層 RLock 包住整批變更。
 
 ```python
 def percent_property(name):
@@ -224,13 +224,13 @@ def active(self):
 
 用同樣的 getter／setter 規則實作 `variant`、`waitfactor` 與唯讀 `revision`。`loadParameter()` 和 `rollback()` 的原有 config／commit 行為保留，只將整段本地設定賦值包在鎖內。`Voice.speak()` 閉包移除 `self.active()`，保留取消檢查與 token aware 呼叫；TaskManager `_run_one()` 的 `task.voiceInstance.active()` 是唯一啟用點。`Voice.engineOn()` 建立 core 後建立 `cls.session = EngineSession(cls.core)`；`engineOff()` 在 `finally` 中清除 Session 與 core，保留現有 terminate 呼叫。`VoiceManager._createVoiceInstance()` 於建構後指定 `voiceInstance.session = cls.session`；`VoiceManager` 原有 eager `engineOn()`／`engineOff()` 順序維持。
 
-- [ ] **Step 4: 執行 Voice、request、生命週期及 F3 設定案例。**
+- [x] **Step 4: 執行 Voice、request、生命週期及 F3 設定案例。**
 
 Run: `python3 -m pytest tests/test_f4_voice_state.py tests/test_worldvoice_request_manager.py tests/test_worldvoice_lifecycle.py tests/test_voice_settings_transaction.py -q -p no:cacheprovider`
 
 Expected: PASS；確認 TaskManager 的 done/index 身分比對、取消、F3 預覽／還原沒有回歸。
 
-- [ ] **Step 5: 只提交本任務改動。** 對已有 F2／F3 未提交修改的檔案逐段 staging；提交前檢查 staged diff 不含舊修改。
+- [x] **Step 5: 只提交本任務改動。** 對已有 F2／F3 未提交修改的檔案逐段 staging；提交前檢查 staged diff 不含舊修改。
 
 ```bash
 git add addon/synthDrivers/WorldVoice/driver/__init__.py tests/test_f4_voice_state.py
@@ -254,7 +254,7 @@ git commit -m "fix: defer voice settings to speech segment start"
 - Consumes: Task 2 的 `Voice.applyEngineSettings(core, snapshot)`、`Voice.update_settings()`、`Voice.snapshot()`。
 - Produces: VE／Cerence 在 Session 啟用時才套用 variant 與 waitfactor；OneCore 在每次需要啟用時才套用 language；UI 保持現有設定方式但不再碰 core。
 
-- [ ] **Step 1: 寫失敗的引擎差異測試。** 使用 `tests/worldvoice_cancel_wrapper_harness.py::load_real_driver_with_native_stubs` 載入 VE／Cerence wrapper；其 adapter 的 `applyEngineSettings()` 以 `object.__new__(Voice)` 建立實例，搭配 `types.SimpleNamespace` fake core，不觸發原生初始化。fake core 提供 `getVoiceInstance()`、`getParameter()`、`availableVariants`、`waitfactor`，並攔截 wrapper 的 `TtsSetParamList`。Task 2 已驗證本地 `variant`／`waitfactor` setter；本測試另確認 wrapper 移除即時寫入的覆寫。測試 `default` 恢復首次讀到的原生預設變體、無效的非預設變體失敗。以 AST 載入 OneCore Voice class，驗證建構不寫 language、`applyEngineSettings()` 寫入快照的 language。關鍵案例：
+- [x] **Step 1: 寫失敗的引擎差異測試。** 使用 `tests/worldvoice_cancel_wrapper_harness.py::load_real_driver_with_native_stubs` 載入 VE／Cerence wrapper；其 adapter 的 `applyEngineSettings()` 以 `object.__new__(Voice)` 建立實例，搭配 `types.SimpleNamespace` fake core，不觸發原生初始化。fake core 提供 `getVoiceInstance()`、`getParameter()`、`availableVariants`、`waitfactor`，並攔截 wrapper 的 `TtsSetParamList`。Task 2 已驗證本地 `variant`／`waitfactor` setter；本測試另確認 wrapper 移除即時寫入的覆寫。測試 `default` 恢復首次讀到的原生預設變體、無效的非預設變體失敗。以 AST 載入 OneCore Voice class，驗證建構不寫 language、`applyEngineSettings()` 寫入快照的 language。關鍵案例：
 
 ```python
 adapter = object.__new__(engine_harness.module.Voice)
@@ -276,13 +276,13 @@ with pytest.raises(ValueError, match="Unavailable variant"):
 
 UI 整合案例沿用 `tests/test_voice_settings_transaction.py` 的 panel stub：A 正在使用的 fake core 記錄 setter；選取／預覽 B 後記錄不變；B 對應的 worker 啟用後才出現 B 的參數；取消預覽後再啟用 B 會回到還原值。
 
-- [ ] **Step 2: 執行新案例，確認 wrapper 的 setter 仍即時寫 core 或缺少啟用 hook。**
+- [x] **Step 2: 執行新案例，確認 wrapper 的 setter 仍即時寫 core 或缺少啟用 hook。**
 
 Run: `python3 -m pytest tests/test_f4_engine_adapters.py tests/test_f4_voice_state.py -q -p no:cacheprovider`
 
 Expected: FAIL，指出待改造的 VE／Cerence／OneCore 寫入路徑。
 
-- [ ] **Step 3: 移動引擎專用寫入。** 刪除 VE／Cerence Voice 的 `variant`、`waitfactor` setter/getter 覆寫，繼承 Task 2 的純本地 property；保留變體清單的讀取功能。各 Voice 在第一次啟用某個 core 時、改動原生變體前，讀取該原生實例的預設變體，並以 core 身分一起快取。兩個 wrapper 的 `applyEngineSettings()` 使用相同決策：
+- [x] **Step 3: 移動引擎專用寫入。** 刪除 VE／Cerence Voice 的 `variant`、`waitfactor` setter/getter 覆寫，繼承 Task 2 的純本地 property；保留變體清單的讀取功能。各 Voice 在第一次啟用某個 core 時、改動原生變體前，讀取該原生實例的預設變體，並以 core 身分一起快取。兩個 wrapper 的 `applyEngineSettings()` 使用相同決策：
 
 ```python
 def applyEngineSettings(self, core, snapshot):
@@ -307,13 +307,13 @@ def applyEngineSettings(self, core, snapshot):
 
 `VoiceManager.previewVoiceParameterConsistent()` 把每個 Voice 的五次個別指派換成一次 `instance.update_settings(rate=baseInstance.rate, pitch=baseInstance.pitch, volume=baseInstance.volume, inflection=baseInstance.inflection, rateBoost=baseInstance.rateBoost)`；此方法只更新本地值。若 VE／Cerence 的 `variants` 中繼資料讀取需要開啟另一個原生實例，保持目前已啟用 Voice 與其參數不變；測試要記錄 `core.voice` 及參數確認此點。
 
-- [ ] **Step 4: 執行新測試及既有回歸案例。**
+- [x] **Step 4: 執行新測試及既有回歸案例。**
 
 Run: `python3 -m pytest tests -q -p no:cacheprovider`
 
 Expected: PASS；再執行 `git diff --check`，預期沒有空白錯誤。若 Windows／NVDA 原生引擎不可用，記錄未能做原生語音輸出的限制；stub 測試仍須通過。
 
-- [ ] **Step 5: 只提交本任務改動。** `voiceManager.py` 仍只選本任務的 hunk；先檢查 staged diff。
+- [x] **Step 5: 只提交本任務改動。** `voiceManager.py` 仍只選本任務的 hunk；先檢查 staged diff。
 
 ```bash
 git add addon/synthDrivers/WorldVoice/driver/VE/__init__.py addon/synthDrivers/WorldVoice/driver/Cerence/__init__.py addon/synthDrivers/WorldVoice/driver/OneCore/__init__.py tests/test_f4_engine_adapters.py tests/test_f4_voice_state.py
