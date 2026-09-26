@@ -196,3 +196,14 @@ Pipeline 的 stage 清單分散於 [`static_register()`、`dynamic_register()`�
 - **F2 已修正：** 主驅動初始化失敗時回收已取得的 pipeline、UI patch、拼字 patch、TaskManager 與 VoiceManager；VoiceManager 關閉自己啟動的引擎，單項清理失敗不阻斷後續清理；TaskManager 事件註冊失敗時撤銷已完成的註冊。正常終止也解除語言偵測 handler，並可重複呼叫。
 - **F3 已修正：** 語音參數一致性的預覽不再提交設定；引擎一致性的切換在儲存前不改寫 role mapping，按取消會回復執行中的設定。按「套用」後更新取消基準。
 - 對 F2、F3 新增回歸案例。原始審查段落及其測試數字保留為修正前紀錄；後續驗證結果以實際執行輸出為準。
+
+## F5／F6／A1／A4 後續實作與驗證（2026-09-26）
+
+- **F5：** 沿用 F4 已存在的 OneCore `applyEngineSettings()` language hook，沒有重做相同修正。`EngineSession` 在 A → B → 已快取 A 時依來源、voice key、revision 重新套用 voice ID、language 與參數；證據包含 `test_onecore_cached_a_b_a_restores_language`、`test_cached_onecore_voice_round_trip_through_manager` 與新舊 Adapter 共用的 `test_cached_a_b_a_restores_voice_language_and_parameters`。
+- **F6：** 正規化命令的 `runtime/requestBuilder.py` 跳過不可用語音區段中的文字、index 及停頓，但繼續處理 SelectVoice；遇到可用語音即恢復，不偷偷改用 default。不可用 default、途中不可用與恢復、generator 失敗及取消交錯由 `tests/test_runtime_request_builder.py` 覆蓋。
+- **A1：** `runtime/models.py`／`settings.py` 分別擁有資料與設定狀態，`configRepository.py` 保存現有 config 格式，`runtime/session.py` 透過 Adapter 管理啟用與資源。`compat/voiceFacade.py` 只轉交設定與播放操作，UI 使用同一 VoiceEditSession，套用更新取消基準。
+- **A4：** 唯一 worker 與 request 狀態機在 `runtime/scheduler.py`；`nvdaEventBridge.py` 負責 NVDA 註冊、來源身分與 owner 通知。同步 done、index 去重、取消／後續請求和重複關閉有具名測試；舊 `taskManager.py` 僅重新匯出。
+- **相容層移除證據：** `tests/test_runtime_adapter_contract.py` 以 native／legacy 參數化執行相同五組案例。兩者均使用正式 Store、EngineSession、TaskManager；native 在載入 runtime 前禁止 compat、driver、NVDA 匯入並維持至 teardown。legacy 使用正式 LegacyEngineAdapter，沒有複製 scheduler 或設定服務。此處 native 是直接實作契約的測試 Adapter，不代表原生 DLL 已驗證。
+- **本次實際驗證：** `python3 -m pytest tests/test_runtime_adapter_contract.py -q -p no:cacheprovider`：10 passed in 0.10s；`python3 -m pytest tests -q -p no:cacheprovider`：338 passed in 3.28s；其後 `git diff --check` 通過。未收集 `ref/nvda`。runtime 匯入稽核沒有 config、synthDriverHandler、logHandler、compat、driver，亦無 voice.core／READY_ENGINE_CLASS 判斷；設定保存與回復沒有旁路副本。
+- **前提與限制：** 保留基底 `6256a23` 的 F2／F3 修正。Windows／NVDA、OneCore 真實切換、跨引擎長文、說全部、index、尾端停頓、快速取消、pause/resume、GUI 套用與取消，以及外部引擎版本接入均尚未實機驗證。**F7 同來源取消後延遲回呼排空契約仍未處理**，不可由上述通過測試推論已修正。
+- 任務 1–9 已通過逐任務審查；本段撰寫時 Task 10 與全分支最終獨立審查待執行。完整提交對照與逐項限制見 `docs/superpowers/finish/2026-09-26-voice-runtime-boundaries-validation.md`。
