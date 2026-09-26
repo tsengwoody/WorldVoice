@@ -76,6 +76,6 @@ F7 的同 core 取消後延遲回呼可能被下一筆接收，仍未處理。Br
 | 8 修正 | `1b042d6` | fix: preserve shared engines and close admission before shutdown |
 | 9 | `5824dcc` | refactor: share voice editing state across settings interfaces |
 | 9 補測 | `c71df56` | test: cover main-locale voice consistency apply and discard |
-| 10 | 提交後於後續文件提交補記實際 SHA | test: verify removable compatibility layer and runtime regressions |
+| 10 | `22cdb3d` | test: verify removable compatibility layer and runtime regressions |
 
 文件撰寫時任務 1–9 及其修正已通過逐任務審查；Task 10 的逐任務審查與全分支最終獨立審查尚待執行，不將 self-review 當成獨立審查。另依使用者要求保留 `docs/superpowers/finish_task.md` 原 F4 報告並追加本次完成說明；`review_gpt1.md` 僅追加後續紀錄。

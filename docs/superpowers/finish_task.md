@@ -60,7 +60,7 @@
 - `1b042d6` — `fix: preserve shared engines and close admission before shutdown`
 - `5824dcc` — `refactor: share voice editing state across settings interfaces`
 - `c71df56` — `test: cover main-locale voice consistency apply and discard`
-- Task 10：`test: verify removable compatibility layer and runtime regressions`，提交後於後續文件提交補記實際 SHA。
+- `22cdb3d` — `test: verify removable compatibility layer and runtime regressions`
 
 ## 目前限制
 
