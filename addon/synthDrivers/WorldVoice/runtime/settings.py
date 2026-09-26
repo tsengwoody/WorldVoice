@@ -2,8 +2,9 @@
 
 from collections.abc import Mapping
 from threading import RLock
+from typing import Protocol
 
-from .models import SettingValue, VoiceSnapshot, VoiceSpec
+from .models import SettingValue, VoiceSnapshot, VoiceSpec, VoiceValues
 
 
 def boolean(value):
@@ -85,3 +86,97 @@ class VoiceState:
     def baseline(self, name: str) -> SettingValue:
         with self._lock:
             return self._baseline[name]
+
+
+class VoiceSettingsRepository(Protocol):
+    def load(self, spec: VoiceSpec) -> VoiceValues: ...
+
+    def save(self, spec: VoiceSpec, values: Mapping[str, SettingValue]) -> None: ...
+
+
+class VoiceSettingsStore:
+    """Own one shared state per voice, independently of playback resources."""
+
+    def __init__(self, repository: VoiceSettingsRepository):
+        self._repository = repository
+        self._lock = RLock()
+        self._states: dict[str, VoiceState] = {}
+        self._edit: VoiceEditSession | None = None
+
+    def ensure(self, spec: VoiceSpec) -> VoiceState:
+        with self._lock:
+            state = self._states.get(spec.name)
+            if state is not None:
+                if state.spec != spec:
+                    raise ValueError(f"Conflicting metadata for voice {spec.name}")
+                return state
+            state = VoiceState(spec, self._repository.load(spec))
+            self._states[spec.name] = state
+            # The initial baseline also enrolls a late voice in the active edit.
+            return state
+
+    def state(self, key: str) -> VoiceState:
+        with self._lock:
+            return self._states[key]
+
+    def keys(self) -> tuple[str, ...]:
+        with self._lock:
+            return tuple(self._states)
+
+    def snapshot(self, key: str) -> VoiceSnapshot:
+        return self.state(key).snapshot()
+
+    def commit(self, key: str) -> None:
+        state = self.state(key)
+        snapshot = state.snapshot()
+        values = {name: getattr(snapshot, name) for name in _SETTING_NAMES}
+        # Repository I/O must not block readers or newer pending edits.
+        self._repository.save(state.spec, values)
+        state.checkpoint(values)
+
+    def rollback(self, key: str) -> None:
+        self.state(key).rollback()
+
+    def reload(self, key: str) -> None:
+        state = self.state(key)
+        values = self._repository.load(state.spec)
+        with state._lock:
+            state.update(**values)
+            state.checkpoint()
+
+    def begin_edit(self) -> "VoiceEditSession":
+        with self._lock:
+            if self._edit is not None:
+                raise RuntimeError("A voice settings edit is already open")
+            for state in self._states.values():
+                state.checkpoint()
+            self._edit = VoiceEditSession(self)
+            return self._edit
+
+
+class VoiceEditSession:
+    """A shared cancel baseline; the UI chooses apply or discard before close."""
+
+    def __init__(self, store: VoiceSettingsStore):
+        self._store = store
+
+    def _keys(self) -> tuple[str, ...]:
+        with self._store._lock:
+            if self._store._edit is not self:
+                raise RuntimeError("This voice settings edit is closed")
+            return self._store.keys()
+
+    def apply(self) -> None:
+        # Each successful save advances only that voice's baseline. Exceptions
+        # leave the remaining pending values available for retry or discard.
+        for key in self._keys():
+            self._store.commit(key)
+
+    def discard(self) -> None:
+        for key in self._keys():
+            self._store.rollback(key)
+
+    def close(self) -> None:
+        with self._store._lock:
+            if self._store._edit is self:
+                self._store._edit = None
