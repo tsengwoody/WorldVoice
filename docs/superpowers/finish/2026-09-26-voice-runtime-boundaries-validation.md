@@ -23,7 +23,7 @@ native 在此指直接實作 EngineAdapter 的測試替身。共用契約通過�
 | 命令 | 實際結果 |
 | --- | --- |
 | `python3 -m pytest tests/test_runtime_adapter_contract.py -q -p no:cacheprovider` | 10 passed in 0.10s |
-| `python3 -m pytest tests -q -p no:cacheprovider` | 338 passed in 3.28s |
+| `python3 -m pytest tests -q -p no:cacheprovider` | 350 passed after final review fixes; `ref/nvda` not collected |
 | `git diff --check`（完整 tests 通過後） | exit 0，無輸出 |
 
 只收集本專案 `tests/`，未收集 `ref/nvda`。完整回歸包含既有 F2／F3、F4、取消包裝、pipeline、UI 與本次 runtime 測試。
@@ -77,5 +77,11 @@ F7 的同 core 取消後延遲回呼可能被下一筆接收，仍未處理。Br
 | 9 | `5824dcc` | refactor: share voice editing state across settings interfaces |
 | 9 補測 | `c71df56` | test: cover main-locale voice consistency apply and discard |
 | 10 | `22cdb3d` | test: verify removable compatibility layer and runtime regressions |
+| 驗證紀錄 | `d73feec` | docs: record runtime contract validation commit |
+| 最終審查修正 | `430be90` | fix: preserve cancellation and legacy voice initialization contracts |
 
-文件撰寫時任務 1–9 及其修正已通過逐任務審查；Task 10 的逐任務審查與全分支最終獨立審查尚待執行，不將 self-review 當成獨立審查。另依使用者要求保留 `docs/superpowers/finish_task.md` 原 F4 報告並追加本次完成說明；`review_gpt1.md` 僅追加後續紀錄。
+任務 1–10 均已通過逐任務 Astra review。全分支獨立 Astra review 發現三項 Important finding，已由 `430be90` 修正並經 scoped re-review 確認全部解決，無新增 Critical／Important／Minor finding。修正包含 Future settlement 的取消競態安全、舊 Voice metadata 欄位正規化／缺欄容錯，以及設定首次載入時保留主合成器一致性有效值；相關回歸 88 passed，完整測試 350 passed。結束報告保留原 F4 章節，並追加本次結果於 `docs/superpowers/finish_task.md`。
+
+審查裁定：Repository 首次載入時仍將六個預設值寫入設定，但若啟用主合成器參數一致性，回傳給 runtime 的有效狀態同次套用主合成器值。此裁定依 spec 的保存／載入相容性要求優先於 Task 2 對首次回傳值的過窄測試預期；若此解讀有誤，需調整首次 load 回傳規則與 Task 2／整合測試。
+
+以上為基底 `2146422` 之後、完成報告收尾更新之前的 16 個提交。`2146422` 是已核准 spec／plan 基底，不列為本次新增 commit；收尾文件所在 commit 可由目前分支 history 查閱。

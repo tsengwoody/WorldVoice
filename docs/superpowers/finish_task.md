@@ -40,13 +40,13 @@
 ## 實際驗證與審查
 
 - `python3 -m pytest tests/test_runtime_adapter_contract.py -q -p no:cacheprovider`：10 passed in 0.10s。
-- `python3 -m pytest tests -q -p no:cacheprovider`：338 passed in 3.28s；未收集 `ref/nvda`。
+- 修正最終分支審查三項 Important finding 後，相關測試 88 passed；`python3 -m pytest tests -q -p no:cacheprovider`：350 passed；未收集 `ref/nvda`。
 - 完整回歸通過後 `git diff --check` 成功。移除 voice key 快取比較或保存 checkpoint 的暫時 mutation 均讓兩種 Adapter 測試失敗，還原後通過；正式程式未留下 mutation。
-- 任務 1–9 及修正已通過逐任務審查。此文件初稿撰寫時，Task 10 逐任務審查與全分支最終獨立審查仍待執行；不宣稱最終審查完成。
+- Task 1–10 均完成逐任務獨立審查；全分支 Astra review 找出的三項 Important finding 已修正於 `430be90`，並由 Astra scoped re-review 通過，沒有未解 Critical／Important／Minor finding。
 
 ## 本次新增 commits
 
-- `2146422` — `docs: plan voice runtime and compatibility migration`
+- 基底 `2146422`（spec／plan）不屬於本次實作新增提交。
 - `091d307` — `feat: add independent voice state and runtime models`
 - `148c47c` — `refactor: separate voice settings persistence and editing`
 - `f9132e2` — `feat: add engine session playback contract`
@@ -61,6 +61,10 @@
 - `5824dcc` — `refactor: share voice editing state across settings interfaces`
 - `c71df56` — `test: cover main-locale voice consistency apply and discard`
 - `22cdb3d` — `test: verify removable compatibility layer and runtime regressions`
+- `d73feec` — `docs: record runtime contract validation commit`
+- `430be90` — `fix: preserve cancellation and legacy voice initialization contracts`（最終審查修正）
+
+以上列出基底之後、完成報告收尾更新之前的 16 個提交；本報告收尾文件提交本身可由目前分支 history 查閱。
 
 ## 目前限制
 
