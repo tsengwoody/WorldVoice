@@ -261,3 +261,41 @@ def test_shutdown_before_build_returns_false(builder, runtime):
     assert builder.queue_speech_sequence(runtime.manager, ["A"], "Fake:a",
                                          lambda key: runtime.port) is False
     assert runtime.requests == []
+
+
+@pytest.mark.parametrize("stop", ["cancel", "shutdown"])
+@pytest.mark.parametrize("failure", ["generator", "resolver"])
+def test_cancellation_between_error_check_and_abort_returns_false(
+    builder, runtime, rt, monkeypatch, stop, failure,
+):
+    original_abort = runtime.manager.abort_request
+    error = RuntimeError(f"{failure} failed")
+
+    def abort_after_stop(request, caught):
+        assert request.state is runtime.scheduler.RequestState.BUILDING
+        assert caught is error
+        getattr(runtime.manager, stop)()
+        original_abort(request, caught)
+
+    monkeypatch.setattr(runtime.manager, "abort_request", abort_after_stop)
+
+    def resolve(key):
+        if key == "broken:x":
+            raise error
+        return runtime.port
+
+    def sequence():
+        yield "A"
+        yield rt.models.Pause(0)
+        if failure == "generator":
+            raise error
+        yield rt.models.SelectVoice("broken:x")
+
+    assert builder.queue_speech_sequence(runtime.manager, sequence(), "Fake:a", resolve) is False
+    request = runtime.requests[0]
+    assert request.state is runtime.scheduler.RequestState.CANCELLED
+    assert runtime.manager._requests == {}
+    assert len(request.tasks) == 2
+    assert all(task.future.cancelled() for task in request.tasks)
+    assert runtime.port.spoken == []
+    assert runtime.output.done_count == 0

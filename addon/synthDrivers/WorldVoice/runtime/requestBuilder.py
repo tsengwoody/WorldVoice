@@ -58,4 +58,6 @@ def queue_speech_sequence(
         if request.state is RequestState.CANCELLED:
             return False
         task_manager.abort_request(request, error)
+        if request.state is RequestState.CANCELLED:
+            return False
         raise
