@@ -162,6 +162,7 @@ class CancellableSynthDriver(SynthDriver):
 
 
 class Voice(Voice):
+	extra_capabilities = frozenset({"waitfactor", "variant"})
 	core = None
 	engine = "Cerence"
 	synth_driver_class = CancellableSynthDriver

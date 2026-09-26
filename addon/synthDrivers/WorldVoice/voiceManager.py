@@ -1,14 +1,21 @@
 from collections import OrderedDict, defaultdict
-from dataclasses import dataclass
+from collections.abc import Mapping
 from operator import attrgetter
 from typing import Callable, TypeVar, Dict, List
 import re
-import time
 
 import config
 import languageHandler
 from logHandler import log
 from synthDriverHandler import VoiceInfo
+
+from .compat.engineAdapter import LegacyEngineAdapter
+from .compat.voiceFacade import LegacyVoiceBinding
+from .runtime.models import VoiceSpec, EngineCapabilities
+from .runtime.session import EngineSession, PlaybackPort
+from .runtime.scheduler import TaskManager
+from .runtime.settings import VoiceSettingsStore
+from .nvdaEventBridge import NvdaEventBridge
 
 from .engine import EngineType, READY_ENGINE_CLASS, get_engine_enabled, refresh_ready_engine_classes
 
@@ -46,14 +53,7 @@ def getVoiceKey(engine: str, voiceId: str) -> str:
 	return "%s:%s" % (engine, voiceId)
 
 
-@dataclass(frozen=True)
-class VoiceMeta:
-	id: str
-	name: str
-	description: str
-	language: str
-	engine: str
-	locale: str
+VoiceMeta = VoiceSpec
 
 
 class VoiceManager(object):
@@ -61,11 +61,17 @@ class VoiceManager(object):
 	def ready(cls):
 		return True
 
-	def __init__(self, taskManager):
+	def __init__(self, taskManager: TaskManager, settings: VoiceSettingsStore, bridge: NvdaEventBridge):
 		self.taskManager = taskManager
+		self.settings = settings
+		self._bridge = bridge
 		self.installEngine = []
-		self._engineClassesToClose = []
+		self._resources = []
+		self._sessions = {}
+		self._specs = {}
 		self._instanceCache = {}
+		self._waitfactor = 0
+		self._terminated = False
 		try:
 			self._initialize()
 		except BaseException:
@@ -73,105 +79,96 @@ class VoiceManager(object):
 			raise
 
 	def _initialize(self):
-		init_start = time.perf_counter()
 		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]
-
-		step_start = time.perf_counter()
 		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
-		log.debug("WorldVoice init timing: VoiceManager refresh_ready_engine_classes %.3fs", time.perf_counter() - step_start)
-
-		step_start = time.perf_counter()
-		enabled = [
-			eng for eng in EngineType
-			if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
-		]
-		log.debug(
-			"WorldVoice init timing: VoiceManager enabled engine filter %.3fs (%s)",
-			time.perf_counter() - step_start,
-			", ".join(eng.name for eng in enabled),
-		)
-
-		step_start = time.perf_counter()
-		self.installEngine = []
-		for eng in enabled:
-			try:
-				cls = READY_ENGINE_CLASS[eng.name]
-			except KeyError:
-				log.debug("WorldVoice init timing: VoiceManager engine %s not ready", eng.name)
+		for eng in EngineType:
+			if not get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"]):
 				continue
+			cls = READY_ENGINE_CLASS.get(eng.name)
+			if cls is None:
+				continue
+			adapter = LegacyEngineAdapter(cls, self.getVoiceInstance)
 			try:
-				engine_start = time.perf_counter()
-				self._engineClassesToClose.append(cls)
-				cls.engineOn()
-				log.debug(
-					"WorldVoice init timing: VoiceManager eager engineOn %s %.3fs",
-					eng.name,
-					time.perf_counter() - engine_start,
-				)
-				self.installEngine.append(cls)
-			except Exception as e:
-				log.error("engine %s on error: %s", eng.name, e)
-				try:
-					cls.engineOff()
-				except Exception:
-					log.error("engine %s cleanup error", eng.name, exc_info=True)
-				else:
-					self._engineClassesToClose.remove(cls)
-		log.debug(
-			"WorldVoice init timing: VoiceManager installEngine build %.3fs (%s)",
-			time.perf_counter() - step_start,
-			", ".join(cls.engine for cls in self.installEngine),
-		)
-
-		step_start = time.perf_counter()
+				adapter.open()
+			except Exception:
+				log.error("engine %s on error", eng.name, exc_info=True)
+				continue
+			# Retain identities (not equality) for the entire resource lifetime.
+			owner = next((resource for resource in self._resources
+				if resource[0] is adapter.notification_source), None)
+			if owner is not None:
+				session = owner[1]
+				self._resources.append((adapter.notification_source, session, adapter, cls, False))
+			else:
+				session = EngineSession(adapter, self.settings)
+				self._resources.append((adapter.notification_source, session, adapter, cls, True))
+				session.open()
+				# Claim ownership before binding, since bind may register then raise.
+				self._bridge.bind(adapter.notification_source, session.source_id)
+			cls.session = session
+			cls._runtime_binding = LegacyVoiceBinding(self.settings, session, self.getVoiceSpec)
+			# Only bound, operational resources become visible to resolvers.
+			self._sessions[eng.name] = session
+			self.installEngine.append(cls)
+			for spec in adapter.list_voices():
+				self._specs[spec.name] = spec
 		self._setVoiceDatas()
-		log.debug("WorldVoice init timing: VoiceManager _setVoiceDatas total %.3fs", time.perf_counter() - step_start)
 		if not self.table:
 			raise RuntimeError("No WorldVoice voices are available from enabled speech engines.")
-		self._instanceCache = {}
-		self.waitfactor = 0
-
-		step_start = time.perf_counter()
-		default_meta: VoiceMeta = self._getDefaultVoiceMeta()
-		log.debug(
-			"WorldVoice init timing: VoiceManager default voice select %.3fs (%s/%s)",
-			time.perf_counter() - step_start,
-			default_meta.engine,
-			default_meta.name,
-		)
-
-		step_start = time.perf_counter()
-		self._defaultVoiceInstance = self.getVoiceInstance(default_meta.name)
-		log.debug("WorldVoice init timing: VoiceManager default getVoiceInstance %.3fs", time.perf_counter() - step_start)
-
-		step_start = time.perf_counter()
-		self._defaultVoiceInstance.loadParameter()
-		log.debug("WorldVoice init timing: VoiceManager default loadParameter %.3fs", time.perf_counter() - step_start)
-		log.debug("Created voiceManager instance. Default voice is %s", default_meta.name)
-		log.debug("WorldVoice init timing: VoiceManager total %.3fs", time.perf_counter() - init_start)
+		self._defaultVoiceInstance = self.getVoiceInstance(self._getDefaultVoiceMeta().name)
 
 	def terminate(self, *, commit=True):
-		instances = tuple(self._instanceCache.values())
-		self._instanceCache.clear()
-		for instance in instances:
-			if commit:
+		if self._terminated:
+			return
+		self._terminated = True
+		# Stop publication before releasing any resources.
+		self._sessions.clear()
+		if commit:
+			for key in self.settings.keys():
 				try:
-					instance.commit()
+					self.settings.commit(key)
 				except Exception:
-					log.error("Failed to save voice %s", instance.name, exc_info=True)
-			try:
-				instance.close()
-			except Exception:
-				log.error("Failed to close voice %s", instance.name, exc_info=True)
-
-		for item in reversed(self._engineClassesToClose):
-			try:
-				item.engineOff()
-			except Exception:
-				log.error("Failed to close engine %s", item.engine, exc_info=True)
-		self._engineClassesToClose.clear()
+					log.error("Failed to save voice %s", key, exc_info=True)
+		self._instanceCache.clear()
+		for source, session, adapter, cls, owns in reversed(self._resources):
+			if owns:
+				try:
+					self._bridge.unbind(session.source_id)
+				except Exception:
+					log.error("Failed to unbind engine %s", cls.engine, exc_info=True)
+				try:
+					session.close()
+				except Exception:
+					log.error("Failed to close engine %s", cls.engine, exc_info=True)
+				finally:
+					cls.session = None
+					cls._runtime_binding = None
+			else:
+				try:
+					adapter.detach_alias()
+				except Exception:
+					log.error("Failed to detach engine alias %s", cls.engine, exc_info=True)
+		self._resources.clear()
 		self.installEngine.clear()
 		self.taskManager = None
+
+	def resolve_playback(self, key: str) -> PlaybackPort | None:
+		spec = self._specs.get(key)
+		if spec is None:
+			return None
+		session = self._sessions.get(spec.engine)
+		if session is not None:
+			self.settings.ensure(spec)
+		return session
+
+	def getVoiceSpec(self, key: str) -> VoiceSpec:
+		return self._specs[key]
+
+	def getVoiceCapabilities(self, key: str) -> EngineCapabilities:
+		return self._sessions[self.getVoiceSpec(key).engine].capabilities
+
+	def getVoiceVariants(self, key: str) -> tuple[Mapping[str, str], ...]:
+		return self._sessions[self.getVoiceSpec(key).engine].variants(key)
 
 	@property
 	def defaultVoiceInstance(self):
@@ -197,9 +194,9 @@ class VoiceManager(object):
 	@waitfactor.setter
 	def waitfactor(self, value):
 		self._waitfactor = value
-		for voiceName, instance in self._instanceCache.items():
-			if ("Cerence" in READY_ENGINE_CLASS and isinstance(instance, READY_ENGINE_CLASS["Cerence"])) or ("VE" in READY_ENGINE_CLASS and isinstance(instance, READY_ENGINE_CLASS["VE"])):
-				instance.waitfactor = value
+		for key in self._specs:
+			if self.getVoiceCapabilities(key).supports_waitfactor:
+				self.settings.ensure(self.getVoiceSpec(key)).update(waitfactor=value)
 
 	def _getDefaultVoiceMeta(self) -> VoiceMeta:
 		lang = languageHandler.getLanguage()
@@ -216,33 +213,13 @@ class VoiceManager(object):
 		return instance
 
 	def _createVoiceInstance(self, voiceName: str):
-		voiceMeta = next(v for v in self.table if v.name == voiceName)
-		cls = READY_ENGINE_CLASS[voiceMeta.engine]
-		step_start = time.perf_counter()
-		voiceInstance = cls(
-			id=voiceMeta.id,
-			name=voiceMeta.name,
-			language=voiceMeta.language,
-			taskManager=self.taskManager
-		)
-		voiceInstance.session = cls.session
-		log.debug(
-			"WorldVoice init timing: create voice instance %s/%s %.3fs",
-			voiceMeta.engine,
-			voiceMeta.name,
-			time.perf_counter() - step_start,
-		)
-		step_start = time.perf_counter()
-		voiceInstance.loadParameter()
-		log.debug(
-			"WorldVoice init timing: voice instance loadParameter %s/%s %.3fs",
-			voiceMeta.engine,
-			voiceMeta.name,
-			time.perf_counter() - step_start,
-		)
-		voiceInstance.waitfactor = self.waitfactor
-
-		self._instanceCache[voiceInstance.name] = voiceInstance
+		spec = self.getVoiceSpec(voiceName)
+		cls = READY_ENGINE_CLASS[spec.engine]
+		self.settings.ensure(spec)
+		voiceInstance = cls(id=spec.id, name=spec.name, language=spec.language,
+			taskManager=self.taskManager)
+		voiceInstance.session = self._sessions[spec.engine]
+		self._instanceCache[voiceName] = voiceInstance
 		return voiceInstance
 
 	def previewVoiceParameterConsistent(self, baseInstance):
@@ -296,53 +273,12 @@ class VoiceManager(object):
 
 	def cancel(self):
 		if self.taskManager:
-			voices = []
-			seen = set()
-			for voice in (self._defaultVoiceInstance, *self._instanceCache.values()):
-				if id(voice) not in seen:
-					seen.add(id(voice))
-					voices.append(voice)
-			self.taskManager.cancel(voices)
+			self.taskManager.cancel(tuple(dict.fromkeys(self._sessions.values())))
 
 	def _setVoiceDatas(self):
-		self.table: List[VoiceMeta] = []
-		for cls in self.installEngine:
-			step_start = time.perf_counter()
-			voice_count = 0
-			for v in cls.voices():
-				voice_count += 1
-				try:
-					engine = v["engine"]
-					voiceId = v["id"]
-					self.table.append(VoiceMeta(
-						id=voiceId,
-						name=getVoiceKey(engine, voiceId),
-						description=v.get("description", ""),
-						language=v["language"],
-						engine=engine,
-						locale=v.get("locale", v["language"]),
-					))
-				except KeyError as e:
-					log.error("Invalid voice data: missing %s", e)
-			log.debug(
-				"WorldVoice init timing: voices discovery %s %.3fs (%d voices)",
-				cls.engine,
-				time.perf_counter() - step_start,
-				voice_count,
-			)
-
-		step_start = time.perf_counter()
-		self.table.sort(key=attrgetter("engine", "language", "name"))
-		log.debug(
-			"WorldVoice init timing: voice table sort %.3fs (%d total voices)",
-			time.perf_counter() - step_start,
-			len(self.table),
-		)
-
-		step_start = time.perf_counter()
+		self.table = sorted(self._specs.values(), key=attrgetter("engine", "language", "name"))
 		voiceInfos = [VoiceInfo(v.name, v.description, v.language) for v in self.table]
 		self._voiceInfos = OrderedDict((v.id, v) for v in voiceInfos)
-		log.debug("WorldVoice init timing: voiceInfos build %.3fs", time.perf_counter() - step_start)
 
 	@property
 	def voiceInfos(self):

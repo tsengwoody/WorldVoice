@@ -18,7 +18,7 @@ def _load_synth_class(environment):
 	return environment["SynthDriver"]
 
 
-@pytest.mark.parametrize("failure", ["manager", "symbols"])
+@pytest.mark.parametrize("failure", ["manager", "symbols", "bridge"])
 def test_failed_synth_construction_releases_acquired_resources(failure):
 	changes = []
 	panel = object()
@@ -29,21 +29,36 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 	speech = types.SimpleNamespace(speech=speech_api)
 
 	class TaskManager:
-		def __init__(self, owner):
-			self.owner = owner
+		def __init__(self, output=None, logger=None):
 			changes.append("task started")
+
+		def on_event(self, event):
+			pass
 
 		def shutdown(self):
 			changes.append("task stopped")
 
 	class VoiceManager:
-		def __init__(self, taskManager):
+		def __init__(self, taskManager, settings=None, bridge=None):
 			if failure == "manager":
 				raise RuntimeError("no voices")
 			changes.append("engine started")
 
-		def terminate(self):
+		def terminate(self, *, commit=True):
+			assert commit is False
 			changes.append("engine stopped")
+
+	class Bridge:
+		def __init__(self, *args, **kwargs):
+			pass
+
+		def start(self, handler):
+			changes.append("bridge started")
+			if failure == "bridge":
+				raise RuntimeError("bridge failure")
+
+		def close(self):
+			changes.append("bridge stopped")
 
 	class SpeechSymbols:
 		def load(self, path):
@@ -81,25 +96,36 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		"WorldVoiceVoiceSettingsPanel": object(),
 		"TaskManager": TaskManager,
 		"VoiceManager": VoiceManager,
+		"NvdaEventBridge": Bridge,
+		"ConfigVoiceSettingsRepository": lambda *args: object(),
+		"VoiceSettingsStore": lambda repository: object(),
+		"config": types.SimpleNamespace(conf={}),
+		"getSynth": lambda: None,
 		"speech": speech,
 		"SpeechSymbols": SpeechSymbols,
 		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: None),
 		**commands,
 	}
-	with pytest.raises(RuntimeError, match="no voices|dictionary failure"):
+	with pytest.raises(RuntimeError, match="no voices|dictionary failure|bridge failure"):
 		_load_synth_class(environment)()
 
 	assert settings_dialogs.VoiceSettingsPanel is panel
 	assert speech_api.speakSpelling is spelling
 	assert "task stopped" in changes
+	assert "bridge stopped" in changes
+	assert changes.index("task stopped") < changes.index("bridge stopped")
 	assert "pipeline stopped" in changes
 	assert changes.count("end") == 1
 	if failure == "symbols":
 		assert "engine stopped" in changes
+		assert changes.index("bridge stopped") < changes.index("engine stopped")
 
 
 def _load_voice_manager(monkeypatch, engine_classes):
 	package_name = "lifecycle_test_worldvoice"
+	for name in tuple(sys.modules):
+		if name.startswith(package_name + "."):
+			monkeypatch.delitem(sys.modules, name)
 	package = types.ModuleType(package_name)
 	package.__path__ = [str(WORLDVOICE)]
 	monkeypatch.setitem(sys.modules, package_name, package)
@@ -133,10 +159,11 @@ def test_voice_manager_closes_engine_when_no_voices(monkeypatch):
 
 	class Engine:
 		engine = "A"
+		core = None
 
 		@classmethod
 		def engineOn(cls):
-			pass
+			cls.core = object()
 
 		@classmethod
 		def voices(cls):
@@ -147,8 +174,11 @@ def test_voice_manager_closes_engine_when_no_voices(monkeypatch):
 			closed.append(cls.engine)
 
 	module = _load_voice_manager(monkeypatch, {"A": Engine})
+	from runtime_harness import MemoryRepository
+	store = module.VoiceSettingsStore(MemoryRepository())
+	bridge = types.SimpleNamespace(bind=lambda *args: None, unbind=lambda *args: None)
 	with pytest.raises(RuntimeError, match="No WorldVoice voices"):
-		module.VoiceManager(taskManager=object())
+		module.VoiceManager(taskManager=object(), settings=store, bridge=bridge)
 	assert closed == ["A"]
 
 
@@ -173,16 +203,23 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 	module = _load_voice_manager(monkeypatch, {"broken": BrokenEngine, "other": OtherEngine})
 	manager = object.__new__(module.VoiceManager)
 	manager.taskManager = object()
+	manager._terminated = False
 	manager._instanceCache = {}
 	manager.installEngine = [BrokenEngine, OtherEngine]
-	manager._engineClassesToClose = [BrokenEngine, OtherEngine]
+	manager._sessions = {}
+	manager.settings = types.SimpleNamespace(keys=lambda: ())
+	manager._bridge = types.SimpleNamespace(unbind=lambda source: None)
+	manager._resources = [
+		(object(), types.SimpleNamespace(close=cls.engineOff, source_id=object()), None, cls, True)
+		for cls in (BrokenEngine, OtherEngine)
+	]
 	manager.terminate()
 	assert set(closed) == {"broken", "other"}
 	assert manager.taskManager is None
 
 
 @pytest.mark.parametrize("failure", ["done", "index"])
-def test_task_manager_unregisters_events_if_registration_fails(monkeypatch, failure):
+def test_bridge_unregisters_events_if_registration_fails(monkeypatch, failure):
 	class DoneEvent:
 		def __init__(self):
 			self.handlers = []
@@ -204,16 +241,9 @@ def test_task_manager_unregisters_events_if_registration_fails(monkeypatch, fail
 			pass
 
 	done = DoneEvent()
-	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=object()))
-	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
-		synthDoneSpeaking=done,
-		synthIndexReached=FailingEvent(),
-		getSynth=lambda: None,
-	))
-	spec = importlib.util.spec_from_file_location("lifecycle_test_task_manager", WORLDVOICE / "taskManager.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
+	module = _load_voice_manager(monkeypatch, {})
+	bridge = module.NvdaEventBridge(object(), done_event=done,
+		index_event=FailingEvent(), get_synth=lambda: None)
 	with pytest.raises(RuntimeError, match="registration failed"):
-		module.TaskManager()
+		bridge.start(lambda event: None)
 	assert done.handlers == []

@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from test_worldvoice_request_manager import buses, manager, task_module
+from test_worldvoice_request_manager import buses, manager, task_module, append_speech, cancel
+from voice_binding_harness import install_binding, bind_core
 
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
@@ -17,6 +18,9 @@ PANEL_PATH = WORLDVOICE.parents[1] / "globalPlugins/WorldVoice/speechSettingsDia
 
 def _load_voice_manager(monkeypatch, engine_classes):
 	package_name = "f4_test_worldvoice"
+	for name in tuple(sys.modules):
+		if name.startswith(package_name + "."):
+			monkeypatch.delitem(sys.modules, name)
 	package = types.ModuleType(package_name)
 	package.__path__ = [str(WORLDVOICE)]
 	monkeypatch.setitem(sys.modules, package_name, package)
@@ -59,6 +63,7 @@ def _create_voices(monkeypatch, config):
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, name, module)
 	spec.loader.exec_module(module)
+	install_binding(module, config)
 	return (
 		module.Voice("a", "A:a", None, "en"),
 		module.Voice("b", "B:b", None, "fr"),
@@ -139,37 +144,39 @@ def test_voice_settings_are_pending_and_revision_tracks_real_changes(monkeypatch
 
 def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
-	from f4_test_worldvoice.driver.engineSession import EngineSession
 	core = RecordingCore()
 	a.__class__.core = core
-	a.session = EngineSession(core)
+	bind_core(core, a)
 	a.active()
 	first_count = len(core.writes)
 	assert first_count > 0
 	a.active()
 	assert len(core.writes) == first_count
 	a.rate = 72
-	old = a.snapshot()
-	a.rate = 81
-	a.session.activate(old, a.applyEngineSettings)
+	# Activation reads one immutable snapshot; an edit during apply is deferred.
+	original_apply = a.applyEngineSettings
+	def edit_during_apply(core, snapshot):
+		a.rate = 81
+		original_apply(core, snapshot)
+	a.applyEngineSettings = edit_during_apply
+	a.active()
 	assert core.rate == 72
 	a.active()
 	assert core.rate == 81
 	assert len(core.writes) == first_count * 3
 
 
-def test_speech_closure_does_not_activate_voice(monkeypatch):
+def test_speech_queue_does_not_activate_voice(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	core = RecordingCore()
-	a.__class__.core = core
+	bind_core(core, a)
 	queued = []
-	a.taskManager = types.SimpleNamespace(append_speech=lambda request, voice, run: queued.append(run))
-	a.active = lambda: (_ for _ in ()).throw(AssertionError("closure activated voice"))
-	request = types.SimpleNamespace(token=types.SimpleNamespace(is_cancelled=lambda: False))
-	a.speak("hello", request)
-	assert len(queued) == 1
-	queued[0]()
-	assert core.spoken == ["hello"]
+	a.taskManager = types.SimpleNamespace(append_speech=lambda *args: queued.append(args))
+	a.active = lambda: (_ for _ in ()).throw(AssertionError("queue activated voice"))
+	request = object()
+	a.speak(["hello"], request)
+	assert queued == [(request, a.session, a.name, ("hello",))]
+	assert core.spoken == []
 	assert core.writes == []
 
 
@@ -177,11 +184,13 @@ def test_manager_assigns_engine_session_to_new_voice(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	module = sys.modules["f4_test_worldvoice.voiceManager"]
 	engine = a.__class__
-	engine.session = object()
+	engine.session = a._binding.session
 	module.READY_ENGINE_CLASS["A"] = engine
-	voice_meta = module.VoiceMeta("new", "A:new", "New", "en", "A", "en")
+	voice_meta = a._binding.spec_for("A:new")
 	manager_instance = object.__new__(module.VoiceManager)
-	manager_instance.table = [voice_meta]
+	manager_instance._specs = {voice_meta.name: voice_meta}
+	manager_instance._sessions = {"A": engine.session}
+	manager_instance.settings = a._binding.settings
 	manager_instance.taskManager = None
 	manager_instance._instanceCache = {}
 	manager_instance._waitfactor = 0
@@ -190,7 +199,7 @@ def test_manager_assigns_engine_session_to_new_voice(monkeypatch):
 	assert created.session is engine.session
 
 
-def test_engine_lifecycle_owns_one_session(monkeypatch):
+def test_raw_engine_lifecycle_does_not_create_an_extra_session(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	terminated = []
 
@@ -200,10 +209,11 @@ def test_engine_lifecycle_owns_one_session(monkeypatch):
 
 	class Voice(a.__class__):
 		core = None
+		session = None
 		synth_driver_class = Core
 
 	Voice.engineOn()
-	assert Voice.session.core is Voice.core
+	assert Voice.session is None
 	core = Voice.core
 	Voice.engineOff()
 	assert terminated == [core]
@@ -238,11 +248,11 @@ def test_cancel_during_activation_skips_speech(manager, buses):
 		active=lambda: (entered.set(), release.wait(2)),
 	)
 	request = manager.new_request()
-	manager.append_speech(request, voice, lambda: core.speak("stale"))
+	append_speech(manager, request, voice, lambda: core.speak("stale"))
 	assert manager.submit_request(request)
 	assert entered.wait(1)
 	try:
-		manager.cancel([voice])
+		cancel(manager, [voice])
 	finally:
 		release.set()
 	manager._q.join()
@@ -256,7 +266,7 @@ def test_worker_activates_once_before_running_speech(manager, buses):
 	activations = []
 	voice = types.SimpleNamespace(core=core, active=lambda: activations.append("active"))
 	request = manager.new_request()
-	manager.append_speech(request, voice,
+	append_speech(manager, request, voice,
 		lambda: (core.speak("hello"), buses.done.notify(synth=core)))
 	assert manager.submit_request(request)
 	assert buses.wait_for_outer_done(1) == [manager.owner]
@@ -271,18 +281,17 @@ def test_activation_error_fails_request_before_speech(manager, buses):
 		active=lambda: (_ for _ in ()).throw(RuntimeError("apply failed")),
 	)
 	request = manager.new_request()
-	manager.append_speech(request, voice, lambda: core.speak("never"))
+	append_speech(manager, request, voice, lambda: core.speak("never"))
 	assert manager.submit_request(request)
 	with pytest.raises(RuntimeError, match="apply failed"):
 		request.tasks[0].future.result(timeout=1)
 	assert buses.wait_for_outer_done(1) == [manager.owner]
-	assert request.failed
+	assert request.state.value == "failed"
 	assert core.spoken == []
 
 
 def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypatch):
 	(a, b), config = _voices(monkeypatch)
-	from f4_test_worldvoice.driver.engineSession import EngineSession
 	class BlockingCore(RecordingCore):
 		def __init__(self):
 			super().__init__()
@@ -296,8 +305,7 @@ def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypa
 
 	core = BlockingCore()
 	a.__class__.core = core
-	session = EngineSession(core)
-	a.session = b.session = session
+	session = bind_core(core, a, b)
 	a.active()
 	playback = threading.Thread(target=core.speak, args=("A is speaking",))
 	playback.start()
@@ -350,11 +358,10 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 @pytest.mark.parametrize("action", ["onVoiceChange", "onKeepParameterConsistentChange"])
 def test_ui_consistency_copy_is_atomic_for_worker_activation(monkeypatch, action):
 	(a, b), config = _voices(monkeypatch)
-	from f4_test_worldvoice.driver.engineSession import EngineSession
 	a.update_settings(rate=72, pitch=61, volume=73, inflection=44, rateBoost=True)
 	core = RecordingCore()
 	a.__class__.core = core
-	b.session = EngineSession(core)
+	bind_core(core, a, b)
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
 	manager_instance._instanceCache = {a.name: a, b.name: b}
@@ -379,13 +386,14 @@ def test_ui_consistency_copy_is_atomic_for_worker_activation(monkeypatch, action
 	release_copy = threading.Event()
 	worker_done = threading.Event()
 	errors = []
-	property_rate = type(b).rate
-	def gated_rate(instance, value):
-		property_rate.fset(instance, value)
-		if instance is b and value == 72 and not rate_written.is_set():
-			rate_written.set()
-			release_copy.wait(2)
-	monkeypatch.setattr(type(b), "rate", property(property_rate.fget, gated_rate))
+	original_update = b._state.update
+	def gated_update(**values):
+		with b._state._lock:
+			original_update(**values)
+			if values.get("rate") == 72 and not rate_written.is_set():
+				rate_written.set()
+				release_copy.wait(2)
+	monkeypatch.setattr(b._state, "update", gated_update)
 
 	def activate_b():
 		try:

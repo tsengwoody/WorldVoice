@@ -37,6 +37,8 @@ def _create_voices(monkeypatch, config):
 	spec.loader.exec_module(module)
 	config.conf["WorldVoice"]["voices"] = {}
 	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = False
+	from voice_binding_harness import install_binding
+	install_binding(module, config)
 	return (
 		module.Voice("a", "A:a", None, "en"),
 		module.Voice("b", "B:b", None, "fr"),

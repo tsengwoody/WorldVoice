@@ -12,6 +12,7 @@ from speech.extensions import filter_speechSequence
 import speechDictHandler
 from synthDriverHandler import getSynth
 
+from ..runtime.models import SelectVoice
 from .._speechcommand import WVLangChangeCommand
 from ..log import PipelineLog
 from . import speech_dictionary
@@ -712,14 +713,14 @@ def lang_cmd_to_voice(
 		default_instance: "Voice",
 ) -> Iterator[SpeechCmd]:
 	"""
-	Convert each LangChangeCommand / WVLangChangeCommand into a Voice instance.
+	Convert each LangChangeCommand / WVLangChangeCommand into a voice key.
 	All other commands pass through unchanged.
 	"""
 	for cmd in speechSequence:
 		if isinstance(cmd, (LangChangeCommand, WVLangChangeCommand)):
 			lang = cmd.lang or voice_manager.defaultVoiceInstance.language
-			new_instance = voice_manager.getVoiceInstanceForLanguage(lang) or default_instance
-			yield new_instance
+			key = voice_manager.getVoiceNameForLanguage(lang) or default_instance.name
+			yield SelectVoice(key)
 		else:
 			yield cmd
 

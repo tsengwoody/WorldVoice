@@ -1,10 +1,12 @@
-import importlib.util
+import importlib
 import sys
 import threading
 import types
 from pathlib import Path
 
 import pytest
+
+from runtime_harness import MemoryRepository
 
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
@@ -28,245 +30,211 @@ class EventStub:
 			handler(**kwargs)
 
 
+
 @pytest.fixture
 def modules(monkeypatch):
-	package_name = "worldvoice_request_builder_under_test"
-	package = types.ModuleType(package_name)
-	package.__path__ = [str(WORLDVOICE)]
-	monkeypatch.setitem(sys.modules, package_name, package)
-	monkeypatch.setitem(sys.modules, "config", types.SimpleNamespace(conf={}))
-	monkeypatch.setitem(sys.modules, "languageHandler",
-		types.SimpleNamespace(getLanguageDescription=lambda language: language))
-	log = types.SimpleNamespace(debug=lambda *args, **kwargs: None, error=lambda *args, **kwargs: None)
-	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=log))
-	owner = object()
-	done_seen = threading.Event()
-	done_calls = []
-	outer_indexes = []
+    package_name = "worldvoice_request_builder_under_test"
+    for name in tuple(sys.modules):
+        if name.startswith(package_name + "."):
+            monkeypatch.delitem(sys.modules, name)
+    package = types.ModuleType(package_name)
+    package.__path__ = [str(WORLDVOICE)]
+    monkeypatch.setitem(sys.modules, package_name, package)
+    monkeypatch.setitem(sys.modules, "languageHandler",
+                        types.SimpleNamespace(getLanguageDescription=lambda language: language))
 
-	def record_done(synth):
-		if synth is owner:
-			done_calls.append(synth)
-			done_seen.set()
+    class BreakCommand:
+        def __init__(self, time):
+            self.time = time
 
-	done = EventStub(record_done)
-	index = EventStub(lambda synth, index: outer_indexes.append(index) if synth is owner else None)
-	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
-		getSynth=lambda: owner,
-		synthDoneSpeaking=done,
-		synthIndexReached=index,
-		VoiceInfo=object,
-	))
-
-	class BreakCommand:
-		def __init__(self, time):
-			self.time = time
-
-	monkeypatch.setitem(sys.modules, "speech", types.ModuleType("speech"))
-	monkeypatch.setitem(sys.modules, "speech.commands", types.SimpleNamespace(BreakCommand=BreakCommand))
-
-	def load(name, path):
-		spec = importlib.util.spec_from_file_location(f"{package_name}.{name}", path)
-		module = importlib.util.module_from_spec(spec)
-		monkeypatch.setitem(sys.modules, spec.name, module)
-		spec.loader.exec_module(module)
-		return module
-
-	driver = load("driver", WORLDVOICE / "driver/__init__.py")
-	manager_module = load("taskManager", WORLDVOICE / "taskManager.py")
-	builder_path = WORLDVOICE / "requestBuilder.py"
-	builder = load("requestBuilder", builder_path) if builder_path.exists() else None
-	return types.SimpleNamespace(
-		driver=driver, manager_module=manager_module, builder=builder,
-		BreakCommand=BreakCommand, done=done, done_seen=done_seen,
-		done_calls=done_calls, index=index, outer_indexes=outer_indexes, owner=owner,
-	)
+    monkeypatch.setitem(sys.modules, "speech", types.ModuleType("speech"))
+    monkeypatch.setitem(sys.modules, "speech.commands", types.SimpleNamespace(BreakCommand=BreakCommand))
+    def load(name):
+        return importlib.import_module(package_name + "." + name)
+    return types.SimpleNamespace(
+        driver=load("driver"), manager_module=load("taskManager"),
+        builder=load("requestBuilder"), models=load("runtime.models"),
+        settings=load("runtime.settings"), session=load("runtime.session"),
+        adapter=load("compat.engineAdapter"), facade=load("compat.voiceFacade"),
+        commands=load("compat.commands"), bridge=load("nvdaEventBridge"),
+        BreakCommand=BreakCommand,
+    )
 
 
 @pytest.fixture
-def manager(modules):
-	instance = modules.manager_module.TaskManager(owner=modules.owner)
-	yield instance
-	instance.shutdown()
+def assembly(modules):
+    owner = object()
+    done_seen = threading.Event()
+    done_calls, indexes = [], []
+    def record_done(synth):
+        if synth is owner:
+            done_calls.append(synth)
+            done_seen.set()
+    done = EventStub(record_done)
+    index = EventStub(lambda synth, index: indexes.append(index) if synth is owner else None)
+    bridge = modules.bridge.NvdaEventBridge(owner, done_event=done, index_event=index, get_synth=lambda: owner)
+    manager = modules.manager_module.TaskManager(bridge)
+    bridge.start(manager.on_event)
+    store = modules.settings.VoiceSettingsStore(MemoryRepository())
+    ports, voices = {}, {}
+
+    def voice(key, *, supports_token=None, on_speak=None):
+        engine, voice_id = key.split(":")
+        class Core:
+            supportedSettings = ()
+
+            def __init__(self):
+                self.spoken = []
+                self.cancelled = 0
+                if supports_token is not None:
+                    self.supportsCancellationToken = supports_token
+
+            def speak(self, commands, **kwargs):
+                self.spoken.append((commands, kwargs))
+                if on_speak:
+                    on_speak(self, commands, kwargs)
+                else:
+                    done.notify(synth=self)
+
+            def cancel(self):
+                self.cancelled += 1
+
+            def terminate(self):
+                pass
+
+        class Voice(modules.driver.Voice):
+            core = None
+            synth_driver_class = Core
+
+        Voice.engine = engine
+        spec = modules.models.VoiceSpec(voice_id, key, key, "en", engine, "en")
+        adapter = modules.adapter.LegacyEngineAdapter(Voice, voices.__getitem__)
+        session = modules.session.EngineSession(adapter, store)
+        Voice._runtime_binding = modules.facade.LegacyVoiceBinding(store, session, lambda key: spec)
+        instance = Voice(voice_id, key, manager)
+        voices[key] = instance
+        session.open()
+        ports[key] = session
+        bridge.bind(adapter.notification_source, session.source_id)
+        return instance
+
+    def queue(sequence, default):
+        return modules.builder.queue_speech_sequence(
+            manager, modules.commands.normalize_legacy_commands(sequence), default.name, ports.get)
+
+    yield types.SimpleNamespace(manager=manager, store=store, voice=voice, queue=queue, ports=ports,
+                                done=done, index=index, done_calls=done_calls, indexes=indexes,
+                                done_seen=done_seen, owner=owner)
+    manager.shutdown()
+    bridge.close()
+    for session in ports.values():
+        session.close()
 
 
-def fake_voice_class(modules):
-	class FakeVoice(modules.driver.Voice):
-		def __init__(self, name, engine, manager):
-			self.name = name
-			self.engine = engine
-			self.taskManager = manager
-			self.spoken = []
-			self.core = types.SimpleNamespace(cancel=lambda: None)
-
-		def speak(self, chunks, request):
-			self.spoken.append(list(chunks))
-			self.taskManager.append_speech(request, self, lambda: None)
-
-		def breaks(self, seconds, request):
-			self.taskManager.append_break(request, self, seconds)
-
-	return FakeVoice
-
-
-def test_builder_submits_complete_multivoice_request_once(modules, manager):
-	FakeVoice = fake_voice_class(modules)
-	zh = FakeVoice("zh", "VE", manager)
-	en = FakeVoice("en", "Neural", manager)
-	submitted = []
-	original_submit = manager.submit_request
-
-	def submit(request):
-		submitted.append((request, [(task.kind, task.voiceInstance) for task in request.tasks]))
-		return original_submit(request)
-
-	manager.submit_request = submit
-	assert modules.builder.queue_speech_sequence(
-		manager, ["中", en, "English", modules.BreakCommand(200)], zh, {"VE", "Neural"},
-	)
-	assert len(submitted) == 1
-	assert submitted[0][1] == [("speech", zh), ("speech", en), ("break", en)]
-	assert zh.spoken == [["中"]]
-	assert en.spoken == [["English"]]
+def test_builder_submits_complete_multivoice_request_once(modules, assembly):
+    a = assembly
+    zh, en = a.voice("VE:zh"), a.voice("Neural:en")
+    submitted = []
+    original = a.manager.submit_request
+    def submit(request):
+        submitted.append(request)
+        return original(request)
+    a.manager.submit_request = submit
+    assert a.queue(["中", en, "English", modules.BreakCommand(0)], zh)
+    assert a.done_seen.wait(1)
+    assert len(submitted) == 1
+    assert [(task.voice_key, task.commands, task.seconds) for task in submitted[0].tasks] == [
+        ("VE:zh", ("中",), None), ("Neural:en", ("English",), None), (None, (), 0),
+    ]
+    assert zh.core.spoken[0][0] == ("中",)
+    assert en.core.spoken[0][0] == ("English",)
 
 
 @pytest.mark.parametrize("engines,texts,indexes", [
-	(("VE", "Neural", "VE"), ("中", "English", "再見"), (11, 22, 33)),
-	(("Cerence", "OneCore"), ("Bonjour", "Hello"), (41, 52)),
+    (("VE", "Neural", "VE"), ("中", "English", "再見"), (11, 22, 33)),
+    (("Cerence", "OneCore"), ("Bonjour", "Hello"), (41, 52)),
 ])
 def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_break(
-	modules, manager, engines, texts, indexes,
-):
-	voices = []
-	raw_events = []
-	core_calls = []
-	break_entered = threading.Event()
-	release_break = threading.Event()
-	requests = []
-	original_submit = manager.submit_request
-
-	def submit(request):
-		requests.append(request)
-		request.token.wait = lambda seconds: (break_entered.set(), release_break.wait(1))
-		return original_submit(request)
-
-	manager.submit_request = submit
-	for engine, index in zip(engines, indexes):
-		voice = object.__new__(modules.driver.Voice)
-		voice.engine = engine
-		voice.taskManager = manager
-		voice.active = lambda: None
-		core = types.SimpleNamespace(supportsCancellationToken=engine in ("VE", "Cerence"))
-		core.cancel = lambda: None
-
-		def speak(chunks, *, current_core=core, current_index=index, **kwargs):
-			core_calls.append((current_core, list(chunks), kwargs))
-			raw_events.append(("index", current_core, current_index))
-			modules.index.notify(synth=current_core, index=current_index)
-			raw_events.append(("done", current_core))
-			modules.done.notify(synth=current_core)
-
-		core.speak = speak
-		voice.core = core
-		voices.append(voice)
-	sequence = []
-	for voice, value in zip(voices, texts):
-		sequence.extend((voice, value))
-	sequence.append(modules.BreakCommand(200))
-	assert modules.builder.queue_speech_sequence(manager, sequence, voices[0], set(engines))
-	assert break_entered.wait(1)
-	assert [call[1] for call in core_calls] == [[value] for value in texts]
-	assert [event[0] for event in raw_events] == ["index", "done"] * len(voices)
-	assert modules.outer_indexes == list(indexes)
-	assert modules.done_calls == []
-	assert len(requests) == 1
-	assert [task.kind for task in requests[0].tasks] == ["speech"] * len(voices) + ["break"]
-	for voice, _, kwargs in core_calls:
-		if voice.supportsCancellationToken:
-			assert kwargs == {"cancellationToken": requests[0].token}
-		else:
-			assert kwargs == {}
-	release_break.set()
-	assert modules.done_seen.wait(1)
-	assert modules.done_calls.count(manager.owner) == 1
+        modules, assembly, engines, texts, indexes):
+    a = assembly
+    calls, raw_events, requests = [], [], []
+    entered, release = threading.Event(), threading.Event()
+    original = a.manager.submit_request
+    def submit(request):
+        requests.append(request)
+        request.token.wait = lambda seconds: (entered.set(), release.wait(2))
+        return original(request)
+    a.manager.submit_request = submit
+    voices = []
+    for number, (engine, index) in enumerate(zip(engines, indexes)):
+        def speak(core, chunks, kwargs, index=index):
+            calls.append((core, chunks, kwargs))
+            raw_events.append(("index", index))
+            a.index.notify(synth=core, index=index)
+            raw_events.append(("done",))
+            a.done.notify(synth=core)
+        voices.append(a.voice(f"{engine}:{number}", supports_token=engine in ("VE", "Cerence"),
+                              on_speak=speak))
+    sequence = []
+    for voice, text in zip(voices, texts):
+        sequence.extend((voice, text))
+    sequence.append(modules.BreakCommand(200))
+    try:
+        assert a.queue(sequence, voices[0])
+        assert entered.wait(1)
+        assert [call[1] for call in calls] == [(text,) for text in texts]
+        assert [event[0] for event in raw_events] == ["index", "done"] * len(voices)
+        assert a.indexes == list(indexes)
+        assert a.done_calls == []
+        assert len(requests) == 1
+        assert [task.seconds for task in requests[0].tasks] == [None] * len(voices) + [0.2]
+        for core, _, kwargs in calls:
+            assert kwargs == ({"cancellationToken": requests[0].token} if core.supportsCancellationToken else {})
+    finally:
+        release.set()
+    assert a.done_seen.wait(1)
+    assert a.done_calls == [a.owner]
 
 
 @pytest.mark.parametrize("supports_token", [True, False, None])
-def test_voice_passes_token_only_to_opted_in_core(modules, manager, supports_token):
-	voice = object.__new__(modules.driver.Voice)
-	voice.taskManager = manager
-	calls = []
-	core = types.SimpleNamespace(speak=lambda text, **kwargs: calls.append((text, kwargs)), cancel=lambda: None)
-	if supports_token is not None:
-		core.supportsCancellationToken = supports_token
-	voice.core = core
-	voice.active = lambda: None
-	request = manager.new_request()
-	voice.speak(["hello"], request)
-	assert len(request.tasks) == 1
-	request.tasks[-1].run()
-	assert calls == [(["hello"], {"cancellationToken": request.token} if supports_token else {})]
+def test_voice_passes_token_only_to_opted_in_core(modules, assembly, supports_token):
+    a = assembly
+    voice = a.voice("Fake:a", supports_token=supports_token)
+    request = a.manager.new_request()
+    voice.speak(["hello"], request)
+    assert len(request.tasks) == 1
+    assert a.manager.submit_request(request)
+    assert a.done_seen.wait(1)
+    assert voice.core.spoken == [(("hello",), {"cancellationToken": request.token} if supports_token else {})]
 
 
-def test_break_only_request_sends_no_external_done(modules, manager):
-	FakeVoice = fake_voice_class(modules)
-	voice = FakeVoice("zh", "VE", manager)
-	assert modules.builder.queue_speech_sequence(manager, [modules.BreakCommand(0)], voice, {"VE"})
-	manager._q.join()
-	assert modules.done_calls == []
+def test_break_only_request_sends_no_external_done(modules, assembly):
+    voice = assembly.voice("VE:zh")
+    assert assembly.queue([modules.BreakCommand(0)], voice)
+    assembly.manager._q.join()
+    assert assembly.done_calls == []
 
 
-def test_cancel_during_build_rejects_complete_request(modules, manager):
-	FakeVoice = fake_voice_class(modules)
-	voice = FakeVoice("zh", "VE", manager)
-	original_speak = voice.speak
-
-	def cancel_on_first_chunk(chunks, request):
-		original_speak(chunks, request)
-		manager.cancel([voice])
-
-	voice.speak = cancel_on_first_chunk
-	assert modules.builder.queue_speech_sequence(
-		manager, ["first", modules.BreakCommand(100), "second"], voice, {"VE"},
-	) is False
-	assert manager._q.empty()
-	assert not modules.done_calls
+def test_cancel_during_build_rejects_complete_request(modules, assembly):
+    a = assembly
+    voice = a.voice("VE:zh")
+    original = a.manager.append_speech
+    def append(*args):
+        result = original(*args)
+        a.manager.cancel(a.ports.values())
+        return result
+    a.manager.append_speech = append
+    assert a.queue(["first", modules.BreakCommand(100), "second"], voice) is False
+    assert a.manager._q.empty()
+    assert not a.done_calls
+    assert voice.core.spoken == []
 
 
-def test_voice_cancelled_before_run_does_not_call_core(modules, manager):
-	voice = object.__new__(modules.driver.Voice)
-	voice.taskManager = manager
-	calls = []
-	voice.core = types.SimpleNamespace(speak=lambda text: calls.append(text), cancel=lambda: None)
-	voice.active = lambda: calls.append("active")
-	request = manager.new_request()
-	voice.speak(["hello"], request)
-	request.token.cancel()
-	request.tasks[-1].run()
-	assert calls == []
-
-
-def test_voice_manager_cancel_passes_default_and_cache_without_stopping(modules, monkeypatch):
-	engine = types.ModuleType(f"{modules.driver.__package__}.engine")
-	engine.EngineType = object
-	engine.READY_ENGINE_CLASS = {}
-	engine.get_engine_enabled = lambda *args: False
-	engine.refresh_ready_engine_classes = lambda *args: None
-	monkeypatch.setitem(sys.modules, engine.__name__, engine)
-	name = f"{modules.driver.__package__}.voiceManager"
-	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "voiceManager.py")
-	voice_manager_module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, voice_manager_module)
-	spec.loader.exec_module(voice_manager_module)
-	stopped = []
-	default = types.SimpleNamespace(stop=lambda: stopped.append("default"))
-	cached = types.SimpleNamespace(stop=lambda: stopped.append("cached"))
-	passed = []
-	manager = types.SimpleNamespace(cancel=lambda voices: passed.append(list(voices)))
-	instance = object.__new__(voice_manager_module.VoiceManager)
-	instance._defaultVoiceInstance = default
-	instance._instanceCache = {"default": default, "cached": cached}
-	instance.taskManager = manager
-	instance.cancel()
-	assert passed == [[default, cached]]
-	assert stopped == []
+def test_voice_cancelled_before_run_does_not_call_core(modules, assembly):
+    a = assembly
+    voice = a.voice("Fake:a")
+    request = a.manager.new_request()
+    voice.speak(["hello"], request)
+    request.token.cancel()
+    assert a.manager.submit_request(request) is False
+    assert voice.core.spoken == []

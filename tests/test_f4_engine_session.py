@@ -1,41 +1,39 @@
-import importlib.util
+import importlib
 import sys
 from dataclasses import FrozenInstanceError
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
+
+from runtime_harness import MemoryRepository, make_spec, rt
+from test_runtime_legacy_adapter import compat
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver/engineSession.py"
 
 
 @pytest.fixture
-def module(monkeypatch):
-    spec = importlib.util.spec_from_file_location("worldvoice_engine_session_under_test", MODULE_PATH)
-    module = importlib.util.module_from_spec(spec)
-    monkeypatch.setitem(sys.modules, spec.name, module)
-    spec.loader.exec_module(module)
-    return module
+def module(monkeypatch, rt):
+    package = ModuleType("f4_session_boundary")
+    package.__path__ = [str(MODULE_PATH.parent.parent)]
+    driver = ModuleType("f4_session_boundary.driver")
+    driver.__path__ = [str(MODULE_PATH.parent)]
+    monkeypatch.setitem(sys.modules, package.__name__, package)
+    monkeypatch.setitem(sys.modules, driver.__name__, driver)
+    for suffix, value in (("", rt.package), (".models", rt.models), (".session", rt.session)):
+        monkeypatch.setitem(sys.modules, package.__name__ + ".runtime" + suffix, value)
+    name = driver.__name__ + ".engineSession"
+    monkeypatch.delitem(sys.modules, name, raising=False)
+    return importlib.import_module(name)
 
 
 @pytest.fixture
 def snap(module):
-    def make_snapshot(id, rev):
-        return module.VoiceSnapshot(
-            voice_id=id,
-            revision=rev,
-            language="en",
-            rate=50,
-            pitch=50,
-            volume=50,
-            variant="default",
-            inflection=50,
-            rateBoost=False,
-            waitfactor=0,
-        )
-
-    return make_snapshot
+    return lambda id, rev: module.VoiceSnapshot(
+        voice_id=id, revision=rev, language="en", rate=50, pitch=50,
+        volume=50, variant="default", inflection=50, rateBoost=False, waitfactor=0,
+    )
 
 
 class FakeCore:
@@ -54,91 +52,108 @@ class FakeCore:
         object.__setattr__(self, name, value)
 
 
+
 @pytest.fixture
-def session(module):
-    return module.EngineSession(FakeCore())
+def engine(module, compat, rt):
+    store = rt.settings.VoiceSettingsStore(MemoryRepository())
+    for key in ("Fake:a", "Fake:b"):
+        store.ensure(make_spec(key))
+    result = SimpleNamespace(core=FakeCore(), store=store, hook=lambda core, snapshot: None)
+
+    def adapter(core):
+        class Legacy:
+            @classmethod
+            def engineOn(cls):
+                cls.core = core
+
+            @classmethod
+            def engineOff(cls):
+                cls.core = None
+
+            @classmethod
+            def supportedSettings(cls):
+                return [setting.id for setting in core.supportedSettings]
+
+        return compat.adapter.LegacyEngineAdapter(Legacy, lambda key: SimpleNamespace(
+            applyEngineSettings=lambda core, snapshot: result.hook(core, snapshot)))
+
+    result.adapter = adapter
+    result.session = module.EngineSession(adapter(result.core), store)
+    result.session.open()
+    yield result
+    result.session.close()
 
 
 def test_snapshot_is_immutable(snap):
-    snapshot = snap("a", 0)
     with pytest.raises(FrozenInstanceError):
-        snapshot.rate = 60
+        snap("a", 0).rate = 60
 
 
-def test_first_activation_writes_supported_settings_in_order(session, snap):
-    snapshot = snap("a", 0)
+def test_first_activation_writes_supported_settings_in_order(engine):
     applied = []
-
-    assert session.activate(snapshot, lambda core, value: applied.append((core, value))) is True
-    assert session.core.writes == [
-        ("voice", "a"), ("rate", 50), ("pitch", 50), ("volume", 50)
+    engine.hook = lambda core, snapshot: applied.append((core, snapshot))
+    assert engine.session.activate("Fake:a") is True
+    assert engine.core.writes == [
+        ("voice", "a"), ("rate", 50), ("pitch", 50), ("volume", 50),
     ]
-    assert applied == [(session.core, snapshot)]
+    assert applied == [(engine.core, engine.store.snapshot("Fake:a"))]
 
 
-def test_same_stamp_skips_setters_and_voice_switch_reapplies(session, snap):
-    a = snap("a", 0)
-    b = snap("b", 0)
+def test_same_stamp_skips_setters_and_voice_switch_reapplies(engine):
     applied = []
-    callback = lambda core, value: applied.append(value.voice_id)
-
-    assert session.activate(a, callback) is True
-    before = len(session.core.writes)
-    assert session.activate(a, callback) is False
-    assert len(session.core.writes) == before
+    engine.hook = lambda core, snapshot: applied.append(snapshot.voice_id)
+    assert engine.session.activate("Fake:a") is True
+    before = len(engine.core.writes)
+    assert engine.session.activate("Fake:a") is False
+    assert len(engine.core.writes) == before
     assert applied == ["a"]
-    assert session.activate(b, callback) is True
-    assert session.activate(a, callback) is True
+    assert engine.session.activate("Fake:b") is True
+    assert engine.session.activate("Fake:a") is True
     assert applied == ["a", "b", "a"]
 
 
-def test_revision_change_reapplies_same_voice(session, snap):
-    assert session.activate(snap("a", 0), lambda core, value: None) is True
-    before = len(session.core.writes)
+def test_revision_change_reapplies_same_voice(engine):
+    assert engine.session.activate("Fake:a") is True
+    before = len(engine.core.writes)
+    engine.store.state("Fake:a").update(rate=72)
+    assert engine.session.activate("Fake:a") is True
+    assert len(engine.core.writes) > before
+    assert engine.core.rate == 72
 
-    assert session.activate(snap("a", 1), lambda core, value: None) is True
-    assert len(session.core.writes) > before
 
-
-def test_replace_core_reapplies_same_snapshot(session, snap):
-    snapshot = snap("a", 0)
-    assert session.activate(snapshot, lambda core, value: None) is True
+def test_replace_core_reapplies_same_snapshot(engine):
+    assert engine.session.activate("Fake:a") is True
     new_core = FakeCore()
-
-    session.replace_core(new_core)
-
-    assert session.activate(snapshot, lambda core, value: None) is True
+    engine.session.replace_adapter(engine.adapter(new_core))
+    assert engine.session.activate("Fake:a") is True
     assert new_core.writes == [
-        ("voice", "a"), ("rate", 50), ("pitch", 50), ("volume", 50)
+        ("voice", "a"), ("rate", 50), ("pitch", 50), ("volume", 50),
     ]
 
 
-def test_partial_failure_invalidates_stamp(session, snap):
-    a = snap("a", 0)
-    session.activate(a, lambda core, value: None)
-    changed = snap("a", 1)
-
+def test_partial_failure_invalidates_stamp(engine):
+    engine.session.activate("Fake:a")
+    engine.store.state("Fake:a").update(variant="bright")
+    engine.hook = lambda core, value: (_ for _ in ()).throw(RuntimeError("variant"))
     with pytest.raises(RuntimeError, match="variant"):
-        session.activate(changed, lambda core, value: (_ for _ in ()).throw(RuntimeError("variant")))
+        engine.session.activate("Fake:a")
+    engine.hook = lambda core, value: None
+    engine.store.rollback("Fake:a")
+    assert engine.session.activate("Fake:a") is True
 
-    assert session.activate(a, lambda core, value: None) is True
 
-
-def test_setter_failure_invalidates_stamp(session, snap):
-    a = snap("a", 0)
-    session.activate(a, lambda core, value: None)
-    session.core.fail_on = "pitch"
-
+def test_setter_failure_invalidates_stamp(engine):
+    engine.session.activate("Fake:a")
+    engine.core.fail_on = "pitch"
+    engine.store.state("Fake:a").update(rate=72)
     with pytest.raises(RuntimeError, match="pitch"):
-        session.activate(snap("a", 1), lambda core, value: None)
+        engine.session.activate("Fake:a")
+    engine.core.fail_on = None
+    engine.store.rollback("Fake:a")
+    assert engine.session.activate("Fake:a") is True
 
-    session.core.fail_on = None
-    assert session.activate(a, lambda core, value: None) is True
 
-
-def test_explicit_invalidate_reapplies_snapshot(session, snap):
-    a = snap("a", 0)
-    session.activate(a, lambda core, value: None)
-    session.invalidate()
-
-    assert session.activate(a, lambda core, value: None) is True
+def test_explicit_invalidate_reapplies_snapshot(engine):
+    engine.session.activate("Fake:a")
+    engine.session.invalidate()
+    assert engine.session.activate("Fake:a") is True

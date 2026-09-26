@@ -16,10 +16,9 @@ from logHandler import log as nvdaLog
 import speech
 from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand, BreakCommand
 from speech.extensions import filter_speechSequence
-from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
+from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking, getSynth
 
 from . import languageDetection
-from .engine import READY_ENGINE_CLASS
 from .pipeline import (
 	ignore_comma_between_number,
 	item_wait_factor,
@@ -35,6 +34,10 @@ from .pipeline.settings import (
 	get_effective_pipeline_settings,
 	save_pipeline_settings,
 )
+from .configRepository import ConfigVoiceSettingsRepository
+from .runtime.settings import VoiceSettingsStore
+from .nvdaEventBridge import NvdaEventBridge
+from .compat.commands import normalize_legacy_commands
 from .taskManager import TaskManager
 from .requestBuilder import queue_speech_sequence
 from .voiceManager import VoiceManager
@@ -370,10 +373,12 @@ class SynthDriver(SynthDriver):
 		self._realSpellingFunc = None
 		self.taskManager = None
 		self._voiceManager = None
+		self._eventBridge = None
+		self._settingsStore = None
 		try:
 			self._initialize()
 		except BaseException:
-			self.terminate()
+			self.terminate(commit=False)
 			raise
 
 	def _initialize(self):
@@ -397,11 +402,17 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: voice settings panel patch %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
-		self.taskManager = TaskManager(self)
+		repository = ConfigVoiceSettingsRepository(config.conf, lambda: getSynth().name)
+		self._settingsStore = VoiceSettingsStore(repository)
+		self._eventBridge = NvdaEventBridge(self, done_event=synthDoneSpeaking,
+			index_event=synthIndexReached, get_synth=getSynth)
+		self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
+		self._eventBridge.start(self.taskManager.on_event)
 		nvdaLog.debug("WorldVoice init timing: TaskManager %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
-		self._voiceManager = VoiceManager(taskManager=self.taskManager)
+		self._voiceManager = VoiceManager(taskManager=self.taskManager,
+			settings=self._settingsStore, bridge=self._eventBridge)
 		nvdaLog.debug("WorldVoice init timing: VoiceManager %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
@@ -426,7 +437,7 @@ class SynthDriver(SynthDriver):
 		self._voice = None
 		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
 
-	def terminate(self):
+	def terminate(self, *, commit=True):
 		if self._terminated:
 			return
 		self._terminated = True
@@ -465,9 +476,14 @@ class SynthDriver(SynthDriver):
 			_run_cleanup("task manager shutdown", taskManager.shutdown)
 		self.taskManager = None
 
+		bridge = self._eventBridge
+		if bridge is not None:
+			_run_cleanup("event bridge close", bridge.close)
+		self._eventBridge = None
+
 		voiceManager = self._voiceManager
 		if voiceManager is not None:
-			_run_cleanup("voice manager terminate", voiceManager.terminate)
+			_run_cleanup("voice manager terminate", lambda: voiceManager.terminate(commit=commit))
 		self._voiceManager = None
 
 		if self._startNotified:
@@ -499,9 +515,9 @@ class SynthDriver(SynthDriver):
 
 		queue_speech_sequence(
 			self.taskManager,
-			speechSequence,
-			self._voiceManager.defaultVoiceInstance,
-			READY_ENGINE_CLASS,
+			normalize_legacy_commands(speechSequence),
+			self._voiceManager.defaultVoiceName,
+			self._voiceManager.resolve_playback,
 		)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
