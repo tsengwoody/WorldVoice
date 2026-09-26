@@ -3,7 +3,7 @@
 import importlib.util
 from pathlib import Path
 import sys
-from threading import Event
+from threading import Condition, Event
 from types import SimpleNamespace
 
 import pytest
@@ -26,6 +26,37 @@ def load_runtime(monkeypatch, package_name=PACKAGE):
     settings = load(f"{package_name}.settings", RUNTIME / "settings.py")
     session = load(f"{package_name}.session", RUNTIME / "session.py")
     return SimpleNamespace(package=package, models=models, settings=settings, session=session)
+
+
+def load_scheduler(monkeypatch, rt):
+    name = f"{rt.package.__name__}.scheduler"
+    spec = importlib.util.spec_from_file_location(name, RUNTIME / "scheduler.py")
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+class RecordingOutput:
+    def __init__(self):
+        self.indexes = []
+        self.done_count = 0
+        self.condition = Condition()
+
+    def index_reached(self, index):
+        with self.condition:
+            self.indexes.append(index)
+            self.condition.notify_all()
+
+    def done_speaking(self):
+        with self.condition:
+            self.done_count += 1
+            self.condition.notify_all()
+
+    def wait_done(self, timeout=1, count=1):
+        with self.condition:
+            self.condition.wait_for(lambda: self.done_count >= count, timeout)
+            return self.done_count
 
 
 @pytest.fixture
@@ -114,6 +145,36 @@ class FakeAdapter:
 
     def pause(self, switch):
         self.paused.append(switch)
+
+
+class FakePlayback(FakeAdapter):
+    """Pure playback port; hooks run at the actual engine-call boundary."""
+
+    def __init__(self):
+        super().__init__()
+        self.source_id = object()
+        self.activated = []
+        self.on_activate = None
+        self.on_speak = None
+        self.on_cancel = None
+        self.entered = Event()
+
+    def activate(self, key):
+        self.activated.append(key)
+        if self.on_activate:
+            self.on_activate()
+        return True
+
+    def speak(self, commands, token):
+        super().speak(commands, token)
+        self.entered.set()
+        if self.on_speak:
+            self.on_speak()
+
+    def cancel(self):
+        super().cancel()
+        if self.on_cancel:
+            self.on_cancel()
 
 
 def load_config_repository(monkeypatch, rt):
