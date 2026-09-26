@@ -310,12 +310,14 @@ class TaskManager:
         if playback is not None:
             playback.pause(switch)
 
-    def shutdown(self) -> None:
+    def shutdown(self, playbacks: Iterable[PlaybackPort] = ()) -> None:
+        # Close admission before resolving ports or calling native cancellation;
+        # either can block or reenter the scheduler.
         with self._state_cond:
             first = not self._closed
             self._closed = True
         if first:
-            self.cancel()
+            self.cancel(playbacks)
             self._q.put(None)
         if threading.current_thread() is not self._thread:
             self._thread.join()

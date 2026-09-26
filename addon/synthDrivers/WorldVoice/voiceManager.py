@@ -87,7 +87,8 @@ class VoiceManager(object):
 			cls = READY_ENGINE_CLASS.get(eng.name)
 			if cls is None:
 				continue
-			adapter = LegacyEngineAdapter(cls, self.getVoiceInstance)
+			adapter = LegacyEngineAdapter(cls, self.getVoiceInstance,
+				is_source_owned=lambda source: any(resource[0] is source for resource in self._resources))
 			try:
 				adapter.open()
 			except Exception:
@@ -273,7 +274,11 @@ class VoiceManager(object):
 
 	def cancel(self):
 		if self.taskManager:
-			self.taskManager.cancel(tuple(dict.fromkeys(self._sessions.values())))
+			self.taskManager.cancel(self.playback_ports)
+
+	@property
+	def playback_ports(self) -> tuple[PlaybackPort, ...]:
+		return tuple(dict.fromkeys(self._sessions.values()))
 
 	def _setVoiceDatas(self):
 		self.table = sorted(self._specs.values(), key=attrgetter("engine", "language", "name"))

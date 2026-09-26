@@ -7,9 +7,11 @@ from ..runtime.session import CancellationView
 
 
 class LegacyEngineAdapter:
-    def __init__(self, voice_class: type, resolve_voice: Callable[[str], object]):
+    def __init__(self, voice_class: type, resolve_voice: Callable[[str], object], *,
+                 is_source_owned: Callable[[object], bool] | None = None):
         self._voice_class = voice_class
         self._resolve_voice = resolve_voice
+        self._is_source_owned = is_source_owned
         self._opened = False
         self._core = None
         self.notification_source = None
@@ -25,7 +27,13 @@ class LegacyEngineAdapter:
             self.notification_source = self._core
         except Exception as error:
             try:
-                self.close()
+                source = getattr(self._voice_class, "core", None)
+                if self._is_source_owned is not None and self._is_source_owned(source):
+                    # engineOn may expose an existing owner's resource before
+                    # failing. This alias must not release that owner's core.
+                    self.detach_alias()
+                else:
+                    self.close()
             except Exception as cleanup_error:
                 raise error from cleanup_error
             raise

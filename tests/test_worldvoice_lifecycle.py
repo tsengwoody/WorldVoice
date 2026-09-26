@@ -35,10 +35,12 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		def on_event(self, event):
 			pass
 
-		def shutdown(self):
+		def shutdown(self, playbacks=()):
 			changes.append("task stopped")
 
 	class VoiceManager:
+		playback_ports = ()
+
 		def __init__(self, taskManager, settings=None, bridge=None):
 			if failure == "manager":
 				raise RuntimeError("no voices")

@@ -448,6 +448,12 @@ class SynthDriver(SynthDriver):
 			except BaseException:
 				nvdaLog.error("WorldVoice terminate: %s", name, exc_info=True)
 
+		taskManager = self.taskManager
+		if taskManager is not None:
+			playbacks = self._voiceManager.playback_ports if self._voiceManager is not None else ()
+			_run_cleanup("task manager shutdown", lambda: taskManager.shutdown(playbacks))
+		self.taskManager = None
+
 		if hasattr(self, "add_detected_language_commands"):
 			_run_cleanup(
 				"language detection unregister",
@@ -468,14 +474,6 @@ class SynthDriver(SynthDriver):
 				lambda: setattr(speech.speech, "speakSpelling", self._realSpellingFunc),
 			)
 			self._spellingPatched = False
-		if self._voiceManager is not None:
-			_run_cleanup("cancel", self.cancel)
-
-		taskManager = self.taskManager
-		if taskManager is not None:
-			_run_cleanup("task manager shutdown", taskManager.shutdown)
-		self.taskManager = None
-
 		bridge = self._eventBridge
 		if bridge is not None:
 			_run_cleanup("event bridge close", bridge.close)
@@ -500,6 +498,8 @@ class SynthDriver(SynthDriver):
 		save_pipeline_settings(get_effective_pipeline_settings(synth=self))
 
 	def speak(self, speechSequence):
+		if self._terminated:
+			return
 		self.order = 0
 		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
 			speechSequence = self.add_detected_language_commands(speechSequence)

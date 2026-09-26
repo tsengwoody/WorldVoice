@@ -119,6 +119,30 @@ def test_shared_source_alias_uses_one_session_and_close(composition):
     assert manager.resolve_playback("first:a") is None
 
 
+def test_failed_alias_open_preserves_existing_owner_and_closes_once(composition):
+    c = composition
+    shared = c.Core()
+    first = c.engine("first", shared=shared)
+    failed = c.engine("failed", shared=shared, fail=True)
+    manager = c.create()
+    session = manager.resolve_playback("first:a")
+    assert session is first.session
+    assert manager.resolve_playback("failed:a") is None
+    assert shared.closes == 0
+    assert failed.core is failed._runtime_binding is None
+    spoken = []
+    def speak(commands):
+        assert shared.closes == 0
+        spoken.append(commands)
+    shared.speak = speak
+    assert session.activate("first:a")
+    session.speak(("owner remains usable",), SimpleNamespace(is_cancelled=lambda: False))
+    assert spoken == [("owner remains usable",)]
+    manager.terminate(commit=False)
+    assert shared.closes == 1
+    assert c.repo.saves == []
+
+
 @pytest.mark.parametrize("failure", ["empty", "bind"])
 def test_initialization_failure_closes_without_commit(composition, failure):
     c = composition
@@ -211,6 +235,23 @@ def test_normal_shutdown_saves_settings_without_a_facade(composition):
     assert c.repo.saves == saves
 
 
+def make_synth(c, manager):
+    commands = {name: type(name, (), {}) for name in (
+        "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
+        "PitchCommand", "RateCommand", "VolumeCommand",
+    )}
+    errors = []
+    root = _load_synth_class({
+        "SynthDriver": object, "synthIndexReached": object(), "synthDoneSpeaking": object(),
+        "nvdaLog": SimpleNamespace(error=lambda *args, **kwargs: errors.append(args)), **commands,
+    })
+    synth = object.__new__(root)
+    synth._terminated = synth._pipelineRegistered = synth._voicePanelPatched = False
+    synth._spellingPatched = synth._startNotified = False
+    synth.taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
+    return synth, errors
+
+
 @pytest.mark.parametrize("bridge_error", [False, True])
 def test_worker_stops_before_bridge_and_sessions_close(composition, bridge_error):
     c = composition
@@ -228,9 +269,9 @@ def test_worker_stops_before_bridge_and_sessions_close(composition, bridge_error
     assert entered.wait(1)
     closed = []
     original_shutdown, original_close, original_terminate = c.tasks.shutdown, c.bridge.close, core.terminate
-    def shutdown():
+    def shutdown(playbacks=()):
         stopping.set()
-        original_shutdown()
+        original_shutdown(playbacks)
         closed.append("worker")
     def close_bridge():
         assert not c.tasks._thread.is_alive()
@@ -245,19 +286,7 @@ def test_worker_stops_before_bridge_and_sessions_close(composition, bridge_error
         original_terminate()
         closed.append("session")
     c.tasks.shutdown, c.bridge.close, core.terminate = shutdown, close_bridge, close_core
-    commands = {name: type(name, (), {}) for name in (
-        "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
-        "PitchCommand", "RateCommand", "VolumeCommand",
-    )}
-    errors = []
-    root = _load_synth_class({
-        "SynthDriver": object, "synthIndexReached": object(), "synthDoneSpeaking": object(),
-        "nvdaLog": SimpleNamespace(error=lambda *args, **kwargs: errors.append(args)), **commands,
-    })
-    synth = object.__new__(root)
-    synth._terminated = synth._pipelineRegistered = synth._voicePanelPatched = False
-    synth._spellingPatched = synth._startNotified = False
-    synth.taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
+    synth, errors = make_synth(c, manager)
     thread = threading.Thread(target=synth.terminate)
     try:
         thread.start()
@@ -329,3 +358,47 @@ def test_pipeline_emits_voice_keys_without_constructing_selected_facades(composi
     assert result == [models.SelectVoice("ok:b"), "中文", models.SelectVoice("ok:a"),
                       "English", models.SelectVoice("ok:a")]
     assert tuple(manager._instanceCache) == ("ok:a",)
+
+
+@pytest.mark.parametrize("submission", ["new", "building", "speak"])
+def test_termination_closes_admission_before_blocking_cancel(composition, submission):
+    c = composition
+    c.engine("one")
+    c.engine("two")
+    manager = c.create()
+    synth, errors = make_synth(c, manager)
+    building = c.tasks.new_request()
+    c.tasks.append_speech(building, manager.resolve_playback("one:a"), "one:a", ("pending",))
+    entered, release = threading.Event(), threading.Event()
+    def cancel():
+        c.cores[0].cancels += 1
+        entered.set()
+        assert release.wait(2)
+    c.cores[0].cancel = cancel
+    thread = threading.Thread(target=synth.terminate)
+    try:
+        thread.start()
+        assert entered.wait(1)
+        assert synth._terminated
+        if submission == "new":
+            scheduler = importlib.import_module(c.module.__package__ + ".runtime.scheduler")
+            with pytest.raises(scheduler.InvalidRequestState):
+                c.tasks.new_request()
+        elif submission == "building":
+            assert c.tasks.submit_request(building) is False
+            assert building.token.is_cancelled()
+        else:
+            # Terminated entry points must return before touching pipeline or
+            # facade dependencies, which may already be unavailable.
+            assert synth.speak(["ignored"]) is None
+        assert c.tasks._thread.is_alive()
+        assert not c.bridge._closed
+        assert [core.closes for core in c.cores] == [0, 0]
+    finally:
+        release.set()
+        thread.join(1)
+    assert not thread.is_alive()
+    assert errors == []
+    assert [core.cancels for core in c.cores] == [1, 1]
+    assert [core.closes for core in c.cores] == [1, 1]
+    assert not c.tasks._thread.is_alive()
