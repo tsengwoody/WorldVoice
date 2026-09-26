@@ -16,7 +16,8 @@ class ConfigVoiceSettingsRepository:
         values = {name: convert(default) for name, convert, default in VOICE_PARAMETERS}
         if spec.name not in voices:
             voices[spec.name] = values.copy()
-            return values
+        # Persist the legacy defaults, but load effective main-synth values on
+        # first use too, before the shared state establishes its edit baseline.
 
         consistent = self._conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]
         for name, convert, _ in VOICE_PARAMETERS:

@@ -1,6 +1,7 @@
 """Translate legacy engine hooks into the independent runtime contract."""
 
 from collections.abc import Callable, Mapping
+import logging
 
 from ..runtime.models import EngineCapabilities, SpeechCommands, VoiceSnapshot, VoiceSpec
 from ..runtime.session import CancellationView
@@ -68,10 +69,18 @@ class LegacyEngineAdapter:
         )
 
     def list_voices(self) -> tuple[VoiceSpec, ...]:
-        return tuple(VoiceSpec(
-            id=voice["id"], name=voice["name"], description=voice["description"],
-            language=voice["language"], engine=voice["engine"], locale=voice["locale"],
-        ) for voice in self._voice_class.voices())
+        specs = []
+        for voice in self._voice_class.voices():
+            try:
+                engine, voice_id, language = voice["engine"], voice["id"], voice["language"]
+                specs.append(VoiceSpec(
+                    id=voice_id, name=f"{engine}:{voice_id}",
+                    description=voice.get("description", ""), language=language,
+                    engine=engine, locale=voice.get("locale", language),
+                ))
+            except KeyError as error:
+                logging.getLogger(__name__).error("Invalid voice data: missing %s", error)
+        return tuple(specs)
 
     def variants(self, key: str) -> tuple[Mapping[str, str], ...]:
         return tuple(self._resolve_voice(key).variants)

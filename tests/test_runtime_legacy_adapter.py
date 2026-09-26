@@ -121,6 +121,24 @@ def test_lifecycle_metadata_and_apply_order(compat, rt):
     assert (cls.opens, cls.closes) == (2, 2)
 
 
+@pytest.mark.parametrize("extra", [{}, {"name": "noncanonical", "description": "", "locale": "en_US"}])
+def test_voice_metadata_defaults_and_canonical_key(compat, rt, extra):
+    cls = legacy_class(Core())
+    cls.voices = classmethod(lambda cls: [dict(engine="Fake", id="a", language="en_US", **extra)])
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+    assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "", "en_US", "Fake", "en_US"),)
+
+
+def test_malformed_voice_metadata_does_not_hide_valid_voices(compat, rt):
+    cls = legacy_class(Core())
+    valid = dict(engine="Fake", id="a", language="en", name="Fake:a", description="A", locale="en")
+    malformed = dict(valid, id="broken")
+    del malformed["language"]
+    cls.voices = classmethod(lambda cls: [malformed, valid])
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+    assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
+
+
 @pytest.mark.parametrize("support", [True, False, None])
 def test_token_support_comes_from_actual_core(compat, support):
     core = Core()

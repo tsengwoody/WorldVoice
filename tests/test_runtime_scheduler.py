@@ -622,3 +622,87 @@ def test_cancelled_speech_future_does_not_stall_following_tasks(manager, port, r
     finally:
         # A regression must fail promptly instead of hanging fixture shutdown.
         manager.cancel()
+
+
+@pytest.mark.parametrize("outcome", ["result", "exception"])
+def test_public_cancel_racing_settlement_keeps_worker_alive(
+        manager, port, rt, monkeypatch, outcome):
+    request = manager.new_request()
+    first = manager.append_speech(request, port, "Fake:a", ("first",))
+    tail = manager.append_break(request, 0)
+    entered, release = Event(), Event()
+    setter = getattr(first, "set_" + outcome)
+
+    def settle(value):
+        entered.set()
+        assert release.wait(2)
+        setter(value)
+
+    monkeypatch.setattr(first, "set_" + outcome, settle)
+    def speak_hook():
+        if outcome == "exception":
+            raise ValueError("playback failed")
+        event(manager, rt, port)
+    port.on_speak = speak_hook
+    next_port = FakePlayback()
+    next_port.on_speak = lambda: event(manager, rt, next_port)
+    following = manager.new_request()
+    next_future = manager.append_speech(following, next_port, "Fake:b", ("next",))
+    try:
+        assert manager.submit_request(request)
+        assert entered.wait(1)
+        assert first.cancel()
+        assert manager.submit_request(following)
+        release.set()
+        assert next_future.result(1) is True
+        assert manager._thread.is_alive()
+        assert first.cancelled()
+        assert tail.done()
+        assert request.remaining == following.remaining == 0
+    finally:
+        release.set()
+        manager.cancel()
+
+
+def test_public_cancel_racing_abort_settles_remaining_futures(manager, monkeypatch):
+    request = manager.new_request()
+    first = manager.append_break(request, 0)
+    second = manager.append_break(request, 0)
+    setter = first.set_exception
+    def settle(error):
+        assert first.cancel()
+        setter(error)
+    monkeypatch.setattr(first, "set_exception", settle)
+    manager.abort_request(request, ValueError("build failed"))
+    assert first.cancelled()
+    with pytest.raises(ValueError, match="build failed"):
+        second.result(1)
+    assert request.request_id not in manager._requests
+
+
+@pytest.mark.parametrize("flatten", [False, True])
+@pytest.mark.parametrize("outcome", ["result", "exception"])
+def test_then_public_cancel_racing_settlement_has_no_callback_error(
+        scheduler, monkeypatch, caplog, flatten, outcome):
+    source = scheduler.SpeechFuture()
+    inner = scheduler.SpeechFuture()
+    def callback(future):
+        if flatten:
+            return inner
+        if outcome == "exception":
+            raise ValueError("callback failed")
+        return 42
+    following = source.then(callback)
+    setter = getattr(following, "set_" + outcome)
+    def settle(value):
+        assert following.cancel()
+        setter(value)
+    monkeypatch.setattr(following, "set_" + outcome, settle)
+    source.set_result(None)
+    if flatten:
+        if outcome == "exception":
+            inner.set_exception(ValueError("inner failed"))
+        else:
+            inner.set_result(42)
+    assert following.cancelled()
+    assert not caplog.records

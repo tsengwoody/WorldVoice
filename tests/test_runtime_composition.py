@@ -211,6 +211,37 @@ def test_facade_creation_preserves_existing_pending_state_and_edit_baseline(comp
     assert voice.rate == 50
 
 
+@pytest.mark.parametrize("during_edit", [False, True])
+def test_first_voice_resolution_inherits_main_values_and_keeps_cancel_baseline(composition, during_edit):
+    c = composition
+    c.engine("ok")
+    conf = c.module.config.conf
+    conf["WorldVoice"]["voices"] = {}
+    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+    conf["speech"] = {"WorldVoice": {"rate": 83}}
+    repository_module = importlib.import_module(c.module.__package__ + ".configRepository")
+    c.store._repository = repository_module.ConfigVoiceSettingsRepository(conf, lambda: "WorldVoice")
+    manager = c.create()
+    edit = c.store.begin_edit() if during_edit else None
+    try:
+        assert manager.resolve_playback("ok:b") is not None
+        state = c.store.state("ok:b")
+        assert state.get("rate") == 83
+        assert manager.defaultVoiceInstance.rate == 83
+        if edit is None:
+            edit = c.store.begin_edit()
+        state.update(rate=72)
+        voice = manager.getVoiceInstance("ok:b")
+        assert voice.rate == 72
+        assert c.store.state("ok:b") is state
+        edit.discard()
+        assert voice.rate == 83
+        assert conf["WorldVoice"]["voices"]["ok:b"]["rate"] == 50
+    finally:
+        if edit is not None:
+            edit.close()
+
+
 def test_manager_cancel_passes_sessions_without_core_access(composition):
     c = composition
     c.engine("ok")

@@ -7,7 +7,7 @@ finishes submitted tasks; engine callbacks record signals or delivery intents.
 """
 
 from collections.abc import Iterable
-from concurrent.futures import Future
+from concurrent.futures import Future, InvalidStateError
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
@@ -39,6 +39,24 @@ class CancellationToken:
         return self._event.wait(timeout)
 
 
+def _settle_future(future, *, result=None, error=None):
+    """Let public cancellation win even after the completion check.
+
+    Call outside scheduler state locks: settlement can invoke user callbacks.
+    Other invalid state transitions remain errors rather than being hidden.
+    """
+    if future.done():
+        return
+    try:
+        if error is not None:
+            future.set_exception(error)
+        else:
+            future.set_result(result)
+    except InvalidStateError:
+        if not future.cancelled():
+            raise
+
+
 class SpeechFuture(Future):
     """Future with the legacy callback-taking, Future-flattening then API."""
 
@@ -51,9 +69,9 @@ class SpeechFuture(Future):
             if result.cancelled():
                 following.cancel()
             elif result.exception() is not None:
-                following.set_exception(result.exception())
+                _settle_future(following, error=result.exception())
             else:
-                following.set_result(result.result())
+                _settle_future(following, result=result.result())
 
         def callback(future):
             if following.done():
@@ -66,10 +84,9 @@ class SpeechFuture(Future):
                 if isinstance(result, Future):
                     result.add_done_callback(transfer)
                 else:
-                    following.set_result(result)
+                    _settle_future(following, result=result)
             except Exception as error:
-                if not following.done():
-                    following.set_exception(error)
+                _settle_future(following, error=error)
 
         self.add_done_callback(callback)
         return following
@@ -189,8 +206,7 @@ class TaskManager:
             self._requests.pop(request.request_id)
             futures = [task.future for task in request.tasks]
         for future in futures:
-            if not future.done():
-                future.set_exception(error)
+            _settle_future(future, error=error)
 
     def _valid_locked(self, task):
         request = task.request
@@ -393,13 +409,12 @@ class TaskManager:
                     self._current_indexes = set()
                 notify_done = self._finish_task_locked(task)
             # The state transition happens before user callbacks can re-enter.
-            if not task.future.done():
-                if error is not None:
-                    task.future.set_exception(error)
-                elif valid:
-                    task.future.set_result(result)
-                else:
-                    task.future.cancel()
+            if error is not None:
+                _settle_future(task.future, error=error)
+            elif valid:
+                _settle_future(task.future, result=result)
+            else:
+                task.future.cancel()
             if notify_done:
                 self._deliver_done(task.request)
 

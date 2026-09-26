@@ -40,9 +40,9 @@ def test_load_converts_existing_values_and_defaults_missing_fields(repository, c
     assert repository.load(make_spec()) == dict(DEFAULTS, rate=72)
 
 
-def test_missing_voice_creates_only_six_defaults_even_when_main_consistency_enabled(repository, conf):
+def test_missing_voice_persists_six_defaults_but_loads_effective_main_values(repository, conf):
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    assert repository.load(make_spec()) == DEFAULTS
+    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="main", rateBoost=True)
     assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS
 
 
