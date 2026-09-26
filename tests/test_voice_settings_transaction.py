@@ -193,6 +193,53 @@ def test_apply_rebases_voice_and_role_edit_state(monkeypatch):
 	assert dict(panel._dataToPercist) == {}
 
 
+def test_main_locale_voice_consistency_repeated_apply_then_discard(monkeypatch):
+	panel, manager, a, b, config, errors = _editing_panel(monkeypatch)
+	c = type(a)("c", "A:c", None, "en")
+	voices = {voice.name: voice for voice in (a, b, c)}
+	manager.getVoiceInstance = voices.__getitem__
+	manager._voiceInfos = dict.fromkeys(voices)
+	manager.table.append(c._state.spec)
+	config.conf["WorldVoice"]["role"]["fr"] = {"voice": b.name}
+	panel._keepConsistentCheckBox.GetValue = lambda: True
+	synth_type = _synth_settings_class(config)
+	# NVDA normally supplies this property through AutoPropertyObject.
+	synth_type.voice = property(synth_type._get_voice, synth_type._set_voice)
+	synth = synth_type()
+	synth.name = "WorldVoice"
+	synth._voice = a.name
+	synth._voiceManager = manager
+	env = panel.onSave.__globals__
+	env["getSynth"] = lambda: synth
+	env["getPrimaryLocale"] = sys.modules["lifecycle_test_worldvoice.voiceManager"].getPrimaryLocale
+	panel._dataToPercist["en"]["voice"] = c.name
+	c.rate = 72
+
+	panel.onSave()
+	assert config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] is True
+	assert manager.defaultVoiceName == synth.voice == c.name
+	assert config.conf["speech"]["WorldVoice"]["voice"] == c.name
+	assert config.conf["WorldVoice"]["role"] == {"en": {"voice": c.name}, "fr": {"voice": b.name}}
+	assert dict(panel._dataToPercist) == {}
+
+	panel.onSave()  # No new role selection after the previous Apply cleared staging.
+	assert manager.defaultVoiceName == synth.voice == c.name
+	assert config.conf["speech"]["WorldVoice"]["rate"] == 72
+	assert config.conf["WorldVoice"]["role"] == {"en": {"voice": c.name}, "fr": {"voice": b.name}}
+	assert dict(panel._dataToPercist) == {}
+
+	panel._dataToPercist["en"]["voice"] = a.name
+	panel._dataToPercist["fr"]["voice"] = panel.NO_SELECT
+	c.rate = 81
+	panel.onDiscard()
+	assert c.rate == 72
+	assert manager.defaultVoiceName == synth.voice == c.name
+	assert config.conf["speech"]["WorldVoice"]["voice"] == c.name
+	assert config.conf["WorldVoice"]["role"] == {"en": {"voice": c.name}, "fr": {"voice": b.name}}
+	assert dict(panel._dataToPercist) == {}
+	assert errors == []
+
+
 def test_save_failure_keeps_pending_values_and_baseline(monkeypatch):
 	panel, manager, a, b, config, errors = _editing_panel(monkeypatch)
 	panel._dataToPercist["fr"]["voice"] = b.name
@@ -260,7 +307,7 @@ def _synth_settings_class(config):
 	path = WORLDVOICE / "__init__.py"
 	tree = ast.parse(path.read_text(encoding="utf-8"))
 	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
-	names = {"supportedSettings", "_get_availableVariants", "_set_rate"}
+	names = {"supportedSettings", "_get_availableVariants", "_set_rate", "_get_voice", "_set_voice"}
 	driver.body = [node for node in driver.body if isinstance(node, ast.FunctionDef) and node.name in names]
 	driver.bases = []
 	setting = lambda name, *args, **kwargs: name
