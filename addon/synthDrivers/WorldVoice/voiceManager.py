@@ -62,9 +62,19 @@ class VoiceManager(object):
 		return True
 
 	def __init__(self, taskManager):
+		self.taskManager = taskManager
+		self.installEngine = []
+		self._engineClassesToClose = []
+		self._instanceCache = {}
+		try:
+			self._initialize()
+		except BaseException:
+			self.terminate(commit=False)
+			raise
+
+	def _initialize(self):
 		init_start = time.perf_counter()
 		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]
-		self.taskManager = taskManager
 
 		step_start = time.perf_counter()
 		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
@@ -91,6 +101,7 @@ class VoiceManager(object):
 				continue
 			try:
 				engine_start = time.perf_counter()
+				self._engineClassesToClose.append(cls)
 				cls.engineOn()
 				log.debug(
 					"WorldVoice init timing: VoiceManager eager engineOn %s %.3fs",
@@ -100,6 +111,12 @@ class VoiceManager(object):
 				self.installEngine.append(cls)
 			except Exception as e:
 				log.error("engine %s on error: %s", eng.name, e)
+				try:
+					cls.engineOff()
+				except Exception:
+					log.error("engine %s cleanup error", eng.name, exc_info=True)
+				else:
+					self._engineClassesToClose.remove(cls)
 		log.debug(
 			"WorldVoice init timing: VoiceManager installEngine build %.3fs (%s)",
 			time.perf_counter() - step_start,
@@ -133,14 +150,27 @@ class VoiceManager(object):
 		log.debug("Created voiceManager instance. Default voice is %s", default_meta.name)
 		log.debug("WorldVoice init timing: VoiceManager total %.3fs", time.perf_counter() - init_start)
 
-	def terminate(self):
-		for voiceName, instance in self._instanceCache.items():
-			instance.commit()
-			instance.close()
+	def terminate(self, *, commit=True):
+		instances = tuple(self._instanceCache.values())
+		self._instanceCache.clear()
+		for instance in instances:
+			if commit:
+				try:
+					instance.commit()
+				except Exception:
+					log.error("Failed to save voice %s", instance.name, exc_info=True)
+			try:
+				instance.close()
+			except Exception:
+				log.error("Failed to close voice %s", instance.name, exc_info=True)
 
-		for item in READY_ENGINE_CLASS.values():
-			item.engineOff()
-
+		for item in reversed(self._engineClassesToClose):
+			try:
+				item.engineOff()
+			except Exception:
+				log.error("Failed to close engine %s", item.engine, exc_info=True)
+		self._engineClassesToClose.clear()
+		self.installEngine.clear()
 		self.taskManager = None
 
 	@property

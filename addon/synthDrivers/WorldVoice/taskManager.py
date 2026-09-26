@@ -103,9 +103,20 @@ class TaskManager:
 		self._current_indexes = set()
 
 		self._thread = threading.Thread(target=self._worker, daemon=True)
-		synthDoneSpeaking.register(self._on_core_done)
-		synthIndexReached.register(self._on_core_index)
-		self._thread.start()
+		try:
+			synthDoneSpeaking.register(self._on_core_done)
+			synthIndexReached.register(self._on_core_index)
+			self._thread.start()
+		except BaseException:
+			for event, handler in (
+				(synthIndexReached, self._on_core_index),
+				(synthDoneSpeaking, self._on_core_done),
+			):
+				try:
+					event.unregister(handler)
+				except Exception:
+					pass
+			raise
 
 	# ----------------------------
 	# Public API

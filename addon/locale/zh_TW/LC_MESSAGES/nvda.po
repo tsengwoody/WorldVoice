@@ -5,10 +5,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoice' '6.1'\n"
+"Project-Id-Version: 'WorldVoice' '6.3'\n"
 "Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2026-05-06 15:56+0800\n"
-"PO-Revision-Date: 2026-05-06 16:01+0800\n"
+"POT-Creation-Date: 2026-09-24 19:37+0800\n"
+"PO-Revision-Date: 2026-09-24 19:37+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -131,195 +131,221 @@ msgstr "unicode 規則已編輯"
 #. Add-on summary/title, usually the user visible name of the add-on
 #. Translators: Summary/title for this add-on
 #. to be shown on installation and add-on information found in add-on store
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:48
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:49
 #: addon\globalPlugins\WorldVoice\__init__.py:85 buildVars.py:21
 msgid "WorldVoice"
 msgstr "WorldVoice"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:92
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:93
 msgid "Speech Pipeline"
 msgstr "語音流程"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:99
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:100
 msgid "All Synthesizers (Global)"
 msgstr "所有合成器(全域)"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:100
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:101
 msgid "Only WorldVoice Synthesizer"
 msgstr "僅 WorldVoice 合成器"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:104
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:105
 msgid "Effect Scope:"
 msgstr "作用範圍："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:116
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:791
-#: addon\synthDrivers\WorldVoice\__init__.py:149
-#: addon\synthDrivers\WorldVoice\__init__.py:232
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:117
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:863
+#: addon\synthDrivers\WorldVoice\__init__.py:152
+#: addon\synthDrivers\WorldVoice\__init__.py:267
 msgid "Ignore comma between number"
 msgstr "忽略在數字間的逗號"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:123
-#: addon\synthDrivers\WorldVoice\__init__.py:552
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:124
+#: addon\synthDrivers\WorldVoice\__init__.py:630
 msgid "value"
 msgstr "數值"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:124
-#: addon\synthDrivers\WorldVoice\__init__.py:553
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:125
+#: addon\synthDrivers\WorldVoice\__init__.py:631
 msgid "number"
 msgstr "數字"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:129
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:126
+#: addon\synthDrivers\WorldVoice\__init__.py:632
+msgid "pair"
+msgstr "兩位一組"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:131
 msgid "Number mode:"
 msgstr "數字模式："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:139
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:141
 msgid "global wait factor:"
 msgstr "全域停頓參數："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:143
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:145
 msgid "number wait factor:"
 msgstr "數字停頓參數："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:147
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:149
+msgid "pair wait factor:"
+msgstr "兩位一組停頓參數："
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:153
 msgid "item wait factor:"
 msgstr "項目停頓參數："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:151
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:157
 msgid "sayall wait factor:"
 msgstr "讀出全部停頓參數："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:155
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:161
 msgid "chinese space wait factor:"
 msgstr "中文空白停頓參數："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:232
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:167
+#: addon\synthDrivers\WorldVoice\__init__.py:224
+#: addon\synthDrivers\WorldVoice\__init__.py:339
+msgid "Enable punctuation pause control"
+msgstr "啟用標點停頓控制"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:175
+#: addon\synthDrivers\WorldVoice\__init__.py:232
+#: addon\synthDrivers\WorldVoice\__init__.py:347
+msgid "Remove configured punctuation at pause points"
+msgstr "移除停頓位置的指定標點符號"
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:181
+msgid "punctuation wait factor:"
+msgstr "標點停頓參數："
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:185
+#: addon\synthDrivers\WorldVoice\VoiceSettingsDialogs.py:55
+msgid "Punctuation pause characters:"
+msgstr "標點停頓字元："
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:303
 msgid "Speech Role"
 msgstr "語音角色"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:240
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:610
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:311
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:689
 msgid "Your current speech synthesizer is not WorldVoice."
 msgstr "您當前的語音合成器不是 WorldVoice。"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:253
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:623
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:324
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:702
 msgid "Your current speech synthesizer is not ready."
 msgstr "您當前的語音合程器尚未就緒。"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:274
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:345
 msgid "Select a language, and then configure the voice to be used:"
 msgstr "選擇一個地區，並為其設定一個語音："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:278
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:349
 msgid "Locale Name:"
 msgstr "地區名稱:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:280
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:351
 msgid "Voice Name:"
 msgstr "語音名稱:"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:282
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:353
 msgid "Variant:"
 msgstr "變聲："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:285
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:356
 msgid "&Rate:"
 msgstr "速度(&R)"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:290
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:361
 msgid "Rate boost"
 msgstr "加快語速"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:295
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:366
 msgid "&Pitch:"
 msgstr "音調(&P)"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:298
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:369
 msgid "I&nflection:"
 msgstr "語調(&N)"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:301
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:372
 msgid "V&olume:"
 msgstr "音量(&O)"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:308
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:379
 msgid "Keep main engine and locale engine consistent"
 msgstr "保持主要語音引擎與地區語音引擎一致"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:316
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:387
 msgid "Keep main speech role and locale speech role consistent"
 msgstr "保持主要語音角色與地區語音角色一致"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:323
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:394
 msgid "Keep parameter settings consistent between different speech roles"
 msgstr "保持不同語音角色之間的參數一致"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:603
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:682
 msgid "Unicode Detection"
 msgstr "Unicode 偵測"
 
 #. Translators: Either to ignore or not numbers when language detection is active
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:645
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:724
 msgid "Ignore numbers when detecting text language"
 msgstr "偵測語言時忽略數字"
 
-#. Translators: Either to ignore or not ASCII punctuation when language detection is active
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:653
-msgid "Ignore common punctuation when detecting text language"
-msgstr "偵測語言時忽略常見標點符號"
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:659
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:730
 msgid "Language assumed for latin characters:"
 msgstr "拉丁字元假設的語言："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:669
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:740
 msgid "Language assumed for CJK characters:"
 msgstr "中日韓字元假設的語言："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:679
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:750
 msgid "Language assumed for arabic characters:"
 msgstr "阿拉柏字元假設的語言："
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:689
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:760
 msgid "Before NVDA processes speech commands"
 msgstr "在 NVDA 處理語音指令前"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:690
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:761
 msgid "After NVDA processes speech commands"
 msgstr "在 NVDA 處理語音指令後"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:694
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:765
 msgid "Language detection timing:"
 msgstr "語言偵測時間點："
 
 #. Translators: Title of a setting dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:725
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:797
 msgid "Speech Engine"
 msgstr "語音引擎"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:731
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:803
 msgid "Please select one or more speech engines to enable."
 msgstr "請選擇一個或多個要啟用的語音引擎。"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:737
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:809
 msgid "Select Speech Engines to Enable"
 msgstr "選擇要啟用的語音引擎"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:762
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:834
 msgid ""
 "Changes to speech-engine settings can’t be saved because no speech engine is "
 "enabled."
 msgstr "語音引擎設定變更將無法儲存，因為未啟用任何語音引擎。"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:764
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:836
 msgid "No Speech Engine Enabled"
 msgstr "未啟用任何語音引擎"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:770
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:842
 msgid ""
 "To enable or disable the speech engine, NVDA needs to save your "
 "configuration and restart. Would you like to restart now?"
@@ -327,56 +353,56 @@ msgstr ""
 "若要啟用或停用語音引擎，NVDA 需要先儲存設定並重新啟動。要立即重新啟動嗎？"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:772
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:844
 msgid "Speech Engine Change"
 msgstr "語音引擎變更"
 
 #. Translators: Title of a setting dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:788
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:860
 msgid "Log Record"
 msgstr "日誌紀錄"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:792
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:864
 msgid "Number mode"
 msgstr "數字模式"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:793
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:865
 msgid "Number language"
 msgstr "數字語言"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:794
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:866
 msgid "number wait factor"
 msgstr "數字停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:795
-#: addon\synthDrivers\WorldVoice\__init__.py:189
-#: addon\synthDrivers\WorldVoice\__init__.py:272
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:867
+#: addon\synthDrivers\WorldVoice\__init__.py:200
+#: addon\synthDrivers\WorldVoice\__init__.py:315
 msgid "item wait factor"
 msgstr "項目停頓參數"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:796
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:868
 msgid "chinese space wait factor"
 msgstr "中文空白停頓參數"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:797
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:869
 msgid "speech viewer"
 msgstr "語音檢視器"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:798
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:870
 msgid "apply_speech_dictionaries"
 msgstr "套用語音字典"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:804
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:876
 msgid "Enable logging of WorldVoice’s speech pipeline"
 msgstr "啟用 WorldVoice 的語音流程日誌"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:807
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:879
 msgid "Select Speech Pipelines to Enable"
 msgstr "選擇要啟用的語音流程"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:836
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:908
 #: addon\globalPlugins\WorldVoice\__init__.py:196
 msgid ""
 "Enabling logging of WorldVoice’s speech pipeline will reduce speech response "
@@ -387,8 +413,8 @@ msgstr ""
 "維持關閉。是否仍要啟用？"
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:838
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:860
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:910
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:932
 #: addon\globalPlugins\WorldVoice\__init__.py:184
 #: addon\globalPlugins\WorldVoice\__init__.py:198
 #: addon\globalPlugins\WorldVoice\__init__.py:210
@@ -396,19 +422,19 @@ msgid "Speech Pipeline Logging"
 msgstr "語音流程日誌"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:858
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:930
 #: addon\globalPlugins\WorldVoice\__init__.py:208
 msgid ""
 "Logging of WorldVoice’s speech pipeline has been disabled. Would you like to "
 "export the pipeline log now?"
 msgstr "WorldVoice 語音流程日誌已停用。您是否要現在匯出日誌？"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:869
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:941
 msgid "Settings"
 msgstr "設定"
 
 #. 這時父類別會讀取 self.categoryClasses
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:889
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:961
 #, python-format
 msgid "WorldVoice - %s"
 msgstr "WorldVoice - %s"
@@ -512,11 +538,11 @@ msgid "turn off WorldVoice`s log record"
 msgstr "關閉 WorldVoice 的日誌紀錄"
 
 #. Translators: The title of the Export pipeline log file window
-#: addon\synthDrivers\WorldVoice\log.py:43
+#: addon\synthDrivers\WorldVoice\log.py:56
 msgid "Export pipeline log files..."
 msgstr "匯出流程日誌到檔案…"
 
-#: addon\synthDrivers\WorldVoice\log.py:57
+#: addon\synthDrivers\WorldVoice\log.py:71
 msgid ""
 "Log exported to:\n"
 "{}"
@@ -524,11 +550,11 @@ msgstr ""
 "日誌匯出到:\n"
 "{}"
 
-#: addon\synthDrivers\WorldVoice\log.py:58
+#: addon\synthDrivers\WorldVoice\log.py:72
 msgid "Success"
 msgstr "成功"
 
-#: addon\synthDrivers\WorldVoice\log.py:63
+#: addon\synthDrivers\WorldVoice\log.py:77
 msgid ""
 "Cannot export log to {}:\n"
 "{}"
@@ -536,63 +562,86 @@ msgstr ""
 "無法匯出日誌到 {}:\n"
 "{}"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:142
 #: addon\synthDrivers\WorldVoice\__init__.py:145
-#: addon\synthDrivers\WorldVoice\__init__.py:225
-#: addon\synthDrivers\WorldVoice\__init__.py:228
+#: addon\synthDrivers\WorldVoice\__init__.py:148
+#: addon\synthDrivers\WorldVoice\__init__.py:260
+#: addon\synthDrivers\WorldVoice\__init__.py:263
 msgid "Detect language based on Unicode characters"
 msgstr "根據 Unicode 字元偵測語言"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:155
-#: addon\synthDrivers\WorldVoice\__init__.py:238
+#: addon\synthDrivers\WorldVoice\__init__.py:158
+#: addon\synthDrivers\WorldVoice\__init__.py:273
 msgid "Number &Language"
 msgstr "數字語言(&L)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:159
-#: addon\synthDrivers\WorldVoice\__init__.py:242
+#: addon\synthDrivers\WorldVoice\__init__.py:162
+#: addon\synthDrivers\WorldVoice\__init__.py:277
 msgid "Number Language"
 msgstr "數字語言"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:164
-#: addon\synthDrivers\WorldVoice\__init__.py:247
+#: addon\synthDrivers\WorldVoice\__init__.py:167
+#: addon\synthDrivers\WorldVoice\__init__.py:282
 msgid "Number &Mode"
 msgstr "數字模式(&M)"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:168
-#: addon\synthDrivers\WorldVoice\__init__.py:251
+#: addon\synthDrivers\WorldVoice\__init__.py:171
+#: addon\synthDrivers\WorldVoice\__init__.py:286
 msgid "Number Mode"
 msgstr "數字模式"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:173
-#: addon\synthDrivers\WorldVoice\__init__.py:256
+#: addon\synthDrivers\WorldVoice\__init__.py:176
+#: addon\synthDrivers\WorldVoice\__init__.py:291
 msgid "Global wait factor"
 msgstr "全域停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:181
-#: addon\synthDrivers\WorldVoice\__init__.py:264
+#: addon\synthDrivers\WorldVoice\__init__.py:184
+#: addon\synthDrivers\WorldVoice\__init__.py:299
 msgid "Number wait factor"
 msgstr "數字停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:197
-#: addon\synthDrivers\WorldVoice\__init__.py:280
+#: addon\synthDrivers\WorldVoice\__init__.py:192
+#: addon\synthDrivers\WorldVoice\__init__.py:307
+msgid "Pair wait factor"
+msgstr "兩位一組停頓參數"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\synthDrivers\WorldVoice\__init__.py:208
+#: addon\synthDrivers\WorldVoice\__init__.py:323
 msgid "Say all wait factor"
 msgstr "讀出全部停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:205
-#: addon\synthDrivers\WorldVoice\__init__.py:288
+#: addon\synthDrivers\WorldVoice\__init__.py:216
+#: addon\synthDrivers\WorldVoice\__init__.py:331
 msgid "Chinese space wait factor"
 msgstr "中文空白停頓參數"
 
-#: addon\synthDrivers\WorldVoice\__init__.py:485
-#: addon\synthDrivers\WorldVoice\__init__.py:537
+#. Translators: Label for a setting in synth settings ring.
+#: addon\synthDrivers\WorldVoice\__init__.py:228
+#: addon\synthDrivers\WorldVoice\__init__.py:343
+msgid "Punctuation pauses"
+msgstr "標點停頓"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:235
+#: addon\synthDrivers\WorldVoice\__init__.py:350
+msgid "Remove punctuation at pause points"
+msgstr "移除停頓位置的標點符號"
+
+#. Translators: Label for a setting in voice settings dialog.
+#: addon\synthDrivers\WorldVoice\__init__.py:240
+#: addon\synthDrivers\WorldVoice\__init__.py:355
+msgid "Punctuation wait factor"
+msgstr "標點停頓參數"
+
+#: addon\synthDrivers\WorldVoice\__init__.py:563
+#: addon\synthDrivers\WorldVoice\__init__.py:615
 msgid "default"
 msgstr "預設"
 
@@ -609,271 +658,11 @@ msgstr ""
 #. Brief changelog for this version
 #. Translators: what's new content for the add-on version to be shown in the add-on store
 #: buildVars.py:29
-msgid "Added support for NVDA 2026"
-msgstr "新增支援 NVDA 2026"
+msgid "Improved language detection, speech segmentation, and number parsing."
+msgstr "改善語言偵測、語音分段與數字解析。"
 
-#~ msgid "Enable "
-#~ msgstr "啟用 "
+#~ msgid "Ignore common punctuation when detecting text language"
+#~ msgstr "偵測語言時忽略常見標點符號"
 
-#~ msgid "Enable OneCore"
-#~ msgstr "啟用 OneCore"
-
-#~ msgid "Enable SAPI5"
-#~ msgstr "啟用 SAPI5"
-
-#~ msgid "Enable Espeak"
-#~ msgstr "啟用 Espeak"
-
-#~ msgid "Enable IBM"
-#~ msgstr "啟用 IBM"
-
-#~ msgid "Enable Aisound"
-#~ msgstr "啟用 Aisound"
-
-#~ msgid "Enable VE"
-#~ msgstr "啟用  VE"
-
-#~ msgid "Keep main voice and locale voice consistent"
-#~ msgstr "保持主要語音角色與地區語音角色一致"
-
-#~ msgid "No speech engines are activated"
-#~ msgstr "沒有啟用任何語音引擎"
-
-#~ msgid "active engine Configuration Change"
-#~ msgstr "啟用的"
-
-#~ msgid "Activate RH"
-#~ msgstr "啟用 RH"
-
-#~ msgid "Activate IBM"
-#~ msgstr "啟用 IBM"
-
-#~ msgid "Activate VE"
-#~ msgstr "啟用 VE"
-
-#~ msgid "Apply WorldVoice’s speech pipeline globally"
-#~ msgstr "將 WorldVoice 的語音流程套用至全域"
-
-#~ msgid "global wait factor"
-#~ msgstr "全域停頓參數"
-
-#~ msgid "sayall wait factor"
-#~ msgstr "讀出全部停頓參數"
-
-#~ msgid "&Aisound Core Install"
-#~ msgstr "&Aisound 核心安裝"
-
-#~ msgid "Enhance speech commands:"
-#~ msgstr "增強語音命令："
-
-#~ msgid ""
-#~ "For the detect language timing configuration to apply, NVDA must save "
-#~ "configuration and be restarted. Do you want to do now?"
-#~ msgstr ""
-#~ "為了使偵測語言時間點設定生效， NVDA 必需儲存組態並重新啟動。您要立即執行"
-#~ "嗎？"
-
-#~ msgid "Detect language timing Configuration Change"
-#~ msgstr "偵測語言時間點設定變更"
-
-#~ msgid "Activate aisound"
-#~ msgstr "啟用 aisound"
-
-#~ msgid "Activate piper"
-#~ msgstr "啟用 piper"
-
-#~ msgid "Other"
-#~ msgstr "其他"
-
-#~ msgid "VE wait factor:"
-#~ msgstr "VE 停頓參數："
-
-#~ msgid "Number dot replacement"
-#~ msgstr "數字點替代文字"
-
-#~ msgid "Normalization"
-#~ msgstr "正規化"
-
-#~ msgid "Enable WorldVoice setting rules to detect text language"
-#~ msgstr "啟用 WorldVoice 設定規則來偵測文字語言"
-
-#~ msgid "Enable WorldVoice rules"
-#~ msgstr "啟用 WorldVoice 規則"
-
-#~ msgid "OFF"
-#~ msgstr "關"
-
-#~ msgid "VE Core Install"
-#~ msgstr "VE 核心安裝"
-
-#~ msgid "Install VE Core."
-#~ msgstr "安裝 VE 核心。"
-
-#~ msgid "No help available here."
-#~ msgstr "無可用說明。"
-
-#~ msgid "No user guide found."
-#~ msgstr "無找到使用者指南。"
-
-#~ msgid "Engine"
-#~ msgstr "引擎"
-
-#~ msgid "VE"
-#~ msgstr "VE"
-
-#~ msgid "SAPI5"
-#~ msgstr "SAPI5"
-
-#~ msgid "RH"
-#~ msgstr "RH"
-
-#~ msgid "Detect language timing:"
-#~ msgstr "偵測語言時間點："
-
-#~ msgid "SpeechSettingsDialog have already been opened"
-#~ msgstr "語音設定對話框已開啟"
-
-#~ msgid "Role Switch Wait Factor"
-#~ msgstr "角色切換停頓參數"
-
-#~ msgid "Pause time when encountering spaces between Chinese"
-#~ msgstr "當遇到中文與中文間的空白時暫停長度"
-
-#~ msgid "reset task manager"
-#~ msgstr "重置任務管理器"
-
-#~ msgid ""
-#~ "You have no VE core installed.\n"
-#~ "Do you want to install the VE core now?"
-#~ msgstr ""
-#~ "您尚未安裝 VE 核心。\n"
-#~ "您是否要現在進行 VE 核心安裝？"
-
-#~ msgid "No VE core installed."
-#~ msgstr "尚未安裝 VE 核心。"
-
-#~ msgid ""
-#~ "You have no aisound core installed.\n"
-#~ "Do you want to install the Aisound core now?"
-#~ msgstr ""
-#~ "您尚未安裝 aisound 核心。\n"
-#~ "您是否要現在進行 aisound 核心安裝？"
-
-#~ msgid "No aisound core installed."
-#~ msgstr "尚未安裝 aisound 核心。"
-
-#~ msgid "popup SpeechSymbolsDialog"
-#~ msgstr "彈出 SpeechSymbolsDialog"
-
-#~ msgid "WorldVoice(VE)"
-#~ msgstr "WorldVoice(VE)"
-
-#~ msgid ""
-#~ "You have no core(driver 2) installed.\n"
-#~ "Do you want to install the core(driver 2) now?"
-#~ msgstr ""
-#~ "您尚未安裝核心(driver 2)。\n"
-#~ "您是否要現在進行核心安裝？"
-
-#~ msgid ""
-#~ "For the edited unicode rule to apply, NVDA must be restarted. Press enter "
-#~ "to restart NVDA, or cancel to exit at a later time."
-#~ msgstr ""
-#~ "為了讓已編輯的 unicode 生效， NVDA 必需重新啟動。您要立即重新啟動 NVDA "
-#~ "嗎？"
-
-#~ msgid "Ignore language information of document"
-#~ msgstr "忽略文件中的語言資訊"
-
-#~ msgid "Configure speech each voice."
-#~ msgstr "配置各別語音設定值。"
-
-#~ msgid "Configure unicode setting."
-#~ msgstr "配置 unicode 設定."
-
-#~ msgid "Automatic &Language Switching Settings"
-#~ msgstr "自動語言切換設定(&L)"
-
-#~ msgid "Configure which voice is to be used for each language."
-#~ msgstr "設定各別語言的語音。"
-
-#~ msgid "Speech Rate Settings"
-#~ msgstr "語音速度設定"
-
-#~ msgid "&Number Mode"
-#~ msgstr "數字模式(&N)"
-
-#~ msgid "&Chinese Space Break"
-#~ msgstr "中文空白間隔(&C)"
-
-#~ msgid "automatic number"
-#~ msgstr "自動數字"
-
-#~ msgid "chinese number"
-#~ msgstr "中文數字"
-
-#~ msgid "english number"
-#~ msgstr "英文數字"
-
-#, fuzzy
-#~| msgid "WorldVoiceXVE"
-#~ msgid "WorldVoiceXSapi5"
-#~ msgstr "WorldVoiceXVE"
-
-#~ msgid "Select a locale, and then configure the voice to be used:"
-#~ msgstr "選擇一個地區，並為其設定一個語音："
-
-#, fuzzy, python-format
-#~| msgid ""
-#~| "Your current speech synthesizer is the %s. Please select the "
-#~| "WorldVoiceXVE as the speech synthesizer in the NVDA speech settings."
-#~ msgid ""
-#~ "Your current speech synthesizer is the %s. Please select the "
-#~ "WorldVoiceXSapi5 as the speech synthesizer in the NVDA speech settings."
-#~ msgstr ""
-#~ "你當前的語音合程器為 %s 。請在 NVDA 設定中選擇 WorldVoiceXVE 語音合成器。"
-
-#~ msgid "Ignore numbers and common punctuation when detecting text language"
-#~ msgstr "偵測語言時忽略數字和常見標點符號"
-
-#, python-format
-#~ msgid ""
-#~ "Your current speech synthesizer is the %s. Please select the "
-#~ "WorldVoiceXVE(driver 2) as the speech synthesizer in the NVDA speech "
-#~ "settings."
-#~ msgstr ""
-#~ "你當前的語音合程器為 %s 。請在 NVDA 設定中選擇 WorldVoiceXVE(driver 2) 語"
-#~ "音合成器。"
-
-#, fuzzy
-#~| msgid "Automatic Language Switching Settings"
-#~ msgid "Vocalizer Automatic Language Switching Settings"
-#~ msgstr "自動語言切換設定"
-
-#~ msgid "Detect text language based on unicode characters (experimental)"
-#~ msgstr "用 unicode 編碼偵測文字語言（實驗性功能）"
-
-#~ msgid ""
-#~ "Ignore numbers and common punctuation when detecting text language "
-#~ "(experimental)"
-#~ msgstr "偵測語言時忽略數字和常見標點符號（實驗性功能）"
-
-#~ msgid "Import success"
-#~ msgstr "匯入成功"
-
-#~ msgid ""
-#~ "You have no Vocalizer voices installed.\n"
-#~ "You need at least one voice installed to use WorldVoiceXVE.\n"
-#~ "You can download all Vocalizer voices from the product web page.\n"
-#~ "Do you want to open the vocalizer for NVDA voices download page now?"
-#~ msgstr ""
-#~ "您尚未安裝 Vocalizer 語音。\n"
-#~ "您至少需要一個語音以便使用 WorldVoiceXVE。\n"
-#~ "您可以從商品網頁下載所有 Vocalizer 語音。\n"
-#~ "您是否要現在開啟 vocalizer for NVDA 語音下載頁面？"
-
-#~ msgid "No voices installed."
-#~ msgstr "尚未安裝語音"
-
-#~ msgid "Import Core DLL."
-#~ msgstr "匯入核心 DLL。"
+#~ msgid "Added support for NVDA 2026"
+#~ msgstr "新增支援 NVDA 2026"

@@ -14,7 +14,7 @@ import gui
 import languageHandler
 from logHandler import log as nvdaLog
 import speech
-from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand
+from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand, BreakCommand
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
@@ -361,19 +361,38 @@ class SynthDriver(SynthDriver):
 		return settings
 
 	def __init__(self):
+		self._terminated = False
+		self._startNotified = False
+		self._pipelineRegistered = False
+		self._voicePanelPatched = False
+		self._spellingPatched = False
+		self.OriginVoiceSettingsPanel = None
+		self._realSpellingFunc = None
+		self.taskManager = None
+		self._voiceManager = None
+		try:
+			self._initialize()
+		except BaseException:
+			self.terminate()
+			raise
+
+	def _initialize(self):
 		init_start = time.perf_counter()
 		step_start = init_start
+		self._startNotified = True
 		WVStart.notify()
 		nvdaLog.debug("WorldVoice init timing: WVStart.notify %.3fs", time.perf_counter() - step_start)
 
 		self.order = 0
 
 		step_start = time.perf_counter()
+		self._pipelineRegistered = True
 		apply_worldvoice_pipeline()
 		nvdaLog.debug("WorldVoice init timing: pipeline register %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
 		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
+		self._voicePanelPatched = True
 		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
 		nvdaLog.debug("WorldVoice init timing: voice settings panel patch %.3fs", time.perf_counter() - step_start)
 
@@ -387,6 +406,7 @@ class SynthDriver(SynthDriver):
 
 		step_start = time.perf_counter()
 		self._realSpellingFunc = speech.speech.speakSpelling
+		self._spellingPatched = True
 		speech.speech.speakSpelling = self.patchedSpeakSpelling
 		nvdaLog.debug("WorldVoice init timing: speakSpelling patch %.3fs", time.perf_counter() - step_start)
 
@@ -407,32 +427,52 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
 
 	def terminate(self):
+		if self._terminated:
+			return
+		self._terminated = True
+
 		def _run_cleanup(name, cleanup):
 			try:
 				cleanup()
 			except BaseException:
 				nvdaLog.error("WorldVoice terminate: %s", name, exc_info=True)
 
-		_run_cleanup("pipeline cleanup", clear_pipeline)
-		_run_cleanup(
-			"voice settings panel restore",
-			lambda: setattr(gui.settingsDialogs, "VoiceSettingsPanel", self.OriginVoiceSettingsPanel),
-		)
-		_run_cleanup(
-			"spelling function restore",
-			lambda: setattr(speech.speech, "speakSpelling", self._realSpellingFunc),
-		)
-		_run_cleanup("cancel", self.cancel)
+		if hasattr(self, "add_detected_language_commands"):
+			_run_cleanup(
+				"language detection unregister",
+				lambda: filter_speechSequence.unregister(self.add_detected_language_commands),
+			)
+		if self._pipelineRegistered:
+			_run_cleanup("pipeline cleanup", clear_pipeline)
+			self._pipelineRegistered = False
+		if self._voicePanelPatched:
+			_run_cleanup(
+				"voice settings panel restore",
+				lambda: setattr(gui.settingsDialogs, "VoiceSettingsPanel", self.OriginVoiceSettingsPanel),
+			)
+			self._voicePanelPatched = False
+		if self._spellingPatched:
+			_run_cleanup(
+				"spelling function restore",
+				lambda: setattr(speech.speech, "speakSpelling", self._realSpellingFunc),
+			)
+			self._spellingPatched = False
+		if self._voiceManager is not None:
+			_run_cleanup("cancel", self.cancel)
 
 		taskManager = self.taskManager
-		_run_cleanup("task manager shutdown", taskManager.shutdown)
+		if taskManager is not None:
+			_run_cleanup("task manager shutdown", taskManager.shutdown)
 		self.taskManager = None
 
 		voiceManager = self._voiceManager
-		_run_cleanup("voice manager terminate", voiceManager.terminate)
+		if voiceManager is not None:
+			_run_cleanup("voice manager terminate", voiceManager.terminate)
 		self._voiceManager = None
 
-		_run_cleanup("end notification", WVEnd.notify)
+		if self._startNotified:
+			_run_cleanup("end notification", WVEnd.notify)
+			self._startNotified = False
 
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)

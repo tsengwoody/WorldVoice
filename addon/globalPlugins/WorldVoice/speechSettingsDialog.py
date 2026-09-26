@@ -317,6 +317,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			return
 
 		self._manager = getSynth()._voiceManager
+		self._initialKeepEngineConsistent = self._manager.keepMainLocaleEngineConsistent
 		self.ready = self._manager.ready()
 		if not self.ready:
 			infoCtrl = wx.TextCtrl(
@@ -524,7 +525,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	@guard_errors(callback=got_error_callback)
 	def onKeepEngineConsistentChange(self, event):
 		self._manager.keepMainLocaleEngineConsistent = self._keepEngineConsistentCheckBox.GetValue()
-		self._manager.onKeepEngineConsistent()
 
 		self._localeToVoices = self._manager.localeToVoicesMap
 		self.localesToNames = self._manager.localesToNamesMap
@@ -627,6 +627,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			return
 		for instance in self._manager._instanceCache.values():
 			instance.rollback()
+		self._manager.keepMainLocaleEngineConsistent = self._initialKeepEngineConsistent
 
 	@guard_errors(callback=got_error_callback)
 	def onSave(self):
@@ -652,6 +653,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		config.conf["WorldVoice"]["role"] = temp
 
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] = self._keepEngineConsistentCheckBox.GetValue()
+		self._manager.onKeepEngineConsistent()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = self._keepParameterConsistentCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] = self._keepConsistentCheckBox.GetValue()
 
@@ -680,6 +682,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 				if getSynth().name == 'WorldVoice':
 					getSynth().voice = self._dataToPercist[locale]["voice"]
 				config.conf["speech"]["WorldVoice"]["voice"] = self._dataToPercist[locale]["voice"]
+		self._initialKeepEngineConsistent = self._manager.keepMainLocaleEngineConsistent
 
 
 class UnicodeDetectionSettingsPanel(SettingsPanel):
