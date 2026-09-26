@@ -554,3 +554,71 @@ def test_stop_failure_does_not_block_other_ports_or_new_request(manager, port, r
     other.on_speak = lambda: event(manager, rt, other)
     speech(manager, other)
     assert output.wait_done() == 1
+
+
+@pytest.mark.parametrize("with_tasks", [False, True])
+def test_submit_token_cancelled_building_request_releases_tracking_and_futures(
+        manager, port, scheduler, output, with_tasks):
+    request = manager.new_request()
+    futures = []
+    callback_completed = Event()
+    callback_unlocked = []
+    if with_tasks:
+        futures = [manager.append_speech(request, port, "Fake:a", ("old",)),
+                   manager.append_break(request, 0)]
+        def callback(_):
+            def acquire_state():
+                with manager._state_cond:
+                    callback_completed.set()
+            thread = Thread(target=acquire_state)
+            thread.start()
+            callback_unlocked.append(callback_completed.wait(1))
+            thread.join(1)
+        futures[0].add_done_callback(callback)
+    request.token.cancel()
+    assert manager.submit_request(request) is False
+    assert request.state is scheduler.RequestState.CANCELLED
+    assert request.request_id not in manager._requests
+    assert request.remaining == 0
+    assert all(future.cancelled() for future in futures)
+    if with_tasks:
+        assert callback_unlocked == [True]
+    assert not port.entered.is_set()
+    assert output.done_count == 0
+    assert manager.submit_request(request) is False
+
+
+@pytest.mark.parametrize("cancel_at", ["speak", "awaiting_done"])
+def test_cancelled_speech_future_does_not_stall_following_tasks(manager, port, rt, output, cancel_at):
+    request = manager.new_request()
+    first = manager.append_speech(request, port, "Fake:a", ("first",))
+    next_port = FakePlayback()
+    second = manager.append_speech(request, next_port, "Fake:b", ("second",))
+    next_port.on_speak = lambda: event(manager, rt, next_port)
+    waiting = Event()
+    def speak_hook():
+        if cancel_at == "speak":
+            assert first.cancel()
+            event(manager, rt, port)
+        else:
+            done = manager._current_done_event
+            original_wait = done.wait
+            def observed_wait():
+                waiting.set()
+                return original_wait()
+            done.wait = observed_wait
+    port.on_speak = speak_hook
+    try:
+        assert manager.submit_request(request)
+        if cancel_at == "awaiting_done":
+            assert waiting.wait(1)
+            assert first.cancel()
+            event(manager, rt, port)
+        assert next_port.entered.wait(1)
+        assert second.result(1) is True
+        assert output.wait_done() == 1
+        assert first.cancelled()
+        assert request.remaining == 0
+    finally:
+        # A regression must fail promptly instead of hanging fixture shutdown.
+        manager.cancel()

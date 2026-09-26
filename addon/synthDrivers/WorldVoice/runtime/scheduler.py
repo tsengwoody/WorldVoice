@@ -161,18 +161,23 @@ class TaskManager:
 
     def submit_request(self, request) -> bool:
         with self._state_cond:
-            if (self._closed or request.state is not RequestState.BUILDING
-                    or self._requests.get(request.request_id) is not request
-                    or request.epoch != self._epoch or request.token.is_cancelled()):
+            if (request.state is not RequestState.BUILDING
+                    or self._requests.get(request.request_id) is not request):
                 return False
-            request.state = RequestState.SUBMITTED
-            request.remaining = len(request.tasks)
-            if not request.remaining:
-                request.state = RequestState.COMPLETED
-                self._requests.pop(request.request_id)
-            for task in request.tasks:
-                self._q.put(task)
-            return True
+            if self._closed or request.epoch != self._epoch or request.token.is_cancelled():
+                futures = self._cancel_request_locked(request)
+            else:
+                request.state = RequestState.SUBMITTED
+                request.remaining = len(request.tasks)
+                if not request.remaining:
+                    request.state = RequestState.COMPLETED
+                    self._requests.pop(request.request_id)
+                for task in request.tasks:
+                    self._q.put(task)
+                return True
+        for future in futures:
+            future.cancel()
+        return False
 
     def abort_request(self, request, error: Exception) -> None:
         with self._state_cond:
@@ -351,11 +356,19 @@ class TaskManager:
                 # Register before entry because speak can synchronously emit DONE.
                 self._current_phase = "awaiting_done"
                 done = self._current_done_event
+            # Future.cancel is public too. Wake this task's event even when
+            # cancellation races the validity check or an active done wait.
+            # Registration is outside state: an already-settled Future invokes
+            # its callback immediately. The callback never finishes the task.
+            task.future.add_done_callback(lambda future: done.set() if future.cancelled() else None)
             task.playback.speak(task.commands, task.request.token)
             if task.request.token.is_cancelled():
                 # A non-token-aware synchronous speak may outlive the first stop.
                 self._stop_playback(task.playback)
                 return
+            with self._state_cond:
+                if not self._valid_locked(task):
+                    return
             done.wait()
             result = True
         except Exception as caught:
