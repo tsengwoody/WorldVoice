@@ -14,7 +14,7 @@ from .compat.voiceFacade import LegacyVoiceBinding
 from .runtime.models import VoiceSpec, EngineCapabilities
 from .runtime.session import EngineSession, PlaybackPort
 from .runtime.scheduler import TaskManager
-from .runtime.settings import VoiceSettingsStore
+from .runtime.settings import VoiceEditSession, VoiceSettingsStore
 from .nvdaEventBridge import NvdaEventBridge
 
 from .engine import EngineType, READY_ENGINE_CLASS, get_engine_enabled, refresh_ready_engine_classes
@@ -171,6 +171,9 @@ class VoiceManager(object):
 	def getVoiceVariants(self, key: str) -> tuple[Mapping[str, str], ...]:
 		return self._sessions[self.getVoiceSpec(key).engine].variants(key)
 
+	def beginVoiceSettingsEdit(self) -> VoiceEditSession:
+		return self.settings.begin_edit()
+
 	@property
 	def defaultVoiceInstance(self):
 		return self._defaultVoiceInstance
@@ -224,19 +227,20 @@ class VoiceManager(object):
 		return voiceInstance
 
 	def previewVoiceParameterConsistent(self, baseInstance):
-		for voiceName, instance in self._instanceCache.items():
-			instance.update_settings(
-				rate=baseInstance.rate,
-				pitch=baseInstance.pitch,
-				volume=baseInstance.volume,
-				inflection=baseInstance.inflection,
-				rateBoost=baseInstance.rateBoost,
+		base = self.settings.snapshot(baseInstance.name)
+		for key in self.settings.keys():
+			self.settings.state(key).update(
+				rate=base.rate,
+				pitch=base.pitch,
+				volume=base.volume,
+				inflection=base.inflection,
+				rateBoost=base.rateBoost,
 			)
 
 	def onVoiceParameterConsistent(self, baseInstance):
 		self.previewVoiceParameterConsistent(baseInstance)
-		for instance in self._instanceCache.values():
-			instance.commit()
+		for key in self.settings.keys():
+			self.settings.commit(key)
 
 	def onKeepEngineConsistent(self):
 		temp = defaultdict(lambda: {})

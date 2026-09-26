@@ -129,17 +129,18 @@ class SynthDriver(SynthDriver):
 
 	@property
 	def supportedSettings(self):
+		capabilities = self._voiceManager.getVoiceCapabilities(self._voiceManager.defaultVoiceName)
 		settings = [
 			SynthDriver.VoiceSetting(),
 		]
 		settings.append(SynthDriver.VariantSetting())
 		settings.append(SynthDriver.RateSetting())
-		if "rateBoost" in self._voiceManager.defaultVoiceInstance.__class__.supportedSettings():
+		if "rateBoost" in capabilities.settings:
 			settings.append(SynthDriver.RateBoostSetting())
 		settings.extend([
 			SynthDriver.PitchSetting(),
 		])
-		if 'inflection' in self._voiceManager.defaultVoiceInstance.__class__.supportedSettings():
+		if 'inflection' in capabilities.settings:
 			settings.append(SynthDriver.InflectionSetting())
 		settings.extend([
 			SynthDriver.VolumeSetting(),
@@ -593,7 +594,7 @@ class SynthDriver(SynthDriver):
 
 	def _get_availableVariants(self):
 		values = OrderedDict([("default", StringParameterInfo("default", _("default")))])
-		for item in self._voiceManager.defaultVoiceInstance.variants:
+		for item in self._voiceManager.getVoiceVariants(self._voiceManager.defaultVoiceName):
 			values[item["id"]] = StringParameterInfo(item["id"], item["name"])
 		return values
 

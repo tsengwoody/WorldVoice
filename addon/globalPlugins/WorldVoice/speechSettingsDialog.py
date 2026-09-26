@@ -330,6 +330,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self.disable = True
 			return
 
+		self._editSession = self._manager.beginVoiceSettingsEdit()
+		self.Bind(wx.EVT_WINDOW_DESTROY, self._onDestroy)
 		self._localeToVoices = self._manager.localeToVoicesMap
 		self.localesToNames = self._manager.localesToNamesMap
 		self._locales = self._manager.languages
@@ -472,7 +474,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		voiceName = self._getSelectedVoiceName()
 		if voiceName:
 			voiceInstance = self._manager.getVoiceInstance(voiceName)
-			variants = [i["id"] for i in voiceInstance.variants if i != '']
+			variants = [i["id"] for i in self._manager.getVoiceVariants(voiceName) if i != '']
 			variants = ['default'] + variants
 			variant = voiceInstance.variant
 			self._variantsChoice.SetItems(variants)
@@ -574,10 +576,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 				self._rateBoostCheckBox.Enable()
 
 	def _getVoiceSupportedSettings(self):
-		try:
-			return set(self.voiceInstance.__class__.supportedSettings())
-		except (AttributeError, TypeError):
-			return set()
+		voiceName = self._getSelectedVoiceName()
+		return self._manager.getVoiceCapabilities(voiceName).settings if voiceName else frozenset()
 
 	def sliderDisable(self):
 		self._rateSlider.Disable()
@@ -623,16 +623,35 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	@guard_errors(callback=lambda self: None)
 	def onDiscard(self):
-		if self.disable or not getSynth().name == 'WorldVoice':
+		if self.disable:
 			return
-		for instance in self._manager._instanceCache.values():
-			instance.rollback()
+		self._editSession.discard()
+		self._dataToPercist.clear()
 		self._manager.keepMainLocaleEngineConsistent = self._initialKeepEngineConsistent
 
-	@guard_errors(callback=got_error_callback)
+	def _onDestroy(self, event):
+		# Child control destruction also bubbles through the panel.
+		if event.GetEventObject() is self:
+			self._editSession.close()
+		event.Skip()
+
 	def onSave(self):
 		if self.disable or not getSynth().name == 'WorldVoice':
 			return
+		if self._keepParameterConsistentCheckBox.GetValue():
+			self._manager.previewVoiceParameterConsistent(self._manager.defaultVoiceInstance)
+		try:
+			self._editSession.apply()
+		except Exception as error:
+			log.error("Failed to save voice settings", exc_info=True)
+			gui.messageBox(
+				_("An unexpected error occurred while processing your action.\n\n"
+				  "Details: {err}\n\n"
+				  "A full stack trace has been written to the NVDA log.").format(err=str(error)),
+				_("WorldVoice Setting Dialog - Error"), wx.OK | wx.ICON_ERROR,
+			)
+			# Abort NVDA's save/close sequence, retaining the edit for retry.
+			raise
 		temp = defaultdict(lambda: {})
 		for key, value in config.conf["WorldVoice"]["role"].items():
 			if isinstance(value, config.AggregatedSection):
@@ -657,19 +676,13 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = self._keepParameterConsistentCheckBox.GetValue()
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] = self._keepConsistentCheckBox.GetValue()
 
-		for instance in self._manager._instanceCache.values():
-			instance.commit()
-			try:
-				if instance.name == config.conf["speech"][getSynth().name]["voice"]:
-					config.conf["speech"][getSynth().name]["rate"] = instance.rate
-					config.conf["speech"][getSynth().name]["pitch"] = instance.pitch
-					config.conf["speech"][getSynth().name]["volume"] = instance.volume
-					config.conf["speech"][getSynth().name]["inflection"] = instance.inflection
-					config.conf["speech"][getSynth().name]["rateBoost"] = instance.rateBoost
-			except BaseException:
-				pass
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
-			self._manager.onVoiceParameterConsistent(self._manager._defaultVoiceInstance)
+		try:
+			speechConfig = config.conf["speech"][getSynth().name]
+			snapshot = self._manager.settings.snapshot(speechConfig["voice"])
+			for name in ("rate", "pitch", "volume", "inflection", "rateBoost"):
+				speechConfig[name] = getattr(snapshot, name)
+		except KeyError:
+			pass
 
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
 			locale = self._manager.defaultVoiceInstance.language if self._manager.defaultVoiceInstance.language else languageHandler.getLanguage()
@@ -683,6 +696,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 					getSynth().voice = self._dataToPercist[locale]["voice"]
 				config.conf["speech"]["WorldVoice"]["voice"] = self._dataToPercist[locale]["voice"]
 		self._initialKeepEngineConsistent = self._manager.keepMainLocaleEngineConsistent
+		self._dataToPercist.clear()
 
 
 class UnicodeDetectionSettingsPanel(SettingsPanel):

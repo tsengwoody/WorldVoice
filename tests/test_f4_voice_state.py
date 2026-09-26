@@ -314,11 +314,14 @@ def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypa
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
 	manager_instance._instanceCache = {a.name: a, b.name: b}
+	manager_instance.settings = a._binding.settings
 	manager_instance.getVoiceInstance = lambda name: manager_instance._instanceCache[name]
 	panel_type = _load_panel_class(config)
 	panel = panel_type()
 	panel.disable = False
 	panel._manager = manager_instance
+	panel._editSession = manager_instance.settings.begin_edit()
+	panel._dataToPercist = defaultdict(dict)
 	panel._initialKeepEngineConsistent = False
 	panel._voicesChoice = types.SimpleNamespace(GetCurrentSelection=lambda: 1)
 	panel._voiceNamesByChoiceIndex = [a.name, b.name]
@@ -347,12 +350,18 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
 	manager_instance._instanceCache = {a.name: a, b.name: b}
+	manager_instance.settings = a._binding.settings
 	updates = []
-	b.update_settings = lambda **values: updates.append(values)
+	original_update = b._state.update
+	def record_update(**values):
+		updates.append(values)
+		original_update(**values)
+	b._state.update = record_update
 	a.update_settings(rate=72, pitch=60, volume=70, inflection=55, rateBoost=True)
 	manager_instance.previewVoiceParameterConsistent(a)
 	assert updates == [{"rate": 72, "pitch": 60, "volume": 70,
 		"inflection": 55, "rateBoost": True}]
+	assert (b.rate, b.pitch, b.volume) == (72, 60, 70)
 
 
 @pytest.mark.parametrize("action", ["onVoiceChange", "onKeepParameterConsistentChange"])
@@ -365,6 +374,7 @@ def test_ui_consistency_copy_is_atomic_for_worker_activation(monkeypatch, action
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
 	manager_instance._instanceCache = {a.name: a, b.name: b}
+	manager_instance.settings = a._binding.settings
 	manager_instance._defaultVoiceInstance = a
 	manager_instance.getVoiceInstance = lambda name: manager_instance._instanceCache[name]
 	panel = _load_panel_class(config)()
