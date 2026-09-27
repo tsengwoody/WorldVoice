@@ -16,16 +16,23 @@ def env(monkeypatch):
     return SimpleNamespace(module=module, models=models, adapter=adapter)
 
 
-@pytest.mark.parametrize("engine,version,audio", [
-    ("unknown", "2026.1", "default"), ("OneCore", "unknown", "default"),
-    ("SAPI5", "2026.1", "unknown"), ("SAPI5", "2026.1", "wasapi"),
-    ("SAPI5", "2026.1", "legacy"), ("OneCore", "2026.1", "default"),
+@pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
+@pytest.mark.parametrize("engine,audio", [
+    ("OneCore", "default"), ("SAPI5", "wasapi"), ("SAPI5", "legacy"),
+    ("VE", "default"), ("Cerence", "default"), ("RHVoice", "default"),
+    ("Espeak", "default"), ("external-test-engine", "default"),
+    ("unknown", "default"),
+    *[(engine, "unknown") for engine in (
+        "OneCore", "SAPI5", "VE", "Cerence", "RHVoice", "Espeak",
+        "external-test-engine", "unknown")],
 ])
 def test_unverified_profiles_always_use_legacy_done(env, engine, version, audio):
     path = env.module.__package__ + ".compat.completionPolicies"
     assert importlib.util.find_spec(path) is not None, "Completion policies have not been implemented"
     policies = importlib.import_module(path)
-    assert policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio) == env.models.CompletionContract()
+    contract = policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio)
+    assert contract.mode is env.models.CompletionMode.LEGACY_DONE
+    assert contract.index_range is None
 
 
 @pytest.mark.parametrize("minimum,maximum", [(0, 10), (5, 4), (-10, -1)])
