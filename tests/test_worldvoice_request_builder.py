@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from runtime_harness import MemoryRepository
+from test_worldvoice_index_command import nvda_commands
 
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
@@ -32,7 +33,7 @@ class EventStub:
 
 
 @pytest.fixture
-def modules(monkeypatch):
+def modules(monkeypatch, nvda_commands):
     package_name = "worldvoice_request_builder_under_test"
     for name in tuple(sys.modules):
         if name.startswith(package_name + "."):
@@ -43,12 +44,6 @@ def modules(monkeypatch):
     monkeypatch.setitem(sys.modules, "languageHandler",
                         types.SimpleNamespace(getLanguageDescription=lambda language: language))
 
-    class BreakCommand:
-        def __init__(self, time):
-            self.time = time
-
-    monkeypatch.setitem(sys.modules, "speech", types.ModuleType("speech"))
-    monkeypatch.setitem(sys.modules, "speech.commands", types.SimpleNamespace(BreakCommand=BreakCommand))
     def load(name):
         return importlib.import_module(package_name + "." + name)
     return types.SimpleNamespace(
@@ -57,7 +52,7 @@ def modules(monkeypatch):
         settings=load("runtime.settings"), session=load("runtime.session"),
         adapter=load("compat.engineAdapter"), facade=load("compat.voiceFacade"),
         commands=load("compat.commands"), bridge=load("nvdaEventBridge"),
-        BreakCommand=BreakCommand,
+        BreakCommand=nvda_commands.BreakCommand,
     )
 
 

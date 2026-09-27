@@ -224,7 +224,10 @@ def test_same_source_event_has_no_invented_request_id(env):
     env.done.notify(synth=source)
     assert len(env.received) == 2
     for event in env.received:
-        assert vars(event) == {"kind": env.models.EventKind.DONE, "source_id": source_id, "index": None}
+        assert vars(event) == {
+            "kind": env.models.EventKind.DONE, "source_id": source_id, "index": None,
+            "segment_id": None, "error": None,
+        }
 
 
 def assert_other_thread_can_unbind(bridge, source_id):
