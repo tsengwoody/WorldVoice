@@ -2,7 +2,7 @@
 
 日期：2026-09-27。程式基準：`cbf7dde` 與目前工作目錄。
 
-狀態：依已確認的討論撰寫之 spec，待書面審閱；尚未實作或完成實機驗證。
+狀態：使用者已同意並要求撰寫 [實作計畫](../plans/2026-09-27-worldvoice-segment-index.md)；尚未實作或完成實機驗證。
 
 ## 1. 需求與已確認決策
 
@@ -132,6 +132,8 @@ class WorldVoiceIndexCommand(IndexCommand):
 沿用 IndexCommand 的建構子、整數驗證與既有 driver 的 `isinstance` 處理。此型別用來表達送出端意圖，不在 command 上另存可變的 request／完成狀態。檢查 command 類別時，必須先區分此子類別與一般 IndexCommand；正式上游輸入不應含有由外部呼叫者自行建立的內部 marker，遇到時拒絕該筆建構，避免雙重附加或把內部標記當外部 callback。
 
 每個真正送入 driver 的語音 segment 尾端恰有一個此標記。停頓 task、無效／不可用語音而被跳過的區段不建立標記。保留 builder 對含有 commands 但無可聽文字的片段之既有行為；adapter 的驗收必須證明這類片段仍能回報尾端標記，不能靠加入可聽字元迫使它工作。
+
+後續討論已確認：builder 在遇到 SelectVoice、Pause 及 sequence 結尾時 flush 已累積的非空語音段。標記在 adapter 真正送入 driver 前附加；`normalize_legacy_commands()` 維持 Voice／BreakCommand 正規化，不承擔分段、編號配置或標記附加。
 
 ### 6.1 index 隔離
 
