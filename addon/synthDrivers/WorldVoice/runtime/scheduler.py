@@ -6,6 +6,7 @@ user callbacks) always execute outside the state condition. Only the worker
 finishes submitted tasks; engine callbacks record signals or delivery intents.
 """
 
+from collections import deque
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future, InvalidStateError
 from dataclasses import dataclass, field
@@ -145,6 +146,8 @@ class TaskManager:
         self._q = queue.Queue()
         self._state_cond = threading.Condition()
         self._delivery_lock = threading.RLock()
+        self._pending_event_batches = deque()
+        self._dispatching_events = False
         self._closed = False
         self._epoch = 0
         self._next_request_id = 1
@@ -240,52 +243,67 @@ class TaskManager:
         self.on_events(lambda: (event,))
 
     def on_events(self, load_events: Callable[[], tuple[PlaybackEvent, ...]]) -> None:
-        # Decoding may mutate a ledger. Serialize it with output so a later END
-        # cannot overtake an earlier index whose application callback is active.
+        # Serialize decoding and output. RLock permits output callbacks to
+        # reenter; queue those suppliers so they cannot overtake this batch.
         with self._delivery_lock:
             with self._state_cond:
                 task = self._current_task
+            self._pending_event_batches.append((task, load_events))
+            if self._dispatching_events:
+                return
+            self._dispatching_events = True
             try:
-                events = load_events()
-                for event in events:
-                    index = None
-                    with self._state_cond:
-                        if (not self._accepts_events_locked(task)
-                                or event.source_id is not task.source_id):
-                            continue
-                        legacy = task.completion.mode is CompletionMode.LEGACY_DONE
-                        if legacy:
-                            if event.segment_id is not None:
-                                continue
-                        elif event.segment_id != task.segment_id:
-                            continue
-                        if event.kind is EventKind.INDEX:
-                            if (task.end_seen or event.index is None
-                                    or event.index in self._current_indexes):
-                                continue
-                            self._current_indexes.add(event.index)
-                            index = event.index
-                        elif legacy and event.kind is EventKind.DONE:
-                            task.end_seen = True
-                        elif not legacy and event.kind is EventKind.SEGMENT_END:
-                            task.end_seen = True
-                        elif not legacy and event.kind is EventKind.SEGMENT_DRAINED:
-                            task.drain_seen = True
-                        elif not legacy and event.kind is EventKind.SEGMENT_FAILED:
-                            task.error = event.error or RuntimeError("Speech segment failed")
-                    if index is not None:
-                        self._deliver_index(task, index)
-            except Exception as error:
-                with self._state_cond:
-                    if self._accepts_events_locked(task):
-                        task.error = error
-                self._logger.error("Speech event delivery error", exc_info=True)
+                while self._pending_event_batches:
+                    task, supplier = self._pending_event_batches.popleft()
+                    self._process_event_batch(task, supplier)
             finally:
+                self._dispatching_events = False
+                self._pending_event_batches.clear()
+
+    def _process_event_batch(self, task, load_events):
+        # Called only by the outermost dispatcher with the delivery lock held.
+        # Suppliers and output always run outside the state condition.
+        try:
+            events = load_events()
+            for event in events:
+                index = None
                 with self._state_cond:
-                    if (task is not None and self._current_task is task
-                            and self._current_phase == "awaiting_completion"
-                            and (task.error is not None or self._completion_ready_locked(task))):
-                        self._current_done_event.set()
+                    if (not self._accepts_events_locked(task)
+                            or event.source_id is not task.source_id):
+                        continue
+                    legacy = task.completion.mode is CompletionMode.LEGACY_DONE
+                    if legacy:
+                        if event.segment_id is not None:
+                            continue
+                    elif event.segment_id != task.segment_id:
+                        continue
+                    if event.kind is EventKind.INDEX:
+                        if (task.end_seen or event.index is None
+                                or event.index in self._current_indexes):
+                            continue
+                        self._current_indexes.add(event.index)
+                        index = event.index
+                    elif legacy and event.kind is EventKind.DONE:
+                        task.end_seen = True
+                    elif not legacy and event.kind is EventKind.SEGMENT_END:
+                        task.end_seen = True
+                    elif not legacy and event.kind is EventKind.SEGMENT_DRAINED:
+                        task.drain_seen = True
+                    elif not legacy and event.kind is EventKind.SEGMENT_FAILED:
+                        task.error = event.error or RuntimeError("Speech segment failed")
+                if index is not None:
+                    self._deliver_index(task, index)
+        except Exception as error:
+            with self._state_cond:
+                if self._accepts_events_locked(task):
+                    task.error = error
+            self._logger.error("Speech event delivery error", exc_info=True)
+        finally:
+            with self._state_cond:
+                if (task is not None and self._current_task is task
+                        and self._current_phase == "awaiting_completion"
+                        and (task.error is not None or self._completion_ready_locked(task))):
+                    self._current_done_event.set()
 
     def _deliver_index(self, task, index):
         # Called with the delivery lock held; output can synchronously cancel.

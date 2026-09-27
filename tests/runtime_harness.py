@@ -269,11 +269,11 @@ class ContractCore:
             self.internal_wire_indexes.extend(command.index for command in commands
                                               if isinstance(command, self.marker_type))
             self.wire_indexes.extend(command.index for command in commands
-                                     if hasattr(command, "index"))
+                                     if isinstance(getattr(command, "index", None), int))
         self.entered.set()
         if self.complete_synchronously and self.marker_mode:
             indexes = [commands[-1].index] if self.end_only else [
-                command.index for command in commands if hasattr(command, "index")]
+                command.index for command in commands if isinstance(getattr(command, "index", None), int)]
             for index in indexes:
                 self.emit("INDEX", index)
                 self.emit("INDEX", index)

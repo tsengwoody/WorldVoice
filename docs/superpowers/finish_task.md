@@ -81,13 +81,15 @@ Linux 測試環境無法提供 Windows／NVDA 真實語音輸出證據。OneCore
 
 完成內容包括獨立 `PlaybackContext`、adapter 附加的 `WorldVoiceIndexCommand`、同來源不重用的 ledger 編號、保留 binding generation 的解碼，以及 scheduler 的來源／segment／取消／失敗與 END＋DRAIN 判斷。builder 保留 SelectVoice、Pause、結尾分段；activation 仍只比較 `(source_id, voice_key, revision)`。request 完成仍由唯一 scheduler 決定，再由 bridge 發一次 WorldVoice done；內部 marker 不外洩為 NVDA index。
 
-Task 8 變更後執行 `python3 -m pytest tests -q -p no:cacheprovider`：**569 passed in 7.78s，exit 0**；`git diff --check`：exit 0。runtime AST 稽核的 26 個 imports 沒有 NVDA／compat／driver 依賴，唯一正式 marker 建構位於 `compat/indexCodec.py:27`。獨立逐任務 review 的 Task 1 fixture 修正與 Task 4 generation race 修正均已納入；Task 9 沒有新增程式變更。
+全分支 Astra review 修正後執行 `python3 -m pytest tests -q -p no:cacheprovider`：**576 passed in 7.87s，exit 0**；相關四個測試檔 **140 passed in 2.69s**；`git diff --check`：exit 0。runtime AST 稽核的 27 個 imports 沒有 NVDA／compat／driver 依賴，唯一正式 marker 建構位於 `compat/indexCodec.py:27`。這個結果取代初次 Task 9 的 569 個測試結果。
+
+全分支審查找到的 Important finding 是 INDEX 123 的同步輸出回呼重新進入 END 處理，讓同一批次的 INDEX 124 被丟棄，卻仍成功完成 request。原生 ledger／scheduler 及正式 LegacyEngineAdapter／codec／bridge 均已用測試重現；現在最外層 dispatcher 先完成原批次，再依序解析重新進入時排隊的 supplier，並保留取消與錯誤檢查。Minor finding 是測試假引擎把字串的 `index` 方法誤認為 index command，已限縮為整數索引並新增含文字的測試。修正前五個案例失敗，修正後加上排隊取消／失敗案例共新增七個通過案例。Task 8 仍未完成，沒有新增正式 marker policy 或實機證據。
 
 完整 [spec 覆蓋、稽核與驗證紀錄](finish/2026-09-27-worldvoice-segment-index-validation.md) 列出來源碼觀察、fake 契約與實機證據的界線。未完成項目是逐引擎／版本／音訊模式的安全整數範圍、子類別與索引行為、空與 command-only 情境、實際尾端音訊、取消重播、說全部、跨引擎、設定切換與 pause/resume，通過後才可新增 exact-key policy 與必要 hook。Linux 通過不能填入 Windows 結果；永久阻塞的 synchronous native call 也仍可能阻塞 shutdown。
 
 ## 本次實際新增 commits
 
-基底 `23b176d` 不列為新增提交。以下由 `git log --reverse --format='%H %s' 23b176d..HEAD` 產生，完整列出本交付文件提交前 HEAD `568c902` 的 10 個提交，包含 Task 1 與 Task 4 的修正提交：
+基底 `23b176d` 不列為新增提交。以下由 `git log --reverse --format='%H %s' 23b176d..HEAD` 產生，完整列出初次 Task 9 文件提交後 HEAD `49b5fad` 的 11 個提交，包含 Task 1 與 Task 4 的修正提交：
 
 - `acf025d92c4666656cb7eb204c2136bc5440b8fd` — `feat: define segment completion context and index command`
 - `6f10eeeb5f7521649c010a038d7ce12dc0c2aa9b` — `test: align fixtures with segment completion contracts`
@@ -99,5 +101,6 @@ Task 8 變更後執行 `python3 -m pytest tests -q -p no:cacheprovider`：**569 
 - `1365ae3ce8b834dc7583301fd662b3205f8f24a9` — `refactor: assemble segment event ownership and completion policies`
 - `4dd8a27fea12be6f9efbc1831295ed01def585e9` — `test: cover segment index contracts across runtime and legacy adapters`
 - `568c9026b52766119a7edf5ab52ffa8c10cd2c13` — `docs: record pending Windows segment completion validation`
+- `49b5fadd7174ec9c72282b835b7d78efea58ee5f` — `docs: record segment index completion validation`
 
-本節所在的 Task 9 文件提交訊息為 `docs: record segment index completion validation`；它的 hash 在提交前尚不存在，因此不虛構自我 hash。交付時包含此文件提交的完整清單可用上述 `git log` 命令取得，實際 Task 9 hash 與提交後完整清單另記於 `.superpowers/sdd/2026-09-27-worldvoice-segment-index/task-9-report.md`。
+本次後續修正與文件更新以 `fix: serialize reentrant segment event batches` 提交；其 hash 在編寫文件時尚不存在，因此不虛構自我 hash。包含修正的完整提交清單可用上述 `git log` 命令取得，提交後的實際 hash 與驗證報告另記於 `.superpowers/sdd/2026-09-27-worldvoice-segment-index/task-9-report.md`。

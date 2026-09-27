@@ -338,3 +338,41 @@ def test_builder_capture_restores_new_request_on_success_and_failure(marker_cont
     assert c.tasks.new_request == original
     assert len(c.core.spoken) == 1
     assert c.tasks._requests == {}
+
+
+def test_reentrant_end_preserves_all_indexes_in_accepted_batch(marker_contract):
+    c = marker_contract
+    c.core.complete_synchronously = False
+    request = submit_contract_request(c, [c.index_command(123), c.index_command(124)],
+                                      default_key="Contract:a")
+    assert c.core.entered.wait(1)
+    original = c.output.index_reached
+    pending_at_output = []
+    def reenter_on_first(index):
+        original(index)
+        pending_at_output.append((index, request.tasks[0].future.done(), c.output.done_count))
+        if index == 123:
+            c.core.emit("INDEX", c.core.internal_wire_indexes[-1])
+    c.output.index_reached = reenter_on_first
+    # Reporting the second wire flushes both original indexes in one batch.
+    c.core.emit("INDEX", c.core.wire_indexes[1])
+    completed(c, request)
+    assert c.output.indexes == [123, 124]
+    assert pending_at_output == [(123, False, 0), (124, False, 0)]
+    assert c.output.done_count == 1
+
+
+def test_marker_core_treats_text_as_text_not_an_index_command(marker_contract):
+    c = marker_contract
+    emitted = []
+    original = c.core.emit
+    def emit(kind, index=None):
+        emitted.append((kind, index))
+        original(kind, index)
+    c.core.emit = emit
+    request = submit_contract_request(c, ["text with an index method", c.index_command(123)],
+                                      default_key="Contract:a")
+    completed(c, request)
+    assert c.core.wire_indexes == [501, 502]
+    assert emitted == [("INDEX", 501), ("INDEX", 501), ("INDEX", 502), ("INDEX", 502), ("DONE", None)]
+    assert c.output.indexes == [123]

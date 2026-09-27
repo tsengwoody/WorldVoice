@@ -384,3 +384,58 @@ def test_wrong_source_and_starting_phase_reject_segment_events(manager, rt, outp
     assert output.indexes == []
     emit(manager, rt, port)
     assert future.result(1) is True
+
+
+def test_reentrant_supplier_is_deferred_until_current_batch_finishes(manager, rt, output):
+    port = marker(rt)
+    _, future = start(manager, port)
+    sequence = []
+    original = output.index_reached
+    def supplier():
+        sequence.append("decode END")
+        return (make_event(rt, port),)
+    def on_index(index):
+        original(index)
+        sequence.append(index)
+        if index == 123:
+            manager.on_events(supplier)
+            sequence.append("nested call returned")
+        assert not future.done()
+        assert output.done_count == 0
+    output.index_reached = on_index
+    manager.on_events(lambda: (make_event(rt, port, "INDEX", index=123),
+                              make_event(rt, port, "INDEX", index=124)))
+    assert future.result(1) is True
+    assert output.indexes == [123, 124]
+    assert sequence == [123, "nested call returned", 124, "decode END"]
+
+
+@pytest.mark.parametrize("outcome", ["cancel", "failure"])
+def test_reentrant_terminal_supplier_preserves_cancel_and_failure(manager, rt, output, outcome):
+    port = marker(rt)
+    request, future = start(manager, port)
+    error = ValueError("queued failure")
+    original = output.index_reached
+    def on_index(index):
+        original(index)
+        if index == 123:
+            if outcome == "cancel":
+                manager.on_events(lambda: (make_event(rt, port),))
+                manager.cancel()
+            else:
+                manager.on_events(lambda: (make_event(rt, port, "SEGMENT_FAILED", error=error),))
+    output.index_reached = on_index
+    manager.on_events(lambda: (make_event(rt, port, "INDEX", index=123),
+                              make_event(rt, port, "INDEX", index=124)))
+    if outcome == "cancel":
+        with pytest.raises(CancelledError):
+            future.result(1)
+        assert output.indexes == [123]
+        assert output.done_count == 0
+    else:
+        assert future.exception(1) is error
+        assert output.indexes == [123, 124]
+        assert output.wait_done() == 1
+    manager._q.join()
+    assert request.remaining == 0
+    assert port.finished == port.contexts
