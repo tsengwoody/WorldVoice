@@ -77,7 +77,7 @@ Linux 測試環境無法提供 Windows／NVDA 真實語音輸出證據。OneCore
 
 # Segment index 核心交付說明（2026-09-27）
 
-**Tasks 1–7 與 9 已完成；Task 8 仍待 Windows／NVDA／裝置證據，不能宣稱 F7 已在生產環境修復。** 本次建立可驗證的 segment index 核心與 adapter 邊界，但正式 `_VERIFIED_CONTRACTS` 仍為空；OneCore、SAPI5 WASAPI／legacy、VE、Cerence、RHVoice、Espeak 及 external profiles 全部維持 `LEGACY_DONE`，沒有已核准的 index 範圍或實機排空保證。
+**Tasks 1–7 與 9 已完成；Task 8 仍待 Windows／NVDA／裝置證據，不能宣稱 F7 已在生產環境修復。** 本次建立可驗證的 segment index 核心與 adapter 邊界，但正式 `_VERIFIED_CONTRACTS` 仍為空。合併至 master 時，OneCore、SAPI5 WASAPI／legacy、VE、Cerence、RHVoice、Espeak 及 external profiles 全部維持 `LEGACY_DONE`，沒有已核准的 index 範圍或實機排空保證；目前測試分支的強制覆寫另見下節，不能視為正式驗證結果。
 
 完成內容包括獨立 `PlaybackContext`、adapter 附加的 `WorldVoiceIndexCommand`、同來源不重用的 ledger 編號、保留 binding generation 的解碼，以及 scheduler 的來源／segment／取消／失敗與 END＋DRAIN 判斷。builder 保留 SelectVoice、Pause、結尾分段；activation 仍只比較 `(source_id, voice_key, revision)`。request 完成仍由唯一 scheduler 決定，再由 bridge 發一次 WorldVoice done；內部 marker 不外洩為 NVDA index。
 
@@ -105,3 +105,13 @@ Linux 測試環境無法提供 Windows／NVDA 真實語音輸出證據。OneCore
 - `55ab4fa5402a4ae112376cc23a2d6e05533e1781` — `fix: serialize reentrant segment event batches`
 
 本次補齊清單的後續文件提交可由 git history 查閱；文件在提交前無法嵌入該提交自己的 hash。交付時包含這份文件更新的完整清單可用 `git log --reverse --format='%H %s' 23b176d..HEAD` 取得。
+
+## 僅供測試的 END_INDEX 強制覆寫（2026-09-27）
+
+分支 `test/force-segment-end-index-all-engines` 以已合併的 master `7f6a950` 為基底，透過 `compat/completionPolicies.py` 的 `_TEST_ONLY_*` 常數及提前回傳，強制 SAPI5（含 WASAPI／legacy 與其他音訊模式）、OneCore、Espeak、VE、Cerence、RHVoice 在任何 NVDA 版本使用 `END_INDEX`，暫用 wire index 範圍為 **1..9999（含上下界）**。unknown／external engines 仍使用 `LEGACY_DONE`。正式 `_VERIFIED_CONTRACTS` 維持空表；這是實機測試用覆寫，不是已驗證能力，Task 8 仍未完成。
+
+沒有新增 DRAIN hook、匿名 DONE fallback 或 driver wrapper 修改。移除 `_TEST_ONLY_*` 常數與提前回傳，或 revert 本次測試提交，即可還原原本保守的選擇行為。此範圍、末端 index 與實際音訊尾端的關係仍待 Windows／NVDA 測試；若引擎未回報末端 index，可能無法完成該段，同一來源的 9999 個編號耗盡時會依現有契約失敗。
+
+TDD 初次執行得到 96 個預期失敗（仍回傳 `LEGACY_DONE`）；加入覆寫後，policy focused tests 為 **137 passed**，`python3 -m pytest tests -q -p no:cacheprovider` 為 **636 passed in 9.01s**，`git diff --check` 通過。版本測試字串為 `unknown`、`2026.1`、`2026.1.1`、`2026.2`；音訊模式為 `default`、`wasapi`、`legacy`、`unknown`，不是實機安裝清單。
+
+依現有 Ubuntu CI 的 SCons 工具，在隔離來源目錄執行 `scons version=6.2-test-force-end-index-1-9999 channel=dev` 成功產生 `WorldVoice-6.2-test-force-end-index-1-9999.nvda-addon`。封裝完整性、policy 原始碼一致性、測試版說明與無 bytecode cache 均已確認；封裝成功不代表已在 Windows／NVDA 安裝或播放驗證。

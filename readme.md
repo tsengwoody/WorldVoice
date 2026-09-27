@@ -1,5 +1,7 @@
 # WorldVoice User Guide
 
+**Test branch only (`test/force-segment-end-index-all-engines`):** SAPI5 (including WASAPI and legacy), OneCore, Espeak, VE, Cerence, and RHVoice forcibly use `END_INDEX` with temporary wire indexes **1..9999 inclusive**, for every NVDA version and audio mode. Unknown/external engines retain `LEGACY_DONE`. This override is unverified on Windows/NVDA hardware and is not production-certified; the evidence-backed policy table remains empty. No drain hook or anonymous-DONE fallback is enabled. Remove the named `_TEST_ONLY_*` constants and early return in `compat/completionPolicies.py`, or revert the test-only commit, to restore the conservative policy.
+
 WorldVoice is an NVDA add-on that supports automatic switching between speech roles from different speech engines, including Espeak, OneCore and SAPI5, and provides a wide range of customization settings. Users can easily adjust speech settings for different situations and personal preferences.
 
 As globalization becomes more widespread, people are exposed to multilingual written content more often. Whether in educational material or leisure reading, it is common to see different languages mixed together, and sometimes Chinese, English, and Japanese text can even appear in the same sentence.

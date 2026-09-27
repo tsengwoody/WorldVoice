@@ -1,4 +1,4 @@
-"""Conservative opt-in policy and resource-bound adapter configuration."""
+"""Test-branch completion override and resource-bound adapter configuration."""
 
 import importlib
 from types import SimpleNamespace
@@ -17,16 +17,19 @@ def env(monkeypatch):
 
 
 @pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
-@pytest.mark.parametrize("engine,audio", [
-    ("OneCore", "default"), ("SAPI5", "wasapi"), ("SAPI5", "legacy"),
-    ("VE", "default"), ("Cerence", "default"), ("RHVoice", "default"),
-    ("Espeak", "default"), ("external-test-engine", "default"),
-    ("unknown", "default"),
-    *[(engine, "unknown") for engine in (
-        "OneCore", "SAPI5", "VE", "Cerence", "RHVoice", "Espeak",
-        "external-test-engine", "unknown")],
-])
-def test_unverified_profiles_always_use_legacy_done(env, engine, version, audio):
+@pytest.mark.parametrize("audio", ["default", "wasapi", "legacy", "unknown"])
+@pytest.mark.parametrize("engine", ["SAPI5", "OneCore", "Espeak", "VE", "Cerence", "RHVoice"])
+def test_test_branch_forces_end_index_for_builtin_engines(env, engine, version, audio):
+    policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
+    contract = policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio)
+    assert contract.mode is env.models.CompletionMode.END_INDEX
+    assert contract.index_range == env.models.IndexRange(1, 9999)
+
+
+@pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
+@pytest.mark.parametrize("audio", ["default", "wasapi", "legacy", "unknown"])
+@pytest.mark.parametrize("engine", ["external-test-engine", "unknown"])
+def test_unknown_and_external_profiles_still_use_legacy_done(env, engine, version, audio):
     path = env.module.__package__ + ".compat.completionPolicies"
     assert importlib.util.find_spec(path) is not None, "Completion policies have not been implemented"
     policies = importlib.import_module(path)
