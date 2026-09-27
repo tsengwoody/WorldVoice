@@ -11,6 +11,7 @@ import pytest
 from runtime_harness import MemoryRepository
 from test_worldvoice_lifecycle import _load_voice_manager, _load_synth_class, WORLDVOICE
 from test_worldvoice_request_builder import EventStub
+from test_worldvoice_index_command import nvda_commands
 
 
 @pytest.fixture
@@ -25,13 +26,15 @@ def composition(monkeypatch):
     settings = importlib.import_module(package + ".runtime.settings")
     scheduler = importlib.import_module(package + ".runtime.scheduler")
     bridge_module = importlib.import_module(package + ".nvdaEventBridge")
+    models = importlib.import_module(package + ".runtime.models")
+    ledger = importlib.import_module(package + ".indexLedger").IndexLedger()
     repo = MemoryRepository()
     store = settings.VoiceSettingsStore(repo)
     done, index = EventStub(), EventStub()
     owner = object()
-    bridge = bridge_module.NvdaEventBridge(owner, done_event=done, index_event=index, get_synth=lambda: owner)
+    bridge = bridge_module.NvdaEventBridge(owner, done_event=done, index_event=index, get_synth=lambda: owner, index_ledger=ledger)
     tasks = scheduler.TaskManager(bridge)
-    bridge.start(tasks.on_event)
+    bridge.start(tasks.on_event, batch_handler=tasks.on_events)
     cores = []
 
     class Core:
@@ -78,18 +81,21 @@ def composition(monkeypatch):
 
     managers = []
 
-    def create():
-        manager = manager_module.VoiceManager(tasks, store, bridge)
+    def create(completion_for=lambda cls, core: models.CompletionContract()):
+        manager = manager_module.VoiceManager(tasks, store, bridge,
+            index_ledger=ledger, completion_for=completion_for)
         managers.append(manager)
         return manager
 
     yield SimpleNamespace(engine=engine, create=create, store=store, repo=repo,
                           bridge=bridge, tasks=tasks, cores=cores, Core=Core,
-                          module=manager_module, driver=driver)
+                          module=manager_module, driver=driver, ledger=ledger, models=models,
+                          done=done, index=index, owner=owner)
     tasks.shutdown()
     bridge.close()
     for manager in managers:
         manager.terminate(commit=False)
+    ledger.close()
 
 
 def test_only_started_sessions_are_resolvable(composition):
@@ -149,8 +155,8 @@ def test_initialization_failure_closes_without_commit(composition, failure):
     cls = c.engine("bad", empty=failure == "empty")
     if failure == "bind":
         original = c.bridge.bind
-        def bind(source, source_id):
-            original(source, source_id)
+        def bind(source, source_id, **kwargs):
+            original(source, source_id, **kwargs)
             raise RuntimeError("bind failed")
         c.bridge.bind = bind
     with pytest.raises(RuntimeError, match="No WorldVoice voices|bind failed"):
@@ -165,10 +171,10 @@ def test_source_is_bound_before_engine_is_published(composition):
     c = composition
     c.engine("ok")
     original = c.bridge.bind
-    def bind(source, source_id):
+    def bind(source, source_id, **kwargs):
         # The manager is still being constructed; its enumeration hook observes
         # only a resource whose notifications can already reach the scheduler.
-        original(source, source_id)
+        original(source, source_id, **kwargs)
     c.bridge.bind = bind
     original_voices = c.module.READY_ENGINE_CLASS["ok"].voices
     def voices(cls):
@@ -280,6 +286,7 @@ def make_synth(c, manager):
     synth._terminated = synth._pipelineRegistered = synth._voicePanelPatched = False
     synth._spellingPatched = synth._startNotified = False
     synth.taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
+    synth._indexLedger = c.ledger
     return synth, errors
 
 
@@ -433,3 +440,139 @@ def test_termination_closes_admission_before_blocking_cancel(composition, submis
     assert [core.cancels for core in c.cores] == [1, 1]
     assert [core.closes for core in c.cores] == [1, 1]
     assert not c.tasks._thread.is_alive()
+
+
+def marker_contract(c):
+    return c.models.CompletionContract(c.models.CompletionMode.END_INDEX, c.models.IndexRange(501, 510))
+
+
+def test_resource_bound_before_first_encoded_speech(composition, nvda_commands):
+    c = composition
+    cls = c.engine("marker")
+    selected = []
+    contract = marker_contract(c)
+    def completion_for(voice_class, core):
+        assert voice_class is cls and core is cls.core
+        assert cls.session is None
+        selected.append(core)
+        return contract
+    manager = c.create(completion_for)
+    port = manager.resolve_playback("marker:a")
+    spoken = []
+    finished = threading.Event()
+    def speak(commands):
+        spoken.extend(commands)
+        c.index.notify(synth=cls.core, index=commands[-1].index)
+    cls.core.speak = speak
+    c.done.register(lambda synth: finished.set() if synth is c.owner else None)
+    request = c.tasks.new_request()
+    original = nvda_commands.IndexCommand(42)
+    c.tasks.append_speech(request, port, "marker:a", ("hello", original))
+    assert c.tasks.submit_request(request)
+    assert finished.wait(1)
+    assert [item.index for item in spoken if isinstance(item, nvda_commands.IndexCommand)] == [501, 502]
+    assert original.index == 42
+    assert selected == [cls.core]
+    assert port.completion == contract
+
+
+def test_alias_uses_one_allocator_and_one_close(composition, nvda_commands):
+    c = composition
+    shared = c.Core()
+    c.engine("first", shared=shared)
+    c.engine("alias", shared=shared)
+    manager = c.create(lambda cls, core: marker_contract(c))
+    spoken = []
+    shared.speak = lambda commands: spoken.append(commands[-1].index)
+    for segment, key in enumerate(("first:a", "alias:a"), 1):
+        port = manager.resolve_playback(key)
+        port.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False),
+                   context=c.models.PlaybackContext(port.source_id, segment))
+    assert spoken == [501, 502]
+    manager.terminate(commit=False)
+    assert shared.closes == 1
+
+
+def test_alias_conflicting_completion_contract_is_rejected(composition):
+    c = composition
+    shared = c.Core()
+    first = c.engine("first", shared=shared)
+    alias = c.engine("alias", shared=shared)
+    with pytest.raises(ValueError, match="completion contract"):
+        c.create(lambda cls, core: marker_contract(c) if cls is first else c.models.CompletionContract())
+    assert first.session is alias.session is None
+    assert first.core is alias.core is None
+    assert shared.closes == 1
+    assert c.bridge._sources == {}
+    assert c.repo.saves == []
+
+
+def test_partial_bind_failure_releases_resources_without_commit(composition):
+    c = composition
+    cls = c.engine("marker")
+    original = c.bridge.bind
+    source_ids = []
+    def bind(source, source_id, **kwargs):
+        original(source, source_id, **kwargs)
+        source_ids.append(source_id)
+        assert cls.session is None
+        raise RuntimeError("partial marker bind")
+    c.bridge.bind = bind
+    with pytest.raises(RuntimeError, match="partial marker bind"):
+        c.create(lambda cls, core: marker_contract(c))
+    assert c.cores[0].closes == 1
+    assert c.bridge._sources == {}
+    with pytest.raises(importlib.import_module(c.module.__package__ + ".indexLedger").InvalidIndexContext):
+        c.ledger.prepare(c.models.PlaybackContext(source_ids[0], 1), ())
+    assert c.repo.saves == []
+
+
+def test_shutdown_disables_late_index_before_engine_close(composition):
+    c = composition
+    cls = c.engine("marker")
+    manager = c.create(lambda cls, core: marker_contract(c))
+    port = manager.resolve_playback("marker:a")
+    marker = c.ledger.prepare(c.models.PlaybackContext(port.source_id, 1), (42,)).end_index
+    received = []
+    c.index.register(lambda synth, index: received.append(index) if synth is c.owner else None)
+    original_close = cls.core.terminate
+    def close():
+        assert c.bridge._closed
+        assert not c.ledger._closed
+        c.index.notify(synth=cls.core, index=marker)
+        original_close()
+    cls.core.terminate = close
+    synth, errors = make_synth(c, manager)
+    synth.terminate()
+    assert received == []
+    assert errors == []
+    assert c.ledger._closed
+
+
+def test_completion_selection_failure_closes_opened_core(composition):
+    c = composition
+    cls = c.engine("marker")
+    def fail(cls, core):
+        raise RuntimeError("policy failure")
+    with pytest.raises(RuntimeError, match="policy failure"):
+        c.create(fail)
+    assert c.cores[0].closes == 1
+    assert cls.session is None
+    assert c.repo.saves == []
+
+
+def test_live_core_rebind_preserves_allocator_high_water(composition, nvda_commands):
+    c = composition
+    cls = c.engine("marker")
+    manager = c.create(lambda cls, core: marker_contract(c))
+    port = manager.resolve_playback("marker:a")
+    spoken = []
+    cls.core.speak = lambda commands: spoken.append(commands[-1].index)
+    token = SimpleNamespace(is_cancelled=lambda: False)
+    port.speak(("first",), token, context=c.models.PlaybackContext(port.source_id, 1))
+    c.bridge.unbind(port.source_id)
+    c.bridge.bind(cls.core, port.source_id, completion=port.completion)
+    port.speak(("second",), token, context=c.models.PlaybackContext(port.source_id, 2))
+    assert spoken == [501, 502]
+    assert cls.core.closes == 0
+    assert c.ledger.receive_index(port.source_id, 501) == ()

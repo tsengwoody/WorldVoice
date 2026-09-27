@@ -35,13 +35,18 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		def on_event(self, event):
 			pass
 
+		def on_events(self, supplier):
+			pass
+
 		def shutdown(self, playbacks=()):
 			changes.append("task stopped")
 
 	class VoiceManager:
 		playback_ports = ()
 
-		def __init__(self, taskManager, settings=None, bridge=None):
+		def __init__(self, taskManager, settings=None, bridge=None, *, index_ledger, completion_for):
+			assert index_ledger is bridge.ledger
+			assert callable(completion_for)
 			if failure == "manager":
 				raise RuntimeError("no voices")
 			changes.append("engine started")
@@ -51,16 +56,21 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 			changes.append("engine stopped")
 
 	class Bridge:
-		def __init__(self, *args, **kwargs):
-			pass
+		def __init__(self, *args, index_ledger, **kwargs):
+			self.ledger = index_ledger
 
-		def start(self, handler):
+		def start(self, handler, *, batch_handler):
+			assert handler.__self__ is batch_handler.__self__
 			changes.append("bridge started")
 			if failure == "bridge":
 				raise RuntimeError("bridge failure")
 
 		def close(self):
 			changes.append("bridge stopped")
+
+	class Ledger:
+		def close(self):
+			changes.append("ledger stopped")
 
 	class SpeechSymbols:
 		def load(self, path):
@@ -98,6 +108,7 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		"WorldVoiceVoiceSettingsPanel": object(),
 		"TaskManager": TaskManager,
 		"VoiceManager": VoiceManager,
+		"IndexLedger": Ledger,
 		"NvdaEventBridge": Bridge,
 		"ConfigVoiceSettingsRepository": lambda *args: object(),
 		"VoiceSettingsStore": lambda repository: object(),
@@ -116,6 +127,9 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 	assert "task stopped" in changes
 	assert "bridge stopped" in changes
 	assert changes.index("task stopped") < changes.index("bridge stopped")
+	assert changes.index("bridge stopped") < changes.index("ledger stopped")
+	if "engine stopped" in changes:
+		assert changes.index("engine stopped") < changes.index("ledger stopped")
 	assert "pipeline stopped" in changes
 	assert changes.count("end") == 1
 	if failure == "symbols":
@@ -178,9 +192,11 @@ def test_voice_manager_closes_engine_when_no_voices(monkeypatch):
 	module = _load_voice_manager(monkeypatch, {"A": Engine})
 	from runtime_harness import MemoryRepository
 	store = module.VoiceSettingsStore(MemoryRepository())
-	bridge = types.SimpleNamespace(bind=lambda *args: None, unbind=lambda *args: None)
+	bridge = types.SimpleNamespace(bind=lambda *args, **kwargs: None, unbind=lambda *args: None)
 	with pytest.raises(RuntimeError, match="No WorldVoice voices"):
-		module.VoiceManager(taskManager=object(), settings=store, bridge=bridge)
+		module.VoiceManager(taskManager=object(), settings=store, bridge=bridge,
+			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
+			completion_for=lambda cls, core: module.CompletionContract())
 	assert closed == ["A"]
 
 

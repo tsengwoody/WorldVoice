@@ -20,12 +20,14 @@ class LegacyEngineAdapter:
     def __init__(self, voice_class: type, resolve_voice: Callable[[str], object], *,
                  is_source_owned: Callable[[object], bool] | None = None,
                  index_ledger: IndexLedger | None = None,
-                 completion: CompletionContract = CompletionContract()):
+                 completion: CompletionContract | None = None):
         self._voice_class = voice_class
         self._resolve_voice = resolve_voice
         self._is_source_owned = is_source_owned
         self._index_ledger = index_ledger
-        self._completion = completion
+        self._completion = completion or CompletionContract()
+        self._completion_configured = completion is not None
+        self._spoken = False
         self._source_id = None
         self._opened = False
         self._core = None
@@ -52,6 +54,15 @@ class LegacyEngineAdapter:
             except Exception as cleanup_error:
                 raise error from cleanup_error
             raise
+
+    def configure_completion(self, contract: CompletionContract) -> None:
+        """Fix completion semantics for this opened resource before playback."""
+        if not self._opened or self._spoken:
+            raise RuntimeError("Completion must be configured after open and before speech")
+        if self._completion_configured and contract != self._completion:
+            raise RuntimeError("An opened resource cannot change its completion contract")
+        self._completion = contract
+        self._completion_configured = True
 
     def close(self) -> None:
         if not self._opened:
@@ -111,6 +122,7 @@ class LegacyEngineAdapter:
 
     def speak(self, commands: SpeechCommands, token: CancellationView, *,
               context: PlaybackContext | None = None) -> None:
+        self._spoken = True
         marker_mode = self._completion.mode is not CompletionMode.LEGACY_DONE
         if marker_mode:
             if context is None:

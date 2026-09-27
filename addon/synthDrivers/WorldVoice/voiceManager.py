@@ -11,7 +11,8 @@ from synthDriverHandler import VoiceInfo
 
 from .compat.engineAdapter import LegacyEngineAdapter
 from .compat.voiceFacade import LegacyVoiceBinding
-from .runtime.models import VoiceSpec, EngineCapabilities
+from .runtime.models import VoiceSpec, EngineCapabilities, CompletionContract
+from .indexLedger import IndexLedger
 from .runtime.session import EngineSession, PlaybackPort
 from .runtime.scheduler import TaskManager
 from .runtime.settings import VoiceEditSession, VoiceSettingsStore
@@ -61,10 +62,13 @@ class VoiceManager(object):
 	def ready(cls):
 		return True
 
-	def __init__(self, taskManager: TaskManager, settings: VoiceSettingsStore, bridge: NvdaEventBridge):
+	def __init__(self, taskManager: TaskManager, settings: VoiceSettingsStore, bridge: NvdaEventBridge, *,
+			index_ledger: IndexLedger, completion_for: Callable[[type, object], CompletionContract]):
 		self.taskManager = taskManager
 		self.settings = settings
 		self._bridge = bridge
+		self._index_ledger = index_ledger
+		self._completion_for = completion_for
 		self.installEngine = []
 		self._resources = []
 		self._sessions = {}
@@ -87,7 +91,7 @@ class VoiceManager(object):
 			cls = READY_ENGINE_CLASS.get(eng.name)
 			if cls is None:
 				continue
-			adapter = LegacyEngineAdapter(cls, self.getVoiceInstance,
+			adapter = LegacyEngineAdapter(cls, self.getVoiceInstance, index_ledger=self._index_ledger,
 				is_source_owned=lambda source: any(resource[0] is source for resource in self._resources))
 			try:
 				adapter.open()
@@ -100,12 +104,18 @@ class VoiceManager(object):
 			if owner is not None:
 				session = owner[1]
 				self._resources.append((adapter.notification_source, session, adapter, cls, False))
+				completion = self._completion_for(cls, adapter.notification_source)
+				if completion != session.completion:
+					raise ValueError("Aliases of one resource must share a completion contract")
+				adapter.configure_completion(session.completion)
 			else:
 				session = EngineSession(adapter, self.settings)
 				self._resources.append((adapter.notification_source, session, adapter, cls, True))
 				session.open()
+				completion = self._completion_for(cls, adapter.notification_source)
+				adapter.configure_completion(completion)
 				# Claim ownership before binding, since bind may register then raise.
-				self._bridge.bind(adapter.notification_source, session.source_id)
+				self._bridge.bind(adapter.notification_source, session.source_id, completion=completion)
 			cls.session = session
 			cls._runtime_binding = LegacyVoiceBinding(self.settings, session, self.getVoiceSpec)
 			# Only bound, operational resources become visible to resolvers.
