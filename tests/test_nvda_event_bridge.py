@@ -1,4 +1,5 @@
 import gc
+import importlib
 import importlib.util
 import sys
 from threading import Thread
@@ -44,6 +45,8 @@ def env(monkeypatch, rt):
     monkeypatch.setitem(sys.modules, name, package)
     monkeypatch.setitem(sys.modules, f"{name}.runtime", rt.package)
     monkeypatch.setitem(sys.modules, f"{name}.runtime.models", rt.models)
+    monkeypatch.delitem(sys.modules, f"{name}.indexLedger", raising=False)
+    ledger_module = importlib.import_module(f"{name}.indexLedger")
     spec = importlib.util.spec_from_file_location(
         f"{name}.nvdaEventBridge", RUNTIME.parent / "nvdaEventBridge.py",
     )
@@ -52,7 +55,7 @@ def env(monkeypatch, rt):
     spec.loader.exec_module(module)
     owner = object()
     env = SimpleNamespace(owner=owner, current=owner, done=EventStub(), index=EventStub(),
-                          received=[], models=rt.models)
+                          received=[], models=rt.models, module=module, ledger_module=ledger_module)
     env.bridge = module.NvdaEventBridge(
         owner, done_event=env.done, index_event=env.index, get_synth=lambda: env.current,
     )
@@ -217,6 +220,7 @@ def test_owner_change_suppresses_output(env):
 
 
 def test_same_source_event_has_no_invented_request_id(env):
+    """Legacy DONE carries source identity only."""
     source, source_id = object(), object()
     env.bridge.bind(source, source_id)
     env.bridge.start(env.received.append)
@@ -263,3 +267,191 @@ def test_public_output_runs_without_bridge_state_lock(env, output):
     else:
         env.bridge.done_speaking()
         assert env.done.notifications == [{"synth": env.owner}]
+
+
+@pytest.fixture
+def marker_env(env):
+    env.ledger = env.ledger_module.IndexLedger()
+    env.contract = env.models.CompletionContract(
+        env.models.CompletionMode.END_INDEX, env.models.IndexRange(501, 600),
+    )
+    env.source, env.source_id = object(), object()
+    env.context = env.models.PlaybackContext(env.source_id, 9)
+    env.suppliers = []
+    yield env
+    env.ledger.close()
+
+
+def marker_setup(env):
+    env.bridge = env.module.NvdaEventBridge(
+        env.owner, done_event=env.done, index_event=env.index,
+        get_synth=lambda: env.current, index_ledger=env.ledger,
+    )
+    return env
+
+
+def start_marker(env, batch_handler=None):
+    env.bridge.start(env.received.append, batch_handler=(
+        env.suppliers.append if batch_handler is None else batch_handler))
+    env.bridge.bind(env.source, env.source_id, completion=env.contract)
+    return env.ledger.prepare(env.context, (42, 7))
+
+
+def test_marker_decodes_to_segment_events(marker_env):
+    env = marker_setup(marker_env)
+    allocation = start_marker(env, lambda load: env.received.extend(load()))
+    env.index.notify(synth=env.source, index=allocation.end_index)
+    assert [(e.kind, e.index, e.segment_id) for e in env.received] == [
+        (env.models.EventKind.INDEX, 42, 9),
+        (env.models.EventKind.INDEX, 7, 9),
+        (env.models.EventKind.SEGMENT_END, None, 9),
+    ]
+    assert all(e.source_id is env.source_id for e in env.received)
+
+
+@pytest.mark.parametrize("mode", ["END_INDEX", "END_INDEX_AND_DRAIN"])
+def test_marker_mode_ignores_unidentified_done(marker_env, mode):
+    env = marker_setup(marker_env)
+    env.contract = env.models.CompletionContract(
+        getattr(env.models.CompletionMode, mode), env.models.IndexRange(501, 600))
+    start_marker(env)
+    env.done.notify(synth=env.source)
+    assert env.received == env.suppliers == []
+
+
+def test_marker_batch_is_decoded_when_consumer_serializes_it(marker_env):
+    env = marker_setup(marker_env)
+    allocation = start_marker(env)
+    env.bridge._on_index(env.source, allocation.end_index)
+    assert len(env.suppliers) == 1 and env.received == []
+    events = env.suppliers[0]()
+    assert [e.index for e in events] == [42, 7, None]
+    assert events[-1].kind is env.models.EventKind.SEGMENT_END
+    assert events[-1].segment_id == env.context.segment_id
+    assert env.suppliers[0]() == ()
+
+
+@pytest.mark.parametrize("release", ["unbind", "close", "rebind"])
+def test_delayed_supplier_ignores_revoked_binding(marker_env, release):
+    env = marker_setup(marker_env)
+    allocation = start_marker(env)
+    env.index.notify(synth=env.source, index=allocation.end_index)
+    if release == "close":
+        env.bridge.close()
+    else:
+        env.bridge.unbind(env.source_id)
+        if release == "rebind":
+            env.bridge.bind(env.source, env.source_id, completion=env.contract)
+    assert env.suppliers[0]() == ()
+    assert env.ledger.receive_index(env.source_id, allocation.end_index) == ()
+
+
+def test_marker_unknown_and_owner_sources_are_ignored(marker_env):
+    env = marker_setup(marker_env)
+    allocation = start_marker(env)
+    env.bridge.bind(env.owner, object(), completion=env.contract)
+    for source in (object(), env.owner):
+        env.index.notify(synth=source, index=allocation.end_index)
+        env.done.notify(synth=source)
+    assert env.received == env.suppliers == []
+
+
+def test_marker_rebind_preserves_high_water_and_rejects_stale_index(marker_env):
+    env = marker_setup(marker_env)
+    allocation = start_marker(env)
+    env.bridge.unbind(env.source_id)
+    with pytest.raises(env.ledger_module.InvalidIndexContext):
+        env.ledger.prepare(env.context, ())
+    env.bridge.bind(env.source, env.source_id, completion=env.contract)
+    next_allocation = env.ledger.prepare(env.context, ())
+    assert next_allocation.end_index == 504
+    env.index.notify(synth=env.source, index=allocation.end_index)
+    env.index.notify(synth=env.source, index=next_allocation.end_index)
+    assert env.suppliers[0]() == ()
+    assert [e.segment_id for e in env.suppliers[1]()] == [9]
+
+
+def test_marker_duplicate_bind_keeps_pending_mapping(marker_env):
+    env = marker_setup(marker_env)
+    allocation = start_marker(env)
+    env.bridge.bind(env.source, env.source_id, completion=env.contract)
+    env.index.notify(synth=env.source, index=allocation.end_index)
+    assert [e.index for e in env.suppliers[0]()] == [42, 7, None]
+
+
+@pytest.mark.parametrize("missing", ["ledger", "batch_handler"])
+def test_marker_binding_requires_ledger_and_batch_handler(marker_env, missing):
+    env = marker_setup(marker_env)
+    if missing == "ledger":
+        env.bridge = env.module.NvdaEventBridge(
+            env.owner, done_event=env.done, index_event=env.index, get_synth=lambda: env.current)
+    env.bridge.start(env.received.append, batch_handler=(
+        None if missing == "batch_handler" else env.suppliers.append))
+    with pytest.raises(ValueError):
+        env.bridge.bind(env.source, env.source_id, completion=env.contract)
+    env.index.notify(synth=env.source, index=501)
+    assert env.received == env.suppliers == []
+
+
+def test_marker_batch_handler_runs_without_bridge_state_lock(marker_env):
+    env = marker_setup(marker_env)
+    def receive(load):
+        assert_other_thread_can_unbind(env.bridge, env.source_id)
+        assert load() == ()
+    allocation = start_marker(env, receive)
+    env.index.notify(synth=env.source, index=allocation.end_index)
+
+
+def test_marker_supplier_decodes_without_bridge_state_lock(marker_env, monkeypatch):
+    env = marker_setup(marker_env)
+    allocation = start_marker(env)
+    receive_index = env.ledger.receive_index
+    def receive(source_id, index):
+        assert_other_thread_can_unbind(env.bridge, source_id)
+        return receive_index(source_id, index)
+    monkeypatch.setattr(env.ledger, "receive_index", receive)
+    env.index.notify(synth=env.source, index=allocation.end_index)
+    assert env.suppliers[0]() == ()
+
+
+def test_partial_marker_bind_revokes_ledger_binding(marker_env, monkeypatch):
+    env = marker_setup(marker_env)
+    env.bridge.start(env.received.append, batch_handler=env.suppliers.append)
+    bind = env.ledger.bind
+    def fail_after_binding(*args):
+        bind(*args)
+        raise RuntimeError("bind failed after registration")
+    monkeypatch.setattr(env.ledger, "bind", fail_after_binding)
+    with pytest.raises(RuntimeError, match="bind failed"):
+        env.bridge.bind(env.source, env.source_id, completion=env.contract)
+    with pytest.raises(env.ledger_module.InvalidIndexContext):
+        env.ledger.prepare(env.context, ())
+    env.index.notify(synth=env.source, index=501)
+    assert env.received == env.suppliers == []
+
+
+def test_close_continues_revoking_markers_after_cleanup_failures(marker_env, monkeypatch):
+    env = marker_setup(marker_env)
+    start_marker(env)
+    second_id = object()
+    env.bridge.bind(object(), second_id, completion=env.contract)
+    second_context = env.models.PlaybackContext(second_id, 1)
+    env.ledger.prepare(second_context, ())
+    unbind = env.ledger.unbind
+    def fail_first(source_id):
+        unbind(source_id)
+        if source_id is env.source_id:
+            raise RuntimeError("ledger unbind failed")
+    monkeypatch.setattr(env.ledger, "unbind", fail_first)
+    def fail_unregister(handler):
+        raise RuntimeError("unregister failed")
+    env.done.on_unregister = fail_unregister
+    with pytest.raises(RuntimeError):
+        env.bridge.close()
+    assert env.index.handlers == []
+    for context in (env.context, second_context):
+        with pytest.raises(env.ledger_module.InvalidIndexContext):
+            env.ledger.prepare(context, ())
+    env.index.notify(synth=env.source, index=503)
+    assert env.suppliers == []
+    env.bridge.close()
