@@ -71,3 +71,33 @@
 Linux 測試環境無法提供 Windows／NVDA 真實語音輸出證據。OneCore 快取切換、跨引擎長文、說全部、index、尾端停頓、快速取消、pause/resume、GUI 套用、GUI 取消、各內建原生引擎，以及外部引擎接入與可取得版本，均尚未實機驗證；詳見逐項狀態表。**F7 同來源取消後的延遲回呼排空契約仍未處理**。
 
 完整責任邊界稽核、測試證據、提交對照與逐項實機限制位於 [runtime 驗證紀錄](finish/2026-09-26-voice-runtime-boundaries-validation.md)。本次依使用者要求修改此 `finish_task.md`，保留原 F4 內容並追加這個獨立章節。
+
+
+---
+
+# Segment index 核心交付說明（2026-09-27）
+
+**Tasks 1–7 與 9 已完成；Task 8 仍待 Windows／NVDA／裝置證據，不能宣稱 F7 已在生產環境修復。** 本次建立可驗證的 segment index 核心與 adapter 邊界，但正式 `_VERIFIED_CONTRACTS` 仍為空；OneCore、SAPI5 WASAPI／legacy、VE、Cerence、RHVoice、Espeak 及 external profiles 全部維持 `LEGACY_DONE`，沒有已核准的 index 範圍或實機排空保證。
+
+完成內容包括獨立 `PlaybackContext`、adapter 附加的 `WorldVoiceIndexCommand`、同來源不重用的 ledger 編號、保留 binding generation 的解碼，以及 scheduler 的來源／segment／取消／失敗與 END＋DRAIN 判斷。builder 保留 SelectVoice、Pause、結尾分段；activation 仍只比較 `(source_id, voice_key, revision)`。request 完成仍由唯一 scheduler 決定，再由 bridge 發一次 WorldVoice done；內部 marker 不外洩為 NVDA index。
+
+Task 8 變更後執行 `python3 -m pytest tests -q -p no:cacheprovider`：**569 passed in 7.78s，exit 0**；`git diff --check`：exit 0。runtime AST 稽核的 26 個 imports 沒有 NVDA／compat／driver 依賴，唯一正式 marker 建構位於 `compat/indexCodec.py:27`。獨立逐任務 review 的 Task 1 fixture 修正與 Task 4 generation race 修正均已納入；Task 9 沒有新增程式變更。
+
+完整 [spec 覆蓋、稽核與驗證紀錄](finish/2026-09-27-worldvoice-segment-index-validation.md) 列出來源碼觀察、fake 契約與實機證據的界線。未完成項目是逐引擎／版本／音訊模式的安全整數範圍、子類別與索引行為、空與 command-only 情境、實際尾端音訊、取消重播、說全部、跨引擎、設定切換與 pause/resume，通過後才可新增 exact-key policy 與必要 hook。Linux 通過不能填入 Windows 結果；永久阻塞的 synchronous native call 也仍可能阻塞 shutdown。
+
+## 本次實際新增 commits
+
+基底 `23b176d` 不列為新增提交。以下由 `git log --reverse --format='%H %s' 23b176d..HEAD` 產生，完整列出本交付文件提交前 HEAD `568c902` 的 10 個提交，包含 Task 1 與 Task 4 的修正提交：
+
+- `acf025d92c4666656cb7eb204c2136bc5440b8fd` — `feat: define segment completion context and index command`
+- `6f10eeeb5f7521649c010a038d7ce12dc0c2aa9b` — `test: align fixtures with segment completion contracts`
+- `f51a37d68899cfa0a669d29e39946608002db0c6` — `feat: correlate driver indexes with speech segments`
+- `bfe77280e0419663bdb8bd7309dd7508a8bfafca` — `feat: append internal end indexes at the playback boundary`
+- `66182a08cdcc4f233f5df20fc0cdd6d6c8bec52f` — `refactor: decode segment indexes at the NVDA event boundary`
+- `885f5758ca0d9e1a332a149b1dc647e6c8c91b1e` — `fix: validate ledger binding generation during marker decode`
+- `7eea91f59b9d91604a0945637644332a02fbdb8e` — `feat: complete speech segments with correlated end indexes`
+- `1365ae3ce8b834dc7583301fd662b3205f8f24a9` — `refactor: assemble segment event ownership and completion policies`
+- `4dd8a27fea12be6f9efbc1831295ed01def585e9` — `test: cover segment index contracts across runtime and legacy adapters`
+- `568c9026b52766119a7edf5ab52ffa8c10cd2c13` — `docs: record pending Windows segment completion validation`
+
+本節所在的 Task 9 文件提交訊息為 `docs: record segment index completion validation`；它的 hash 在提交前尚不存在，因此不虛構自我 hash。交付時包含此文件提交的完整清單可用上述 `git log` 命令取得，實際 Task 9 hash 與提交後完整清單另記於 `.superpowers/sdd/2026-09-27-worldvoice-segment-index/task-9-report.md`。
