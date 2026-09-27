@@ -105,6 +105,8 @@ class FakeAdapter:
         self.voice_variants = voice_variants or {}
         self.applied = []
         self.spoken = []
+        self.contexts = []
+        self.finished = []
         self.paused = []
         self.open_count = 0
         self.close_count = 0
@@ -136,10 +138,14 @@ class FakeAdapter:
         if self.before_apply is not None:
             self.before_apply(spec, snapshot)
 
-    def speak(self, commands, token):
+    def speak(self, commands, token, *, context=None):
+        self.contexts.append(context)
         self.spoken.append((commands, token))
         if self.before_speak is not None:
             self.before_speak(commands, token)
+
+    def finish_segment(self, context):
+        self.finished.append(context)
 
     def cancel(self):
         self.cancel_count += 1
@@ -155,6 +161,7 @@ class FakePlayback(FakeAdapter):
     def __init__(self):
         super().__init__()
         self.source_id = object()
+        self.completion = sys.modules[f"{PACKAGE}.models"].CompletionContract()
         self.activated = []
         self.on_activate = None
         self.on_speak = None
@@ -167,8 +174,8 @@ class FakePlayback(FakeAdapter):
             self.on_activate()
         return True
 
-    def speak(self, commands, token):
-        super().speak(commands, token)
+    def speak(self, commands, token, *, context=None):
+        super().speak(commands, token, context=context)
         self.entered.set()
         if self.on_speak:
             self.on_speak()
@@ -296,8 +303,11 @@ def assemble_adapter_contract(monkeypatch, adapter_kind):
                 core.voice, core.language = spec.id, snapshot.language
                 core.rate, core.pitch, core.volume = snapshot.rate, snapshot.pitch, snapshot.volume
 
-            def speak(self, commands, token):
+            def speak(self, commands, token, *, context=None):
                 core.speak(commands, cancellationToken=token)
+
+            def finish_segment(self, context):
+                pass
 
             def cancel(self):
                 core.cancel()
@@ -359,3 +369,21 @@ def assemble_adapter_contract(monkeypatch, adapter_kind):
         rt.models.EventKind[kind], session.source_id, index))
     return SimpleNamespace(rt=rt, scheduler=scheduler, core=core, repo=repo,
                            store=store, session=session, tasks=tasks, output=output)
+
+
+def load_index_support(monkeypatch, rt, package_name):
+    """Load real ledger/commands into an isolated addon namespace."""
+    package = sys.modules.get(package_name)
+    if package is None:
+        package = ModuleType(package_name)
+        package.__path__ = [str(RUNTIME.parent)]
+        monkeypatch.setitem(sys.modules, package_name, package)
+    monkeypatch.setitem(sys.modules, package_name + ".runtime", rt.package)
+    monkeypatch.setitem(sys.modules, package_name + ".runtime.models", rt.models)
+    for suffix in ("indexLedger", "_speechcommand", "compat.indexCodec"):
+        monkeypatch.delitem(sys.modules, package_name + "." + suffix, raising=False)
+    return SimpleNamespace(
+        package=package_name,
+        ledger=importlib.import_module(package_name + ".indexLedger"),
+        commands=importlib.import_module(package_name + "._speechcommand"),
+    )

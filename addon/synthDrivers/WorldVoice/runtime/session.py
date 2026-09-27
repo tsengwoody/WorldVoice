@@ -4,7 +4,10 @@ from collections.abc import Mapping
 from threading import RLock
 from typing import Protocol
 
-from .models import EngineCapabilities, SourceId, SpeechCommands, VoiceSnapshot, VoiceSpec
+from .models import (
+    CompletionContract, CompletionMode, EngineCapabilities, PlaybackContext, SourceId,
+    SpeechCommands, VoiceSnapshot, VoiceSpec,
+)
 from .settings import VoiceSettingsStore
 
 
@@ -26,7 +29,10 @@ class EngineAdapter(Protocol):
 
     def apply(self, spec: VoiceSpec, snapshot: VoiceSnapshot) -> None: ...
 
-    def speak(self, commands: SpeechCommands, token: CancellationView) -> None: ...
+    def speak(self, commands: SpeechCommands, token: CancellationView, *,
+              context: PlaybackContext | None = None) -> None: ...
+
+    def finish_segment(self, context: PlaybackContext) -> None: ...
 
     def cancel(self) -> None: ...
 
@@ -35,10 +41,14 @@ class EngineAdapter(Protocol):
 
 class PlaybackPort(Protocol):
     source_id: SourceId
+    completion: CompletionContract
 
     def activate(self, key: str) -> bool: ...
 
-    def speak(self, commands: SpeechCommands, token: CancellationView) -> None: ...
+    def speak(self, commands: SpeechCommands, token: CancellationView, *,
+              context: PlaybackContext | None = None) -> None: ...
+
+    def finish_segment(self, context: PlaybackContext) -> None: ...
 
     def cancel(self) -> None: ...
 
@@ -100,6 +110,10 @@ class EngineSession:
     def capabilities(self) -> EngineCapabilities:
         return self._adapter.capabilities
 
+    @property
+    def completion(self) -> CompletionContract:
+        return self.capabilities.completion
+
     def list_voices(self) -> tuple[VoiceSpec, ...]:
         return self._adapter.list_voices()
 
@@ -121,8 +135,21 @@ class EngineSession:
             self._applied = (self.source_id, key, snapshot.revision)
             return True
 
-    def speak(self, commands: SpeechCommands, token: CancellationView) -> None:
-        self._adapter.speak(commands, token)
+    def speak(self, commands: SpeechCommands, token: CancellationView, *,
+              context: PlaybackContext | None = None) -> None:
+        if context is None:
+            if self.completion.mode is not CompletionMode.LEGACY_DONE:
+                raise ValueError("Marker completion requires a playback context")
+            self._adapter.speak(commands, token)
+        else:
+            if context.source_id is not self.source_id:
+                raise ValueError("Playback context belongs to a different source")
+            self._adapter.speak(commands, token, context=context)
+
+    def finish_segment(self, context: PlaybackContext) -> None:
+        if context.source_id is not self.source_id:
+            raise ValueError("Playback context belongs to a different source")
+        self._adapter.finish_segment(context)
 
     def cancel(self) -> None:
         self._adapter.cancel()

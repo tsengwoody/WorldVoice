@@ -5,7 +5,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from runtime_harness import MemoryRepository, RUNTIME, make_spec, rt
+from runtime_harness import MemoryRepository, RUNTIME, load_index_support, make_spec, rt
+from test_worldvoice_index_command import nvda_commands
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 
@@ -267,3 +268,124 @@ def test_real_variant_and_waitfactor_hooks(compat, rt, monkeypatch, engine):
     adapter.apply(state.spec, state.snapshot())
     assert (core.voice, core.rate, core.waitfactor) == ("a", 50, 4)
     assert writes == [("native:a", "bright")]
+
+
+@pytest.fixture
+def marker_env(monkeypatch, compat, rt, nvda_commands):
+    support = load_index_support(monkeypatch, rt, "worldvoice_compat_test")
+    ledger = support.ledger.IndexLedger()
+    contract = rt.models.CompletionContract(
+        rt.models.CompletionMode.END_INDEX, rt.models.IndexRange(501, 510))
+    core = Core()
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(
+        cls, lambda key: cls(), index_ledger=ledger, completion=contract)
+    adapter.open()
+    source_id = object()
+    ledger.bind(core, source_id, contract)
+    yield SimpleNamespace(adapter=adapter, core=core, ledger=ledger, contract=contract,
+                          source_id=source_id, context=rt.models.PlaybackContext(source_id, 1),
+                          commands=nvda_commands, support=support, models=rt.models,
+                          token=SimpleNamespace(is_cancelled=lambda: False))
+    adapter.close()
+    ledger.close()
+
+
+def test_synchronous_marker_callback_has_mapping(marker_env):
+    env = marker_env
+    events = []
+    env.core.speak = lambda commands: events.extend(
+        env.ledger.receive_index(env.source_id, commands[-1].index))
+    env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
+    assert [event.kind for event in events] == [env.models.EventKind.INDEX, env.models.EventKind.SEGMENT_END]
+    assert [event.index for event in events] == [123, None]
+    assert all(event.segment_id == 1 for event in events)
+    assert env.adapter.capabilities.completion == env.contract
+
+
+def test_success_keeps_mapping_for_async_marker(marker_env):
+    env = marker_env
+    env.adapter.speak(("hello",), env.token, context=env.context)
+    assert [event.segment_id for event in env.ledger.receive_index(env.source_id, 501)] == [1]
+
+
+@pytest.mark.parametrize("cancel_after_prepare", [False, True])
+def test_cancel_before_and_after_prepare_does_not_publish_live_segment(marker_env, monkeypatch, cancel_after_prepare):
+    env = marker_env
+    cancelled = not cancel_after_prepare
+    env.token.is_cancelled = lambda: cancelled
+    prepare = env.ledger.prepare
+
+    def cancel_during_prepare(context, originals):
+        nonlocal cancelled
+        allocation = prepare(context, originals)
+        cancelled = True
+        return allocation
+
+    monkeypatch.setattr(env.ledger, "prepare", cancel_during_prepare)
+    env.adapter.speak(("hello",), env.token, context=env.context)
+    assert env.core.spoken == []
+    assert env.ledger.receive_index(env.source_id, 501) == ()
+    assert prepare(env.context, ()).end_index == (502 if cancel_after_prepare else 501)
+
+
+def test_speak_failure_retires_mapping(marker_env):
+    env = marker_env
+
+    def fail(commands):
+        raise OSError("core failed")
+
+    env.core.speak = fail
+    with pytest.raises(OSError, match="core failed"):
+        env.adapter.speak(("hello",), env.token, context=env.context)
+    assert env.ledger.receive_index(env.source_id, 501) == ()
+    assert env.ledger.prepare(env.context, ()).end_index == 502
+
+
+def test_finish_is_idempotent(marker_env):
+    env = marker_env
+    env.adapter.speak(("hello",), env.token, context=env.context)
+    env.adapter.finish_segment(env.context)
+    env.adapter.finish_segment(env.context)
+    assert env.ledger.receive_index(env.source_id, 501) == ()
+    assert env.ledger.prepare(env.context, ()).end_index == 502
+
+
+def test_cancel_retires_source_before_core_callback(marker_env):
+    env = marker_env
+    env.adapter.speak(("one",), env.token, context=env.context)
+    env.adapter.speak(("two",), env.token, context=env.models.PlaybackContext(env.source_id, 2))
+    events = []
+    env.core.cancel = lambda: events.extend(env.ledger.receive_index(env.source_id, 501)
+                                          + env.ledger.receive_index(env.source_id, 502))
+    env.adapter.cancel()
+    assert events == []
+    assert env.ledger.prepare(env.context, ()).end_index == 503
+
+
+def test_legacy_without_context_preserves_commands(compat, monkeypatch):
+    import builtins
+
+    core = Core()
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+    adapter.open()
+    commands = ("hello", object())
+    original_import = builtins.__import__
+
+    def guard(name, *args, **kwargs):
+        if name.startswith("speech") or "indexCodec" in name:
+            raise AssertionError("Legacy calls must not import marker dependencies")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guard)
+    adapter.speak(commands, SimpleNamespace(is_cancelled=lambda: False))
+    assert core.spoken[0][0] is commands
+
+
+def test_marker_mode_requires_context(marker_env):
+    env = marker_env
+    with pytest.raises(ValueError, match="context"):
+        env.adapter.speak(("hello",), env.token)
+    assert env.core.spoken == []
+    assert env.ledger.prepare(env.context, ()).end_index == 501

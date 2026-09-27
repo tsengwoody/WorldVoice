@@ -213,3 +213,71 @@ class EventToken:
 
     def is_cancelled(self):
         return self.cancelled.is_set()
+
+
+def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapter, store):
+    store.ensure(make_spec())
+    token = EventToken()
+    assert session.activate("Fake:a") is True
+    session.speak(("one",), token, context=rt.models.PlaybackContext(session.source_id, 1))
+    assert session.activate("Fake:a") is False
+    session.speak(("two",), token, context=rt.models.PlaybackContext(session.source_id, 2))
+    assert len(adapter.applied) == 1
+    assert [context.segment_id for context in adapter.contexts] == [1, 2]
+
+
+def test_session_rejects_foreign_context(rt, session, adapter):
+    with pytest.raises(ValueError, match="source"):
+        session.speak(("hello",), EventToken(), context=rt.models.PlaybackContext(object(), 1))
+    assert adapter.spoken == []
+
+
+def test_session_completion_and_finish_follow_adapter(rt, session, adapter):
+    contract = rt.models.CompletionContract(
+        rt.models.CompletionMode.END_INDEX, rt.models.IndexRange(1, 100))
+    adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
+    assert session.completion is contract
+    context = rt.models.PlaybackContext(session.source_id, 1)
+    session.finish_segment(context)
+    assert adapter.finished == [context]
+
+
+def test_context_speak_does_not_hold_activation_lock(rt, session, adapter, store):
+    store.ensure(make_spec())
+    speaking, finish = Event(), Event()
+
+    def block(commands, token):
+        speaking.set()
+        assert finish.wait(2)
+
+    adapter.before_speak = block
+    context = rt.models.PlaybackContext(session.source_id, 1)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        speech = executor.submit(session.speak, ("hello",), EventToken(), context=context)
+        try:
+            assert speaking.wait(1)
+            assert executor.submit(session.activate, "Fake:a").result(timeout=1) is True
+            executor.submit(session.cancel).result(timeout=1)
+            executor.submit(session.pause, True).result(timeout=1)
+            assert not speech.done()
+        finally:
+            finish.set()
+        speech.result(timeout=2)
+    assert adapter.contexts == [context]
+    assert adapter.cancel_count == 1
+    assert adapter.paused == [True]
+
+
+def test_marker_session_requires_context(rt, session, adapter):
+    contract = rt.models.CompletionContract(
+        rt.models.CompletionMode.END_INDEX, rt.models.IndexRange(1, 100))
+    adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
+    with pytest.raises(ValueError, match="context"):
+        session.speak(("hello",), EventToken())
+    assert adapter.spoken == []
+
+
+def test_session_rejects_finishing_foreign_context(rt, session, adapter):
+    with pytest.raises(ValueError, match="source"):
+        session.finish_segment(rt.models.PlaybackContext(object(), 1))
+    assert adapter.finished == []
