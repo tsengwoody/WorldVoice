@@ -13,6 +13,7 @@ class _Binding:
     source: object
     source_id: object
     completion: CompletionContract
+    ledger_token: object | None
 
 
 class NvdaEventBridge:
@@ -76,13 +77,14 @@ class NvdaEventBridge:
                 if existing.completion != completion:
                     raise ValueError("Notification source cannot change its completion contract")
                 return
+            ledger_token = None
             if completion.mode is not CompletionMode.LEGACY_DONE:
                 if self._index_ledger is None or self._batch_handler is None:
                     raise ValueError("Marker completion requires an index ledger and batch handler")
                 if any(binding.source_id is source_id for binding in self._sources.values()):
                     raise ValueError("Marker source ID is already bound to another source")
                 try:
-                    self._index_ledger.bind(source, source_id, completion)
+                    ledger_token = self._index_ledger.bind(source, source_id, completion)
                 except Exception as error:
                     # A ledger can publish its binding before raising.
                     try:
@@ -91,7 +93,7 @@ class NvdaEventBridge:
                         raise error from cleanup_error
                     raise
             # The binding object also serves as the deferred supplier's generation.
-            self._sources[id(source)] = _Binding(source, source_id, completion)
+            self._sources[id(source)] = _Binding(source, source_id, completion, ledger_token)
 
     def unbind(self, source_id: object) -> None:
         with self._lock:
@@ -154,7 +156,10 @@ class NvdaEventBridge:
                 with self._lock:
                     if self._closed or self._sources.get(id(source)) is not binding:
                         return ()
-                return self._index_ledger.receive_index(binding.source_id, index)
+                # Unbind/rebind can occur after the bridge check; validate the
+                # ledger generation atomically with decode to reject that race.
+                return self._index_ledger.receive_index(
+                    binding.source_id, index, binding_token=binding.ledger_token)
 
             batch_handler(load_events)
 

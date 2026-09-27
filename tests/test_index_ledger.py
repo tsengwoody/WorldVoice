@@ -260,3 +260,25 @@ def test_concurrent_preparations_allocate_disjoint_complete_segments(env):
     assert sorted((a.wire_indexes, a.end_index) for a in allocations) == [
         ((501,), 502), ((503,), 504), ((505,), 506), ((507,), 508), ((509,), 510),
     ]
+
+
+@pytest.mark.parametrize("same_source", [False, True])
+def test_decode_binding_token_cannot_consume_replacement_segment(env, same_source):
+    old_token = env.ledger.bind(env.source, env.source_id, env.contract)
+    env.ledger.prepare(env.context, (42, 7))
+    env.ledger.unbind(env.source_id)
+    source = env.source if same_source else object()
+    new_token = env.ledger.bind(source, env.source_id, env.contract)
+    allocation = env.ledger.prepare(env.models.PlaybackContext(env.source_id, 2), (80, 81))
+    assert env.ledger.receive_index(
+        env.source_id, allocation.end_index, binding_token=old_token) == ()
+    events = env.ledger.receive_index(env.source_id, allocation.end_index, binding_token=new_token)
+    assert [(e.index, e.segment_id) for e in events] == [(80, 2), (81, 2), (None, 2)]
+
+
+def test_duplicate_bind_token_still_decodes_existing_segment(env):
+    token = env.ledger.bind(env.source, env.source_id, env.contract)
+    allocation = env.ledger.prepare(env.context, (42,))
+    env.ledger.bind(env.source, env.source_id, env.contract)
+    events = env.ledger.receive_index(env.source_id, allocation.end_index, binding_token=token)
+    assert [(e.index, e.segment_id) for e in events] == [(42, 1), (None, 1)]

@@ -2,7 +2,7 @@ import gc
 import importlib
 import importlib.util
 import sys
-from threading import Thread
+from threading import Event, Thread
 from types import ModuleType, SimpleNamespace
 import weakref
 
@@ -406,9 +406,9 @@ def test_marker_supplier_decodes_without_bridge_state_lock(marker_env, monkeypat
     env = marker_setup(marker_env)
     allocation = start_marker(env)
     receive_index = env.ledger.receive_index
-    def receive(source_id, index):
+    def receive(source_id, index, **kwargs):
         assert_other_thread_can_unbind(env.bridge, source_id)
-        return receive_index(source_id, index)
+        return receive_index(source_id, index, **kwargs)
     monkeypatch.setattr(env.ledger, "receive_index", receive)
     env.index.notify(synth=env.source, index=allocation.end_index)
     assert env.suppliers[0]() == ()
@@ -455,3 +455,38 @@ def test_close_continues_revoking_markers_after_cleanup_failures(marker_env, mon
     env.index.notify(synth=env.source, index=503)
     assert env.suppliers == []
     env.bridge.close()
+
+
+def test_supplier_cannot_decode_replacement_binding_after_validation(marker_env, monkeypatch):
+    env = marker_setup(marker_env)
+    allocation = start_marker(env)
+    env.index.notify(synth=env.source, index=allocation.end_index)
+    entered_decode, resume_decode = Event(), Event()
+    receive_index = env.ledger.receive_index
+    batches = []
+
+    def paused_receive(source_id, index, **kwargs):
+        entered_decode.set()
+        assert resume_decode.wait(2), "replacement binding was not published"
+        return receive_index(source_id, index, **kwargs)
+
+    monkeypatch.setattr(env.ledger, "receive_index", paused_receive)
+    worker = Thread(target=lambda: batches.append(env.suppliers[0]()), daemon=True)
+    worker.start()
+    try:
+        assert entered_decode.wait(2), "supplier did not reach ledger decode"
+        env.bridge.unbind(env.source_id)
+        replacement = object()
+        env.bridge.bind(replacement, env.source_id, completion=env.contract)
+        replacement_context = env.models.PlaybackContext(env.source_id, 10)
+        replacement_allocation = env.ledger.prepare(replacement_context, (80, 81))
+        assert replacement_allocation.end_index == allocation.end_index
+    finally:
+        resume_decode.set()
+        worker.join(2)
+    assert not worker.is_alive()
+    assert batches == [()]
+    monkeypatch.setattr(env.ledger, "receive_index", receive_index)
+    env.index.notify(synth=replacement, index=replacement_allocation.end_index)
+    events = env.suppliers[1]()
+    assert [(e.index, e.segment_id) for e in events] == [(80, 10), (81, 10), (None, 10)]

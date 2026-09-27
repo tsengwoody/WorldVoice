@@ -53,6 +53,7 @@ class _Source:
 class _Binding:
     source_id: object
     state: _Source
+    token: object = field(default_factory=object)
 
 
 class IndexLedger:
@@ -62,7 +63,8 @@ class IndexLedger:
         self._bindings: dict[int, _Binding] = {}
         self._closed = False
 
-    def bind(self, source: object, source_id: object, contract: CompletionContract) -> None:
+    def bind(self, source: object, source_id: object, contract: CompletionContract) -> object:
+        """Return an opaque token identifying this exact binding generation."""
         mode, index_range = contract.mode, contract.index_range
         if mode not in (CompletionMode.END_INDEX, CompletionMode.END_INDEX_AND_DRAIN) or index_range is None:
             raise InvalidIndexContext("Index allocation requires a marker completion contract")
@@ -80,13 +82,14 @@ class IndexLedger:
                 if state.binding is not None:
                     if state.binding is not existing:
                         raise InvalidIndexContext("Source is already bound to another source ID")
-                    return
+                    return existing.token
             else:
                 state = _Source(source, mode, minimum, maximum, minimum)
                 self._sources[id(source)] = state
             binding = _Binding(source_id, state)
             state.binding = binding
             self._bindings[id(source_id)] = binding
+            return binding.token
 
     def prepare(self, context: PlaybackContext, original_indexes: tuple[int, ...]) -> IndexAllocation:
         source_id, segment_id = context.source_id, context.segment_id
@@ -111,12 +114,17 @@ class IndexLedger:
             state.next_index = end_index + 1
             return allocation
 
-    def receive_index(self, source_id: object, wire_index: int) -> tuple[PlaybackEvent, ...]:
+    def receive_index(
+        self, source_id: object, wire_index: int, *, binding_token: object | None = None,
+    ) -> tuple[PlaybackEvent, ...]:
+        """Decode atomically, optionally requiring the generation returned by bind."""
         if type(wire_index) is not int:
             return ()
         with self._lock:
             binding = self._bindings.get(id(source_id))
             if self._closed or binding is None:
+                return ()
+            if binding_token is not None and binding.token is not binding_token:
                 return ()
             state = binding.state
             segment = state.indexes.get(wire_index)
