@@ -84,7 +84,7 @@ def make_manager(task_module, buses):
 	bridge = task_module.test_bridge_class(buses.owner, done_event=buses.done,
 		index_event=buses.index, get_synth=buses.get_synth)
 	instance = task_module.TaskManager(output=bridge)
-	bridge.start(instance.on_event)
+	bridge.start(instance.on_event, batch_handler=instance.on_events)
 	# Test composition owns the event subscriptions and test port registry.
 	instance.test_bridge = bridge
 	instance.test_ports = {}
@@ -115,8 +115,11 @@ def port_for(manager, voice):
 		def activate(self, key):
 			return voice.active()
 
-		def speak(self, commands, token):
+		def speak(self, commands, token, *, context=None):
 			commands[0]()
+
+		def finish_segment(self, context):
+			pass
 
 		def cancel(self):
 			voice.core.cancel()
@@ -126,6 +129,8 @@ def port_for(manager, voice):
 
 	port = Port()
 	port.source_id = source_id
+	models = importlib.import_module(manager.__class__.__module__.rsplit(".", 1)[0] + ".models")
+	port.completion = models.CompletionContract()
 	return port
 
 
@@ -366,12 +371,15 @@ def test_cancel_after_index_acceptance_suppresses_old_index(manager, buses, two_
 		with manager._state_cond:
 			assert 23 in manager._current_indexes
 		old_epoch = request.epoch
-		cancel(manager, [voice])
-		assert manager._epoch == old_epoch + 1
+		# Event batches serialize cancellation; direct token cancellation
+		# still exercises the output validity check before delivery.
+		request.token.cancel()
 	finally:
 		release_delivery.set()
 		buses.before_get_synth = None
 		index_thread.join(1)
+	cancel(manager, [voice])
+	assert manager._epoch == old_epoch + 1
 	assert not index_thread.is_alive()
 	assert buses.outer_indexes == []
 

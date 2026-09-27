@@ -158,10 +158,10 @@ class FakeAdapter:
 class FakePlayback(FakeAdapter):
     """Pure playback port; hooks run at the actual engine-call boundary."""
 
-    def __init__(self):
+    def __init__(self, completion=None):
         super().__init__()
         self.source_id = object()
-        self.completion = sys.modules[f"{PACKAGE}.models"].CompletionContract()
+        self.completion = completion or sys.modules[f"{PACKAGE}.models"].CompletionContract()
         self.activated = []
         self.on_activate = None
         self.on_speak = None

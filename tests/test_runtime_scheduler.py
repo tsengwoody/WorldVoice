@@ -223,10 +223,16 @@ def test_cancel_between_acceptance_and_output_suppresses_index_and_done(manager,
     try:
         thread.start()
         assert accepted.wait(1)
-        manager.cancel([port])
+        if kind == "INDEX":
+            # Delivery now serializes cancel with the entire event batch.
+            # Direct token cancellation still races the output validity check.
+            request.token.cancel()
+        else:
+            manager.cancel([port])
     finally:
         release.set()
         thread.join(1)
+    manager.cancel([port])
     manager._q.join()
     assert not thread.is_alive()
     assert output.indexes == []
