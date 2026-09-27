@@ -1,6 +1,6 @@
 from typing import Optional
 
-from speech.commands import SynthCommand, SynthParamCommand
+from speech.commands import IndexCommand, SynthCommand, SynthParamCommand
 
 
 class WVLangChangeCommand(SynthParamCommand):
@@ -23,3 +23,10 @@ class SplitCommand(SynthCommand):
 
 	def __repr__(self):
 		return "SplitCommand()"
+
+
+class WorldVoiceIndexCommand(IndexCommand):
+	"""Internal segment marker carried through the engine index boundary."""
+
+	def __repr__(self):
+		return "WorldVoiceIndexCommand(%d)" % self.index

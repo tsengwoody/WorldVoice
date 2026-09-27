@@ -7,10 +7,11 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from runtime_harness import RUNTIME, rt
+from test_worldvoice_index_command import nvda_commands
 
 
 @pytest.fixture
-def legacy(monkeypatch, rt):
+def legacy(monkeypatch, rt, nvda_commands):
     name = "worldvoice_commands_test"
     package = ModuleType(name)
     package.__path__ = [str(RUNTIME.parent)]
@@ -21,17 +22,13 @@ def legacy(monkeypatch, rt):
     monkeypatch.setitem(sys.modules, "languageHandler", SimpleNamespace())
     monkeypatch.setitem(sys.modules, "synthDriverHandler", SimpleNamespace(getSynth=lambda: None))
 
-    class BreakCommand:
-        def __init__(self, time):
-            self.time = time
-
-    monkeypatch.setitem(sys.modules, "speech", ModuleType("speech"))
-    monkeypatch.setitem(sys.modules, "speech.commands", SimpleNamespace(BreakCommand=BreakCommand))
-    for suffix in ("driver", "driver.engineSession", "compat", "compat.commands"):
+    for suffix in ("driver", "driver.engineSession", "compat", "compat.commands", "_speechcommand"):
         monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
     driver = importlib.import_module(name + ".driver")
     commands = importlib.import_module(name + ".compat.commands")
-    return SimpleNamespace(Voice=driver.Voice, BreakCommand=BreakCommand, commands=commands)
+    speechcommand = importlib.import_module(name + "._speechcommand")
+    return SimpleNamespace(Voice=driver.Voice, BreakCommand=nvda_commands.BreakCommand,
+                           commands=commands, speechcommand=speechcommand)
 
 
 def test_normalizer_handles_voice_and_break(legacy, rt):
@@ -59,4 +56,12 @@ def test_normalizer_is_lazy_and_preserves_unrecognized_objects(legacy, rt):
     for command in commands:
         assert next(normalized) is command
     with pytest.raises(RuntimeError, match="source failed"):
+        next(normalized)
+
+
+def test_normalizer_rejects_external_marker(legacy):
+    marker = legacy.speechcommand.WorldVoiceIndexCommand(502)
+    normalized = legacy.commands.normalize_legacy_commands(["before", marker, "after"])
+    assert next(normalized) == "before"
+    with pytest.raises(ValueError):
         next(normalized)
