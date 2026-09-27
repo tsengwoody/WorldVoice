@@ -301,9 +301,11 @@ def test_cancellation_between_error_check_and_abort_returns_false(
     assert runtime.output.done_count == 0
 
 
-def test_select_pause_and_end_flush_only_nonempty_segments(recording_builder, rt):
+@pytest.mark.parametrize("repeat_selection", [False, True])
+def test_select_pause_and_end_flush_only_nonempty_segments(recording_builder, rt, repeat_selection):
     select, pause = rt.models.SelectVoice, rt.models.Pause
-    assert recording_builder.run(["A", select("Fake:b"), select("Fake:b"), "B", pause(0.2), "C"])
+    selections = [select("Fake:b")] * (2 if repeat_selection else 1)
+    assert recording_builder.run(["A", *selections, "B", pause(0.2), "C"])
     assert recording_builder.tasks == [
         ("speech", "Fake:a", ("A",)), ("speech", "Fake:b", ("B",)),
         ("break", 0.2), ("speech", "Fake:b", ("C",)),

@@ -65,3 +65,17 @@ def test_normalizer_rejects_external_marker(legacy):
     assert next(normalized) == "before"
     with pytest.raises(ValueError):
         next(normalized)
+
+
+def test_full_sequence_normalizes_without_inserting_internal_markers(legacy, rt, nvda_commands):
+    voice = object.__new__(legacy.Voice)
+    voice.name = "Fake:b"
+    index = nvda_commands.IndexCommand(123)
+    result = list(legacy.commands.normalize_legacy_commands([
+        "A", voice, voice, "B", index, legacy.BreakCommand(200), "C"]))
+    assert result == ["A", rt.models.SelectVoice("Fake:b"), rt.models.SelectVoice("Fake:b"),
+                      "B", index, rt.models.Pause(0.2), "C"]
+    assert result[4] is index
+    assert index.index == 123
+    assert not any(isinstance(command, legacy.speechcommand.WorldVoiceIndexCommand)
+                   for command in result)

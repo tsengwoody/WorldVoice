@@ -576,3 +576,67 @@ def test_live_core_rebind_preserves_allocator_high_water(composition, nvda_comma
     assert spoken == [501, 502]
     assert cls.core.closes == 0
     assert c.ledger.receive_index(port.source_id, 501) == ()
+
+
+def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda_commands):
+    """Execute the entire addon module, including its real relative imports."""
+    from types import ModuleType
+
+    package = "worldvoice_entrypoint_import_test"
+    def stub(name, **values):
+        module = ModuleType(name)
+        module.__dict__.update(values)
+        monkeypatch.setitem(sys.modules, name, module)
+        return module
+
+    stub("addonHandler", initTranslation=lambda: None)
+    stub("autoSettingsUtils", __path__=[])
+    stub("autoSettingsUtils.driverSetting", BooleanDriverSetting=object,
+         DriverSetting=object, NumericDriverSetting=object)
+    stub("autoSettingsUtils.utils", StringParameterInfo=object)
+    stub("config", conf=SimpleNamespace(spec={}))
+    stub("extensionPoints", Action=EventStub)
+    stub("gui")
+    stub("languageHandler")
+    stub("logHandler", log=SimpleNamespace())
+    stub("versionInfo", version="test")
+    for name in ("CharacterModeCommand", "LangChangeCommand", "PitchCommand",
+                 "RateCommand", "VolumeCommand", "SpeechCommand"):
+        monkeypatch.setattr(nvda_commands, name, type(name, (), {}), raising=False)
+    stub("speech.extensions", filter_speechSequence=SimpleNamespace())
+    stub("synthDriverHandler", VoiceInfo=object, SynthDriver=type("SynthDriver", (), {}),
+         synthIndexReached=EventStub(), synthDoneSpeaking=EventStub(), getSynth=lambda: None)
+    stub("generics", __path__=[])
+    stub("generics.speechSymbols", __path__=[])
+    stub("generics.speechSymbols.models", SpeechSymbols=object)
+    # Unrelated UI and pipeline modules need NVDA, but all changed composition
+    # boundaries below are imported from their actual files by __init__.py.
+    stub(package + ".languageDetection")
+    stub(package + ".pipeline", **{name: lambda *args: None for name in (
+        "ignore_comma_between_number", "item_wait_factor", "inject_langchange_reorder",
+        "deduplicate_language_command", "lang_cmd_to_voice", "order_move_to_start_register", "listable")})
+    stub(package + ".pipeline.settings", **{name: lambda *args: None for name in (
+        "apply_worldvoice_pipeline", "clear_pipeline", "get_effective_pipeline_settings", "save_pipeline_settings")})
+    stub(package + ".engine", EngineType=[], READY_ENGINE_CLASS={},
+         get_engine_enabled=lambda *args: True, refresh_ready_engine_classes=lambda *args: None)
+    stub(package + ".VoiceSettingsDialogs", WorldVoiceVoiceSettingsPanel=object)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    spec = importlib.util.spec_from_file_location(package, WORLDVOICE / "__init__.py",
+                                                submodule_search_locations=[str(WORLDVOICE)])
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, package, module)
+    try:
+        spec.loader.exec_module(module)
+        ledger = importlib.import_module(package + ".indexLedger")
+        policies = importlib.import_module(package + ".compat.completionPolicies")
+        models = importlib.import_module(package + ".runtime.models")
+        assert module.IndexLedger is ledger.IndexLedger
+        assert module.get_completion_contract is policies.get_completion_contract
+        assert module.get_completion_contract("unverified", nvda_version="test", audio_mode="test").mode is models.CompletionMode.LEGACY_DONE
+        assert module.SynthDriver.__module__ == package
+        assert ledger.__file__ == str(WORLDVOICE / "indexLedger.py")
+        assert policies.__file__ == str(WORLDVOICE / "compat/completionPolicies.py")
+    finally:
+        for name in tuple(sys.modules):
+            if name.startswith(package + "."):
+                monkeypatch.delitem(sys.modules, name, raising=False)
