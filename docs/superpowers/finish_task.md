@@ -89,7 +89,7 @@ Linux 測試環境無法提供 Windows／NVDA 真實語音輸出證據。OneCore
 
 ## 本次實際新增 commits
 
-基底 `23b176d` 不列為新增提交。以下由 `git log --reverse --format='%H %s' 23b176d..HEAD` 產生，完整列出初次 Task 9 文件提交後 HEAD `49b5fad` 的 11 個提交，包含 Task 1 與 Task 4 的修正提交：
+基底 `23b176d` 不列為新增提交。以下由 `git log --reverse --format='%H %s' 23b176d..55ab4fa5402a4ae112376cc23a2d6e05533e1781` 產生，完整列出截至 `55ab4fa5402a4ae112376cc23a2d6e05533e1781` 的 12 個提交，包含 Task 1、Task 4 與全分支審查的修正提交：
 
 - `acf025d92c4666656cb7eb204c2136bc5440b8fd` — `feat: define segment completion context and index command`
 - `6f10eeeb5f7521649c010a038d7ce12dc0c2aa9b` — `test: align fixtures with segment completion contracts`
@@ -102,5 +102,6 @@ Linux 測試環境無法提供 Windows／NVDA 真實語音輸出證據。OneCore
 - `4dd8a27fea12be6f9efbc1831295ed01def585e9` — `test: cover segment index contracts across runtime and legacy adapters`
 - `568c9026b52766119a7edf5ab52ffa8c10cd2c13` — `docs: record pending Windows segment completion validation`
 - `49b5fadd7174ec9c72282b835b7d78efea58ee5f` — `docs: record segment index completion validation`
+- `55ab4fa5402a4ae112376cc23a2d6e05533e1781` — `fix: serialize reentrant segment event batches`
 
-本次後續修正與文件更新以 `fix: serialize reentrant segment event batches` 提交；其 hash 在編寫文件時尚不存在，因此不虛構自我 hash。包含修正的完整提交清單可用上述 `git log` 命令取得，提交後的實際 hash 與驗證報告另記於 `.superpowers/sdd/2026-09-27-worldvoice-segment-index/task-9-report.md`。
+本次補齊清單的後續文件提交可由 git history 查閱；文件在提交前無法嵌入該提交自己的 hash。交付時包含這份文件更新的完整清單可用 `git log --reverse --format='%H %s' 23b176d..HEAD` 取得。
