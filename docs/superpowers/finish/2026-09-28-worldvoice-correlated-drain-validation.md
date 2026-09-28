@@ -231,3 +231,98 @@ vendored NVDA collection errors** (unavailable Windows/NVDA/liblouis dependencie
 Log: `/tmp/worldvoice-task6-full-pytest.log`; all error paths are copied to the
 Task 6 implementer report. No Windows device, SDK callback-quiescence contract,
 loaded native provenance or real NVDA audio profile was certified.
+
+## Task 7: VE constructor, callback ownership and drain boundary (2026-09-28)
+
+Implementation baseline: `85a25b7`. The inner VE driver and ve2 binding remain
+unchanged; no base module class or global callback symbol is patched. Task 6
+sources and tests are unchanged.
+
+| Reviewed file relative to `driver/VE` | SHA-256 |
+| --- | --- |
+| `driver/__init__.py` | `1245b038be229ba4427e51b87a2dbb9f40f7ea5e7f0aed1c1927ce0ef8ba2f85` |
+| `driver/ve2/__init__.py` | `ad3b1f67d27f090121954e9a249dea322334df6f7d3a28ae5a4dec21a54d86d5` |
+| `driver/ve2/veTypes.py` | `9efbb425b977780e1a0521f23098dd69f7795e3059215cab968fff8bc9395d1b` |
+
+The binding loads external `WorldVoice-workspace/VE/lib/<architecture>/ve.dll`
+and `vplatform.dll`; this checkout supplies no matching SDK binaries, headers or
+native implementation. A loaded SDK version or build provenance cannot be
+established here. `ve2.open` registers the supplied `VE_CBOUTNOTIFY` in
+`ve_ttsSetOutDevice`. `ve2.processText2Speech` builds a UTF-8 `VE_INTEXT`, calls
+`ve_ttsProcessText2Speech` directly, then discards its return value. Its native
+errcheck accepts both `NUAN_OK` and `NUAN_E_TTS_USERSTOP`. The supplied Python
+source provides no guarantee that a returned call cannot initiate another PCM,
+bookmark or ENDPROCESS callback, including after cancellation or an error.
+
+Primary documentation reviewed:
+[Nuance Vocalizer API architecture](https://docs.nuance.com/nuance-vocalizer-for-enterprise/voc-dev/arch_stand.html)
+describes synchronous synthesis and streamed destination callbacks for an
+`lhstts` library. Its [TtsProcessEx API](https://docs.nuance.com/nuance-vocalizer-for-enterprise/voc-dev/fn-TtsProcessEx.html)
+describes a different entry point and structure. These pages do not establish
+the exact callback-exclusion contract for this externally loaded VE `ve.dll`
+profile. Synchronous function naming, ENDPROCESS, idle return and a temporary
+zero callback count supply no missing native evidence.
+
+Consequently **all real VE drain profiles remain unsupported**, with profile
+`vocalizer-expressive2-ve2-unverified` and a concrete reason identifying
+`ve_ttsProcessText2Speech` callback exclusion, loaded SDK version/build provenance
+and NVDA playback profile. A failed/missing guard has its own unsupported reason.
+Task 9 must select legacy before playback. This task does not certify or enable
+VE DRAIN on any real SDK or NVDA release.
+
+### Implemented and exercised boundary
+
+The outer `SynthDriver(BaseSynthDriver)` owns initialization, constructs its
+`_ContextualVECallback` and ctypes callable before the first `ve2.open`, and
+retains `CancellableSynthDriver = SynthDriver` plus the Voice facade binding.
+The harness executes that real constructor over controlled NVDA/native
+boundaries; it no longer replaces the VE base constructor with an original
+callback. The native open stub retains the actual constructor-created ctypes
+callable, and tests invoke it to check ownership and rejection outside a call.
+Guard installation, partial-field fallback and complete reference restoration
+remain covered for both VE and the existing Cerence wrapper.
+
+A synchronous batch has one saved work across text pieces and LangChange voice
+instances. Each native chunk saves its actual instance and opaque call token.
+PCM, Sonic, `ulMrkId` bookmarks and ENDPROCESS use the admitted call lease,
+including any post-feed cancellation stop. ENDPROCESS flushes only its chunk;
+anonymous index `None` never completes contextual work. Processing errors latch
+the first error, close admission, safely return USERSTOP to native and deliver
+one failure after callback retirement. The outer ProcessText2Speech helper uses
+the original `VE_INTEXT` layout and native entry point while retaining its return
+status: an unsolicited USERSTOP cannot become success; cancellation-triggered
+USERSTOP remains silent and preserves legacy anonymous DONE behavior.
+
+The final real `player.idle()` supplies this batch's playback evidence. Work is
+rechecked after idle, pause/resume and cancelling stop retirement. Direct cancel
+invalidates pending/active contextual work through terminal publication, even
+when idle has already returned. Serialization prevents the next native call
+from taking the player until all admitted callbacks and their final stops exit.
+Sonic initialization fallback remains available; cancelled internal Sonic tails
+are discarded before new work, and write/read/flush failures remain failures.
+
+Tests inject `_confirm_native_quiescence` only with an explicit fake contract
+that excludes future native callbacks after call return. This injection does
+not alter capability reporting. The production boundary raises instead: it
+closes admission, waits already-entered leases, reports failure and keeps the
+old call identity without finishing or reopening its correlated gate. Late
+callbacks cannot mutate a later buffer. Legacy playback keeps its existing
+return-time compatibility assumption, with callback/stop retirement added;
+prior legacy use prevents switching that core into correlated mode because its
+native callback lifetimes remain unproven. No fake test supplies real SDK proof.
+
+Observed initial red: **21 failed**, covering missing callback ownership,
+segment and capability APIs. Additional observed red-to-green regressions
+covered dropped native USERSTOP status, direct cancellation after idle return,
+and cancellation-triggered USERSTOP legacy compatibility.
+
+Final required command:
+`python3 -m pytest tests/test_vocalizer_segment_drain.py tests/test_worldvoice_cancel_wrappers.py -q -p no:cacheprovider`:
+**97 passed**. Addon command `python3 -m pytest tests -q -p no:cacheprovider`:
+**854 passed**. `git diff --check` passed. Full-tree
+`python3 -m pytest -q -p no:cacheprovider` exits **2** with the existing **191
+vendored NVDA collection errors**, caused by unavailable Windows/NVDA/liblouis
+dependencies. Log: `/tmp/worldvoice-task7-full-pytest.log`; all error paths are
+copied to the Task 7 implementer report. No Windows playback device, matching VE
+SDK callback-exclusion contract, loaded binary provenance or real audio profile
+was validated; VE DRAIN enablement acceptance remains outstanding.

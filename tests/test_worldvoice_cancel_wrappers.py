@@ -42,13 +42,15 @@ def emit_audio(core, types, payload=b"new", done_result=None):
 	callback = core._veCallbackHandler
 	if done_result is None:
 		done_result = types.NUAN_OK
+	native = getattr(core, "_nativeWork", None)
+	instance = native.instance if native is not None else None
 	out_data = types.VE_OUTDATA()
-	assert callback(None, None, native_message(types, types.VE_MSG_OUTBUFREQ, out_data)) == types.NUAN_OK
+	assert callback(instance, None, native_message(types, types.VE_MSG_OUTBUFREQ, out_data)) == types.NUAN_OK
 	ctypes.memmove(out_data.pOutPcmBuf, payload, len(payload))
 	out_data.cntPcmBufLen = len(payload)
 	out_data.cntMrkListLen = 0
-	assert callback(None, None, native_message(types, types.VE_MSG_OUTBUFDONE, out_data)) == done_result
-	assert callback(None, None, native_message(types, types.VE_MSG_ENDPROCESS, out_data)) == types.NUAN_OK
+	assert callback(instance, None, native_message(types, types.VE_MSG_OUTBUFDONE, out_data)) == done_result
+	assert callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, out_data)) == types.NUAN_OK
 
 
 def test_installs_gate_on_core_and_existing_callback(engine_harness):

@@ -1,0 +1,465 @@
+import ctypes
+from io import BytesIO
+from threading import Event, Thread
+
+import pytest
+
+from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
+from test_worldvoice_cancel_wrappers import Token, native_message
+
+
+@pytest.fixture(params=["VE"])
+def env(request, monkeypatch):
+    result = load_real_driver_with_native_stubs(monkeypatch, request.param)
+    result.core = result.new_core()
+    result.core._veCallbackHandler._ensureSonicStream = lambda: False
+    result.events, result.indexes, result.dones = [], [], []
+    monkeypatch.setattr(result.original_driver.synthIndexReached, "notify",
+        lambda **kwargs: result.indexes.append(kwargs["index"]))
+    monkeypatch.setattr(result.original_driver.synthDoneSpeaking, "notify",
+        lambda **kwargs: result.dones.append(kwargs))
+    return result
+
+
+def prove_fake_quiescence(env, monkeypatch):
+    # A test-only contract promises this native call will not start callbacks
+    # after return. It never changes the production capability result.
+    monkeypatch.setattr(env.core, "_confirm_native_quiescence", lambda native: None)
+
+
+def run_thread(action):
+    errors, done = [], Event()
+    def run():
+        try:
+            action()
+        except Exception as error:
+            errors.append(error)
+        finally:
+            done.set()
+    thread = Thread(target=run, daemon=True)
+    thread.start()
+    return thread, done, errors
+
+
+def finish(call):
+    assert call[1].wait(2)
+    assert call[2] == []
+
+
+def speak(env, commands=("hello",), *, token=None, segment=17):
+    token = token or Token()
+    context = env.rt.models.PlaybackContext(object(), segment)
+    return token, context, run_thread(lambda: env.core.speak_segment(commands, token,
+        context=context, on_event=env.events.append))
+
+
+def emit(env, instance, *, payload=b"pcm", index=None, end=True):
+    callback, types = env.core._veCallbackHandler, env.types
+    data = types.VE_OUTDATA()
+    results = [callback(instance, None, native_message(types, types.VE_MSG_OUTBUFREQ, data))]
+    if results[0] != types.NUAN_OK:
+        return results
+    ctypes.memmove(data.pOutPcmBuf, payload, len(payload))
+    data.cntPcmBufLen = len(payload)
+    data.cntMrkListLen = 0 if index is None else 1
+    if index is not None:
+        data.pMrkList[0].eMrkType = types.VE_MRK_BOOKMARK
+        data.pMrkList[0].ulMrkId = index
+    results.append(callback(instance, None, native_message(types, types.VE_MSG_OUTBUFDONE, data)))
+    if end:
+        results.append(callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, data)))
+    return results
+
+
+def test_native_constructor_owns_contextual_callback_before_first_open(env):
+    instance = env.core.voiceInstance
+    assert isinstance(env.core._veCallbackHandler, env.module._ContextualVECallback)
+    assert env.opened[0][1] == instance
+    assert env.opened[0][2] is env.core._veCallback
+    env.core._veCallbackHandler._feedBuf = BytesIO(b"keep")
+    message = native_message(env.types, env.types.VE_MSG_ENDPROCESS, env.types.VE_OUTDATA())
+    assert env.opened[0][2](instance, None, message) == env.types.NUAN_E_TTS_USERSTOP
+    assert env.core._veCallbackHandler._feedBuf.getvalue() == b"keep"
+    assert env.module.CancellableSynthDriver is env.module.SynthDriver
+    assert env.module.Voice.synth_driver_class is env.module.SynthDriver
+
+
+@pytest.mark.parametrize("version,mode", [("2026.3", "wasapi"), ("2025.3", "legacy")])
+def test_unproven_native_profiles_are_unsupported(env, version, mode):
+    support = env.core.get_segment_drain_support(nvda_version=version, audio_mode=mode)
+    assert not support.supported
+    assert "ProcessText2Speech" in support.reason
+    assert "callback" in support.reason.lower()
+
+
+def test_vocalizer_endprocess_is_not_segment_drain(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    entered, release = Event(), Event()
+    def idle():
+        entered.set()
+        assert release.wait(2)
+    env.core._real_player.idle = idle
+    monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance, index=23))
+    _, context, call = speak(env)
+    assert entered.wait(1)
+    assert env.events == []
+    assert env.core._real_player.fed == [b"pcm"]
+    assert env.indexes == [23]
+    release.set()
+    finish(call)
+    assert len(env.events) == 1
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.events[0].source_id is context.source_id
+    assert env.events[0].segment_id == 17
+    assert env.dones == []
+
+
+def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    change = __import__("speech.commands", fromlist=["LangChangeCommand"]).LangChangeCommand()
+    change.lang = "fr"
+    monkeypatch.setattr(env.core, "getVoiceNameForLanguage", lambda language: "fr", raising=False)
+    monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: [text + "1", text + "2"])
+    calls, works = [], []
+    def native(instance, text):
+        calls.append((instance.pHandleData, text))
+        works.append(env.core._nativeWork.work)
+        emit(env, instance)
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, _, call = speak(env, ("hello", change, "bonjour"))
+    finish(call)
+    assert len(calls) == 4
+    assert [item[0] for item in calls] == [1, 1, 2, 2]
+    assert all(work is works[0] for work in works)
+    assert len(env.events) == 1
+    assert env.core._real_player.idles == 1
+
+
+@pytest.mark.parametrize("cancel_kind", ["token", "direct", "clear"])
+def test_cancelled_idle_cannot_complete_segment(env, monkeypatch, cancel_kind):
+    prove_fake_quiescence(env, monkeypatch)
+    entered, release = Event(), Event()
+    env.core._real_player.idle = lambda: (entered.set(), release.wait(2))
+    env.core._real_player.stop = release.set
+    monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance))
+    token, _, call = speak(env)
+    assert entered.wait(1)
+    if cancel_kind == "token":
+        token.cancel()
+    else:
+        env.core.cancel()
+        if cancel_kind == "clear":
+            env.core._isSilence.clear()
+    release.set()
+    finish(call)
+    assert env.events == []
+
+
+@pytest.mark.parametrize("fault", ["feed", "idle", "write", "read", "flush", "marker", "native"])
+def test_processing_errors_latch_failure_on_original_context(env, monkeypatch, fault):
+    prove_fake_quiescence(env, monkeypatch)
+    def fail(*args, **kwargs):
+        raise OSError(f"{fault} failed")
+    if fault in ("feed", "idle"):
+        setattr(env.core._real_player, fault, fail)
+    elif fault == "marker":
+        monkeypatch.setattr(env.original_driver.synthIndexReached, "notify", fail)
+    elif fault in ("write", "read", "flush"):
+        class Sonic:
+            def writeShort(self, *args):
+                if fault == "write": fail()
+            def readShort(self):
+                if fault == "read": fail()
+                return b"tail"
+            def flush(self):
+                if fault == "flush": fail()
+        callback = env.core._veCallbackHandler
+        def sonic():
+            callback.sonicStream = Sonic()
+            callback._sonicEnabled = True
+            return True
+        callback._ensureSonicStream = sonic
+    results = []
+    def native(instance, text):
+        if fault == "native": fail()
+        results.extend(emit(env, instance, index=9))
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, context, call = speak(env)
+    finish(call)
+    assert len(env.events) == 1
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert env.events[0].source_id is context.source_id
+    assert str(env.events[0].error) == f"{fault} failed"
+    assert env.dones == []
+    if fault not in ("idle", "native"):
+        assert env.types.NUAN_E_TTS_USERSTOP in results
+
+
+def test_missing_contract_closes_old_call_and_never_reopens_for_successor(env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: calls.append(text))
+    _, _, first = speak(env)
+    finish(first)
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    _, _, second = speak(env, segment=18)
+    finish(second)
+    assert calls == ["hello"]
+    env.core._veCallbackHandler._feedBuf = BytesIO(b"new")
+    assert emit(env, env.core.voiceInstance) == [env.types.NUAN_E_TTS_USERSTOP]
+    assert env.core._veCallbackHandler._feedBuf.getvalue() == b"new"
+
+
+def test_cancelled_token_does_not_submit_native_or_notify(env, monkeypatch):
+    token = Token()
+    token.cancel()
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: pytest.fail("native entered"))
+    _, _, call = speak(env, token=token)
+    finish(call)
+    assert env.events == []
+
+
+def test_old_feed_final_stop_retires_before_next_native_call(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
+    calls = []
+    env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
+    def stop():
+        stop_entered.set()
+        assert stop_release.wait(2)
+    env.core._real_player.stop = stop
+    callback_calls = []
+    def native(instance, text):
+        calls.append(text)
+        if len(calls) == 1:
+            callback_calls.append(run_thread(lambda: emit(env, instance)))
+            assert feed_entered.wait(1)
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    token, _, first = speak(env)
+    assert feed_entered.wait(1)
+    token.cancel()
+    _, _, second = speak(env, segment=18)
+    feed_release.set()
+    assert stop_entered.wait(1)
+    assert calls == ["hello"]
+    stop_release.set()
+    finish(callback_calls[0])
+    finish(first)
+    finish(second)
+    assert calls == ["hello", "hello"]
+    assert [event.segment_id for event in env.events] == [18]
+
+
+def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    entered, release = Event(), Event()
+    env.core._real_player.stop = lambda: (entered.set(), release.wait(2))
+    cancelling = run_thread(env.core.cancel)
+    assert entered.wait(1)
+    native_entered = Event()
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: native_entered.set())
+    _, _, call = speak(env)
+    assert not native_entered.wait(.05)
+    release.set()
+    finish(cancelling)
+    finish(call)
+    assert len(env.events) == 1
+
+
+def test_foreign_instance_endprocess_does_not_touch_current_buffer(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    callback = env.core._veCallbackHandler
+    def native(instance, text):
+        callback._feedBuf = BytesIO(b"current")
+        foreign = env.types.VE_HSAFE()
+        foreign.pHandleData = 123
+        result = callback(foreign, None, native_message(env.types, env.types.VE_MSG_ENDPROCESS, env.types.VE_OUTDATA()))
+        assert result == env.types.NUAN_E_TTS_USERSTOP
+        assert callback._feedBuf.getvalue() == b"current"
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, _, call = speak(env)
+    finish(call)
+    assert env.core._real_player.fed == []
+
+
+def test_anonymous_done_never_completes_context(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    def native(instance, text):
+        env.core._onIndexReached(None)
+        assert env.events == []
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, _, call = speak(env)
+    finish(call)
+    assert len(env.events) == 1
+    assert env.dones == []
+
+
+def test_native_userstop_without_cancel_is_failure(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: env.types.NUAN_E_TTS_USERSTOP)
+    _, _, call = speak(env)
+    finish(call)
+    assert len(env.events) == 1
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert "USERSTOP" in str(env.events[0].error)
+
+
+def test_direct_cancel_after_idle_return_still_invalidates_original_work(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    returned, release = Event(), Event()
+    run_speech = env.core._run_speech
+    def after_idle(commands, work):
+        result = run_speech(commands, work)
+        returned.set()
+        assert release.wait(2)
+        return result
+    monkeypatch.setattr(env.core, "_run_speech", after_idle)
+    _, _, call = speak(env)
+    assert returned.wait(1)
+    env.core.cancel()
+    release.set()
+    finish(call)
+    assert env.events == []
+
+
+def test_cancel_discards_sonic_internal_tail_before_next_segment(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    class Sonic:
+        def __init__(self, tail):
+            self.tail = tail
+            self.flushed = False
+        def writeShort(self, *args): pass
+        def readShort(self): return self.tail if self.flushed else b""
+        def flush(self): self.flushed = True
+    streams = [Sonic(b"OLDTAIL"), Sonic(b"NEWTAIL")]
+    callback = env.core._veCallbackHandler
+    def sonic():
+        if callback.sonicStream is None:
+            callback.sonicStream = streams.pop(0)
+            callback._sonicEnabled = True
+        return True
+    callback._ensureSonicStream = sonic
+    calls = []
+    def native(instance, text):
+        calls.append(text)
+        emit(env, instance, end=len(calls) > 1)
+        if len(calls) == 1:
+            env.core.cancel()
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, _, old = speak(env)
+    finish(old)
+    _, _, new = speak(env, segment=18)
+    finish(new)
+    assert env.core._real_player.fed == [b"NEWTAIL"]
+    assert [event.segment_id for event in env.events] == [18]
+
+
+def test_real_sonic_initialization_failure_uses_native_pcm_fallback(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    callback = env.core._veCallbackHandler
+    callback._ensureSonicStream = env.original_driver.VECallback._ensureSonicStream.__get__(callback)
+    monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance))
+    _, _, call = speak(env)
+    finish(call)
+    assert callback._sonicInitTried
+    assert not callback._sonicEnabled
+    assert env.core._real_player.fed == [b"pcm"]
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_late_endprocess_outside_call_preserves_next_buffer(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance))
+    _, _, call = speak(env)
+    finish(call)
+    callback = env.core._veCallbackHandler
+    callback._feedBuf = BytesIO(b"next buffer")
+    result = callback(env.core.voiceInstance, None,
+        native_message(env.types, env.types.VE_MSG_ENDPROCESS, env.types.VE_OUTDATA()))
+    assert result == env.types.NUAN_E_TTS_USERSTOP
+    assert callback._feedBuf.getvalue() == b"next buffer"
+
+
+def test_legacy_use_prevents_entering_unproven_correlated_mode(env, monkeypatch):
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    env.core.speak(("legacy",))
+    _, _, call = speak(env)
+    finish(call)
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert "Legacy" in str(env.events[0].error)
+
+
+def test_cancelled_native_userstop_is_silent_and_keeps_legacy_done(env, monkeypatch):
+    def native(instance, text):
+        env.core.cancel()
+        return env.types.NUAN_E_TTS_USERSTOP
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    env.core.speak(("legacy",))
+    assert len(env.dones) == 1
+    assert env.events == []
+
+
+def test_callback_lease_holds_bookmark_handler_before_next_call(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    entered, release, callback_ready = Event(), Event(), Event()
+    def index(**kwargs):
+        entered.set()
+        assert release.wait(2)
+    monkeypatch.setattr(env.original_driver.synthIndexReached, "notify", index)
+    calls, callbacks = [], []
+    def native(instance, text):
+        calls.append(text)
+        if len(calls) == 1:
+            callbacks.append(run_thread(lambda: emit(env, instance, index=7)))
+            callback_ready.set()
+            assert entered.wait(1)
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, _, first = speak(env)
+    assert entered.wait(1)
+    assert callback_ready.wait(1)
+    env.core.cancel()
+    _, _, second = speak(env, segment=18)
+    assert calls == ["hello"]
+    release.set()
+    finish(callbacks[0])
+    finish(first)
+    finish(second)
+    assert [event.segment_id for event in env.events] == [18]
+
+
+@pytest.mark.parametrize("kind", ["empty", "index", "break"])
+def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
+    prove_fake_quiescence(env, monkeypatch)
+    import speech.commands as commands
+    sequence = ()
+    if kind == "index":
+        index = commands.IndexCommand()
+        index.index = 23
+        sequence = (index,)
+    elif kind == "break":
+        pause = commands.BreakCommand()
+        pause.time = 20
+        sequence = (pause,)
+    entered, release = Event(), Event()
+    env.core._real_player.idle = lambda: (entered.set(), release.wait(2))
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    _, _, call = speak(env, sequence)
+    assert entered.wait(1)
+    assert env.events == []
+    release.set()
+    finish(call)
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_pause_holds_completion_after_real_idle(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    env.core.pause(True)
+    entered = Event()
+    env.core._real_player.idle = entered.set
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    _, _, call = speak(env)
+    assert entered.wait(1)
+    assert not call[1].wait(.05)
+    env.core.pause(False)
+    finish(call)
+    assert len(env.events) == 1
