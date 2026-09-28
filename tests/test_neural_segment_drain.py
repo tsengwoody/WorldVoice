@@ -1,4 +1,4 @@
-from threading import Event
+from threading import Event, current_thread
 import gc
 import weakref
 
@@ -450,3 +450,155 @@ def test_cancel_discards_sonic_internal_tail_before_next_work(env, monkeypatch):
     # The second speak can return immediately; its flush must use fresh Sonic.
     assert done.wait(2)
     assert env.player.fed == [b"NEWTAIL"]
+
+
+def test_legacy_cancel_during_callback_retirement_waits_for_player_and_native_stop(env, monkeypatch):
+    retirement_entered = Event()
+    real_wait = env.driver._segmentCondition.wait_for
+
+    def observed_wait(predicate, timeout=None):
+        if current_thread() is env.driver._task_thread and env.driver._legacyCallbacks:
+            retirement_entered.set()
+        return real_wait(predicate, timeout)
+
+    monkeypatch.setattr(env.driver._segmentCondition, "wait_for", observed_wait)
+    env.driver.speak(("old legacy",))
+    env.native.wait_calls(1)
+    env.player.feed_release.clear()
+    callback = in_thread(env.native.audio)
+    assert env.player.feed_entered.wait(1)
+    env.native.speak_release.set()
+    assert retirement_entered.wait(1)
+    env.player.stop_release.clear()
+    env.native.stop_release.clear()
+    cancelling = in_thread(env.driver.cancel)
+    assert env.player.stop_entered.wait(1)
+    env.driver.speak(("new legacy",))
+    env.player.feed_release.set()
+    with env.native.condition:
+        assert not env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.05)
+    env.player.stop_release.set()
+    finish(cancelling)
+    finish(callback)
+    assert env.native.stop_wait_entered.wait(1)
+    with env.native.condition:
+        assert not env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.05)
+    env.native.stop_release.set()
+    env.native.wait_calls(2)
+    assert env.native.released == [operation[0] for operation in env.native.operations]
+
+
+@pytest.mark.parametrize("failure", ["stop", "close"])
+def test_termination_player_errors_finish_cleanup_and_repeated_calls(monkeypatch, tmp_path, failure):
+    # Own cleanup here so the pre-fix deadlock can fail without hanging teardown.
+    env = load_neural(monkeypatch, tmp_path)
+    env.player.error = failure
+    env.player.stop_release.clear()
+    first = in_thread(env.driver.terminate)
+    assert env.player.stop_entered.wait(1)
+    repeated = in_thread(env.driver.terminate)
+    try:
+        assert not repeated.done.wait(0.05)
+        env.player.stop_release.set()
+        finish(first)
+        finish(repeated)
+        assert env.driver._terminationDone.is_set()
+        assert not env.driver._task_thread.is_alive()
+        assert isinstance(env.driver._terminationError, OSError)
+        assert str(env.driver._terminationError) == f"audio {failure} failed"
+        assert env.driver._task_thread._driver is None
+        assert env.driver._synthCache == []
+        assert env.driver._audioCallback._driver is None
+        assert any("termination" in str(message).lower() for message in env.logs)
+        env.driver.terminate()
+    finally:
+        env.player.error = None
+        env.player.stop_release.set()
+        if not env.driver._terminationDone.is_set():
+            env.driver._task_queue.put(None)
+            env.driver._terminationDone.set()
+        env.driver._task_thread.join(1)
+        first.thread.join(1)
+        repeated.thread.join(1)
+
+
+def test_cancel_stop_registration_error_releases_cancellation_barrier(env, monkeypatch):
+    env.driver.speak(("legacy",))
+    env.native.wait_calls(1)
+
+    def failed_request(native):
+        raise OSError("native stop registration failed")
+
+    real_request = env.driver._request_stop
+    monkeypatch.setattr(env.driver, "_request_stop", failed_request)
+    try:
+        with pytest.raises(OSError, match="native stop registration failed"):
+            env.driver.cancel()
+        assert env.driver._segmentStops == 0
+    finally:
+        monkeypatch.setattr(env.driver, "_request_stop", real_request)
+        env.native.speak_release.set()
+    terminating = in_thread(env.driver.terminate)
+    finish(terminating)
+    assert not env.driver._task_thread.is_alive()
+
+
+def test_concurrent_cancel_preserves_termination_queue_shutdown(monkeypatch, tmp_path):
+    env = load_neural(monkeypatch, tmp_path)
+    env.driver.speak(("legacy",))
+    env.native.wait_calls(1)
+    sentinel_queued = Event()
+    real_put = env.driver._task_queue.put
+
+    def observed_put(task, *args, **kwargs):
+        real_put(task, *args, **kwargs)
+        if task is None:
+            sentinel_queued.set()
+
+    monkeypatch.setattr(env.driver._task_queue, "put", observed_put)
+    terminating = in_thread(env.driver.terminate)
+    try:
+        assert sentinel_queued.wait(1)
+        env.driver.cancel()
+        env.native.speak_release.set()
+        finish(terminating)
+        assert env.driver._terminationDone.is_set()
+        assert not env.driver._task_thread.is_alive()
+    finally:
+        env.native.speak_release.set()
+        env.native.stop_release.set()
+        env.player.idle_release.set()
+        if not env.driver._terminationDone.is_set():
+            real_put(None)
+        terminating.thread.join(1)
+
+
+def test_failed_stop_thread_start_does_not_leave_native_retirement_pending(env, monkeypatch):
+    env.driver.speak(("legacy",))
+    env.native.wait_calls(1)
+    real_start = env.outer.Thread.start
+
+    def failed_stop_start(thread):
+        if thread.name == "WorldVoice Neural stop":
+            raise OSError("native stop thread failed")
+        real_start(thread)
+
+    monkeypatch.setattr(env.outer.Thread, "start", failed_stop_start)
+    try:
+        with pytest.raises(OSError, match="native stop thread failed"):
+            env.driver.cancel()
+        operation = env.driver._legacyNative.stop
+        assert operation.done.is_set()
+        assert str(operation.error) == "native stop thread failed"
+        assert env.driver._segmentStops == 0
+        env.native.speak_release.set()
+        terminating = in_thread(env.driver.terminate)
+        finish(terminating)
+        assert not env.driver._task_thread.is_alive()
+    finally:
+        monkeypatch.setattr(env.outer.Thread, "start", real_start)
+        # Rescue the deliberately failed pre-fix operation for fixture cleanup.
+        native = env.driver._legacyNative
+        if native is not None and native.stop is not None:
+            native.stop.done.set()
+        env.native.speak_release.set()

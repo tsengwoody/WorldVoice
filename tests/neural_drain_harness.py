@@ -205,12 +205,16 @@ class Player:
         self.stops += 1
         self.stop_entered.set()
         assert self.stop_release.wait(4)
+        if self.error == "stop":
+            raise OSError("audio stop failed")
         self.idle_release.set()
 
     def pause(self, switch):
         self.paused = switch
 
     def close(self):
+        if self.error == "close":
+            raise OSError("audio close failed")
         self.closed = True
 
 
