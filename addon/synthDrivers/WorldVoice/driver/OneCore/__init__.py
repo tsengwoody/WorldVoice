@@ -5,6 +5,7 @@ import io
 from pathlib import Path
 from threading import Condition, Lock, Thread
 import wave
+import weakref
 
 from synthDrivers import oneCore
 import nvwave
@@ -45,8 +46,30 @@ _SOURCE_HASHES = {
 	"nvdaHelper/local/wasapi.cpp": "10acce6270a54af7c76ca41373759743dae8698f59b39870e396d6c708f4e922",
 }
 # The reviewed helper can time out of terminate without invalidating the native
-# callback. Keep the ctypes pointer alive for the process lifetime in that case.
+# callback. Keep only its detached ctypes trampoline alive for the process
+# lifetime; it must not retain the driver, player or captured work graph.
 _TERMINATED_CALLBACKS = []
+
+
+class _DetachableCallback:
+	"""Fixed native callback pointer with revocable, weak driver ownership."""
+
+	def __init__(self, driver):
+		self._lock = Lock()
+		self._driver = weakref.ref(driver)
+
+	def __call__(self, audio, length, markers):
+		with self._lock:
+			driver_ref = self._driver
+			driver = driver_ref() if driver_ref is not None else None
+		# An already admitted callback retains its driver only until it exits.
+		# detach/terminate never waits for its feed/sync under this lock.
+		if driver is not None:
+			driver._callback(audio, length, markers)
+
+	def detach(self):
+		with self._lock:
+			self._driver = None
 
 
 @dataclass(frozen=True)
@@ -74,7 +97,15 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		self._segmentStops = 0
 		self._segmentWorker = None
 		self._segmentNative = None
-		super().__init__()
+		self._segmentCallback = _DetachableCallback(self)
+		# The parent installs CFUNCTYPE(self._callback) once. Intercept only
+		# that instance lookup; its native pointer owns the trampoline rather
+		# than a bound method retaining this whole driver.
+		self._callback = self._segmentCallback
+		try:
+			super().__init__()
+		finally:
+			del self._callback
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		def unsupported(reason):
@@ -211,16 +242,24 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				# The parent's callback schedules our worker instead of recursively
 				# running its queue. Preserve the parent's legacy queue-empty DONE.
 				with self._segmentCondition:
-					empty = not self._queuedSpeech
+					empty = not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
 				if empty and self._player:
 					self._player.sync()
 					with self._segmentCondition:
-						empty = not self._queuedSpeech
+						empty = not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
 					if empty:
 						self._player.idle()
-						synthDoneSpeaking.notify(synth=self)
+						if not self._wasCancelled and not self._segmentTerminated:
+							synthDoneSpeaking.notify(synth=self)
 			finally:
-				self._retireSegmentNative(native)
+				try:
+					# The parent can return from an admitted feed after cancel's
+					# stop has run. Keep this native record as legacy admission
+					# until a final stop removes anything that feed queued.
+					if (self._wasCancelled or self._segmentTerminated) and self._player:
+						self._player.stop()
+				finally:
+					self._retireSegmentNative(native)
 			return
 		lease = self._segmentGate.enter_callback()
 		try:
@@ -336,9 +375,13 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self._segmentTerminated = True
 			self._earlyExitCB = True
 			self._segmentCondition.notify_all()
-		self.cancel()
-		_TERMINATED_CALLBACKS.append(self._callbackInst)
-		super().terminate()
+		self._segmentCallback.detach()
+		if self._callbackInst is not None:
+			_TERMINATED_CALLBACKS.append(self._callbackInst)
+		try:
+			self.cancel()
+		finally:
+			super().terminate()
 
 
 Voice.synth_driver_class = SynthDriver

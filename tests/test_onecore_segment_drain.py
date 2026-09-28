@@ -1,4 +1,6 @@
+import gc
 from threading import Event
+import weakref
 
 import pytest
 
@@ -11,7 +13,8 @@ def env(monkeypatch):
     yield result
     result.player.feed_release.set()
     result.player.sync_release.set()
-    result.driver.terminate()
+    if result.driver is not None:
+        result.driver.terminate()
 
 
 def speak(env, segment=17, commands=("hello",), events=None):
@@ -327,6 +330,84 @@ def test_legacy_speak_after_correlated_work_preserves_done_notification(env):
     env.native.wait_calls(2)
     env.native.respond()
     assert env.dones == [env.driver]
+
+
+def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):
+    speak(env)
+    env.native.wait_calls(1)
+    env.player.sync_release.set()
+    env.native.respond()
+    env.driver.speak(("legacy",))
+    env.native.wait_calls(2)
+    env.player.feed_entered.clear()
+    env.player.feed_release.clear()
+    call = in_thread(lambda: env.native.respond(markers=""))
+    assert env.player.feed_entered.wait(1)
+    env.driver.cancel()
+    speak(env, segment=18)
+    assert len(env.native.calls) == 2
+    final_stop = Event()
+    release_stop = Event()
+    original_stop = env.player.stop
+
+    def blocked_final_stop():
+        final_stop.set()
+        assert release_stop.wait(1)
+        original_stop()
+
+    env.player.stop = blocked_final_stop
+    env.player.feed_release.set()
+    stopped = final_stop.wait(0.5)
+    with env.native.condition:
+        advanced = env.native.condition.wait_for(lambda: len(env.native.calls) >= 3, 0.05)
+    release_stop.set()
+    finish(call)
+    assert stopped, "The legacy feed queued audio after cancel without a final stop"
+    assert not advanced, "New native work started before the cancelled legacy feed's final stop"
+    env.native.wait_calls(3)
+    assert env.dones == []
+
+
+def test_cancelled_legacy_sync_does_not_emit_done(env):
+    speak(env)
+    env.native.wait_calls(1)
+    env.player.sync_release.set()
+    env.native.respond()
+    env.driver.speak(("legacy",))
+    env.native.wait_calls(2)
+    env.player.sync_entered.clear()
+    env.player.sync_release.clear()
+    call = in_thread(lambda: env.native.respond(markers=""))
+    assert env.player.sync_entered.wait(1)
+    env.driver.cancel()
+    finish(call)
+    assert env.dones == []
+
+
+@pytest.mark.parametrize("correlated", [False, True])
+def test_terminated_driver_is_collected_while_late_native_callback_stays_callable(env, correlated):
+    if correlated:
+        speak(env)
+        env.native.wait_calls(1)
+        env.player.sync_release.set()
+        env.native.respond()
+    callback = env.native.callback
+    driver_ref = weakref.ref(env.driver)
+    touched = []
+    env.driver._callback = lambda *args: touched.append("late driver access")
+    env.driver.terminate()
+    worker = env.driver._segmentWorker
+    if worker is not None:
+        worker.join(1)
+        assert not worker.is_alive()
+    callback(None, 0, None)
+    assert touched == []
+    env.dones.clear()
+    env.driver = None
+    gc.collect()
+    assert driver_ref() is None, "Retained native callback kept the terminated driver graph alive"
+    callback(None, 0, None)
+    assert touched == []
 
 
 def test_legacy_speak_still_uses_parent_interface(env):

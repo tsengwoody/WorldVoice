@@ -76,7 +76,7 @@ segment, rejecting unproven helper provenance, stop still in progress after an
 old callback retires, and pause before initial player creation.
 
 Focused command: `python3 -m pytest tests/test_onecore_segment_drain.py -q -p no:cacheprovider`.
-Final focused result: **33 passed**. Coverage includes full tail versus blocked
+Initial implementation focused result: **33 passed**. Coverage includes full tail versus blocked
 sync, source/segment ownership, settings and queued cancellation, stale cancelled
 success/len=0 callbacks, native/parse/player errors, empty/index/break segments,
 pause/resume, terminate, sync returning due to stop, feed admission cancellation,
@@ -85,10 +85,37 @@ partial initialization and unsupported profiles.
 The initial addon run found the existing composition harness assumes the first
 class declaration is the Voice facade. The outer module retains that declaration
 order and assigns its final `synth_driver_class` to the correlated subclass after
-definition; its focused composition regression passed. Addon suite:
+definition; its focused composition regression passed. Initial implementation addon suite:
 `python3 -m pytest tests -q -p no:cacheprovider`: **775 passed**. Full-tree
 `python3 -m pytest -q -p no:cacheprovider` exits **2**, with **191 collection
 errors** in vendored NVDA suites (missing NVDA/Windows and liblouis dependencies).
 The complete collection error names are in the Task 5 implementer report.
 `git diff --check` passed. No Windows device, NVDA release or native helper binary
 provenance has been validated.
+
+### Task 5 review corrections
+
+The review reproduced a cancellation gap in the parent's legacy callback after
+correlated playback: an admitted feed could return after cancel's stop and leave
+old audio queued. The wrapper now keeps that legacy native record/admission until
+the callback's post-feed/post-sync cancellation checks and final stop complete.
+The next correlated native submission waits for this cleanup. Legacy DONE is
+checked after sync and idle and suppressed when cancellation/termination wins.
+The regression blocks the old feed and then its final stop independently, proving
+that neither barrier admits the next native call early.
+
+The constructor now installs a ctypes callback trampoline that owns a weak,
+detachable driver reference rather than a bound driver method. Terminate detaches
+the trampoline before retaining its callable pointer for the helper's possible
+timeout. Entered callbacks retain the driver only until their work exits; late
+calls after detach safely no-op. Ordinary legacy and correlated instances are
+garbage-collected in tests even while the callable pointer remains retained.
+This releases the driver/player/work graph without guessing native quiescence.
+
+Observed review red: **4 failed, 33 passed**, covering the legacy feed final stop,
+cancelled legacy sync DONE, and collection in both instance modes. Review green:
+focused OneCore **37 passed**, addon suite **779 passed**, diff check passed.
+Full-tree pytest still exits **2** with the same **191 vendored collection errors**;
+error names are retained in the implementer report, with review log
+`/tmp/worldvoice-task5-review-fix-full-pytest.log`. Runtime/helper provenance remains
+unverified and all current OneCore drain profiles remain unsupported.
