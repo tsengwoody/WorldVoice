@@ -4,7 +4,7 @@ import ast
 import importlib
 import sys
 import threading
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -644,6 +644,133 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 
 def drain_contract(c, mode="DRAIN"):
     return c.models.CompletionContract(getattr(c.models.CompletionMode, mode), c.models.IndexRange(1, 9999))
+
+
+def runtime_completion_selector(c, version="synthetic"):
+    policies = importlib.import_module(c.module.__package__ + ".compat.completionPolicies")
+    commands = {name: type(name, (), {}) for name in (
+        "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
+        "PitchCommand", "RateCommand", "VolumeCommand")}
+    logs = []
+    root = _load_synth_class({
+        "SynthDriver": object, "synthIndexReached": object(), "synthDoneSpeaking": object(),
+        "versionInfo": SimpleNamespace(version=version),
+        "get_completion_contract": policies.get_completion_contract,
+        "get_segment_drain_support": getattr(policies, "get_segment_drain_support", None),
+        "nvdaLog": SimpleNamespace(warning=lambda *args: logs.append(args)), **commands,
+    })
+    return object.__new__(root)._completion_for, logs
+
+
+def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
+    """Replace unavailable native resources at the installed-driver boundary."""
+    support_type = importlib.import_module(c.module.__package__ + ".runtime.playbackWork").DrainSupport
+    cls = c.engine(name)
+    module_name = c.module.__package__ + ".driver." + name
+    checked, spoken = [], []
+
+    class SynthDriver(c.Core):
+        def get_segment_drain_support(self, *, nvda_version, audio_mode):
+            checked.append((nvda_version, audio_mode))
+            return support_type(supported, "native-test-profile", "Native callback lifetime is unproven")
+
+        def speak_segment(self, commands, token, *, context, on_event):
+            spoken.append((commands, context))
+            on_event(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
+                                           context.source_id, segment_id=context.segment_id))
+
+    SynthDriver.__module__ = cls.__module__ = module_name
+    cls.synth_driver_class = SynthDriver
+    cls.engineOn = classmethod(lambda voice: setattr(voice, "core", SynthDriver()))
+    module = ModuleType(module_name)
+    module.Voice, module.SynthDriver = cls, SynthDriver
+    monkeypatch.setitem(sys.modules, module_name, module)
+    return SimpleNamespace(voice=cls, driver=SynthDriver, module=module,
+                           checked=checked, spoken=spoken, support_type=support_type)
+
+
+@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence"])
+def test_supported_installed_wrapper_is_bound_before_first_drain_speech(composition, monkeypatch, nvda_commands, engine):
+    c = composition
+    installed = installed_drain_voice(c, monkeypatch, engine)
+    select, logs = runtime_completion_selector(c)
+    manager = c.create(select)
+    port = manager.resolve_playback(engine + ":a")
+    assert port.completion.mode is c.models.CompletionMode.DRAIN
+    assert installed.checked == [("synthetic", "default")]
+    assert logs == []
+    done, indexes = threading.Event(), []
+    c.done.register(lambda synth: done.set() if synth is c.owner else None)
+    c.index.register(lambda synth, index: indexes.append(index) if synth is c.owner else None)
+    request = c.tasks.new_request()
+    c.tasks.append_speech(request, port, engine + ":a", ("hello", nvda_commands.IndexCommand(42)))
+    assert c.tasks.submit_request(request) and done.wait(1)
+    commands, context = installed.spoken[0]
+    assert context.source_id is port.source_id
+    assert [command.index for command in commands if isinstance(command, nvda_commands.IndexCommand)] == [1]
+    assert indexes == [42]
+    with pytest.raises(RuntimeError, match="before speech"):
+        port._adapter.configure_completion(c.models.CompletionContract())
+    policies = importlib.import_module(c.module.__package__ + ".compat.completionPolicies")
+    assert policies._VERIFIED_CONTRACTS == {}
+
+
+@pytest.mark.parametrize("failure", ["foreign_voice", "foreign_driver", "wrong_core", "missing_entry",
+                                    "wrong_signature", "missing_support", "invalid_support",
+                                    "truthy_support", "unsupported", "support_error"])
+def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(composition, monkeypatch, failure):
+    c = composition
+    installed = installed_drain_voice(c, monkeypatch)
+    cls = installed.voice
+    if failure == "foreign_voice":
+        installed.module.Voice = type("ForeignVoice", (), {})
+    elif failure == "foreign_driver":
+        installed.driver.__module__ = "foreign_driver"
+    elif failure == "wrong_core":
+        cls.engineOn = classmethod(lambda voice: setattr(voice, "core", c.Core()))
+    elif failure == "missing_entry":
+        installed.driver.speak_segment = None
+    elif failure == "wrong_signature":
+        installed.driver.speak_segment = lambda self, commands: None
+    elif failure == "missing_support":
+        installed.driver.get_segment_drain_support = None
+    elif failure == "invalid_support":
+        installed.driver.get_segment_drain_support = lambda *args, **kwargs: SimpleNamespace(supported=True)
+    elif failure == "truthy_support":
+        installed.driver.get_segment_drain_support = lambda *args, **kwargs: installed.support_type(
+            "yes", "native-test-profile", "Not an explicit boolean support decision")
+    elif failure == "unsupported":
+        installed.driver.get_segment_drain_support = lambda *args, **kwargs: installed.support_type(
+            False, "native-test-profile", "Native callback lifetime is unproven")
+    elif failure == "support_error":
+        def fail(*args, **kwargs):
+            raise RuntimeError("Native profile inspection failed")
+        installed.driver.get_segment_drain_support = fail
+    select, logs = runtime_completion_selector(c)
+    manager = c.create(select)
+    port = manager.resolve_playback("OneCore:a")
+    assert port.completion.mode is c.models.CompletionMode.LEGACY_DONE
+    assert port.completion.index_range is None
+    assert select(cls, cls.core) == port.completion
+    assert len(logs) == 1
+    assert "LEGACY_DONE" in logs[0][0] and logs[0][-1]
+    if failure == "unsupported":
+        assert logs[0][-1] == "Native callback lifetime is unproven"
+    if failure == "support_error":
+        assert "Native profile inspection failed" in logs[0][-1]
+
+
+def test_unsupported_targets_sharing_core_keep_one_legacy_owner(composition):
+    c = composition
+    shared = c.Core()
+    first, alias = c.engine("OneCore", shared=shared), c.engine("Neural", shared=shared)
+    select, logs = runtime_completion_selector(c)
+    manager = c.create(select)
+    port = manager.resolve_playback("OneCore:a")
+    assert manager.resolve_playback("Neural:a") is port
+    assert port.completion.mode is c.models.CompletionMode.LEGACY_DONE
+    manager.terminate(commit=False)
+    assert shared.closes == 1 and first.core is alias.core is None
 
 
 def test_drain_factory_configured_after_bind_before_publication(composition, monkeypatch, nvda_commands):

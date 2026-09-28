@@ -18,10 +18,12 @@ def env(monkeypatch):
 
 @pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
 @pytest.mark.parametrize("audio", ["default", "wasapi", "legacy", "unknown"])
-@pytest.mark.parametrize("engine", ["SAPI5", "OneCore", "Espeak", "VE", "Cerence", "RHVoice"])
-def test_test_branch_forces_end_index_for_builtin_engines(env, engine, version, audio):
+@pytest.mark.parametrize("engine", ["SAPI5", "Espeak", "RHVoice"])
+@pytest.mark.parametrize("supported", [False, True])
+def test_test_branch_forces_end_index_for_remaining_engines(env, engine, version, audio, supported):
     policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
-    contract = policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio)
+    contract = policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio,
+                                                segment_drain_supported=supported)
     assert contract.mode is env.models.CompletionMode.END_INDEX
     assert contract.index_range == env.models.IndexRange(1, 9999)
 
@@ -29,13 +31,34 @@ def test_test_branch_forces_end_index_for_builtin_engines(env, engine, version, 
 @pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
 @pytest.mark.parametrize("audio", ["default", "wasapi", "legacy", "unknown"])
 @pytest.mark.parametrize("engine", ["external-test-engine", "unknown"])
-def test_unknown_and_external_profiles_still_use_legacy_done(env, engine, version, audio):
+@pytest.mark.parametrize("supported", [False, True])
+def test_unknown_and_external_profiles_still_use_legacy_done(env, engine, version, audio, supported):
     path = env.module.__package__ + ".compat.completionPolicies"
     assert importlib.util.find_spec(path) is not None, "Completion policies have not been implemented"
     policies = importlib.import_module(path)
+    contract = policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio,
+                                                segment_drain_supported=supported)
+    assert contract.mode is env.models.CompletionMode.LEGACY_DONE
+    assert contract.index_range is None
+
+
+@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence"])
+@pytest.mark.parametrize("version,audio", [("2026.1", "default"), ("synthetic", "synthetic")])
+def test_target_without_drain_support_never_uses_test_index_override(env, engine, version, audio):
+    policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
     contract = policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio)
     assert contract.mode is env.models.CompletionMode.LEGACY_DONE
     assert contract.index_range is None
+
+
+@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence"])
+def test_supported_target_uses_drain_range(env, engine):
+    policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
+    contract = policies.get_completion_contract(engine, nvda_version="synthetic", audio_mode="synthetic",
+                                                segment_drain_supported=True)
+    assert contract.mode is env.models.CompletionMode.DRAIN
+    assert contract.index_range == env.models.IndexRange(1, 9999)
+    assert policies._VERIFIED_CONTRACTS == {}
 
 
 @pytest.mark.parametrize("minimum,maximum", [(0, 10), (5, 4), (-10, -1)])
@@ -93,9 +116,12 @@ def test_synth_policy_uses_actual_opened_core(env, engine, use_wasapi, expected)
         return env.models.CompletionContract()
     root = _load_synth_class({"SynthDriver": object, "synthIndexReached": object(),
         "synthDoneSpeaking": object(), "versionInfo": SimpleNamespace(version="2026.1"),
-        "get_completion_contract": policy, **commands})
+        "get_completion_contract": policy,
+        "get_segment_drain_support": getattr(importlib.import_module(
+            env.module.__package__ + ".compat.completionPolicies"), "get_segment_drain_support", None),
+        "nvdaLog": SimpleNamespace(warning=lambda *args: None), **commands})
     synth = object.__new__(root)
     assert hasattr(synth, "_completion_for"), "Runtime completion policy selection is missing"
     core = SimpleNamespace() if use_wasapi is None else SimpleNamespace(useWasapi=use_wasapi)
     synth._completion_for(SimpleNamespace(engine=engine), core)
-    assert selected == [(engine, {"nvda_version": "2026.1", "audio_mode": expected})]
+    assert selected == [(engine, {"nvda_version": "2026.1", "audio_mode": expected, "segment_drain_supported": False})]
