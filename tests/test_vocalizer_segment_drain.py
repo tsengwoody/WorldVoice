@@ -754,3 +754,121 @@ def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
             resuming[0].join(1)
         env.core.pause(False)
         speech[0].join(1)
+
+
+
+def assert_operation_failed(call, error):
+    assert call[1].wait(2)
+    assert call[2] == [error]
+
+
+@pytest.mark.parametrize("speech_path", ["legacy", "segment"])
+@pytest.mark.parametrize("fresh_during_pause", [True, False])
+def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(env, monkeypatch, speech_path, fresh_during_pause):
+    prove_fake_quiescence(env, monkeypatch)
+    entered, release = Event(), Event()
+    player = env.core._real_player
+    pause_player = player.pause
+    error = OSError("resume failed")
+    failed_resume_states = []
+    def pause(switch):
+        if switch:
+            entered.set()
+            assert release.wait(2)
+            pause_player(True)
+        else:
+            failed_resume_states.append(player.isPaused)
+            raise error
+    player.pause = pause
+    native_calls = []
+    monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: native_calls.append(text))
+    def fresh_speech():
+        if speech_path == "legacy":
+            return run_thread(lambda: env.core.speak(("fresh",)))
+        return speak(env, ("fresh",), segment=18)[2]
+    pausing, fresh = run_thread(lambda: env.core.pause(True)), None
+    try:
+        assert entered.wait(1)
+        finish(run_thread(env.core.cancel))
+        assert not player.isPaused
+        if fresh_during_pause:
+            fresh = fresh_speech()
+            assert not fresh[1].wait(.05)
+        release.set()
+        assert_operation_failed(pausing, error)
+        # Corrective resume failed before changing the paused player.
+        assert failed_resume_states == [True]
+        if fresh is None:
+            fresh = fresh_speech()
+        if speech_path == "legacy":
+            assert_operation_failed(fresh, error)
+        else:
+            finish(fresh)
+            assert len(env.events) == 1
+            assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+            assert env.events[0].segment_id == 18
+            assert env.events[0].error is error
+        assert native_calls == []
+        assert env.dones == []
+        assert player.idles == 0
+        # Clearing cancellation cannot clear an unknown player state fault.
+        env.core.cancel()
+        again = fresh_speech()
+        if speech_path == "legacy":
+            assert_operation_failed(again, error)
+        else:
+            finish(again)
+            assert len(env.events) == 2
+            assert all(event.kind is env.rt.models.EventKind.SEGMENT_FAILED for event in env.events)
+        assert native_calls == []
+    finally:
+        release.set()
+        pausing[0].join(1)
+        if fresh is not None:
+            fresh[0].join(1)
+
+
+@pytest.mark.parametrize("speech_path", ["legacy", "segment"])
+def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch, speech_path):
+    prove_fake_quiescence(env, monkeypatch)
+    idle_entered, idle_release = Event(), Event()
+    player = env.core._real_player
+    env.core.pause(True)
+    stop_player = player.stop
+    def idle():
+        idle_entered.set()
+        assert idle_release.wait(5)
+    def stop():
+        stop_player()
+        idle_release.set()
+    player.idle, player.stop = idle, stop
+    error = OSError("active resume failed")
+    failed_resume_states = []
+    def pause(switch):
+        failed_resume_states.append(player.isPaused)
+        raise error
+    player.pause = pause
+    if speech_path == "legacy":
+        speech = run_thread(lambda: env.core.speak(()))
+        context = None
+    else:
+        _, context, speech = speak(env, ())
+    try:
+        assert idle_entered.wait(1)
+        with pytest.raises(OSError, match="active resume failed"):
+            env.core.pause(False)
+        assert failed_resume_states == [True]
+        if speech_path == "legacy":
+            assert_operation_failed(speech, error)
+        else:
+            finish(speech)
+            assert len(env.events) == 1
+            assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+            assert env.events[0].source_id is context.source_id
+            assert env.events[0].segment_id == 17
+            assert env.events[0].error is error
+        assert env.dones == []
+    finally:
+        # Release the pre-fix paused work so RED does not leak a thread.
+        env.core.cancel()
+        speech[0].join(1)

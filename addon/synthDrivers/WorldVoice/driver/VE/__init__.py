@@ -571,10 +571,8 @@ class SynthDriver(BaseSynthDriver):
 		if not self._guard_installed:
 			return super().pause(switch)
 		with self._speechStateLock:
-			previous = self._paused
 			self._paused = switch
 			self._pauseRevision += 1
-			request = self._pauseRevision
 			self._pauses += 1
 			self._speechStateLock.notify_all()
 		try:
@@ -588,11 +586,33 @@ class SynthDriver(BaseSynthDriver):
 				with self._speechStateLock:
 					if revision == self._pauseRevision:
 						break
-		except Exception:
+		except Exception as error:
 			with self._speechStateLock:
-				if request == self._pauseRevision:
-					self._paused = previous
-					self._pauseRevision += 1
+				# A raised pause/resume may have partially changed the player.
+				# Block this core permanently instead of guessing its state.
+				if self._segmentBlockedError is None:
+					self._segmentBlockedError = error
+				if self._currentWork is not None:
+					self._currentWork.fault(error)
+				for pending in self._segmentWorks:
+					pending.fault(error)
+				native = self._nativeWork
+				if native is not None:
+					native.admitting = False
+				self._pauseRevision += 1
+				self._stops += 1
+				self._speechStateLock.notify_all()
+			if native is not None and native.call_token is not None:
+				self._segmentGate.close(native.call_token)
+			try:
+				# Release a real idle/feed blocked by the uncertain pause state.
+				self._real_player.stop()
+			except Exception:
+				log.error("WorldVoice pause failure cleanup failed", exc_info=True)
+			finally:
+				with self._speechStateLock:
+					self._stops -= 1
+					self._speechStateLock.notify_all()
 			raise
 		finally:
 			with self._speechStateLock:

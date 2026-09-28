@@ -497,3 +497,34 @@ vendored NVDA collection errors**; log:
 `/tmp/worldvoice-task8-pause-addon.log`. This cross-task correction changes only
 the two outer wrappers, shared tests and validation; all real VE and Cerence
 drain profiles remain unsupported pending native provenance/quiescence proof.
+
+
+### Task 8 review correction: failed pause/resume blocks playback
+
+Fresh review reproduced an exception-path gap in both wrappers: after cancel
+superseded a blocked pause(True), the old operation could apply True and its
+corrective pause(False) could raise before changing the player. Retiring the
+pause counter then reopened speech admission despite unknown real player state.
+An ordinary failed resume could also leave active work waiting indefinitely in
+real idle. Parameterized regressions reproduced **12 failed** cases across both
+engines and legacy/contextual paths, including work queued during the old pause
+and work submitted after it returned.
+
+Every raised real pause/resume operation now latches a persistent blocked-core
+error, faults active/pending work, closes native admission, and attempts a counted
+real-player stop outside the state lock to release idle/feed. The original pause
+exception reaches its caller. Cleanup does not cancel PlaybackWork: a still-valid
+context receives its original failure, never successful drain. Subsequent speech
+is rejected before native entry, including after another cancel; the core must
+be replaced rather than assuming a partially applied player operation recovered.
+The regressions capture the real player's paused state at the failed corrective
+resume and independently hold active idle until fault cleanup stops the player.
+New fault regressions: **12 passed**.
+
+Required suite: **184 passed**. Addon suite: **934 passed**. Protected baseline
+hashes (twenty) and `git diff --check` remain unchanged/clean. Full-tree pytest
+exits **2** with the identical **191** named vendored collection errors. Logs:
+`/tmp/worldvoice-task8-pause-fault-required.log`,
+`/tmp/worldvoice-task8-pause-fault-addon.log`, and
+`/tmp/worldvoice-task8-pause-fault-full.log`. Native files, inner drivers,
+capability policy and `finish_task.md` remain unchanged.
