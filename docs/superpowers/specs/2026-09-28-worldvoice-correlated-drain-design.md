@@ -2,7 +2,7 @@
 
 日期：2026-09-28。
 
-狀態：設計草案，待使用者審閱；尚未實作。書面 spec 確認後撰寫實作 plan。
+狀態：使用者已確認並要求依此撰寫 [實作 plan](../plans/2026-09-28-worldvoice-correlated-drain.md)；尚未實作。
 
 設計審閱：OneCore／Neural 初稿已由 `gpt-6-astra high` 兩輪審閱並修正；本次依使用者要求擴充 VE／Cerence，擴充後再次審閱無遺留 findings。SDK 契約依據與 Windows 音訊驗證仍屬後續實作驗收工作。
 
