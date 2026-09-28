@@ -642,3 +642,115 @@ def test_callback_rejects_missing_instance_without_touching_current_buffer(env, 
     _, _, call = speak(env)
     finish(call)
     assert env.core._real_player.fed == []
+
+
+@pytest.mark.parametrize("apply_before_barrier", [True, False])
+@pytest.mark.parametrize("fresh_during_pause", [True, False])
+def test_cancel_retires_inflight_pause_before_fresh_speech(env, apply_before_barrier, fresh_during_pause):
+    entered, release, idle_entered = Event(), Event(), Event()
+    player = env.core._real_player
+    pause_player = player.pause
+    def pause(switch):
+        if switch and not apply_before_barrier:
+            entered.set()
+            assert release.wait(2)
+        pause_player(switch)
+        if switch and apply_before_barrier:
+            entered.set()
+            assert release.wait(2)
+    player.pause = pause
+    player.idle = idle_entered.set
+    pausing, fresh = run_thread(lambda: env.core.pause(True)), None
+    try:
+        assert entered.wait(1)
+        # Cancellation must still stop the player while pause is in flight.
+        cancelling = run_thread(env.core.cancel)
+        finish(cancelling)
+        assert not player.isPaused
+        if fresh_during_pause:
+            fresh = run_thread(lambda: env.core.speak(()))
+            assert not idle_entered.wait(.05)
+        release.set()
+        finish(pausing)
+        if fresh is None:
+            fresh = run_thread(lambda: env.core.speak(()))
+        finish(fresh)
+        assert idle_entered.is_set()
+        assert not player.isPaused
+        assert len(env.dones) == 1
+    finally:
+        release.set()
+        pausing[0].join(1)
+        env.core.pause(False)
+        if fresh is not None:
+            fresh[0].join(1)
+
+
+
+def test_pause_requested_during_cancel_waits_for_player_stop(env):
+    stop_entered, stop_release, pause_entered = Event(), Event(), Event()
+    player = env.core._real_player
+    stop_player, pause_player = player.stop, player.pause
+    def stop():
+        stop_entered.set()
+        assert stop_release.wait(2)
+        stop_player()
+    def pause(switch):
+        pause_entered.set()
+        pause_player(switch)
+    player.stop, player.pause = stop, pause
+    cancelling, pausing = run_thread(env.core.cancel), None
+    try:
+        assert stop_entered.wait(1)
+        pausing = run_thread(lambda: env.core.pause(True))
+        assert not pause_entered.wait(.05)
+        stop_release.set()
+        finish(cancelling)
+        finish(pausing)
+        assert player.isPaused
+        env.core.pause(False)
+        fresh = run_thread(lambda: env.core.speak(()))
+        finish(fresh)
+        assert len(env.dones) == 1
+    finally:
+        stop_release.set()
+        cancelling[0].join(1)
+        if pausing is not None:
+            pausing[0].join(1)
+        env.core.pause(False)
+
+
+
+def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    idle_entered, resume_entered, resume_release = Event(), Event(), Event()
+    player = env.core._real_player
+    pause_player = player.pause
+    env.core.pause(True)
+    def pause(switch):
+        if not switch:
+            resume_entered.set()
+            assert resume_release.wait(2)
+        pause_player(switch)
+    player.pause = pause
+    player.idle = idle_entered.set
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    _, _, speech = speak(env)
+    resuming = None
+    try:
+        assert idle_entered.wait(1)
+        resuming = run_thread(lambda: env.core.pause(False))
+        assert resume_entered.wait(1)
+        assert not speech[1].wait(.05)
+        assert env.events == []
+        resume_release.set()
+        finish(resuming)
+        finish(speech)
+        assert not player.isPaused
+        assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+    finally:
+        resume_release.set()
+        if resuming is not None:
+            resuming[0].join(1)
+        env.core.pause(False)
+        speech[0].join(1)

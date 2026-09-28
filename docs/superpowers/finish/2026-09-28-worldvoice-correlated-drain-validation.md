@@ -466,3 +466,34 @@ vendored NVDA collection errors** due to unavailable Windows/NVDA/liblouis
 modules. Full log: `/tmp/worldvoice-task8-full-pytest.log`; every error path is
 copied into the Task 8 implementer report. No Cerence SDK/DLL provenance,
 callback-exclusion contract or real Windows playback device was validated.
+
+
+### Task 8 review correction: concurrent pause/cancel in VE and Cerence
+
+The review identified the same ordering gap in both outer wrappers: a blocked
+`player.pause(True)` could return after cancel reset the real player and wrapper,
+then publish stale `_paused=True`. Fresh empty speech subsequently waited forever
+for an unrelated resume. A deterministic barrier reproduced **8 failed** cases
+across VE/Cerence, with real pause taking effect before or after the barrier and
+fresh speech starting before or after the pause returned.
+
+Both wrappers now register pause intent and a revision before calling the real
+player, without holding the state lock during that operation. Cancel invalidates
+the revision and stops immediately. A superseded pause reapplies the newest
+intent after any pending stop completes. In-flight pause/resume counts keep fresh
+speech/native submission and final drain publication blocked until real player
+operations retire. Pause requested during cancel waits for that stop to finish;
+this reverse-order regression initially produced **2 failed** cases before its
+correction. A final drain regression also verifies that real resume returns
+before contextual completion. Combined new concurrency coverage: **12 passed**.
+
+Final required three-file command passes **172 tests**; addon command
+`python3 -m pytest tests -q -p no:cacheprovider` passes **922 tests**.
+`git diff --check` passes and all twenty protected baseline hashes remain
+unchanged. Full-tree pytest still exits **2** with the identical set of **191
+vendored NVDA collection errors**; log:
+`/tmp/worldvoice-task8-pause-full.log`. Required/addon logs:
+`/tmp/worldvoice-task8-pause-required.log` and
+`/tmp/worldvoice-task8-pause-addon.log`. This cross-task correction changes only
+the two outer wrappers, shared tests and validation; all real VE and Cerence
+drain profiles remain unsupported pending native provenance/quiescence proof.

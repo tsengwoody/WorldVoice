@@ -275,6 +275,8 @@ class SynthDriver(BaseSynthDriver):
 		self._legacyUsed = False
 		self._stops = 0
 		self._paused = False
+		self._pauseRevision = 0
+		self._pauses = 0
 		self._terminated = False
 		self._callbackLocal = threading.local()
 		self._speechLocal = threading.local()
@@ -399,7 +401,7 @@ class SynthDriver(BaseSynthDriver):
 	def _run_speech_locked(self, commands, work):
 		with self._speechRunLock:
 			with self._speechStateLock:
-				self._speechStateLock.wait_for(lambda: self._stops == 0)
+				self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
 				if not work.is_valid():
 					return
 				if not self._guard_installed:
@@ -425,7 +427,7 @@ class SynthDriver(BaseSynthDriver):
 			finally:
 				self._isSilence._inside_native_call = False
 				with self._speechStateLock:
-					self._speechStateLock.wait_for(lambda: self._stops == 0)
+					self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
 					self._currentWork = None
 
 	def _reset_callback_audio(self):
@@ -448,7 +450,7 @@ class SynthDriver(BaseSynthDriver):
 			call = self._segmentGate.begin_native(work) if work.playback is not None else None
 			native = _NativeWork(work, voiceInstance, call)
 			with self._speechStateLock:
-				self._speechStateLock.wait_for(lambda: self._stops == 0)
+				self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
 				self._nativeWork = native
 				self._isSilence._inside_native_call = True
 			invoked = False
@@ -477,7 +479,7 @@ class SynthDriver(BaseSynthDriver):
 					with self._speechStateLock:
 						self._speechStateLock.wait_for(lambda: native.callbacks == 0)
 				with self._speechStateLock:
-					self._speechStateLock.wait_for(lambda: self._stops == 0)
+					self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
 					if self._segmentBlockedError is None:
 						self._nativeWork = None
 				if self._segmentBlockedError is not None:
@@ -521,7 +523,8 @@ class SynthDriver(BaseSynthDriver):
 		self._real_player.idle()
 		if work is not None:
 			with self._speechStateLock:
-				self._speechStateLock.wait_for(lambda: not self._paused or not work.is_valid())
+				self._speechStateLock.wait_for(lambda: (
+					self._pauses == 0 and not self._paused) or not work.is_valid())
 				work.drained = work.is_valid() and not self._isSilence.cancelled()
 
 	def cancel(self):
@@ -532,6 +535,7 @@ class SynthDriver(BaseSynthDriver):
 			# WavePlayer.stop clears its own pause state. Keep the final idle
 			# predicate in sync so fresh speech does not await a stale pause.
 			self._paused = False
+			self._pauseRevision += 1
 			work = self._currentWork
 			if work is not None:
 				work.cancel()
@@ -567,10 +571,36 @@ class SynthDriver(BaseSynthDriver):
 	def pause(self, switch):
 		if not self._guard_installed:
 			return super().pause(switch)
-		super().pause(switch)
 		with self._speechStateLock:
+			previous = self._paused
 			self._paused = switch
+			self._pauseRevision += 1
+			request = self._pauseRevision
+			self._pauses += 1
 			self._speechStateLock.notify_all()
+		try:
+			while True:
+				with self._speechStateLock:
+					self._speechStateLock.wait_for(lambda: self._stops == 0)
+					revision, target = self._pauseRevision, self._paused
+				# Cancel can stop immediately while this player operation runs.
+				# Reapply a newer intent if an old pause took effect after stop.
+				super().pause(target)
+				with self._speechStateLock:
+					if revision == self._pauseRevision:
+						break
+		except Exception:
+			with self._speechStateLock:
+				if request == self._pauseRevision:
+					self._paused = previous
+					self._pauseRevision += 1
+			raise
+		finally:
+			with self._speechStateLock:
+				# Fresh speech and drain publication wait for real pause/resume
+				# retirement, not merely the desired state above.
+				self._pauses -= 1
+				self._speechStateLock.notify_all()
 
 	def terminate(self):
 		if not self._guard_installed:
