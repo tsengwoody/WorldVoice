@@ -374,3 +374,95 @@ Required two-file suite now passes **105 tests**. Full-tree pytest still exits
 unchanged. Real VE drain profiles remain unsupported; native callback exclusion
 and Windows playback validation are still outstanding.
 Final addon suite after these corrections: **862 passed**. Final diff check passed.
+
+
+## Task 8: Cerence native contract and correlated drain boundary (2026-09-28)
+
+Implementation baseline: `22df6da`. The outer Cerence subclass uses the Task 3
+`CallbackGate`/`PlaybackWork` lifecycle and the reviewed Task 7 serialization,
+fault, cancellation, pause and termination barriers. Cerence retains an
+independent native adapter and constructor; it does not import or assume VE's
+marker layout. The inner Cerence driver, ttsapi, manifest and native files are
+unchanged. Twenty baseline hashes covering the VE/Cerence/Neural inner sources,
+Neural SDK/CFFI DLLs and Cerence manifest were checked without changes.
+
+| Reviewed file relative to `driver/Cerence` | SHA-256 |
+| --- | --- |
+| `driver/__init__.py` | `f6f4e86c3c74e9a42061dae0588f623220158384a3ef845171cef76e6f4c7f1d` |
+| `driver/ttsapi/__init__.py` | `590697c5ff3595dc140f5dcd43bdeec5ccc9b2556ca267ec8388359606c1517e` |
+| `driver/ttsapi/veTypes.py` | `6235f180a4888a9db4fa84be9434b06ff9519c8dd4dc8425d705dd915b26194e` |
+| `driver/ttsapi/languages.py` | `3c6016ddbbba9e2a861eddfa793e12b73376ebfc1b0fa3886d81beab32d65aa8` |
+| `manifest.json` | `a4a44e20a2bed726b637b53d5e8acb99517a1373a67207ab86362dd93915ac8b` |
+
+`ttsapi.veTypes` declares `VE_CURRENT_VERSION = 0x0520` and
+`VPLATFORM_CURRENT_VERSION = 0x0200`. These installation structure versions do
+not identify a loaded SDK product/build. The binding exposes
+`getProductVersion` and `getAdditionalProductInfo`, but no matching SDK DLLs are
+available to call them. It loads external
+`WorldVoice-workspace/Cerence/lib/<architecture>/ve.dll` and `vplatform.dll`;
+this checkout has no Cerence DLLs, and `/workspace/WorldVoice-workspace/Cerence`
+does not exist. **Cerence ve.dll/vplatform.dll versions and SHA-256 hashes are
+unavailable**, rather than assumed equal to VE or any other supplied SDK.
+
+The supplied callback ABI is its own `CFUNCTYPE(c_uint, VE_HSAFE, c_void_p,
+POINTER(VE_CALLBACKMSG))`. Its `VE_MARKINFO` contains `szValue: c_char_p` and
+numeric value fields, with no VE `ulMrkId` contract. The owned callback decodes
+bookmarks with `int(szValue)` as the Cerence base does; invalid, empty or null
+values latch a failure and return USERSTOP instead of escaping ctypes or being
+swallowed as success. `ttsapi.open` registers the constructor-owned callable in
+`ve_ttsSetOutDevice`; every cached/LangChange voice instance uses that same
+callable. Foreign or missing callback instances are rejected without touching
+the current Sonic/feed buffer.
+
+`ttsapi.processText2Speech` builds its own UTF-8 `VE_INTEXT`, calls
+`ve_ttsProcessText2Speech` and discards the result. The installed checker accepts
+OK and USERSTOP, mapping both to None. The outer helper preserves raw status by
+cloning the ctypes callable using the original function type/address and declared
+ABI, then invokes the original checker without mutating it. Unsolicited USERSTOP
+fails contextual work; cancelled USERSTOP remains silent and legacy direct cancel
+keeps its anonymous DONE behavior. The real Cerence checker still raises its own
+`VeError` for an unaccepted native status.
+
+No supplied header, implementation, binary provenance or matching API contract
+establishes callback exclusion after this exact synthesis/stop/destruction API.
+The exact unsupported reason is:
+
+> The loaded Cerence ttsapi SDK has no verified callback-exclusion contract after ve_ttsProcessText2Speech returns; SDK version/build provenance and the NVDA playback profile are unverified
+
+Consequently **all real Cerence profiles remain unsupported**, with profile
+`cerence-ttsapi-0x0520-unverified`; Task 9 must choose legacy before playback.
+Missing guard installation has a separate unsupported reason. No production
+quiescence guarantee or Windows audio profile is inferred from synchronous return,
+ENDPROCESS, player idle or a temporarily empty callback count. The default native
+proof boundary closes admission, retires entered callbacks, reports failure and
+retains the old call identity without reopening it for a successor.
+
+The real outer constructor creates `_ContextualCerenceCallback` before native
+voice opening, retains `CancellableSynthDriver is SynthDriver`, and binds
+`Voice.synth_driver_class` to that outer class. One synchronous work owns all text
+chunks and voice instances; only the final real idle plus resume and validity
+check can produce its single contextual drain. Callback errors latch once on the
+original context. Cancellation/termination invalidate queued and active work and
+hold successor native submission until old callbacks, post-feed stops and the
+caller stop retire. Reentrant index/DONE termination returns to its listener and
+closes resources after the native batch exits. Sonic fallback, cancelled-tail
+reset, repeated-text/chunker handling and variant/waitfactor behavior remain.
+
+Tests run both engines through real outer/native Python constructors and ctypes
+callables with the real installed checker. Only native/Windows/player boundaries
+are controlled. An explicit fake `_confirm_native_quiescence` promise exercises
+successful drain without changing production capability reporting. The two old
+fixtures in `test_worldvoice_cancel_wrappers.py` and
+`test_worldvoice_request_manager.py` now use actual opened Cerence `VE_HSAFE`
+instances rather than the former string sentinel; ABI validation was preserved.
+
+Observed initial Cerence red: **45 failed, 3 passed, 6 skipped**, covering the
+missing callback, segment/capability and raw-status APIs. Final required command:
+`python3 -m pytest tests/test_vocalizer_segment_drain.py tests/test_worldvoice_cancel_wrappers.py tests/test_f4_engine_adapters.py -q -p no:cacheprovider`:
+**160 passed**. Addon suite `python3 -m pytest tests -q -p no:cacheprovider`:
+**910 passed**. `git diff --check` passed. Full-tree
+`python3 -m pytest -q -p no:cacheprovider` exits **2** with the existing **191
+vendored NVDA collection errors** due to unavailable Windows/NVDA/liblouis
+modules. Full log: `/tmp/worldvoice-task8-full-pytest.log`; every error path is
+copied into the Task 8 implementer report. No Cerence SDK/DLL provenance,
+callback-exclusion contract or real Windows playback device was validated.

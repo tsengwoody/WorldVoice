@@ -21,7 +21,7 @@ def native_message(types, message_type, out_data):
 
 def ready_core(engine_harness):
 	core = engine_harness.new_core()
-	core.voiceInstance = core.getVoiceInstance("fake") if engine_harness.engine == "VE" else "voice"
+	core.voiceInstance = core.getVoiceInstance("fake")
 	core.language = "en"
 	core._normalization = "OFF"
 	return core

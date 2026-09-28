@@ -127,74 +127,62 @@ def load_real_driver_with_native_stubs(monkeypatch, engine):
 		engine_path / "driver/__init__.py", True)
 	wrapped = load(f"synthDrivers.WorldVoice.driver.{engine}", engine_path / "__init__.py", True)
 
-	def fake_init(self):
-		self._player = FakePlayer()
-		self._isSilence = threading.Event()
-		self._veCallbackHandler = original.VECallback(self._player, self._isSilence,
-			self._onIndexReached)
-		self._voice = "fake"
-		self._instanceCache = {}
-
 	native = getattr(original, native_name)
 	opened = []
-	if engine == "VE":
-		monkeypatch.setattr(native, "initialize", lambda resources: None)
-		monkeypatch.setattr(native, "processText2Speech", lambda instance, text: None)
-		callback_errors = threading.local()
-		def process_native(instance, pointer):
-			try:
-				data = pointer.contents
-				text = ctypes.string_at(data.szInText, data.cntTextLength).decode("utf-8")
-				result = native.processText2Speech(instance, text)
-				return result if isinstance(result, int) else native.veTypes.NUAN_OK
-			except Exception as error:
-				# ctypes Python callbacks cannot raise through C. Re-raise at
-				# the caller's errcheck boundary, using thread-local ownership.
-				callback_errors.error = error
-				return 0xffffffff
-		process_function = ctypes.CFUNCTYPE(ctypes.c_uint,
-			native.veTypes.VE_HSAFE, ctypes.POINTER(native.veTypes.VE_INTEXT))(process_native)
-		process_function.__name__ = "ve_ttsProcessText2Speech"
-		def check_native_result(result, function, args):
-			error = getattr(callback_errors, "error", None)
-			if error is not None:
-				del callback_errors.error
-				raise error
-			# Match the supplied binding: accepted statuses are mapped to
-			# None by its real checker, rather than returned as integers.
-			return native.veCheckForError(result, function, args)
-		process_function.errcheck = check_native_result
-		monkeypatch.setattr(native, "veDll", types.SimpleNamespace(ve_ttsProcessText2Speech=process_function))
-		monkeypatch.setattr(native, "getLanguageList", lambda: [types.SimpleNamespace(
-			szLanguageTLW=b"en", szLanguage=b"English")])
-		monkeypatch.setattr(native, "getLocaleNameFromTLW", lambda value: "en")
-		monkeypatch.setattr(native, "getVoiceList", lambda language: [types.SimpleNamespace(szVoiceName=b"fake")])
-		def open_voice(voice, callback):
-			instance = native.veTypes.VE_HSAFE()
-			instance.pHandleData = len(opened) + 1
-			opened.append((voice, instance, callback))
-			return instance, voice
-		monkeypatch.setattr(native, "open", open_voice)
-	else:
-		monkeypatch.setattr(original.SynthDriver, "__init__", fake_init)
+	monkeypatch.setattr(native, "initialize", lambda resources: None)
+	monkeypatch.setattr(native, "processText2Speech", lambda instance, text: None)
+	callback_errors = threading.local()
+	def process_native(instance, pointer):
+		try:
+			data = pointer.contents
+			text = ctypes.string_at(data.szInText, data.cntTextLength).decode("utf-8")
+			result = native.processText2Speech(instance, text)
+			return result if isinstance(result, int) else native.veTypes.NUAN_OK
+		except Exception as error:
+			# ctypes Python callbacks cannot raise through C. Re-raise at
+			# the caller's errcheck boundary, using thread-local ownership.
+			callback_errors.error = error
+			return 0xffffffff
+	process_function = ctypes.CFUNCTYPE(ctypes.c_uint,
+		native.veTypes.VE_HSAFE, ctypes.POINTER(native.veTypes.VE_INTEXT))(process_native)
+	process_function.__name__ = "ve_ttsProcessText2Speech"
+	def check_native_result(result, function, args):
+		error = getattr(callback_errors, "error", None)
+		if error is not None:
+			del callback_errors.error
+			raise error
+		# Match the supplied binding: accepted statuses are mapped to
+		# None by its real checker, rather than returned as integers.
+		return native.veCheckForError(result, function, args)
+	process_function.errcheck = check_native_result
+	monkeypatch.setattr(native, "veDll", types.SimpleNamespace(ve_ttsProcessText2Speech=process_function,
+		ve_ttsGetErrorString=lambda result: b"native error"))
+	monkeypatch.setattr(native, "getLanguageList", lambda: [types.SimpleNamespace(
+		szLanguageTLW=b"en", szLanguage=b"English")])
+	monkeypatch.setattr(native, "getLocaleNameFromTLW", lambda value: "en")
+	monkeypatch.setattr(native, "getVoiceList", lambda language: [types.SimpleNamespace(szVoiceName=b"fake")])
+	def open_voice(voice, callback):
+		instance = native.veTypes.VE_HSAFE()
+		instance.pHandleData = len(opened) + 1
+		opened.append((voice, instance, callback))
+		return instance, voice
+	monkeypatch.setattr(native, "open", open_voice)
 
 	def new_core(missing=None, callback_proxy=None):
 		if missing is None and callback_proxy is None:
 			return wrapped.CancellableSynthDriver()
 		def custom_init(self):
-			if engine == "VE":
-				initialize_native(self)
-			else:
-				fake_init(self)
+			initialize_native(self)
 			if callback_proxy:
 				self._veCallbackHandler = callback_proxy(self._veCallbackHandler)
 			if missing:
 				owner = self._veCallbackHandler if missing.startswith("callback.") or missing == "_feedBuf" else self
 				field = missing.removeprefix("callback.")
 				delattr(owner, field)
-		initialize_native = getattr(wrapped.CancellableSynthDriver, "_initialize_native", None)
+		initialize_native = getattr(wrapped.CancellableSynthDriver, "_initialize_native",
+			original.SynthDriver.__init__)
 		with monkeypatch.context() as patch:
-			if engine == "VE":
+			if hasattr(wrapped.CancellableSynthDriver, "_initialize_native"):
 				patch.setattr(wrapped.CancellableSynthDriver, "_initialize_native", custom_init)
 			else:
 				patch.setattr(original.SynthDriver, "__init__", custom_init)

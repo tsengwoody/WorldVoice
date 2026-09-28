@@ -8,7 +8,7 @@ from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 from test_worldvoice_cancel_wrappers import Token, native_message
 
 
-@pytest.fixture(params=["VE"])
+@pytest.fixture(params=["VE", "Cerence"])
 def env(request, monkeypatch):
     result = load_real_driver_with_native_stubs(monkeypatch, request.param)
     result.core = result.new_core()
@@ -53,7 +53,10 @@ def speak(env, commands=("hello",), *, token=None, segment=17):
         context=context, on_event=env.events.append))
 
 
-def emit(env, instance, *, payload=b"pcm", index=None, end=True):
+_NO_BOOKMARK = object()
+
+
+def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
     callback, types = env.core._veCallbackHandler, env.types
     data = types.VE_OUTDATA()
     results = [callback(instance, None, native_message(types, types.VE_MSG_OUTBUFREQ, data))]
@@ -61,10 +64,13 @@ def emit(env, instance, *, payload=b"pcm", index=None, end=True):
         return results
     ctypes.memmove(data.pOutPcmBuf, payload, len(payload))
     data.cntPcmBufLen = len(payload)
-    data.cntMrkListLen = 0 if index is None else 1
-    if index is not None:
+    data.cntMrkListLen = 0 if index is _NO_BOOKMARK else 1
+    if index is not _NO_BOOKMARK:
         data.pMrkList[0].eMrkType = types.VE_MRK_BOOKMARK
-        data.pMrkList[0].ulMrkId = index
+        if env.engine == "VE":
+            data.pMrkList[0].ulMrkId = index
+        else:
+            data.pMrkList[0].szValue = str(index).encode("ascii") if isinstance(index, int) else index
     results.append(callback(instance, None, native_message(types, types.VE_MSG_OUTBUFDONE, data)))
     if end:
         results.append(callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, data)))
@@ -73,7 +79,7 @@ def emit(env, instance, *, payload=b"pcm", index=None, end=True):
 
 def test_native_constructor_owns_contextual_callback_before_first_open(env):
     instance = env.core.voiceInstance
-    assert isinstance(env.core._veCallbackHandler, env.module._ContextualVECallback)
+    assert isinstance(env.core._veCallbackHandler, getattr(env.module, "_Contextual" + env.engine + "Callback"))
     assert env.opened[0][1] == instance
     assert env.opened[0][2] is env.core._veCallback
     env.core._veCallbackHandler._feedBuf = BytesIO(b"keep")
@@ -124,13 +130,16 @@ def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
     def native(instance, text):
         calls.append((instance.pHandleData, text))
         works.append(env.core._nativeWork.work)
-        emit(env, instance)
+        emit(env, instance, index=len(calls))
     monkeypatch.setattr(env.native, "processText2Speech", native)
     _, _, call = speak(env, ("hello", change, "bonjour"))
     finish(call)
     assert len(calls) == 4
     assert [item[0] for item in calls] == [1, 1, 2, 2]
     assert all(work is works[0] for work in works)
+    assert env.indexes == [1, 2, 3, 4]
+    assert len(env.opened) == 2
+    assert all(opened[2] is env.core._veCallback for opened in env.opened)
     assert len(env.events) == 1
     assert env.core._real_player.idles == 1
 
@@ -579,3 +588,57 @@ def test_native_error_status_fails_context_through_installed_errcheck(env, monke
     assert env.events[0].source_id is context.source_id
     assert isinstance(env.events[0].error, env.types.VeError)
     assert env.dones == []
+
+
+@pytest.mark.parametrize("env", ["Cerence"], indirect=True)
+@pytest.mark.parametrize("bookmark", [b"23", b"-17", b"0"])
+def test_cerence_bookmark_decodes_szvalue(env, monkeypatch, bookmark):
+    prove_fake_quiescence(env, monkeypatch)
+    results = []
+    def native(instance, text):
+        results.extend(emit(env, instance, index=bookmark))
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, _, call = speak(env)
+    finish(call)
+    assert results == [env.types.NUAN_OK] * 3
+    assert env.indexes == [{b"23": 23, b"-17": -17, b"0": 0}[bookmark]]
+    assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+@pytest.mark.parametrize("env", ["Cerence"], indirect=True)
+@pytest.mark.parametrize("bookmark", [b"bad", b"", None])
+def test_cerence_bookmark_decode_fault_fails_work(env, monkeypatch, bookmark):
+    prove_fake_quiescence(env, monkeypatch)
+    results, idle_calls = [], []
+    env.core._real_player.idle = lambda: idle_calls.append(True)
+    def native(instance, text):
+        results.extend(emit(env, instance, index=bookmark))
+        # Even a later idle return cannot rehabilitate the failed work.
+        env.core._real_player.idle()
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, context, call = speak(env)
+    finish(call)
+    assert env.types.NUAN_E_TTS_USERSTOP in results
+    assert idle_calls == [True]
+    assert env.indexes == []
+    assert len(env.events) == 1
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert env.events[0].source_id is context.source_id
+    assert env.events[0].segment_id == 17
+    assert isinstance(env.events[0].error, (TypeError, ValueError))
+    assert env.dones == []
+
+
+@pytest.mark.parametrize("env", ["Cerence"], indirect=True)
+def test_callback_rejects_missing_instance_without_touching_current_buffer(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    callback = env.core._veCallbackHandler
+    def native(instance, text):
+        callback._feedBuf = BytesIO(b"current")
+        message = native_message(env.types, env.types.VE_MSG_ENDPROCESS, env.types.VE_OUTDATA())
+        assert callback(None, None, message) == env.types.NUAN_E_TTS_USERSTOP
+        assert callback._feedBuf.getvalue() == b"current"
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, _, call = speak(env)
+    finish(call)
+    assert env.core._real_player.fed == []
