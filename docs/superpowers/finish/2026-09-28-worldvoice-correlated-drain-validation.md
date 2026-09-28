@@ -119,3 +119,115 @@ Full-tree pytest still exits **2** with the same **191 vendored collection error
 error names are retained in the implementer report, with review log
 `/tmp/worldvoice-task5-review-fix-full-pytest.log`. Runtime/helper provenance remains
 unverified and all current OneCore drain profiles remain unsupported.
+
+## Task 6: Neural SDK boundary and implementation (2026-09-28)
+
+Required user baseline: commit `eb605cd307b4e3f4665143d065788f577e6626bc`.
+The original Neural snapshot (inner driver, speechapi/CFFI and DLLs) is required
+to reproduce these tests or package the wrapper; an outer-only checkout is
+insufficient. This task changes only `Neural/__init__.py`, its two new test files
+and this validation file. All inner sources and native files retain the baseline
+bytes. The SHA-256 invariant is also exercised by the focused suite.
+
+| Baseline file relative to `driver/Neural` | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `driver/__init__.py` | 13382 | `d866d5921434a475d240d97d88e31f81bae82cb6da5b54b06c44f9c705a48ef6` |
+| `driver/speechapi/__init__.py` | 4668 | `7a86eeadfffd0cea2c00cce49b39d43ce79de0aa3c605ff944a37ca3325b881b` |
+| `driver/speechapi/speechapi_cffi.py` | 47298 | `618a5d2d64574a4a0129a512b7bb73844d76d511d9b86a04243a1395fbd5d652` |
+| `driver/speechapi/Microsoft.CognitiveServices.Speech.core.dll` | 2270008 | `3e3c8caaf342d99fcc144d16d72cdcccc4f979a1ba309a12b20c5457a9e57656` |
+| `driver/speechapi/Microsoft.CognitiveServices.Speech.extension.audio.sys.dll` | 141624 | `3d15877e59495ffce1f818b962e7f6d9f90365cc7d328c939dac2de646ee335e` |
+| `driver/speechapi/Microsoft.CognitiveServices.Speech.extension.codec.dll` | 114528 | `1210e818bbc1c35e739b48b9896ccd9d7c8a1d14c141f64056e94b3d6ed50af4` |
+| `driver/speechapi/Microsoft.CognitiveServices.Speech.extension.embedded.tts.dll` | 5984568 | `89521bda1f32867625cea05887ceaf071c9e7dbe85cac6099cc73606c33bb56f` |
+| `driver/speechapi/Microsoft.CognitiveServices.Speech.extension.kws.dll` | 326456 | `b69f6934483aa6c3af9d5334d23e1e5f4274465c40e8dc9f819f0885462c1d57` |
+| `driver/speechapi/Microsoft.CognitiveServices.Speech.extension.kws.ort.dll` | 3137888 | `708e9de8dacd105fa40fd6985d7003c273871da7e9a149e59cb4f1597b81334b` |
+| `driver/speechapi/Microsoft.CognitiveServices.Speech.extension.onnxruntime.dll` | 9959776 | `3f1e42f4fe9283267145ebd489f3600e510b9478c2bb0cbddc2e586b57a8a081` |
+| `driver/speechapi/msvcp140_codecvt_ids.dll` | 31392 | `ae8d922b00cdd93e3ebecc37beb46c800f383ebdeb9f9e5b84e04a72428b6fb3` |
+
+The core/embedded/audio/codec/kws DLL `VS_FIXEDFILEINFO` file version is
+**1.50.0.28**. The ONNX Runtime DLLs identify **1.23.2.0** and the Microsoft runtime
+DLL identifies **14.50.35719.0**. File versions establish what the supplied files
+claim, not verified build provenance or a callback-lifetime contract.
+
+The supplied `speechapi` registers a fixed audio callback with a CFFI handle at
+stream construction. Its bookmark setter replaces its CFFI handle; its synchronous
+`speak_ssml` waits for a result and reads the result reason. The existing
+`stop_async` creates an async handle, wraps it with `ffi.gc`, then discards that
+wrapper without waiting. The outer wrapper does not call that method. Its own
+stop operation holds the handle from `synthesizer_stop_speaking_async`, waits with
+`synthesizer_stop_speaking_async_wait_for(handle, 0xffffffff)`, and explicitly
+releases it with `synthesizer_async_handle_release` in the background, including
+wait-error paths. These three symbols are present in the supplied CFFI binding.
+Their presence proves an API declaration only.
+
+Reviewed primary documentation:
+[Microsoft C++ SpeechSynthesizer](https://learn.microsoft.com/en-us/cpp/cognitive-services/speech/speechsynthesizer)
+describes synchronous SSML synthesis and an asynchronous stop future;
+[Microsoft .NET StopSpeakingAsync](https://learn.microsoft.com/en-us/dotnet/api/microsoft.cognitiveservices.speech.speechsynthesizer.stopspeakingasync?view=azure-dotnet)
+describes stopping synthesis and discarding unread pull-stream data.
+Neither establishes that the delivered Embedded SDK 1.50.0.28 stops initiating
+push-audio and bookmark callbacks before stop completion or synchronous speak
+return. No matching SDK implementation/source contract or loaded binary build
+provenance was delivered. This absence is not filled by temporarily observing
+zero callbacks.
+
+Accordingly, **all actual Neural profiles remain unsupported** with profile
+`embedded-speech-1.50.0.28-unverified` and a specific reason naming the missing
+audio/bookmark quiescence, SDK provenance and NVDA playback profile. Task 9 must
+choose legacy before playback. This task does not enable Neural DRAIN. The public
+segment implementation remains available, but its default native-proof boundary
+raises after waiting stop; it closes admission, waits entered leases, reports
+failure and keeps the old call identity instead of finishing/reopening its gate.
+An unproven call cannot turn its eventual late audio into the next segment.
+
+### Real-wrapper boundary exercised
+
+Tests load the real outer class, the delivered inner driver and `speechapi` Python
+constructors over a controlled fake CFFI/native DLL boundary. The native stream
+retains the constructor-installed callback handle; tests verify that it owns the
+same `_ContextualAudioCallback` used by the core. The fake's explicitly promised
+stop-quiescence boundary is injected only after the real stop-handle wait/release
+code. It never changes `get_segment_drain_support` and supplies no real SDK proof.
+
+LangChange tasks capture one PlaybackWork, original voice/synth, command tuples
+and independent settings snapshots. They flush after native proof and entered
+audio/bookmark callback retirement, and one final task waits `player.idle()` and
+resume before publishing a single contextual drain. SDK non-success, task,
+player and post-start Sonic processing/flush failures latch one failure. Sonic
+initialization before speech retains native-rate fallback; cancellation discards
+an old Sonic stream's internal PCM after its callbacks retire.
+
+Cancel invalidates queued/active work, closes old admission, stops the player and
+requests stop on the saved actual native synth. New work waits the cancelling
+player stop, synchronous speak exit, SDK stop completion/proof and admitted
+callback exit. Tests independently withhold each barrier, including a bookmark
+handler. Old bookmark handles survive the barriers and old callables never borrow
+a successor's context. Stop initiated before speak entry is followed by another
+owned stop after speak exits. No SDK global callback/class symbol is patched.
+
+Legacy playback remains available with the same settings/language splitting and
+anonymous DONE behavior, while cancellation suppresses old index/DONE and waits
+the captured native synth's stop handle. Legacy-to-correlated switching is
+rejected after pending or prior legacy work because its SDK callback lifetimes
+are unproven. Termination waits entered callbacks and the worker, including when
+no native quiescence proof exists. Reentrant termination from a failure sink
+defers joining until that callback exits. Unknown native resources/handles stay
+retained with detached or weak callbacks until process exit; they do not retain
+the driver/player/work graph. This retention is a consequence of the missing
+native destruction/quiescence guarantee, not hardware validation.
+
+Observed TDD red: **25 failed, 1 passed** (missing segment/capability/callback
+ownership APIs plus a passing legacy regression). Further observed red→green
+regressions covered cancel's still-running stop, termination with an admitted
+callback, cancelled legacy indexes, legacy driver retention, reentrant callback
+termination, queued legacy switching, and cancelled Sonic internal tail leakage.
+
+Final focused command:
+`python3 -m pytest tests/test_neural_segment_drain.py -q -p no:cacheprovider`:
+**36 passed**. Final addon command:
+`python3 -m pytest tests -q -p no:cacheprovider`: **815 passed**.
+`git diff --check` passed. Full-tree
+`python3 -m pytest -q -p no:cacheprovider` exits **2**, with the existing **191
+vendored NVDA collection errors** (unavailable Windows/NVDA/liblouis dependencies).
+Log: `/tmp/worldvoice-task6-full-pytest.log`; all error paths are copied to the
+Task 6 implementer report. No Windows device, SDK callback-quiescence contract,
+loaded native provenance or real NVDA audio profile was certified.
