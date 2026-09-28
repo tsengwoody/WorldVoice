@@ -236,6 +236,8 @@ class TaskManager:
                 and self._valid_locked(task) and task.error is None)
 
     def _completion_ready_locked(self, task):
+        if task.completion.mode is CompletionMode.DRAIN:
+            return task.drain_seen
         return (task.end_seen and
                 (task.completion.mode is not CompletionMode.END_INDEX_AND_DRAIN or task.drain_seen))
 
@@ -278,7 +280,7 @@ class TaskManager:
                     elif event.segment_id != task.segment_id:
                         continue
                     if event.kind is EventKind.INDEX:
-                        if (task.end_seen or event.index is None
+                        if (self._completion_ready_locked(task) or event.index is None
                                 or event.index in self._current_indexes):
                             continue
                         self._current_indexes.add(event.index)
@@ -308,7 +310,8 @@ class TaskManager:
     def _deliver_index(self, task, index):
         # Called with the delivery lock held; output can synchronously cancel.
         with self._state_cond:
-            valid = self._accepts_events_locked(task) and not task.end_seen
+            valid = (self._accepts_events_locked(task)
+                     and not self._completion_ready_locked(task))
         if valid:
             self._output.index_reached(index)
 
@@ -448,7 +451,7 @@ class TaskManager:
             with self._state_cond:
                 if not self._valid_locked(task):
                     return
-                # Register before entry because speak can synchronously emit END/DONE.
+                # Register before entry because speak can synchronously report completion.
                 self._current_phase = "awaiting_completion"
                 done = self._current_done_event
             # Future.cancel is public too. Wake this task's event even when
@@ -466,7 +469,7 @@ class TaskManager:
                     return
             done.wait()
             # A wake is only a signal. Wait for the complete delivery batch and
-            # then validate after speak returned; errors/cancellation beat END.
+            # then validate after speak returned; errors/cancellation beat completion.
             with self._delivery_lock:
                 with self._state_cond:
                     if not self._valid_locked(task):

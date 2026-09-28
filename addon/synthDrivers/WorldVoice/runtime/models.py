@@ -1,5 +1,6 @@
 """Immutable values shared across settings, playback and scheduling."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -55,6 +56,7 @@ class CompletionMode(Enum):
     LEGACY_DONE = "legacy_done"
     END_INDEX = "end_index"
     END_INDEX_AND_DRAIN = "end_index_and_drain"
+    DRAIN = "drain"
 
 
 @dataclass(frozen=True)
@@ -79,7 +81,7 @@ class CompletionContract:
             if self.index_range is not None:
                 raise ValueError("Legacy completion cannot declare an index range")
         elif self.index_range is None:
-            raise ValueError("Marker completion requires an index range")
+            raise ValueError("Correlated completion requires an index range")
 
 
 @dataclass(frozen=True)
@@ -106,3 +108,6 @@ class PlaybackEvent:
     index: int | None = None
     segment_id: int | None = None
     error: Exception | None = None
+
+
+SegmentEventSink = Callable[[PlaybackEvent], None]

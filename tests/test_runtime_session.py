@@ -215,7 +215,12 @@ class EventToken:
         return self.cancelled.is_set()
 
 
-def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapter, store):
+@pytest.mark.parametrize("mode", ["LEGACY_DONE", "DRAIN"])
+def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapter, store, mode):
+    if mode != "LEGACY_DONE":
+        contract = rt.models.CompletionContract(
+            getattr(rt.models.CompletionMode, mode), rt.models.IndexRange(1, 9999))
+        adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
     store.ensure(make_spec())
     token = EventToken()
     assert session.activate("Fake:a") is True
@@ -226,7 +231,12 @@ def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapt
     assert [context.segment_id for context in adapter.contexts] == [1, 2]
 
 
-def test_session_rejects_foreign_context(rt, session, adapter):
+@pytest.mark.parametrize("mode", ["LEGACY_DONE", "END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN"])
+def test_session_rejects_foreign_context(rt, session, adapter, mode):
+    if mode != "LEGACY_DONE":
+        contract = rt.models.CompletionContract(
+            getattr(rt.models.CompletionMode, mode), rt.models.IndexRange(1, 9999))
+        adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
     with pytest.raises(ValueError, match="source"):
         session.speak(("hello",), EventToken(), context=rt.models.PlaybackContext(object(), 1))
     assert adapter.spoken == []
@@ -268,13 +278,26 @@ def test_context_speak_does_not_hold_activation_lock(rt, session, adapter, store
     assert adapter.paused == [True]
 
 
-def test_marker_session_requires_context(rt, session, adapter):
+@pytest.mark.parametrize("mode", ["END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN"])
+def test_correlated_session_requires_context(rt, session, adapter, mode):
     contract = rt.models.CompletionContract(
-        rt.models.CompletionMode.END_INDEX, rt.models.IndexRange(1, 100))
+        getattr(rt.models.CompletionMode, mode), rt.models.IndexRange(1, 9999))
     adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
     with pytest.raises(ValueError, match="context"):
         session.speak(("hello",), EventToken())
     assert adapter.spoken == []
+
+
+def test_drain_session_passes_original_context_commands_and_token(rt, session, adapter):
+    contract = rt.models.CompletionContract(
+        rt.models.CompletionMode.DRAIN, rt.models.IndexRange(1, 9999))
+    adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
+    context = rt.models.PlaybackContext(session.source_id, 17)
+    commands, token = ("hello",), EventToken()
+    session.speak(commands, token, context=context)
+    assert adapter.contexts[0] is context
+    assert adapter.spoken[0][0] is commands
+    assert adapter.spoken[0][1] is token
 
 
 def test_session_rejects_finishing_foreign_context(rt, session, adapter):

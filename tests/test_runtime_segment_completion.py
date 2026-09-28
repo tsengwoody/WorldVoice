@@ -126,6 +126,107 @@ def test_done_without_end_is_not_success(manager, rt):
         future.result(1)
 
 
+def test_drain_needs_matching_drain_not_end_or_done(manager, rt, output):
+    port = marker(rt, "DRAIN")
+    _, future = start(manager, port)
+    emit(manager, rt, port, "SEGMENT_END")
+    manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, port.source_id))
+    assert not future.done()
+    emit(manager, rt, port, "INDEX", index=123)
+    assert output.indexes == [123]
+    emit(manager, rt, port, "SEGMENT_DRAINED")
+    assert future.result(1) is True
+
+
+def test_drain_rejects_wrong_source_and_segment(manager, rt):
+    class EqualSource:
+        def __eq__(self, other):
+            return True
+
+    port = marker(rt, "DRAIN")
+    port.source_id = EqualSource()
+    _, future = start(manager, port)
+    context = port.contexts[-1]
+    manager.on_event(rt.models.PlaybackEvent(
+        rt.models.EventKind.SEGMENT_DRAINED, EqualSource(), segment_id=context.segment_id))
+    wrong = rt.models.PlaybackContext(port.source_id, context.segment_id + 100)
+    emit(manager, rt, port, "SEGMENT_DRAINED", context=wrong)
+    manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.SEGMENT_DRAINED, port.source_id))
+    assert not future.done()
+    emit(manager, rt, port, "SEGMENT_DRAINED")
+    assert future.result(1) is True
+
+
+def test_duplicate_drain_cannot_advance_next_segment(manager, rt, output):
+    port, second = marker(rt, "DRAIN"), marker(rt, "DRAIN")
+    second.source_id = port.source_id
+    request, first = start(manager, port, second)
+    old = make_event(rt, port, "SEGMENT_DRAINED")
+    manager.on_events(lambda: (make_event(rt, port, "INDEX", index=123), old, old,
+                              make_event(rt, port, "INDEX", index=456)))
+    assert first.result(1) is True
+    assert second.entered.wait(1)
+    manager.on_events(lambda: (old, make_event(rt, port, "INDEX", index=789)))
+    assert not request.tasks[1].future.done()
+    assert output.indexes == [123]
+    emit(manager, rt, second, "SEGMENT_DRAINED")
+    assert request.tasks[1].future.result(1) is True
+
+
+def test_drain_waits_for_speak_return_and_rejects_late_index(manager, rt, output):
+    port, second = marker(rt, "DRAIN"), marker(rt, "DRAIN")
+    drained, release = Event(), Event()
+
+    def speak():
+        emit(manager, rt, port, "SEGMENT_DRAINED")
+        drained.set()
+        assert release.wait(2)
+
+    port.on_speak = speak
+    try:
+        _, future = start(manager, port, second)
+        assert drained.wait(1)
+        emit(manager, rt, port, "INDEX", index=123)
+        assert output.indexes == []
+        assert not future.done()
+        assert not second.entered.is_set()
+    finally:
+        release.set()
+    assert future.result(1) is True
+    assert second.entered.wait(1)
+    emit(manager, rt, second, "SEGMENT_DRAINED")
+
+
+@pytest.mark.parametrize("outcome", ["speak_error", "segment_failure", "cancel"])
+def test_drain_does_not_override_failure_or_cancellation(manager, rt, scheduler, output, outcome):
+    port, second = marker(rt, "DRAIN"), marker(rt, "DRAIN")
+    error = ValueError("after drain")
+
+    def speak():
+        emit(manager, rt, port, "SEGMENT_DRAINED")
+        if outcome == "speak_error":
+            raise error
+        if outcome == "segment_failure":
+            emit(manager, rt, port, "SEGMENT_FAILED", error=error)
+        else:
+            manager.cancel()
+
+    port.on_speak = speak
+    request, future = start(manager, port, second)
+    if outcome == "cancel":
+        with pytest.raises(CancelledError):
+            future.result(1)
+        assert request.state is scheduler.RequestState.CANCELLED
+        assert output.done_count == 0
+    else:
+        assert future.exception(1) is error
+        assert request.state is scheduler.RequestState.FAILED
+        assert output.wait_done() == 1
+    with pytest.raises(CancelledError):
+        request.tasks[1].future.result(1)
+    assert not second.entered.is_set()
+
+
 @pytest.mark.parametrize("first,second", [("SEGMENT_END", "SEGMENT_DRAINED"),
                                            ("SEGMENT_DRAINED", "SEGMENT_END")])
 def test_end_and_drain_require_same_segment(manager, rt, first, second):

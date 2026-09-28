@@ -139,7 +139,7 @@ class EngineSession:
               context: PlaybackContext | None = None) -> None:
         if context is None:
             if self.completion.mode is not CompletionMode.LEGACY_DONE:
-                raise ValueError("Marker completion requires a playback context")
+                raise ValueError("Correlated completion requires a playback context")
             self._adapter.speak(commands, token)
         else:
             if context.source_id is not self.source_id:

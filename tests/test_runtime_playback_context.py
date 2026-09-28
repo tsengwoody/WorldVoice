@@ -43,8 +43,8 @@ def test_completion_contract_defaults_to_legacy_and_is_frozen(rt):
         contract.mode = rt.models.CompletionMode.END_INDEX
 
 
-@pytest.mark.parametrize("mode", ["END_INDEX", "END_INDEX_AND_DRAIN"])
-def test_marker_completion_requires_range(rt, mode):
+@pytest.mark.parametrize("mode", ["END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN"])
+def test_correlated_completion_requires_range(rt, mode):
     mode = getattr(rt.models.CompletionMode, mode)
     with pytest.raises(ValueError):
         rt.models.CompletionContract(mode)
