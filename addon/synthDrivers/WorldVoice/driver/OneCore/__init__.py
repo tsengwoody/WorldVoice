@@ -1,5 +1,26 @@
-from .driver import OneCoreSynthDriver as SynthDriver
+import ctypes
+from dataclasses import dataclass
+from hashlib import sha256
+import io
+from pathlib import Path
+from threading import Condition, Lock, Thread
+import wave
+
+from synthDrivers import oneCore
+import nvwave
+from logHandler import log
+from synthDriverHandler import synthDoneSpeaking, synthIndexReached
+
+from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 from synthDrivers.WorldVoice.driver import Voice
+from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
+from ...runtime.playbackWork import CallbackGate, DrainSupport, PlaybackWork
+from ...runtime.session import CancellationView
+
+
+# Keep the facade first for consumers that load its class independently. The
+# correlated subclass replaces this initial class reference below.
+SynthDriver = BaseOneCoreSynthDriver
 
 
 class Voice(Voice):
@@ -13,3 +34,311 @@ class Voice(Voice):
 	@classmethod
 	def supportedSettings(cls):
 		return ['voice', 'rate', 'rateBoost', 'pitch', 'volume', 'useWasapi']
+
+
+_PROFILE = "nvda-source-9ef645d-wasapi"
+_SOURCE_HASHES = {
+	"source/synthDrivers/oneCore.py": "e762db4a0d2fd106c2fe0bbdfbc3fc50f36e72aa541a788240fa6a35c8b55692",
+	"source/nvwave.py": "20168fa23f980d6a3857bfe8e4efab72f558fe1460f890f504eda4c8616338fc",
+	"nvdaHelper/localWin10/oneCoreSpeech.cpp": "c9a6362e39c8e6be92619375a706d1bcfa5a35c4da4d01dacf9723a8ad340abe",
+	"nvdaHelper/localWin10/oneCoreSpeech.h": "50fe7ef1d411dcaeee89ffc59fc195d6fdcd80efcbbc0f7fab0332264529527d",
+	"nvdaHelper/local/wasapi.cpp": "10acce6270a54af7c76ca41373759743dae8698f59b39870e396d6c708f4e922",
+}
+# The reviewed helper can time out of terminate without invalidating the native
+# callback. Keep the ctypes pointer alive for the process lifetime in that case.
+_TERMINATED_CALLBACKS = []
+
+
+@dataclass(frozen=True)
+class _SpeechJob:
+	text: str
+	work: PlaybackWork | None
+
+
+@dataclass(frozen=True)
+class _NativeJob:
+	job: _SpeechJob
+	call_token: object | None
+
+
+class SynthDriver(BaseOneCoreSynthDriver):
+	"""Retain terminal callback ownership and drain each correlated utterance."""
+
+	def __init__(self):
+		self._segmentCondition = Condition()
+		self._segmentPauseLock = Lock()
+		self._segmentGate = CallbackGate()
+		self._segmentMode = False
+		self._segmentTerminated = False
+		self._segmentPaused = False
+		self._segmentStops = 0
+		self._segmentWorker = None
+		self._segmentNative = None
+		super().__init__()
+
+	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
+		def unsupported(reason):
+			return DrainSupport(False, _PROFILE, reason)
+
+		if audio_mode != "wasapi":
+			return unsupported("Only the reviewed WASAPI source profile has a playback barrier contract")
+		if not nvda_version.startswith("source-") or not nvda_version.endswith("-9ef645d"):
+			return unsupported("NVDA version is outside the reviewed 9ef645d source build")
+		try:
+			root = Path(oneCore.__file__).resolve().parents[2]
+			if Path(nvwave.__file__).resolve() != root / "source/nvwave.py":
+				return unsupported("Loaded audio source does not belong to the reviewed NVDA source tree")
+			for relative, expected in _SOURCE_HASHES.items():
+				if sha256((root / relative).read_bytes()).hexdigest() != expected:
+					return unsupported(f"Unverified source contract: {relative}")
+			helper = Path(self._dll._name).resolve()
+			if helper.name != "nvdaHelperLocalWin10.dll" or helper.parent.parent != root / "lib":
+				return unsupported("Native helper does not belong to the reviewed source build")
+		except (AttributeError, OSError, IndexError) as error:
+			return unsupported(f"Cannot verify loaded source/helper profile: {error}")
+		if self._segmentTerminated or not self._ocSpeechToken or not self._ocSpeechToken.value:
+			return unsupported("OneCore native initialization did not provide a live token")
+		if self._callbackInst is None:
+			return unsupported("OneCore terminal callback was not installed")
+		for name in ("ocSpeech_initialize", "ocSpeech_speak", "ocSpeech_terminate"):
+			if not callable(getattr(self._dll, name, None)):
+				return unsupported(f"Reviewed native binding is incomplete: {name}")
+		# These hashes establish the source contract exercised by the harness.
+		# A source-version string/path does not attest the loaded helper binary.
+		# No real NVDA/helper build has yet supplied matching provenance.
+		return unsupported("Native helper binary/build provenance has not been verified for this source profile")
+
+	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
+		context: PlaybackContext, on_event: SegmentEventSink) -> None:
+		work = PlaybackWork(context, token, on_event)
+		if not work.is_valid():
+			return
+		try:
+			if self.supportsProsodyOptions:
+				conv = oneCore._OcSsmlConverter(self.language, self.availableLanguages)
+			else:
+				conv = oneCore._OcPreAPI5SsmlConverter(
+					self.language, self.availableLanguages, self._rate, self._pitch, self._volume)
+			job = _SpeechJob(conv.convertToXml(tuple(commands)), work)
+			if self._player:
+				self._player.open()
+			with self._segmentCondition:
+				if self._segmentTerminated:
+					raise RuntimeError("OneCore driver has terminated")
+				if not self._segmentMode and self._isProcessing:
+					raise RuntimeError("Cannot switch to correlated playback while legacy synthesis is active")
+				self._segmentMode = True
+				self._queuedSpeech.append(job)
+			self._processQueue()
+		except Exception as error:
+			work.fail(error)
+
+	def _queueSpeech(self, item):
+		if not self._segmentMode:
+			return super()._queueSpeech(item)
+		with self._segmentCondition:
+			if self._segmentTerminated:
+				return
+			self._queuedSpeech.append(item)
+		self._processQueue()
+
+	def _processQueue(self):
+		if not self._segmentMode:
+			return super()._processQueue()
+		with self._segmentCondition:
+			if self._segmentTerminated:
+				return
+			if self._segmentWorker is None:
+				self._segmentWorker = Thread(target=self._runSegmentQueue, name="WorldVoice OneCore", daemon=True)
+				self._segmentWorker.start()
+			self._segmentCondition.notify_all()
+
+	def _runSegmentQueue(self):
+		while True:
+			with self._segmentCondition:
+				self._segmentCondition.wait_for(lambda: self._segmentTerminated or (
+					self._segmentNative is None and self._segmentStops == 0 and bool(self._queuedSpeech)))
+				if self._segmentTerminated:
+					return
+				item = self._queuedSpeech.pop(0)
+				if not isinstance(item, tuple):
+					job = item if isinstance(item, _SpeechJob) else _SpeechJob(item, None)
+					if job.work is not None and not job.work.is_valid():
+						continue
+					# No predecessor remains: its terminal callback/feeds retired
+					# before _segmentNative was cleared. begin_native cannot wait here.
+					call = self._segmentGate.begin_native(job.work) if job.work is not None else None
+					native = _NativeJob(job, call)
+					self._segmentNative = native
+					self._wasCancelled = False
+					self._isProcessing = True
+			try:
+				if isinstance(item, tuple):
+					func, value = item
+					func(self._ocSpeechToken, ctypes.c_double(value))
+				else:
+					self._dll.ocSpeech_speak(self._ocSpeechToken, native.job.text)
+			except Exception as error:
+				log.exception("OneCore queued operation failed")
+				if not isinstance(item, tuple):
+					try:
+						if native.job.work is not None:
+							native.job.work.fail(error)
+					finally:
+						self._retireSegmentNative(native)
+
+	def _retireSegmentNative(self, native):
+		if native.call_token is not None:
+			self._segmentGate.finish_native(native.call_token)
+			self._segmentGate.wait_retired(native.call_token)
+		with self._segmentCondition:
+			if self._segmentNative is native:
+				self._segmentNative = None
+				self._isProcessing = False
+			self._segmentCondition.notify_all()
+
+	def _callback(self, audio, length, markers):
+		if not self._segmentMode:
+			return super()._callback(audio, length, markers)
+		with self._segmentCondition:
+			native = self._segmentNative
+		if native is None or self._earlyExitCB:
+			return
+		work = native.job.work
+		if work is None:
+			try:
+				super()._callback(audio, length, markers)
+				# The parent's callback schedules our worker instead of recursively
+				# running its queue. Preserve the parent's legacy queue-empty DONE.
+				with self._segmentCondition:
+					empty = not self._queuedSpeech
+				if empty and self._player:
+					self._player.sync()
+					with self._segmentCondition:
+						empty = not self._queuedSpeech
+					if empty:
+						self._player.idle()
+						synthDoneSpeaking.notify(synth=self)
+			finally:
+				self._retireSegmentNative(native)
+			return
+		lease = self._segmentGate.enter_callback()
+		try:
+			if lease is None:
+				return  # Consume a cancelled terminal callback without feeding.
+			if length == 0:
+				raise RuntimeError("OneCore native synthesis returned no WAV (length=0)")
+			if length < oneCore.WAVE_HEADER_LENGTH:
+				raise ValueError("OneCore WAV header is truncated")
+			with wave.open(io.BytesIO(ctypes.string_at(audio, oneCore.WAVE_HEADER_LENGTH)), "rb") as wav:
+				self._maybeInitPlayer(wav)
+				data_len = wav.getnframes() * wav.getnchannels() * wav.getsampwidth()
+				bytes_per_sec = wav.getframerate() * wav.getnchannels() * wav.getsampwidth()
+			if data_len > length - oneCore.WAVE_HEADER_LENGTH:
+				raise ValueError("OneCore WAV payload is truncated")
+			player = self._player
+			data = audio + oneCore.WAVE_HEADER_LENGTH
+			previous = 0
+			for marker in markers.split("|") if markers else ():
+				index, position = (int(value) for value in marker.split(":"))
+				position = position * bytes_per_sec // oneCore.HUNDRED_NS_PER_SEC
+				if not previous <= position <= data_len:
+					raise ValueError("OneCore marker offset is outside ordered WAV audio")
+				if not self._feedSegment(work, player, data + previous, position - previous,
+					lambda index=index: self._segmentIndex(work, index)):
+					return
+				previous = position
+			if not self._feedSegment(work, player, data + previous, data_len - previous):
+				return
+			player.sync()
+			with self._segmentCondition:
+				self._segmentCondition.wait_for(lambda: not self._segmentPaused or not work.is_valid())
+			work.complete_drained()
+		except Exception as error:
+			log.exception("OneCore segment playback failed")
+			try:
+				work.fail(error)
+			finally:
+				if self._player:
+					self._player.stop()
+		finally:
+			try:
+				if lease is not None:
+					if not work.is_valid() and self._player:
+						self._player.stop()
+			finally:
+				if lease is not None:
+					lease.close()
+				self._retireSegmentNative(native)
+
+	def _segmentIndex(self, work, index):
+		if work.is_valid():
+			synthIndexReached.notify(synth=self, index=index)
+
+	def _feedSegment(self, work, player, address, size, on_done=None):
+		if not work.is_valid():
+			return False
+		# The callback lease is feed admission. It stays alive through this
+		# external call and the final stop, preventing a successor's admission.
+		try:
+			player.feed(ctypes.c_void_p(address), size=size, onDone=on_done)
+		finally:
+			if not work.is_valid():
+				player.stop()
+		return work.is_valid()
+
+	def _maybeInitPlayer(self, wav):
+		super()._maybeInitPlayer(wav)
+		if self._segmentMode:
+			# Serialize pause/resume with applying pause to a newly made player.
+			# Cancellation never takes this lock and can always call stop.
+			with self._segmentPauseLock:
+				if self._segmentPaused:
+					self._player.pause(True)
+
+	def cancel(self):
+		if not self._segmentMode:
+			return super().cancel()
+		with self._segmentCondition:
+			self._wasCancelled = True
+			self._segmentPaused = False
+			self._segmentStops += 1
+			for item in self._queuedSpeech:
+				if isinstance(item, _SpeechJob) and item.work is not None:
+					item.work.cancel()
+			self._queuedSpeech = [item for item in self._queuedSpeech if isinstance(item, tuple)]
+			if self._segmentNative is not None and self._segmentNative.job.work is not None:
+				self._segmentNative.job.work.cancel()
+			self._segmentCondition.notify_all()
+		try:
+			if self._player:
+				self._player.stop()
+		finally:
+			with self._segmentCondition:
+				self._segmentStops -= 1
+				self._segmentCondition.notify_all()
+
+	def pause(self, switch):
+		with self._segmentPauseLock:
+			if switch:
+				with self._segmentCondition:
+					self._segmentPaused = True
+			super().pause(switch)
+			if not switch:
+				with self._segmentCondition:
+					self._segmentPaused = False
+					self._segmentCondition.notify_all()
+
+	def terminate(self):
+		with self._segmentCondition:
+			if self._segmentTerminated:
+				return
+			self._segmentTerminated = True
+			self._earlyExitCB = True
+			self._segmentCondition.notify_all()
+		self.cancel()
+		_TERMINATED_CALLBACKS.append(self._callbackInst)
+		super().terminate()
+
+
+Voice.synth_driver_class = SynthDriver
