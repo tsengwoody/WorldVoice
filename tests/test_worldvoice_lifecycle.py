@@ -265,3 +265,43 @@ def test_bridge_unregisters_events_if_registration_fails(monkeypatch, failure):
 	with pytest.raises(RuntimeError, match="registration failed"):
 		bridge.start(lambda event: None)
 	assert done.handlers == []
+
+
+def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkeypatch):
+	closed, bound = [], {}
+	class Engine:
+		core = session = None
+		@classmethod
+		def engineOn(cls):
+			cls.core = types.SimpleNamespace()
+			if cls.engine == "first":
+				cls.core.speak_segment = lambda *args, **kwargs: None
+		@classmethod
+		def engineOff(cls):
+			closed.append(cls.engine)
+			cls.core = None
+		@classmethod
+		def supportedSettings(cls):
+			return []
+		@classmethod
+		def voices(cls):
+			return []
+	class First(Engine):
+		engine = "first"
+	class Broken(Engine):
+		engine = "broken"
+	module = _load_voice_manager(monkeypatch, {"first": First, "broken": Broken})
+	models = importlib.import_module(module.__package__ + ".runtime.models")
+	from runtime_harness import MemoryRepository
+	store = module.VoiceSettingsStore(MemoryRepository())
+	def bind(source, source_id, **kwargs):
+		bound[source_id] = source
+	bridge = types.SimpleNamespace(bind=bind, unbind=lambda source_id: bound.pop(source_id, None),
+		segment_sink=lambda source, context: lambda event: None)
+	with pytest.raises(ValueError, match="speak_segment"):
+		module.VoiceManager(object(), store, bridge,
+			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
+			completion_for=lambda cls, core: models.CompletionContract(
+				models.CompletionMode.DRAIN, models.IndexRange(1, 9999)))
+	assert closed == ["broken", "first"] and bound == {}
+	assert First.core is Broken.core is First.session is Broken.session is None

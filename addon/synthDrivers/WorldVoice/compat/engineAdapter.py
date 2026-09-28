@@ -8,7 +8,7 @@ import logging
 
 from ..runtime.models import (
     CompletionContract, CompletionMode, EngineCapabilities, PlaybackContext,
-    SpeechCommands, VoiceSnapshot, VoiceSpec,
+    SegmentEventSink, SpeechCommands, VoiceSnapshot, VoiceSpec,
 )
 from ..runtime.session import CancellationView
 
@@ -27,6 +27,7 @@ class LegacyEngineAdapter:
         self._index_ledger = index_ledger
         self._completion = completion or CompletionContract()
         self._completion_configured = completion is not None
+        self._segment_events: Callable[[PlaybackContext], SegmentEventSink] | None = None
         self._spoken = False
         self._source_id = None
         self._opened = False
@@ -64,6 +65,16 @@ class LegacyEngineAdapter:
         self._completion = contract
         self._completion_configured = True
 
+    def configure_segment_events(self, factory: Callable[[PlaybackContext], SegmentEventSink]) -> None:
+        """Connect segment notifications before the resource is published."""
+        if not self._opened or not self._completion_configured or self._spoken:
+            raise RuntimeError("Segment events must be configured after completion and before speech")
+        if not callable(getattr(self._core, "speak_segment", None)):
+            raise ValueError("Segment events require a callable speak_segment entry")
+        if not callable(factory):
+            raise TypeError("Segment event factory must be callable")
+        self._segment_events = factory
+
     def close(self) -> None:
         if not self._opened:
             return
@@ -73,12 +84,14 @@ class LegacyEngineAdapter:
         finally:
             self._core = None
             self.notification_source = None
+            self._segment_events = None
 
     def detach_alias(self) -> None:
         """Relinquish a duplicate adapter without releasing the owner's core."""
         self._opened = False
         self._core = None
         self.notification_source = None
+        self._segment_events = None
         self._voice_class.core = None
         self._voice_class.session = None
         self._voice_class._runtime_binding = None
@@ -124,26 +137,32 @@ class LegacyEngineAdapter:
               context: PlaybackContext | None = None) -> None:
         self._spoken = True
         marker_mode = self._completion.mode is not CompletionMode.LEGACY_DONE
+        drain_mode = self._completion.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX_AND_DRAIN)
         if marker_mode:
             if context is None:
-                raise ValueError("Marker completion requires a playback context")
+                raise ValueError("Correlated completion requires a playback context")
             if self._index_ledger is None:
                 raise ValueError("Marker completion requires an index ledger")
             self._source_id = context.source_id
+        if drain_mode and self._segment_events is None:
+            raise RuntimeError("Drain completion requires a segment event factory")
         if token.is_cancelled():
             if marker_mode:
                 self.finish_segment(context)
             return
-        if marker_mode:
-            # Legacy direct calls must not load NVDA command dependencies.
-            from .indexCodec import encode_segment
-            commands = encode_segment(commands, context, self._index_ledger)
         try:
+            if marker_mode:
+                # Legacy direct calls must not load NVDA command dependencies.
+                from .indexCodec import encode_segment
+                commands = encode_segment(commands, context, self._index_ledger)
+            on_event = self._segment_events(context) if drain_mode else None
             if token.is_cancelled():
                 if marker_mode:
                     self.finish_segment(context)
                 return
-            if self.capabilities.supports_cancellation_token:
+            if drain_mode:
+                self._core.speak_segment(commands, token, context=context, on_event=on_event)
+            elif self.capabilities.supports_cancellation_token:
                 self._core.speak(commands, cancellationToken=token)
             else:
                 self._core.speak(commands)

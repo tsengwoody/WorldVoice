@@ -490,3 +490,121 @@ def test_supplier_cannot_decode_replacement_binding_after_validation(marker_env,
     env.index.notify(synth=replacement, index=replacement_allocation.end_index)
     events = env.suppliers[1]()
     assert [(e.index, e.segment_id) for e in events] == [(80, 10), (81, 10), (None, 10)]
+
+
+@pytest.fixture
+def drain_env(marker_env):
+    env = marker_setup(marker_env)
+    env.contract = env.models.CompletionContract(
+        env.models.CompletionMode.DRAIN, env.models.IndexRange(1, 9999))
+    start_marker(env)
+    return env
+
+
+def segment_event(env, kind="SEGMENT_DRAINED", *, source_id=None, segment_id=None, error=None):
+    return env.models.PlaybackEvent(
+        getattr(env.models.EventKind, kind), env.source_id if source_id is None else source_id,
+        segment_id=env.context.segment_id if segment_id is None else segment_id, error=error)
+
+
+def test_segment_sink_decodes_only_inside_batch_supplier(drain_env):
+    env = drain_env
+    sink = env.bridge.segment_sink(env.source, env.context)
+    sink(segment_event(env))
+    assert env.received == []
+    assert len(env.suppliers) == 1
+    assert [(e.kind.name, e.index, e.segment_id) for e in env.suppliers[0]()] == [
+        ("INDEX", 42, 9), ("INDEX", 7, 9), ("SEGMENT_DRAINED", None, 9)]
+    assert env.suppliers[0]() == ()
+
+
+@pytest.mark.parametrize("mismatch", ["source", "segment", "done", "end", "index"])
+def test_segment_sink_rejects_unrelated_events(drain_env, mismatch):
+    env = drain_env
+    sink = env.bridge.segment_sink(env.source, env.context)
+    event = segment_event(env, source_id=object()) if mismatch == "source" else (
+        segment_event(env, segment_id=10) if mismatch == "segment" else
+        segment_event(env, {"done": "DONE", "end": "SEGMENT_END", "index": "INDEX"}[mismatch]))
+    sink(event)
+    assert env.suppliers == []
+    sink(segment_event(env))
+    assert env.suppliers[0]()[-1].kind is env.models.EventKind.SEGMENT_DRAINED
+
+
+@pytest.mark.parametrize("invalid", ["unknown", "wrong_context", "owner", "legacy"])
+def test_segment_sink_requires_correlated_source_binding(drain_env, invalid):
+    env = drain_env
+    source, context = env.source, env.context
+    if invalid == "unknown":
+        source = object()
+    elif invalid == "wrong_context":
+        context = env.models.PlaybackContext(object(), 9)
+    elif invalid == "owner":
+        source = env.owner
+        owner_id = object()
+        env.bridge.bind(source, owner_id, completion=env.contract)
+        context = env.models.PlaybackContext(owner_id, 9)
+    else:
+        env.bridge.unbind(env.source_id)
+        env.bridge.bind(source, env.source_id)
+    with pytest.raises(ValueError):
+        env.bridge.segment_sink(source, context)
+
+
+def test_segment_failure_does_not_restore_pending_indexes(drain_env):
+    env = drain_env
+    error = OSError("native failure")
+    env.bridge.segment_sink(env.source, env.context)(segment_event(env, "SEGMENT_FAILED", error=error))
+    events = env.suppliers[0]()
+    assert len(events) == 1 and events[0].error is error
+    assert env.ledger.receive_index(env.source_id, 1) == ()
+
+
+def test_old_segment_sink_drops_after_rebind(drain_env):
+    env = drain_env
+    old_sink = env.bridge.segment_sink(env.source, env.context)
+    env.bridge.unbind(env.source_id)
+    env.bridge.bind(env.source, env.source_id, completion=env.contract)
+    env.ledger.prepare(env.context, (80,))
+    old_sink(segment_event(env))
+    assert env.received == env.suppliers == []
+    env.bridge.segment_sink(env.source, env.context)(segment_event(env))
+    assert [e.index for e in env.suppliers[0]()] == [80, None]
+
+
+@pytest.mark.parametrize("release", ["unbind", "rebind", "close"])
+def test_delayed_segment_supplier_rechecks_binding(drain_env, release):
+    env = drain_env
+    env.bridge.segment_sink(env.source, env.context)(segment_event(env))
+    if release == "close":
+        env.bridge.close()
+    else:
+        env.bridge.unbind(env.source_id)
+        if release == "rebind":
+            env.bridge.bind(env.source, env.source_id, completion=env.contract)
+            env.ledger.prepare(env.context, (80,))
+    assert env.suppliers[0]() == ()
+
+
+def test_segment_supplier_rechecks_ledger_token_after_bridge_validation(drain_env, monkeypatch):
+    env = drain_env
+    env.bridge.segment_sink(env.source, env.context)(segment_event(env))
+    receive = env.ledger.receive_segment_event
+    def replace_binding(event, **kwargs):
+        assert_other_thread_can_unbind(env.bridge, env.source_id)
+        env.bridge.bind(env.source, env.source_id, completion=env.contract)
+        env.ledger.prepare(env.context, (80,))
+        return receive(event, **kwargs)
+    monkeypatch.setattr(env.ledger, "receive_segment_event", replace_binding)
+    assert env.suppliers[0]() == ()
+
+
+def test_segment_batch_stops_after_index_handler_unbinds(drain_env):
+    env = drain_env
+    def receive(load):
+        for event in load():
+            env.received.append(event)
+            assert_other_thread_can_unbind(env.bridge, env.source_id)
+    env.bridge._batch_handler = receive
+    env.bridge.segment_sink(env.source, env.context)(segment_event(env))
+    assert [(e.kind.name, e.index) for e in env.received] == [("INDEX", 42)]

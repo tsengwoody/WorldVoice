@@ -640,3 +640,215 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
         for name in tuple(sys.modules):
             if name.startswith(package + "."):
                 monkeypatch.delitem(sys.modules, name, raising=False)
+
+
+def drain_contract(c, mode="DRAIN"):
+    return c.models.CompletionContract(getattr(c.models.CompletionMode, mode), c.models.IndexRange(1, 9999))
+
+
+def test_drain_factory_configured_after_bind_before_publication(composition, monkeypatch, nvda_commands):
+    c = composition
+    cls = c.engine("drain")
+    calls, setup = [], []
+    cls.synth_driver_class.speak_segment = lambda core, commands, token, **kwargs: calls.append(kwargs)
+    configure = c.module.LegacyEngineAdapter.configure_segment_events
+    def configure_after_bind(adapter, factory):
+        assert cls.session is None
+        assert c.bridge._sources[id(cls.core)].source is cls.core
+        configure(adapter, factory)
+        setup.append(adapter)
+    monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", configure_after_bind)
+    manager = c.create(lambda cls, core: drain_contract(c))
+    port = manager.resolve_playback("drain:a")
+    context = c.models.PlaybackContext(port.source_id, 1)
+    port.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False), context=context)
+    assert len(setup) == 1
+    assert calls[0]["context"] is context and callable(calls[0]["on_event"])
+
+
+@pytest.mark.parametrize("mode", ["DRAIN", "END_INDEX_AND_DRAIN"])
+@pytest.mark.parametrize("order", ["drain_first", "end_first"])
+def test_drain_request_integrates_encoded_indexes_and_native_events(composition, nvda_commands, mode, order):
+    c = composition
+    cls = c.engine("drain")
+    cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+    manager = c.create(lambda cls, core: drain_contract(c, mode))
+    port = manager.resolve_playback("drain:a")
+    indexes, sinks, completed = [], [], threading.Event()
+    c.index.register(lambda synth, index: indexes.append(index) if synth is c.owner else None)
+    c.done.register(lambda synth: completed.set() if synth is c.owner else None)
+    def speak(commands, token, *, context, on_event):
+        sinks.append(on_event)
+        drain = c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
+                                      context.source_id, segment_id=context.segment_id)
+        if mode == "END_INDEX_AND_DRAIN" and order == "end_first":
+            c.index.notify(synth=cls.core, index=commands[-1].index)
+        on_event(drain)
+        if mode == "END_INDEX_AND_DRAIN" and order == "drain_first":
+            c.index.notify(synth=cls.core, index=commands[-1].index)
+    cls.core.speak_segment = speak
+    request = c.tasks.new_request()
+    c.tasks.append_speech(request, port, "drain:a", ("hello", nvda_commands.IndexCommand(42),
+                                                   nvda_commands.IndexCommand(7)))
+    assert c.tasks.submit_request(request)
+    assert completed.wait(1)
+    assert indexes == [42, 7] and len(sinks) == 1
+
+
+@pytest.mark.parametrize("action", ["cancel", "unbind"])
+def test_index_handler_revokes_remainder_of_drain_batch(composition, nvda_commands, action):
+    c = composition
+    cls = c.engine("drain")
+    cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+    manager = c.create(lambda cls, core: drain_contract(c))
+    port = manager.resolve_playback("drain:a")
+    entered, returned = threading.Event(), threading.Event()
+    indexes, completed = [], []
+    c.done.register(lambda synth: completed.append(synth))
+    def output(synth, index):
+        if synth is c.owner:
+            indexes.append(index)
+            if action == "cancel":
+                c.tasks.cancel((port,))
+            else:
+                c.bridge.unbind(port.source_id)
+    c.index.register(output)
+    def speak(commands, token, *, context, on_event):
+        entered.set()
+        on_event(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
+                                      context.source_id, segment_id=context.segment_id))
+        returned.set()
+    cls.core.speak_segment = speak
+    request = c.tasks.new_request()
+    future = c.tasks.append_speech(request, port, "drain:a",
+                                 (nvda_commands.IndexCommand(42), nvda_commands.IndexCommand(7)))
+    assert c.tasks.submit_request(request)
+    assert entered.wait(1) and returned.wait(1)
+    assert indexes == [42] and completed == []
+    if action == "cancel":
+        assert future.cancelled()
+    else:
+        assert not future.done()
+
+
+def test_drain_alias_uses_only_owner_event_factory(composition, monkeypatch, nvda_commands):
+    c = composition
+    shared = c.Core()
+    shared.speak_segment = lambda *args, **kwargs: None
+    first, alias = c.engine("first", shared=shared), c.engine("alias", shared=shared)
+    configured = []
+    configure = c.module.LegacyEngineAdapter.configure_segment_events
+    def record(adapter, factory):
+        configured.append(adapter)
+        configure(adapter, factory)
+    monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", record)
+    manager = c.create(lambda cls, core: drain_contract(c))
+    owner = manager.resolve_playback("first:a")
+    assert manager.resolve_playback("alias:a") is owner
+    assert configured == [owner._adapter] and len(c.bridge._sources) == 1
+    manager.terminate(commit=False)
+    assert first.session is alias.session is None and shared.closes == 1
+
+
+def test_partial_event_configuration_rolls_back_binding_and_owner(composition, monkeypatch):
+    c = composition
+    cls = c.engine("drain")
+    cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+    configure = c.module.LegacyEngineAdapter.configure_segment_events
+    def fail_after_configure(adapter, factory):
+        configure(adapter, factory)
+        assert cls.session is None
+        raise RuntimeError("partial event setup")
+    monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", fail_after_configure)
+    with pytest.raises(RuntimeError, match="partial event setup"):
+        c.create(lambda cls, core: drain_contract(c))
+    assert c.bridge._sources == {}
+    assert cls.core is cls.session is None and c.cores[0].closes == 1
+    assert c.repo.saves == []
+
+
+def test_each_drain_factory_captures_its_own_resource(composition, nvda_commands):
+    c = composition
+    first, second = c.engine("first"), c.engine("second")
+    first.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+    manager = c.create(lambda cls, core: drain_contract(c))
+    calls, completed = [], threading.Event()
+    for cls in (first, second):
+        def speak(commands, token, *, context, on_event, source=cls.core):
+            assert c.bridge._sources[id(source)].source_id is context.source_id
+            calls.append(source)
+            on_event(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
+                                          context.source_id, segment_id=context.segment_id))
+        cls.core.speak_segment = speak
+    c.done.register(lambda synth: completed.set() if synth is c.owner else None)
+    request = c.tasks.new_request()
+    for key in ("first:a", "second:a"):
+        c.tasks.append_speech(request, manager.resolve_playback(key), key, ("hello",))
+    assert c.tasks.submit_request(request) and completed.wait(1)
+    assert calls == [first.core, second.core]
+
+
+def test_reentrant_drain_supplier_waits_until_current_index_batch_finishes(composition, nvda_commands):
+    c = composition
+    cls = c.engine("drain")
+    cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+    manager = c.create(lambda cls, core: drain_contract(c))
+    port = manager.resolve_playback("drain:a")
+    delivery, current = [], {}
+    completed = threading.Event()
+    receive = c.ledger.receive_segment_event
+    def record_decode(event, **kwargs):
+        delivery.append("decode")
+        return receive(event, **kwargs)
+    c.ledger.receive_segment_event = record_decode
+    def output(synth, index):
+        if synth is c.owner:
+            delivery.append(index)
+            if index == 42:
+                current["sink"](current["event"])
+    c.index.register(output)
+    c.done.register(lambda synth: completed.set() if synth is c.owner else None)
+    def speak(commands, token, *, context, on_event):
+        current["sink"] = on_event
+        current["event"] = c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
+                                               context.source_id, segment_id=context.segment_id)
+        on_event(current["event"])
+    cls.core.speak_segment = speak
+    request = c.tasks.new_request()
+    c.tasks.append_speech(request, port, "drain:a", (nvda_commands.IndexCommand(42),
+                                                  nvda_commands.IndexCommand(7)))
+    assert c.tasks.submit_request(request) and completed.wait(1)
+    assert delivery == ["decode", 42, 7, "decode"]
+
+
+def test_old_drain_sink_cannot_complete_request_after_core_rebind(composition, nvda_commands):
+    c = composition
+    cls = c.engine("drain")
+    cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+    manager = c.create(lambda cls, core: drain_contract(c))
+    port = manager.resolve_playback("drain:a")
+    entered = threading.Event()
+    calls, indexes = [], []
+    c.index.register(lambda synth, index: indexes.append(index) if synth is c.owner else None)
+    def speak(commands, token, *, context, on_event):
+        calls.append((context, on_event))
+        entered.set()
+    cls.core.speak_segment = speak
+    first = c.tasks.new_request()
+    c.tasks.append_speech(first, port, "drain:a", ("old",))
+    assert c.tasks.submit_request(first) and entered.wait(1)
+    c.tasks.cancel((port,))
+    c.bridge.unbind(port.source_id)
+    c.bridge.bind(cls.core, port.source_id, completion=port.completion)
+    entered.clear()
+    second = c.tasks.new_request()
+    future = c.tasks.append_speech(second, port, "drain:a", ("new", nvda_commands.IndexCommand(42)))
+    assert c.tasks.submit_request(second) and entered.wait(1)
+    old_context, old_sink = calls[0]
+    old_sink(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
+                                   old_context.source_id, segment_id=old_context.segment_id))
+    assert indexes == [] and not future.done()
+    new_context, new_sink = calls[1]
+    new_sink(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
+                                   new_context.source_id, segment_id=new_context.segment_id))
+    assert future.result(1) is True and indexes == [42]

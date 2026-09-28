@@ -1,11 +1,13 @@
 """Translate NVDA notifications at the boundary of the pure voice runtime."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from threading import RLock
 
 from .indexLedger import IndexLedger
-from .runtime.models import CompletionContract, CompletionMode, EventKind, PlaybackEvent
+from .runtime.models import (
+    CompletionContract, CompletionMode, EventKind, PlaybackContext, PlaybackEvent, SegmentEventSink,
+)
 
 
 @dataclass(frozen=True, eq=False)
@@ -14,6 +16,21 @@ class _Binding:
     source_id: object
     completion: CompletionContract
     ledger_token: object | None
+
+
+class _BindingEvents(tuple):
+    """Keep one decoded batch while checking revocation between deliveries."""
+
+    def __new__(cls, events: tuple[PlaybackEvent, ...], is_active: Callable[[], bool]):
+        batch = super().__new__(cls, events)
+        batch._is_active = is_active
+        return batch
+
+    def __iter__(self) -> Iterator[PlaybackEvent]:
+        for event in super().__iter__():
+            if not self._is_active():
+                return
+            yield event
 
 
 class NvdaEventBridge:
@@ -103,6 +120,41 @@ class NvdaEventBridge:
             if any(binding.completion.mode is not CompletionMode.LEGACY_DONE for binding in bindings):
                 self._index_ledger.unbind(source_id)
         # Release source references after unlocking.
+
+    def _binding_is_active(self, binding: _Binding) -> bool:
+        with self._lock:
+            return not self._closed and self._sources.get(id(binding.source)) is binding
+
+    def segment_sink(self, source: object, context: PlaybackContext) -> SegmentEventSink:
+        """Capture the actual resource, context and binding generation for a job."""
+        with self._lock:
+            binding = self._sources.get(id(source))
+            if (self._closed or source is self._owner or binding is None
+                    or binding.source is not source or binding.source_id is not context.source_id
+                    or binding.completion.mode not in (
+                        CompletionMode.DRAIN, CompletionMode.END_INDEX_AND_DRAIN)):
+                raise ValueError("Segment events require a matching drain-capable source binding")
+            batch_handler = self._batch_handler
+
+        def receive(event: PlaybackEvent) -> None:
+            if (event.kind not in (EventKind.SEGMENT_DRAINED, EventKind.SEGMENT_FAILED)
+                    or event.source_id is not context.source_id or event.segment_id != context.segment_id
+                    or not self._binding_is_active(binding)):
+                return
+
+            def load_events() -> tuple[PlaybackEvent, ...]:
+                if not self._binding_is_active(binding):
+                    return ()
+                # Decode inside the scheduler's delivery lock. The ledger token
+                # also closes the race between bridge validation and decoding.
+                events = self._index_ledger.receive_segment_event(event, binding_token=binding.ledger_token)
+                # An INDEX handler can unbind before this batch's drain. Keep
+                # the batch intact, but stop iteration when its generation dies.
+                return _BindingEvents(events, lambda: self._binding_is_active(binding))
+
+            batch_handler(load_events)
+
+        return receive
 
     def close(self) -> None:
         with self._lock:
