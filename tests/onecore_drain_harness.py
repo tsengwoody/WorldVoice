@@ -146,7 +146,7 @@ def in_thread(function):
     return SimpleNamespace(thread=thread, done=done, errors=errors)
 
 
-def load_onecore(monkeypatch):
+def load_onecore(monkeypatch, *, rt=None, scheduler=None, voice_base=object, commands=None):
     def module(name, **attrs):
         result = ModuleType(name)
         result.__dict__.update(attrs)
@@ -167,7 +167,7 @@ def load_onecore(monkeypatch):
 
     class Base:
         def __init__(self):
-            self.availableVoices = {"voice": SimpleNamespace(id="voice", language="en_US", onecoreIndex=0)}
+            self.availableVoices = {"voice": SimpleNamespace(id="voice", displayName="Test", language="en_US", onecoreIndex=0)}
             self.availableLanguages = {"en_US"}
 
         def __getattr__(self, name):
@@ -202,13 +202,14 @@ def load_onecore(monkeypatch):
     indexes, dones, logs = [], [], []
     package("synthDrivers", ROOT / "addon/synthDrivers")
     package("synthDrivers.WorldVoice", ROOT / "addon/synthDrivers/WorldVoice")
-    package("synthDrivers.WorldVoice.driver", ROOT / "addon/synthDrivers/WorldVoice/driver", Voice=object)
-    rt = load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
-    scheduler = load_scheduler(monkeypatch, rt)
+    package("synthDrivers.WorldVoice.driver", ROOT / "addon/synthDrivers/WorldVoice/driver", Voice=voice_base)
+    rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
+    scheduler = scheduler or load_scheduler(monkeypatch, rt)
     package("speech", ROOT)
-    commands = module("speech.commands", **{name: type(name, (), {}) for name in (
+    commands = commands or module("speech.commands", **{name: type(name, (), {}) for name in (
         "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
         "PitchCommand", "RateCommand", "VolumeCommand", "PhonemeCommand")})
+    monkeypatch.setitem(sys.modules, "speech.commands", commands)
     module("speech.types", SpeechSequence=list)
     module("speechXml", SsmlConverter=Converter, toNvdaLang=lambda text: text.replace("-", "_"))
     module("comtypes", BSTR=str)

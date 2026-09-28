@@ -34,7 +34,8 @@ class FakePlayer:
 		self.closes += 1
 
 
-def load_real_driver_with_native_stubs(monkeypatch, engine):
+def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_base=object,
+                                      commands=None, property_setters=False):
 	root = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
 	engine_path = root / engine
 	native_name = "ve2" if engine == "VE" else "ttsapi"
@@ -51,7 +52,7 @@ def load_real_driver_with_native_stubs(monkeypatch, engine):
 
 	class Setting:
 		def __init__(self, *args, **kwargs):
-			pass
+			self.id = args[0] if args else ""
 
 	class BaseSynthDriver:
 		VoiceSetting = VariantSetting = RateSetting = RateBoostSetting = PitchSetting = VolumeSetting = Setting
@@ -62,6 +63,13 @@ def load_real_driver_with_native_stubs(monkeypatch, engine):
 				if getter is not None:
 					return getter(self)
 			raise AttributeError(name)
+
+		def __setattr__(self, name, value):
+			setter = getattr(type(self), "_set_" + name, None) if property_setters and not name.startswith("_") else None
+			if setter is not None:
+				setter(self, value)
+			else:
+				object.__setattr__(self, name, value)
 
 	class LanguageInfo:
 		def __init__(self, language):
@@ -93,10 +101,11 @@ def load_real_driver_with_native_stubs(monkeypatch, engine):
 	module("languageHandler", getLanguageDescription=lambda language: language)
 	module("addonHandler", initTranslation=lambda: None, getRunningAddons=lambda: [])
 	package("speech", root, commands=None, CHUNK_SEPARATOR=" ")
-	commands = module("speech.commands", **{name: type(name, (Command,), {}) for name in (
+	commands = commands or module("speech.commands", **{name: type(name, (Command,), {}) for name in (
 		"IndexCommand", "CharacterModeCommand", "LangChangeCommand", "PitchCommand",
 		"BreakCommand", "SpeechCommand", "RateCommand", "VolumeCommand",
 	)})
+	monkeypatch.setitem(sys.modules, "speech.commands", commands)
 	sys.modules["speech"].commands = commands
 	module("synthDriverHandler", SynthDriver=BaseSynthDriver, LanguageInfo=LanguageInfo,
 		VoiceInfo=VoiceInfo, synthIndexReached=Notification(), synthDoneSpeaking=Notification())
@@ -107,8 +116,8 @@ def load_real_driver_with_native_stubs(monkeypatch, engine):
 	package("synthDrivers", root.parents[1])
 	package("synthDrivers.WorldVoice", root.parent)
 	from runtime_harness import load_runtime
-	rt = load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
-	package("synthDrivers.WorldVoice.driver", root, Voice=object,
+	rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
+	package("synthDrivers.WorldVoice.driver", root, Voice=voice_base,
 		getVoiceKey=lambda engine, name: f"{engine}:{name}")
 	module("synthDrivers.WorldVoice.driver.arabic_text", break_repeated_runs=lambda text: text)
 	module("synthDrivers.WorldVoice.driver.chunker", split_speech_text_pieces=lambda text: [text])

@@ -254,7 +254,7 @@ def in_thread(function):
     return SimpleNamespace(thread=thread, done=done, errors=errors)
 
 
-def load_neural(monkeypatch, tmp_path):
+def load_neural(monkeypatch, tmp_path, *, rt=None, scheduler=None, voice_base=object, commands=None):
     def module(name, **attrs):
         result = ModuleType(name)
         result.__dict__.update(attrs)
@@ -301,6 +301,7 @@ def load_neural(monkeypatch, tmp_path):
     class VoiceInfo:
         def __init__(self, id, name, language):
             self.id, self.name, self.language = id, name, language
+            self.displayName = name
 
     class Notification:
         def __init__(self, notify):
@@ -317,12 +318,13 @@ def load_neural(monkeypatch, tmp_path):
         done_event.set()
     package("synthDrivers", ROOT / "addon/synthDrivers")
     package("synthDrivers.WorldVoice", ROOT / "addon/synthDrivers/WorldVoice")
-    package("synthDrivers.WorldVoice.driver", NEURAL.parent, Voice=object)
-    rt = load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
-    scheduler = load_scheduler(monkeypatch, rt)
+    package("synthDrivers.WorldVoice.driver", NEURAL.parent, Voice=voice_base)
+    rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
+    scheduler = scheduler or load_scheduler(monkeypatch, rt)
     package("speech", ROOT)
-    commands = module("speech.commands", **{name: type(name, (), {}) for name in (
+    commands = commands or module("speech.commands", **{name: type(name, (), {}) for name in (
         "BreakCommand", "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "RateCommand", "PitchCommand", "VolumeCommand")})
+    monkeypatch.setitem(sys.modules, "speech.commands", commands)
     module("speechXml", SsmlConverter=Converter)
     module("configobj", ConfigObj=object)
     module("addonHandler", getRunningAddons=lambda: ())

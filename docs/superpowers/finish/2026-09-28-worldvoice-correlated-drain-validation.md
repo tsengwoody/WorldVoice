@@ -563,3 +563,56 @@ collection errors. Logs: `/tmp/worldvoice-task8-shutdown-red.log`,
 `/tmp/worldvoice-task8-shutdown-full.log`. Scope remains the two outer wrappers,
 shared segment tests and validation. Native SDK provenance remains unverified;
 all real VE/Cerence drain profiles remain unsupported.
+
+
+### Task 10: correlated drain integration across all four wrappers
+
+`tests/runtime_drain_integration_harness.py` composes the production VoiceManager,
+VoiceFacade, LegacyEngineAdapter, EngineSession, settings store, request builder,
+scheduler, index ledger and NVDA event bridge with the actual OneCore, Neural,
+VE and Cerence outer/inner Python wrappers. The existing native loaders accept
+optional shared runtime, scheduler, command classes and the real Voice base.
+Only Windows/NVDA dependency objects, native synthesis and player ports are
+controlled. Each actual player idle/sync call has its own unreleased barrier;
+native calls and blocked audio feed are observed independently of notifications.
+The explicit fake-native callback exclusion promise exercises contextual drain
+without changing any wrapper's production support decision.
+
+The 43 integration cases cover each wrapper's original index before drain and
+request DONE; OneCore→Neural→OneCore and VE→Cerence→VE admission barriers; a
+request containing Pause with one DONE; cached activation applying once while
+two different contexts drain; pause/resume after actual idle; blocked-feed
+cancellation followed by a same-source segment; stale sinks and anonymous DONE;
+sink revocation across unbind/rebind; setting revisions and cached voice switches;
+LangChange to another actual native synth/voice followed by cancellation; saved
+Neural bookmark callbacks and foreign Vocalizer callback instances; blank,
+index-only and break-only commands; and unsupported profiles using legacy from
+their very first native call. The real legacy OneCore path requires both sync
+and idle, which are released separately by the fixture.
+
+Initial fixture runs exposed test dependency/metadata omissions, then the first
+ten normal-flow cases passed. After fixing two test inputs (Neural's primary
+language `fr`, and both OneCore legacy player barriers), all 43 passed without
+product changes. Three independent, process-local fault injections proved RED
+against observable completion/admission behavior:
+
+- Premature OneCore SEGMENT_DRAINED while its actual sync was held caused
+  `test_next_engine_starts_only_after_segment_drain[engines0]` to fail because
+  Neural's actual native entry event became set before release.
+- Bypassing bridge binding-generation revocation caused
+  `test_old_sink_is_revoked_across_unbind_rebind` to fail because the rebound
+  request completed while its actual audio remained unreleased.
+- Migrating a cancelled callback to the successor's current context caused
+  `test_cancel_and_stale_sink_cannot_release_new_same_source_segment[OneCore]`
+  to fail because the successor Future completed before its idle release.
+
+Each mutation run exited 1 with one expected failed test; the latter two failed
+the required TimeoutError assertion. None edited repository production files.
+Final `python3 -m pytest tests/test_runtime_drain_integration.py -q -p
+no:cacheprovider`: **43 passed in 2.13s**. Final `python3 -m pytest tests -q -p
+no:cacheprovider`: **1060 passed in 20.66s**. `git diff --check` passed.
+Full-tree `python3 -m pytest -q -p no:cacheprovider` exits **2** with the existing
+**191 vendored NVDA collection errors**; every named error and traceback is in
+`/tmp/worldvoice-task10-full-pytest.log`. No driver code, production capability,
+native SDK provenance or Windows device certification was changed. No product
+defect was discovered by these integration cases. `finish_task.md` is unchanged.
