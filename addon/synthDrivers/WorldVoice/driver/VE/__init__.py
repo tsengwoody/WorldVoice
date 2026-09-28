@@ -132,7 +132,18 @@ class ProcessText2Speech(BaseProcessText2Speech):
 		data.eTextFormat = VE_NORM_TEXT
 		data.cntTextLength = len(text)
 		data.szInText = cast(c_char_p(text), c_void_p)
-		result = ve2.veDll.ve_ttsProcessText2Speech(self._instance, byref(data))
+		native = ve2.veDll.ve_ttsProcessText2Speech
+		# The installed errcheck maps OK and USERSTOP to None. Clone the
+		# ctypes callable with its original ABI/argument/result declarations;
+		# never remove or replace the shared function's checker, even briefly.
+		raw = type(native)(cast(native, c_void_p).value)
+		raw.restype = native.restype
+		raw.argtypes = native.argtypes
+		checker = native.errcheck
+		args = (self._instance, byref(data))
+		result = raw(*args)
+		if checker is not None:
+			checker(result, native, args)
 		if result not in (NUAN_OK, NUAN_E_TTS_USERSTOP):
 			raise RuntimeError(f"VE native synthesis failed with result {result}")
 		return result
@@ -180,6 +191,7 @@ class _ContextualVECallback(base.VECallback):
 				return NUAN_OK
 			return NUAN_E_TTS_USERSTOP
 		work = lease.work
+		driver._callbackLocal.depth = getattr(driver._callbackLocal, "depth", 0) + 1
 		try:
 			with self._processingLock:
 				if not work.is_valid():
@@ -241,6 +253,7 @@ class _ContextualVECallback(base.VECallback):
 				work.fault(error)
 			finally:
 				lease.close()
+				driver._callbackLocal.depth -= 1
 
 	def detach(self):
 		self._driver = None
@@ -263,6 +276,12 @@ class SynthDriver(BaseSynthDriver):
 		self._stops = 0
 		self._paused = False
 		self._terminated = False
+		self._callbackLocal = threading.local()
+		self._speechLocal = threading.local()
+		self._terminationRequested = False
+		self._terminationCleaning = False
+		self._terminationDone = threading.Event()
+		self._terminationError = None
 		self._initialize_native()
 		self._install_guard()
 
@@ -367,6 +386,17 @@ class SynthDriver(BaseSynthDriver):
 		return result
 
 	def _run_speech(self, commands, work):
+		self._speechLocal.depth = getattr(self._speechLocal, "depth", 0) + 1
+		try:
+			return self._run_speech_locked(commands, work)
+		finally:
+			self._speechLocal.depth -= 1
+			# A notification may request termination while this thread owns
+			# the native batch/lease. Close resources only after releasing it.
+			if self._terminationRequested:
+				self._finish_termination()
+
+	def _run_speech_locked(self, commands, work):
 		with self._speechRunLock:
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stops == 0)
@@ -498,6 +528,9 @@ class SynthDriver(BaseSynthDriver):
 			return super().cancel()
 		with self._speechStateLock:
 			self._isSilence.set()
+			# WavePlayer.stop clears its own pause state. Keep the final idle
+			# predicate in sync so fresh speech does not await a stale pause.
+			self._paused = False
 			work = self._currentWork
 			if work is not None:
 				work.cancel()
@@ -541,17 +574,45 @@ class SynthDriver(BaseSynthDriver):
 	def terminate(self):
 		if not self._guard_installed:
 			return super().terminate()
-		self.cancel()
-		with self._speechRunLock:
-			if self._terminated:
-				return
+		reentrant = bool(getattr(self._callbackLocal, "depth", 0) or
+			getattr(self._speechLocal, "depth", 0))
+		with self._speechStateLock:
+			first = not self._terminationRequested
+			self._terminationRequested = True
 			self._terminated = True
-			callback = self._veCallback
-			self._veCallbackHandler.detach()
-			# ve2.close/uninitialize do not supply verified pointer-lifetime
-			# evidence either. Retain the detached native callable safely.
-			_RETAINED_CALLBACKS.append(callback)
-			super().terminate()
+		if first:
+			try:
+				self.cancel()
+			except Exception as error:
+				self._terminationError = error
+		if reentrant:
+			# The synchronous SDK may be waiting for this very callback to
+			# return. Its batch will finish cleanup after native/lease exit.
+			return
+		self._finish_termination()
+		if self._terminationError is not None:
+			raise self._terminationError
+
+	def _finish_termination(self):
+		with self._speechStateLock:
+			first = not self._terminationCleaning
+			self._terminationCleaning = True
+		if not first:
+			self._terminationDone.wait()
+			return
+		try:
+			with self._speechRunLock:
+				callback = self._veCallback
+				self._veCallbackHandler.detach()
+				# The native destruction API also lacks pointer-lifetime proof.
+				_RETAINED_CALLBACKS.append(callback)
+				super().terminate()
+		except Exception as error:
+			if self._terminationError is None:
+				self._terminationError = error
+			log.error("WorldVoice VE termination failed", exc_info=True)
+		finally:
+			self._terminationDone.set()
 
 
 CancellableSynthDriver = SynthDriver

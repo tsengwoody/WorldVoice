@@ -14,18 +14,21 @@ class FakePlayer:
 		self.idles = 0
 		self.pauses = []
 		self.closes = 0
+		self.isPaused = False
 
 	def feed(self, data):
 		self.fed.append(data)
 
 	def stop(self):
 		self.stops += 1
+		self.isPaused = False
 
 	def idle(self):
 		self.idles += 1
 
 	def pause(self, switch):
 		self.pauses.append(switch)
+		self.isPaused = switch
 
 	def close(self):
 		self.closes += 1
@@ -137,12 +140,31 @@ def load_real_driver_with_native_stubs(monkeypatch, engine):
 	if engine == "VE":
 		monkeypatch.setattr(native, "initialize", lambda resources: None)
 		monkeypatch.setattr(native, "processText2Speech", lambda instance, text: None)
+		callback_errors = threading.local()
 		def process_native(instance, pointer):
-			data = ctypes.cast(pointer, ctypes.POINTER(native.veTypes.VE_INTEXT)).contents
-			text = ctypes.string_at(data.szInText, data.cntTextLength).decode("utf-8")
-			result = native.processText2Speech(instance, text)
-			return result if isinstance(result, int) else native.veTypes.NUAN_OK
-		monkeypatch.setattr(native, "veDll", types.SimpleNamespace(ve_ttsProcessText2Speech=process_native))
+			try:
+				data = pointer.contents
+				text = ctypes.string_at(data.szInText, data.cntTextLength).decode("utf-8")
+				result = native.processText2Speech(instance, text)
+				return result if isinstance(result, int) else native.veTypes.NUAN_OK
+			except Exception as error:
+				# ctypes Python callbacks cannot raise through C. Re-raise at
+				# the caller's errcheck boundary, using thread-local ownership.
+				callback_errors.error = error
+				return 0xffffffff
+		process_function = ctypes.CFUNCTYPE(ctypes.c_uint,
+			native.veTypes.VE_HSAFE, ctypes.POINTER(native.veTypes.VE_INTEXT))(process_native)
+		process_function.__name__ = "ve_ttsProcessText2Speech"
+		def check_native_result(result, function, args):
+			error = getattr(callback_errors, "error", None)
+			if error is not None:
+				del callback_errors.error
+				raise error
+			# Match the supplied binding: accepted statuses are mapped to
+			# None by its real checker, rather than returned as integers.
+			return native.veCheckForError(result, function, args)
+		process_function.errcheck = check_native_result
+		monkeypatch.setattr(native, "veDll", types.SimpleNamespace(ve_ttsProcessText2Speech=process_function))
 		monkeypatch.setattr(native, "getLanguageList", lambda: [types.SimpleNamespace(
 			szLanguageTLW=b"en", szLanguage=b"English")])
 		monkeypatch.setattr(native, "getLocaleNameFromTLW", lambda value: "en")

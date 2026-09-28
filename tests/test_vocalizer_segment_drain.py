@@ -463,3 +463,119 @@ def test_pause_holds_completion_after_real_idle(env, monkeypatch):
     env.core.pause(False)
     finish(call)
     assert len(env.events) == 1
+
+
+@pytest.mark.parametrize("status", [0, 0x80000807, 0xffffffff])
+def test_raw_status_survives_installed_ctypes_errcheck(env, monkeypatch, status):
+    native_function = env.native.veDll.ve_ttsProcessText2Speech
+    # The real installed checker returns None for OK and USERSTOP.
+    native_function.errcheck = env.native.veCheckForError
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: status)
+    if status == 0xffffffff:
+        with pytest.raises(env.types.VeError):
+            env.module.ProcessText2Speech(env.core.voiceInstance, "hello")()
+    else:
+        assert env.module.ProcessText2Speech(env.core.voiceInstance, "hello")() == status
+    assert native_function.errcheck is env.native.veCheckForError
+
+
+def test_raw_status_call_does_not_mutate_shared_errcheck_concurrently(env, monkeypatch):
+    native_function = env.native.veDll.ve_ttsProcessText2Speech
+    native_function.errcheck = env.native.veCheckForError
+    entered, release = Event(), Event()
+    def process(instance, text):
+        if text == "outer":
+            entered.set()
+            assert release.wait(2)
+        return env.types.NUAN_OK
+    monkeypatch.setattr(env.native, "processText2Speech", process)
+    results = []
+    outer = run_thread(lambda: results.append(env.module.ProcessText2Speech(env.core.voiceInstance, "outer")()))
+    try:
+        assert entered.wait(1)
+        data = env.types.VE_INTEXT()
+        text = b"original"
+        data.eTextFormat = env.types.VE_NORM_TEXT
+        data.cntTextLength = len(text)
+        data.szInText = ctypes.cast(ctypes.c_char_p(text), ctypes.c_void_p)
+        assert native_function(env.core.voiceInstance, ctypes.byref(data)) is None
+        assert native_function.errcheck is env.native.veCheckForError
+    finally:
+        release.set()
+    finish(outer)
+    assert results == [0]
+
+
+def test_cancel_resets_pause_before_next_legacy_speech(env, monkeypatch):
+    # Empty speech reaches idle without the native ABI, isolating pause state.
+    env.core.pause(True)
+    env.core.cancel()
+    call = run_thread(lambda: env.core.speak(()))
+    try:
+        finish(call)
+        assert len(env.dones) == 1
+    finally:
+        env.core.pause(False)
+        call[0].join(1)
+
+
+def test_done_listener_can_terminate_without_deadlocking_speech(env, monkeypatch):
+    monkeypatch.setattr(env.native, "close", lambda instance: None)
+    monkeypatch.setattr(env.native, "terminate", lambda: None)
+    monkeypatch.setattr(env.original_driver.synthDoneSpeaking, "notify", lambda **kwargs: env.core.terminate())
+    call = run_thread(lambda: env.core.speak(()))
+    try:
+        finish(call)
+        assert env.core._real_player.closes == 1
+    finally:
+        if not call[1].is_set():
+            # Rescue the pre-fix non-reentrant lock so this RED cannot leave
+            # a permanently blocked thread in the test process.
+            env.core._speechRunLock.release()
+            call[0].join(1)
+
+
+def test_index_listener_can_terminate_and_retire_native_before_close(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    monkeypatch.setattr(env.native, "close", lambda instance: None)
+    monkeypatch.setattr(env.native, "terminate", lambda: None)
+    listener_returned, native_returned, closed = Event(), Event(), Event()
+    close_player = env.core._real_player.close
+    def close():
+        assert native_returned.is_set()
+        close_player()
+        closed.set()
+    env.core._real_player.close = close
+    def index(**kwargs):
+        env.core.terminate()
+        assert not closed.is_set()
+        listener_returned.set()
+    monkeypatch.setattr(env.original_driver.synthIndexReached, "notify", index)
+    def process(instance, text):
+        emit(env, instance, index=7)
+        native_returned.set()
+    monkeypatch.setattr(env.native, "processText2Speech", process)
+    _, _, call = speak(env)
+    try:
+        assert listener_returned.wait(1)
+        finish(call)
+        assert closed.wait(1)
+        assert env.events == []
+    finally:
+        if not call[1].is_set():
+            env.core._speechRunLock.release()
+            call[0].join(1)
+
+
+def test_native_error_status_fails_context_through_installed_errcheck(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    # Exercise the real ve2 checker, not a Python exception from the stub.
+    env.native.veDll.ve_ttsProcessText2Speech.errcheck = env.native.veCheckForError
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: 0xffffffff)
+    _, context, call = speak(env)
+    finish(call)
+    assert len(env.events) == 1
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert env.events[0].source_id is context.source_id
+    assert isinstance(env.events[0].error, env.types.VeError)
+    assert env.dones == []

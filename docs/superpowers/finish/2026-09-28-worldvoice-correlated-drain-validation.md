@@ -326,3 +326,51 @@ dependencies. Log: `/tmp/worldvoice-task7-full-pytest.log`; all error paths are
 copied to the Task 7 implementer report. No Windows playback device, matching VE
 SDK callback-exclusion contract, loaded binary provenance or real audio profile
 was validated; VE DRAIN enablement acceptance remains outstanding.
+
+### Task 7 review corrections
+
+Review found that the initial raw-result path still used the binding's shared
+ctypes function with its installed `veCheckForError`. That checker returns
+`None` for both accepted native statuses, so the first harness, which returned
+integers directly, did not represent the delivered ABI behavior. The corrected
+harness uses a real ctypes CFuncPtr and the real checker, including deterministic
+end-to-end success, USERSTOP and native error cases.
+
+The outer ProcessText2Speech now creates an independent callable from the
+original ctypes function class and address and copies its declared restype and
+argtypes. This preserves the original calling convention and ABI declarations.
+It invokes the captured original checker for native error handling while keeping
+the raw result. It never changes the shared callable's checker, restype,
+argtypes or library metadata. A concurrency regression blocks the outer call
+inside native and independently invokes the original function, proving its
+installed checker still masks accepted status while the outer call retains it.
+Unknown native error codes still raise the original `VeError`; unsolicited
+USERSTOP produces a contextual failure, and cancellation-triggered USERSTOP
+remains silent with the existing legacy DONE behavior.
+
+Cancellation now clears the wrapper's pause state and wakes waiters, matching
+WavePlayer.stop's pause reset. A pause/cancel/fresh-speech regression reaches
+real idle and legacy DONE without requiring pause(False).
+
+Index and DONE notification listeners can request termination reentrantly.
+Termination immediately invalidates work and rejects new native submission,
+then returns to the notification when its thread owns the speech batch or a
+callback lease. That batch performs cleanup after native return, callback
+retirement and release of the serialization lock. Ordinary/repeated termination
+waits for that cleanup. Tests cover empty speech DONE termination and native
+bookmark termination, including proving that player close happens after the
+synchronous native call exits. The native callback and resource ownership
+barriers remain in place.
+
+Observed review red: **6 failed, 1 passed**, covering masked accepted statuses,
+concurrent original/outer function behavior, pause/cancel and both reentrant
+notification paths. The passing case retained the native `VeError` contract.
+The stronger harness also exposed a request-manager fixture using a string
+instead of a VE_HSAFE; that fixture now uses the actual opened VE instance and
+keeps the Cerence branch unchanged. Its focused regression passes **2 tests**.
+Required two-file suite now passes **105 tests**. Full-tree pytest still exits
+**2** with the same **191 vendored NVDA collection errors**; review log:
+`/tmp/worldvoice-task7-review-fix-full-pytest.log`. Inner VE and Task 6 files remain
+unchanged. Real VE drain profiles remain unsupported; native callback exclusion
+and Windows playback validation are still outstanding.
+Final addon suite after these corrections: **862 passed**. Final diff check passed.

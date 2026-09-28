@@ -738,7 +738,7 @@ def test_direct_wrapper_stop_mid_speech_lets_next_segment_run(manager, buses, mo
 	monkeypatch.setattr(harness.original_driver, "synthDoneSpeaking", buses.done)
 	monkeypatch.setattr(harness.original_driver, "synthIndexReached", buses.index)
 	core = harness.new_core()
-	core.voiceInstance = "voice"
+	core.voiceInstance = core.getVoiceInstance("fake") if engine == "VE" else "voice"
 	core.language = "en"
 	core._normalization = "OFF"
 	spoken = []
