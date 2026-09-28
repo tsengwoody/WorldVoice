@@ -83,3 +83,65 @@ def test_codec_constructor_failure_retires_mapping(codec_env, monkeypatch):
     assert env.ledger.receive_index(env.source_id, 501) == ()
     assert env.ledger.receive_index(env.source_id, 502) == ()
     assert env.ledger.prepare(env.context, ()).end_index == 503
+
+
+@pytest.fixture
+def drain_codec_env(codec_env):
+    env = codec_env
+    ledger = env.support.ledger.IndexLedger()
+    source_id = object()
+    contract = env.models.CompletionContract(
+        env.models.CompletionMode.DRAIN, env.models.IndexRange(1, 9999))
+    token = ledger.bind(object(), source_id, contract)
+    yield SimpleNamespace(support=env.support, ledger=ledger, source_id=source_id,
+                          context=env.models.PlaybackContext(source_id, 1),
+                          token=token, commands=env.commands, models=env.models)
+    ledger.close()
+
+
+def test_drain_codec_rewrites_ordinary_indexes_without_terminal_or_input_mutation(drain_codec_env):
+    env = drain_codec_env
+    original, repeated = env.commands.IndexCommand(123), env.commands.IndexCommand(123)
+    last = env.commands.IndexCommand(7)
+    other = object()
+    commands = ["hello", original, other, repeated, last]
+    encoded = encode(env, commands)
+    assert isinstance(encoded, tuple) and len(encoded) == 5
+    assert encoded[0] is commands[0] and encoded[2] is other
+    assert [encoded[i].index for i in (1, 3, 4)] == [1, 2, 3]
+    assert all(type(encoded[i]) is env.commands.IndexCommand for i in (1, 3, 4))
+    assert encoded[1] is not original and encoded[3] is not repeated
+    assert [commands[i].index for i in (1, 3, 4)] == [123, 123, 7]
+    assert commands == ["hello", original, other, repeated, last]
+    event = env.models.PlaybackEvent(env.models.EventKind.SEGMENT_DRAINED,
+                                    env.source_id, segment_id=1)
+    assert [e.index for e in env.ledger.receive_segment_event(event, binding_token=env.token)] == [123, 7, None]
+
+
+def test_drain_codec_empty_input_does_not_construct_internal_marker(drain_codec_env, monkeypatch):
+    env = drain_codec_env
+    def fail_marker(self, index):
+        raise AssertionError("DRAIN must not construct an internal marker")
+    monkeypatch.setattr(env.support.commands.WorldVoiceIndexCommand, "__init__", fail_marker)
+    assert encode(env, ()) == ()
+    allocation = env.ledger.prepare(env.models.PlaybackContext(env.source_id, 2), (42,))
+    assert allocation.wire_indexes == (1,) and allocation.end_index is None
+
+
+def test_drain_codec_rejects_external_internal_command_before_allocation(drain_codec_env):
+    env = drain_codec_env
+    marker = env.support.commands.WorldVoiceIndexCommand(123)
+    with pytest.raises(ValueError):
+        encode(env, (env.commands.IndexCommand(7), marker))
+    assert env.ledger.prepare(env.context, (7,)).wire_indexes == (1,)
+
+
+def test_drain_codec_rejects_exhausted_segment_before_output(drain_codec_env):
+    env = drain_codec_env
+    env.ledger.prepare(env.models.PlaybackContext(env.source_id, 2), tuple(range(9999)))
+    original = env.commands.IndexCommand(123)
+    commands = ["hello", original]
+    with pytest.raises(env.support.ledger.IndexSpaceExhausted):
+        encode(env, commands)
+    assert commands == ["hello", original] and original.index == 123
+    assert encode(env, ()) == ()

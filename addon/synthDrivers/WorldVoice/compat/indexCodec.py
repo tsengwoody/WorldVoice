@@ -1,4 +1,4 @@
-"""Encode caller indexes and a single terminal marker at the engine boundary."""
+"""Encode caller indexes and any required terminal marker at the engine boundary."""
 
 from speech.commands import IndexCommand
 
@@ -24,7 +24,9 @@ def encode_segment(commands: SpeechCommands, context: PlaybackContext,
         indexes = iter(allocation.wire_indexes)
         encoded = tuple(IndexCommand(next(indexes)) if isinstance(command, IndexCommand)
                         else command for command in commands)
-        return (*encoded, WorldVoiceIndexCommand(allocation.end_index))
+        if allocation.end_index is not None:
+            return (*encoded, WorldVoiceIndexCommand(allocation.end_index))
+        return encoded
     except Exception:
         ledger.retire_segment(context)
         raise
