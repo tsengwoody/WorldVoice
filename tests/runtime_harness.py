@@ -32,7 +32,9 @@ def load_runtime(monkeypatch, package_name=PACKAGE):
     models = load(f"{package_name}.models", RUNTIME / "models.py")
     settings = load(f"{package_name}.settings", RUNTIME / "settings.py")
     session = load(f"{package_name}.session", RUNTIME / "session.py")
-    return SimpleNamespace(package=package, models=models, settings=settings, session=session)
+    playback_work = load(f"{package_name}.playbackWork", RUNTIME / "playbackWork.py")
+    return SimpleNamespace(package=package, models=models, settings=settings, session=session,
+                           playback_work=playback_work)
 
 
 def load_scheduler(monkeypatch, rt):
