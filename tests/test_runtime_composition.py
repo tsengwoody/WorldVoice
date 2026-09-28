@@ -693,11 +693,13 @@ def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
 def test_supported_installed_wrapper_is_bound_before_first_drain_speech(composition, monkeypatch, nvda_commands, engine):
     c = composition
     installed = installed_drain_voice(c, monkeypatch, engine)
+    if engine == "OneCore":
+        installed.driver.useWasapi = True
     select, logs = runtime_completion_selector(c)
     manager = c.create(select)
     port = manager.resolve_playback(engine + ":a")
     assert port.completion.mode is c.models.CompletionMode.DRAIN
-    assert installed.checked == [("synthetic", "default")]
+    assert installed.checked == [("synthetic", "wasapi" if engine == "OneCore" else "default")]
     assert logs == []
     done, indexes = threading.Event(), []
     c.done.register(lambda synth: done.set() if synth is c.owner else None)
@@ -711,6 +713,34 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(composit
     assert indexes == [42]
     with pytest.raises(RuntimeError, match="before speech"):
         port._adapter.configure_completion(c.models.CompletionContract())
+    policies = importlib.import_module(c.module.__package__ + ".compat.completionPolicies")
+    assert policies._VERIFIED_CONTRACTS == {}
+
+
+@pytest.mark.parametrize("use_wasapi,audio_mode,completion_mode", [
+    (True, "wasapi", "DRAIN"), (False, "legacy", "LEGACY_DONE"),
+    ("absent", "unknown", "LEGACY_DONE"), (None, "unknown", "LEGACY_DONE"),
+    ("true", "unknown", "LEGACY_DONE"), (1, "unknown", "LEGACY_DONE"),
+    (0, "unknown", "LEGACY_DONE"),
+])
+def test_onecore_mode_sensitive_support_uses_actual_opened_core(
+        composition, monkeypatch, use_wasapi, audio_mode, completion_mode):
+    c = composition
+    installed = installed_drain_voice(c, monkeypatch)
+    if use_wasapi != "absent":
+        installed.driver.useWasapi = use_wasapi
+    checked = []
+    def support(self, *, nvda_version, audio_mode):
+        checked.append((nvda_version, audio_mode))
+        return installed.support_type(audio_mode == "wasapi", "mode-sensitive-test-profile",
+                                      "Only the reviewed WASAPI audio profile is supported")
+    installed.driver.get_segment_drain_support = support
+    select, logs = runtime_completion_selector(c)
+    manager = c.create(select)
+    port = manager.resolve_playback("OneCore:a")
+    assert checked == [("synthetic", audio_mode)]
+    assert port.completion.mode is getattr(c.models.CompletionMode, completion_mode)
+    assert len(logs) == (0 if completion_mode == "DRAIN" else 1)
     policies = importlib.import_module(c.module.__package__ + ".compat.completionPolicies")
     assert policies._VERIFIED_CONTRACTS == {}
 

@@ -448,7 +448,7 @@ class SynthDriver(SynthDriver):
 
 	def _completion_for(self, voice_class, core):
 		audio_mode = "default"
-		if voice_class.engine == "SAPI5":
+		if voice_class.engine in ("SAPI5", "OneCore"):
 			use_wasapi = getattr(core, "useWasapi", None)
 			audio_mode = "wasapi" if use_wasapi is True else "legacy" if use_wasapi is False else "unknown"
 		drain_supported = False

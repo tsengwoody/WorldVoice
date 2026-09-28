@@ -103,8 +103,9 @@ def test_configure_after_speech_is_rejected(env):
 
 
 @pytest.mark.parametrize("engine,use_wasapi,expected", [
-    ("SAPI5", True, "wasapi"), ("SAPI5", False, "legacy"), ("OneCore", True, "default"),
-    ("SAPI5", None, "unknown"),
+    ("SAPI5", True, "wasapi"), ("SAPI5", False, "legacy"), ("SAPI5", None, "unknown"),
+    ("OneCore", True, "wasapi"), ("OneCore", False, "legacy"), ("OneCore", None, "unknown"),
+    ("OneCore", "true", "unknown"), ("OneCore", 1, "unknown"), ("OneCore", 0, "unknown"),
 ])
 def test_synth_policy_uses_actual_opened_core(env, engine, use_wasapi, expected):
     selected = []
