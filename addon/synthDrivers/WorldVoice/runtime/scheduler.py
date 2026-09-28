@@ -241,6 +241,11 @@ class TaskManager:
         return (task.end_seen and
                 (task.completion.mode is not CompletionMode.END_INDEX_AND_DRAIN or task.drain_seen))
 
+    def _indexes_finished_locked(self, task):
+        if task.completion.mode is CompletionMode.DRAIN:
+            return task.drain_seen
+        return task.end_seen
+
     def on_event(self, event: PlaybackEvent) -> None:
         self.on_events(lambda: (event,))
 
@@ -280,7 +285,7 @@ class TaskManager:
                     elif event.segment_id != task.segment_id:
                         continue
                     if event.kind is EventKind.INDEX:
-                        if (self._completion_ready_locked(task) or event.index is None
+                        if (self._indexes_finished_locked(task) or event.index is None
                                 or event.index in self._current_indexes):
                             continue
                         self._current_indexes.add(event.index)
@@ -311,7 +316,7 @@ class TaskManager:
         # Called with the delivery lock held; output can synchronously cancel.
         with self._state_cond:
             valid = (self._accepts_events_locked(task)
-                     and not self._completion_ready_locked(task))
+                     and not self._indexes_finished_locked(task))
         if valid:
             self._output.index_reached(index)
 

@@ -242,6 +242,19 @@ def test_end_and_drain_require_same_segment(manager, rt, first, second):
     assert future.result(1) is True
 
 
+def test_end_and_drain_rejects_index_after_end_while_waiting_for_drain(manager, rt, output):
+    port = marker(rt, "END_INDEX_AND_DRAIN")
+    _, future = start(manager, port)
+    emit(manager, rt, port, "INDEX", index=123)
+    emit(manager, rt, port, "SEGMENT_END")
+    emit(manager, rt, port, "INDEX", index=456)
+    assert output.indexes == [123]
+    assert not future.done()
+    emit(manager, rt, port, "SEGMENT_DRAINED")
+    assert future.result(1) is True
+    assert output.indexes == [123]
+
+
 def test_index_delivery_precedes_terminal_batch(manager, rt, output):
     port, next_port = marker(rt), marker(rt)
     start(manager, port, next_port)
