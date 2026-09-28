@@ -528,3 +528,38 @@ exits **2** with the identical **191** named vendored collection errors. Logs:
 `/tmp/worldvoice-task8-pause-fault-addon.log`, and
 `/tmp/worldvoice-task8-pause-fault-full.log`. Native files, inner drivers,
 capability policy and `finish_task.md` remain unchanged.
+
+
+### Task 8 review correction: shutdown retires pause/stop ownership
+
+Fresh review found that speech serialization alone did not retire a pause fault's
+counted cleanup stop when no speech was active. Terminate could close resources
+while that stop still ran. New deterministic cases produced **12 failed** tests:
+blocked fault cleanup with one/two concurrent terminators, reentrant termination
+from real pause/cancel/fault-stop operations, and termination from player close.
+
+Shutdown now seals new pause admission, waits for both pause and stop ownership
+counts to reach zero under speech serialization, and atomically seals further
+cancel admission before base/native/player cleanup. A late cancel therefore
+cannot start another stop against closing resources. Operation and cleanup thread
+ownership extends the existing speech/callback reentrancy check: a terminate
+caller cannot wait for its own operation or cleanup. Cleanup is deferred to the
+outer owner after retirement; concurrent/repeated external termination waits for
+one cleanup. No real player or native operation runs under the state lock.
+
+The no-speech regression holds the failed pause's cleanup stop, independently
+allows shutdown's stop to finish, and proves native close/terminate and player
+close remain withheld. After releasing the old stop, one cleanup completes and
+new pause/cancel activity cannot touch closed resources. Existing native callback
+and speech reentrant termination regressions also remain green.
+
+New shutdown cases: **12 passed**. Required suite: **196 passed**. Addon suite:
+**946 passed**. All twenty protected hashes and diff checks remain unchanged/clean.
+Full-tree pytest exits **2** with exactly the same **191** named vendored
+collection errors. Logs: `/tmp/worldvoice-task8-shutdown-red.log`,
+`/tmp/worldvoice-task8-shutdown-green.log`,
+`/tmp/worldvoice-task8-shutdown-required.log`,
+`/tmp/worldvoice-task8-shutdown-addon.log`, and
+`/tmp/worldvoice-task8-shutdown-full.log`. Scope remains the two outer wrappers,
+shared segment tests and validation. Native SDK provenance remains unverified;
+all real VE/Cerence drain profiles remain unsupported.

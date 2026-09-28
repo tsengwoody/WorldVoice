@@ -872,3 +872,135 @@ def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch
         # Release the pre-fix paused work so RED does not leak a thread.
         env.core.cancel()
         speech[0].join(1)
+
+
+
+@pytest.mark.parametrize("terminators", [1, 2])
+def test_terminate_waits_for_pause_fault_stop_without_active_speech(env, monkeypatch, terminators):
+    player = env.core._real_player
+    stop_entered, stop_release, shutdown_stop, closed = Event(), Event(), Event(), Event()
+    stops, stops_after_close, native_closes, native_terminations = [], [], [], []
+    error = OSError("pause failed before shutdown")
+    player.pause = lambda switch: (_ for _ in ()).throw(error)
+    stop_player, close_player = player.stop, player.close
+    def stop():
+        if closed.is_set():
+            stops_after_close.append(True)
+        stops.append(True)
+        if len(stops) == 1:
+            stop_entered.set()
+            assert stop_release.wait(5)
+        else:
+            shutdown_stop.set()
+        stop_player()
+    def close():
+        close_player()
+        closed.set()
+    player.stop, player.close = stop, close
+    instance = env.core.voiceInstance
+    monkeypatch.setattr(env.native, "close", lambda value: native_closes.append(value))
+    monkeypatch.setattr(env.native, "terminate", lambda: native_terminations.append(True))
+    pausing, shutting_down = run_thread(lambda: env.core.pause(True)), []
+    try:
+        assert stop_entered.wait(1)
+        shutting_down = [run_thread(env.core.terminate) for _ in range(terminators)]
+        assert shutdown_stop.wait(1)
+        assert not closed.wait(.05)
+        assert native_closes == []
+        assert native_terminations == []
+        assert all(not call[1].is_set() for call in shutting_down)
+        with pytest.raises(RuntimeError, match="terminated"):
+            env.core.pause(True)
+        stop_release.set()
+        assert_operation_failed(pausing, error)
+        for call in shutting_down:
+            finish(call)
+        assert closed.is_set()
+        assert player.closes == 1
+        assert native_closes == [instance]
+        assert native_terminations == [True]
+        env.core.terminate()
+        env.core.cancel()
+        with pytest.raises(RuntimeError, match="terminated"):
+            env.core.pause(False)
+        assert player.closes == 1
+        assert stops_after_close == []
+    finally:
+        stop_release.set()
+        pausing[0].join(1)
+        for call in shutting_down:
+            call[0].join(1)
+
+
+@pytest.mark.parametrize("operation", ["pause", "cancel", "fault_stop"])
+def test_reentrant_player_terminate_waits_for_own_operation(env, monkeypatch, operation):
+    player = env.core._real_player
+    operation_returned, listener_returned = Event(), Event()
+    stop_player, pause_player, close_player = player.stop, player.pause, player.close
+    monkeypatch.setattr(env.native, "close", lambda value: None)
+    monkeypatch.setattr(env.native, "terminate", lambda: None)
+    calls = []
+    def stop():
+        calls.append(True)
+        if len(calls) == 1 and operation in ("cancel", "fault_stop"):
+            env.core.terminate()
+            assert player.closes == 0
+            listener_returned.set()
+            stop_player()
+            operation_returned.set()
+        else:
+            stop_player()
+    error = OSError("reentrant pause failure")
+    def pause(switch):
+        if operation == "fault_stop":
+            raise error
+        env.core.terminate()
+        assert player.closes == 0
+        listener_returned.set()
+        pause_player(switch)
+        operation_returned.set()
+    def close():
+        assert operation_returned.is_set()
+        close_player()
+    player.stop, player.pause, player.close = stop, pause, close
+    action = env.core.cancel if operation == "cancel" else lambda: env.core.pause(True)
+    call = run_thread(action)
+    try:
+        if operation == "fault_stop":
+            assert_operation_failed(call, error)
+        else:
+            finish(call)
+        assert listener_returned.is_set()
+        assert player.closes == 1
+        env.core.terminate()
+        assert player.closes == 1
+    finally:
+        if not call[1].is_set():
+            # Release a pre-fix self-wait from RED, without leaving a thread.
+            env.core._terminationDone.set()
+            call[0].join(1)
+
+
+
+def test_reentrant_terminate_from_player_close_does_not_wait_for_itself(env, monkeypatch):
+    player = env.core._real_player
+    close_player = player.close
+    listener_returned = Event()
+    monkeypatch.setattr(env.native, "close", lambda value: None)
+    monkeypatch.setattr(env.native, "terminate", lambda: None)
+    def close():
+        env.core.terminate()
+        listener_returned.set()
+        close_player()
+    player.close = close
+    call = run_thread(env.core.terminate)
+    try:
+        finish(call)
+        assert listener_returned.is_set()
+        assert player.closes == 1
+        env.core.terminate()
+        assert player.closes == 1
+    finally:
+        if not call[1].is_set():
+            env.core._terminationDone.set()
+            call[0].join(1)

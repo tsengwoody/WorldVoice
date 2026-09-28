@@ -280,6 +280,9 @@ class SynthDriver(BaseSynthDriver):
 		self._terminated = False
 		self._callbackLocal = threading.local()
 		self._speechLocal = threading.local()
+		self._playerLocal = threading.local()
+		self._terminationLocal = threading.local()
+		self._playerClosing = False
 		self._terminationRequested = False
 		self._terminationCleaning = False
 		self._terminationDone = threading.Event()
@@ -531,6 +534,8 @@ class SynthDriver(BaseSynthDriver):
 		if not self._guard_installed:
 			return super().cancel()
 		with self._speechStateLock:
+			if self._playerClosing:
+				return
 			self._isSilence.set()
 			# WavePlayer.stop clears its own pause state. Keep the final idle
 			# predicate in sync so fresh speech does not await a stale pause.
@@ -545,6 +550,7 @@ class SynthDriver(BaseSynthDriver):
 			if native is not None:
 				native.admitting = False
 			self._stops += 1
+			self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
 			self._speechStateLock.notify_all()
 		if native is not None and native.call_token is not None:
 			self._segmentGate.close(native.call_token)
@@ -554,6 +560,7 @@ class SynthDriver(BaseSynthDriver):
 			with self._speechStateLock:
 				self._stops -= 1
 				self._speechStateLock.notify_all()
+			self._retire_player_operation()
 
 	def _onIndexReached(self, index):
 		if not self._guard_installed:
@@ -572,14 +579,19 @@ class SynthDriver(BaseSynthDriver):
 		if not self._guard_installed:
 			return super().pause(switch)
 		with self._speechStateLock:
+			if self._terminated:
+				raise RuntimeError("Cerence driver has terminated")
 			self._paused = switch
 			self._pauseRevision += 1
 			self._pauses += 1
+			self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
 			self._speechStateLock.notify_all()
 		try:
 			while True:
 				with self._speechStateLock:
 					self._speechStateLock.wait_for(lambda: self._stops == 0)
+					if self._terminated:
+						break
 					revision, target = self._pauseRevision, self._paused
 				# Cancel can stop immediately while this player operation runs.
 				# Reapply a newer intent if an old pause took effect after stop.
@@ -621,12 +633,23 @@ class SynthDriver(BaseSynthDriver):
 				# retirement, not merely the desired state above.
 				self._pauses -= 1
 				self._speechStateLock.notify_all()
+			self._retire_player_operation()
+
+	def _is_reentrant_termination(self):
+		return bool(getattr(self._callbackLocal, "depth", 0) or
+			getattr(self._speechLocal, "depth", 0) or
+			getattr(self._playerLocal, "depth", 0) or
+			getattr(self._terminationLocal, "cleaning", False))
+
+	def _retire_player_operation(self):
+		self._playerLocal.depth -= 1
+		if self._terminationRequested and not self._is_reentrant_termination():
+			self._finish_termination()
 
 	def terminate(self):
 		if not self._guard_installed:
 			return super().terminate()
-		reentrant = bool(getattr(self._callbackLocal, "depth", 0) or
-			getattr(self._speechLocal, "depth", 0))
+		reentrant = self._is_reentrant_termination()
 		with self._speechStateLock:
 			first = not self._terminationRequested
 			self._terminationRequested = True
@@ -637,22 +660,30 @@ class SynthDriver(BaseSynthDriver):
 			except Exception as error:
 				self._terminationError = error
 		if reentrant:
-			# The synchronous SDK may be waiting for this very callback to
-			# return. Its batch will finish cleanup after native/lease exit.
+			# The caller may own speech, a callback, a player operation or
+			# cleanup itself. Its outer owner finishes after retirement.
 			return
 		self._finish_termination()
 		if self._terminationError is not None:
 			raise self._terminationError
 
 	def _finish_termination(self):
+		if self._is_reentrant_termination():
+			return
 		with self._speechStateLock:
 			first = not self._terminationCleaning
 			self._terminationCleaning = True
 		if not first:
 			self._terminationDone.wait()
 			return
+		self._terminationLocal.cleaning = True
 		try:
 			with self._speechRunLock:
+				with self._speechStateLock:
+					self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
+					# Seal atomically with the zero-operation barrier so a late
+					# cancel cannot start another stop against closing resources.
+					self._playerClosing = True
 				callback = self._veCallback
 				self._veCallbackHandler.detach()
 				# The native destruction API also lacks pointer-lifetime proof.
@@ -663,6 +694,7 @@ class SynthDriver(BaseSynthDriver):
 				self._terminationError = error
 			log.error("WorldVoice Cerence termination failed", exc_info=True)
 		finally:
+			self._terminationLocal.cleaning = False
 			self._terminationDone.set()
 
 
