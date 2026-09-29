@@ -1,5 +1,6 @@
 from collections import OrderedDict, defaultdict
 from collections.abc import Mapping
+from dataclasses import replace
 from operator import attrgetter
 from typing import Callable, TypeVar, Dict, List
 import re
@@ -104,7 +105,7 @@ class VoiceManager(object):
 			if owner is not None:
 				session = owner[1]
 				self._resources.append((adapter.notification_source, session, adapter, cls, False))
-				completion = self._completion_for(cls, adapter.notification_source)
+				completion = self._resource_completion(cls, adapter.notification_source)
 				if completion != session.completion:
 					raise ValueError("Aliases of one resource must share a completion contract")
 				adapter.configure_completion(session.completion)
@@ -112,13 +113,16 @@ class VoiceManager(object):
 				session = EngineSession(adapter, self.settings)
 				self._resources.append((adapter.notification_source, session, adapter, cls, True))
 				session.open()
-				completion = self._completion_for(cls, adapter.notification_source)
+				completion = self._resource_completion(cls, adapter.notification_source)
 				adapter.configure_completion(completion)
 				# Claim ownership before binding, since bind may register then raise.
 				self._bridge.bind(adapter.notification_source, session.source_id, completion=completion)
 				if completion.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX_AND_DRAIN):
 					adapter.configure_segment_events(
 						lambda context, source=adapter.notification_source: self._bridge.segment_sink(source, context))
+				elif completion.legacy_contextual:
+					adapter.configure_legacy_segment_events(
+						lambda context, source=adapter.notification_source: self._bridge.legacy_segment_sink(source, context))
 			cls.session = session
 			cls._runtime_binding = LegacyVoiceBinding(self.settings, session, self.getVoiceSpec)
 			# Only bound, operational resources become visible to resolvers.
@@ -130,6 +134,12 @@ class VoiceManager(object):
 		if not self.table:
 			raise RuntimeError("No WorldVoice voices are available from enabled speech engines.")
 		self._defaultVoiceInstance = self.getVoiceInstance(self._getDefaultVoiceMeta().name)
+
+	def _resource_completion(self, cls, source):
+		completion = self._completion_for(cls, source)
+		if completion.mode is CompletionMode.LEGACY_DONE and callable(getattr(source, "speak_legacy_segment", None)):
+			completion = replace(completion, legacy_contextual=True)
+		return completion
 
 	def terminate(self, *, commit=True):
 		if self._terminated:

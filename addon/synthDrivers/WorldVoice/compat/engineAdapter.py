@@ -28,6 +28,7 @@ class LegacyEngineAdapter:
         self._completion = completion or CompletionContract()
         self._completion_configured = completion is not None
         self._segment_events: Callable[[PlaybackContext], SegmentEventSink] | None = None
+        self._legacy_events: Callable[[PlaybackContext], SegmentEventSink] | None = None
         self._spoken = False
         self._source_id = None
         self._opened = False
@@ -75,6 +76,16 @@ class LegacyEngineAdapter:
             raise TypeError("Segment event factory must be callable")
         self._segment_events = factory
 
+    def configure_legacy_segment_events(self, factory: Callable[[PlaybackContext], SegmentEventSink]) -> None:
+        """Connect software-correlated legacy events without certifying drain."""
+        if not self._opened or not self._completion_configured or self._spoken:
+            raise RuntimeError("Legacy events must be configured after completion and before speech")
+        if not self._completion.legacy_contextual or not callable(getattr(self._core, "speak_legacy_segment", None)):
+            raise ValueError("Contextual legacy events require a callable speak_legacy_segment entry")
+        if not callable(factory):
+            raise TypeError("Legacy segment event factory must be callable")
+        self._legacy_events = factory
+
     def close(self) -> None:
         if not self._opened:
             return
@@ -85,6 +96,8 @@ class LegacyEngineAdapter:
             self._core = None
             self.notification_source = None
             self._segment_events = None
+            self._legacy_events = None
+            self._spoken = False
 
     def detach_alias(self) -> None:
         """Relinquish a duplicate adapter without releasing the owner's core."""
@@ -92,6 +105,8 @@ class LegacyEngineAdapter:
         self._core = None
         self.notification_source = None
         self._segment_events = None
+        self._legacy_events = None
+        self._spoken = False
         self._voice_class.core = None
         self._voice_class.session = None
         self._voice_class._runtime_binding = None
@@ -138,6 +153,9 @@ class LegacyEngineAdapter:
         self._spoken = True
         marker_mode = self._completion.mode is not CompletionMode.LEGACY_DONE
         drain_mode = self._completion.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX_AND_DRAIN)
+        legacy_contextual = self._completion.legacy_contextual and context is not None
+        if self._completion.legacy_contextual and context is None:
+            raise ValueError("Contextual legacy completion requires a playback context")
         if marker_mode:
             if context is None:
                 raise ValueError("Correlated completion requires a playback context")
@@ -146,6 +164,8 @@ class LegacyEngineAdapter:
             self._source_id = context.source_id
         if drain_mode and self._segment_events is None:
             raise RuntimeError("Drain completion requires a segment event factory")
+        if legacy_contextual and self._legacy_events is None:
+            raise RuntimeError("Contextual legacy completion requires a segment event factory")
         if token.is_cancelled():
             if marker_mode:
                 self.finish_segment(context)
@@ -156,12 +176,16 @@ class LegacyEngineAdapter:
                 from .indexCodec import encode_segment
                 commands = encode_segment(commands, context, self._index_ledger)
             on_event = self._segment_events(context) if drain_mode else None
+            if legacy_contextual:
+                on_event = self._legacy_events(context)
             if token.is_cancelled():
                 if marker_mode:
                     self.finish_segment(context)
                 return
             if drain_mode:
                 self._core.speak_segment(commands, token, context=context, on_event=on_event)
+            elif legacy_contextual:
+                self._core.speak_legacy_segment(commands, token, context=context, on_event=on_event)
             elif self.capabilities.supports_cancellation_token:
                 self._core.speak(commands, cancellationToken=token)
             else:

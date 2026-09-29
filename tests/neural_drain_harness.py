@@ -185,6 +185,7 @@ class Player:
         self.stop_release = Event()
         self.stop_release.set()
         self.paused = False
+        self.pause_calls = []
         self.closed = False
         self.error = None
 
@@ -210,6 +211,10 @@ class Player:
         self.idle_release.set()
 
     def pause(self, switch):
+        assert not self.closed, "Pause ran after player close"
+        self.pause_calls.append(switch)
+        if self.error == ("pause" if switch else "resume"):
+            raise OSError("audio control failed")
         self.paused = switch
 
     def close(self):

@@ -94,6 +94,8 @@ class NvdaEventBridge:
                 if existing.completion != completion:
                     raise ValueError("Notification source cannot change its completion contract")
                 return
+            if completion.legacy_contextual and self._batch_handler is None:
+                raise ValueError("Contextual legacy completion requires a batch handler")
             ledger_token = None
             if completion.mode is not CompletionMode.LEGACY_DONE:
                 if self._index_ledger is None or self._batch_handler is None:
@@ -156,6 +158,31 @@ class NvdaEventBridge:
 
         return receive
 
+    def legacy_segment_sink(self, source: object, context: PlaybackContext) -> SegmentEventSink:
+        """Capture legacy event identity without claiming native drain support."""
+        with self._lock:
+            binding = self._sources.get(id(source))
+            if (self._closed or source is self._owner or binding is None
+                    or binding.source is not source or binding.source_id is not context.source_id
+                    or not binding.completion.legacy_contextual or self._batch_handler is None):
+                raise ValueError("Legacy segment events require a matching contextual legacy binding")
+            batch_handler = self._batch_handler
+
+        def receive(event: PlaybackEvent) -> None:
+            if (event.kind not in (EventKind.INDEX, EventKind.DONE, EventKind.SEGMENT_FAILED)
+                    or event.source_id is not context.source_id or event.segment_id != context.segment_id
+                    or not self._binding_is_active(binding)):
+                return
+
+            def load_events() -> tuple[PlaybackEvent, ...]:
+                if not self._binding_is_active(binding):
+                    return ()
+                return _BindingEvents((event,), lambda: self._binding_is_active(binding))
+
+            batch_handler(load_events)
+
+        return receive
+
     def close(self) -> None:
         with self._lock:
             if self._closed:
@@ -200,6 +227,8 @@ class NvdaEventBridge:
             handler = self._handler
             batch_handler = self._batch_handler
         if binding.completion.mode is CompletionMode.LEGACY_DONE:
+            if binding.completion.legacy_contextual:
+                return  # Only the context-bound sink may complete this source.
             if handler is not None:
                 handler(PlaybackEvent(kind, binding.source_id, index))
         elif kind is EventKind.INDEX and batch_handler is not None:

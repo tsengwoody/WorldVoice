@@ -1,5 +1,8 @@
 from threading import Event, current_thread
 import gc
+from pathlib import Path
+import subprocess
+import sys
 import weakref
 
 import pytest
@@ -249,6 +252,203 @@ def test_pause_holds_drain_until_resume(env, monkeypatch):
     assert len(events) == 1
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("terminate", [False, True])
+def test_late_pause_retires_before_cancel_handoff_or_player_close(env, monkeypatch, legacy, terminate):
+    prove_fake_quiescence(env, monkeypatch)
+    if legacy:
+        env.driver.speak(("old legacy",))
+        old_events = []
+    else:
+        _, _, old_events, _ = speak(env)
+    env.native.wait_calls(1)
+    original_pause, original_stop = env.player.pause, env.player.stop
+    pause_entered, release_pause, stopped = Event(), Event(), Event()
+
+    def blocked_pause(switch):
+        if switch:
+            pause_entered.set()
+            assert release_pause.wait(2), "Test did not release pause"
+        original_pause(switch)
+
+    def observed_stop():
+        original_stop()
+        stopped.set()
+
+    monkeypatch.setattr(env.player, "pause", blocked_pause)
+    monkeypatch.setattr(env.player, "stop", observed_stop)
+    pausing = in_thread(lambda: env.driver.pause(True))
+    assert pause_entered.wait(1)
+    closing = in_thread(env.driver.terminate if terminate else env.driver.cancel)
+    try:
+        assert stopped.wait(1), "Cancel must stop before waiting for an entered pause"
+        env.native.speak_release.set()
+        assert not closing.done.wait(0.05), "Control call retired before the entered pause"
+        if terminate:
+            assert not env.player.closed
+        else:
+            if legacy:
+                env.driver.speak(("successor legacy",))
+            else:
+                _, _, _, successor_done = speak(env, segment=18)
+            with env.native.condition:
+                assert not env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.05)
+    finally:
+        release_pause.set()
+        finish(pausing)
+        finish(closing)
+    assert old_events == []
+    if terminate:
+        assert env.player.closed
+    else:
+        env.native.wait_calls(2)
+        assert not env.player.paused, "The retired pause affected successor playback"
+        env.player.idle_release.set()
+        assert (env.done_event if legacy else successor_done).wait(2)
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_entered_pause_holds_new_native_admission(env, monkeypatch, legacy):
+    prove_fake_quiescence(env, monkeypatch)
+    original_pause = env.player.pause
+    entered, release = Event(), Event()
+
+    def blocked_pause(switch):
+        entered.set()
+        assert release.wait(2), "Test did not release pause"
+        original_pause(switch)
+
+    monkeypatch.setattr(env.player, "pause", blocked_pause)
+    pausing = in_thread(lambda: env.driver.pause(True))
+    assert entered.wait(1)
+    try:
+        if legacy:
+            env.driver.speak(("queued legacy",))
+        else:
+            speak(env)
+        with env.native.condition:
+            assert not env.native.condition.wait_for(lambda: bool(env.native.calls), 0.05)
+    finally:
+        release.set()
+        finish(pausing)
+    env.native.wait_calls(1)
+
+
+@pytest.mark.parametrize("switch", [False, True])
+def test_pause_after_termination_does_not_touch_closed_player(env, switch):
+    env.driver.terminate()
+    calls = list(env.player.pause_calls)
+    env.driver.pause(switch)
+    assert env.player.closed
+    assert env.player.pause_calls == calls
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("switch", [False, True])
+def test_pause_or_resume_error_releases_work_and_blocks_admission(env, monkeypatch, legacy, switch):
+    prove_fake_quiescence(env, monkeypatch)
+    if legacy:
+        env.driver.speak(("legacy",))
+        events, done = [], env.done_event
+    else:
+        _, context, events, done = speak(env)
+    env.native.wait_calls(1)
+    if not switch:
+        env.driver.pause(True)
+    env.native.speak_release.set()
+    assert env.player.idle_entered.wait(1)
+    env.player.error = "pause" if switch else "resume"
+    with pytest.raises(OSError, match="audio control failed") as raised:
+        env.driver.pause(switch)
+    assert done.wait(1), "Failed control left the speaking wait unresolved"
+    if legacy:
+        assert env.dones == [env.driver]
+    else:
+        assert len(events) == 1
+        assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+        assert events[0].error is raised.value
+        assert events[0].source_id is context.source_id
+        assert events[0].segment_id == context.segment_id
+        assert env.dones == []
+    _, _, rejected, rejected_done = speak(env, segment=18)
+    assert rejected_done.wait(1)
+    assert len(rejected) == 1 and rejected[0].error is raised.value
+    with pytest.raises(OSError) as rejected_legacy:
+        env.driver.speak(("uncertain player",))
+    assert rejected_legacy.value is raised.value
+    assert len(env.native.calls) == 1
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_cancel_after_control_failure_capture_suppresses_terminal_delivery(env, monkeypatch, legacy):
+    prove_fake_quiescence(env, monkeypatch)
+    if legacy:
+        env.driver.speak(("legacy",))
+        events = []
+    else:
+        _, _, events, _ = speak(env)
+    env.native.wait_calls(1)
+    entered, release = Event(), Event()
+    deliver = env.driver._deliver_control_failure
+
+    def blocked_delivery(failure):
+        entered.set()
+        assert release.wait(2), "Test did not release control failure delivery"
+        deliver(failure)
+
+    monkeypatch.setattr(env.driver, "_deliver_control_failure", blocked_delivery)
+    env.player.error = "pause"
+    pausing = in_thread(lambda: env.driver.pause(True))
+    try:
+        assert entered.wait(1)
+        # Failure has been captured and the pause lock released, while its
+        # terminal event has not yet run. Cancel must still invalidate the work.
+        env.driver.cancel()
+        assert events == []
+        assert env.dones == []
+    finally:
+        release.set()
+        assert pausing.done.wait(2)
+        env.native.speak_release.set()
+    assert len(pausing.errors) == 1
+    assert isinstance(pausing.errors[0], OSError)
+    assert str(pausing.errors[0]) == "audio control failed"
+    finish(in_thread(env.driver._task_queue.join))
+    assert events == [], "Captured contextual failure escaped after cancel returned"
+    assert env.dones == [], "Captured legacy failure emitted stale DONE after cancel returned"
+
+
+@pytest.mark.parametrize("failure", [False, True])
+@pytest.mark.parametrize("action", ["cancel", "terminate"])
+def test_legacy_terminal_notification_allows_synchronous_control_reentry(env, monkeypatch, failure, action):
+    env.driver.speak(("legacy",))
+    env.native.wait_calls(1)
+    notify, returned = env.outer.synthDoneSpeaking.notify, Event()
+
+    def reentrant_notify(**kwargs):
+        notify(**kwargs)
+        getattr(env.driver, action)()
+        returned.set()
+
+    monkeypatch.setattr(env.outer.synthDoneSpeaking, "notify", reentrant_notify)
+    try:
+        if failure:
+            env.player.error = "pause"
+            pausing = in_thread(lambda: env.driver.pause(True))
+            assert returned.wait(1), "Failure DONE handler deadlocked on synchronous control reentry"
+            assert pausing.done.wait(1)
+            assert len(pausing.errors) == 1 and isinstance(pausing.errors[0], OSError)
+        else:
+            env.native.speak_release.set()
+            env.player.idle_release.set()
+            assert returned.wait(1), "Drained DONE handler deadlocked on synchronous control reentry"
+        assert env.dones == [env.driver]
+    finally:
+        env.native.speak_release.set()
+    if action == "terminate":
+        assert env.driver._terminationDone.wait(2)
+
+
 def test_terminate_cancels_blocked_drain_and_closes_player(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     _, _, events, _ = speak(env)
@@ -488,6 +688,30 @@ def test_legacy_cancel_during_callback_retirement_waits_for_player_and_native_st
     assert env.native.released == [operation[0] for operation in env.native.operations]
 
 
+def test_legacy_successor_queued_during_cancel_receives_audio(env):
+    env.driver.speak(("old legacy",))
+    env.native.wait_calls(1)
+    env.player.stop_release.clear()
+    env.native.stop_release.clear()
+    cancelling = in_thread(env.driver.cancel)
+    assert env.player.stop_entered.wait(1)
+    try:
+        env.driver.speak(("successor legacy",))
+        callback = in_thread(lambda: env.native.audio(b"cancelled PCM"))
+        assert env.player.fed == []
+        env.native.speak_release.set()
+    finally:
+        env.player.stop_release.set()
+        finish(cancelling)
+        finish(callback)
+    assert env.native.stop_wait_entered.wait(1)
+    env.native.speak_release.clear()
+    env.native.stop_release.set()
+    env.native.wait_calls(2)
+    env.native.audio(b"successor PCM")
+    assert env.player.fed == [b"successor PCM"]
+
+
 @pytest.mark.parametrize("failure", ["stop", "close"])
 def test_termination_player_errors_finish_cleanup_and_repeated_calls(monkeypatch, tmp_path, failure):
     # Own cleanup here so the pre-fix deadlock can fail without hanging teardown.
@@ -602,3 +826,54 @@ def test_failed_stop_thread_start_does_not_leave_native_retirement_pending(env, 
         if native is not None and native.stop is not None:
             native.stop.done.set()
         env.native.speak_release.set()
+
+
+def _exercise_legacy_bookmark_terminate_reentrancy(tmp_path, contextual):
+    monkeypatch = pytest.MonkeyPatch()
+    env = load_neural(monkeypatch, tmp_path)
+    callback_entered, events = Event(), []
+    context = env.rt.models.PlaybackContext(object(), 19)
+    token = env.scheduler.CancellationToken()
+    index = env.commands.IndexCommand()
+    index.index = 1
+
+    def terminate_from_index(*args, **kwargs):
+        events.append(args[0] if args else kwargs)
+        callback_entered.set()
+        env.driver.terminate()
+        env.driver.terminate()
+
+    if contextual:
+        env.driver.speak_legacy_segment((index, "legacy"), token,
+            context=context, on_event=terminate_from_index)
+    else:
+        env.outer.synthIndexReached.notify = terminate_from_index
+        env.driver.speak((index, "legacy"))
+    env.native.wait_calls(1)
+    callback = in_thread(env.native.bookmark)
+    try:
+        assert callback_entered.wait(1), "legacy bookmark did not publish its contextual index"
+        assert callback.done.wait(0.5), "terminate from legacy bookmark waited on its own native call"
+        if contextual:
+            assert events and events[0].kind is env.rt.models.EventKind.INDEX
+        else:
+            assert events and events[0]["index"] == 1
+    finally:
+        env.native.speak_release.set()
+        env.player.idle_release.set()
+        env.player.stop_release.set()
+        callback.done.wait(2)
+        env.driver.terminate()
+        monkeypatch.undo()
+
+
+@pytest.mark.parametrize("contextual", [False, True])
+def test_legacy_bookmark_can_terminate_without_waiting_for_native_speak(tmp_path, contextual):
+    script = (
+        "from pathlib import Path\n"
+        "from test_neural_segment_drain import _exercise_legacy_bookmark_terminate_reentrancy\n"
+        f"_exercise_legacy_bookmark_terminate_reentrancy(Path({str(tmp_path)!r}), {contextual!r})\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], cwd=Path(__file__).parent,
+                            text=True, capture_output=True, timeout=6)
+    assert result.returncode == 0, result.stderr

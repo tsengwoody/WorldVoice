@@ -279,7 +279,7 @@ class TaskManager:
                             or event.source_id is not task.source_id):
                         continue
                     legacy = task.completion.mode is CompletionMode.LEGACY_DONE
-                    if legacy:
+                    if legacy and not task.completion.legacy_contextual:
                         if event.segment_id is not None:
                             continue
                     elif event.segment_id != task.segment_id:
@@ -292,6 +292,8 @@ class TaskManager:
                         index = event.index
                     elif legacy and event.kind is EventKind.DONE:
                         task.end_seen = True
+                    elif legacy and task.completion.legacy_contextual and event.kind is EventKind.SEGMENT_FAILED:
+                        task.error = event.error or RuntimeError("Speech segment failed")
                     elif not legacy and event.kind is EventKind.SEGMENT_END:
                         task.end_seen = True
                     elif not legacy and event.kind is EventKind.SEGMENT_DRAINED:

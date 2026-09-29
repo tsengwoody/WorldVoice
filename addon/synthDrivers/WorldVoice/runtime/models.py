@@ -75,8 +75,12 @@ class CompletionContract:
 
     mode: CompletionMode = CompletionMode.LEGACY_DONE
     index_range: IndexRange | None = None
+    # Software event identity does not certify a native drain barrier.
+    legacy_contextual: bool = False
 
     def __post_init__(self):
+        if self.legacy_contextual and self.mode is not CompletionMode.LEGACY_DONE:
+            raise ValueError("Contextual legacy events require legacy completion")
         if self.mode is CompletionMode.LEGACY_DONE:
             if self.index_range is not None:
                 raise ValueError("Legacy completion cannot declare an index range")

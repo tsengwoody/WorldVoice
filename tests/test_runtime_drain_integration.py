@@ -1,10 +1,15 @@
 """Correlated drains across the real manager, adapters, bridge and wrappers."""
 
 from concurrent.futures import TimeoutError
+from pathlib import Path
+import subprocess
+import sys
+from threading import Event
 
 import pytest
 
 from runtime_drain_integration_harness import ENGINES, assemble
+from neural_drain_harness import in_thread
 
 
 @pytest.fixture
@@ -319,3 +324,228 @@ def test_unsupported_profile_uses_legacy_from_first_segment(monkeypatch, tmp_pat
         assert len(c.output.dones) == 1
     finally:
         c.close()
+
+
+def test_unsupported_neural_sdk_failure_releases_legacy_request(monkeypatch, tmp_path):
+    c = assemble(monkeypatch, tmp_path, supported=False)
+    try:
+        control = c.controls["Neural"]
+        assert control.session.completion.mode is c.rt.models.CompletionMode.LEGACY_DONE
+        control.env.native.result = 1
+        request = c.submit(("SDK failure",), "Neural")
+        call = control.wait_call()
+        assert call.context is None
+        call.release.set()
+        with pytest.raises(RuntimeError, match="Neural SDK synthesis failed"):
+            request.tasks[0].future.result(timeout=1)
+        c.wait_done()
+        assert request.state is c.scheduler.RequestState.FAILED
+        assert c.output.drains == []
+        assert len(c.output.dones) == 1
+        assert control.env.logs
+    finally:
+        c.close()
+
+
+def test_contextual_legacy_control_failure_fails_request(monkeypatch, tmp_path):
+    c = assemble(monkeypatch, tmp_path, supported=False)
+    try:
+        control = c.controls["Neural"]
+        control.player.error = "pause"
+        request = c.submit(("pause failure",), "Neural")
+        control.wait_call()
+        barrier = control.tail()
+        pausing = in_thread(lambda: c.tasks.pause_current(True))
+        pausing.done.wait(1)
+        barrier.release.set()
+        with pytest.raises(OSError, match="audio control failed"):
+            request.tasks[0].future.result(timeout=2)
+        assert pausing.errors and isinstance(pausing.errors[0], OSError)
+        c.wait_done()
+        assert request.state is c.scheduler.RequestState.FAILED
+        assert c.output.drains == []
+        assert len(c.output.dones) == 1
+    finally:
+        c.close()
+
+
+def test_neural_legacy_done_acceptance_cannot_release_successor_after_cancel(monkeypatch, tmp_path):
+    c = assemble(monkeypatch, tmp_path, supported=False)
+    release = Event()
+    try:
+        control = c.controls["Neural"]
+        old = c.submit(("old legacy",), "Neural")
+        control.wait_call()
+        work = next(iter(control.core._segmentWorks))
+        accepted = Event()
+        complete = work.complete
+
+        def blocked_complete():
+            result = complete()
+            if result:
+                accepted.set()
+                assert release.wait(2), "Test did not release accepted legacy DONE"
+            return result
+
+        monkeypatch.setattr(work, "complete", blocked_complete)
+        control.tail().release.set()
+        assert accepted.wait(1)
+        cancelling = in_thread(lambda: c.tasks.cancel(c.manager.playback_ports))
+        fresh = None
+        try:
+            # If cancellation can return across the accepted notification, admit
+            # a real successor while the old notification is still suspended.
+            if cancelling.done.wait(0.05):
+                assert cancelling.errors == []
+                fresh = c.submit(("successor legacy",), "Neural")
+                with c.tasks._state_cond:
+                    assert c.tasks._state_cond.wait_for(lambda:
+                        c.tasks._current_task is fresh.tasks[0]
+                        and c.tasks._current_phase == "awaiting_completion", 1)
+        finally:
+            release.set()
+            assert cancelling.done.wait(2)
+            assert cancelling.errors == []
+        if fresh is None:
+            fresh = c.submit(("successor legacy",), "Neural")
+        successor = control.wait_call(2)
+        assert not successor.release.is_set(), "Successor synthesis must still be blocked"
+        with pytest.raises(TimeoutError):
+            fresh.tasks[0].future.result(timeout=0.05)
+        assert c.output.dones == []
+        control.tail(2, idle_number=2).release.set()
+        c.wait_done()
+        assert old.state is c.scheduler.RequestState.CANCELLED
+        assert fresh.tasks[0].future.result(timeout=1) is True
+        assert fresh.state is c.scheduler.RequestState.COMPLETED
+    finally:
+        release.set()
+        c.close()
+
+
+def test_neural_legacy_control_failure_delivery_cannot_complete_cancelled_request(monkeypatch, tmp_path):
+    c = assemble(monkeypatch, tmp_path, supported=False)
+    release = Event()
+    try:
+        control = c.controls["Neural"]
+        request = c.submit(("legacy control failure",), "Neural")
+        control.wait_call()
+        work = next(iter(control.core._segmentWorks))
+        complete, accepted = work.complete, Event()
+
+        def blocked_complete():
+            result = complete()
+            if result:
+                accepted.set()
+                assert release.wait(2), "Test did not release accepted failure DONE"
+            return result
+
+        monkeypatch.setattr(work, "complete", blocked_complete)
+        control.player.error = "pause"
+        pausing = in_thread(lambda: c.tasks.pause_current(True))
+        assert accepted.wait(1)
+        cancelling = in_thread(lambda: c.tasks.cancel(c.manager.playback_ports))
+        try:
+            assert cancelling.done.wait(1), "Cancel blocked behind external legacy event delivery"
+        finally:
+            release.set()
+            assert pausing.done.wait(2)
+            assert cancelling.done.wait(2)
+        assert len(pausing.errors) == 1 and isinstance(pausing.errors[0], OSError)
+        assert cancelling.errors == []
+        assert request.state is c.scheduler.RequestState.CANCELLED
+        assert c.output.dones == []
+    finally:
+        release.set()
+        c.close()
+
+
+def test_contextual_neural_legacy_ignores_anonymous_and_revoked_completion(monkeypatch, tmp_path):
+    c = assemble(monkeypatch, tmp_path, supported=False)
+    try:
+        control = c.controls["Neural"]
+        request = c.submit(("legacy identity",), "Neural")
+        control.wait_call()
+        work = next(iter(control.core._segmentWorks))
+        context = work.context
+        old_sink = work.on_event
+        done = c.rt.models.PlaybackEvent(c.rt.models.EventKind.DONE,
+            context.source_id, segment_id=context.segment_id)
+        c.bridge._done_event.notify(synth=control.core)
+        with pytest.raises(TimeoutError):
+            request.tasks[0].future.result(timeout=0.03)
+        c.bridge.unbind(control.session.source_id)
+        c.bridge.bind(control.core, control.session.source_id, completion=control.session.completion)
+        old_sink(done)
+        with pytest.raises(TimeoutError):
+            request.tasks[0].future.result(timeout=0.03)
+        assert c.output.dones == []
+        monkeypatch.setattr(work, "on_event", c.bridge.legacy_segment_sink(control.core, context))
+        control.tail().release.set()
+        c.wait_done()
+        assert request.tasks[0].future.result(timeout=1) is True
+    finally:
+        c.close()
+
+
+def _exercise_neural_legacy_terminal_index_cancel(failure, tmp_path):
+    # A broken lock order leaves daemon engine/scheduler threads deadlocked.
+    # Run this case in its own interpreter so failed evidence cannot hang cleanup.
+    monkeypatch = pytest.MonkeyPatch()
+    c = assemble(monkeypatch, tmp_path, supported=False)
+    control = c.controls["Neural"]
+    c.submit(("legacy", c.commands.IndexCommand(818)), "Neural")
+    control.wait_call()
+    work = next(iter(control.core._segmentWorks))
+    complete = work.complete
+    accepted, release_done = Event(), Event()
+    index_entered, cancel_index, cancelled = Event(), Event(), Event()
+
+    def held_complete():
+        result = complete()
+        if result:
+            accepted.set()
+            assert release_done.wait(2), "Test did not release terminal acceptance"
+        return result
+
+    def index_handler(index):
+        assert index == 818
+        index_entered.set()
+        assert cancel_index.wait(2), "Test did not release index cancellation"
+        c.tasks.cancel(c.manager.playback_ports)
+        cancelled.set()
+
+    monkeypatch.setattr(work, "complete", held_complete)
+    monkeypatch.setattr(c.bridge, "index_reached", index_handler)
+    bookmark = in_thread(lambda: control.env.native.bookmark("818"))
+    assert index_entered.wait(1)
+    if failure:
+        control.player.error = "pause"
+        terminal = in_thread(lambda: c.tasks.pause_current(True))
+    else:
+        control.wait_call().release.set()
+        control.wait_idle().release.set()
+        terminal = None
+    assert accepted.wait(1)
+    cancel_index.set()
+    release_done.set()
+    assert cancelled.wait(1), "Index cancellation and legacy terminal delivery deadlocked"
+    assert bookmark.done.wait(1) and bookmark.errors == []
+    if terminal is not None:
+        assert terminal.done.wait(1)
+        assert len(terminal.errors) == 1 and isinstance(terminal.errors[0], OSError)
+    assert c.output.dones == []
+    c.close()
+    monkeypatch.undo()
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_neural_legacy_terminal_and_index_cancel_have_no_lock_inversion(tmp_path, failure):
+    script = (
+        "from pathlib import Path\n"
+        "from test_runtime_drain_integration import _exercise_neural_legacy_terminal_index_cancel\n"
+        f"_exercise_neural_legacy_terminal_index_cancel({failure!r}, Path({str(tmp_path)!r}))\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], cwd=Path(__file__).parent,
+                            text=True, capture_output=True, timeout=6)
+    assert result.returncode == 0, result.stderr
