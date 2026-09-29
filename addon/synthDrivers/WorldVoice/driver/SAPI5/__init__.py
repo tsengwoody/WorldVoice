@@ -22,7 +22,11 @@ class _NativeRequest:
 	error: Exception | None = None
 	feeds: int = 0
 	audio_closed: bool = False
+	cancelled: bool = False
 	index_lock: object = field(default_factory=RLock)
+
+	def is_valid(self):
+		return not self.cancelled and (self.work is None or self.work.is_valid())
 
 
 class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
@@ -40,7 +44,7 @@ class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
 			native = driver._segmentNative
 			if native is None:
 				return sapi5.hresult.S_OK
-			if native.work is not None and (native.audio_closed or not native.work.is_valid()):
+			if native.audio_closed or not native.is_valid():
 				return sapi5.hresult.S_OK
 			# Ordinary PCM callbacks also retain this request's resources. Voice
 			# reload/termination must join the worker only after they have retired.
@@ -79,9 +83,9 @@ class _SegmentPlayer:
 			native = driver._segmentNative
 			if self is not driver.player:
 				return
-			if native is not None and native.work is not None:
+			if native is not None:
 				admitted_pcm = getattr(driver._segmentCallbackLocal, "native", None) is native
-				if not native.work.is_valid() or (native.audio_closed and not admitted_pcm):
+				if not native.is_valid() or (native.audio_closed and not admitted_pcm):
 					return
 				native.feeds += 1
 			else:
@@ -89,7 +93,7 @@ class _SegmentPlayer:
 		callback = onDone
 		if native is not None and onDone is not None:
 			def callback():
-				if native.work.is_valid():
+				if native.is_valid():
 					onDone()
 		try:
 			return self._player.feed(data, size, callback)
@@ -100,7 +104,7 @@ class _SegmentPlayer:
 		finally:
 			if native is not None:
 				try:
-					if not native.work.is_valid():
+					if not native.is_valid():
 						self._player.stop()
 				finally:
 					with driver._threadCond:
@@ -174,7 +178,7 @@ class _SegmentSapiSink(sapi5.SapiSink):
 
 	def StartStream(self, streamNum, pos):
 		driver, native = self._native(streamNum)
-		if native is not None and (native.work is None or native.work.is_valid()):
+		if native is not None and native.is_valid():
 			return super().StartStream(streamNum, pos)
 		if driver is not None and self is driver._segmentSink and not driver.player:
 			return super().StartStream(streamNum, pos)
@@ -186,7 +190,7 @@ class _SegmentSapiSink(sapi5.SapiSink):
 			if driver is not None and self is driver._segmentSink and not driver.player:
 				return super().Bookmark(streamNum, pos, bookmark, bookmarkId)
 			return
-		if native.work is not None and not native.work.is_valid():
+		if not native.is_valid():
 			return
 		return super().Bookmark(streamNum, pos, bookmark, bookmarkId)
 
@@ -195,6 +199,8 @@ class _SegmentSapiSink(sapi5.SapiSink):
 		if native is None:
 			if driver is not None and self is driver._segmentSink and not driver.player:
 				return super().onIndexReached(streamNum, index)
+			return
+		if not native.is_valid():
 			return
 		if native.work is None:
 			return super().onIndexReached(streamNum, index)
@@ -275,6 +281,8 @@ class SynthDriver(BaseSynthDriver):
 
 	def _invalidateSegments(self):
 		with self._threadCond:
+			if self._segmentNative is not None:
+				self._segmentNative.cancelled = True
 			for work in self._segmentWorks:
 				work.cancel()
 			self._segmentWorks.clear()
@@ -407,7 +415,7 @@ class SynthDriver(BaseSynthDriver):
 						raise RuntimeError("SAPI5 callback stream did not match the admitted request")
 					native.stream = stream
 					self._threadCond.wait_for(self._requestCompleted)
-				if work is not None:
+				if work is not None or native.cancelled:
 					with self._threadCond:
 						# EndStream closes new audio admission. Retire every feed
 						# already admitted before flushing/final idle and checking errors.
@@ -415,7 +423,7 @@ class SynthDriver(BaseSynthDriver):
 						self._threadCond.wait_for(lambda: native.feeds == 0)
 				if native.error is not None:
 					raise native.error
-				if not self._isCancelling and not self._isStoppingThread and (work is None or work.is_valid()):
+				if not self._isCancelling and not self._isStoppingThread and native.is_valid():
 					sonic.flush()
 					audio = sonic.readShort()
 					if work is not None:
@@ -450,7 +458,7 @@ class SynthDriver(BaseSynthDriver):
 				# final stop and lease must retire before a successor uses the player.
 				with self._threadCond:
 					self._threadCond.wait_for(lambda: native.feeds == 0)
-				if work is not None and (not work.is_valid() or error is not None):
+				if not native.is_valid() or error is not None:
 					try:
 						try:
 							player.stop()

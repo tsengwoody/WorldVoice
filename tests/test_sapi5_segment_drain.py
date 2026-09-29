@@ -956,3 +956,44 @@ def test_voice_reload_retires_ordinary_pcm_callback_before_replacing_audio(env, 
     native.end()
     assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
     assert player.fed == [6]
+
+
+def test_cancelled_ordinary_pcm_feed_stops_again_before_successor_admission(env, monkeypatch):
+    env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
+    env.native.wait_calls(1)
+    admitted, release = Event(), Event()
+    feed = env.player.feed
+    callback = None
+    failures = []
+    def blocked_feed(data, size=None, onDone=None):
+        if current_thread() is callback:
+            admitted.set()
+            assert release.wait(2)
+        return feed(data, size, onDone)
+    monkeypatch.setattr(env.player, "feed", blocked_feed)
+    def write_pcm():
+        try:
+            env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+        except Exception as error:
+            failures.append(error)
+    callback = Thread(target=write_pcm, daemon=True)
+    callback.start()
+    assert admitted.wait(1)
+    env.driver.cancel()
+    stops_after_cancel = env.player.stops
+    _, _, events = speak(env, segment=18, commands=("next", env.commands.IndexCommand(9)))
+    try:
+        assert len(env.native.calls) == 1
+    finally:
+        release.set()
+        callback.join(2)
+    assert not callback.is_alive() and failures == []
+    env.native.wait_calls(2)
+    assert env.player.stops > stops_after_cancel, "Cancelled ordinary feed restarted audio after the final stop"
+    assert [tuple(bookmarks) for bookmarks in env.driver._bookmarkLists] == [(9,)]
+    assert env.driver.sonicStream.tail == []
+    env.driver.sonicStream.tail = [4]
+    env.native.end(2)
+    assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.indexes == [9]
+    assert env.dones == []
