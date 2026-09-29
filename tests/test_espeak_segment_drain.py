@@ -193,6 +193,74 @@ def test_cancelled_feed_final_stop_finishes_before_successor_native_call(env):
     assert events == []
 
 
+def test_token_cancel_between_last_feed_and_terminal_discards_pcm_before_successor(env):
+    env.native.next_scripts.append({"hold_terminal": True})
+    token, _, events = speak(env)
+    first = env.native.wait_calls(1)
+    assert first.before_terminal.wait(1)
+    assert env.player.queued_bytes == 8
+    token.cancel()
+    _, _, successor = speak(env, segment=18)
+    stopped, release_stop = Event(), Event()
+    original_stop = env.player.stop
+    def final_stop():
+        stopped.set()
+        assert release_stop.wait(2), "Test did not release final stop"
+        original_stop()
+    env.player.stop = final_stop
+    first.terminal_release.set()
+    first.return_release.set()
+    try:
+        assert stopped.wait(1), "Token cancellation left old PCM queued without a final stop"
+        assert len(env.native.calls) == 1
+        assert events == successor == []
+    finally:
+        release_stop.set()
+        env.player.idle_release.set()
+    second = env.native.wait_calls(2)
+    assert second.queued_bytes_at_entry == 0
+    second.return_release.set()
+    assert wait_event(successor).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert events == []
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_failed_cleanup_stop_blocks_queued_and_later_native_admission(env, cancelled):
+    stop_error = OSError("failed cleanup stop")
+    env.player.stop_error = stop_error
+    env.player.idle_release.set()
+    env.native.next_scripts.extend(({"hold_terminal": True} if cancelled else {"missing_end": True},
+                                   {"auto_return": True}))
+    token, _, failed = speak(env)
+    first = env.native.wait_calls(1)
+    if cancelled:
+        assert first.before_terminal.wait(1)
+        token.cancel()
+        first.terminal_release.set()
+    assert first.after_callback.wait(1)
+    _, successor_context, successor = speak(env, segment=18)
+    first.return_release.set()
+    if not cancelled:
+        assert wait_event(failed).kind is env.rt.models.EventKind.SEGMENT_FAILED
+    event = wait_event(successor)
+    assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert event.error is stop_error
+    assert event.source_id is successor_context.source_id
+    assert len(env.native.calls) == 1
+    assert not env.inner.isSpeaking, "Rejected native work left synthesis marked active"
+    if cancelled:
+        assert failed == []
+    # A recovered stop alone does not prove a safe reset/reload. The latch
+    # must still reject later correlated and legacy requests on this driver.
+    env.player.stop_error = None
+    _, _, later = speak(env, segment=19)
+    assert wait_event(later).error is stop_error
+    with pytest.raises(OSError) as rejected:
+        env.driver.speak(("legacy after unsafe cleanup",))
+    assert rejected.value is stop_error
+    assert len(env.native.calls) == 1
+
+
 def test_native_reset_exception_is_preserved_before_synth_entry(env):
     error = OSError("native reset failed")
     def failed_reset(*args):

@@ -23,7 +23,9 @@ class Player:
         self.feed_entered, self.feed_release = Event(), Event()
         self.feed_release.set()
         self.error = None
+        self.stop_error = None
         self.stops = 0
+        self.queued_bytes = 0
         self.closed = False
         self.paused = False
 
@@ -33,6 +35,7 @@ class Player:
         if self.error == "feed":
             raise OSError("feed failed")
         self.fed.append(size)
+        self.queued_bytes += size or 0
         if onDone:
             self.callbacks.append(onDone)
 
@@ -44,9 +47,14 @@ class Player:
         callbacks, self.callbacks = self.callbacks, []
         for callback in callbacks:
             callback()
+        self.queued_bytes = 0
 
     def stop(self):
         self.stops += 1
+        if self.stop_error is not None:
+            raise self.stop_error
+        self.queued_bytes = 0
+        self.callbacks.clear()
         self.idle_release.set()
 
     def pause(self, switch):
@@ -107,6 +115,8 @@ class Native:
         with self.condition:
             call = SimpleNamespace(text=text.decode(), thread=current_thread(),
                 after_callback=Event(), return_release=Event(), returned=Event(),
+                before_terminal=Event(), terminal_release=Event(),
+                queued_bytes_at_entry=self.inner.player.queued_bytes,
                 index_callback=self.inner.onIndexReached)
             script = self.next_scripts.pop(0) if self.next_scripts else {}
             self.calls.append(call)
@@ -121,10 +131,15 @@ class Native:
             if not script.get("empty"):
                 wav = (ctypes.c_short * 4)(1, 2, 3, 4)
                 self.callback(ctypes.addressof(wav), 4, events)
+            call.before_terminal.set()
+            if script.get("hold_terminal"):
+                assert call.terminal_release.wait(3), "Test did not release terminal callback"
             if not script.get("missing_end"):
                 terminal = (self.inner.espeak_EVENT * 1)()
                 self.callback(None, 0, terminal)
             call.after_callback.set()
+            if script.get("auto_return"):
+                call.return_release.set()
             assert call.return_release.wait(3), "Test did not release native return"
             return script.get("result", 0)
         finally:
@@ -137,6 +152,7 @@ class Native:
 
     def release(self):
         for call in self.calls:
+            call.terminal_release.set()
             call.return_release.set()
 
 
@@ -272,6 +288,7 @@ def wait_event(events):
 
 
 def finish(env):
+    env.player.stop_error = None
     env.player.feed_release.set()
     env.player.idle_release.set()
     env.native.release()

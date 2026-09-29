@@ -67,7 +67,7 @@ class _SegmentPlayer:
 				# A feed that was already admitted may queue audio after cancel's
 				# stop. Stop it again before the FIFO barrier permits a successor.
 				if not native.is_valid():
-					self._player.stop()
+					self.stop()
 			finally:
 				driver._releaseConsumer(native)
 
@@ -89,6 +89,15 @@ class _SegmentPlayer:
 		finally:
 			driver._releaseConsumer(native)
 
+	def stop(self):
+		try:
+			return self._player.stop()
+		except Exception as error:
+			driver = self._driver()
+			if driver is not None:
+				driver._recordControlError(error)
+			raise
+
 
 class _SegmentNative:
 	"""Observe errors swallowed by NVDA's native callback/queue boundaries."""
@@ -101,6 +110,9 @@ class _SegmentNative:
 		return getattr(self._native, name)
 
 	def espeak_ng_Cancel(self, *args):
+		driver = self._driver()
+		if driver is not None and driver._segmentControlError is not None:
+			return _espeak.EE_OK
 		try:
 			return self._native.espeak_ng_Cancel(*args)
 		except Exception as error:
@@ -115,7 +127,8 @@ class _SegmentNative:
 			return _espeak.EE_OK
 		with driver._segmentCondition:
 			native = driver._segmentNative
-		if native is None or not native.is_valid():
+			control_error = driver._segmentControlError
+		if native is None or control_error is not None or not native.is_valid():
 			return _espeak.EE_OK
 		try:
 			result = self._native.espeak_Synth(*args)
@@ -140,6 +153,7 @@ class SynthDriver(BaseSynthDriver):
 		self._segmentNative = None
 		self._segmentPending = []
 		self._segmentTerminated = False
+		self._segmentControlError = None
 		super().__init__()
 		_espeak.player = _SegmentPlayer(self, _espeak.player)
 		_espeak.espeakDLL = _SegmentNative(self, _espeak.espeakDLL)
@@ -163,7 +177,14 @@ class SynthDriver(BaseSynthDriver):
 					work.cancel()
 				return
 			with self._segmentCondition:
+				control_error = self._segmentControlError
+				if control_error is not None and work is None:
+					raise control_error
 				self._segmentPending.append(native)
+			if control_error is not None:
+				native.closed = True
+				self._dispatchSpeech(native, control_error)
+				return
 			# Begin and retirement remain separate queue entries: NVDA stop()
 			# removes queued _speak calls but preserves both identity barriers.
 			_espeak._execWhenDone(self._beginSpeech, native, mustBeAsync=True)
@@ -202,6 +223,16 @@ class SynthDriver(BaseSynthDriver):
 			if native is not None and native.error is None:
 				native.error = error
 
+	def _recordControlError(self, error):
+		# A stop failure does not prove that queued PCM/index callbacks were
+		# discarded. Retain the first control error until the driver reloads.
+		with self._segmentCondition:
+			if self._segmentControlError is None:
+				self._segmentControlError = error
+			for native in self._segmentPending:
+				if native.error is None:
+					native.error = self._segmentControlError
+
 	def _indexFor(self, native, index):
 		# NVDA's onDone lambdas resolve its mutable onIndexReached global.
 		# The player lease takes precedence so an old index cannot bind to a
@@ -231,27 +262,42 @@ class SynthDriver(BaseSynthDriver):
 			valid = native.is_valid()
 			native.closed = True
 			self._segmentCondition.wait_for(lambda: native.consumers == 0)
+			valid = valid and not native.cancelled and (native.work is None or native.work.is_valid())
 			if not valid and native in self._segmentPending:
 				self._segmentPending.remove(native)
 			if self._segmentNative is native:
 				self._segmentNative = None
 		if not valid:
 			_espeak.isSpeaking = False
+			# Token-only cancellation can occur after the last feed and skip
+			# terminal idle admission. Discard that PCM before FIFO handoff.
+			try:
+				_espeak.player.stop()
+			except Exception:
+				# The player proxy latched the error. The cancelled segment stays
+				# silent, and queued work cannot enter native synthesis afterward.
+				log.error("Error stopping cancelled eSpeak playback", exc_info=True)
 			return
 		error = native.error
 		if error is None and not (native.returned and native.ended and native.idle_completed):
 			error = RuntimeError("eSpeak synthesis retired without its native return, end and player idle barriers")
 		if error is not None:
 			_espeak.isSpeaking = False
-			try:
-				_espeak.player.stop()
-			except Exception as stop_error:
-				log.error("Error stopping failed eSpeak playback", exc_info=True)
-				self._recordError(native, stop_error)
+			if self._segmentControlError is None:
+				try:
+					_espeak.player.stop()
+				except Exception as stop_error:
+					log.error("Error stopping failed eSpeak playback", exc_info=True)
+					self._recordError(native, stop_error)
+		self._dispatchSpeech(native, error)
+
+	def _dispatchSpeech(self, native, error):
 		Thread(target=self._deliverSpeech, args=(native, error), name="WorldVoice eSpeak completion", daemon=True).start()
 
 	def _deliverSpeech(self, native, error):
 		try:
+			with self._segmentCondition:
+				error = error or native.error or self._segmentControlError
 			if native.work is not None:
 				if error is not None:
 					native.work.fail(error)
