@@ -616,3 +616,238 @@ Full-tree `python3 -m pytest -q -p no:cacheprovider` exits **2** with the existi
 `/tmp/worldvoice-task10-full-pytest.log`. No driver code, production capability,
 native SDK provenance or Windows device certification was changed. No product
 defect was discovered by these integration cases. `finish_task.md` is unchanged.
+
+
+## Task 11: test package and validation handoff (2026-09-28)
+
+The Linux source/protocol and package work is delivered. **Windows installation,
+real audio drain timing and all four actual profile DRAIN enablement acceptances
+remain incomplete.** The package contains implemented contextual wrappers; each
+actual target profile still selects `LEGACY_DONE` before the first native call.
+Passing synthetic-profile tests cannot establish loaded SDK provenance or
+callback exclusion. No Windows/NVDA/audio-device playback result is claimed.
+
+### Reproducible build and artifact audit
+
+- [x] Build source was clean, detached HEAD
+  `8d9aa786a3486b6347b0e2d0a81ffc37d28a3f1e` at
+  `/tmp/worldvoice-correlated-drain-build-8d9aa78`; no tracked changes,
+  untracked source files, `__pycache__` or `.pyc` before the build.
+- [x] Required Neural bytes were supplied by user baseline commit
+  `eb605cd307b4e3f4665143d065788f577e6626bc`. These files began as an untracked
+  user snapshot and were committed by the user before Task 1. The clean checkout
+  therefore carries the exact original inner sources and DLLs without copying
+  any unrelated untracked data. Eleven protected Neural files were compared to
+  that commit, their recorded sizes/hashes in the Task 6 table, the main checkout,
+  the detached source and the ZIP. All matched.
+- [x] Used existing isolated environment `/tmp/worldvoice-test-package-venv`:
+  Python 3.14.4, SCons 4.11.1 and Markdown 3.11; system `msgfmt` from GNU
+  gettext-tools 0.23.2. No dependency/build configuration was changed.
+- [x] Ran the exact default addon target below, with exit **0**. No `pot` or
+  `mergePot` target was run. All seven tracked translation source hashes in
+  both checkouts remained identical; only generated translations/manifests/help
+  were written in the detached build checkout.
+
+```bash
+cd /tmp/worldvoice-correlated-drain-build-8d9aa78
+PATH=/tmp/worldvoice-test-package-venv/bin:$PATH PYTHONDONTWRITEBYTECODE=1 scons version=6.2-test-correlated-drain-1-9999 channel=dev
+```
+
+Artifact: `/workspace/WorldVoice/WorldVoice-6.2-test-correlated-drain-1-9999.nvda-addon`
+
+- Size: **10,589,232 bytes**.
+- SHA-256: `9e0cd0024492245d20738413a9c6a8369df0f2cb139322f44f8c76072cfdbbb5`.
+- Original build copy: `/tmp/worldvoice-correlated-drain-build-8d9aa78/WorldVoice-6.2-test-correlated-drain-1-9999.nvda-addon`.
+- Both copies have the same size/hash. The artifact is ignored by
+  `.gitignore` (`*.nvda-addon`), is absent from `git ls-files`, and is neither
+  staged nor committed. This is a packaged installation candidate; installation
+  on NVDA itself has not been performed.
+- ZIP: **121 entries**, every CRC passed `ZipFile.testzip()`,
+  no duplicate or escaping paths, and **zero** `__pycache__`, `.pytest_cache`,
+  `.pyc` or `.pyo` members.
+- All **98 tracked addon files** match
+  detached source bytes. The four required outer wrappers, shared helper and
+  policy also match the main checkout; their hashes follow below.
+- All **20** protected Neural/VE/Cerence inner/native/manifest hashes recorded
+  during Task 8 match source and ZIP. This includes the **11** exact Neural
+  baseline files listed in Task 6; those eleven are required inputs, even though
+  their original delivery was untracked.
+- `manifest.ini`: `version = 6.2-test-correlated-drain-1-9999`,
+  `updateChannel = dev`, `docFileName = readme.html`,
+  `minimumNVDAVersion = 2024.1`, `lastTestedNVDAVersion = 2026.1.1`.
+  The existing version bounds are package metadata, **not new Windows test evidence**.
+- English help (`doc/en/readme.html`) retains the test-branch warning, the four
+  unsupported wrappers and concrete provenance/quiescence limitations,
+  `LEGACY_DONE` fallback, experimental `END_INDEX` and absence of physical
+  playback certification. Packaged English Markdown matches source `8d9aa78`.
+  The later Task 11 README adds delivery links; it was not used to rebuild or
+  relabel this source-pinned artifact.
+
+| File relative to `addon/synthDrivers/WorldVoice` | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `driver/OneCore/__init__.py` | 14384 | `e125148c3d4e36e86585e4fc31a622e02c6be737a73581a50baa2e76d55cd7eb` |
+| `driver/Neural/__init__.py` | 22730 | `0df93b5b4d05cb6ca24fec9de880cfad1f65880675b4c59ca403120dc80926fc` |
+| `driver/VE/__init__.py` | 26160 | `a9f27d5fb2ad217142c29c9d558f7611e2394c0abe2fdd75f65c3bba48031696` |
+| `driver/Cerence/__init__.py` | 26387 | `521c35ef6fb96950dd5e440bcc0b155453fc85aa5d798673ccdea3ee9912bcba` |
+| `runtime/playbackWork.py` | 5810 | `075959b01200ec1a2430ce62aa42fbca9accda147ef7f9f07fe8ebce65294df7` |
+| `compat/completionPolicies.py` | 4347 | `839f911525bcc3211dc53a9d2da642a8709ac1a637058c2feba6d150d988fe68` |
+
+### Effective policy in this exact artifact
+
+| Engine | Actual package selection before playback | Missing enablement evidence |
+| --- | --- | --- |
+| OneCore | `LEGACY_DONE` | Provenance of loaded helper binary for reviewed NVDA/WASAPI source contract; real audio profile validation |
+| Neural | `LEGACY_DONE` | SDK 1.50.0.28 audio/bookmark callback exclusion after speak/stop; loaded provenance and real audio profile |
+| VE | `LEGACY_DONE` | Loaded ve2 SDK build and callback exclusion; real audio profile |
+| Cerence | `LEGACY_DONE` | Loaded ttsapi SDK build and callback exclusion; real audio profile |
+| SAPI5 (WASAPI and legacy), Espeak, RHVoice | Experimental `END_INDEX`, wire IDs `1..9999` inclusive | No trailing-audio guarantee or physical certification |
+| Unknown/external | `LEGACY_DONE` | No verified opt-in |
+
+The packaged policy bytes were checked against source, including the exact set
+of three `_TEST_ONLY_FORCE_END_INDEX_ENGINES`. All production target support
+methods return unsupported; even OneCore's matching source/path checks end in
+an unverified-helper result. Conditional DRAIN support remains available for a
+future evidence-backed profile and is exercised by controlled tests. The
+hardware `_VERIFIED_CONTRACTS` table remains empty. Fallback does not complete
+any engine's DRAIN enablement acceptance and does not guarantee SAPI5 drain in
+mixed playback.
+
+### Linux verification and independent review boundary
+
+- [x] `python3 -m pytest tests -q -p no:cacheprovider`: **1060 passed in 20.26s**,
+  exit 0 (`/tmp/worldvoice-task11-addon-pytest.log`).
+- [x] `python3 -m pytest tests/test_runtime_completion_policies.py tests/test_runtime_drain_integration.py -q -p no:cacheprovider`:
+  **229 passed in 5.19s**, exit 0 (`/tmp/worldvoice-task11-policy-integration.log`).
+- [x] `git diff --check`: exit 0 before documentation staging; repeated for
+  the final documentation commit.
+- Full-tree `python3 -m pytest -q -p no:cacheprovider`: exit **2**, **191
+  vendored NVDA collection errors**, with precisely the same named error set
+  as Task 10. Missing Windows/NVDA/liblouis dependencies prevent collection;
+  this invocation is not a passing full-tree result. Logs:
+  `/tmp/worldvoice-task11-full-pytest.log` and
+  `/tmp/worldvoice-task11-collection-errors.txt`.
+- Build and audit logs: `/tmp/worldvoice-task11-build.log`,
+  `/tmp/worldvoice-task11-prebuild.json`,
+  `/tmp/worldvoice-task11-artifact-report.json`; audit script:
+  `/tmp/worldvoice-task11-inspect.py`.
+- Tasks 1–10 passed separate `gpt-6-astra high` reviews after their fixes,
+  as recorded in the execution ledger. Task 10 retained a minor test-module
+  cache cleanup opportunity without a demonstrated order-dependent failure.
+  This documentation task does not change the harness or claim that note fixed.
+- [x] Task 11 independent `gpt-6-astra high` review: approved the Linux
+  implementation/package handoff with no Critical or Important findings. The
+  reviewer reran all 1,060 add-on tests, verified all 98 tracked add-on files
+  against source, all 20 protected hashes, ZIP integrity/path/cache checks and
+  artifact SHA-256. Two Minor documentation corrections (a broken anchor and
+  stale review-status wording) were fixed. Approval does not cover outstanding
+  Windows installation/audio validation or real-profile DRAIN activation.
+
+### Windows environment and SDK evidence sheet — all unchecked
+
+This environment is Linux and has **no Windows NVDA instance or audio device**.
+Every checkbox in the following Windows sections is intentionally unchecked.
+Fill a separate environment record per tested NVDA/audio/device/SDK profile;
+repeat the entire applicable scenario matrix for each record. Record actual
+fallback selection first. A `LEGACY_DONE` run may document compatibility/audio
+observations, but cannot be entered as a successful DRAIN-enabled acceptance.
+Provenance and native quiescence remain prerequisites for enabling a real DRAIN
+profile; the delivered package supplies no approved real DRAIN profile.
+
+| Required environment/SDK step | Done | Actual evidence / value |
+| --- | --- | --- |
+| Install the exact artifact on Windows and record hash | [ ] | Not run; expected artifact hash above |
+| Record Windows edition/build/architecture and test operator/date | [ ] | Not measured |
+| Record exact NVDA version/build/hash and loaded source/helper provenance | [ ] | Not measured |
+| Record actual audio mode (WASAPI/legacy/other) | [ ] | Not measured |
+| Record output device/driver, configuration and sample rate | [ ] | Not measured |
+| Record OneCore helper DLL version/hash and voice language/data version | [ ] | Not measured |
+| Verify OneCore terminal-callback and playback-barrier profile contract | [ ] | Not established for a loaded binary |
+| Record Neural SDK DLL versions/hashes and installed voices/data | [ ] | Not measured on Windows; supplied-file hashes alone are above |
+| Establish Neural speak/stop audio and bookmark callback quiescence | [ ] | Contract unverified |
+| Record VE ve.dll/vplatform.dll build/hash and voice/data version | [ ] | Not measured; matching SDK DLLs absent here |
+| Establish VE callback exclusion and actual output-callback installation | [ ] | Contract unverified |
+| Record Cerence ve.dll/vplatform.dll build/hash and voice/data version | [ ] | Not measured; matching SDK DLLs absent here |
+| Establish Cerence callback exclusion and actual output-callback installation | [ ] | Contract unverified |
+| Record each opened core's support result, reason and fixed completion policy | [ ] | No Windows run; expected four target profiles use legacy |
+| Validate actual playback/stop/idle/sync and fault reporting on this device | [ ] | Not measured |
+
+### Per-engine speech and control matrix — all unchecked
+
+For each cell record the environment ID, input/voice/language, relevant settings,
+actual completion policy, log/run ID and listening result. RateBoost, variant and
+waitfactor applicability must be established against the installed engine; if
+unavailable, record that evidence rather than inventing a passing run.
+
+| Physical Windows scenario | OneCore | Neural | VE | Cerence | Results |
+| --- | --- | --- | --- | --- | --- |
+| Short speech with ordinary index and audible tail | [ ] | [ ] | [ ] | [ ] | Not run |
+| Long speech with chunking/multilingual child work and audible tail | [ ] | [ ] | [ ] | [ ] | Not run |
+| RateBoost off/on and voice setting revision | [ ] | [ ] | [ ] | [ ] | Not run |
+| Applicable voice variant changes | [ ] | [ ] | [ ] | [ ] | Not run |
+| Applicable waitfactor settings | [ ] | [ ] | [ ] | [ ] | Not run |
+| Rapid cancel→speak before feed/native submission | [ ] | [ ] | [ ] | [ ] | Not run |
+| Rapid cancel→speak during feed and playback barrier | [ ] | [ ] | [ ] | [ ] | Not run |
+| Cancel just before completion delivery; old callbacks cannot advance new work | [ ] | [ ] | [ ] | [ ] | Not run |
+| Pause/resume during synthesis and tail playback | [ ] | [ ] | [ ] | [ ] | Not run |
+| Pause/resume after barrier return and before publication | [ ] | [ ] | [ ] | [ ] | Not run |
+| Index-only commands | [ ] | [ ] | [ ] | [ ] | Not run |
+| Break-only commands | [ ] | [ ] | [ ] | [ ] | Not run |
+| Empty/blank commands versus native failure | [ ] | [ ] | [ ] | [ ] | Not run |
+| LangChange then cancel stops the saved active native synth/voice | [ ] | [ ] | [ ] | [ ] | Not run |
+| Unbind/rebind and termination during active playback | [ ] | [ ] | [ ] | [ ] | Not run |
+| Listen for tail truncation/overlap for every preceding run | [ ] | [ ] | [ ] | [ ] | Not run |
+
+### Cross-engine transitions and mixed-mode observation — all unchecked
+
+Each row requires short/long inputs, ordinary indexes, exact actual profiles,
+time-stamped transitions and listening for overlaps/truncated tails. Repeat
+cancellation and pause/resume controls for each applicable profile pairing.
+
+| Windows sequence | Done | Context/log/settings and listening result |
+| --- | --- | --- |
+| OneCore → Neural → OneCore | [ ] | Not run |
+| Neural → OneCore → Neural (reverse) | [ ] | Not run |
+| VE → Cerence → VE | [ ] | Not run |
+| Cerence → VE → Cerence (reverse) | [ ] | Not run |
+| VE → OneCore → VE | [ ] | Not run |
+| OneCore → VE → OneCore (reverse) | [ ] | Not run |
+| Cerence → Neural → Cerence | [ ] | Not run |
+| Neural → Cerence → Neural (reverse) | [ ] | Not run |
+| VE → SAPI5 → VE, each applicable SAPI5 audio mode | [ ] | Not run; mixed legacy/experimental END_INDEX observation only |
+
+VE→SAPI5→VE cannot certify SAPI5 trailing-audio drain or the four target
+wrappers. Record SAPI5's experimental END_INDEX limitation with that run.
+
+### Per-segment timestamp and audible-tail evidence template — all unchecked
+
+Use one clock and an ordered event log per run. Preserve the original native-job
+`source_id` identity, `segment_id`, call/job ID and binding generation; never
+infer old callback identity from the scheduler's current task. Copy this table
+for every segment and attach the raw log plus listening observations. For an
+actual legacy profile, drain/context-specific values remain explicitly
+`N/A — LEGACY_DONE`; they must not be fabricated or treated as drain proof.
+
+| Measurement | Captured | Timestamp, context/job/binding and observation |
+| --- | --- | --- |
+| Original PlaybackContext capture and native submit | [ ] | Not measured |
+| Native synthesis finished / native call retired | [ ] | Not measured |
+| Final Sonic/PCM/tail feed finished | [ ] | Not measured |
+| Real player idle/sync barrier finished | [ ] | Not measured |
+| Cancellation/fault and pause state checked | [ ] | Not measured |
+| Correlated drain delivered (when an approved profile supports DRAIN) | [ ] | Not measured; actual package target profiles use legacy |
+| Next segment/native submission began | [ ] | Not measured |
+| Audible previous tail finished / next segment started | [ ] | Not listened |
+| Compare tail/feed/barrier/drain/next-start order and attach raw log | [ ] | Not assessed |
+| Listen and record overlap, truncation, device faults and pass/fail | [ ] | Not assessed |
+
+### Task 11 handoff status
+
+- [x] Clean isolated build, exact artifact inspection and protected baseline audit.
+- [x] Linux addon/policy/integration tests and documented full-tree collection limit.
+- [x] Delivery documents and exact pre-documentation commit inventory prepared.
+- [ ] Windows installation/audio/device/SDK matrix executed.
+- [ ] Actual OneCore DRAIN profile enablement accepted.
+- [ ] Actual Neural DRAIN profile enablement accepted.
+- [ ] Actual VE DRAIN profile enablement accepted.
+- [ ] Actual Cerence DRAIN profile enablement accepted.
+- [x] Independent Task 11 review completed and approved the Linux package handoff; Windows/SDK acceptance remains unchecked.
