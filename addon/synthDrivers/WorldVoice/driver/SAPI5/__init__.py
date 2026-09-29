@@ -40,12 +40,11 @@ class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
 			native = driver._segmentNative
 			if native is None:
 				return sapi5.hresult.S_OK
-			if native.work is not None:
-				if native.audio_closed or not native.work.is_valid():
-					return sapi5.hresult.S_OK
-				native.feeds += 1
-			else:
-				native = None
+			if native.work is not None and (native.audio_closed or not native.work.is_valid()):
+				return sapi5.hresult.S_OK
+			# Ordinary PCM callbacks also retain this request's resources. Voice
+			# reload/termination must join the worker only after they have retired.
+			native.feeds += 1
 		previous = getattr(driver._segmentCallbackLocal, "native", None)
 		driver._segmentCallbackLocal.native = native
 		try:
@@ -216,10 +215,19 @@ class _SegmentSapiSink(sapi5.SapiSink):
 				return super().EndStream(streamNum, pos)
 			return
 		with driver._threadCond:
+			# Lookup may have admitted this callback before reload replaced the
+			# sink/native request. Revalidate and transition worker state together;
+			# the inherited method would resolve mutable driver state again.
+			if self is not driver._segmentSink or driver._segmentNative is not native:
+				return
 			# A cancelled token still consumes its native terminal notification
 			# so the worker can retire this identity without publishing success.
 			native.ended = True
-		return super().EndStream(streamNum, pos)
+			if driver._isCancelling:
+				driver._bookmarkLists.clear()
+				return
+			driver._isCompleted = True
+			driver._threadCond.notify()
 
 
 class SynthDriver(BaseSynthDriver):

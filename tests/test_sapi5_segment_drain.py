@@ -871,3 +871,88 @@ def test_retained_old_notify_sink_cannot_consume_replacement_end_event(env, monk
     native.sink.ISpNotifySink_Notify()
     assert wait_event(events).segment_id == 18
     assert queued[native] == []
+
+
+def test_admitted_old_end_callback_cannot_complete_reloaded_successor(env, monkeypatch):
+    _, _, old_events = speak(env)
+    env.native.wait_calls(1)
+    old_sink = env.native.sink
+    admitted, release = Event(), Event()
+    lookup = old_sink._native
+    def blocked_lookup(stream):
+        result = lookup(stream)
+        admitted.set()
+        assert release.wait(2)
+        return result
+    monkeypatch.setattr(old_sink, "_native", blocked_lookup)
+    errors = []
+    def old_end():
+        try:
+            old_sink.EndStream(1, 0)
+        except Exception as error:
+            errors.append(error)
+    callback = Thread(target=old_end, daemon=True)
+    callback.start()
+    assert admitted.wait(1)
+    env.driver.voice = "voice"
+    native, player = env.natives[-1], env.players[-1]
+    _, _, events = speak(env, segment=18)
+    native.wait_calls(1)
+    release.set()
+    callback.join(2)
+    assert not callback.is_alive() and errors == []
+    with events.condition:
+        assert not events.condition.wait_for(lambda: bool(events), .02), "Old end completed replacement work"
+    assert old_events == []
+    player.idle_release.set()
+    native.end()
+    assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_voice_reload_retires_ordinary_pcm_callback_before_replacing_audio(env, monkeypatch):
+    env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
+    env.native.wait_calls(1)
+    old_audio, old_sonic = env.native.audio, env.driver.sonicStream
+    admitted, release = Event(), Event()
+    original_write = env.base.SynthDriverAudioStream.ISequentialStream_RemoteWrite
+    def blocked_write(audio, *args):
+        if audio is old_audio:
+            admitted.set()
+            assert release.wait(2)
+        return original_write(audio, *args)
+    monkeypatch.setattr(env.base.SynthDriverAudioStream, "ISequentialStream_RemoteWrite", blocked_write)
+    errors = []
+    def write_pcm():
+        try:
+            old_audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+        except Exception as error:
+            errors.append(error)
+    callback = Thread(target=write_pcm, daemon=True)
+    callback.start()
+    assert admitted.wait(1)
+    reloaded = Event()
+    def reload():
+        try:
+            env.driver.voice = "voice"
+        except Exception as error:
+            errors.append(error)
+        finally:
+            reloaded.set()
+    reload_thread = Thread(target=reload, daemon=True)
+    reload_thread.start()
+    try:
+        assert not reloaded.wait(.02), "Reload replaced audio before ordinary PCM callback retired"
+        assert env.driver.sonicStream is old_sonic
+    finally:
+        release.set()
+        callback.join(2)
+        reload_thread.join(2)
+    assert not callback.is_alive() and not reload_thread.is_alive() and errors == []
+    native, player = env.natives[-1], env.players[-1]
+    _, _, events = speak(env, segment=18)
+    native.wait_calls(1)
+    assert player.fed == []
+    player.idle_release.set()
+    native.end()
+    assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert player.fed == [6]
