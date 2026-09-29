@@ -321,6 +321,173 @@ def test_pause_resume_reaches_real_player_before_success_event(env):
     assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
+def start_controlled_playback(env, mode):
+    if mode == "legacy_after_segment":
+        speak(env)
+        env.native.wait_calls(1)
+        env.player.sync_release.set()
+        env.native.respond(markers="")
+        env.player.sync_release.clear()
+        env.player.sync_entered.clear()
+    if mode == "segment":
+        _, context, events = speak(env)
+    else:
+        context, events = None, []
+        env.driver.speak(("legacy",))
+    env.native.wait_calls(2 if mode == "legacy_after_segment" else 1)
+    return context, events
+
+
+@pytest.mark.parametrize("mode", ["segment", "legacy", "legacy_after_segment"])
+@pytest.mark.parametrize("terminate", [False, True])
+def test_late_pause_retires_before_cancel_handoff_or_native_close(env, mode, terminate):
+    _, old_events = start_controlled_playback(env, mode)
+    original_pause, original_stop = env.player.pause, env.player.stop
+    pause_entered, release_pause, stopped = Event(), Event(), Event()
+
+    def blocked_pause(switch):
+        if switch:
+            pause_entered.set()
+            assert release_pause.wait(2), "Test did not release pause"
+        original_pause(switch)
+
+    def observed_stop():
+        original_stop()
+        stopped.set()
+
+    env.player.pause, env.player.stop = blocked_pause, observed_stop
+    pause = in_thread(lambda: env.driver.pause(True))
+    assert pause_entered.wait(1)
+    closing = in_thread(env.driver.terminate if terminate else env.driver.cancel)
+    try:
+        assert stopped.wait(1), "Cancel must stop playback before waiting for pause"
+        assert not closing.done.wait(0.05), "Close/cancel retired while pause could still affect the player"
+        if terminate:
+            assert not env.native.terminated
+        else:
+            _, _, successor_events = speak(env, segment=18)
+            if mode != "legacy":
+                env.native.respond(failure=True)
+            assert len(env.native.calls) == (2 if mode == "legacy_after_segment" else 1)
+    finally:
+        release_pause.set()
+        finish(pause)
+        finish(closing)
+    assert old_events == []
+    if not terminate:
+        if mode == "legacy":
+            env.native.respond(failure=True)
+        env.native.wait_calls(3 if mode == "legacy_after_segment" else 2)
+        assert not env.player.pause_switch, "A retired pause affected successor playback"
+        env.native.respond(markers="")
+        assert [event.kind for event in successor_events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+    else:
+        assert env.native.terminated
+
+
+@pytest.mark.parametrize("mode", ["segment", "legacy", "legacy_after_segment"])
+@pytest.mark.parametrize("switch", [False, True])
+def test_pause_or_resume_error_resolves_work_and_blocks_new_admission(env, mode, switch):
+    context, events = start_controlled_playback(env, mode)
+    if not switch:
+        env.driver.pause(True)
+    call = in_thread(lambda: env.native.respond(markers=""))
+    assert env.player.sync_entered.wait(1)
+    error = OSError("player control failed")
+
+    def failed_control(switch):
+        raise error
+
+    env.player.pause = failed_control
+    with pytest.raises(OSError) as raised:
+        env.driver.pause(switch)
+    assert raised.value is error
+    env.player.sync_release.set()
+    finish(call)
+    if mode == "segment":
+        assert len(events) == 1
+        assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+        assert events[0].error is error
+        assert events[0].source_id is context.source_id
+        assert events[0].segment_id == context.segment_id
+    else:
+        assert env.dones == [env.driver], "Legacy failure did not release its wait exactly once"
+    calls = len(env.native.calls)
+    _, _, rejected = speak(env, segment=18)
+    assert len(rejected) == 1
+    assert rejected[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert rejected[0].error is error
+    with pytest.raises(OSError) as rejected_legacy:
+        env.driver.speak(("uncertain player",))
+    assert rejected_legacy.value is error
+    assert len(env.native.calls) == calls
+
+
+def test_pause_error_on_new_player_latches_before_following_segment(env):
+    env.driver._player = None
+    _, _, events = speak(env)
+    env.native.wait_calls(1)
+    env.driver.pause(True)
+    error = OSError("new player pause failed")
+
+    def failed_pause(switch):
+        raise error
+
+    env.player.pause = failed_pause
+    env.native.respond(markers="")
+    assert len(events) == 1 and events[0].error is error
+    _, _, rejected = speak(env, segment=18)
+    assert len(rejected) == 1 and rejected[0].error is error
+    assert len(env.native.calls) == 1
+
+
+def test_control_error_fails_queued_contexts_and_allows_reentrant_cancel(env):
+    events, failed = [], Event()
+    token = env.scheduler.CancellationToken()
+    context = env.rt.models.PlaybackContext(object(), 17)
+
+    def failure_sink(event):
+        events.append(event)
+        env.driver.cancel()
+        failed.set()
+
+    env.driver.speak_segment(("active",), token, context=context, on_event=failure_sink)
+    env.native.wait_calls(1)
+    _, queued_context, queued_events = speak(env, segment=18)
+    error = OSError("pause failed with queued work")
+
+    def failed_pause(switch):
+        raise error
+
+    env.player.pause = failed_pause
+    pause = in_thread(lambda: env.driver.pause(True))
+    assert pause.done.wait(1), "Failure sink deadlocked while cancelling"
+    pause.thread.join(1)
+    assert pause.errors == [error]
+    assert failed.is_set()
+    assert len(events) == 1 and events[0].error is error
+    assert len(queued_events) == 1 and queued_events[0].error is error
+    assert queued_events[0].source_id is queued_context.source_id
+    env.native.respond(failure=True)
+    assert len(env.native.calls) == 1
+
+
+def test_legacy_native_submission_error_releases_speaking_wait(env):
+    error = OSError("legacy submission failed")
+    done = Event()
+    original_done = env.outer.synthDoneSpeaking.notify
+
+    def completed(**kwargs):
+        original_done(**kwargs)
+        done.set()
+
+    env.outer.synthDoneSpeaking.notify = completed
+    env.native.submit_error = error
+    env.driver.speak(("legacy",))
+    assert done.wait(1), "Legacy submission failed without releasing its speaking wait"
+    assert env.dones == [env.driver]
+
+
 def test_legacy_speak_after_correlated_work_preserves_done_notification(env):
     speak(env)
     env.native.wait_calls(1)

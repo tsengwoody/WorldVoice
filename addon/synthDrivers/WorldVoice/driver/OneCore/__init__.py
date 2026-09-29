@@ -94,6 +94,8 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		self._segmentMode = False
 		self._segmentTerminated = False
 		self._segmentPaused = False
+		self._segmentControlGeneration = 0
+		self._segmentControlError = None
 		self._segmentStops = 0
 		self._segmentWorker = None
 		self._segmentNative = None
@@ -145,6 +147,8 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		if not work.is_valid():
 			return
 		try:
+			with self._segmentCondition:
+				self._checkSegmentAdmission()
 			if self.supportsProsodyOptions:
 				conv = oneCore._OcSsmlConverter(self.language, self.availableLanguages)
 			else:
@@ -154,8 +158,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			if self._player:
 				self._player.open()
 			with self._segmentCondition:
-				if self._segmentTerminated:
-					raise RuntimeError("OneCore driver has terminated")
+				self._checkSegmentAdmission()
 				if not self._segmentMode and self._isProcessing:
 					raise RuntimeError("Cannot switch to correlated playback while legacy synthesis is active")
 				self._segmentMode = True
@@ -164,12 +167,25 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		except Exception as error:
 			work.fail(error)
 
-	def _queueSpeech(self, item):
-		if not self._segmentMode:
-			return super()._queueSpeech(item)
+	def _checkSegmentAdmission(self):
+		# Called under the condition; a control fault requires resource replacement.
+		if self._segmentTerminated:
+			raise RuntimeError("OneCore driver has terminated")
+		if self._segmentControlError is not None:
+			raise self._segmentControlError
+
+	def speak(self, speechSequence):
 		with self._segmentCondition:
-			if self._segmentTerminated:
-				return
+			self._checkSegmentAdmission()
+		return super().speak(speechSequence)
+
+	def _queueSpeech(self, item):
+		with self._segmentCondition:
+			self._checkSegmentAdmission()
+			# Legacy text uses the same native ownership and control retirement
+			# as legacy text queued after a correlated segment. Keep its original
+			# speak conversion and anonymous DONE completion interface.
+			self._segmentMode = True
 			self._queuedSpeech.append(item)
 		self._processQueue()
 
@@ -177,7 +193,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		if not self._segmentMode:
 			return super()._processQueue()
 		with self._segmentCondition:
-			if self._segmentTerminated:
+			if self._segmentTerminated or self._segmentControlError is not None:
 				return
 			if self._segmentWorker is None:
 				self._segmentWorker = Thread(target=self._runSegmentQueue, name="WorldVoice OneCore", daemon=True)
@@ -187,9 +203,9 @@ class SynthDriver(BaseOneCoreSynthDriver):
 	def _runSegmentQueue(self):
 		while True:
 			with self._segmentCondition:
-				self._segmentCondition.wait_for(lambda: self._segmentTerminated or (
+				self._segmentCondition.wait_for(lambda: self._segmentTerminated or self._segmentControlError is not None or (
 					self._segmentNative is None and self._segmentStops == 0 and bool(self._queuedSpeech)))
-				if self._segmentTerminated:
+				if self._segmentTerminated or self._segmentControlError is not None:
 					return
 				item = self._queuedSpeech.pop(0)
 				if not isinstance(item, tuple):
@@ -215,6 +231,8 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					try:
 						if native.job.work is not None:
 							native.job.work.fail(error)
+						else:
+							self._failSegmentControl(error)
 					finally:
 						self._retireSegmentNative(native)
 
@@ -233,7 +251,11 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			return super()._callback(audio, length, markers)
 		with self._segmentCondition:
 			native = self._segmentNative
+			control_failed = self._segmentControlError is not None
 		if native is None or self._earlyExitCB:
+			return
+		if control_failed:
+			self._retireSegmentNative(native)
 			return
 		work = native.job.work
 		if work is None:
@@ -246,11 +268,19 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				if empty and self._player:
 					self._player.sync()
 					with self._segmentCondition:
+						self._segmentCondition.wait_for(lambda: not self._segmentPaused
+							or self._wasCancelled or self._segmentTerminated)
 						empty = not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
 					if empty:
 						self._player.idle()
+						with self._segmentCondition:
+							self._segmentCondition.wait_for(lambda: not self._segmentPaused
+								or self._wasCancelled or self._segmentTerminated)
 						if not self._wasCancelled and not self._segmentTerminated:
 							synthDoneSpeaking.notify(synth=self)
+			except Exception as error:
+				log.exception("OneCore legacy playback failed")
+				self._failSegmentControl(error)
 			finally:
 				try:
 					# The parent can return from an admitted feed after cancel's
@@ -326,21 +356,81 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				player.stop()
 		return work.is_valid()
 
+	def _captureSegmentControlFailure(self, error):
+		# Capture while the pause lock is still owned, before cancellation can
+		# retire that operation and admit a successor. Delivery happens later.
+		with self._segmentCondition:
+			if self._segmentControlError is not None:
+				return None
+			self._segmentControlError = error
+			self._segmentControlGeneration += 1
+			self._wasCancelled = True
+			self._segmentStops += 1
+			works = [item.work for item in self._queuedSpeech
+				if isinstance(item, _SpeechJob) and item.work is not None]
+			legacy = any(isinstance(item, str) for item in self._queuedSpeech)
+			if self._segmentNative is not None:
+				if self._segmentNative.job.work is not None:
+					works.append(self._segmentNative.job.work)
+				else:
+					legacy = True
+			self._queuedSpeech.clear()
+			return error, works, legacy
+
+	def _deliverSegmentControlFailure(self, failure):
+		if failure is None:
+			return
+		error, works, legacy = failure
+		try:
+			# Invalidate contextual work before stop releases its drain wait.
+			# Sinks can reenter cancel/terminate, so no driver lock is held.
+			for work in works:
+				try:
+					work.fail(error)
+				except Exception:
+					log.exception("OneCore control failure delivery failed")
+			if self._player:
+				try:
+					self._player.stop()
+				except Exception:
+					log.exception("OneCore failed player could not be stopped")
+			if legacy and not self._segmentTerminated:
+				# Legacy has no failure event; release its speaking wait once.
+				try:
+					synthDoneSpeaking.notify(synth=self)
+				except Exception:
+					log.exception("OneCore legacy failure delivery failed")
+		finally:
+			with self._segmentCondition:
+				self._segmentPaused = False
+				self._segmentStops -= 1
+				self._segmentCondition.notify_all()
+
+	def _failSegmentControl(self, error):
+		self._deliverSegmentControlFailure(self._captureSegmentControlFailure(error))
+
 	def _maybeInitPlayer(self, wav):
-		super()._maybeInitPlayer(wav)
-		if self._segmentMode:
-			# Serialize pause/resume with applying pause to a newly made player.
-			# Cancellation never takes this lock and can always call stop.
+		failure = None
+		try:
 			with self._segmentPauseLock:
-				if self._segmentPaused:
-					self._player.pause(True)
+				try:
+					with self._segmentCondition:
+						self._checkSegmentAdmission()
+					super()._maybeInitPlayer(wav)
+					if self._segmentPaused and not self._segmentStops:
+						self._player.pause(True)
+				except Exception as error:
+					failure = self._captureSegmentControlFailure(error)
+					raise
+		except Exception as error:
+			self._deliverSegmentControlFailure(failure)
+			raise
 
 	def cancel(self):
-		if not self._segmentMode:
-			return super().cancel()
 		with self._segmentCondition:
 			self._wasCancelled = True
 			self._segmentPaused = False
+			self._segmentControlGeneration += 1
 			self._segmentStops += 1
 			for item in self._queuedSpeech:
 				if isinstance(item, _SpeechJob) and item.work is not None:
@@ -350,23 +440,54 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				self._segmentNative.job.work.cancel()
 			self._segmentCondition.notify_all()
 		try:
-			if self._player:
-				self._player.stop()
+			try:
+				if self._player:
+					self._player.stop()
+			finally:
+				# Stop first to release callback/player waits. Keep cancellation
+				# admission reserved until every older control operation exits;
+				# then undo a late pause before letting a successor use the player.
+				with self._segmentPauseLock:
+					if self._player:
+						if self._segmentControlError is None:
+							self._player.pause(False)
+						self._player.stop()
+		except Exception as error:
+			self._failSegmentControl(error)
+			raise
 		finally:
 			with self._segmentCondition:
 				self._segmentStops -= 1
 				self._segmentCondition.notify_all()
 
 	def pause(self, switch):
-		with self._segmentPauseLock:
-			if switch:
-				with self._segmentCondition:
-					self._segmentPaused = True
-			super().pause(switch)
-			if not switch:
-				with self._segmentCondition:
-					self._segmentPaused = False
-					self._segmentCondition.notify_all()
+		with self._segmentCondition:
+			if self._segmentTerminated or self._segmentStops:
+				return
+			self._checkSegmentAdmission()
+			generation = self._segmentControlGeneration
+		failure = None
+		try:
+			with self._segmentPauseLock:
+				try:
+					with self._segmentCondition:
+						if (generation != self._segmentControlGeneration
+								or self._segmentTerminated or self._segmentStops):
+							return
+						self._checkSegmentAdmission()
+						if switch:
+							self._segmentPaused = True
+					super().pause(switch)
+					if not switch:
+						with self._segmentCondition:
+							self._segmentPaused = False
+							self._segmentCondition.notify_all()
+				except Exception as error:
+					failure = self._captureSegmentControlFailure(error)
+					raise
+		except Exception:
+			self._deliverSegmentControlFailure(failure)
+			raise
 
 	def terminate(self):
 		with self._segmentCondition:
