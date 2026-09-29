@@ -703,3 +703,171 @@ def test_token_cancelled_native_end_retires_silently_before_successor(env):
     env.native.end(2)
     assert wait_event(successor).segment_id == 18
     assert old_events == []
+
+
+@pytest.mark.parametrize("feed_fails", [False, True])
+def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, feed_fails):
+    _, context, events = speak(env)
+    env.native.wait_calls(1)
+    admitted, release = Event(), Event()
+    feed = env.player.feed
+    failures = []
+    callback_thread = None
+    def held_pcm_feed(data, size=None, onDone=None):
+        if current_thread() is callback_thread:
+            admitted.set()
+            assert release.wait(2)
+            if feed_fails:
+                raise OSError("admitted PCM feed failed")
+        return feed(data, size, onDone)
+    monkeypatch.setattr(env.player, "feed", held_pcm_feed)
+    def write():
+        try:
+            env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+        except Exception as error:
+            failures.append(error)
+    callback_thread = Thread(target=write, daemon=True)
+    callback_thread.start()
+    assert admitted.wait(1)
+    env.player.idle_release.set()
+    env.native.end()
+    try:
+        assert not env.player.idle_entered.wait(.02), "Idle overtook an admitted PCM feed"
+        assert events == []
+    finally:
+        release.set()
+        callback_thread.join(2)
+    assert not callback_thread.is_alive()
+    event = wait_event(events)
+    assert event.source_id is context.source_id
+    if feed_fails:
+        assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+        assert len(failures) == 1
+        assert not env.player.idle_entered.is_set()
+    else:
+        assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+        assert failures == []
+
+
+def test_pcm_arriving_after_final_idle_cannot_feed_the_completed_segment(env):
+    _, _, events = speak(env)
+    env.native.wait_calls(1)
+    env.native.end()
+    assert env.player.idle_entered.wait(1)
+    before = tuple(env.player.fed)
+    env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+    assert tuple(env.player.fed) == before
+    env.player.idle_release.set()
+    assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+@pytest.mark.parametrize("operation", ["writeShort", "readShort"])
+def test_com_sonic_failure_before_feed_fails_and_wakes_exact_work(env, monkeypatch, operation):
+    _, context, events = speak(env)
+    env.native.wait_calls(1)
+    def fail(*args):
+        raise OSError("COM Sonic operation failed")
+    monkeypatch.setattr(env.driver.sonicStream, operation, fail)
+    with pytest.raises(OSError, match="COM Sonic operation failed"):
+        env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+    event = wait_event(events)
+    assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert event.source_id is context.source_id
+    assert event.segment_id == 17
+    assert str(event.error) == "COM Sonic operation failed"
+    assert not env.player.idle_entered.is_set()
+    assert env.dones == []
+
+
+def test_admitted_com_sonic_operation_retires_before_final_tail_and_idle(env, monkeypatch):
+    _, _, events = speak(env)
+    env.native.wait_calls(1)
+    entered, release = Event(), Event()
+    write = env.driver.sonicStream.writeShort
+    def blocked_write(*args):
+        entered.set()
+        assert release.wait(2)
+        return write(*args)
+    monkeypatch.setattr(env.driver.sonicStream, "writeShort", blocked_write)
+    failures = []
+    def write_pcm():
+        try:
+            env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+        except Exception as error:
+            failures.append(error)
+    callback = Thread(target=write_pcm, daemon=True)
+    callback.start()
+    assert entered.wait(1)
+    env.native.end()
+    env.player.idle_release.set()
+    try:
+        assert not env.player.idle_entered.wait(.02), "Idle overtook Sonic processing"
+    finally:
+        release.set()
+        callback.join(2)
+    assert failures == [] and not callback.is_alive()
+    assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.player.fed == [6, 0]
+
+
+def test_pcm_arriving_after_completion_cannot_feed_retired_audio(env):
+    _, _, events = speak(env)
+    env.native.wait_calls(1)
+    env.player.idle_release.set()
+    env.native.end()
+    assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    before = tuple(env.player.fed)
+    env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+    assert tuple(env.player.fed) == before
+
+
+def test_token_cancel_retires_sonic_tail_and_bookmarks_before_successors(env):
+    token, _, old_events = speak(env)
+    env.native.wait_calls(1)
+    token.cancel()
+    _, _, next_events = speak(env, segment=18, commands=("next", env.commands.IndexCommand(9)))
+    env.native.end()
+    env.native.wait_calls(2)
+    # The cancelled request's unconsumed Sonic tail cannot become successor audio.
+    assert env.driver.sonicStream.tail == []
+    assert [tuple(bookmarks) for bookmarks in env.driver._bookmarkLists] == [(9,)]
+    env.driver.sonicStream.tail = [4]
+    env.player.idle_release.set()
+    env.native.end(2)
+    assert wait_event(next_events).segment_id == 18
+    env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
+    env.native.wait_calls(3)
+    done = Event()
+    notification = sys.modules["synthDriverHandler"].synthDoneSpeaking
+    notify = notification.notify
+    def observed_done(**kwargs):
+        notify(**kwargs)
+        done.set()
+    notification.notify = observed_done
+    env.native.end(3)
+    assert done.wait(1)
+    assert env.indexes == [9, 11]
+    assert env.player.fed == [2, 0]
+    assert old_events == []
+
+
+def test_retained_old_notify_sink_cannot_consume_replacement_end_event(env, monkeypatch):
+    old_sink = env.native.sink
+    env.driver.voice = "voice"
+    native, player = env.natives[-1], env.players[-1]
+    _, _, events = speak(env, segment=18)
+    native.wait_calls(1)
+    event = SimpleNamespace(eEventId=env.base._SPEventEnum.END_INPUT_STREAM, ulStreamNum=1,
+        ullAudioStreamOffset=0)
+    queued = {source: [] for source in env.natives}
+    queued[native].append(event)
+    def enumerate_events(source):
+        while queued[source]:
+            yield queued[source].pop(0)
+    monkeypatch.setattr(env.base._SapiEvent, "enumerateFrom", staticmethod(enumerate_events))
+    old_sink.ISpNotifySink_Notify()
+    assert queued[native] == [event], "An old sink consumed replacement voice events"
+    player.idle_release.set()
+    native.sink.ISpNotifySink_Notify()
+    assert wait_event(events).segment_id == 18
+    assert queued[native] == []

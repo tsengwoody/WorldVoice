@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from threading import RLock, Thread
+from threading import RLock, Thread, local
 import weakref
 
 from synthDrivers import sapi5
@@ -21,7 +21,45 @@ class _NativeRequest:
 	end_processed: bool = False
 	error: Exception | None = None
 	feeds: int = 0
+	audio_closed: bool = False
 	index_lock: object = field(default_factory=RLock)
+
+
+class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
+	"""Own the complete COM PCM callback, including Sonic before feed."""
+
+	def ISequentialStream_RemoteWrite(self, this, pv, cb, pcbWritten):
+		driver = self.synthRef()
+		if pcbWritten:
+			pcbWritten[0] = 0
+		if driver is None:
+			return sapi5.hresult.E_UNEXPECTED
+		with driver._threadCond:
+			if self is not driver._segmentAudio:
+				return sapi5.hresult.S_OK
+			native = driver._segmentNative
+			if native is None:
+				return sapi5.hresult.S_OK
+			if native.work is not None:
+				if native.audio_closed or not native.work.is_valid():
+					return sapi5.hresult.S_OK
+				native.feeds += 1
+			else:
+				native = None
+		previous = getattr(driver._segmentCallbackLocal, "native", None)
+		driver._segmentCallbackLocal.native = native
+		try:
+			return super().ISequentialStream_RemoteWrite(this, pv, cb, pcbWritten)
+		except Exception as error:
+			if native is not None:
+				driver._recordSegmentError(native, error)
+			raise
+		finally:
+			driver._segmentCallbackLocal.native = previous
+			if native is not None:
+				with driver._threadCond:
+					native.feeds -= 1
+					driver._threadCond.notify_all()
 
 
 class _SegmentPlayer:
@@ -43,7 +81,8 @@ class _SegmentPlayer:
 			if self is not driver.player:
 				return
 			if native is not None and native.work is not None:
-				if not native.work.is_valid():
+				admitted_pcm = getattr(driver._segmentCallbackLocal, "native", None) is native
+				if not native.work.is_valid() or (native.audio_closed and not admitted_pcm):
 					return
 				native.feeds += 1
 			else:
@@ -92,6 +131,30 @@ class _SegmentPlayer:
 
 class _SegmentSapiSink(sapi5.SapiSink):
 	"""Reject old stream events, retaining bookmark closures' original work."""
+
+	def __init__(self, synthRef, eventSource):
+		super().__init__(synthRef)
+		self._eventSource = eventSource
+
+	def detach(self):
+		# Release original COM ownership without waiting for an admitted Notify.
+		# An admitted enumerator retains only its own original source snapshot.
+		self._eventSource = None
+
+	def ISpNotifySink_Notify(self):
+		driver = self.synthRef()
+		source = self._eventSource
+		if driver is None or source is None or self is not driver._segmentSink:
+			return
+		# Never fetch events from mutable driver.tts: a retained old sink must
+		# not consume a replacement voice's events during/after reload.
+		for event in sapi5._SapiEvent.enumerateFrom(source):
+			if event.eEventId == sapi5._SPEventEnum.START_INPUT_STREAM:
+				self.StartStream(event.ulStreamNum, event.ullAudioStreamOffset)
+			elif event.eEventId == sapi5._SPEventEnum.END_INPUT_STREAM:
+				self.EndStream(event.ulStreamNum, event.ullAudioStreamOffset)
+			elif event.eEventId == sapi5._SPEventEnum.TTS_BOOKMARK:
+				self.Bookmark(event.ulStreamNum, event.ullAudioStreamOffset, event.getString(), event.wParam)
 
 	def _native(self, stream):
 		driver = self.synthRef()
@@ -167,6 +230,8 @@ class SynthDriver(BaseSynthDriver):
 		self._segmentWorks = set()
 		self._segmentNative = None
 		self._segmentSink = None
+		self._segmentAudio = None
+		self._segmentCallbackLocal = local()
 		self._segmentTerminated = False
 		self._segmentStops = 0
 		self._segmentControlError = None
@@ -210,19 +275,36 @@ class SynthDriver(BaseSynthDriver):
 
 	def _initTts(self, voice=None):
 		self._invalidateSegments()
+		if self._segmentSink is not None:
+			self._segmentSink.detach()
 		self._segmentSink = None
+		self._segmentAudio = None
 		super()._initTts(voice)
 		self._segmentControlError = None
 		if self.player is not None:
 			self.player = _SegmentPlayer(self, self.player)
-		self._segmentSink = _SegmentSapiSink(weakref.ref(self))
+		self._segmentSink = _SegmentSapiSink(weakref.ref(self), self.tts.QueryInterface(sapi5.ISpEventSource))
 		self.tts.QueryInterface(sapi5.ISpNotifySource).SetNotifySink(self._segmentSink)
 
 	def _initWasapiAudio(self):
 		# The parent has already joined and replaced the old resources here.
 		# Clear their control fault before the replacement worker starts.
 		self._segmentControlError = None
-		return super()._initWasapiAudio()
+		# The inner initializer constructs its own fixed AudioStream class.
+		# Keep its format/settings/player path, substituting only our owned
+		# COM callback object so pre-feed Sonic failures cannot escape capture.
+		audio = self._segmentAudio = _SegmentAudioStream(weakref.ref(self))
+		self.tts.QueryInterface(sapi5.ISpVoice).SetOutput(audio, True)
+		wfx = audio.waveFormat
+		self.player = sapi5.nvwave.WavePlayer(
+			channels=wfx.nChannels, samplesPerSec=wfx.nSamplesPerSec,
+			bitsPerSample=wfx.wBitsPerSample,
+			outputDevice=sapi5.config.conf["audio"]["outputDevice"],
+		)
+		sapi5.sonicInitialize()
+		self.sonicStream = sapi5.SonicStream(wfx.nSamplesPerSec, wfx.nChannels)
+		self._thread = Thread(target=self._speakThread, name="Sapi5SpeakThread")
+		self._thread.start()
 
 	def _recordSegmentError(self, native, error):
 		with self._threadCond:
@@ -317,12 +399,22 @@ class SynthDriver(BaseSynthDriver):
 						raise RuntimeError("SAPI5 callback stream did not match the admitted request")
 					native.stream = stream
 					self._threadCond.wait_for(self._requestCompleted)
+				if work is not None:
+					with self._threadCond:
+						# EndStream closes new audio admission. Retire every feed
+						# already admitted before flushing/final idle and checking errors.
+						native.audio_closed = True
+						self._threadCond.wait_for(lambda: native.feeds == 0)
 				if native.error is not None:
 					raise native.error
 				if not self._isCancelling and not self._isStoppingThread and (work is None or work.is_valid()):
 					sonic.flush()
 					audio = sonic.readShort()
-					player.feed(audio, len(audio) * 2)
+					if work is not None:
+						# The worker alone owns this final feed after callback retirement.
+						player._player.feed(audio, len(audio) * 2)
+					else:
+						player.feed(audio, len(audio) * 2)
 					self._onEndStream()
 					if work is not None or not self._requestsAvailable():
 						player.idle()
@@ -350,9 +442,22 @@ class SynthDriver(BaseSynthDriver):
 				# final stop and lease must retire before a successor uses the player.
 				with self._threadCond:
 					self._threadCond.wait_for(lambda: native.feeds == 0)
-				if work is not None and not work.is_valid():
+				if work is not None and (not work.is_valid() or error is not None):
 					try:
-						player.stop()
+						try:
+							player.stop()
+						finally:
+							# Token-only cancellation does not enter the parent's purge
+							# path. Retire this exact bookmark deque and discard Sonic
+							# only after all its admitted PCM callbacks have returned.
+							with native.index_lock:
+								native.request.bookmarks.clear()
+								for index, bookmarks in enumerate(self._bookmarkLists):
+									if bookmarks is native.request.bookmarks:
+										del self._bookmarkLists[index]
+										break
+							sonic.flush()
+							sonic.readShort()
 					except Exception as control_error:
 						self._failSegmentControl(control_error)
 				with self._threadCond:
@@ -383,6 +488,10 @@ class SynthDriver(BaseSynthDriver):
 	def terminate(self):
 		self._segmentTerminated = True
 		self._invalidateSegments()
+		if self._segmentSink is not None:
+			self._segmentSink.detach()
+		self._segmentSink = None
+		self._segmentAudio = None
 		return super().terminate()
 
 
