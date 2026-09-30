@@ -2,6 +2,7 @@
 
 import gc
 import ctypes
+import sys
 from threading import Event, Thread, current_thread
 import time
 import weakref
@@ -13,6 +14,7 @@ from rhvoice_drain_harness import finish, load_rhvoice, speak
 
 @pytest.fixture
 def env(monkeypatch, tmp_path):
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
     result = load_rhvoice(monkeypatch, tmp_path)
     yield result
     finish(result)
@@ -129,7 +131,10 @@ def test_cancel_releases_queued_work_without_running_its_native_message(env):
     stopper.join(3)
     assert not stopper.is_alive()
     del events
-    gc.collect()
+    deadline = time.monotonic() + 3
+    while reference() is not None and time.monotonic() < deadline:
+        gc.collect()
+        time.sleep(0.01)
     assert reference() is None
     assert len(env.native.calls) == 1
 
@@ -258,6 +263,110 @@ def test_legacy_speak_keeps_inner_settings_snapshot_and_queue(env):
     assert env.dones == [env.driver]
 
 
+def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
+    assert env.driver._segmentLifecycle is not None
+    callback_entered, release_callback = Event(), Event()
+    original_rate = env.driver._SynthDriver__player.set_sample_rate
+    calls = 0
+    def delayed_rate(rate):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            callback_entered.set()
+            assert release_callback.wait(3)
+            env.driver._SynthDriver__player.do_play(b"nested")
+        return original_rate(rate)
+    env.driver._SynthDriver__player.set_sample_rate = delayed_rate
+    def callback(callbacks, user_data):
+        Thread(target=lambda: callbacks.set_sample_rate(22050, user_data), daemon=True).start()
+        assert callback_entered.wait(3)
+    env.native.scripts.append({"auto_return": True, "async_callback": callback})
+    _, _, old_events = speak(env, text="old")
+    old_call = env.native.wait_call()
+    assert old_call.returned.wait(3)
+    player = env.players[0]
+    player.block_idle_number = 2
+    player.idle_release.clear()
+    env.native.scripts.append({"auto_return": True})
+    _, _, new_events = speak(env, segment=2, text="new")
+    assert len(env.native.calls) == 1
+    assert old_events == []
+    release_callback.set()
+    assert player.second_idle_entered.wait(3)
+    assert len(env.native.calls) == 1
+    assert old_events == []
+    player.idle_release.set()
+    assert old_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    env.native.wait_call(2)
+    assert new_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_rhvoice_shared_cancel_keeps_old_identity_until_retirement(env):
+    assert env.driver._segmentLifecycle is not None
+    created = Event()
+    original = env.inner.nvwave.WavePlayer
+    def blocked_player(**kwargs):
+        player = original(**kwargs)
+        player.feed_release.clear()
+        created.set()
+        return player
+    env.inner.nvwave.WavePlayer = blocked_player
+    _, _, old_events = speak(env, text="old")
+    old_call = env.native.wait_call()
+    assert created.wait(3)
+    player = env.players[0]
+    assert player.feed_entered.wait(3)
+    original_id = old_call.user_data
+    stopper = Thread(target=env.driver.cancel)
+    stopper.start()
+    assert player.stop_entered.wait(3)
+    env.native.scripts.append({"auto_return": True})
+    _, _, new_events = speak(env, segment=2, text="new")
+    assert len(env.native.calls) == 1
+    assert original_id in env.driver._segmentById
+    player.feed_release.set()
+    old_call.return_release.set()
+    stopper.join(3)
+    assert not stopper.is_alive()
+    env.native.wait_call(2)
+    assert new_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert old_events == []
+    assert original_id not in env.driver._segmentById
+
+
+def test_rhvoice_shared_token_cancel_clears_native_flag_before_successor(env):
+    token, _, old_events = speak(env, text="old")
+    old_call = env.native.wait_call()
+    assert old_call.done.wait(3)
+    token.cancel()
+    old_call.return_release.set()
+    assert old_call.returned.wait(3)
+    env.native.scripts.append({"auto_return": True})
+    _, _, next_events = speak(env, segment=2, text="new")
+    env.native.wait_call(2)
+    assert next_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert old_events == []
+
+
+def test_rhvoice_shared_sink_reenters_terminate(env):
+    assert env.driver._segmentLifecycle is not None
+    delivered = Event()
+    errors = []
+    def sink(event):
+        try:
+            env.driver.terminate()
+        except Exception as error:
+            errors.append(error)
+        delivered.set()
+    env.native.scripts.append({"auto_return": True})
+    speak(env, sink=sink)
+    call = env.native.wait_call()
+    assert delivered.wait(3)
+    assert call.returned.is_set()
+    assert errors == []
+    assert env.native.engine_deleted
+
+
 def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
     done_entered, successor_queued = Event(), Event()
     successor_events = []
@@ -284,26 +393,27 @@ def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
 
 def test_cancel_invalidates_completion_waiting_for_async_delivery(env, monkeypatch):
     delivery_waiting, release_delivery = Event(), Event()
-    delivery_threads = []
-    real_thread = env.outer.Thread
-    def delayed_thread(*, target, **kwargs):
-        def delayed_target():
-            delivery_waiting.set()
-            assert release_delivery.wait(3)
-            target()
-        thread = real_thread(target=delayed_target, **kwargs)
-        delivery_threads.append(thread)
-        return thread
-    monkeypatch.setattr(env.outer, "Thread", delayed_thread)
+    lifecycle = env.driver._segmentLifecycle
+    queue_delivery = lifecycle._queue_delivery_locked
+    def delayed_delivery(operation):
+        delivery_waiting.set()
+        assert release_delivery.wait(3)
+        queue_delivery(operation)
+    monkeypatch.setattr(lifecycle, "_queue_delivery_locked", delayed_delivery)
     env.native.scripts.append({"auto_return": True})
     _, _, events = speak(env)
     assert delivery_waiting.wait(3)
+    stopper = Thread(target=env.driver.cancel)
+    stopper.start()
     try:
-        env.driver.cancel()
+        deadline = time.monotonic() + 3
+        while not any(operation._rhvoice_cancelled for operation in env.driver._segmentAccepted) and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert any(operation._rhvoice_cancelled for operation in env.driver._segmentAccepted)
     finally:
         release_delivery.set()
-    delivery_threads[0].join(3)
-    assert not delivery_threads[0].is_alive()
+    stopper.join(3)
+    assert not stopper.is_alive()
     assert events == []
 
 
@@ -334,26 +444,34 @@ def test_audio_index_listener_can_cancel_from_its_own_callback_thread(env):
 
 def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypatch):
     delivery_waiting, release_delivery = Event(), Event()
-    delivery_threads = []
-    real_thread = env.outer.Thread
-    def delayed_thread(*, target, **kwargs):
-        def delayed_target():
-            delivery_waiting.set()
-            assert release_delivery.wait(3)
-            target()
-        thread = real_thread(target=delayed_target, **kwargs)
-        delivery_threads.append(thread)
-        return thread
-    monkeypatch.setattr(env.outer, "Thread", delayed_thread)
+    lifecycle = env.driver._segmentLifecycle
+    queue_delivery = lifecycle._queue_delivery_locked
+    def delayed_delivery(operation):
+        delivery_waiting.set()
+        assert release_delivery.wait(3)
+        queue_delivery(operation)
+    monkeypatch.setattr(lifecycle, "_queue_delivery_locked", delayed_delivery)
     env.native.scripts.append({"auto_return": True})
     _, _, events = speak(env)
     assert delivery_waiting.wait(3)
     env.players[0].stop_error = OSError("stop failed")
-    try:
-        with pytest.raises(OSError, match="stop failed"):
+    stop_errors = []
+    def stop_player():
+        try:
             env.driver._SynthDriver__player.stop()
+        except OSError as error:
+            stop_errors.append(error)
+    stopper = Thread(target=stop_player)
+    stopper.start()
+    try:
+        deadline = time.monotonic() + 3
+        while env.driver._segmentControlError is None and time.monotonic() < deadline:
+            time.sleep(0.001)
+        assert env.driver._segmentControlError is not None
     finally:
         release_delivery.set()
+    stopper.join(3)
+    assert len(stop_errors) == 1
     assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 
 
