@@ -325,6 +325,9 @@ def load_neural(monkeypatch, tmp_path, *, rt=None, scheduler=None, voice_base=ob
     package("synthDrivers.WorldVoice", ROOT / "addon/synthDrivers/WorldVoice")
     package("synthDrivers.WorldVoice.driver", NEURAL.parent, Voice=voice_base)
     rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
+    # Runtime modules are reloaded for each isolated fake SDK. Keep the
+    # coordinator's model classes paired with this fixture's fresh runtime.
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
     scheduler = scheduler or load_scheduler(monkeypatch, rt)
     package("speech", ROOT)
     commands = commands or module("speech.commands", **{name: type(name, (), {}) for name in (

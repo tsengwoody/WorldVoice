@@ -95,6 +95,69 @@ def test_langchange_tasks_share_work_snapshot_and_one_drain(env, monkeypatch):
     assert len(events) == 1
 
 
+def test_neural_shared_lifecycle_waits_for_all_langchange_tasks_and_sonic_idle(env, monkeypatch):
+    from neural_drain_harness import Sonic
+    prove_fake_quiescence(env, monkeypatch)
+    change = env.commands.LangChangeCommand()
+    change.lang = "fr"
+    env.driver.rateBoost = True
+    streams = iter((Sonic(), Sonic()))
+    monkeypatch.setattr(env.driver._audioCallback, "_createSonicStream", lambda: next(streams))
+    _, _, events, done = speak(env, commands=("hello", change, "bonjour"))
+    env.native.wait_calls(1)
+    env.native.audio()
+    env.native.speak_release.set()
+    env.native.wait_calls(2)
+    assert events == []
+    env.native.audio()
+    assert env.player.idle_entered.wait(2)
+    assert len(env.player.fed) == 2
+    assert events == []
+    env.player.idle_release.set()
+    assert done.wait(2)
+    assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+    assert isinstance(env.driver._segmentLifecycle, env.outer.SegmentLifecycle)
+
+
+def test_neural_cancelled_callback_cannot_feed_successor(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    speak(env)
+    env.native.wait_calls(1)
+    env.player.feed_release.clear()
+    old_callback = in_thread(lambda: env.native.audio(b"old PCM"))
+    assert env.player.feed_entered.wait(1)
+    env.native.stop_release.clear()
+    env.driver.cancel()
+    _, _, events, done = speak(env, segment=18)
+    env.native.speak_release.set()
+    assert env.native.stop_wait_entered.wait(1)
+    assert len(env.native.calls) == 1
+    env.native.stop_release.set()
+    assert not done.wait(0.05)
+    assert len(env.native.calls) == 1
+    env.player.feed_release.set()
+    finish(old_callback)
+    env.native.wait_calls(2)
+    env.native.audio(b"new PCM")
+    assert done.wait(2)
+    assert env.player.fed[-1] == b"new PCM"
+    assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+    assert isinstance(env.driver._segmentLifecycle, env.outer.SegmentLifecycle)
+
+
+def test_neural_cancel_retires_queued_lifecycle_operation(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    speak(env)
+    env.native.wait_calls(1)
+    speak(env, segment=18)
+    env.driver.cancel()
+    env.native.speak_release.set()
+    with env.driver._segmentLifecycle._condition:
+        assert env.driver._segmentLifecycle._condition.wait_for(
+            lambda: not env.driver._segmentLifecycle._resource_busy, 2)
+        assert env.driver._segmentLifecycle._operations == set()
+
+
 def test_neural_waits_for_stop_and_callback_exit(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     _, _, old_events, _ = speak(env)
@@ -540,7 +603,7 @@ def test_retained_legacy_bookmark_handles_do_not_retain_driver(env):
     env.native.bookmark(saved=saved)
 
 
-def test_failure_sink_can_terminate_inside_audio_callback(env, monkeypatch):
+def test_failure_sink_can_terminate_after_audio_callback_fault(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     env.player.error = "feed"
     events = []
@@ -555,9 +618,10 @@ def test_failure_sink_can_terminate_inside_audio_callback(env, monkeypatch):
         context=env.rt.models.PlaybackContext(object(), 17), on_event=fail_and_terminate)
     env.native.wait_calls(1)
     callback = in_thread(env.native.audio)
-    assert failure_entered.wait(1)
-    env.native.speak_release.set()
     finish(callback)
+    assert not failure_entered.wait(0.05)
+    env.native.speak_release.set()
+    assert failure_entered.wait(1)
     assert len(events) == 1
 
 
