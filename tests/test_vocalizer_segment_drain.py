@@ -1,6 +1,8 @@
 import ctypes
+import sys
 from io import BytesIO
 from threading import Event, Thread
+from time import monotonic, sleep
 
 import pytest
 
@@ -10,6 +12,9 @@ from test_worldvoice_cancel_wrappers import Token, native_message
 
 @pytest.fixture(params=["VE", "Cerence"])
 def env(request, monkeypatch):
+    # The harness reloads runtime models for every engine case. Reload the
+    # coordinator too so its event enum belongs to that same runtime copy.
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
     result = load_real_driver_with_native_stubs(monkeypatch, request.param)
     result.core = result.new_core()
     result.core._veCallbackHandler._ensureSonicStream = lambda: False
@@ -46,6 +51,13 @@ def finish(call):
     assert call[2] == []
 
 
+def wait_for(predicate):
+    deadline = monotonic() + 2
+    while not predicate() and monotonic() < deadline:
+        sleep(.005)
+    assert predicate()
+
+
 def speak(env, commands=("hello",), *, token=None, segment=17):
     token = token or Token()
     context = env.rt.models.PlaybackContext(object(), segment)
@@ -75,6 +87,146 @@ def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
     if end:
         results.append(callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, data)))
     return results
+
+
+def test_ve_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    prove_fake_quiescence(env, monkeypatch)
+    assert isinstance(env.core._segmentLifecycle, env.module.SegmentLifecycle)
+    feed_entered, feed_release, idle_entered, idle_release = Event(), Event(), Event(), Event()
+    callbacks = []
+    env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
+    env.core._real_player.idle = lambda: (idle_entered.set(), idle_release.wait(2))
+    def native(instance, text):
+        callbacks.append(run_thread(lambda: emit(env, instance, index=31)))
+        assert feed_entered.wait(1)
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, context, call = speak(env)
+    assert feed_entered.wait(1)
+    assert env.events == []
+    assert not idle_entered.is_set()
+    feed_release.set()
+    wait_for(lambda: bool(callbacks))
+    finish(callbacks[0])
+    assert idle_entered.wait(1)
+    assert env.events == []
+    idle_release.set()
+    finish(call)
+    wait_for(lambda: len(env.events) == 1)
+    assert len(env.events) == 1
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.events[0].source_id is context.source_id
+    assert env.events[0].segment_id == context.segment_id
+    assert env.indexes == [31]
+
+
+def test_ve_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    prove_fake_quiescence(env, monkeypatch)
+    assert isinstance(env.core._segmentLifecycle, env.module.SegmentLifecycle)
+    feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
+    calls, callbacks = [], []
+    env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
+    def stop():
+        stop_entered.set()
+        assert stop_release.wait(2)
+    env.core._real_player.stop = stop
+    def native(instance, text):
+        calls.append(text)
+        if len(calls) == 1:
+            callbacks.append(run_thread(lambda: emit(env, instance, index=41)))
+            assert feed_entered.wait(1)
+        else:
+            emit(env, instance, index=42)
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    token, _, first = speak(env)
+    assert feed_entered.wait(1)
+    token.cancel()
+    _, context, second = speak(env, segment=18)
+    feed_release.set()
+    assert stop_entered.wait(1)
+    assert calls == ["hello"]
+    stop_release.set()
+    finish(callbacks[0])
+    finish(first)
+    finish(second)
+    wait_for(lambda: len(env.events) == 1)
+    assert calls == ["hello", "hello"]
+    assert env.indexes == [42]
+    assert len(env.events) == 1
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.events[0].source_id is context.source_id
+    assert env.events[0].segment_id == 18
+
+
+def test_ve_shared_terminal_listener_can_speak_successor(env, monkeypatch):
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    token = Token()
+    source = object()
+    events = []
+    first_context = env.rt.models.PlaybackContext(source, 17)
+    second_context = env.rt.models.PlaybackContext(source, 18)
+    def listener(event):
+        events.append(event)
+        if event.segment_id == 17:
+            env.core.speak_segment(("second",), Token(), context=second_context, on_event=listener)
+    first = run_thread(lambda: env.core.speak_segment(("first",), token,
+        context=first_context, on_event=listener))
+    finish(first)
+    wait_for(lambda: len(events) == 2)
+    assert [event.segment_id for event in events] == [17, 18]
+
+
+def test_ve_shared_player_failure_rejects_successor_with_context(env, monkeypatch):
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    prove_fake_quiescence(env, monkeypatch)
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    error = OSError("idle failed")
+    env.core._real_player.idle = lambda: (_ for _ in ()).throw(error)
+    _, first_context, first = speak(env)
+    finish(first)
+    assert len(env.events) == 1
+    assert env.events[0].source_id is first_context.source_id
+    assert env.events[0].error is error
+    _, second_context, second = speak(env, segment=18)
+    finish(second)
+    assert len(env.events) == 2
+    assert env.events[1].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert env.events[1].source_id is second_context.source_id
+    assert env.events[1].segment_id == 18
+
+
+def test_ve_shared_terminate_waits_for_coordinator_stop(env, monkeypatch):
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    idle_entered, idle_release, hook_entered, hook_release = Event(), Event(), Event(), Event()
+    closed = Event()
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    monkeypatch.setattr(env.native, "close", lambda instance: None)
+    monkeypatch.setattr(env.native, "terminate", lambda: None)
+    env.core._real_player.idle = lambda: (idle_entered.set(), idle_release.wait(2))
+    env.core._real_player.stop = idle_release.set
+    env.core._real_player.close = closed.set
+    request_stop = env.core.request_stop
+    def delayed_stop(operation):
+        hook_entered.set()
+        assert hook_release.wait(2)
+        request_stop(operation)
+    monkeypatch.setattr(env.core, "request_stop", delayed_stop)
+    _, _, speech = speak(env)
+    assert idle_entered.wait(1)
+    terminating = run_thread(env.core.terminate)
+    assert hook_entered.wait(1)
+    assert not closed.wait(.05)
+    hook_release.set()
+    finish(speech)
+    finish(terminating)
+    assert closed.is_set()
 
 
 def test_native_constructor_owns_contextual_callback_before_first_open(env):
