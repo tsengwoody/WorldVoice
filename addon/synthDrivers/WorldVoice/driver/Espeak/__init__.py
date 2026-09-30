@@ -159,8 +159,8 @@ class SynthDriver(BaseSynthDriver):
 		_espeak.espeakDLL = _SegmentNative(self, _espeak.espeakDLL)
 
 	def get_segment_drain_support(self, *, nvda_version=None, audio_mode=None):
-		return DrainSupport(False, "espeak/%s/%s" % (nvda_version or "unknown", audio_mode or "unknown"),
-			"eSpeak callback retirement and physical playback have not been verified for this profile")
+		return DrainSupport(True, "espeak/%s/%s" % (nvda_version or "unknown", audio_mode or "unknown"),
+			"DRAIN explicitly enabled; callback retirement and physical playback are unverified")
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 			context: PlaybackContext, on_event: SegmentEventSink):

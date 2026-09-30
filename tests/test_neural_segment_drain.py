@@ -56,10 +56,10 @@ def test_neural_stream_owns_contextual_audio_callback(env):
 
 
 @pytest.mark.parametrize("version,mode", [("2026.3", "wasapi"), ("source-9ef645d", "wasapi"), ("2025.3", "legacy")])
-def test_all_unproven_sdk_profiles_are_unsupported(env, version, mode):
+def test_all_profiles_are_enabled_with_unverified_evidence(env, version, mode):
     support = env.driver.get_segment_drain_support(nvda_version=version, audio_mode=mode)
-    assert support.supported is False
-    assert "callback" in support.reason.lower()
+    assert support.supported is True
+    assert "unverified" in support.reason.lower()
     assert "1.50.0.28" in support.profile
 
 
@@ -135,16 +135,16 @@ def test_stop_completion_and_zero_callbacks_do_not_prove_native_speak_exit(env, 
     assert len(env.native.calls) == 2
 
 
-def test_unproven_quiescence_never_reopens_gate(env):
+def test_explicit_activation_override_completes_with_unproven_quiescence(env):
     _, _, events, done = speak(env)
     env.native.wait_calls(1)
     complete(env, done)
-    assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
-    assert "callback" in str(events[0].error).lower()
+    assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
     speak(env, segment=18)
-    assert len(env.native.calls) == 1
+    env.native.wait_calls(2)
+    assert len(env.native.calls) == 2
     assert env.native.audio() == 2
-    assert env.player.fed == []
+    assert env.player.fed == [b"\x01\x02"]
 
 
 @pytest.mark.parametrize("failure", ["feed", "idle", "write", "flush", "sdk", "task", "stop"])

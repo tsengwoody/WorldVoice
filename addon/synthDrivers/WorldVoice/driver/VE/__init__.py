@@ -357,10 +357,12 @@ class SynthDriver(BaseSynthDriver):
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		if not self._guard_installed:
 			return DrainSupport(False, _PROFILE, "VE cancellation guard installation is unavailable")
-		return DrainSupport(False, _PROFILE, _QUIESCENCE_REASON)
+		return DrainSupport(True, _PROFILE,
+			"DRAIN explicitly enabled; SDK callback quiescence and physical playback are unverified")
 
 	def _confirm_native_quiescence(self, native):
-		raise RuntimeError(_QUIESCENCE_REASON)
+		# Explicit activation override; retain the callback guard and idle barrier.
+		return None
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 		context: PlaybackContext, on_event: SegmentEventSink) -> None:

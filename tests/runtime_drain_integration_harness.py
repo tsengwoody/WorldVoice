@@ -336,8 +336,9 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
             # of any installed SDK or physical Windows playback profile.
             enabled = True
         else:
-            enabled = policy.get_segment_drain_support(cls, core,
-                nvda_version="unverified", audio_mode="unverified").supported
+            # Exercise the supported generic fallback branch independently of
+            # the wrappers' newly enabled real-profile capability declarations.
+            enabled = False
         return policy.get_completion_contract(cls.engine, nvda_version="unverified",
             audio_mode="unverified", segment_drain_supported=enabled)
 

@@ -444,10 +444,10 @@ def test_cancelled_token_never_submits_native_work(env):
     assert env.native.calls == [] and events == []
 
 
-@pytest.mark.parametrize("audio_mode", ["wasapi", "winmm", "legacy"])
-def test_real_profiles_remain_unsupported(env, audio_mode):
+@pytest.mark.parametrize("audio_mode,expected", [("wasapi", True), ("winmm", False), ("legacy", False)])
+def test_wasapi_profile_enabled_legacy_profiles_unsupported(env, audio_mode, expected):
     result = env.driver.get_segment_drain_support(nvda_version="source-DETACHED-9ef645d", audio_mode=audio_mode)
-    assert result.supported is False
+    assert result.supported is expected
     assert result.profile and result.reason
 
 

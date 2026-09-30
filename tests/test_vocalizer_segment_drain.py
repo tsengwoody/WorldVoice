@@ -91,11 +91,10 @@ def test_native_constructor_owns_contextual_callback_before_first_open(env):
 
 
 @pytest.mark.parametrize("version,mode", [("2026.3", "wasapi"), ("2025.3", "legacy")])
-def test_unproven_native_profiles_are_unsupported(env, version, mode):
+def test_guarded_native_profiles_are_enabled_with_unverified_evidence(env, version, mode):
     support = env.core.get_segment_drain_support(nvda_version=version, audio_mode=mode)
-    assert not support.supported
-    assert "ProcessText2Speech" in support.reason
-    assert "callback" in support.reason.lower()
+    assert support.supported
+    assert "unverified" in support.reason.lower()
 
 
 def test_vocalizer_endprocess_is_not_segment_drain(env, monkeypatch):
@@ -204,15 +203,16 @@ def test_processing_errors_latch_failure_on_original_context(env, monkeypatch, f
         assert env.types.NUAN_E_TTS_USERSTOP in results
 
 
-def test_missing_contract_closes_old_call_and_never_reopens_for_successor(env, monkeypatch):
+def test_explicit_activation_override_allows_successor_after_idle(env, monkeypatch):
     calls = []
     monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: calls.append(text))
     _, _, first = speak(env)
     finish(first)
-    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
     _, _, second = speak(env, segment=18)
     finish(second)
-    assert calls == ["hello"]
+    assert env.events[1].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert calls == ["hello", "hello"]
     env.core._veCallbackHandler._feedBuf = BytesIO(b"new")
     assert emit(env, env.core.voiceInstance) == [env.types.NUAN_E_TTS_USERSTOP]
     assert env.core._veCallbackHandler._feedBuf.getvalue() == b"new"

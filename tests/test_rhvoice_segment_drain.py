@@ -153,10 +153,11 @@ def test_delayed_old_index_callback_cannot_index_successor(env):
     assert env.indexes == [7, 7]
 
 
-def test_support_is_explicitly_false_for_every_reported_profile(env):
+def test_support_is_enabled_for_every_reported_profile_with_evidence_caveat(env):
     for version, audio in (("2025.1", "waveOut"), ("2026.3", "wasapi"), (None, None)):
         support = env.driver.get_segment_drain_support(nvda_version=version, audio_mode=audio)
-        assert support.supported is False
+        assert support.supported is True
+        assert "unverified" in support.reason.lower()
         assert "RHVoice" in support.profile
 
 

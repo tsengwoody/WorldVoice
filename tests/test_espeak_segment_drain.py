@@ -292,9 +292,9 @@ def test_failure_sink_can_cancel_and_admit_successor(env):
     assert wait_event(successor_events[0]).kind is env.rt.models.EventKind.SEGMENT_DRAINED
 
 
-def test_unverified_real_profiles_never_enable_drain(env):
+def test_real_profile_is_enabled_with_unverified_evidence(env):
     support = env.driver.get_segment_drain_support(nvda_version="2026.3", audio_mode="wasapi")
-    assert not support.supported and support.reason
+    assert support.supported and "unverified" in support.reason.lower()
 
 
 def test_correlated_path_preserves_base_language_variant_prosody_and_legacy_done(env):

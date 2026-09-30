@@ -357,8 +357,8 @@ class SynthDriver(rhvoice.SynthDriver):
 		Thread(target=deliver, daemon=True, name="RHVoice segment event").start()
 
 	def get_segment_drain_support(self, *, nvda_version=None, audio_mode=None):
-		return DrainSupport(False, "RHVoice/%s/%s" % (nvda_version or "unknown", audio_mode or "unknown"),
-			"RHVoice callback retirement and physical playback have not been verified for this profile")
+		return DrainSupport(True, "RHVoice/%s/%s" % (nvda_version or "unknown", audio_mode or "unknown"),
+			"DRAIN explicitly enabled; callback retirement and physical playback are unverified")
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 			context: PlaybackContext, on_event: SegmentEventSink):

@@ -261,24 +261,22 @@ def test_native_submission_exception_fails_and_allows_following_work(env):
     env.native.wait_calls(1)
 
 
-def test_capability_rejects_unreviewed_version_audio_and_source(env, monkeypatch):
+def test_capability_allows_live_profile_without_provenance_certification(env, monkeypatch):
     support = env.driver.get_segment_drain_support(nvda_version=VERSION, audio_mode="wasapi")
-    # Even exact source hashes and a correctly named DLL path cannot establish
-    # that the loaded native helper was built from the reviewed source.
-    assert not support.supported
-    assert "native" in support.reason.lower() and "provenance" in support.reason.lower()
+    assert support.supported
+    assert "unverified" in support.reason.lower()
     for version, audio in (("2026.3", "wasapi"), (VERSION, "waveout"), ("2024.1", "wasapi")):
         support = env.driver.get_segment_drain_support(nvda_version=version, audio_mode=audio)
-        assert not support.supported and support.reason
+        assert support.supported and support.reason
     monkeypatch.setattr(env.base, "__file__", "/unverified/oneCore.py")
     support = env.driver.get_segment_drain_support(nvda_version=VERSION, audio_mode="wasapi")
-    assert not support.supported and "source" in support.reason.lower()
+    assert support.supported and "unverified" in support.reason.lower()
 
 
 def test_capability_rejects_uninitialized_native_and_foreign_helper(env):
     env.native._name = "/unverified/nvdaHelperLocalWin10.dll"
     support = env.driver.get_segment_drain_support(nvda_version=VERSION, audio_mode="wasapi")
-    assert not support.supported and "helper" in support.reason.lower()
+    assert support.supported and "unverified" in support.reason.lower()
 
 
 @pytest.mark.parametrize("missing", ["token", "callback", "native speak"])

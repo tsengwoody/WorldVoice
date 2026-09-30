@@ -254,8 +254,8 @@ class SynthDriver(BaseSynthDriver):
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		if audio_mode != "wasapi" or not self.useWasapi or self.player is None:
 			return DrainSupport(False, "sapi5-legacy-audio", "SAPI5 legacy audio has no owned player idle barrier")
-		return DrainSupport(False, "sapi5-wasapi-unverified",
-			"SAPI callback retirement, loaded profile provenance and physical playback have not been verified")
+		return DrainSupport(True, "sapi5-wasapi",
+			"DRAIN explicitly enabled; callback retirement, loaded profile provenance and physical playback are unverified")
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 		context: PlaybackContext, on_event: SegmentEventSink) -> None:

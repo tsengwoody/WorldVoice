@@ -1,14 +1,11 @@
 import ctypes
 from dataclasses import dataclass
-from hashlib import sha256
 import io
-from pathlib import Path
 from threading import Condition, Lock, Thread
 import wave
 import weakref
 
 from synthDrivers import oneCore
-import nvwave
 from logHandler import log
 from synthDriverHandler import synthDoneSpeaking, synthIndexReached
 
@@ -37,14 +34,6 @@ class Voice(Voice):
 		return ['voice', 'rate', 'rateBoost', 'pitch', 'volume', 'useWasapi']
 
 
-_PROFILE = "nvda-source-9ef645d-wasapi"
-_SOURCE_HASHES = {
-	"source/synthDrivers/oneCore.py": "e762db4a0d2fd106c2fe0bbdfbc3fc50f36e72aa541a788240fa6a35c8b55692",
-	"source/nvwave.py": "20168fa23f980d6a3857bfe8e4efab72f558fe1460f890f504eda4c8616338fc",
-	"nvdaHelper/localWin10/oneCoreSpeech.cpp": "c9a6362e39c8e6be92619375a706d1bcfa5a35c4da4d01dacf9723a8ad340abe",
-	"nvdaHelper/localWin10/oneCoreSpeech.h": "50fe7ef1d411dcaeee89ffc59fc195d6fdcd80efcbbc0f7fab0332264529527d",
-	"nvdaHelper/local/wasapi.cpp": "10acce6270a54af7c76ca41373759743dae8698f59b39870e396d6c708f4e922",
-}
 # The reviewed helper can time out of terminate without invalidating the native
 # callback. Keep only its detached ctypes trampoline alive for the process
 # lifetime; it must not retain the driver, player or captured work graph.
@@ -110,36 +99,15 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			del self._callback
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
-		def unsupported(reason):
-			return DrainSupport(False, _PROFILE, reason)
-
-		if audio_mode != "wasapi":
-			return unsupported("Only the reviewed WASAPI source profile has a playback barrier contract")
-		if not nvda_version.startswith("source-") or not nvda_version.endswith("-9ef645d"):
-			return unsupported("NVDA version is outside the reviewed 9ef645d source build")
-		try:
-			root = Path(oneCore.__file__).resolve().parents[2]
-			if Path(nvwave.__file__).resolve() != root / "source/nvwave.py":
-				return unsupported("Loaded audio source does not belong to the reviewed NVDA source tree")
-			for relative, expected in _SOURCE_HASHES.items():
-				if sha256((root / relative).read_bytes()).hexdigest() != expected:
-					return unsupported(f"Unverified source contract: {relative}")
-			helper = Path(self._dll._name).resolve()
-			if helper.name != "nvdaHelperLocalWin10.dll" or helper.parent.parent != root / "lib":
-				return unsupported("Native helper does not belong to the reviewed source build")
-		except (AttributeError, OSError, IndexError) as error:
-			return unsupported(f"Cannot verify loaded source/helper profile: {error}")
 		if self._segmentTerminated or not self._ocSpeechToken or not self._ocSpeechToken.value:
-			return unsupported("OneCore native initialization did not provide a live token")
+			return DrainSupport(False, "OneCore", "OneCore native initialization did not provide a live token")
 		if self._callbackInst is None:
-			return unsupported("OneCore terminal callback was not installed")
+			return DrainSupport(False, "OneCore", "OneCore terminal callback was not installed")
 		for name in ("ocSpeech_initialize", "ocSpeech_speak", "ocSpeech_terminate"):
 			if not callable(getattr(self._dll, name, None)):
-				return unsupported(f"Reviewed native binding is incomplete: {name}")
-		# These hashes establish the source contract exercised by the harness.
-		# A source-version string/path does not attest the loaded helper binary.
-		# No real NVDA/helper build has yet supplied matching provenance.
-		return unsupported("Native helper binary/build provenance has not been verified for this source profile")
+				return DrainSupport(False, "OneCore", f"OneCore native binding is incomplete: {name}")
+		return DrainSupport(True, f"OneCore/{nvda_version}/{audio_mode}",
+			"DRAIN enabled by explicit request; loaded native helper provenance is unverified")
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 		context: PlaybackContext, on_event: SegmentEventSink) -> None:

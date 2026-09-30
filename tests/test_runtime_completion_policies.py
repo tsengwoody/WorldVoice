@@ -150,11 +150,11 @@ def test_synth_policy_uses_actual_opened_core(env, engine, use_wasapi, expected)
 
 
 @pytest.mark.parametrize("engine,audio_modes", [
-    ("SAPI5", ("wasapi", "legacy", "unknown")),
-    ("Espeak", ("default", "legacy", "unknown")),
-    ("RHVoice", ("default", "wasapi", "unknown")),
+    ("SAPI5", (("wasapi", True), ("legacy", False), ("unknown", False))),
+    ("Espeak", (("default", True), ("legacy", True), ("unknown", True))),
+    ("RHVoice", (("default", True), ("wasapi", True), ("unknown", True))),
 ])
-def test_actual_outer_voice_and_core_keep_unverified_profiles_legacy(
+def test_actual_outer_voice_and_core_select_enabled_drain_profiles(
         monkeypatch, tmp_path, engine, audio_modes):
     if engine == "SAPI5":
         from test_sapi5_segment_drain import load_sapi5
@@ -170,13 +170,15 @@ def test_actual_outer_voice_and_core_keep_unverified_profiles_legacy(
         policies = importlib.import_module("synthDrivers.WorldVoice.compat.completionPolicies")
         assert sys.modules["synthDrivers.WorldVoice.driver." + engine] is installed.outer
         assert installed.outer.Voice.synth_driver_class is type(installed.driver)
-        for audio_mode in audio_modes:
+        for audio_mode, expected in audio_modes:
             support = policies.get_segment_drain_support(installed.outer.Voice, installed.driver,
                 nvda_version="2026.1", audio_mode=audio_mode)
-            assert support.supported is False and support.reason
+            assert support.supported is expected and support.reason
             contract = policies.get_completion_contract(engine, nvda_version="2026.1",
                 audio_mode=audio_mode, segment_drain_supported=support.supported)
-            assert contract.mode is installed.rt.models.CompletionMode.LEGACY_DONE
+            expected_mode = (installed.rt.models.CompletionMode.DRAIN if expected
+                else installed.rt.models.CompletionMode.LEGACY_DONE)
+            assert contract.mode is expected_mode
         commands = {name: type(name, (), {}) for name in (
             "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
             "PitchCommand", "RateCommand", "VolumeCommand")}
@@ -187,13 +189,10 @@ def test_actual_outer_voice_and_core_keep_unverified_profiles_legacy(
             "get_segment_drain_support": policies.get_segment_drain_support,
             "nvdaLog": SimpleNamespace(warning=lambda *args: warnings.append(args)), **commands})
         selected = object.__new__(root)._completion_for(installed.outer.Voice, installed.driver)
-        assert selected.mode is installed.rt.models.CompletionMode.LEGACY_DONE
-        assert selected.index_range is None
+        assert selected.mode is installed.rt.models.CompletionMode.DRAIN
+        assert selected.index_range is not None
         if engine == "RHVoice":
-            assert len(warnings) == 1
-            assert warnings[0][1:4] == ("RHVoice", "2026.1", "default")
-            assert "RHVoice" in warnings[0][4]
-            assert warnings[0][5]
+            assert warnings == []
     finally:
         if engine == "SAPI5":
             installed.driver.terminate()
