@@ -145,8 +145,10 @@ class SegmentLifecycle:
                 # An external token can cancel without calling cancel().
                 self._condition.wait(0.05)
             if self._fault is not None:
-                self._operations.discard(operation)
-                raise RuntimeError("segment resources cannot be safely reused") from self._fault
+                # This accepted operation never acquired the resource. Retain
+                # its original context for asynchronous correlated failure.
+                self._reject_pending_locked(operation, self._fault)
+                return
             if self._terminated or not operation.work.is_valid():
                 self._operations.discard(operation)
                 return

@@ -1,4 +1,4 @@
-from threading import Event, current_thread
+from threading import Event, current_thread, local
 import gc
 from pathlib import Path
 import subprocess
@@ -169,7 +169,10 @@ def test_neural_cancel_sees_work_accepted_before_driver_registration(env, monkey
     prove_fake_quiescence(env, monkeypatch)
     accepted, release_accept = Event(), Event()
     building, release_build = Event(), Event()
-    cancel_entered = Event()
+    cancel_attempting_lock = Event()
+    in_cancel = local()
+    condition_type = type(env.driver._segmentCondition)
+    real_enter = condition_type.__enter__
     real_accept = env.driver._segmentLifecycle.accept
     real_make_tasks = env.driver._make_segment_tasks
     real_cancel = env.driver.cancel
@@ -186,12 +189,21 @@ def test_neural_cancel_sees_work_accepted_before_driver_registration(env, monkey
         return real_make_tasks(*args, **kwargs)
 
     def observed_cancel():
-        cancel_entered.set()
-        real_cancel()
+        in_cancel.active = True
+        try:
+            real_cancel()
+        finally:
+            in_cancel.active = False
+
+    def observed_enter(condition):
+        if condition is env.driver._segmentCondition and getattr(in_cancel, "active", False):
+            cancel_attempting_lock.set()
+        return real_enter(condition)
 
     monkeypatch.setattr(env.driver._segmentLifecycle, "accept", paused_accept)
     monkeypatch.setattr(env.driver, "_make_segment_tasks", paused_make_tasks)
     monkeypatch.setattr(env.driver, "cancel", observed_cancel)
+    monkeypatch.setattr(condition_type, "__enter__", observed_enter)
     token = env.scheduler.CancellationToken()
     events = []
     speaking = in_thread(lambda: env.driver.speak_segment(("hello",), token,
@@ -199,12 +211,12 @@ def test_neural_cancel_sees_work_accepted_before_driver_registration(env, monkey
     try:
         assert accepted.wait(1)
         cancelling = in_thread(env.driver.cancel)
-        assert cancel_entered.wait(1)
-        # Cancellation contends for the driver condition while accept is
-        # paused; after registration it must see and cancel the work.
-        assert not cancelling.done.wait(0.05)
+        assert cancel_attempting_lock.wait(1)
+        # The canceller has reached the exact driver lock held by acceptance.
+        # After release it must find the work, whether it wins before task
+        # construction or while construction is held below.
         release_accept.set()
-        assert building.wait(1)
+        assert building.wait(1) or cancelling.done.wait(1)
         finish(cancelling)
         release_build.set()
         finish(speaking)
@@ -336,6 +348,22 @@ def test_errors_fail_original_work_once_and_never_done(env, monkeypatch, failure
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert events[0].source_id is context.source_id
     assert env.dones == []
+
+
+def test_queued_successor_receives_correlated_failure_after_sdk_stop_fault(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    env.native.stop_error = RuntimeError("stop failed")
+    _, first, old_events, old_done = speak(env)
+    env.native.wait_calls(1)
+    _, successor, next_events, next_done = speak(env, segment=18)
+    assert env.native.audio() == 2
+    complete(env, old_done)
+    assert next_done.wait(2), "Queued successor lost its terminal event"
+    assert [(event.kind, event.source_id, event.segment_id) for event in next_events] == [
+        (env.rt.models.EventKind.SEGMENT_FAILED, successor.source_id, 18)]
+    assert len(env.native.calls) == 1
+    assert all(operation.work.context is not successor
+        for operation in env.driver._segmentLifecycle._operations)
 
 
 def test_sonic_initialization_falls_back_before_speech(env, monkeypatch):

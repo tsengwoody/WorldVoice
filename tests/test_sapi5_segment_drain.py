@@ -730,6 +730,28 @@ def test_failed_segment_purges_native_before_successor_admission(env):
     assert wait_event(next_events).segment_id == 18
 
 
+def test_accepted_successor_receives_failure_after_playback_fault(env, monkeypatch):
+    real_barrier = env.driver.wait_playback_drained
+
+    def failed_barrier(operation):
+        real_barrier(operation)
+        raise RuntimeError("SAPI5 playback barrier failed")
+
+    monkeypatch.setattr(env.driver, "wait_playback_drained", failed_barrier)
+    _, first, old_events = speak(env)
+    env.native.wait_calls(1)
+    _, successor, next_events = speak(env, segment=18)
+    env.player.idle_release.set()
+    env.native.end(1)
+    assert wait_event(old_events).kind is env.rt.models.EventKind.SEGMENT_FAILED
+    rejected = wait_event(next_events)
+    assert (rejected.kind, rejected.source_id, rejected.segment_id) == (
+        env.rt.models.EventKind.SEGMENT_FAILED, successor.source_id, 18)
+    assert len(env.native.calls) == 1
+    assert all(operation.work.context is not successor
+        for operation in env.driver._segmentLifecycle._operations)
+
+
 def test_idle_failure_purges_before_queued_successor(env):
     _, _, failed = speak(env)
     _, _, successor = speak(env, segment=18)

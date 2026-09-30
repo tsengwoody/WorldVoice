@@ -411,13 +411,6 @@ class SynthDriver(rhvoice.SynthDriver):
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 			context: PlaybackContext, on_event: SegmentEventSink):
-		with self._segmentCondition:
-			if self._segmentTerminated:
-				return
-			control_error = self._segmentControlError
-		if control_error is not None:
-			self._segmentLifecycle.reject_new(context, token, on_event, control_error)
-			return
 		def deliver(event):
 			try:
 				if not operation._rhvoice_cancelled and not token.is_cancelled() and not self._segmentTerminated:
@@ -430,10 +423,18 @@ class SynthDriver(rhvoice.SynthDriver):
 			finally:
 				with self._segmentCondition:
 					self._segmentAccepted.discard(operation)
-		operation = self._segmentLifecycle.accept(context, token, deliver)
-		operation._rhvoice_cancelled = False
-		with self._segmentCondition:
-			self._segmentAccepted.add(operation)
+		with self._segmentAdmission:
+			with self._segmentCondition:
+				if self._segmentTerminated:
+					return
+				control_error = self._segmentControlError
+			if control_error is not None:
+				self._segmentLifecycle.reject_new(context, token, on_event, control_error)
+				return
+			operation = self._segmentLifecycle.accept(context, token, deliver)
+			operation._rhvoice_cancelled = False
+			with self._segmentCondition:
+				self._segmentAccepted.add(operation)
 		def run():
 			self._run_segment(operation, tuple(commands))
 		Thread(target=run,

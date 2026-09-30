@@ -106,6 +106,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		self._segmentWorker = None
 		self._segmentNative = None
 		self._segmentActiveOperation = None
+		self._segmentAccepted = set()
 		self._segmentCallback = _DetachableCallback(self)
 		# The parent installs CFUNCTYPE(self._callback) once. Intercept only
 		# that instance lookup; its native pointer owns the trampoline rather
@@ -136,9 +137,13 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				self._segmentLifecycle.reject_new(context, token, on_event, admission_error)
 				return
 			operation = self._segmentLifecycle.accept(context, token, on_event)
+			self._segmentAccepted.add(operation)
 		if not operation.is_valid():
-			self._segmentLifecycle.reject_pending(
-				operation, RuntimeError("OneCore segment was cancelled before submission"))
+			with self._segmentCondition:
+				if not operation._run_started:
+					self._segmentLifecycle.reject_pending(
+						operation, RuntimeError("OneCore segment was cancelled before submission"))
+				self._segmentAccepted.discard(operation)
 			return
 		try:
 			with self._segmentCondition:
@@ -151,13 +156,23 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			job = _SpeechJob(conv.convertToXml(tuple(commands)), operation.work, operation)
 			with self._segmentCondition:
 				self._checkSegmentAdmission()
+				if not operation.is_valid():
+					if not operation._run_started:
+						self._segmentLifecycle.reject_pending(
+							operation, RuntimeError("OneCore segment was cancelled before submission"))
+					self._segmentAccepted.discard(operation)
+					return
 				if not self._segmentMode and self._isProcessing:
 					raise RuntimeError("Cannot switch to correlated playback while legacy synthesis is active")
 				self._segmentMode = True
 				self._queuedSpeech.append(job)
+				self._segmentAccepted.discard(operation)
 			self._processQueue()
 		except Exception as error:
-			self._segmentLifecycle.reject_pending(operation, error)
+			with self._segmentCondition:
+				if not operation._run_started:
+					self._segmentLifecycle.reject_pending(operation, error)
+				self._segmentAccepted.discard(operation)
 
 	def _checkSegmentAdmission(self):
 		# Called under the condition; a control fault requires resource replacement.
@@ -213,6 +228,9 @@ class SynthDriver(BaseOneCoreSynthDriver):
 						self._segmentNative = native
 						self._wasCancelled = False
 						self._isProcessing = True
+					else:
+						# The queue-to-worker transition is visible to cancel().
+						self._segmentActiveOperation = job.operation
 			try:
 				if isinstance(item, tuple):
 					func, value = item
@@ -422,8 +440,9 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self._segmentControlGeneration += 1
 			self._wasCancelled = True
 			self._segmentStops += 1
-			queued = [item.operation for item in self._queuedSpeech
+			queued = list(self._segmentAccepted) + [item.operation for item in self._queuedSpeech
 				if isinstance(item, _SpeechJob) and item.operation is not None]
+			self._segmentAccepted.clear()
 			operations = list(queued)
 			legacy = any(isinstance(item, str) for item in self._queuedSpeech)
 			if self._segmentActiveOperation is not None:
@@ -499,6 +518,12 @@ class SynthDriver(BaseOneCoreSynthDriver):
 							item.operation, RuntimeError("OneCore segment was cancelled before submission"))
 					else:
 						item.work.cancel()
+			for operation in tuple(self._segmentAccepted):
+				self._segmentLifecycle.cancel(operation)
+				if not operation._run_started:
+					self._segmentLifecycle.reject_pending(
+						operation, RuntimeError("OneCore segment was cancelled before submission"))
+			self._segmentAccepted.clear()
 			self._queuedSpeech = [item for item in self._queuedSpeech if isinstance(item, tuple)]
 			if self._segmentActiveOperation is not None:
 				self._segmentLifecycle.cancel(self._segmentActiveOperation)

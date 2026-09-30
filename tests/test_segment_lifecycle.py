@@ -238,9 +238,12 @@ def test_stop_failure_blocks_successor(env):
     hooks.release_stop.set()
     first.finish()
     assert second.done.wait(1)
-    assert isinstance(second.error, RuntimeError)
+    assert second.error is None
     assert len(hooks.submitted) == 1
-    assert events == []
+    events.wait_for_count(1)
+    assert [(event.segment_id, event.kind.value, event.error) for event in events] == [
+        (2, "segment_failed", hooks.stop_error)]
+    assert new not in lifecycle._operations
 
 
 def test_retirement_failure_latches_core_fault(env):
@@ -254,8 +257,11 @@ def test_retirement_failure_latches_core_fault(env):
     assert len(events) == 1
     assert events[0].kind.value == "segment_failed"
     assert events[0].source_id is context.source_id
-    with pytest.raises(RuntimeError, match="safely reused"):
-        lifecycle.run(new, ("new",))
+    lifecycle.run(new, ("new",))
+    events.wait_for_count(2)
+    assert events[1].kind.value == "segment_failed"
+    assert events[1].segment_id == 2
+    assert events[1].error is hooks.retired_error
     assert len(hooks.submitted) == 1
 
 
@@ -296,6 +302,7 @@ def test_late_cancel_cannot_stop_successor_resource(env):
     new, _ = accept(2)
     hooks.release_boundary.set()
     lifecycle.run(old, ("old",))
+    events.wait_for_count(1)
     second = Call(lambda: lifecycle.run(new, ("new",)))
     assert hooks.second_submitted.wait(1)
     lifecycle.cancel(old)

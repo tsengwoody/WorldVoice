@@ -148,6 +148,41 @@ def test_stop_failure_fails_closed_for_later_work(env):
     assert old_events == []
 
 
+def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeypatch):
+    accepted, release_accept = Event(), Event()
+    lifecycle = env.driver._segmentLifecycle
+    real_accept = lifecycle.accept
+
+    def held_accept(*args):
+        operation = real_accept(*args)
+        accepted.set()
+        assert release_accept.wait(3)
+        return operation
+
+    monkeypatch.setattr(lifecycle, "accept", held_accept)
+    token = env.scheduler.CancellationToken()
+    context = env.rt.models.PlaybackContext(object(), 17)
+    events = []
+    speaking = Thread(target=lambda: env.driver.speak_segment(("hello",), token,
+        context=context, on_event=events.append), daemon=True)
+    speaking.start()
+    try:
+        assert accepted.wait(1)
+        cancelled = Event()
+        cancelling = Thread(target=lambda: (env.driver.cancel(), cancelled.set()), daemon=True)
+        cancelling.start()
+        # The accepted operation must be registered before cancel can finish.
+        assert not cancelled.wait(0.1)
+        release_accept.set()
+        speaking.join(3)
+        cancelling.join(3)
+        assert not speaking.is_alive() and not cancelling.is_alive()
+        assert env.native.calls == []
+        assert events == []
+    finally:
+        release_accept.set()
+
+
 def test_cancel_releases_queued_work_without_running_its_native_message(env):
     speak(env, text="active")
     call = env.native.wait_call()

@@ -268,6 +268,60 @@ def test_cancelled_input_token_never_submits_native_work(env):
     assert env.native.calls == [] and events == []
 
 
+def test_cancel_sees_accepted_work_while_xml_conversion_is_held(env, monkeypatch):
+    converting, release = Event(), Event()
+    converter = env.outer.oneCore._OcSsmlConverter
+    original = converter.convertToXml
+
+    def held_convert(self, commands):
+        converting.set()
+        assert release.wait(2)
+        return original(self, commands)
+
+    monkeypatch.setattr(converter, "convertToXml", held_convert)
+    token = env.scheduler.CancellationToken()
+    events = []
+    context = env.rt.models.PlaybackContext(object(), 17)
+    speaking = in_thread(lambda: env.driver.speak_segment(("hello",), token,
+        context=context, on_event=events.append))
+    try:
+        assert converting.wait(1)
+        cancelling = in_thread(env.driver.cancel)
+        finish(cancelling)
+        release.set()
+        finish(speaking)
+        assert env.native.calls == []
+        assert events == []
+    finally:
+        release.set()
+
+
+def test_cancel_sees_work_between_queue_pop_and_lifecycle_run(env, monkeypatch):
+    entered, release, finished = Event(), Event(), Event()
+    lifecycle = env.driver._segmentLifecycle
+    real_run = lifecycle.run
+
+    def held_run(operation, commands):
+        entered.set()
+        assert release.wait(2)
+        try:
+            return real_run(operation, commands)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(lifecycle, "run", held_run)
+    _, _, events = speak(env)
+    try:
+        assert entered.wait(1)
+        env.driver.cancel()
+        release.set()
+        assert finished.wait(1)
+        assert env.native.calls == []
+        assert events == []
+    finally:
+        release.set()
+
+
 @pytest.mark.parametrize("failure", [False, True])
 def test_late_cancelled_callback_is_consumed_before_next_submission(env, failure):
     _, _, old_events = speak(env)
