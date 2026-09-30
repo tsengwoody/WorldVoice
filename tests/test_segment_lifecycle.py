@@ -1,6 +1,7 @@
 """Resource ownership and producer retirement for the shared lifecycle."""
 
 import importlib.util
+import logging
 import sys
 from threading import Condition, Event, Thread, current_thread
 
@@ -478,7 +479,7 @@ def test_sink_can_cancel_and_terminate_without_self_join(env):
         ("segment_drained", context.source_id, 1)]
 
 
-def test_raising_sink_does_not_relabel_successor(env):
+def test_raising_sink_does_not_relabel_successor(env, caplog):
     lifecycle, hooks, events, accept = env
     hooks.release_boundary.set()
     hooks.release_second_boundary.set()
@@ -505,15 +506,98 @@ def test_raising_sink_does_not_relabel_successor(env):
         run_threads.append(current_thread())
         lifecycle.run(operation, commands)
 
-    Call(lambda: run(first, ("first",))).finish()
-    assert first_entered.wait(1)
-    Call(lambda: run(second, ("second",))).finish()
-    assert second_delivered.wait(1)
+    with caplog.at_level(logging.ERROR):
+        Call(lambda: run(first, ("first",))).finish()
+        assert first_entered.wait(1)
+        Call(lambda: run(second, ("second",))).finish()
+        assert second_delivered.wait(1)
     assert all(thread not in run_threads for thread in sink_threads)
     assert sink_threads[0] is sink_threads[1]
     assert [(event.kind.value, event.source_id, event.segment_id) for event in events] == [
         ("segment_drained", first_context.source_id, 1),
         ("segment_drained", second_context.source_id, 2)]
+    failures = [record for record in caplog.records
+                if "segment event sink failed" in record.getMessage().lower()]
+    assert len(failures) == 1
+    assert failures[0].exc_info[0] is RuntimeError
+
+
+def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, monkeypatch):
+    lifecycle, hooks, events, accept = env
+    hooks.release_boundary.set()
+    hooks.release_second_boundary.set()
+    hooks.release_stop.set()
+    first_entered = Event()
+    release_first = Event()
+    active_at_boundary = Event()
+    release_active = Event()
+    cancel_entered = Event()
+    allow_cancel = Event()
+
+    def first_sink(event):
+        first_entered.set()
+        assert release_first.wait(3)
+        events.append(event)
+
+    first, first_context = accept(1, first_sink)
+    queued, _ = accept(2)
+    active, _ = accept(3)
+    original_boundary = hooks.wait_native_boundary
+
+    def boundary(operation):
+        if operation is active:
+            active_at_boundary.set()
+            assert release_active.wait(3)
+        else:
+            original_boundary(operation)
+
+    monkeypatch.setattr(hooks, "wait_native_boundary", boundary)
+    original_cancel = lifecycle.cancel
+
+    def paused_cancel(operation):
+        cancel_entered.set()
+        assert allow_cancel.wait(3)
+        original_cancel(operation)
+
+    # Pause the old terminate() between publishing shutdown and cancel().
+    # The corrected implementation invalidates under the condition first.
+    monkeypatch.setattr(lifecycle, "cancel", paused_cancel)
+    termination = None
+    active_call = None
+    try:
+        Call(lambda: lifecycle.run(first, ("first",))).finish()
+        assert first_entered.wait(1)
+        Call(lambda: lifecycle.run(queued, ("queued",))).finish()
+        active_call = Call(lambda: lifecycle.run(active, ("active",)))
+        assert active_at_boundary.wait(1)
+        termination = Call(lifecycle.terminate)
+        with lifecycle._condition:
+            assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, timeout=1)
+        old_gap = queued.work.is_valid()
+        if old_gap:
+            assert cancel_entered.wait(1)
+        else:
+            allow_cancel.set()
+            assert termination.done.wait(1)
+        release_first.set()
+        lifecycle._delivery_thread.join(1)
+        assert not lifecycle._delivery_thread.is_alive()
+        release_active.set()
+        active_call.finish()
+        allow_cancel.set()
+        termination.finish()
+        assert [(event.source_id, event.segment_id) for event in events] == [
+            (first_context.source_id, 1)]
+        assert not lifecycle._delivery_queue
+        assert not lifecycle._operations
+    finally:
+        release_first.set()
+        release_active.set()
+        allow_cancel.set()
+        if active_call is not None:
+            active_call.done.wait(1)
+        if termination is not None:
+            termination.done.wait(1)
 
 
 def test_terminate_blocks_new_acceptance(env):

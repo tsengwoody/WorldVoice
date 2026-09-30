@@ -5,12 +5,16 @@ infers native quiescence from an empty callback count alone.
 """
 
 from collections import deque
+import logging
 from threading import Condition, Event, Thread
 from typing import Protocol
 
 from .models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork
 from .session import CancellationView
+
+
+log = logging.getLogger(__name__)
 
 
 class SegmentEngineHooks(Protocol):
@@ -230,9 +234,12 @@ class SegmentLifecycle:
         with self._condition:
             self._terminated = True
             operations = tuple(self._operations)
+            for operation in operations:
+                operation.work.cancel()
+                operation._admitting = False
             self._condition.notify_all()
         for operation in operations:
-            self.cancel(operation)
+            self._start_stop(operation)
 
     def _deliver(self) -> None:
         while True:
@@ -253,7 +260,8 @@ class SegmentLifecycle:
             except Exception:
                 # A consumer's exception must not stop the dispatcher or
                 # become the following operation's failure.
-                pass
+                log.exception("segment event sink failed for segment %r",
+                              operation.work.context.segment_id)
             finally:
                 with self._condition:
                     self._operations.discard(operation)
