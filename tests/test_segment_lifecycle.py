@@ -38,6 +38,10 @@ class Call:
 class Hooks:
     def __init__(self):
         self.submitted = []
+        self.submitted_after_stops = []
+        self.submit_entered = Event()
+        self.release_submit = Event()
+        self.release_submit.set()
         self.first_submitted = Event()
         self.second_submitted = Event()
         self.boundary_entered = Event()
@@ -45,23 +49,33 @@ class Hooks:
         self.release_second_boundary = Event()
         self.retirement_entered = Event()
         self.stop_entered = Event()
+        self.stop_exited = Event()
         self.release_stop = Event()
         self.stop_error = None
+        self.stop_calls = 0
+        self.stop_completions = 0
         self.retired_error = None
         self.playback_entered = Event()
+        self.playback_calls = 0
         self.release_playback = Event()
         self.release_playback.set()
 
     def submit_native(self, operation, commands):
+        self.submit_entered.set()
+        assert self.release_submit.wait(1)
         self.submitted.append((operation, commands))
+        self.submitted_after_stops.append(self.stop_completions)
         self.first_submitted.set()
         if len(self.submitted) == 2:
             self.second_submitted.set()
 
     def request_stop(self, operation):
         assert not operation.is_valid()
+        self.stop_calls += 1
         self.stop_entered.set()
         assert self.release_stop.wait(1)
+        self.stop_completions += 1
+        self.stop_exited.set()
         if self.stop_error:
             raise self.stop_error
 
@@ -78,6 +92,7 @@ class Hooks:
             raise self.retired_error
 
     def wait_playback_drained(self, operation):
+        self.playback_calls += 1
         self.playback_entered.set()
         assert self.release_playback.wait(1)
 
@@ -104,6 +119,7 @@ def env(monkeypatch):
     hooks.release_boundary.set()
     hooks.release_second_boundary.set()
     hooks.release_stop.set()
+    hooks.release_submit.set()
     hooks.release_playback.set()
     lifecycle.terminate()
 
@@ -284,6 +300,63 @@ def test_token_cancel_during_playback_stops_before_handoff(env):
     assert len(hooks.submitted) == 1
     hooks.release_stop.set()
     first.finish()
+    assert hooks.playback_calls == 2
     hooks.release_second_boundary.set()
     second.finish()
+    assert len(events) == 1
+
+
+@pytest.mark.parametrize("invalidate", ["cancel", "fail"])
+def test_invalidated_operation_waits_for_player_cleanup(env, invalidate):
+    lifecycle, hooks, events, accept = env
+    old, context = accept(1)
+    new, _ = accept(2)
+    first = Call(lambda: lifecycle.run(old, ("old",)))
+    assert hooks.boundary_entered.wait(1)
+    second = Call(lambda: lifecycle.run(new, ("new",)))
+    hooks.release_stop.set()
+    hooks.release_playback.clear()
+    if invalidate == "cancel":
+        lifecycle.cancel(old)
+    else:
+        lifecycle.fail(old, RuntimeError("old segment failed"))
+    hooks.release_boundary.set()
+    assert hooks.playback_entered.wait(1)
+    first.blocked()
+    second.blocked()
+    assert events == []
+    assert len(hooks.submitted) == 1
+    hooks.release_playback.set()
+    first.finish()
+    assert len(events) == (0 if invalidate == "cancel" else 1)
+    if events:
+        assert events[0].source_id is context.source_id
+        assert events[0].kind.value == "segment_failed"
+    hooks.release_second_boundary.set()
+    second.finish()
+
+
+def test_stop_before_native_submission_requires_post_submit_stop(env):
+    lifecycle, hooks, events, accept = env
+    old, _ = accept(1)
+    new, _ = accept(2)
+    hooks.release_submit.clear()
+    hooks.release_stop.set()
+    hooks.release_boundary.set()
+    first = Call(lambda: lifecycle.run(old, ("old",)))
+    assert hooks.submit_entered.wait(1)
+    second = Call(lambda: lifecycle.run(new, ("new",)))
+    lifecycle.cancel(old)
+    assert hooks.stop_exited.wait(1)
+    # The first stop completed while the native submit hook had not submitted.
+    assert hooks.stop_calls == 1
+    assert hooks.submitted == []
+    hooks.release_submit.set()
+    first.finish()
+    assert hooks.stop_calls == 2
+    assert hooks.submitted[0][0] is old
+    assert hooks.submitted_after_stops[0] == 1
+    hooks.release_second_boundary.set()
+    second.finish()
+    assert hooks.submitted_after_stops == [1, 2]
     assert len(events) == 1

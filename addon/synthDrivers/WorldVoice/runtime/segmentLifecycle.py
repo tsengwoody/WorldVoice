@@ -29,6 +29,9 @@ class SegmentOperation:
         self._admitting = True
         self._leases = 0
         self._submitted = False
+        self._submit_done = Event()
+        self._playback_verified = False
+        self._playback_stop_done: Event | None = None
         self._run_started = False
         self._retired = False
         self._error: Exception | None = None
@@ -100,7 +103,13 @@ class SegmentLifecycle:
                     stop_done = operation._stop_done
                     needs_stop = (operation._submitted and operation._error is None
                                   and not operation.work.is_valid() and stop_done is None)
-                    if not needs_stop and (stop_done is None or stop_done.is_set()):
+                    # A stop can race with the player barrier. Only a barrier
+                    # completed after the latest stop permits handoff.
+                    needs_playback = (operation._submitted and self._fault is None
+                                      and (not operation._playback_verified
+                                           or operation._playback_stop_done is not stop_done))
+                    if (not needs_stop and not needs_playback
+                            and (stop_done is None or stop_done.is_set())):
                         operation._retired = True
                         self._resource_busy = False
                         self._operations.discard(operation)
@@ -108,8 +117,17 @@ class SegmentLifecycle:
                         break
                 if needs_stop:
                     self.cancel(operation)
-                else:
+                elif stop_done is not None and not stop_done.is_set():
                     stop_done.wait()
+                elif needs_playback:
+                    try:
+                        self._hooks.wait_playback_drained(operation)
+                    except Exception as error:
+                        self._latch_fault(operation, error)
+                    else:
+                        with self._condition:
+                            operation._playback_verified = True
+                            operation._playback_stop_done = stop_done
 
         # Task 2 replaces this local delivery with a coordinator-owned queue.
         if operation._error is not None:
@@ -123,7 +141,10 @@ class SegmentLifecycle:
                 return
             operation._submitted = True
         try:
-            self._hooks.submit_native(operation, commands)
+            try:
+                self._hooks.submit_native(operation, commands)
+            finally:
+                operation._submit_done.set()
             self._stop_if_cancelled(operation)
             self._hooks.wait_native_boundary(operation)
             self._stop_if_cancelled(operation)
@@ -137,9 +158,6 @@ class SegmentLifecycle:
                 stop_done = operation._stop_done
             if stop_done is not None:
                 stop_done.wait()
-            if operation.is_valid():
-                self._hooks.wait_playback_drained(operation)
-                self._stop_if_cancelled(operation)
         except Exception as error:
             self._latch_fault(operation, error)
         finally:
@@ -213,10 +231,17 @@ class SegmentLifecycle:
                 return
             done = Event()
             operation._stop_done = done
+            # A stop may run before the submit hook enters native code. Keep
+            # that first stop available to interrupt a blocking submit, then
+            # stop again after submission returns to cover the launch race.
+            submitting = not operation._submit_done.is_set()
 
         def stop():
             try:
                 self._hooks.request_stop(operation)
+                if submitting:
+                    operation._submit_done.wait()
+                    self._hooks.request_stop(operation)
             except Exception as error:
                 self._latch_fault(operation, error)
             finally:
