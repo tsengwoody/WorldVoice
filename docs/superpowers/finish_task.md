@@ -34,7 +34,7 @@ No Windows NVDA instance, physical audio device, loaded VE/Cerence SDK, or measu
 
 ## New commits in this change
 
-The following exact short SHA and subject pairs include design, plan, implementation, corrections, and validation through the Neural follow-up. The documentation commit for this update is identified in the Task 10 handoff because a commit cannot contain its own SHA. The complete history can be checked with `git log --reverse --format='%h %s' 3603004^..HEAD`.
+The following 26 exact short SHA and subject pairs include design, plan, implementation, corrections, and validation through the Neural follow-up. Later documentation commits can be checked with `git log --reverse --format='%h %s' 3603004^..HEAD`.
 
 - `3603004` docs: design shared segment lifecycle for seven engines
 - `b7abba9` docs: plan shared segment lifecycle migration
