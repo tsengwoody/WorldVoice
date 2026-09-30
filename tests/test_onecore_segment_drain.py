@@ -135,6 +135,37 @@ def test_onecore_callback_return_precedes_drain_and_successor_native_call(env):
     assert second_events[0].source_id is second.source_id
 
 
+def test_onecore_retirement_return_precedes_drain_and_successor_native_call(env):
+    _, first, first_events = speak(env)
+    _, second, second_events = speak(env, segment=18)
+    env.native.wait_calls(1)
+    retired, release_retirement = Event(), Event()
+    original_retire = env.driver._retireSegmentNative
+
+    def held_retirement(native):
+        original_retire(native)
+        if native.operation is not None:
+            retired.set()
+            assert release_retirement.wait(2)
+
+    env.driver._retireSegmentNative = held_retirement
+    env.player.sync_release.set()
+    response = in_thread(lambda: env.native.respond(markers=""))
+    assert retired.wait(1)
+    with env.native.condition:
+        advanced = env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.05)
+    assert not advanced, "Successor native call began before retirement returned"
+    assert first_events == [] and second_events == []
+    release_retirement.set()
+    finish(response)
+    wait_events(first_events)
+    env.native.wait_calls(2)
+    env.native.respond(markers="")
+    wait_events(second_events)
+    assert first_events[0].source_id is first.source_id
+    assert second_events[0].source_id is second.source_id
+
+
 def test_onecore_successor_player_open_waits_for_old_feed_and_stop(env):
     speak(env)
     env.native.wait_calls(1)

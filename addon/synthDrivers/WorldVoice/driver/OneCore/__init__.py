@@ -64,6 +64,7 @@ class _DetachableCallback:
 				# has returned, including any admitted feed and final stop.
 				if native is not None and native.operation is not None:
 					driver._retireSegmentNative(native)
+					native.boundary.set()
 
 	def detach(self):
 		with self._lock:
@@ -255,16 +256,19 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				self._player.open()
 			if not operation.is_valid():
 				self._retireSegmentNative(native)
+				native.boundary.set()
 				return
 		except Exception as error:
 			self._failSegmentControl(error)
 			self._retireSegmentNative(native)
+			native.boundary.set()
 			return
 		try:
 			self._dll.ocSpeech_speak(self._ocSpeechToken, text)
 		except Exception as error:
 			self._segmentLifecycle.fail(operation, error)
 			self._retireSegmentNative(native)
+			native.boundary.set()
 
 	def request_stop(self, operation):
 		if self._player:
@@ -290,7 +294,6 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		if native.call_token is not None:
 			self._segmentGate.finish_native(native.call_token)
 			self._segmentGate.wait_retired(native.call_token)
-			native.boundary.set()
 		with self._segmentCondition:
 			if self._segmentNative is native:
 				self._segmentNative = None
