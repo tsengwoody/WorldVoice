@@ -452,7 +452,7 @@ class SynthDriver(SynthDriver):
 			use_wasapi = getattr(core, "useWasapi", None)
 			audio_mode = "wasapi" if use_wasapi is True else "legacy" if use_wasapi is False else "unknown"
 		drain_supported = False
-		if voice_class.engine in ("OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak"):
+		if voice_class.engine in ("OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"):
 			support = get_segment_drain_support(voice_class, core,
 				nvda_version=versionInfo.version, audio_mode=audio_mode)
 			drain_supported = support.supported

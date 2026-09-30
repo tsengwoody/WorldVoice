@@ -5,8 +5,8 @@ physical playback and ordered-index evidence. IndexCommand support alone
 never establishes completion semantics or a safe integer range.
 
 Supported custom wrappers use their explicit adapter/native drain contract.
-This is separate from physical playback certification. RHVoice retains the
-unverified END_INDEX experiment on this branch.
+This is separate from physical playback certification. All installed custom
+wrappers fall back to LEGACY_DONE while their real profiles remain unverified.
 """
 
 from inspect import signature
@@ -18,23 +18,16 @@ from ..runtime.playbackWork import DrainSupport
 
 _VERIFIED_CONTRACTS: dict[tuple[str, str, str], CompletionContract] = {}
 
-# TEST ONLY: test/force-segment-end-index-all-engines. No hardware evidence.
-# Remove this block and its branch below to restore verified-only index policy.
-_TEST_ONLY_FORCE_END_INDEX_ENGINES = frozenset({"RHVoice"})
-_TEST_ONLY_END_INDEX_CONTRACT = CompletionContract(CompletionMode.END_INDEX, IndexRange(1, 9999))
-_DRAIN_ENGINES = frozenset({"OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak"})
+_DRAIN_ENGINES = frozenset({"OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"})
 _DRAIN_CONTRACT = CompletionContract(CompletionMode.DRAIN, IndexRange(1, 9999))
 
 
 def get_completion_contract(engine: str, *, nvda_version: str, audio_mode: str,
                             segment_drain_supported: bool = False) -> CompletionContract:
-    # Unsupported target profiles must not fall through to the index experiment
-    # or a different contract while a segment is waiting for completion.
+    # Unsupported target profiles must not select a different contract while a
+    # segment is waiting for completion.
     if engine in _DRAIN_ENGINES:
         return _DRAIN_CONTRACT if segment_drain_supported is True else CompletionContract()
-    # Deliberately ignore NVDA version and audio mode for this test override.
-    if engine in _TEST_ONLY_FORCE_END_INDEX_ENGINES:
-        return _TEST_ONLY_END_INDEX_CONTRACT
     return _VERIFIED_CONTRACTS.get((engine, nvda_version, audio_mode), CompletionContract())
 
 

@@ -1,4 +1,4 @@
-"""Test-branch completion override and resource-bound adapter configuration."""
+"""Evidence-gated completion selection and resource-bound adapter configuration."""
 
 import importlib
 import sys
@@ -19,14 +19,14 @@ def env(monkeypatch):
 
 @pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
 @pytest.mark.parametrize("audio", ["default", "wasapi", "legacy", "unknown"])
-@pytest.mark.parametrize("engine", ["RHVoice"])
 @pytest.mark.parametrize("supported", [False, True])
-def test_test_branch_forces_end_index_for_remaining_engines(env, engine, version, audio, supported):
+def test_rhvoice_uses_drain_only_with_explicit_support(env, version, audio, supported):
     policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
-    contract = policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio,
+    contract = policies.get_completion_contract("RHVoice", nvda_version=version, audio_mode=audio,
                                                 segment_drain_supported=supported)
-    assert contract.mode is env.models.CompletionMode.END_INDEX
-    assert contract.index_range == env.models.IndexRange(1, 9999)
+    assert contract.mode is (env.models.CompletionMode.DRAIN if supported
+                             else env.models.CompletionMode.LEGACY_DONE)
+    assert contract.index_range == (env.models.IndexRange(1, 9999) if supported else None)
 
 
 @pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
@@ -43,16 +43,16 @@ def test_unknown_and_external_profiles_still_use_legacy_done(env, engine, versio
     assert contract.index_range is None
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak"])
+@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"])
 @pytest.mark.parametrize("version,audio", [("2026.1", "default"), ("synthetic", "synthetic")])
-def test_target_without_drain_support_never_uses_test_index_override(env, engine, version, audio):
+def test_target_without_drain_support_uses_legacy_done(env, engine, version, audio):
     policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
     contract = policies.get_completion_contract(engine, nvda_version=version, audio_mode=audio)
     assert contract.mode is env.models.CompletionMode.LEGACY_DONE
     assert contract.index_range is None
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak"])
+@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"])
 def test_supported_target_uses_drain_range(env, engine):
     policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
     contract = policies.get_completion_contract(engine, nvda_version="synthetic", audio_mode="synthetic",
@@ -66,7 +66,7 @@ def test_supported_target_uses_drain_range(env, engine):
     ("SAPI5", "wasapi"), ("SAPI5", "legacy"), ("SAPI5", "unknown"),
     ("Espeak", "default"), ("Espeak", "legacy"), ("Espeak", "unknown"),
 ])
-def test_unsupported_new_wrapper_profile_falls_back_before_speech(env, engine, audio_mode):
+def test_unsupported_wrapper_profile_falls_back_before_speech(env, engine, audio_mode):
     policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
     contract = policies.get_completion_contract(engine, nvda_version="2026.1", audio_mode=audio_mode,
                                                 segment_drain_supported=False)
@@ -152,15 +152,19 @@ def test_synth_policy_uses_actual_opened_core(env, engine, use_wasapi, expected)
 @pytest.mark.parametrize("engine,audio_modes", [
     ("SAPI5", ("wasapi", "legacy", "unknown")),
     ("Espeak", ("default", "legacy", "unknown")),
+    ("RHVoice", ("default", "wasapi", "unknown")),
 ])
 def test_actual_outer_voice_and_core_keep_unverified_profiles_legacy(
         monkeypatch, tmp_path, engine, audio_modes):
     if engine == "SAPI5":
         from test_sapi5_segment_drain import load_sapi5
         installed = load_sapi5(monkeypatch)
-    else:
+    elif engine == "Espeak":
         from espeak_drain_harness import load_espeak
         installed = load_espeak(monkeypatch, tmp_path)
+    else:
+        from rhvoice_drain_harness import load_rhvoice
+        installed = load_rhvoice(monkeypatch, tmp_path)
     try:
         monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.compat.completionPolicies", raising=False)
         policies = importlib.import_module("synthDrivers.WorldVoice.compat.completionPolicies")
@@ -176,17 +180,26 @@ def test_actual_outer_voice_and_core_keep_unverified_profiles_legacy(
         commands = {name: type(name, (), {}) for name in (
             "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
             "PitchCommand", "RateCommand", "VolumeCommand")}
+        warnings = []
         root = _load_synth_class({"SynthDriver": object, "synthIndexReached": object(),
             "synthDoneSpeaking": object(), "versionInfo": SimpleNamespace(version="2026.1"),
             "get_completion_contract": policies.get_completion_contract,
             "get_segment_drain_support": policies.get_segment_drain_support,
-            "nvdaLog": SimpleNamespace(warning=lambda *args: None), **commands})
+            "nvdaLog": SimpleNamespace(warning=lambda *args: warnings.append(args)), **commands})
         selected = object.__new__(root)._completion_for(installed.outer.Voice, installed.driver)
         assert selected.mode is installed.rt.models.CompletionMode.LEGACY_DONE
         assert selected.index_range is None
+        if engine == "RHVoice":
+            assert len(warnings) == 1
+            assert warnings[0][1:4] == ("RHVoice", "2026.1", "default")
+            assert "RHVoice" in warnings[0][4]
+            assert warnings[0][5]
     finally:
         if engine == "SAPI5":
             installed.driver.terminate()
         else:
-            from espeak_drain_harness import finish
+            if engine == "Espeak":
+                from espeak_drain_harness import finish
+            else:
+                from rhvoice_drain_harness import finish
             finish(installed)
