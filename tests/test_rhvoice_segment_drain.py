@@ -27,6 +27,7 @@ def test_done_before_native_return_waits_for_final_idle_and_retirement(env):
     player.idle_release.clear()
     call.return_release.set()
     assert call.returned.wait(3)
+    assert player.second_idle_entered.wait(3)
     assert player.idle_count == 2
     assert events == []
     player.idle_release.set()
@@ -276,3 +277,78 @@ def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
     assert not stopper.is_alive()
     env.native.wait_call(2)
     assert successor_events[0].wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_cancel_invalidates_completion_waiting_for_async_delivery(env, monkeypatch):
+    delivery_waiting, release_delivery = Event(), Event()
+    delivery_threads = []
+    real_thread = env.outer.Thread
+    def delayed_thread(*, target, **kwargs):
+        def delayed_target():
+            delivery_waiting.set()
+            assert release_delivery.wait(3)
+            target()
+        thread = real_thread(target=delayed_target, **kwargs)
+        delivery_threads.append(thread)
+        return thread
+    monkeypatch.setattr(env.outer, "Thread", delayed_thread)
+    env.native.scripts.append({"auto_return": True})
+    _, _, events = speak(env)
+    assert delivery_waiting.wait(3)
+    try:
+        env.driver.cancel()
+    finally:
+        release_delivery.set()
+    delivery_threads[0].join(3)
+    assert not delivery_threads[0].is_alive()
+    assert events == []
+
+
+def test_audio_index_listener_can_cancel_from_its_own_callback_thread(env):
+    created = Event()
+    real_player = env.inner.nvwave.WavePlayer
+    def threaded_player(**kwargs):
+        player = real_player(**kwargs)
+        player.threaded_callbacks = True
+        created.set()
+        return player
+    env.inner.nvwave.WavePlayer = threaded_player
+    index_thread, cancelled = [], Event()
+    def cancel_from_index(**kwargs):
+        index_thread.append(current_thread())
+        env.driver.cancel()
+        cancelled.set()
+    env.inner.synthIndexReached.notify = cancel_from_index
+    env.native.scripts.append({"auto_return": True})
+    _, _, events = speak(env)
+    call = env.native.wait_call()
+    assert created.wait(3)
+    assert cancelled.wait(3)
+    assert call.returned.wait(3)
+    assert index_thread[0] is not call.thread
+    assert events == []
+
+
+def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypatch):
+    delivery_waiting, release_delivery = Event(), Event()
+    delivery_threads = []
+    real_thread = env.outer.Thread
+    def delayed_thread(*, target, **kwargs):
+        def delayed_target():
+            delivery_waiting.set()
+            assert release_delivery.wait(3)
+            target()
+        thread = real_thread(target=delayed_target, **kwargs)
+        delivery_threads.append(thread)
+        return thread
+    monkeypatch.setattr(env.outer, "Thread", delayed_thread)
+    env.native.scripts.append({"auto_return": True})
+    _, _, events = speak(env)
+    assert delivery_waiting.wait(3)
+    env.players[0].stop_error = OSError("stop failed")
+    try:
+        with pytest.raises(OSError, match="stop failed"):
+            env.driver._SynthDriver__player.stop()
+    finally:
+        release_delivery.set()
+    assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED

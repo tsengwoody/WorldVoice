@@ -1,6 +1,6 @@
 """WorldVoice's context-aware boundary around the vendored RHVoice worker."""
 
-from threading import Condition, RLock, Thread, local
+from threading import Condition, RLock, Thread, current_thread, local
 import weakref
 
 from logHandler import log
@@ -24,6 +24,8 @@ class _Speech:
 		self.message_created = False
 		self.error = None
 		self.consumers = 0
+		self.delivering = False
+		self.delivery_thread = None
 
 	def valid(self):
 		return not self.cancelled and not self.closed and (self.work is None or self.work.is_valid())
@@ -116,12 +118,15 @@ class _WavePlayer:
 		def index_done():
 			if owner._admit_consumer(speech) is None:
 				return
+			previous = getattr(owner._segmentLocal, "speech", None)
+			owner._segmentLocal.speech = speech
 			try:
 				if speech.valid():
 					onDone()
 			except Exception as error:
 				owner._record_error(speech, error)
 			finally:
+				owner._segmentLocal.speech = previous
 				owner._release_consumer(speech)
 		try:
 			return self._player.feed(data, onDone=index_done if onDone else None)
@@ -186,8 +191,6 @@ class _QueuedSpeech:
 			with owner._segmentCondition:
 				owner._segmentCurrent = None
 				owner._segmentById.pop(self._speech.identity, None)
-				if self._speech in owner._segmentPending:
-					owner._segmentPending.remove(self._speech)
 				owner._segmentCondition.notify_all()
 			owner._dispatch(self._speech)
 
@@ -296,11 +299,24 @@ class SynthDriver(rhvoice.SynthDriver):
 	def _dispatch(self, speech):
 		work = speech.work
 		if work is None or not work.is_valid():
+			with self._segmentCondition:
+				if speech in self._segmentPending:
+					self._segmentPending.remove(speech)
+				self._segmentCondition.notify_all()
 			return
-		error = speech.error or self._segmentControlError
-		if error is None and not (speech.done and speech.returned and speech.final_idle and speech.message_created):
-			error = RuntimeError("RHVoice segment ended without all completion barriers")
 		def deliver():
+			with self._segmentCondition:
+				if speech not in self._segmentPending or not work.is_valid():
+					if speech in self._segmentPending:
+						self._segmentPending.remove(speech)
+					self._segmentCondition.notify_all()
+					return
+				speech.delivering = True
+				speech.delivery_thread = current_thread()
+				error = speech.error or self._segmentControlError
+				if error is None and not (speech.done and speech.returned
+						and speech.final_idle and speech.message_created):
+					error = RuntimeError("RHVoice segment ended without all completion barriers")
 			try:
 				if error is None:
 					work.complete_drained()
@@ -308,6 +324,13 @@ class SynthDriver(rhvoice.SynthDriver):
 					work.fail(error)
 			except Exception:
 				log.error("RHVoice segment event sink", exc_info=True)
+			finally:
+				with self._segmentCondition:
+					speech.delivering = False
+					speech.delivery_thread = None
+					if speech in self._segmentPending:
+						self._segmentPending.remove(speech)
+					self._segmentCondition.notify_all()
 		Thread(target=deliver, daemon=True, name="RHVoice segment event").start()
 
 	def get_segment_drain_support(self, *, nvda_version=None, audio_mode=None):
@@ -330,13 +353,13 @@ class SynthDriver(rhvoice.SynthDriver):
 			speech = _Speech(work)
 			with self._segmentCondition:
 				control_error = self._segmentControlError
+				self._segmentPending.append(speech)
 				if control_error is not None:
 					speech.error = control_error
 				else:
 					speech.identity = self._segmentNextId
 					self._segmentNextId += 1
 					self._segmentById[speech.identity] = speech
-					self._segmentPending.append(speech)
 			if control_error is not None:
 				self._dispatch(speech)
 				return
@@ -363,11 +386,15 @@ class SynthDriver(rhvoice.SynthDriver):
 			with self._segmentCondition:
 				self._segmentCancelling += 1
 				current = self._segmentCurrent
+				in_delivery = any(speech.delivery_thread is current_thread()
+					for speech in self._segmentPending)
+				deliveries = tuple(speech for speech in self._segmentPending
+					if speech.delivering and speech.delivery_thread is not current_thread())
 				for speech in tuple(self._segmentPending):
 					speech.cancelled = True
 					if speech.work is not None:
 						speech.work.cancel()
-					if speech is not current:
+					if speech is not current and not speech.delivering:
 						speech.closed = True
 						self._segmentById.pop(speech.identity, None)
 						self._segmentPending.remove(speech)
@@ -383,6 +410,9 @@ class SynthDriver(rhvoice.SynthDriver):
 				# callback. That callback itself holds the retirement lease.
 				if current is not None and self._associated_speech() is not current:
 					self._segmentCondition.wait_for(lambda: self._segmentCurrent is not current)
+				if not in_delivery:
+					self._segmentCondition.wait_for(lambda: all(not speech.delivering
+						for speech in deliveries))
 			try:
 				self._SynthDriver__player.stop()
 			except Exception as exc:

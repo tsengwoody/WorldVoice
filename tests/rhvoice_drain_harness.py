@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import importlib.util
 from pathlib import Path
 import sys
-from threading import Condition, Event, current_thread
+from threading import Condition, Event, Thread, current_thread
 from types import ModuleType, SimpleNamespace
 
 from runtime_harness import load_runtime, load_scheduler
@@ -23,10 +23,12 @@ class Player:
         self.feed_release = Event()
         self.feed_release.set()
         self.idle_entered = Event()
+        self.second_idle_entered = Event()
         self.idle_release = Event()
         self.idle_release.set()
         self.idle_count = 0
         self.block_idle_number = None
+        self.threaded_callbacks = False
         self.error = None
         self.stop_error = None
         self.stops = 0
@@ -46,13 +48,20 @@ class Player:
     def idle(self):
         self.idle_count += 1
         self.idle_entered.set()
+        if self.idle_count == 2:
+            self.second_idle_entered.set()
         if self.idle_count == self.block_idle_number:
             assert self.idle_release.wait(3), "test did not release idle"
         if self.error == "idle":
             raise OSError("idle failed")
         callbacks, self.callbacks = self.callbacks, []
         for callback in callbacks:
-            callback()
+            if self.threaded_callbacks:
+                callback_thread = Thread(target=callback, daemon=True)
+                callback_thread.start()
+                callback_thread.join()
+            else:
+                callback()
 
     def stop(self):
         self.stops += 1
