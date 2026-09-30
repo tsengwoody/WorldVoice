@@ -352,3 +352,40 @@ def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypa
     finally:
         release_delivery.set()
     assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+
+
+def test_callback_cancel_does_not_wait_for_delivery_cancel_awaiting_that_callback(env):
+    delivery_started, index_entered, delivery_stopped = Event(), Event(), Event()
+    delivery_cancelled, index_cancelled = Event(), Event()
+    delivery_thread = []
+    original_stop = env.driver._SynthDriver__player.stop
+    def observed_stop():
+        if delivery_thread and current_thread() is delivery_thread[0]:
+            delivery_stopped.set()
+        return original_stop()
+    env.driver._SynthDriver__player.stop = observed_stop
+    def on_index(**kwargs):
+        if not delivery_started.is_set():
+            return
+        index_entered.set()
+        assert delivery_stopped.wait(3)
+        env.driver.cancel()
+        index_cancelled.set()
+    env.inner.synthIndexReached.notify = on_index
+    def on_first_event(event):
+        delivery_thread.append(current_thread())
+        env.players[0].threaded_callbacks = True
+        delivery_started.set()
+        assert index_entered.wait(3)
+        env.driver.cancel()
+        delivery_cancelled.set()
+    env.native.scripts.extend((
+        {"auto_return": True},
+        {"auto_return": True, "before_callbacks": lambda: delivery_started.wait(3)},
+    ))
+    speak(env, segment=1, text="first", sink=on_first_event)
+    speak(env, segment=2, text="second")
+    assert env.native.wait_call(2)
+    assert index_entered.wait(3)
+    assert delivery_cancelled.wait(2)
+    assert index_cancelled.wait(2)

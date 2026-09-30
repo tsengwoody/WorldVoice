@@ -136,6 +136,8 @@ class Native:
         try:
             if script.get("raise_native"):
                 raise OSError("native failed")
+            if script.get("before_callbacks"):
+                script["before_callbacks"]()
             self.callbacks.set_sample_rate(22050, user_data)
             samples = (ctypes.c_short * 2)(1, 2)
             self.callbacks.play_speech(samples, 2, user_data)

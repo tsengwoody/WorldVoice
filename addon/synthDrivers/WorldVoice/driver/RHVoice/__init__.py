@@ -386,6 +386,7 @@ class SynthDriver(rhvoice.SynthDriver):
 			with self._segmentCondition:
 				self._segmentCancelling += 1
 				current = self._segmentCurrent
+				callback_origin = self._associated_speech() is not None
 				in_delivery = any(speech.delivery_thread is current_thread()
 					for speech in self._segmentPending)
 				deliveries = tuple(speech for speech in self._segmentPending
@@ -410,7 +411,9 @@ class SynthDriver(rhvoice.SynthDriver):
 				# callback. That callback itself holds the retirement lease.
 				if current is not None and self._associated_speech() is not current:
 					self._segmentCondition.wait_for(lambda: self._segmentCurrent is not current)
-				if not in_delivery:
+				# A delivery sink may be waiting for this native/audio callback
+				# to retire. The callback must not wait for that delivery in turn.
+				if not in_delivery and not callback_origin:
 					self._segmentCondition.wait_for(lambda: all(not speech.delivering
 						for speech in deliveries))
 			try:
