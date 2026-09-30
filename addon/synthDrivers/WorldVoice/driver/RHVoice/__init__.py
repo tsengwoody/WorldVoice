@@ -103,7 +103,11 @@ class _NativeLibrary:
 				self._native.RHVoice_delete_message(self._message)
 				self._message = None
 			except Exception as error:
-				self._owner()._record_error(self._speech, error)
+				owner = self._owner()
+				owner._record_error(self._speech, error)
+				# The native message may still own resources after a failed delete.
+				# Stop reusing this engine and player, even if stop succeeds.
+				owner._record_control_error(error)
 				raise
 
 
@@ -523,7 +527,9 @@ class SynthDriver(rhvoice.SynthDriver):
 					with self._segmentCondition:
 						self._segmentPending.remove(speech)
 				else:
-					self._dispatch(speech)
+					with self._segmentCondition:
+						self._segmentPending.remove(speech)
+					raise control_error
 				return
 			if operation is not None:
 				speech.producer = self._segmentLifecycle.admit_producer(operation)

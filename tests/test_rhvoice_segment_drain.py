@@ -20,6 +20,11 @@ def env(monkeypatch, tmp_path):
     finish(result)
 
 
+def assert_no_successor_native_call(env, timeout=0.1):
+    with env.native.condition:
+        assert not env.native.condition.wait_for(lambda: len(env.native.calls) > 1, timeout)
+
+
 def test_done_before_native_return_waits_for_final_idle_and_retirement(env):
     env.native.scripts.append({})
     token, context, events = speak(env)
@@ -50,6 +55,29 @@ def test_missing_done_does_not_drain_after_native_return(env):
     call = env.native.wait_call()
     assert call.returned.wait(3)
     assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+
+
+def test_message_delete_failure_fails_closed_for_contextual_and_legacy_successors(env):
+    def fail_delete(message):
+        raise OSError("delete failed")
+    env.native.RHVoice_delete_message.function = fail_delete
+    env.native.scripts.append({"auto_return": True})
+    _, _, old_events = speak(env, text="old")
+    old_call = env.native.wait_call()
+    assert old_call.returned.wait(3)
+    event = old_events.wait_one()
+    assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert isinstance(event.error, OSError)
+    assert str(event.error) == "delete failed"
+    assert len(old_events) == 1
+    env.native.scripts.append({"auto_return": True})
+    _, _, next_events = speak(env, segment=2, text="next")
+    assert next_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert_no_successor_native_call(env)
+    with pytest.raises(OSError, match="delete failed"):
+        env.driver.speak(("legacy", env.commands.IndexCommand(7)))
+    assert_no_successor_native_call(env)
+    assert len(env.native.calls) == 1
 
 
 def test_terminal_sink_can_terminate_outside_native_and_worker_stacks(env):
@@ -280,20 +308,20 @@ def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
     def callback(callbacks, user_data):
         Thread(target=lambda: callbacks.set_sample_rate(22050, user_data), daemon=True).start()
         assert callback_entered.wait(3)
+        env.players[0].block_idle_number = 2
+        env.players[0].idle_release.clear()
     env.native.scripts.append({"auto_return": True, "async_callback": callback})
     _, _, old_events = speak(env, text="old")
     old_call = env.native.wait_call()
     assert old_call.returned.wait(3)
     player = env.players[0]
-    player.block_idle_number = 2
-    player.idle_release.clear()
     env.native.scripts.append({"auto_return": True})
     _, _, new_events = speak(env, segment=2, text="new")
-    assert len(env.native.calls) == 1
+    assert_no_successor_native_call(env)
     assert old_events == []
     release_callback.set()
     assert player.second_idle_entered.wait(3)
-    assert len(env.native.calls) == 1
+    assert_no_successor_native_call(env)
     assert old_events == []
     player.idle_release.set()
     assert old_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
@@ -322,7 +350,7 @@ def test_rhvoice_shared_cancel_keeps_old_identity_until_retirement(env):
     assert player.stop_entered.wait(3)
     env.native.scripts.append({"auto_return": True})
     _, _, new_events = speak(env, segment=2, text="new")
-    assert len(env.native.calls) == 1
+    assert_no_successor_native_call(env)
     assert original_id in env.driver._segmentById
     player.feed_release.set()
     old_call.return_release.set()
