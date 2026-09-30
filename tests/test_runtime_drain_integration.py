@@ -64,6 +64,36 @@ def test_next_engine_starts_only_after_segment_drain(composition, engines):
     assert len(c.output.drains) == 3
 
 
+@pytest.mark.parametrize("first,successor", [("OneCore", "Neural"), ("VE", "Cerence")])
+def test_switch_waits_for_original_correlated_drain(composition, first, successor):
+    c = composition
+    request = c.submit(("original", c.rt.models.SelectVoice(c.key(successor)),
+        "successor"), first)
+    original = c.controls[first]
+    following = c.controls[successor]
+    barrier = original.tail()
+    context = original.contexts[0]
+    assert original.core._segmentLifecycle._hooks is original.core
+    assert c.output.drains == []
+    assert following.started.wait(0.03) is False
+    assert following.calls == []
+    assert not request.tasks[0].future.done()
+    barrier.release.set()
+    following.wait_call()
+    assert len(c.output.drains) == 1
+    event = c.output.drains[0]
+    assert event.source_id is context.source_id
+    assert event.segment_id == context.segment_id
+    assert event.kind is c.rt.models.EventKind.SEGMENT_DRAINED
+    assert following.contexts[0].source_id is not context.source_id
+    assert following.contexts[0].segment_id != context.segment_id
+    following.tail().release.set()
+    c.wait_done()
+    assert request.state is c.scheduler.RequestState.COMPLETED
+    assert len(c.output.drains) == 2
+    assert len(c.output.dones) == 1
+
+
 @pytest.mark.parametrize("engine", ENGINES)
 def test_cached_voice_still_has_two_segment_drains(composition, engine):
     c = composition

@@ -204,13 +204,16 @@ def test_actual_outer_voice_and_core_select_enabled_drain_profiles(
             finish(installed)
 
 
-def test_sapi5_legacy_stays_legacy_done_before_first_segment(monkeypatch):
+def test_sapi5_legacy_first_segment_remains_legacy_done(monkeypatch):
     from test_sapi5_segment_drain import load_sapi5
     installed = load_sapi5(monkeypatch)
     try:
         installed.driver.useWasapi = False
         monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.compat.completionPolicies", raising=False)
         policies = importlib.import_module("synthDrivers.WorldVoice.compat.completionPolicies")
+        support = policies.get_segment_drain_support(installed.outer.Voice, installed.driver,
+            nvda_version="2026.1", audio_mode="legacy")
+        assert support.supported is False
         commands = {name: type(name, (), {}) for name in (
             "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
             "PitchCommand", "RateCommand", "VolumeCommand")}
@@ -226,3 +229,56 @@ def test_sapi5_legacy_stays_legacy_done_before_first_segment(monkeypatch):
         assert installed.driver._segmentNative is None
     finally:
         installed.driver.terminate()
+
+
+@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"])
+def test_seven_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine):
+    """The actual opened outer core must select DRAIN before any segment starts."""
+    if engine in ("OneCore", "Neural", "VE", "Cerence"):
+        from runtime_drain_integration_harness import assemble
+        composition = assemble(monkeypatch, tmp_path)
+        control = composition.controls[engine]
+        outer = control.env.outer if engine in ("OneCore", "Neural") else control.env.module
+        core = control.core
+        close = composition.close
+        mode = "wasapi" if engine == "OneCore" else "default"
+    elif engine == "SAPI5":
+        from test_sapi5_segment_drain import load_sapi5
+        installed = load_sapi5(monkeypatch)
+        outer, core, close, mode = installed.outer, installed.driver, installed.driver.terminate, "wasapi"
+    elif engine == "Espeak":
+        from espeak_drain_harness import load_espeak, finish
+        installed = load_espeak(monkeypatch, tmp_path)
+        outer, core, close, mode = installed.outer, installed.driver, lambda: finish(installed), "default"
+    else:
+        from rhvoice_drain_harness import load_rhvoice, finish
+        installed = load_rhvoice(monkeypatch, tmp_path)
+        outer, core, close, mode = installed.outer, installed.driver, lambda: finish(installed), "default"
+    try:
+        monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.compat.completionPolicies", raising=False)
+        policies = importlib.import_module("synthDrivers.WorldVoice.compat.completionPolicies")
+        assert sys.modules["synthDrivers.WorldVoice.driver." + engine] is outer
+        assert outer.Voice.synth_driver_class is type(core)
+        assert isinstance(core._segmentLifecycle, outer.SegmentLifecycle)
+        assert core._segmentLifecycle._hooks is core
+        support = policies.get_segment_drain_support(outer.Voice, core,
+            nvda_version="2026.1", audio_mode=mode)
+        assert support.supported is True
+        contract = policies.get_completion_contract(engine, nvda_version="2026.1",
+            audio_mode=mode, segment_drain_supported=support.supported)
+        assert contract.mode is policies.CompletionMode.DRAIN
+        assert contract.index_range == policies.IndexRange(1, 9999)
+        if engine in ("OneCore", "Neural", "VE", "Cerence"):
+            assert control.session.completion.mode is composition.rt.models.CompletionMode.DRAIN
+            assert control.calls == []
+    finally:
+        close()
+
+
+@pytest.mark.parametrize("engine", ["unknown", "external-test-engine"])
+def test_unknown_engine_fallback_unchanged(env, engine):
+    policies = importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
+    contract = policies.get_completion_contract(engine, nvda_version="2026.1",
+        audio_mode="default", segment_drain_supported=True)
+    assert contract.mode is env.models.CompletionMode.LEGACY_DONE
+    assert contract.index_range is None
