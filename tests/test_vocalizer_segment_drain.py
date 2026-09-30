@@ -161,6 +161,78 @@ def test_ve_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch
     assert env.events[0].segment_id == 18
 
 
+@pytest.mark.parametrize("env", ["Cerence"], indirect=True)
+def test_cerence_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    assert isinstance(env.core._segmentLifecycle, env.module.SegmentLifecycle)
+    feed_entered, feed_release, idle_entered, idle_release = Event(), Event(), Event(), Event()
+    callbacks = []
+    env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
+    env.core._real_player.idle = lambda: (idle_entered.set(), idle_release.wait(2))
+    def native(instance, text):
+        callbacks.append(run_thread(lambda: emit(env, instance, index=31)))
+        assert feed_entered.wait(1)
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    _, context, call = speak(env)
+    assert feed_entered.wait(1)
+    assert env.events == []
+    assert not idle_entered.is_set()
+    feed_release.set()
+    wait_for(lambda: bool(callbacks))
+    finish(callbacks[0])
+    assert idle_entered.wait(1)
+    assert env.events == []
+    idle_release.set()
+    finish(call)
+    wait_for(lambda: len(env.events) == 1)
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.events[0].source_id is context.source_id
+    assert env.events[0].segment_id == context.segment_id
+    assert env.indexes == [31]
+
+
+@pytest.mark.parametrize("env", ["Cerence"], indirect=True)
+def test_cerence_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    assert isinstance(env.core._segmentLifecycle, env.module.SegmentLifecycle)
+    feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
+    calls, callbacks = [], []
+    env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
+    def stop():
+        stop_entered.set()
+        assert stop_release.wait(2)
+    env.core._real_player.stop = stop
+    def native(instance, text):
+        calls.append(text)
+        if len(calls) == 1:
+            callbacks.append(run_thread(lambda: emit(env, instance, index=41)))
+            assert feed_entered.wait(1)
+        else:
+            emit(env, instance, index=42)
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    token, _, first = speak(env)
+    assert feed_entered.wait(1)
+    token.cancel()
+    _, context, second = speak(env, segment=18)
+    feed_release.set()
+    assert stop_entered.wait(1)
+    assert calls == ["hello"]
+    stop_release.set()
+    finish(callbacks[0])
+    finish(first)
+    finish(second)
+    wait_for(lambda: len(env.events) == 1)
+    assert calls == ["hello", "hello"]
+    assert env.indexes == [42]
+    assert len(env.events) == 1
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.events[0].source_id is context.source_id
+    assert env.events[0].segment_id == 18
+    # Native callback admission stays closed after the successor retires.
+    assert emit(env, env.opened[0][1], index=43) == [env.types.NUAN_E_TTS_USERSTOP]
+    assert env.indexes == [42]
+
+
 def test_ve_shared_terminal_listener_can_speak_successor(env, monkeypatch):
     if env.engine != "VE":
         pytest.skip("VE lifecycle adapter")
