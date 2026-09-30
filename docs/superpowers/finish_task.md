@@ -8,14 +8,17 @@
 
 One common `SegmentLifecycle` now owns contextual operation admission, producer leases, failure and cancellation state, resource handoff, and terminal event delivery. The outer OneCore, Neural, VE, Cerence, SAPI5 WASAPI, eSpeak, and RHVoice wrappers use it while retaining their native submission, callback, stop, and player barriers. SAPI5 legacy audio continues to choose `LEGACY_DONE` before its first segment. Unknown and external engines retain the same fallback. The enabled profile selection is an explicit prior user request; it does not establish physical playback or SDK callback exclusion on Windows.
 
+The later Neural correction `6caceb5` closes a cancellation race: `speak_segment` had accepted a lifecycle operation before registering its driver work, so `cancel()` could snapshot `_segmentWorks` in between and miss that operation. Acceptance and registration now share `_segmentCondition`; native calls, task construction, and event delivery remain outside that condition. A held-boundary regression covers the gap.
+
 ## Verification
 
 - `python3 -m pytest -q tests/test_runtime_drain_integration.py tests/test_runtime_completion_policies.py`: **205 passed** in 7.06s.
 - `python3 -m pytest -q tests`: **1,275 passed, 9 skipped** in 37.82s.
+- After `6caceb5`, `python3 -m pytest -q tests` passed **1,276 tests, 9 skipped** in 36.63s on the delivery-record rerun. The Task 4 follow-up's focused Neural plus lifecycle suite passed **89 tests**; that follow-up also recorded intermittent runs and Linux collection limits.
 - `git diff --check`: exit 0 before the integration commit; repeated for this record.
 - The integration harness uses the real manager, sessions, adapters, index ledger, scheduler, event bridge, and four opened outer wrappers over controlled native and player boundaries. Separate actual-wrapper fixtures cover SAPI5, eSpeak, and RHVoice. The seven-profile assertion checks installed outer core identity, shared coordinator ownership, and policy choice before speech. The switch assertion holds the original player's drain, checks that the successor has not submitted, and checks the original `source_id` and `segment_id` on the released DRAIN event.
 
-The build used SCons 4.11.1 and Markdown 3.11 installed in `/tmp/worldvoice-task10-venv`, with system gettext. Command: `scons version=6.2-test-correlated-drain-1-9999 channel=dev` from the clean detached source `/tmp/worldvoice-task10-build-ee6d0b8`. It exited 0. The artifact remains in that isolated build checkout; the ignored root artifact and its README annotation remain the earlier activation package.
+The build used SCons 4.11.1 and Markdown 3.11 installed in `/tmp/worldvoice-task10-venv`, with system gettext. Command: `scons version=6.2-test-correlated-drain-1-9999 channel=dev` from the clean detached source `/tmp/worldvoice-task10-build-ee6d0b8`. It exited 0. The artifact remains in that isolated build checkout; the ignored root artifact and its README annotation remain the earlier activation package. This artifact predates `6caceb5` and does not contain the Neural race correction; its hash is an audit of `ee6d0b8`, not the current branch.
 
 | Build audit | Result |
 | --- | --- |
@@ -31,7 +34,7 @@ No Windows NVDA instance, physical audio device, loaded VE/Cerence SDK, or measu
 
 ## New commits in this change
 
-The following exact short SHA and subject pairs include design, plan, implementation, corrections, and the cross-engine validation commit. The documentation commit containing this record is identified in the Task 10 handoff because a commit cannot contain its own SHA. The complete history can be checked with `git log --reverse --format='%h %s' 3603004^..HEAD`.
+The following exact short SHA and subject pairs include design, plan, implementation, corrections, and validation through the Neural follow-up. The documentation commit for this update is identified in the Task 10 handoff because a commit cannot contain its own SHA. The complete history can be checked with `git log --reverse --format='%h %s' 3603004^..HEAD`.
 
 - `3603004` docs: design shared segment lifecycle for seven engines
 - `b7abba9` docs: plan shared segment lifecycle migration
@@ -57,3 +60,5 @@ The following exact short SHA and subject pairs include design, plan, implementa
 - `1dd9e2b` fix: fail closed after RHVoice message cleanup fault
 - `ee6d0b8` test: hold RHVoice final idle before successor handoff
 - `e1ebe34` test: verify seven shared lifecycle profiles and cross-engine handoff
+- `d69b823` docs: record shared segment lifecycle delivery
+- `6caceb5` fix: close Neural segment admission cancellation gap
