@@ -149,8 +149,12 @@ class _SegmentPlayer:
 		with driver._threadCond:
 			native = driver._segmentNative if self is driver.player else None
 		try:
+			# WavePlayer.idle may wait for playback or for stop(). Never hold
+			# the request lock while it runs: cancel needs that lock to stop it.
 			result = self._player.idle()
-			if (native is not None and native.work is not None and native.work.is_valid()
+			with driver._threadCond:
+				current = self is driver.player and driver._segmentNative is native
+			if (current and native is not None and native.work is not None and native.work.is_valid()
 					and not native.end_processed):
 				raise RuntimeError("SAPI5 player idle preceded the segment end notification")
 			return result
@@ -202,7 +206,12 @@ class _SegmentSapiSink(sapi5.SapiSink):
 				return driver, None
 			if native.stream is None:
 				# SAPI may invoke StartStream before Speak returns its stream id.
+				# A late notification from a previous request may also arrive in
+				# this gap. It must never claim the new request's identity.
+				if stream in driver._segmentSeenStreams:
+					return driver, None
 				native.stream = stream
+				driver._segmentSeenStreams.add(stream)
 			if native.stream != stream:
 				return driver, None
 			return driver, native
@@ -276,6 +285,7 @@ class SynthDriver(BaseSynthDriver):
 
 	def __init__(self, *args, **kwargs):
 		self._segmentRequests = {}
+		self._segmentSeenStreams = set()
 		self._segmentWorks = set()
 		self._segmentBindings = {}
 		self._segmentLifecycle = SegmentLifecycle(self)
@@ -417,6 +427,7 @@ class SynthDriver(BaseSynthDriver):
 		self._segmentSink = None
 		self._segmentAudio = None
 		super()._initTts(voice)
+		self._segmentSeenStreams.clear()
 		self._segmentControlError = None
 		if self.player is not None:
 			self.player = _SegmentPlayer(self, self.player)
@@ -505,6 +516,11 @@ class SynthDriver(BaseSynthDriver):
 					operation = self._segmentRequests.pop(id(request), None)
 					work = operation.work if operation is not None else None
 					if work is not None and not work.is_valid():
+						binding = self._segmentBindings.get(operation)
+						if binding is not None:
+							binding.boundary.set()
+							binding.retired.set()
+							binding.playback_done.set()
 						continue
 					binding = self._segmentBindings.get(operation) if operation is not None else None
 					native = _NativeRequest(request, work, operation, binding)
@@ -529,6 +545,7 @@ class SynthDriver(BaseSynthDriver):
 					if native.stream is not None and native.stream != stream:
 						raise RuntimeError("SAPI5 callback stream did not match the admitted request")
 					native.stream = stream
+					self._segmentSeenStreams.add(stream)
 					self._threadCond.wait_for(self._requestCompleted)
 				if work is not None or native.cancelled:
 					with self._threadCond:

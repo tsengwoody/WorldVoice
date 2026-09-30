@@ -583,6 +583,83 @@ def test_cancel_context_queued_behind_ordinary_speech_retires(env):
     assert old_events == []
 
 
+def test_token_cancel_context_queued_behind_ordinary_speech_retires(env, monkeypatch):
+    env.driver.speak(("ordinary",))
+    env.native.wait_calls(1)
+    admitted = Event()
+    submit = env.driver.submit_native
+    def observed_submit(operation, commands):
+        submit(operation, commands)
+        admitted.set()
+    monkeypatch.setattr(env.driver, "submit_native", observed_submit)
+    token, _, old_events = speak(env)
+    assert admitted.wait(1)
+    token.cancel()
+    env.player.idle_release.set()
+    env.native.end(1)
+    _, _, successor = speak(env, segment=19)
+    env.native.wait_calls(2)
+    env.native.end(2)
+    assert wait_event(successor).segment_id == 19
+    assert old_events == []
+
+
+def test_cancel_stops_player_while_final_idle_is_blocked(env, monkeypatch):
+    entered, stop_called = Event(), Event()
+    idle = env.player.idle
+    stop = env.player.stop
+    def blocked_idle():
+        entered.set()
+        env.player.idle_release.wait()
+        return idle()
+    def observed_stop():
+        stop_called.set()
+        return stop()
+    monkeypatch.setattr(env.player, "idle", blocked_idle)
+    monkeypatch.setattr(env.player, "stop", observed_stop)
+    _, _, events = speak(env)
+    env.native.wait_calls(1)
+    env.native.end()
+    assert entered.wait(1)
+    finished = Event()
+    cancellation = Thread(target=lambda: (env.driver.cancel(), finished.set()), daemon=True)
+    cancellation.start()
+    try:
+        assert stop_called.wait(1), "Cancel could not stop the player during idle"
+    finally:
+        env.player.idle_release.set()
+        cancellation.join(2)
+    assert finished.is_set() and events == []
+
+
+def test_old_endstream_before_new_speak_returns_cannot_bind_successor(env, monkeypatch):
+    _, _, first_events = speak(env)
+    env.native.wait_calls(1)
+    env.player.idle_release.set()
+    env.native.end(1)
+    assert wait_event(first_events).segment_id == 17
+    speak_native = env.native.Speak
+    injected, release = Event(), Event()
+    def delayed_speak(text, flags):
+        stream = speak_native(text, flags)
+        if text is not None and stream == 2:
+            env.native.end(1)
+            injected.set()
+            assert release.wait(2)
+        return stream
+    monkeypatch.setattr(env.native, "Speak", delayed_speak)
+    _, context, successor = speak(env, segment=18)
+    assert injected.wait(1)
+    try:
+        assert successor == []
+    finally:
+        release.set()
+    env.native.end(2)
+    event = wait_event(successor)
+    assert event.source_id is context.source_id and event.segment_id == 18
+    assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
 def test_cancel_during_terminal_commit_allows_successor_after_commit(env, monkeypatch):
     entered, release = Event(), Event()
     complete = env.rt.playback_work.PlaybackWork.complete_drained
