@@ -5,8 +5,8 @@ physical playback and ordered-index evidence. IndexCommand support alone
 never establishes completion semantics or a safe integer range.
 
 Supported custom wrappers use their explicit adapter/native drain contract.
-This is separate from physical playback certification. The remaining three
-built-in engines retain the unverified END_INDEX experiment on this branch.
+This is separate from physical playback certification. RHVoice retains the
+unverified END_INDEX experiment on this branch.
 """
 
 from inspect import signature
@@ -20,9 +20,9 @@ _VERIFIED_CONTRACTS: dict[tuple[str, str, str], CompletionContract] = {}
 
 # TEST ONLY: test/force-segment-end-index-all-engines. No hardware evidence.
 # Remove this block and its branch below to restore verified-only index policy.
-_TEST_ONLY_FORCE_END_INDEX_ENGINES = frozenset({"SAPI5", "Espeak", "RHVoice"})
+_TEST_ONLY_FORCE_END_INDEX_ENGINES = frozenset({"RHVoice"})
 _TEST_ONLY_END_INDEX_CONTRACT = CompletionContract(CompletionMode.END_INDEX, IndexRange(1, 9999))
-_DRAIN_ENGINES = frozenset({"OneCore", "Neural", "VE", "Cerence"})
+_DRAIN_ENGINES = frozenset({"OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak"})
 _DRAIN_CONTRACT = CompletionContract(CompletionMode.DRAIN, IndexRange(1, 9999))
 
 

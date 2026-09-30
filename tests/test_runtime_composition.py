@@ -1,6 +1,7 @@
 """Production manager, facade, adapter, session and bridge composition."""
 
 import ast
+from concurrent.futures import CancelledError
 import importlib
 import sys
 import threading
@@ -689,17 +690,26 @@ def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
                            checked=checked, spoken=spoken, support_type=support_type)
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence"])
+@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak"])
 def test_supported_installed_wrapper_is_bound_before_first_drain_speech(composition, monkeypatch, nvda_commands, engine):
     c = composition
     installed = installed_drain_voice(c, monkeypatch, engine)
-    if engine == "OneCore":
+    if engine in ("OneCore", "SAPI5"):
         installed.driver.useWasapi = True
+    configured = []
+    configure = c.module.LegacyEngineAdapter.configure_segment_events
+    def configure_after_bind(adapter, factory):
+        assert installed.voice.session is None
+        assert c.bridge._sources[id(installed.voice.core)].source is installed.voice.core
+        configure(adapter, factory)
+        configured.append(adapter)
+    monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", configure_after_bind)
     select, logs = runtime_completion_selector(c)
     manager = c.create(select)
     port = manager.resolve_playback(engine + ":a")
     assert port.completion.mode is c.models.CompletionMode.DRAIN
-    assert installed.checked == [("synthetic", "wasapi" if engine == "OneCore" else "default")]
+    assert configured == [port._adapter]
+    assert installed.checked == [("synthetic", "wasapi" if engine in ("OneCore", "SAPI5") else "default")]
     assert logs == []
     done, indexes = threading.Event(), []
     c.done.register(lambda synth: done.set() if synth is c.owner else None)
@@ -717,16 +727,56 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(composit
     assert policies._VERIFIED_CONTRACTS == {}
 
 
+@pytest.mark.parametrize("engine", ["SAPI5", "Espeak"])
+@pytest.mark.parametrize("outcome", ["failure", "cancel"])
+def test_new_installed_wrapper_retains_request_identity_on_failure_or_cancel(
+        composition, monkeypatch, nvda_commands, engine, outcome):
+    c = composition
+    installed = installed_drain_voice(c, monkeypatch, engine)
+    if engine == "SAPI5":
+        installed.driver.useWasapi = True
+    selected, _ = runtime_completion_selector(c)
+    manager = c.create(selected)
+    port = manager.resolve_playback(engine + ":a")
+    assert port.completion.mode is c.models.CompletionMode.DRAIN
+    entered = threading.Event()
+    calls = []
+    def hold(self, commands, token, *, context, on_event):
+        calls.append((context, on_event))
+        entered.set()
+    installed.driver.speak_segment = hold
+    request = c.tasks.new_request()
+    future = c.tasks.append_speech(request, port, engine + ":a", ("first",))
+    assert c.tasks.submit_request(request) and entered.wait(1)
+    context, sink = calls[0]
+    if outcome == "failure":
+        error = RuntimeError("native playback failed")
+        sink(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_FAILED,
+                                    context.source_id, segment_id=context.segment_id, error=error))
+        with pytest.raises(RuntimeError, match="native playback failed"):
+            future.result(1)
+        assert request.state.name == "FAILED"
+    else:
+        c.tasks.cancel((port,))
+        sink(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
+                                    context.source_id, segment_id=context.segment_id))
+        with pytest.raises(CancelledError):
+            future.result(1)
+        assert future.cancelled()
+        assert request.state.name == "CANCELLED"
+
+
+@pytest.mark.parametrize("engine", ["OneCore", "SAPI5"])
 @pytest.mark.parametrize("use_wasapi,audio_mode,completion_mode", [
     (True, "wasapi", "DRAIN"), (False, "legacy", "LEGACY_DONE"),
     ("absent", "unknown", "LEGACY_DONE"), (None, "unknown", "LEGACY_DONE"),
     ("true", "unknown", "LEGACY_DONE"), (1, "unknown", "LEGACY_DONE"),
     (0, "unknown", "LEGACY_DONE"),
 ])
-def test_onecore_mode_sensitive_support_uses_actual_opened_core(
-        composition, monkeypatch, use_wasapi, audio_mode, completion_mode):
+def test_wasapi_mode_sensitive_support_uses_actual_opened_core(
+        composition, monkeypatch, engine, use_wasapi, audio_mode, completion_mode):
     c = composition
-    installed = installed_drain_voice(c, monkeypatch)
+    installed = installed_drain_voice(c, monkeypatch, engine)
     if use_wasapi != "absent":
         installed.driver.useWasapi = use_wasapi
     checked = []
@@ -737,7 +787,7 @@ def test_onecore_mode_sensitive_support_uses_actual_opened_core(
     installed.driver.get_segment_drain_support = support
     select, logs = runtime_completion_selector(c)
     manager = c.create(select)
-    port = manager.resolve_playback("OneCore:a")
+    port = manager.resolve_playback(engine + ":a")
     assert checked == [("synthetic", audio_mode)]
     assert port.completion.mode is getattr(c.models.CompletionMode, completion_mode)
     assert len(logs) == (0 if completion_mode == "DRAIN" else 1)
@@ -745,12 +795,13 @@ def test_onecore_mode_sensitive_support_uses_actual_opened_core(
     assert policies._VERIFIED_CONTRACTS == {}
 
 
+@pytest.mark.parametrize("engine", ["OneCore", "SAPI5", "Espeak"])
 @pytest.mark.parametrize("failure", ["foreign_voice", "foreign_driver", "wrong_core", "missing_entry",
                                     "wrong_signature", "missing_support", "invalid_support",
                                     "truthy_support", "unsupported", "support_error"])
-def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(composition, monkeypatch, failure):
+def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(composition, monkeypatch, engine, failure):
     c = composition
-    installed = installed_drain_voice(c, monkeypatch)
+    installed = installed_drain_voice(c, monkeypatch, engine)
     cls = installed.voice
     if failure == "foreign_voice":
         installed.module.Voice = type("ForeignVoice", (), {})
@@ -778,7 +829,7 @@ def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(composi
         installed.driver.get_segment_drain_support = fail
     select, logs = runtime_completion_selector(c)
     manager = c.create(select)
-    port = manager.resolve_playback("OneCore:a")
+    port = manager.resolve_playback(engine + ":a")
     assert port.completion.mode is c.models.CompletionMode.LEGACY_DONE
     assert port.completion.index_range is None
     assert select(cls, cls.core) == port.completion
