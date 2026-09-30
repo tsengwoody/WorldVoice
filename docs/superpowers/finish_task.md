@@ -95,4 +95,8 @@ Implementation and integration commits:
 - `b2a5d42` — `docs: include RHVoice commit-list update`
 - `2e23af7` — `docs: include RHVoice commit-list updates`
 
+2026-09-30 explicit DRAIN activation:
+
+- `e72a343` — `feat: enable correlated drain for seven engines`
+
 This record is updated in its own documentation commit, so its current commit hash is not listed inside itself. Verify the complete branch commit list, including that commit, with `git log --reverse --format='%h %s' 4951d39..HEAD`.
