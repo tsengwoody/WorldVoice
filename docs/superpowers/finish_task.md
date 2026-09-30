@@ -87,5 +87,6 @@ Implementation and integration commits:
 - `71ca851` — `Record corrected RHVoice package audit`
 - `3e69e8f` — `Allow admitted RHVoice native callbacks to finish nested feeds`
 - `d81b0c7` — `Record RHVoice admitted-producer fix and package audit`
+- `76cda09` — `Record approved RHVoice whole-change review`
 
 This record is updated in its own documentation commit, so its current commit hash is not listed inside itself. Verify the complete branch commit list, including that commit, with `git log --reverse --format='%h %s' 4951d39..HEAD`.
