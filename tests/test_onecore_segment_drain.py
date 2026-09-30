@@ -401,6 +401,44 @@ def test_onecore_acceptance_is_atomic_with_terminate(env):
     assert events == []  # Accepted before terminate, then cancelled.
 
 
+def test_onecore_terminate_overlap_preserves_rejected_failure_event(env):
+    lifecycle = env.driver._segmentLifecycle
+    delivery_entered, release_delivery = Event(), Event()
+    blocker_context = env.rt.models.PlaybackContext(object(), 20)
+    lifecycle.reject_new(blocker_context, env.scheduler.CancellationToken(),
+        lambda event: (delivery_entered.set(), release_delivery.wait(2)),
+        RuntimeError("block delivery"))
+    assert delivery_entered.wait(1)
+    cancel_entered, release_cancel = Event(), Event()
+    original_cancel = env.driver.cancel
+
+    def blocked_cancel():
+        cancel_entered.set()
+        assert release_cancel.wait(2)
+        original_cancel()
+
+    env.driver.cancel = blocked_cancel
+    terminating = in_thread(env.driver.terminate)
+    try:
+        assert cancel_entered.wait(1)
+        _, context, events = speak(env, segment=21)
+        assert events == []
+        release_cancel.set()
+        with lifecycle._condition:
+            assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, 1)
+        assert events == []
+    finally:
+        release_cancel.set()
+        release_delivery.set()
+        finish(terminating)
+    wait_events(events)
+    assert len(events) == 1
+    assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert events[0].source_id is context.source_id
+    assert events[0].segment_id == 21
+    assert len(env.native.calls) == 0
+
+
 @pytest.mark.parametrize("commands,frames,markers", [
     ((), 0, ""), (("index-only",), 0, "1:0"), (("break-only",), 8, ""),
 ])

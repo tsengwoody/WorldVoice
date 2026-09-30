@@ -632,3 +632,20 @@ def test_reject_new_delivers_after_lifecycle_termination(env):
     assert [(event.source_id, event.segment_id, event.error) for event in events] == [
         (context.source_id, 19, error)]
     assert hooks.submitted == []
+
+
+def test_terminate_preserves_queued_rejection_delivery(env):
+    lifecycle, hooks, _, accept = env
+    entered, release, rejected = Event(), Event(), RecordedEvents()
+    first, _ = accept(20, lambda event: (entered.set(), release.wait(2)))
+    lifecycle.reject_pending(first, RuntimeError("first rejection"))
+    assert entered.wait(1)
+    second, context = accept(21, rejected.append)
+    error = OSError("second rejection")
+    lifecycle.reject_pending(second, error)
+    lifecycle.terminate()
+    release.set()
+    rejected.wait_for_count(1)
+    assert [(event.source_id, event.segment_id, event.error) for event in rejected] == [
+        (context.source_id, 21, error)]
+    assert hooks.submitted == []
