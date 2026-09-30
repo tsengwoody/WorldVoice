@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from threading import Condition, RLock, Thread, local
+from threading import Condition, Event, RLock, Thread, local
 import weakref
 
 from synthDrivers import _espeak
@@ -7,14 +7,18 @@ from synthDrivers.espeak import SynthDriver as BaseSynthDriver
 from synthDriverHandler import synthDoneSpeaking
 from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
-from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
+from ...runtime.models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainSupport, PlaybackWork
 from ...runtime.session import CancellationView
+from ...runtime.segmentLifecycle import SegmentLifecycle
 
 
 @dataclass(eq=False)
 class _NativeSpeech:
 	work: PlaybackWork | None
+	operation: object | None = None
+	retired: Event | None = None
+	producer: object | None = None
 	cancelled: bool = False
 	closed: bool = False
 	ended: bool = False
@@ -154,6 +158,9 @@ class SynthDriver(BaseSynthDriver):
 		self._segmentPending = []
 		self._segmentTerminated = False
 		self._segmentControlError = None
+		self._segmentLifecycle = SegmentLifecycle(self)
+		self._segmentOperations = {}
+		self._segmentAccepted = set()
 		super().__init__()
 		_espeak.player = _SegmentPlayer(self, _espeak.player)
 		_espeak.espeakDLL = _SegmentNative(self, _espeak.espeakDLL)
@@ -164,13 +171,76 @@ class SynthDriver(BaseSynthDriver):
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 			context: PlaybackContext, on_event: SegmentEventSink):
-		self._queueSpeech(commands, PlaybackWork(context, token, on_event))
+		with self._segmentAdmission:
+			if self._segmentTerminated:
+				return
+			if self._segmentControlError is not None:
+				self._segmentLifecycle.reject_new(context, token, on_event, self._segmentControlError)
+				return
+			def deliver(event):
+				self._deliverSpeech(operation, event)
+			operation = self._segmentLifecycle.accept(context, token, deliver)
+			operation._espeak_sink = on_event
+			operation._espeak_cancelled = False
+			with self._segmentCondition:
+				self._segmentAccepted.add(operation)
+		Thread(target=self._runSegment, args=(operation, tuple(commands), deliver),
+			name="WorldVoice eSpeak lifecycle", daemon=True).start()
+
+	def _runSegment(self, operation, commands, deliver):
+		try:
+			self._segmentLifecycle.run(operation, commands)
+		except Exception as error:
+			self._segmentLifecycle.reject_new(operation.work.context, operation.work.token,
+				deliver, self._segmentControlError or error.__cause__ or error)
+		finally:
+			with self._segmentCondition:
+				self._segmentOperations.pop(operation, None)
+				if operation._espeak_cancelled or operation.work.token.is_cancelled():
+					self._segmentAccepted.discard(operation)
+
+	def submit_native(self, operation, commands):
+		self._queueSpeech(commands, operation.work, operation)
+
+	def request_stop(self, operation):
+		with self._segmentCondition:
+			native = self._segmentOperations.get(operation)
+			if native is not None:
+				native.cancelled = True
+		if native is not None:
+			_espeak.isSpeaking = False
+			_espeak.player.stop()
+
+	def wait_native_boundary(self, operation):
+		with self._segmentCondition:
+			native = self._segmentOperations[operation]
+		native.retired.wait()
+		if native.error is not None:
+			self._segmentLifecycle.fail(operation, native.error)
+
+	def wait_native_retired(self, operation):
+		return
+
+	def wait_playback_drained(self, operation):
+		with self._segmentCondition:
+			native = self._segmentOperations.get(operation)
+		if native is None:
+			return
+		if not operation.work.is_valid() or native.error is not None:
+			_espeak.isSpeaking = False
+			_espeak.player.stop()
+			return
+		if not (native.returned and native.ended and native.idle_completed):
+			self._segmentLifecycle.fail(operation, RuntimeError(
+				"eSpeak synthesis retired without its native return, end and player idle barriers"))
+			_espeak.isSpeaking = False
+			_espeak.player.stop()
 
 	def speak(self, speechSequence):
 		self._queueSpeech(speechSequence, None)
 
-	def _queueSpeech(self, commands, work):
-		native = _NativeSpeech(work)
+	def _queueSpeech(self, commands, work, operation=None):
+		native = _NativeSpeech(work, operation=operation, retired=Event() if operation is not None else None)
 		with self._segmentAdmission:
 			if self._segmentTerminated:
 				if work is not None:
@@ -181,10 +251,19 @@ class SynthDriver(BaseSynthDriver):
 				if control_error is not None and work is None:
 					raise control_error
 				self._segmentPending.append(native)
+				if operation is not None:
+					self._segmentOperations[operation] = native
+					operation._espeak_native = native
 			if control_error is not None:
-				native.closed = True
-				self._dispatchSpeech(native, control_error)
+				if operation is not None:
+					self._segmentLifecycle.fail(operation, control_error)
+					native.retired.set()
+				else:
+					native.closed = True
+					self._dispatchSpeech(native, control_error)
 				return
+			if operation is not None:
+				native.producer = self._segmentLifecycle.admit_producer(operation)
 			# Begin and retirement remain separate queue entries: NVDA stop()
 			# removes queued _speak calls but preserves both identity barriers.
 			_espeak._execWhenDone(self._beginSpeech, native, mustBeAsync=True)
@@ -267,6 +346,11 @@ class SynthDriver(BaseSynthDriver):
 				self._segmentPending.remove(native)
 			if self._segmentNative is native:
 				self._segmentNative = None
+		if native.operation is not None:
+			if native.producer is not None:
+				self._segmentLifecycle.retire_producer(native.producer)
+			native.retired.set()
+			return
 		if not valid:
 			_espeak.isSpeaking = False
 			# Token-only cancellation can occur after the last feed and skip
@@ -295,7 +379,12 @@ class SynthDriver(BaseSynthDriver):
 		Thread(target=self._deliverSpeech, args=(native, error), name="WorldVoice eSpeak completion", daemon=True).start()
 
 	def _deliverSpeech(self, native, error):
+		event_delivery = isinstance(error, PlaybackEvent)
 		try:
+			if event_delivery:
+				if not native.work.token.is_cancelled() and not native._espeak_cancelled and not self._segmentTerminated:
+					native._espeak_sink(error)
+				return
 			with self._segmentCondition:
 				error = error or native.error or self._segmentControlError
 			if native.work is not None:
@@ -311,14 +400,22 @@ class SynthDriver(BaseSynthDriver):
 			# Keep work cancellable until publication starts on the delivery
 			# thread, including the gap after native FIFO retirement.
 			with self._segmentCondition:
-				if native in self._segmentPending:
+				if event_delivery:
+					self._segmentAccepted.discard(native)
+					bound = getattr(native, "_espeak_native", None)
+					if bound in self._segmentPending:
+						self._segmentPending.remove(bound)
+				elif native in self._segmentPending:
 					self._segmentPending.remove(native)
 
 	def _invalidateSpeech(self):
 		with self._segmentCondition:
+			for operation in tuple(self._segmentAccepted):
+				operation._espeak_cancelled = True
+				self._segmentLifecycle.cancel(operation)
 			for native in self._segmentPending:
 				native.cancelled = True
-				if native.work is not None:
+				if native.work is not None and native.operation is None:
 					native.work.cancel()
 
 	def cancel(self):
@@ -333,6 +430,7 @@ class SynthDriver(BaseSynthDriver):
 				return
 			self._segmentTerminated = True
 			self._invalidateSpeech()
+			self._segmentLifecycle.terminate()
 		return super().terminate()
 
 

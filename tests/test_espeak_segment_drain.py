@@ -1,6 +1,8 @@
 """eSpeak drain requires callback idle and FIFO native retirement."""
 
 from threading import Event, current_thread
+import importlib
+import sys
 
 import pytest
 
@@ -9,6 +11,7 @@ from espeak_drain_harness import finish, load_espeak, speak, wait_event
 
 @pytest.fixture
 def env(monkeypatch, tmp_path):
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
     result = load_espeak(monkeypatch, tmp_path)
     yield result
     finish(result)
@@ -76,6 +79,51 @@ def test_empty_audio_still_waits_for_idle_and_native_retirement(env):
     assert events == []
     call.return_release.set()
     assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
+    lifecycle = importlib.import_module(env.rt.package.__name__ + ".segmentLifecycle")
+    env.native.next_scripts.append({"empty": True})
+    _, context, events = speak(env, commands=("",))
+    call = env.native.wait_calls(1)
+    assert isinstance(env.driver._segmentNative.operation, lifecycle.SegmentOperation)
+    assert env.player.idle_entered.wait(1)
+    old_index = call.index_callback
+    old_index(42)
+    assert env.indexes == [42]
+    assert events == []
+    env.player.idle_release.set()
+    assert call.after_callback.wait(1)
+    assert events == []
+    call.return_release.set()
+    event = wait_event(events)
+    assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert event.source_id is context.source_id
+    old_index(99)
+    assert env.indexes == [42]
+
+
+def test_espeak_token_cancel_after_feed_discards_pcm_before_successor(env):
+    lifecycle = importlib.import_module(env.rt.package.__name__ + ".segmentLifecycle")
+    env.native.next_scripts.append({"hold_terminal": True})
+    token, _, cancelled_events = speak(env)
+    first = env.native.wait_calls(1)
+    assert first.before_terminal.wait(1)
+    assert env.player.queued_bytes == 8
+    assert isinstance(env.driver._segmentNative.operation, lifecycle.SegmentOperation)
+    token.cancel()
+    _, successor_context, successor_events = speak(env, segment=18)
+    assert len(env.native.calls) == 1
+    first.terminal_release.set()
+    first.return_release.set()
+    second = env.native.wait_calls(2)
+    assert second.queued_bytes_at_entry == 0
+    env.player.idle_release.set()
+    second.return_release.set()
+    event = wait_event(successor_events)
+    assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert event.source_id is successor_context.source_id
+    assert cancelled_events == []
 
 
 @pytest.mark.parametrize("token_only", [False, True])
