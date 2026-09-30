@@ -439,6 +439,62 @@ def test_onecore_terminate_overlap_preserves_rejected_failure_event(env):
     assert len(env.native.calls) == 0
 
 
+def test_onecore_accepted_then_terminated_suppresses_pending_failure(env, monkeypatch):
+    lifecycle = env.driver._segmentLifecycle
+    delivery_entered, release_delivery = Event(), Event()
+    blocker_context = env.rt.models.PlaybackContext(object(), 20)
+    lifecycle.reject_new(blocker_context, env.scheduler.CancellationToken(),
+        lambda event: (delivery_entered.set(), release_delivery.wait(2)),
+        RuntimeError("block delivery"))
+    assert delivery_entered.wait(1)
+
+    convert_entered, release_convert = Event(), Event()
+    converter = env.base._OcSsmlConverter
+    original_convert = converter.convertToXml
+
+    def blocked_convert(self, commands):
+        convert_entered.set()
+        assert release_convert.wait(2)
+        return original_convert(self, commands)
+
+    monkeypatch.setattr(converter, "convertToXml", blocked_convert)
+    events = []
+    token = env.scheduler.CancellationToken()
+    context = env.rt.models.PlaybackContext(object(), 22)
+    speaking = in_thread(lambda: env.driver.speak_segment(("accepted",), token,
+        context=context, on_event=events.append))
+    assert convert_entered.wait(1)
+
+    cancel_entered, release_cancel = Event(), Event()
+    original_cancel = env.driver.cancel
+
+    def blocked_cancel():
+        cancel_entered.set()
+        assert release_cancel.wait(2)
+        original_cancel()
+
+    env.driver.cancel = blocked_cancel
+    terminating = in_thread(env.driver.terminate)
+    try:
+        assert cancel_entered.wait(1)
+        release_convert.set()
+        finish(speaking)
+        assert events == []
+        release_cancel.set()
+        with lifecycle._condition:
+            assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, 1)
+    finally:
+        release_convert.set()
+        release_cancel.set()
+        release_delivery.set()
+        finish(terminating)
+    with lifecycle._condition:
+        assert lifecycle._condition.wait_for(lambda: all(
+            operation.work.context is not context for operation in lifecycle._operations), 1)
+    assert events == []
+    assert env.native.calls == []
+
+
 @pytest.mark.parametrize("commands,frames,markers", [
     ((), 0, ""), (("index-only",), 0, "1:0"), (("break-only",), 8, ""),
 ])

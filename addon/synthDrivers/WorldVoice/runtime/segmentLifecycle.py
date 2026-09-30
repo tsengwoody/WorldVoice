@@ -42,7 +42,7 @@ class SegmentOperation:
         self._playback_stop_done: Event | None = None
         self._run_started = False
         self._retired = False
-        self._rejected = False
+        self._pre_admission_rejected = False
         self._error: Exception | None = None
         self._stop_done: Event | None = None
 
@@ -100,6 +100,7 @@ class SegmentLifecycle:
             work = PlaybackWork(context, token, holder.append)
             operation = SegmentOperation(self, work, sink, holder)
             self._operations.add(operation)
+            operation._pre_admission_rejected = True
             self._reject_pending_locked(operation, error)
             return operation
 
@@ -115,7 +116,6 @@ class SegmentLifecycle:
         operation._run_started = True
         operation._admitting = False
         operation._retired = True
-        operation._rejected = True
         if operation._error is None:
             operation._error = error
         if operation.work.is_valid():
@@ -277,10 +277,10 @@ class SegmentLifecycle:
             self._terminated = True
             operations = tuple(self._operations)
             for operation in operations:
-                # An already rejected request owns a queued failure event and
-                # has never touched native/player resources. Teardown must
-                # leave that delivery intact, including during admission races.
-                if not operation._rejected:
+                # Only a request refused before admission retains its queued
+                # failure through teardown. Previously accepted work remains
+                # subject to cancellation, even if it never reached native.
+                if not operation._pre_admission_rejected:
                     operation.work.cancel()
                 operation._admitting = False
             self._condition.notify_all()

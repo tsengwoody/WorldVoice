@@ -634,18 +634,18 @@ def test_reject_new_delivers_after_lifecycle_termination(env):
     assert hooks.submitted == []
 
 
-def test_terminate_preserves_queued_rejection_delivery(env):
+def test_terminate_cancels_previously_accepted_pending_rejection(env):
     lifecycle, hooks, _, accept = env
     entered, release, rejected = Event(), Event(), RecordedEvents()
     first, _ = accept(20, lambda event: (entered.set(), release.wait(2)))
     lifecycle.reject_pending(first, RuntimeError("first rejection"))
     assert entered.wait(1)
-    second, context = accept(21, rejected.append)
+    second, _ = accept(21, rejected.append)
     error = OSError("second rejection")
     lifecycle.reject_pending(second, error)
     lifecycle.terminate()
     release.set()
-    rejected.wait_for_count(1)
-    assert [(event.source_id, event.segment_id, event.error) for event in rejected] == [
-        (context.source_id, 21, error)]
+    with lifecycle._condition:
+        assert lifecycle._condition.wait_for(lambda: second not in lifecycle._operations, 1)
+    assert rejected == []
     assert hooks.submitted == []
