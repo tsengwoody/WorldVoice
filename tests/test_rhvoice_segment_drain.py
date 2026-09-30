@@ -1,7 +1,9 @@
 """Correlated RHVoice completion at the real installed outer wrapper."""
 
 import gc
+import ctypes
 from threading import Event, Thread, current_thread
+import time
 import weakref
 
 import pytest
@@ -389,3 +391,47 @@ def test_callback_cancel_does_not_wait_for_delivery_cancel_awaiting_that_callbac
     assert index_entered.wait(3)
     assert delivery_cancelled.wait(2)
     assert index_cancelled.wait(2)
+
+
+def test_admitted_late_feed_gets_final_idle_and_index_before_drain(env):
+    late_callbacks = []
+    def late_pcm_and_mark(callbacks, user_data):
+        player = env.players[0]
+        player.feed_release.clear()
+        def emit_late():
+            samples = (ctypes.c_short * 2)(3, 4)
+            callbacks.play_speech(samples, 2, user_data)
+            callbacks.process_mark(b"99", user_data)
+        thread = Thread(target=emit_late, daemon=True)
+        late_callbacks.append(thread)
+        thread.start()
+        assert player.second_feed_entered.wait(3)
+    env.native.scripts.append({"auto_return": True, "async_callback": late_pcm_and_mark})
+    _, _, events = speak(env)
+    call = env.native.wait_call()
+    speech = env.driver._segmentById[call.user_data]
+    assert call.done.wait(3)
+    player = env.players[0]
+    assert call.returned.wait(3)
+    assert player.second_idle_completed.wait(3)
+    deadline = time.monotonic() + 3
+    while not speech.closed and time.monotonic() < deadline:
+        time.sleep(0.001)
+    assert speech.closed
+    assert events == []
+    assert player.fed == [b"\x01\x00\x02\x00"]
+    player.block_idle_number = 3
+    player.idle_release.clear()
+    player.feed_release.set()
+    late_callbacks[0].join(3)
+    assert not late_callbacks[0].is_alive()
+    try:
+        assert player.third_idle_entered.wait(3)
+        assert events == []
+    finally:
+        player.idle_release.set()
+    assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert player.fed == [b"\x01\x00\x02\x00", b"\x03\x00\x04\x00"]
+    assert env.indexes == [7, 99]
+    assert player.stops == 0
+    assert player.idle_count >= 3

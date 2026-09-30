@@ -18,6 +18,7 @@ class _Speech:
 		self.identity = None
 		self.cancelled = False
 		self.closed = False
+		self.audio_closed = False
 		self.done = False
 		self.returned = False
 		self.final_idle = False
@@ -28,7 +29,7 @@ class _Speech:
 		self.delivery_thread = None
 
 	def valid(self):
-		return not self.cancelled and not self.closed and (self.work is None or self.work.is_valid())
+		return not self.cancelled and (self.work is None or self.work.is_valid())
 
 
 class _NativeCallback:
@@ -116,7 +117,7 @@ class _WavePlayer:
 		if speech is None:
 			return
 		def index_done():
-			if owner._admit_consumer(speech) is None:
+			if owner._admit_consumer(speech, admitted_audio=True) is None:
 				return
 			previous = getattr(owner._segmentLocal, "speech", None)
 			owner._segmentLocal.speech = speech
@@ -180,14 +181,28 @@ class _QueuedSpeech:
 		except Exception as error:
 			owner._record_error(self._speech, error)
 		finally:
-			owner._segmentLocal.speech = None
 			with owner._segmentCondition:
+				# Stop new native/feed admission, but let callbacks that already
+				# hold a lease finish their player work before the last idle.
 				self._speech.closed = True
+				owner._segmentCondition.wait_for(lambda: self._speech.consumers == 0)
+				self._speech.final_idle = False
+				should_idle = (self._speech.done and self._speech.returned
+					and self._speech.valid() and self._speech.error is None
+					and owner._segmentControlError is None)
+			if should_idle and self._speech.valid():
+				try:
+					owner._SynthDriver__player.idle()
+				except Exception as error:
+					owner._record_error(self._speech, error)
+			with owner._segmentCondition:
+				self._speech.audio_closed = True
 				owner._segmentCondition.wait_for(lambda: self._speech.consumers == 0)
 			try:
 				self._library.cleanup()
 			except Exception as error:
 				owner._record_error(self._speech, error)
+			owner._segmentLocal.speech = None
 			with owner._segmentCondition:
 				owner._segmentCurrent = None
 				owner._segmentById.pop(self._speech.identity, None)
@@ -247,7 +262,8 @@ class SynthDriver(rhvoice.SynthDriver):
 		identity = args[-1]
 		with self._segmentCondition:
 			speech = self._segmentById.get(identity)
-			if speech is None or speech is not self._segmentCurrent or not speech.valid():
+			if (speech is None or speech is not self._segmentCurrent
+					or speech.closed or not speech.valid()):
 				return None if is_done else 0
 			speech.consumers += 1
 		previous = getattr(self._segmentLocal, "speech", None)
@@ -270,10 +286,11 @@ class SynthDriver(rhvoice.SynthDriver):
 	def _associated_speech(self):
 		return getattr(self._segmentLocal, "speech", None)
 
-	def _admit_consumer(self, speech=None):
+	def _admit_consumer(self, speech=None, *, admitted_audio=False):
 		with self._segmentCondition:
 			speech = speech or self._associated_speech()
-			if speech is None or speech is not self._segmentCurrent or not speech.valid():
+			if (speech is None or speech is not self._segmentCurrent or not speech.valid()
+					or speech.audio_closed or (speech.closed and not admitted_audio)):
 				return None
 			speech.consumers += 1
 			return speech

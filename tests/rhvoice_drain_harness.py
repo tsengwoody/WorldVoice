@@ -20,10 +20,14 @@ class Player:
         self.callbacks = []
         self.retained_callbacks = []
         self.feed_entered = Event()
+        self.second_feed_entered = Event()
         self.feed_release = Event()
         self.feed_release.set()
+        self.feed_calls = 0
         self.idle_entered = Event()
         self.second_idle_entered = Event()
+        self.third_idle_entered = Event()
+        self.second_idle_completed = Event()
         self.idle_release = Event()
         self.idle_release.set()
         self.idle_count = 0
@@ -36,7 +40,10 @@ class Player:
         self.closed = False
 
     def feed(self, data, onDone=None):
+        self.feed_calls += 1
         self.feed_entered.set()
+        if self.feed_calls == 2:
+            self.second_feed_entered.set()
         assert self.feed_release.wait(3), "test did not release feed"
         if self.error == "feed":
             raise OSError("feed failed")
@@ -50,6 +57,8 @@ class Player:
         self.idle_entered.set()
         if self.idle_count == 2:
             self.second_idle_entered.set()
+        if self.idle_count == 3:
+            self.third_idle_entered.set()
         if self.idle_count == self.block_idle_number:
             assert self.idle_release.wait(3), "test did not release idle"
         if self.error == "idle":
@@ -62,6 +71,8 @@ class Player:
                 callback_thread.join()
             else:
                 callback()
+        if self.idle_count == 2:
+            self.second_idle_completed.set()
 
     def stop(self):
         self.stops += 1
