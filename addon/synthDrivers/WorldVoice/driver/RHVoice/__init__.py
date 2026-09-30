@@ -267,7 +267,9 @@ class SynthDriver(rhvoice.SynthDriver):
 				return None if is_done else 0
 			speech.consumers += 1
 		previous = getattr(self._segmentLocal, "speech", None)
+		previous_native = getattr(self._segmentLocal, "native_speech", None)
 		self._segmentLocal.speech = speech
+		self._segmentLocal.native_speech = speech
 		try:
 			result = callback(*args)
 			if is_done:
@@ -281,6 +283,7 @@ class SynthDriver(rhvoice.SynthDriver):
 			return None if is_done else 0
 		finally:
 			self._segmentLocal.speech = previous
+			self._segmentLocal.native_speech = previous_native
 			self._release_consumer(speech)
 
 	def _associated_speech(self):
@@ -289,8 +292,11 @@ class SynthDriver(rhvoice.SynthDriver):
 	def _admit_consumer(self, speech=None, *, admitted_audio=False):
 		with self._segmentCondition:
 			speech = speech or self._associated_speech()
+			# A native callback already holding a lease may start its nested feed
+			# after retirement closes admission to new native callbacks.
 			if (speech is None or speech is not self._segmentCurrent or not speech.valid()
-					or speech.audio_closed or (speech.closed and not admitted_audio)):
+					or speech.audio_closed or (speech.closed and not admitted_audio
+						and getattr(self._segmentLocal, "native_speech", None) is not speech)):
 				return None
 			speech.consumers += 1
 			return speech

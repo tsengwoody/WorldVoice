@@ -435,3 +435,57 @@ def test_admitted_late_feed_gets_final_idle_and_index_before_drain(env):
     assert env.indexes == [7, 99]
     assert player.stops == 0
     assert player.idle_count >= 3
+
+
+def test_admitted_native_mark_can_enter_nested_feed_after_callback_gate_closes(env):
+    mark_entered, release_mark = Event(), Event()
+    mark_threads = []
+    audio = env.driver._SynthDriver__player
+    real_get_player = audio.get_player
+    def held_get_player():
+        player = real_get_player()
+        if mark_threads and current_thread() is mark_threads[0]:
+            mark_entered.set()
+            assert release_mark.wait(3)
+        return player
+    audio.get_player = held_get_player
+    def late_mark(callbacks, user_data):
+        def emit():
+            samples = (ctypes.c_short * 2)(3, 4)
+            callbacks.play_speech(samples, 2, user_data)
+            callbacks.process_mark(b"99", user_data)
+        thread = Thread(target=emit, daemon=True)
+        mark_threads.append(thread)
+        thread.start()
+        assert mark_entered.wait(3)
+    env.native.scripts.append({"auto_return": True, "async_callback": late_mark})
+    _, _, events = speak(env)
+    call = env.native.wait_call()
+    speech = env.driver._segmentById[call.user_data]
+    assert call.done.wait(3)
+    assert call.returned.wait(3)
+    player = env.players[0]
+    assert player.second_idle_completed.wait(3)
+    deadline = time.monotonic() + 3
+    while not speech.closed and time.monotonic() < deadline:
+        time.sleep(0.001)
+    assert speech.closed
+    assert speech.consumers == 1  # The admitted mark still owns its native lease.
+    assert env.native.callbacks.process_mark(b"100", call.user_data) == 0
+    assert player.fed == [b"\x01\x00\x02\x00"]
+    assert env.indexes == [7]
+    assert events == []
+    player.block_idle_number = 3
+    player.idle_release.clear()
+    try:
+        release_mark.set()
+        mark_threads[0].join(3)
+        assert not mark_threads[0].is_alive()
+        assert player.third_idle_entered.wait(3)
+        assert events == []
+    finally:
+        player.idle_release.set()
+    assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert player.fed == [b"\x01\x00\x02\x00", b"\x03\x00\x04\x00"]
+    assert env.indexes == [7, 99]
+    assert player.stops == 0
