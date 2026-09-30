@@ -997,3 +997,39 @@ def test_cancelled_ordinary_pcm_feed_stops_again_before_successor_admission(env,
     assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
     assert env.indexes == [9]
     assert env.dones == []
+
+
+def test_ordinary_com_failure_purges_and_rejects_queued_successor_before_stale_pcm(env):
+    env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
+    env.native.wait_calls(1)
+    _, context, events = speak(env, segment=18, commands=("successor", env.commands.IndexCommand(9)))
+    old_audio = env.native.audio
+    env.player.error = "feed"
+    with pytest.raises(OSError, match="feed failed"):
+        old_audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+    event = wait_event(events)
+    assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert event.source_id is context.source_id and event.segment_id == 18
+    assert env.native.purges == 1
+    assert len(env.native.calls) == 1, "Successor entered the shared audio stream after ordinary failure"
+    env.player.error = None
+    env.driver.sonicStream.tail = [1, 2, 3]
+    before = tuple(env.player.fed)
+    old_audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+    assert tuple(env.player.fed) == before, "Old-stream PCM reached the successor player"
+    assert env.dones == []
+
+
+def test_ordinary_speak_fails_fast_after_cancel_purge_fault_even_if_purge_recovers(env):
+    env.driver.speak(("ordinary",))
+    env.native.wait_calls(1)
+    env.native.purge_error = True
+    env.driver.cancel()
+    env.driver._thread.join(2)
+    assert not env.driver._thread.is_alive()
+    env.native.purge_error = None
+    with pytest.raises(OSError, match="purge failed"):
+        env.driver.speak(("new ordinary",))
+    assert len(env.native.calls) == 1
+    assert len(env.driver._speakRequests) == 0
+    assert env.dones == []

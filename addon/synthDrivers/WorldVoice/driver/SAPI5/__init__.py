@@ -264,10 +264,7 @@ class SynthDriver(BaseSynthDriver):
 			return
 		try:
 			with self._threadCond:
-				if self._segmentTerminated:
-					raise RuntimeError("SAPI5 driver has terminated")
-				if self._segmentControlError is not None:
-					raise self._segmentControlError
+				self._checkSpeechAdmission()
 				if not self.useWasapi or self.player is None:
 					raise RuntimeError("Correlated SAPI5 playback requires the WASAPI player")
 				self._segmentWorks.add(work)
@@ -278,6 +275,19 @@ class SynthDriver(BaseSynthDriver):
 				self._segmentRequests[id(request)] = work
 		except Exception as error:
 			self._deliverSegment(work, error)
+
+	def _checkSpeechAdmission(self):
+		if self._segmentTerminated:
+			raise RuntimeError("SAPI5 driver has terminated")
+		if self._segmentControlError is not None:
+			raise self._segmentControlError
+		if self.useWasapi and (self._thread is None or not self._thread.is_alive()):
+			raise RuntimeError("SAPI5 playback worker is unavailable")
+
+	def speak(self, speechSequence):
+		with self._threadCond:
+			self._checkSpeechAdmission()
+			return super().speak(speechSequence)
 
 	def _invalidateSegments(self):
 		with self._threadCond:
@@ -444,13 +454,23 @@ class SynthDriver(BaseSynthDriver):
 				if self._bookmarkLists:
 					self._bookmarkLists.clear()
 				try:
+					with self._threadCond:
+						# No new PCM may enter this failed request while its native
+						# callbacks retire and the SAPI stream is purged.
+						native.audio_closed = True
 					try:
 						player.stop()
 					finally:
-						if work is not None:
-							# A player failure does not establish native quiescence.
-							# Purge while retaining this callback identity.
-							tts.Speak(None, sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
+						with self._threadCond:
+							self._threadCond.wait_for(lambda: native.feeds == 0)
+						# Both ordinary and correlated failures leave native speech
+						# uncertain. Purge before another request can take this player.
+						tts.Speak(None, sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
+					if work is None:
+						# One shared COM stream cannot attribute a post-purge callback
+						# to a new request. Require resource replacement after an
+						# ordinary failure rather than accepting a false successor drain.
+						self._failSegmentControl(failure)
 				except Exception as control_error:
 					self._failSegmentControl(control_error)
 			finally:
