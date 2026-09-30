@@ -1,6 +1,6 @@
 import gc
 import sys
-from threading import Event
+from threading import Event, get_ident
 import weakref
 
 import pytest
@@ -102,6 +102,77 @@ def test_onecore_shared_handoff_waits_for_callback_feed_and_stop(env):
     assert len(new_events) == 1
     assert new_events[0].source_id is new_context.source_id
     assert new_events[0].segment_id == new_context.segment_id
+
+
+def test_onecore_callback_return_precedes_drain_and_successor_native_call(env):
+    _, first, first_events = speak(env)
+    _, second, second_events = speak(env, segment=18)
+    env.native.wait_calls(1)
+    callback_body_returned, release_callback = Event(), Event()
+    original_callback = env.driver._callback
+
+    def held_callback(*args):
+        original_callback(*args)
+        callback_body_returned.set()
+        assert release_callback.wait(2)
+
+    env.driver._callback = held_callback
+    env.player.sync_release.set()
+    response = in_thread(lambda: env.native.respond(markers=""))
+    assert callback_body_returned.wait(1)
+    with env.native.condition:
+        advanced = env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.1)
+    assert not advanced, "Successor native call began before callback returned"
+    assert first_events == [] and second_events == []
+    assert len(env.native.calls) == 1
+    release_callback.set()
+    finish(response)
+    wait_events(first_events)
+    env.native.wait_calls(2)
+    env.native.respond(markers="")
+    wait_events(second_events)
+    assert first_events[0].source_id is first.source_id
+    assert second_events[0].source_id is second.source_id
+
+
+def test_onecore_successor_player_open_waits_for_old_feed_and_stop(env):
+    speak(env)
+    env.native.wait_calls(1)
+    original_open = env.player.open
+    opened = []
+
+    def observed_open():
+        opened.append(True)
+        original_open()
+
+    env.player.open = observed_open
+    env.player.feed_release.clear()
+    stop_entered, release_stop = Event(), Event()
+    original_stop = env.player.stop
+
+    def blocked_stop():
+        stop_entered.set()
+        assert release_stop.wait(2)
+        original_stop()
+
+    env.player.stop = blocked_stop
+    response = in_thread(env.native.respond)
+    assert env.player.feed_entered.wait(1)
+    cancel = in_thread(env.driver.cancel)
+    assert stop_entered.wait(1)
+    speak(env, segment=18)
+    assert opened == []
+    assert len(env.native.calls) == 1
+    env.player.feed_release.set()
+    with env.native.condition:
+        assert not env.native.condition.wait_for(lambda: bool(opened), 0.05)
+    release_stop.set()
+    finish(response)
+    finish(cancel)
+    env.native.wait_calls(2)
+    assert opened == [True]
+    env.player.sync_release.set()
+    env.native.respond(markers="")
 
 
 def test_onecore_waits_for_tail_sync_before_drain(env):
@@ -226,6 +297,77 @@ def test_onecore_shared_sync_fault_rejects_successor_without_native_call(env):
     assert rejected[0].source_id is successor.source_id
     assert rejected[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert len(env.native.calls) == 1
+
+
+def test_onecore_sync_fault_fails_accepted_queued_segment(env):
+    _, first, failed = speak(env)
+    env.native.wait_calls(1)
+    _, queued, queued_events = speak(env, segment=18)
+    env.player.error = "sync"
+    env.player.sync_release.set()
+    env.native.respond(markers="")
+    wait_events(failed)
+    wait_events(queued_events)
+    assert [(event.kind, event.source_id, event.segment_id) for event in failed] == [
+        (env.rt.models.EventKind.SEGMENT_FAILED, first.source_id, 17)]
+    assert [(event.kind, event.source_id, event.segment_id) for event in queued_events] == [
+        (env.rt.models.EventKind.SEGMENT_FAILED, queued.source_id, 18)]
+    assert len(env.native.calls) == 1
+
+
+@pytest.mark.parametrize("terminated", [False, True])
+def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env, terminated):
+    if terminated:
+        env.driver.terminate()
+    else:
+        speak(env)
+        env.native.wait_calls(1)
+        env.player.error = "sync"
+        env.player.sync_release.set()
+        env.native.respond(markers="")
+        with env.driver._segmentCondition:
+            assert env.driver._segmentCondition.wait_for(
+                lambda: env.driver._segmentControlError is not None, 1)
+    caller = get_ident()
+    received, events, threads = Event(), [], []
+    token = env.scheduler.CancellationToken()
+    context = env.rt.models.PlaybackContext(object(), 19)
+
+    def sink(event):
+        events.append(event)
+        threads.append(get_ident())
+        received.set()
+
+    env.driver.speak_segment(("rejected",), token, context=context, on_event=sink)
+    assert received.wait(1)
+    assert len(events) == 1
+    assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert events[0].source_id is context.source_id
+    assert events[0].segment_id == 19
+    assert threads == [env.driver._segmentLifecycle._delivery_thread.ident]
+    assert threads[0] != caller
+    assert len(env.native.calls) == (0 if terminated else 1)
+
+
+def test_onecore_acceptance_is_atomic_with_terminate(env):
+    entered, release_accept = Event(), Event()
+    original_accept = env.driver._segmentLifecycle.accept
+
+    def blocked_accept(*args):
+        entered.set()
+        assert release_accept.wait(2)
+        return original_accept(*args)
+
+    env.driver._segmentLifecycle.accept = blocked_accept
+    events = []
+    speaking = in_thread(lambda: speak(env, events=events))
+    assert entered.wait(1)
+    terminating = in_thread(env.driver.terminate)
+    assert not terminating.done.wait(0.05)
+    release_accept.set()
+    finish(speaking)
+    finish(terminating)
+    assert events == []  # Accepted before terminate, then cancelled.
 
 
 @pytest.mark.parametrize("commands,frames,markers", [

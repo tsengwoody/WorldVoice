@@ -605,3 +605,30 @@ def test_terminate_blocks_new_acceptance(env):
     lifecycle.terminate()
     with pytest.raises(RuntimeError, match="terminated"):
         accept(1)
+
+
+def test_pending_operation_rejection_delivers_after_latched_fault(env):
+    lifecycle, hooks, events, accept = env
+    pending, context = accept(18)
+    error = OSError("native resources unsafe")
+    lifecycle._latch_fault(pending, error)
+    lifecycle.reject_pending(pending, error)
+    events.wait_for_count(1)
+    assert [(event.source_id, event.segment_id, event.error) for event in events] == [
+        (context.source_id, 18, error)]
+    assert hooks.submitted == []
+
+
+def test_reject_new_delivers_after_lifecycle_termination(env):
+    lifecycle, hooks, events, _ = env
+    lifecycle.terminate()
+    context = sys.modules[f"{lifecycle.__class__.__module__.rsplit('.', 1)[0]}.models"].PlaybackContext(
+        object(), 19)
+    token = sys.modules[f"{lifecycle.__class__.__module__.rsplit('.', 1)[0]}.scheduler"].CancellationToken()
+    error = RuntimeError("driver terminated")
+    operation = lifecycle.reject_new(context, token, events.append, error)
+    events.wait_for_count(1)
+    assert operation.work.context is context
+    assert [(event.source_id, event.segment_id, event.error) for event in events] == [
+        (context.source_id, 19, error)]
+    assert hooks.submitted == []

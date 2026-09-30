@@ -55,7 +55,15 @@ class _DetachableCallback:
 		# An already admitted callback retains its driver only until it exits.
 		# detach/terminate never waits for its feed/sync under this lock.
 		if driver is not None:
-			driver._callback(audio, length, markers)
+			with driver._segmentCondition:
+				native = driver._segmentNative
+			try:
+				driver._callback(audio, length, markers)
+			finally:
+				# Retire contextual native ownership only after the callback body
+				# has returned, including any admitted feed and final stop.
+				if native is not None and native.operation is not None:
+					driver._retireSegmentNative(native)
 
 	def detach(self):
 		with self._lock:
@@ -123,12 +131,13 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		with self._segmentCondition:
 			admission_error = (RuntimeError("OneCore driver has terminated") if self._segmentTerminated
 				else self._segmentControlError)
-		if admission_error is not None:
-			PlaybackWork(context, token, on_event).fail(admission_error)
-			return
-		operation = self._segmentLifecycle.accept(context, token, on_event)
+			if admission_error is not None:
+				self._segmentLifecycle.reject_new(context, token, on_event, admission_error)
+				return
+			operation = self._segmentLifecycle.accept(context, token, on_event)
 		if not operation.is_valid():
-			self._segmentLifecycle.run(operation, ())
+			self._segmentLifecycle.reject_pending(
+				operation, RuntimeError("OneCore segment was cancelled before submission"))
 			return
 		try:
 			with self._segmentCondition:
@@ -139,8 +148,6 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				conv = oneCore._OcPreAPI5SsmlConverter(
 					self.language, self.availableLanguages, self._rate, self._pitch, self._volume)
 			job = _SpeechJob(conv.convertToXml(tuple(commands)), operation.work, operation)
-			if self._player:
-				self._player.open()
 			with self._segmentCondition:
 				self._checkSegmentAdmission()
 				if not self._segmentMode and self._isProcessing:
@@ -149,9 +156,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				self._queuedSpeech.append(job)
 			self._processQueue()
 		except Exception as error:
-			self._segmentLifecycle.fail(operation, error)
-			Thread(target=self._segmentLifecycle.run, args=(operation, ()),
-				name="WorldVoice OneCore Rejected Segment", daemon=True).start()
+			self._segmentLifecycle.reject_pending(operation, error)
 
 	def _checkSegmentAdmission(self):
 		# Called under the condition; a control fault requires resource replacement.
@@ -198,7 +203,8 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					job = item if isinstance(item, _SpeechJob) else _SpeechJob(item, None)
 					if job.work is not None and not job.work.is_valid():
 						if job.operation is not None:
-							self._segmentLifecycle.run(job.operation, ())
+							self._segmentLifecycle.reject_pending(
+								job.operation, RuntimeError("OneCore segment was cancelled before submission"))
 						continue
 					if job.operation is None:
 						# Legacy text retains the existing native queue contract.
@@ -245,6 +251,16 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self._wasCancelled = False
 			self._isProcessing = True
 		try:
+			if self._player:
+				self._player.open()
+			if not operation.is_valid():
+				self._retireSegmentNative(native)
+				return
+		except Exception as error:
+			self._failSegmentControl(error)
+			self._retireSegmentNative(native)
+			return
+		try:
 			self._dll.ocSpeech_speak(self._ocSpeechToken, text)
 		except Exception as error:
 			self._segmentLifecycle.fail(operation, error)
@@ -290,7 +306,6 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		if native is None or self._earlyExitCB:
 			return
 		if control_failed:
-			self._retireSegmentNative(native)
 			return
 		work = native.job.work
 		if work is None:
@@ -373,7 +388,6 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					self._segmentLifecycle.retire_producer(producer)
 				if lease is not None:
 					lease.close()
-				self._retireSegmentNative(native)
 
 	def _segmentIndex(self, operation, index):
 		if operation.is_valid():
@@ -425,10 +439,10 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			# Sinks can reenter cancel/terminate, so no driver lock is held.
 			for operation in operations:
 				try:
-					self._segmentLifecycle.fail(operation, error)
 					if operation in queued:
-						Thread(target=self._segmentLifecycle.run, args=(operation, ()),
-							name="WorldVoice OneCore Failed Segment", daemon=True).start()
+						self._segmentLifecycle.reject_pending(operation, error)
+					else:
+						self._segmentLifecycle.fail(operation, error)
 				except Exception:
 					log.exception("OneCore control failure delivery failed")
 			if self._player:
@@ -478,7 +492,8 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				if isinstance(item, _SpeechJob) and item.work is not None:
 					if item.operation is not None:
 						self._segmentLifecycle.cancel(item.operation)
-						self._segmentLifecycle.run(item.operation, ())
+						self._segmentLifecycle.reject_pending(
+							item.operation, RuntimeError("OneCore segment was cancelled before submission"))
 					else:
 						item.work.cancel()
 			self._queuedSpeech = [item for item in self._queuedSpeech if isinstance(item, tuple)]

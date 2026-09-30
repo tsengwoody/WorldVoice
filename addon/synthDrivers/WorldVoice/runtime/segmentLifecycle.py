@@ -72,6 +72,7 @@ class SegmentLifecycle:
         self._terminated = False
         self._operations: set[SegmentOperation] = set()
         self._delivery_queue: deque[SegmentOperation] = deque()
+        self._delivery_active = True
         self._delivery_thread = Thread(target=self._deliver,
                                        name="WorldVoiceSegmentDelivery", daemon=True)
         self._delivery_thread.start()
@@ -89,6 +90,45 @@ class SegmentLifecycle:
             operation = SegmentOperation(self, work, sink, holder)
             self._operations.add(operation)
             return operation
+
+    def reject_new(self, context: PlaybackContext, token: CancellationView,
+                   sink: SegmentEventSink, error: Exception) -> SegmentOperation:
+        """Deliver a rejected request through the coordinator, even after close."""
+        with self._condition:
+            holder = []
+            work = PlaybackWork(context, token, holder.append)
+            operation = SegmentOperation(self, work, sink, holder)
+            self._operations.add(operation)
+            self._reject_pending_locked(operation, error)
+            return operation
+
+    def reject_pending(self, operation: SegmentOperation, error: Exception) -> None:
+        """Fail accepted work that never acquired native/player resources."""
+        self._require_operation(operation)
+        with self._condition:
+            if operation not in self._operations or operation._run_started:
+                raise RuntimeError("segment operation is not pending")
+            self._reject_pending_locked(operation, error)
+
+    def _reject_pending_locked(self, operation: SegmentOperation, error: Exception) -> None:
+        operation._run_started = True
+        operation._admitting = False
+        operation._retired = True
+        if operation._error is None:
+            operation._error = error
+        if operation.work.is_valid():
+            self._queue_delivery_locked(operation)
+        else:
+            self._operations.discard(operation)
+
+    def _queue_delivery_locked(self, operation: SegmentOperation) -> None:
+        self._delivery_queue.append(operation)
+        if not self._delivery_active:
+            self._delivery_active = True
+            self._delivery_thread = Thread(target=self._deliver,
+                                           name="WorldVoiceSegmentDelivery", daemon=True)
+            self._delivery_thread.start()
+        self._condition.notify_all()
 
     def run(self, operation: SegmentOperation, commands: SpeechCommands) -> None:
         self._require_operation(operation)
@@ -130,7 +170,7 @@ class SegmentLifecycle:
                         operation._retired = True
                         self._resource_busy = False
                         if operation.work.is_valid():
-                            self._delivery_queue.append(operation)
+                            self._queue_delivery_locked(operation)
                         else:
                             self._operations.discard(operation)
                         self._condition.notify_all()
@@ -246,6 +286,7 @@ class SegmentLifecycle:
             with self._condition:
                 self._condition.wait_for(lambda: self._delivery_queue or self._terminated)
                 if not self._delivery_queue:
+                    self._delivery_active = False
                     return
                 operation = self._delivery_queue.popleft()
                 error = operation._error
