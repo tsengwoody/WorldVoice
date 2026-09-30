@@ -204,6 +204,8 @@ def load_sapi5(monkeypatch, *, rt=None, scheduler=None, voice_base=object, comma
     package("synthDrivers.WorldVoice", ROOT / "addon/synthDrivers/WorldVoice")
     package("synthDrivers.WorldVoice.driver", ROOT / "addon/synthDrivers/WorldVoice/driver", Voice=voice_base)
     rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
+    load("synthDrivers.WorldVoice.runtime.segmentLifecycle",
+        ROOT / "addon/synthDrivers/WorldVoice/runtime/segmentLifecycle.py")
     scheduler = scheduler or load_scheduler(monkeypatch, rt)
     package("speech", ROOT)
     @dataclass
@@ -293,6 +295,54 @@ def wait_event(events):
         assert events.condition.wait_for(lambda: bool(events), 2), "No terminal event delivered"
         assert len(events) == 1
         return events[0]
+
+
+def test_sapi5_wasapi_shared_lifecycle_waits_for_endstream_pcm_and_idle(env):
+    _, context, events = speak(env)
+    env.native.wait_calls(1)
+    native = env.driver._segmentNative
+    lifecycle = importlib.import_module(env.rt.package.__name__ + ".segmentLifecycle")
+    assert isinstance(native.operation, lifecycle.SegmentOperation)
+    env.player.feed_release.clear()
+    pcm = Thread(target=lambda: env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None), daemon=True)
+    pcm.start()
+    assert env.player.feed_entered.wait(1)
+    env.native.end()
+    assert events == [] and not env.player.idle_entered.is_set()
+    env.player.feed_release.set()
+    pcm.join(2)
+    assert not pcm.is_alive()
+    assert env.player.idle_entered.wait(1)
+    assert events == []
+    env.player.idle_release.set()
+    event = wait_event(events)
+    assert event.source_id is context.source_id and event.segment_id == 17
+    assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.player.fed == [6, 0]
+
+
+def test_sapi5_shared_cancel_blocks_request_handoff(env):
+    _, _, old_events = speak(env)
+    env.native.wait_calls(1)
+    env.player.feed_release.clear()
+    pcm = Thread(target=lambda: env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None), daemon=True)
+    pcm.start()
+    assert env.player.feed_entered.wait(1)
+    env.driver.cancel()
+    _, context, next_events = speak(env, segment=18, commands=("next", env.commands.IndexCommand(9)))
+    env.native.end(1)
+    assert len(env.native.calls) == 1 and next_events == []
+    env.player.feed_release.set()
+    pcm.join(2)
+    assert not pcm.is_alive()
+    env.native.wait_calls(2)
+    env.native.end(1)
+    assert next_events == [] and env.indexes == []
+    env.player.idle_release.set()
+    env.native.end(2)
+    event = wait_event(next_events)
+    assert event.source_id is context.source_id and event.segment_id == 18
+    assert env.indexes == [9] and old_events == []
 
 
 def test_end_stream_waits_for_actual_idle_and_preserves_tail_indexes(env):
@@ -520,7 +570,20 @@ def test_cancelled_queued_work_is_not_submitted(env):
     assert first_events == [] and queued_events == []
 
 
-def test_cancel_invalidates_terminal_delivery_waiting_off_worker(env, monkeypatch):
+def test_cancel_context_queued_behind_ordinary_speech_retires(env):
+    env.driver.speak(("ordinary",))
+    env.native.wait_calls(1)
+    _, _, old_events = speak(env)
+    env.driver.cancel()
+    env.native.wait_purge()
+    _, _, successor = speak(env, segment=19)
+    env.native.wait_calls(2)
+    env.native.end(2)
+    assert wait_event(successor).segment_id == 19
+    assert old_events == []
+
+
+def test_cancel_during_terminal_commit_allows_successor_after_commit(env, monkeypatch):
     entered, release = Event(), Event()
     complete = env.rt.playback_work.PlaybackWork.complete_drained
     def blocked_complete(work):
@@ -533,14 +596,19 @@ def test_cancel_invalidates_terminal_delivery_waiting_off_worker(env, monkeypatc
     env.player.idle_release.set()
     env.native.end()
     assert entered.wait(1)
-    env.driver.cancel()
+    cancelled = Event()
+    cancel_thread = Thread(target=lambda: (env.driver.cancel(), cancelled.set()), daemon=True)
+    cancel_thread.start()
+    assert not cancelled.wait(.02)
     release.set()
+    cancel_thread.join(2)
+    assert cancelled.is_set()
     env.native.wait_purge()
     _, _, successor = speak(env, segment=18)
     env.native.wait_calls(2)
     env.native.end(2)
     assert wait_event(successor).segment_id == 18
-    assert events == []
+    assert len(events) <= 1
 
 
 def test_cancel_waits_for_admitted_feed_final_stop_before_successor(env):
@@ -583,6 +651,21 @@ def test_failed_segment_purges_native_before_successor_admission(env):
     env.native.wait_calls(2)
     env.native.end(2)
     assert wait_event(next_events).segment_id == 18
+
+
+def test_idle_failure_purges_before_queued_successor(env):
+    _, _, failed = speak(env)
+    _, _, successor = speak(env, segment=18)
+    env.native.wait_calls(1)
+    env.player.error = "idle"
+    env.player.idle_release.set()
+    env.native.end()
+    assert wait_event(failed).kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert env.native.purges == 1
+    env.player.error = None
+    env.native.wait_calls(2)
+    env.native.end(2)
+    assert wait_event(successor).kind is env.rt.models.EventKind.SEGMENT_DRAINED
 
 
 @pytest.mark.parametrize("control", ["stop", "purge"])

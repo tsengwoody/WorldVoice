@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from threading import RLock, Thread, local
+from threading import Event, RLock, Thread, local
 import weakref
 
 from synthDrivers import sapi5
@@ -10,12 +10,15 @@ from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainSupport, PlaybackWork
 from ...runtime.session import CancellationView
+from ...runtime.segmentLifecycle import SegmentLifecycle, SegmentOperation
 
 
 @dataclass(eq=False)
 class _NativeRequest:
 	request: object
 	work: PlaybackWork | None
+	operation: SegmentOperation | None = None
+	binding: object | None = None
 	stream: int | None = None
 	ended: bool = False
 	end_processed: bool = False
@@ -27,6 +30,17 @@ class _NativeRequest:
 
 	def is_valid(self):
 		return not self.cancelled and (self.work is None or self.work.is_valid())
+
+
+@dataclass(eq=False)
+class _OperationBinding:
+	boundary: Event = field(default_factory=Event)
+	retired: Event = field(default_factory=Event)
+	playback_done: Event = field(default_factory=Event)
+	handoff: Event = field(default_factory=Event)
+	native: _NativeRequest | None = None
+	player: object | None = None
+	tts: object | None = None
 
 
 class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
@@ -46,11 +60,17 @@ class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
 				return sapi5.hresult.S_OK
 			if native.audio_closed or not native.is_valid():
 				return sapi5.hresult.S_OK
+			lease = (driver._segmentLifecycle.admit_producer(native.operation)
+				if native.operation is not None else None)
+			if native.operation is not None and lease is None:
+				return sapi5.hresult.S_OK
 			# Ordinary PCM callbacks also retain this request's resources. Voice
 			# reload/termination must join the worker only after they have retired.
 			native.feeds += 1
 		previous = getattr(driver._segmentCallbackLocal, "native", None)
+		previous_lease = getattr(driver._segmentCallbackLocal, "lease", None)
 		driver._segmentCallbackLocal.native = native
+		driver._segmentCallbackLocal.lease = lease
 		try:
 			return super().ISequentialStream_RemoteWrite(this, pv, cb, pcbWritten)
 		except Exception as error:
@@ -59,6 +79,9 @@ class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
 			raise
 		finally:
 			driver._segmentCallbackLocal.native = previous
+			driver._segmentCallbackLocal.lease = previous_lease
+			if lease is not None:
+				driver._segmentLifecycle.retire_producer(lease)
 			if native is not None:
 				with driver._threadCond:
 					native.feeds -= 1
@@ -87,9 +110,15 @@ class _SegmentPlayer:
 				admitted_pcm = getattr(driver._segmentCallbackLocal, "native", None) is native
 				if not native.is_valid() or (native.audio_closed and not admitted_pcm):
 					return
+				parent = getattr(driver._segmentCallbackLocal, "lease", None) if admitted_pcm else None
+				lease = (driver._segmentLifecycle.admit_producer(native.operation, parent=parent)
+					if native.operation is not None else None)
+				if native.operation is not None and lease is None:
+					return
 				native.feeds += 1
 			else:
 				native = None
+				lease = None
 		callback = onDone
 		if native is not None and onDone is not None:
 			def callback():
@@ -107,6 +136,8 @@ class _SegmentPlayer:
 					if not native.is_valid():
 						self._player.stop()
 				finally:
+					if lease is not None:
+						driver._segmentLifecycle.retire_producer(lease)
 					with driver._threadCond:
 						native.feeds -= 1
 						driver._threadCond.notify_all()
@@ -231,9 +262,13 @@ class _SegmentSapiSink(sapi5.SapiSink):
 			native.ended = True
 			if driver._isCancelling:
 				driver._bookmarkLists.clear()
+				if native.binding is not None:
+					native.binding.boundary.set()
 				return
 			driver._isCompleted = True
 			driver._threadCond.notify()
+			if native.binding is not None:
+				native.binding.boundary.set()
 
 
 class SynthDriver(BaseSynthDriver):
@@ -242,6 +277,8 @@ class SynthDriver(BaseSynthDriver):
 	def __init__(self, *args, **kwargs):
 		self._segmentRequests = {}
 		self._segmentWorks = set()
+		self._segmentBindings = {}
+		self._segmentLifecycle = SegmentLifecycle(self)
 		self._segmentNative = None
 		self._segmentSink = None
 		self._segmentAudio = None
@@ -259,22 +296,92 @@ class SynthDriver(BaseSynthDriver):
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 		context: PlaybackContext, on_event: SegmentEventSink) -> None:
-		work = PlaybackWork(context, token, on_event)
-		if not work.is_valid():
-			return
-		try:
-			with self._threadCond:
+		with self._threadCond:
+			try:
 				self._checkSpeechAdmission()
 				if not self.useWasapi or self.player is None:
 					raise RuntimeError("Correlated SAPI5 playback requires the WASAPI player")
-				self._segmentWorks.add(work)
-				# Retain NVDA's complete XML/index conversion. Its reentrant queue
-				# lock prevents the worker from taking this request before binding.
-				super().speak(tuple(commands))
-				request = self._speakRequests[-1]
-				self._segmentRequests[id(request)] = work
+			except Exception as error:
+				self._segmentLifecycle.reject_new(context, token, on_event, error)
+				return
+			def deliver(event):
+				try:
+					on_event(event)
+				finally:
+					with self._threadCond:
+						self._segmentWorks.discard(operation)
+			operation = self._segmentLifecycle.accept(context, token, deliver)
+			self._segmentWorks.add(operation)
+			self._segmentBindings[operation] = _OperationBinding()
+		Thread(target=self._runSegmentOperation, args=(operation, tuple(commands)),
+			name="WorldVoice SAPI5 lifecycle", daemon=True).start()
+
+	def _runSegmentOperation(self, operation, commands):
+		try:
+			self._segmentLifecycle.run(operation, commands)
 		except Exception as error:
-			self._deliverSegment(work, error)
+			log.error("SAPI5 segment lifecycle failed", exc_info=True)
+			self._segmentLifecycle.fail(operation, error)
+		finally:
+			with self._threadCond:
+				if not operation.work.is_valid():
+					self._segmentWorks.discard(operation)
+				binding = self._segmentBindings.pop(operation, None)
+				if binding is not None:
+					binding.handoff.set()
+
+	def submit_native(self, operation, commands):
+		with self._threadCond:
+			self._checkSpeechAdmission()
+			# NVDA owns XML conversion; bind while its reentrant queue lock is held.
+			super().speak(commands)
+			request = self._speakRequests[-1]
+			self._segmentRequests[id(request)] = operation
+
+	def request_stop(self, operation):
+		binding = self._segmentBindings.get(operation)
+		if binding is None:
+			return
+		with self._threadCond:
+			native = binding.native
+			if native is not None and self._segmentNative is native:
+				native.cancelled = True
+				self._isCancelling = True
+				self._threadCond.notify_all()
+		player = binding.player
+		if player is not None:
+			try:
+				player.stop()
+			except Exception as error:
+				self._failSegmentControl(error)
+
+	def wait_native_boundary(self, operation):
+		self._segmentBindings[operation].boundary.wait()
+
+	def wait_native_retired(self, operation):
+		self._segmentBindings[operation].retired.wait()
+
+	def wait_playback_drained(self, operation):
+		binding = self._segmentBindings[operation]
+		try:
+			if binding.native is not None and binding.native.error is not None:
+				self._segmentLifecycle.fail(operation, binding.native.error)
+				return
+			if binding.player is not None:
+				try:
+					binding.player.idle()
+				except Exception as error:
+					if binding.native is not None:
+						binding.native.error = error
+					try:
+						binding.player.stop()
+						binding.tts.Speak(None, sapi5.SpeechVoiceSpeakFlags.Async |
+							sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
+					except Exception as control_error:
+						self._failSegmentControl(control_error)
+					self._segmentLifecycle.fail(operation, error)
+		finally:
+			binding.playback_done.set()
 
 	def _checkSpeechAdmission(self):
 		if self._segmentTerminated:
@@ -293,9 +400,13 @@ class SynthDriver(BaseSynthDriver):
 		with self._threadCond:
 			if self._segmentNative is not None:
 				self._segmentNative.cancelled = True
-			for work in self._segmentWorks:
-				work.cancel()
-			self._segmentWorks.clear()
+			for operation in tuple(self._segmentWorks):
+				self._segmentLifecycle.cancel(operation)
+				binding = self._segmentBindings.get(operation)
+				if binding is not None and binding.native is None:
+					binding.boundary.set()
+					binding.retired.set()
+					binding.playback_done.set()
 			self._segmentRequests.clear()
 			self._speakRequests.clear()
 
@@ -357,34 +468,23 @@ class SynthDriver(BaseSynthDriver):
 		self._isSpeaking = False
 		native.end_processed = True
 
-	def _deliverSegment(self, work, error=None):
-		def deliver():
-			try:
-				if error is None:
-					work.complete_drained()
-				else:
-					work.fail(error)
-			except Exception:
-				log.error("SAPI5 segment event delivery failed", exc_info=True)
-			finally:
-				with self._threadCond:
-					self._segmentWorks.discard(work)
-		# A terminal sink can synchronously terminate/join the SAPI worker.
-		# It must never run on that worker or a COM/player callback stack.
-		Thread(target=deliver, name="WorldVoice SAPI5 completion", daemon=True).start()
-
 	def _failSegmentControl(self, error):
 		with self._threadCond:
 			if self._segmentControlError is not None:
 				return
 			self._segmentControlError = error
-			current = self._segmentNative.work if self._segmentNative is not None else None
-			works = tuple(work for work in self._segmentWorks if work is not current)
+			current = self._segmentNative.operation if self._segmentNative is not None else None
+			operations = tuple(operation for operation in self._segmentWorks if operation is not current)
 			self._speakRequests.clear()
 			self._segmentRequests.clear()
 			self._threadCond.notify_all()
-		for work in works:
-			self._deliverSegment(work, error)
+		for operation in operations:
+			self._segmentLifecycle.fail(operation, error)
+			binding = self._segmentBindings.get(operation)
+			if binding is not None and binding.native is None:
+				binding.boundary.set()
+				binding.retired.set()
+				binding.playback_done.set()
 
 	def _speakThread(self):
 		# NVDA publishes DONE before idle, only idles when its whole queue is
@@ -402,14 +502,19 @@ class SynthDriver(BaseSynthDriver):
 					native = None
 				else:
 					request = self._speakRequests.popleft()
-					work = self._segmentRequests.pop(id(request), None)
+					operation = self._segmentRequests.pop(id(request), None)
+					work = operation.work if operation is not None else None
 					if work is not None and not work.is_valid():
-						self._segmentWorks.discard(work)
 						continue
-					native = _NativeRequest(request, work)
+					binding = self._segmentBindings.get(operation) if operation is not None else None
+					native = _NativeRequest(request, work, operation, binding)
 					self._segmentNative = native
 					self._isCompleted = False
 					tts, player, sonic = self.tts, self.player, self.sonicStream
+					if binding is not None:
+						binding.native = native
+						binding.player = player
+						binding.tts = tts
 			if native is None:
 				try:
 					self._purgeCancelledSpeech(self.tts, self.sonicStream)
@@ -442,7 +547,7 @@ class SynthDriver(BaseSynthDriver):
 					else:
 						player.feed(audio, len(audio) * 2)
 					self._onEndStream()
-					if work is not None or not self._requestsAvailable():
+					if work is None and not self._requestsAvailable():
 						player.idle()
 					if native.error is not None:
 						raise native.error
@@ -498,8 +603,13 @@ class SynthDriver(BaseSynthDriver):
 						self._failSegmentControl(control_error)
 				with self._threadCond:
 					self._segmentNative = None
-				if work is not None:
-					self._deliverSegment(work, error)
+				if binding is not None:
+					if error is not None:
+						native.error = error
+					binding.boundary.set()
+					binding.retired.set()
+					binding.playback_done.wait()
+					binding.handoff.wait()
 
 	def _purgeCancelledSpeech(self, tts, sonic):
 		tts.Speak(None, sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
@@ -524,6 +634,7 @@ class SynthDriver(BaseSynthDriver):
 	def terminate(self):
 		self._segmentTerminated = True
 		self._invalidateSegments()
+		self._segmentLifecycle.terminate()
 		if self._segmentSink is not None:
 			self._segmentSink.detach()
 		self._segmentSink = None

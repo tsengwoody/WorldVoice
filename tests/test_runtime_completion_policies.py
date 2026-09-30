@@ -202,3 +202,27 @@ def test_actual_outer_voice_and_core_select_enabled_drain_profiles(
             else:
                 from rhvoice_drain_harness import finish
             finish(installed)
+
+
+def test_sapi5_legacy_stays_legacy_done_before_first_segment(monkeypatch):
+    from test_sapi5_segment_drain import load_sapi5
+    installed = load_sapi5(monkeypatch)
+    try:
+        installed.driver.useWasapi = False
+        monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.compat.completionPolicies", raising=False)
+        policies = importlib.import_module("synthDrivers.WorldVoice.compat.completionPolicies")
+        commands = {name: type(name, (), {}) for name in (
+            "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
+            "PitchCommand", "RateCommand", "VolumeCommand")}
+        root = _load_synth_class({"SynthDriver": object, "synthIndexReached": object(),
+            "synthDoneSpeaking": object(), "versionInfo": SimpleNamespace(version="2026.1"),
+            "get_completion_contract": policies.get_completion_contract,
+            "get_segment_drain_support": policies.get_segment_drain_support,
+            "nvdaLog": SimpleNamespace(warning=lambda *args: None), **commands})
+        contract = object.__new__(root)._completion_for(installed.outer.Voice, installed.driver)
+        assert contract.mode is installed.rt.models.CompletionMode.LEGACY_DONE
+        assert contract.index_range is None
+        assert installed.native.calls == []
+        assert installed.driver._segmentNative is None
+    finally:
+        installed.driver.terminate()
