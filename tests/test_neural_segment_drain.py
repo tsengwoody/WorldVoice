@@ -47,6 +47,22 @@ def complete(env, done):
     assert done.wait(2)
 
 
+def hold_native_return(env, monkeypatch, call_number):
+    release = Event()
+    real_speak = env.native.synthesizer_speak_ssml
+
+    def held_speak(*args):
+        result = real_speak(*args)
+        with env.native.condition:
+            held_call = len(env.native.calls) == call_number
+        if held_call:
+            assert release.wait(2)
+        return result
+
+    monkeypatch.setattr(env.native, "synthesizer_speak_ssml", held_speak)
+    return release
+
+
 def test_neural_stream_owns_contextual_audio_callback(env):
     for stream in env.native.streams.values():
         callback = env.ffi.from_handle(stream.context)
@@ -101,6 +117,7 @@ def test_neural_shared_lifecycle_waits_for_all_langchange_tasks_and_sonic_idle(e
     change = env.commands.LangChangeCommand()
     change.lang = "fr"
     env.driver.rateBoost = True
+    second_return = hold_native_return(env, monkeypatch, 2)
     streams = iter((Sonic(), Sonic()))
     monkeypatch.setattr(env.driver._audioCallback, "_createSonicStream", lambda: next(streams))
     _, _, events, done = speak(env, commands=("hello", change, "bonjour"))
@@ -110,6 +127,7 @@ def test_neural_shared_lifecycle_waits_for_all_langchange_tasks_and_sonic_idle(e
     env.native.wait_calls(2)
     assert events == []
     env.native.audio()
+    second_return.set()
     assert env.player.idle_entered.wait(2)
     assert len(env.player.fed) == 2
     assert events == []
@@ -121,6 +139,7 @@ def test_neural_shared_lifecycle_waits_for_all_langchange_tasks_and_sonic_idle(e
 
 def test_neural_cancelled_callback_cannot_feed_successor(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
+    successor_release = hold_native_return(env, monkeypatch, 2)
     speak(env)
     env.native.wait_calls(1)
     env.player.feed_release.clear()
@@ -129,7 +148,6 @@ def test_neural_cancelled_callback_cannot_feed_successor(env, monkeypatch):
     env.native.stop_release.clear()
     env.driver.cancel()
     _, _, events, done = speak(env, segment=18)
-    env.native.speak_release.set()
     assert env.native.stop_wait_entered.wait(1)
     assert len(env.native.calls) == 1
     env.native.stop_release.set()
@@ -137,12 +155,64 @@ def test_neural_cancelled_callback_cannot_feed_successor(env, monkeypatch):
     assert len(env.native.calls) == 1
     env.player.feed_release.set()
     finish(old_callback)
+    env.native.speak_release.set()
     env.native.wait_calls(2)
     env.native.audio(b"new PCM")
+    successor_release.set()
     assert done.wait(2)
-    assert env.player.fed[-1] == b"new PCM"
+    assert env.player.fed == [b"old PCM", b"new PCM"]
     assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
     assert isinstance(env.driver._segmentLifecycle, env.outer.SegmentLifecycle)
+
+
+def test_neural_cancel_sees_work_accepted_before_driver_registration(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    accepted, release_accept = Event(), Event()
+    building, release_build = Event(), Event()
+    cancel_entered = Event()
+    real_accept = env.driver._segmentLifecycle.accept
+    real_make_tasks = env.driver._make_segment_tasks
+    real_cancel = env.driver.cancel
+
+    def paused_accept(*args):
+        operation = real_accept(*args)
+        accepted.set()
+        assert release_accept.wait(2)
+        return operation
+
+    def paused_make_tasks(*args, **kwargs):
+        building.set()
+        assert release_build.wait(2)
+        return real_make_tasks(*args, **kwargs)
+
+    def observed_cancel():
+        cancel_entered.set()
+        real_cancel()
+
+    monkeypatch.setattr(env.driver._segmentLifecycle, "accept", paused_accept)
+    monkeypatch.setattr(env.driver, "_make_segment_tasks", paused_make_tasks)
+    monkeypatch.setattr(env.driver, "cancel", observed_cancel)
+    token = env.scheduler.CancellationToken()
+    events = []
+    speaking = in_thread(lambda: env.driver.speak_segment(("hello",), token,
+        context=env.rt.models.PlaybackContext(object(), 17), on_event=events.append))
+    try:
+        assert accepted.wait(1)
+        cancelling = in_thread(env.driver.cancel)
+        assert cancel_entered.wait(1)
+        # Cancellation contends for the driver condition while accept is
+        # paused; after registration it must see and cancel the work.
+        assert not cancelling.done.wait(0.05)
+        release_accept.set()
+        assert building.wait(1)
+        finish(cancelling)
+        release_build.set()
+        finish(speaking)
+        assert env.native.calls == []
+        assert events == []
+    finally:
+        release_accept.set()
+        release_build.set()
 
 
 def test_neural_cancel_retires_queued_lifecycle_operation(env, monkeypatch):
