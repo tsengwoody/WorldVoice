@@ -308,7 +308,7 @@ def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
     def callback(callbacks, user_data):
         Thread(target=lambda: callbacks.set_sample_rate(22050, user_data), daemon=True).start()
         assert callback_entered.wait(3)
-        env.players[0].block_idle_number = 2
+        env.players[0].block_idle_number = 3
         env.players[0].idle_release.clear()
     env.native.scripts.append({"auto_return": True, "async_callback": callback})
     _, _, old_events = speak(env, text="old")
@@ -320,7 +320,7 @@ def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
     assert_no_successor_native_call(env)
     assert old_events == []
     release_callback.set()
-    assert player.second_idle_entered.wait(3)
+    assert player.third_idle_entered.wait(3)
     assert_no_successor_native_call(env)
     assert old_events == []
     player.idle_release.set()
