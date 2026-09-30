@@ -158,6 +158,40 @@ def test_neural_cancel_retires_queued_lifecycle_operation(env, monkeypatch):
         assert env.driver._segmentLifecycle._operations == set()
 
 
+def test_neural_cancel_before_delayed_terminal_commit_is_silent(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    entered, release = Event(), Event()
+    first_events = []
+
+    def hold_first_delivery(event):
+        first_events.append(event)
+        entered.set()
+        assert release.wait(2)
+
+    env.driver.speak_segment(("first",), env.scheduler.CancellationToken(),
+        context=env.rt.models.PlaybackContext(object(), 17), on_event=hold_first_delivery)
+    env.native.wait_calls(1)
+    env.player.idle_release.set()
+    env.native.speak_release.set()
+    assert entered.wait(1)
+    _, _, second_events, _ = speak(env, segment=18)
+    try:
+        env.native.wait_calls(2)
+        with env.driver._segmentLifecycle._condition:
+            assert env.driver._segmentLifecycle._condition.wait_for(
+                lambda: any(op.work.context.segment_id == 18
+                            for op in env.driver._segmentLifecycle._delivery_queue), 2)
+        assert env.player.idle_entered.is_set()
+        env.driver.cancel()
+    finally:
+        release.set()
+    with env.driver._segmentLifecycle._condition:
+        assert env.driver._segmentLifecycle._condition.wait_for(
+            lambda: not env.driver._segmentLifecycle._operations, 2)
+    assert len(first_events) == 1
+    assert second_events == []
+
+
 def test_neural_waits_for_stop_and_callback_exit(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     _, _, old_events, _ = speak(env)
