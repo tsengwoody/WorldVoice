@@ -52,7 +52,7 @@
 - Modify: `addon/synthDrivers/WorldVoice/compat/completionPolicies.py`
 - Modify: `addon/synthDrivers/WorldVoice/__init__.py`
 - Modify: `tests/test_runtime_completion_policies.py` and RHVoice integration tests
-- Modify: `README.md`, `docs/superpowers/finish_task.md`
+- Modify: `readme.md`, `docs/superpowers/finish_task.md`
 
 **Interfaces:**
 - Consumes: Task 1 actual outer wrapper and explicit false `DrainSupport` result.
