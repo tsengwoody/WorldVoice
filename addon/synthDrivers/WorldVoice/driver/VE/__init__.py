@@ -90,9 +90,10 @@ class _GuardedPlayer:
 
 class _SpeechWork:
 	"""One synchronous batch; errors are delivered after callback retirement."""
-	def __init__(self, token, playback=None):
+	def __init__(self, token, playback=None, completion=None):
 		self.token = token
 		self.playback = playback
+		self.completion = completion
 		self._lock = threading.Lock()
 		self._active = True
 		self.error = None
@@ -111,6 +112,8 @@ class _SpeechWork:
 			self.cancelled = True
 		if self.playback is not None:
 			self.playback.cancel()
+		if self.completion is not None:
+			self.completion.set()
 
 	def fault(self, error):
 		with self._lock:
@@ -386,12 +389,12 @@ class SynthDriver(BaseSynthDriver):
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 		context: PlaybackContext, on_event: SegmentEventSink) -> None:
-		delivered = threading.Event()
+		completion = threading.Event()
 		def deliver(event):
 			try:
 				on_event(event)
 			finally:
-				delivered.set()
+				completion.set()
 		with self._speechStateLock:
 			admission_error = self._segmentBlockedError
 			if admission_error is None:
@@ -400,14 +403,14 @@ class SynthDriver(BaseSynthDriver):
 				except RuntimeError as error:
 					admission_error = error
 				else:
-					work = _SpeechWork(token, operation.work)
+					work = _SpeechWork(token, operation.work, completion)
 					work.operation = operation
 					operation._ve_work = work
 					operation._ve_natives = []
 					self._segmentWorks.add(work)
 		if admission_error is not None:
 			self._segmentLifecycle.reject_new(context, token, deliver, admission_error)
-			self._wait_segment_delivery(delivered, token)
+			self._wait_segment_delivery(completion, token)
 			return
 		try:
 			try:
@@ -416,21 +419,25 @@ class SynthDriver(BaseSynthDriver):
 				# A prior fatal resource fault rejects before this operation owns
 				# native/player state. Preserve this request's original context.
 				self._segmentLifecycle.reject_new(context, token, deliver, error.__cause__ or error)
-				self._wait_segment_delivery(delivered, token)
+				self._wait_segment_delivery(completion, token)
 				return
 			if operation._retired and not work.cancelled and not token.is_cancelled():
-				self._wait_segment_delivery(delivered, token)
+				self._wait_segment_delivery(completion, token)
 		finally:
 			with self._speechStateLock:
 				self._segmentWorks.discard(work)
 			if self._terminationRequested:
 				self._finish_termination()
 
-	def _wait_segment_delivery(self, delivered, token):
+	def _wait_segment_delivery(self, completion, token):
 		# A listener may synchronously ask for another segment. The coordinator
 		# owns a single delivery thread, so it cannot wait for its own callback.
 		if not token.is_cancelled() and threading.current_thread() is not self._segmentLifecycle._delivery_thread:
-			delivered.wait()
+			while not completion.wait(0.05):
+				# External tokens have no notification hook. Poll only while the
+				# caller is waiting; direct cancellation sets completion itself.
+				if token.is_cancelled():
+					return
 
 	# The inner driver still parses settings and splits text. Its synchronous
 	# native calls and callback gate form the SDK boundary for this operation.
@@ -442,6 +449,7 @@ class SynthDriver(BaseSynthDriver):
 	def request_stop(self, operation):
 		with self._speechStateLock:
 			self._stops += 1
+			self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
 			self._speechStateLock.notify_all()
 		try:
 			self._real_player.stop()
@@ -449,6 +457,9 @@ class SynthDriver(BaseSynthDriver):
 			with self._speechStateLock:
 				self._stops -= 1
 				self._speechStateLock.notify_all()
+			# Contextual teardown belongs to speak_segment after the coordinator
+			# retires this operation. Finishing here would wait on our own stop.
+			self._playerLocal.depth -= 1
 
 	def wait_native_boundary(self, operation):
 		if operation._ve_work.error is not None:
@@ -465,13 +476,18 @@ class SynthDriver(BaseSynthDriver):
 			raise work.error
 		if not work.is_valid():
 			return
-		self._real_player.idle()
-		with self._speechStateLock:
-			self._speechStateLock.wait_for(lambda: (
-				self._pauses == 0 and not self._paused) or not work.is_valid())
-		if work.error is not None:
-			raise work.error
-		work.drained = work.is_valid() and not self._isSilence.cancelled()
+		self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
+		try:
+			self._real_player.idle()
+			with self._speechStateLock:
+				self._speechStateLock.wait_for(lambda: (
+					self._pauses == 0 and not self._paused) or not work.is_valid())
+			if work.error is not None:
+				raise work.error
+			work.drained = work.is_valid() and not self._isSilence.cancelled()
+		finally:
+			# The owning run clears the resource-busy flag before teardown.
+			self._playerLocal.depth -= 1
 
 	def speak(self, speechSequence, cancellationToken=None):
 		if not self._guard_installed:

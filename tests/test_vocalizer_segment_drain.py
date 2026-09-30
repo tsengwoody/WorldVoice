@@ -229,6 +229,67 @@ def test_ve_shared_terminate_waits_for_coordinator_stop(env, monkeypatch):
     assert closed.is_set()
 
 
+@pytest.mark.parametrize("cancel_kind", ["token", "direct"])
+def test_ve_shared_silent_cancel_releases_delivery_wait(env, monkeypatch, cancel_kind):
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    sink_entered, sink_release, waiting = Event(), Event(), Event()
+    first_context = env.rt.models.PlaybackContext(object(), 17)
+    def first_sink(event):
+        sink_entered.set()
+        assert sink_release.wait(2)
+    first = run_thread(lambda: env.core.speak_segment(("first",), Token(),
+        context=first_context, on_event=first_sink))
+    assert sink_entered.wait(1)
+    original_wait = env.core._wait_segment_delivery
+    def capture_wait(delivered, token):
+        real_wait = delivered.wait
+        def wait(*args, **kwargs):
+            waiting.set()
+            return real_wait(*args, **kwargs)
+        delivered.wait = wait
+        return original_wait(delivered, token)
+    monkeypatch.setattr(env.core, "_wait_segment_delivery", capture_wait)
+    token = Token()
+    _, _, second = speak(env, token=token, segment=18)
+    try:
+        assert waiting.wait(1)
+        if cancel_kind == "token":
+            token.cancel()
+        else:
+            env.core.cancel()
+        finish(second)
+        assert env.events == []
+    finally:
+        sink_release.set()
+    finish(first)
+
+
+@pytest.mark.parametrize("hook", ["stop", "idle"])
+def test_ve_shared_player_hook_can_reenter_terminate(env, monkeypatch, hook):
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    monkeypatch.setattr(env.native, "close", lambda instance: None)
+    monkeypatch.setattr(env.native, "terminate", lambda: None)
+    token = Token()
+    if hook == "stop":
+        monkeypatch.setattr(env.native, "processText2Speech", lambda *args: token.cancel())
+    else:
+        monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    entered = Event()
+    def reenter():
+        if not entered.is_set():
+            entered.set()
+            env.core.terminate()
+    setattr(env.core._real_player, hook, reenter)
+    _, _, call = speak(env, token=token)
+    assert entered.wait(1)
+    finish(call)
+    assert env.core._terminationDone.wait(1)
+    assert env.core._real_player.closes == 1
+
+
 def test_native_constructor_owns_contextual_callback_before_first_open(env):
     instance = env.core.voiceInstance
     assert isinstance(env.core._veCallbackHandler, getattr(env.module, "_Contextual" + env.engine + "Callback"))
