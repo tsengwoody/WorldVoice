@@ -18,6 +18,7 @@ class _NativeSpeech:
 	work: PlaybackWork | None
 	operation: object | None = None
 	retired: Event | None = None
+	handoff: Event | None = None
 	producer: object | None = None
 	cancelled: bool = False
 	closed: bool = False
@@ -195,9 +196,11 @@ class SynthDriver(BaseSynthDriver):
 				deliver, self._segmentControlError or error.__cause__ or error)
 		finally:
 			with self._segmentCondition:
-				self._segmentOperations.pop(operation, None)
+				native = self._segmentOperations.pop(operation, None)
 				if operation._espeak_cancelled or operation.work.token.is_cancelled():
 					self._segmentAccepted.discard(operation)
+			if native is not None:
+				native.handoff.set()
 
 	def submit_native(self, operation, commands):
 		self._queueSpeech(commands, operation.work, operation)
@@ -207,7 +210,10 @@ class SynthDriver(BaseSynthDriver):
 			native = self._segmentOperations.get(operation)
 			if native is not None:
 				native.cancelled = True
-		if native is not None:
+				active = native is self._segmentNative
+			else:
+				active = False
+		if active:
 			_espeak.isSpeaking = False
 			_espeak.player.stop()
 
@@ -240,7 +246,9 @@ class SynthDriver(BaseSynthDriver):
 		self._queueSpeech(speechSequence, None)
 
 	def _queueSpeech(self, commands, work, operation=None):
-		native = _NativeSpeech(work, operation=operation, retired=Event() if operation is not None else None)
+		native = _NativeSpeech(work, operation=operation,
+			retired=Event() if operation is not None else None,
+			handoff=Event() if operation is not None else None)
 		with self._segmentAdmission:
 			if self._segmentTerminated:
 				if work is not None:
@@ -350,6 +358,9 @@ class SynthDriver(BaseSynthDriver):
 			if native.producer is not None:
 				self._segmentLifecycle.retire_producer(native.producer)
 			native.retired.set()
+			# The FIFO worker must retain player ownership until the coordinator
+			# has finished the final stop or drain check for this operation.
+			native.handoff.wait()
 			return
 		if not valid:
 			_espeak.isSpeaking = False

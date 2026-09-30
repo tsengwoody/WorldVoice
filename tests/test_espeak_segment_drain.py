@@ -126,6 +126,84 @@ def test_espeak_token_cancel_after_feed_discards_pcm_before_successor(env):
     assert cancelled_events == []
 
 
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_ordinary_speech_waits_for_contextual_final_stop_before_using_player(env, cancelled):
+    env.native.next_scripts.append({"hold_terminal": True} if cancelled else {"missing_end": True})
+    token, _, segment_events = speak(env)
+    first = env.native.wait_calls(1)
+    assert first.before_terminal.wait(1)
+    assert env.player.queued_bytes == 8
+    if cancelled:
+        token.cancel()
+    env.driver.speak(("ordinary after segment",))
+    stopped, release_stop = Event(), Event()
+    original_stop = env.player.stop
+    def held_stop():
+        stopped.set()
+        assert release_stop.wait(2), "Test did not release contextual cleanup"
+        original_stop()
+    env.player.stop = held_stop
+    first.terminal_release.set()
+    if not cancelled:
+        env.player.idle_release.set()
+    first.return_release.set()
+    try:
+        assert stopped.wait(1)
+        assert len(env.native.calls) == 1, "Ordinary native work entered before old PCM cleanup"
+    finally:
+        release_stop.set()
+        env.player.idle_release.set()
+    ordinary = env.native.wait_calls(2)
+    assert ordinary.queued_bytes_at_entry == 0
+    ordinary.return_release.set()
+    env.inner.bgQueue.join()
+    assert env.dones == [env.driver]
+    if cancelled:
+        assert segment_events == []
+    else:
+        assert wait_event(segment_events).kind is env.rt.models.EventKind.SEGMENT_FAILED
+
+
+def test_cancelling_queued_contextual_speech_preserves_active_ordinary_audio(env, monkeypatch):
+    env.native.next_scripts.append({"hold_terminal": True})
+    env.driver.speak(("ordinary remains active",))
+    ordinary = env.native.wait_calls(1)
+    assert ordinary.before_terminal.wait(1)
+    assert env.player.queued_bytes == 8
+    queued, release_queue = Event(), Event()
+    original_queue = env.driver._queueSpeech
+    def queue_then_hold(commands, work, operation=None):
+        result = original_queue(commands, work, operation)
+        if operation is not None:
+            queued.set()
+            assert release_queue.wait(2), "Test did not release contextual submission"
+        return result
+    monkeypatch.setattr(env.driver, "_queueSpeech", queue_then_hold)
+    token, _, cancelled_events = speak(env, segment=18)
+    assert queued.wait(1)
+    token.cancel()
+    release_queue.set()
+    operation = next(iter(env.driver._segmentAccepted))
+    with operation._lifecycle._condition:
+        assert operation._lifecycle._condition.wait_for(lambda: operation._stop_done is not None, 1)
+        stop_done = operation._stop_done
+    assert stop_done.wait(1)
+    assert env.player.stops == 0, "Queued cancellation stopped the ordinary player"
+    assert env.player.queued_bytes == 8
+    assert env.inner.isSpeaking
+    assert len(env.native.calls) == 1
+    env.player.idle_release.set()
+    ordinary.terminal_release.set()
+    ordinary.return_release.set()
+    env.inner.bgQueue.join()
+    assert env.dones == [env.driver]
+    _, _, successor_events = speak(env, segment=19)
+    successor = env.native.wait_calls(2)
+    successor.return_release.set()
+    assert wait_event(successor_events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert cancelled_events == []
+
+
 @pytest.mark.parametrize("token_only", [False, True])
 def test_cancelled_active_call_and_queued_call_retire_before_successor(env, token_only):
     token, _, events = speak(env)
