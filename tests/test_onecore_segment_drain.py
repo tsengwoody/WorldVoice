@@ -1,4 +1,5 @@
 import gc
+import sys
 from threading import Event
 import weakref
 
@@ -9,6 +10,7 @@ from onecore_drain_harness import VERSION, in_thread, load_onecore
 
 @pytest.fixture
 def env(monkeypatch):
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
     result = load_onecore(monkeypatch)
     yield result
     result.player.feed_release.set()
@@ -31,6 +33,77 @@ def finish(call):
     assert call.errors == []
 
 
+def wait_events(events, count=1):
+    waiting = Event()
+    for _ in range(200):
+        if len(events) >= count:
+            return
+        waiting.wait(0.005)
+    assert len(events) >= count, "Segment event was not delivered"
+
+
+@pytest.mark.parametrize("frames,commands", [(0, ()), (8, ("hello",))])
+def test_onecore_uses_shared_lifecycle_for_empty_and_pcm_segments(env, frames, commands):
+    events = []
+    _, context, _ = speak(env, commands=commands, events=events)
+    # The actual wrapper must own the same operation that the coordinator runs.
+    lifecycle = env.driver._segmentLifecycle
+    assert isinstance(lifecycle, env.outer.SegmentLifecycle)
+    env.native.wait_calls(1)
+    native = env.driver._segmentNative
+    assert native.operation in lifecycle._operations
+    assert native.operation.work.context is context
+    response = in_thread(lambda: env.native.respond(frames=frames, markers=""))
+    finish(response)
+    assert env.player.sync_entered.wait(1)
+    assert events == []
+    env.player.sync_release.set()
+    wait_events(events)
+    assert len(events) == 1
+    assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert events[0].source_id is context.source_id
+    assert events[0].segment_id == context.segment_id
+
+
+def test_onecore_shared_handoff_waits_for_callback_feed_and_stop(env):
+    _, old_context, old_events = speak(env)
+    env.native.wait_calls(1)
+    old_operation = env.driver._segmentNative.operation
+    env.player.feed_release.clear()
+    stop_entered, release_stop = Event(), Event()
+    original_stop = env.player.stop
+
+    def blocked_stop():
+        stop_entered.set()
+        assert release_stop.wait(2), "Test did not release the old stop"
+        original_stop()
+
+    env.player.stop = blocked_stop
+    response = in_thread(env.native.respond)
+    assert env.player.feed_entered.wait(1)
+    cancel = in_thread(env.driver.cancel)
+    assert stop_entered.wait(1)
+    _, new_context, new_events = speak(env, segment=18)
+    assert len(env.native.calls) == 1
+    assert old_events == [] and new_events == []
+    assert old_operation.work.context is old_context
+    env.player.feed_release.set()
+    with env.native.condition:
+        assert not env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.05)
+    release_stop.set()
+    finish(response)
+    finish(cancel)
+    env.native.wait_calls(2)
+    assert env.driver._segmentNative.operation is not old_operation
+    env.player.sync_release.set()
+    env.native.respond(markers="")
+    wait_events(new_events)
+    assert old_events == []
+    assert len(new_events) == 1
+    assert new_events[0].source_id is new_context.source_id
+    assert new_events[0].segment_id == new_context.segment_id
+
+
 def test_onecore_waits_for_tail_sync_before_drain(env):
     token, context, events = speak(env)
     env.native.wait_calls(1)
@@ -41,6 +114,7 @@ def test_onecore_waits_for_tail_sync_before_drain(env):
     assert events == []
     env.player.sync_release.set()
     finish(call)
+    wait_events(events)
     assert len(events) == 1
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
     assert events[0].source_id is context.source_id
@@ -59,6 +133,8 @@ def test_settings_tuples_do_not_take_native_job_identity(env):
     env.native.respond()
     env.native.wait_calls(2)
     env.native.respond()
+    wait_events(events_a)
+    wait_events(events_b)
     assert events_a[0].source_id is first.source_id
     assert events_b[0].source_id is second.source_id
     assert events_b[0].segment_id == 18
@@ -74,6 +150,7 @@ def test_cancel_removes_queued_text_but_keeps_settings_identity(env):
     env.native.respond()
     env.native.wait_calls(2)
     env.native.respond()
+    wait_events(events)
     assert discarded == []
     assert env.native.settings == [("Volume", 0.75)]
     assert events[0].source_id is expected.source_id
@@ -100,6 +177,7 @@ def test_late_cancelled_callback_is_consumed_before_next_submission(env, failure
     env.native.wait_calls(2)
     assert old_events == [] and new_events == []
     env.native.respond()
+    wait_events(new_events)
     assert len(new_events) == 1
     assert new_events[0].source_id is new.source_id
     assert new_events[0].segment_id == 18
@@ -115,6 +193,7 @@ def test_native_and_parse_errors_fail_original_work_without_drain(env, response)
     env.native.wait_calls(1)
     env.player.sync_release.set()
     env.native.respond(**response)
+    wait_events(events)
     assert len(events) == 1
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert events[0].source_id is context.source_id
@@ -129,7 +208,24 @@ def test_observable_player_errors_fail_without_drain(env, error):
     env.player.error = error
     env.player.sync_release.set()
     env.native.respond()
+    wait_events(events)
     assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_FAILED]
+
+
+def test_onecore_shared_sync_fault_rejects_successor_without_native_call(env):
+    _, original, failed = speak(env)
+    env.native.wait_calls(1)
+    env.player.error = "sync"
+    env.player.sync_release.set()
+    env.native.respond()
+    wait_events(failed)
+    assert failed[0].source_id is original.source_id
+    assert failed[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    _, successor, rejected = speak(env, segment=18)
+    wait_events(rejected)
+    assert rejected[0].source_id is successor.source_id
+    assert rejected[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert len(env.native.calls) == 1
 
 
 @pytest.mark.parametrize("commands,frames,markers", [
@@ -148,6 +244,7 @@ def test_empty_index_and_break_segments_drain_at_known_end(env, commands, frames
     env.native.wait_calls(1)
     env.player.sync_release.set()
     env.native.respond(frames=frames, markers=markers)
+    wait_events(events)
     assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
@@ -160,9 +257,9 @@ def test_pause_holds_completion_until_resume(env, frames):
     call = in_thread(lambda: env.native.respond(frames=frames, markers=""))
     assert env.player.sync_entered.wait(1)
     assert events == []
-    assert not call.done.wait(0.05)
     env.driver.pause(False)
     finish(call)
+    wait_events(events)
     assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
@@ -311,11 +408,11 @@ def test_pause_resume_reaches_real_player_before_success_event(env):
     env.player.pause = blocking_resume
     resume = in_thread(lambda: env.driver.pause(False))
     assert resumed.wait(1)
-    assert not call.done.wait(0.05)
     assert events == []
     release.set()
     finish(resume)
     finish(call)
+    wait_events(events)
     assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
@@ -325,6 +422,11 @@ def start_controlled_playback(env, mode):
         env.native.wait_calls(1)
         env.player.sync_release.set()
         env.native.respond(markers="")
+        # The shared coordinator completes playback on its worker after the
+        # native callback returns. Wait for that handoff before resetting sync.
+        with env.driver._segmentCondition:
+            assert env.driver._segmentCondition.wait_for(
+                lambda: env.driver._segmentActiveOperation is None, 1)
         env.player.sync_release.clear()
         env.player.sync_entered.clear()
     if mode == "segment":
@@ -378,6 +480,7 @@ def test_late_pause_retires_before_cancel_handoff_or_native_close(env, mode, ter
         env.native.wait_calls(3 if mode == "legacy_after_segment" else 2)
         assert not env.player.pause_switch, "A retired pause affected successor playback"
         env.native.respond(markers="")
+        wait_events(successor_events)
         assert [event.kind for event in successor_events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
     else:
         assert env.native.terminated
@@ -403,6 +506,7 @@ def test_pause_or_resume_error_resolves_work_and_blocks_new_admission(env, mode,
     env.player.sync_release.set()
     finish(call)
     if mode == "segment":
+        wait_events(events)
         assert len(events) == 1
         assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
         assert events[0].error is error
@@ -412,6 +516,7 @@ def test_pause_or_resume_error_resolves_work_and_blocks_new_admission(env, mode,
         assert env.dones == [env.driver], "Legacy failure did not release its wait exactly once"
     calls = len(env.native.calls)
     _, _, rejected = speak(env, segment=18)
+    wait_events(rejected)
     assert len(rejected) == 1
     assert rejected[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert rejected[0].error is error
@@ -433,8 +538,10 @@ def test_pause_error_on_new_player_latches_before_following_segment(env):
 
     env.player.pause = failed_pause
     env.native.respond(markers="")
+    wait_events(events)
     assert len(events) == 1 and events[0].error is error
     _, _, rejected = speak(env, segment=18)
+    wait_events(rejected)
     assert len(rejected) == 1 and rejected[0].error is error
     assert len(env.native.calls) == 1
 
@@ -462,11 +569,12 @@ def test_control_error_fails_queued_contexts_and_allows_reentrant_cancel(env):
     assert pause.done.wait(1), "Failure sink deadlocked while cancelling"
     pause.thread.join(1)
     assert pause.errors == [error]
-    assert failed.is_set()
+    env.native.respond(failure=True)
+    assert failed.wait(1)
     assert len(events) == 1 and events[0].error is error
+    wait_events(queued_events)
     assert len(queued_events) == 1 and queued_events[0].error is error
     assert queued_events[0].source_id is queued_context.source_id
-    env.native.respond(failure=True)
     assert len(env.native.calls) == 1
 
 
