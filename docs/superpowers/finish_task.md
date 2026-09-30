@@ -23,7 +23,7 @@ The Neural inner driver, speech API, CFFI and SDK DLL bytes were user-provided u
 
 OneCore still lacks verified provenance for the loaded native helper/source profile. Supplied Neural SDK files report version `1.50.0.28`, but no callback-quiescence contract or loaded provenance was established. VE's external SDK build and callback-exclusion contract were not verified. Cerence SDK DLLs were absent; its `0x0520`/`0x0200` constants identify structure versions, not a loaded product build. SAPI5 callback retirement and physical playback were not verified on Windows, and eSpeak callback retirement and physical playback likewise remain unverified. RHVoice's native callback/return ordering, final player idle and physical playback have only fake-boundary tests, not named-profile Windows evidence. Therefore the wrappers and controlled DRAIN protocol are implemented, but **none of the seven real engine profiles is accepted for DRAIN activation**.
 
-## Commits included before this delivery-document commit
+## Commits included in this delivery
 
 Design and plan records:
 
@@ -82,7 +82,10 @@ Implementation and integration commits:
 - `19d39cb` — `Retain RHVoice delivery ownership through cancellation`
 - `c2a45d9` — `Avoid RHVoice callback and delivery cancellation cycle`
 - `a80b324` — `Route RHVoice through evidence-gated drain policy`
+- `b890562` — `docs: record RHVoice fallback and package audit`
 - `eafe955` — `Drain RHVoice audio admitted before retirement`
+- `71ca851` — `Record corrected RHVoice package audit`
 - `3e69e8f` — `Allow admitted RHVoice native callbacks to finish nested feeds`
+- `d81b0c7` — `Record RHVoice admitted-producer fix and package audit`
 
-This delivery record is included in its own documentation commit. Verify the complete branch commit list, including that commit, with `git log --reverse --format='%h %s' 4951d39..HEAD`.
+This record is updated in its own documentation commit, so its current commit hash is not listed inside itself. Verify the complete branch commit list, including that commit, with `git log --reverse --format='%h %s' 4951d39..HEAD`.
