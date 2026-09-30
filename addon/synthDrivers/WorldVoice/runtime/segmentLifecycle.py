@@ -4,10 +4,11 @@ Engine hooks establish native and playback boundaries. This coordinator never
 infers native quiescence from an empty callback count alone.
 """
 
+from collections import deque
 from threading import Condition, Event, Thread
 from typing import Protocol
 
-from .models import PlaybackContext, SegmentEventSink, SpeechCommands
+from .models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork
 from .session import CancellationView
 
@@ -23,9 +24,12 @@ class SegmentEngineHooks(Protocol):
 class SegmentOperation:
     """Identity retained by callbacks and feeds through resource retirement."""
 
-    def __init__(self, lifecycle: "SegmentLifecycle", work: PlaybackWork):
+    def __init__(self, lifecycle: "SegmentLifecycle", work: PlaybackWork,
+                 sink: SegmentEventSink, event_holder: list[PlaybackEvent]):
         self._lifecycle = lifecycle
         self.work = work
+        self._sink = sink
+        self._event_holder = event_holder
         self._admitting = True
         self._leases = 0
         self._submitted = False
@@ -63,13 +67,22 @@ class SegmentLifecycle:
         self._fault: Exception | None = None
         self._terminated = False
         self._operations: set[SegmentOperation] = set()
+        self._delivery_queue: deque[SegmentOperation] = deque()
+        self._delivery_thread = Thread(target=self._deliver,
+                                       name="WorldVoiceSegmentDelivery", daemon=True)
+        self._delivery_thread.start()
 
     def accept(self, context: PlaybackContext, token: CancellationView,
                sink: SegmentEventSink) -> SegmentOperation:
         with self._condition:
             if self._terminated:
                 raise RuntimeError("segment lifecycle is terminated")
-            operation = SegmentOperation(self, PlaybackWork(context, token, sink))
+            # PlaybackWork commits exactly once. Its internal sink records the
+            # event while the coordinator arbitrates fail/cancel vs success;
+            # the external sink runs later, outside that lock.
+            holder = []
+            work = PlaybackWork(context, token, holder.append)
+            operation = SegmentOperation(self, work, sink, holder)
             self._operations.add(operation)
             return operation
 
@@ -112,7 +125,10 @@ class SegmentLifecycle:
                             and (stop_done is None or stop_done.is_set())):
                         operation._retired = True
                         self._resource_busy = False
-                        self._operations.discard(operation)
+                        if operation.work.is_valid():
+                            self._delivery_queue.append(operation)
+                        else:
+                            self._operations.discard(operation)
                         self._condition.notify_all()
                         break
                 if needs_stop:
@@ -128,12 +144,6 @@ class SegmentLifecycle:
                         with self._condition:
                             operation._playback_verified = True
                             operation._playback_stop_done = stop_done
-
-        # Task 2 replaces this local delivery with a coordinator-owned queue.
-        if operation._error is not None:
-            operation.work.fail(operation._error)
-        else:
-            operation.work.complete_drained()
 
     def _run_owned(self, operation: SegmentOperation, commands: SpeechCommands) -> None:
         with self._condition:
@@ -223,6 +233,31 @@ class SegmentLifecycle:
             self._condition.notify_all()
         for operation in operations:
             self.cancel(operation)
+
+    def _deliver(self) -> None:
+        while True:
+            with self._condition:
+                self._condition.wait_for(lambda: self._delivery_queue or self._terminated)
+                if not self._delivery_queue:
+                    return
+                operation = self._delivery_queue.popleft()
+                error = operation._error
+                if error is None:
+                    operation.work.complete_drained()
+                else:
+                    operation.work.fail(error)
+                event = operation._event_holder.pop() if operation._event_holder else None
+            try:
+                if event is not None:
+                    operation._sink(event)
+            except Exception:
+                # A consumer's exception must not stop the dispatcher or
+                # become the following operation's failure.
+                pass
+            finally:
+                with self._condition:
+                    self._operations.discard(operation)
+                    self._condition.notify_all()
 
     def _start_stop(self, operation: SegmentOperation) -> None:
         with self._condition:

@@ -2,7 +2,7 @@
 
 import importlib.util
 import sys
-from threading import Event, Thread
+from threading import Condition, Event, Thread, current_thread
 
 import pytest
 
@@ -33,6 +33,21 @@ class Call:
         self.thread.join(1)
         if self.error:
             raise self.error
+
+
+class RecordedEvents(list):
+    def __init__(self):
+        super().__init__()
+        self._condition = Condition()
+
+    def append(self, event):
+        with self._condition:
+            super().append(event)
+            self._condition.notify_all()
+
+    def wait_for_count(self, count):
+        with self._condition:
+            assert self._condition.wait_for(lambda: len(self) >= count, timeout=1), self
 
 
 class Hooks:
@@ -108,11 +123,12 @@ def env(monkeypatch):
     spec.loader.exec_module(module)
     hooks = Hooks()
     lifecycle = module.SegmentLifecycle(hooks)
-    events = []
+    events = RecordedEvents()
 
-    def accept(segment):
+    def accept(segment, sink=None):
         context = rt.models.PlaybackContext(object(), segment)
-        operation = lifecycle.accept(context, scheduler.CancellationToken(), events.append)
+        operation = lifecycle.accept(context, scheduler.CancellationToken(),
+                                     events.append if sink is None else sink)
         return operation, context
 
     yield lifecycle, hooks, events, accept
@@ -145,6 +161,7 @@ def test_native_boundary_precedes_admission_close(env):
     assert len(hooks.submitted) == 1
     lifecycle.retire_producer(lease)
     first.finish()
+    events.wait_for_count(1)
     assert len(events) == 1
     assert events[0].source_id is context.source_id
     assert events[0].segment_id == context.segment_id
@@ -175,6 +192,7 @@ def test_nested_lease_retires_before_successor(env):
     assert len(hooks.submitted) == 1
     lifecycle.retire_producer(child)
     first.finish()
+    events.wait_for_count(1)
     assert len(events) == 1
     assert events[0].source_id is context.source_id
     assert events[0].segment_id == context.segment_id
@@ -195,6 +213,7 @@ def test_cancelled_queued_operation_never_submits(env):
     assert events == []
     hooks.release_boundary.set()
     first.finish()
+    events.wait_for_count(1)
     assert len(hooks.submitted) == 1
     assert len(events) == 1
     assert events[0].source_id is context.source_id
@@ -230,6 +249,7 @@ def test_retirement_failure_latches_core_fault(env):
     hooks.retired_error = RuntimeError("retirement unproven")
     hooks.release_boundary.set()
     lifecycle.run(old, ("old",))
+    events.wait_for_count(1)
     assert len(events) == 1
     assert events[0].kind.value == "segment_failed"
     assert events[0].source_id is context.source_id
@@ -243,6 +263,7 @@ def test_operation_cannot_submit_twice(env):
     old, _ = accept(1)
     hooks.release_boundary.set()
     lifecycle.run(old, ("old",))
+    events.wait_for_count(1)
     with pytest.raises(RuntimeError, match="already run"):
         lifecycle.run(old, ("again",))
     assert len(hooks.submitted) == 1
@@ -260,6 +281,7 @@ def test_failed_queued_operation_never_submits(env):
     hooks.release_boundary.set()
     first.finish()
     second.finish()
+    events.wait_for_count(2)
     assert len(hooks.submitted) == 1
     assert len(events) == 2
     failed = [event for event in events if event.source_id is context.source_id]
@@ -279,6 +301,7 @@ def test_late_cancel_cannot_stop_successor_resource(env):
     assert not hooks.stop_entered.wait(0.05)
     hooks.release_second_boundary.set()
     second.finish()
+    events.wait_for_count(2)
     assert len(events) == 2
 
 
@@ -303,6 +326,7 @@ def test_token_cancel_during_playback_stops_before_handoff(env):
     assert hooks.playback_calls == 2
     hooks.release_second_boundary.set()
     second.finish()
+    events.wait_for_count(1)
     assert len(events) == 1
 
 
@@ -328,6 +352,8 @@ def test_invalidated_operation_waits_for_player_cleanup(env, invalidate):
     assert len(hooks.submitted) == 1
     hooks.release_playback.set()
     first.finish()
+    if invalidate == "fail":
+        events.wait_for_count(1)
     assert len(events) == (0 if invalidate == "cancel" else 1)
     if events:
         assert events[0].source_id is context.source_id
@@ -359,4 +385,139 @@ def test_stop_before_native_submission_requires_post_submit_stop(env):
     hooks.release_second_boundary.set()
     second.finish()
     assert hooks.submitted_after_stops == [1, 2]
+    events.wait_for_count(1)
     assert len(events) == 1
+
+
+def test_cancel_before_deferred_delivery_is_silent(env):
+    lifecycle, hooks, events, accept = env
+    hooks.release_boundary.set()
+    hooks.release_second_boundary.set()
+    first_entered = Event()
+    release_first = Event()
+    last_delivered = Event()
+
+    def first_sink(event):
+        first_entered.set()
+        assert release_first.wait(1)
+        events.append(event)
+
+    first, first_context = accept(1, first_sink)
+    cancelled, _ = accept(2)
+    last, last_context = accept(3, lambda event: (events.append(event), last_delivered.set()))
+    try:
+        Call(lambda: lifecycle.run(first, ("first",))).finish()
+        assert first_entered.wait(1)
+        Call(lambda: lifecycle.run(cancelled, ("cancelled",))).finish()
+        lifecycle.cancel(cancelled)
+        Call(lambda: lifecycle.run(last, ("last",))).finish()
+    finally:
+        release_first.set()
+    assert last_delivered.wait(1)
+    assert [(event.source_id, event.segment_id) for event in events] == [
+        (first_context.source_id, 1), (last_context.source_id, 3)]
+
+
+def test_failure_wins_over_queued_success(env):
+    lifecycle, hooks, events, accept = env
+    hooks.release_boundary.set()
+    hooks.release_second_boundary.set()
+    first_entered = Event()
+    release_first = Event()
+    failed_delivered = Event()
+
+    def first_sink(event):
+        first_entered.set()
+        assert release_first.wait(1)
+        events.append(event)
+
+    first, _ = accept(1, first_sink)
+    failed, failed_context = accept(2, lambda event: (events.append(event), failed_delivered.set()))
+    first_error = RuntimeError("first failure")
+    try:
+        Call(lambda: lifecycle.run(first, ("first",))).finish()
+        assert first_entered.wait(1)
+        Call(lambda: lifecycle.run(failed, ("failed",))).finish()
+        lifecycle.fail(failed, first_error)
+        lifecycle.fail(failed, RuntimeError("second failure"))
+    finally:
+        release_first.set()
+    assert failed_delivered.wait(1)
+    assert len(events) == 2
+    assert events[1].kind.value == "segment_failed"
+    assert events[1].source_id is failed_context.source_id
+    assert events[1].segment_id == 2
+    assert events[1].error is first_error
+
+
+def test_sink_can_cancel_and_terminate_without_self_join(env):
+    lifecycle, hooks, events, accept = env
+    hooks.release_boundary.set()
+    sink_done = Event()
+    run_thread = []
+    sink_thread = []
+    operation = None
+
+    def sink(event):
+        sink_thread.append(current_thread())
+        events.append(event)
+        lifecycle.cancel(operation)
+        lifecycle.terminate()
+        sink_done.set()
+
+    operation, context = accept(1, sink)
+
+    def run():
+        run_thread.append(current_thread())
+        lifecycle.run(operation, ("first",))
+
+    Call(run).finish()
+    assert sink_done.wait(1)
+    assert sink_thread[0] is not run_thread[0]
+    assert [(event.kind.value, event.source_id, event.segment_id) for event in events] == [
+        ("segment_drained", context.source_id, 1)]
+
+
+def test_raising_sink_does_not_relabel_successor(env):
+    lifecycle, hooks, events, accept = env
+    hooks.release_boundary.set()
+    hooks.release_second_boundary.set()
+    first_entered = Event()
+    second_delivered = Event()
+    run_threads = []
+    sink_threads = []
+
+    def raising_sink(event):
+        sink_threads.append(current_thread())
+        events.append(event)
+        first_entered.set()
+        raise RuntimeError("sink failure")
+
+    def second_sink(event):
+        sink_threads.append(current_thread())
+        events.append(event)
+        second_delivered.set()
+
+    first, first_context = accept(1, raising_sink)
+    second, second_context = accept(2, second_sink)
+
+    def run(operation, commands):
+        run_threads.append(current_thread())
+        lifecycle.run(operation, commands)
+
+    Call(lambda: run(first, ("first",))).finish()
+    assert first_entered.wait(1)
+    Call(lambda: run(second, ("second",))).finish()
+    assert second_delivered.wait(1)
+    assert all(thread not in run_threads for thread in sink_threads)
+    assert sink_threads[0] is sink_threads[1]
+    assert [(event.kind.value, event.source_id, event.segment_id) for event in events] == [
+        ("segment_drained", first_context.source_id, 1),
+        ("segment_drained", second_context.source_id, 2)]
+
+
+def test_terminate_blocks_new_acceptance(env):
+    lifecycle, _, events, accept = env
+    lifecycle.terminate()
+    with pytest.raises(RuntimeError, match="terminated"):
+        accept(1)
