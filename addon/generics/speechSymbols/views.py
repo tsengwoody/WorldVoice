@@ -19,12 +19,11 @@ base_path = globalVars.appArgs.configPath
 
 
 class AddSymbolDialog(
-		ContextHelpMixin,
-		wx.Dialog  # wxPython does not seem to call base class initializer, put last in MRO
+	ContextHelpMixin,
+	wx.Dialog,  # wxPython does not seem to call base class initializer, put last in MRO
 ):
-
 	helpId = "SymbolPronunciation"
-	
+
 	def __init__(self, parent):
 		# Translators: This is the label for the add symbol dialog.
 		super().__init__(parent, title=_("Add Symbol"))
@@ -64,8 +63,10 @@ class SpeechSymbolsDialog(SettingsDialog):
 	def makeSettings(self, settingsSizer):
 		if not self.speechSymbols:
 			self.speechSymbols = SpeechSymbols()
-			self.speechSymbols.load('unicode.dic')
-			self.filteredSymbols = self.symbols = [copy.copy(symbol) for symbol in self.speechSymbols.symbols.values()]
+			self.speechSymbols.load("unicode.dic")
+			self.filteredSymbols = self.symbols = [
+				copy.copy(symbol) for symbol in self.speechSymbols.symbols.values()
+			]
 		self.pendingRemovals = {}
 
 		sHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
@@ -85,7 +86,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 			nvdaControls.AutoWidthColumnListCtrl,
 			autoSizeColumn=2,  # The replacement column is likely to need the most space
 			itemTextCallable=self.getItemTextForList,
-			style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.LC_VIRTUAL
+			style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.LC_VIRTUAL,
 		)
 
 		# Translators: The label for a column in symbols list used to identify a symbol.
@@ -101,14 +102,16 @@ class SpeechSymbolsDialog(SettingsDialog):
 
 		# Translators: The label for the group of controls in symbol pronunciation dialog to change the pronunciation of a symbol.
 		changeSymbolText = _("Change selected symbol")
-		changeSymbolHelper = sHelper.addItem(guiHelper.BoxSizerHelper(
-			parent=self,
-			sizer=wx.StaticBoxSizer(
+		changeSymbolHelper = sHelper.addItem(
+			guiHelper.BoxSizerHelper(
 				parent=self,
-				label=changeSymbolText,
-				orient=wx.VERTICAL,
-			)
-		))
+				sizer=wx.StaticBoxSizer(
+					parent=self,
+					label=changeSymbolText,
+					orient=wx.VERTICAL,
+				),
+			),
+		)
 
 		# Used to ensure that event handlers call Skip(). Not calling skip can cause focus problems for controls. More
 		# generally the advice on the wx documentation is: "In general, it is recommended to skip all non-command events
@@ -119,6 +122,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 				if event:
 					event.Skip()
 				return handler()
+
 			return wrapWithEventSkip
 
 		# Translators: The label for the edit field in symbol pronunciation dialog to change the replacement text of a symbol.
@@ -131,8 +135,14 @@ class SpeechSymbolsDialog(SettingsDialog):
 		self.replacementEdit.Bind(wx.EVT_TEXT, skipEventAndCall(self.onSymbolEdited))
 
 		languageText = _("&language")
-		languageChoices = [SPEECH_SYMBOL_LANGUAGE_LABELS[language] for language in SPEECH_SYMBOL_LANGUAGE_LABELS]
-		self.languageList = changeSymbolHelper.addLabeledControl(languageText, wx.Choice, choices=languageChoices)
+		languageChoices = [
+			SPEECH_SYMBOL_LANGUAGE_LABELS[language] for language in SPEECH_SYMBOL_LANGUAGE_LABELS
+		]
+		self.languageList = changeSymbolHelper.addLabeledControl(
+			languageText,
+			wx.Choice,
+			choices=languageChoices,
+		)
 		self.languageList.Bind(wx.EVT_CHOICE, skipEventAndCall(self.onSymbolEdited))
 
 		modeText = _("&Detect language mode")
@@ -157,7 +167,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 	def postInit(self):
 		self.symbolsList.SetFocus()
 
-	def filter(self, filterText=''):
+	def filter(self, filterText=""):
 		NONE_SELECTED = -1
 		previousSelectionValue = None
 		previousIndex = self.symbolsList.GetFirstSelected()  # may return NONE_SELECTED
@@ -170,9 +180,9 @@ class SpeechSymbolsDialog(SettingsDialog):
 			# Do case-insensitive matching by lowering both filterText and each symbols's text.
 			filterText = filterText.lower()
 			self.filteredSymbols = [
-				symbol for symbol in self.symbols
-				if filterText in symbol.displayName.lower()
-				or filterText in symbol.replacement.lower()
+				symbol
+				for symbol in self.symbols
+				if filterText in symbol.displayName.lower() or filterText in symbol.replacement.lower()
 			]
 		self.symbolsList.ItemCount = len(self.filteredSymbols)
 
@@ -253,7 +263,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 				gui.messageBox(
 					_('Symbol "%s" is already present.') % identifier,
 					_("Error"),
-					wx.OK | wx.ICON_ERROR
+					wx.OK | wx.ICON_ERROR,
 				)
 				self.symbolsList.Select(index)
 				self.symbolsList.Focus(index)
@@ -317,12 +327,19 @@ class SpeechSymbolsDialog(SettingsDialog):
 		except IOError as e:
 			log.error("Error saving user symbols info: %s" % e)
 		self.speechSymbols = None
-		if gui.messageBox(
-			# Translators: The message displayed
-			_("For the edited unicode rule to apply, NVDA must be restarted. Do you want to restart NVDA now?"),
-			# Translators: The title of the dialog
-			_("unicode rule edited"), wx.OK | wx.CANCEL | wx.ICON_WARNING, self
-		) == wx.OK:
+		if (
+			gui.messageBox(
+				# Translators: The message displayed
+				_(
+					"For the edited unicode rule to apply, NVDA must be restarted. Do you want to restart NVDA now?",
+				),
+				# Translators: The title of the dialog
+				_("unicode rule edited"),
+				wx.OK | wx.CANCEL | wx.ICON_WARNING,
+				self,
+			)
+			== wx.OK
+		):
 			queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 		self.__class__._instance = None

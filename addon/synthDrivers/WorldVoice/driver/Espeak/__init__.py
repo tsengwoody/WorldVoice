@@ -51,6 +51,7 @@ class _SegmentPlayer:
 			return
 		callback = None
 		if onDone is not None:
+
 			def callback():
 				owner = self._driver()
 				if owner is None or not owner._admitConsumer(native):
@@ -62,6 +63,7 @@ class _SegmentPlayer:
 				finally:
 					owner._segmentCallbackLocal.native = previous
 					owner._releaseConsumer(native)
+
 		try:
 			return self._player.feed(data, size, callback)
 		except Exception as error:
@@ -167,33 +169,51 @@ class SynthDriver(BaseSynthDriver):
 		_espeak.espeakDLL = _SegmentNative(self, _espeak.espeakDLL)
 
 	def get_segment_drain_support(self, *, nvda_version=None, audio_mode=None):
-		return unverified_drain_support(runtime_profile("espeak", nvda_version, audio_mode),
-			"callback retirement and physical playback are")
+		return unverified_drain_support(
+			runtime_profile("espeak", nvda_version, audio_mode),
+			"callback retirement and physical playback are",
+		)
 
-	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
-			context: PlaybackContext, on_event: SegmentEventSink):
+	def speak_segment(
+		self,
+		commands: SpeechCommands,
+		token: CancellationView,
+		*,
+		context: PlaybackContext,
+		on_event: SegmentEventSink,
+	):
 		with self._segmentAdmission:
 			if self._segmentTerminated:
 				return
 			if self._segmentControlError is not None:
 				self._segmentLifecycle.reject_new(context, token, on_event, self._segmentControlError)
 				return
+
 			def deliver(event):
 				self._deliverSpeech(operation, event)
+
 			operation = self._segmentLifecycle.accept(context, token, deliver)
 			operation._espeak_sink = on_event
 			operation._espeak_cancelled = False
 			with self._segmentCondition:
 				self._segmentAccepted.add(operation)
-		Thread(target=self._runSegment, args=(operation, tuple(commands), deliver),
-			name="WorldVoice eSpeak lifecycle", daemon=True).start()
+		Thread(
+			target=self._runSegment,
+			args=(operation, tuple(commands), deliver),
+			name="WorldVoice eSpeak lifecycle",
+			daemon=True,
+		).start()
 
 	def _runSegment(self, operation, commands, deliver):
 		try:
 			self._segmentLifecycle.run(operation, commands)
 		except Exception as error:
-			self._segmentLifecycle.reject_new(operation.work.context, operation.work.token,
-				deliver, self._segmentControlError or error.__cause__ or error)
+			self._segmentLifecycle.reject_new(
+				operation.work.context,
+				operation.work.token,
+				deliver,
+				self._segmentControlError or error.__cause__ or error,
+			)
 		finally:
 			with self._segmentCondition:
 				native = self._segmentOperations.pop(operation, None)
@@ -237,8 +257,12 @@ class SynthDriver(BaseSynthDriver):
 			_espeak.player.stop()
 			return
 		if not (native.returned and native.ended and native.idle_completed):
-			self._segmentLifecycle.fail(operation, RuntimeError(
-				"eSpeak synthesis retired without its native return, end and player idle barriers"))
+			self._segmentLifecycle.fail(
+				operation,
+				RuntimeError(
+					"eSpeak synthesis retired without its native return, end and player idle barriers",
+				),
+			)
 			_espeak.isSpeaking = False
 			_espeak.player.stop()
 
@@ -246,9 +270,12 @@ class SynthDriver(BaseSynthDriver):
 		self._queueSpeech(speechSequence, None)
 
 	def _queueSpeech(self, commands, work, operation=None):
-		native = _NativeSpeech(work, operation=operation,
+		native = _NativeSpeech(
+			work,
+			operation=operation,
 			retired=Event() if operation is not None else None,
-			handoff=Event() if operation is not None else None)
+			handoff=Event() if operation is not None else None,
+		)
 		with self._segmentAdmission:
 			if self._segmentTerminated:
 				if work is not None:
@@ -286,10 +313,12 @@ class SynthDriver(BaseSynthDriver):
 		with self._segmentCondition:
 			self._segmentNative = native
 		owner_ref = weakref.ref(self)
+
 		def index_callback(index):
 			owner = owner_ref()
 			if owner is not None:
 				owner._indexFor(native, index)
+
 		_espeak.onIndexReached = index_callback
 
 	def _admitConsumer(self, native=None):
@@ -375,7 +404,9 @@ class SynthDriver(BaseSynthDriver):
 			return
 		error = native.error
 		if error is None and not (native.returned and native.ended and native.idle_completed):
-			error = RuntimeError("eSpeak synthesis retired without its native return, end and player idle barriers")
+			error = RuntimeError(
+				"eSpeak synthesis retired without its native return, end and player idle barriers",
+			)
 		if error is not None:
 			_espeak.isSpeaking = False
 			if self._segmentControlError is None:
@@ -387,13 +418,22 @@ class SynthDriver(BaseSynthDriver):
 		self._dispatchSpeech(native, error)
 
 	def _dispatchSpeech(self, native, error):
-		Thread(target=self._deliverSpeech, args=(native, error), name="WorldVoice eSpeak completion", daemon=True).start()
+		Thread(
+			target=self._deliverSpeech,
+			args=(native, error),
+			name="WorldVoice eSpeak completion",
+			daemon=True,
+		).start()
 
 	def _deliverSpeech(self, native, error):
 		event_delivery = isinstance(error, PlaybackEvent)
 		try:
 			if event_delivery:
-				if not native.work.token.is_cancelled() and not native._espeak_cancelled and not self._segmentTerminated:
+				if (
+					not native.work.token.is_cancelled()
+					and not native._espeak_cancelled
+					and not self._segmentTerminated
+				):
 					native._espeak_sink(error)
 				return
 			with self._segmentCondition:

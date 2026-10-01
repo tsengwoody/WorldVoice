@@ -11,7 +11,7 @@ def _extract_core_archive(archive_path, workspace_path):
 	log.info(f"Found '{os.path.basename(archive_path)}', preparing to extract to '{workspace_path}'")
 
 	try:
-		with ZipFile(archive_path, 'r') as core_file:
+		with ZipFile(archive_path, "r") as core_file:
 			try:
 				core_file.testzip()
 			except (BadZipFile, RuntimeError) as e:
@@ -44,7 +44,9 @@ def _extract_core_archive(archive_path, workspace_path):
 			os.remove(archive_path)
 			log.info(f"Source archive '{os.path.basename(archive_path)}' removed.")
 		except OSError as e:
-			log.warning(f"Could not remove source archive '{os.path.basename(archive_path)}' (it may be locked): {e}")
+			log.warning(
+				f"Could not remove source archive '{os.path.basename(archive_path)}' (it may be locked): {e}",
+			)
 
 
 def onInstall():
@@ -70,9 +72,7 @@ def onInstall():
 		return
 
 	core_zip_paths = sorted(
-		os.path.join(core_dir, name)
-		for name in os.listdir(core_dir)
-		if name.lower().endswith(".zip")
+		os.path.join(core_dir, name) for name in os.listdir(core_dir) if name.lower().endswith(".zip")
 	)
 	if not core_zip_paths:
 		return

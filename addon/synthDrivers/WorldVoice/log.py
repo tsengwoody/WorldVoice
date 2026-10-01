@@ -42,22 +42,25 @@ class PipelineLog:
 		self._ensure_log_file()
 		with self.log_file.open(mode="a", encoding="utf-8", newline="") as csvfile:
 			writer = csv.DictWriter(csvfile, fieldnames=self.FIELDNAMES)
-			writer.writerow({
-				"id": _id,
-				"label": label,
-				"timing": timing,
-				"timestamp": time.time(),
-				"sequence": sequence,
-			})
+			writer.writerow(
+				{
+					"id": _id,
+					"label": label,
+					"timing": timing,
+					"timestamp": time.time(),
+					"sequence": sequence,
+				},
+			)
 
 	def export(self):
 		with wx.FileDialog(
 			# Translators: The title of the Export pipeline log file window
-			gui.mainFrame, message=_("Export pipeline log files..."),
+			gui.mainFrame,
+			message=_("Export pipeline log files..."),
 			defaultDir="",
 			defaultFile="pipeline_log.csv",
 			wildcard="csv files (*.csv)|*.csv",
-			style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
+			style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
 		) as entryDialog:
 			if entryDialog.ShowModal() != wx.ID_OK:
 				return
@@ -70,9 +73,9 @@ class PipelineLog:
 			wx.MessageBox(
 				_("Log exported to:\n{}").format(dst),
 				_("Success"),
-				style=wx.OK | wx.ICON_INFORMATION
+				style=wx.OK | wx.ICON_INFORMATION,
 			)
 		except Exception as e:
 			wx.LogError(
-				_("Cannot export log to {}:\n{}").format(dst, e)
+				_("Cannot export log to {}:\n{}").format(dst, e),
 			)

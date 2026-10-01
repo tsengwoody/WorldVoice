@@ -10,12 +10,26 @@ from synthDriverHandler import LanguageInfo
 from logHandler import log
 
 from . import driver as base
-from .driver import SynthDriver as BaseSynthDriver, TtsSetParamList, ProcessText2Speech as BaseProcessText2Speech
+from .driver import (
+	SynthDriver as BaseSynthDriver,
+	TtsSetParamList,
+	ProcessText2Speech as BaseProcessText2Speech,
+)
 from .driver import ve2
 from .driver.ve2.veTypes import (
-	VE_PARAM_LANGUAGE, VE_PARAM_VOICE_OPERATING_POINT, VE_CBOUTNOTIFY,
-	VE_OUTDATA, VE_MARKINFO, VE_INTEXT, VE_NORM_TEXT, VE_MSG_OUTBUFREQ, VE_MSG_OUTBUFDONE,
-	VE_MSG_ENDPROCESS, VE_MRK_BOOKMARK, NUAN_OK, NUAN_E_TTS_USERSTOP,
+	VE_PARAM_LANGUAGE,
+	VE_PARAM_VOICE_OPERATING_POINT,
+	VE_CBOUTNOTIFY,
+	VE_OUTDATA,
+	VE_MARKINFO,
+	VE_INTEXT,
+	VE_NORM_TEXT,
+	VE_MSG_OUTBUFREQ,
+	VE_MSG_OUTBUFDONE,
+	VE_MSG_ENDPROCESS,
+	VE_MRK_BOOKMARK,
+	NUAN_OK,
+	NUAN_E_TTS_USERSTOP,
 )
 from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
 from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
@@ -91,6 +105,7 @@ class _GuardedPlayer:
 
 class _SpeechWork:
 	"""One synchronous batch; errors are delivered after callback retirement."""
+
 	def __init__(self, token, playback=None, completion=None):
 		self.token = token
 		self.playback = playback
@@ -104,8 +119,7 @@ class _SpeechWork:
 
 	def is_valid(self):
 		with self._lock:
-			return self._active and self.error is None and not (
-				self.token and self.token.is_cancelled())
+			return self._active and self.error is None and not (self.token and self.token.is_cancelled())
 
 	def cancel(self):
 		with self._lock:
@@ -174,6 +188,7 @@ class ProcessText2Speech(BaseProcessText2Speech):
 
 class _LegacyLease:
 	"""Preserve legacy compatibility without asserting SDK quiescence."""
+
 	def __init__(self, driver, native):
 		self._driver = driver
 		self.native = native
@@ -187,6 +202,7 @@ class _LegacyLease:
 
 class _ContextualVECallback(base.VECallback):
 	"""Constructor-installed native callback; never borrows a later call's work."""
+
 	def __init__(self, driver, player, isSilence, onIndexReached):
 		super().__init__(player, isSilence, onIndexReached)
 		self._driver = weakref.ref(driver)
@@ -209,8 +225,11 @@ class _ContextualVECallback(base.VECallback):
 		if lease is None:
 			# Legacy ENDPROCESS historically acknowledges cancellation. It
 			# cannot flush or clear anything without an admitted call lease.
-			if native is not None and native.work.playback is None and (
-				message.contents.eMessage == VE_MSG_ENDPROCESS):
+			if (
+				native is not None
+				and native.work.playback is None
+				and (message.contents.eMessage == VE_MSG_ENDPROCESS)
+			):
 				return NUAN_OK
 			return NUAN_E_TTS_USERSTOP
 		work = lease.work
@@ -326,11 +345,19 @@ class SynthDriver(BaseSynthDriver):
 			device = base.config.conf["audio"]["outputDevice"]
 		except KeyError:
 			device = base.config.conf["speech"]["outputDevice"]
-		self._player = base.nvwave.WavePlayer(channels=1, samplesPerSec=22050,
-			bitsPerSample=16, outputDevice=device)
+		self._player = base.nvwave.WavePlayer(
+			channels=1,
+			samplesPerSec=22050,
+			bitsPerSample=16,
+			outputDevice=device,
+		)
 		self._isSilence = threading.Event()
-		self._veCallbackHandler = _ContextualVECallback(self, self._player,
-			self._isSilence, self._onIndexReached)
+		self._veCallbackHandler = _ContextualVECallback(
+			self,
+			self._player,
+			self._isSilence,
+			self._onIndexReached,
+		)
 		self._veCallback = VE_CBOUTNOTIFY(self._veCallbackHandler)
 		self._resources = base.getAvailableResources()
 		self._voice = next(iter(self.availableVoices))
@@ -342,8 +369,11 @@ class SynthDriver(BaseSynthDriver):
 		if callback is None or not all(
 			hasattr(obj, name)
 			for obj, name in (
-				(self, "_isSilence"), (self, "_player"),
-				(callback, "_isSilence"), (callback, "_player"), (callback, "_feedBuf"),
+				(self, "_isSilence"),
+				(self, "_player"),
+				(callback, "_isSilence"),
+				(callback, "_player"),
+				(callback, "_feedBuf"),
 			)
 		):
 			log.warning("VE cancellation guard unavailable; using original driver")
@@ -359,8 +389,10 @@ class SynthDriver(BaseSynthDriver):
 		except Exception:
 			restoration_errors = []
 			for obj, name, value in (
-				(self, "_isSilence", original[0]), (self, "_player", original[1]),
-				(callback, "_isSilence", original[2]), (callback, "_player", original[3]),
+				(self, "_isSilence", original[0]),
+				(self, "_player", original[1]),
+				(callback, "_isSilence", original[2]),
+				(callback, "_player", original[3]),
 			):
 				try:
 					setattr(obj, name, value)
@@ -387,14 +419,22 @@ class SynthDriver(BaseSynthDriver):
 		# Explicit activation override; retain the callback guard and idle barrier.
 		return None
 
-	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
-		context: PlaybackContext, on_event: SegmentEventSink) -> None:
+	def speak_segment(
+		self,
+		commands: SpeechCommands,
+		token: CancellationView,
+		*,
+		context: PlaybackContext,
+		on_event: SegmentEventSink,
+	) -> None:
 		completion = threading.Event()
+
 		def deliver(event):
 			try:
 				on_event(event)
 			finally:
 				completion.set()
+
 		with self._speechStateLock:
 			admission_error = self._segmentBlockedError
 			if admission_error is None:
@@ -432,7 +472,10 @@ class SynthDriver(BaseSynthDriver):
 	def _wait_segment_delivery(self, completion, token):
 		# A listener may synchronously ask for another segment. The coordinator
 		# owns a single delivery thread, so it cannot wait for its own callback.
-		if not token.is_cancelled() and threading.current_thread() is not self._segmentLifecycle._delivery_thread:
+		if (
+			not token.is_cancelled()
+			and threading.current_thread() is not self._segmentLifecycle._delivery_thread
+		):
 			while not completion.wait(0.05):
 				# External tokens have no notification hook. Poll only while the
 				# caller is waiting; direct cancellation sets completion itself.
@@ -480,8 +523,9 @@ class SynthDriver(BaseSynthDriver):
 		try:
 			self._real_player.idle()
 			with self._speechStateLock:
-				self._speechStateLock.wait_for(lambda: (
-					self._pauses == 0 and not self._paused) or not work.is_valid())
+				self._speechStateLock.wait_for(
+					lambda: (self._pauses == 0 and not self._paused) or not work.is_valid(),
+				)
 			if work.error is not None:
 				raise work.error
 			work.drained = work.is_valid() and not self._isSilence.cancelled()
@@ -557,7 +601,11 @@ class SynthDriver(BaseSynthDriver):
 					work.fault(self._segmentBlockedError)
 					return
 				if work.playback is not None and self._legacyUsed:
-					work.fault(RuntimeError("Legacy VE callback lifetimes are unproven; cannot enter correlated mode"))
+					work.fault(
+						RuntimeError(
+							"Legacy VE callback lifetimes are unproven; cannot enter correlated mode",
+						),
+					)
 					return
 				self._currentWork = work
 				self._legacyUsed |= work.playback is None
@@ -590,7 +638,9 @@ class SynthDriver(BaseSynthDriver):
 		for piece in split_speech_text_pieces(break_repeated_runs("".join(chunks))):
 			if not work.is_valid() or self._isSilence.cancelled():
 				break
-			producer = self._segmentLifecycle.admit_producer(work.operation) if work.operation is not None else None
+			producer = (
+				self._segmentLifecycle.admit_producer(work.operation) if work.operation is not None else None
+			)
 			call = self._segmentGate.begin_native(work) if work.playback is not None else None
 			native = _NativeWork(work, voiceInstance, call, producer=producer)
 			if work.operation is not None:
@@ -685,8 +735,9 @@ class SynthDriver(BaseSynthDriver):
 		self._real_player.idle()
 		if work is not None:
 			with self._speechStateLock:
-				self._speechStateLock.wait_for(lambda: (
-					self._pauses == 0 and not self._paused) or not work.is_valid())
+				self._speechStateLock.wait_for(
+					lambda: (self._pauses == 0 and not self._paused) or not work.is_valid(),
+				)
 				work.drained = work.is_valid() and not self._isSilence.cancelled()
 
 	def cancel(self):
@@ -710,8 +761,9 @@ class SynthDriver(BaseSynthDriver):
 				work.cancel()
 			for pending in self._segmentWorks:
 				pending.cancel()
-			operations = tuple(pending.operation for pending in self._segmentWorks
-				if pending.operation is not None)
+			operations = tuple(
+				pending.operation for pending in self._segmentWorks if pending.operation is not None
+			)
 			native = self._nativeWork
 			if native is not None:
 				native.admitting = False
@@ -804,10 +856,12 @@ class SynthDriver(BaseSynthDriver):
 			self._retire_player_operation()
 
 	def _is_reentrant_termination(self):
-		return bool(getattr(self._callbackLocal, "depth", 0) or
-			getattr(self._speechLocal, "depth", 0) or
-			getattr(self._playerLocal, "depth", 0) or
-			getattr(self._terminationLocal, "cleaning", False))
+		return bool(
+			getattr(self._callbackLocal, "depth", 0)
+			or getattr(self._speechLocal, "depth", 0)
+			or getattr(self._playerLocal, "depth", 0)
+			or getattr(self._terminationLocal, "cleaning", False),
+		)
 
 	def _retire_player_operation(self):
 		self._playerLocal.depth -= 1
@@ -852,7 +906,8 @@ class SynthDriver(BaseSynthDriver):
 			# coordinator retirement barrier.
 			with self._segmentLifecycle._condition:
 				self._segmentLifecycle._condition.wait_for(
-					lambda: not self._segmentLifecycle._resource_busy)
+					lambda: not self._segmentLifecycle._resource_busy,
+				)
 			with self._speechRunLock:
 				with self._speechStateLock:
 					self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
@@ -886,7 +941,10 @@ class Voice(Voice):
 		instance = core.getVoiceInstance(snapshot.voice_id)
 		if getattr(self, "_defaultVariantCore", None) is not core:
 			self._defaultVariant = core.getParameter(
-				instance, VE_PARAM_VOICE_OPERATING_POINT, type_=str)
+				instance,
+				VE_PARAM_VOICE_OPERATING_POINT,
+				type_=str,
+			)
 			self._defaultVariantCore = core
 		if snapshot.variant != "default" and snapshot.variant not in core.availableVariants:
 			raise ValueError(f"Unavailable variant: {snapshot.variant}")
@@ -897,13 +955,18 @@ class Voice(Voice):
 	@property
 	def variants(self):
 		language = self.core.getParameter(
-			self.core.getVoiceInstance(self.id), VE_PARAM_LANGUAGE, type_=str,
+			self.core.getVoiceInstance(self.id),
+			VE_PARAM_LANGUAGE,
+			type_=str,
 		)  # FIXME: store language...
 		dbs = ve2.getSpeechDBList(language, self.id)
-		return [{
-			"id": item,
-			"name": item,
-		} for item in dbs]
+		return [
+			{
+				"id": item,
+				"name": item,
+			}
+			for item in dbs
+		]
 
 	@classmethod
 	def voices(cls):
@@ -929,14 +992,16 @@ class Voice(Voice):
 				else:
 					langDescription = localeName
 			name = voice.id
-			result.append({
-				"id": name,
-				"name": getVoiceKey(cls.engine, name),
-				"locale": localeName,
-				"language": localeName,
-				"langDescription": langDescription,
-				"description": "%s - %s [%s]" % (name, langDescription, cls.engine),
-				"engine": cls.engine,
-			})
+			result.append(
+				{
+					"id": name,
+					"name": getVoiceKey(cls.engine, name),
+					"locale": localeName,
+					"language": localeName,
+					"langDescription": langDescription,
+					"description": "%s - %s [%s]" % (name, langDescription, cls.engine),
+					"engine": cls.engine,
+				},
+			)
 
 		return result

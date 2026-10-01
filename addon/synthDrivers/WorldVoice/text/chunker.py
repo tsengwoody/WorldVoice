@@ -11,6 +11,7 @@ MAX_TEXT_LENGTH = 100
 # Vocalizer control escape: ESC + backslash + content + backslash.
 _ESCAPE_RE = re.compile(r"\x1b\\.*?\\")
 
+
 def split_speech_text_pieces(text, max_length=MAX_TEXT_LENGTH):
 	"""Split *text* into pieces of at most *max_length* plain characters.
 
@@ -29,7 +30,7 @@ def split_speech_text_pieces(text, max_length=MAX_TEXT_LENGTH):
 	tokens = []
 	for match in _ESCAPE_RE.finditer(text):
 		if match.start() > pos:
-			tokens.append(text[pos:match.start()])
+			tokens.append(text[pos : match.start()])
 		tokens.append(match.group())
 		pos = match.end()
 	if pos < len(text):

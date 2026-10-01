@@ -27,10 +27,10 @@ V = TypeVar("V")
 
 
 def groupByField(
-		arrSrc: List[T],
-		field: str,
-		applyKey: Callable[[str], K],
-		applyValue: Callable[[T], V]
+	arrSrc: List[T],
+	field: str,
+	applyKey: Callable[[str], K],
+	applyValue: Callable[[T], V],
 ) -> Dict[K, List[V]]:
 	groups: Dict[K, List[V]] = defaultdict(list)
 	for item in arrSrc:
@@ -63,8 +63,15 @@ class VoiceManager(object):
 	def ready(cls):
 		return True
 
-	def __init__(self, taskManager: TaskManager, settings: VoiceSettingsStore, bridge: NvdaEventBridge, *,
-			index_ledger: IndexLedger, completion_for: Callable[[type, object], CompletionContract]):
+	def __init__(
+		self,
+		taskManager: TaskManager,
+		settings: VoiceSettingsStore,
+		bridge: NvdaEventBridge,
+		*,
+		index_ledger: IndexLedger,
+		completion_for: Callable[[type, object], CompletionContract],
+	):
 		self.taskManager = taskManager
 		self.settings = settings
 		self._bridge = bridge
@@ -84,7 +91,9 @@ class VoiceManager(object):
 			raise
 
 	def _initialize(self):
-		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"]
+		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"][
+			"KeepMainLocaleEngineConsistent"
+		]
 		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
 		for eng in EngineType:
 			if not get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"]):
@@ -92,16 +101,22 @@ class VoiceManager(object):
 			cls = READY_ENGINE_CLASS.get(eng.name)
 			if cls is None:
 				continue
-			adapter = LegacyEngineAdapter(cls, self.getVoiceInstance, index_ledger=self._index_ledger,
-				is_source_owned=lambda source: any(resource[0] is source for resource in self._resources))
+			adapter = LegacyEngineAdapter(
+				cls,
+				self.getVoiceInstance,
+				index_ledger=self._index_ledger,
+				is_source_owned=lambda source: any(resource[0] is source for resource in self._resources),
+			)
 			try:
 				adapter.open()
 			except Exception:
 				log.error("engine %s on error", eng.name, exc_info=True)
 				continue
 			# Retain identities (not equality) for the entire resource lifetime.
-			owner = next((resource for resource in self._resources
-				if resource[0] is adapter.notification_source), None)
+			owner = next(
+				(resource for resource in self._resources if resource[0] is adapter.notification_source),
+				None,
+			)
 			if owner is not None:
 				session = owner[1]
 				self._resources.append((adapter.notification_source, session, adapter, cls, False))
@@ -119,10 +134,18 @@ class VoiceManager(object):
 				self._bridge.bind(adapter.notification_source, session.source_id, completion=completion)
 				if completion.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX_AND_DRAIN):
 					adapter.configure_segment_events(
-						lambda context, source=adapter.notification_source: self._bridge.segment_sink(source, context))
+						lambda context, source=adapter.notification_source: self._bridge.segment_sink(
+							source,
+							context,
+						),
+					)
 				elif completion.legacy_contextual:
 					adapter.configure_legacy_segment_events(
-						lambda context, source=adapter.notification_source: self._bridge.legacy_segment_sink(source, context))
+						lambda context, source=adapter.notification_source: self._bridge.legacy_segment_sink(
+							source,
+							context,
+						),
+					)
 			cls.session = session
 			cls._runtime_binding = LegacyVoiceBinding(self.settings, session, self.getVoiceSpec)
 			# Only bound, operational resources become visible to resolvers.
@@ -137,7 +160,9 @@ class VoiceManager(object):
 
 	def _resource_completion(self, cls, source):
 		completion = self._completion_for(cls, source)
-		if completion.mode is CompletionMode.LEGACY_DONE and callable(getattr(source, "speak_legacy_segment", None)):
+		if completion.mode is CompletionMode.LEGACY_DONE and callable(
+			getattr(source, "speak_legacy_segment", None),
+		):
 			completion = replace(completion, legacy_contextual=True)
 		return completion
 
@@ -243,8 +268,12 @@ class VoiceManager(object):
 		spec = self.getVoiceSpec(voiceName)
 		cls = READY_ENGINE_CLASS[spec.engine]
 		self.settings.ensure(spec)
-		voiceInstance = cls(id=spec.id, name=spec.name, language=spec.language,
-			taskManager=self.taskManager)
+		voiceInstance = cls(
+			id=spec.id,
+			name=spec.name,
+			language=spec.language,
+			taskManager=self.taskManager,
+		)
 		voiceInstance.session = self._sessions[spec.engine]
 		self._instanceCache[voiceName] = voiceInstance
 		return voiceInstance
@@ -270,7 +299,7 @@ class VoiceManager(object):
 		for key, value in config.conf["WorldVoice"]["role"].items():
 			if isinstance(value, config.AggregatedSection):
 				try:
-					temp[key]['voice'] = config.conf["WorldVoice"]["role"][key]["voice"]
+					temp[key]["voice"] = config.conf["WorldVoice"]["role"][key]["voice"]
 				except KeyError:
 					pass
 			else:
@@ -278,7 +307,9 @@ class VoiceManager(object):
 
 		for localelo, data in config.conf["WorldVoice"]["role"].items():
 			if isinstance(data, config.AggregatedSection):
-				if (localelo not in self.localeToVoicesMap) or ('voice' in data and data['voice'] not in self.localeToVoicesMap[localelo]):
+				if (localelo not in self.localeToVoicesMap) or (
+					"voice" in data and data["voice"] not in self.localeToVoicesMap[localelo]
+				):
 					try:
 						del temp[localelo]
 					except KeyError:
@@ -289,11 +320,15 @@ class VoiceManager(object):
 
 	def onKeepMainLocaleVoiceConsistent(self):
 		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
-			locale = self.defaultVoiceInstance.language if self.defaultVoiceInstance.language else languageHandler.getLanguage()
+			locale = (
+				self.defaultVoiceInstance.language
+				if self.defaultVoiceInstance.language
+				else languageHandler.getLanguage()
+			)
 			locale = getPrimaryLocale(locale)
 			if locale not in config.conf["WorldVoice"]["role"]:
 				config.conf["WorldVoice"]["role"][locale] = {}
-			config.conf["WorldVoice"]["role"][locale]['voice'] = self.defaultVoiceInstance.name
+			config.conf["WorldVoice"]["role"][locale]["voice"] = self.defaultVoiceInstance.name
 
 	def reload(self):
 		for voiceName, instance in self._instanceCache.items():
@@ -364,14 +399,14 @@ class VoiceManager(object):
 		voice = None
 		if language in config.conf["WorldVoice"]["role"]:
 			try:
-				voice = config.conf["WorldVoice"]["role"][language]['voice']
+				voice = config.conf["WorldVoice"]["role"][language]["voice"]
 			except KeyError:
 				pass
 		if not voice:
 			locale = getPrimaryLocale(language)
 			if locale in config.conf["WorldVoice"]["role"]:
 				try:
-					voice = config.conf["WorldVoice"]["role"][locale]['voice']
+					voice = config.conf["WorldVoice"]["role"][locale]["voice"]
 				except KeyError:
 					pass
 		return voice

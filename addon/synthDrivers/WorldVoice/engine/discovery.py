@@ -67,10 +67,21 @@ def _load_manifest(path: Path, logger: Any = None) -> dict[str, Any] | None:
 	try:
 		data = json.loads(path.read_text(encoding="utf-8"))
 	except Exception as error:  # noqa: BLE001
-		_log(logger, "warning", "Skipping %s engine candidate: invalid manifest (%s)", path.parent.name, error)
+		_log(
+			logger,
+			"warning",
+			"Skipping %s engine candidate: invalid manifest (%s)",
+			path.parent.name,
+			error,
+		)
 		return None
 	if not isinstance(data, dict):
-		_log(logger, "warning", "Skipping %s engine candidate: manifest must be a JSON object", path.parent.name)
+		_log(
+			logger,
+			"warning",
+			"Skipping %s engine candidate: manifest must be a JSON object",
+			path.parent.name,
+		)
 		return None
 	return data
 
@@ -118,7 +129,9 @@ def discover_engine_specs(
 		manifest = _load_manifest(manifest_path, logger=logger)
 		if manifest is None:
 			continue
-		specs.append(_build_engine_spec(name, source, f"{internal_package}.{name}", internal_import_root, manifest))
+		specs.append(
+			_build_engine_spec(name, source, f"{internal_package}.{name}", internal_import_root, manifest),
+		)
 
 	for name, manifest_path, source in _iter_external_candidates(external_root_path):
 		if not manifest_path.is_file():
@@ -168,7 +181,13 @@ def load_enabled_engine_classes(
 				continue
 			voice_engine = getattr(voice, "engine", None)
 			if voice_engine is not None and voice_engine != spec.name:
-				_log(logger, "warning", "Skipping %s engine candidate: Voice.engine mismatch (%s)", spec.name, voice_engine)
+				_log(
+					logger,
+					"warning",
+					"Skipping %s engine candidate: Voice.engine mismatch (%s)",
+					spec.name,
+					voice_engine,
+				)
 				continue
 			step_start = time.perf_counter()
 			try:

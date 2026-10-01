@@ -14,6 +14,7 @@ def guard_errors(callback=None):
 		A callback to invoke *after* the user presses OK in the dialog
 		(or immediately if no dialog is shown).  `self` is passed in.
 	"""
+
 	def decorator(func):
 		@wraps(func)
 		def wrapper(self, *args, **kwargs):
@@ -25,14 +26,15 @@ def guard_errors(callback=None):
 				# show a modal error dialog
 				gui.messageBox(
 					# Body text
-					_("An unexpected error occurred while processing your action.\n\n"
-					  "Details: {err}\n\n"
-					  "A full stack trace has been written to the NVDA log.")
-					.format(err=str(e)),
+					_(
+						"An unexpected error occurred while processing your action.\n\n"
+						"Details: {err}\n\n"
+						"A full stack trace has been written to the NVDA log.",
+					).format(err=str(e)),
 					# Caption
 					_("WorldVoice Setting Dialog - Error"),
 					# Style flags
-					wx.OK | wx.ICON_ERROR
+					wx.OK | wx.ICON_ERROR,
 				)
 
 				# If the user acknowledged the dialog, invoke the callback
@@ -44,5 +46,7 @@ def guard_errors(callback=None):
 						log.error("Error in guard_errors callback", exc_info=True)
 
 				return None
+
 		return wrapper
+
 	return decorator

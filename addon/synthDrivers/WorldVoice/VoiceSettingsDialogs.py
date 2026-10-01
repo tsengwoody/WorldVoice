@@ -77,13 +77,13 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 					charactersItem.GetBorder(),
 				)
 			self.punctuationPauseCharactersEdit.MoveAfterInTabOrder(
-				self.punctuationwaitfactorSlider
+				self.punctuationwaitfactorSlider,
 			)
 		self.punctuationPauseCharactersEdit.SetValue(
 			config.conf["WorldVoice"]["pipeline"].get(
 				"punctuation_pause_characters",
 				DEFAULT_PIPELINE_SETTINGS["punctuation_pause_characters"],
-			)
+			),
 		)
 
 	def onSave(self):
@@ -109,7 +109,11 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			log.debug(f"Current sizerDict: {self.sizerDict!r}")
 			log.debug(f"Current supportedSettings: {self.getSettings().supportedSettings!r}")
 
-		supportedSettings = settingsInst.allSupportedSettings if hasattr(settingsInst, "allSupportedSettings") else settingsInst.supportedSettings
+		supportedSettings = (
+			settingsInst.allSupportedSettings
+			if hasattr(settingsInst, "allSupportedSettings")
+			else settingsInst.supportedSettings
+		)
 		for setting in supportedSettings:
 			if setting.id == changedSetting:
 				# Changing a setting shouldn't cause that setting's own values to change.
@@ -125,11 +129,11 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self.settingsSizer.Show(self.sizerDict[setting.id])
 		if isinstance(setting, NumericDriverSetting):
 			getattr(self, f"{setting.id}Slider").SetValue(
-				getattr(settingsStorage, setting.id)
+				getattr(settingsStorage, setting.id),
 			)
 		elif isinstance(setting, BooleanDriverSetting):
 			getattr(self, f"{setting.id}Checkbox").SetValue(
-				getattr(settingsStorage, setting.id)
+				getattr(settingsStorage, setting.id),
 			)
 		else:
 			stringSettingAttribName = f"_{setting.id}s"
@@ -138,10 +142,12 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 				stringSettingAttribName,
 				# Settings are stored as an ordered dict.
 				# Therefore wrap this inside a list call.
-				list(getattr(
-					self.getSettings(),
-					f"available{setting.id.capitalize()}s"
-				).values())
+				list(
+					getattr(
+						self.getSettings(),
+						f"available{setting.id.capitalize()}s",
+					).values(),
+				),
 			)
 			options = getattr(self, stringSettingAttribName)
 

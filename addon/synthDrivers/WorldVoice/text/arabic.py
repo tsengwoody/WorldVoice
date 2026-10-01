@@ -32,12 +32,12 @@ def break_repeated_runs(text, max_run=MAX_REPEATED_RUN):
 
 	def _repl(match):
 		run = match.group(0)
-		return " ".join(run[i:i + max_run] for i in range(0, len(run), max_run))
+		return " ".join(run[i : i + max_run] for i in range(0, len(run), max_run))
 
 	parts = []
 	pos = 0
 	for match in _ESCAPE_RE.finditer(text):
-		parts.append(pattern.sub(_repl, text[pos:match.start()]))
+		parts.append(pattern.sub(_repl, text[pos : match.start()]))
 		parts.append(match.group())
 		pos = match.end()
 	parts.append(pattern.sub(_repl, text[pos:]))

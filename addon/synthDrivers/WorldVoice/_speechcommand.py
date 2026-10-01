@@ -18,8 +18,7 @@ class WVLangChangeCommand(SynthParamCommand):
 
 
 class SplitCommand(SynthCommand):
-	"""Insert a split command when text exceed max length.
-	"""
+	"""Insert a split command when text exceed max length."""
 
 	def __repr__(self):
 		return "SplitCommand()"

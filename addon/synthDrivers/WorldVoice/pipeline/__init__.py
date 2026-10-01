@@ -38,7 +38,8 @@ class PunctuationBreakCommand(BreakCommand):
 
 
 def with_order_log(label: str):
-	""" The order numbers are reversed because of recursion: the order number assigned earlier execution is greater than that of a later execution."""
+	"""The order numbers are reversed because of recursion: the order number assigned earlier execution is greater than that of a later execution."""
+
 	def decorator(func):
 		@wraps(func)
 		def wrapper(speechSequence):
@@ -50,7 +51,9 @@ def with_order_log(label: str):
 				except Exception:
 					pass
 			return func(speechSequence)
+
 		return wrapper
+
 	return decorator
 
 
@@ -58,7 +61,10 @@ def with_speech_sequence_log(label: str):
 	def decorator(func):
 		@wraps(func)
 		def wrapper(speechSequence):
-			if (config.conf["general"]["loggingLevel"] == "DEBUG" or config.conf["WorldVoice"]["log"]["enable"]) and config.conf["WorldVoice"]["log"][label]:
+			if (
+				config.conf["general"]["loggingLevel"] == "DEBUG"
+				or config.conf["WorldVoice"]["log"]["enable"]
+			) and config.conf["WorldVoice"]["log"][label]:
 				_id = uuid.uuid4().hex
 				speechSequence = list(speechSequence)
 				if config.conf["general"]["loggingLevel"] == "DEBUG":
@@ -74,7 +80,9 @@ def with_speech_sequence_log(label: str):
 			else:
 				speechSequence = func(speechSequence)
 			return speechSequence
+
 		return wrapper
+
 	return decorator
 
 
@@ -85,6 +93,7 @@ def listable(func):
 		speechSequence = func(speechSequence)
 		speechSequence = list(speechSequence)
 		return speechSequence
+
 	return wrapper
 
 
@@ -100,7 +109,7 @@ def get_number_mode():
 
 def get_translate_table():
 	synth = getSynth()
-	if synth.name == 'WorldVoice':
+	if synth.name == "WorldVoice":
 		number_language = synth._numlan
 		speech_symbols = synth.speechSymbols
 	else:
@@ -164,7 +173,10 @@ def speech_viewer(speechSequence):
 @with_speech_sequence_log("ignore_comma_between_number")
 def ignore_comma_between_number(speechSequence):
 	if get_ignore_comma_between_number():
-		yield from (_COMMA_NUMBER_RE.sub(lambda m: '', command) if isinstance(command, str) else command for command in speechSequence)
+		yield from (
+			_COMMA_NUMBER_RE.sub(lambda m: "", command) if isinstance(command, str) else command
+			for command in speechSequence
+		)
 	else:
 		yield from speechSequence
 
@@ -182,7 +194,7 @@ def apply_speech_dictionaries(speechSequence):
 # @with_order_log("item_wait_factor")
 @with_speech_sequence_log("item_wait_factor")
 def item_wait_factor(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert a BreakCommand between every two consecutive plain‑text items.
@@ -199,8 +211,8 @@ def item_wait_factor(
 	it = iter(speechSequence)
 
 	try:
-		first = next(it)				 # Grab the first element.
-	except StopIteration:				# Empty sequence → nothing to yield.
+		first = next(it)  # Grab the first element.
+	except StopIteration:  # Empty sequence → nothing to yield.
 		return
 
 	# Special case: only one element in the whole sequence.
@@ -218,16 +230,16 @@ def item_wait_factor(
 
 	# Use pairwise() on the *entire* stream so (first, second) is compared.
 	for previous, current in pairwise(full_iter):
-		yield previous					   # Always emit the previousious element.
+		yield previous  # Always emit the previousious element.
 		if isinstance(previous, str) and isinstance(current, str):
-			yield break_cmd			  # Insert pause when both are strings.
+			yield break_cmd  # Insert pause when both are strings.
 
 	# pairwise() stops before the last element, so emit it here.
 	yield current
 
 
 def _insert_BreakCommand_between_number(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert a BreakCommand between every two consecutive plain‑text items.
@@ -246,8 +258,8 @@ def _insert_BreakCommand_between_number(
 	it = iter(speechSequence)
 
 	try:
-		first = next(it)				 # Grab the first element.
-	except StopIteration:				# Empty sequence → nothing to yield.
+		first = next(it)  # Grab the first element.
+	except StopIteration:  # Empty sequence → nothing to yield.
 		return
 
 	# Special case: only one element in the whole sequence.
@@ -265,17 +277,21 @@ def _insert_BreakCommand_between_number(
 
 	# Use pairwise() on the *entire* stream so (first, second) is compared.
 	for previous, current in pairwise(full_iter):
-		yield previous					   # Always emit the previousious element.
-		if isinstance(previous, str) and _NUMBER_RE.match(previous) \
-		and isinstance(current, str) and _NUMBER_RE.match(current):
-			yield break_cmd			  # Insert pause when both are strings.
+		yield previous  # Always emit the previousious element.
+		if (
+			isinstance(previous, str)
+			and _NUMBER_RE.match(previous)
+			and isinstance(current, str)
+			and _NUMBER_RE.match(current)
+		):
+			yield break_cmd  # Insert pause when both are strings.
 
 	# pairwise() stops before the last element, so emit it here.
 	yield current
 
 
 def _remove_space(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Yield items from *speechSequence* while removing blank strings on the fly.
@@ -302,7 +318,7 @@ def _remove_space(
 # @with_order_log("number_wait_factor")
 @with_speech_sequence_log("number_wait_factor")
 def number_wait_factor(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	speechSequence = _remove_space(speechSequence)
 	speechSequence = _insert_BreakCommand_between_number(speechSequence)
@@ -319,7 +335,7 @@ def remove_language_command(speechSequence):
 
 
 def _insert_WVLangChangeCommand_between_number(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Yield *speechSequence* while wrapping every numeric fragment with
@@ -338,7 +354,11 @@ def _insert_WVLangChangeCommand_between_number(
 			if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
 				current_lang = item.lang or default_lang
 			continue
-		yield from merge_consecutive_strings(deduplicate_language_command(iter_number_speech_segments_language(item, current_lang, number_language)))
+		yield from merge_consecutive_strings(
+			deduplicate_language_command(
+				iter_number_speech_segments_language(item, current_lang, number_language),
+			),
+		)
 
 
 def iter_number_speech_segments_language(item, current_lang, number_language, number_re=_NUMBER_RE):
@@ -348,7 +368,7 @@ def iter_number_speech_segments_language(item, current_lang, number_language, nu
 	  - WVLangChangeCommand(num_lang)
 	  - The numeric fragment as it appears
 	  - WVLangChangeCommand(current_lang)
-	
+
 	The function processes the input string without building an intermediate list.
 	"""
 	pos = 0
@@ -377,7 +397,7 @@ def iter_number_speech_segments_language(item, current_lang, number_language, nu
 # @with_order_log("number_language")
 @with_speech_sequence_log("number_language")
 def inject_number_language(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	synth = getSynth()
 	if hasattr(synth, "_voiceManager"):
@@ -413,7 +433,7 @@ def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[Sp
 		if digits and digits[0] in "+-":
 			sign = digits[0]
 			digits = digits[1:]
-		pairs = [digits[i:i + 2] for i in range(0, len(digits), 2)]
+		pairs = [digits[i : i + 2] for i in range(0, len(digits), 2)]
 		pause = get_pair_wait_factor()
 		separator: SpeechCmd = PairNumberBreakCommand(pause) if pause > 0 else " "
 		for index, pair in enumerate(pairs):
@@ -430,10 +450,11 @@ def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[Sp
 		yield character.translate(table)
 		previous_was_digit = is_digit
 
+
 # @with_order_log("number_mode")
 @with_speech_sequence_log("number_mode")
 def inject_number_mode(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	mode = get_number_mode()
 	translate_table = get_translate_table()
@@ -444,10 +465,14 @@ def inject_number_mode(
 			continue
 
 		synth = getSynth()
-		if synth.name == 'WorldVoice':
-			yield from merge_consecutive_strings(deduplicate_language_command(iter_number_speech_segments_mode(item, mode, translate_table)))
+		if synth.name == "WorldVoice":
+			yield from merge_consecutive_strings(
+				deduplicate_language_command(iter_number_speech_segments_mode(item, mode, translate_table)),
+			)
 		else:
-			yield from merge_consecutive_strings(iter_number_speech_segments_mode(item, mode, translate_table))
+			yield from merge_consecutive_strings(
+				iter_number_speech_segments_mode(item, mode, translate_table),
+			)
 
 
 def iter_number_speech_segments_mode(item, mode, translate_table, number_re=_NUMBER_RE):
@@ -490,7 +515,7 @@ def merge_consecutive_strings(items):
 # @with_order_log("chinesespace_wait_factor")
 @with_speech_sequence_log("chinesespace_wait_factor")
 def inject_chinese_space_pause(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	waitfactor = get_chinesespace_wait_factor()
 	if waitfactor <= 0:
@@ -512,7 +537,7 @@ def inject_chinese_space_pause(
 			# emit text before the CJK-space-CJK pattern
 			if start > pos:
 				yield item[pos:start]
-			pos = end		# advance pointer to character after the space
+			pos = end  # advance pointer to character after the space
 
 			# insert the pause once for this space
 			yield pause_cmd
@@ -540,8 +565,8 @@ def _get_punctuation_regex(chars: str) -> re.Pattern:
 
 
 def _split_punctuation_segments(
-		text: str,
-		regex: re.Pattern,
+	text: str,
+	regex: re.Pattern,
 ) -> Iterator[tuple[str, str]]:
 	"""
 	Split *text* into ("text"|"punct", value) segments.
@@ -553,7 +578,7 @@ def _split_punctuation_segments(
 	pos = 0
 	for match in regex.finditer(text):
 		if match.start() > pos:
-			yield ("text", text[pos:match.start()])
+			yield ("text", text[pos : match.start()])
 		yield ("punct", match.group())
 		pos = match.end()
 	if pos < len(text):
@@ -563,7 +588,7 @@ def _split_punctuation_segments(
 # @with_order_log("punctuation_wait_factor")
 @with_speech_sequence_log("punctuation_wait_factor")
 def inject_punctuation_pause(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert pauses at eligible punctuation and optionally omit those marks
@@ -609,16 +634,19 @@ def inject_punctuation_pause(
 		parts = list(_split_punctuation_segments(item, regex))
 		stripped = item.rstrip()
 		boundary_eligible = bool(stripped and stripped[-1] in chars and removal_text_follows)
-		boundary_pause = bool(pause_cmd is not None and stripped and stripped[-1] in chars and pause_text_follows)
+		boundary_pause = bool(
+			pause_cmd is not None and stripped and stripped[-1] in chars and pause_text_follows,
+		)
 		last_punctuation_index = max(
 			(index for index, (kind, _) in enumerate(parts) if kind == "punct"),
 			default=-1,
 		)
 		internal_pause_points = {
-			index for index, (kind, _) in enumerate(parts)
-			if kind == "punct" and any(
-				later_kind == "text" and later_value.strip()
-				for later_kind, later_value in parts[index + 1:]
+			index
+			for index, (kind, _) in enumerate(parts)
+			if kind == "punct"
+			and any(
+				later_kind == "text" and later_value.strip() for later_kind, later_value in parts[index + 1 :]
 			)
 		}
 		if remove_punctuation and not internal_pause_points and not boundary_eligible:
@@ -629,7 +657,9 @@ def inject_punctuation_pause(
 				yield value
 				continue
 			eligible_here = index in internal_pause_points
-			if not remove_punctuation or not (eligible_here or boundary_eligible and index == last_punctuation_index):
+			if not remove_punctuation or not (
+				eligible_here or boundary_eligible and index == last_punctuation_index
+			):
 				yield value
 			if eligible_here and pause_cmd is not None:
 				yield pause_cmd
@@ -686,13 +716,13 @@ def deduplicate_language_command(speechSequence):
 				continue
 
 			# Resolve the new language and its voice instance
-			if command.lang is None:					   # Revert to default language
+			if command.lang is None:  # Revert to default language
 				new_instance = default_instance
 				current_language = default_language
 			else:
 				new_instance = synth._voiceManager.getVoiceInstanceForLanguage(command.lang)
 				current_language = command.lang
-				if new_instance is None:			   # Fallback when no voice found
+				if new_instance is None:  # Fallback when no voice found
 					new_instance = default_instance
 
 			# Skip if the voice instance remains the same
@@ -708,9 +738,9 @@ def deduplicate_language_command(speechSequence):
 
 
 def lang_cmd_to_voice(
-		speechSequence: Iterable[SpeechCmd],
-		voice_manager: "VoiceManager",
-		default_instance: "Voice",
+	speechSequence: Iterable[SpeechCmd],
+	voice_manager: "VoiceManager",
+	default_instance: "Voice",
 ) -> Iterator[SpeechCmd]:
 	"""
 	Convert each LangChangeCommand / WVLangChangeCommand into a voice key.
@@ -726,7 +756,7 @@ def lang_cmd_to_voice(
 
 
 def inject_langchange_reorder(
-		speechSequence: Iterable[SpeechCmd],
+	speechSequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Re-order language-change commands so that any LangChangeCommand /

@@ -8,12 +8,55 @@ from .scripts import get_script
 from .._speechcommand import WVLangChangeCommand
 
 BASIC_LATIN = (
-	"en", "ha", "so", "id", "la", "sw", "eu", "nr", "zu", "xh", "ss", "st", "tn", "ts",
+	"en",
+	"ha",
+	"so",
+	"id",
+	"la",
+	"sw",
+	"eu",
+	"nr",
+	"zu",
+	"xh",
+	"ss",
+	"st",
+	"tn",
+	"ts",
 )
 EXTENDED_LATIN = (
-	"cs", "af", "pl", "hr", "ro", "sk", "sl", "tr", "hu", "az", "et", "sq", "ca", "es",
-	"gl", "fr", "de", "nl", "it", "da", "is", "nb", "sv", "fi", "lv", "pt", "ve", "lt",
-	"tl", "cy", "vi", "no", "uz",
+	"cs",
+	"af",
+	"pl",
+	"hr",
+	"ro",
+	"sk",
+	"sl",
+	"tr",
+	"hu",
+	"az",
+	"et",
+	"sq",
+	"ca",
+	"es",
+	"gl",
+	"fr",
+	"de",
+	"nl",
+	"it",
+	"da",
+	"is",
+	"nb",
+	"sv",
+	"fi",
+	"lv",
+	"pt",
+	"ve",
+	"lt",
+	"tl",
+	"cy",
+	"vi",
+	"no",
+	"uz",
 )
 ALL_LATIN = BASIC_LATIN + EXTENDED_LATIN
 
@@ -64,8 +107,9 @@ def get_primary_language(locale: str) -> str:
 
 
 class LanguageDetector(object):
-	""" Provides functionality to add guessed language commands to NVDA speech sequences.
+	"""Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
+
 	def __init__(self, availableLanguages, speechSymbols=None):
 		self.speechSymbols = speechSymbols
 		self.availableLanguages = frozenset(get_primary_language(lang) for lang in availableLanguages)

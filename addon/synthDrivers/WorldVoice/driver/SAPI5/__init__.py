@@ -60,8 +60,11 @@ class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
 				return sapi5.hresult.S_OK
 			if native.audio_closed or not native.is_valid():
 				return sapi5.hresult.S_OK
-			lease = (driver._segmentLifecycle.admit_producer(native.operation)
-				if native.operation is not None else None)
+			lease = (
+				driver._segmentLifecycle.admit_producer(native.operation)
+				if native.operation is not None
+				else None
+			)
 			if native.operation is not None and lease is None:
 				return sapi5.hresult.S_OK
 			# Ordinary PCM callbacks also retain this request's resources. Voice
@@ -111,8 +114,11 @@ class _SegmentPlayer:
 				if not native.is_valid() or (native.audio_closed and not admitted_pcm):
 					return
 				parent = getattr(driver._segmentCallbackLocal, "lease", None) if admitted_pcm else None
-				lease = (driver._segmentLifecycle.admit_producer(native.operation, parent=parent)
-					if native.operation is not None else None)
+				lease = (
+					driver._segmentLifecycle.admit_producer(native.operation, parent=parent)
+					if native.operation is not None
+					else None
+				)
 				if native.operation is not None and lease is None:
 					return
 				native.feeds += 1
@@ -121,9 +127,11 @@ class _SegmentPlayer:
 				lease = None
 		callback = onDone
 		if native is not None and onDone is not None:
+
 			def callback():
 				if native.is_valid():
 					onDone()
+
 		try:
 			return self._player.feed(data, size, callback)
 		except Exception as error:
@@ -154,8 +162,13 @@ class _SegmentPlayer:
 			result = self._player.idle()
 			with driver._threadCond:
 				current = self is driver.player and driver._segmentNative is native
-			if (current and native is not None and native.work is not None and native.work.is_valid()
-					and not native.end_processed):
+			if (
+				current
+				and native is not None
+				and native.work is not None
+				and native.work.is_valid()
+				and not native.end_processed
+			):
 				raise RuntimeError("SAPI5 player idle preceded the segment end notification")
 			return result
 		except Exception as error:
@@ -300,12 +313,24 @@ class SynthDriver(BaseSynthDriver):
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		if audio_mode != "wasapi" or not self.useWasapi or self.player is None:
-			return DrainSupport(False, "sapi5-legacy-audio", "SAPI5 legacy audio has no owned player idle barrier")
-		return unverified_drain_support("sapi5-wasapi",
-			"callback retirement, loaded profile provenance and physical playback are")
+			return DrainSupport(
+				False,
+				"sapi5-legacy-audio",
+				"SAPI5 legacy audio has no owned player idle barrier",
+			)
+		return unverified_drain_support(
+			"sapi5-wasapi",
+			"callback retirement, loaded profile provenance and physical playback are",
+		)
 
-	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
-		context: PlaybackContext, on_event: SegmentEventSink) -> None:
+	def speak_segment(
+		self,
+		commands: SpeechCommands,
+		token: CancellationView,
+		*,
+		context: PlaybackContext,
+		on_event: SegmentEventSink,
+	) -> None:
 		with self._threadCond:
 			try:
 				self._checkSpeechAdmission()
@@ -314,17 +339,23 @@ class SynthDriver(BaseSynthDriver):
 			except Exception as error:
 				self._segmentLifecycle.reject_new(context, token, on_event, error)
 				return
+
 			def deliver(event):
 				try:
 					on_event(event)
 				finally:
 					with self._threadCond:
 						self._segmentWorks.discard(operation)
+
 			operation = self._segmentLifecycle.accept(context, token, deliver)
 			self._segmentWorks.add(operation)
 			self._segmentBindings[operation] = _OperationBinding()
-		Thread(target=self._runSegmentOperation, args=(operation, tuple(commands)),
-			name="WorldVoice SAPI5 lifecycle", daemon=True).start()
+		Thread(
+			target=self._runSegmentOperation,
+			args=(operation, tuple(commands)),
+			name="WorldVoice SAPI5 lifecycle",
+			daemon=True,
+		).start()
 
 	def _runSegmentOperation(self, operation, commands):
 		try:
@@ -385,8 +416,10 @@ class SynthDriver(BaseSynthDriver):
 						binding.native.error = error
 					try:
 						binding.player.stop()
-						binding.tts.Speak(None, sapi5.SpeechVoiceSpeakFlags.Async |
-							sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
+						binding.tts.Speak(
+							None,
+							sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak,
+						)
 					except Exception as control_error:
 						self._failSegmentControl(control_error)
 					self._segmentLifecycle.fail(operation, error)
@@ -445,7 +478,8 @@ class SynthDriver(BaseSynthDriver):
 		self.tts.QueryInterface(sapi5.ISpVoice).SetOutput(audio, True)
 		wfx = audio.waveFormat
 		self.player = sapi5.nvwave.WavePlayer(
-			channels=wfx.nChannels, samplesPerSec=wfx.nSamplesPerSec,
+			channels=wfx.nChannels,
+			samplesPerSec=wfx.nSamplesPerSec,
 			bitsPerSample=wfx.wBitsPerSample,
 			outputDevice=sapi5.config.conf["audio"]["outputDevice"],
 		)
@@ -505,8 +539,13 @@ class SynthDriver(BaseSynthDriver):
 		# Ordinary requests keep the parent's queue-empty idle/DONE behavior.
 		while True:
 			with self._threadCond:
-				self._threadCond.wait_for(lambda: self._isStoppingThread or self._segmentControlError is not None or (
-					self._segmentStops == 0 and self._requestsAvailable()))
+				self._threadCond.wait_for(
+					lambda: (
+						self._isStoppingThread
+						or self._segmentControlError is not None
+						or (self._segmentStops == 0 and self._requestsAvailable())
+					),
+				)
 				if self._isStoppingThread or self._segmentControlError is not None:
 					return
 				if self._isCancelling:
@@ -540,7 +579,10 @@ class SynthDriver(BaseSynthDriver):
 			error = None
 			self._bookmarkLists.append(request.bookmarks)
 			try:
-				stream = tts.Speak(request.text, sapi5.SpeechVoiceSpeakFlags.IsXML | sapi5.SpeechVoiceSpeakFlags.Async)
+				stream = tts.Speak(
+					request.text,
+					sapi5.SpeechVoiceSpeakFlags.IsXML | sapi5.SpeechVoiceSpeakFlags.Async,
+				)
 				with self._threadCond:
 					if native.stream is not None and native.stream != stream:
 						raise RuntimeError("SAPI5 callback stream did not match the admitted request")
@@ -587,7 +629,10 @@ class SynthDriver(BaseSynthDriver):
 							self._threadCond.wait_for(lambda: native.feeds == 0)
 						# Both ordinary and correlated failures leave native speech
 						# uncertain. Purge before another request can take this player.
-						tts.Speak(None, sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
+						tts.Speak(
+							None,
+							sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak,
+						)
 					if work is None:
 						# One shared COM stream cannot attribute a post-purge callback
 						# to a new request. Require resource replacement after an

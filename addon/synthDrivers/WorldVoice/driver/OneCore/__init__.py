@@ -13,7 +13,11 @@ from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import (
-	CallbackGate, DrainSupport, PlaybackWork, runtime_profile, unverified_drain_support,
+	CallbackGate,
+	DrainSupport,
+	PlaybackWork,
+	runtime_profile,
+	unverified_drain_support,
 )
 from ...runtime.segmentLifecycle import SegmentLifecycle, SegmentOperation
 from ...runtime.session import CancellationView
@@ -34,7 +38,7 @@ class Voice(Voice):
 
 	@classmethod
 	def supportedSettings(cls):
-		return ['voice', 'rate', 'rateBoost', 'pitch', 'volume', 'useWasapi']
+		return ["voice", "rate", "rateBoost", "pitch", "volume", "useWasapi"]
 
 
 # The reviewed helper can time out of terminate without invalidating the native
@@ -121,35 +125,58 @@ class SynthDriver(BaseOneCoreSynthDriver):
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		if self._segmentTerminated or not self._ocSpeechToken or not self._ocSpeechToken.value:
-			return DrainSupport(False, "OneCore", "OneCore native initialization did not provide a live token")
+			return DrainSupport(
+				False,
+				"OneCore",
+				"OneCore native initialization did not provide a live token",
+			)
 		if self._callbackInst is None:
 			return DrainSupport(False, "OneCore", "OneCore terminal callback was not installed")
 		for name in ("ocSpeech_initialize", "ocSpeech_speak", "ocSpeech_terminate"):
 			if not callable(getattr(self._dll, name, None)):
 				return DrainSupport(False, "OneCore", f"OneCore native binding is incomplete: {name}")
-		return unverified_drain_support(runtime_profile("OneCore", nvda_version, audio_mode),
-			"loaded native helper provenance is")
+		return unverified_drain_support(
+			runtime_profile("OneCore", nvda_version, audio_mode),
+			"loaded native helper provenance is",
+		)
 
-	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
-		context: PlaybackContext, on_event: SegmentEventSink) -> None:
+	def speak_segment(
+		self,
+		commands: SpeechCommands,
+		token: CancellationView,
+		*,
+		context: PlaybackContext,
+		on_event: SegmentEventSink,
+	) -> None:
 		with self._segmentCondition:
-			admission_error = (RuntimeError("OneCore driver has terminated") if self._segmentTerminated
-				else self._segmentControlError)
+			admission_error = (
+				RuntimeError("OneCore driver has terminated")
+				if self._segmentTerminated
+				else self._segmentControlError
+			)
 			if admission_error is not None:
 				self._segmentLifecycle.reject_new(context, token, on_event, admission_error)
 				return
+
 			def retired(operation):
 				with self._segmentCondition:
 					self._segmentAccepted.discard(operation)
 					self._segmentCondition.notify_all()
+
 			operation = self._segmentLifecycle.accept(
-				context, token, on_event, on_retired=retired)
+				context,
+				token,
+				on_event,
+				on_retired=retired,
+			)
 			self._segmentAccepted.add(operation)
 		if not operation.is_valid():
 			with self._segmentCondition:
 				if not operation._run_started:
 					self._segmentLifecycle.reject_pending(
-						operation, RuntimeError("OneCore segment was cancelled before submission"))
+						operation,
+						RuntimeError("OneCore segment was cancelled before submission"),
+					)
 				self._segmentAccepted.discard(operation)
 			return
 		try:
@@ -159,18 +186,27 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				conv = oneCore._OcSsmlConverter(self.language, self.availableLanguages)
 			else:
 				conv = oneCore._OcPreAPI5SsmlConverter(
-					self.language, self.availableLanguages, self._rate, self._pitch, self._volume)
+					self.language,
+					self.availableLanguages,
+					self._rate,
+					self._pitch,
+					self._volume,
+				)
 			job = _SpeechJob(conv.convertToXml(tuple(commands)), operation.work, operation)
 			with self._segmentCondition:
 				self._checkSegmentAdmission()
 				if not operation.is_valid():
 					if not operation._run_started:
 						self._segmentLifecycle.reject_pending(
-							operation, RuntimeError("OneCore segment was cancelled before submission"))
+							operation,
+							RuntimeError("OneCore segment was cancelled before submission"),
+						)
 					self._segmentAccepted.discard(operation)
 					return
 				if not self._segmentMode and self._isProcessing:
-					raise RuntimeError("Cannot switch to correlated playback while legacy synthesis is active")
+					raise RuntimeError(
+						"Cannot switch to correlated playback while legacy synthesis is active",
+					)
 				self._segmentMode = True
 				self._queuedSpeech.append(job)
 				self._segmentAccepted.discard(operation)
@@ -211,15 +247,28 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			if self._segmentTerminated or self._segmentControlError is not None:
 				return
 			if self._segmentWorker is None:
-				self._segmentWorker = Thread(target=self._runSegmentQueue, name="WorldVoice OneCore", daemon=True)
+				self._segmentWorker = Thread(
+					target=self._runSegmentQueue,
+					name="WorldVoice OneCore",
+					daemon=True,
+				)
 				self._segmentWorker.start()
 			self._segmentCondition.notify_all()
 
 	def _runSegmentQueue(self):
 		while True:
 			with self._segmentCondition:
-				self._segmentCondition.wait_for(lambda: self._segmentTerminated or self._segmentControlError is not None or (
-					self._segmentNative is None and self._segmentStops == 0 and bool(self._queuedSpeech)))
+				self._segmentCondition.wait_for(
+					lambda: (
+						self._segmentTerminated
+						or self._segmentControlError is not None
+						or (
+							self._segmentNative is None
+							and self._segmentStops == 0
+							and bool(self._queuedSpeech)
+						)
+					),
+				)
 				if self._segmentTerminated or self._segmentControlError is not None:
 					return
 				item = self._queuedSpeech.pop(0)
@@ -228,7 +277,9 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					if job.work is not None and not job.work.is_valid():
 						if job.operation is not None:
 							self._segmentLifecycle.reject_pending(
-								job.operation, RuntimeError("OneCore segment was cancelled before submission"))
+								job.operation,
+								RuntimeError("OneCore segment was cancelled before submission"),
+							)
 						continue
 					if job.operation is None:
 						# Legacy text retains the existing native queue contract.
@@ -311,7 +362,9 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			try:
 				self._player.sync()
 				with self._segmentCondition:
-					self._segmentCondition.wait_for(lambda: not self._segmentPaused or not operation.is_valid())
+					self._segmentCondition.wait_for(
+						lambda: not self._segmentPaused or not operation.is_valid(),
+					)
 			except Exception as error:
 				self._failSegmentControl(error)
 				raise
@@ -347,14 +400,20 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				if empty and self._player:
 					self._player.sync()
 					with self._segmentCondition:
-						self._segmentCondition.wait_for(lambda: not self._segmentPaused
-							or self._wasCancelled or self._segmentTerminated)
-						empty = not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
+						self._segmentCondition.wait_for(
+							lambda: not self._segmentPaused or self._wasCancelled or self._segmentTerminated,
+						)
+						empty = (
+							not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
+						)
 					if empty:
 						self._player.idle()
 						with self._segmentCondition:
-							self._segmentCondition.wait_for(lambda: not self._segmentPaused
-								or self._wasCancelled or self._segmentTerminated)
+							self._segmentCondition.wait_for(
+								lambda: (
+									not self._segmentPaused or self._wasCancelled or self._segmentTerminated
+								),
+							)
 						if not self._wasCancelled and not self._segmentTerminated:
 							synthDoneSpeaking.notify(synth=self)
 			except Exception as error:
@@ -394,8 +453,14 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				position = position * bytes_per_sec // oneCore.HUNDRED_NS_PER_SEC
 				if not previous <= position <= data_len:
 					raise ValueError("OneCore marker offset is outside ordered WAV audio")
-				if not self._feedSegment(operation, producer, player, data + previous, position - previous,
-					lambda index=index: self._segmentIndex(operation, index)):
+				if not self._feedSegment(
+					operation,
+					producer,
+					player,
+					data + previous,
+					position - previous,
+					lambda index=index: self._segmentIndex(operation, index),
+				):
 					return
 				previous = position
 			if not self._feedSegment(operation, producer, player, data + previous, data_len - previous):
@@ -448,8 +513,11 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self._segmentControlGeneration += 1
 			self._wasCancelled = True
 			self._segmentStops += 1
-			queued = list(self._segmentAccepted) + [item.operation for item in self._queuedSpeech
-				if isinstance(item, _SpeechJob) and item.operation is not None]
+			queued = list(self._segmentAccepted) + [
+				item.operation
+				for item in self._queuedSpeech
+				if isinstance(item, _SpeechJob) and item.operation is not None
+			]
 			# Keep work removed from the queue visible to cancel until its
 			# asynchronous lifecycle failure is committed for delivery.
 			self._segmentAccepted.update(queued)
@@ -527,14 +595,18 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					if item.operation is not None:
 						self._segmentLifecycle.cancel(item.operation)
 						self._segmentLifecycle.reject_pending(
-							item.operation, RuntimeError("OneCore segment was cancelled before submission"))
+							item.operation,
+							RuntimeError("OneCore segment was cancelled before submission"),
+						)
 					else:
 						item.work.cancel()
 			for operation in tuple(self._segmentAccepted):
 				self._segmentLifecycle.cancel(operation)
 				if not operation._run_started:
 					self._segmentLifecycle.reject_pending(
-						operation, RuntimeError("OneCore segment was cancelled before submission"))
+						operation,
+						RuntimeError("OneCore segment was cancelled before submission"),
+					)
 			self._segmentAccepted.clear()
 			self._queuedSpeech = [item for item in self._queuedSpeech if isinstance(item, tuple)]
 			if self._segmentActiveOperation is not None:
@@ -572,8 +644,11 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			with self._segmentPauseLock:
 				try:
 					with self._segmentCondition:
-						if (generation != self._segmentControlGeneration
-								or self._segmentTerminated or self._segmentStops):
+						if (
+							generation != self._segmentControlGeneration
+							or self._segmentTerminated
+							or self._segmentStops
+						):
 							return
 						self._checkSegmentAdmission()
 						if switch:

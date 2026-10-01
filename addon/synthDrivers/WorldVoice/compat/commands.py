@@ -10,12 +10,12 @@ from ..runtime.models import Pause, SelectVoice
 
 
 def normalize_legacy_commands(sequence: Iterable[object]) -> Iterator[object]:
-    for command in sequence:
-        if isinstance(command, WorldVoiceIndexCommand):
-            raise ValueError("Internal segment markers cannot be supplied externally")
-        if isinstance(command, Voice):
-            yield SelectVoice(command.name)
-        elif isinstance(command, BreakCommand):
-            yield Pause(command.time / 1000)
-        else:
-            yield command
+	for command in sequence:
+		if isinstance(command, WorldVoiceIndexCommand):
+			raise ValueError("Internal segment markers cannot be supplied externally")
+		if isinstance(command, Voice):
+			yield SelectVoice(command.name)
+		elif isinstance(command, BreakCommand):
+			yield Pause(command.time / 1000)
+		else:
+			yield command

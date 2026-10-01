@@ -15,7 +15,16 @@ import languageHandler
 from logHandler import log as nvdaLog
 import speech
 import versionInfo
-from speech.commands import IndexCommand, CharacterModeCommand, LangChangeCommand, PitchCommand, RateCommand, VolumeCommand, SpeechCommand, BreakCommand
+from speech.commands import (
+	IndexCommand,
+	CharacterModeCommand,
+	LangChangeCommand,
+	PitchCommand,
+	RateCommand,
+	VolumeCommand,
+	SpeechCommand,
+	BreakCommand,
+)
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking, getSynth
 
@@ -40,7 +49,10 @@ from .runtime.settings import VoiceSettingsStore
 from .nvdaEventBridge import NvdaEventBridge
 from .indexLedger import IndexLedger
 from .compat.completionPolicies import (
-	DRAIN_ENGINES, get_completion_contract, get_segment_drain_support, resolve_audio_mode,
+	DRAIN_ENGINES,
+	get_completion_contract,
+	get_segment_drain_support,
+	resolve_audio_mode,
 )
 from .compat.commands import normalize_legacy_commands
 from .taskManager import TaskManager
@@ -81,11 +93,11 @@ config.conf.spec["WorldVoice"] = {
 		"punctuation_wait_factor": "integer(default=0,min=0,max=100)",
 		"punctuation_pause_enabled": "boolean(default=true)",
 		"remove_punctuation_characters": "boolean(default=false)",
-		"punctuation_pause_characters": "string(default=\"،؛,.;:!؟?…\")",
+		"punctuation_pause_characters": 'string(default="،؛,.;:!؟?…")',
 	},
 	"role": {},
 	"engine": {
-		"__many__": "boolean(default=false)"
+		"__many__": "boolean(default=false)",
 	},
 	"log": {
 		"enable": "boolean(default=false)",
@@ -106,8 +118,8 @@ config.conf.spec["WorldVoice"] = {
 			"pitch": "integer(default=50,min=0,max=100)",
 			"volume": "integer(default=50,min=0,max=100)",
 			"waitfactor": "integer(default=0,min=0,max=10)",
-		}
-	}
+		},
+	},
 }
 
 WVStart = extensionPoints.Action()
@@ -142,116 +154,120 @@ class SynthDriver(SynthDriver):
 		settings.append(SynthDriver.RateSetting())
 		if "rateBoost" in capabilities.settings:
 			settings.append(SynthDriver.RateBoostSetting())
-		settings.extend([
-			SynthDriver.PitchSetting(),
-		])
-		if 'inflection' in capabilities.settings:
+		settings.extend(
+			[
+				SynthDriver.PitchSetting(),
+			],
+		)
+		if "inflection" in capabilities.settings:
 			settings.append(SynthDriver.InflectionSetting())
-		settings.extend([
-			SynthDriver.VolumeSetting(),
-			BooleanDriverSetting(
-				"uwv",
-				_("Detect language based on Unicode characters"),
-				availableInSettingsRing=True,
-				defaultVal=True,
-				displayName=_("Detect language based on Unicode characters"),
-			),
-			BooleanDriverSetting(
-				"cni",
-				_("Ignore comma between number"),
-				defaultVal=False,
-			),
-			DriverSetting(
-				"numlan",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number &Language"),
-				availableInSettingsRing=True,
-				defaultVal="default",
-				# Translators: Label for a setting in synth settings ring.
-				displayName=_("Number Language"),
-			),
-			DriverSetting(
-				"nummod",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number &Mode"),
-				availableInSettingsRing=True,
-				defaultVal="value",
-				# Translators: Label for a setting in synth settings ring.
-				displayName=_("Number Mode"),
-			),
-			NumericDriverSetting(
-				"globalwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Global wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=50,
-				minStep=10,
-			),
-			NumericDriverSetting(
-				"numberwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"pairwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Pair wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"itemwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("item wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"sayallwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Say all wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"chinesespacewaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Chinese space wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			BooleanDriverSetting(
-				"punctuationpauseenabled",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Enable punctuation pause control"),
-				availableInSettingsRing=True,
-				defaultVal=True,
-				# Translators: Label for a setting in synth settings ring.
-				displayName=_("Punctuation pauses"),
-			),
-			BooleanDriverSetting(
-				"removepunctuationcharacters",
-				_("Remove configured punctuation at pause points"),
-				availableInSettingsRing=True,
-				defaultVal=False,
-				displayName=_("Remove punctuation at pause points"),
-			),
-			NumericDriverSetting(
-				"punctuationwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Punctuation wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-		])
+		settings.extend(
+			[
+				SynthDriver.VolumeSetting(),
+				BooleanDriverSetting(
+					"uwv",
+					_("Detect language based on Unicode characters"),
+					availableInSettingsRing=True,
+					defaultVal=True,
+					displayName=_("Detect language based on Unicode characters"),
+				),
+				BooleanDriverSetting(
+					"cni",
+					_("Ignore comma between number"),
+					defaultVal=False,
+				),
+				DriverSetting(
+					"numlan",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Number &Language"),
+					availableInSettingsRing=True,
+					defaultVal="default",
+					# Translators: Label for a setting in synth settings ring.
+					displayName=_("Number Language"),
+				),
+				DriverSetting(
+					"nummod",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Number &Mode"),
+					availableInSettingsRing=True,
+					defaultVal="value",
+					# Translators: Label for a setting in synth settings ring.
+					displayName=_("Number Mode"),
+				),
+				NumericDriverSetting(
+					"globalwaitfactor",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Global wait factor"),
+					availableInSettingsRing=True,
+					defaultVal=50,
+					minStep=10,
+				),
+				NumericDriverSetting(
+					"numberwaitfactor",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Number wait factor"),
+					availableInSettingsRing=True,
+					defaultVal=0,
+					minStep=1,
+				),
+				NumericDriverSetting(
+					"pairwaitfactor",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Pair wait factor"),
+					availableInSettingsRing=True,
+					defaultVal=0,
+					minStep=1,
+				),
+				NumericDriverSetting(
+					"itemwaitfactor",
+					# Translators: Label for a setting in voice settings dialog.
+					_("item wait factor"),
+					availableInSettingsRing=True,
+					defaultVal=0,
+					minStep=1,
+				),
+				NumericDriverSetting(
+					"sayallwaitfactor",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Say all wait factor"),
+					availableInSettingsRing=True,
+					defaultVal=0,
+					minStep=1,
+				),
+				NumericDriverSetting(
+					"chinesespacewaitfactor",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Chinese space wait factor"),
+					availableInSettingsRing=True,
+					defaultVal=0,
+					minStep=1,
+				),
+				BooleanDriverSetting(
+					"punctuationpauseenabled",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Enable punctuation pause control"),
+					availableInSettingsRing=True,
+					defaultVal=True,
+					# Translators: Label for a setting in synth settings ring.
+					displayName=_("Punctuation pauses"),
+				),
+				BooleanDriverSetting(
+					"removepunctuationcharacters",
+					_("Remove configured punctuation at pause points"),
+					availableInSettingsRing=True,
+					defaultVal=False,
+					displayName=_("Remove punctuation at pause points"),
+				),
+				NumericDriverSetting(
+					"punctuationwaitfactor",
+					# Translators: Label for a setting in voice settings dialog.
+					_("Punctuation wait factor"),
+					availableInSettingsRing=True,
+					defaultVal=0,
+					minStep=1,
+				),
+			],
+		)
 		return settings
 
 	@property
@@ -406,7 +422,10 @@ class SynthDriver(SynthDriver):
 		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
 		self._voicePanelPatched = True
 		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
-		nvdaLog.debug("WorldVoice init timing: voice settings panel patch %.3fs", time.perf_counter() - step_start)
+		nvdaLog.debug(
+			"WorldVoice init timing: voice settings panel patch %.3fs",
+			time.perf_counter() - step_start,
+		)
 
 		step_start = time.perf_counter()
 		repository = ConfigVoiceSettingsRepository(config.conf, lambda: getSynth().name)
@@ -414,16 +433,25 @@ class SynthDriver(SynthDriver):
 		# One ledger spans every binding of a live core in this runtime. A core
 		# handed to a new runtime must first close, or retain its original ledger.
 		self._indexLedger = IndexLedger()
-		self._eventBridge = NvdaEventBridge(self, done_event=synthDoneSpeaking,
-			index_event=synthIndexReached, get_synth=getSynth, index_ledger=self._indexLedger)
+		self._eventBridge = NvdaEventBridge(
+			self,
+			done_event=synthDoneSpeaking,
+			index_event=synthIndexReached,
+			get_synth=getSynth,
+			index_ledger=self._indexLedger,
+		)
 		self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
 		self._eventBridge.start(self.taskManager.on_event, batch_handler=self.taskManager.on_events)
 		nvdaLog.debug("WorldVoice init timing: TaskManager %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
-		self._voiceManager = VoiceManager(taskManager=self.taskManager,
-			settings=self._settingsStore, bridge=self._eventBridge,
-			index_ledger=self._indexLedger, completion_for=self._completion_for)
+		self._voiceManager = VoiceManager(
+			taskManager=self.taskManager,
+			settings=self._settingsStore,
+			bridge=self._eventBridge,
+			index_ledger=self._indexLedger,
+			completion_for=self._completion_for,
+		)
 		nvdaLog.debug("WorldVoice init timing: VoiceManager %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
@@ -434,14 +462,23 @@ class SynthDriver(SynthDriver):
 
 		step_start = time.perf_counter()
 		self.speechSymbols = SpeechSymbols()
-		nvdaLog.debug("WorldVoice init timing: SpeechSymbols construct %.3fs", time.perf_counter() - step_start)
+		nvdaLog.debug(
+			"WorldVoice init timing: SpeechSymbols construct %.3fs",
+			time.perf_counter() - step_start,
+		)
 
 		step_start = time.perf_counter()
-		self.speechSymbols.load('unicode.dic')
-		nvdaLog.debug("WorldVoice init timing: SpeechSymbols.load unicode.dic %.3fs", time.perf_counter() - step_start)
+		self.speechSymbols.load("unicode.dic")
+		nvdaLog.debug(
+			"WorldVoice init timing: SpeechSymbols.load unicode.dic %.3fs",
+			time.perf_counter() - step_start,
+		)
 
 		step_start = time.perf_counter()
-		self._languageDetector = languageDetection.LanguageDetector(list(self._voiceManager.allLanguages), self.speechSymbols)
+		self._languageDetector = languageDetection.LanguageDetector(
+			list(self._voiceManager.allLanguages),
+			self.speechSymbols,
+		)
 		self.add_detected_language_commands = listable(self._languageDetector.add_detected_language_commands)
 		nvdaLog.debug("WorldVoice init timing: LanguageDetector %.3fs", time.perf_counter() - step_start)
 
@@ -454,14 +491,21 @@ class SynthDriver(SynthDriver):
 		audio_mode = resolve_audio_mode(engine, core)
 		drain_supported = False
 		if engine in DRAIN_ENGINES:
-			support = get_segment_drain_support(voice_class, core,
-				nvda_version=nvda_version, audio_mode=audio_mode)
+			support = get_segment_drain_support(
+				voice_class,
+				core,
+				nvda_version=nvda_version,
+				audio_mode=audio_mode,
+			)
 			drain_supported = support.supported
 			if not drain_supported:
 				self._warn_drain_fallback(engine, nvda_version, audio_mode, support)
-		return get_completion_contract(engine,
-			nvda_version=nvda_version, audio_mode=audio_mode,
-			segment_drain_supported=drain_supported)
+		return get_completion_contract(
+			engine,
+			nvda_version=nvda_version,
+			audio_mode=audio_mode,
+			segment_drain_supported=drain_supported,
+		)
 
 	def _warn_drain_fallback(self, engine, nvda_version, audio_mode, support):
 		# Log each distinct fallback profile once per synth instance.
@@ -471,8 +515,10 @@ class SynthDriver(SynthDriver):
 		profile = (engine, nvda_version, audio_mode, support.profile, support.reason)
 		if profile not in fallbacks:
 			fallbacks.add(profile)
-			nvdaLog.warning("WorldVoice %s uses LEGACY_DONE (NVDA %s, audio %s, profile %s): %s",
-				*profile)
+			nvdaLog.warning(
+				"WorldVoice %s uses LEGACY_DONE (NVDA %s, audio %s, profile %s): %s",
+				*profile,
+			)
 
 	def terminate(self, *, commit=True):
 		if self._terminated:
@@ -543,7 +589,7 @@ class SynthDriver(SynthDriver):
 		if self._terminated:
 			return
 		self.order = 0
-		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'after':
+		if self.uwv and config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == "after":
 			speechSequence = self.add_detected_language_commands(speechSequence)
 
 		speechSequence = inject_langchange_reorder(speechSequence)
@@ -563,8 +609,7 @@ class SynthDriver(SynthDriver):
 		)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
-		if self.uwv \
-		and config.conf["speech"]["trustVoiceLanguage"]:
+		if self.uwv and config.conf["speech"]["trustVoiceLanguage"]:
 			for text, loc in self._languageDetector.process_for_spelling(text, locale):
 				self._realSpellingFunc(text, loc, useCharacterDescriptions, priority=priority)
 		else:
@@ -665,7 +710,10 @@ class SynthDriver(SynthDriver):
 		self.detect_language_timing()
 
 	def detect_language_timing(self):
-		if self.uwv and config.conf["WorldVoice"]['autoLanguageSwitching']['DetectLanguageTiming'] == 'before':
+		if (
+			self.uwv
+			and config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == "before"
+		):
 			filter_speechSequence.register(self.add_detected_language_commands)
 			order_move_to_start_register()
 		else:
@@ -689,8 +737,12 @@ class SynthDriver(SynthDriver):
 				"default": StringParameterInfo("default", _("default")),
 			},
 			**{
-				locale: StringParameterInfo(locale, name) for locale, name in zip(self._voiceManager.languages, list(map(self._getLocaleReadableName, self._voiceManager.languages)))
-			}
+				locale: StringParameterInfo(locale, name)
+				for locale, name in zip(
+					self._voiceManager.languages,
+					list(map(self._getLocaleReadableName, self._voiceManager.languages)),
+				)
+			},
 		)
 
 	def _get_numlan(self):
@@ -700,11 +752,13 @@ class SynthDriver(SynthDriver):
 		self._numlan = value
 
 	def _get_availableNummods(self):
-		return dict({
-			"value": StringParameterInfo("value", _("value")),
-			"number": StringParameterInfo("number", _("number")),
-			"pair": StringParameterInfo("pair", _("pair")),
-		})
+		return dict(
+			{
+				"value": StringParameterInfo("value", _("value")),
+				"number": StringParameterInfo("number", _("number")),
+				"pair": StringParameterInfo("pair", _("pair")),
+			},
+		)
 
 	def _get_nummod(self):
 		return self._nummod
@@ -777,7 +831,9 @@ class SynthDriver(SynthDriver):
 
 	def _set_removepunctuationcharacters(self, value):
 		self._removepunctuationcharacters = value
-		config.conf["WorldVoice"]["pipeline"]["remove_punctuation_characters"] = self.removepunctuationcharacters
+		config.conf["WorldVoice"]["pipeline"]["remove_punctuation_characters"] = (
+			self.removepunctuationcharacters
+		)
 
 	def _get_punctuationwaitfactor(self):
 		# Defensive: the attribute may not exist yet when the driver was

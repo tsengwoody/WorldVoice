@@ -35,8 +35,12 @@ class SpeechSymbol(object):
 	def __repr__(self):
 		attrs = []
 		for attr in self.__slots__:
-			attrs.append("{name}={val!r}".format(
-				name=attr, val=getattr(self, attr)))
+			attrs.append(
+				"{name}={val!r}".format(
+					name=attr,
+					val=getattr(self, attr),
+				),
+			)
 		return "SpeechSymbol(%s)" % ", ".join(attrs)
 
 
@@ -48,8 +52,7 @@ class SpeechSymbols(object):
 	"""
 
 	def __init__(self):
-		"""Constructor.
-		"""
+		"""Constructor."""
 		self.symbols = collections.OrderedDict()
 		self.fileName = None
 		self.localesToNames = dict(languageHandler.getAvailableLanguages())
@@ -62,7 +65,7 @@ class SpeechSymbols(object):
 		"""
 		self.fileName = os.path.join(base_path, fileName)
 		if not os.path.exists(self.fileName):
-			with codecs.open(self.fileName, 'w', encoding='utf-8') as f:
+			with codecs.open(self.fileName, "w", encoding="utf-8") as f:
 				f.write("")
 		with codecs.open(self.fileName, "r", "utf_8_sig", errors="replace") as f:
 			handler = self._loadSymbol
@@ -74,8 +77,12 @@ class SpeechSymbols(object):
 				try:
 					handler(line)
 				except ValueError:
-					log.warning(u"Invalid line in file {file}: {line}".format(
-						file=fileName, line=line))
+					log.warning(
+						"Invalid line in file {file}: {line}".format(
+							file=fileName,
+							line=line,
+						),
+					)
 
 	def _loadSymbolField(self, input, inputMap=None):
 		if input == "-":
@@ -152,7 +159,7 @@ class SpeechSymbols(object):
 		with codecs.open(fileName, "w", "utf_8_sig", errors="replace") as f:
 			if self.symbols:
 				for symbol in self.symbols.values():
-					f.write(u"%s\r\n" % self._saveSymbol(symbol))
+					f.write("%s\r\n" % self._saveSymbol(symbol))
 
 	def _saveSymbolField(self, output, outputMap=None):
 		if output is None:
@@ -167,8 +174,10 @@ class SpeechSymbols(object):
 	def _saveSymbol(self, symbol):
 		identifier = symbol.identifier
 		try:
-			identifier = u"\\%s%s" % (
-				self.IDENTIFIER_ESCAPES_OUTPUT[identifier[0]], identifier[1:])
+			identifier = "\\%s%s" % (
+				self.IDENTIFIER_ESCAPES_OUTPUT[identifier[0]],
+				identifier[1:],
+			)
 		except KeyError:
 			pass
 		fields = [
@@ -177,8 +186,8 @@ class SpeechSymbols(object):
 			self._saveSymbolField(symbol.language),
 			self._saveSymbolField(
 				symbol.mode,
-				self.MODE_OUTPUT
-			)
+				self.MODE_OUTPUT,
+			),
 		]
 		# Strip optional fields with default values.
 		for field in reversed(fields[2:]):
@@ -189,7 +198,7 @@ class SpeechSymbols(object):
 				break
 		if symbol.displayName:
 			fields.append("# %s" % symbol.displayName)
-		return u"\t".join(fields)
+		return "\t".join(fields)
 
 	def updateSymbol(self, symbol):
 		self.symbols[symbol.identifier] = symbol

@@ -26,7 +26,7 @@ ENGINE_SPECS = tuple(
 		internal_package=INTERNAL_DRIVER_PACKAGE,
 		external_root=WVW_PATH,
 		logger=log,
-	)
+	),
 )
 ENGINE_SPEC_INDEX = {spec.name: spec for spec in ENGINE_SPECS}
 

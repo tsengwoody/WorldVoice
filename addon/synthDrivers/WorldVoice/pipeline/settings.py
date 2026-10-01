@@ -118,7 +118,7 @@ def _get_value(section: Any, key: str) -> Any:
 def load_pipeline_settings(conf: Any = config.conf) -> PipelineSettings:
 	pipeline = _pipeline_section(conf)
 	punctuation_pause_characters = str(
-		_get_value(pipeline, "punctuation_pause_characters")
+		_get_value(pipeline, "punctuation_pause_characters"),
 	).strip()
 	return PipelineSettings(
 		scope=str(_get_value(pipeline, "scope")),
@@ -172,25 +172,27 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 			settings.pair_wait_factor = 0
 			return settings
 		settings.ignore_comma_between_number = bool(
-			settings.global_factor_units * settings.ignore_comma_between_number
+			settings.global_factor_units * settings.ignore_comma_between_number,
 		)
 		return settings
 
 	return PipelineSettings(
 		scope=settings.scope,
 		ignore_comma_between_number=bool(
-			_runtime_value(synth, "cni", "_cni", settings.ignore_comma_between_number)
+			_runtime_value(synth, "cni", "_cni", settings.ignore_comma_between_number),
 		),
 		number_mode=str(_runtime_value(synth, "nummod", "_nummod", settings.number_mode)),
 		global_wait_factor=int(
-			_runtime_value(synth, "globalwaitfactor", "_globalwaitfactor", settings.global_wait_factor)
+			_runtime_value(synth, "globalwaitfactor", "_globalwaitfactor", settings.global_wait_factor),
 		),
 		number_wait_factor=int(
-			_runtime_value(synth, "numberwaitfactor", "_numberwaitfactor", settings.number_wait_factor)
+			_runtime_value(synth, "numberwaitfactor", "_numberwaitfactor", settings.number_wait_factor),
 		),
-		item_wait_factor=int(_runtime_value(synth, "itemwaitfactor", "_itemwaitfactor", settings.item_wait_factor)),
+		item_wait_factor=int(
+			_runtime_value(synth, "itemwaitfactor", "_itemwaitfactor", settings.item_wait_factor),
+		),
 		sayall_wait_factor=int(
-			_runtime_value(synth, "sayallwaitfactor", "_sayallwaitfactor", settings.sayall_wait_factor)
+			_runtime_value(synth, "sayallwaitfactor", "_sayallwaitfactor", settings.sayall_wait_factor),
 		),
 		chinesespace_wait_factor=int(
 			_runtime_value(
@@ -198,7 +200,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 				"chinesespacewaitfactor",
 				"_chinesespacewaitfactor",
 				settings.chinesespace_wait_factor,
-			)
+			),
 		),
 		punctuation_wait_factor=int(
 			_runtime_value(
@@ -206,7 +208,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 				"punctuationwaitfactor",
 				"_punctuationwaitfactor",
 				settings.punctuation_wait_factor,
-			)
+			),
 		),
 		punctuation_pause_enabled=bool(
 			_runtime_value(
@@ -214,7 +216,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 				"punctuationpauseenabled",
 				"_punctuationpauseenabled",
 				settings.punctuation_pause_enabled,
-			)
+			),
 		),
 		remove_punctuation_characters=bool(
 			_runtime_value(
@@ -222,7 +224,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 				"removepunctuationcharacters",
 				"_removepunctuationcharacters",
 				settings.remove_punctuation_characters,
-			)
+			),
 		),
 		punctuation_pause_characters=str(settings.punctuation_pause_characters),
 		pair_wait_factor=int(
@@ -231,7 +233,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 				"pairwaitfactor",
 				"_pairwaitfactor",
 				settings.pair_wait_factor,
-			)
+			),
 		),
 	)
 
@@ -272,8 +274,8 @@ def _load_scope_functions():
 
 
 def clear_pipeline(
-		unregister: Callable[[], None] | None = None,
-		reset_scope_application: bool = True,
+	unregister: Callable[[], None] | None = None,
+	reset_scope_application: bool = True,
 ) -> None:
 	global _last_scope_application
 
@@ -286,16 +288,16 @@ def clear_pipeline(
 
 
 def clear_global_pipeline_scope(
-		settings: PipelineSettings,
-		unregister: Callable[[], None] | None = None,
+	settings: PipelineSettings,
+	unregister: Callable[[], None] | None = None,
 ) -> None:
 	if settings.scope == "all":
 		clear_pipeline(unregister=unregister)
 
 
 def apply_worldvoice_pipeline(
-		static_register: Callable[[], None] | None = None,
-		order_move_to_start_register: Callable[[], None] | None = None,
+	static_register: Callable[[], None] | None = None,
+	order_move_to_start_register: Callable[[], None] | None = None,
 ) -> None:
 	if static_register is None or order_move_to_start_register is None:
 		default_static_register, _, default_order_move_to_start_register, _ = _load_scope_functions()
@@ -307,12 +309,12 @@ def apply_worldvoice_pipeline(
 
 
 def apply_global_pipeline_scope(
-		settings: PipelineSettings,
-		current_synth_name: str,
-		static_register: Callable[[], None] | None = None,
-		dynamic_register: Callable[[], None] | None = None,
-		order_move_to_start_register: Callable[[], None] | None = None,
-		unregister: Callable[[], None] | None = None,
+	settings: PipelineSettings,
+	current_synth_name: str,
+	static_register: Callable[[], None] | None = None,
+	dynamic_register: Callable[[], None] | None = None,
+	order_move_to_start_register: Callable[[], None] | None = None,
+	unregister: Callable[[], None] | None = None,
 ) -> None:
 	global _last_scope_application
 
@@ -346,11 +348,11 @@ def apply_global_pipeline_scope(
 
 
 def apply_pipeline_after_worldvoice_end(
-		settings: PipelineSettings,
-		static_register: Callable[[], None] | None = None,
-		dynamic_register: Callable[[], None] | None = None,
-		order_move_to_start_register: Callable[[], None] | None = None,
-		unregister: Callable[[], None] | None = None,
+	settings: PipelineSettings,
+	static_register: Callable[[], None] | None = None,
+	dynamic_register: Callable[[], None] | None = None,
+	order_move_to_start_register: Callable[[], None] | None = None,
+	unregister: Callable[[], None] | None = None,
 ) -> None:
 	if None in (static_register, dynamic_register, order_move_to_start_register, unregister):
 		(
