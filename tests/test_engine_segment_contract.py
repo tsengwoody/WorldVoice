@@ -121,3 +121,19 @@ def test_segment_after_terminate_fails_once_without_native_call(engine):
 	assert event.source_id is context.source_id
 	assert event.segment_id == 19
 	assert engine.native_call_count() == 0
+
+
+@pytest.mark.parametrize("engine", _engines(), indirect=True)
+def test_cancelled_token_never_reaches_native_or_sink(engine):
+	token = engine.new_token()
+	token.cancel()
+	events = Events()
+	caller, errors = _start_speak(engine, token, engine.PlaybackContext(object(), 21), events)
+
+	caller.join(2)
+	with events.condition:
+		events.condition.wait_for(lambda: bool(events), 0.2)
+
+	assert not caller.is_alive() and errors == []
+	assert engine.native_call_count() == 0
+	assert list(events) == []
