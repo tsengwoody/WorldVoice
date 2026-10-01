@@ -18,8 +18,8 @@ from .driver.ttsapi.veTypes import (
 	VE_MSG_ENDPROCESS, VE_MRK_BOOKMARK, NUAN_OK, NUAN_E_TTS_USERSTOP,
 )
 from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
-from synthDrivers.WorldVoice.driver.arabic_text import break_repeated_runs
-from synthDrivers.WorldVoice.driver.chunker import split_speech_text_pieces
+from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
+from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import CallbackGate, DrainSupport, unverified_drain_support
 from ...runtime.segmentLifecycle import SegmentLifecycle

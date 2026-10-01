@@ -119,8 +119,9 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 	rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
 	package("synthDrivers.WorldVoice.driver", root, Voice=voice_base,
 		getVoiceKey=lambda engine, name: f"{engine}:{name}")
-	module("synthDrivers.WorldVoice.driver.arabic_text", break_repeated_runs=lambda text: text)
-	module("synthDrivers.WorldVoice.driver.chunker", split_speech_text_pieces=lambda text: [text])
+	package("synthDrivers.WorldVoice.text", root.parent / "text")
+	module("synthDrivers.WorldVoice.text.arabic", break_repeated_runs=lambda text: text)
+	module("synthDrivers.WorldVoice.text.chunker", split_speech_text_pieces=lambda text: [text])
 	monkeypatch.setattr(builtins, "_", lambda value: value, raising=False)
 
 	def load(name, path, is_package=False):

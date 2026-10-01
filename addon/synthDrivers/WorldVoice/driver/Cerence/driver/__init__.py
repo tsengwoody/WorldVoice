@@ -20,8 +20,8 @@ from logHandler import log
 
 from . import ttsapi
 from .ttsapi.veTypes import *
-from synthDrivers.WorldVoice.driver.arabic_text import break_repeated_runs
-from synthDrivers.WorldVoice.driver.chunker import split_speech_text_pieces
+from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
+from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
 addonHandler.initTranslation()
 
