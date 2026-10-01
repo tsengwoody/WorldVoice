@@ -1447,3 +1447,57 @@ def test_reentrant_terminate_from_player_close_does_not_wait_for_itself(env, mon
         if not call[1].is_set():
             env.core._terminationDone.set()
             call[0].join(1)
+
+
+class CountingToken(Token):
+    """The test Token, counting how often waiters poll it."""
+
+    def __init__(self):
+        super().__init__()
+        self.checks = 0
+
+    def is_cancelled(self):
+        self.checks += 1
+        return super().is_cancelled()
+
+
+def assert_not_polled(read_count, window=0.2):
+    # A 50 ms poll would re-check about four times in this window.
+    before = read_count()
+    Event().wait(window)
+    assert read_count() - before <= 1, "waiter is polling instead of waiting for a notification"
+
+
+def test_ordinary_waiting_behind_contextual_does_not_poll(env, monkeypatch):
+    held = hold_contextual_final_idle(env, monkeypatch)
+    token = CountingToken()
+    try:
+        ordinary = start_ordinary_behind(held, env, token)
+        assert_not_polled(lambda: token.checks)
+        token.cancel()
+        finish(ordinary)
+    finally:
+        held.release.set()
+    finish(held.contextual)
+
+
+def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance))
+    entered, release = Event(), Event()
+
+    def blocking_sink(event):
+        entered.set()
+        assert release.wait(2), "Test did not release the sink"
+
+    token = CountingToken()
+    context = env.rt.models.PlaybackContext(object(), 17)
+    call = run_thread(lambda: env.core.speak_segment(("hello",), token, context=context, on_event=blocking_sink))
+    try:
+        assert entered.wait(1)
+        assert_not_polled(lambda: token.checks)
+        token.cancel()
+        assert call[1].wait(0.5), "speak_segment was not woken by token cancellation"
+    finally:
+        release.set()
+    finish(call)

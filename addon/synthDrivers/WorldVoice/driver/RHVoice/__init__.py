@@ -502,7 +502,7 @@ class SynthDriver(rhvoice.SynthDriver):
 			self._segmentLifecycle.reject_new(
 				operation.work.context,
 				operation.work.token,
-				lambda event: None if operation._rhvoice_cancelled else operation._sink(event),
+				lambda event: None if operation._rhvoice_cancelled else operation.sink(event),
 				self._segmentControlError or error.__cause__ or error,
 			)
 		finally:
