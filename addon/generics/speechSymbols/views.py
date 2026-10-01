@@ -52,8 +52,8 @@ class SpeechSymbolsDialog(SettingsDialog):
 		return obj
 
 	def __init__(self, parent):
-		# Translators: This is the label for the unicode setting dialog.
 		self.speechSymbols = None
+		# Translators: This is the label for the unicode setting dialog.
 		self.title = _("Unicode Setting")
 		super(SpeechSymbolsDialog, self).__init__(
 			parent,
@@ -259,8 +259,8 @@ class SpeechSymbolsDialog(SettingsDialog):
 		self.filter()
 		for index, symbol in enumerate(self.symbols):
 			if identifier == symbol.identifier:
-				# Translators: An error reported in the Symbol Pronunciation dialog when adding a symbol that is already present.
 				gui.messageBox(
+					# Translators: An error reported in the Symbol Pronunciation dialog when adding a symbol that is already present.
 					_('Symbol "%s" is already present.') % identifier,
 					_("Error"),
 					wx.OK | wx.ICON_ERROR,

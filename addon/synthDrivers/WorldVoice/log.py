@@ -54,8 +54,8 @@ class PipelineLog:
 
 	def export(self):
 		with wx.FileDialog(
-			# Translators: The title of the Export pipeline log file window
 			gui.mainFrame,
+			# Translators: The title of the Export pipeline log file window
 			message=_("Export pipeline log files..."),
 			defaultDir="",
 			defaultFile="pipeline_log.csv",
