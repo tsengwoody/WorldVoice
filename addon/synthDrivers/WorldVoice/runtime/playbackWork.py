@@ -6,6 +6,7 @@ admit -> feed outside locks -> stop if invalid -> release. The next native call
 cannot take over that player's resources until native finish and every release.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Condition, Lock
 
@@ -43,10 +44,13 @@ class PlaybackWork:
 		context: PlaybackContext,
 		token: CancellationView,
 		on_event: SegmentEventSink,
+		*,
+		on_cancel: Callable[[], None] | None = None,
 	):
 		self._context = context
 		self._token = token
 		self._on_event = on_event
+		self._on_cancel = on_cancel
 		self._lock = Lock()
 		self._active = True
 		self._error = None
@@ -69,9 +73,14 @@ class PlaybackWork:
 			return self._active and not self._token.is_cancelled()
 
 	def cancel(self) -> None:
-		"""Invalidate this work without mutating the caller's token or notifying."""
+		"""Invalidate this work without mutating the caller's token or notifying its sink.
+
+		``on_cancel`` (the owner's wake-up) runs after the work lock is released.
+		"""
 		with self._lock:
 			self._active = False
+		if self._on_cancel is not None:
+			self._on_cancel()
 
 	def fail(self, error: Exception) -> bool:
 		return self._terminate(EventKind.SEGMENT_FAILED, error)

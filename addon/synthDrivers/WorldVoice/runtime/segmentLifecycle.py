@@ -2,11 +2,25 @@
 
 Engine hooks establish native and playback boundaries. This coordinator never
 infers native quiescence from an empty callback count alone.
+
+Lock order:
+
+1. A wrapper lock may be held while taking the lifecycle condition; wrappers
+   always lock in that order.
+2. A token's cancellation callback may take the lifecycle condition while the
+   scheduler holds its state condition (scheduler -> callback -> lifecycle).
+3. While holding its condition the lifecycle never calls hooks, sinks or token
+   callbacks, and never takes a wrapper or scheduler lock. ``wait_idle`` is the
+   one exception: it calls the caller's ``still_wanted`` predicate, which must
+   only read state under its own leaf lock.
+
+Waits are woken by notifications (resource release, cancel(), token
+callbacks, PlaybackWork.cancel(), wake_waiters()), never by polling.
 """
 
 from collections import deque
 import logging
-from threading import Condition, Event, Thread
+from threading import Condition, Event, Thread, current_thread
 from typing import Callable, Protocol
 
 from .models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
@@ -58,6 +72,21 @@ class SegmentOperation:
 			failed = self._error is not None
 		return not failed and self.work.is_valid()
 
+	@property
+	def sink(self) -> SegmentEventSink:
+		"""The sink this operation was accepted with."""
+		return self._sink
+
+	def has_started(self) -> bool:
+		"""True once run() began or the operation was rejected before running."""
+		with self._lifecycle._condition:
+			return self._run_started
+
+	def is_retired(self) -> bool:
+		"""True once the operation released the native/player resource."""
+		with self._lifecycle._condition:
+			return self._retired
+
 
 class ProducerLease:
 	"""A producer's original operation, retained until its actual work exits."""
@@ -104,7 +133,7 @@ class SegmentLifecycle:
 			# event while the coordinator arbitrates fail/cancel vs success;
 			# the external sink runs later, outside that lock.
 			holder = []
-			work = PlaybackWork(context, token, holder.append)
+			work = PlaybackWork(context, token, holder.append, on_cancel=self.wake_waiters)
 			operation = SegmentOperation(self, work, sink, holder, on_retired)
 			self._operations.add(operation)
 			return operation
@@ -119,7 +148,7 @@ class SegmentLifecycle:
 		"""Deliver a rejected request through the coordinator, even after close."""
 		with self._condition:
 			holder = []
-			work = PlaybackWork(context, token, holder.append)
+			work = PlaybackWork(context, token, holder.append, on_cancel=self.wake_waiters)
 			operation = SegmentOperation(self, work, sink, holder)
 			self._operations.add(operation)
 			operation._pre_admission_rejected = True
@@ -159,6 +188,51 @@ class SegmentLifecycle:
 		else:
 			self._condition.notify_all()
 
+	def on_delivery_thread(self) -> bool:
+		"""True when called from this lifecycle's delivery thread (sinks run there)."""
+		with self._condition:
+			return current_thread() is self._delivery_thread
+
+	def join_delivery(self, timeout: float | None = None) -> None:
+		"""Join the delivery thread; a no-op when called from that thread."""
+		with self._condition:
+			thread = self._delivery_thread
+		if thread is not current_thread():
+			thread.join(timeout)
+
+	def is_resource_busy(self) -> bool:
+		with self._condition:
+			return self._resource_busy
+
+	def wait_idle(
+		self,
+		*,
+		still_wanted: Callable[[], bool] = lambda: True,
+		token: CancellationView | None = None,
+	) -> bool:
+		"""Wait until no operation owns the resource.
+
+		Return True when idle, or False as soon as ``still_wanted()`` is false.
+		Wakes on resource release, ``token`` cancellation and wake_waiters().
+		"""
+		remove_wake = token.add_callback(self.wake_waiters) if token is not None else None
+		try:
+			with self._condition:
+				while True:
+					if not still_wanted():
+						return False
+					if not self._resource_busy:
+						return True
+					self._condition.wait()
+		finally:
+			if remove_wake is not None:
+				remove_wake()
+
+	def wake_waiters(self) -> None:
+		"""Make waiters re-check their conditions after an outside state change."""
+		with self._condition:
+			self._condition.notify_all()
+
 	def _wake_delivery_locked(self) -> None:
 		if not self._delivery_active:
 			self._delivery_active = True
@@ -172,16 +246,24 @@ class SegmentLifecycle:
 
 	def run(self, operation: SegmentOperation, commands: SpeechCommands) -> None:
 		self._require_operation(operation)
+		remove_wake = None
 		with self._condition:
 			if operation._run_started:
 				raise RuntimeError("segment operation was already run")
 			operation._run_started = True
-			while self._resource_busy and not self._terminated and self._fault is None:
-				if not operation.work.is_valid():
-					self._discard_operation_locked(operation)
-					return
-				# An external token can cancel without calling cancel().
-				self._condition.wait(0.05)
+			try:
+				while self._resource_busy and not self._terminated and self._fault is None:
+					if not operation.work.is_valid():
+						self._discard_operation_locked(operation)
+						return
+					if remove_wake is None:
+						# An external token can cancel without calling cancel().
+						remove_wake = operation.work.token.add_callback(self.wake_waiters)
+						continue
+					self._condition.wait()
+			finally:
+				if remove_wake is not None:
+					remove_wake()
 			if self._fault is not None:
 				# This accepted operation never acquired the resource. Retain
 				# its original context for asynchronous correlated failure.
