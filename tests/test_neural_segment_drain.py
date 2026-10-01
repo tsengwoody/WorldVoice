@@ -316,16 +316,21 @@ def test_stop_completion_and_zero_callbacks_do_not_prove_native_speak_exit(env, 
     assert len(env.native.calls) == 2
 
 
-def test_explicit_activation_override_completes_with_unproven_quiescence(env):
+def test_explicit_activation_override_completes_with_unproven_quiescence(env, monkeypatch):
     _, _, events, done = speak(env)
     env.native.wait_calls(1)
     complete(env, done)
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    # complete() left speak_release set, so the second native call would return
+    # at once and close the callback gate. Audio only arrives during the call,
+    # as with the real SDK, so hold that call open while emitting it.
+    second_return = hold_native_return(env, monkeypatch, 2)
     speak(env, segment=18)
     env.native.wait_calls(2)
     assert len(env.native.calls) == 2
     assert env.native.audio() == 2
     assert env.player.fed == [b"\x01\x02"]
+    second_return.set()
 
 
 @pytest.mark.parametrize("failure", ["feed", "idle", "write", "flush", "sdk", "task", "stop"])
