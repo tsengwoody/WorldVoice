@@ -1048,10 +1048,11 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 
 	def onSave(self):
 		if self.activeEngine != self.previousActiveEngine:
+			# Write the engine flags first so the saved configuration includes them.
+			super().onSave()
 			if self.confirm == wx.YES:
 				gui.mainFrame.onSaveConfigurationCommand(None)
 				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
-			super().onSave()
 
 
 class LogSettingsPanel(BaseSettingsPanel):
