@@ -112,11 +112,12 @@ def test_engine_change_does_not_restart_after_failed_flag_write():
 
 	panel.onSave()
 
-	assert calls == [("write", "VE", True), ("beep",)]
+	assert calls == [("beep",)]
+	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}
 	assert len(logged) == 1
 
 
-def test_failed_save_keeps_unwritten_settings_and_logs():
+def test_failed_save_changes_no_settings_and_logs():
 	calls, logged = [], []
 	environment, section = _load_panels(calls, logged)
 	panel = environment["BaseSettingsPanel"]()
@@ -128,15 +129,15 @@ def test_failed_save_keeps_unwritten_settings_and_logs():
 
 	assert panel.onSave() is False
 
-	assert calls == [("write", "VE", True), ("beep",)]
-	assert dict(section) == {"VE": True, "OneCore": True, "SAPI5": False}
+	assert calls == [("beep",)]
+	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}
 	assert len(logged) == 1
 	args, kwargs = logged[0]
 	assert args == ("WorldVoice: failed to save %s settings", "engine")
 	assert kwargs == {"exc_info": True}
 
 
-def test_failed_choice_save_keeps_unwritten_settings():
+def test_failed_choice_save_changes_no_settings():
 	calls, logged = [], []
 	environment, section = _load_panels(calls, logged)
 	panel = environment["BaseSettingsPanel"]()
@@ -150,8 +151,8 @@ def test_failed_choice_save_keeps_unwritten_settings():
 
 	assert panel.onSave() is False
 
-	assert calls == [("write", "VE", "on"), ("beep",)]
-	assert dict(section) == {"VE": "on", "OneCore": True, "SAPI5": False}
+	assert calls == [("beep",)]
+	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}
 
 
 def test_failed_save_does_not_swallow_keyboard_interrupt():

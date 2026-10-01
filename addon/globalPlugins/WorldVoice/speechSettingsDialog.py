@@ -80,17 +80,20 @@ class BaseSettingsPanel(SettingsPanel):
 		return settingsSizerHelper
 
 	def onSave(self) -> bool:
-		"""Write the panel's widgets to config; return False if any value could not be written."""
+		"""Write the panel's widgets to config; return False if any value could not be written.
+
+		Every widget is read before anything is written, so a failed read leaves config untouched.
+		"""
 		try:
+			values = {}
 			for k, v in self.settings.items():
 				if "options" in v:
-					attr = k + "Selection"
-					widget = getattr(self, attr)
-					config.conf["WorldVoice"][self.field][k] = list(v["options"].keys())[
-						widget.GetSelection()
-					]
+					widget = getattr(self, k + "Selection")
+					values[k] = list(v["options"].keys())[widget.GetSelection()]
 				else:
-					config.conf["WorldVoice"][self.field][k] = getattr(self, k + "CheckBox").IsChecked()
+					values[k] = getattr(self, k + "CheckBox").IsChecked()
+			for k, value in values.items():
+				config.conf["WorldVoice"][self.field][k] = value
 		except Exception:
 			log.error("WorldVoice: failed to save %s settings", self.field, exc_info=True)
 			tones.beep(100, 100)

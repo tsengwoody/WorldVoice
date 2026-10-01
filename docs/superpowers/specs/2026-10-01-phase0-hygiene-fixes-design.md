@@ -131,7 +131,7 @@ except Exception:
 return True
 ```
 
-失敗前已寫入的欄位維持原樣，其餘欄位不動。回傳值供第 5 節的引擎面板判斷是否存檔與重啟。
+`onSave` 先讀取所有 widget，全部讀取成功後才寫入 config；讀取失敗時不改寫任何欄位，符合成功條件 7。回傳值供第 5 節的引擎面板判斷是否存檔與重啟。（最終審查發現：原本「失敗前已寫入的欄位維持原樣」會留下只寫了一半的引擎集合，最壞情況是零個引擎啟用，NVDA 結束時預設又會存檔；因此改為先讀後寫。）
 
 清理後重新拋出的 2 處（`synthDrivers/WorldVoice/__init__.py` 建構子、`voiceManager.py` 建構子）的 `except BaseException: self.terminate(commit=False); raise` 是正確寫法，保留不改，並加一行註解說明遇到 `KeyboardInterrupt` 也須先清理。
 
@@ -155,7 +155,7 @@ return True
   - 交付發生在 lifecycle delivery thread，不在呼叫端 thread。
   - native 沒有收到呼叫。
 - **C4**：沿用 `tests/test_voice_settings_transaction.py` 以 stub 載入 `speechSettingsDialog.py` 的方式，記錄 `config` 寫入、`onSaveConfigurationCommand`、`queueFunction` 的呼叫順序，斷言引擎旗標寫入早於存檔。另斷言 `confirm == wx.NO` 時仍寫入旗標但不存檔、不重啟。
-- **C10**：讓 `getattr(self, k + "CheckBox").IsChecked()` 在第二個欄位拋例外，斷言第一個欄位已寫入、其餘欄位維持原值、沒有任何欄位被改成 True，並記錄了 error log。
+- **C10**：讓 `getattr(self, k + "CheckBox").IsChecked()` 在第二個欄位拋例外，斷言沒有任何欄位被寫入、config 維持原值，並記錄了 error log。
 - **C11**：
   - `_run_cleanup` 遇到 `KeyboardInterrupt` 時往外拋，遇到 `Exception` 時記錄 log 並繼續後續清理。
   - 既有的 `tests/test_voice_config_repository.py::test_main_synth_lookup_exception_falls_back_to_voice` 以 `BaseException` 參數鎖住舊行為（來自 `148c47c`）。改為只參數化 `LookupError`、`RuntimeError`，另加測試斷言 `KeyboardInterrupt` 會往外拋。
