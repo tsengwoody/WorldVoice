@@ -296,6 +296,51 @@ def test_cancel_sees_accepted_work_while_xml_conversion_is_held(env, monkeypatch
         release.set()
 
 
+def test_cancel_after_control_fault_capture_suppresses_pending_failure(env, monkeypatch):
+    converting, release_conversion = Event(), Event()
+    captured, release_delivery = Event(), Event()
+    converter = env.outer.oneCore._OcSsmlConverter
+    original_convert = converter.convertToXml
+    original_delivery = env.driver._deliverSegmentControlFailure
+
+    def held_convert(self, commands):
+        converting.set()
+        assert release_conversion.wait(2)
+        return original_convert(self, commands)
+
+    def held_delivery(failure):
+        captured.set()
+        assert release_delivery.wait(2)
+        return original_delivery(failure)
+
+    monkeypatch.setattr(converter, "convertToXml", held_convert)
+    monkeypatch.setattr(env.driver, "_deliverSegmentControlFailure", held_delivery)
+    token = env.scheduler.CancellationToken()
+    context = env.rt.models.PlaybackContext(object(), 17)
+    events = []
+    speaking = in_thread(lambda: env.driver.speak_segment(("hello",), token,
+        context=context, on_event=events.append))
+    try:
+        assert converting.wait(1)
+        operation = next(iter(env.driver._segmentLifecycle._operations))
+        faulting = in_thread(lambda: env.driver._failSegmentControl(OSError("player failed")))
+        assert captured.wait(1)
+        cancelling = in_thread(env.driver.cancel)
+        finish(cancelling)
+        release_delivery.set()
+        finish(faulting)
+        release_conversion.set()
+        finish(speaking)
+        with env.driver._segmentLifecycle._condition:
+            assert env.driver._segmentLifecycle._condition.wait_for(
+                lambda: operation not in env.driver._segmentLifecycle._operations, 1)
+        assert events == []
+        assert env.native.calls == []
+    finally:
+        release_delivery.set()
+        release_conversion.set()
+
+
 def test_cancel_sees_work_between_queue_pop_and_lifecycle_run(env, monkeypatch):
     entered, release, finished = Event(), Event(), Event()
     lifecycle = env.driver._segmentLifecycle

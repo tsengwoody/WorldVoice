@@ -136,7 +136,11 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			if admission_error is not None:
 				self._segmentLifecycle.reject_new(context, token, on_event, admission_error)
 				return
-			operation = self._segmentLifecycle.accept(context, token, on_event)
+			def deliver(event):
+				with self._segmentCondition:
+					self._segmentAccepted.discard(operation)
+				on_event(event)
+			operation = self._segmentLifecycle.accept(context, token, deliver)
 			self._segmentAccepted.add(operation)
 		if not operation.is_valid():
 			with self._segmentCondition:
@@ -172,7 +176,8 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			with self._segmentCondition:
 				if not operation._run_started:
 					self._segmentLifecycle.reject_pending(operation, error)
-				self._segmentAccepted.discard(operation)
+				if not operation.work.is_valid():
+					self._segmentAccepted.discard(operation)
 
 	def _checkSegmentAdmission(self):
 		# Called under the condition; a control fault requires resource replacement.
@@ -442,7 +447,9 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self._segmentStops += 1
 			queued = list(self._segmentAccepted) + [item.operation for item in self._queuedSpeech
 				if isinstance(item, _SpeechJob) and item.operation is not None]
-			self._segmentAccepted.clear()
+			# Keep work removed from the queue visible to cancel until its
+			# asynchronous lifecycle failure is committed for delivery.
+			self._segmentAccepted.update(queued)
 			operations = list(queued)
 			legacy = any(isinstance(item, str) for item in self._queuedSpeech)
 			if self._segmentActiveOperation is not None:
@@ -462,7 +469,9 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			for operation in operations:
 				try:
 					if operation in queued:
-						self._segmentLifecycle.reject_pending(operation, error)
+						with self._segmentCondition:
+							if not operation._run_started:
+								self._segmentLifecycle.reject_pending(operation, error)
 					else:
 						self._segmentLifecycle.fail(operation, error)
 				except Exception:

@@ -150,8 +150,10 @@ def test_stop_failure_fails_closed_for_later_work(env):
 
 def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeypatch):
     accepted, release_accept = Event(), Event()
+    run_entered, release_run, run_finished = Event(), Event(), Event()
     lifecycle = env.driver._segmentLifecycle
     real_accept = lifecycle.accept
+    real_run = env.driver._run_segment
 
     def held_accept(*args):
         operation = real_accept(*args)
@@ -159,7 +161,16 @@ def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeyp
         assert release_accept.wait(3)
         return operation
 
+    def held_run(*args):
+        run_entered.set()
+        assert release_run.wait(3)
+        try:
+            return real_run(*args)
+        finally:
+            run_finished.set()
+
     monkeypatch.setattr(lifecycle, "accept", held_accept)
+    monkeypatch.setattr(env.driver, "_run_segment", held_run)
     token = env.scheduler.CancellationToken()
     context = env.rt.models.PlaybackContext(object(), 17)
     events = []
@@ -168,19 +179,27 @@ def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeyp
     speaking.start()
     try:
         assert accepted.wait(1)
-        cancelled = Event()
-        cancelling = Thread(target=lambda: (env.driver.cancel(), cancelled.set()), daemon=True)
+        # The speaking thread must hold the admission lock through wrapper
+        # registration. A nonblocking probe from this thread detects the gap.
+        admission = env.driver._segmentAdmission
+        acquired = admission.acquire(blocking=False)
+        if acquired:
+            admission.release()
+        assert not acquired
+        cancelling = Thread(target=env.driver.cancel, daemon=True)
         cancelling.start()
-        # The accepted operation must be registered before cancel can finish.
-        assert not cancelled.wait(0.1)
         release_accept.set()
         speaking.join(3)
         cancelling.join(3)
         assert not speaking.is_alive() and not cancelling.is_alive()
+        assert run_entered.wait(3)
+        release_run.set()
+        assert run_finished.wait(3)
         assert env.native.calls == []
         assert events == []
     finally:
         release_accept.set()
+        release_run.set()
 
 
 def test_cancel_releases_queued_work_without_running_its_native_message(env):
