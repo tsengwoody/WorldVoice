@@ -39,7 +39,9 @@ from .configRepository import ConfigVoiceSettingsRepository
 from .runtime.settings import VoiceSettingsStore
 from .nvdaEventBridge import NvdaEventBridge
 from .indexLedger import IndexLedger
-from .compat.completionPolicies import get_completion_contract, get_segment_drain_support
+from .compat.completionPolicies import (
+	DRAIN_ENGINES, get_completion_contract, get_segment_drain_support, resolve_audio_mode,
+)
 from .compat.commands import normalize_legacy_commands
 from .taskManager import TaskManager
 from .requestBuilder import queue_speech_sequence
@@ -447,27 +449,30 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
 
 	def _completion_for(self, voice_class, core):
-		audio_mode = "default"
-		if voice_class.engine in ("SAPI5", "OneCore"):
-			use_wasapi = getattr(core, "useWasapi", None)
-			audio_mode = "wasapi" if use_wasapi is True else "legacy" if use_wasapi is False else "unknown"
+		engine = voice_class.engine
+		nvda_version = versionInfo.version
+		audio_mode = resolve_audio_mode(engine, core)
 		drain_supported = False
-		if voice_class.engine in ("OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"):
+		if engine in DRAIN_ENGINES:
 			support = get_segment_drain_support(voice_class, core,
-				nvda_version=versionInfo.version, audio_mode=audio_mode)
+				nvda_version=nvda_version, audio_mode=audio_mode)
 			drain_supported = support.supported
 			if not drain_supported:
-				fallbacks = getattr(self, "_drainFallbacks", None)
-				if fallbacks is None:
-					self._drainFallbacks = fallbacks = set()
-				profile = (voice_class.engine, versionInfo.version, audio_mode, support.profile, support.reason)
-				if profile not in fallbacks:
-					fallbacks.add(profile)
-					nvdaLog.warning("WorldVoice %s uses LEGACY_DONE (NVDA %s, audio %s, profile %s): %s",
-						*profile)
-		return get_completion_contract(voice_class.engine,
-			nvda_version=versionInfo.version, audio_mode=audio_mode,
+				self._warn_drain_fallback(engine, nvda_version, audio_mode, support)
+		return get_completion_contract(engine,
+			nvda_version=nvda_version, audio_mode=audio_mode,
 			segment_drain_supported=drain_supported)
+
+	def _warn_drain_fallback(self, engine, nvda_version, audio_mode, support):
+		# Log each distinct fallback profile once per synth instance.
+		fallbacks = getattr(self, "_drainFallbacks", None)
+		if fallbacks is None:
+			self._drainFallbacks = fallbacks = set()
+		profile = (engine, nvda_version, audio_mode, support.profile, support.reason)
+		if profile not in fallbacks:
+			fallbacks.add(profile)
+			nvdaLog.warning("WorldVoice %s uses LEGACY_DONE (NVDA %s, audio %s, profile %s): %s",
+				*profile)
 
 	def terminate(self, *, commit=True):
 		if self._terminated:

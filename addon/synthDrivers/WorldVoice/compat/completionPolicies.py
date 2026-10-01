@@ -5,8 +5,9 @@ physical playback and ordered-index evidence. IndexCommand support alone
 never establishes completion semantics or a safe integer range.
 
 Supported custom wrappers use their explicit adapter/native drain contract.
-This is separate from physical playback certification. All installed custom
-wrappers fall back to LEGACY_DONE while their real profiles remain unverified.
+This is separate from physical playback certification. No installed wrapper
+profile is verified yet, so DRAIN for them is a forced activation controlled by
+FORCE_UNVERIFIED_DRAIN; turning it off restores LEGACY_DONE for every one.
 """
 
 from inspect import signature
@@ -18,15 +19,30 @@ from ..runtime.playbackWork import DrainSupport
 
 _VERIFIED_CONTRACTS: dict[tuple[str, str, str], CompletionContract] = {}
 
-_DRAIN_ENGINES = frozenset({"OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"})
+# Forced activation of DRAIN on wrapper profiles without playback evidence.
+# Read on every completion selection, so it applies to engines opened later.
+FORCE_UNVERIFIED_DRAIN = True
+
+# Single source for engines whose custom wrapper may report drain support.
+DRAIN_ENGINES = frozenset({"OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"})
+# Engines whose drain support depends on the opened core's WASAPI setting.
+_WASAPI_MODE_ENGINES = frozenset({"OneCore", "SAPI5"})
 _DRAIN_CONTRACT = CompletionContract(CompletionMode.DRAIN, IndexRange(1, 9999))
+
+
+def resolve_audio_mode(engine: str, core: object) -> str:
+    """Report the opened core's audio path; only explicit booleans are trusted."""
+    if engine not in _WASAPI_MODE_ENGINES:
+        return "default"
+    use_wasapi = getattr(core, "useWasapi", None)
+    return "wasapi" if use_wasapi is True else "legacy" if use_wasapi is False else "unknown"
 
 
 def get_completion_contract(engine: str, *, nvda_version: str, audio_mode: str,
                             segment_drain_supported: bool = False) -> CompletionContract:
     # Unsupported target profiles must not select a different contract while a
     # segment is waiting for completion.
-    if engine in _DRAIN_ENGINES:
+    if engine in DRAIN_ENGINES:
         return _DRAIN_CONTRACT if segment_drain_supported is True else CompletionContract()
     return _VERIFIED_CONTRACTS.get((engine, nvda_version, audio_mode), CompletionContract())
 
@@ -71,4 +87,7 @@ def get_segment_drain_support(voice_class: type, core: object, *,
         return unsupported("The wrapper did not return an explicit DrainSupport boolean decision")
     if not support.supported and not support.reason:
         return unsupported("The wrapper has no supported adapter/native drain profile")
+    if support.supported and not FORCE_UNVERIFIED_DRAIN:
+        return DrainSupport(False, support.profile,
+            f"Unverified DRAIN is disabled by FORCE_UNVERIFIED_DRAIN: {support.reason}")
     return support

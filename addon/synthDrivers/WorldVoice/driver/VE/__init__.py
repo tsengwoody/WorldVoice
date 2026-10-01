@@ -21,7 +21,7 @@ from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
 from synthDrivers.WorldVoice.driver.arabic_text import break_repeated_runs
 from synthDrivers.WorldVoice.driver.chunker import split_speech_text_pieces
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import CallbackGate, DrainSupport
+from ...runtime.playbackWork import CallbackGate, DrainSupport, unverified_drain_support
 from ...runtime.segmentLifecycle import SegmentLifecycle
 from ...runtime.session import CancellationView
 
@@ -381,8 +381,7 @@ class SynthDriver(BaseSynthDriver):
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		if not self._guard_installed:
 			return DrainSupport(False, _PROFILE, "VE cancellation guard installation is unavailable")
-		return DrainSupport(True, _PROFILE,
-			"DRAIN explicitly enabled; SDK callback quiescence and physical playback are unverified")
+		return unverified_drain_support(_PROFILE, "SDK callback quiescence and physical playback are")
 
 	def _confirm_native_quiescence(self, native):
 		# Explicit activation override; retain the callback guard and idle barrier.

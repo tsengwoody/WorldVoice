@@ -72,6 +72,14 @@ def test_drain_support_is_immutable(work_env):
         support.supported = False
 
 
+def test_unverified_drain_support_helpers(work_env):
+    rt, *_ = work_env
+    assert rt.playback_work.runtime_profile("RHVoice", None, "wasapi") == "RHVoice/unknown/wasapi"
+    support = rt.playback_work.unverified_drain_support("p", "physical playback is")
+    assert support == rt.playback_work.DrainSupport(
+        True, "p", "DRAIN explicitly enabled; physical playback is unverified")
+
+
 def test_drain_uses_original_context_once(work_env):
     rt, token, context, events, work = work_env
     assert work.context is context

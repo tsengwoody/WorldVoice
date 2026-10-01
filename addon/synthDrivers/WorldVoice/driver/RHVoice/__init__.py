@@ -8,7 +8,7 @@ from logHandler import log
 from . import driver as rhvoice
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import EventKind, PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import DrainSupport, PlaybackWork
+from ...runtime.playbackWork import PlaybackWork, runtime_profile, unverified_drain_support
 from ...runtime.session import CancellationView
 from ...runtime.segmentLifecycle import SegmentLifecycle
 
@@ -406,8 +406,8 @@ class SynthDriver(rhvoice.SynthDriver):
 		Thread(target=deliver, daemon=True, name="RHVoice segment event").start()
 
 	def get_segment_drain_support(self, *, nvda_version=None, audio_mode=None):
-		return DrainSupport(True, "RHVoice/%s/%s" % (nvda_version or "unknown", audio_mode or "unknown"),
-			"DRAIN explicitly enabled; callback retirement and physical playback are unverified")
+		return unverified_drain_support(runtime_profile("RHVoice", nvda_version, audio_mode),
+			"callback retirement and physical playback are")
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 			context: PlaybackContext, on_event: SegmentEventSink):

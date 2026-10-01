@@ -12,7 +12,9 @@ from synthDriverHandler import synthDoneSpeaking, synthIndexReached
 from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import CallbackGate, DrainSupport, PlaybackWork
+from ...runtime.playbackWork import (
+	CallbackGate, DrainSupport, PlaybackWork, runtime_profile, unverified_drain_support,
+)
 from ...runtime.segmentLifecycle import SegmentLifecycle, SegmentOperation
 from ...runtime.session import CancellationView
 
@@ -125,8 +127,8 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		for name in ("ocSpeech_initialize", "ocSpeech_speak", "ocSpeech_terminate"):
 			if not callable(getattr(self._dll, name, None)):
 				return DrainSupport(False, "OneCore", f"OneCore native binding is incomplete: {name}")
-		return DrainSupport(True, f"OneCore/{nvda_version}/{audio_mode}",
-			"DRAIN enabled by explicit request; loaded native helper provenance is unverified")
+		return unverified_drain_support(runtime_profile("OneCore", nvda_version, audio_mode),
+			"loaded native helper provenance is")
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 		context: PlaybackContext, on_event: SegmentEventSink) -> None:

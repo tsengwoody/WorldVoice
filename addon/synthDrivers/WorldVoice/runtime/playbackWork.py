@@ -22,6 +22,19 @@ class DrainSupport:
     reason: str
 
 
+def runtime_profile(engine: str, nvda_version, audio_mode) -> str:
+    """Name a wrapper profile by engine and the runtime it was opened under."""
+    return f"{engine}/{nvda_version or 'unknown'}/{audio_mode or 'unknown'}"
+
+
+def unverified_drain_support(profile: str, unverified: str) -> DrainSupport:
+    """Report a drain-capable wrapper whose *unverified* evidence is still missing.
+
+    The completion policy decides whether such a profile may use DRAIN.
+    """
+    return DrainSupport(True, profile, f"DRAIN explicitly enabled; {unverified} unverified")
+
+
 class PlaybackWork:
     """Capture one segment's inputs and publish at most one terminal event."""
 

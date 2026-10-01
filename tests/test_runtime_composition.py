@@ -657,7 +657,8 @@ def runtime_completion_selector(c, version="synthetic"):
         "SynthDriver": object, "synthIndexReached": object(), "synthDoneSpeaking": object(),
         "versionInfo": SimpleNamespace(version=version),
         "get_completion_contract": policies.get_completion_contract,
-        "get_segment_drain_support": getattr(policies, "get_segment_drain_support", None),
+        "get_segment_drain_support": policies.get_segment_drain_support,
+        "resolve_audio_mode": policies.resolve_audio_mode, "DRAIN_ENGINES": policies.DRAIN_ENGINES,
         "nvdaLog": SimpleNamespace(warning=lambda *args: logs.append(args)), **commands,
     })
     return object.__new__(root)._completion_for, logs

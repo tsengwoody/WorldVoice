@@ -8,7 +8,7 @@ from synthDriverHandler import synthDoneSpeaking
 from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import DrainSupport, PlaybackWork
+from ...runtime.playbackWork import PlaybackWork, runtime_profile, unverified_drain_support
 from ...runtime.session import CancellationView
 from ...runtime.segmentLifecycle import SegmentLifecycle
 
@@ -167,8 +167,8 @@ class SynthDriver(BaseSynthDriver):
 		_espeak.espeakDLL = _SegmentNative(self, _espeak.espeakDLL)
 
 	def get_segment_drain_support(self, *, nvda_version=None, audio_mode=None):
-		return DrainSupport(True, "espeak/%s/%s" % (nvda_version or "unknown", audio_mode or "unknown"),
-			"DRAIN explicitly enabled; callback retirement and physical playback are unverified")
+		return unverified_drain_support(runtime_profile("espeak", nvda_version, audio_mode),
+			"callback retirement and physical playback are")
 
 	def speak_segment(self, commands: SpeechCommands, token: CancellationView, *,
 			context: PlaybackContext, on_event: SegmentEventSink):
