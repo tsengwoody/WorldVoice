@@ -1,0 +1,5 @@
+# Documentation: https://git-scm.com/docs/git-blame#Documentation/git-blame.txt---ignore-revs-fileltfilegt
+# Usage: git config --local blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Format add-on sources with add-trailing-comma and Ruff (NVDA conventions)
+41fb63e4c06c33745f24b88875b8760cf81701ee
