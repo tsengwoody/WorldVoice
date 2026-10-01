@@ -21,7 +21,7 @@
 
 1. `addon/` 內（扣除內層驅動）沒有任何 wrapper 讀寫 `SegmentOperation` 或 `SegmentLifecycle` 的私有成員。檢查方式見「驗收」。wrapper 自訂屬性（決定 2）不在此限。
 2. `runtime/segmentLifecycle.py`、`driver/VE/__init__.py`、`driver/Cerence/__init__.py` 不再有 `wait(0.05)` 或其他固定間隔輪詢。
-3. 取消一個 token 後，正在等待它的 lifecycle／wrapper 在 20 ms 內醒來（原本最長 50 ms）。
+3. 等待中的 lifecycle／wrapper 不再週期性重新檢查取消狀態：在 200 ms 的等待窗口內，token（或 `still_wanted`）最多被額外讀取 1 次（50 ms 輪詢約 4 次）；取消後在 0.5 秒內醒來。（原型發現：以「20 ms 內醒來」驗證不穩定，50 ms 輪詢有時恰好在 20 ms 內醒來。）
 4. 全部既有測試與階段 1 契約測試維持通過：基線 1255 passed、96 skipped、2 xfailed，加上本階段新增測試。
 5. 本地還原 Neural 後，Neural 的測試與契約案例仍通過（Neural 程式碼不修改、不提交）。
 
@@ -109,6 +109,7 @@ class SegmentLifecycle:
 - `wait_idle`：等到資源不忙時回傳 `True`；`still_wanted()` 變成 `False` 時回傳 `False`。等待期間不輪詢，由下列事件喚醒：資源釋放（lifecycle 既有的 `notify_all`）、`token` 的取消回呼、`wake_waiters()`。
 - `wake_waiters`：在 `_condition` 上 `notify_all()`。供 wrapper 在 lifecycle 不知情的狀態改變後呼叫，例如 VE 直接 `cancel()` 一般語音工作。
 - `run()` 等待資源時，以 `token.add_callback` 註冊喚醒，取代 `wait(0.05)`；離開等待時移除回呼。
+- `PlaybackWork` 新增選用的關鍵字參數 `on_cancel`，`cancel()` 在釋放 work 自己的鎖之後呼叫它。lifecycle 在 `accept()`／`reject_new()` 建立 work 時傳入 `wake_waiters`。（原型發現：各 wrapper 有十幾處直接呼叫 `PlaybackWork.cancel()`，包括不能修改的 Neural。原本靠 50 ms 輪詢察覺，改成事件驅動後必須由 `PlaybackWork` 主動通知，否則排隊中的 `run()` 要等前一段釋放資源才會發現。）
 
 ### 4. wrapper 遷移
 
@@ -122,7 +123,7 @@ class SegmentLifecycle:
 | VE、Cerence `_condition.wait_for(not _resource_busy)` 與一般語音迴圈 | `lifecycle.wait_idle(...)`、`lifecycle.is_resource_busy()` |
 | VE、Cerence `_wait_segment_delivery` 的 `completion.wait(0.05)` 迴圈 | `token.add_callback(completion.set)` 後 `completion.wait()`，離開時移除 |
 
-VE、Cerence 直接取消一般語音工作的路徑（`cancel()` 內對 `_SpeechWork.cancel()` 的呼叫）之後呼叫 `lifecycle.wake_waiters()`，讓 `wait_idle` 的 `still_wanted` 被重新檢查。
+VE、Cerence 直接取消一般語音工作的路徑（`cancel()` 內對 `_SpeechWork.cancel()` 的呼叫）之後呼叫 `lifecycle.wake_waiters()`，讓 `wait_idle` 的 `still_wanted` 被重新檢查。一般語音的 `_SpeechWork` 沒有 `PlaybackWork`，所以 `on_cancel` 涵蓋不到這條路徑。呼叫放在 `_speechStateLock` 區塊之後。
 
 各 wrapper 的具體改法由 plan 依原型確認；本表的每一列都必須消失於驗收的私有存取檢查中。
 
@@ -142,13 +143,15 @@ VE、Cerence 直接取消一般語音工作的路徑（`cancel()` 內對 `_Speec
 
 - **`CancellationToken.add_callback`**（`tests/test_runtime_scheduler.py`）：取消時呼叫一次；已取消時立即呼叫；移除後不呼叫；重複 `cancel()` 不重複呼叫；回呼例外不影響其他回呼與 `cancel()`；回呼在 token 鎖之外執行（回呼內可以再呼叫 `is_cancelled()` 與 `add_callback()` 而不死結）。
 - **operation 查詢與 lifecycle 方法**（`tests/test_segment_lifecycle.py`）：`has_started`／`is_retired` 在 accept、run、reject、retire 各階段的值；`sink` 為原 sink；`on_delivery_thread` 在 delivery thread 與其他 thread 的值；`join_delivery` 在 delivery thread 上不死結；`wait_idle` 在資源釋放、`still_wanted` 轉為 False、token 取消、`wake_waiters()` 四種情況下返回且回傳值正確。
-- **不再輪詢**：資源忙碌時以已註冊的 token 等待 `run()`／`wait_idle`，取消 token 後 20 ms 內返回；以單元測試鎖住。VE 的 `_wait_segment_delivery` 以同一上限驗證。
-- **私有存取守門**：新增測試掃描 `addon/synthDrivers/WorldVoice/driver/*/__init__.py`（扣除內層驅動與未追蹤的 Neural），斷言正規式 `\b(operation|lifecycle|_segmentLifecycle)\._(\w+)` 沒有任何命中，但允許 wrapper 自訂屬性前綴 `_ve_`、`_onecore_`、`_rhvoice_`、`_espeak_`、`_neural_`（決定 2）。基準 `dfe01e6` 上這條規則命中 26 處，正好是「現況」表列出的位置；wrapper 自己的欄位（例如 `self._segmentCondition`）不會被比對到。
+- **不再輪詢**：以會計數的 token（或 `still_wanted`）等待 `run()`、`wait_idle`、VE/Cerence 的一般語音等待與 `_wait_segment_delivery`，斷言 200 ms 內最多額外讀取 1 次，取消後 0.5 秒內醒來。另以「排隊中的 `run()` 被 token 取消／被 `PlaybackWork.cancel()` 取消都會醒來」兩個測試鎖住喚醒來源，並各以一次變異證明它們有效。
+- **`PlaybackWork.on_cancel`**：回呼在 work 鎖之外執行（回呼內呼叫 `is_valid()` 不死結）。
+- **私有存取守門**：新增測試掃描 `addon/synthDrivers/WorldVoice/driver/*/__init__.py`（扣除內層驅動與未追蹤的 Neural），斷言正規式 `\b(operation|lifecycle|_segmentLifecycle)\._(\w+)` 沒有任何命中，但允許 wrapper 自訂屬性前綴 `_ve_`、`_onecore_`、`_rhvoice_`、`_espeak_`、`_neural_`（決定 2）。基準 `dfe01e6` 上這條規則命中 26 處（逐行計算為 27 筆，因 VE/Cerence 各有一行出現兩次），正好是「現況」表列出的位置；wrapper 自己的欄位（例如 `self._segmentCondition`）不會被比對到。
 - 既有測試若因直接讀私有成員而失敗，才改用新 API；未受影響者不動。
 
 ## 驗收
 
-- `python3 -m pytest tests -q`：全部通過；skipped 仍為 96，xfailed 仍為 2。
+- `python3 -m pytest tests -q`：原型實測 1276 passed、96 skipped、2 xfailed（新增 21 個測試）；含 Neural 時 1372 passed、9 skipped、2 xfailed。
+- 已知既有問題（與本階段無關）：含 Neural 時，`tests/test_neural_segment_drain.py::test_explicit_activation_override_completes_with_unproven_quiescence` 約有 5% 機率失敗（`player.fed == []`）。在 master（`dfe01e6`）與本階段原型上各單獨執行 100 次，都是 5 次失敗。原因是測試在 `native.wait_calls(2)` 之後立刻送出音訊，Neural 不一定已準備好接收第二段。修正需要改 Neural 測試或不在 repo 內的 Neural 驅動，不在本階段範圍；含 Neural 驗證時若只有這個測試失敗，重跑即可。
 - `grep -n "wait(0.05)" addon/synthDrivers/WorldVoice/runtime/segmentLifecycle.py addon/synthDrivers/WorldVoice/driver/VE/__init__.py addon/synthDrivers/WorldVoice/driver/Cerence/__init__.py`：無輸出。
 - 私有存取守門測試通過。
 - 在含 Neural 快照的臨時 worktree 中，完整測試與契約測試通過。
