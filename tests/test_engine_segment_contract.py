@@ -104,3 +104,20 @@ def test_completed_segment_drains_once_on_the_delivery_thread(engine):
 	assert event.segment_id == 17
 	assert events.threads == [engine.delivery_thread_ident()]
 	assert events.threads[0] != caller.ident
+
+
+@pytest.mark.parametrize("engine", _engines(), indirect=True)
+def test_segment_after_terminate_fails_once_without_native_call(engine):
+	engine.terminate()
+	context = engine.PlaybackContext(object(), 19)
+	events = Events()
+	caller, errors = _start_speak(engine, engine.new_token(), context, events)
+
+	event = events.wait_one()
+	caller.join(2)
+
+	assert not caller.is_alive() and errors == []
+	assert event.kind is engine.EventKind.SEGMENT_FAILED
+	assert event.source_id is context.source_id
+	assert event.segment_id == 19
+	assert engine.native_call_count() == 0
