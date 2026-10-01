@@ -468,9 +468,16 @@ class SynthDriver(rhvoice.SynthDriver):
 
 		with self._segmentAdmission:
 			with self._segmentCondition:
-				if self._segmentTerminated:
-					return
+				terminated = self._segmentTerminated
 				control_error = self._segmentControlError
+			if terminated:
+				self._segmentLifecycle.reject_new(
+					context,
+					token,
+					on_event,
+					RuntimeError("RHVoice driver has terminated"),
+				)
+				return
 			if control_error is not None:
 				self._segmentLifecycle.reject_new(context, token, on_event, control_error)
 				return
