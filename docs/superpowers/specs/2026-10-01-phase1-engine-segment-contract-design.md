@@ -65,8 +65,7 @@ class SegmentContractAdapter(Protocol):
 	def close(self) -> None: ...                       # 放行所有 hold，再 terminate；可重複呼叫
 	def new_token(self) -> object: ...                 # 該引擎測試慣用的 CancellationView
 	def speak(self, commands, token, context, sink) -> None: ...   # 直接呼叫 speak_segment
-	def hold_completion(self) -> None: ...             # 下一段送出後停在完成之前
-	def complete(self) -> None: ...                    # 驅動假 native／player 讓目前這段正常完成
+	def complete(self) -> None: ...                    # 放行假 native／player，讓目前這段正常完成
 	def terminate(self) -> None: ...
 	def native_call_count(self) -> int: ...
 	def delivery_thread_ident(self) -> int | None: ...
@@ -74,17 +73,18 @@ class SegmentContractAdapter(Protocol):
 
 - 每個 adapter 沿用該引擎既有的 loader 與假物件，不複製假物件程式碼。若既有 loader 寫在測試檔內（SAPI5），adapter 從該檔 import。
 - 讀取 lifecycle 私有屬性（例如 `_segmentLifecycle._delivery_thread`）只發生在 adapter 內。階段 2 提供公開 API 後，只需要改 adapter。
-- `hold_completion` 的具體做法由各引擎決定，原則是擋在「最後播放屏障」之前（例如 player 的 idle 或 sync），讓 `SEGMENT_DRAINED` 無法提早發布。
+- `open()` 之後，假物件預設就讓每一段停在完成之前（例如 player 的 idle／sync 或 native 返回尚未放行），只有 `complete()` 會放行。原型確認六個既有 harness 的假物件本來就是這樣運作；VE/Cerence adapter 自行把 player 的 `idle` 換成等待 `complete()` 的 Event。
+- 每個測試都在輔助 thread 上呼叫 `speak`。VE/Cerence 的 `speak_segment` 會在呼叫端 thread 上同步執行 native，若在測試 thread 上呼叫，就等不到 `complete()`。
 - Neural adapter 套用 `neural_drain_harness.requires_neural`。
 
 **`tests/test_engine_segment_contract.py`**：四個契約測試，以 `pytest.fixture(params=[...])` 參數化七個 adapter，案例 id 為引擎名稱。fixture 在 yield 之後一律呼叫 `adapter.close()`。
 
 ### 四項契約的測試方式
 
-1. **正常完成**：`speak` → `complete()` → 等待事件（逾時 2 秒）。斷言恰好一個事件、`kind is EventKind.SEGMENT_DRAINED`、`source_id is context.source_id`、`segment_id` 相同；交付 thread 等於 `delivery_thread_ident()`，且不等於呼叫端 thread。等待 0.1 秒後再斷言仍只有一個事件，以抓晚到的重複事件（階段 0 審查的 minor）。
+1. **正常完成**：在輔助 thread 呼叫 `speak` → `complete()` → 等待事件（逾時 2 秒）。斷言恰好一個事件、`kind is EventKind.SEGMENT_DRAINED`、`source_id is context.source_id`、`segment_id` 相同；交付 thread 等於 `delivery_thread_ident()`，且不等於呼叫端 thread。等待 0.1 秒後再斷言仍只有一個事件，以抓晚到的重複事件（階段 0 審查的 minor）。
 2. **terminate 後**：`terminate()` → `speak` → 等待事件。斷言恰好一個 `SEGMENT_FAILED`、context 相同、`native_call_count() == 0`。同樣補 0.1 秒後的重複檢查。
 3. **token 已取消**：建立 token 並取消 → `speak`。斷言呼叫返回、`native_call_count() == 0`；等待 0.2 秒，事件清單仍為空。
-4. **不阻塞到 delivery**：`hold_completion()` → 在 daemon thread 呼叫 `speak` → `join(1)`。斷言 thread 已結束且尚無事件 → `complete()` → 等待恰好一個 `SEGMENT_DRAINED`。thread 未結束時測試失敗，收尾的 `close()` 放行 hold，讓 thread 結束。
+4. **不阻塞到 delivery**：在 daemon thread 呼叫 `speak` → `join(1)`。斷言 thread 已結束且尚無事件 → `complete()` → 等待恰好一個 `SEGMENT_DRAINED`。thread 未結束時測試失敗，收尾的 `close()` 放行 hold，讓 thread 結束。
 
 ### 已知差異的標示
 
@@ -107,7 +107,17 @@ Neural 程式碼只在臨時 worktree 中由 `storage/Neural-snapshot-2026-10-01
 - 在含 Neural 快照的臨時 worktree 中，Neural 的 4 個案例執行且不 skip。
 - `git ls-files addon/synthDrivers/WorldVoice/driver/Neural`：無輸出。
 - `git diff master --stat -- addon/`：無輸出（本階段不改 production code）。
+- 除了 VE/Cerence 第 4 項以外，契約測試寫好就會通過，因為它們鎖的是現有行為。每項契約都以一次暫時的 production 變異證明它能失敗，驗證後以 `git checkout` 還原：
+  - 第 1 項：`runtime/segmentLifecycle.py` 的 `_deliver` 對同一事件呼叫 sink 兩次 → 所有引擎失敗（收到 2 個事件）。
+  - 第 2 項：還原 eSpeak 的 C1 修正（terminated 時 `return`）→ eSpeak 失敗。
+  - 第 3 項：`runtime/playbackWork.py` 的 `is_valid` 忽略 token → OneCore、RHVoice、SAPI5、eSpeak、Neural 失敗。VE/Cerence 在 wrapper 內自行檢查 token，不受此變異影響。
+  - 第 4 項：`--runxfail` 下 VE、Cerence 失敗，訊息為 "speak_segment did not return before the segment completed"。
 
 ## 實作發現
 
-目前無。實作時若發現其他引擎不符契約，於此逐項補記：引擎、契約項目、現象、xfail 原因。
+原型（暫時 worktree，含 Neural 快照）結果：沒有發現 C3 以外的契約差異。含 Neural 時為 26 passed、2 xfailed；不含 Neural 時為 22 passed、4 skipped、2 xfailed；連續 5 次結果相同。
+
+- 既有 Neural／VE 測試使用的 `prove_fake_quiescence` stub 在這四項契約中不需要（它只影響取消路徑），adapter 不套用。
+- VE/Cerence 的 fake SDK 在 terminate 時需要 stub `native.close`、`native.terminate`；既有 VE fixture 收尾時從不 terminate，所以沒有這兩個 stub。
+
+實作時若發現其他差異，於此逐項補記：引擎、契約項目、現象、xfail 原因。
