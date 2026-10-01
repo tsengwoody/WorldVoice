@@ -24,7 +24,7 @@
 成功條件：
 
 1. `ruff format --check` 對 `addon/`（扣除排除項目）通過。
-2. `.pre-commit-config.yaml` 含 NVDA 同版本的格式化 hook，限定 `addon/`。
+2. `.pre-commit-config.yaml` 含 NVDA 同版本的格式化 hook（不含 lint hook，見設計第 1 節），限定 `addon/`。
 3. 純格式 commit 只含工具產生的變更，並登記在 `.git-blame-ignore-revs`。
 4. `addon/` 內每個 `# Translators:` 註解都緊貼含 gettext 呼叫的那一行，且有測試守住。
 5. Espeak、RHVoice 在 terminated 後收到 `speak_segment` 時，經 lifecycle delivery thread 發出 `SEGMENT_FAILED`，不再靜默返回。
@@ -35,7 +35,7 @@
 ## 現況
 
 - `pyproject.toml` 已設 `indent-style = "tab"`、`line-length = 110`，但 16 個新檔（`runtime/`、`compat/`、`indexLedger.py`、`nvdaEventBridge.py`、`configRepository.py`、`taskManager.py`）使用 4 空格縮排。對 `addon/` 執行 `ruff format` 會改動 40–41 個檔案。
-- 試跑結果（暫時 worktree，已刪除）：先 `add-trailing-comma` 再 `ruff format`，41 檔、+3,832／−2,876；測試 1220 passed、92 skipped，與基線相同。
+- 試跑結果（暫時 worktree，已刪除）：先 `add-trailing-comma` 再 `ruff format` 各跑一次，41 檔、+3,832／−2,876（跑到穩定後的數字見設計第 2 節）；測試 1220 passed、92 skipped，與基線相同。
 - 試跑發現 `log.py:55` 的 `# Translators:` 會被 ruff 換行拆離 `message=_(...)`；`generics/speechSymbols/views.py` 另有兩處原本就未緊貼（格式化前，註解後一行分別是第 57 行的 `self.speechSymbols = None` 與第 253 行的 `gui.messageBox(`）。
 - `languageDetection/script_data.py` 由 `tools/generate_unicode_scripts.py` 產生，檔頭註明不得手改；格式化它會在下次重新產生時整檔回彈。
 - `origin/pr-82` 有 6 個 commit 不在 master；全量格式化後該分支無法直接合併。使用者已接受此成本。
@@ -58,19 +58,27 @@
 | --- | --- | --- |
 | `pre-commit/pre-commit-hooks` | 維持現有 | `trailing-whitespace`、`end-of-file-fixer`（`types_or: [python]`） |
 | `asottile/add-trailing-comma` | `v4.0.0` | `add-trailing-comma` |
-| `astral-sh/ruff-pre-commit` | `v0.16.3` | `ruff`（`args: [--fix]`）、`ruff-format` |
+| `astral-sh/ruff-pre-commit` | `v0.16.3` | `ruff-format` |
 
-不加入 NVDA 的 `no-commit-to-branch`，因為 WorldVoice 直接在 master 上提交。ruff hook 的 `--fix` 只對之後新提交的檔案生效；本階段的一次性格式化不執行 `--fix`，以保持格式 commit 純粹。
+不加入 NVDA 的兩個 hook：
+
+- `no-commit-to-branch`：WorldVoice 直接在 master 上提交。
+- `ruff`（`args: [--fix]`）lint hook：ruff 0.16.3 預設規則下，`addon/` 52 個檔案中有 39 個共 249 項 lint 問題（`BLE001` 89、`I001` 32、`UP031` 16、`F401` 14 等）。NVDA 能跑這個 hook 是因為它的程式碼沒有 lint 問題；WorldVoice 若照搬，任何碰到這 39 個檔案的 commit 都會被擋下。設定檔中以註解記錄此原因，lint 清理完成後（另排階段）再加入。
+
+C11 把 `except BaseException` 改成 `except Exception` 後，ruff 仍會報 `BLE001`（該規則也涵蓋 `Exception`），所以本階段不會降低 lint 數量。
 
 ### 2. 一次性格式化
 
-對 `addon/` 內所有受追蹤的 `.py`（扣除上述排除項目）依序執行 `add-trailing-comma`、`ruff format`，結果單獨成一個 commit，不含任何手動修改。接著另一個 commit 新增 `.git-blame-ignore-revs`，格式比照 NVDA：檔頭寫文件連結與 `git config --local blame.ignoreRevsFile .git-blame-ignore-revs` 用法，每筆 hash 前加 `# 說明` 註解。
+以 `pre-commit run --all-files` 執行上述 hook，重複到 exit code 為 0。原型實測要跑 3 輪才會穩定：ruff 拆行後，add-trailing-comma 會再補逗號，ruff 再重排一次。最終結果是 41 個 `.py` 檔、+3,930／−2,876，單獨成一個 commit，不含任何手動修改。接著另一個 commit 新增 `.git-blame-ignore-revs`，格式比照 NVDA：檔頭寫文件連結與 `git config --local blame.ignoreRevsFile .git-blame-ignore-revs` 用法，每筆 hash 前加 `# 說明` 註解。
 
 ### 3. 翻譯註解
 
 依 NVDA `codingStandards.md`「Translatable Strings」修正三處：註解緊貼字串所在行；呼叫跨行時，註解放進 `_(` 括號內、字串之前。
 
-新增測試 `tests/test_translator_comments.py`：掃描 `addon/` 內所有 `.py`（扣除排除項目），對每個 `# Translators:` 註解區塊，斷言其後第一個非註解行含有 `_(`、`pgettext(`、`ngettext(` 或 `npgettext(`。
+新增測試 `tests/test_translator_comments.py`：掃描 `addon/` 內所有 `.py`（扣除排除項目），每個 `# Translators:` 註解須符合下列其一：
+
+- 其後第一個非註解行含有 `_(`、`pgettext(`、`ngettext(` 或 `npgettext(`。
+- 註解的上一行以上述呼叫的左括號結尾，也就是 NVDA 的跨行寫法，註解在括號內。
 
 ### 4. C1：terminated 後發 FAILED
 
@@ -91,13 +99,13 @@ return
 ```python
 def onSave(self):
 	if self.activeEngine != self.previousActiveEngine:
-		super().onSave()
-		if self.confirm == wx.YES:
+		# Write the engine flags first so the saved configuration includes them.
+		if super().onSave() and self.confirm == wx.YES:
 			gui.mainFrame.onSaveConfigurationCommand(None)
 			queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 ```
 
-引擎集合沒有變更時不寫入，與現行行為相同。
+引擎集合沒有變更時不寫入，與現行行為相同。`BaseSettingsPanel.onSave` 改為回傳 `bool`（見第 6 節）：旗標寫到一半失敗時不存檔也不重啟，避免 NVDA 以只寫了一半的引擎集合重啟。NVDA 會忽略 `SettingsPanel.onSave` 的回傳值；`LogSettingsPanel` 呼叫 `super().onSave()` 時不使用回傳值，行為不變。
 
 ### 6. C10、C11：例外處理
 
@@ -119,9 +127,11 @@ C10：`BaseSettingsPanel.onSave` 失敗時不再把所有欄位寫成第一個�
 except Exception:
 	log.error("WorldVoice: failed to save %s settings", self.field, exc_info=True)
 	tones.beep(100, 100)
+	return False
+return True
 ```
 
-失敗前已寫入的欄位維持原樣，其餘欄位不動。
+失敗前已寫入的欄位維持原樣，其餘欄位不動。回傳值供第 5 節的引擎面板判斷是否存檔與重啟。
 
 清理後重新拋出的 2 處（`synthDrivers/WorldVoice/__init__.py` 建構子、`voiceManager.py` 建構子）的 `except BaseException: self.terminate(commit=False); raise` 是正確寫法，保留不改，並加一行註解說明遇到 `KeyboardInterrupt` 也須先清理。
 
@@ -136,7 +146,7 @@ except Exception:
 7. C4（紅燈測試 → 修正）。
 8. C10 與 C11（紅燈測試 → 修正）。
 
-步驟 5 起，每個 commit 都應通過新的 pre-commit hook。
+步驟 2 之後，每個 commit 都應通過新的格式類 hook（`ruff format --check` 對變更檔案無輸出）。
 
 ## 測試
 
@@ -146,7 +156,10 @@ except Exception:
   - native 沒有收到呼叫。
 - **C4**：沿用 `tests/test_voice_settings_transaction.py` 以 stub 載入 `speechSettingsDialog.py` 的方式，記錄 `config` 寫入、`onSaveConfigurationCommand`、`queueFunction` 的呼叫順序，斷言引擎旗標寫入早於存檔。另斷言 `confirm == wx.NO` 時仍寫入旗標但不存檔、不重啟。
 - **C10**：讓 `getattr(self, k + "CheckBox").IsChecked()` 在第二個欄位拋例外，斷言第一個欄位已寫入、其餘欄位維持原值、沒有任何欄位被改成 True，並記錄了 error log。
-- **C11**：`_run_cleanup` 遇到 `KeyboardInterrupt` 時往外拋，遇到 `Exception` 時記錄 log 並繼續後續清理。
+- **C11**：
+  - `_run_cleanup` 遇到 `KeyboardInterrupt` 時往外拋，遇到 `Exception` 時記錄 log 並繼續後續清理。
+  - 既有的 `tests/test_voice_config_repository.py::test_main_synth_lookup_exception_falls_back_to_voice` 以 `BaseException` 參數鎖住舊行為（來自 `148c47c`）。改為只參數化 `LookupError`、`RuntimeError`，另加測試斷言 `KeyboardInterrupt` 會往外拋。
+- **C4 + C10 交互**：引擎變更時旗標寫入失敗，不存檔、不重啟。
 - **翻譯註解**：見設計第 3 節。
 
 ## 驗收
