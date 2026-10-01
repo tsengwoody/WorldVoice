@@ -184,6 +184,12 @@ class SynthDriver(BaseSynthDriver):
 	):
 		with self._segmentAdmission:
 			if self._segmentTerminated:
+				self._segmentLifecycle.reject_new(
+					context,
+					token,
+					on_event,
+					RuntimeError("eSpeak driver has terminated"),
+				)
 				return
 			if self._segmentControlError is not None:
 				self._segmentLifecycle.reject_new(context, token, on_event, self._segmentControlError)

@@ -1,6 +1,6 @@
 """eSpeak drain requires callback idle and FIFO native retirement."""
 
-from threading import Event, current_thread
+from threading import Event, current_thread, get_ident
 import importlib
 import sys
 
@@ -443,3 +443,30 @@ def test_correlated_path_preserves_base_language_variant_prosody_and_legacy_done
     legacy.return_release.set()
     env.inner.bgQueue.join()
     assert env.dones == [env.driver]
+
+
+def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
+    env.driver.terminate()
+    env.driver.terminate()  # Repeated terminate must stay idempotent.
+    caller = get_ident()
+    events, threads = [], []
+    received = Event()
+    token = env.scheduler.CancellationToken()
+    context = env.rt.models.PlaybackContext(object(), 19)
+
+    def sink(event):
+        events.append(event)
+        threads.append(get_ident())
+        received.set()
+
+    env.driver.speak_segment(("after terminate", env.commands.IndexCommand(7)), token,
+        context=context, on_event=sink)
+    assert received.wait(1), "terminated driver dropped the segment silently"
+    assert len(events) == 1
+    assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert events[0].source_id is context.source_id
+    assert events[0].segment_id == 19
+    assert str(events[0].error) == "eSpeak driver has terminated"
+    assert threads == [env.driver._segmentLifecycle._delivery_thread.ident]
+    assert threads[0] != caller
+    assert env.native.calls == []
