@@ -9,7 +9,7 @@ import sys
 from threading import Condition, Event
 from types import ModuleType, SimpleNamespace
 
-from neural_drain_harness import load_neural
+from neural_drain_harness import NEURAL_AVAILABLE, load_neural
 from onecore_drain_harness import ROOT, in_thread, load_onecore
 from runtime_harness import MemoryRepository, load_runtime, load_scheduler
 from test_vocalizer_segment_drain import emit
@@ -18,7 +18,8 @@ from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 
 PACKAGE = "synthDrivers.WorldVoice"
-ENGINES = ("OneCore", "Neural", "VE", "Cerence")
+# Neural joins the composition only when its untracked driver is present.
+ENGINES = ("OneCore", "Neural", "VE", "Cerence") if NEURAL_AVAILABLE else ("OneCore", "VE", "Cerence")
 
 
 class NativeCall:
@@ -235,8 +236,9 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
     controls = {}
     controls["OneCore"] = EngineControl(load_onecore(
         monkeypatch, rt=rt, scheduler=scheduler, voice_base=voice_base, commands=commands), "OneCore", monkeypatch)
-    controls["Neural"] = EngineControl(load_neural(
-        monkeypatch, tmp_path, rt=rt, scheduler=scheduler, voice_base=voice_base, commands=commands), "Neural", monkeypatch)
+    if NEURAL_AVAILABLE:
+        controls["Neural"] = EngineControl(load_neural(monkeypatch, tmp_path, rt=rt, scheduler=scheduler,
+            voice_base=voice_base, commands=commands), "Neural", monkeypatch)
     for engine in ("VE", "Cerence"):
         env = load_real_driver_with_native_stubs(monkeypatch, engine, rt=rt,
             voice_base=voice_base, commands=commands, property_setters=True)

@@ -9,7 +9,7 @@ from threading import Event
 import pytest
 
 from runtime_drain_integration_harness import ENGINES, assemble
-from neural_drain_harness import in_thread
+from neural_drain_harness import in_thread, requires_neural
 
 
 @pytest.fixture
@@ -36,7 +36,8 @@ def test_wrapper_index_precedes_audio_drain_and_request_done(composition, engine
     assert [kind for kind, _ in c.output.timeline] == ["index", "drain", "done"]
 
 
-@pytest.mark.parametrize("engines", [("OneCore", "Neural", "OneCore"), ("VE", "Cerence", "VE")])
+@pytest.mark.parametrize("engines", [
+    pytest.param(("OneCore", "Neural", "OneCore"), marks=requires_neural), ("VE", "Cerence", "VE")])
 def test_next_engine_starts_only_after_segment_drain(composition, engines):
     c = composition
     a, b, _ = engines
@@ -64,7 +65,8 @@ def test_next_engine_starts_only_after_segment_drain(composition, engines):
     assert len(c.output.drains) == 3
 
 
-@pytest.mark.parametrize("first,successor", [("OneCore", "Neural"), ("VE", "Cerence")])
+@pytest.mark.parametrize("first,successor", [
+    pytest.param("OneCore", "Neural", marks=requires_neural), ("VE", "Cerence")])
 def test_switch_waits_for_original_correlated_drain(composition, first, successor):
     c = composition
     request = c.submit(("original", c.rt.models.SelectVoice(c.key(successor)),
@@ -232,6 +234,7 @@ def test_setting_revision_reapplies_without_reusing_segment_context(composition,
     assert len(c.output.dones) == 1
 
 
+@requires_neural
 def test_voice_switch_reapplies_native_settings_and_keeps_distinct_drains(composition):
     c = composition
     a, b = "Neural:voice1", "Neural:voice2"
@@ -254,7 +257,7 @@ def test_voice_switch_reapplies_native_settings_and_keeps_distinct_drains(compos
     assert request.state is c.scheduler.RequestState.COMPLETED
 
 
-@pytest.mark.parametrize("engine", ["Neural", "VE", "Cerence"])
+@pytest.mark.parametrize("engine", [pytest.param("Neural", marks=requires_neural), "VE", "Cerence"])
 def test_language_change_active_native_call_cannot_escape_cancel(composition, monkeypatch, engine):
     c = composition
     control = c.controls[engine]
@@ -356,6 +359,7 @@ def test_unsupported_profile_uses_legacy_from_first_segment(monkeypatch, tmp_pat
         c.close()
 
 
+@requires_neural
 def test_unsupported_neural_sdk_failure_releases_legacy_request(monkeypatch, tmp_path):
     c = assemble(monkeypatch, tmp_path, supported=False)
     try:
@@ -377,6 +381,7 @@ def test_unsupported_neural_sdk_failure_releases_legacy_request(monkeypatch, tmp
         c.close()
 
 
+@requires_neural
 def test_contextual_legacy_control_failure_fails_request(monkeypatch, tmp_path):
     c = assemble(monkeypatch, tmp_path, supported=False)
     try:
@@ -399,6 +404,7 @@ def test_contextual_legacy_control_failure_fails_request(monkeypatch, tmp_path):
         c.close()
 
 
+@requires_neural
 def test_neural_legacy_done_acceptance_cannot_release_successor_after_cancel(monkeypatch, tmp_path):
     c = assemble(monkeypatch, tmp_path, supported=False)
     release = Event()
@@ -453,6 +459,7 @@ def test_neural_legacy_done_acceptance_cannot_release_successor_after_cancel(mon
         c.close()
 
 
+@requires_neural
 def test_neural_legacy_control_failure_delivery_cannot_complete_cancelled_request(monkeypatch, tmp_path):
     c = assemble(monkeypatch, tmp_path, supported=False)
     release = Event()
@@ -490,6 +497,7 @@ def test_neural_legacy_control_failure_delivery_cannot_complete_cancelled_reques
         c.close()
 
 
+@requires_neural
 def test_contextual_neural_legacy_ignores_anonymous_and_revoked_completion(monkeypatch, tmp_path):
     c = assemble(monkeypatch, tmp_path, supported=False)
     try:
@@ -569,6 +577,7 @@ def _exercise_neural_legacy_terminal_index_cancel(failure, tmp_path):
     monkeypatch.undo()
 
 
+@requires_neural
 @pytest.mark.parametrize("failure", [False, True])
 def test_neural_legacy_terminal_and_index_cancel_have_no_lock_inversion(tmp_path, failure):
     script = (

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from neural_drain_harness import requires_neural
 from test_worldvoice_lifecycle import _load_voice_manager, _load_synth_class
 
 
@@ -231,7 +232,8 @@ def test_sapi5_legacy_first_segment_remains_legacy_done(monkeypatch):
         installed.driver.terminate()
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"])
+@pytest.mark.parametrize("engine", ["OneCore", pytest.param("Neural", marks=requires_neural),
+    "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"])
 def test_seven_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine):
     """The actual opened outer core must select DRAIN before any segment starts."""
     if engine in ("OneCore", "Neural", "VE", "Cerence"):

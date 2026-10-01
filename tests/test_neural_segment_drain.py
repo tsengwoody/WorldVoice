@@ -7,7 +7,9 @@ import weakref
 
 import pytest
 
-from neural_drain_harness import in_thread, load_neural, prove_fake_quiescence
+from neural_drain_harness import in_thread, load_neural, prove_fake_quiescence, requires_neural
+
+pytestmark = requires_neural
 
 
 @pytest.fixture

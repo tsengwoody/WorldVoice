@@ -11,10 +11,16 @@ import sys
 from threading import Condition, Event, Thread
 from types import ModuleType, SimpleNamespace
 
+import pytest
+
 from runtime_harness import load_runtime, load_scheduler
 
 ROOT = Path(__file__).resolve().parents[1]
 NEURAL = ROOT / "addon/synthDrivers/WorldVoice/driver/Neural"
+# driver/Neural is not tracked; copy it in manually to run the Neural tests.
+NEURAL_AVAILABLE = (NEURAL / "__init__.py").is_file()
+requires_neural = pytest.mark.skipif(not NEURAL_AVAILABLE,
+    reason="driver/Neural is not present; copy it in manually to run Neural tests")
 
 
 class Handle:
