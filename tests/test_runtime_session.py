@@ -214,6 +214,12 @@ class EventToken:
     def is_cancelled(self):
         return self.cancelled.is_set()
 
+    def add_callback(self, callback):
+        # Tests set ``cancelled`` directly; no waiter in these tests subscribes.
+        if self.cancelled.is_set():
+            callback()
+        return lambda: None
+
 
 @pytest.mark.parametrize("mode", ["LEGACY_DONE", "DRAIN"])
 def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapter, store, mode):

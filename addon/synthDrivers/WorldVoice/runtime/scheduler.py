@@ -34,15 +34,56 @@ class NotificationOutput(Protocol):
 	def done_speaking(self) -> None: ...
 
 
+log = logging.getLogger(__name__)
+
+
 class CancellationToken:
+	"""Cancellation flag that notifies waiters instead of being polled.
+
+	Callbacks run once, in registration order, on the thread that first calls
+	cancel(), outside the token lock. They must only notify (set an Event,
+	notify a condition): the scheduler cancels while holding its state lock.
+	"""
+
 	def __init__(self):
 		self._event = threading.Event()
+		self._lock = threading.Lock()
+		self._callbacks: dict[int, Callable[[], None]] = {}
+		self._next_callback = count()
 
 	def cancel(self):
-		self._event.set()
+		with self._lock:
+			if self._event.is_set():
+				return
+			self._event.set()
+			callbacks, self._callbacks = list(self._callbacks.values()), {}
+		for callback in callbacks:
+			self._run_callback(callback)
 
 	def is_cancelled(self):
 		return self._event.is_set()
+
+	def add_callback(self, callback: Callable[[], None]) -> Callable[[], None]:
+		"""Call ``callback`` once on cancellation; return a function that removes it."""
+		with self._lock:
+			if not self._event.is_set():
+				key = next(self._next_callback)
+				self._callbacks[key] = callback
+
+				def remove():
+					with self._lock:
+						self._callbacks.pop(key, None)
+
+				return remove
+		self._run_callback(callback)
+		return lambda: None
+
+	@staticmethod
+	def _run_callback(callback):
+		try:
+			callback()
+		except Exception:
+			log.exception("cancellation callback failed")
 
 	def wait(self, timeout=None):
 		return self._event.wait(timeout)

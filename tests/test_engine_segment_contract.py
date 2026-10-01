@@ -50,15 +50,19 @@ def _c3(engine):
 
 
 class Events(list):
-	def __init__(self):
+	def __init__(self, adapter):
 		super().__init__()
 		self.condition = Condition()
 		self.threads = []
+		self.on_delivery_thread = []
+		self._adapter = adapter
 
 	def append(self, event):
+		on_delivery_thread = self._adapter.on_delivery_thread()
 		with self.condition:
 			super().append(event)
 			self.threads.append(get_ident())
+			self.on_delivery_thread.append(on_delivery_thread)
 			self.condition.notify_all()
 
 	def wait_one(self, timeout=2):
@@ -96,7 +100,7 @@ def _start_speak(adapter, token, context, events):
 @pytest.mark.parametrize("engine", _engines(), indirect=True)
 def test_completed_segment_drains_once_on_the_delivery_thread(engine):
 	context = engine.PlaybackContext(object(), 17)
-	events = Events()
+	events = Events(engine)
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
 
 	engine.complete()
@@ -107,7 +111,7 @@ def test_completed_segment_drains_once_on_the_delivery_thread(engine):
 	assert event.kind is engine.EventKind.SEGMENT_DRAINED
 	assert event.source_id is context.source_id
 	assert event.segment_id == 17
-	assert events.threads == [engine.delivery_thread_ident()]
+	assert events.on_delivery_thread == [True]
 	assert events.threads[0] != caller.ident
 
 
@@ -115,7 +119,7 @@ def test_completed_segment_drains_once_on_the_delivery_thread(engine):
 def test_segment_after_terminate_fails_once_without_native_call(engine):
 	engine.terminate()
 	context = engine.PlaybackContext(object(), 19)
-	events = Events()
+	events = Events(engine)
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
 
 	event = events.wait_one()
@@ -132,7 +136,7 @@ def test_segment_after_terminate_fails_once_without_native_call(engine):
 def test_cancelled_token_never_reaches_native_or_sink(engine):
 	token = engine.new_token()
 	token.cancel()
-	events = Events()
+	events = Events(engine)
 	caller, errors = _start_speak(engine, token, engine.PlaybackContext(object(), 21), events)
 
 	caller.join(2)
@@ -147,7 +151,7 @@ def test_cancelled_token_never_reaches_native_or_sink(engine):
 @pytest.mark.parametrize("engine", _engines(VE=_c3("VE"), Cerence=_c3("Cerence")), indirect=True)
 def test_speak_segment_returns_before_delivery(engine):
 	context = engine.PlaybackContext(object(), 23)
-	events = Events()
+	events = Events(engine)
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
 
 	caller.join(1)

@@ -669,3 +669,220 @@ def test_terminate_cancels_previously_accepted_pending_rejection(env):
         assert lifecycle._condition.wait_for(lambda: second not in lifecycle._operations, 1)
     assert rejected == []
     assert hooks.submitted == []
+
+
+
+def _hold_resource(env):
+    lifecycle, hooks, events, accept = env
+    owner, _ = accept(1)
+    call = Call(lambda: lifecycle.run(owner, ("owner",)))
+    assert hooks.boundary_entered.wait(1)
+    return owner, call
+
+
+class CountingToken:
+    """A real CancellationToken that counts how often waiters poll it."""
+
+    def __init__(self, inner, start_delay=0):
+        self._inner = inner
+        self.checks = 0
+        # Holds the waiter's first read, as a thread that starts late would.
+        self._start_delay = start_delay
+
+    def is_cancelled(self):
+        if self.checks == 0:
+            Event().wait(self._start_delay)
+        self.checks += 1
+        return self._inner.is_cancelled()
+
+    def add_callback(self, callback):
+        return self._inner.add_callback(callback)
+
+    def cancel(self):
+        self._inner.cancel()
+
+
+def _accept_counting(env, owner, segment, start_delay=0):
+    lifecycle, hooks, events, accept = env
+    token = CountingToken(type(owner.work.token)(), start_delay)
+    context = type(owner.work.context)(object(), segment)
+    return lifecycle.accept(context, token, events.append), token
+
+
+class WaitObserver:
+    """Proxy for the lifecycle condition that tracks which threads are inside wait()."""
+
+    def __init__(self, condition):
+        self._condition = condition
+        self.waiting = set()
+
+    def __enter__(self):
+        return self._condition.__enter__()
+
+    def __exit__(self, *exc):
+        return self._condition.__exit__(*exc)
+
+    def __getattr__(self, name):
+        return getattr(self._condition, name)
+
+    def wait(self, timeout=None):
+        self.waiting.add(current_thread())
+        try:
+            return self._condition.wait(timeout)
+        finally:
+            self.waiting.discard(current_thread())
+
+
+def _observe_waits(lifecycle):
+    observer = WaitObserver(lifecycle._condition)
+    lifecycle._condition = observer
+    return observer
+
+
+def _wait_until_waiting(observer, call):
+    # Measure only once the waiter has actually blocked; its reads before
+    # blocking are legitimate and must not count as polling.
+    deadline = Event()
+    for _ in range(200):
+        if call.thread in observer.waiting:
+            return
+        deadline.wait(0.005)
+    raise AssertionError("waiter never blocked on the lifecycle condition")
+
+
+def _assert_not_polled(read_count, window=0.2):
+    # A 50 ms poll would re-check about four times in this window.
+    before = read_count()
+    Event().wait(window)
+    assert read_count() - before <= 1, "waiter is polling instead of waiting for a notification"
+
+
+@pytest.mark.parametrize("start_delay", [0, 0.06])
+def test_queued_run_does_not_poll_its_token(env, start_delay):
+    lifecycle, hooks, events, accept = env
+    owner, owner_call = _hold_resource(env)
+    queued, token = _accept_counting(env, owner, 2, start_delay)
+    observer = _observe_waits(lifecycle)
+    waiting = Call(lambda: lifecycle.run(queued, ("queued",)))
+    _wait_until_waiting(observer, waiting)
+    _assert_not_polled(lambda: token.checks)
+    token.cancel()
+    waiting.finish()
+    hooks.release_boundary.set()
+    owner_call.finish()
+
+
+@pytest.mark.parametrize("cancel", ["token", "work"])
+def test_queued_run_wakes_when_cancelled(env, cancel):
+    lifecycle, hooks, events, accept = env
+    _, owner_call = _hold_resource(env)
+    queued, _ = accept(2)
+    waiting = Call(lambda: lifecycle.run(queued, ("queued",)))
+    waiting.blocked()
+    if cancel == "token":
+        queued.work.token.cancel()
+    else:
+        queued.work.cancel()
+    assert waiting.done.wait(0.5), "queued run was not woken by cancellation"
+    waiting.finish()
+    assert len(hooks.submitted) == 1
+    hooks.release_boundary.set()
+    owner_call.finish()
+
+
+def test_operation_queries_follow_run_and_retirement(env):
+    lifecycle, hooks, events, accept = env
+    sink = events.append
+    operation, _ = accept(1, sink=sink)
+    assert operation.sink is sink
+    assert not operation.has_started()
+    assert not operation.is_retired()
+    call = Call(lambda: lifecycle.run(operation, ("hello",)))
+    assert hooks.boundary_entered.wait(1)
+    assert operation.has_started()
+    assert not operation.is_retired()
+    hooks.release_boundary.set()
+    call.finish()
+    assert operation.is_retired()
+
+
+def test_rejected_operation_reports_started_and_retired(env):
+    lifecycle, hooks, events, accept = env
+    operation, _ = accept(1)
+    lifecycle.reject_pending(operation, RuntimeError("rejected"))
+    assert operation.has_started()
+    assert operation.is_retired()
+
+
+def test_delivery_thread_identity_and_join(env):
+    lifecycle, hooks, events, accept = env
+    seen, joined = [], Event()
+
+    def sink(event):
+        seen.append(lifecycle.on_delivery_thread())
+        lifecycle.join_delivery(1)  # Must not try to join itself.
+        joined.set()
+
+    operation, _ = accept(1, sink=sink)
+    hooks.release_boundary.set()
+    Call(lambda: lifecycle.run(operation, ("hello",))).finish()
+    assert joined.wait(1)
+    assert seen == [True]
+    assert not lifecycle.on_delivery_thread()
+    lifecycle.terminate()
+    lifecycle.join_delivery(1)
+    assert not lifecycle._delivery_thread.is_alive()
+
+
+def test_wait_idle_returns_true_when_resource_is_released(env):
+    lifecycle, hooks, events, accept = env
+    assert lifecycle.wait_idle() is True
+    _, owner_call = _hold_resource(env)
+    assert lifecycle.is_resource_busy()
+    results = []
+    waiting = Call(lambda: results.append(lifecycle.wait_idle()))
+    waiting.blocked()
+    hooks.release_boundary.set()
+    owner_call.finish()
+    waiting.finish()
+    assert results == [True]
+    assert not lifecycle.is_resource_busy()
+
+
+def test_wait_idle_wakes_on_token_cancel_without_polling(env):
+    lifecycle, hooks, events, accept = env
+    owner, owner_call = _hold_resource(env)
+    token = CountingToken(type(owner.work.token)())
+    results = []
+    observer = _observe_waits(lifecycle)
+    waiting = Call(lambda: results.append(lifecycle.wait_idle(token=token, still_wanted=lambda: not token.is_cancelled())))
+    _wait_until_waiting(observer, waiting)
+    _assert_not_polled(lambda: token.checks)
+    token.cancel()
+    assert waiting.done.wait(0.5), "wait_idle was not woken by token cancellation"
+    waiting.finish()
+    assert results == [False]
+    hooks.release_boundary.set()
+    owner_call.finish()
+
+
+def test_wait_idle_rechecks_still_wanted_on_wake_waiters(env):
+    lifecycle, hooks, events, accept = env
+    _, owner_call = _hold_resource(env)
+    wanted, checks, results = [True], [0], []
+
+    def still_wanted():
+        checks[0] += 1
+        return wanted[0]
+
+    observer = _observe_waits(lifecycle)
+    waiting = Call(lambda: results.append(lifecycle.wait_idle(still_wanted=still_wanted)))
+    _wait_until_waiting(observer, waiting)
+    _assert_not_polled(lambda: checks[0])
+    wanted[0] = False
+    lifecycle.wake_waiters()
+    assert waiting.done.wait(0.5), "wait_idle was not woken by wake_waiters"
+    waiting.finish()
+    assert results == [False]
+    hooks.release_boundary.set()
+    owner_call.finish()

@@ -1,6 +1,6 @@
 """Engine ownership and playback contracts independent of legacy drivers."""
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from threading import RLock
 from typing import Protocol
 
@@ -18,7 +18,16 @@ from .settings import VoiceSettingsStore
 
 
 class CancellationView(Protocol):
+	"""Read-only cancellation state with change notification.
+
+	add_callback(callback) calls ``callback`` once when the token is cancelled,
+	immediately if it already is, and returns a function that removes it.
+	Callbacks run outside the token's lock and must only notify.
+	"""
+
 	def is_cancelled(self) -> bool: ...
+
+	def add_callback(self, callback: Callable[[], None]) -> Callable[[], None]: ...
 
 
 class EngineAdapter(Protocol):

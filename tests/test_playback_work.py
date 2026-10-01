@@ -331,3 +331,15 @@ def test_cancelled_admitted_feed_stops_before_new_native_work(work_env):
     assert actions == ["stop old playback", "old real feed", "stop old playback", "new native started"]
     assert work.complete_drained() is False
     assert events == []
+
+
+def test_direct_cancel_notifies_owner_after_releasing_the_work_lock(work_env):
+    rt, token, context, events, _ = work_env
+    seen = []
+    work = rt.playback_work.PlaybackWork(context, token, events.append,
+                                         on_cancel=lambda: seen.append(work.is_valid()))
+    finished = Event()
+    Thread(target=lambda: (work.cancel(), finished.set()), daemon=True).start()
+    assert finished.wait(1), "on_cancel ran while the work lock was held"
+    assert seen == [False]
+    assert events == []

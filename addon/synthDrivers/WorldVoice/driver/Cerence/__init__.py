@@ -461,7 +461,7 @@ class SynthDriver(BaseSynthDriver):
 				self._segmentLifecycle.reject_new(context, token, deliver, error.__cause__ or error)
 				self._wait_segment_delivery(completion, token)
 				return
-			if operation._retired and not work.cancelled and not token.is_cancelled():
+			if operation.is_retired() and not work.cancelled and not token.is_cancelled():
 				self._wait_segment_delivery(completion, token)
 		finally:
 			with self._speechStateLock:
@@ -472,15 +472,14 @@ class SynthDriver(BaseSynthDriver):
 	def _wait_segment_delivery(self, completion, token):
 		# A listener may synchronously ask for another segment. The coordinator
 		# owns a single delivery thread, so it cannot wait for its own callback.
-		if (
-			not token.is_cancelled()
-			and threading.current_thread() is not self._segmentLifecycle._delivery_thread
-		):
-			while not completion.wait(0.05):
-				# External tokens have no notification hook. Poll only while the
-				# caller is waiting; direct cancellation sets completion itself.
-				if token.is_cancelled():
-					return
+		if token.is_cancelled() or self._segmentLifecycle.on_delivery_thread():
+			return
+		# Token cancellation wakes this wait; direct cancellation sets completion itself.
+		remove_wake = token.add_callback(completion.set)
+		try:
+			completion.wait()
+		finally:
+			remove_wake()
 
 	# The inner driver still parses settings and splits text. Its synchronous
 	# native calls and callback gate form the SDK boundary for this operation.
@@ -562,24 +561,17 @@ class SynthDriver(BaseSynthDriver):
 		# owner needs the run lock to submit.
 		lifecycle = self._segmentLifecycle
 		while True:
-			if work.operation is None:
-				while work.is_valid():
-					with lifecycle._condition:
-						if not lifecycle._resource_busy:
-							break
-						# External tokens have no notification hook.
-						lifecycle._condition.wait(0.05)
-				if not work.is_valid():
-					yield False
-					return
+			if work.operation is None and not lifecycle.wait_idle(
+				still_wanted=work.is_valid,
+				token=work.token,
+			):
+				yield False
+				return
 			with self._speechRunLock:
-				if work.operation is None:
-					with lifecycle._condition:
-						busy = lifecycle._resource_busy
-					if busy:
-						# A contextual run acquired the resource before this
-						# request acquired the run lock. Let it submit first.
-						continue
+				if work.operation is None and lifecycle.is_resource_busy():
+					# A contextual run acquired the resource before this
+					# request acquired the run lock. Let it submit first.
+					continue
 				yield True
 				return
 
@@ -778,6 +770,8 @@ class SynthDriver(BaseSynthDriver):
 			self._stops += 1
 			self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
 			self._speechStateLock.notify_all()
+		# Ordinary speech waiting for the contextual resource re-checks its work.
+		self._segmentLifecycle.wake_waiters()
 		if native is not None and native.call_token is not None:
 			self._segmentGate.close(native.call_token)
 		for operation in operations:
@@ -910,10 +904,7 @@ class SynthDriver(BaseSynthDriver):
 		self._terminationLocal.cleaning = True
 		try:
 			# Keep native/player resources alive until the coordinator retires its stop.
-			with self._segmentLifecycle._condition:
-				self._segmentLifecycle._condition.wait_for(
-					lambda: not self._segmentLifecycle._resource_busy,
-				)
+			self._segmentLifecycle.wait_idle()
 			with self._speechRunLock:
 				with self._speechStateLock:
 					self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)

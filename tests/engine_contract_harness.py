@@ -2,8 +2,8 @@
 
 Each adapter loads one real outer engine wrapper with that engine's existing
 fakes. After ``open`` the fakes hold every segment before its final playback
-barrier; only ``complete`` lets the current segment finish. Private runtime
-access stays here so later phases only need to update the adapters.
+barrier; only ``complete`` lets the current segment finish. Runtime access
+stays here so later phases only need to update the adapters.
 """
 
 import sys
@@ -45,9 +45,8 @@ class _Adapter:
 	def terminate(self):
 		self.core.terminate()
 
-	def delivery_thread_ident(self):
-		thread = self.core._segmentLifecycle._delivery_thread
-		return None if thread is None else thread.ident
+	def on_delivery_thread(self):
+		return self.core._segmentLifecycle.on_delivery_thread()
 
 
 class EspeakAdapter(_Adapter):

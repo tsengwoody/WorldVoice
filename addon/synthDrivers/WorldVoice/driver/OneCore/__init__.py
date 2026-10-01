@@ -1,7 +1,7 @@
 import ctypes
 from dataclasses import dataclass
 import io
-from threading import Condition, Event, Lock, Thread, current_thread
+from threading import Condition, Event, Lock, Thread
 import wave
 import weakref
 
@@ -172,7 +172,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self._segmentAccepted.add(operation)
 		if not operation.is_valid():
 			with self._segmentCondition:
-				if not operation._run_started:
+				if not operation.has_started():
 					self._segmentLifecycle.reject_pending(
 						operation,
 						RuntimeError("OneCore segment was cancelled before submission"),
@@ -196,7 +196,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			with self._segmentCondition:
 				self._checkSegmentAdmission()
 				if not operation.is_valid():
-					if not operation._run_started:
+					if not operation.has_started():
 						self._segmentLifecycle.reject_pending(
 							operation,
 							RuntimeError("OneCore segment was cancelled before submission"),
@@ -213,7 +213,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self._processQueue()
 		except Exception as error:
 			with self._segmentCondition:
-				if not operation._run_started:
+				if not operation.has_started():
 					self._segmentLifecycle.reject_pending(operation, error)
 				if not operation.work.is_valid():
 					self._segmentAccepted.discard(operation)
@@ -541,7 +541,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				try:
 					if operation in queued:
 						with self._segmentCondition:
-							if not operation._run_started:
+							if not operation.has_started():
 								self._segmentLifecycle.reject_pending(operation, error)
 					else:
 						self._segmentLifecycle.fail(operation, error)
@@ -602,7 +602,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 						item.work.cancel()
 			for operation in tuple(self._segmentAccepted):
 				self._segmentLifecycle.cancel(operation)
-				if not operation._run_started:
+				if not operation.has_started():
 					self._segmentLifecycle.reject_pending(
 						operation,
 						RuntimeError("OneCore segment was cancelled before submission"),
@@ -679,9 +679,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self.cancel()
 		finally:
 			self._segmentLifecycle.terminate()
-			delivery = self._segmentLifecycle._delivery_thread
-			if delivery is not current_thread():
-				delivery.join(1)
+			self._segmentLifecycle.join_delivery(1)
 			super().terminate()
 
 
