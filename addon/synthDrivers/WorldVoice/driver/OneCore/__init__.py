@@ -136,11 +136,12 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			if admission_error is not None:
 				self._segmentLifecycle.reject_new(context, token, on_event, admission_error)
 				return
-			def deliver(event):
+			def retired(operation):
 				with self._segmentCondition:
 					self._segmentAccepted.discard(operation)
-				on_event(event)
-			operation = self._segmentLifecycle.accept(context, token, deliver)
+					self._segmentCondition.notify_all()
+			operation = self._segmentLifecycle.accept(
+				context, token, on_event, on_retired=retired)
 			self._segmentAccepted.add(operation)
 		if not operation.is_valid():
 			with self._segmentCondition:

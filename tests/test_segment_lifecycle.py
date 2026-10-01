@@ -126,10 +126,11 @@ def env(monkeypatch):
     lifecycle = module.SegmentLifecycle(hooks)
     events = RecordedEvents()
 
-    def accept(segment, sink=None):
+    def accept(segment, sink=None, on_retired=None):
         context = rt.models.PlaybackContext(object(), segment)
         operation = lifecycle.accept(context, scheduler.CancellationToken(),
-                                     events.append if sink is None else sink)
+                                     events.append if sink is None else sink,
+                                     on_retired=on_retired)
         return operation, context
 
     yield lifecycle, hooks, events, accept
@@ -623,6 +624,18 @@ def test_pending_operation_rejection_delivers_after_latched_fault(env):
     events.wait_for_count(1)
     assert [(event.source_id, event.segment_id, event.error) for event in events] == [
         (context.source_id, 18, error)]
+    assert hooks.submitted == []
+
+
+def test_retirement_callback_runs_when_cancel_suppresses_delivery(env):
+    lifecycle, hooks, events, accept = env
+    retired = Event()
+    operation, _ = accept(18, on_retired=lambda owner: retired.set())
+    operation.work.token.cancel()
+    lifecycle.reject_pending(operation, RuntimeError("never submitted"))
+    assert retired.wait(1)
+    assert operation not in lifecycle._operations
+    assert events == []
     assert hooks.submitted == []
 
 

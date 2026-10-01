@@ -341,6 +341,53 @@ def test_cancel_after_control_fault_capture_suppresses_pending_failure(env, monk
         release_conversion.set()
 
 
+def test_suppressed_conversion_failure_retires_accepted_membership(env, monkeypatch):
+    converting, release_conversion = Event(), Event()
+    failing, release_failure = Event(), Event()
+    converter = env.outer.oneCore._OcSsmlConverter
+
+    def broken_conversion(self, commands):
+        converting.set()
+        assert release_conversion.wait(2)
+        raise ValueError("conversion failed")
+
+    monkeypatch.setattr(converter, "convertToXml", broken_conversion)
+    token = env.scheduler.CancellationToken()
+    context = env.rt.models.PlaybackContext(object(), 17)
+    events = []
+    speaking = in_thread(lambda: env.driver.speak_segment(("hello",), token,
+        context=context, on_event=events.append))
+    try:
+        assert converting.wait(1)
+        operation = next(iter(env.driver._segmentLifecycle._operations))
+        real_fail = operation.work.fail
+
+        def held_fail(error):
+            failing.set()
+            assert release_failure.wait(2)
+            return real_fail(error)
+
+        monkeypatch.setattr(operation.work, "fail", held_fail)
+        release_conversion.set()
+        finish(speaking)
+        assert failing.wait(1)
+        with env.driver._segmentCondition:
+            assert operation in env.driver._segmentAccepted
+        token.cancel()
+        release_failure.set()
+        with env.driver._segmentLifecycle._condition:
+            assert env.driver._segmentLifecycle._condition.wait_for(
+                lambda: operation not in env.driver._segmentLifecycle._operations, 1)
+        with env.driver._segmentCondition:
+            assert env.driver._segmentCondition.wait_for(
+                lambda: operation not in env.driver._segmentAccepted, 1)
+        assert events == []
+        assert env.native.calls == []
+    finally:
+        release_conversion.set()
+        release_failure.set()
+
+
 def test_cancel_sees_work_between_queue_pop_and_lifecycle_run(env, monkeypatch):
     entered, release, finished = Event(), Event(), Event()
     lifecycle = env.driver._segmentLifecycle
@@ -483,10 +530,10 @@ def test_onecore_acceptance_is_atomic_with_terminate(env):
     entered, release_accept = Event(), Event()
     original_accept = env.driver._segmentLifecycle.accept
 
-    def blocked_accept(*args):
+    def blocked_accept(*args, **kwargs):
         entered.set()
         assert release_accept.wait(2)
-        return original_accept(*args)
+        return original_accept(*args, **kwargs)
 
     env.driver._segmentLifecycle.accept = blocked_accept
     events = []

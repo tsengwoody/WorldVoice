@@ -7,7 +7,7 @@ infers native quiescence from an empty callback count alone.
 from collections import deque
 import logging
 from threading import Condition, Event, Thread
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork
@@ -29,11 +29,13 @@ class SegmentOperation:
     """Identity retained by callbacks and feeds through resource retirement."""
 
     def __init__(self, lifecycle: "SegmentLifecycle", work: PlaybackWork,
-                 sink: SegmentEventSink, event_holder: list[PlaybackEvent]):
+                 sink: SegmentEventSink, event_holder: list[PlaybackEvent],
+                 on_retired: Callable[["SegmentOperation"], None] | None = None):
         self._lifecycle = lifecycle
         self.work = work
         self._sink = sink
         self._event_holder = event_holder
+        self._on_retired = on_retired
         self._admitting = True
         self._leases = 0
         self._submitted = False
@@ -73,13 +75,15 @@ class SegmentLifecycle:
         self._terminated = False
         self._operations: set[SegmentOperation] = set()
         self._delivery_queue: deque[SegmentOperation] = deque()
+        self._retirement_queue: deque[SegmentOperation] = deque()
         self._delivery_active = True
         self._delivery_thread = Thread(target=self._deliver,
                                        name="WorldVoiceSegmentDelivery", daemon=True)
         self._delivery_thread.start()
 
     def accept(self, context: PlaybackContext, token: CancellationView,
-               sink: SegmentEventSink) -> SegmentOperation:
+               sink: SegmentEventSink, *,
+               on_retired: Callable[[SegmentOperation], None] | None = None) -> SegmentOperation:
         with self._condition:
             if self._terminated:
                 raise RuntimeError("segment lifecycle is terminated")
@@ -88,7 +92,7 @@ class SegmentLifecycle:
             # the external sink runs later, outside that lock.
             holder = []
             work = PlaybackWork(context, token, holder.append)
-            operation = SegmentOperation(self, work, sink, holder)
+            operation = SegmentOperation(self, work, sink, holder, on_retired)
             self._operations.add(operation)
             return operation
 
@@ -121,10 +125,23 @@ class SegmentLifecycle:
         if operation.work.is_valid():
             self._queue_delivery_locked(operation)
         else:
-            self._operations.discard(operation)
+            self._discard_operation_locked(operation)
 
     def _queue_delivery_locked(self, operation: SegmentOperation) -> None:
         self._delivery_queue.append(operation)
+        self._wake_delivery_locked()
+
+    def _discard_operation_locked(self, operation: SegmentOperation) -> None:
+        if operation not in self._operations:
+            return
+        self._operations.remove(operation)
+        if operation._on_retired is not None:
+            self._retirement_queue.append(operation)
+            self._wake_delivery_locked()
+        else:
+            self._condition.notify_all()
+
+    def _wake_delivery_locked(self) -> None:
         if not self._delivery_active:
             self._delivery_active = True
             self._delivery_thread = Thread(target=self._deliver,
@@ -140,7 +157,7 @@ class SegmentLifecycle:
             operation._run_started = True
             while self._resource_busy and not self._terminated and self._fault is None:
                 if not operation.work.is_valid():
-                    self._operations.discard(operation)
+                    self._discard_operation_locked(operation)
                     return
                 # An external token can cancel without calling cancel().
                 self._condition.wait(0.05)
@@ -150,7 +167,7 @@ class SegmentLifecycle:
                 self._reject_pending_locked(operation, self._fault)
                 return
             if self._terminated or not operation.work.is_valid():
-                self._operations.discard(operation)
+                self._discard_operation_locked(operation)
                 return
             self._resource_busy = True
 
@@ -176,7 +193,7 @@ class SegmentLifecycle:
                         if operation.work.is_valid():
                             self._queue_delivery_locked(operation)
                         else:
-                            self._operations.discard(operation)
+                            self._discard_operation_locked(operation)
                         self._condition.notify_all()
                         break
                 if needs_stop:
@@ -292,17 +309,30 @@ class SegmentLifecycle:
     def _deliver(self) -> None:
         while True:
             with self._condition:
-                self._condition.wait_for(lambda: self._delivery_queue or self._terminated)
-                if not self._delivery_queue:
+                self._condition.wait_for(lambda: self._delivery_queue
+                                         or self._retirement_queue or self._terminated)
+                if self._retirement_queue:
+                    retired = self._retirement_queue.popleft()
+                    operation = None
+                elif self._delivery_queue:
+                    retired = None
+                    operation = self._delivery_queue.popleft()
+                    error = operation._error
+                    if error is None:
+                        operation.work.complete_drained()
+                    else:
+                        operation.work.fail(error)
+                    event = operation._event_holder.pop() if operation._event_holder else None
+                else:
                     self._delivery_active = False
                     return
-                operation = self._delivery_queue.popleft()
-                error = operation._error
-                if error is None:
-                    operation.work.complete_drained()
-                else:
-                    operation.work.fail(error)
-                event = operation._event_holder.pop() if operation._event_holder else None
+            if retired is not None:
+                try:
+                    retired._on_retired(retired)
+                except Exception:
+                    log.exception("segment retirement callback failed for segment %r",
+                                  retired.work.context.segment_id)
+                continue
             try:
                 if event is not None:
                     operation._sink(event)
@@ -313,8 +343,7 @@ class SegmentLifecycle:
                               operation.work.context.segment_id)
             finally:
                 with self._condition:
-                    self._operations.discard(operation)
-                    self._condition.notify_all()
+                    self._discard_operation_locked(operation)
 
     def _start_stop(self, operation: SegmentOperation) -> None:
         with self._condition:
