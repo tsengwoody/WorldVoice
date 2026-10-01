@@ -726,3 +726,65 @@ def test_then_public_cancel_racing_settlement_has_no_callback_error(
             inner.set_result(42)
     assert following.cancelled()
     assert not caplog.records
+
+
+def test_cancellation_token_callbacks_run_once_in_registration_order(scheduler):
+    token = scheduler.CancellationToken()
+    calls = []
+    token.add_callback(lambda: calls.append("first"))
+    token.add_callback(lambda: calls.append("second"))
+    assert calls == []
+    token.cancel()
+    token.cancel()
+    assert calls == ["first", "second"]
+
+
+def test_cancellation_token_callback_on_cancelled_token_runs_immediately(scheduler):
+    token = scheduler.CancellationToken()
+    token.cancel()
+    calls = []
+    remove = token.add_callback(lambda: calls.append("late"))
+    assert calls == ["late"]
+    remove()
+    remove()
+
+
+def test_removed_cancellation_callback_is_not_called(scheduler):
+    token = scheduler.CancellationToken()
+    calls = []
+    remove = token.add_callback(lambda: calls.append("removed"))
+    token.add_callback(lambda: calls.append("kept"))
+    remove()
+    remove()
+    token.cancel()
+    assert calls == ["kept"]
+
+
+def test_cancellation_callback_error_is_logged_and_others_still_run(scheduler, caplog):
+    token = scheduler.CancellationToken()
+    calls = []
+
+    def broken():
+        raise RuntimeError("callback failed")
+
+    token.add_callback(broken)
+    token.add_callback(lambda: calls.append("after"))
+    token.cancel()
+    assert calls == ["after"]
+    assert token.is_cancelled()
+    assert any("callback failed" in str(record.exc_info[1]) for record in caplog.records if record.exc_info)
+
+
+def test_cancellation_callback_runs_outside_the_token_lock(scheduler):
+    token = scheduler.CancellationToken()
+    seen = []
+
+    def reentrant():
+        seen.append(token.is_cancelled())
+        token.add_callback(lambda: seen.append("nested"))
+
+    token.add_callback(reentrant)
+    finished = Event()
+    Thread(target=lambda: (token.cancel(), finished.set()), daemon=True).start()
+    assert finished.wait(1), "cancel() deadlocked inside a callback"
+    assert seen == [True, "nested"]

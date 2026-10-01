@@ -30,12 +30,25 @@ def ready_core(engine_harness):
 class Token:
 	def __init__(self):
 		self._cancelled = False
+		self._callbacks = []
 
 	def cancel(self):
+		if self._cancelled:
+			return
 		self._cancelled = True
+		callbacks, self._callbacks = self._callbacks, []
+		for callback in callbacks:
+			callback()
 
 	def is_cancelled(self):
 		return self._cancelled
+
+	def add_callback(self, callback):
+		if self._cancelled:
+			callback()
+			return lambda: None
+		self._callbacks.append(callback)
+		return lambda: callback in self._callbacks and self._callbacks.remove(callback)
 
 
 def emit_audio(core, types, payload=b"new", done_result=None):
