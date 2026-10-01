@@ -1215,3 +1215,38 @@ def test_ordinary_speak_fails_fast_after_cancel_purge_fault_even_if_purge_recove
     assert len(env.native.calls) == 1
     assert len(env.driver._speakRequests) == 0
     assert env.dones == []
+
+
+def test_ordinary_speech_waits_for_contextual_final_idle(env, monkeypatch):
+    # Parity probe for the VE/Cerence ordinary-speech ownership finding: the
+    # WASAPI worker keeps the shared player through the contextual final idle.
+    entries = []
+    original_speak = env.native.Speak
+
+    def recording_speak(text, flags):
+        if text is not None:
+            entries.append(env.player.idle_release.is_set())
+        return original_speak(text, flags)
+
+    monkeypatch.setattr(env.native, "Speak", recording_speak)
+    _, context, events = speak(env)
+    env.native.wait_calls(1)
+    env.native.end()
+    assert env.player.idle_entered.wait(1)
+    env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
+    assert len(env.native.calls) == 1, "Ordinary speech entered native during the final idle"
+    assert len(env.driver._speakRequests) == 1
+    assert events == []
+    env.player.idle_release.set()
+    event = wait_event(events)
+    env.native.wait_calls(2)
+    assert entries == [False, True]
+    env.native.end(2)
+    for _ in range(400):
+        if env.dones:
+            break
+        Event().wait(0.005)
+    assert env.dones == [env.driver]
+    assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert (event.source_id, event.segment_id) == (context.source_id, context.segment_id)
+    assert env.indexes == [7, 11]

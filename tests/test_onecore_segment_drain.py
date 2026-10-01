@@ -1103,3 +1103,34 @@ def test_legacy_speak_still_uses_parent_interface(env):
     env.native.respond()
     assert env.indexes == [1]
     assert env.dones == [env.driver]
+
+
+def test_ordinary_speech_waits_for_contextual_final_sync(env):
+    # Parity probe for the VE/Cerence ordinary-speech ownership finding: the
+    # contextual final playback barrier keeps ordinary text out of native.
+    entries = []
+    original_speak = env.native.speak
+
+    def recording_speak(token, text):
+        entries.append((text, env.player.sync_release.is_set()))
+        original_speak(token, text)
+
+    env.native.ocSpeech_speak = env.native.ocSpeech_speak.__class__(recording_speak)
+    _, context, events = speak(env)
+    env.native.wait_calls(1)
+    response = in_thread(lambda: env.native.respond(markers=""))
+    assert env.player.sync_entered.wait(1)
+    finish(response)
+    env.driver.speak(("ordinary",))
+    assert len(env.native.calls) == 1, "Ordinary text entered native during the final sync"
+    assert len(env.driver._queuedSpeech) == 1
+    assert events == []
+    env.player.sync_release.set()
+    wait_events(events)
+    env.native.wait_calls(2)
+    assert [released for _, released in entries] == [False, True]
+    env.native.respond(markers="")
+    assert env.dones == [env.driver]
+    assert len(events) == 1
+    assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert (events[0].source_id, events[0].segment_id) == (context.source_id, context.segment_id)

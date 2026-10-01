@@ -690,3 +690,35 @@ def test_admitted_native_mark_can_enter_nested_feed_after_callback_gate_closes(e
     assert player.fed == [b"\x01\x00\x02\x00", b"\x03\x00\x04\x00"]
     assert env.indexes == [7, 99]
     assert player.stops == 0
+
+
+def test_ordinary_speech_waits_for_contextual_final_idle(env):
+    # Parity probe for the VE/Cerence ordinary-speech ownership finding: the
+    # single RHVoice worker keeps ordinary text behind the contextual final idle.
+    env.native.scripts.append({})
+    _, context, events = speak(env)
+    call = env.native.wait_call()
+    assert call.done.wait(3)
+    player = env.players[0]
+    player.block_idle_number = 2
+    player.idle_release.clear()
+    call.return_release.set()
+    assert player.second_idle_entered.wait(3)
+    entries, dones_before = [], len(env.dones)
+    env.native.scripts.append({"auto_return": True,
+        "before_callbacks": lambda: entries.append(player.idle_release.is_set())})
+    env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
+    assert len(env.native.calls) == 1, "Ordinary speech entered native during the final idle"
+    assert events == []
+    player.idle_release.set()
+    event = events.wait_one()
+    ordinary = env.native.wait_call(2)
+    assert ordinary.returned.wait(3)
+    assert entries == [True]
+    deadline = time.monotonic() + 3
+    while len(env.dones) == dones_before and time.monotonic() < deadline:
+        time.sleep(0.005)
+    assert env.dones[dones_before:] == [env.driver]
+    assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert (event.source_id, event.segment_id) == (context.source_id, context.segment_id)
+    assert len(events) == 1

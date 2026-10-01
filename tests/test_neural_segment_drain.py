@@ -1073,3 +1073,23 @@ def test_legacy_bookmark_can_terminate_without_waiting_for_native_speak(tmp_path
     result = subprocess.run([sys.executable, "-c", script], cwd=Path(__file__).parent,
                             text=True, capture_output=True, timeout=6)
     assert result.returncode == 0, result.stderr
+
+
+def test_ordinary_speech_stays_out_of_native_during_contextual_final_idle(env):
+    # Parity probe for the VE/Cerence ordinary-speech ownership finding. After
+    # correlated playback, ordinary Neural speech is refused before it can
+    # queue native SDK work or feed the shared player.
+    _, context, events, done = speak(env)
+    env.native.wait_calls(1)
+    env.native.speak_release.set()
+    assert env.player.idle_entered.wait(1)
+    with pytest.raises(RuntimeError, match="Cannot enter legacy playback after correlated"):
+        env.driver.speak(("ordinary",))
+    assert len(env.native.calls) == 1
+    assert events == []
+    env.player.idle_release.set()
+    assert done.wait(2)
+    assert len(env.native.calls) == 1
+    assert len(events) == 1
+    assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert (events[0].source_id, events[0].segment_id) == (context.source_id, context.segment_id)

@@ -1,7 +1,7 @@
 import ctypes
 import sys
 from io import BytesIO
-from threading import Event, Thread
+from threading import Event, Thread, current_thread
 from time import monotonic, sleep
 
 import pytest
@@ -149,6 +149,8 @@ def test_ve_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch
     assert stop_entered.wait(1)
     assert calls == ["hello"]
     stop_release.set()
+    # The callback thread can feed before native() records its handle.
+    wait_for(lambda: bool(callbacks))
     finish(callbacks[0])
     finish(first)
     finish(second)
@@ -218,6 +220,8 @@ def test_cerence_shared_cancel_retires_guarded_feed_before_successor(env, monkey
     assert stop_entered.wait(1)
     assert calls == ["hello"]
     stop_release.set()
+    # The callback thread can feed before native() records its handle.
+    wait_for(lambda: bool(callbacks))
     finish(callbacks[0])
     finish(first)
     finish(second)
@@ -404,6 +408,158 @@ def test_vocalizer_endprocess_is_not_segment_drain(env, monkeypatch):
     assert env.dones == []
 
 
+class WaitObservingCondition:
+    """Coordinator condition proxy that records which threads waited on it."""
+
+    def __init__(self, condition):
+        self._condition = condition
+        self.waiters = set()
+
+    def __enter__(self):
+        return self._condition.__enter__()
+
+    def __exit__(self, *exc):
+        return self._condition.__exit__(*exc)
+
+    def __getattr__(self, name):
+        return getattr(self._condition, name)
+
+    def wait(self, timeout=None):
+        self.waiters.add(current_thread())
+        return self._condition.wait(timeout)
+
+    def wait_for(self, predicate, timeout=None):
+        self.waiters.add(current_thread())
+        return self._condition.wait_for(predicate, timeout)
+
+
+def hold_contextual_final_idle(env, monkeypatch):
+    """Start a contextual segment and hold it inside its final player idle."""
+    prove_fake_quiescence(env, monkeypatch)
+    held = type("Held", (), {})()
+    held.entered, held.release, held.finished = Event(), Event(), Event()
+    held.native_calls = []
+
+    def native(instance, text):
+        held.native_calls.append((text, held.finished.is_set()))
+        emit(env, instance)
+
+    def idle():
+        held.entered.set()
+        assert held.release.wait(2), "Test did not release the final idle"
+        held.finished.set()
+
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    env.core._real_player.idle = idle
+    # A stop releases a real blocked idle.
+    env.core._real_player.stop = held.release.set
+    held.token, held.context, held.contextual = speak(env)
+    assert held.entered.wait(1)
+    assert env.events == []
+    held.condition = WaitObservingCondition(env.core._segmentLifecycle._condition)
+    env.core._segmentLifecycle._condition = held.condition
+    return held
+
+
+def start_ordinary_behind(held, env, token=None):
+    ordinary = run_thread(lambda: env.core.speak(("ordinary",), token))
+    # Either the ordinary request reaches native, or it waits for the
+    # coordinator resource. Only the latter keeps the shared player exclusive.
+    wait_for(lambda: ordinary[0] in held.condition.waiters or len(held.native_calls) > 1)
+    return ordinary
+
+
+def test_contextual_final_idle_keeps_ordinary_speech_out_of_native(env, monkeypatch):
+    held = hold_contextual_final_idle(env, monkeypatch)
+    try:
+        ordinary = start_ordinary_behind(held, env)
+        assert held.native_calls == [("hello", False)], (
+            "Ordinary speech entered native during the contextual final idle")
+        assert not ordinary[1].is_set()
+    finally:
+        held.release.set()
+    finish(held.contextual)
+    finish(ordinary)
+    wait_for(lambda: len(env.events) == 1)
+    assert held.native_calls == [("hello", False), ("ordinary", True)]
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert (env.events[0].source_id, env.events[0].segment_id) == (
+        held.context.source_id, held.context.segment_id)
+    assert len(env.events) == 1
+
+
+def test_cancel_during_contextual_final_idle_releases_waiting_ordinary(env, monkeypatch):
+    held = hold_contextual_final_idle(env, monkeypatch)
+    try:
+        ordinary = start_ordinary_behind(held, env)
+        assert held.native_calls == [("hello", False)]
+        env.core.cancel()
+    finally:
+        held.release.set()
+    finish(held.contextual)
+    finish(ordinary)
+    assert held.native_calls == [("hello", False), ("ordinary", True)]
+    with held.condition:
+        assert held.condition.wait_for(
+            lambda: not env.core._segmentLifecycle._operations, 1)
+    assert env.events == []
+
+
+def test_token_cancelled_ordinary_leaves_contextual_final_idle_untouched(env, monkeypatch):
+    held = hold_contextual_final_idle(env, monkeypatch)
+    ordinary_token = Token()
+    try:
+        ordinary = start_ordinary_behind(held, env, ordinary_token)
+        assert held.native_calls == [("hello", False)]
+        ordinary_token.cancel()
+        finish(ordinary)
+        assert not held.finished.is_set()
+    finally:
+        held.release.set()
+    finish(held.contextual)
+    wait_for(lambda: len(env.events) == 1)
+    assert held.native_calls == [("hello", False)]
+    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert (env.events[0].source_id, env.events[0].segment_id) == (
+        held.context.source_id, held.context.segment_id)
+
+
+@pytest.mark.parametrize("ordinary_seals_first", [False, True])
+def test_terminate_during_contextual_final_idle_with_waiting_ordinary(
+        env, monkeypatch, ordinary_seals_first):
+    monkeypatch.setattr(env.native, "close", lambda instance: None)
+    monkeypatch.setattr(env.native, "terminate", lambda: None)
+    held = hold_contextual_final_idle(env, monkeypatch)
+    closed = Event()
+    env.core._real_player.close = closed.set
+    calls = []
+    if ordinary_seals_first:
+        # Coordinator termination stops the contextual idle and frees the
+        # waiting ordinary request. Let that request seal driver termination
+        # before terminate() reaches its own driver cancel.
+        original_cancel = env.core.cancel
+        def late_cancel():
+            # The inner terminate on the ordinary thread also cancels.
+            if current_thread() is not calls[0][0]:
+                assert calls[0][1].wait(2), "Ordinary request did not finish first"
+            original_cancel()
+        monkeypatch.setattr(env.core, "cancel", late_cancel)
+    try:
+        ordinary = start_ordinary_behind(held, env)
+        calls.append(ordinary)
+        assert held.native_calls == [("hello", False)]
+        terminating = run_thread(env.core.terminate)
+        finish(terminating)
+    finally:
+        held.release.set()
+    finish(held.contextual)
+    assert ordinary[1].wait(2)
+    assert [str(error) for error in ordinary[2]] == [f"{env.engine} driver has terminated"]
+    assert held.native_calls == [("hello", False)]
+    assert closed.is_set()
+    assert env.events == []
+
+
 def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     change = __import__("speech.commands", fromlist=["LangChangeCommand"]).LangChangeCommand()
@@ -536,6 +692,8 @@ def test_old_feed_final_stop_retires_before_next_native_call(env, monkeypatch):
     assert stop_entered.wait(1)
     assert calls == ["hello"]
     stop_release.set()
+    # The callback thread can feed before native() records its handle.
+    wait_for(lambda: bool(callback_calls))
     finish(callback_calls[0])
     finish(first)
     finish(second)

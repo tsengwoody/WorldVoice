@@ -2,6 +2,7 @@ import languageHandler
 import locale
 import threading
 import weakref
+from contextlib import contextmanager
 from ctypes import POINTER, c_char_p, c_size_t, c_void_p, cast, byref, sizeof, string_at
 from dataclasses import dataclass
 from io import BytesIO
@@ -509,8 +510,40 @@ class SynthDriver(BaseSynthDriver):
 			if self._terminationRequested and work.operation is None:
 				self._finish_termination()
 
+	@contextmanager
+	def _speech_run_ownership(self, work):
+		# A contextual operation releases the run lock after native submission
+		# but still owns the shared native/player resource through its final
+		# playback barrier and stop retirement. Ordinary speech waits for that
+		# coordinator retirement outside the run lock, because the contextual
+		# owner needs the run lock to submit.
+		lifecycle = self._segmentLifecycle
+		while True:
+			if work.operation is None:
+				while work.is_valid():
+					with lifecycle._condition:
+						if not lifecycle._resource_busy:
+							break
+						# External tokens have no notification hook.
+						lifecycle._condition.wait(0.05)
+				if not work.is_valid():
+					yield False
+					return
+			with self._speechRunLock:
+				if work.operation is None:
+					with lifecycle._condition:
+						busy = lifecycle._resource_busy
+					if busy:
+						# A contextual run acquired the resource before this
+						# request acquired the run lock. Let it submit first.
+						continue
+				yield True
+				return
+
 	def _run_speech_locked(self, commands, work):
-		with self._speechRunLock:
+		with self._speech_run_ownership(work) as owned:
+			if not owned:
+				return
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
 				if not work.is_valid():
@@ -663,6 +696,11 @@ class SynthDriver(BaseSynthDriver):
 			return super().cancel()
 		with self._speechStateLock:
 			if self._playerClosing:
+				# Another thread sealed termination first, possibly an ordinary
+				# request released by the coordinator's terminate. The player is
+				# closing, but a contextual caller may still await delivery.
+				for pending in self._segmentWorks:
+					pending.cancel()
 				return
 			self._isSilence.set()
 			# WavePlayer.stop clears its own pause state. Keep the final idle
