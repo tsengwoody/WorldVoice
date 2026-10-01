@@ -5,7 +5,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from runtime_harness import MemoryRepository, RUNTIME, make_spec, rt
+from runtime_harness import MemoryRepository, RUNTIME, load_index_support, make_spec, rt
+from test_worldvoice_index_command import nvda_commands
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 
@@ -119,6 +120,30 @@ def test_lifecycle_metadata_and_apply_order(compat, rt):
     adapter.open()
     adapter.close()
     assert (cls.opens, cls.closes) == (2, 2)
+
+
+def test_contextual_legacy_reopen_reconfigures_segment_events(compat, rt):
+    core = Core()
+    core.speak_legacy_segment = lambda commands, token, *, context, on_event: core.spoken.append(
+        (commands, context, token, on_event))
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(
+        cls, lambda key: cls(), completion=rt.models.CompletionContract(
+            mode=rt.models.CompletionMode.LEGACY_DONE, legacy_contextual=True))
+    first_context = rt.models.PlaybackContext(11, 21)
+    first_sink = lambda event: None
+    adapter.open()
+    adapter.configure_legacy_segment_events(lambda context: first_sink)
+    token = SimpleNamespace(is_cancelled=lambda: False)
+    adapter.speak(("first",), token, context=first_context)
+    adapter.close()
+
+    adapter.open()
+    second_context = rt.models.PlaybackContext(12, 22)
+    second_sink = lambda event: None
+    adapter.configure_legacy_segment_events(lambda context: second_sink)
+    adapter.speak(("second",), token, context=second_context)
+    assert core.spoken[-1] == (("second",), second_context, token, second_sink)
 
 
 @pytest.mark.parametrize("extra", [{}, {"name": "noncanonical", "description": "", "locale": "en_US"}])
@@ -267,3 +292,319 @@ def test_real_variant_and_waitfactor_hooks(compat, rt, monkeypatch, engine):
     adapter.apply(state.spec, state.snapshot())
     assert (core.voice, core.rate, core.waitfactor) == ("a", 50, 4)
     assert writes == [("native:a", "bright")]
+
+
+@pytest.fixture
+def marker_env(monkeypatch, compat, rt, nvda_commands):
+    support = load_index_support(monkeypatch, rt, "worldvoice_compat_test")
+    ledger = support.ledger.IndexLedger()
+    contract = rt.models.CompletionContract(
+        rt.models.CompletionMode.END_INDEX, rt.models.IndexRange(501, 510))
+    core = Core()
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(
+        cls, lambda key: cls(), index_ledger=ledger, completion=contract)
+    adapter.open()
+    source_id = object()
+    ledger.bind(core, source_id, contract)
+    yield SimpleNamespace(adapter=adapter, core=core, ledger=ledger, contract=contract,
+                          source_id=source_id, context=rt.models.PlaybackContext(source_id, 1),
+                          commands=nvda_commands, support=support, models=rt.models,
+                          token=SimpleNamespace(is_cancelled=lambda: False))
+    adapter.close()
+    ledger.close()
+
+
+def test_synchronous_marker_callback_has_mapping(marker_env):
+    env = marker_env
+    events = []
+    env.core.speak = lambda commands: events.extend(
+        env.ledger.receive_index(env.source_id, commands[-1].index))
+    env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
+    assert [event.kind for event in events] == [env.models.EventKind.INDEX, env.models.EventKind.SEGMENT_END]
+    assert [event.index for event in events] == [123, None]
+    assert all(event.segment_id == 1 for event in events)
+    assert env.adapter.capabilities.completion == env.contract
+
+
+def test_success_keeps_mapping_for_async_marker(marker_env):
+    env = marker_env
+    env.adapter.speak(("hello",), env.token, context=env.context)
+    assert [event.segment_id for event in env.ledger.receive_index(env.source_id, 501)] == [1]
+
+
+@pytest.mark.parametrize("cancel_after_prepare", [False, True])
+def test_cancel_before_and_after_prepare_does_not_publish_live_segment(marker_env, monkeypatch, cancel_after_prepare):
+    env = marker_env
+    cancelled = not cancel_after_prepare
+    env.token.is_cancelled = lambda: cancelled
+    prepare = env.ledger.prepare
+
+    def cancel_during_prepare(context, originals):
+        nonlocal cancelled
+        allocation = prepare(context, originals)
+        cancelled = True
+        return allocation
+
+    monkeypatch.setattr(env.ledger, "prepare", cancel_during_prepare)
+    env.adapter.speak(("hello",), env.token, context=env.context)
+    assert env.core.spoken == []
+    assert env.ledger.receive_index(env.source_id, 501) == ()
+    assert prepare(env.context, ()).end_index == (502 if cancel_after_prepare else 501)
+
+
+def test_speak_failure_retires_mapping(marker_env):
+    env = marker_env
+
+    def fail(commands):
+        raise OSError("core failed")
+
+    env.core.speak = fail
+    with pytest.raises(OSError, match="core failed"):
+        env.adapter.speak(("hello",), env.token, context=env.context)
+    assert env.ledger.receive_index(env.source_id, 501) == ()
+    assert env.ledger.prepare(env.context, ()).end_index == 502
+
+
+def test_finish_is_idempotent(marker_env):
+    env = marker_env
+    env.adapter.speak(("hello",), env.token, context=env.context)
+    env.adapter.finish_segment(env.context)
+    env.adapter.finish_segment(env.context)
+    assert env.ledger.receive_index(env.source_id, 501) == ()
+    assert env.ledger.prepare(env.context, ()).end_index == 502
+
+
+def test_cancel_retires_source_before_core_callback(marker_env):
+    env = marker_env
+    env.adapter.speak(("one",), env.token, context=env.context)
+    env.adapter.speak(("two",), env.token, context=env.models.PlaybackContext(env.source_id, 2))
+    events = []
+    env.core.cancel = lambda: events.extend(env.ledger.receive_index(env.source_id, 501)
+                                          + env.ledger.receive_index(env.source_id, 502))
+    env.adapter.cancel()
+    assert events == []
+    assert env.ledger.prepare(env.context, ()).end_index == 503
+
+
+def test_legacy_without_context_preserves_commands(compat, monkeypatch):
+    import builtins
+
+    core = Core()
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+    adapter.open()
+    commands = ("hello", object())
+    original_import = builtins.__import__
+
+    def guard(name, *args, **kwargs):
+        if name.startswith("speech") or "indexCodec" in name:
+            raise AssertionError("Legacy calls must not import marker dependencies")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guard)
+    adapter.speak(commands, SimpleNamespace(is_cancelled=lambda: False))
+    assert core.spoken[0][0] is commands
+
+
+def test_contextual_legacy_entry_preserves_commands_and_original_context(compat, rt):
+    core, calls, events = Core(), [], []
+
+    def speak_legacy_segment(commands, token, *, context, on_event):
+        calls.append((commands, token, context))
+        on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, context.source_id,
+                                        segment_id=context.segment_id))
+
+    core.speak_legacy_segment = speak_legacy_segment
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+    adapter.open()
+    adapter.configure_completion(rt.models.CompletionContract(legacy_contextual=True))
+    adapter.configure_legacy_segment_events(lambda context: events.append)
+    commands = ("hello", object())
+    token = SimpleNamespace(is_cancelled=lambda: False)
+    context = rt.models.PlaybackContext(object(), 4)
+    try:
+        adapter.speak(commands, token, context=context)
+        assert calls == [(commands, token, context)]
+        assert calls[0][0] is commands and calls[0][2] is context
+        assert events == [rt.models.PlaybackEvent(rt.models.EventKind.DONE, context.source_id, segment_id=4)]
+        assert core.spoken == []
+    finally:
+        adapter.close()
+
+
+def test_contextual_legacy_requires_context_instead_of_anonymous_fallback(compat, rt):
+    core = Core()
+    core.speak_legacy_segment = lambda *args, **kwargs: pytest.fail("Missing context reached native entry")
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+    adapter.open()
+    adapter.configure_completion(rt.models.CompletionContract(legacy_contextual=True))
+    try:
+        with pytest.raises(ValueError, match="context"):
+            adapter.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False))
+        assert core.spoken == []
+    finally:
+        adapter.close()
+
+
+def test_marker_mode_requires_context(marker_env):
+    env = marker_env
+    with pytest.raises(ValueError, match="context"):
+        env.adapter.speak(("hello",), env.token)
+    assert env.core.spoken == []
+    assert env.ledger.prepare(env.context, ()).end_index == 501
+
+
+@pytest.fixture
+def drain_env(monkeypatch, compat, rt, nvda_commands, request):
+    support = load_index_support(monkeypatch, rt, "worldvoice_compat_test")
+    ledger = support.ledger.IndexLedger()
+    core = Core()
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls(), index_ledger=ledger)
+    adapter.open()
+    contract = rt.models.CompletionContract(
+        getattr(rt.models.CompletionMode, getattr(request, "param", "DRAIN")), rt.models.IndexRange(1, 9999))
+    adapter.configure_completion(contract)
+    source_id = object()
+    binding_token = ledger.bind(core, source_id, contract)
+    events, calls = [], []
+    def speak_segment(commands, token, *, context, on_event):
+        calls.append((commands, token, context, on_event))
+    core.speak_segment = speak_segment
+    def factory(context):
+        return lambda event: events.extend(ledger.receive_segment_event(event, binding_token=binding_token))
+    yield SimpleNamespace(adapter=adapter, core=core, ledger=ledger, contract=contract,
+                          source_id=source_id, context=rt.models.PlaybackContext(source_id, 1),
+                          commands=nvda_commands, support=support, models=rt.models,
+                          token=SimpleNamespace(is_cancelled=lambda: False),
+                          events=events, calls=calls, factory=factory)
+    adapter.close()
+    ledger.close()
+
+
+def test_adapter_passes_original_context_to_segment_entry(drain_env):
+    env = drain_env
+    env.adapter.configure_segment_events(env.factory)
+    original = env.commands.IndexCommand(123)
+    env.adapter.speak(("hello", original), env.token, context=env.context)
+    commands, token, context, sink = env.calls[0]
+    assert token is env.token and context is env.context
+    assert callable(sink)
+    assert [c.index for c in commands if isinstance(c, env.commands.IndexCommand)] == [1]
+    assert not any(isinstance(c, env.support.commands.WorldVoiceIndexCommand) for c in commands)
+    assert original.index == 123 and env.core.spoken == []
+
+
+def test_synchronous_segment_drain_has_prepared_mapping(drain_env):
+    env = drain_env
+    env.adapter.configure_segment_events(env.factory)
+    def speak(commands, token, *, context, on_event):
+        on_event(env.models.PlaybackEvent(env.models.EventKind.SEGMENT_DRAINED,
+                                         context.source_id, segment_id=context.segment_id))
+    env.core.speak_segment = speak
+    env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
+    assert [(e.kind.name, e.index) for e in env.events] == [("INDEX", 123), ("SEGMENT_DRAINED", None)]
+
+
+@pytest.mark.parametrize("failure", ["entry", "factory"])
+def test_segment_entry_or_factory_failure_retires_mapping(drain_env, failure):
+    env = drain_env
+    def fail(*args, **kwargs):
+        raise OSError("segment setup failed")
+    env.adapter.configure_segment_events(fail if failure == "factory" else env.factory)
+    if failure == "entry":
+        env.core.speak_segment = fail
+    with pytest.raises(OSError, match="segment setup failed"):
+        env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
+    assert env.ledger.receive_index(env.source_id, 1) == ()
+    assert env.ledger.prepare(env.context, (456,)).wire_indexes == (2,)
+
+
+def test_segment_failure_sink_preserves_error_without_index_backfill(drain_env):
+    env = drain_env
+    error = OSError("playback failed")
+    env.adapter.configure_segment_events(env.factory)
+    def speak(commands, token, *, context, on_event):
+        on_event(env.models.PlaybackEvent(env.models.EventKind.SEGMENT_FAILED,
+                                         context.source_id, segment_id=context.segment_id, error=error))
+    env.core.speak_segment = speak
+    env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
+    assert len(env.events) == 1 and env.events[0].error is error
+
+
+@pytest.mark.parametrize("cancel_after_prepare", [False, True])
+def test_drain_cancel_before_dispatch_retires_segment(drain_env, monkeypatch, cancel_after_prepare):
+    env = drain_env
+    env.adapter.configure_segment_events(env.factory)
+    cancelled = not cancel_after_prepare
+    env.token.is_cancelled = lambda: cancelled
+    prepare = env.ledger.prepare
+    def cancel_during_prepare(context, originals):
+        nonlocal cancelled
+        allocation = prepare(context, originals)
+        cancelled = True
+        return allocation
+    monkeypatch.setattr(env.ledger, "prepare", cancel_during_prepare)
+    env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
+    assert env.calls == []
+    assert env.ledger.receive_index(env.source_id, 1) == ()
+    assert prepare(env.context, (456,)).wire_indexes == ((2,) if cancel_after_prepare else (1,))
+
+
+def test_drain_cancel_retires_before_core_emits_old_drain(drain_env):
+    env = drain_env
+    env.adapter.configure_segment_events(env.factory)
+    env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
+    sink = env.calls[0][3]
+    env.core.cancel = lambda: sink(env.models.PlaybackEvent(
+        env.models.EventKind.SEGMENT_DRAINED, env.source_id, segment_id=1))
+    env.adapter.cancel()
+    assert env.events == []
+
+
+def test_drain_requires_event_factory_before_speech(drain_env):
+    env = drain_env
+    with pytest.raises(RuntimeError, match="segment event"):
+        env.adapter.speak(("hello",), env.token, context=env.context)
+    assert env.calls == env.core.spoken == []
+
+
+@pytest.mark.parametrize("phase", ["before_open", "before_completion", "after_speech", "after_close"])
+def test_segment_event_configuration_rejects_wrong_lifecycle_phase(compat, rt, phase):
+    core = Core()
+    core.speak_segment = lambda *args, **kwargs: None
+    cls = legacy_class(core)
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+    if phase != "before_open":
+        adapter.open()
+    if phase in ("after_speech", "after_close"):
+        adapter.configure_completion(rt.models.CompletionContract())
+        if phase == "after_speech":
+            adapter.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False))
+        else:
+            adapter.close()
+    with pytest.raises(RuntimeError):
+        adapter.configure_segment_events(lambda context: lambda event: None)
+    adapter.close()
+
+
+def test_segment_configuration_requires_callable_core_entry(drain_env):
+    env = drain_env
+    env.core.speak_segment = None
+    with pytest.raises(ValueError, match="speak_segment"):
+        env.adapter.configure_segment_events(env.factory)
+
+
+@pytest.mark.parametrize("drain_env", ["END_INDEX_AND_DRAIN"], indirect=True)
+def test_and_mode_uses_segment_entry_and_keeps_terminal_marker(drain_env):
+    env = drain_env
+    env.adapter.configure_segment_events(env.factory)
+    env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
+    commands, token, context, _ = env.calls[0]
+    assert token is env.token and context is env.context
+    assert [c.index for c in commands if isinstance(c, env.commands.IndexCommand)] == [1, 2]
+    assert isinstance(commands[-1], env.support.commands.WorldVoiceIndexCommand)
+    assert env.core.spoken == []

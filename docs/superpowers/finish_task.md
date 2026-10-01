@@ -1,73 +1,81 @@
-# F4 語音設定延後至下一段生效
+# Shared segment lifecycle delivery record
 
-## 完成內容
+**Branch:** `test/force-segment-end-index-all-engines`
 
-- 新增不可變 `VoiceSnapshot` 與每引擎 `EngineSession`，依 core、Voice ID 和 revision 避免重複套用；設定套用失敗會清除狀態並阻止該段以舊設定播放。
-- Voice 設定改為鎖定的待生效值；worker 在每段語音開始前取得一致快照並啟用 Session。UI 預覽、取消還原、語音切換與參數一致性更新都保留下一段生效的邊界。
-- VE／Cerence 的 variant、waitfactor，以及 OneCore 的 language 延後到啟用時套用；同一 UI 動作以原子批次更新多個參數。
-- Task 1、Task 2、Task 3 的實作與各自 review 均完成；Task 3 的兩輪修正也已 scoped re-review 通過。
+**Date:** 2026-09-30; final review fixes and rebuild 2026-10-01
 
-## 驗證
+**Build source:** detached commit `b36b707`, the final commit that touches `addon/`. The earlier `ee6d0b8` build is superseded.
 
-- `python3 -m pytest tests -q -p no:cacheprovider`：149 passed（目前含工作區既有 F2/F3 測試）。
-- 在乾淨的已提交 checkout 執行 F4 focused tests：20 passed；完整已提交測試集：129 passed。
-- `git diff --check` 與 staged diff check 通過。Windows/NVDA 原生語音輸出未能在此環境驗證；引擎 adapter 與播放邊界以 stubs/fake core 覆蓋。
+One common `SegmentLifecycle` now owns contextual operation admission, producer leases, failure and cancellation state, resource handoff, and terminal event delivery. The outer OneCore, Neural, VE, Cerence, SAPI5 WASAPI, eSpeak, and RHVoice wrappers use it while retaining their native submission, callback, stop, and player barriers. SAPI5 legacy audio continues to choose `LEGACY_DONE` before its first segment. Unknown and external engines retain the same fallback. The enabled profile selection is an explicit prior user request; it does not establish physical playback or SDK callback exclusion on Windows.
 
-## 本次實作 commits
+The later Neural correction `6caceb5` closes a cancellation race: `speak_segment` had accepted a lifecycle operation before registering its driver work, so `cancel()` could snapshot `_segmentWorks` in between and miss that operation. Acceptance and registration now share `_segmentCondition`; native calls, task construction, and event delivery remain outside that condition. A held-boundary regression covers the gap.
 
-- `d44f031` — `feat: add per-engine voice activation session`
-- `6dd2e09` — `fix: defer voice settings to speech segment start`
-- `74d633a` — `fix: defer engine-specific voice parameters`
-- `21487da` — `test: make voice preview regression self-contained`
-- `1be34aa` — `fix: copy UI voice settings atomically`
+## Final review fix waves
 
-完整 commit SHA 可由目前分支 `feat/f4-voice-activation` 的 git history 查閱。原先存在的 F2/F3 未提交變更與未追蹤測試均已保留，沒有納入上述 commits。
+A whole-branch review after `6caceb5` produced two fix waves. Each change stays in the outer wrappers or the shared coordinator; native submission, callback, stop and player barriers are unchanged.
 
----
+- **OneCore and RHVoice admission-cancel atomicity** (`816fe6a`). OneCore registers each accepted operation under `_segmentCondition` before XML conversion and keeps it cancellation-visible until queue insertion and the queue-to-run handoff. RHVoice holds `_segmentAdmission` across lifecycle acceptance and `_segmentAccepted` registration, and cancellation takes the same lock before its snapshot.
+- **Coordinator latched-fault delivery for queued Neural/SAPI5 operations** (`816fe6a`). `SegmentLifecycle.run()` converts a latched fault met by an accepted, unsubmitted operation into one coordinator-owned asynchronous `SEGMENT_FAILED` with the original context and first error, without native submission.
+- **OneCore faulted-acceptance cancellation and retirement** (`65a8961`, `25f9fda`). Captured pre-run and queued operations stay visible to `cancel()` until lifecycle delivery or cancellation, so a cancelled pending failure is suppressed. `SegmentLifecycle.accept()` takes an optional `on_retired` callback, run on the dispatcher outside coordinator locks, which OneCore uses to clear accepted membership even when delivery was suppressed.
+- **Ordinary-speech ownership behind contextual playback** (`b36b707`). VE and Cerence ordinary `speak()` held only `_speechRunLock`, which a contextual operation releases after native submission, so ordinary text could reach native and feed the shared player during the contextual final idle. Ordinary requests now wait for the coordinator resource (`_resource_busy`) to retire outside the run lock, as `_finish_termination` already does, and recheck it after acquiring the lock. A cancel that finds termination already sealed still releases pending contextual delivery waits. Actual-wrapper regressions cover ordinary speech behind the final idle, driver cancel and ordinary token cancel while waiting, and terminate while waiting, including an ordinary request that seals termination first. Parity probes on OneCore, Neural, SAPI5 WASAPI and RHVoice passed on the pre-fix source and remain as regressions: OneCore, SAPI5 WASAPI and RHVoice keep ordinary text queued behind the contextual final barrier on their single worker, and Neural refuses ordinary speech after correlated playback. eSpeak was fixed earlier in `fe25096`.
 
-# F5／F6／A1／A4 runtime 邊界完成說明（2026-09-26）
+## Verification
 
-以上 F4 內容與數字保留為歷史紀錄。以下記錄本次 `feat/voice-runtime-boundaries` 實作，基底包含已提交 F2／F3 的 `6256a23`，並保留其回收與取消還原行為。
+- `python3 -m pytest -q tests/test_runtime_drain_integration.py tests/test_runtime_completion_policies.py`: **205 passed** in 7.06s at `e1ebe34`.
+- Final focused command after `b36b707`: `python3 -m pytest -q tests/test_vocalizer_segment_drain.py tests/test_onecore_segment_drain.py tests/test_neural_segment_drain.py tests/test_sapi5_segment_drain.py tests/test_rhvoice_segment_drain.py tests/test_segment_lifecycle.py`: **395 passed, 9 skipped**.
+- Final full command: `python3 -m pytest -q tests`: **1,298 passed, 9 skipped** (34.69s before the code commit; 33.65s before this record).
+- `git diff --check`: exit 0 before the final code commit and before this record.
+- The integration harness uses the real manager, sessions, adapters, index ledger, scheduler, event bridge, and four opened outer wrappers over controlled native and player boundaries. Separate actual-wrapper fixtures cover SAPI5, eSpeak, and RHVoice. The seven-profile assertion checks installed outer core identity, shared coordinator ownership, and policy choice before speech. The switch assertion holds the original player's drain, checks that the successor has not submitted, and checks the original `source_id` and `segment_id` on the released DRAIN event.
 
-## 完成內容
+The build used SCons 4.11.1 and Markdown 3.11 installed in `/tmp/worldvoice-task10-venv`, with system gettext. Command: `scons version=6.2-test-correlated-drain-1-9999 channel=dev` from the clean detached worktree `/tmp/worldvoice-final-build-b36b707` (no tracked changes). It exited 0. The artifact remains in that isolated build directory; the ignored root artifact and its README annotation remain the earlier activation package.
 
-- F5 保留 OneCore 已有 `applyEngineSettings()` language hook，透過同 Session 的 A → B → 已快取 A 測試補齊 voice ID、language 與參數切換證據。
-- F6 採跳過／恢復策略：不可用語音區段的文字、index、停頓一起跳過，繼續處理切換命令，遇到可用語音再恢復，不自動改用 default。
-- A1 將不可變模型、待生效設定、Repository、編輯 session、引擎 Session 與舊 Voice facade 分責。設定頁共用 Store／VoiceEditSession；套用72後預覽81再取消，回到72。
-- A4 保留唯一排程 worker／request 狀態機，把 NVDA 事件註冊與通知轉接交給 Bridge；維持同步 done、index 去重、取消競態及逐項資源回收行為。
-- 共用契約以直接 Adapter 與正式 LegacyEngineAdapter 執行同一組五項情境；native 路徑在禁止 compat、driver、NVDA 匯入下使用正式 Store、EngineSession、TaskManager。可移除相容層的核心邊界已有測試證據，生產接入仍保留相容入口。
+| Build audit | Result |
+| --- | --- |
+| Artifact | `WorldVoice-6.2-test-correlated-drain-1-9999.nvda-addon` |
+| Source | `b36b707` |
+| Size | 10,614,751 bytes |
+| SHA-256 | `10bbe05b7a78f46d9730c1f5fccc593928da44b3c473b42db35b772b1bcebf9f` |
+| ZIP | 122 unique entries; every CRC passed; paths safe; no bytecode or cache entries |
+| Source consistency | All 99 tracked add-on files match the detached source bytes in the package; the other 23 entries are generated manifests, translations and documentation |
+| Protected baseline | All 22 Neural, VE, and Cerence inner/native/manifest files (everything under those engine directories except the outer `__init__.py`) match the earlier activation package byte for byte, and also match the superseded `ee6d0b8` build |
+| Manifest | Version `6.2-test-correlated-drain-1-9999`, update channel `dev` |
 
-## 實際驗證與審查
+No Windows NVDA instance, physical audio device, loaded VE/Cerence/Neural SDK, or measured callback quiescence was used. The Linux tests prove behavior against controlled native and audio boundaries; installation, listening and tail timing, loaded SDK provenance, and real Windows profile acceptance remain open. SAPI5 legacy audio was intentionally left on `LEGACY_DONE`.
 
-- `python3 -m pytest tests/test_runtime_adapter_contract.py -q -p no:cacheprovider`：10 passed in 0.10s。
-- 修正最終分支審查三項 Important finding 後，相關測試 88 passed；`python3 -m pytest tests -q -p no:cacheprovider`：350 passed；未收集 `ref/nvda`。
-- 完整回歸通過後 `git diff --check` 成功。移除 voice key 快取比較或保存 checkpoint 的暫時 mutation 均讓兩種 Adapter 測試失敗，還原後通過；正式程式未留下 mutation。
-- Task 1–10 均完成逐任務獨立審查；全分支 Astra review 找出的三項 Important finding 已修正於 `430be90`，並由 Astra scoped re-review 通過，沒有未解 Critical／Important／Minor finding。
+## New commits in this change
 
-## 本次新增 commits
+The following exact short SHA and subject pairs, from `git log --reverse --format='%h %s' 3603004^..HEAD`, include design, plan, implementation, corrections, validation, and both final review fix waves.
 
-- 基底 `2146422`（spec／plan）不屬於本次實作新增提交。
-- `091d307` — `feat: add independent voice state and runtime models`
-- `148c47c` — `refactor: separate voice settings persistence and editing`
-- `f9132e2` — `feat: add engine session playback contract`
-- `826f4ac` — `feat: add removable legacy voice and engine adapters`
-- `0b433d1` — `refactor: isolate NVDA speech event bridge`
-- `e09f171` — `refactor: decouple speech scheduler from voices and NVDA`
-- `7565a07` — `fix: settle cancelled requests and wake cancelled speech tasks`
-- `0f9d546` — `fix: recover voice routing after unavailable engines`
-- `4e7a9fd` — `fix: preserve cancellation result when request abort races`
-- `bb2673f` — `refactor: wire voice sessions and event bridge into WorldVoice`
-- `1b042d6` — `fix: preserve shared engines and close admission before shutdown`
-- `5824dcc` — `refactor: share voice editing state across settings interfaces`
-- `c71df56` — `test: cover main-locale voice consistency apply and discard`
-- `22cdb3d` — `test: verify removable compatibility layer and runtime regressions`
-- `d73feec` — `docs: record runtime contract validation commit`
-- `430be90` — `fix: preserve cancellation and legacy voice initialization contracts`（最終審查修正）
-
-以上列出基底之後、完成報告收尾更新之前的 16 個提交；本報告收尾文件提交本身可由目前分支 history 查閱。
-
-## 目前限制
-
-Linux 測試環境無法提供 Windows／NVDA 真實語音輸出證據。OneCore 快取切換、跨引擎長文、說全部、index、尾端停頓、快速取消、pause/resume、GUI 套用、GUI 取消、各內建原生引擎，以及外部引擎接入與可取得版本，均尚未實機驗證；詳見逐項狀態表。**F7 同來源取消後的延遲回呼排空契約仍未處理**。
-
-完整責任邊界稽核、測試證據、提交對照與逐項實機限制位於 [runtime 驗證紀錄](finish/2026-09-26-voice-runtime-boundaries-validation.md)。本次依使用者要求修改此 `finish_task.md`，保留原 F4 內容並追加這個獨立章節。
+- `3603004` docs: design shared segment lifecycle for seven engines
+- `b7abba9` docs: plan shared segment lifecycle migration
+- `c4bc29b` feat: add shared segment lifecycle coordinator
+- `3aaef1c` fix: keep segment handoff behind player and submit barriers
+- `50516f2` feat: serialize correlated segment delivery
+- `9658150` fix: invalidate segment delivery atomically on teardown
+- `083b0b3` refactor: route OneCore segments through lifecycle
+- `9b04693` fix: preserve OneCore callback and rejection boundaries
+- `13b97eb` fix: signal OneCore boundary after retirement returns
+- `136cbae` fix: preserve rejected segment delivery through teardown
+- `ae4c267` fix: cancel accepted OneCore rejection on termination
+- `42b26cc` refactor: route Neural segments through lifecycle
+- `14502c4` fix: keep Neural terminal delivery cancellable
+- `c9e97e6` refactor: route VE segments through lifecycle
+- `36727ff` fix: retire VE cancellation and player hooks safely
+- `71e6c73` refactor: route Cerence segments through lifecycle
+- `12df672` refactor: route SAPI5 WASAPI segments through lifecycle
+- `13ae6cb` fix: retire queued SAPI5 work and reject stale streams
+- `63c815d` refactor: route eSpeak segments through lifecycle
+- `fe25096` fix: keep eSpeak player ownership through mixed speech cleanup
+- `5a66990` refactor: route RHVoice segments through lifecycle
+- `1dd9e2b` fix: fail closed after RHVoice message cleanup fault
+- `ee6d0b8` test: hold RHVoice final idle before successor handoff
+- `e1ebe34` test: verify seven shared lifecycle profiles and cross-engine handoff
+- `d69b823` docs: record shared segment lifecycle delivery
+- `6caceb5` fix: close Neural segment admission cancellation gap
+- `0d60071` docs: record Neural admission race follow-up
+- `fe371e6` docs: record post-delivery Neural admission fix
+- `816fe6a` fix: preserve accepted segment cancellation and fault delivery
+- `65a8961` fix: keep OneCore faulted acceptance cancellable
+- `25f9fda` fix: retire OneCore acceptance after suppressed delivery
+- `b36b707` fix: keep VE and Cerence ordinary speech behind contextual playback
+- this record: docs: record final review fixes and rebuilt package

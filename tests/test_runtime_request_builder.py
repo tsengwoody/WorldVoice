@@ -299,3 +299,24 @@ def test_cancellation_between_error_check_and_abort_returns_false(
     assert all(task.future.cancelled() for task in request.tasks)
     assert runtime.port.spoken == []
     assert runtime.output.done_count == 0
+
+
+@pytest.mark.parametrize("repeat_selection", [False, True])
+def test_select_pause_and_end_flush_only_nonempty_segments(recording_builder, rt, repeat_selection):
+    select, pause = rt.models.SelectVoice, rt.models.Pause
+    selections = [select("Fake:b")] * (2 if repeat_selection else 1)
+    assert recording_builder.run(["A", *selections, "B", pause(0.2), "C"])
+    assert recording_builder.tasks == [
+        ("speech", "Fake:a", ("A",)), ("speech", "Fake:b", ("B",)),
+        ("break", 0.2), ("speech", "Fake:b", ("C",)),
+    ]
+    assert recording_builder.submit_count == 1
+
+
+def test_command_and_index_only_segments_are_preserved(recording_builder, rt):
+    command, index = object(), object()
+    assert recording_builder.run([command, rt.models.SelectVoice("Fake:b"), index])
+    assert recording_builder.tasks == [
+        ("speech", "Fake:a", (command,)), ("speech", "Fake:b", (index,)),
+    ]
+    assert recording_builder.submit_count == 1

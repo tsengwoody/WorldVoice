@@ -63,6 +63,20 @@ def test_synchronous_done_finishes_once(manager, port, output, rt, scheduler):
     assert port.spoken == [(("hello",), request.token)]
 
 
+def test_contextual_legacy_completion_requires_exact_segment_identity(manager, port, output, rt):
+    port.completion = rt.models.CompletionContract(legacy_contextual=True)
+    request, future = speech(manager, port)
+    task = request.tasks[0]
+    for source, segment in ((port.source_id, None), (port.source_id, task.segment_id + 1),
+                            (object(), task.segment_id)):
+        manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, source, segment_id=segment))
+        assert not future.done()
+    manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, port.source_id,
+                                            segment_id=task.segment_id))
+    assert future.result(1) is True
+    assert output.wait_done() == 1
+
+
 def test_synchronous_done_advances_only_after_speak_returns(manager, port, output, rt):
     second = FakePlayback()
     release = Event()
@@ -223,10 +237,16 @@ def test_cancel_between_acceptance_and_output_suppresses_index_and_done(manager,
     try:
         thread.start()
         assert accepted.wait(1)
-        manager.cancel([port])
+        if kind == "INDEX":
+            # Delivery now serializes cancel with the entire event batch.
+            # Direct token cancellation still races the output validity check.
+            request.token.cancel()
+        else:
+            manager.cancel([port])
     finally:
         release.set()
         thread.join(1)
+    manager.cancel([port])
     manager._q.join()
     assert not thread.is_alive()
     assert output.indexes == []

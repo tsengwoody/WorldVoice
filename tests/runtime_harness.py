@@ -3,10 +3,15 @@
 import importlib.util
 import builtins
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 import sys
 from threading import Condition, Event
 from types import ModuleType, SimpleNamespace
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from addon.synthDrivers.WorldVoice.runtime.scheduler import SpeechRequest
 
 import pytest
 
@@ -27,7 +32,9 @@ def load_runtime(monkeypatch, package_name=PACKAGE):
     models = load(f"{package_name}.models", RUNTIME / "models.py")
     settings = load(f"{package_name}.settings", RUNTIME / "settings.py")
     session = load(f"{package_name}.session", RUNTIME / "session.py")
-    return SimpleNamespace(package=package, models=models, settings=settings, session=session)
+    playback_work = load(f"{package_name}.playbackWork", RUNTIME / "playbackWork.py")
+    return SimpleNamespace(package=package, models=models, settings=settings, session=session,
+                           playback_work=playback_work)
 
 
 def load_scheduler(monkeypatch, rt):
@@ -105,6 +112,8 @@ class FakeAdapter:
         self.voice_variants = voice_variants or {}
         self.applied = []
         self.spoken = []
+        self.contexts = []
+        self.finished = []
         self.paused = []
         self.open_count = 0
         self.close_count = 0
@@ -136,10 +145,14 @@ class FakeAdapter:
         if self.before_apply is not None:
             self.before_apply(spec, snapshot)
 
-    def speak(self, commands, token):
+    def speak(self, commands, token, *, context=None):
+        self.contexts.append(context)
         self.spoken.append((commands, token))
         if self.before_speak is not None:
             self.before_speak(commands, token)
+
+    def finish_segment(self, context):
+        self.finished.append(context)
 
     def cancel(self):
         self.cancel_count += 1
@@ -152,9 +165,10 @@ class FakeAdapter:
 class FakePlayback(FakeAdapter):
     """Pure playback port; hooks run at the actual engine-call boundary."""
 
-    def __init__(self):
+    def __init__(self, completion=None):
         super().__init__()
         self.source_id = object()
+        self.completion = completion or sys.modules[f"{PACKAGE}.models"].CompletionContract()
         self.activated = []
         self.on_activate = None
         self.on_speak = None
@@ -167,8 +181,8 @@ class FakePlayback(FakeAdapter):
             self.on_activate()
         return True
 
-    def speak(self, commands, token):
-        super().speak(commands, token)
+    def speak(self, commands, token, *, context=None):
+        super().speak(commands, token, context=context)
         self.entered.set()
         if self.on_speak:
             self.on_speak()
@@ -242,13 +256,31 @@ class ContractCore:
         self.entered = Event()
         self.complete_synchronously = True
         self.emit = None
+        self.apply_count = 0
+        self.segment_ids = []
+        self.internal_wire_indexes = []
+        self.wire_indexes = []
+        self.marker_mode = False
+        self.end_only = False
 
     def speak(self, commands, cancellationToken):
         self.spoken.append((commands, self.voice, self.language,
                             self.rate, self.pitch, self.volume))
         self.tokens.append(cancellationToken)
+        if self.marker_mode:
+            self.internal_wire_indexes.extend(command.index for command in commands
+                                              if isinstance(command, self.marker_type))
+            self.wire_indexes.extend(command.index for command in commands
+                                     if isinstance(getattr(command, "index", None), int))
         self.entered.set()
-        if self.complete_synchronously:
+        if self.complete_synchronously and self.marker_mode:
+            indexes = [commands[-1].index] if self.end_only else [
+                command.index for command in commands if isinstance(getattr(command, "index", None), int)]
+            for index in indexes:
+                self.emit("INDEX", index)
+                self.emit("INDEX", index)
+            self.emit("DONE")
+        elif self.complete_synchronously:
             self.emit("INDEX", 7)
             self.emit("INDEX", 7)
             self.emit("DONE")
@@ -262,7 +294,7 @@ class ContractCore:
         pass
 
 
-def assemble_adapter_contract(monkeypatch, adapter_kind):
+def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEGACY_DONE", commands=None):
     """Use the identical production Store, Session and scheduler for both ports.
 
     The caller installs the native import guard before calling this function
@@ -274,11 +306,37 @@ def assemble_adapter_contract(monkeypatch, adapter_kind):
                                       "Contract", language)
                    for key, language in (("a", "en"), ("b", "zh_TW")))
     core = ContractCore()
+    core.marker_mode = completion_mode != "LEGACY_DONE"
+    completion = rt.models.CompletionContract(
+        rt.models.CompletionMode[completion_mode],
+        rt.models.IndexRange(501, 516) if core.marker_mode else None)
+    # Ledger is pure Python; native may use it without importing any legacy boundary.
+    name = "worldvoice_contract_boundary"
+    package = ModuleType(name)
+    package.__path__ = [str(RUNTIME.parent)]
+    monkeypatch.setitem(sys.modules, name, package)
+    for suffix, module in (("", rt.package), (".models", rt.models),
+                           (".settings", rt.settings), (".session", rt.session)):
+        monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
+    for suffix in ("indexLedger", "nvdaEventBridge", "compat", "compat.engineAdapter",
+                   "compat.indexCodec", "_speechcommand"):
+        monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
+    ledger = importlib.import_module(name + ".indexLedger").IndexLedger()
+
+    @dataclass
+    class NativeIndex:
+        index: int
+
+    class NativeMarker(NativeIndex):
+        pass
+
+    core.marker_type = NativeMarker
+    index_command = commands.IndexCommand if commands is not None else NativeIndex
     supported = frozenset({"rate", "pitch", "volume"})
     if adapter_kind == "native":
         class NativeAdapter:
             notification_source = core
-            capabilities = rt.models.EngineCapabilities(supported, supports_cancellation_token=True)
+            capabilities = rt.models.EngineCapabilities(supported, supports_cancellation_token=True, completion=completion)
 
             def open(self):
                 core.open_count += 1
@@ -293,11 +351,25 @@ def assemble_adapter_contract(monkeypatch, adapter_kind):
                 return ()
 
             def apply(self, spec, snapshot):
+                core.apply_count += 1
                 core.voice, core.language = spec.id, snapshot.language
                 core.rate, core.pitch, core.volume = snapshot.rate, snapshot.pitch, snapshot.volume
 
-            def speak(self, commands, token):
-                core.speak(commands, cancellationToken=token)
+            def speak(self, commands, token, *, context=None):
+                core.segment_ids.append(context.segment_id)
+                if core.marker_mode:
+                    originals = tuple(command.index for command in commands if isinstance(command, NativeIndex))
+                    if any(not isinstance(index, int) for index in originals):
+                        raise ValueError("Index command requires an integer")
+                    allocation = ledger.prepare(context, originals)
+                    indexes = iter(allocation.wire_indexes)
+                    commands = tuple(NativeIndex(next(indexes)) if isinstance(command, NativeIndex)
+                                     else command for command in commands) + (NativeMarker(allocation.end_index),)
+                if not token.is_cancelled():
+                    core.speak(commands, cancellationToken=token)
+
+            def finish_segment(self, context):
+                ledger.retire_segment(context)
 
             def cancel(self):
                 core.cancel()
@@ -307,17 +379,9 @@ def assemble_adapter_contract(monkeypatch, adapter_kind):
 
         adapter = NativeAdapter()
     elif adapter_kind == "legacy":
-        # Supply a namespace only; never execute the NVDA addon entry point.
-        name = "worldvoice_contract_legacy"
-        package = ModuleType(name)
-        package.__path__ = [str(RUNTIME.parent)]
-        monkeypatch.setitem(sys.modules, name, package)
-        for suffix, module in (("", rt.package), (".models", rt.models),
-                               (".settings", rt.settings), (".session", rt.session)):
-            monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
-        for suffix in ("compat", "compat.engineAdapter"):
-            monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
         legacy = importlib.import_module(name + ".compat.engineAdapter")
+        if core.marker_mode:
+            core.marker_type = importlib.import_module(name + "._speechcommand").WorldVoiceIndexCommand
 
         class LegacyVoice:
             @classmethod
@@ -339,12 +403,19 @@ def assemble_adapter_contract(monkeypatch, adapter_kind):
                 return [vars(spec) for spec in voices]
 
             def applyEngineSettings(self, target, snapshot):
+                core.apply_count += 1
                 target.language = snapshot.language
 
             variants = ()
 
         cached = {spec.name: LegacyVoice() for spec in voices}
-        adapter = legacy.LegacyEngineAdapter(LegacyVoice, cached.__getitem__)
+        adapter = legacy.LegacyEngineAdapter(LegacyVoice, cached.__getitem__,
+                                             index_ledger=ledger, completion=completion)
+        original_speak = adapter.speak
+        def record_context(commands, token, *, context=None):
+            core.segment_ids.append(context.segment_id)
+            return original_speak(commands, token, context=context)
+        adapter.speak = record_context
     else:
         raise ValueError(adapter_kind)
     repo = MemoryRepository()
@@ -355,7 +426,80 @@ def assemble_adapter_contract(monkeypatch, adapter_kind):
         store.ensure(spec)
     output = RecordingOutput()
     tasks = scheduler.TaskManager(output)
-    core.emit = lambda kind, index=None: tasks.on_event(rt.models.PlaybackEvent(
-        rt.models.EventKind[kind], session.source_id, index))
+    bridge = None
+    if core.marker_mode and adapter_kind == "legacy":
+        class EventSource:
+            def __init__(self):
+                self.handlers = []
+            def register(self, handler):
+                self.handlers.append(handler)
+            def unregister(self, handler):
+                self.handlers.remove(handler)
+            def notify(self, **kwargs):
+                for handler in tuple(self.handlers):
+                    handler(**kwargs)
+        done, index_event = EventSource(), EventSource()
+        bridge_type = importlib.import_module(name + ".nvdaEventBridge").NvdaEventBridge
+        bridge = bridge_type(output, done_event=done, index_event=index_event,
+                             get_synth=lambda: output, index_ledger=ledger)
+        bridge.start(tasks.on_event, batch_handler=tasks.on_events)
+        bridge.bind(core, session.source_id, completion=completion)
+        def emit(kind, index=None):
+            if kind == "INDEX":
+                index_event.notify(synth=core, index=index)
+            else:
+                done.notify(synth=core)
+        core.emit = emit
+    elif core.marker_mode:
+        ledger.bind(core, session.source_id, completion)
+        def emit(kind, index=None):
+            if kind == "INDEX":
+                tasks.on_events(lambda: ledger.receive_index(session.source_id, index))
+            else:
+                tasks.on_event(rt.models.PlaybackEvent(rt.models.EventKind[kind], session.source_id))
+        core.emit = emit
+    else:
+        core.emit = lambda kind, index=None: tasks.on_event(rt.models.PlaybackEvent(
+            rt.models.EventKind[kind], session.source_id, index))
+    monkeypatch.delitem(sys.modules, rt.package.__name__ + ".requestBuilder", raising=False)
+    builder = importlib.import_module(rt.package.__name__ + ".requestBuilder")
     return SimpleNamespace(rt=rt, scheduler=scheduler, core=core, repo=repo,
-                           store=store, session=session, tasks=tasks, output=output)
+                           store=store, session=session, tasks=tasks, output=output,
+                           bridge=bridge, ledger=ledger, index_command=index_command, builder=builder)
+
+
+def submit_contract_request(c, sequence, *, default_key: str) -> "SpeechRequest":
+    """Observe the production builder's request without changing its lifecycle."""
+    requests = []
+    original = c.tasks.new_request
+    def new_request():
+        request = original()
+        requests.append(request)
+        return request
+    c.tasks.new_request = new_request
+    try:
+        assert c.builder.queue_speech_sequence(
+            c.tasks, sequence, default_key,
+            lambda key: c.session if key in {"Contract:a", "Contract:b"} else None)
+    finally:
+        c.tasks.new_request = original
+    assert len(requests) == 1
+    return requests[0]
+
+
+def load_index_support(monkeypatch, rt, package_name):
+    """Load real ledger/commands into an isolated addon namespace."""
+    package = sys.modules.get(package_name)
+    if package is None:
+        package = ModuleType(package_name)
+        package.__path__ = [str(RUNTIME.parent)]
+        monkeypatch.setitem(sys.modules, package_name, package)
+    monkeypatch.setitem(sys.modules, package_name + ".runtime", rt.package)
+    monkeypatch.setitem(sys.modules, package_name + ".runtime.models", rt.models)
+    for suffix in ("indexLedger", "_speechcommand", "compat.indexCodec"):
+        monkeypatch.delitem(sys.modules, package_name + "." + suffix, raising=False)
+    return SimpleNamespace(
+        package=package_name,
+        ledger=importlib.import_module(package_name + ".indexLedger"),
+        commands=importlib.import_module(package_name + "._speechcommand"),
+    )

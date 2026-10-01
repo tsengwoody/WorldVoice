@@ -1,18 +1,36 @@
 """Translate legacy engine hooks into the independent runtime contract."""
 
+from __future__ import annotations
+
 from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING
 import logging
 
-from ..runtime.models import EngineCapabilities, SpeechCommands, VoiceSnapshot, VoiceSpec
+from ..runtime.models import (
+    CompletionContract, CompletionMode, EngineCapabilities, PlaybackContext,
+    SegmentEventSink, SpeechCommands, VoiceSnapshot, VoiceSpec,
+)
 from ..runtime.session import CancellationView
+
+if TYPE_CHECKING:
+    from ..indexLedger import IndexLedger
 
 
 class LegacyEngineAdapter:
     def __init__(self, voice_class: type, resolve_voice: Callable[[str], object], *,
-                 is_source_owned: Callable[[object], bool] | None = None):
+                 is_source_owned: Callable[[object], bool] | None = None,
+                 index_ledger: IndexLedger | None = None,
+                 completion: CompletionContract | None = None):
         self._voice_class = voice_class
         self._resolve_voice = resolve_voice
         self._is_source_owned = is_source_owned
+        self._index_ledger = index_ledger
+        self._completion = completion or CompletionContract()
+        self._completion_configured = completion is not None
+        self._segment_events: Callable[[PlaybackContext], SegmentEventSink] | None = None
+        self._legacy_events: Callable[[PlaybackContext], SegmentEventSink] | None = None
+        self._spoken = False
+        self._source_id = None
         self._opened = False
         self._core = None
         self.notification_source = None
@@ -39,6 +57,35 @@ class LegacyEngineAdapter:
                 raise error from cleanup_error
             raise
 
+    def configure_completion(self, contract: CompletionContract) -> None:
+        """Fix completion semantics for this opened resource before playback."""
+        if not self._opened or self._spoken:
+            raise RuntimeError("Completion must be configured after open and before speech")
+        if self._completion_configured and contract != self._completion:
+            raise RuntimeError("An opened resource cannot change its completion contract")
+        self._completion = contract
+        self._completion_configured = True
+
+    def configure_segment_events(self, factory: Callable[[PlaybackContext], SegmentEventSink]) -> None:
+        """Connect segment notifications before the resource is published."""
+        if not self._opened or not self._completion_configured or self._spoken:
+            raise RuntimeError("Segment events must be configured after completion and before speech")
+        if not callable(getattr(self._core, "speak_segment", None)):
+            raise ValueError("Segment events require a callable speak_segment entry")
+        if not callable(factory):
+            raise TypeError("Segment event factory must be callable")
+        self._segment_events = factory
+
+    def configure_legacy_segment_events(self, factory: Callable[[PlaybackContext], SegmentEventSink]) -> None:
+        """Connect software-correlated legacy events without certifying drain."""
+        if not self._opened or not self._completion_configured or self._spoken:
+            raise RuntimeError("Legacy events must be configured after completion and before speech")
+        if not self._completion.legacy_contextual or not callable(getattr(self._core, "speak_legacy_segment", None)):
+            raise ValueError("Contextual legacy events require a callable speak_legacy_segment entry")
+        if not callable(factory):
+            raise TypeError("Legacy segment event factory must be callable")
+        self._legacy_events = factory
+
     def close(self) -> None:
         if not self._opened:
             return
@@ -48,12 +95,18 @@ class LegacyEngineAdapter:
         finally:
             self._core = None
             self.notification_source = None
+            self._segment_events = None
+            self._legacy_events = None
+            self._spoken = False
 
     def detach_alias(self) -> None:
         """Relinquish a duplicate adapter without releasing the owner's core."""
         self._opened = False
         self._core = None
         self.notification_source = None
+        self._segment_events = None
+        self._legacy_events = None
+        self._spoken = False
         self._voice_class.core = None
         self._voice_class.session = None
         self._voice_class._runtime_binding = None
@@ -66,6 +119,7 @@ class LegacyEngineAdapter:
             supports_waitfactor="waitfactor" in extra,
             supports_variants="variant" in extra,
             supports_cancellation_token=bool(getattr(self._core, "supportsCancellationToken", False)),
+            completion=self._completion,
         )
 
     def list_voices(self) -> tuple[VoiceSpec, ...]:
@@ -94,13 +148,60 @@ class LegacyEngineAdapter:
                 setattr(core, name, getattr(snapshot, name))
         self._resolve_voice(spec.name).applyEngineSettings(core, snapshot)
 
-    def speak(self, commands: SpeechCommands, token: CancellationView) -> None:
-        if self.capabilities.supports_cancellation_token:
-            self._core.speak(commands, cancellationToken=token)
-        else:
-            self._core.speak(commands)
+    def speak(self, commands: SpeechCommands, token: CancellationView, *,
+              context: PlaybackContext | None = None) -> None:
+        self._spoken = True
+        marker_mode = self._completion.mode is not CompletionMode.LEGACY_DONE
+        drain_mode = self._completion.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX_AND_DRAIN)
+        legacy_contextual = self._completion.legacy_contextual and context is not None
+        if self._completion.legacy_contextual and context is None:
+            raise ValueError("Contextual legacy completion requires a playback context")
+        if marker_mode:
+            if context is None:
+                raise ValueError("Correlated completion requires a playback context")
+            if self._index_ledger is None:
+                raise ValueError("Marker completion requires an index ledger")
+            self._source_id = context.source_id
+        if drain_mode and self._segment_events is None:
+            raise RuntimeError("Drain completion requires a segment event factory")
+        if legacy_contextual and self._legacy_events is None:
+            raise RuntimeError("Contextual legacy completion requires a segment event factory")
+        if token.is_cancelled():
+            if marker_mode:
+                self.finish_segment(context)
+            return
+        try:
+            if marker_mode:
+                # Legacy direct calls must not load NVDA command dependencies.
+                from .indexCodec import encode_segment
+                commands = encode_segment(commands, context, self._index_ledger)
+            on_event = self._segment_events(context) if drain_mode else None
+            if legacy_contextual:
+                on_event = self._legacy_events(context)
+            if token.is_cancelled():
+                if marker_mode:
+                    self.finish_segment(context)
+                return
+            if drain_mode:
+                self._core.speak_segment(commands, token, context=context, on_event=on_event)
+            elif legacy_contextual:
+                self._core.speak_legacy_segment(commands, token, context=context, on_event=on_event)
+            elif self.capabilities.supports_cancellation_token:
+                self._core.speak(commands, cancellationToken=token)
+            else:
+                self._core.speak(commands)
+        except Exception:
+            if marker_mode:
+                self.finish_segment(context)
+            raise
+
+    def finish_segment(self, context: PlaybackContext) -> None:
+        if self._index_ledger is not None:
+            self._index_ledger.retire_segment(context)
 
     def cancel(self) -> None:
+        if self._index_ledger is not None and self._source_id is not None:
+            self._index_ledger.retire_source(self._source_id)
         self._core.cancel()
 
     def pause(self, switch: bool) -> None:

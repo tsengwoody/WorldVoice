@@ -21,7 +21,7 @@ def native_message(types, message_type, out_data):
 
 def ready_core(engine_harness):
 	core = engine_harness.new_core()
-	core.voiceInstance = "voice"
+	core.voiceInstance = core.getVoiceInstance("fake")
 	core.language = "en"
 	core._normalization = "OFF"
 	return core
@@ -42,13 +42,15 @@ def emit_audio(core, types, payload=b"new", done_result=None):
 	callback = core._veCallbackHandler
 	if done_result is None:
 		done_result = types.NUAN_OK
+	native = getattr(core, "_nativeWork", None)
+	instance = native.instance if native is not None else None
 	out_data = types.VE_OUTDATA()
-	assert callback(None, None, native_message(types, types.VE_MSG_OUTBUFREQ, out_data)) == types.NUAN_OK
+	assert callback(instance, None, native_message(types, types.VE_MSG_OUTBUFREQ, out_data)) == types.NUAN_OK
 	ctypes.memmove(out_data.pOutPcmBuf, payload, len(payload))
 	out_data.cntPcmBufLen = len(payload)
 	out_data.cntMrkListLen = 0
-	assert callback(None, None, native_message(types, types.VE_MSG_OUTBUFDONE, out_data)) == done_result
-	assert callback(None, None, native_message(types, types.VE_MSG_ENDPROCESS, out_data)) == types.NUAN_OK
+	assert callback(instance, None, native_message(types, types.VE_MSG_OUTBUFDONE, out_data)) == done_result
+	assert callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, out_data)) == types.NUAN_OK
 
 
 def test_installs_gate_on_core_and_existing_callback(engine_harness):
@@ -246,7 +248,7 @@ def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harn
 		out_data = engine_harness.types.VE_OUTDATA()
 		for message_type in (engine_harness.types.VE_MSG_OUTBUFREQ,
 			engine_harness.types.VE_MSG_OUTBUFDONE):
-			results.append(core._veCallbackHandler(None, None,
+			results.append(core._veCallbackHandler(instance if engine_harness.engine == "VE" else None, None,
 				native_message(engine_harness.types, message_type, out_data)))
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
 	worker = threading.Thread(target=core.speak, args=(["old"],),
@@ -277,7 +279,7 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 		native_entered.set()
 		assert release_native.wait(1)
 		out_data = engine_harness.types.VE_OUTDATA()
-		callback_results.append(core._veCallbackHandler(None, None, native_message(
+		callback_results.append(core._veCallbackHandler(instance if engine_harness.engine == "VE" else None, None, native_message(
 			engine_harness.types, engine_harness.types.VE_MSG_OUTBUFREQ, out_data,
 		)))
 
@@ -462,7 +464,7 @@ def test_guard_keeps_original_normalization_and_rate_settings(engine_harness, mo
 	monkeypatch.setattr(engine_harness.native, "setParamList",
 		lambda instance, *values: parameters.append((instance, values)))
 	core._set_rate(50)
-	assert parameters == [("voice", ((engine_harness.types.VE_PARAM_SPEECHRATE, 100),))]
+	assert parameters == [(core.voiceInstance, ((engine_harness.types.VE_PARAM_SPEECHRATE, 100),))]
 	assert core._veCallbackHandler.getSpeed() == 3.25
 
 

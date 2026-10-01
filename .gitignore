@@ -15,3 +15,6 @@ docs
 ref
 review
 storage
+
+# Neural driver is distributed separately; copy it in manually for local development.
+addon/synthDrivers/WorldVoice/driver/Neural/
