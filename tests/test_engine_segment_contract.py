@@ -137,3 +137,23 @@ def test_cancelled_token_never_reaches_native_or_sink(engine):
 	assert not caller.is_alive() and errors == []
 	assert engine.native_call_count() == 0
 	assert list(events) == []
+
+
+@pytest.mark.parametrize("engine", _engines(VE=_c3("VE"), Cerence=_c3("Cerence")), indirect=True)
+def test_speak_segment_returns_before_delivery(engine):
+	context = engine.PlaybackContext(object(), 23)
+	events = Events()
+	caller, errors = _start_speak(engine, engine.new_token(), context, events)
+
+	caller.join(1)
+	returned_early = not caller.is_alive()
+	delivered_early = list(events)
+	engine.complete()
+	event = events.wait_one()
+	caller.join(2)
+
+	assert returned_early, "speak_segment did not return before the segment completed"
+	assert delivered_early == []
+	assert errors == []
+	assert event.kind is engine.EventKind.SEGMENT_DRAINED
+	assert event.segment_id == 23
