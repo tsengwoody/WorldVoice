@@ -102,3 +102,69 @@ def test_unchanged_engines_write_nothing():
 	panel.onSave()
 
 	assert calls == []
+
+
+def test_engine_change_does_not_restart_after_failed_flag_write():
+	calls, logged = [], []
+	environment, section = _load_panels(calls, logged)
+	panel = _engine_panel(environment, active={"VE"}, previous={"OneCore"}, confirm=environment["wx"].YES)
+	panel.OneCoreCheckBox = _checkbox(RuntimeError("checkbox destroyed"))
+
+	panel.onSave()
+
+	assert calls == [("write", "VE", True), ("beep",)]
+	assert len(logged) == 1
+
+
+def test_failed_save_keeps_unwritten_settings_and_logs():
+	calls, logged = [], []
+	environment, section = _load_panels(calls, logged)
+	panel = environment["BaseSettingsPanel"]()
+	panel.field = "engine"
+	panel.settings = OrderedDict((name, {"label": name}) for name in ("VE", "OneCore", "SAPI5"))
+	panel.VECheckBox = _checkbox(True)
+	panel.OneCoreCheckBox = _checkbox(RuntimeError("checkbox destroyed"))
+	panel.SAPI5CheckBox = _checkbox(True)
+
+	assert panel.onSave() is False
+
+	assert calls == [("write", "VE", True), ("beep",)]
+	assert dict(section) == {"VE": True, "OneCore": True, "SAPI5": False}
+	assert len(logged) == 1
+	args, kwargs = logged[0]
+	assert args == ("WorldVoice: failed to save %s settings", "engine")
+	assert kwargs == {"exc_info": True}
+
+
+def test_failed_choice_save_keeps_unwritten_settings():
+	calls, logged = [], []
+	environment, section = _load_panels(calls, logged)
+	panel = environment["BaseSettingsPanel"]()
+	panel.field = "engine"
+	panel.settings = OrderedDict(
+		(name, {"label": name, "options": {"on": "On", "off": "Off"}}) for name in ("VE", "OneCore", "SAPI5")
+	)
+	panel.VESelection = types.SimpleNamespace(GetSelection=lambda: 0)
+	panel.OneCoreSelection = types.SimpleNamespace(GetSelection=lambda: 7)
+	panel.SAPI5Selection = types.SimpleNamespace(GetSelection=lambda: 1)
+
+	assert panel.onSave() is False
+
+	assert calls == [("write", "VE", "on"), ("beep",)]
+	assert dict(section) == {"VE": "on", "OneCore": True, "SAPI5": False}
+
+
+def test_failed_save_does_not_swallow_keyboard_interrupt():
+	calls, logged = [], []
+	environment, section = _load_panels(calls, logged)
+	panel = environment["BaseSettingsPanel"]()
+	panel.field = "engine"
+	panel.settings = OrderedDict((name, {"label": name}) for name in ("VE", "OneCore"))
+	panel.VECheckBox = _checkbox(KeyboardInterrupt())
+	panel.OneCoreCheckBox = _checkbox(True)
+
+	with pytest.raises(KeyboardInterrupt):
+		panel.onSave()
+
+	assert calls == []
+	assert logged == []

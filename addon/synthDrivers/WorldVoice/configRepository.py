@@ -24,7 +24,7 @@ class ConfigVoiceSettingsRepository:
 			if consistent:
 				try:
 					value = self._conf["speech"][self._synth_name()].get(name, None)
-				except BaseException:
+				except Exception:
 					# Preserve the legacy fallback even during synth startup.
 					value = voices[spec.name].get(name, None)
 			else:

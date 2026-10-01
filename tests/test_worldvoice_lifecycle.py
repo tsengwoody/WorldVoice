@@ -305,3 +305,59 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 				models.CompletionMode.DRAIN, models.IndexRange(1, 9999)))
 	assert closed == ["broken", "first"] and bound == {}
 	assert First.core is Broken.core is First.session is Broken.session is None
+
+
+@pytest.mark.parametrize("error", [RuntimeError("bridge failure"), KeyboardInterrupt()])
+def test_terminate_cleanup_logs_errors_but_lets_interrupts_through(error):
+	logged, closed = [], []
+
+	class Bridge:
+		def close(self):
+			raise error
+
+	class Ledger:
+		def close(self):
+			closed.append("ledger")
+
+	environment = {
+		"SynthDriver": type("NVDASynthDriver", (), {}),
+		"synthIndexReached": object(),
+		"synthDoneSpeaking": object(),
+		"nvdaLog": types.SimpleNamespace(
+			debug=lambda *args: None,
+			error=lambda *args, **kwargs: logged.append(args),
+		),
+		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: None),
+		**{
+			name: type(name, (), {})
+			for name in (
+				"IndexCommand",
+				"CharacterModeCommand",
+				"LangChangeCommand",
+				"BreakCommand",
+				"PitchCommand",
+				"RateCommand",
+				"VolumeCommand",
+			)
+		},
+	}
+	driver = object.__new__(_load_synth_class(environment))
+	driver._terminated = False
+	driver.taskManager = None
+	driver._pipelineRegistered = False
+	driver._voicePanelPatched = False
+	driver._spellingPatched = False
+	driver._eventBridge = Bridge()
+	driver._voiceManager = None
+	driver._indexLedger = Ledger()
+	driver._startNotified = False
+
+	if isinstance(error, KeyboardInterrupt):
+		with pytest.raises(KeyboardInterrupt):
+			driver.terminate()
+		assert logged == []
+		assert closed == []
+	else:
+		driver.terminate()
+		assert logged == [("WorldVoice terminate: %s", "event bridge close")]
+		assert closed == ["ledger"]

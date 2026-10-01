@@ -974,7 +974,7 @@ class Voice(Voice):
 				}
 				for item in dbs
 			]
-		except BaseException:
+		except Exception:
 			return []
 
 	@classmethod

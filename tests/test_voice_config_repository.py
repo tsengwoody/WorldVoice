@@ -52,7 +52,7 @@ def test_consistency_uses_main_synth_and_does_not_fallback_for_missing_main_fiel
     assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="main", rateBoost=True)
 
 
-@pytest.mark.parametrize("error", [LookupError, RuntimeError, BaseException])
+@pytest.mark.parametrize("error", [LookupError, RuntimeError])
 def test_main_synth_lookup_exception_falls_back_to_voice(monkeypatch, rt, conf, error):
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
     conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "rateBoost": "False"}
@@ -62,6 +62,18 @@ def test_main_synth_lookup_exception_falls_back_to_voice(monkeypatch, rt, conf, 
 
     repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf, unavailable)
     assert repository.load(make_spec()) == dict(DEFAULTS, rate=72)
+
+
+def test_main_synth_lookup_does_not_swallow_keyboard_interrupt(monkeypatch, rt, conf):
+    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+    conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72"}
+
+    def interrupted():
+        raise KeyboardInterrupt
+
+    repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf, interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        repository.load(make_spec())
 
 
 def test_missing_speech_node_falls_back_to_voice(repository, conf):

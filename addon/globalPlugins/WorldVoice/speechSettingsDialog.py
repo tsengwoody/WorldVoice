@@ -65,7 +65,7 @@ class BaseSettingsPanel(SettingsPanel):
 				setattr(self, attr, widget)
 				try:
 					index = list(v["options"].keys()).index(str(config.conf["WorldVoice"][self.field][k]))
-				except BaseException:
+				except Exception:
 					index = 0
 					tones.beep(100, 100)
 				widget.Selection = index
@@ -79,7 +79,8 @@ class BaseSettingsPanel(SettingsPanel):
 				getattr(self, k + "CheckBox").SetValue(_as_bool(value))
 		return settingsSizerHelper
 
-	def onSave(self):
+	def onSave(self) -> bool:
+		"""Write the panel's widgets to config; return False if any value could not be written."""
 		try:
 			for k, v in self.settings.items():
 				if "options" in v:
@@ -90,13 +91,11 @@ class BaseSettingsPanel(SettingsPanel):
 					]
 				else:
 					config.conf["WorldVoice"][self.field][k] = getattr(self, k + "CheckBox").IsChecked()
-		except BaseException:
-			for k, v in self.settings.items():
-				if "options" in v:
-					config.conf["WorldVoice"][self.field][k] = list(v["options"].keys())[0]
-				else:
-					config.conf["WorldVoice"][self.field][k] = True
+		except Exception:
+			log.error("WorldVoice: failed to save %s settings", self.field, exc_info=True)
 			tones.beep(100, 100)
+			return False
+		return True
 
 
 class SpeechPipelinePanel(SettingsPanel):
@@ -580,7 +579,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			if locale in config.conf["WorldVoice"]["role"]:
 				try:
 					voice = config.conf["WorldVoice"]["role"][locale]["voice"]
-				except BaseException:
+				except Exception:
 					self._voicesChoice.Select(0)
 					self.onVoiceChange(None)
 					return
@@ -797,7 +796,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			else:
 				try:
 					del temp[locale]
-				except BaseException:
+				except Exception:
 					pass
 
 		config.conf["WorldVoice"]["role"] = temp
@@ -1049,8 +1048,7 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 	def onSave(self):
 		if self.activeEngine != self.previousActiveEngine:
 			# Write the engine flags first so the saved configuration includes them.
-			super().onSave()
-			if self.confirm == wx.YES:
+			if super().onSave() and self.confirm == wx.YES:
 				gui.mainFrame.onSaveConfigurationCommand(None)
 				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 

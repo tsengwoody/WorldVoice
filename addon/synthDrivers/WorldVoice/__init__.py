@@ -401,6 +401,7 @@ class SynthDriver(SynthDriver):
 		try:
 			self._initialize()
 		except BaseException:
+			# Release acquired resources even on KeyboardInterrupt, then re-raise.
 			self.terminate(commit=False)
 			raise
 
@@ -528,7 +529,7 @@ class SynthDriver(SynthDriver):
 		def _run_cleanup(name, cleanup):
 			try:
 				cleanup()
-			except BaseException:
+			except Exception:
 				nvdaLog.error("WorldVoice terminate: %s", name, exc_info=True)
 
 		taskManager = self.taskManager

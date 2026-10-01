@@ -87,6 +87,7 @@ class VoiceManager(object):
 		try:
 			self._initialize()
 		except BaseException:
+			# Release acquired resources even on KeyboardInterrupt, then re-raise.
 			self.terminate(commit=False)
 			raise
 
