@@ -683,11 +683,15 @@ def _hold_resource(env):
 class CountingToken:
     """A real CancellationToken that counts how often waiters poll it."""
 
-    def __init__(self, inner):
+    def __init__(self, inner, start_delay=0):
         self._inner = inner
         self.checks = 0
+        # Holds the waiter's first read, as a thread that starts late would.
+        self._start_delay = start_delay
 
     def is_cancelled(self):
+        if self.checks == 0:
+            Event().wait(self._start_delay)
         self.checks += 1
         return self._inner.is_cancelled()
 
@@ -698,11 +702,52 @@ class CountingToken:
         self._inner.cancel()
 
 
-def _accept_counting(env, owner, segment):
+def _accept_counting(env, owner, segment, start_delay=0):
     lifecycle, hooks, events, accept = env
-    token = CountingToken(type(owner.work.token)())
+    token = CountingToken(type(owner.work.token)(), start_delay)
     context = type(owner.work.context)(object(), segment)
     return lifecycle.accept(context, token, events.append), token
+
+
+class WaitObserver:
+    """Proxy for the lifecycle condition that tracks which threads are inside wait()."""
+
+    def __init__(self, condition):
+        self._condition = condition
+        self.waiting = set()
+
+    def __enter__(self):
+        return self._condition.__enter__()
+
+    def __exit__(self, *exc):
+        return self._condition.__exit__(*exc)
+
+    def __getattr__(self, name):
+        return getattr(self._condition, name)
+
+    def wait(self, timeout=None):
+        self.waiting.add(current_thread())
+        try:
+            return self._condition.wait(timeout)
+        finally:
+            self.waiting.discard(current_thread())
+
+
+def _observe_waits(lifecycle):
+    observer = WaitObserver(lifecycle._condition)
+    lifecycle._condition = observer
+    return observer
+
+
+def _wait_until_waiting(observer, call):
+    # Measure only once the waiter has actually blocked; its reads before
+    # blocking are legitimate and must not count as polling.
+    deadline = Event()
+    for _ in range(200):
+        if call.thread in observer.waiting:
+            return
+        deadline.wait(0.005)
+    raise AssertionError("waiter never blocked on the lifecycle condition")
 
 
 def _assert_not_polled(read_count, window=0.2):
@@ -712,12 +757,14 @@ def _assert_not_polled(read_count, window=0.2):
     assert read_count() - before <= 1, "waiter is polling instead of waiting for a notification"
 
 
-def test_queued_run_does_not_poll_its_token(env):
+@pytest.mark.parametrize("start_delay", [0, 0.06])
+def test_queued_run_does_not_poll_its_token(env, start_delay):
     lifecycle, hooks, events, accept = env
     owner, owner_call = _hold_resource(env)
-    queued, token = _accept_counting(env, owner, 2)
+    queued, token = _accept_counting(env, owner, 2, start_delay)
+    observer = _observe_waits(lifecycle)
     waiting = Call(lambda: lifecycle.run(queued, ("queued",)))
-    waiting.blocked()
+    _wait_until_waiting(observer, waiting)
     _assert_not_polled(lambda: token.checks)
     token.cancel()
     waiting.finish()
@@ -807,8 +854,9 @@ def test_wait_idle_wakes_on_token_cancel_without_polling(env):
     owner, owner_call = _hold_resource(env)
     token = CountingToken(type(owner.work.token)())
     results = []
+    observer = _observe_waits(lifecycle)
     waiting = Call(lambda: results.append(lifecycle.wait_idle(token=token, still_wanted=lambda: not token.is_cancelled())))
-    waiting.blocked()
+    _wait_until_waiting(observer, waiting)
     _assert_not_polled(lambda: token.checks)
     token.cancel()
     assert waiting.done.wait(0.5), "wait_idle was not woken by token cancellation"
@@ -827,8 +875,9 @@ def test_wait_idle_rechecks_still_wanted_on_wake_waiters(env):
         checks[0] += 1
         return wanted[0]
 
+    observer = _observe_waits(lifecycle)
     waiting = Call(lambda: results.append(lifecycle.wait_idle(still_wanted=still_wanted)))
-    waiting.blocked()
+    _wait_until_waiting(observer, waiting)
     _assert_not_polled(lambda: checks[0])
     wanted[0] = False
     lifecycle.wake_waiters()
