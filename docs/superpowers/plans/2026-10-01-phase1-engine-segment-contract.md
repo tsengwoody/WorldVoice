@@ -608,7 +608,7 @@ Expected: `22 passed, 4 skipped, 2 xfailed` well inside 60 s (about 6 s). The VE
 - [ ] **Step 4: Show the red behind the xfail**
 
 Run: `python3 -m pytest tests/test_engine_segment_contract.py -q -k test_speak_segment_returns --runxfail 2>&1 | grep -E "^E +AssertionError|passed|failed"`
-Expected: two lines `E   AssertionError: speak_segment did not return before the segment completed`, and the summary `2 failed, 4 passed, 1 skipped, 21 deselected`.
+Expected (after the final-review fix that narrowed the xfail to `C3Blocking`): two lines ending `C3Blocking: speak_segment did not return before the segment completed`, and the summary `2 failed, 4 passed, 1 skipped, 21 deselected`.
 
 - [ ] **Step 5: Style checks and commit**
 

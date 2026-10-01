@@ -89,12 +89,12 @@ class SegmentContractAdapter(Protocol):
 ### 已知差異的標示
 
 ```python
-pytest.param("VE", marks=pytest.mark.xfail(strict=True,
+pytest.param("VE", marks=pytest.mark.xfail(strict=True, raises=C3Blocking,
 	reason="C3: VE speak_segment blocks until delivery; fixed by SegmentHost in phase 3"))
 # Cerence 同上，原因字串中的引擎名稱改為 Cerence。
 ```
 
-只套在第 4 項測試的 VE、Cerence 參數上。實作時若發現其他差異，同樣以 strict xfail 標示，原因寫明現象與 `refactor.md` 的對應編號（若有），並在本文件「實作發現」一節補記。階段 1 不修改 production code。
+只套在第 4 項測試的 VE、Cerence 參數上，並以 `raises=C3Blocking` 收窄：測試把 C3 斷言放在最後，以 `C3Blocking`（`AssertionError` 子類別）拋出，其餘斷言（complete 前不得交付、事件種類）對 VE/Cerence 照常生效。（最終審查發現：整個測試 xfail 會把 VE/Cerence 的其他退化吞成 XFAIL，例如提早交付。）實作時若發現其他差異，同樣以 strict xfail 標示，原因寫明現象與 `refactor.md` 的對應編號（若有），並在本文件「實作發現」一節補記。階段 1 不修改 production code。
 
 ### Neural 的驗證
 

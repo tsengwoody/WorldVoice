@@ -30,12 +30,17 @@ ADAPTERS = {
 }
 
 
+class C3Blocking(AssertionError):
+	"""speak_segment stayed blocked until delivery (refactor.md C3)."""
+
+
 def _engines(**xfails):
 	params = []
 	for name in ADAPTERS:
 		marks = [requires_neural] if name == "Neural" else []
 		if name in xfails:
-			marks.append(pytest.mark.xfail(strict=True, reason=xfails[name]))
+			# Only the known gap may xfail; any other failure still fails the run.
+			marks.append(pytest.mark.xfail(strict=True, raises=C3Blocking, reason=xfails[name]))
 		params.append(pytest.param(name, marks=marks, id=name))
 	return params
 
@@ -152,8 +157,10 @@ def test_speak_segment_returns_before_delivery(engine):
 	event = events.wait_one()
 	caller.join(2)
 
-	assert returned_early, "speak_segment did not return before the segment completed"
 	assert delivered_early == []
 	assert errors == []
 	assert event.kind is engine.EventKind.SEGMENT_DRAINED
 	assert event.segment_id == 23
+	# Checked last so every other assertion still applies to the C3 engines.
+	if not returned_early:
+		raise C3Blocking("speak_segment did not return before the segment completed")
