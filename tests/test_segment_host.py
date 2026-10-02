@@ -265,19 +265,22 @@ def test_terminate_does_not_hang_on_a_blocked_sink(env):
 		release.set()
 
 
-def test_retire_waits_for_admitted_consumers(env):
+@pytest.mark.parametrize("start_delay", [0, 0.1])
+def test_retire_waits_for_admitted_consumers(env, start_delay):
 	record = env.host.new_record(None)
 	env.host.begin(record)
-	release, retired = Event(), Event()
+	release, retired, entered = Event(), Event(), Event()
 
 	def consume():
+		Event().wait(start_delay)  # a consumer thread that is slow to start
 		with env.host.consumer() as admitted:
 			assert admitted is record
+			entered.set()
 			release.wait(2)
 
 	consumer = Thread(target=consume, daemon=True)
 	consumer.start()
-	Event().wait(0.05)
+	assert entered.wait(1), "consumer was never admitted"
 	Thread(target=lambda: (env.host.retire(record), retired.set()), daemon=True).start()
 	assert not retired.wait(0.1), "retire() did not wait for the admitted consumer"
 	release.set()
