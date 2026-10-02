@@ -1,7 +1,7 @@
 import ctypes
 from dataclasses import dataclass
 import io
-from threading import Condition, Event, Lock, Thread
+from threading import Condition, Lock, Thread
 import wave
 import weakref
 
@@ -12,14 +12,8 @@ from synthDriverHandler import synthDoneSpeaking, synthIndexReached
 from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import (
-	CallbackGate,
-	DrainSupport,
-	PlaybackWork,
-	runtime_profile,
-	unverified_drain_support,
-)
-from ...runtime.segmentLifecycle import SegmentLifecycle, SegmentOperation
+from ...runtime.playbackWork import DrainSupport, runtime_profile, unverified_drain_support
+from ...runtime.segmentHost import SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -46,6 +40,10 @@ class Voice(Voice):
 # lifetime; it must not retain the driver, player or captured work graph.
 _TERMINATED_CALLBACKS = []
 
+# Ordinary (legacy) text proves only that its callback returned; the parent
+# owns its queue-empty sync, idle and DONE.
+_ORDINARY_BARRIERS = frozenset({"callback"})
+
 
 class _DetachableCallback:
 	"""Fixed native callback pointer with revocable, weak driver ownership."""
@@ -62,57 +60,125 @@ class _DetachableCallback:
 		# detach/terminate never waits for its feed/sync under this lock.
 		if driver is not None:
 			with driver._segmentCondition:
-				native = driver._segmentNative
+				record = driver._segmentNative
 			try:
 				driver._callback(audio, length, markers)
 			finally:
-				# Retire contextual native ownership only after the callback body
-				# has returned, including any admitted feed and final stop.
-				if native is not None and native.operation is not None:
-					driver._retireSegmentNative(native)
-					native.boundary.set()
+				# Retire callback ownership only after the callback body has
+				# returned, including any admitted feed and final stop, then
+				# release the worker.
+				if record is not None:
+					try:
+						driver._retireSegmentNative(record)
+					finally:
+						driver._releaseSegmentWorker(record)
 
 	def detach(self):
 		with self._lock:
 			self._driver = None
 
 
+@dataclass(eq=False)
+class _OneCoreNative:
+	"""OneCore data carried on a NativeRecord: its SSML and callback return."""
+
+	text: str
+	called: bool = False
+
+
 @dataclass(frozen=True)
 class _SpeechJob:
-	text: str
-	work: PlaybackWork | None
-	operation: SegmentOperation | None = None
+	record: object
 
 
-@dataclass(frozen=True)
-class _NativeJob:
-	job: _SpeechJob
-	call_token: object | None
-	boundary: Event | None = None
+class _OneCoreStrategy:
+	"""OneCore's native queue: the parent's _queuedSpeech and the outer worker."""
 
-	@property
-	def operation(self):
-		return self.job.operation
+	barriers = frozenset({"callback", "synced"})
+
+	def __init__(self, driver):
+		self._driver = weakref.ref(driver)
+
+	def admission_error(self, host):
+		driver = self._driver()
+		with driver._segmentCondition:
+			if driver._segmentTerminated:
+				return RuntimeError("OneCore driver has terminated")
+			if not driver._segmentMode and driver._isProcessing:
+				return RuntimeError("Cannot switch to correlated playback while legacy synthesis is active")
+		return None
+
+	def prepare(self, host, commands, operation):
+		if operation is None:
+			# Ordinary text arrives already converted by the parent's speak().
+			return commands
+		driver = self._driver()
+		with driver._segmentCondition:
+			driver._checkSegmentAdmission()
+		if driver.supportsProsodyOptions:
+			conv = oneCore._OcSsmlConverter(driver.language, driver.availableLanguages)
+		else:
+			conv = oneCore._OcPreAPI5SsmlConverter(
+				driver.language,
+				driver.availableLanguages,
+				driver._rate,
+				driver._pitch,
+				driver._volume,
+			)
+		return conv.convertToXml(tuple(commands))
+
+	def submit(self, host, record, text):
+		driver = self._driver()
+		with driver._segmentCondition:
+			driver._checkSegmentAdmission()
+			record.native = _OneCoreNative(text)
+			driver._segmentMode = True
+			driver._queuedSpeech.append(_SpeechJob(record))
+		driver._processQueue()
+
+	def stop_native(self, host, record):
+		player = self._driver()._player
+		if player:
+			player.stop()
+
+	def stop_player(self, host):
+		player = self._driver()._player
+		if player:
+			player.stop()
+
+	def drain(self, host, record):
+		driver = self._driver()
+		player = driver._player
+		if player:
+			try:
+				player.sync()
+				with driver._segmentCondition:
+					driver._segmentCondition.wait_for(
+						lambda: not driver._segmentPaused or not record.work.is_valid(),
+					)
+			except Exception as error:
+				host.record_error(record, error)
+				driver._failSegmentControl(error)
+				return
+		host.reach(record, "synced")
 
 
 class SynthDriver(BaseOneCoreSynthDriver):
 	"""Retain terminal callback ownership and drain each correlated utterance."""
 
 	def __init__(self):
+		self._segmentHost = SegmentHost(
+			"OneCore", _OneCoreStrategy(self), fail_accepted_on_control_error=True
+		)
 		self._segmentCondition = Condition()
 		self._segmentPauseLock = Lock()
-		self._segmentGate = CallbackGate()
-		self._segmentLifecycle = SegmentLifecycle(self)
 		self._segmentMode = False
 		self._segmentTerminated = False
 		self._segmentPaused = False
 		self._segmentControlGeneration = 0
-		self._segmentControlError = None
 		self._segmentStops = 0
 		self._segmentWorker = None
 		self._segmentNative = None
-		self._segmentActiveOperation = None
-		self._segmentAccepted = set()
 		self._segmentCallback = _DetachableCallback(self)
 		# The parent installs CFUNCTYPE(self._callback) once. Intercept only
 		# that instance lookup; its native pointer owns the trampoline rather
@@ -148,82 +214,15 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		context: PlaybackContext,
 		on_event: SegmentEventSink,
 	) -> None:
-		with self._segmentCondition:
-			admission_error = (
-				RuntimeError("OneCore driver has terminated")
-				if self._segmentTerminated
-				else self._segmentControlError
-			)
-			if admission_error is not None:
-				self._segmentLifecycle.reject_new(context, token, on_event, admission_error)
-				return
-
-			def retired(operation):
-				with self._segmentCondition:
-					self._segmentAccepted.discard(operation)
-					self._segmentCondition.notify_all()
-
-			operation = self._segmentLifecycle.accept(
-				context,
-				token,
-				on_event,
-				on_retired=retired,
-			)
-			self._segmentAccepted.add(operation)
-		if not operation.is_valid():
-			with self._segmentCondition:
-				if not operation.has_started():
-					self._segmentLifecycle.reject_pending(
-						operation,
-						RuntimeError("OneCore segment was cancelled before submission"),
-					)
-				self._segmentAccepted.discard(operation)
-			return
-		try:
-			with self._segmentCondition:
-				self._checkSegmentAdmission()
-			if self.supportsProsodyOptions:
-				conv = oneCore._OcSsmlConverter(self.language, self.availableLanguages)
-			else:
-				conv = oneCore._OcPreAPI5SsmlConverter(
-					self.language,
-					self.availableLanguages,
-					self._rate,
-					self._pitch,
-					self._volume,
-				)
-			job = _SpeechJob(conv.convertToXml(tuple(commands)), operation.work, operation)
-			with self._segmentCondition:
-				self._checkSegmentAdmission()
-				if not operation.is_valid():
-					if not operation.has_started():
-						self._segmentLifecycle.reject_pending(
-							operation,
-							RuntimeError("OneCore segment was cancelled before submission"),
-						)
-					self._segmentAccepted.discard(operation)
-					return
-				if not self._segmentMode and self._isProcessing:
-					raise RuntimeError(
-						"Cannot switch to correlated playback while legacy synthesis is active",
-					)
-				self._segmentMode = True
-				self._queuedSpeech.append(job)
-				self._segmentAccepted.discard(operation)
-			self._processQueue()
-		except Exception as error:
-			with self._segmentCondition:
-				if not operation.has_started():
-					self._segmentLifecycle.reject_pending(operation, error)
-				if not operation.work.is_valid():
-					self._segmentAccepted.discard(operation)
+		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
 	def _checkSegmentAdmission(self):
 		# Called under the condition; a control fault requires resource replacement.
 		if self._segmentTerminated:
 			raise RuntimeError("OneCore driver has terminated")
-		if self._segmentControlError is not None:
-			raise self._segmentControlError
+		control_error = self._segmentHost.control_error
+		if control_error is not None:
+			raise control_error
 
 	def speak(self, speechSequence):
 		with self._segmentCondition:
@@ -233,18 +232,16 @@ class SynthDriver(BaseOneCoreSynthDriver):
 	def _queueSpeech(self, item):
 		with self._segmentCondition:
 			self._checkSegmentAdmission()
-			# Legacy text uses the same native ownership and control retirement
-			# as legacy text queued after a correlated segment. Keep its original
-			# speak conversion and anonymous DONE completion interface.
-			self._segmentMode = True
-			self._queuedSpeech.append(item)
-		self._processQueue()
+		# Legacy text uses the same native ownership and control retirement as
+		# a correlated segment, keeping its original conversion and anonymous
+		# DONE completion interface.
+		self._segmentHost.enqueue(item, barriers=_ORDINARY_BARRIERS)
 
 	def _processQueue(self):
 		if not self._segmentMode:
 			return super()._processQueue()
 		with self._segmentCondition:
-			if self._segmentTerminated or self._segmentControlError is not None:
+			if self._segmentTerminated or self._segmentHost.control_error is not None:
 				return
 			if self._segmentWorker is None:
 				self._segmentWorker = Thread(
@@ -256,12 +253,13 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			self._segmentCondition.notify_all()
 
 	def _runSegmentQueue(self):
+		host = self._segmentHost
 		while True:
 			with self._segmentCondition:
 				self._segmentCondition.wait_for(
 					lambda: (
 						self._segmentTerminated
-						or self._segmentControlError is not None
+						or host.control_error is not None
 						or (
 							self._segmentNative is None
 							and self._segmentStops == 0
@@ -269,172 +267,101 @@ class SynthDriver(BaseOneCoreSynthDriver):
 						)
 					),
 				)
-				if self._segmentTerminated or self._segmentControlError is not None:
+				if self._segmentTerminated or host.control_error is not None:
 					return
 				item = self._queuedSpeech.pop(0)
-				if not isinstance(item, tuple):
-					job = item if isinstance(item, _SpeechJob) else _SpeechJob(item, None)
-					if job.work is not None and not job.work.is_valid():
-						if job.operation is not None:
-							self._segmentLifecycle.reject_pending(
-								job.operation,
-								RuntimeError("OneCore segment was cancelled before submission"),
-							)
-						continue
-					if job.operation is None:
-						# Legacy text retains the existing native queue contract.
-						native = _NativeJob(job, None)
-						self._segmentNative = native
-						self._wasCancelled = False
-						self._isProcessing = True
-					else:
-						# The queue-to-worker transition is visible to cancel().
-						self._segmentActiveOperation = job.operation
-			try:
 				if isinstance(item, tuple):
-					func, value = item
-					func(self._ocSpeechToken, ctypes.c_double(value))
-				elif job.operation is not None:
-					try:
-						self._segmentLifecycle.run(job.operation, job.text)
-					finally:
-						with self._segmentCondition:
-							if self._segmentActiveOperation is job.operation:
-								self._segmentActiveOperation = None
+					record = None
 				else:
-					self._dll.ocSpeech_speak(self._ocSpeechToken, native.job.text)
-			except Exception as error:
-				log.exception("OneCore queued operation failed")
-				if not isinstance(item, tuple):
-					try:
-						if job.operation is not None:
-							self._segmentLifecycle.fail(job.operation, error)
-						elif native.job.work is not None:
-							native.job.work.fail(error)
-						else:
-							self._failSegmentControl(error)
-					finally:
-						if job.operation is None:
-							self._retireSegmentNative(native)
+					record = item.record
+					if not record.is_valid():
+						host.abandon(record)
+						continue
+					self._segmentNative = record
+					host.begin(record)
+					self._wasCancelled = False
+					self._isProcessing = True
+			if record is None:
+				func, value = item
+				try:
+					func(self._ocSpeechToken, ctypes.c_double(value))
+				except Exception as error:
+					log.exception("OneCore setting change failed")
+					self._failSegmentControl(error)
+				continue
+			self._speakRecord(record)
 
-	# SegmentLifecycle hooks. The existing queue still serializes settings and
-	# legacy jobs; the coordinator owns contextual retirement and delivery.
-	def submit_native(self, operation, text):
-		with self._segmentCondition:
-			call = self._segmentGate.begin_native(operation.work)
-			native = _NativeJob(_SpeechJob(text, operation.work, operation), call, Event())
-			operation._onecore_native = native
-			self._segmentNative = native
-			self._segmentActiveOperation = operation
-			self._wasCancelled = False
-			self._isProcessing = True
+	def _speakRecord(self, record):
+		host = self._segmentHost
 		try:
-			if self._player:
-				self._player.open()
-			if not operation.is_valid():
-				self._retireSegmentNative(native)
-				native.boundary.set()
-				return
-		except Exception as error:
-			self._failSegmentControl(error)
-			self._retireSegmentNative(native)
-			native.boundary.set()
-			return
-		try:
-			self._dll.ocSpeech_speak(self._ocSpeechToken, text)
-		except Exception as error:
-			self._segmentLifecycle.fail(operation, error)
-			self._retireSegmentNative(native)
-			native.boundary.set()
-
-	def request_stop(self, operation):
-		if self._player:
-			self._player.stop()
-
-	def wait_native_boundary(self, operation):
-		operation._onecore_native.boundary.wait()
-
-	def wait_native_retired(self, operation):
-		self._segmentGate.wait_retired(operation._onecore_native.call_token)
-
-	def wait_playback_drained(self, operation):
-		if operation.is_valid() and self._player:
 			try:
-				self._player.sync()
-				with self._segmentCondition:
-					self._segmentCondition.wait_for(
-						lambda: not self._segmentPaused or not operation.is_valid(),
-					)
+				if self._player:
+					self._player.open()
 			except Exception as error:
+				host.record_error(record, error)
 				self._failSegmentControl(error)
-				raise
+				self._releaseSegmentWorker(record)
+			else:
+				if not record.is_valid():
+					self._releaseSegmentWorker(record)
+				else:
+					try:
+						self._dll.ocSpeech_speak(self._ocSpeechToken, record.native.text)
+					except Exception as error:
+						log.exception("OneCore queued operation failed")
+						host.record_error(record, error)
+						if record.operation is None:
+							self._failSegmentControl(error)
+						self._releaseSegmentWorker(record)
+			with self._segmentCondition:
+				# The native callback returns once per call, even when cancelled.
+				self._segmentCondition.wait_for(lambda: record.native.called or self._segmentTerminated)
+				called = record.native.called
+			if not called:
+				host.abandon(record)
+				return
+			host.retire(record)
+			if record.operation is None:
+				host.forget(record)
+		finally:
+			with self._segmentCondition:
+				if self._segmentNative is record:
+					self._segmentNative = None
+					self._isProcessing = False
+				self._segmentCondition.notify_all()
 
-	def _retireSegmentNative(self, native):
-		if native.call_token is not None:
-			self._segmentGate.finish_native(native.call_token)
-			self._segmentGate.wait_retired(native.call_token)
+	def _retireSegmentNative(self, record):
+		# The callback has returned: no further native callback enters this record.
+		self._segmentHost.close(record)
+
+	def _releaseSegmentWorker(self, record):
 		with self._segmentCondition:
-			if self._segmentNative is native:
-				self._segmentNative = None
-				self._isProcessing = False
+			record.native.called = True
 			self._segmentCondition.notify_all()
 
 	def _callback(self, audio, length, markers):
 		if not self._segmentMode:
 			return super()._callback(audio, length, markers)
+		host = self._segmentHost
 		with self._segmentCondition:
-			native = self._segmentNative
-			control_failed = self._segmentControlError is not None
-		if native is None or self._earlyExitCB:
+			record = self._segmentNative
+		control_failed = host.control_error is not None
+		if record is None or self._earlyExitCB:
 			return
 		if control_failed:
 			return
-		work = native.job.work
-		if work is None:
-			try:
-				super()._callback(audio, length, markers)
-				# The parent's callback schedules our worker instead of recursively
-				# running its queue. Preserve the parent's legacy queue-empty DONE.
-				with self._segmentCondition:
-					empty = not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
-				if empty and self._player:
-					self._player.sync()
-					with self._segmentCondition:
-						self._segmentCondition.wait_for(
-							lambda: not self._segmentPaused or self._wasCancelled or self._segmentTerminated,
-						)
-						empty = (
-							not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
-						)
-					if empty:
-						self._player.idle()
-						with self._segmentCondition:
-							self._segmentCondition.wait_for(
-								lambda: (
-									not self._segmentPaused or self._wasCancelled or self._segmentTerminated
-								),
-							)
-						if not self._wasCancelled and not self._segmentTerminated:
-							synthDoneSpeaking.notify(synth=self)
-			except Exception as error:
-				log.exception("OneCore legacy playback failed")
-				self._failSegmentControl(error)
-			finally:
-				try:
-					# The parent can return from an admitted feed after cancel's
-					# stop has run. Keep this native record as legacy admission
-					# until a final stop removes anything that feed queued.
-					if (self._wasCancelled or self._segmentTerminated) and self._player:
-						self._player.stop()
-				finally:
-					self._retireSegmentNative(native)
+		if record.operation is None:
+			self._legacyCallback(record, audio, length, markers)
 			return
-		operation = native.operation
-		lease = self._segmentGate.enter_callback()
-		producer = self._segmentLifecycle.admit_producer(operation) if lease is not None else None
-		try:
-			if lease is None or producer is None:
+		with host.consumer(record) as admitted:
+			if admitted is None:
 				return  # Consume a cancelled terminal callback without feeding.
+			with host.bound_callback(record):
+				self._segmentPlayback(record, audio, length, markers)
+
+	def _segmentPlayback(self, record, audio, length, markers):
+		host = self._segmentHost
+		try:
 			if length == 0:
 				raise RuntimeError("OneCore native synthesis returned no WAV (length=0)")
 			if length < oneCore.WAVE_HEADER_LENGTH:
@@ -454,99 +381,100 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				if not previous <= position <= data_len:
 					raise ValueError("OneCore marker offset is outside ordered WAV audio")
 				if not self._feedSegment(
-					operation,
-					producer,
+					record,
 					player,
 					data + previous,
 					position - previous,
-					lambda index=index: self._segmentIndex(operation, index),
+					lambda index=index: self._segmentIndex(record, index),
 				):
 					return
 				previous = position
-			if not self._feedSegment(operation, producer, player, data + previous, data_len - previous):
+			if not self._feedSegment(record, player, data + previous, data_len - previous):
 				return
+			host.reach(record, "callback")
 		except Exception as error:
 			log.exception("OneCore segment playback failed")
-			try:
-				self._segmentLifecycle.fail(operation, error)
-			finally:
-				if self._player:
-					self._player.stop()
+			host.record_error(record, error)
+			if self._player:
+				self._player.stop()
 		finally:
-			try:
-				if lease is not None:
-					if not operation.is_valid() and self._player:
-						self._player.stop()
-			finally:
-				if producer is not None:
-					self._segmentLifecycle.retire_producer(producer)
-				if lease is not None:
-					lease.close()
+			if not record.is_valid() and self._player:
+				self._player.stop()
 
-	def _segmentIndex(self, operation, index):
-		if operation.is_valid():
+	def _legacyCallback(self, record, audio, length, markers):
+		try:
+			super()._callback(audio, length, markers)
+			self._segmentHost.reach(record, "callback")
+			# The parent's callback schedules our worker instead of recursively
+			# running its queue. Preserve the parent's legacy queue-empty DONE.
+			with self._segmentCondition:
+				empty = not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
+			if empty and self._player:
+				self._player.sync()
+				with self._segmentCondition:
+					self._segmentCondition.wait_for(
+						lambda: not self._segmentPaused or self._wasCancelled or self._segmentTerminated,
+					)
+					empty = not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
+				if empty:
+					self._player.idle()
+					with self._segmentCondition:
+						self._segmentCondition.wait_for(
+							lambda: not self._segmentPaused or self._wasCancelled or self._segmentTerminated,
+						)
+					if not self._wasCancelled and not self._segmentTerminated:
+						synthDoneSpeaking.notify(synth=self)
+		except Exception as error:
+			log.exception("OneCore legacy playback failed")
+			self._failSegmentControl(error)
+		finally:
+			# The parent can return from an admitted feed after cancel's stop has
+			# run. Keep this record current until a final stop removes anything
+			# that feed queued.
+			if (self._wasCancelled or self._segmentTerminated) and self._player:
+				self._player.stop()
+
+	def _segmentIndex(self, record, index):
+		if record.work.is_valid():
 			synthIndexReached.notify(synth=self, index=index)
 
-	def _feedSegment(self, operation, parent, player, address, size, on_done=None):
-		if not operation.is_valid():
-			return False
-		feed = self._segmentLifecycle.admit_producer(operation, parent=parent)
-		if feed is None:
+	def _feedSegment(self, record, player, address, size, on_done=None):
+		if not record.is_valid():
 			return False
 		try:
 			player.feed(ctypes.c_void_p(address), size=size, onDone=on_done)
 		finally:
-			try:
-				if not operation.is_valid():
-					player.stop()
-			finally:
-				self._segmentLifecycle.retire_producer(feed)
-		return operation.is_valid()
+			if not record.is_valid():
+				player.stop()
+		return record.is_valid()
 
 	def _captureSegmentControlFailure(self, error):
 		# Capture while the pause lock is still owned, before cancellation can
 		# retire that operation and admit a successor. Delivery happens later.
+		host = self._segmentHost
 		with self._segmentCondition:
-			if self._segmentControlError is not None:
+			if host.control_error is not None:
 				return None
-			self._segmentControlError = error
+			host.latch_control_error(error)
 			self._segmentControlGeneration += 1
 			self._wasCancelled = True
 			self._segmentStops += 1
-			queued = list(self._segmentAccepted) + [
-				item.operation
-				for item in self._queuedSpeech
-				if isinstance(item, _SpeechJob) and item.operation is not None
-			]
-			# Keep work removed from the queue visible to cancel until its
-			# asynchronous lifecycle failure is committed for delivery.
-			self._segmentAccepted.update(queued)
-			operations = list(queued)
-			legacy = any(isinstance(item, str) for item in self._queuedSpeech)
-			if self._segmentActiveOperation is not None:
-				operations.append(self._segmentActiveOperation)
-			elif self._segmentNative is not None:
-				legacy = True
+			dropped = [item.record for item in self._queuedSpeech if isinstance(item, _SpeechJob)]
+			legacy = any(record.operation is None for record in dropped) or (
+				self._segmentNative is not None and self._segmentNative.operation is None
+			)
 			self._queuedSpeech.clear()
-			return error, operations, queued, legacy
+			self._segmentCondition.notify_all()
+			return error, dropped, legacy
 
 	def _deliverSegmentControlFailure(self, failure):
 		if failure is None:
 			return
-		error, operations, queued, legacy = failure
+		error, dropped, legacy = failure
 		try:
-			# Invalidate contextual work before stop releases its drain wait.
-			# Sinks can reenter cancel/terminate, so no driver lock is held.
-			for operation in operations:
-				try:
-					if operation in queued:
-						with self._segmentCondition:
-							if not operation.has_started():
-								self._segmentLifecycle.reject_pending(operation, error)
-					else:
-						self._segmentLifecycle.fail(operation, error)
-				except Exception:
-					log.exception("OneCore control failure delivery failed")
+			# Queued records never reach the worker; they fail with the latched error.
+			for record in dropped:
+				self._segmentHost.abandon(record)
 			if self._player:
 				try:
 					self._player.stop()
@@ -580,38 +508,26 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				except Exception as error:
 					failure = self._captureSegmentControlFailure(error)
 					raise
-		except Exception as error:
+		except Exception:
 			self._deliverSegmentControlFailure(failure)
 			raise
 
 	def cancel(self):
-		with self._segmentCondition:
-			self._wasCancelled = True
-			self._segmentPaused = False
-			self._segmentControlGeneration += 1
-			self._segmentStops += 1
-			for item in self._queuedSpeech:
-				if isinstance(item, _SpeechJob) and item.work is not None:
-					if item.operation is not None:
-						self._segmentLifecycle.cancel(item.operation)
-						self._segmentLifecycle.reject_pending(
-							item.operation,
-							RuntimeError("OneCore segment was cancelled before submission"),
-						)
-					else:
-						item.work.cancel()
-			for operation in tuple(self._segmentAccepted):
-				self._segmentLifecycle.cancel(operation)
-				if not operation.has_started():
-					self._segmentLifecycle.reject_pending(
-						operation,
-						RuntimeError("OneCore segment was cancelled before submission"),
-					)
-			self._segmentAccepted.clear()
-			self._queuedSpeech = [item for item in self._queuedSpeech if isinstance(item, tuple)]
-			if self._segmentActiveOperation is not None:
-				self._segmentLifecycle.cancel(self._segmentActiveOperation)
-			self._segmentCondition.notify_all()
+		host = self._segmentHost
+		with host.admission():
+			host.cancel()
+			with self._segmentCondition:
+				self._wasCancelled = True
+				self._segmentPaused = False
+				self._segmentControlGeneration += 1
+				self._segmentStops += 1
+				dropped = [item.record for item in self._queuedSpeech if isinstance(item, _SpeechJob)]
+				# Settings changes keep their queue position.
+				self._queuedSpeech = [item for item in self._queuedSpeech if isinstance(item, tuple)]
+				self._segmentCondition.notify_all()
+			# Queued records never reach the worker.
+			for record in dropped:
+				host.abandon(record)
 		try:
 			try:
 				if self._player:
@@ -622,7 +538,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				# then undo a late pause before letting a successor use the player.
 				with self._segmentPauseLock:
 					if self._player:
-						if self._segmentControlError is None:
+						if host.control_error is None:
 							self._player.pause(False)
 						self._player.stop()
 		except Exception as error:
@@ -678,8 +594,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		try:
 			self.cancel()
 		finally:
-			self._segmentLifecycle.terminate()
-			self._segmentLifecycle.join_delivery(1)
+			self._segmentHost.terminate()
 			super().terminate()
 
 
