@@ -2,7 +2,7 @@
 
 日期：2026-10-02。
 基準：`master`（`7448e9c`，含 3a）。分支：`phase3b1-sapi5`。
-狀態：對話中的範圍與設計已獲使用者確認；本文件待使用者審閱。
+狀態：使用者已審閱並核可。2026-10-02 依原型結果修訂，修訂處列於文末「原型修訂」。
 
 本文件是 [`refactor.md`](../../../refactor.md) §9 階段 3 的子階段 3b-1。前一子階段見 [2026-10-01-phase3a-segment-host-design.md](2026-10-01-phase3a-segment-host-design.md)。
 
@@ -40,7 +40,7 @@
    - 它們的 drain 測試、契約測試照常通過；契約 4 的 VE、Cerence 仍為 xfail。
    - eSpeak 的 drain 測試照常通過。
 5. **host 擴充的單元測試**：每一項擴充都有單元測試，並至少以一次變異證明它能失敗。
-6. **完整測試**：基線 1306 passed、96 skipped、2 xfailed，加上本階段新增測試；xfailed 仍為 2。
+6. **完整測試**：基線 1306 passed、96 skipped、2 xfailed；完成後為 1324 passed、96 skipped、2 xfailed（host 新增 16 個、SAPI5 新增 2 個）。
 7. **格式與保護路徑**：`ruff format --check addon` 通過；內層驅動與 Neural 不變。
 
 **不在範圍內**：RHVoice 遷移與其專屬擴充（3b-2）、OneCore（3c）、VE/Cerence 與 C3（3d）、把 `SegmentLifecycle` 收為內部實作（3e）。
@@ -67,10 +67,10 @@
 
 | 元件 | 3b-1 之後 |
 | --- | --- |
-| `_NativeRequest`（work、operation、cancelled、error、feeds…） | 共通欄位由 `NativeRecord` 取代；`request`、`stream`、`index_lock`、`audio_closed` 等 SAPI5 專屬資料放進 `record.native` |
+| `_NativeRequest`（work、operation、cancelled、error、feeds…） | 共通欄位由 `NativeRecord` 取代；`request`、`stream`、`index_lock` 等 SAPI5 專屬資料放進 `record.native`（`_SapiRequest`）；音訊關閉改用 `record.admitting` |
 | `_OperationBinding`（boundary、retired、playback_done、handoff、player/tts 快照） | `retired`／`handoff` 由 `NativeRecord` 提供；`playback_done` 移除（C2 的來源）；快照放進 `record.native` |
 | `_SegmentAudioStream`（COM `RemoteWrite`，Sonic 前處理） | 保留，consumer 進出改用 `host.consumer` 與 `bound_callback` |
-| `_SegmentPlayer.feed` | 由 `LeasedPlayer` 取代（需要巢狀 feed 支援） |
+| `_SegmentPlayer.feed` | 保留為 SAPI5 專屬，改用 host 的 consumer API。不換成 `LeasedPlayer`，因為沒有目前紀錄時必須直接轉送，且要檢查過期的 player |
 | `_SegmentPlayer.idle`（提早 idle 檢查） | 保留 |
 | `_SegmentSapiSink`（stream 對應、拒絕過期事件、`EndStream`） | 保留；`EndStream` 改為標記屏障 |
 | `speak_segment`、`_runSegmentOperation`、五個 hook | 由 host 取代；`drain` 由 SAPI5 strategy 提供 |
@@ -86,9 +86,11 @@
 | 擴充 | 介面 | 3b-1 用途 | 3b-2 用途 |
 | --- | --- | --- | --- |
 | 引擎資料欄位 | `NativeRecord.native: object \| None = None` | request、stream、快照 | identity |
-| 每筆屏障 | `host.new_record(operation=None, *, barriers=None)`；`enqueue(commands, operation=None, *, barriers=None, native=None)` | 一般語音不需要 `idle` | 一般語音也需要 final idle |
+| 每筆屏障 | `host.new_record(operation=None, *, barriers=None, native=None)`；`enqueue(commands, operation=None, *, barriers=None, native=None)` | 一般語音不需要 `idle` | 一般語音也需要 final idle |
 | drain hook | 選用 `NativeStrategy.drain(host, record) -> None` | player idle + `reach("idle")` | 不用（改用 `finish`） |
-| 退場後仍可停止 | `request_stop` 對「目前紀錄」或「已 retired、尚未 handoff」的紀錄呼叫 `stop_native` | 只靠 token 的取消能打斷 drain 中的 idle | — |
+| 退場後仍可停止 | `request_stop` 對「目前紀錄」或「已 retired、尚未 handoff」的紀錄呼叫 `stop_native` | NVDA cancel（`host.cancel` → `lifecycle.cancel` → `request_stop`）能打斷 drain 中的 idle；只靠 token 的取消在 drain 期間到不了 lifecycle | — |
+| 引擎准入檢查 | 選用 `NativeStrategy.admission_error(host) -> Exception \| None`；`speak_segment` 在接受前呼叫，有錯誤就拒絕 | worker 不存在、非 WASAPI 或沒有 player | — |
+| lifecycle fault 查詢 | 唯讀 `SegmentLifecycle.fault` | C2 缺口只在 fault 時停止 player | — |
 | 兩段式關閉 | `host.close(record)`：不再接受新的 consumer；`host.wait_consumers(record)`：等歸零 | EndStream 時關閉，等 feed 歸零後才 flush Sonic | 音訊階段的關閉 |
 | 巢狀 consumer | `host.consumer(record)`：record 已關閉時，若目前 thread 的 `callback_record()` 就是它，仍允許進入 | `RemoteWrite` 內的巢狀 feed | 同左 |
 | 放棄紀錄 | `host.abandon(record)` | NVDA cancel 清空佇列後的紀錄 | 同左 |
@@ -107,17 +109,18 @@
 - **`reset()`**：
   - 必須在 `host.admission()` 下、且舊 worker 已 join 之後呼叫。
   - 做的事：
-    1. 清除控制錯誤。
-    2. 取消所有已接受的工作。
-    3. `terminate()` 舊 lifecycle 並 `join_delivery(1)`。
-    4. 換上新的 `SegmentLifecycle(self)`。
-    5. 清空紀錄簿記。
+    1. 在 admission 下取消所有已接受的工作。
+    2. 清除控制錯誤與紀錄簿記（目前紀錄、待處理清單、紀錄對應、已接受集合）。
+    3. 換上新的 `SegmentLifecycle(self)`，再 `terminate()` 舊 lifecycle。
+    4. 離開 admission 後，對舊 lifecycle `join_delivery(1)`。
   - 已終止的 host 呼叫 `reset()` 時不做任何事。
-- **C2 缺口**：`_run` 的 `finally` 在設定 `handoff` 之前，若 operation 已失效（含 lifecycle fault），先呼叫 `strategy.stop_player()`（例外以 log 記錄）。
+- **C2 缺口**：`_run` 的 `finally` 在設定 `handoff` 之前，若 lifecycle 已 latch fault（`lifecycle.fault is not None`），先呼叫 `strategy.stop_player()`（例外以 log 記錄）。一般的取消不觸發，因為 eSpeak 既有測試禁止在佇列中的取消時停止 player。
 - **`enqueue` 的邊界情況**：
-  - 工作已失效：不送出，直接 abandon。
+  - 工作已失效：不送出，直接 abandon（由 `admit_producer` 拒絕已失效的工作，不需另外檢查）。
   - `admit_producer` 回傳 None：abandon。
-  - `strategy.submit` 拋出例外：`record_error` 並 abandon，例外不再往外拋給 lifecycle。
+  - `strategy.submit` 拋出例外：
+    - segment：`record_error` 並 abandon，例外不再往外拋給 lifecycle。
+    - 一般語音：`forget` 後照舊往外拋給呼叫端。
 - **延後的 Minor 一併處理**：
   - `enqueue` 拿掉多餘的 `work` 參數（一律取自 `operation.work`；一般語音為 None）。
   - `wait_native_boundary` 改用 `.get`，紀錄不存在時直接返回。
@@ -130,7 +133,7 @@
 - **`_Sapi5Strategy`**：
   - `barriers = frozenset({"ended", "processed", "idle"})`；一般語音紀錄以 `barriers={"ended", "processed"}` 建立。
   - `submit`：把 request 放進 SAPI5 的請求佇列，交給 `_speakThread`。
-  - `stop_native`：停止 player 並 purge 目前的 SAPI 語音（沿用現有的停止方式），錯誤一律 `latch_control_error`，不往外拋。
+  - `stop_native`：紀錄是目前紀錄時設定 `_isCancelling` 並喚醒 worker（由 worker purge）；再停止紀錄快照中的 player。停止失敗交給 `_failSegmentControl`（`latch_control_error`、清空佇列並 abandon），不往外拋。
   - `stop_player`：停止 player。
   - `drain`：
     - 正常情況：用 `record.native` 裡的 player 快照呼叫原始的 `idle()`，然後 `reach(record, "idle")`。
@@ -142,9 +145,12 @@
   - 然後 `host.retire(record)`；不再等 `playback_done`。
 - **`_SegmentSapiSink`**：`EndStream` 時 `host.reach(record, "ended")`；處理完畢後 `host.reach(record, "processed")`。
 - **cancel**：
-  - NVDA 端 cancel 清空 SAPI5 請求佇列後，對被丟掉的紀錄逐一 `host.abandon(record)`。
-  - 再呼叫 `host.cancel()` 與 NVDA 的 `super().cancel()`，整段放在 `host.admission()` 下。
-- **`_initTts`／`_initWasapiAudio`**：舊 worker join 後呼叫 `host.reset()`。
+  - 在 `host.admission()` 下：先遞增 `_segmentStops`，再於 `_threadCond` 下呼叫 `host.cancel()` 並清空 SAPI5 請求佇列。
+  - 釋放 `_threadCond` 後，對被丟掉的紀錄逐一 `host.abandon(record)`；abandon 要等 consumer，而 `RemoteWrite` 會取用 `_threadCond`。
+  - 離開 admission 後呼叫 NVDA 的 `super().cancel()`，結束時遞減 `_segmentStops`。
+- **`_initTts`／`_initWasapiAudio`**：
+  - WASAPI：`_initWasapiAudio` 在父類別已 join 舊 worker、啟動新 worker 之前呼叫 `host.reset()`。
+  - legacy：`_initTts` 在父類別初始化後呼叫 `host.reset()`。
 - **legacy 路徑**：
   - 一般語音照舊同步送出，不經過 `host.enqueue`。
   - 仍先檢查 `host.terminated` 與 `host.control_error`；終止後維持現況拋出例外，不是靜默忽略。
@@ -166,7 +172,9 @@
   - `_run` 在 fault 時停止 player。
   - `enqueue` 的三個邊界情況。
   - `LeasedPlayer` 的 `onDone` 錯誤記錄。
-- **SAPI5 既有測試**：讀取已移除內部實作的地方，依分析共 5 處（`_segmentNative`、patch `submit_native`、patch `wait_playback_drained`、`_segmentLifecycle._operations`，以及 harness 載入 `segmentLifecycle`）。改為透過 host 讀取，並清除 `segmentHost` 模組快取。
+- **SAPI5 既有測試**：讀取已移除內部實作的地方共 6 處：`tests/test_sapi5_segment_drain.py` 的 `_segmentNative`、patch `submit_native`、patch `wait_playback_drained`、`_segmentLifecycle._operations` 與 harness 載入 `segmentHost`，以及 `tests/test_runtime_completion_policies.py` 的 `_segmentNative`。改為透過 host 讀取。
+- **一般語音不被截斷**（`test_completed_ordinary_speech_does_not_stop_the_player`）：一般語音完成後 player 不得被停止。若一般紀錄要求 `idle`，host 的缺屏障路徑會在每句話後停止 player。
+- **eSpeak**：`tests/test_espeak_segment_drain.py` 的 `queue_then_hold` 隨 `enqueue` 新簽名調整。
 - **契約、eSpeak 與其他引擎**：全部照常通過。
 - **變異證明**：在 commit 之後執行，每個新的 host 行為至少一次。
 
@@ -177,3 +185,16 @@
 - `grep -n "_segmentLifecycle\|SegmentLifecycle" addon/synthDrivers/WorldVoice/driver/SAPI5/__init__.py`：無輸出。
 - `grep -n "playback_done" addon/synthDrivers/WorldVoice/driver/SAPI5/__init__.py`：無輸出。
 - `ruff format --check addon`：通過；內層驅動無變動；Neural 未被追蹤。
+
+## 原型修訂（2026-10-02）
+
+原型與乾淨重播後，對原設計做了以下修訂；plan 依修訂後的內容撰寫：
+
+1. 新增選用 hook `NativeStrategy.admission_error(host)`，讓 SAPI5 在接受前拒絕 legacy／無 worker 的 segment。
+2. 新增唯讀 `SegmentLifecycle.fault`；C2 缺口只在 lifecycle fault 時停止 player，一般取消不觸發。
+3. drain 中的停止由 NVDA cancel 觸發，而非只靠 token 的取消。
+4. `_SegmentPlayer` 保留為 SAPI5 專屬（沒有紀錄時直接轉送、過期 player 檢查），不換成 `LeasedPlayer`。
+5. `enqueue` 不另外檢查工作是否有效，由 `admit_producer` 拒絕；一般語音的 submit 錯誤照舊往外拋。
+6. `reset()` 的順序調整為：取消、清空、換新 lifecycle、終止舊 lifecycle，`join_delivery(1)` 在 admission 之外。
+7. 讀取內部實作的測試共 6 處（多了 `tests/test_runtime_completion_policies.py`）；另新增一般語音不被截斷的守門測試。
+8. 實測數字：完成後 1324 passed、96 skipped、2 xfailed。
