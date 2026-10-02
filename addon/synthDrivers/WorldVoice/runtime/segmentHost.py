@@ -137,7 +137,7 @@ class SegmentHost:
 			def deliver(event):
 				self._deliver(operation, on_event, event)
 
-			operation = self._lifecycle.accept(context, token, deliver)
+			operation = self._lifecycle.accept(context, token, deliver, on_retired=self._forget_operation)
 			with self._condition:
 				self._accepted[operation] = False
 		Thread(
@@ -360,10 +360,11 @@ class SegmentHost:
 				self.control_error or error.__cause__ or error,
 			)
 		finally:
+			# The accepted entry (and its cancel flag) stays until the lifecycle
+			# either delivers the operation (_deliver) or discards it
+			# (_forget_operation): NVDA may still cancel before publication.
 			with self._condition:
 				record = self._records.pop(operation, None)
-				if self._accepted.get(operation) or operation.work.token.is_cancelled():
-					self._accepted.pop(operation, None)
 			if record is not None:
 				record.handoff.set()
 
@@ -381,6 +382,15 @@ class SegmentHost:
 					if record.operation is operation:
 						self._pending.remove(record)
 						break
+
+	def _forget_operation(self, operation: SegmentOperation) -> None:
+		"""Lifecycle discard callback: the operation will never be delivered."""
+		with self._condition:
+			self._accepted.pop(operation, None)
+			for record in self._pending:
+				if record.operation is operation:
+					self._pending.remove(record)
+					break
 
 	def _invalidate(self) -> None:
 		with self._condition:

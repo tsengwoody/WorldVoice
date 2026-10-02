@@ -198,6 +198,40 @@ def test_cancel_keeps_accepted_segment_silent_and_stops_active_native(env):
 	with events.condition:
 		events.condition.wait_for(lambda: bool(events), 0.2)
 	assert list(events) == []
+	# The discarded operation's bookkeeping is released (on the delivery thread).
+	for _ in range(100):
+		if not env.host._accepted:
+			break
+		Event().wait(0.01)
+	assert env.host._accepted == {}
+
+
+def test_cancel_after_commit_keeps_the_event_silent(env, monkeypatch):
+	# Order: the event is committed, NVDA cancels, the run thread finishes its
+	# bookkeeping, and only then does the delivery thread call the sink.
+	cancelled = Event()
+	real_run = env.host._lifecycle.run
+
+	def run_until_cancelled(operation, commands):
+		real_run(operation, commands)
+		assert cancelled.wait(2)
+
+	monkeypatch.setattr(env.host._lifecycle, "run", run_until_cancelled)
+	_, _, events = env.speak()
+	record = env.strategy.wait_submitted()
+	original = env.host._deliver
+
+	def cancel_before_publication(operation, sink, event):
+		env.host.cancel()
+		cancelled.set()
+		assert record.handoff.wait(1), "run thread did not finish"
+		original(operation, sink, event)
+
+	monkeypatch.setattr(env.host, "_deliver", cancel_before_publication)
+	env.run_native(record)
+	with events.condition:
+		events.condition.wait_for(lambda: bool(events), 0.3)
+	assert list(events) == []
 
 
 def test_sink_can_terminate_without_self_join(env):
