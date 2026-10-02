@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+from types import SimpleNamespace
 
 import pytest
 
@@ -208,17 +209,29 @@ def test_capability_and_metadata_queries_do_not_activate(session, adapter, store
 
 
 class EventToken:
+    """Minimal CancellationView: callbacks run once on cancel() and can be removed."""
+
     def __init__(self):
         self.cancelled = Event()
+        self._callbacks = []
+
+    def cancel(self):
+        if self.cancelled.is_set():
+            return
+        self.cancelled.set()
+        callbacks, self._callbacks = self._callbacks, []
+        for callback in callbacks:
+            callback()
 
     def is_cancelled(self):
         return self.cancelled.is_set()
 
     def add_callback(self, callback):
-        # Tests set ``cancelled`` directly; no waiter in these tests subscribes.
         if self.cancelled.is_set():
             callback()
-        return lambda: None
+            return lambda: None
+        self._callbacks.append(callback)
+        return lambda: callback in self._callbacks and self._callbacks.remove(callback)
 
 
 @pytest.mark.parametrize("mode", ["LEGACY_DONE", "DRAIN"])
@@ -310,3 +323,10 @@ def test_session_rejects_finishing_foreign_context(rt, session, adapter):
     with pytest.raises(ValueError, match="source"):
         session.finish_segment(rt.models.PlaybackContext(object(), 1))
     assert adapter.finished == []
+
+
+def test_speak_rejects_a_token_without_cancellation_callbacks(session, adapter):
+    token = SimpleNamespace(is_cancelled=lambda: False)
+    with pytest.raises(TypeError, match="add_callback"):
+        session.speak(("hello",), token)
+    assert adapter.spoken == []

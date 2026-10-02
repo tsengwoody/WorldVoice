@@ -788,3 +788,18 @@ def test_cancellation_callback_runs_outside_the_token_lock(scheduler):
     Thread(target=lambda: (token.cancel(), finished.set()), daemon=True).start()
     assert finished.wait(1), "cancel() deadlocked inside a callback"
     assert seen == [True, "nested"]
+
+
+def test_callback_removed_during_dispatch_is_not_called(scheduler):
+    token = scheduler.CancellationToken()
+    calls = []
+    removers = {}
+
+    def first():
+        calls.append("first")
+        removers["second"]()
+
+    token.add_callback(first)
+    removers["second"] = token.add_callback(lambda: calls.append("second"))
+    token.cancel()
+    assert calls == ["first"]

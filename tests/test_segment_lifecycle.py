@@ -772,7 +772,7 @@ def test_queued_run_does_not_poll_its_token(env, start_delay):
     owner_call.finish()
 
 
-@pytest.mark.parametrize("cancel", ["token", "work"])
+@pytest.mark.parametrize("cancel", ["token", "work", "fail"])
 def test_queued_run_wakes_when_cancelled(env, cancel):
     lifecycle, hooks, events, accept = env
     _, owner_call = _hold_resource(env)
@@ -781,8 +781,10 @@ def test_queued_run_wakes_when_cancelled(env, cancel):
     waiting.blocked()
     if cancel == "token":
         queued.work.token.cancel()
-    else:
+    elif cancel == "work":
         queued.work.cancel()
+    else:
+        queued.work.fail(RuntimeError("failed while queued"))
     assert waiting.done.wait(0.5), "queued run was not woken by cancellation"
     waiting.finish()
     assert len(hooks.submitted) == 1

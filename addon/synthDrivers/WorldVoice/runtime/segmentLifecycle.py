@@ -9,10 +9,13 @@ Lock order:
    always lock in that order.
 2. A token's cancellation callback may take the lifecycle condition while the
    scheduler holds its state condition (scheduler -> callback -> lifecycle).
-3. While holding its condition the lifecycle never calls hooks, sinks or token
-   callbacks, and never takes a wrapper or scheduler lock. ``wait_idle`` is the
-   one exception: it calls the caller's ``still_wanted`` predicate, which must
-   only read state under its own leaf lock.
+3. While holding its condition the lifecycle never calls hooks or sinks, and
+   never takes a wrapper or scheduler lock. It may take leaf locks: a token's
+   own lock (add_callback and its remover) and a PlaybackWork lock (is_valid).
+   Subscribing to an already-cancelled token runs wake_waiters() at once,
+   which re-enters the (reentrant) condition. ``wait_idle`` also calls the
+   caller's ``still_wanted`` predicate, which must only read state under its
+   own leaf lock.
 
 Waits are woken by notifications (resource release, cancel(), token
 callbacks, PlaybackWork.cancel(), wake_waiters()), never by polling.

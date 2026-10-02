@@ -15,6 +15,12 @@ from test_worldvoice_request_builder import EventStub
 from test_worldvoice_index_command import nvda_commands
 
 
+def _idle_token():
+    """A never-cancelled token that honours the CancellationView contract."""
+    return SimpleNamespace(is_cancelled=lambda: False, add_callback=lambda callback: (lambda: None))
+
+
+
 @pytest.fixture
 def composition(monkeypatch):
     manager_module = _load_voice_manager(monkeypatch, {})
@@ -143,7 +149,7 @@ def test_failed_alias_open_preserves_existing_owner_and_closes_once(composition)
         spoken.append(commands)
     shared.speak = speak
     assert session.activate("first:a")
-    session.speak(("owner remains usable",), SimpleNamespace(is_cancelled=lambda: False))
+    session.speak(("owner remains usable",), _idle_token())
     assert spoken == [("owner remains usable",)]
     manager.terminate(commit=False)
     assert shared.closes == 1
@@ -487,7 +493,7 @@ def test_alias_uses_one_allocator_and_one_close(composition, nvda_commands):
     shared.speak = lambda commands: spoken.append(commands[-1].index)
     for segment, key in enumerate(("first:a", "alias:a"), 1):
         port = manager.resolve_playback(key)
-        port.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False),
+        port.speak(("hello",), _idle_token(),
                    context=c.models.PlaybackContext(port.source_id, segment))
     assert spoken == [501, 502]
     manager.terminate(commit=False)
@@ -569,7 +575,7 @@ def test_live_core_rebind_preserves_allocator_high_water(composition, nvda_comma
     port = manager.resolve_playback("marker:a")
     spoken = []
     cls.core.speak = lambda commands: spoken.append(commands[-1].index)
-    token = SimpleNamespace(is_cancelled=lambda: False)
+    token = _idle_token()
     port.speak(("first",), token, context=c.models.PlaybackContext(port.source_id, 1))
     c.bridge.unbind(port.source_id)
     c.bridge.bind(cls.core, port.source_id, completion=port.completion)
@@ -870,7 +876,7 @@ def test_drain_factory_configured_after_bind_before_publication(composition, mon
     manager = c.create(lambda cls, core: drain_contract(c))
     port = manager.resolve_playback("drain:a")
     context = c.models.PlaybackContext(port.source_id, 1)
-    port.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False), context=context)
+    port.speak(("hello",), _idle_token(), context=context)
     assert len(setup) == 1
     assert calls[0]["context"] is context and callable(calls[0]["on_event"])
 

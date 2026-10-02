@@ -103,6 +103,9 @@ class PlaybackWork:
 			)
 		# The sink may cancel/unbind, reenter this work, or block.
 		self._on_event(event)
+		# A finished work is invalid too; wake its owner's waiters.
+		if self._on_cancel is not None:
+			self._on_cancel()
 		return True
 
 

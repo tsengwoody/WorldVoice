@@ -171,6 +171,10 @@ class EngineSession:
 		*,
 		context: PlaybackContext | None = None,
 	) -> None:
+		if not callable(getattr(token, "add_callback", None)):
+			# Waiters subscribe instead of polling, so a token that cannot
+			# notify would leave them blocked.
+			raise TypeError("speech tokens must implement CancellationView.add_callback")
 		if context is None:
 			if self.completion.mode is not CompletionMode.LEGACY_DONE:
 				raise ValueError("Correlated completion requires a playback context")

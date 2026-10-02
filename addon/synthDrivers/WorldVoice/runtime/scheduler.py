@@ -56,9 +56,13 @@ class CancellationToken:
 			if self._event.is_set():
 				return
 			self._event.set()
-			callbacks, self._callbacks = list(self._callbacks.values()), {}
-		for callback in callbacks:
-			self._run_callback(callback)
+			keys = list(self._callbacks)
+		for key in keys:
+			# Re-check under the lock: a callback removed meanwhile never runs.
+			with self._lock:
+				callback = self._callbacks.pop(key, None)
+			if callback is not None:
+				self._run_callback(callback)
 
 	def is_cancelled(self):
 		return self._event.is_set()
