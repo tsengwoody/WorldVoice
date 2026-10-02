@@ -15,6 +15,7 @@ from rhvoice_drain_harness import finish, load_rhvoice, speak
 @pytest.fixture
 def env(monkeypatch, tmp_path):
     monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentHost", raising=False)
     result = load_rhvoice(monkeypatch, tmp_path)
     yield result
     finish(result)
@@ -151,12 +152,12 @@ def test_stop_failure_fails_closed_for_later_work(env):
 def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeypatch):
     accepted, release_accept = Event(), Event()
     run_entered, release_run, run_finished = Event(), Event(), Event()
-    lifecycle = env.driver._segmentLifecycle
+    lifecycle = env.driver._segmentHost._lifecycle
     real_accept = lifecycle.accept
-    real_run = env.driver._run_segment
+    real_run = env.driver._segmentHost._run
 
-    def held_accept(*args):
-        operation = real_accept(*args)
+    def held_accept(*args, **kwargs):
+        operation = real_accept(*args, **kwargs)
         accepted.set()
         assert release_accept.wait(3)
         return operation
@@ -170,7 +171,7 @@ def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeyp
             run_finished.set()
 
     monkeypatch.setattr(lifecycle, "accept", held_accept)
-    monkeypatch.setattr(env.driver, "_run_segment", held_run)
+    monkeypatch.setattr(env.driver._segmentHost, "_run", held_run)
     token = env.scheduler.CancellationToken()
     context = env.rt.models.PlaybackContext(object(), 17)
     events = []
@@ -181,7 +182,7 @@ def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeyp
         assert accepted.wait(1)
         # The speaking thread must hold the admission lock through wrapper
         # registration. A nonblocking probe from this thread detects the gap.
-        admission = env.driver._segmentAdmission
+        admission = env.driver._segmentHost._admission
         acquired = admission.acquire(blocking=False)
         if acquired:
             admission.release()
@@ -346,7 +347,7 @@ def test_legacy_speak_keeps_inner_settings_snapshot_and_queue(env):
 
 
 def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
-    assert env.driver._segmentLifecycle is not None
+    assert env.driver._segmentHost._lifecycle is not None
     callback_entered, release_callback = Event(), Event()
     original_rate = env.driver._SynthDriver__player.set_sample_rate
     calls = 0
@@ -384,7 +385,7 @@ def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
 
 
 def test_rhvoice_shared_cancel_keeps_old_identity_until_retirement(env):
-    assert env.driver._segmentLifecycle is not None
+    assert env.driver._segmentHost._lifecycle is not None
     created = Event()
     original = env.inner.nvwave.WavePlayer
     def blocked_player(**kwargs):
@@ -431,7 +432,7 @@ def test_rhvoice_shared_token_cancel_clears_native_flag_before_successor(env):
 
 
 def test_rhvoice_shared_sink_reenters_terminate(env):
-    assert env.driver._segmentLifecycle is not None
+    assert env.driver._segmentHost._lifecycle is not None
     delivered = Event()
     errors = []
     def sink(event):
@@ -475,7 +476,7 @@ def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
 
 def test_cancel_invalidates_completion_waiting_for_async_delivery(env, monkeypatch):
     delivery_waiting, release_delivery = Event(), Event()
-    lifecycle = env.driver._segmentLifecycle
+    lifecycle = env.driver._segmentHost._lifecycle
     queue_delivery = lifecycle._queue_delivery_locked
     def delayed_delivery(operation):
         delivery_waiting.set()
@@ -489,9 +490,9 @@ def test_cancel_invalidates_completion_waiting_for_async_delivery(env, monkeypat
     stopper.start()
     try:
         deadline = time.monotonic() + 3
-        while not any(operation._rhvoice_cancelled for operation in env.driver._segmentAccepted) and time.monotonic() < deadline:
+        while not any(env.driver._segmentHost._accepted.values()) and time.monotonic() < deadline:
             time.sleep(0.001)
-        assert any(operation._rhvoice_cancelled for operation in env.driver._segmentAccepted)
+        assert any(env.driver._segmentHost._accepted.values())
     finally:
         release_delivery.set()
     stopper.join(3)
@@ -526,7 +527,7 @@ def test_audio_index_listener_can_cancel_from_its_own_callback_thread(env):
 
 def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypatch):
     delivery_waiting, release_delivery = Event(), Event()
-    lifecycle = env.driver._segmentLifecycle
+    lifecycle = env.driver._segmentHost._lifecycle
     queue_delivery = lifecycle._queue_delivery_locked
     def delayed_delivery(operation):
         delivery_waiting.set()
@@ -547,9 +548,9 @@ def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypa
     stopper.start()
     try:
         deadline = time.monotonic() + 3
-        while env.driver._segmentControlError is None and time.monotonic() < deadline:
+        while env.driver._segmentHost.control_error is None and time.monotonic() < deadline:
             time.sleep(0.001)
-        assert env.driver._segmentControlError is not None
+        assert env.driver._segmentHost.control_error is not None
     finally:
         release_delivery.set()
     stopper.join(3)
@@ -616,9 +617,9 @@ def test_admitted_late_feed_gets_final_idle_and_index_before_drain(env):
     assert call.returned.wait(3)
     assert player.second_idle_completed.wait(3)
     deadline = time.monotonic() + 3
-    while not speech.closed and time.monotonic() < deadline:
+    while speech.admitting and time.monotonic() < deadline:
         time.sleep(0.001)
-    assert speech.closed
+    assert not speech.admitting
     assert events == []
     assert player.fed == [b"\x01\x00\x02\x00"]
     player.block_idle_number = 3
@@ -668,9 +669,9 @@ def test_admitted_native_mark_can_enter_nested_feed_after_callback_gate_closes(e
     player = env.players[0]
     assert player.second_idle_completed.wait(3)
     deadline = time.monotonic() + 3
-    while not speech.closed and time.monotonic() < deadline:
+    while speech.admitting and time.monotonic() < deadline:
         time.sleep(0.001)
-    assert speech.closed
+    assert not speech.admitting
     assert speech.consumers == 1  # The admitted mark still owns its native lease.
     assert env.native.callbacks.process_mark(b"100", call.user_data) == 0
     assert player.fed == [b"\x01\x00\x02\x00"]
@@ -724,6 +725,25 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env):
     assert len(events) == 1
 
 
+def test_completed_ordinary_speech_does_not_stop_the_player(env):
+    # Ordinary speech reaches every barrier; the host must not stop it.
+    env.native.scripts.extend(({"auto_return": True},) * 3)
+    env.driver.speak(("first",))
+    env.driver.speak(("second",))
+    _, _, events = speak(env, text="segment")
+    assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.players[0].stops == 0
+
+
+def test_failed_ordinary_speech_stops_the_player(env):
+    # Like the other host engines, a failed ordinary message discards its audio.
+    env.native.scripts.extend(({"auto_return": True, "result": 0}, {"auto_return": True}))
+    env.driver.speak(("failed",))
+    _, _, events = speak(env, text="segment")
+    assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+    assert env.players[0].stops == 1
+
+
 def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
     env.driver.terminate()
     env.driver.terminate()  # Repeated terminate must stay idempotent.
@@ -746,6 +766,6 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
     assert events[0].source_id is context.source_id
     assert events[0].segment_id == 19
     assert str(events[0].error) == "RHVoice driver has terminated"
-    assert threads == [env.driver._segmentLifecycle._delivery_thread.ident]
+    assert threads == [env.driver._segmentHost._lifecycle._delivery_thread.ident]
     assert threads[0] != caller
     assert env.native.calls == []

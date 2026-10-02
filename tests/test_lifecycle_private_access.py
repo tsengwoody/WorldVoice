@@ -46,7 +46,7 @@ def test_wrappers_do_not_touch_lifecycle_private_state():
 
 
 # Wrappers moved onto SegmentHost; the host owns their lifecycle entirely.
-MIGRATED = ("Espeak", "SAPI5")
+MIGRATED = ("Espeak", "SAPI5", "RHVoice")
 
 
 def test_migrated_wrappers_only_use_the_segment_host():
