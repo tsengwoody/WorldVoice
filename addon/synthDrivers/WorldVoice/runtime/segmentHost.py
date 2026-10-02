@@ -42,6 +42,10 @@ class NativeRecord:
 	closed: bool = False
 	error: Exception | None = None
 	consumers: int = 0
+	# Engine-specific data (request, stream, resource snapshots ...).
+	native: object | None = None
+	# False once close() stops new consumers; the work itself stays valid.
+	admitting: bool = True
 
 	def barriers_met(self) -> bool:
 		return all(self.barriers.values())
@@ -74,6 +78,15 @@ class NativeStrategy(Protocol):
 
 	def stop_player(self, host: "SegmentHost") -> None:
 		"""Discard queued audio; used after cancellation or failure."""
+
+	# Optional: def admission_error(self, host) -> Exception | None
+	# Called under host admission before a segment is accepted; a returned error
+	# rejects the segment (e.g. an audio route that cannot drain).
+	#
+	# Optional: def drain(self, host, record) -> None
+	# Wait for this record's playback to finish on the lifecycle thread, reaching
+	# any barriers it proves. Record failures with host.record_error() instead of
+	# raising; it may be called more than once for the same record.
 
 
 class SegmentHost:
@@ -133,6 +146,11 @@ class SegmentHost:
 			if control_error is not None:
 				self._lifecycle.reject_new(context, token, on_event, control_error)
 				return
+			admission_error = getattr(self._strategy, "admission_error", None)
+			engine_error = admission_error(self) if admission_error is not None else None
+			if engine_error is not None:
+				self._lifecycle.reject_new(context, token, on_event, engine_error)
+				return
 
 			def deliver(event):
 				self._deliver(operation, on_event, event)
@@ -147,9 +165,17 @@ class SegmentHost:
 			daemon=True,
 		).start()
 
-	def enqueue(self, commands: SpeechCommands, work: PlaybackWork | None = None, operation=None) -> None:
-		"""Queue native work; ordinary speech passes neither work nor operation."""
-		record = self.new_record(work, operation)
+	def enqueue(
+		self,
+		commands: SpeechCommands,
+		operation: SegmentOperation | None = None,
+		*,
+		barriers: frozenset[str] | set[str] | None = None,
+		native: object | None = None,
+	) -> None:
+		"""Queue native work; ordinary speech passes no operation."""
+		work = operation.work if operation is not None else None
+		record = self.new_record(operation, barriers=barriers, native=native)
 		with self._admission:
 			if self._terminated:
 				if work is not None:
@@ -163,16 +189,48 @@ class SegmentHost:
 				if operation is not None:
 					self._records[operation] = record
 			if control_error is not None:
-				self._lifecycle.fail(operation, control_error)
-				record.retired.set()
+				self._lifecycle_of(operation).fail(operation, control_error)
+				self.abandon(record)
 				return
 			if operation is not None:
-				record.producer = self._lifecycle.admit_producer(operation)
-			self._strategy.submit(self, record, commands)
+				# admit_producer refuses work that is already cancelled.
+				record.producer = self._lifecycle_of(operation).admit_producer(operation)
+				if record.producer is None:
+					self.abandon(record)
+					return
+			try:
+				self._strategy.submit(self, record, commands)
+			except Exception as error:
+				if operation is None:
+					self.forget(record)
+					raise
+				# The segment fails through its own record; the lifecycle stays usable.
+				self.record_error(record, error)
+				self.abandon(record)
 
 	def cancel(self) -> None:
 		with self._admission:
 			self._invalidate()
+
+	def reset(self) -> None:
+		"""Recover after a voice/resource reload: clear faults and start a fresh lifecycle.
+
+		Call under admission() after the engine has joined its old worker.
+		"""
+		with self._admission:
+			if self._terminated:
+				return
+			self._invalidate()
+			old = self._lifecycle
+			with self._condition:
+				self._control_error = None
+				self._current = None
+				self._pending.clear()
+				self._records.clear()
+				self._accepted.clear()
+			self._lifecycle = SegmentLifecycle(self)
+			old.terminate()
+		old.join_delivery(1)
 
 	def terminate(self) -> bool:
 		"""Stop all work; return False when already terminated."""
@@ -189,16 +247,19 @@ class SegmentHost:
 
 	def new_record(
 		self,
-		work: PlaybackWork | None,
 		operation: SegmentOperation | None = None,
+		*,
+		barriers: frozenset[str] | set[str] | None = None,
+		native: object | None = None,
 	) -> NativeRecord:
 		segment = operation is not None
 		return NativeRecord(
-			work,
-			barriers=dict.fromkeys(self._strategy.barriers, False),
+			operation.work if segment else None,
+			barriers=dict.fromkeys(self._strategy.barriers if barriers is None else barriers, False),
 			operation=operation,
 			retired=Event() if segment else None,
 			handoff=Event() if segment else None,
+			native=native,
 		)
 
 	def begin(self, record: NativeRecord) -> None:
@@ -227,7 +288,13 @@ class SegmentHost:
 		"""Admit a callback or player call for the current record (None if not admitted)."""
 		with self._condition:
 			record = record or self._current
-			if record is None or record is not self._current or not record.is_valid():
+			if (
+				record is None
+				or record is not self._current
+				or not record.is_valid()
+				# After close(), only a callback already bound to this record may nest.
+				or (not record.admitting and self.callback_record() is not record)
+			):
 				admitted = None
 			else:
 				record.consumers += 1
@@ -239,6 +306,34 @@ class SegmentHost:
 				with self._condition:
 					admitted.consumers -= 1
 					self._condition.notify_all()
+
+	def close(self, record: NativeRecord) -> None:
+		"""Stop admitting new consumers for ``record``; the work stays valid."""
+		with self._condition:
+			record.admitting = False
+
+	def wait_consumers(self, record: NativeRecord) -> None:
+		with self._condition:
+			self._condition.wait_for(lambda: record.consumers == 0)
+
+	def abandon(self, record: NativeRecord) -> None:
+		"""Retire a record whose native work will never run (e.g. a cleared queue).
+
+		Unlike retire(), it does not wait for the lifecycle's handoff.
+		"""
+		with self._condition:
+			record.closed = True
+			record.admitting = False
+			self._condition.wait_for(lambda: record.consumers == 0)
+			if record in self._pending:
+				self._pending.remove(record)
+			if self._current is record:
+				self._current = None
+			producer, record.producer = record.producer, None
+		if producer is not None:
+			self._lifecycle_of(record.operation).retire_producer(producer)
+		if record.retired is not None:
+			record.retired.set()
 
 	def reach(self, record: NativeRecord, barrier: str) -> None:
 		with self._condition:
@@ -278,8 +373,9 @@ class SegmentHost:
 			if self._current is record:
 				self._current = None
 		if record.operation is not None:
-			if record.producer is not None:
-				self._lifecycle.retire_producer(record.producer)
+			producer, record.producer = record.producer, None
+			if producer is not None:
+				self._lifecycle_of(record.operation).retire_producer(producer)
 			record.retired.set()
 			# The FIFO worker keeps player ownership until the coordinator has
 			# finished the final stop or drain check for this operation.
@@ -306,14 +402,16 @@ class SegmentHost:
 	# SegmentEngineHooks ---------------------------------------------------
 
 	def submit_native(self, operation: SegmentOperation, commands: SpeechCommands) -> None:
-		self.enqueue(commands, operation.work, operation)
+		self.enqueue(commands, operation)
 
 	def request_stop(self, operation: SegmentOperation) -> None:
 		with self._condition:
 			record = self._records.get(operation)
 			if record is not None:
 				record.cancelled = True
-				active = record is self._current
+				# A retired record may still be draining until its handoff.
+				draining = record.retired.is_set() and not record.handoff.is_set()
+				active = record is self._current or draining
 			else:
 				active = False
 		if active:
@@ -321,10 +419,13 @@ class SegmentHost:
 
 	def wait_native_boundary(self, operation: SegmentOperation) -> None:
 		with self._condition:
-			record = self._records[operation]
+			record = self._records.get(operation)
+		if record is None:
+			# Terminated before the record was registered; nothing to wait for.
+			return
 		record.retired.wait()
 		if record.error is not None:
-			self._lifecycle.fail(operation, record.error)
+			self._lifecycle_of(operation).fail(operation, record.error)
 
 	def wait_native_retired(self, operation: SegmentOperation) -> None:
 		# retire() already waited for every admitted consumer.
@@ -335,11 +436,26 @@ class SegmentHost:
 			record = self._records.get(operation)
 		if record is None:
 			return
+		lifecycle = self._lifecycle_of(operation)
 		if not operation.work.is_valid() or record.error is not None:
 			self._strategy.stop_player(self)
 			return
+		drain = getattr(self._strategy, "drain", None)
+		if drain is not None:
+			try:
+				drain(self, record)
+			except Exception as error:
+				# A raising drain fails this segment, never the whole lifecycle.
+				self.record_error(record, error)
+				lifecycle.fail(operation, record.error)
+				self._strategy.stop_player(self)
+				return
+			if record.error is not None:
+				# The strategy already stopped or purged what it needed to.
+				lifecycle.fail(operation, record.error)
+				return
 		if not record.barriers_met():
-			self._lifecycle.fail(operation, self._missing_barriers_error(record))
+			lifecycle.fail(operation, self._missing_barriers_error(record))
 			self._strategy.stop_player(self)
 
 	# Internals ------------------------------------------------------------
@@ -349,11 +465,17 @@ class SegmentHost:
 			f"{self.engine} synthesis retired without its {', '.join(record.missing_barriers())} barriers",
 		)
 
+	@staticmethod
+	def _lifecycle_of(operation: SegmentOperation) -> SegmentLifecycle:
+		# reset() replaces the lifecycle; an older operation keeps its own.
+		return operation._lifecycle
+
 	def _run(self, operation: SegmentOperation, commands: SpeechCommands, deliver: Callable) -> None:
+		lifecycle = self._lifecycle_of(operation)
 		try:
-			self._lifecycle.run(operation, commands)
+			lifecycle.run(operation, commands)
 		except Exception as error:
-			self._lifecycle.reject_new(
+			lifecycle.reject_new(
 				operation.work.context,
 				operation.work.token,
 				deliver,
@@ -365,6 +487,13 @@ class SegmentHost:
 			# (_forget_operation): NVDA may still cancel before publication.
 			with self._condition:
 				record = self._records.pop(operation, None)
+			if record is not None and lifecycle.fault is not None:
+				# A hook fault skipped the playback drain; discard queued audio
+				# before the worker hands the player to a successor.
+				try:
+					self._strategy.stop_player(self)
+				except Exception:
+					log.error("Error stopping %s playback after a fault", self.engine, exc_info=True)
 			if record is not None:
 				record.handoff.set()
 
@@ -427,10 +556,16 @@ class LeasedPlayer:
 						if admitted is None:
 							return
 						with host.bound_callback(record):
-							onDone()
+							try:
+								onDone()
+							except Exception as error:
+								host.record_error(record, error)
+								raise
 
 			try:
-				return self._player.feed(data, size, callback)
+				if size is None:
+					return self._player.feed(data, onDone=callback)
+				return self._player.feed(data, size, onDone=callback)
 			except Exception as error:
 				host.record_error(record, error)
 				raise

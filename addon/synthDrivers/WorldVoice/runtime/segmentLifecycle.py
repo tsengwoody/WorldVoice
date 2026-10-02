@@ -191,6 +191,12 @@ class SegmentLifecycle:
 		else:
 			self._condition.notify_all()
 
+	@property
+	def fault(self) -> Exception | None:
+		"""The latched resource fault; every later segment is rejected while it is set."""
+		with self._condition:
+			return self._fault
+
 	def on_delivery_thread(self) -> bool:
 		"""True when called from this lifecycle's delivery thread (sinks run there)."""
 		with self._condition:

@@ -267,7 +267,7 @@ def test_terminate_does_not_hang_on_a_blocked_sink(env):
 
 @pytest.mark.parametrize("start_delay", [0, 0.1])
 def test_retire_waits_for_admitted_consumers(env, start_delay):
-	record = env.host.new_record(None)
+	record = env.host.new_record()
 	env.host.begin(record)
 	release, retired, entered = Event(), Event(), Event()
 
@@ -327,7 +327,7 @@ def test_ordinary_speech_raises_after_a_control_error(env):
 
 
 def test_unknown_barrier_is_rejected(env):
-	record = env.host.new_record(None)
+	record = env.host.new_record()
 	with pytest.raises(KeyError):
 		env.host.reach(record, "ended")
 
@@ -361,7 +361,7 @@ def test_leased_player_ignores_feed_without_a_current_record(env):
 def test_leased_player_binds_on_done_to_its_record_and_reaches_idle(env):
 	real = FakePlayer()
 	player = env.module.LeasedPlayer(env.host, real)
-	record = env.host.new_record(None)
+	record = env.host.new_record()
 	env.host.begin(record)
 	seen = []
 	player.feed(b"pcm", 3, lambda: seen.append(env.host.callback_record()))
@@ -380,8 +380,8 @@ def test_leased_player_stops_again_after_an_invalidated_feed(env):
 	env.host.begin(record)
 	original_feed = real.feed
 
-	def feed_then_cancel(*args):
-		original_feed(*args)
+	def feed_then_cancel(*args, **kwargs):
+		original_feed(*args, **kwargs)
 		env.host.cancel()
 
 	real.feed = feed_then_cancel
@@ -396,3 +396,229 @@ def test_leased_player_stop_failure_latches_a_control_error(env):
 	with pytest.raises(OSError):
 		player.stop()
 	assert env.host.control_error is real.stop_error
+
+
+class DrainingStrategy(FakeStrategy):
+	"""A strategy whose playback barrier is reached by drain() on the lifecycle thread."""
+
+	def __init__(self):
+		super().__init__()
+		self.drains = []
+		self.drain_error = None
+		self.drain_raises = None
+		self.drain_release = Event()
+		self.drain_release.set()
+		self.drain_entered = Event()
+
+	def drain(self, host, record):
+		self.drains.append(record)
+		self.drain_entered.set()
+		assert self.drain_release.wait(2), "test did not release drain"
+		if self.drain_raises is not None:
+			raise self.drain_raises
+		if self.drain_error is not None:
+			host.record_error(record, self.drain_error)
+			return
+		host.reach(record, "idle")
+
+
+@pytest.fixture
+def drain_env(env):
+	strategy = DrainingStrategy()
+	env.host._strategy = strategy
+	env.strategy = strategy
+	return env
+
+
+def test_record_carries_engine_data_and_its_own_barriers(env):
+	data = object()
+	env.host.enqueue(("ordinary",), barriers={"returned"}, native=data)
+	record = env.strategy.wait_submitted()
+	assert record.native is data
+	assert record.barriers == {"returned": False}
+	assert record.operation is None and record.work is None
+
+
+def test_drain_runs_before_the_barrier_check(drain_env):
+	env = drain_env
+	_, _, events = env.speak()
+	record = env.strategy.wait_submitted()
+	env.run_native(record, reach=("returned",))
+	event = events.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+	assert env.strategy.drains == [record]
+
+
+@pytest.mark.parametrize("failure", ["recorded", "raised"])
+def test_drain_failure_fails_only_that_segment(drain_env, failure):
+	env = drain_env
+	if failure == "recorded":
+		env.strategy.drain_error = OSError("idle failed")
+	else:
+		env.strategy.drain_raises = OSError("idle failed")
+	_, _, events = env.speak()
+	env.run_native(env.strategy.wait_submitted(), reach=("returned",))
+	event = events.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert isinstance(event.error, OSError)
+	# No permanent lifecycle fault: the next segment still drains.
+	env.strategy.drain_error = env.strategy.drain_raises = None
+	_, _, successor = env.speak(segment=18)
+	env.run_native(env.strategy.wait_submitted(2), reach=("returned",))
+	assert successor.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_stop_reaches_a_record_that_is_still_draining(drain_env):
+	env = drain_env
+	env.strategy.drain_release.clear()
+	env.speak()
+	record = env.strategy.wait_submitted()
+	env.run_native(record, reach=("returned",))
+	assert env.strategy.drain_entered.wait(2)
+	# NVDA's cancel reaches the lifecycle, which asks the host to stop the record.
+	env.host.cancel()
+	with env.strategy.condition:
+		stopped = env.strategy.condition.wait_for(lambda: record in env.strategy.native_stops, 1)
+	env.strategy.drain_release.set()
+	assert stopped, "cancel could not stop the record during drain"
+
+
+def test_closed_record_admits_only_its_own_nested_consumers(env):
+	record = env.host.new_record()
+	env.host.begin(record)
+	env.host.close(record)
+	assert record.is_valid(), "closing admission does not invalidate the work"
+	with env.host.consumer(record) as outsider:
+		assert outsider is None
+	with env.host.bound_callback(record), env.host.consumer(record) as nested:
+		assert nested is record
+	env.host.wait_consumers(record)
+	assert record.consumers == 0
+
+
+def test_abandon_retires_a_dropped_record_without_handoff(env):
+	# No lifecycle thread runs this operation, so no handoff ever comes.
+	events = Events()
+	token = env.scheduler.CancellationToken()
+	context = env.rt.models.PlaybackContext(object(), 32)
+	operation = env.host._lifecycle.accept(context, token, events.append)
+	env.host.enqueue(("dropped",), operation)
+	record = env.strategy.wait_submitted()
+	finished = Event()
+	Thread(target=lambda: (env.host.abandon(record), finished.set()), daemon=True).start()
+	assert finished.wait(1), "abandon() waited for a handoff that never comes"
+	assert record.retired.is_set()
+	env.host.abandon(record)  # idempotent
+	with events.condition:
+		events.condition.wait_for(lambda: bool(events), 0.2)
+	assert list(events) == []
+
+
+def test_reset_recovers_from_a_control_error(env):
+	env.host.latch_control_error(OSError("stop failed"))
+	_, _, rejected = env.speak()
+	assert rejected.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+	with env.host.admission():
+		env.host.reset()
+	assert env.host.control_error is None
+	_, _, events = env.speak(segment=18)
+	env.run_native(env.strategy.wait_submitted())
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_reset_recovers_from_a_lifecycle_fault(env, monkeypatch):
+	def broken(operation):
+		raise RuntimeError("hook failed")
+
+	monkeypatch.setattr(env.host, "wait_native_retired", broken)
+	_, _, failed = env.speak()
+	env.run_native(env.strategy.wait_submitted())
+	assert failed.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+	_, _, rejected = env.speak(segment=18)
+	assert rejected.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+	monkeypatch.undo()
+	with env.host.admission():
+		env.host.reset()
+	_, _, events = env.speak(segment=19)
+	env.run_native(env.strategy.wait_submitted(2))
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_hook_fault_stops_the_player_and_releases_the_worker(env, monkeypatch):
+	def broken(operation):
+		raise RuntimeError("hook failed")
+
+	monkeypatch.setattr(env.host, "wait_native_retired", broken)
+	_, _, events = env.speak()
+	native, _ = env.run_native(env.strategy.wait_submitted())
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+	native.join(2)
+	assert not native.is_alive(), "the FIFO worker stayed parked after a hook fault"
+	assert env.strategy.player_stops >= 1
+
+
+def test_enqueue_skips_submission_for_invalid_work(env):
+	token = env.scheduler.CancellationToken()
+	context = env.rt.models.PlaybackContext(object(), 30)
+	operation = env.host._lifecycle.accept(context, token, lambda event: None)
+	token.cancel()
+	env.host.enqueue(("late",), operation)
+	assert env.strategy.submitted == []
+
+
+def test_segment_submit_error_is_recorded_not_raised(env):
+	token = env.scheduler.CancellationToken()
+	context = env.rt.models.PlaybackContext(object(), 31)
+	operation = env.host._lifecycle.accept(context, token, lambda event: None)
+	env.strategy.submit_error = RuntimeError("queue rejected")
+	env.host.enqueue(("segment",), operation)
+	record = env.host._records[operation]
+	assert isinstance(record.error, RuntimeError)
+	assert record.retired.is_set()
+
+
+def test_ordinary_submit_error_is_raised(env):
+	env.strategy.submit_error = RuntimeError("queue rejected")
+	with pytest.raises(RuntimeError, match="queue rejected"):
+		env.host.enqueue(("ordinary",))
+
+
+def test_boundary_hook_ignores_an_operation_without_a_record(env):
+	token = env.scheduler.CancellationToken()
+	context = env.rt.models.PlaybackContext(object(), 32)
+	operation = env.host._lifecycle.accept(context, token, lambda event: None)
+	env.host.wait_native_boundary(operation)
+
+
+def test_leased_player_passes_on_done_by_keyword_and_records_its_error(env):
+	class KeywordPlayer:
+		def __init__(self):
+			self.callbacks = []
+
+		def feed(self, data, onDone=None):
+			self.callbacks.append(onDone)
+
+	real = KeywordPlayer()
+	player = env.module.LeasedPlayer(env.host, real)
+	record = env.host.new_record()
+	env.host.begin(record)
+	failure = OSError("index failed")
+
+	def on_done():
+		raise failure
+
+	player.feed(b"pcm", onDone=on_done)
+	with pytest.raises(OSError):
+		real.callbacks[0]()
+	assert record.error is failure
+
+
+def test_engine_admission_error_rejects_before_acceptance(env):
+	env.strategy.admission_error = lambda host: RuntimeError("route cannot drain")
+	_, _, events = env.speak(segment=33)
+	event = events.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert str(event.error) == "route cannot drain"
+	assert event.segment_id == 33
+	assert env.strategy.submitted == []
+	assert env.host._accepted == {}

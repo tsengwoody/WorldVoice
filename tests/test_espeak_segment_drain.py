@@ -173,8 +173,8 @@ def test_cancelling_queued_contextual_speech_preserves_active_ordinary_audio(env
     assert env.player.queued_bytes == 8
     queued, release_queue = Event(), Event()
     original_queue = env.driver._segmentHost.enqueue
-    def queue_then_hold(commands, work, operation=None):
-        result = original_queue(commands, work, operation)
+    def queue_then_hold(commands, operation=None, **kwargs):
+        result = original_queue(commands, operation, **kwargs)
         if operation is not None:
             queued.set()
             assert release_queue.wait(2), "Test did not release contextual submission"
