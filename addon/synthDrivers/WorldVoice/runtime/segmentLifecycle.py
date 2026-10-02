@@ -65,6 +65,8 @@ class SegmentOperation:
 		self._playback_verified = False
 		self._playback_stop_done: Event | None = None
 		self._run_started = False
+		# True while run() waits for the resource; fail() may then publish it.
+		self._waiting = False
 		self._retired = False
 		self._pre_admission_rejected = False
 		self._error: Exception | None = None
@@ -258,10 +260,17 @@ class SegmentLifecycle:
 		remove_wake = None
 		with self._condition:
 			if operation._run_started:
+				if operation._retired and operation._error is not None:
+					# fail() already published this operation before it ran.
+					return
 				raise RuntimeError("segment operation was already run")
 			operation._run_started = True
+			operation._waiting = True
 			try:
 				while self._resource_busy and not self._terminated and self._fault is None:
+					if operation._retired:
+						# fail() published it while it waited for the resource.
+						return
 					if not operation.work.is_valid():
 						self._discard_operation_locked(operation)
 						return
@@ -271,6 +280,7 @@ class SegmentLifecycle:
 						continue
 					self._condition.wait()
 			finally:
+				operation._waiting = False
 				if remove_wake is not None:
 					remove_wake()
 			if self._fault is not None:
@@ -410,6 +420,12 @@ class SegmentLifecycle:
 			if operation._error is None:
 				operation._error = error
 			operation._admitting = False
+			if (not operation._run_started or operation._waiting) and operation in self._operations:
+				# It has not acquired the resource and can never submit: publish
+				# the failure now, in fail()'s order, instead of after a wake-up.
+				self._reject_pending_locked(operation, operation._error)
+				self._condition.notify_all()
+				return
 			self._condition.notify_all()
 		self._start_stop(operation)
 

@@ -83,6 +83,11 @@ class NativeStrategy(Protocol):
 	def stop_player(self, host: "SegmentHost") -> None:
 		"""Discard queued audio; used after cancellation or failure."""
 
+	# Optional: def prepare(self, host, commands, operation) -> SpeechCommands
+	# Called by enqueue() outside host admission before the record exists; it
+	# returns what submit() receives. A raised error fails the segment (or is
+	# raised to an ordinary caller).
+	#
 	# Optional: def admission_error(self, host) -> Exception | None
 	# Called under host admission before a segment is accepted; a returned error
 	# rejects the segment (e.g. an audio route that cannot drain).
@@ -186,6 +191,17 @@ class SegmentHost:
 	) -> None:
 		"""Queue native work; ordinary speech passes no operation."""
 		work = operation.work if operation is not None else None
+		prepare = getattr(self._strategy, "prepare", None)
+		if prepare is not None:
+			# Engine preparation (e.g. SSML conversion) runs outside admission so
+			# cancel() and terminate() never wait for it.
+			try:
+				commands = prepare(self, commands, operation)
+			except Exception as error:
+				if operation is None:
+					raise
+				self._lifecycle_of(operation).fail(operation, error)
+				return
 		record = self.new_record(operation, barriers=barriers, native=native)
 		with self._admission:
 			if self._terminated:

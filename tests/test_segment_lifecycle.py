@@ -299,6 +299,40 @@ def test_failed_queued_operation_never_submits(env):
     assert failed[0].kind.value == "segment_failed"
 
 
+def test_failed_waiting_operation_is_published_before_the_resource_frees(env):
+    lifecycle, hooks, events, accept = env
+    old, _ = accept(1)
+    queued, context = accept(2)
+    first = Call(lambda: lifecycle.run(old, ("old",)))
+    assert hooks.boundary_entered.wait(1)
+    second = Call(lambda: lifecycle.run(queued, ("queued",)))
+    second.blocked()
+    lifecycle.fail(queued, RuntimeError("control error"))
+    second.finish()
+    events.wait_for_count(1)
+    assert [(event.source_id, event.kind.value) for event in events] == [
+        (context.source_id, "segment_failed")]
+    assert len(hooks.submitted) == 1
+    hooks.release_boundary.set()
+    first.finish()
+    events.wait_for_count(2)
+    with events._condition:
+        assert not events._condition.wait_for(lambda: len(events) > 2, 0.1), events
+
+
+def test_failed_operation_that_never_ran_is_published_and_its_run_is_a_no_op(env):
+    lifecycle, hooks, events, accept = env
+    operation, context = accept(5)
+    lifecycle.fail(operation, RuntimeError("control error"))
+    events.wait_for_count(1)
+    assert [(event.source_id, event.kind.value) for event in events] == [
+        (context.source_id, "segment_failed")]
+    Call(lambda: lifecycle.run(operation, ("never",))).finish()
+    assert hooks.submitted == []
+    with events._condition:
+        assert not events._condition.wait_for(lambda: len(events) > 1, 0.1), events
+
+
 def test_late_cancel_cannot_stop_successor_resource(env):
     lifecycle, hooks, events, accept = env
     old, _ = accept(1)

@@ -874,3 +874,77 @@ def test_control_error_and_the_active_segment(env, stopped):
 		assert not wait_until(lambda: bool(env.strategy.native_stops), 0.2)
 	env.run_native(record)
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+
+
+class PreparingStrategy(FakeStrategy):
+	"""A strategy that converts commands in prepare() before submission."""
+
+	def __init__(self):
+		super().__init__()
+		self.prepare_entered = Event()
+		self.prepare_release = Event()
+		self.prepare_release.set()
+		self.prepare_error = None
+
+	def prepare(self, host, commands, operation):
+		self.prepare_entered.set()
+		assert self.prepare_release.wait(2), "Test did not release prepare"
+		if self.prepare_error is not None:
+			raise self.prepare_error
+		return ("prepared", *commands)
+
+
+@pytest.fixture
+def prepare_env(env):
+	strategy = PreparingStrategy()
+	env.host._strategy = strategy
+	env.strategy = strategy
+	return env
+
+
+def test_prepare_result_is_what_submit_receives(prepare_env):
+	env = prepare_env
+	env.speak()
+	record = env.strategy.wait_submitted()
+	assert env.strategy.submitted[0][1] == ("prepared", "hello")
+	env.host.enqueue(("ordinary",))
+	env.strategy.wait_submitted(2)
+	assert env.strategy.submitted[1][1] == ("prepared", "ordinary")
+	env.run_native(record)
+
+
+def test_cancel_does_not_wait_for_prepare(prepare_env):
+	env = prepare_env
+	env.strategy.prepare_release.clear()
+	_, _, events = env.speak()
+	assert env.strategy.prepare_entered.wait(1)
+	cancelled = Event()
+	Thread(target=lambda: (env.host.cancel(), cancelled.set()), daemon=True).start()
+	try:
+		assert cancelled.wait(1), "cancel() waited for prepare()"
+	finally:
+		env.strategy.prepare_release.set()
+	with events.condition:
+		assert not events.condition.wait_for(lambda: bool(events), 0.2)
+	assert env.strategy.submitted == []
+
+
+def test_segment_prepare_error_fails_only_that_segment(prepare_env):
+	env = prepare_env
+	env.strategy.prepare_error = ValueError("conversion failed")
+	_, _, failed = env.speak()
+	event = failed.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert isinstance(event.error, ValueError)
+	env.strategy.prepare_error = None
+	_, _, events = env.speak(segment=18)
+	env.run_native(env.strategy.wait_submitted())
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_ordinary_prepare_error_is_raised(prepare_env):
+	env = prepare_env
+	env.strategy.prepare_error = ValueError("conversion failed")
+	with pytest.raises(ValueError, match="conversion failed"):
+		env.host.enqueue(("ordinary",))
+	assert env.strategy.submitted == []
