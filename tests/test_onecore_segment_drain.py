@@ -584,6 +584,44 @@ def test_onecore_acceptance_is_atomic_with_terminate(env):
     assert events == []  # Accepted before terminate, then cancelled.
 
 
+def test_segment_accepted_before_terminate_stays_silent(env, monkeypatch):
+    # terminate() must silence work it already accepted before that work can
+    # observe the terminated flag (its conversion would then fail).
+    host = env.driver._segmentHost
+    original_submit = host.submit_native
+
+    def submit_after_terminate_flag(operation, commands):
+        with env.driver._segmentCondition:
+            assert env.driver._segmentCondition.wait_for(lambda: env.driver._segmentTerminated, 2)
+        return original_submit(operation, commands)
+
+    monkeypatch.setattr(host, "submit_native", submit_after_terminate_flag)
+    cancel_entered, release_cancel = Event(), Event()
+    original_cancel = env.driver.cancel
+
+    def blocked_cancel():
+        cancel_entered.set()
+        assert release_cancel.wait(2)
+        original_cancel()
+
+    env.driver.cancel = blocked_cancel
+    _, _, events = speak(env)
+    terminating = in_thread(env.driver.terminate)
+    try:
+        assert cancel_entered.wait(1)
+        waiting = Event()
+        for _ in range(40):
+            if events:
+                break
+            waiting.wait(0.005)
+        assert events == [], "terminate published a failure for work it had accepted"
+    finally:
+        release_cancel.set()
+        finish(terminating)
+    assert events == []
+    assert env.native.calls == []
+
+
 def test_onecore_terminate_overlap_preserves_rejected_failure_event(env):
     lifecycle = env.driver._segmentHost._lifecycle
     delivery_entered, release_delivery = Event(), Event()

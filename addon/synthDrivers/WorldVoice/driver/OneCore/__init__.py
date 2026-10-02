@@ -582,12 +582,18 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			raise
 
 	def terminate(self):
-		with self._segmentCondition:
-			if self._segmentTerminated:
-				return
-			self._segmentTerminated = True
-			self._earlyExitCB = True
-			self._segmentCondition.notify_all()
+		host = self._segmentHost
+		with host.admission():
+			with self._segmentCondition:
+				if self._segmentTerminated:
+					return
+			# Silence work already accepted before any of it can observe the
+			# terminated flag and fail; no segment is accepted in between.
+			host.cancel()
+			with self._segmentCondition:
+				self._segmentTerminated = True
+				self._earlyExitCB = True
+				self._segmentCondition.notify_all()
 		self._segmentCallback.detach()
 		if self._callbackInst is not None:
 			_TERMINATED_CALLBACKS.append(self._callbackInst)
