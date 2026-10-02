@@ -2,7 +2,7 @@
 
 日期：2026-10-02。
 基準：`master`（`5e74ab5`，含 3b-1）。分支：`phase3b2-rhvoice`。
-狀態：對話中的範圍與三段設計已獲使用者確認；本文件待使用者審閱。
+狀態：使用者已審閱並核可。2026-10-02 依原型結果修訂，修訂處列於文末「原型修訂」。
 
 本文件是 [`refactor.md`](../../../refactor.md) §9 階段 3 的子階段 3b-2。前一子階段見 [2026-10-02-phase3b1-sapi5-design.md](2026-10-02-phase3b1-sapi5-design.md)。
 
@@ -74,7 +74,8 @@
   - 等待的 sink 是呼叫當下正在執行的那些（快照），不等之後才開始的。
   - host 在 `_deliver` 呼叫 sink 前後登記與移除，並 `notify_all`。
 - **`fail_accepted_on_control_error`**：
-  - `lifecycle.fail` 在 host condition 之外呼叫。
+  - `lifecycle.fail` 在 host condition 之外呼叫；它讓進行中的段落立即停止，並讓已排空未送出的段落在送出時改為失敗。
+  - `_deliver` 的 DRAINED → FAILED 改報不可省略：`lifecycle.fail` 可能晚於 delivery thread 讀取結果。
   - 預設 False；eSpeak、SAPI5 不開啟，行為不變。
 - **鎖順序**：host admission → 引擎鎖 → host condition → lifecycle condition。host 模組說明補上引擎鎖。
 
@@ -117,7 +118,10 @@ lifecycle 的 `_deliver` 迴圈在每輪等待前清掉上一輪的區域變數�
   - `consumer(audio=True)`：`close()` 後允許、`retire()` 封閉後拒絕、不帶 `audio` 時照舊拒絕。
   - `retire(finish=...)`：在 consumer 歸零之後、`retired` 之前執行；`finish` 的例外讓該段 FAILED，下一段不受影響。
   - `wait_settled`：等目前紀錄退場；綁定該紀錄的 callback 不等；等正在執行的 sink；delivery thread 或綁定的 callback 不等 sink。
-  - `fail_accepted_on_control_error`：開啟時已排空未送出、排空中的段落都 FAILED；預設關閉時維持 DRAINED。
+  - `fail_accepted_on_control_error`：
+    - 已排空、尚未送出的段落：開啟時 FAILED，預設 DRAINED。
+    - 進行中的段落：開啟時立即 `stop_native`；預設不停止，播完後才因紀錄錯誤而 FAILED。
+    - `lifecycle.fail` 晚於 delivery thread 讀取結果時（以替身讓 `fail` 不生效模擬），開啟後 host 仍改報 FAILED。
 - **lifecycle**（`tests/test_segment_lifecycle.py`）：閒置的 delivery thread 不保留已退場 operation 的 sink（weakref + gc）。
 - **RHVoice**（`tests/test_rhvoice_segment_drain.py`）：一般語音成功時不停止 player；合成失敗時停止 player。
 - **RHVoice 既有測試**，讀取已移除內部實作的地方共 12 處：
@@ -138,3 +142,11 @@ lifecycle 的 `_deliver` 迴圈在每輪等待前清掉上一輪的區域變數�
 - `git diff master --stat -- addon/synthDrivers/WorldVoice/driver/{OneCore,VE,Cerence,Espeak,SAPI5}/__init__.py`：無輸出。
 - `grep -n "_segmentLifecycle\|SegmentLifecycle" addon/synthDrivers/WorldVoice/driver/RHVoice/__init__.py`：無輸出。
 - `ruff format --check addon`：通過；內層驅動無變動；Neural 未被追蹤。
+
+## 原型修訂（2026-10-02）
+
+原型與乾淨重播後，對原設計做了以下修訂；plan 依修訂後的內容撰寫：
+
+1. **DRAINED → FAILED 改報必須保留**。原型曾以為 `lifecycle.fail` 已涵蓋而移除它，結果 `test_stop_fault_before_deferred_terminal_delivery_fails_closed` 15 次中失敗 11 次：測試讓 `fail` 卡在 lifecycle 鎖上，晚於 delivery thread 讀取結果。已恢復，並新增 host 測試鎖定這個時間窗。
+2. **「控制錯誤讓等待中的段落立即失敗」不是可觀察行為**。`lifecycle.fail` 不會讓還在等資源的段落插隊；master 的 RHVoice 也一樣。改以「進行中的段落立即被停止」驗證開啟後的差異。
+3. 實測數字：Task 1 完成後 1341 passed；Task 2 完成後 1343 passed、96 skipped、2 xfailed（host 新增 15 個、lifecycle 1 個、RHVoice 2 個）。
