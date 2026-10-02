@@ -85,12 +85,12 @@ class NativeRecord:
 	error: Exception | None = None
 	consumers: int = 0
 
-	def reach(self, name: str) -> None: ...      # 標記屏障；未知名稱拋 KeyError
 	def barriers_met(self) -> bool: ...
+	def missing_barriers(self) -> tuple[str, ...]: ...
 	def is_valid(self) -> bool: ...              # not cancelled and not closed and (work is None or work.is_valid())
 ```
 
-紀錄的欄位只在 host 的鎖下修改；`reach`、`error` 的寫入一律透過 host 方法，讓鎖由 host 持有。
+紀錄的欄位只在 host 的鎖下修改；屏障與 `error` 的寫入一律透過 `host.reach()`、`host.record_error()`，讓鎖由 host 持有（原型確認：`NativeRecord` 本身不提供 `reach`）。
 
 ### 2. `NativeStrategy`
 
@@ -132,7 +132,13 @@ class SegmentHost:
 	def latch_control_error(self, error: Exception) -> None: ...
 	@property
 	def control_error(self) -> Exception | None: ...
-	def retire(self, record: NativeRecord) -> bool: ...          # 回傳退場時是否仍有效
+	def retire(self, record: NativeRecord) -> OrdinaryOutcome | None: ...   # segment 回傳 None；一般語音回傳 OrdinaryOutcome(cancelled, error)
+	def enqueue(self, commands, work=None, operation=None) -> None: ...      # 一般語音與 submit_native 共用的排入入口
+	@contextmanager
+	def admission(self): ...                                    # 讓 wrapper 的 cancel 與 NVDA 端 cancel 在同一個 admission 區段內
+	@contextmanager
+	def bound_callback(self, record: NativeRecord): ...         # LeasedPlayer 的 onDone 綁定
+	def forget(self, record: NativeRecord) -> None: ...          # 一般語音完成通知後移出待處理清單
 ```
 
 `SegmentHost` 自己實作 `SegmentEngineHooks`，並擁有一個 `SegmentLifecycle`：
@@ -152,7 +158,7 @@ class SegmentHost:
 - **`retire(record)`**：
   - 關閉紀錄，等 consumer 歸零，退掉 producer，判定是否仍有效。
   - segment：設定 `retired`，然後等 `handoff`，讓 FIFO worker 在 lifecycle 完成最後的 stop／drain 檢查前保有 player。
-  - 一般語音：直接回傳是否仍有效，由 wrapper 決定完成通知。
+  - 一般語音：回傳 `OrdinaryOutcome(cancelled, error)`。已失效時先 `stop_player()`；有錯誤（含缺屏障）且沒有控制錯誤時也 `stop_player()`。完成通知由 wrapper 決定。
 - **`latch_control_error`**：只保留第一個控制錯誤，並讓所有待處理紀錄的 `error` 設為它（與 eSpeak `_recordControlError` 相同）。
 - **`cancel`**：取消所有已接受的 operation（`lifecycle.cancel`），把所有待處理紀錄標記為 `cancelled`；一般語音紀錄另呼叫 `work.cancel()`。
 - **`terminate`**（第 2 項）：
@@ -181,9 +187,9 @@ class LeasedPlayer:
 
 ### 5. eSpeak 遷移
 
-- `SynthDriver.__init__` 建立 `self._segmentHost = SegmentHost("eSpeak", EspeakStrategy(self))`，並以 `LeasedPlayer(self._segmentHost, _espeak.player)` 取代 `_SegmentPlayer`。
+- `SynthDriver.__init__` 建立 `self._segmentHost = SegmentHost("eSpeak", _EspeakStrategy(self))`，並以 `LeasedPlayer(self._segmentHost, _espeak.player)` 取代 `_SegmentPlayer`。
 - `speak_segment`、`cancel`、`terminate` 委派給 host。eSpeak 只保留 NVDA 端的 `super().cancel()`／`super().terminate()`，呼叫順序與現況相同。
-- `EspeakStrategy`：
+- `_EspeakStrategy`：
   - `barriers = frozenset({"returned", "ended", "idle"})`。
   - `submit`：`_execWhenDone(begin)`、`super().speak(commands)`、`_execWhenDone(retire)`。begin 時 `host.begin(record)` 並綁定 index callback；retire 時 `host.retire(record)`。
   - `stop_native`、`stop_player`：`_espeak.isSpeaking = False` 後停止 player。
