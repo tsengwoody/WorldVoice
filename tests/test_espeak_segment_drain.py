@@ -12,6 +12,7 @@ from espeak_drain_harness import finish, load_espeak, speak, wait_event
 @pytest.fixture
 def env(monkeypatch, tmp_path):
     monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentHost", raising=False)
     result = load_espeak(monkeypatch, tmp_path)
     yield result
     finish(result)
@@ -86,7 +87,7 @@ def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
     env.native.next_scripts.append({"empty": True})
     _, context, events = speak(env, commands=("",))
     call = env.native.wait_calls(1)
-    assert isinstance(env.driver._segmentNative.operation, lifecycle.SegmentOperation)
+    assert isinstance(env.driver._segmentHost.current().operation, lifecycle.SegmentOperation)
     assert env.player.idle_entered.wait(1)
     old_index = call.index_callback
     old_index(42)
@@ -110,7 +111,7 @@ def test_espeak_token_cancel_after_feed_discards_pcm_before_successor(env):
     first = env.native.wait_calls(1)
     assert first.before_terminal.wait(1)
     assert env.player.queued_bytes == 8
-    assert isinstance(env.driver._segmentNative.operation, lifecycle.SegmentOperation)
+    assert isinstance(env.driver._segmentHost.current().operation, lifecycle.SegmentOperation)
     token.cancel()
     _, successor_context, successor_events = speak(env, segment=18)
     assert len(env.native.calls) == 1
@@ -171,19 +172,19 @@ def test_cancelling_queued_contextual_speech_preserves_active_ordinary_audio(env
     assert ordinary.before_terminal.wait(1)
     assert env.player.queued_bytes == 8
     queued, release_queue = Event(), Event()
-    original_queue = env.driver._queueSpeech
+    original_queue = env.driver._segmentHost.enqueue
     def queue_then_hold(commands, work, operation=None):
         result = original_queue(commands, work, operation)
         if operation is not None:
             queued.set()
             assert release_queue.wait(2), "Test did not release contextual submission"
         return result
-    monkeypatch.setattr(env.driver, "_queueSpeech", queue_then_hold)
+    monkeypatch.setattr(env.driver._segmentHost, "enqueue", queue_then_hold)
     token, _, cancelled_events = speak(env, segment=18)
     assert queued.wait(1)
     token.cancel()
     release_queue.set()
-    operation = next(iter(env.driver._segmentAccepted))
+    operation = next(iter(env.driver._segmentHost._accepted))
     with operation._lifecycle._condition:
         assert operation._lifecycle._condition.wait_for(lambda: operation._stop_done is not None, 1)
         stop_done = operation._stop_done
@@ -271,13 +272,13 @@ def test_terminal_sink_can_terminate_after_native_retirement(env):
 @pytest.mark.parametrize("terminate", [False, True])
 def test_cancel_or_terminate_before_deferred_delivery_keeps_event_silent(env, monkeypatch, terminate):
     entered, release, delivered = Event(), Event(), Event()
-    original = env.driver._deliverSpeech
-    def delayed(native, error):
+    original = env.driver._segmentHost._deliver
+    def delayed(*args):
         entered.set()
         assert release.wait(2)
-        original(native, error)
+        original(*args)
         delivered.set()
-    monkeypatch.setattr(env.driver, "_deliverSpeech", delayed)
+    monkeypatch.setattr(env.driver._segmentHost, "_deliver", delayed)
     _, _, events = speak(env)
     call = env.native.wait_calls(1)
     env.player.idle_release.set()
@@ -467,6 +468,6 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
     assert events[0].source_id is context.source_id
     assert events[0].segment_id == 19
     assert str(events[0].error) == "eSpeak driver has terminated"
-    assert threads == [env.driver._segmentLifecycle._delivery_thread.ident]
+    assert threads == [env.driver._segmentHost._lifecycle._delivery_thread.ident]
     assert threads[0] != caller
     assert env.native.calls == []

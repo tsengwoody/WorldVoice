@@ -295,8 +295,14 @@ def test_seven_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engi
         assert policies.FORCE_UNVERIFIED_DRAIN is True
         assert sys.modules["synthDrivers.WorldVoice.driver." + engine] is outer
         assert outer.Voice.synth_driver_class is type(core)
-        assert isinstance(core._segmentLifecycle, outer.SegmentLifecycle)
-        assert core._segmentLifecycle._hooks is core
+        host = getattr(core, "_segmentHost", None)
+        if host is not None:
+            # Migrated wrappers: the host owns the lifecycle and implements its hooks.
+            assert isinstance(host, outer.SegmentHost)
+            assert host._lifecycle._hooks is host
+        else:
+            assert isinstance(core._segmentLifecycle, outer.SegmentLifecycle)
+            assert core._segmentLifecycle._hooks is core
         support = policies.get_segment_drain_support(outer.Voice, core,
             nvda_version="2026.1", audio_mode=installed.mode)
         assert support.supported is True

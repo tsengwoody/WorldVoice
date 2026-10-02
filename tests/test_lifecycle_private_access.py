@@ -43,3 +43,14 @@ def test_wrappers_do_not_touch_lifecycle_private_state():
 		for number, line in enumerate(wrapper.read_text(encoding="utf-8").splitlines(), 1):
 			found.extend(f"{wrapper.parent.name}:{number}: {access}" for access in _private_accesses(line))
 	assert found == []
+
+
+# Wrappers moved onto SegmentHost; the host owns their lifecycle entirely.
+MIGRATED = ("Espeak",)
+
+
+def test_migrated_wrappers_only_use_the_segment_host():
+	for name in MIGRATED:
+		text = (DRIVERS / name / "__init__.py").read_text(encoding="utf-8")
+		assert "SegmentHost" in text, name
+		assert "_segmentLifecycle" not in text and "SegmentLifecycle" not in text, name

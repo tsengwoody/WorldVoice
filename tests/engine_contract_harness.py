@@ -25,6 +25,7 @@ def _fresh_lifecycle_module(monkeypatch):
 	# Each loader reloads runtime models; reload the coordinator too so its
 	# event enum belongs to that same runtime copy.
 	monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
+	monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentHost", raising=False)
 
 
 class _Adapter:
@@ -46,7 +47,9 @@ class _Adapter:
 		self.core.terminate()
 
 	def on_delivery_thread(self):
-		return self.core._segmentLifecycle.on_delivery_thread()
+		host = getattr(self.core, "_segmentHost", None)
+		lifecycle = host if host is not None else self.core._segmentLifecycle
+		return lifecycle.on_delivery_thread()
 
 
 class EspeakAdapter(_Adapter):
