@@ -279,6 +279,23 @@ def test_ordinary_speech_and_settings_keep_call_order(env):
     assert entries == [[], [("Rate", 1.1)]]
 
 
+def test_failed_setting_change_is_logged_and_later_speech_continues(env):
+    # As on master, a native setting that fails is logged; it does not latch a
+    # control error that would reject all later speech.
+    def failing_set(token, value):
+        raise OSError("set rate failed")
+
+    env.native.ocSpeech_setRate = env.native.ocSpeech_setRate.__class__(failing_set)
+    env.driver._set_rate(60)
+    _, _, events = speak(env)
+    env.native.wait_calls(1)
+    env.player.sync_release.set()
+    env.native.respond(markers="")
+    wait_events(events)
+    assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+    assert env.driver._segmentHost.control_error is None
+
+
 def test_cancel_removes_queued_text_but_keeps_settings_identity(env):
     speak(env)
     env.native.wait_calls(1)
