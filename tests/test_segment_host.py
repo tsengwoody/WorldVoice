@@ -557,6 +557,16 @@ def test_hook_fault_stops_the_player_and_releases_the_worker(env, monkeypatch):
 	assert env.strategy.player_stops >= 1
 
 
+def test_stop_skips_a_record_abandoned_before_native_work(env):
+	# The record retired without native work; stopping it would reach engine
+	# data that was never bound.
+	env.strategy.submit_error = RuntimeError("queue rejected")
+	_, _, events = env.speak()
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert env.host._lifecycle.wait_idle()
+	assert env.strategy.native_stops == []
+
+
 def test_enqueue_skips_submission_for_invalid_work(env):
 	token = env.scheduler.CancellationToken()
 	context = env.rt.models.PlaybackContext(object(), 30)

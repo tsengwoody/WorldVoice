@@ -1274,6 +1274,31 @@ def test_completed_ordinary_speech_does_not_stop_the_player(env):
     assert env.player.stops == 0
 
 
+def test_submit_failure_before_binding_leaves_the_lifecycle_usable(env, monkeypatch):
+    # The record is abandoned before submit binds its SAPI5 data; the
+    # lifecycle's stop must not turn that into a permanent fault.
+    real_speak = env.outer.BaseSynthDriver.speak
+    calls = []
+
+    def failing_speak(driver, commands):
+        calls.append(commands)
+        if len(calls) == 1:
+            raise OSError("xml conversion failed")
+        return real_speak(driver, commands)
+
+    monkeypatch.setattr(env.outer.BaseSynthDriver, "speak", failing_speak)
+    _, _, failed = speak(env)
+    assert wait_event(failed).kind is env.rt.models.EventKind.SEGMENT_FAILED
+    host = env.driver._segmentHost
+    assert host._lifecycle.wait_idle()
+    assert host._lifecycle.fault is None
+    _, _, successor = speak(env, segment=18)
+    env.player.idle_release.set()
+    env.native.wait_calls(1)
+    env.native.end(1)
+    assert wait_event(successor).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
 def test_hook_fault_after_binding_does_not_strand_the_worker(monkeypatch):
     """C2: a lifecycle hook that fails after the native request is bound."""
     env = load_sapi5(monkeypatch)

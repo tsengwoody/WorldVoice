@@ -46,6 +46,9 @@ class NativeRecord:
 	native: object | None = None
 	# False once close() stops new consumers; the work itself stays valid.
 	admitting: bool = True
+	# Set by abandon(): the record retired without native work, so a stop
+	# has nothing to reach and engine data may never have been bound.
+	abandoned: bool = False
 
 	def barriers_met(self) -> bool:
 		return all(self.barriers.values())
@@ -324,6 +327,7 @@ class SegmentHost:
 		with self._condition:
 			record.closed = True
 			record.admitting = False
+			record.abandoned = True
 			self._condition.wait_for(lambda: record.consumers == 0)
 			if record in self._pending:
 				self._pending.remove(record)
@@ -409,8 +413,9 @@ class SegmentHost:
 			record = self._records.get(operation)
 			if record is not None:
 				record.cancelled = True
-				# A retired record may still be draining until its handoff.
-				draining = record.retired.is_set() and not record.handoff.is_set()
+				# A retired record may still be draining until its handoff;
+				# an abandoned one never ran native work.
+				draining = not record.abandoned and record.retired.is_set() and not record.handoff.is_set()
 				active = record is self._current or draining
 			else:
 				active = False
