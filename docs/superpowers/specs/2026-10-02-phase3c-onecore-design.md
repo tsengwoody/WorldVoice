@@ -2,7 +2,7 @@
 
 日期：2026-10-02。
 基準：`master`（`499a8a2`，含 3b-2）。分支：`phase3c-onecore`。
-狀態：對話中的範圍與三段設計已獲使用者確認；本文件待使用者審閱。
+狀態：使用者已審閱並核可。2026-10-02 依原型結果修訂，修訂處列於文末「原型修訂」。
 
 本文件是 [`refactor.md`](../../../refactor.md) §9 階段 3 的子階段 3c。前一子階段見 [2026-10-02-phase3b2-rhvoice-design.md](2026-10-02-phase3b2-rhvoice-design.md)。
 
@@ -53,7 +53,7 @@
 | 擴充 | 介面 | OneCore 用途 |
 | --- | --- | --- |
 | 準備 hook | 選用 `NativeStrategy.prepare(host, commands, operation) -> commands`：`enqueue` 在取得 host admission 之前呼叫，回傳值交給 `submit` | SSML 轉換 |
-| 等待中失敗立即發布 | `SegmentLifecycle.run` 在等資源時，若 operation 已被 `fail`，立即 reject 並送出 FAILED | 控制錯誤時，排隊中的 segment 立即 FAILED |
+| 未取得資源者失敗立即發布 | `SegmentLifecycle.fail` 對尚未取得資源的 operation（尚未 `run`，或在 `run` 裡等資源）同步 reject 並送出 FAILED；之後它的 `run()` 直接返回 | 控制錯誤時，排隊中的 segment 立即 FAILED |
 
 細節：
 
@@ -75,7 +75,7 @@
 | `speak_segment` | 改為 `host.speak_segment`；轉換移到 `prepare`，排隊移到 `submit` |
 | `_OneCoreStrategy` | 見下 |
 | `_runSegmentQueue` | 保留，依佇列順序處理設定 tuple、一般語音、segment；每筆紀錄：`host.begin` → `player.open()` → `ocSpeech_speak` → 等 native callback 返回 → `host.retire`（segment 等 handoff，即 drain 完成）；終止時仍未收到 callback 的紀錄 `abandon` |
-| `_DetachableCallback` | 保留；callback 返回後先 `_retireSegmentNative`（`close` + `wait_consumers`），再釋放 worker |
+| `_DetachableCallback` | 保留；callback 返回後先 `_retireSegmentNative`（`close`：此後不再接受這筆紀錄的 native callback），再釋放 worker |
 | `_callback`（segment） | 以 `host.consumer(record)` + `bound_callback` 解析 WAV 並 feed；成功 `reach("callback")`；錯誤 `record_error` 並停止 player；index 通知依 `record.work.is_valid()` |
 | `_callback`（legacy） | 沿用 master 的 queue-empty sync／idle／DONE；成功 `reach("callback")` |
 | 一般語音 | `speak()` → 父類別轉換 → `_queueSpeech(text)` → `host.enqueue(text, barriers={"callback"})`；設定 tuple 由父類別直接放進 `_queuedSpeech`，不變 |
@@ -108,10 +108,13 @@
   - `prepare` 在 admission 之外執行：`prepare` 進行中 `host.cancel()` 可以完成。
   - `prepare` 的回傳值就是 `submit` 收到的內容。
   - segment 的 `prepare` 出錯：該段 FAILED，下一段不受影響；一般語音出錯則往外拋。
-- **lifecycle**（`tests/test_segment_lifecycle.py`）：在等資源時被 `fail` 的 operation，在資源釋放前就送出 FAILED，且從未呼叫 `submit_native`。
+- **lifecycle**（`tests/test_segment_lifecycle.py`）：
+  - 在等資源時被 `fail` 的 operation，在資源釋放前就送出 FAILED，只送一次，且從未呼叫 `submit_native`。
+  - 尚未 `run` 就被 `fail` 的 operation 立即送出 FAILED；之後的 `run()` 不送出、不再發布。
 - **OneCore**（`tests/test_onecore_segment_drain.py`），把做法 A 寫成測試：
   - segment 排在播放中段落之後時改 rate，設定在排隊 segment 送出前套用；
   - 一般語音 `speak()` 與設定依呼叫順序執行。
+  - 排在一般語音後面的 segment：cancel 會釋放它（後續 segment 照常排空），控制錯誤會讓它 FAILED。
 - **OneCore 既有測試**，讀取已移除內部實作的地方共 20 處：
   - fixture 一併清除 `segmentHost` 模組快取。
   - `_segmentLifecycle` → `_segmentHost._lifecycle`（15 處，其中 `isinstance(..., SegmentLifecycle)` 改為檢查 `SegmentHost`）。
@@ -127,3 +130,13 @@
 - `git diff master --stat -- addon/synthDrivers/WorldVoice/driver/{VE,Cerence,Espeak,SAPI5,RHVoice}/__init__.py`：無輸出。
 - `grep -n "_segmentLifecycle\|SegmentLifecycle\|CallbackGate" addon/synthDrivers/WorldVoice/driver/OneCore/__init__.py`：無輸出。
 - `ruff format --check addon`：通過；內層驅動無變動；Neural 未被追蹤。
+
+## 原型修訂（2026-10-02）
+
+原型與乾淨重播後，對原設計做了以下修訂；plan 依修訂後的內容撰寫：
+
+1. **lifecycle 改為在 `fail()` 同步發布**，而不是讓等資源的 `run()` 醒來後自己發布。原型第一版的做法讓 `test_control_error_fails_queued_contexts_and_allows_reentrant_cancel` 約 1/30 失敗：等待中的 thread 還沒醒來，前一段的 sink 已經 cancel 並把它靜默。同步發布後連跑 100 次通過。範圍也擴大到「尚未 `run`」的 operation（第一版只處理等待中的）。
+2. **`_retireSegmentNative` 只做 `close`**：原本的 `wait_consumers` 是多餘的（callback 自己的 consumer 已在它之前離開，`retire` 也會等），變異證明它不影響任何行為。
+3. **新增「排在一般語音後面的 segment」測試**：在做法 A 下，這是 segment 紀錄唯一會停在 `_queuedSpeech` 的情況；cancel 與控制錯誤若沒有 abandon 它，它的 lifecycle 會永遠等待。原本沒有測試涵蓋。
+4. 原型期間 OneCore 測試檔約 230 次中出現一次無法重現的失敗，未記錄到是哪個測試；plan 的 Review Focus 第 5 項請最終審查特別檢查。
+5. 實測數字：Task 1 完成後 1349 passed；Task 2 完成後 1353 passed、96 skipped、2 xfailed（host 新增 4 個、lifecycle 2 個、OneCore 4 個）。
