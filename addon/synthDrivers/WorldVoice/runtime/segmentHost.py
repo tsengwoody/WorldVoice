@@ -8,8 +8,9 @@ retires work in the engine's FIFO order. An engine provides a NativeStrategy
 (how to queue, stop and drain its native work) and marks its own completion
 barriers on each record.
 
-Lock order: host admission -> host condition -> lifecycle condition. The host
-never calls the strategy, a sink or a player while holding its own condition.
+Lock order: host admission -> engine lock -> host condition -> lifecycle
+condition. The host never calls the strategy, a sink or a player while holding
+its own condition.
 """
 
 from collections.abc import Callable, Iterator
@@ -19,7 +20,7 @@ import logging
 from threading import Condition, Event, RLock, Thread, local
 from typing import Protocol
 
-from .models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
+from .models import EventKind, PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork
 from .segmentLifecycle import ProducerLease, SegmentLifecycle, SegmentOperation
 from .session import CancellationView
@@ -93,9 +94,14 @@ class NativeStrategy(Protocol):
 
 
 class SegmentHost:
-	def __init__(self, engine: str, strategy: NativeStrategy):
+	def __init__(
+		self, engine: str, strategy: NativeStrategy, *, fail_accepted_on_control_error: bool = False
+	):
 		self.engine = engine
 		self._strategy = strategy
+		# Opt-in: a control error also fails every accepted operation, including
+		# ones that already drained but are not yet published.
+		self._fail_accepted = fail_accepted_on_control_error
 		self._admission = RLock()
 		self._condition = Condition(RLock())
 		self._callback_local = local()
@@ -106,6 +112,8 @@ class SegmentHost:
 		self._records: dict[SegmentOperation, NativeRecord] = {}
 		# Accepted operations -> whether the host cancelled them (keeps them silent).
 		self._accepted: dict[SegmentOperation, bool] = {}
+		# Operations whose sink is running on the delivery thread.
+		self._delivering: set[SegmentOperation] = set()
 		self._lifecycle = SegmentLifecycle(self)
 
 	# Entry points ---------------------------------------------------------
@@ -287,8 +295,17 @@ class SegmentHost:
 			self._callback_local.record = previous
 
 	@contextmanager
-	def consumer(self, record: NativeRecord | None = None) -> Iterator[NativeRecord | None]:
-		"""Admit a callback or player call for the current record (None if not admitted)."""
+	def consumer(
+		self,
+		record: NativeRecord | None = None,
+		*,
+		audio: bool = False,
+	) -> Iterator[NativeRecord | None]:
+		"""Admit a callback or player call for the current record (None if not admitted).
+
+		``audio=True`` admits a delayed player callback (e.g. an index onDone)
+		after close() until retire() seals the record.
+		"""
 		with self._condition:
 			record = record or self._current
 			if (
@@ -296,7 +313,7 @@ class SegmentHost:
 				or record is not self._current
 				or not record.is_valid()
 				# After close(), only a callback already bound to this record may nest.
-				or (not record.admitting and self.callback_record() is not record)
+				or (not record.admitting and not audio and self.callback_record() is not record)
 			):
 				admitted = None
 			else:
@@ -359,23 +376,61 @@ class SegmentHost:
 			for record in self._pending:
 				if record.error is None:
 					record.error = self._control_error
+			latched = self._control_error
+			accepted = tuple(self._accepted) if self._fail_accepted else ()
+		for operation in accepted:
+			self._lifecycle_of(operation).fail(operation, latched)
+
+	def wait_settled(self, record: NativeRecord | None) -> None:
+		"""After cancel: wait until ``record`` leaves the worker and running sinks return.
+
+		A callback bound to ``record`` does not wait for that record; a bound
+		callback or the delivery thread does not wait for sinks, which may in
+		turn be waiting for it.
+		"""
+		bound = self.callback_record()
+		in_delivery = self.on_delivery_thread()
+		with self._condition:
+			if record is not None and bound is not record:
+				self._condition.wait_for(lambda: self._current is not record)
+			if bound is None and not in_delivery:
+				running = set(self._delivering)
+				self._condition.wait_for(lambda: not (running & self._delivering))
 
 	def forget(self, record: NativeRecord) -> None:
 		with self._condition:
 			if record in self._pending:
 				self._pending.remove(record)
 
-	def retire(self, record: NativeRecord) -> OrdinaryOutcome | None:
-		"""Retire ``record`` in FIFO order; return the outcome for ordinary speech."""
+	def retire(
+		self,
+		record: NativeRecord,
+		*,
+		finish: Callable[[], None] | None = None,
+	) -> OrdinaryOutcome | None:
+		"""Retire ``record`` in FIFO order; return the outcome for ordinary speech.
+
+		Retirement seals the record: no consumer is admitted afterwards. ``finish``
+		runs on the calling (worker) thread once every consumer has left, before
+		the record stops being current; an exception it raises is recorded on
+		the record.
+		"""
 		with self._condition:
 			valid = record.is_valid()
 			record.closed = True
 			self._condition.wait_for(lambda: record.consumers == 0)
+		if finish is not None:
+			try:
+				finish()
+			except Exception as error:
+				self.record_error(record, error)
+		with self._condition:
 			valid = valid and not record.cancelled and (record.work is None or record.work.is_valid())
 			if not valid and record in self._pending:
 				self._pending.remove(record)
 			if self._current is record:
 				self._current = None
+			self._condition.notify_all()
 		if record.operation is not None:
 			producer, record.producer = record.producer, None
 			if producer is not None:
@@ -506,11 +561,26 @@ class SegmentHost:
 		try:
 			with self._condition:
 				silenced = self._accepted.get(operation, False)
+				control_error = self._control_error
+				self._delivering.add(operation)
 			if not operation.work.token.is_cancelled() and not silenced and not self._terminated:
+				if (
+					self._fail_accepted
+					and control_error is not None
+					and event.kind is EventKind.SEGMENT_DRAINED
+				):
+					event = PlaybackEvent(
+						EventKind.SEGMENT_FAILED,
+						event.source_id,
+						segment_id=event.segment_id,
+						error=control_error,
+					)
 				sink(event)
 		finally:
 			# Work stays cancellable until publication starts on the delivery thread.
 			with self._condition:
+				self._delivering.discard(operation)
+				self._condition.notify_all()
 				self._accepted.pop(operation, None)
 				for record in self._pending:
 					if record.operation is operation:

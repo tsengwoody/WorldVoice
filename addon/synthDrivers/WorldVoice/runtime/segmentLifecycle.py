@@ -430,6 +430,9 @@ class SegmentLifecycle:
 
 	def _deliver(self) -> None:
 		while True:
+			# Drop the previous iteration's operation before waiting, so an idle
+			# delivery thread never keeps a retired operation's sink alive.
+			retired = operation = event = None
 			with self._condition:
 				self._condition.wait_for(
 					lambda: self._delivery_queue or self._retirement_queue or self._terminated,

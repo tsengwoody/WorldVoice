@@ -74,13 +74,14 @@ def _load(monkeypatch, rt, name):
 
 
 @pytest.fixture
-def env(monkeypatch):
+def env(monkeypatch, request):
+	options = getattr(request, "param", {})
 	rt = load_runtime(monkeypatch)
 	scheduler = load_scheduler(monkeypatch, rt)
 	_load(monkeypatch, rt, "segmentLifecycle")
 	module = _load(monkeypatch, rt, "segmentHost")
 	strategy = FakeStrategy()
-	host = module.SegmentHost("Fake", strategy)
+	host = module.SegmentHost("Fake", strategy, **options)
 	threads = []
 
 	def speak(segment=17, sink=None, token=None):
@@ -632,3 +633,244 @@ def test_engine_admission_error_rejects_before_acceptance(env):
 	assert event.segment_id == 33
 	assert env.strategy.submitted == []
 	assert env.host._accepted == {}
+
+
+def wait_until(predicate, timeout=1):
+	deadline = Event()
+	for _ in range(int(timeout / 0.005)):
+		if predicate():
+			return True
+		deadline.wait(0.005)
+	return predicate()
+
+
+def test_audio_consumer_is_admitted_after_close(env):
+	env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	env.host.close(record)
+	with env.host.consumer(record) as plain:
+		assert plain is None
+	with env.host.consumer(record, audio=True) as audio:
+		assert audio is record
+	env.run_native(record)
+
+
+def test_retire_seals_the_record_against_audio_consumers(env):
+	_, _, events = env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	env.host.close(record)
+	held, release = Event(), Event()
+
+	def hold():
+		with env.host.consumer(record, audio=True) as admitted:
+			assert admitted is record
+			held.set()
+			assert release.wait(2)
+
+	Thread(target=hold, daemon=True).start()
+	assert held.wait(1)
+	for barrier in ("returned", "idle"):
+		env.host.reach(record, barrier)
+	Thread(target=env.host.retire, args=(record,), daemon=True).start()
+	assert wait_until(lambda: record.closed)
+	with env.host.consumer(record, audio=True) as late:
+		assert late is None
+	assert env.host.current() is record
+	release.set()
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_retire_runs_finish_after_consumers_and_before_retirement(env):
+	_, _, events = env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	order = []
+	held, release = Event(), Event()
+
+	def hold():
+		with env.host.consumer(record) as admitted:
+			assert admitted is record
+			held.set()
+			assert release.wait(2)
+			order.append("consumer")
+
+	def finish():
+		order.append(("finish", record.consumers, record.retired.is_set(), env.host.current() is record))
+
+	Thread(target=hold, daemon=True).start()
+	assert held.wait(1)
+	for barrier in ("returned", "idle"):
+		env.host.reach(record, barrier)
+	Thread(target=lambda: env.host.retire(record, finish=finish), daemon=True).start()
+	release.set()
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+	assert order == ["consumer", ("finish", 0, False, True)]
+
+
+def test_finish_error_fails_only_that_segment(env):
+	_, _, failed = env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	for barrier in ("returned", "idle"):
+		env.host.reach(record, barrier)
+
+	def finish():
+		raise OSError("delete failed")
+
+	Thread(target=lambda: env.host.retire(record, finish=finish), daemon=True).start()
+	event = failed.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert isinstance(event.error, OSError)
+	_, _, events = env.speak(segment=18)
+	env.run_native(env.strategy.wait_submitted(2))
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_wait_settled_waits_for_the_record_to_leave_the_worker(env):
+	env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	settled = Event()
+	Thread(target=lambda: (env.host.wait_settled(record), settled.set()), daemon=True).start()
+	assert not settled.wait(0.1)
+	env.run_native(record)
+	assert settled.wait(1)
+
+
+def test_wait_settled_from_the_records_own_callback_does_not_wait(env):
+	env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	settled = Event()
+
+	def settle():
+		with env.host.bound_callback(record):
+			env.host.wait_settled(record)
+		settled.set()
+
+	Thread(target=settle, daemon=True).start()
+	assert settled.wait(1)
+	env.run_native(record)
+
+
+def test_wait_settled_waits_for_a_running_sink(env):
+	entered, release = Event(), Event()
+
+	def sink(event):
+		entered.set()
+		assert release.wait(2)
+
+	env.speak(sink=sink)
+	env.run_native(env.strategy.wait_submitted())
+	assert entered.wait(2)
+	settled = Event()
+	Thread(target=lambda: (env.host.wait_settled(None), settled.set()), daemon=True).start()
+	assert not settled.wait(0.1)
+	release.set()
+	assert settled.wait(1)
+
+
+def test_wait_settled_from_a_sink_does_not_wait_for_sinks(env):
+	settled = Event()
+
+	def sink(event):
+		env.host.wait_settled(None)
+		settled.set()
+
+	env.speak(sink=sink)
+	env.run_native(env.strategy.wait_submitted())
+	assert settled.wait(1)
+
+
+def test_wait_settled_from_a_callback_does_not_wait_for_sinks(env):
+	entered, release = Event(), Event()
+
+	def sink(event):
+		entered.set()
+		assert release.wait(2)
+
+	env.speak(sink=sink)
+	first = env.strategy.wait_submitted()
+	env.run_native(first)
+	assert entered.wait(2)
+	settled = Event()
+
+	def settle():
+		with env.host.bound_callback(first):
+			env.host.wait_settled(None)
+		settled.set()
+
+	Thread(target=settle, daemon=True).start()
+	try:
+		assert settled.wait(1)
+	finally:
+		release.set()
+
+
+@pytest.mark.parametrize(
+	("env", "kind"),
+	[({}, "SEGMENT_DRAINED"), ({"fail_accepted_on_control_error": True}, "SEGMENT_FAILED")],
+	indirect=["env"],
+)
+def test_control_error_and_an_unpublished_drain(env, kind):
+	entered, release = Event(), Event()
+
+	def blocking(event):
+		entered.set()
+		assert release.wait(2)
+
+	env.speak(segment=17, sink=blocking)
+	env.run_native(env.strategy.wait_submitted())
+	assert entered.wait(2)
+	_, _, events = env.speak(segment=18)
+	env.run_native(env.strategy.wait_submitted(2))
+	assert env.host._lifecycle.wait_idle()
+	env.host.latch_control_error(OSError("stop failed"))
+	release.set()
+	assert events.wait_one().kind is getattr(env.rt.models.EventKind, kind)
+
+
+@pytest.mark.parametrize("env", [{"fail_accepted_on_control_error": True}], indirect=True)
+def test_opted_in_control_error_relabels_a_drain_the_lifecycle_already_committed(env, monkeypatch):
+	# lifecycle.fail() can land after the delivery thread read the result; the
+	# host itself must not publish success once the control error is latched.
+	monkeypatch.setattr(env.host._lifecycle, "fail", lambda operation, error: None)
+	entered, release = Event(), Event()
+
+	def blocking(event):
+		entered.set()
+		assert release.wait(2)
+
+	env.speak(segment=17, sink=blocking)
+	env.run_native(env.strategy.wait_submitted())
+	assert entered.wait(2)
+	_, _, events = env.speak(segment=18)
+	env.run_native(env.strategy.wait_submitted(2))
+	assert env.host._lifecycle.wait_idle()
+	env.host.latch_control_error(OSError("stop failed"))
+	release.set()
+	event = events.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert str(event.error) == "stop failed"
+
+
+@pytest.mark.parametrize(
+	("env", "stopped"),
+	[({}, False), ({"fail_accepted_on_control_error": True}, True)],
+	indirect=["env"],
+)
+def test_control_error_and_the_active_segment(env, stopped):
+	# Opted in, a control error stops the active segment at once; by default it
+	# finishes and then fails through its record.
+	_, _, events = env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	env.host.latch_control_error(OSError("stop failed"))
+	if stopped:
+		assert wait_until(lambda: record in env.strategy.native_stops)
+	else:
+		assert not wait_until(lambda: bool(env.strategy.native_stops), 0.2)
+	env.run_native(record)
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED

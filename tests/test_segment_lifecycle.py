@@ -1,9 +1,11 @@
 """Resource ownership and producer retirement for the shared lifecycle."""
 
+import gc
 import importlib.util
 import logging
 import sys
 from threading import Condition, Event, Thread, current_thread
+import weakref
 
 import pytest
 
@@ -637,6 +639,29 @@ def test_retirement_callback_runs_when_cancel_suppresses_delivery(env):
     assert operation not in lifecycle._operations
     assert events == []
     assert hooks.submitted == []
+
+
+def test_idle_delivery_thread_releases_a_retired_operation(env):
+    lifecycle, hooks, events, accept = env
+    retired = Event()
+
+    class Sink:
+        def __call__(self, event):
+            events.append(event)
+
+    sink = Sink()
+    reference = weakref.ref(sink)
+    operation, _ = accept(18, sink, on_retired=lambda owner: retired.set())
+    operation.work.token.cancel()
+    lifecycle.reject_pending(operation, RuntimeError("never submitted"))
+    assert retired.wait(1)
+    del operation, sink
+    for _ in range(100):
+        gc.collect()
+        if reference() is None:
+            break
+        Event().wait(0.01)
+    assert reference() is None, "the idle delivery thread still holds the retired operation"
 
 
 def test_reject_new_delivers_after_lifecycle_termination(env):
