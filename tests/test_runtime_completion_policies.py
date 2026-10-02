@@ -230,7 +230,7 @@ def test_sapi5_legacy_first_segment_remains_legacy_done(monkeypatch):
         assert contract.mode is installed.rt.models.CompletionMode.LEGACY_DONE
         assert contract.index_range is None
         assert installed.native.calls == []
-        assert installed.driver._segmentNative is None
+        assert installed.driver._segmentHost.current() is None
     finally:
         installed.driver.terminate()
 

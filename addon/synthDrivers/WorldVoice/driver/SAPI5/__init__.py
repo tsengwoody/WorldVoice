@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from threading import Event, RLock, Thread, local
+from threading import RLock, Thread
 import weakref
 
 from synthDrivers import sapi5
@@ -8,39 +8,100 @@ from synthDriverHandler import synthIndexReached
 from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import DrainSupport, PlaybackWork, unverified_drain_support
+from ...runtime.playbackWork import DrainSupport, unverified_drain_support
+from ...runtime.segmentHost import SegmentHost
 from ...runtime.session import CancellationView
-from ...runtime.segmentLifecycle import SegmentLifecycle, SegmentOperation
+
+
+# Ordinary requests keep the parent's queue-empty idle, so they prove no idle.
+_ORDINARY_BARRIERS = frozenset({"ended", "processed"})
 
 
 @dataclass(eq=False)
-class _NativeRequest:
-	request: object
-	work: PlaybackWork | None
-	operation: SegmentOperation | None = None
-	binding: object | None = None
+class _SapiRequest:
+	"""SAPI5 data carried on a NativeRecord: the request and its resources."""
+
+	request: object | None = None
 	stream: int | None = None
-	ended: bool = False
-	end_processed: bool = False
-	error: Exception | None = None
-	feeds: int = 0
-	audio_closed: bool = False
-	cancelled: bool = False
 	index_lock: object = field(default_factory=RLock)
-
-	def is_valid(self):
-		return not self.cancelled and (self.work is None or self.work.is_valid())
-
-
-@dataclass(eq=False)
-class _OperationBinding:
-	boundary: Event = field(default_factory=Event)
-	retired: Event = field(default_factory=Event)
-	playback_done: Event = field(default_factory=Event)
-	handoff: Event = field(default_factory=Event)
-	native: _NativeRequest | None = None
-	player: object | None = None
+	# Snapshots taken when the worker starts the request; a reload replaces
+	# the driver's resources but this request keeps controlling its own.
 	tts: object | None = None
+	player: object | None = None
+	sonic: object | None = None
+
+
+def _purge_flags():
+	return sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak
+
+
+class _Sapi5Strategy:
+	"""SAPI5's native queue: the parent's request deque and the outer worker."""
+
+	barriers = frozenset({"ended", "processed", "idle"})
+
+	def __init__(self, driver):
+		self._driver = weakref.ref(driver)
+
+	def admission_error(self, host):
+		driver = self._driver()
+		with driver._threadCond:
+			try:
+				driver._checkWorker()
+			except Exception as error:
+				return error
+			if not driver.useWasapi or driver.player is None:
+				return RuntimeError("Correlated SAPI5 playback requires the WASAPI player")
+		return None
+
+	def submit(self, host, record, commands):
+		driver = self._driver()
+		with driver._threadCond:
+			driver._checkWorker()
+			# NVDA owns XML conversion; bind while its reentrant queue lock is held.
+			BaseSynthDriver.speak(driver, commands)
+			request = driver._speakRequests[-1]
+			if record.native is None:
+				# Segments arrive through the lifecycle's submit_native hook.
+				record.native = _SapiRequest()
+			record.native.request = request
+			driver._segmentRecords[id(request)] = record
+
+	def stop_native(self, host, record):
+		driver = self._driver()
+		with driver._threadCond:
+			if host.current() is record:
+				driver._isCancelling = True
+				driver._threadCond.notify_all()
+		player = record.native.player
+		if player is not None:
+			try:
+				player.stop()
+			except Exception as error:
+				driver._failSegmentControl(error)
+
+	def stop_player(self, host):
+		driver = self._driver()
+		if driver is not None and driver.player is not None:
+			driver.player.stop()
+
+	def drain(self, host, record):
+		native = record.native
+		player = native.player
+		if player is None:
+			host.record_error(record, RuntimeError("SAPI5 segment has no WASAPI player to drain"))
+			return
+		try:
+			player.idle()
+		except Exception as error:
+			host.record_error(record, error)
+			try:
+				player.stop()
+				native.tts.Speak(None, _purge_flags())
+			except Exception as control_error:
+				self._driver()._failSegmentControl(control_error)
+			return
+		host.reach(record, "idle")
 
 
 class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
@@ -55,40 +116,21 @@ class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
 		with driver._threadCond:
 			if self is not driver._segmentAudio:
 				return sapi5.hresult.S_OK
-			native = driver._segmentNative
-			if native is None:
+		host = driver._segmentHost
+		record = host.current()
+		if record is None:
+			return sapi5.hresult.S_OK
+		# Ordinary PCM callbacks also retain this request's resources. Voice
+		# reload/termination must join the worker only after they have retired.
+		with host.consumer(record) as admitted:
+			if admitted is None:
 				return sapi5.hresult.S_OK
-			if native.audio_closed or not native.is_valid():
-				return sapi5.hresult.S_OK
-			lease = (
-				driver._segmentLifecycle.admit_producer(native.operation)
-				if native.operation is not None
-				else None
-			)
-			if native.operation is not None and lease is None:
-				return sapi5.hresult.S_OK
-			# Ordinary PCM callbacks also retain this request's resources. Voice
-			# reload/termination must join the worker only after they have retired.
-			native.feeds += 1
-		previous = getattr(driver._segmentCallbackLocal, "native", None)
-		previous_lease = getattr(driver._segmentCallbackLocal, "lease", None)
-		driver._segmentCallbackLocal.native = native
-		driver._segmentCallbackLocal.lease = lease
-		try:
-			return super().ISequentialStream_RemoteWrite(this, pv, cb, pcbWritten)
-		except Exception as error:
-			if native is not None:
-				driver._recordSegmentError(native, error)
-			raise
-		finally:
-			driver._segmentCallbackLocal.native = previous
-			driver._segmentCallbackLocal.lease = previous_lease
-			if lease is not None:
-				driver._segmentLifecycle.retire_producer(lease)
-			if native is not None:
-				with driver._threadCond:
-					native.feeds -= 1
-					driver._threadCond.notify_all()
+			with host.bound_callback(record):
+				try:
+					return super().ISequentialStream_RemoteWrite(this, pv, cb, pcbWritten)
+				except Exception as error:
+					driver._recordSegmentError(record, error)
+					raise
 
 
 class _SegmentPlayer:
@@ -104,76 +146,59 @@ class _SegmentPlayer:
 	def feed(self, data, size=None, onDone=None):
 		driver = self._driver()
 		if driver is None:
-			return
+			return None
 		with driver._threadCond:
-			native = driver._segmentNative
 			if self is not driver.player:
-				return
-			if native is not None:
-				admitted_pcm = getattr(driver._segmentCallbackLocal, "native", None) is native
-				if not native.is_valid() or (native.audio_closed and not admitted_pcm):
-					return
-				parent = getattr(driver._segmentCallbackLocal, "lease", None) if admitted_pcm else None
-				lease = (
-					driver._segmentLifecycle.admit_producer(native.operation, parent=parent)
-					if native.operation is not None
-					else None
-				)
-				if native.operation is not None and lease is None:
-					return
-				native.feeds += 1
-			else:
-				native = None
-				lease = None
-		callback = onDone
-		if native is not None and onDone is not None:
+				return None
+		host = driver._segmentHost
+		record = host.current()
+		if record is None:
+			return self._player.feed(data, size, onDone)
+		# A feed nested in an admitted PCM callback may pass after EndStream
+		# closed admission; any other late feed is dropped.
+		with host.consumer(record) as admitted:
+			if admitted is None:
+				return None
+			callback = onDone
+			if onDone is not None:
 
-			def callback():
-				if native.is_valid():
-					onDone()
+				def callback():
+					if record.is_valid():
+						onDone()
 
-		try:
-			return self._player.feed(data, size, callback)
-		except Exception as error:
-			if native is not None:
-				driver._recordSegmentError(native, error)
-			raise
-		finally:
-			if native is not None:
-				try:
-					if not native.is_valid():
-						self._player.stop()
-				finally:
-					if lease is not None:
-						driver._segmentLifecycle.retire_producer(lease)
-					with driver._threadCond:
-						native.feeds -= 1
-						driver._threadCond.notify_all()
+			try:
+				return self._player.feed(data, size, callback)
+			except Exception as error:
+				driver._recordSegmentError(record, error)
+				raise
+			finally:
+				if not record.is_valid():
+					self._player.stop()
 
 	def idle(self):
 		driver = self._driver()
 		if driver is None:
 			return self._player.idle()
 		with driver._threadCond:
-			native = driver._segmentNative if self is driver.player else None
+			record = driver._segmentHost.current() if self is driver.player else None
 		try:
 			# WavePlayer.idle may wait for playback or for stop(). Never hold
 			# the request lock while it runs: cancel needs that lock to stop it.
 			result = self._player.idle()
 			with driver._threadCond:
-				current = self is driver.player and driver._segmentNative is native
+				current = self is driver.player and driver._segmentHost.current() is record
 			if (
 				current
-				and native is not None
-				and native.work is not None
-				and native.work.is_valid()
-				and not native.end_processed
+				and record is not None
+				and record.work is not None
+				and record.work.is_valid()
+				and not record.barriers.get("processed")
 			):
 				raise RuntimeError("SAPI5 player idle preceded the segment end notification")
 			return result
 		except Exception as error:
-			if native is not None and native.work is not None:
-				driver._recordSegmentError(native, error)
+			if record is not None and record.work is not None:
+				driver._recordSegmentError(record, error)
 				# An early external idle is a segment failure; its caller need not
 				# reenter the runtime sink from the COM/player callback stack.
 				return None
@@ -214,9 +239,10 @@ class _SegmentSapiSink(sapi5.SapiSink):
 		with driver._threadCond:
 			if self is not driver._segmentSink:
 				return driver, None
-			native = driver._segmentNative
-			if native is None:
+			record = driver._segmentHost.current()
+			if record is None:
 				return driver, None
+			native = record.native
 			if native.stream is None:
 				# SAPI may invoke StartStream before Speak returns its stream id.
 				# A late notification from a previous request may also arrive in
@@ -227,49 +253,50 @@ class _SegmentSapiSink(sapi5.SapiSink):
 				driver._segmentSeenStreams.add(stream)
 			if native.stream != stream:
 				return driver, None
-			return driver, native
+			return driver, record
 
 	def StartStream(self, streamNum, pos):
-		driver, native = self._native(streamNum)
-		if native is not None and native.is_valid():
+		driver, record = self._native(streamNum)
+		if record is not None and record.is_valid():
 			return super().StartStream(streamNum, pos)
 		if driver is not None and self is driver._segmentSink and not driver.player:
 			return super().StartStream(streamNum, pos)
 
 	def Bookmark(self, streamNum, pos, bookmark, bookmarkId):
-		driver, native = self._native(streamNum)
-		if native is None:
+		driver, record = self._native(streamNum)
+		if record is None:
 			# Legacy audio has no worker/native record.
 			if driver is not None and self is driver._segmentSink and not driver.player:
 				return super().Bookmark(streamNum, pos, bookmark, bookmarkId)
 			return
-		if not native.is_valid():
+		if not record.is_valid():
 			return
 		return super().Bookmark(streamNum, pos, bookmark, bookmarkId)
 
 	def onIndexReached(self, streamNum, index):
-		driver, native = self._native(streamNum)
-		if native is None:
+		driver, record = self._native(streamNum)
+		if record is None:
 			if driver is not None and self is driver._segmentSink and not driver.player:
 				return super().onIndexReached(streamNum, index)
 			return
-		if not native.is_valid():
+		if not record.is_valid():
 			return
-		if native.work is None:
+		if record.work is None:
 			return super().onIndexReached(streamNum, index)
+		native = record.native
 		with native.index_lock:
 			bookmarks = native.request.bookmarks
-			if not native.work.is_valid() or index not in bookmarks:
+			if not record.work.is_valid() or index not in bookmarks:
 				return
 			while bookmarks:
 				if bookmarks.popleft() == index:
 					break
-			if native.work.is_valid():
+			if record.work.is_valid():
 				synthIndexReached.notify(synth=driver, index=index)
 
 	def EndStream(self, streamNum, pos):
-		driver, native = self._native(streamNum)
-		if native is None:
+		driver, record = self._native(streamNum)
+		if record is None:
 			if driver is not None and self is driver._segmentSink and not driver.player:
 				return super().EndStream(streamNum, pos)
 			return
@@ -277,38 +304,28 @@ class _SegmentSapiSink(sapi5.SapiSink):
 			# Lookup may have admitted this callback before reload replaced the
 			# sink/native request. Revalidate and transition worker state together;
 			# the inherited method would resolve mutable driver state again.
-			if self is not driver._segmentSink or driver._segmentNative is not native:
+			if self is not driver._segmentSink or driver._segmentHost.current() is not record:
 				return
 			# A cancelled token still consumes its native terminal notification
 			# so the worker can retire this identity without publishing success.
-			native.ended = True
+			driver._segmentHost.reach(record, "ended")
 			if driver._isCancelling:
 				driver._bookmarkLists.clear()
-				if native.binding is not None:
-					native.binding.boundary.set()
 				return
 			driver._isCompleted = True
 			driver._threadCond.notify()
-			if native.binding is not None:
-				native.binding.boundary.set()
 
 
 class SynthDriver(BaseSynthDriver):
 	"""Correlate each WASAPI request with its final real idle barrier."""
 
 	def __init__(self, *args, **kwargs):
-		self._segmentRequests = {}
+		self._segmentHost = SegmentHost("SAPI5", _Sapi5Strategy(self))
+		self._segmentRecords = {}
 		self._segmentSeenStreams = set()
-		self._segmentWorks = set()
-		self._segmentBindings = {}
-		self._segmentLifecycle = SegmentLifecycle(self)
-		self._segmentNative = None
 		self._segmentSink = None
 		self._segmentAudio = None
-		self._segmentCallbackLocal = local()
-		self._segmentTerminated = False
 		self._segmentStops = 0
-		self._segmentControlError = None
 		super().__init__(*args, **kwargs)
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
@@ -331,127 +348,43 @@ class SynthDriver(BaseSynthDriver):
 		context: PlaybackContext,
 		on_event: SegmentEventSink,
 	) -> None:
-		with self._threadCond:
-			try:
-				self._checkSpeechAdmission()
-				if not self.useWasapi or self.player is None:
-					raise RuntimeError("Correlated SAPI5 playback requires the WASAPI player")
-			except Exception as error:
-				self._segmentLifecycle.reject_new(context, token, on_event, error)
-				return
+		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
-			def deliver(event):
-				try:
-					on_event(event)
-				finally:
-					with self._threadCond:
-						self._segmentWorks.discard(operation)
-
-			operation = self._segmentLifecycle.accept(context, token, deliver)
-			self._segmentWorks.add(operation)
-			self._segmentBindings[operation] = _OperationBinding()
-		Thread(
-			target=self._runSegmentOperation,
-			args=(operation, tuple(commands)),
-			name="WorldVoice SAPI5 lifecycle",
-			daemon=True,
-		).start()
-
-	def _runSegmentOperation(self, operation, commands):
-		try:
-			self._segmentLifecycle.run(operation, commands)
-		except Exception as error:
-			log.error("SAPI5 segment lifecycle failed", exc_info=True)
-			self._segmentLifecycle.fail(operation, error)
-		finally:
-			with self._threadCond:
-				if not operation.work.is_valid():
-					self._segmentWorks.discard(operation)
-				binding = self._segmentBindings.pop(operation, None)
-				if binding is not None:
-					binding.handoff.set()
-
-	def submit_native(self, operation, commands):
-		with self._threadCond:
-			self._checkSpeechAdmission()
-			# NVDA owns XML conversion; bind while its reentrant queue lock is held.
-			super().speak(commands)
-			request = self._speakRequests[-1]
-			self._segmentRequests[id(request)] = operation
-
-	def request_stop(self, operation):
-		binding = self._segmentBindings.get(operation)
-		if binding is None:
-			return
-		with self._threadCond:
-			native = binding.native
-			if native is not None and self._segmentNative is native:
-				native.cancelled = True
-				self._isCancelling = True
-				self._threadCond.notify_all()
-		player = binding.player
-		if player is not None:
-			try:
-				player.stop()
-			except Exception as error:
-				self._failSegmentControl(error)
-
-	def wait_native_boundary(self, operation):
-		self._segmentBindings[operation].boundary.wait()
-
-	def wait_native_retired(self, operation):
-		self._segmentBindings[operation].retired.wait()
-
-	def wait_playback_drained(self, operation):
-		binding = self._segmentBindings[operation]
-		try:
-			if binding.native is not None and binding.native.error is not None:
-				self._segmentLifecycle.fail(operation, binding.native.error)
-				return
-			if binding.player is not None:
-				try:
-					binding.player.idle()
-				except Exception as error:
-					if binding.native is not None:
-						binding.native.error = error
-					try:
-						binding.player.stop()
-						binding.tts.Speak(
-							None,
-							sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak,
-						)
-					except Exception as control_error:
-						self._failSegmentControl(control_error)
-					self._segmentLifecycle.fail(operation, error)
-		finally:
-			binding.playback_done.set()
-
-	def _checkSpeechAdmission(self):
-		if self._segmentTerminated:
-			raise RuntimeError("SAPI5 driver has terminated")
-		if self._segmentControlError is not None:
-			raise self._segmentControlError
+	def _checkWorker(self):
 		if self.useWasapi and (self._thread is None or not self._thread.is_alive()):
 			raise RuntimeError("SAPI5 playback worker is unavailable")
+
+	def _checkSpeechAdmission(self):
+		host = self._segmentHost
+		if host.terminated:
+			raise RuntimeError("SAPI5 driver has terminated")
+		if host.control_error is not None:
+			raise host.control_error
+		self._checkWorker()
 
 	def speak(self, speechSequence):
 		with self._threadCond:
 			self._checkSpeechAdmission()
-			return super().speak(speechSequence)
+			if not self.useWasapi:
+				# Legacy audio speaks synchronously in the parent; no worker record.
+				return super().speak(speechSequence)
+		self._segmentHost.enqueue(speechSequence, barriers=_ORDINARY_BARRIERS, native=_SapiRequest())
+
+	def _dropQueuedRecords(self):
+		# Called under _threadCond: the parent's request deque is being cleared,
+		# so these records never reach the worker.
+		dropped = list(self._segmentRecords.values())
+		self._segmentRecords.clear()
+		self._speakRequests.clear()
+		return dropped
 
 	def _invalidateSegments(self):
-		with self._threadCond:
-			if self._segmentNative is not None:
-				self._segmentNative.cancelled = True
-			for operation in tuple(self._segmentWorks):
-				self._segmentLifecycle.cancel(operation)
-				binding = self._segmentBindings.get(operation)
-				if binding is not None and binding.native is None:
-					binding.boundary.set()
-					binding.retired.set()
-					binding.playback_done.set()
-			self._segmentRequests.clear()
-			self._speakRequests.clear()
+		with self._segmentHost.admission():
+			with self._threadCond:
+				self._segmentHost.cancel()
+				dropped = self._dropQueuedRecords()
+			for record in dropped:
+				self._segmentHost.abandon(record)
 
 	def _initTts(self, voice=None):
 		self._invalidateSegments()
@@ -461,7 +394,8 @@ class SynthDriver(BaseSynthDriver):
 		self._segmentAudio = None
 		super()._initTts(voice)
 		self._segmentSeenStreams.clear()
-		self._segmentControlError = None
+		if not self.useWasapi:
+			self._segmentHost.reset()
 		if self.player is not None:
 			self.player = _SegmentPlayer(self, self.player)
 		self._segmentSink = _SegmentSapiSink(weakref.ref(self), self.tts.QueryInterface(sapi5.ISpEventSource))
@@ -469,8 +403,9 @@ class SynthDriver(BaseSynthDriver):
 
 	def _initWasapiAudio(self):
 		# The parent has already joined and replaced the old resources here.
-		# Clear their control fault before the replacement worker starts.
-		self._segmentControlError = None
+		# Clear their control fault (and any lifecycle fault) before the
+		# replacement worker starts.
+		self._segmentHost.reset()
 		# The inner initializer constructs its own fixed AudioStream class.
 		# Keep its format/settings/player path, substituting only our owned
 		# COM callback object so pre-feed Sonic failures cannot escape capture.
@@ -488,48 +423,48 @@ class SynthDriver(BaseSynthDriver):
 		self._thread = Thread(target=self._speakThread, name="Sapi5SpeakThread")
 		self._thread.start()
 
-	def _recordSegmentError(self, native, error):
+	def _recordSegmentError(self, record, error):
+		self._segmentHost.record_error(record, error)
 		with self._threadCond:
-			if self._segmentNative is native and native.error is None:
-				native.error = error
+			if self._segmentHost.current() is record:
 				self._isCompleted = True
 				self._threadCond.notify_all()
 
 	def _onEndStream(self):
-		native = self._segmentNative
-		if native is None or native.work is None:
+		host = self._segmentHost
+		record = host.current()
+		if record is None:
 			return super()._onEndStream()
-		if not native.ended:
+		if record.work is None:
+			result = super()._onEndStream()
+			host.reach(record, "processed")
+			return result
+		if not record.barriers["ended"]:
 			raise RuntimeError("SAPI5 request completed without its stream end marker")
 		# Preserve ordinary source notifications, including untriggered tail
 		# bookmarks, without publishing the parent's pre-idle anonymous DONE.
+		native = record.native
 		with native.index_lock:
 			while native.request.bookmarks:
 				bookmark = native.request.bookmarks.popleft()
-				if native.work.is_valid():
+				if record.work.is_valid():
 					synthIndexReached.notify(synth=self, index=bookmark)
 		if self._bookmarkLists:
 			self._bookmarkLists.popleft()
 		self._isSpeaking = False
-		native.end_processed = True
+		host.reach(record, "processed")
 
 	def _failSegmentControl(self, error):
+		host = self._segmentHost
 		with self._threadCond:
-			if self._segmentControlError is not None:
+			if host.control_error is not None:
 				return
-			self._segmentControlError = error
-			current = self._segmentNative.operation if self._segmentNative is not None else None
-			operations = tuple(operation for operation in self._segmentWorks if operation is not current)
-			self._speakRequests.clear()
-			self._segmentRequests.clear()
+			host.latch_control_error(error)
+			dropped = self._dropQueuedRecords()
 			self._threadCond.notify_all()
-		for operation in operations:
-			self._segmentLifecycle.fail(operation, error)
-			binding = self._segmentBindings.get(operation)
-			if binding is not None and binding.native is None:
-				binding.boundary.set()
-				binding.retired.set()
-				binding.playback_done.set()
+		# Queued work never reaches the worker; it fails with the latched error.
+		for record in dropped:
+			host.abandon(record)
 
 	def _speakThread(self):
 		# NVDA publishes DONE before idle, only idles when its whole queue is
@@ -537,40 +472,36 @@ class SynthDriver(BaseSynthDriver):
 		# one segment's barrier or propagate worker faults, so the outer worker
 		# retains native request identity and drains each correlated request.
 		# Ordinary requests keep the parent's queue-empty idle/DONE behavior.
+		host = self._segmentHost
 		while True:
 			with self._threadCond:
 				self._threadCond.wait_for(
 					lambda: (
 						self._isStoppingThread
-						or self._segmentControlError is not None
+						or host.control_error is not None
 						or (self._segmentStops == 0 and self._requestsAvailable())
 					),
 				)
-				if self._isStoppingThread or self._segmentControlError is not None:
+				if self._isStoppingThread or host.control_error is not None:
 					return
 				if self._isCancelling:
-					native = None
+					record = None
 				else:
 					request = self._speakRequests.popleft()
-					operation = self._segmentRequests.pop(id(request), None)
-					work = operation.work if operation is not None else None
+					record = self._segmentRecords.pop(id(request), None)
+					if record is None:
+						# Not queued through the host (e.g. after a reload race).
+						record = host.new_record(barriers=_ORDINARY_BARRIERS, native=_SapiRequest(request))
+					work = record.work
 					if work is not None and not work.is_valid():
-						binding = self._segmentBindings.get(operation)
-						if binding is not None:
-							binding.boundary.set()
-							binding.retired.set()
-							binding.playback_done.set()
+						host.abandon(record)
 						continue
-					binding = self._segmentBindings.get(operation) if operation is not None else None
-					native = _NativeRequest(request, work, operation, binding)
-					self._segmentNative = native
+					native = record.native
+					host.begin(record)
 					self._isCompleted = False
 					tts, player, sonic = self.tts, self.player, self.sonicStream
-					if binding is not None:
-						binding.native = native
-						binding.player = player
-						binding.tts = tts
-			if native is None:
+					native.tts, native.player, native.sonic = tts, player, sonic
+			if record is None:
 				try:
 					self._purgeCancelledSpeech(self.tts, self.sonicStream)
 				except Exception as error:
@@ -589,15 +520,14 @@ class SynthDriver(BaseSynthDriver):
 					native.stream = stream
 					self._segmentSeenStreams.add(stream)
 					self._threadCond.wait_for(self._requestCompleted)
-				if work is not None or native.cancelled:
-					with self._threadCond:
-						# EndStream closes new audio admission. Retire every feed
-						# already admitted before flushing/final idle and checking errors.
-						native.audio_closed = True
-						self._threadCond.wait_for(lambda: native.feeds == 0)
-				if native.error is not None:
-					raise native.error
-				if not self._isCancelling and not self._isStoppingThread and native.is_valid():
+				if work is not None or record.cancelled:
+					# EndStream closes new audio admission. Retire every feed
+					# already admitted before flushing/final idle and checking errors.
+					host.close(record)
+					host.wait_consumers(record)
+				if record.error is not None:
+					raise record.error
+				if not self._isCancelling and not self._isStoppingThread and record.is_valid():
 					sonic.flush()
 					audio = sonic.readShort()
 					if work is not None:
@@ -608,8 +538,8 @@ class SynthDriver(BaseSynthDriver):
 					self._onEndStream()
 					if work is None and not self._requestsAvailable():
 						player.idle()
-					if native.error is not None:
-						raise native.error
+					if record.error is not None:
+						raise record.error
 				if self._isCancelling:
 					self._purgeCancelledSpeech(tts, sonic)
 			except Exception as failure:
@@ -618,21 +548,16 @@ class SynthDriver(BaseSynthDriver):
 				if self._bookmarkLists:
 					self._bookmarkLists.clear()
 				try:
-					with self._threadCond:
-						# No new PCM may enter this failed request while its native
-						# callbacks retire and the SAPI stream is purged.
-						native.audio_closed = True
+					# No new PCM may enter this failed request while its native
+					# callbacks retire and the SAPI stream is purged.
+					host.close(record)
 					try:
 						player.stop()
 					finally:
-						with self._threadCond:
-							self._threadCond.wait_for(lambda: native.feeds == 0)
+						host.wait_consumers(record)
 						# Both ordinary and correlated failures leave native speech
 						# uncertain. Purge before another request can take this player.
-						tts.Speak(
-							None,
-							sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak,
-						)
+						tts.Speak(None, _purge_flags())
 					if work is None:
 						# One shared COM stream cannot attribute a post-purge callback
 						# to a new request. Require resource replacement after an
@@ -642,10 +567,9 @@ class SynthDriver(BaseSynthDriver):
 					self._failSegmentControl(control_error)
 			finally:
 				# A feed admitted before cancellation may return after stop. Its
-				# final stop and lease must retire before a successor uses the player.
-				with self._threadCond:
-					self._threadCond.wait_for(lambda: native.feeds == 0)
-				if not native.is_valid() or error is not None:
+				# final stop must retire before a successor uses the player.
+				host.wait_consumers(record)
+				if not record.is_valid() or error is not None:
 					try:
 						try:
 							player.stop()
@@ -654,27 +578,24 @@ class SynthDriver(BaseSynthDriver):
 							# path. Retire this exact bookmark deque and discard Sonic
 							# only after all its admitted PCM callbacks have returned.
 							with native.index_lock:
-								native.request.bookmarks.clear()
+								request.bookmarks.clear()
 								for index, bookmarks in enumerate(self._bookmarkLists):
-									if bookmarks is native.request.bookmarks:
+									if bookmarks is request.bookmarks:
 										del self._bookmarkLists[index]
 										break
 							sonic.flush()
 							sonic.readShort()
 					except Exception as control_error:
 						self._failSegmentControl(control_error)
-				with self._threadCond:
-					self._segmentNative = None
-				if binding is not None:
-					if error is not None:
-						native.error = error
-					binding.boundary.set()
-					binding.retired.set()
-					binding.playback_done.wait()
-					binding.handoff.wait()
+				if error is not None:
+					host.record_error(record, error)
+				# Segments wait here for the lifecycle's handoff; their drain runs
+				# on the lifecycle thread. Ordinary records retire immediately.
+				if host.retire(record) is not None:
+					host.forget(record)
 
 	def _purgeCancelledSpeech(self, tts, sonic):
-		tts.Speak(None, sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak)
+		tts.Speak(None, _purge_flags())
 		self._bookmarkLists.clear()
 		if sonic:
 			sonic.flush()
@@ -683,8 +604,9 @@ class SynthDriver(BaseSynthDriver):
 			self._isCancelling = False
 
 	def cancel(self):
-		with self._threadCond:
-			self._segmentStops += 1
+		with self._segmentHost.admission():
+			with self._threadCond:
+				self._segmentStops += 1
 			self._invalidateSegments()
 		try:
 			return super().cancel()
@@ -694,9 +616,8 @@ class SynthDriver(BaseSynthDriver):
 				self._threadCond.notify_all()
 
 	def terminate(self):
-		self._segmentTerminated = True
 		self._invalidateSegments()
-		self._segmentLifecycle.terminate()
+		self._segmentHost.terminate()
 		if self._segmentSink is not None:
 			self._segmentSink.detach()
 		self._segmentSink = None

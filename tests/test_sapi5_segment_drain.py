@@ -206,6 +206,8 @@ def load_sapi5(monkeypatch, *, rt=None, scheduler=None, voice_base=object, comma
     rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
     load("synthDrivers.WorldVoice.runtime.segmentLifecycle",
         ROOT / "addon/synthDrivers/WorldVoice/runtime/segmentLifecycle.py")
+    load("synthDrivers.WorldVoice.runtime.segmentHost",
+        ROOT / "addon/synthDrivers/WorldVoice/runtime/segmentHost.py")
     scheduler = scheduler or load_scheduler(monkeypatch, rt)
     package("speech", ROOT)
     @dataclass
@@ -300,7 +302,7 @@ def wait_event(events):
 def test_sapi5_wasapi_shared_lifecycle_waits_for_endstream_pcm_and_idle(env):
     _, context, events = speak(env)
     env.native.wait_calls(1)
-    native = env.driver._segmentNative
+    native = env.driver._segmentHost.current()
     lifecycle = importlib.import_module(env.rt.package.__name__ + ".segmentLifecycle")
     assert isinstance(native.operation, lifecycle.SegmentOperation)
     env.player.feed_release.clear()
@@ -587,11 +589,11 @@ def test_token_cancel_context_queued_behind_ordinary_speech_retires(env, monkeyp
     env.driver.speak(("ordinary",))
     env.native.wait_calls(1)
     admitted = Event()
-    submit = env.driver.submit_native
+    submit = env.driver._segmentHost.submit_native
     def observed_submit(operation, commands):
         submit(operation, commands)
         admitted.set()
-    monkeypatch.setattr(env.driver, "submit_native", observed_submit)
+    monkeypatch.setattr(env.driver._segmentHost, "submit_native", observed_submit)
     token, _, old_events = speak(env)
     assert admitted.wait(1)
     token.cancel()
@@ -731,13 +733,13 @@ def test_failed_segment_purges_native_before_successor_admission(env):
 
 
 def test_accepted_successor_receives_failure_after_playback_fault(env, monkeypatch):
-    real_barrier = env.driver.wait_playback_drained
+    real_barrier = env.driver._segmentHost.wait_playback_drained
 
     def failed_barrier(operation):
         real_barrier(operation)
         raise RuntimeError("SAPI5 playback barrier failed")
 
-    monkeypatch.setattr(env.driver, "wait_playback_drained", failed_barrier)
+    monkeypatch.setattr(env.driver._segmentHost, "wait_playback_drained", failed_barrier)
     _, first, old_events = speak(env)
     env.native.wait_calls(1)
     _, successor, next_events = speak(env, segment=18)
@@ -749,7 +751,7 @@ def test_accepted_successor_receives_failure_after_playback_fault(env, monkeypat
         env.rt.models.EventKind.SEGMENT_FAILED, successor.source_id, 18)
     assert len(env.native.calls) == 1
     assert all(operation.work.context is not successor
-        for operation in env.driver._segmentLifecycle._operations)
+        for operation in env.driver._segmentHost._lifecycle._operations)
 
 
 def test_idle_failure_purges_before_queued_successor(env):
@@ -1250,3 +1252,63 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env, monkeypatch):
     assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
     assert (event.source_id, event.segment_id) == (context.source_id, context.segment_id)
     assert env.indexes == [7, 11]
+
+
+def test_completed_ordinary_speech_does_not_stop_the_player(env):
+    # Ordinary requests prove only their end marker and processing; the parent
+    # owns their queue-empty idle. Requiring more would stop every utterance.
+    env.player.idle_release.set()
+    env.driver.speak(("first", env.commands.IndexCommand(7)))
+    env.native.wait_calls(1)
+    env.native.end()
+    assert env.player.idle_entered.wait(1)
+    env.driver.speak(("second", env.commands.IndexCommand(9)))
+    env.native.wait_calls(2)
+    env.native.end(2)
+    for _ in range(400):
+        if len(env.dones) == 2:
+            break
+        Event().wait(0.005)
+    assert env.dones == [env.driver, env.driver]
+    assert env.indexes == [7, 9]
+    assert env.player.stops == 0
+
+
+def test_hook_fault_after_binding_does_not_strand_the_worker(monkeypatch):
+    """C2: a lifecycle hook that fails after the native request is bound."""
+    env = load_sapi5(monkeypatch)
+    hooks = getattr(env.driver, "_segmentHost", env.driver)
+    real_retired = hooks.wait_native_retired
+    stranded = []
+
+    def failing_retired(operation):
+        real_retired(operation)
+        binding = getattr(env.driver, "_segmentBindings", {}).get(operation)
+        if binding is not None:
+            stranded.append(binding)
+        raise RuntimeError("hook failed after binding")
+
+    monkeypatch.setattr(hooks, "wait_native_retired", failing_retired)
+    try:
+        _, _, events = speak(env)
+        env.native.wait_calls(1)
+        env.player.idle_release.set()
+        env.native.end()
+        assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_FAILED
+        ordinary = Thread(target=lambda: env.driver.speak(("ordinary",)), daemon=True)
+        ordinary.start()
+        with env.native.condition:
+            reached = env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 1)
+        assert reached, "ordinary speech never reached native after the hook fault"
+        env.native.end(2)
+        terminated = Thread(target=env.driver.terminate, daemon=True)
+        terminated.start()
+        terminated.join(2)
+        assert not terminated.is_alive(), "terminate() hung on the stranded worker"
+    finally:
+        for binding in stranded:
+            binding.playback_done.set()
+        for player in env.players:
+            player.feed_release.set()
+            player.idle_release.set()
+        env.driver.terminate()
