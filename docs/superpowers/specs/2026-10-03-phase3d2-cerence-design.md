@@ -26,7 +26,7 @@
 2. **Cerence 改用 `SegmentHost`**：外層不再出現 `SegmentLifecycle`／`_segmentLifecycle`／`CallbackGate`；守門測試的 `MIGRATED` 加入 `"Cerence"`。
 3. **內層差異受控**：Cerence 內層與 `ref/CerenceTTS(min)` 的差異只有上述保留項，加上 `setDaemon(True)` 改為等效的 `self.daemon = True`。bookmark 迴圈原本多縮排一層（只是空白差異），改回與原版一致。`ttsapi/` 不動。
 4. **其他引擎不變**（硬性要求）：OneCore、eSpeak、SAPI5、RHVoice 的 wrapper 與內層，以及 VE 的內層，原始碼完全不改；VE 外層只改上述兩項小問題。
-5. **完整測試**：基線 1362 passed、101 skipped、1 xfailed；完成後 xfailed 為 0。
+5. **完整測試**：基線 1362 passed、101 skipped、1 xfailed；完成後 1375 passed、89 skipped，xfailed 為 0。
 6. **格式與保護路徑**：`ruff format --check addon` 通過；Neural 未被追蹤。
 
 **不在範圍內**：把 `SegmentLifecycle` 收為內部實作（3e）。
@@ -75,6 +75,11 @@ Cerence 特有、照舊保留的部分：
   - `test_failed_ordinary_speech_still_publishes_done`
   - `test_engine_settings_variant_waits_for_running_speech`
   - `test_speak_segment_returns_while_a_previous_sink_runs`
+- **另外 4 個原本只跑 VE 的 `test_ve_shared_*` 測試**也改成引擎中性的名稱，讓 Cerence 的關閉與錯誤路徑有同樣的保護：
+  - `test_terminal_listener_can_speak_successor`
+  - `test_player_failure_rejects_successor_with_context`
+  - `test_terminate_waits_for_coordinator_stop`
+  - `test_player_hook_can_reenter_terminate`
 - **Cerence 專用測試**：`test_cerence_shared_*` 的 `isinstance(..., SegmentLifecycle)` 改為檢查 `SegmentHost`。
 - **其餘依 `hosted(env)` 分流的測試**：Cerence 改用 host 後自動走新語意的分支，不需另改。
 - **契約**：`tests/test_engine_segment_contract.py` 契約 4 不再有 xfail；刪除不再使用的 `_c3`。
@@ -83,7 +88,7 @@ Cerence 特有、照舊保留的部分：
 
 ## 驗收
 
-- `python3 -m pytest tests -q`：全部通過；skipped 94；沒有 xfailed。
+- `python3 -m pytest tests -q`：`1375 passed, 89 skipped`；沒有 xfailed。
 - `git diff master --stat -- addon/synthDrivers/WorldVoice/driver/{OneCore,Espeak,SAPI5,RHVoice}` 與 `driver/VE/driver`：無輸出。
 - `grep -n "_segmentLifecycle\|SegmentLifecycle\|CallbackGate" addon/synthDrivers/WorldVoice/driver/Cerence/__init__.py`：無輸出。
 - Cerence 內層與 `ref/CerenceTTS(min)` 的差異只有保留項與 `daemon` 一行；`ttsapi/` 無變動。
