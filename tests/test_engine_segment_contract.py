@@ -148,7 +148,7 @@ def test_cancelled_token_never_reaches_native_or_sink(engine):
 	assert list(events) == []
 
 
-@pytest.mark.parametrize("engine", _engines(VE=_c3("VE"), Cerence=_c3("Cerence")), indirect=True)
+@pytest.mark.parametrize("engine", _engines(Cerence=_c3("Cerence")), indirect=True)
 def test_speak_segment_returns_before_delivery(engine):
 	context = engine.PlaybackContext(object(), 23)
 	events = Events(engine)

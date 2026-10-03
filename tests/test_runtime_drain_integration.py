@@ -75,7 +75,11 @@ def test_switch_waits_for_original_correlated_drain(composition, first, successo
     following = c.controls[successor]
     barrier = original.tail()
     context = original.contexts[0]
-    assert original.core._segmentLifecycle._hooks is original.core
+    host = getattr(original.core, "_segmentHost", None)
+    if host is not None:
+        assert host._lifecycle._hooks is host
+    else:
+        assert original.core._segmentLifecycle._hooks is original.core
     assert c.output.drains == []
     assert following.started.wait(0.03) is False
     assert following.calls == []
