@@ -2,7 +2,7 @@
 
 日期：2026-10-03。
 基準：`master`（`82a793e`，含 3c）。分支：`phase3d1-ve`。
-狀態：對話中的範圍與設計已獲使用者確認；本文件待使用者審閱。
+狀態：使用者已審閱並核可。2026-10-03 依原型結果修訂，修訂處列於文末「原型修訂」。
 
 本文件是 [`refactor.md`](../../../refactor.md) §9 階段 3 的子階段 3d-1。前一子階段見 [2026-10-02-phase3c-onecore-design.md](2026-10-02-phase3c-onecore-design.md)。
 
@@ -102,7 +102,7 @@ BgThread：
 - **`speak()`**：已終止時拋出例外；呼叫當下標記 legacy 使用；以 `host.enqueue(speech, barriers=frozenset(), native=_VERequest(speech, token))` 排隊後返回。
 - **`cancel()`**（外層覆寫，不呼叫原版會 `join` 的 cancel）：
   - 在 host admission 下：`host.cancel()`；在佇列鎖與狀態鎖下設定 silence、清除暫停狀態、整理佇列。
-  - 整理佇列的規則：丟掉 `Begin`、`NativeTask`；保留設定、已開始那筆的 `Retire`、一般語音的 `DoneSpeaking`；丟掉 segment 的 `DoneSpeaking`。
+  - 整理佇列的規則：丟掉 `Begin`；保留設定、已開始那筆的 `Retire`、一般語音的 `DoneSpeaking`；丟掉 segment 的 `DoneSpeaking`。`NativeTask` 留在佇列中也不會執行（紀錄已非目前紀錄或已取消）。
   - 尚未開始的紀錄逐一 `abandon`；停止 player。
   - 不等 BgThread 做完：cancel 可能在 BgThread、callback、listener 或 lifecycle thread 上被呼叫，原版的 `join` 在這些情況會死結。
 - **`terminate()`**：
@@ -137,6 +137,8 @@ BgThread：
 - **新增**：
   - VE `speak()` 在合成完成前返回。
   - 設定與語音依呼叫順序生效。
+  - 上一段 handoff 後、BgThread 仍在收尾時排入的下一段，cancel 會讓它退場且不發 DONE。
+  - cancel 丟棄的一般語音不會殘留在 host 的待處理清單。
   - `SegmentHost.wait_idle()` 的 host 單元測試。
 - **變異證明**：在 commit 之後執行，每項新行為至少一次。
 
@@ -147,3 +149,15 @@ BgThread：
 - `grep -n "_segmentLifecycle\|SegmentLifecycle\|CallbackGate" addon/synthDrivers/WorldVoice/driver/VE/__init__.py`：無輸出。
 - VE 內層與 `ref/VE2-min` 的差異只有保留項與 `daemon` 一行；`ve2/` 無變動。
 - `ruff format --check addon`：通過；其他引擎的內層不變；Neural 未被追蹤。
+
+## 原型修訂（2026-10-03）
+
+原型與乾淨重播後，對原設計做了以下修訂；plan 依修訂後的內容撰寫：
+
+1. **`_record_valid` 不看「已封閉」**：`retire()` 會封閉紀錄，若以 `record.is_valid()` 判斷，drain 永遠不會到達 `idle`。改為只看取消、錯誤、work 與 token；callback 准入本身已拒絕封閉的紀錄。
+2. **一般語音紀錄不設 barrier**：原設計用 `{"spoken"}`，但被 token 取消的一般語音會因缺屏障被 host 判為失敗而多停止一次 player；真正的錯誤本來就記錄在紀錄上。
+3. **legacy 使用在 `speak()` 當下標記**：非同步後若等 BgThread 開始才標記，緊接著的 segment 可能先被接受。
+4. **cancel／pause 內重入的 terminate**：在該操作結束時同步完成關閉（與現行相同），關閉者 thread 只用於其他重入情況。
+5. **cancel 不再特別丟掉 `NativeTask`**：變異證明它與保留等價（`_run_native` 會略過非目前紀錄），刪除該分支。
+6. **`applyEngineSettings` 的 variant 維持立即套用**：改排入佇列會破壞以假 core 測試的介面；scheduler 只在前一段排空後套用，因此安全。
+7. 實測數字：Task 1 完成後 1356 passed；Task 2 完成後 1360 passed、99 skipped、1 xfailed（VE 新增 3 個測試，host 1 個；VE 專用測試在 Cerence 參數下 skip）。
