@@ -141,6 +141,10 @@ class SegmentHost:
 	def on_delivery_thread(self) -> bool:
 		return self._lifecycle.on_delivery_thread()
 
+	def wait_idle(self) -> None:
+		"""Wait until no segment owns the native resource (e.g. before closing it)."""
+		self._lifecycle.wait_idle()
+
 	def speak_segment(
 		self,
 		commands: SpeechCommands,

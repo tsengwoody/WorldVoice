@@ -948,3 +948,13 @@ def test_ordinary_prepare_error_is_raised(prepare_env):
 	with pytest.raises(ValueError, match="conversion failed"):
 		env.host.enqueue(("ordinary",))
 	assert env.strategy.submitted == []
+
+
+def test_wait_idle_returns_once_the_last_segment_retires(env):
+	env.speak()
+	record = env.strategy.wait_submitted()
+	waited = Event()
+	Thread(target=lambda: (env.host.wait_idle(), waited.set()), daemon=True).start()
+	assert not waited.wait(0.1)
+	env.run_native(record)
+	assert waited.wait(1)
