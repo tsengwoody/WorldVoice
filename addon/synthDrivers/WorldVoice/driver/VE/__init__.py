@@ -290,7 +290,7 @@ class _ContextualVECallback(base.VECallback):
 
 
 class _VEStrategy:
-	"""VE's native queue: the outer FIFO worker in place of the add-on's BgThread."""
+	"""VE's native queue: the inner BgThread, each record's tasks queued around speak()."""
 
 	barriers = frozenset({"spoken", "idle"})
 
@@ -345,8 +345,6 @@ class SynthDriver(BaseSynthDriver):
 		self._guard_installed = False
 		self._speechStateLock = threading.Condition()
 		self._segmentHost = SegmentHost("VE", _VEStrategy(self), fail_accepted_on_control_error=True)
-		# Serializes a record's Begin/NativeTask/Retire tasks against cancel().
-		self._queueLock = threading.RLock()
 		self._submitting = None
 		self._currentRecord = None
 		self._doneOwner = None
@@ -485,14 +483,14 @@ class SynthDriver(BaseSynthDriver):
 	def _enqueue(self, record, commands):
 		# The inner speak() converts on this thread and queues its native
 		# chunks and DoneSpeaking; bracket them with this record's tasks.
-		with self._queueLock:
-			self._bgQueue.put(_Begin(self, record))
-			self._submitting = record
-			try:
-				BaseSynthDriver.speak(self, commands)
-			finally:
-				self._submitting = None
-				self._bgQueue.put(_Retire(self, record))
+		# Host admission (held by enqueue and by cancel) keeps the bracket whole.
+		self._bgQueue.put(_Begin(self, record))
+		self._submitting = record
+		try:
+			BaseSynthDriver.speak(self, commands)
+		finally:
+			self._submitting = None
+			self._bgQueue.put(_Retire(self, record))
 
 	def _record_valid(self, record):
 		# Sealing (retire) does not invalidate the work; callback admission
@@ -676,7 +674,7 @@ class SynthDriver(BaseSynthDriver):
 				if self._playerClosing:
 					return
 			host.cancel()
-			with self._queueLock, self._speechStateLock:
+			with self._speechStateLock:
 				self._isSilence.set()
 				# WavePlayer.stop clears its own pause state. Keep the final idle
 				# predicate in sync so fresh speech does not await a stale pause.
