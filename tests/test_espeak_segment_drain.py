@@ -11,7 +11,7 @@ from espeak_drain_harness import finish, load_espeak, speak, wait_event
 
 @pytest.fixture
 def env(monkeypatch, tmp_path):
-    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime._segmentLifecycle", raising=False)
     monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentHost", raising=False)
     result = load_espeak(monkeypatch, tmp_path)
     yield result
@@ -83,7 +83,7 @@ def test_empty_audio_still_waits_for_idle_and_native_retirement(env):
 
 
 def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
-    lifecycle = importlib.import_module(env.rt.package.__name__ + ".segmentLifecycle")
+    lifecycle = importlib.import_module(env.rt.package.__name__ + "._segmentLifecycle")
     env.native.next_scripts.append({"empty": True})
     _, context, events = speak(env, commands=("",))
     call = env.native.wait_calls(1)
@@ -105,7 +105,7 @@ def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
 
 
 def test_espeak_token_cancel_after_feed_discards_pcm_before_successor(env):
-    lifecycle = importlib.import_module(env.rt.package.__name__ + ".segmentLifecycle")
+    lifecycle = importlib.import_module(env.rt.package.__name__ + "._segmentLifecycle")
     env.native.next_scripts.append({"hold_terminal": True})
     token, _, cancelled_events = speak(env)
     first = env.native.wait_calls(1)

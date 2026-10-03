@@ -14,7 +14,7 @@ from rhvoice_drain_harness import finish, load_rhvoice, speak
 
 @pytest.fixture
 def env(monkeypatch, tmp_path):
-    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime._segmentLifecycle", raising=False)
     monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentHost", raising=False)
     result = load_rhvoice(monkeypatch, tmp_path)
     yield result

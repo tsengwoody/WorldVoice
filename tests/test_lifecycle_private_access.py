@@ -1,9 +1,12 @@
-"""Engine wrappers use the lifecycle's public API, never its private state."""
+"""SegmentLifecycle is internal to SegmentHost; engine wrappers use only the host."""
 
+import ast
 import re
 from pathlib import Path
 
-DRIVERS = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
+ADDON = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
+RUNTIME = ADDON / "runtime"
+DRIVERS = ADDON / "driver"
 LIFECYCLE_OBJECTS = r"(?:operation|lifecycle|_lifecycle|_segmentLifecycle)"
 PRIVATE_ACCESS = re.compile(rf"(?<![A-Za-z0-9]){LIFECYCLE_OBJECTS}\._(\w+)")
 PRIVATE_GETATTR = re.compile(
@@ -45,12 +48,53 @@ def test_wrappers_do_not_touch_lifecycle_private_state():
 	assert found == []
 
 
-# Wrappers moved onto SegmentHost; the host owns their lifecycle entirely.
-MIGRATED = ("Espeak", "SAPI5", "RHVoice", "OneCore", "VE", "Cerence")
+WRAPPERS = ("Espeak", "SAPI5", "RHVoice", "OneCore", "VE", "Cerence")
+LIFECYCLE_MODULES = ("_segmentLifecycle", "segmentLifecycle")
 
 
-def test_migrated_wrappers_only_use_the_segment_host():
-	for name in MIGRATED:
+def _imported_modules(path):
+	tree = ast.parse(path.read_text(encoding="utf-8"))
+	for node in ast.walk(tree):
+		if isinstance(node, ast.ImportFrom):
+			if node.module:
+				yield node.module
+			yield from (alias.name for alias in node.names)
+		elif isinstance(node, ast.Import):
+			yield from (alias.name for alias in node.names)
+
+
+def _methods(path, class_name):
+	tree = ast.parse(path.read_text(encoding="utf-8"))
+	cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name)
+	return {node.name for node in cls.body if isinstance(node, ast.FunctionDef)}
+
+
+def test_only_the_segment_host_imports_the_lifecycle():
+	importers = sorted(
+		path.relative_to(ADDON).as_posix()
+		for path in ADDON.rglob("*.py")
+		if any(name.split(".")[-1] in LIFECYCLE_MODULES for name in _imported_modules(path))
+	)
+	assert importers == ["runtime/segmentHost.py"]
+
+
+def test_the_lifecycle_module_is_private():
+	assert not (RUNTIME / "segmentLifecycle.py").exists()
+	assert (RUNTIME / "_segmentLifecycle.py").is_file()
+
+
+def test_wrappers_only_use_the_segment_host():
+	for name in WRAPPERS:
 		text = (DRIVERS / name / "__init__.py").read_text(encoding="utf-8")
 		assert "SegmentHost" in text, name
-		assert "_segmentLifecycle" not in text and "SegmentLifecycle" not in text, name
+		for banned in ("_lifecycle", "SegmentLifecycle", "segmentLifecycle", "CallbackGate"):
+			assert banned not in text, (name, banned)
+
+
+def test_wrapper_era_lifecycle_api_is_gone():
+	lifecycle = RUNTIME / "_segmentLifecycle.py"
+	assert not {"is_resource_busy", "reject_pending"} & _methods(lifecycle, "SegmentLifecycle")
+	assert not {"sink", "has_started", "is_retired"} & _methods(lifecycle, "SegmentOperation")
+	playback = (RUNTIME / "playbackWork.py").read_text(encoding="utf-8")
+	for name in ("CallbackGate", "CallbackLease", "_NativeCall"):
+		assert f"class {name}" not in playback, name

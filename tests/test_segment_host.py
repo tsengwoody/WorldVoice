@@ -78,7 +78,7 @@ def env(monkeypatch, request):
 	options = getattr(request, "param", {})
 	rt = load_runtime(monkeypatch)
 	scheduler = load_scheduler(monkeypatch, rt)
-	_load(monkeypatch, rt, "segmentLifecycle")
+	_load(monkeypatch, rt, "_segmentLifecycle")
 	module = _load(monkeypatch, rt, "segmentHost")
 	strategy = FakeStrategy()
 	host = module.SegmentHost("Fake", strategy, **options)

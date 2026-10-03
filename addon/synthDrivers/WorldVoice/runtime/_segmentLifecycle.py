@@ -1,5 +1,7 @@
 """Shared ownership and retirement of one contextual speech segment at a time.
 
+Internal to SegmentHost; nothing else imports this module.
+
 Engine hooks establish native and playback boundaries. This coordinator never
 infers native quiescence from an empty callback count alone.
 
@@ -77,21 +79,6 @@ class SegmentOperation:
 			failed = self._error is not None
 		return not failed and self.work.is_valid()
 
-	@property
-	def sink(self) -> SegmentEventSink:
-		"""The sink this operation was accepted with."""
-		return self._sink
-
-	def has_started(self) -> bool:
-		"""True once run() began or the operation was rejected before running."""
-		with self._lifecycle._condition:
-			return self._run_started
-
-	def is_retired(self) -> bool:
-		"""True once the operation released the native/player resource."""
-		with self._lifecycle._condition:
-			return self._retired
-
 
 class ProducerLease:
 	"""A producer's original operation, retained until its actual work exits."""
@@ -160,14 +147,6 @@ class SegmentLifecycle:
 			self._reject_pending_locked(operation, error)
 			return operation
 
-	def reject_pending(self, operation: SegmentOperation, error: Exception) -> None:
-		"""Fail accepted work that never acquired native/player resources."""
-		self._require_operation(operation)
-		with self._condition:
-			if operation not in self._operations or operation._run_started:
-				raise RuntimeError("segment operation is not pending")
-			self._reject_pending_locked(operation, error)
-
 	def _reject_pending_locked(self, operation: SegmentOperation, error: Exception) -> None:
 		operation._run_started = True
 		operation._admitting = False
@@ -210,10 +189,6 @@ class SegmentLifecycle:
 			thread = self._delivery_thread
 		if thread is not current_thread():
 			thread.join(timeout)
-
-	def is_resource_busy(self) -> bool:
-		with self._condition:
-			return self._resource_busy
 
 	def wait_idle(
 		self,

@@ -10,7 +10,7 @@ from onecore_drain_harness import VERSION, in_thread, load_onecore
 
 @pytest.fixture
 def env(monkeypatch):
-    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime._segmentLifecycle", raising=False)
     monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentHost", raising=False)
     result = load_onecore(monkeypatch)
     yield result

@@ -204,8 +204,8 @@ def load_sapi5(monkeypatch, *, rt=None, scheduler=None, voice_base=object, comma
     package("synthDrivers.WorldVoice", ROOT / "addon/synthDrivers/WorldVoice")
     package("synthDrivers.WorldVoice.driver", ROOT / "addon/synthDrivers/WorldVoice/driver", Voice=voice_base)
     rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
-    load("synthDrivers.WorldVoice.runtime.segmentLifecycle",
-        ROOT / "addon/synthDrivers/WorldVoice/runtime/segmentLifecycle.py")
+    load("synthDrivers.WorldVoice.runtime._segmentLifecycle",
+        ROOT / "addon/synthDrivers/WorldVoice/runtime/_segmentLifecycle.py")
     load("synthDrivers.WorldVoice.runtime.segmentHost",
         ROOT / "addon/synthDrivers/WorldVoice/runtime/segmentHost.py")
     scheduler = scheduler or load_scheduler(monkeypatch, rt)
@@ -303,7 +303,7 @@ def test_sapi5_wasapi_shared_lifecycle_waits_for_endstream_pcm_and_idle(env):
     _, context, events = speak(env)
     env.native.wait_calls(1)
     native = env.driver._segmentHost.current()
-    lifecycle = importlib.import_module(env.rt.package.__name__ + ".segmentLifecycle")
+    lifecycle = importlib.import_module(env.rt.package.__name__ + "._segmentLifecycle")
     assert isinstance(native.operation, lifecycle.SegmentOperation)
     env.player.feed_release.clear()
     pcm = Thread(target=lambda: env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None), daemon=True)

@@ -15,7 +15,7 @@ from test_worldvoice_cancel_wrappers import Token, native_message
 def env(request, monkeypatch):
     # The harness reloads runtime models for every engine case. Reload the
     # coordinator too so its event enum belongs to that same runtime copy.
-    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
+    monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime._segmentLifecycle", raising=False)
     monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentHost", raising=False)
     result = load_real_driver_with_native_stubs(monkeypatch, request.param)
     result.core = result.new_core()

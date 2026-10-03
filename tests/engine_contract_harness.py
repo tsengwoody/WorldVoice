@@ -23,7 +23,7 @@ from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 def _fresh_lifecycle_module(monkeypatch):
 	# Each loader reloads runtime models; reload the coordinator too so its
 	# event enum belongs to that same runtime copy.
-	monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentLifecycle", raising=False)
+	monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime._segmentLifecycle", raising=False)
 	monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.runtime.segmentHost", raising=False)
 
 

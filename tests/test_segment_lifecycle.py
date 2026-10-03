@@ -119,8 +119,8 @@ class Hooks:
 def env(monkeypatch):
     rt = load_runtime(monkeypatch)
     scheduler = load_scheduler(monkeypatch, rt)
-    name = f"{rt.package.__name__}.segmentLifecycle"
-    spec = importlib.util.spec_from_file_location(name, RUNTIME / "segmentLifecycle.py")
+    name = f"{rt.package.__name__}._segmentLifecycle"
+    spec = importlib.util.spec_from_file_location(name, RUNTIME / "_segmentLifecycle.py")
     module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, name, module)
     spec.loader.exec_module(module)
@@ -656,7 +656,7 @@ def test_pending_operation_rejection_delivers_after_latched_fault(env):
     pending, context = accept(18)
     error = OSError("native resources unsafe")
     lifecycle._latch_fault(pending, error)
-    lifecycle.reject_pending(pending, error)
+    lifecycle.fail(pending, error)
     events.wait_for_count(1)
     assert [(event.source_id, event.segment_id, event.error) for event in events] == [
         (context.source_id, 18, error)]
@@ -668,7 +668,7 @@ def test_retirement_callback_runs_when_cancel_suppresses_delivery(env):
     retired = Event()
     operation, _ = accept(18, on_retired=lambda owner: retired.set())
     operation.work.token.cancel()
-    lifecycle.reject_pending(operation, RuntimeError("never submitted"))
+    lifecycle.fail(operation, RuntimeError("never submitted"))
     assert retired.wait(1)
     assert operation not in lifecycle._operations
     assert events == []
@@ -687,7 +687,7 @@ def test_idle_delivery_thread_releases_a_retired_operation(env):
     reference = weakref.ref(sink)
     operation, _ = accept(18, sink, on_retired=lambda owner: retired.set())
     operation.work.token.cancel()
-    lifecycle.reject_pending(operation, RuntimeError("never submitted"))
+    lifecycle.fail(operation, RuntimeError("never submitted"))
     assert retired.wait(1)
     del operation, sink
     for _ in range(100):
@@ -717,11 +717,11 @@ def test_terminate_cancels_previously_accepted_pending_rejection(env):
     lifecycle, hooks, _, accept = env
     entered, release, rejected = Event(), Event(), RecordedEvents()
     first, _ = accept(20, lambda event: (entered.set(), release.wait(2)))
-    lifecycle.reject_pending(first, RuntimeError("first rejection"))
+    lifecycle.fail(first, RuntimeError("first rejection"))
     assert entered.wait(1)
     second, _ = accept(21, rejected.append)
     error = OSError("second rejection")
-    lifecycle.reject_pending(second, error)
+    lifecycle.fail(second, error)
     lifecycle.terminate()
     release.set()
     with lifecycle._condition:
@@ -851,28 +851,26 @@ def test_queued_run_wakes_when_cancelled(env, cancel):
     owner_call.finish()
 
 
-def test_operation_queries_follow_run_and_retirement(env):
-    lifecycle, hooks, events, accept = env
-    sink = events.append
-    operation, _ = accept(1, sink=sink)
-    assert operation.sink is sink
-    assert not operation.has_started()
-    assert not operation.is_retired()
-    call = Call(lambda: lifecycle.run(operation, ("hello",)))
-    assert hooks.boundary_entered.wait(1)
-    assert operation.has_started()
-    assert not operation.is_retired()
-    hooks.release_boundary.set()
-    call.finish()
-    assert operation.is_retired()
-
-
-def test_rejected_operation_reports_started_and_retired(env):
+def test_operation_state_follows_run_and_retirement(env):
     lifecycle, hooks, events, accept = env
     operation, _ = accept(1)
-    lifecycle.reject_pending(operation, RuntimeError("rejected"))
-    assert operation.has_started()
-    assert operation.is_retired()
+    assert not operation._run_started
+    assert not operation._retired
+    call = Call(lambda: lifecycle.run(operation, ("hello",)))
+    assert hooks.boundary_entered.wait(1)
+    assert operation._run_started
+    assert not operation._retired
+    hooks.release_boundary.set()
+    call.finish()
+    assert operation._retired
+
+
+def test_failed_pending_operation_is_started_and_retired(env):
+    lifecycle, hooks, events, accept = env
+    operation, _ = accept(1)
+    lifecycle.fail(operation, RuntimeError("rejected"))
+    assert operation._run_started
+    assert operation._retired
 
 
 def test_delivery_thread_identity_and_join(env):
@@ -899,7 +897,7 @@ def test_wait_idle_returns_true_when_resource_is_released(env):
     lifecycle, hooks, events, accept = env
     assert lifecycle.wait_idle() is True
     _, owner_call = _hold_resource(env)
-    assert lifecycle.is_resource_busy()
+    assert lifecycle._resource_busy
     results = []
     waiting = Call(lambda: results.append(lifecycle.wait_idle()))
     waiting.blocked()
@@ -907,7 +905,7 @@ def test_wait_idle_returns_true_when_resource_is_released(env):
     owner_call.finish()
     waiting.finish()
     assert results == [True]
-    assert not lifecycle.is_resource_busy()
+    assert not lifecycle._resource_busy
 
 
 def test_wait_idle_wakes_on_token_cancel_without_polling(env):

@@ -22,7 +22,7 @@ from typing import Protocol
 
 from .models import EventKind, PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork
-from .segmentLifecycle import ProducerLease, SegmentLifecycle, SegmentOperation
+from ._segmentLifecycle import ProducerLease, SegmentLifecycle, SegmentOperation
 from .session import CancellationView
 
 
