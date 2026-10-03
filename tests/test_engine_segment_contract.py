@@ -45,10 +45,6 @@ def _engines(**xfails):
 	return params
 
 
-def _c3(engine):
-	return f"C3: {engine} speak_segment blocks until delivery; fixed by SegmentHost in phase 3"
-
-
 class Events(list):
 	def __init__(self, adapter):
 		super().__init__()
@@ -148,7 +144,7 @@ def test_cancelled_token_never_reaches_native_or_sink(engine):
 	assert list(events) == []
 
 
-@pytest.mark.parametrize("engine", _engines(Cerence=_c3("Cerence")), indirect=True)
+@pytest.mark.parametrize("engine", _engines(), indirect=True)
 def test_speak_segment_returns_before_delivery(engine):
 	context = engine.PlaybackContext(object(), 23)
 	events = Events(engine)

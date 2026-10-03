@@ -1,4 +1,5 @@
 import math
+import queue
 import threading
 import unicodedata
 import os
@@ -73,6 +74,25 @@ def getAvailableResources():
 			resources[languageInfo].append(voiceInfo)
 
 	return resources
+
+class BgThread(threading.Thread):
+
+	def __init__(self, bgQueue):
+		super().__init__()
+		self._bgQueue = bgQueue
+		self.daemon = True
+		self.start()
+
+	def run(self):
+		while True:
+			task = self._bgQueue.get()
+			if task is None:
+				break
+			try:
+				task()
+			except Exception:
+				log.error("Error running task from queue", exc_info=True)
+			self._bgQueue.task_done()
 
 pcmBufLen = 8192 # 8 Kb
 markBufSize = 100
@@ -164,8 +184,8 @@ class VECallback(object):
 					return NUAN_E_TTS_USERSTOP
 				# And check for bookmarks
 				for i in range(int(outData.contents.cntMrkListLen)):
-						if outData.contents.pMrkList[i].eMrkType == VE_MRK_BOOKMARK:
-							self._onIndexReached(int(outData.contents.pMrkList[i].szValue))
+					if outData.contents.pMrkList[i].eMrkType == VE_MRK_BOOKMARK:
+						self._onIndexReached(int(outData.contents.pMrkList[i].szValue))
 			elif messageType == VE_MSG_ENDPROCESS:
 				if self._sonicEnabled and self.sonicStream is not None:
 					self.sonicStream.flush()
@@ -255,6 +275,8 @@ class SynthDriver(SynthDriver):
 		ttsapi.initialize(resources)
 
 		self._instanceCache = {}
+		self._bgQueue = queue.Queue()
+		self._bgThread = BgThread(self._bgQueue)
 
 		try:
 			# Audio device used since NVDA 2025.1
@@ -318,6 +340,8 @@ class SynthDriver(SynthDriver):
 			ttsapi.terminate()
 		except RuntimeError:
 			log.error("CerenceTTS terminate", exc_info=True)
+		self._bgQueue.put(None)
+		self._bgThread.join()
 		self._player.close()
 		self._veCallback = None
 
@@ -391,16 +415,28 @@ class SynthDriver(SynthDriver):
 				log.error(f"Unknown speech: {command}")
 		if chunks:
 			self._speak(currentInstance, chunks)
-		DoneSpeaking(self._player, self._onIndexReached)()
+		self._bgQueue.put(DoneSpeaking(self._player, self._onIndexReached))
 
 	def _speak(self, voiceInstance, chunks):
 		text = "".join(chunks)
-		self._isSilence.clear()
-		ProcessText2Speech(voiceInstance, text)()
+		self._bgQueue.put(ProcessText2Speech(voiceInstance, text))
 
 	def cancel(self):
+		taskList = []
+		try:
+			while True:
+				task = self._bgQueue.get_nowait()
+				self._bgQueue.task_done()
+				if isinstance(task, (TtsSetParamList, DoneSpeaking)):
+					taskList.append(task)
+		except queue.Empty:
+			pass
+		for task in taskList:
+			self._bgQueue.put(task)
 		self._isSilence.set()
+		self._bgQueue.put(self._isSilence.clear)
 		self._player.stop()
+		self._bgQueue.join()
 
 	def pause(self, switch):
 		self._player.pause(switch)
@@ -415,6 +451,28 @@ class SynthDriver(SynthDriver):
 		return self.getParameters(instance, (paramId, type_))[0]
 
 	def getParameters(self, instance, *idAndTypes):
+		taskList = []
+		values = [None] * len(idAndTypes)
+
+		try:
+			while True:
+				task = self._bgQueue.get_nowait()
+				self._bgQueue.task_done()
+				taskList.append(task)
+		except queue.Empty:
+			pass
+
+		for task in filter(lambda t: isinstance(t, TtsSetParamList) and t.instance == instance, taskList):
+			for id, value in task.idAndValues:
+				for i, p in enumerate(idAndTypes):
+					if id == p[0]:
+						values[i] = value
+
+		for task in taskList:
+			self._bgQueue.put(task)
+
+		if None not in values:
+			return values
 		return ttsapi.getParamList(instance, *idAndTypes)
 
 	def _get_voiceInstance(self):
@@ -424,7 +482,7 @@ class SynthDriver(SynthDriver):
 		return self.getParameter(self.voiceInstance, VE_PARAM_VOLUME)
 
 	def _set_volume(self, value):
-		TtsSetParamList(self.voiceInstance, (VE_PARAM_VOLUME, int(value)))()
+		self._bgQueue.put(TtsSetParamList(self.voiceInstance, (VE_PARAM_VOLUME, int(value))))
 
 	def _get_rate(self):
 		if self._rateBoost:
@@ -438,13 +496,13 @@ class SynthDriver(SynthDriver):
 	def _set_rate(self, value):
 		if self._rateBoost:
 			self._rate = self._percentToParamFloat(value, 0.5, 6.0)
-			TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, 100))()
+			self._bgQueue.put(TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, 100)))
 			self._veCallbackHandler.setSpeed(self._rate)
 			return
 		factor = 25.0 if value >= 50 else 50.0
 		norm = 2.0 ** ((value - 50.0) / factor)
 		self._rate = rate = int(round(norm * 100))
-		TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, rate))()
+		self._bgQueue.put(TtsSetParamList(self.voiceInstance, (VE_PARAM_SPEECHRATE, rate)))
 		self._veCallbackHandler.setSpeed(1.0)
 
 	def _get_rateBoost(self):
@@ -466,7 +524,7 @@ class SynthDriver(SynthDriver):
 		norm = 2.0 ** ((value - 50.0) / factor)
 		pitch = int(round(norm * 100))
 
-		TtsSetParamList(self.voiceInstance, (VE_PARAM_PITCH, pitch))()
+		self._bgQueue.put(TtsSetParamList(self.voiceInstance, (VE_PARAM_PITCH, pitch)))
 
 	def _getAvailableVoices(self):
 		voices = []
@@ -489,7 +547,7 @@ class SynthDriver(SynthDriver):
 
 	def _set_variant(self, variant):
 		if variant in self.availableVariants and variant != self.variant:
-			TtsSetParamList(self.voiceInstance, (VE_PARAM_VOICE_OPERATING_POINT, variant))()
+			self._bgQueue.put(TtsSetParamList(self.voiceInstance, (VE_PARAM_VOICE_OPERATING_POINT, variant)))
 
 	def _getAvailableVariants(self):
 		language = self.getParameter(self.voiceInstance, VE_PARAM_LANGUAGE, type_=str) # FIXME: store language...
@@ -500,7 +558,7 @@ class SynthDriver(SynthDriver):
 		return str(self.getParameter(self.voiceInstance, VE_PARAM_WAITFACTOR))
 
 	def _set_waitfactor(self, value):
-		TtsSetParamList(self.voiceInstance, (VE_PARAM_WAITFACTOR, int(value)))()
+		self._bgQueue.put(TtsSetParamList(self.voiceInstance, (VE_PARAM_WAITFACTOR, int(value))))
 
 	def _get_availableWaitfactors(self):
 		return OrderedDict([(v, VoiceInfo(v, v)) for v in [str(v) for v in range(WAITFACTOR_MIN, WAITFACTOR_MAX+1)]])

@@ -210,7 +210,7 @@ def test_ve_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch
 @pytest.mark.parametrize("env", ["Cerence"], indirect=True)
 def test_cerence_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
-    assert isinstance(env.core._segmentLifecycle, env.module.SegmentLifecycle)
+    assert isinstance(env.core._segmentHost, env.module.SegmentHost)
     feed_entered, feed_release, idle_entered, idle_release = Event(), Event(), Event(), Event()
     callbacks = []
     env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
@@ -240,7 +240,7 @@ def test_cerence_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeyp
 @pytest.mark.parametrize("env", ["Cerence"], indirect=True)
 def test_cerence_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
-    assert isinstance(env.core._segmentLifecycle, env.module.SegmentLifecycle)
+    assert isinstance(env.core._segmentHost, env.module.SegmentHost)
     feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
     calls, callbacks = [], []
     env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
@@ -281,9 +281,7 @@ def test_cerence_shared_cancel_retires_guarded_feed_before_successor(env, monkey
     assert env.indexes == [42]
 
 
-def test_ve_shared_terminal_listener_can_speak_successor(env, monkeypatch):
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
+def test_terminal_listener_can_speak_successor(env, monkeypatch):
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
     token = Token()
     source = object()
@@ -301,10 +299,8 @@ def test_ve_shared_terminal_listener_can_speak_successor(env, monkeypatch):
     assert [event.segment_id for event in events] == [17, 18]
 
 
-def test_ve_speak_returns_before_native_synthesis(env, monkeypatch):
+def test_speak_returns_before_native_synthesis(env, monkeypatch):
     # Like the original add-on: speak() queues to the BgThread and returns.
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
     entered, release = Event(), Event()
     def native(instance, text):
         entered.set()
@@ -322,10 +318,8 @@ def test_ve_speak_returns_before_native_synthesis(env, monkeypatch):
     assert len(env.dones) == 1
 
 
-def test_ve_settings_apply_in_call_order_with_speech(env, monkeypatch):
+def test_settings_apply_in_call_order_with_speech(env, monkeypatch):
     # Like the original add-on: settings queue behind speech already requested.
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
     order = []
     entered, release = Event(), Event()
     def native(instance, text):
@@ -345,11 +339,9 @@ def test_ve_settings_apply_in_call_order_with_speech(env, monkeypatch):
     assert order == [("spoken", "first"), ("set", ((env.types.VE_PARAM_VOLUME, 40),)), ("spoken", "second")]
 
 
-def test_ve_cancel_drops_a_segment_queued_behind_the_worker(env, monkeypatch):
+def test_cancel_drops_a_segment_queued_behind_the_worker(env, monkeypatch):
     # After a handoff the next segment can queue while the BgThread finishes
     # the previous retirement; cancel must retire it without a DONE.
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
     prove_fake_quiescence(env, monkeypatch)
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
     host = env.core._segmentHost
@@ -378,11 +370,9 @@ def test_ve_cancel_drops_a_segment_queued_behind_the_worker(env, monkeypatch):
     assert env.dones == []
 
 
-def test_ve_failed_ordinary_speech_still_publishes_done(env, monkeypatch):
+def test_failed_ordinary_speech_still_publishes_done(env, monkeypatch):
     # speak() no longer raises, so a failed request must still release a
     # LEGACY_DONE waiter, as the original add-on's DoneSpeaking does.
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
     def fail(instance, text):
         raise OSError("native failed")
     monkeypatch.setattr(env.native, "processText2Speech", fail)
@@ -391,11 +381,9 @@ def test_ve_failed_ordinary_speech_still_publishes_done(env, monkeypatch):
     assert env.core._real_player.idles == 0
 
 
-def test_ve_engine_settings_variant_waits_for_running_speech(env, monkeypatch):
+def test_engine_settings_variant_waits_for_running_speech(env, monkeypatch):
     # The variant write joins the BgThread queue like every inner setting, so
     # it never runs on the same native instance as an in-flight synthesis.
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
     order = []
     entered, release = Event(), Event()
     def native(instance, text):
@@ -418,9 +406,7 @@ def test_ve_engine_settings_variant_waits_for_running_speech(env, monkeypatch):
     assert order == [("spoken", "first"), ("set", ((env.types.VE_PARAM_VOICE_OPERATING_POINT, "plain"),))]
 
 
-def test_ve_shared_player_failure_rejects_successor_with_context(env, monkeypatch):
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
+def test_player_failure_rejects_successor_with_context(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
     error = OSError("idle failed")
@@ -438,9 +424,7 @@ def test_ve_shared_player_failure_rejects_successor_with_context(env, monkeypatc
     assert env.events[1].segment_id == 18
 
 
-def test_ve_shared_terminate_waits_for_coordinator_stop(env, monkeypatch):
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
+def test_terminate_waits_for_coordinator_stop(env, monkeypatch):
     idle_entered, idle_release, hook_entered, hook_release = Event(), Event(), Event(), Event()
     closed = Event()
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
@@ -467,11 +451,9 @@ def test_ve_shared_terminate_waits_for_coordinator_stop(env, monkeypatch):
 
 
 @pytest.mark.parametrize("cancel_kind", ["token", "direct"])
-def test_ve_shared_speak_segment_returns_while_a_previous_sink_runs(env, monkeypatch, cancel_kind):
+def test_speak_segment_returns_while_a_previous_sink_runs(env, monkeypatch, cancel_kind):
     # C3: speak_segment no longer waits for delivery, so a blocked sink of the
     # previous segment cannot hold the caller; cancellation keeps it silent.
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
     sink_entered, sink_release = Event(), Event()
     first_context = env.rt.models.PlaybackContext(object(), 17)
@@ -498,9 +480,7 @@ def test_ve_shared_speak_segment_returns_while_a_previous_sink_runs(env, monkeyp
 
 
 @pytest.mark.parametrize("hook", ["stop", "idle"])
-def test_ve_shared_player_hook_can_reenter_terminate(env, monkeypatch, hook):
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
+def test_player_hook_can_reenter_terminate(env, monkeypatch, hook):
     monkeypatch.setattr(env.native, "close", lambda instance: None)
     monkeypatch.setattr(env.native, "terminate", lambda: None)
     token = Token()
