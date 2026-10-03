@@ -9,7 +9,6 @@ import sys
 from threading import Condition, Event
 from types import ModuleType, SimpleNamespace
 
-from neural_drain_harness import NEURAL_AVAILABLE, load_neural
 from onecore_drain_harness import ROOT, in_thread, load_onecore
 from runtime_harness import MemoryRepository, load_runtime, load_scheduler
 from test_vocalizer_segment_drain import emit
@@ -18,8 +17,7 @@ from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 
 PACKAGE = "synthDrivers.WorldVoice"
-# Neural joins the composition only when its untracked driver is present.
-ENGINES = ("OneCore", "Neural", "VE", "Cerence") if NEURAL_AVAILABLE else ("OneCore", "VE", "Cerence")
+ENGINES = ("OneCore", "VE", "Cerence")
 
 
 class NativeCall:
@@ -41,8 +39,8 @@ class AudioBarrier:
 class EngineControl:
     def __init__(self, env, engine, monkeypatch):
         self.env, self.engine = env, engine
-        self.core = env.driver if engine in ("OneCore", "Neural") else env.core
-        self.player = env.player if engine in ("OneCore", "Neural") else self.core._real_player
+        self.core = env.driver if engine == "OneCore" else env.core
+        self.player = env.player if engine == "OneCore" else self.core._real_player
         self.condition = Condition()
         self.started = Event()
         self.calls, self.contexts, self.commands, self.sinks, self.applied = [], [], [], [], []
@@ -98,17 +96,6 @@ class EngineControl:
                 self._start(token, text)
 
             monkeypatch.setattr(env.native.ocSpeech_speak, "function", speak)
-        elif engine == "Neural":
-            def speak(handle, text, size, pointer):
-                with env.native.condition:
-                    env.native.calls.append((handle, text.decode()))
-                    env.native.condition.notify_all()
-                call = self._start(handle, text.decode())
-                assert call.release.wait(4), "Neural native result was never released"
-                pointer[0] = env.native.result
-                return 0
-
-            monkeypatch.setattr(env.native, "synthesizer_speak_ssml", speak)
         else:
             def speak(instance, text):
                 call = self._start(instance, text)
@@ -153,16 +140,6 @@ class EngineControl:
             callback = in_thread(lambda: self.env.native.respond(frames=frames, markers=markers))
             call.callback = callback
             self.callbacks.append(callback)
-        elif self.engine == "Neural":
-            def respond():
-                self.env.native.audio(b"pcm-tail", synth=call.instance)
-                for command in call.commands:
-                    if isinstance(command, self.env.commands.IndexCommand):
-                        self.env.native.bookmark(str(command.index))
-                call.release.set()
-            callback = in_thread(respond)
-            call.callback = callback
-            self.callbacks.append(callback)
         else:
             call.release.set()
         return call
@@ -185,9 +162,6 @@ class EngineControl:
             barrier.release.set()
         if self.engine == "OneCore":
             self.env.player.sync_release.set()
-        if self.engine == "Neural":
-            self.env.native.speak_release.set()
-            self.env.native.stop_release.set()
 
 
 def assemble(monkeypatch, tmp_path, *, supported=True):
@@ -236,9 +210,6 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
     controls = {}
     controls["OneCore"] = EngineControl(load_onecore(
         monkeypatch, rt=rt, scheduler=scheduler, voice_base=voice_base, commands=commands), "OneCore", monkeypatch)
-    if NEURAL_AVAILABLE:
-        controls["Neural"] = EngineControl(load_neural(monkeypatch, tmp_path, rt=rt, scheduler=scheduler,
-            voice_base=voice_base, commands=commands), "Neural", monkeypatch)
     for engine in ("VE", "Cerence"):
         env = load_real_driver_with_native_stubs(monkeypatch, engine, rt=rt,
             voice_base=voice_base, commands=commands, property_setters=True)
@@ -257,6 +228,10 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
         monkeypatch.setattr(env.native, "getParamList", get_params)
         monkeypatch.setattr(env.native, "setParamList", set_params)
         monkeypatch.setattr(env.native, "getSpeechDBList", lambda *args: ["default"])
+        if engine == "VE":
+            # A second VE voice lets a request switch voices within one engine.
+            monkeypatch.setattr(env.native, "getVoiceList", lambda language: [
+                SimpleNamespace(szVoiceName=b"fake"), SimpleNamespace(szVoiceName=b"fake2")])
         monkeypatch.setattr(env.native, "close", lambda *args: None)
         monkeypatch.setattr(env.native, "terminate", lambda: None)
         env.core = env.new_core()
@@ -264,7 +239,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
         controls[engine] = EngineControl(env, engine, monkeypatch)
     # Mocked NVDA setting descriptors and VoiceInfo supply realistic metadata.
     for engine, control in controls.items():
-        outer = control.env.outer if engine in ("OneCore", "Neural") else control.env.module
+        outer = control.env.outer if engine == "OneCore" else control.env.module
         monkeypatch.setattr(outer.SynthDriver, "supportedSettings", [SimpleNamespace(id=name)
             for name in ("voice", "rate", "rateBoost", "pitch", "volume")], raising=False)
         outer.Voice.core = control.core
@@ -281,7 +256,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
     engine_module = ModuleType(PACKAGE + ".engine")
     engine_module.EngineType = [SimpleNamespace(name=name) for name in ENGINES]
     engine_module.READY_ENGINE_CLASS = {
-        name: (control.env.outer if name in ("OneCore", "Neural") else control.env.module).Voice
+        name: (control.env.outer if name == "OneCore" else control.env.module).Voice
         for name, control in controls.items()}
     engine_module.get_engine_enabled = lambda *args: True
     engine_module.refresh_ready_engine_classes = lambda *args: None
@@ -311,7 +286,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
     # The loaded wrappers retain different NVDA Notification objects; reconnect
     # each hardware notification to the same production event bridge.
     for control in controls.values():
-        wrapper = control.env.outer if control.engine in ("OneCore", "Neural") else control.env.original_driver
+        wrapper = control.env.outer if control.engine == "OneCore" else control.env.original_driver
         monkeypatch.setattr(wrapper.synthIndexReached, "notify", index.notify)
         monkeypatch.setattr(wrapper.synthDoneSpeaking, "notify", done.notify)
     bridge = bridge_type(owner, done_event=done, index_event=index,

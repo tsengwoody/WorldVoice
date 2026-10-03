@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from neural_drain_harness import requires_neural
 from test_worldvoice_lifecycle import _load_voice_manager, _load_synth_class
 
 
@@ -235,18 +234,17 @@ def test_sapi5_legacy_first_segment_remains_legacy_done(monkeypatch):
         installed.driver.terminate()
 
 
-SEVEN_ENGINES = ["OneCore", pytest.param("Neural", marks=requires_neural),
-    "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"]
+SIX_ENGINES = ["OneCore", "VE", "Cerence", "SAPI5", "Espeak", "RHVoice"]
 
 
 def load_installed_engine(monkeypatch, tmp_path, engine):
     """Open the installed outer wrapper for *engine* on its fake native boundary."""
     control = None
-    if engine in ("OneCore", "Neural", "VE", "Cerence"):
+    if engine in ("OneCore", "VE", "Cerence"):
         from runtime_drain_integration_harness import assemble
         composition = assemble(monkeypatch, tmp_path)
         control = composition.controls[engine]
-        outer = control.env.outer if engine in ("OneCore", "Neural") else control.env.module
+        outer = control.env.outer if engine == "OneCore" else control.env.module
         core, close = control.core, composition.close
         mode, rt = ("wasapi" if engine == "OneCore" else "default"), composition.rt
     elif engine == "SAPI5":
@@ -285,8 +283,8 @@ def real_completion_selector(policies, warnings):
     return object.__new__(root)._completion_for
 
 
-@pytest.mark.parametrize("engine", SEVEN_ENGINES)
-def test_seven_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine):
+@pytest.mark.parametrize("engine", SIX_ENGINES)
+def test_six_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine):
     """The actual opened outer core must select DRAIN before any segment starts."""
     installed = load_installed_engine(monkeypatch, tmp_path, engine)
     outer, core, control = installed.outer, installed.core, installed.control
@@ -317,7 +315,7 @@ def test_seven_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engi
         installed.close()
 
 
-@pytest.mark.parametrize("engine", SEVEN_ENGINES)
+@pytest.mark.parametrize("engine", SIX_ENGINES)
 def test_disabled_force_switch_restores_legacy_done(monkeypatch, tmp_path, engine):
     installed = load_installed_engine(monkeypatch, tmp_path, engine)
     outer, core = installed.outer, installed.core

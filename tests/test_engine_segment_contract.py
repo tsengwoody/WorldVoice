@@ -11,13 +11,11 @@ import pytest
 from engine_contract_harness import (
 	CerenceAdapter,
 	EspeakAdapter,
-	NeuralAdapter,
 	OneCoreAdapter,
 	RHVoiceAdapter,
 	SAPI5Adapter,
 	VEAdapter,
 )
-from neural_drain_harness import requires_neural
 
 ADAPTERS = {
 	"VE": VEAdapter,
@@ -26,7 +24,6 @@ ADAPTERS = {
 	"RHVoice": RHVoiceAdapter,
 	"SAPI5": SAPI5Adapter,
 	"Espeak": EspeakAdapter,
-	"Neural": NeuralAdapter,
 }
 
 
@@ -37,7 +34,7 @@ class C3Blocking(AssertionError):
 def _engines(**xfails):
 	params = []
 	for name in ADAPTERS:
-		marks = [requires_neural] if name == "Neural" else []
+		marks = []
 		if name in xfails:
 			# Only the known gap may xfail; any other failure still fails the run.
 			marks.append(pytest.mark.xfail(strict=True, raises=C3Blocking, reason=xfails[name]))

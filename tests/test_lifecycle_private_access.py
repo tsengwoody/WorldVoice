@@ -10,7 +10,7 @@ PRIVATE_GETATTR = re.compile(
 	rf"getattr\(\s*(?:self\.)?{LIFECYCLE_OBJECTS}\s*,\s*[\"']_(\w+)[\"']",
 )
 # Per-operation data each wrapper attaches itself; SegmentHost replaces it in phase 3.
-WRAPPER_PREFIXES = ("ve_", "onecore_", "rhvoice_", "espeak_", "neural_")
+WRAPPER_PREFIXES = ("ve_", "onecore_", "rhvoice_", "espeak_")
 
 
 def _private_accesses(text):

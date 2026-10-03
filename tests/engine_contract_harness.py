@@ -11,7 +11,6 @@ from threading import Event
 
 from espeak_drain_harness import finish as finish_espeak
 from espeak_drain_harness import load_espeak
-from neural_drain_harness import load_neural
 from onecore_drain_harness import in_thread, load_onecore
 from rhvoice_drain_harness import finish as finish_rhvoice
 from rhvoice_drain_harness import load_rhvoice
@@ -138,31 +137,6 @@ class OneCoreAdapter(_Adapter):
 	def close(self):
 		self.env.player.feed_release.set()
 		self.env.player.sync_release.set()
-		self.core.terminate()
-
-
-class NeuralAdapter(_Adapter):
-	engine = "Neural"
-
-	def open(self, monkeypatch, tmp_path):
-		_fresh_lifecycle_module(monkeypatch)
-		env = load_neural(monkeypatch, tmp_path)
-		self.bind(env, env.driver)
-
-	def complete(self):
-		self.env.native.wait_calls(1)
-		self.env.native.speak_release.set()
-		self.env.player.idle_release.set()
-
-	def native_call_count(self):
-		return len(self.env.native.calls)
-
-	def close(self):
-		self.env.native.speak_release.set()
-		self.env.native.stop_release.set()
-		self.env.player.feed_release.set()
-		self.env.player.idle_release.set()
-		self.env.player.stop_release.set()
 		self.core.terminate()
 
 
