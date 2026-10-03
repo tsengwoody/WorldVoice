@@ -38,7 +38,7 @@
    - 六個引擎的 wrapper 與內層 driver 原始碼完全不改。
    - `SegmentHost` 只改 import。
    - `_segmentLifecycle.py` 只做刪除與文件修改，不改任何保留下來的邏輯。
-4. **完整測試**：基線 1377 passed、89 skipped；完成後 **0 skipped**，其餘全部通過。passed 的數量因刪除與移植而改變，以 plan 實測為準。
+4. **完整測試**：基線 1377 passed、89 skipped；完成後 **1372 passed、0 skipped**。
 5. **格式與保護路徑**：`ruff format --check addon` 通過；Neural 未被追蹤。
 
 **不在範圍內**：
@@ -82,12 +82,32 @@
    - 已有等價覆蓋：刪除，並在 plan 中寫明對應的測試名稱。
    - 沒有等價覆蓋：移植到一個有相同能力的引擎（多 voice instance、legacy 模式、SDK 失敗注入），測試名稱去掉 `neural`。
    - 已參數化、同時跑 Neural 與其他引擎的測試（例如 `test_language_change_active_native_call_cannot_escape_cancel`、`test_next_engine_starts_only_after_segment_drain`），只移除 Neural 參數。
+
+   比對結果（plan 撰寫時確認，使用者同意 A 方案）：
+   - `test_voice_switch_reapplies_native_settings_and_keeps_distinct_drains`：**移植到 VE**。
+     - 整合 harness 讓 VE 回傳兩個聲音（`VE:fake`、`VE:fake2`）。
+     - 測試沿用原名，驗證兩件事：同一引擎換聲音時會重新套用設定；每個聲音各用一個 native instance，每段各自 drain。
+   - `test_unsupported_neural_sdk_failure_releases_legacy_request`：**刪除**。`test_runtime_scheduler.py::test_failure_stops_playback_and_completes_once` 已覆蓋同一行為：speak 失敗時請求變為 FAILED、DONE 只發一次、後續工作被取消。
+   - 其餘 5 個都依賴 contextual legacy 模式（引擎需實作 `speak_legacy_segment`）。倉庫內只有 Neural 實作過這個模式，沒有能力相同的引擎可以移植，因此**刪除並記錄缺口**：
+     - `test_contextual_legacy_control_failure_fails_request`
+     - `test_neural_legacy_done_acceptance_cannot_release_successor_after_cancel`
+     - `test_neural_legacy_control_failure_delivery_cannot_complete_cancelled_request`
+     - `test_contextual_neural_legacy_ignores_anonymous_and_revoked_completion`
+     - `test_neural_legacy_terminal_and_index_cancel_have_no_lock_inversion`
+   - **缺口內容**：contextual legacy 失去「透過真實引擎跑完整流程」的整合覆蓋。各層單元測試仍在：
+     - `test_runtime_legacy_adapter.py`：4 個 contextual legacy 測試；
+     - `test_nvda_event_bridge.py`：2 個；
+     - `test_runtime_scheduler.py`：1 個。
+     等到有引擎實作 `speak_legacy_segment`（例如將來遷移 Neural）時再補回。這個功能本身要不要移除，留到階段 8 決定。
 3. **清掉舊式雙分支**：
    - harness 與測試中「沒有 `_segmentHost` 就讀 `_segmentLifecycle`」的分支改為只走 host。涉及的地方：
      - `engine_contract_harness.py`；
      - `test_vocalizer_segment_drain.py` 的 `hosted()`／`lifecycle_of()`／`settle_worker`；
      - `test_runtime_completion_policies.py`、`test_runtime_drain_integration.py`。
    - 同時更新過時的註解（3d-2 延後的 Minor）。
+   - `test_sapi5_segment_drain.py::test_hook_fault_after_binding_does_not_strand_the_worker` 中為遷移前 SAPI5 留下的 `_segmentBindings`／`stranded` 清理鷹架一併刪除。SAPI5 已沒有 `_segmentBindings`，這段永遠拿到空值。
+   - `test_seven_enabled_profiles_use_shared_lifecycle` 改名為 `test_six_enabled_profiles_use_shared_lifecycle`（`SEVEN_ENGINES` 改為 `SIX_ENGINES`）。
+   - 只把 "Neural" 當引擎名稱、沒有載入 Neural driver 的測試維持不改。例如 composition、request builder，以及 completion policies 的設定表。
 4. **合併雙胞胎**：
    - `test_ve_shared_lifecycle_waits_for_chunk_callback_and_idle` 與 `test_cerence_shared_lifecycle_waits_for_chunk_callback_and_idle` 合併為引擎中性的版本，兩引擎都跑。
    - `test_ve_shared_cancel_retires_guarded_feed_before_successor` 與 Cerence 版同樣合併。
@@ -110,7 +130,7 @@
 
 ## 驗收
 
-- `python3 -m pytest tests -q`：全部通過；沒有 skipped，也沒有 xfailed。
+- `python3 -m pytest tests -q`：`1372 passed`；沒有 skipped，也沒有 xfailed。
 - `test ! -e addon/synthDrivers/WorldVoice/runtime/segmentLifecycle.py`。
 - `grep -rn "_segmentLifecycle\|segmentLifecycle" addon --include=*.py`：只出現在 `runtime/segmentHost.py` 與 `runtime/_segmentLifecycle.py` 自身。
 - `grep -rn "CallbackGate\|CallbackLease" addon --include=*.py`：無輸出。
