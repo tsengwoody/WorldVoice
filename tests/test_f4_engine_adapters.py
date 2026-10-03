@@ -13,7 +13,8 @@ def test_wrapper_settings_are_pending_until_activation(monkeypatch, engine, snap
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 	adapter = object.__new__(harness.module.Voice)
 	writes = []
-	core = types.SimpleNamespace(waitfactor=0)
+	# VE queues inner settings on its BgThread; this fake runs them at once.
+	core = types.SimpleNamespace(waitfactor=0, _bgQueue=types.SimpleNamespace(put=lambda task: task()))
 	core.getVoiceInstance = lambda voice_id: f"native:{voice_id}"
 	core.getParameter = lambda instance, parameter, type_: "plain"
 	core.availableVariants = {"plain": object(), "bright": object()}
@@ -47,6 +48,7 @@ def test_variant_default_is_recaptured_for_rebuilt_core(monkeypatch, engine, sna
 	for native_default in ("plain", "warm"):
 		core = types.SimpleNamespace(
 			waitfactor=0, availableVariants={"plain": object(), "warm": object()},
+			_bgQueue=types.SimpleNamespace(put=lambda task: task()),
 			getVoiceInstance=lambda voice_id: f"native:{voice_id}",
 			getParameter=lambda instance, parameter, type_: native_default,
 		)

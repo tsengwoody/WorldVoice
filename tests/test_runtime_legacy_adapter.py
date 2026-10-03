@@ -268,6 +268,8 @@ def test_real_variant_and_waitfactor_hooks(compat, rt, monkeypatch, engine):
 
     cls = LegacyVoice
     core = Core()
+    # VE queues inner settings on its BgThread; this fake runs them at once.
+    core._bgQueue = SimpleNamespace(put=lambda task: task())
     core.getVoiceInstance = lambda key: "native:" + key
     core.getParameter = lambda *args, **kwargs: "plain"
     core.availableVariants = {"plain": object(), "bright": object()}

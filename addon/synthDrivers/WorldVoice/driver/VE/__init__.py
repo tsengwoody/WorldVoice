@@ -576,6 +576,7 @@ class SynthDriver(BaseSynthDriver):
 				if result == NUAN_E_TTS_USERSTOP and self._record_valid(record):
 					raise RuntimeError("VE native synthesis returned USERSTOP")
 		except Exception as error:
+			log.error("WorldVoice VE native synthesis failed", exc_info=True)
 			host.record_error(record, error)
 		finally:
 			self._close_admission(call)
@@ -746,7 +747,11 @@ class SynthDriver(BaseSynthDriver):
 			record = self._doneOwner
 			if record is not None and record.operation is not None:
 				return
-			if self._isSilence.token_cancelled() or (record is not None and record.error is not None):
+			token = record.native.token if record is not None else None
+			# speak() no longer raises, so a failed request still releases its
+			# DONE waiter, as the add-on's DoneSpeaking does; only a cancelled
+			# token silences it.
+			if self._isSilence.token_cancelled() or (token is not None and token.is_cancelled()):
 				return
 		elif self._isSilence.cancelled() or (record is not None and not self._record_valid(record)):
 			return
@@ -904,7 +909,9 @@ class Voice(Voice):
 		if snapshot.variant != "default" and snapshot.variant not in core.availableVariants:
 			raise ValueError(f"Unavailable variant: {snapshot.variant}")
 		selected = self._defaultVariant if snapshot.variant == "default" else snapshot.variant
-		TtsSetParamList(instance, (VE_PARAM_VOICE_OPERATING_POINT, selected))()
+		# Like every inner setting: applied in order on the BgThread, never
+		# beside an in-flight synthesis on the same instance.
+		core._bgQueue.put(TtsSetParamList(instance, (VE_PARAM_VOICE_OPERATING_POINT, selected)))
 		core.waitfactor = snapshot.waitfactor
 
 	@property

@@ -3,6 +3,7 @@ import sys
 from io import BytesIO
 from threading import Event, Thread, current_thread
 from time import monotonic, sleep
+from types import SimpleNamespace
 
 import pytest
 
@@ -375,6 +376,46 @@ def test_ve_cancel_drops_a_segment_queued_behind_the_worker(env, monkeypatch):
     settle_worker(env)
     assert all(event.segment_id != 18 for event in env.events)
     assert env.dones == []
+
+
+def test_ve_failed_ordinary_speech_still_publishes_done(env, monkeypatch):
+    # speak() no longer raises, so a failed request must still release a
+    # LEGACY_DONE waiter, as the original add-on's DoneSpeaking does.
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    def fail(instance, text):
+        raise OSError("native failed")
+    monkeypatch.setattr(env.native, "processText2Speech", fail)
+    speak_ordinary(env, ("ordinary",))
+    assert len(env.dones) == 1
+    assert env.core._real_player.idles == 0
+
+
+def test_ve_engine_settings_variant_waits_for_running_speech(env, monkeypatch):
+    # The variant write joins the BgThread queue like every inner setting, so
+    # it never runs on the same native instance as an in-flight synthesis.
+    if env.engine != "VE":
+        pytest.skip("VE lifecycle adapter")
+    order = []
+    entered, release = Event(), Event()
+    def native(instance, text):
+        entered.set()
+        assert release.wait(2)
+        order.append(("spoken", text))
+    monkeypatch.setattr(env.native, "processText2Speech", native)
+    monkeypatch.setattr(env.native, "setParamList", lambda instance, *values: order.append(("set", values)))
+    monkeypatch.setattr(env.native, "getParamList", lambda instance, *ids: ["plain"] * len(ids))
+    first = run_thread(lambda: env.core.speak(("first",)))
+    assert entered.wait(1)
+    voice = object.__new__(env.module.Voice)
+    voice.applyEngineSettings(env.core, SimpleNamespace(voice_id=env.core.voice, variant="default", waitfactor=2))
+    try:
+        assert order == []
+    finally:
+        release.set()
+    finish(first)
+    settle_worker(env)
+    assert order == [("spoken", "first"), ("set", ((env.types.VE_PARAM_VOICE_OPERATING_POINT, "plain"),))]
 
 
 def test_ve_shared_player_failure_rejects_successor_with_context(env, monkeypatch):
@@ -1401,7 +1442,8 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(env, monkeypa
             assert env.events[0].segment_id == 18
             assert env.events[0].error is error
         assert native_calls == []
-        assert env.dones == []
+        # VE (async): speech queued before the fault still releases its DONE.
+        assert len(env.dones) == (1 if hosted(env) and speech_path == "legacy" and fresh_during_pause else 0)
         assert player.idles == 0
         # Clearing cancellation cannot clear an unknown player state fault.
         env.core.cancel()
@@ -1463,7 +1505,8 @@ def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch
             assert env.events[0].source_id is context.source_id
             assert env.events[0].segment_id == 17
             assert env.events[0].error is error
-        assert env.dones == []
+        # VE (async): the failed ordinary request still releases its DONE.
+        assert len(env.dones) == (1 if hosted(env) and speech_path == "legacy" else 0)
     finally:
         # Release the pre-fix paused work so RED does not leak a thread.
         env.core.cancel()
