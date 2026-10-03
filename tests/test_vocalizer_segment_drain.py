@@ -406,6 +406,54 @@ def test_engine_settings_variant_waits_for_running_speech(env, monkeypatch):
     assert order == [("spoken", "first"), ("set", ((env.types.VE_PARAM_VOICE_OPERATING_POINT, "plain"),))]
 
 
+def test_parameter_read_never_reorders_queued_speech(env, monkeypatch):
+    # A settings read on the main thread (synth.rate etc.) may overlap a
+    # segment being queued on its lifecycle thread. Draining and re-putting
+    # the queue there moved Begin behind Retire: a silent "drained" segment.
+    prove_fake_quiescence(env, monkeypatch)
+    spoken = []
+    monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: spoken.append(text))
+    monkeypatch.setattr(env.native, "getParamList", lambda instance, *ids: [50] * len(ids))
+    core, bg = env.core, env.core._bgQueue
+    hold = Event()
+    bg.put(lambda: hold.wait(5))
+    reading, read_done, retired = Event(), Event(), Event()
+    original_get, original_put, original_speak = bg.get_nowait, bg.put, core._speak
+
+    def get_nowait():
+        reading.set()
+        return original_get()
+
+    def put(task):
+        if not retired.is_set() and getattr(current_thread(), "name", "") == "parameter read":
+            assert retired.wait(2)
+        original_put(task)
+        if isinstance(task, env.module._Retire):
+            retired.set()
+
+    def read():
+        core.getParameter(core.voiceInstance, env.types.VE_PARAM_VOLUME)
+        read_done.set()
+
+    def racing_speak(instance, chunks):
+        Thread(target=read, name="parameter read", daemon=True).start()
+        wait_for(lambda: reading.is_set() or read_done.is_set())
+        original_speak(instance, chunks)
+
+    monkeypatch.setattr(bg, "get_nowait", get_nowait)
+    monkeypatch.setattr(bg, "put", put)
+    monkeypatch.setattr(core, "_speak", racing_speak)
+    _, _, call = speak(env, ("hello",), segment=31)
+    wait_for(lambda: retired.is_set())
+    hold.set()
+    finish(call)
+    assert read_done.wait(2)
+    settle_worker(env)
+    assert spoken == ["hello"]
+    assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+    assert env.dones == []
+
+
 def test_player_failure_rejects_successor_with_context(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)

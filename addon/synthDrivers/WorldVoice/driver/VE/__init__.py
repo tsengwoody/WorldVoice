@@ -557,6 +557,24 @@ class SynthDriver(BaseSynthDriver):
 		for piece in split_speech_text_pieces(break_repeated_runs("".join(chunks))):
 			self._bgQueue.put(_NativeTask(self, record, voiceInstance, piece))
 
+	def getParameters(self, instance, *idAndTypes):
+		if not self._guard_installed:
+			return super().getParameters(instance, *idAndTypes)
+		# Read pending settings like the inner driver, but without draining and
+		# re-putting the queue: that could move a record's Begin behind its Retire.
+		with self._bgQueue.mutex:
+			tasks = list(self._bgQueue.queue)
+		values = [None] * len(idAndTypes)
+		for task in tasks:
+			if isinstance(task, TtsSetParamList) and task.instance == instance:
+				for id, value in task.idAndValues:
+					for i, p in enumerate(idAndTypes):
+						if id == p[0]:
+							values[i] = value
+		if None not in values:
+			return values
+		return ve2.getParamList(instance, *idAndTypes)
+
 	def _run_native(self, record, voiceInstance, piece):
 		host = self._segmentHost
 		if record is not self._currentRecord or not self._record_valid(record) or self._isSilence.cancelled():
