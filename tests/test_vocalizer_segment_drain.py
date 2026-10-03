@@ -60,29 +60,19 @@ def wait_for(predicate):
     assert predicate()
 
 
-def hosted(env):
-    # VE runs on SegmentHost (phase 3d-1); Cerence keeps its synchronous wrapper.
-    return getattr(env.core, "_segmentHost", None)
-
-
 def lifecycle_of(env):
-    host = hosted(env)
-    return host._lifecycle if host is not None else env.core._segmentLifecycle
+    return env.core._segmentHost._lifecycle
 
 
 def settle_segment(env, context):
-    # speak_segment returns before delivery on the host; wait for this
-    # segment's operation to be published or discarded.
-    if hosted(env) is None:
-        return
+    # speak_segment returns before delivery; wait for this segment's
+    # operation to be published or discarded.
     lifecycle = lifecycle_of(env)
     wait_for(lambda: all(operation.work.context is not context for operation in list(lifecycle._operations)))
 
 
 def settle_worker(env):
-    # VE queues ordinary speech to the inner BgThread; wait until it ran.
-    if hosted(env) is None:
-        return
+    # Ordinary speech is queued to the inner BgThread; wait until it ran.
     queue, thread = env.core._bgQueue, env.core._bgThread
     wait_for(lambda: queue.unfinished_tasks == 0 or not thread.is_alive())
 
@@ -133,9 +123,7 @@ def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
     return results
 
 
-def test_ve_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
+def test_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     assert isinstance(env.core._segmentHost, env.module.SegmentHost)
     feed_entered, feed_release, idle_entered, idle_release = Event(), Event(), Event(), Event()
@@ -165,80 +153,7 @@ def test_ve_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch)
     assert env.indexes == [31]
 
 
-def test_ve_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
-    if env.engine != "VE":
-        pytest.skip("VE lifecycle adapter")
-    prove_fake_quiescence(env, monkeypatch)
-    assert isinstance(env.core._segmentHost, env.module.SegmentHost)
-    feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
-    calls, callbacks = [], []
-    env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
-    def stop():
-        stop_entered.set()
-        assert stop_release.wait(2)
-    env.core._real_player.stop = stop
-    def native(instance, text):
-        calls.append(text)
-        if len(calls) == 1:
-            callbacks.append(run_thread(lambda: emit(env, instance, index=41)))
-            assert feed_entered.wait(1)
-        else:
-            emit(env, instance, index=42)
-    monkeypatch.setattr(env.native, "processText2Speech", native)
-    token, _, first = speak(env)
-    assert feed_entered.wait(1)
-    token.cancel()
-    _, context, second = speak(env, segment=18)
-    feed_release.set()
-    assert stop_entered.wait(1)
-    assert calls == ["hello"]
-    stop_release.set()
-    # The callback thread can feed before native() records its handle.
-    wait_for(lambda: bool(callbacks))
-    finish(callbacks[0])
-    finish(first)
-    finish(second)
-    wait_for(lambda: len(env.events) == 1)
-    assert calls == ["hello", "hello"]
-    assert env.indexes == [42]
-    assert len(env.events) == 1
-    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
-    assert env.events[0].source_id is context.source_id
-    assert env.events[0].segment_id == 18
-
-
-@pytest.mark.parametrize("env", ["Cerence"], indirect=True)
-def test_cerence_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
-    prove_fake_quiescence(env, monkeypatch)
-    assert isinstance(env.core._segmentHost, env.module.SegmentHost)
-    feed_entered, feed_release, idle_entered, idle_release = Event(), Event(), Event(), Event()
-    callbacks = []
-    env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
-    env.core._real_player.idle = lambda: (idle_entered.set(), idle_release.wait(2))
-    def native(instance, text):
-        callbacks.append(run_thread(lambda: emit(env, instance, index=31)))
-        assert feed_entered.wait(1)
-    monkeypatch.setattr(env.native, "processText2Speech", native)
-    _, context, call = speak(env)
-    assert feed_entered.wait(1)
-    assert env.events == []
-    assert not idle_entered.is_set()
-    feed_release.set()
-    wait_for(lambda: bool(callbacks))
-    finish(callbacks[0])
-    assert idle_entered.wait(1)
-    assert env.events == []
-    idle_release.set()
-    finish(call)
-    wait_for(lambda: len(env.events) == 1)
-    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
-    assert env.events[0].source_id is context.source_id
-    assert env.events[0].segment_id == context.segment_id
-    assert env.indexes == [31]
-
-
-@pytest.mark.parametrize("env", ["Cerence"], indirect=True)
-def test_cerence_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
+def test_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     assert isinstance(env.core._segmentHost, env.module.SegmentHost)
     feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
@@ -645,16 +560,10 @@ def hold_contextual_final_idle(env, monkeypatch):
 
 
 def start_ordinary_behind(held, env, token=None):
-    if hosted(env):
-        # speak() returns once queued; the worker holds it behind the segment.
-        ordinary = run_thread(lambda: env.core.speak(("ordinary",), token))
-        finish(ordinary)
-        wait_for(lambda: queued_ordinary(env) == 1)
-        return ordinary
+    # speak() returns once queued; the worker holds it behind the segment.
     ordinary = run_thread(lambda: env.core.speak(("ordinary",), token))
-    # Either the ordinary request reaches native, or it waits for the
-    # coordinator resource. Only the latter keeps the shared player exclusive.
-    wait_for(lambda: ordinary[0] in held.condition.waiters or len(held.native_calls) > 1)
+    finish(ordinary)
+    wait_for(lambda: queued_ordinary(env) == 1)
     return ordinary
 
 
@@ -664,10 +573,7 @@ def test_contextual_final_idle_keeps_ordinary_speech_out_of_native(env, monkeypa
         ordinary = start_ordinary_behind(held, env)
         assert held.native_calls == [("hello", False)], (
             "Ordinary speech entered native during the contextual final idle")
-        if hosted(env):
-            assert queued_ordinary(env) == 1
-        else:
-            assert not ordinary[1].is_set()
+        assert queued_ordinary(env) == 1
     finally:
         held.release.set()
     finish(held.contextual)
@@ -692,13 +598,10 @@ def test_cancel_during_contextual_final_idle_releases_waiting_ordinary(env, monk
     finish(held.contextual)
     finish(ordinary)
     settle_worker(env)
-    if hosted(env):
-        # Like the original add-on: cancel drops queued speech, keeps its DONE.
-        assert held.native_calls == [("hello", False)]
-        assert len(env.dones) == 1
-        assert hosted(env)._pending == []
-    else:
-        assert held.native_calls == [("hello", False), ("ordinary", True)]
+    # Like the original add-on: cancel drops queued speech, keeps its DONE.
+    assert held.native_calls == [("hello", False)]
+    assert len(env.dones) == 1
+    assert env.core._segmentHost._pending == []
     with held.condition:
         assert held.condition.wait_for(
             lambda: not lifecycle_of(env)._operations, 1)
@@ -755,11 +658,8 @@ def test_terminate_during_contextual_final_idle_with_waiting_ordinary(
         held.release.set()
     finish(held.contextual)
     assert ordinary[1].wait(2)
-    if hosted(env):
-        # The queued request returned at once; terminate's cancel dropped it.
-        assert ordinary[2] == []
-    else:
-        assert [str(error) for error in ordinary[2]] == [f"{env.engine} driver has terminated"]
+    # The queued request returned at once; terminate's cancel dropped it.
+    assert ordinary[2] == []
     assert held.native_calls == [("hello", False)]
     assert closed.is_set()
     assert env.events == []
@@ -774,8 +674,7 @@ def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
     calls, works = [], []
     def native(instance, text):
         calls.append((instance.pHandleData, text))
-        native = env.core._nativeCall if hosted(env) else env.core._nativeWork
-        works.append(native.record if hosted(env) else native.work)
+        works.append(env.core._nativeCall.record)
         emit(env, instance, index=len(calls))
     monkeypatch.setattr(env.native, "processText2Speech", native)
     _, _, call = speak(env, ("hello", change, "bonjour"))
@@ -965,21 +864,12 @@ def test_direct_cancel_after_idle_return_still_invalidates_original_work(env, mo
     prove_fake_quiescence(env, monkeypatch)
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
     returned, release = Event(), Event()
-    if hosted(env):
-        retire = env.core._segmentHost.retire
-        def after_native(record, **kwargs):
-            returned.set()
-            assert release.wait(2)
-            return retire(record, **kwargs)
-        monkeypatch.setattr(env.core._segmentHost, "retire", after_native)
-    else:
-        run_speech = env.core._run_speech
-        def after_idle(commands, work):
-            result = run_speech(commands, work)
-            returned.set()
-            assert release.wait(2)
-            return result
-        monkeypatch.setattr(env.core, "_run_speech", after_idle)
+    retire = env.core._segmentHost.retire
+    def after_native(record, **kwargs):
+        returned.set()
+        assert release.wait(2)
+        return retire(record, **kwargs)
+    monkeypatch.setattr(env.core._segmentHost, "retire", after_native)
     _, _, call = speak(env)
     assert returned.wait(1)
     env.core.cancel()
@@ -1458,7 +1348,7 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(env, monkeypa
         if fresh is None:
             fresh = fresh_speech()
         if speech_path == "legacy":
-            if hosted(env) and fresh_during_pause:
+            if fresh_during_pause:
                 # Queued before the fault: the worker drops it, nothing is raised.
                 finish(fresh)
             else:
@@ -1470,8 +1360,8 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(env, monkeypa
             assert env.events[0].segment_id == 18
             assert env.events[0].error is error
         assert native_calls == []
-        # VE (async): speech queued before the fault still releases its DONE.
-        assert len(env.dones) == (1 if hosted(env) and speech_path == "legacy" and fresh_during_pause else 0)
+        # Async speak(): speech queued before the fault still releases its DONE.
+        assert len(env.dones) == (1 if speech_path == "legacy" and fresh_during_pause else 0)
         assert player.idles == 0
         # Clearing cancellation cannot clear an unknown player state fault.
         env.core.cancel()
@@ -1521,11 +1411,8 @@ def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch
             env.core.pause(False)
         assert failed_resume_states == [True]
         if speech_path == "legacy":
-            if hosted(env):
-                # speak() returned once queued; the fault suppresses its DONE.
-                finish(speech)
-            else:
-                assert_operation_failed(speech, error)
+            # speak() returned once queued; the fault suppresses its DONE.
+            finish(speech)
         else:
             finish(speech)
             assert len(env.events) == 1
@@ -1533,8 +1420,8 @@ def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch
             assert env.events[0].source_id is context.source_id
             assert env.events[0].segment_id == 17
             assert env.events[0].error is error
-        # VE (async): the failed ordinary request still releases its DONE.
-        assert len(env.dones) == (1 if hosted(env) and speech_path == "legacy" else 0)
+        # Async speak(): the failed ordinary request still releases its DONE.
+        assert len(env.dones) == (1 if speech_path == "legacy" else 0)
     finally:
         # Release the pre-fix paused work so RED does not leak a thread.
         env.core.cancel()

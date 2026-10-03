@@ -67,7 +67,7 @@ def emit_audio(core, types, payload=b"new", done_result=None):
 	callback = core._veCallbackHandler
 	if done_result is None:
 		done_result = types.NUAN_OK
-	native = getattr(core, "_nativeCall", None) or getattr(core, "_nativeWork", None)
+	native = getattr(core, "_nativeCall", None)
 	instance = native.instance if native is not None else None
 	out_data = types.VE_OUTDATA()
 	assert callback(instance, None, native_message(types, types.VE_MSG_OUTBUFREQ, out_data)) == types.NUAN_OK

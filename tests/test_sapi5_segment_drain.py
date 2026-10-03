@@ -1302,15 +1302,11 @@ def test_submit_failure_before_binding_leaves_the_lifecycle_usable(env, monkeypa
 def test_hook_fault_after_binding_does_not_strand_the_worker(monkeypatch):
     """C2: a lifecycle hook that fails after the native request is bound."""
     env = load_sapi5(monkeypatch)
-    hooks = getattr(env.driver, "_segmentHost", env.driver)
+    hooks = env.driver._segmentHost
     real_retired = hooks.wait_native_retired
-    stranded = []
 
     def failing_retired(operation):
         real_retired(operation)
-        binding = getattr(env.driver, "_segmentBindings", {}).get(operation)
-        if binding is not None:
-            stranded.append(binding)
         raise RuntimeError("hook failed after binding")
 
     monkeypatch.setattr(hooks, "wait_native_retired", failing_retired)
@@ -1331,8 +1327,6 @@ def test_hook_fault_after_binding_does_not_strand_the_worker(monkeypatch):
         terminated.join(2)
         assert not terminated.is_alive(), "terminate() hung on the stranded worker"
     finally:
-        for binding in stranded:
-            binding.playback_done.set()
         for player in env.players:
             player.feed_release.set()
             player.idle_release.set()

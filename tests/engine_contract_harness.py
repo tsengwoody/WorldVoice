@@ -46,9 +46,7 @@ class _Adapter:
 		self.core.terminate()
 
 	def on_delivery_thread(self):
-		host = getattr(self.core, "_segmentHost", None)
-		lifecycle = host if host is not None else self.core._segmentLifecycle
-		return lifecycle.on_delivery_thread()
+		return self.core._segmentHost.on_delivery_thread()
 
 
 class EspeakAdapter(_Adapter):
