@@ -99,6 +99,7 @@
      - `test_nvda_event_bridge.py`：2 個；
      - `test_runtime_scheduler.py`：1 個。
      等到有引擎實作 `speak_legacy_segment`（例如將來遷移 Neural）時再補回。這個功能本身要不要移除，留到階段 8 決定。
+   - 最終審查發現：scheduler 中「contextual legacy 的 SEGMENT_FAILED 讓請求失敗」這個分支原本只靠被刪除的 `test_contextual_legacy_control_failure_fails_request` 覆蓋，因此另外新增單元測試 `test_runtime_scheduler.py::test_contextual_legacy_segment_failure_fails_request`。
 3. **清掉舊式雙分支**：
    - harness 與測試中「沒有 `_segmentHost` 就讀 `_segmentLifecycle`」的分支改為只走 host。涉及的地方：
      - `engine_contract_harness.py`；
