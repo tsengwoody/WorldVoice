@@ -164,6 +164,7 @@ def test_voice_parameters_commit_and_follow_the_consistency_policy(monkeypatch, 
 	instance = types.SimpleNamespace(commit=lambda: calls.append("commit"))
 	synth._voiceManager = types.SimpleNamespace(
 		defaultVoiceInstance=instance,
+		parameter_consistency=types.SimpleNamespace(enabled=consistent),
 		onVoiceParameterConsistent=lambda voice: calls.append(("consistent", voice)),
 	)
 	# The AST-loaded class has no NVDA auto-property metaclass; call the setter itself.

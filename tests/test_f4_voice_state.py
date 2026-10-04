@@ -184,6 +184,7 @@ def test_manager_binds_new_voice_to_its_engine(monkeypatch):
 	module.READY_ENGINE_CLASS["A"] = a.__class__
 	voice_meta = type(a._state.spec)("new", "A:new", "A:new", "en", "A", "en")
 	manager_instance = object.__new__(module.VoiceManager)
+	manager_instance._init_policies()
 	manager_instance._specs = {voice_meta.name: voice_meta}
 	manager_instance._bindings = {"A": a._binding}
 	manager_instance.settings = a._binding.settings
@@ -305,6 +306,7 @@ def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypa
 	current_writes = list(core.writes)
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
+	manager_instance._init_policies()
 	manager_instance._instanceCache = {a.name: a, b.name: b}
 	manager_instance.settings = a._binding.settings
 	manager_instance.getVoiceInstance = lambda name: manager_instance._instanceCache[name]
@@ -341,6 +343,7 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	(a, b), _ = _voices(monkeypatch)
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
+	manager_instance._init_policies()
 	manager_instance._instanceCache = {a.name: a, b.name: b}
 	manager_instance.settings = a._binding.settings
 	updates = []
@@ -364,6 +367,7 @@ def test_ui_consistency_copy_is_atomic_for_worker_activation(monkeypatch, action
 	bind_core(core, a, b)
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
+	manager_instance._init_policies()
 	manager_instance._instanceCache = {a.name: a, b.name: b}
 	manager_instance.settings = a._binding.settings
 	manager_instance._defaultVoiceInstance = a

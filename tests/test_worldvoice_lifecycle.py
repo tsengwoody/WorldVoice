@@ -225,6 +225,7 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 
 	module = _load_voice_manager(monkeypatch, {"broken": BrokenEngine, "other": OtherEngine})
 	manager = object.__new__(module.VoiceManager)
+	manager._init_policies()
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}
@@ -253,6 +254,7 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	monkeypatch.setattr(module, "log", types.SimpleNamespace(
 		error=lambda message, *args, **kwargs: errors.append(message % args)))
 	manager = object.__new__(module.VoiceManager)
+	manager._init_policies()
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}

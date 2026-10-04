@@ -428,7 +428,7 @@ class SynthDriver(SynthDriver):
 		instance = self._voiceManager.defaultVoiceInstance
 		setattr(instance, name, value)
 		instance.commit()
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+		if self._voiceManager.parameter_consistency.enabled:
 			self._voiceManager.onVoiceParameterConsistent(instance)
 
 	def _get_volume(self):

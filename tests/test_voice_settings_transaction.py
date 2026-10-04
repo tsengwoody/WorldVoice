@@ -58,6 +58,7 @@ def test_parameter_preview_is_undone_by_cancel(monkeypatch):
 		lambda language: language, raising=False)
 	a, b = _create_voices(monkeypatch, config)
 	manager = object.__new__(module.VoiceManager)
+	manager._init_policies()
 	manager._instanceCache = {a.name: a, b.name: b}
 	manager.settings = a._binding.settings
 	panel_type = _load_panel_class(config, lambda: types.SimpleNamespace(name="WorldVoice"))
@@ -98,6 +99,7 @@ def test_engine_consistency_preview_cancel_and_apply(monkeypatch):
 		lambda language: language, raising=False)
 	a, b = _create_voices(monkeypatch, config)
 	manager = object.__new__(module.VoiceManager)
+	manager._init_policies()
 	manager._instanceCache = {a.name: a, b.name: b}
 	manager.settings = a._binding.settings
 	manager._defaultVoiceInstance = a
@@ -144,6 +146,7 @@ def _editing_panel(monkeypatch):
 	a, b = _create_voices(monkeypatch, config)
 	config.conf["speech"] = {"WorldVoice": {"voice": a.name}}
 	manager = object.__new__(module.VoiceManager)
+	manager._init_policies()
 	manager.settings = a._binding.settings
 	manager._instanceCache = {a.name: a}
 	manager._defaultVoiceInstance = a

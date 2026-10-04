@@ -3,7 +3,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from operator import attrgetter
 from typing import Callable, TypeVar, Dict, List
-import re
 
 import config
 import languageHandler
@@ -20,6 +19,10 @@ from .runtime.scheduler import TaskManager
 from .runtime.settings import VoiceEditSession, VoiceSettingsStore
 from .nvdaEventBridge import NvdaEventBridge
 
+from .mainLocalePolicy import EngineConsistency, ParameterConsistency, VoiceConsistency
+
+# getPrimaryLocale is re-exported for callers of this module.
+from .roles import ConfigRoleRepository, getPrimaryLocale
 from .engine import EngineType, READY_ENGINE_CLASS, get_engine_enabled, refresh_ready_engine_classes
 
 
@@ -53,13 +56,6 @@ def groupByField(
 	return groups
 
 
-def getPrimaryLocale(locale: str) -> str:
-	"""Return the primary language subtag from locale strings like en_US / en-US."""
-	if not locale:
-		return locale
-	return re.split(r"[-_]", locale, maxsplit=1)[0].lower()
-
-
 def groupVoicesByPrimaryLocale(table: list["VoiceMeta"]) -> dict[str, list[str]]:
 	return groupByField(table, "locale", getPrimaryLocale, lambda i: i.name)
 
@@ -84,6 +80,7 @@ class VoiceManager(object):
 		*,
 		index_ledger: IndexLedger,
 		completion_for: Callable[[type, object], CompletionContract],
+		roles: ConfigRoleRepository | None = None,
 	):
 		self.taskManager = taskManager
 		self.settings = settings
@@ -98,16 +95,31 @@ class VoiceManager(object):
 		self._waitfactor = 0
 		self._terminated = False
 		try:
+			self._init_policies(roles)
 			self._initialize()
 		except BaseException:
 			# Release acquired resources even on KeyboardInterrupt, then re-raise.
 			self.terminate(commit=False)
 			raise
 
+	def _init_policies(self, roles=None):
+		def conf_provider():
+			return config.conf
+
+		self.roles = roles or ConfigRoleRepository(conf_provider)
+		self.engine_consistency = EngineConsistency(conf_provider)
+		self.voice_consistency = VoiceConsistency(conf_provider, self.roles, languageHandler.getLanguage)
+		self.parameter_consistency = ParameterConsistency(conf_provider)
+
+	@property
+	def keepMainLocaleEngineConsistent(self):
+		return self.engine_consistency.enabled
+
+	@keepMainLocaleEngineConsistent.setter
+	def keepMainLocaleEngineConsistent(self, value):
+		self.engine_consistency.enabled = value
+
 	def _initialize(self):
-		self.keepMainLocaleEngineConsistent = config.conf["WorldVoice"]["autoLanguageSwitching"][
-			"KeepMainLocaleEngineConsistent"
-		]
 		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
 		for eng in EngineType:
 			if not get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"]):
@@ -258,15 +270,7 @@ class VoiceManager(object):
 		return voiceInstance
 
 	def previewVoiceParameterConsistent(self, baseInstance):
-		base = self.settings.snapshot(baseInstance.name)
-		for key in self.settings.keys():
-			self.settings.state(key).update(
-				rate=base.rate,
-				pitch=base.pitch,
-				volume=base.volume,
-				inflection=base.inflection,
-				rateBoost=base.rateBoost,
-			)
+		self.parameter_consistency.copy_from(self.settings, baseInstance.name)
 
 	def onVoiceParameterConsistent(self, baseInstance):
 		self.previewVoiceParameterConsistent(baseInstance)
@@ -274,40 +278,10 @@ class VoiceManager(object):
 			self.settings.commit(key)
 
 	def onKeepEngineConsistent(self):
-		temp = defaultdict(lambda: {})
-		for key, value in config.conf["WorldVoice"]["role"].items():
-			if isinstance(value, config.AggregatedSection):
-				try:
-					temp[key]["voice"] = config.conf["WorldVoice"]["role"][key]["voice"]
-				except KeyError:
-					pass
-			else:
-				temp[key] = config.conf["WorldVoice"]["role"][key]
-
-		for localelo, data in config.conf["WorldVoice"]["role"].items():
-			if isinstance(data, config.AggregatedSection):
-				if (localelo not in self.localeToVoicesMap) or (
-					"voice" in data and data["voice"] not in self.localeToVoicesMap[localelo]
-				):
-					try:
-						del temp[localelo]
-					except KeyError:
-						pass
-					# log.info(f"locale {localelo} voice {data['voice']} not available")
-
-		config.conf["WorldVoice"]["role"] = temp
+		self.roles.prune(self.localeToVoicesMap)
 
 	def onKeepMainLocaleVoiceConsistent(self):
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
-			locale = (
-				self.defaultVoiceInstance.language
-				if self.defaultVoiceInstance.language
-				else languageHandler.getLanguage()
-			)
-			locale = getPrimaryLocale(locale)
-			if locale not in config.conf["WorldVoice"]["role"]:
-				config.conf["WorldVoice"]["role"][locale] = {}
-			config.conf["WorldVoice"]["role"][locale]["voice"] = self.defaultVoiceInstance.name
+		self.voice_consistency.follow(self.defaultVoiceInstance)
 
 	def reload(self):
 		for voiceName, instance in self._instanceCache.items():
@@ -336,30 +310,21 @@ class VoiceManager(object):
 		_localesToVoices = groupVoicesByPrimaryLocale(table)
 		return sorted([l for l in _localesToVoices if len(_localesToVoices[l]) > 0])
 
+	def _visible_table(self):
+		return self.engine_consistency.visible(self.table, self._defaultVoiceInstance.engine)
+
 	@property
 	def languages(self):
-		if self.keepMainLocaleEngineConsistent:
-			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
-		else:
-			table = [v for v in self.table]
-		_localesToVoices = groupVoicesByPrimaryLocale(table)
+		_localesToVoices = groupVoicesByPrimaryLocale(self._visible_table())
 		return sorted([l for l in _localesToVoices if len(_localesToVoices[l]) > 0])
 
 	@property
 	def localeToVoicesMap(self):
-		if self.keepMainLocaleEngineConsistent:
-			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
-		else:
-			table = [v for v in self.table]
-		return groupVoicesByPrimaryLocale(table)
+		return groupVoicesByPrimaryLocale(self._visible_table())
 
 	@property
 	def localesToNamesMap(self):
-		if self.keepMainLocaleEngineConsistent:
-			table = [v for v in self.table if v.engine == self._defaultVoiceInstance.engine]
-		else:
-			table = [v for v in self.table]
-		_localesToVoices = groupVoicesByPrimaryLocale(table)
+		_localesToVoices = groupVoicesByPrimaryLocale(self._visible_table())
 		return {item: self._getLocaleReadableName(item) for item in _localesToVoices}
 
 	def getVoiceNameForLanguage(self, language):
@@ -375,20 +340,7 @@ class VoiceManager(object):
 		return None
 
 	def _getConfiguredVoiceNameForLanguage(self, language):
-		voice = None
-		if language in config.conf["WorldVoice"]["role"]:
-			try:
-				voice = config.conf["WorldVoice"]["role"][language]["voice"]
-			except KeyError:
-				pass
-		if not voice:
-			locale = getPrimaryLocale(language)
-			if locale in config.conf["WorldVoice"]["role"]:
-				try:
-					voice = config.conf["WorldVoice"]["role"][locale]["voice"]
-				except KeyError:
-					pass
-		return voice
+		return self.roles.voice_for(language)
 
 	def _getLocaleReadableName(self, locale_):
 		description = languageHandler.getLanguageDescription(locale_)
