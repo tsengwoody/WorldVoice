@@ -41,6 +41,7 @@ def on_worldvoice_end():
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
 		super().__init__()
+		self.submenu_item = None
 
 		WVStart.register(on_worldvoice_start)
 		WVEnd.register(on_worldvoice_end)
@@ -59,7 +60,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def terminate(self):
 		try:
 			self.removeMenu()
-		except wx.PyDeadObjectError:
+		except RuntimeError:
+			# wxPython raises RuntimeError for a menu whose C++ object is gone.
 			pass
 
 		unpatch()
