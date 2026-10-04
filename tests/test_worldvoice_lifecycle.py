@@ -236,6 +236,32 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 	assert manager.taskManager is None
 
 
+def test_voice_manager_logs_close_failures_under_the_published_engine_name(monkeypatch):
+	class Engine:
+		engine = "class-name"
+
+	def fail(*args):
+		raise RuntimeError("close failed")
+
+	module = _load_voice_manager(monkeypatch, {})
+	errors = []
+	monkeypatch.setattr(module, "log", types.SimpleNamespace(
+		error=lambda message, *args, **kwargs: errors.append(message % args)))
+	manager = object.__new__(module.VoiceManager)
+	manager.taskManager = object()
+	manager._terminated = False
+	manager._instanceCache = {}
+	manager._sessions = {}
+	manager._bindings = {}
+	manager.settings = types.SimpleNamespace(keys=lambda: ())
+	manager._bridge = types.SimpleNamespace(unbind=fail)
+	manager._resources = [
+		module.EngineResource("published", Engine, None, types.SimpleNamespace(close=fail, source_id=object()), None),
+	]
+	manager.terminate()
+	assert errors == ["Failed to unbind engine published", "Failed to close engine published"]
+
+
 @pytest.mark.parametrize("failure", ["done", "index"])
 def test_bridge_unregisters_events_if_registration_fails(monkeypatch, failure):
 	class DoneEvent:

@@ -132,6 +132,14 @@ def test_unconfirmed_profile_falls_back_with_concrete_reason(env, failure, reaso
     assert contract.mode is env.models.CompletionMode.LEGACY_DONE
 
 
+def test_drain_support_refuses_a_voice_without_profile(env):
+    pair = fake_voice(env, profile=False)
+    support = policies_of(env).CompletionPolicy().drain_support(
+        pair.voice, pair.core, nvda_version="2026.1", audio_mode="default")
+    assert support.supported is False and support.reason == "The Voice declares no drain profile"
+    assert pair.checked == []
+
+
 def test_disabled_force_switch_reports_the_wrapper_reason(env):
     pair = fake_voice(env, reason="DRAIN explicitly enabled; playback is unverified")
     policy = policies_of(env).CompletionPolicy(force_unverified_drain=False)

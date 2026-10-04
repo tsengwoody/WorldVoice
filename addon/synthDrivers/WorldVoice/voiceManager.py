@@ -186,7 +186,7 @@ class VoiceManager(object):
 					log.error("Failed to save voice %s", key, exc_info=True)
 		self._instanceCache.clear()
 		for resource in reversed(self._resources):
-			engine = resource.voice_class.engine
+			engine = resource.engine
 			try:
 				self._bridge.unbind(resource.session.source_id)
 			except Exception:
