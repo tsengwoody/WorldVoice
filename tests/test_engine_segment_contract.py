@@ -192,3 +192,5 @@ def test_segment_after_player_stop_failure_fails(engine):
 	assert not caller.is_alive() and errors == []
 	assert event.kind is engine.EventKind.SEGMENT_FAILED
 	assert event.segment_id == 25
+	# Failed because of the latched stop failure, not for another reason.
+	assert str(event.error) == "player stop failed"
