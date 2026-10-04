@@ -51,13 +51,11 @@ class LegacyEngineAdapter:
 		voice_class: type,
 		resolve_voice: Callable[[str], object],
 		*,
-		is_source_owned: Callable[[object], bool] | None = None,
 		index_ledger: IndexLedger | None = None,
 		completion: CompletionContract | None = None,
 	):
 		self._voice_class = voice_class
 		self._resolve_voice = resolve_voice
-		self._is_source_owned = is_source_owned
 		self._index_ledger = index_ledger
 		self._completion = completion or CompletionContract()
 		self._completion_configured = completion is not None
@@ -72,24 +70,14 @@ class LegacyEngineAdapter:
 	def open(self) -> None:
 		if self._opened:
 			return
-		# Claim cleanup before engineOn: it may acquire a core then raise.
+		# create_core either returns a core this adapter owns or raises without one.
+		self._core = self._voice_class.create_core()
+		self.notification_source = self._core
 		self._opened = True
-		try:
-			self._voice_class.engineOn()
-			self._core = self._voice_class.core
-			self.notification_source = self._core
-		except Exception as error:
-			try:
-				source = getattr(self._voice_class, "core", None)
-				if self._is_source_owned is not None and self._is_source_owned(source):
-					# engineOn may expose an existing owner's resource before
-					# failing. This alias must not release that owner's core.
-					self.detach_alias()
-				else:
-					self.close()
-			except Exception as cleanup_error:
-				raise error from cleanup_error
-			raise
+
+	@property
+	def core(self):
+		return self._core
 
 	def configure_completion(self, contract: CompletionContract) -> None:
 		"""Fix completion semantics for this opened resource before playback."""
@@ -125,27 +113,14 @@ class LegacyEngineAdapter:
 	def close(self) -> None:
 		if not self._opened:
 			return
-		self._opened = False
-		try:
-			self._voice_class.engineOff()
-		finally:
-			self._core = None
-			self.notification_source = None
-			self._segment_events = None
-			self._legacy_events = None
-			self._spoken = False
-
-	def detach_alias(self) -> None:
-		"""Relinquish a duplicate adapter without releasing the owner's core."""
+		core = self._core
 		self._opened = False
 		self._core = None
 		self.notification_source = None
 		self._segment_events = None
 		self._legacy_events = None
 		self._spoken = False
-		self._voice_class.core = None
-		self._voice_class.session = None
-		self._voice_class._runtime_binding = None
+		self._voice_class.destroy_core(core)
 
 	@property
 	def capabilities(self) -> EngineCapabilities:
@@ -160,7 +135,7 @@ class LegacyEngineAdapter:
 
 	def list_voices(self) -> tuple[VoiceSpec, ...]:
 		specs = []
-		for voice in self._voice_class.voices():
+		for voice in self._voice_class.voices(self._core):
 			try:
 				engine, voice_id, language = voice["engine"], voice["id"], voice["language"]
 				specs.append(

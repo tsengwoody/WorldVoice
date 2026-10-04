@@ -63,12 +63,12 @@ def engine(module, compat, rt):
     def adapter(core):
         class Legacy:
             @classmethod
-            def engineOn(cls):
-                cls.core = core
+            def create_core(cls):
+                return core
 
             @classmethod
-            def engineOff(cls):
-                cls.core = None
+            def destroy_core(cls, target):
+                pass
 
             @classmethod
             def supportedSettings(cls):

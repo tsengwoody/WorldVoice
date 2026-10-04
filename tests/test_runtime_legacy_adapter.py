@@ -53,24 +53,24 @@ class Core:
 def legacy_class(core):
     class Legacy:
         opens = closes = 0
-        session = None
 
         @classmethod
-        def engineOn(cls):
+        def create_core(cls):
             cls.opens += 1
-            cls.core = core
+            return core
 
         @classmethod
-        def engineOff(cls):
+        def destroy_core(cls, target):
+            assert target is core
             cls.closes += 1
-            cls.core = cls.session = None
 
         @classmethod
         def supportedSettings(cls):
             return ["voice", "rateBoost", "rate", "pitch", "volume", "inflection"]
 
         @classmethod
-        def voices(cls):
+        def voices(cls, target):
+            assert target is core
             return [dict(id="a", name="Fake:a", description="A", language="en",
                          engine="Fake", locale="en", langDescription="English")]
 
@@ -87,7 +87,6 @@ def legacy_class(core):
         def variants(self):
             return [{"id": "bright", "name": "Bright"}]
 
-    Legacy.core = None
     return Legacy
 
 
@@ -116,8 +115,9 @@ def test_lifecycle_metadata_and_apply_order(compat, rt):
     adapter.close()
     adapter.close()
     assert cls.closes == 1
-    assert cls.core is None
+    assert adapter.core is None and adapter.notification_source is None
     adapter.open()
+    assert adapter.core is core
     adapter.close()
     assert (cls.opens, cls.closes) == (2, 2)
 
@@ -149,7 +149,7 @@ def test_contextual_legacy_reopen_reconfigures_segment_events(compat, rt):
 @pytest.mark.parametrize("extra", [{}, {"name": "noncanonical", "description": "", "locale": "en_US"}])
 def test_voice_metadata_defaults_and_canonical_key(compat, rt, extra):
     cls = legacy_class(Core())
-    cls.voices = classmethod(lambda cls: [dict(engine="Fake", id="a", language="en_US", **extra)])
+    cls.voices = classmethod(lambda cls, core: [dict(engine="Fake", id="a", language="en_US", **extra)])
     adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
     assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "", "en_US", "Fake", "en_US"),)
 
@@ -159,7 +159,7 @@ def test_malformed_voice_metadata_does_not_hide_valid_voices(compat, rt):
     valid = dict(engine="Fake", id="a", language="en", name="Fake:a", description="A", locale="en")
     malformed = dict(valid, id="broken")
     del malformed["language"]
-    cls.voices = classmethod(lambda cls: [malformed, valid])
+    cls.voices = classmethod(lambda cls, core: [malformed, valid])
     adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
     assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
 
@@ -193,51 +193,56 @@ def test_unsupported_generic_settings_are_not_written(compat, rt):
     assert adapter.capabilities.settings == frozenset({"rate"})
 
 
-@pytest.mark.parametrize("cleanup_fails", [False, True])
-def test_partial_engine_open_is_cleaned_once(compat, rt, cleanup_fails):
+def test_failed_core_creation_leaves_nothing_to_clean(compat, rt):
     core = Core()
     cls = legacy_class(core)
 
     def fail_open(cls):
-        cls.core = core
+        cls.opens += 1
         raise ValueError("open failed")
 
-    def cleanup(cls):
-        cls.closes += 1
-        cls.core = None
-        if cleanup_fails:
-            raise OSError("cleanup failed")
-
-    cls.engineOn = classmethod(fail_open)
-    cls.engineOff = classmethod(cleanup)
+    cls.create_core = classmethod(fail_open)
     adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
     session = rt.session.EngineSession(adapter, rt.settings.VoiceSettingsStore(MemoryRepository()))
-    with pytest.raises(ValueError, match="open failed") as caught:
+    with pytest.raises(ValueError, match="open failed"):
         session.open()
+    assert adapter.core is None and adapter.notification_source is None
     session.close()
     adapter.close()
-    assert cls.closes == 1
-    assert cls.core is None
-    if cleanup_fails:
-        assert isinstance(caught.value.__cause__, OSError)
+    assert (cls.opens, cls.closes) == (1, 0)
 
 
-def test_alias_detach_preserves_shared_resource_owner(compat):
+def test_close_releases_adapter_state_even_when_destroy_core_fails(compat):
     core = Core()
-    owner_cls, alias_cls = legacy_class(core), legacy_class(core)
-    owner = compat.adapter.LegacyEngineAdapter(owner_cls, lambda key: owner_cls())
-    alias = compat.adapter.LegacyEngineAdapter(alias_cls, lambda key: alias_cls())
-    owner.open()
-    alias.open()
-    alias_cls.session = object()
-    alias_cls._runtime_binding = object()
-    alias.detach_alias()
-    alias.close()
-    assert (alias_cls.core, alias_cls.session, alias_cls._runtime_binding) == (None, None, None)
-    assert owner_cls.core is core
-    assert (owner_cls.closes, alias_cls.closes) == (0, 0)
-    owner.close()
-    assert (owner_cls.closes, alias_cls.closes) == (1, 0)
+    cls = legacy_class(core)
+
+    def fail_destroy(cls, target):
+        cls.closes += 1
+        raise OSError("cleanup failed")
+
+    cls.destroy_core = classmethod(fail_destroy)
+    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+    adapter.open()
+    with pytest.raises(OSError, match="cleanup failed"):
+        adapter.close()
+    assert adapter.core is None and adapter.notification_source is None
+    adapter.close()
+    assert cls.closes == 1
+
+
+def test_each_adapter_owns_its_own_core(compat):
+    first_core, second_core = Core(), Core()
+    first_cls, second_cls = legacy_class(first_core), legacy_class(second_core)
+    first = compat.adapter.LegacyEngineAdapter(first_cls, lambda key: first_cls())
+    second = compat.adapter.LegacyEngineAdapter(second_cls, lambda key: second_cls())
+    first.open()
+    second.open()
+    assert (first.core, second.core) == (first_core, second_core)
+    second.close()
+    assert first.core is first_core
+    assert (first_cls.closes, second_cls.closes) == (0, 1)
+    first.close()
+    assert (first_cls.closes, second_cls.closes) == (1, 1)
 
 
 def test_onecore_cached_a_b_a_restores_language(compat, rt):
@@ -278,10 +283,12 @@ def test_real_variant_and_waitfactor_hooks(compat, rt, monkeypatch, engine):
                         lambda instance, pair: lambda: writes.append((instance, pair[1])))
     monkeypatch.setattr(harness.module.ve2 if engine == "VE" else harness.module.ttsapi,
                         "getSpeechDBList", lambda language, key: ["plain", "bright"])
-    monkeypatch.setattr(cls, "engineOn", classmethod(lambda cls: setattr(cls, "core", core)), raising=False)
+    monkeypatch.setattr(cls, "create_core", classmethod(lambda cls: core), raising=False)
     monkeypatch.setattr(cls, "supportedSettings", classmethod(lambda cls: ["rate"]), raising=False)
     voice = object.__new__(cls)
     voice.id = "a"
+    # The harness's Voice base is a plain object; a bound facade exposes core.
+    voice.core = core
     adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: voice)
     adapter.open()
     core.writes.clear()

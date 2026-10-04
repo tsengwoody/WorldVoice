@@ -176,18 +176,17 @@ def test_voice_manager_closes_engine_when_no_voices(monkeypatch):
 
 	class Engine:
 		engine = "A"
-		core = None
 
 		@classmethod
-		def engineOn(cls):
-			cls.core = object()
+		def create_core(cls):
+			return object()
 
 		@classmethod
-		def voices(cls):
+		def voices(cls, core):
 			return []
 
 		@classmethod
-		def engineOff(cls):
+		def destroy_core(cls, core):
 			closed.append(cls.engine)
 
 	module = _load_voice_manager(monkeypatch, {"A": Engine})
@@ -208,7 +207,7 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 		engine = "broken"
 
 		@classmethod
-		def engineOff(cls):
+		def close(cls):
 			closed.append("broken")
 			raise RuntimeError("failure while closing")
 
@@ -216,7 +215,7 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 		engine = "other"
 
 		@classmethod
-		def engineOff(cls):
+		def close(cls):
 			closed.append("other")
 
 	module = _load_voice_manager(monkeypatch, {"broken": BrokenEngine, "other": OtherEngine})
@@ -226,10 +225,11 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 	manager._instanceCache = {}
 	manager.installEngine = [BrokenEngine, OtherEngine]
 	manager._sessions = {}
+	manager._bindings = {}
 	manager.settings = types.SimpleNamespace(keys=lambda: ())
 	manager._bridge = types.SimpleNamespace(unbind=lambda source: None)
 	manager._resources = [
-		(object(), types.SimpleNamespace(close=cls.engineOff, source_id=object()), None, cls, True)
+		(object(), types.SimpleNamespace(close=cls.close, source_id=object()), None, cls, True)
 		for cls in (BrokenEngine, OtherEngine)
 	]
 	manager.terminate()
@@ -271,21 +271,20 @@ def test_bridge_unregisters_events_if_registration_fails(monkeypatch, failure):
 def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkeypatch):
 	closed, bound = [], {}
 	class Engine:
-		core = session = None
 		@classmethod
-		def engineOn(cls):
-			cls.core = types.SimpleNamespace()
+		def create_core(cls):
+			core = types.SimpleNamespace()
 			if cls.engine == "first":
-				cls.core.speak_segment = lambda *args, **kwargs: None
+				core.speak_segment = lambda *args, **kwargs: None
+			return core
 		@classmethod
-		def engineOff(cls):
+		def destroy_core(cls, core):
 			closed.append(cls.engine)
-			cls.core = None
 		@classmethod
 		def supportedSettings(cls):
 			return []
 		@classmethod
-		def voices(cls):
+		def voices(cls, core):
 			return []
 	class First(Engine):
 		engine = "first"
@@ -305,7 +304,6 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 			completion_for=lambda cls, core: models.CompletionContract(
 				models.CompletionMode.DRAIN, models.IndexRange(1, 9999)))
 	assert closed == ["broken", "first"] and bound == {}
-	assert First.core is Broken.core is First.session is Broken.session is None
 
 
 @pytest.mark.parametrize("error", [RuntimeError("bridge failure"), KeyboardInterrupt()])

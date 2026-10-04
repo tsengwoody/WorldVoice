@@ -19,3 +19,23 @@ def test_driver_selects_completion_through_its_policy():
 	assert "from .compat.completionPolicies import CompletionPolicy\n" in text
 	for removed in ("DRAIN_ENGINES", "get_completion_contract", "get_segment_drain_support", "resolve_audio_mode"):
 		assert removed not in text, removed
+
+
+def _addon_sources():
+	for path in sorted(ADDON.rglob("*.py")):
+		yield path.relative_to(ADDON).as_posix(), path.read_text(encoding="utf-8")
+
+
+def test_engine_classes_hold_no_shared_core_or_session():
+	import re
+
+	found = []
+	class_state = re.compile(r"\b(cls|Voice|voice_class|_voice_class|voiceInstance)\.(core|session|_runtime_binding)\s*=[^=]")
+	for name, text in _addon_sources():
+		for removed in ("engineOn", "engineOff", "_runtime_binding", "detach_alias", "is_source_owned"):
+			if removed in text:
+				found.append(f"{name}: {removed}")
+		for number, line in enumerate(text.splitlines(), 1):
+			if class_state.search(line):
+				found.append(f"{name}:{number}: {line.strip()}")
+	assert found == []

@@ -176,7 +176,6 @@ class SynthDriver(BaseSynthDriver):
 
 
 class Voice(Voice):
-	core = None
 	engine = "Espeak"
 	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver

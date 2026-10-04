@@ -1,6 +1,5 @@
 """Legacy caller API backed by one runtime settings store and session."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from ..runtime.models import VoiceSpec
@@ -10,9 +9,11 @@ from ..runtime.settings import VoiceSettingsStore
 
 @dataclass(frozen=True)
 class LegacyVoiceBinding:
+	"""One opened engine's settings, playback session and core."""
+
 	settings: VoiceSettingsStore
 	session: EngineSession
-	spec_for: Callable[[str], VoiceSpec]
+	core: object
 
 
 def _setting(name):
@@ -36,18 +37,17 @@ def _baseline(name):
 
 
 class VoiceFacade:
-	_runtime_binding: LegacyVoiceBinding | None = None
-
-	def __init__(self, id, name, taskManager, language=None):
-		binding = type(self)._runtime_binding
-		if binding is None:
-			raise RuntimeError("Voice requires a runtime binding")
+	def __init__(self, spec: VoiceSpec, binding: LegacyVoiceBinding, taskManager):
 		self._binding = binding
-		self._state = binding.settings.ensure(binding.spec_for(name))
+		self._state = binding.settings.ensure(spec)
 		self.id = self._state.spec.id
 		self.name = self._state.spec.name
 		self.language = self._state.spec.language
 		self.taskManager = taskManager
+
+	@property
+	def core(self):
+		return self._binding.core
 
 	rate = _setting("rate")
 	pitch = _setting("pitch")

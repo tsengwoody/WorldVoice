@@ -1,4 +1,6 @@
 import ast
+import dataclasses
+import inspect
 from collections import defaultdict
 import importlib.util
 import sys
@@ -63,11 +65,8 @@ def _create_voices(monkeypatch, config):
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, name, module)
 	spec.loader.exec_module(module)
-	install_binding(module, config)
-	return (
-		module.Voice("a", "A:a", None, "en"),
-		module.Voice("b", "B:b", None, "fr"),
-	)
+	voice = install_binding(module, config)
+	return voice("a", "A:a", "en"), voice("b", "B:b", "fr")
 
 
 def _load_panel_class(config):
@@ -116,8 +115,8 @@ class RecordingCore:
 def test_voice_settings_are_pending_and_revision_tracks_real_changes(monkeypatch):
 	(a, b), config = _voices(monkeypatch)
 	core = RecordingCore()
-	a.__class__.core = core
-	c = a.__class__("c", "C:c", None, "en")
+	spec = type(a._state.spec)("c", "C:c", "C:c", "en", "C", "en")
+	c = a.__class__(spec, dataclasses.replace(a._binding, core=core), None)
 	assert (a.revision, b.revision, c.revision) == (0, 0, 0)
 	assert core.writes == []
 	a.rate = 72
@@ -145,7 +144,6 @@ def test_voice_settings_are_pending_and_revision_tracks_real_changes(monkeypatch
 def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	core = RecordingCore()
-	a.__class__.core = core
 	bind_core(core, a)
 	a.active()
 	first_count = len(core.writes)
@@ -175,31 +173,30 @@ def test_speech_queue_does_not_activate_voice(monkeypatch):
 	a.active = lambda: (_ for _ in ()).throw(AssertionError("queue activated voice"))
 	request = object()
 	a.speak(["hello"], request)
-	assert queued == [(request, a.session, a.name, ("hello",))]
+	assert queued == [(request, a._binding.session, a.name, ("hello",))]
 	assert core.spoken == []
 	assert core.writes == []
 
 
-def test_manager_assigns_engine_session_to_new_voice(monkeypatch):
+def test_manager_binds_new_voice_to_its_engine(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	module = sys.modules["f4_test_worldvoice.voiceManager"]
-	engine = a.__class__
-	engine.session = a._binding.session
-	module.READY_ENGINE_CLASS["A"] = engine
-	voice_meta = a._binding.spec_for("A:new")
+	module.READY_ENGINE_CLASS["A"] = a.__class__
+	voice_meta = type(a._state.spec)("new", "A:new", "A:new", "en", "A", "en")
 	manager_instance = object.__new__(module.VoiceManager)
 	manager_instance._specs = {voice_meta.name: voice_meta}
-	manager_instance._sessions = {"A": engine.session}
+	manager_instance._bindings = {"A": a._binding}
 	manager_instance.settings = a._binding.settings
 	manager_instance.taskManager = None
 	manager_instance._instanceCache = {}
 	manager_instance._waitfactor = 0
 	created = manager_instance._createVoiceInstance("A:new")
-	assert "session" in created.__dict__
-	assert created.session is engine.session
+	assert created._binding is a._binding
+	assert created.core is a._binding.core
+	assert "session" not in vars(created)
 
 
-def test_raw_engine_lifecycle_does_not_create_an_extra_session(monkeypatch):
+def test_engine_core_factory_keeps_no_class_state(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	terminated = []
 
@@ -208,20 +205,19 @@ def test_raw_engine_lifecycle_does_not_create_an_extra_session(monkeypatch):
 			terminated.append(self)
 
 	class Voice(a.__class__):
-		core = None
-		session = None
 		synth_driver_class = Core
 
-	Voice.engineOn()
-	assert Voice.session is None
-	core = Voice.core
-	Voice.engineOff()
-	assert terminated == [core]
-	assert Voice.core is None
-	assert Voice.session is None
+	Voice.engine = "A"
+	first, second = Voice.create_core(), Voice.create_core()
+	assert isinstance(first, Core) and first is not second
+	assert first.wv == "A"
+	Voice.destroy_core(first)
+	assert terminated == [first]
+	assert {"core", "session", "_runtime_binding"}.isdisjoint(vars(Voice))
+	assert isinstance(inspect.getattr_static(Voice, "core"), property)
 
 
-def test_engine_session_is_cleared_after_terminate_failure(monkeypatch):
+def test_destroy_core_failure_propagates(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 
 	class Core(RecordingCore):
@@ -229,14 +225,11 @@ def test_engine_session_is_cleared_after_terminate_failure(monkeypatch):
 			raise RuntimeError("terminate failed")
 
 	class Voice(a.__class__):
-		core = None
 		synth_driver_class = Core
 
-	Voice.engineOn()
+	core = Voice.create_core()
 	with pytest.raises(RuntimeError, match="terminate failed"):
-		Voice.engineOff()
-	assert Voice.core is None
-	assert Voice.session is None
+		Voice.destroy_core(core)
 
 
 def test_cancel_during_activation_skips_speech(manager, buses):
@@ -304,7 +297,6 @@ def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypa
 			self.release.wait(2)
 
 	core = BlockingCore()
-	a.__class__.core = core
 	session = bind_core(core, a, b)
 	a.active()
 	playback = threading.Thread(target=core.speak, args=("A is speaking",))
@@ -369,7 +361,6 @@ def test_ui_consistency_copy_is_atomic_for_worker_activation(monkeypatch, action
 	(a, b), config = _voices(monkeypatch)
 	a.update_settings(rate=72, pitch=61, volume=73, inflection=44, rateBoost=True)
 	core = RecordingCore()
-	a.__class__.core = core
 	bind_core(core, a, b)
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)

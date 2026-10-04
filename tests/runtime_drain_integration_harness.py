@@ -242,7 +242,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
         outer = control.env.outer if engine == "OneCore" else control.env.module
         monkeypatch.setattr(outer.SynthDriver, "supportedSettings", [SimpleNamespace(id=name)
             for name in ("voice", "rate", "rateBoost", "pitch", "volume")], raising=False)
-        outer.Voice.core = control.core
+        monkeypatch.setattr(outer.Voice, "create_core", classmethod(lambda cls, core=control.core: core))
         if engine != "OneCore":
             monkeypatch.setattr(control.core, "_confirm_native_quiescence", lambda native: None)
 

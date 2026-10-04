@@ -909,7 +909,6 @@ CancellableSynthDriver = SynthDriver
 
 class Voice(Voice):
 	extra_capabilities = frozenset({"waitfactor", "variant"})
-	core = None
 	engine = "VE"
 	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver
@@ -948,13 +947,13 @@ class Voice(Voice):
 		]
 
 	@classmethod
-	def voices(cls):
+	def voices(cls, core):
 		result = []
-		if not cls.ready() or not cls.core:
+		if not cls.ready() or not core:
 			return result
 
 		try:
-			voices = cls.core.availableVoices.values()
+			voices = core.availableVoices.values()
 		except Exception:
 			return result
 

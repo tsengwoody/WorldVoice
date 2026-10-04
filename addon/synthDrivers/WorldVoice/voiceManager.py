@@ -81,6 +81,7 @@ class VoiceManager(object):
 		self.installEngine = []
 		self._resources = []
 		self._sessions = {}
+		self._bindings = {}
 		self._specs = {}
 		self._instanceCache = {}
 		self._waitfactor = 0
@@ -107,51 +108,37 @@ class VoiceManager(object):
 				cls,
 				self.getVoiceInstance,
 				index_ledger=self._index_ledger,
-				is_source_owned=lambda source: any(resource[0] is source for resource in self._resources),
 			)
 			try:
 				adapter.open()
 			except Exception:
 				log.error("engine %s on error", eng.name, exc_info=True)
 				continue
+			session = EngineSession(adapter, self.settings)
 			# Retain identities (not equality) for the entire resource lifetime.
-			owner = next(
-				(resource for resource in self._resources if resource[0] is adapter.notification_source),
-				None,
-			)
-			if owner is not None:
-				session = owner[1]
-				self._resources.append((adapter.notification_source, session, adapter, cls, False))
-				completion = self._resource_completion(cls, adapter.notification_source)
-				if completion != session.completion:
-					raise ValueError("Aliases of one resource must share a completion contract")
-				adapter.configure_completion(session.completion)
-			else:
-				session = EngineSession(adapter, self.settings)
-				self._resources.append((adapter.notification_source, session, adapter, cls, True))
-				session.open()
-				completion = self._resource_completion(cls, adapter.notification_source)
-				adapter.configure_completion(completion)
-				# Claim ownership before binding, since bind may register then raise.
-				self._bridge.bind(adapter.notification_source, session.source_id, completion=completion)
-				if rule_for(completion).drain_event is not None:
-					adapter.configure_segment_events(
-						lambda context, source=adapter.notification_source: self._bridge.segment_sink(
-							source,
-							context,
-						),
-					)
-				elif completion.legacy_contextual:
-					adapter.configure_legacy_segment_events(
-						lambda context, source=adapter.notification_source: self._bridge.legacy_segment_sink(
-							source,
-							context,
-						),
-					)
-			cls.session = session
-			cls._runtime_binding = LegacyVoiceBinding(self.settings, session, self.getVoiceSpec)
+			self._resources.append((adapter.notification_source, session, adapter, cls, True))
+			session.open()
+			completion = self._resource_completion(cls, adapter.notification_source)
+			adapter.configure_completion(completion)
+			# Claim ownership before binding, since bind may register then raise.
+			self._bridge.bind(adapter.notification_source, session.source_id, completion=completion)
+			if rule_for(completion).drain_event is not None:
+				adapter.configure_segment_events(
+					lambda context, source=adapter.notification_source: self._bridge.segment_sink(
+						source,
+						context,
+					),
+				)
+			elif completion.legacy_contextual:
+				adapter.configure_legacy_segment_events(
+					lambda context, source=adapter.notification_source: self._bridge.legacy_segment_sink(
+						source,
+						context,
+					),
+				)
 			# Only bound, operational resources become visible to resolvers.
 			self._sessions[eng.name] = session
+			self._bindings[eng.name] = LegacyVoiceBinding(self.settings, session, adapter.core)
 			self.installEngine.append(cls)
 			for spec in adapter.list_voices():
 				self._specs[spec.name] = spec
@@ -174,6 +161,7 @@ class VoiceManager(object):
 		self._terminated = True
 		# Stop publication before releasing any resources.
 		self._sessions.clear()
+		self._bindings.clear()
 		if commit:
 			for key in self.settings.keys():
 				try:
@@ -182,23 +170,14 @@ class VoiceManager(object):
 					log.error("Failed to save voice %s", key, exc_info=True)
 		self._instanceCache.clear()
 		for source, session, adapter, cls, owns in reversed(self._resources):
-			if owns:
-				try:
-					self._bridge.unbind(session.source_id)
-				except Exception:
-					log.error("Failed to unbind engine %s", cls.engine, exc_info=True)
-				try:
-					session.close()
-				except Exception:
-					log.error("Failed to close engine %s", cls.engine, exc_info=True)
-				finally:
-					cls.session = None
-					cls._runtime_binding = None
-			else:
-				try:
-					adapter.detach_alias()
-				except Exception:
-					log.error("Failed to detach engine alias %s", cls.engine, exc_info=True)
+			try:
+				self._bridge.unbind(session.source_id)
+			except Exception:
+				log.error("Failed to unbind engine %s", cls.engine, exc_info=True)
+			try:
+				session.close()
+			except Exception:
+				log.error("Failed to close engine %s", cls.engine, exc_info=True)
 		self._resources.clear()
 		self.installEngine.clear()
 		self.taskManager = None
@@ -270,13 +249,7 @@ class VoiceManager(object):
 		spec = self.getVoiceSpec(voiceName)
 		cls = READY_ENGINE_CLASS[spec.engine]
 		self.settings.ensure(spec)
-		voiceInstance = cls(
-			id=spec.id,
-			name=spec.name,
-			language=spec.language,
-			taskManager=self.taskManager,
-		)
-		voiceInstance.session = self._sessions[spec.engine]
+		voiceInstance = cls(spec, self._bindings[spec.engine], self.taskManager)
 		self._instanceCache[voiceName] = voiceInstance
 		return voiceInstance
 

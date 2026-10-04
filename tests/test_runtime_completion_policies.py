@@ -158,10 +158,9 @@ def test_contextual_legacy_option_cannot_change_marker_completion(env, mode):
 
 def make_adapter(env):
     class Voice:
-        core = None
         @classmethod
-        def engineOn(cls):
-            cls.core = SimpleNamespace(speak=lambda commands: None)
+        def create_core(cls):
+            return SimpleNamespace(speak=lambda commands: None)
         @classmethod
         def supportedSettings(cls):
             return ()

@@ -385,21 +385,20 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 
         class LegacyVoice:
             @classmethod
-            def engineOn(cls):
-                cls.core = core
+            def create_core(cls):
                 core.open_count += 1
+                return core
 
             @classmethod
-            def engineOff(cls):
+            def destroy_core(cls, target):
                 core.close_count += 1
-                cls.core = None
 
             @classmethod
             def supportedSettings(cls):
                 return supported
 
             @classmethod
-            def voices(cls):
+            def voices(cls, target):
                 return [vars(spec) for spec in voices]
 
             def applyEngineSettings(self, target, snapshot):

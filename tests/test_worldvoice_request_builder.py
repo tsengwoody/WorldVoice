@@ -98,17 +98,15 @@ def assembly(modules):
                 pass
 
         class Voice(modules.driver.Voice):
-            core = None
             synth_driver_class = Core
 
         Voice.engine = engine
         spec = modules.models.VoiceSpec(voice_id, key, key, "en", engine, "en")
         adapter = modules.adapter.LegacyEngineAdapter(Voice, voices.__getitem__)
         session = modules.session.EngineSession(adapter, store)
-        Voice._runtime_binding = modules.facade.LegacyVoiceBinding(store, session, lambda key: spec)
-        instance = Voice(voice_id, key, manager)
-        voices[key] = instance
         session.open()
+        instance = Voice(spec, modules.facade.LegacyVoiceBinding(store, session, adapter.core), manager)
+        voices[key] = instance
         ports[key] = session
         bridge.bind(adapter.notification_source, session.source_id)
         return instance

@@ -23,7 +23,6 @@ SynthDriver = BaseOneCoreSynthDriver
 
 
 class Voice(Voice):
-	core = None
 	engine = "OneCore"
 	drain_profile = DrainProfile(wasapi_dependent=True)
 	synth_driver_class = SynthDriver

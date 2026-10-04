@@ -379,7 +379,6 @@ class SynthDriver(rhvoice.SynthDriver):
 
 
 class Voice(Voice):
-	core = None
 	engine = "RHVoice"
 	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver

@@ -24,13 +24,13 @@ def setup(compat, rt):
     store = rt.settings.VoiceSettingsStore(repo)
     adapter = FakeAdapter()
     session = rt.session.EngineSession(adapter, store)
-    binding = compat.facade.LegacyVoiceBinding(store, session, make_spec)
+    binding = compat.facade.LegacyVoiceBinding(store, session, None)
 
     class Voice(compat.facade.VoiceFacade):
-        _runtime_binding = binding
+        pass
 
     tasks = RecordingTasks()
-    voice = Voice("a", "Fake:a", tasks, "en")
+    voice = Voice(make_spec("Fake:a"), binding, tasks)
     return SimpleNamespace(repo=repo, store=store, adapter=adapter, session=session,
                            binding=binding, cls=Voice, tasks=tasks, voice=voice)
 
@@ -45,7 +45,7 @@ def test_facade_and_new_api_share_one_state(setup):
     assert facade.rate == 50
     assert facade.pitch == 50
     assert setup.repo.saves == []
-    other = setup.cls("a", "Fake:a", setup.tasks)
+    other = setup.cls(make_spec("Fake:a"), setup.binding, setup.tasks)
     other.volume = 23
     assert facade.volume == 23
     assert setup.repo.loads == ["Fake:a"]
@@ -119,6 +119,10 @@ def test_playback_queues_key_and_commands_without_capturing_facade(setup):
     assert setup.repo.saves == []
 
 
-def test_unbound_facade_refuses_construction(compat):
-    with pytest.raises(RuntimeError, match="binding"):
-        compat.facade.VoiceFacade("a", "Fake:a", RecordingTasks())
+def test_facade_reads_its_engine_core_from_the_binding(setup, compat):
+    core = object()
+    binding = compat.facade.LegacyVoiceBinding(setup.store, setup.session, core)
+    voice = setup.cls(make_spec("Fake:b", "fr"), binding, setup.tasks)
+    assert voice.core is core and setup.voice.core is None
+    assert (voice.id, voice.name, voice.language) == ("b", "Fake:b", "fr")
+    assert "core" not in vars(voice) and not hasattr(setup.cls, "_runtime_binding")

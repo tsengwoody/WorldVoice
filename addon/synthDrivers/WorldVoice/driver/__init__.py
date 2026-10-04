@@ -11,8 +11,12 @@ def getVoiceKey(engine, voiceId):
 
 
 class Voice(VoiceFacade):
-	core = None
-	session = None
+	"""One engine's metadata and core factory; instances are bound voices.
+
+	The engine adapter owns the core: create_core either returns a working core
+	or raises without leaving one behind, and destroy_core releases it.
+	"""
+
 	engine = ""
 	synth_driver_class = None
 	extra_capabilities = frozenset()
@@ -45,13 +49,13 @@ class Voice(VoiceFacade):
 		}
 
 	@classmethod
-	def voices(cls):
+	def voices(cls, core):
 		result = []
-		if not cls.ready() or not cls.core:
+		if not cls.ready() or not core:
 			return result
 
 		try:
-			voices = cls.core.availableVoices.values()
+			voices = core.availableVoices.values()
 		except Exception:
 			return result
 
@@ -75,17 +79,11 @@ class Voice(VoiceFacade):
 		return True
 
 	@classmethod
-	def engineOn(cls):
-		if not cls.core:
-			cls.core = cls.synth_driver_class()
-			cls.core.wv = cls.engine
+	def create_core(cls):
+		core = cls.synth_driver_class()
+		core.wv = cls.engine
+		return core
 
 	@classmethod
-	def engineOff(cls):
-		try:
-			if cls.core:
-				cls.core.terminate()
-		finally:
-			cls.session = None
-			cls.core = None
-			cls._runtime_binding = None
+	def destroy_core(cls, core):
+		core.terminate()

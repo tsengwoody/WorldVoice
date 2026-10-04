@@ -18,7 +18,7 @@ def test_wrapper_settings_are_pending_until_activation(monkeypatch, engine, snap
 	core.getVoiceInstance = lambda voice_id: f"native:{voice_id}"
 	core.getParameter = lambda instance, parameter, type_: "plain"
 	core.availableVariants = {"plain": object(), "bright": object()}
-	monkeypatch.setattr(harness.module.Voice, "core", core)
+	adapter.core = core  # the harness Voice base is a plain object
 	monkeypatch.setattr(harness.module, "TtsSetParamList",
 		lambda instance, pair: lambda: writes.append((instance, pair[1])))
 	adapter.id = "a"
@@ -63,7 +63,7 @@ def test_variant_metadata_read_preserves_playback_state(monkeypatch, engine):
 	core = types.SimpleNamespace(voice="a", rate=71, pitch=63, waitfactor=2)
 	core.getVoiceInstance = lambda voice_id: f"native:{voice_id}"
 	core.getParameter = lambda instance, parameter, type_: "en"
-	monkeypatch.setattr(harness.module.Voice, "core", core)
+	adapter.core = core  # the harness Voice base is a plain object
 	monkeypatch.setattr(harness.module.ve2 if engine == "VE" else harness.module.ttsapi,
 		"getSpeechDBList", lambda language, voice_id: ["plain", "bright"])
 	adapter.id = "b"

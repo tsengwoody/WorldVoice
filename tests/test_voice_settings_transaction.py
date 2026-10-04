@@ -45,11 +45,8 @@ def _create_voices(monkeypatch, config):
 	config.conf["WorldVoice"]["voices"] = {}
 	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = False
 	from voice_binding_harness import install_binding
-	install_binding(module, config)
-	return (
-		module.Voice("a", "A:a", None, "en"),
-		module.Voice("b", "B:b", None, "fr"),
-	)
+	voice = install_binding(module, config)
+	return voice("a", "A:a", "en"), voice("b", "B:b", "fr")
 
 
 def test_parameter_preview_is_undone_by_cancel(monkeypatch):
@@ -167,7 +164,7 @@ def _editing_panel(monkeypatch):
 
 def test_dialog_late_voice_is_restored_on_discard(monkeypatch):
 	panel, manager, a, b, config, _ = _editing_panel(monkeypatch)
-	late = manager.settings.ensure(a._binding.spec_for("Fake:late"))
+	late = manager.settings.ensure(type(a._state.spec)("late", "Fake:late", "Fake:late", "en", "Fake", "en"))
 	late.update(rate=81)
 	b.rate = 72  # A known state without a cached facade is in the same edit.
 	panel.onDiscard()
@@ -195,7 +192,7 @@ def test_apply_rebases_voice_and_role_edit_state(monkeypatch):
 
 def test_main_locale_voice_consistency_repeated_apply_then_discard(monkeypatch):
 	panel, manager, a, b, config, errors = _editing_panel(monkeypatch)
-	c = type(a)("c", "A:c", None, "en")
+	c = type(a)(type(a._state.spec)("c", "A:c", "A:c", "en", "A", "en"), a._binding, None)
 	voices = {voice.name: voice for voice in (a, b, c)}
 	manager.getVoiceInstance = voices.__getitem__
 	manager._voiceInfos = dict.fromkeys(voices)

@@ -58,25 +58,31 @@ def composition(monkeypatch):
         def cancel(self):
             self.cancels += 1
 
-    def engine(name, *, shared=None, fail=False, empty=False):
+    def engine(name, *, fail=False, empty=False):
         class Voice(driver.Voice):
-            core = None
-            session = None
             synth_driver_class = Core
+            opened = None  # Test bookkeeping: the core this engine has open.
 
             @classmethod
-            def engineOn(cls):
-                cls.core = shared or Core()
+            def create_core(cls):
                 if fail:
                     raise RuntimeError("partial open")
+                cls.opened = cls.synth_driver_class()
+                return cls.opened
+
+            @classmethod
+            def destroy_core(cls, core):
+                if cls.opened is core:
+                    cls.opened = None
+                super().destroy_core(core)
 
             @classmethod
             def supportedSettings(cls):
                 return ["rate", "pitch", "volume"]
 
             @classmethod
-            def voices(cls):
-                return [] if empty else super().voices()
+            def voices(cls, core):
+                return [] if empty else super().voices(core)
 
             def applyEngineSettings(self, core, snapshot):
                 core.language = snapshot.language
@@ -112,47 +118,8 @@ def test_only_started_sessions_are_resolvable(composition):
     manager = c.create()
     assert manager.resolve_playback("failed:a") is None
     assert manager.resolve_playback("ok:a") is not None
-    assert c.cores[0].closes == 1
-    assert c.repo.saves == []
-
-
-def test_shared_source_alias_uses_one_session_and_close(composition):
-    c = composition
-    shared = c.Core()
-    first, alias = c.engine("first", shared=shared), c.engine("alias", shared=shared)
-    manager = c.create()
-    assert manager.resolve_playback("first:a") is manager.resolve_playback("alias:a")
-    assert first.session is alias.session
-    manager.getVoiceInstance("alias:a").active()
-    manager.terminate(commit=False)
-    manager.terminate(commit=False)
-    assert shared.closes == 1
-    assert first.core is alias.core is None
-    assert first._runtime_binding is alias._runtime_binding is None
-    assert manager.resolve_playback("first:a") is None
-
-
-def test_failed_alias_open_preserves_existing_owner_and_closes_once(composition):
-    c = composition
-    shared = c.Core()
-    first = c.engine("first", shared=shared)
-    failed = c.engine("failed", shared=shared, fail=True)
-    manager = c.create()
-    session = manager.resolve_playback("first:a")
-    assert session is first.session
-    assert manager.resolve_playback("failed:a") is None
-    assert shared.closes == 0
-    assert failed.core is failed._runtime_binding is None
-    spoken = []
-    def speak(commands):
-        assert shared.closes == 0
-        spoken.append(commands)
-    shared.speak = speak
-    assert session.activate("first:a")
-    session.speak(("owner remains usable",), _idle_token())
-    assert spoken == [("owner remains usable",)]
-    manager.terminate(commit=False)
-    assert shared.closes == 1
+    # A failed create_core leaves no core behind; only the started engine opened one.
+    assert [core.closes for core in c.cores] == [0]
     assert c.repo.saves == []
 
 
@@ -171,7 +138,6 @@ def test_initialization_failure_closes_without_commit(composition, failure):
     assert c.cores[0].closes == 1
     assert c.bridge._sources == {}
     assert c.repo.saves == []
-    assert cls._runtime_binding is None
 
 
 def test_source_is_bound_before_engine_is_published(composition):
@@ -184,9 +150,9 @@ def test_source_is_bound_before_engine_is_published(composition):
         original(source, source_id, **kwargs)
     c.bridge.bind = bind
     original_voices = c.module.READY_ENGINE_CLASS["ok"].voices
-    def voices(cls):
-        assert id(cls.core) in c.bridge._sources
-        return original_voices()
+    def voices(cls, core):
+        assert id(core) in c.bridge._sources
+        return original_voices(core)
     c.module.READY_ENGINE_CLASS["ok"].voices = classmethod(voices)
     assert c.create().resolve_playback("ok:a") is not None
 
@@ -460,8 +426,7 @@ def test_resource_bound_before_first_encoded_speech(composition, nvda_commands):
     selected = []
     contract = marker_contract(c)
     def completion_for(voice_class, core):
-        assert voice_class is cls and core is cls.core
-        assert cls.session is None
+        assert voice_class is cls and core is cls.opened
         selected.append(core)
         return contract
     manager = c.create(completion_for)
@@ -470,8 +435,8 @@ def test_resource_bound_before_first_encoded_speech(composition, nvda_commands):
     finished = threading.Event()
     def speak(commands):
         spoken.extend(commands)
-        c.index.notify(synth=cls.core, index=commands[-1].index)
-    cls.core.speak = speak
+        c.index.notify(synth=cls.opened, index=commands[-1].index)
+    cls.opened.speak = speak
     c.done.register(lambda synth: finished.set() if synth is c.owner else None)
     request = c.tasks.new_request()
     original = nvda_commands.IndexCommand(42)
@@ -480,39 +445,8 @@ def test_resource_bound_before_first_encoded_speech(composition, nvda_commands):
     assert finished.wait(1)
     assert [item.index for item in spoken if isinstance(item, nvda_commands.IndexCommand)] == [501, 502]
     assert original.index == 42
-    assert selected == [cls.core]
+    assert selected == [cls.opened]
     assert port.completion == contract
-
-
-def test_alias_uses_one_allocator_and_one_close(composition, nvda_commands):
-    c = composition
-    shared = c.Core()
-    c.engine("first", shared=shared)
-    c.engine("alias", shared=shared)
-    manager = c.create(lambda cls, core: marker_contract(c))
-    spoken = []
-    shared.speak = lambda commands: spoken.append(commands[-1].index)
-    for segment, key in enumerate(("first:a", "alias:a"), 1):
-        port = manager.resolve_playback(key)
-        port.speak(("hello",), _idle_token(),
-                   context=c.models.PlaybackContext(port.source_id, segment))
-    assert spoken == [501, 502]
-    manager.terminate(commit=False)
-    assert shared.closes == 1
-
-
-def test_alias_conflicting_completion_contract_is_rejected(composition):
-    c = composition
-    shared = c.Core()
-    first = c.engine("first", shared=shared)
-    alias = c.engine("alias", shared=shared)
-    with pytest.raises(ValueError, match="completion contract"):
-        c.create(lambda cls, core: marker_contract(c) if cls is first else c.models.CompletionContract())
-    assert first.session is alias.session is None
-    assert first.core is alias.core is None
-    assert shared.closes == 1
-    assert c.bridge._sources == {}
-    assert c.repo.saves == []
 
 
 def test_partial_bind_failure_releases_resources_without_commit(composition):
@@ -523,7 +457,6 @@ def test_partial_bind_failure_releases_resources_without_commit(composition):
     def bind(source, source_id, **kwargs):
         original(source, source_id, **kwargs)
         source_ids.append(source_id)
-        assert cls.session is None
         raise RuntimeError("partial marker bind")
     c.bridge.bind = bind
     with pytest.raises(RuntimeError, match="partial marker bind"):
@@ -543,13 +476,13 @@ def test_shutdown_disables_late_index_before_engine_close(composition):
     marker = c.ledger.prepare(c.models.PlaybackContext(port.source_id, 1), (42,)).end_index
     received = []
     c.index.register(lambda synth, index: received.append(index) if synth is c.owner else None)
-    original_close = cls.core.terminate
+    original_close = cls.opened.terminate
     def close():
         assert c.bridge._closed
         assert not c.ledger._closed
-        c.index.notify(synth=cls.core, index=marker)
+        c.index.notify(synth=cls.opened, index=marker)
         original_close()
-    cls.core.terminate = close
+    cls.opened.terminate = close
     synth, errors = make_synth(c, manager)
     synth.terminate()
     assert received == []
@@ -565,7 +498,6 @@ def test_completion_selection_failure_closes_opened_core(composition):
     with pytest.raises(RuntimeError, match="policy failure"):
         c.create(fail)
     assert c.cores[0].closes == 1
-    assert cls.session is None
     assert c.repo.saves == []
 
 
@@ -575,14 +507,14 @@ def test_live_core_rebind_preserves_allocator_high_water(composition, nvda_comma
     manager = c.create(lambda cls, core: marker_contract(c))
     port = manager.resolve_playback("marker:a")
     spoken = []
-    cls.core.speak = lambda commands: spoken.append(commands[-1].index)
+    cls.opened.speak = lambda commands: spoken.append(commands[-1].index)
     token = _idle_token()
     port.speak(("first",), token, context=c.models.PlaybackContext(port.source_id, 1))
     c.bridge.unbind(port.source_id)
-    c.bridge.bind(cls.core, port.source_id, completion=port.completion)
+    c.bridge.bind(cls.opened, port.source_id, completion=port.completion)
     port.speak(("second",), token, context=c.models.PlaybackContext(port.source_id, 2))
     assert spoken == [501, 502]
-    assert cls.core.closes == 0
+    assert cls.opened.closes == 0
     assert c.ledger.receive_index(port.source_id, 501) == ()
 
 
@@ -693,7 +625,6 @@ def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
                                            context.source_id, segment_id=context.segment_id))
 
     cls.synth_driver_class = SynthDriver
-    cls.engineOn = classmethod(lambda voice: setattr(voice, "core", SynthDriver()))
     return SimpleNamespace(voice=cls, driver=SynthDriver,
                            checked=checked, spoken=spoken, support_type=support_type)
 
@@ -707,8 +638,7 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(composit
     configured = []
     configure = c.module.LegacyEngineAdapter.configure_segment_events
     def configure_after_bind(adapter, factory):
-        assert installed.voice.session is None
-        assert c.bridge._sources[id(installed.voice.core)].source is installed.voice.core
+        assert c.bridge._sources[id(installed.voice.opened)].source is installed.voice.opened
         configure(adapter, factory)
         configured.append(adapter)
     monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", configure_after_bind)
@@ -811,7 +741,10 @@ def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(composi
     installed = installed_drain_voice(c, monkeypatch, engine)
     cls = installed.voice
     if failure == "wrong_core":
-        cls.engineOn = classmethod(lambda voice: setattr(voice, "core", c.Core()))
+        def foreign_core(voice):
+            voice.opened = c.Core()
+            return voice.opened
+        cls.create_core = classmethod(foreign_core)
     elif failure == "missing_entry":
         installed.driver.speak_segment = None
     elif failure == "missing_support":
@@ -833,26 +766,13 @@ def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(composi
     port = manager.resolve_playback(engine + ":a")
     assert port.completion.mode is c.models.CompletionMode.LEGACY_DONE
     assert port.completion.index_range is None
-    assert select(cls, cls.core) == port.completion
+    assert select(cls, cls.opened) == port.completion
     assert len(logs) == 1
     assert "LEGACY_DONE" in logs[0][0] and logs[0][-1]
     if failure == "unsupported":
         assert logs[0][-1] == "Native callback lifetime is unproven"
     if failure == "support_error":
         assert "Native profile inspection failed" in logs[0][-1]
-
-
-def test_unsupported_targets_sharing_core_keep_one_legacy_owner(composition):
-    c = composition
-    shared = c.Core()
-    first, alias = c.engine("OneCore", shared=shared), c.engine("Neural", shared=shared)
-    select, logs = runtime_completion_selector(c)
-    manager = c.create(select)
-    port = manager.resolve_playback("OneCore:a")
-    assert manager.resolve_playback("Neural:a") is port
-    assert port.completion.mode is c.models.CompletionMode.LEGACY_DONE
-    manager.terminate(commit=False)
-    assert shared.closes == 1 and first.core is alias.core is None
 
 
 def test_drain_factory_configured_after_bind_before_publication(composition, monkeypatch, nvda_commands):
@@ -862,8 +782,7 @@ def test_drain_factory_configured_after_bind_before_publication(composition, mon
     cls.synth_driver_class.speak_segment = lambda core, commands, token, **kwargs: calls.append(kwargs)
     configure = c.module.LegacyEngineAdapter.configure_segment_events
     def configure_after_bind(adapter, factory):
-        assert cls.session is None
-        assert c.bridge._sources[id(cls.core)].source is cls.core
+        assert c.bridge._sources[id(cls.opened)].source is cls.opened
         configure(adapter, factory)
         setup.append(adapter)
     monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", configure_after_bind)
@@ -891,11 +810,11 @@ def test_drain_request_integrates_encoded_indexes_and_native_events(composition,
         drain = c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
                                       context.source_id, segment_id=context.segment_id)
         if mode == "END_INDEX_AND_DRAIN" and order == "end_first":
-            c.index.notify(synth=cls.core, index=commands[-1].index)
+            c.index.notify(synth=cls.opened, index=commands[-1].index)
         on_event(drain)
         if mode == "END_INDEX_AND_DRAIN" and order == "drain_first":
-            c.index.notify(synth=cls.core, index=commands[-1].index)
-    cls.core.speak_segment = speak
+            c.index.notify(synth=cls.opened, index=commands[-1].index)
+    cls.opened.speak_segment = speak
     request = c.tasks.new_request()
     c.tasks.append_speech(request, port, "drain:a", ("hello", nvda_commands.IndexCommand(42),
                                                    nvda_commands.IndexCommand(7)))
@@ -927,7 +846,7 @@ def test_index_handler_revokes_remainder_of_drain_batch(composition, nvda_comman
         on_event(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
                                       context.source_id, segment_id=context.segment_id))
         returned.set()
-    cls.core.speak_segment = speak
+    cls.opened.speak_segment = speak
     request = c.tasks.new_request()
     future = c.tasks.append_speech(request, port, "drain:a",
                                  (nvda_commands.IndexCommand(42), nvda_commands.IndexCommand(7)))
@@ -940,25 +859,6 @@ def test_index_handler_revokes_remainder_of_drain_batch(composition, nvda_comman
         assert not future.done()
 
 
-def test_drain_alias_uses_only_owner_event_factory(composition, monkeypatch, nvda_commands):
-    c = composition
-    shared = c.Core()
-    shared.speak_segment = lambda *args, **kwargs: None
-    first, alias = c.engine("first", shared=shared), c.engine("alias", shared=shared)
-    configured = []
-    configure = c.module.LegacyEngineAdapter.configure_segment_events
-    def record(adapter, factory):
-        configured.append(adapter)
-        configure(adapter, factory)
-    monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", record)
-    manager = c.create(lambda cls, core: drain_contract(c))
-    owner = manager.resolve_playback("first:a")
-    assert manager.resolve_playback("alias:a") is owner
-    assert configured == [owner._adapter] and len(c.bridge._sources) == 1
-    manager.terminate(commit=False)
-    assert first.session is alias.session is None and shared.closes == 1
-
-
 def test_partial_event_configuration_rolls_back_binding_and_owner(composition, monkeypatch):
     c = composition
     cls = c.engine("drain")
@@ -966,13 +866,12 @@ def test_partial_event_configuration_rolls_back_binding_and_owner(composition, m
     configure = c.module.LegacyEngineAdapter.configure_segment_events
     def fail_after_configure(adapter, factory):
         configure(adapter, factory)
-        assert cls.session is None
         raise RuntimeError("partial event setup")
     monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", fail_after_configure)
     with pytest.raises(RuntimeError, match="partial event setup"):
         c.create(lambda cls, core: drain_contract(c))
     assert c.bridge._sources == {}
-    assert cls.core is cls.session is None and c.cores[0].closes == 1
+    assert cls.opened is None and c.cores[0].closes == 1
     assert c.repo.saves == []
 
 
@@ -983,18 +882,18 @@ def test_each_drain_factory_captures_its_own_resource(composition, nvda_commands
     manager = c.create(lambda cls, core: drain_contract(c))
     calls, completed = [], threading.Event()
     for cls in (first, second):
-        def speak(commands, token, *, context, on_event, source=cls.core):
+        def speak(commands, token, *, context, on_event, source=cls.opened):
             assert c.bridge._sources[id(source)].source_id is context.source_id
             calls.append(source)
             on_event(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
                                           context.source_id, segment_id=context.segment_id))
-        cls.core.speak_segment = speak
+        cls.opened.speak_segment = speak
     c.done.register(lambda synth: completed.set() if synth is c.owner else None)
     request = c.tasks.new_request()
     for key in ("first:a", "second:a"):
         c.tasks.append_speech(request, manager.resolve_playback(key), key, ("hello",))
     assert c.tasks.submit_request(request) and completed.wait(1)
-    assert calls == [first.core, second.core]
+    assert calls == [first.opened, second.opened]
 
 
 def test_reentrant_drain_supplier_waits_until_current_index_batch_finishes(composition, nvda_commands):
@@ -1022,7 +921,7 @@ def test_reentrant_drain_supplier_waits_until_current_index_batch_finishes(compo
         current["event"] = c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
                                                context.source_id, segment_id=context.segment_id)
         on_event(current["event"])
-    cls.core.speak_segment = speak
+    cls.opened.speak_segment = speak
     request = c.tasks.new_request()
     c.tasks.append_speech(request, port, "drain:a", (nvda_commands.IndexCommand(42),
                                                   nvda_commands.IndexCommand(7)))
@@ -1042,13 +941,13 @@ def test_old_drain_sink_cannot_complete_request_after_core_rebind(composition, n
     def speak(commands, token, *, context, on_event):
         calls.append((context, on_event))
         entered.set()
-    cls.core.speak_segment = speak
+    cls.opened.speak_segment = speak
     first = c.tasks.new_request()
     c.tasks.append_speech(first, port, "drain:a", ("old",))
     assert c.tasks.submit_request(first) and entered.wait(1)
     c.tasks.cancel((port,))
     c.bridge.unbind(port.source_id)
-    c.bridge.bind(cls.core, port.source_id, completion=port.completion)
+    c.bridge.bind(cls.opened, port.source_id, completion=port.completion)
     entered.clear()
     second = c.tasks.new_request()
     future = c.tasks.append_speech(second, port, "drain:a", ("new", nvda_commands.IndexCommand(42)))
