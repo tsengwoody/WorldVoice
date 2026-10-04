@@ -769,3 +769,20 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
     assert threads == [env.driver._segmentHost._lifecycle._delivery_thread.ident]
     assert threads[0] != caller
     assert env.native.calls == []
+
+
+def test_native_callback_after_owner_collection_refuses(env):
+    module = sys.modules[type(env.driver).__module__]
+
+    class Gone:
+        pass
+
+    owner = Gone()
+    calls = []
+    done = module._NativeCallback(owner, lambda *args: calls.append(args), True)
+    speech = module._NativeCallback(owner, lambda *args: calls.append(args), False)
+    del owner
+    gc.collect()
+    assert done(1, 2, 7) is None
+    assert speech(1, 2, 7) == 0
+    assert calls == []

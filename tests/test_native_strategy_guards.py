@@ -2,6 +2,9 @@
 
 import ast
 from pathlib import Path
+import re
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 ENGINES = ("Espeak", "SAPI5", "RHVoice", "OneCore", "VE", "Cerence")
@@ -35,8 +38,9 @@ def test_espeak_touches_nvda_privates_only_through_its_port():
 	assert outside == []
 
 
-def test_espeak_drain_support_requires_keywords():
-	tree = ast.parse((ROOT / "driver/Espeak/__init__.py").read_text(encoding="utf-8"))
+@pytest.mark.parametrize("engine", ["Espeak", "RHVoice"])
+def test_drain_support_requires_keywords(engine):
+	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
 	method = next(
 		n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "get_segment_drain_support"
 	)
@@ -108,4 +112,26 @@ def test_sapi5_uses_the_shared_engine_controls():
 		assert retired not in source
 	tree = _sapi5_tree()
 	player = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_SegmentPlayer")
+	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]
+
+
+INNER_RHVOICE = ROOT / "driver/RHVoice/driver/__init__.py"
+
+
+def test_rhvoice_reaches_inner_privates_only_through_its_port():
+	source = (ROOT / "driver/RHVoice/__init__.py").read_text(encoding="utf-8")
+	tree = ast.parse(source)
+	port = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_RHVoiceInner")
+	port_source = ast.get_source_segment(source, port)
+	assert "_SynthDriver__" not in source.replace(port_source, "")
+	inner = INNER_RHVOICE.read_text(encoding="utf-8")
+	for name in set(re.findall(r"_SynthDriver__(\w+)", port_source)):
+		assert re.search(rf"self\.__{name}\b", inner), name
+
+
+def test_rhvoice_uses_shared_player_and_stop_gate():
+	source = (ROOT / "driver/RHVoice/__init__.py").read_text(encoding="utf-8")
+	assert "_segmentCancelling" not in source
+	tree = ast.parse(source)
+	player = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_WavePlayer")
 	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]

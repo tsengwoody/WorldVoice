@@ -7,8 +7,9 @@ import weakref
 from . import driver as rhvoice
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import DrainProfile, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import NativeStrategy, SegmentHost
+from ...runtime.engineControl import StopGate
+from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -18,6 +19,75 @@ class _RHVoiceMessage:
 
 	identity: int
 	library: "_NativeLibrary | None" = None
+
+
+class _RHVoiceInner:
+	"""The vendored RHVoice SynthDriver's name-mangled state this wrapper uses.
+
+	The inner driver stays unmodified; every access to its private names goes
+	through here, so an update of the vendored driver is checked in one place.
+	"""
+
+	CALLBACK_NAMES = frozenset(
+		{
+			"_SynthDriver__sample_rate_callback",
+			"_SynthDriver__speech_callback",
+			"_SynthDriver__mark_callback",
+			"_SynthDriver__done_callback",
+		},
+	)
+	DONE_CALLBACK = "_SynthDriver__done_callback"
+
+	def __init__(self, driver):
+		self._driver = weakref.ref(driver)
+
+	@property
+	def player(self):
+		return self._driver()._SynthDriver__player
+
+	@property
+	def lib(self):
+		return self._driver()._SynthDriver__lib
+
+	@property
+	def tts_engine(self):
+		return self._driver()._SynthDriver__tts_engine
+
+	@tts_engine.setter
+	def tts_engine(self, value):
+		self._driver()._SynthDriver__tts_engine = value
+
+	@property
+	def tts_queue(self):
+		return self._driver()._SynthDriver__tts_queue
+
+	@property
+	def tts_thread(self):
+		return self._driver()._SynthDriver__tts_thread
+
+	@property
+	def cancel_flag(self):
+		return self._driver()._SynthDriver__cancel_flag
+
+	@property
+	def profile(self):
+		return self._driver()._SynthDriver__profile
+
+	@property
+	def rate(self):
+		return self._driver()._SynthDriver__rate
+
+	@property
+	def pitch(self):
+		return self._driver()._SynthDriver__pitch
+
+	@property
+	def volume(self):
+		return self._driver()._SynthDriver__volume
+
+	@property
+	def rate_boost(self):
+		return self._driver()._SynthDriver__rate_boost
 
 
 class _NativeCallback:
@@ -32,14 +102,18 @@ class _NativeCallback:
 		return getattr(self._callback, name)
 
 	def __call__(self, *args):
-		return self._owner()._native_callback(self._callback, self._is_done, *args)
+		owner = self._owner()
+		if owner is None:
+			# The C library may call back after the driver was collected.
+			return None if self._is_done else 0
+		return owner._native_callback(self._callback, self._is_done, *args)
 
 
 class _NativeLibrary:
 	"""Observe synchronous native outcomes that SpeakText does not inspect."""
 
-	def __init__(self, owner, native, record):
-		self._owner = weakref.ref(owner)
+	def __init__(self, host, native, record):
+		self._host = host
 		self._native = native
 		self._record = record
 		self._message = None
@@ -48,7 +122,7 @@ class _NativeLibrary:
 		return getattr(self._native, name)
 
 	def RHVoice_new_message(self, *args):
-		host = self._owner()._segmentHost
+		host = self._host
 		try:
 			message = self._native.RHVoice_new_message(*args[:-1], self._record.native.identity)
 			self._message = message
@@ -62,7 +136,7 @@ class _NativeLibrary:
 			raise
 
 	def RHVoice_speak(self, message):
-		host = self._owner()._segmentHost
+		host = self._host
 		try:
 			result = self._native.RHVoice_speak(message)
 			if not result:
@@ -87,63 +161,49 @@ class _NativeLibrary:
 			except Exception as error:
 				# The native message may still own resources after a failed delete.
 				# Stop reusing this engine and player, even if stop succeeds.
-				self._owner()._segmentHost.latch_control_error(error)
+				self._host.latch_control_error(error)
 				raise
 
 
-class _WavePlayer:
+class _WavePlayer(LeasedPlayer):
 	"""Keep a queued index callback tied to its originating native message."""
 
-	def __init__(self, owner, player):
-		self._owner = weakref.ref(owner)
-		self._player = player
-
-	def __getattr__(self, name):
-		return getattr(self._player, name)
+	def __init__(self, host, player):
+		super().__init__(host, player, idle_barrier=None)
 
 	def feed(self, data, onDone=None):
-		host = self._owner()._segmentHost
+		host = self._host
 		bound = host.callback_record()
 		if bound is None:
 			return None
 		with host.consumer(bound) as record:
 			if record is None:
 				return None
+			return self._feed_admitted(record, data, None, onDone)
 
-			def index_done():
-				# The worker's final idle may release this after the native gate closes.
-				with host.consumer(record, audio=True) as admitted:
-					if admitted is None:
-						return
-					with host.bound_callback(record):
-						try:
-							onDone()
-						except Exception as error:
-							host.record_error(record, error)
+	def _callback(self, record, onDone):
+		host = self._host
 
-			try:
-				return self._player.feed(data, onDone=index_done if onDone else None)
-			except Exception as error:
-				host.record_error(record, error)
-				raise
-			finally:
-				if not record.is_valid():
-					self.stop()
+		def index_done():
+			# The worker's final idle may release this after the native gate closes.
+			with host.consumer(record, audio=True) as admitted:
+				if admitted is None:
+					return
+				with host.bound_callback(record):
+					try:
+						onDone()
+					except Exception as error:
+						host.record_error(record, error)
+
+		return index_done
 
 	def idle(self):
-		host = self._owner()._segmentHost
+		host = self._host
 		record = host.callback_record()
 		try:
 			return self._player.idle()
 		except Exception as error:
 			host.record_error(record, error)
-			raise
-
-	def stop(self):
-		try:
-			return self._player.stop()
-		except Exception as error:
-			self._owner()._segmentHost.latch_control_error(error)
 			raise
 
 
@@ -162,7 +222,7 @@ class _QueuedSpeech:
 		host = owner._segmentHost
 		record = self._record
 		with owner._segmentCondition:
-			owner._segmentCondition.wait_for(lambda: record.closed or owner._segmentCancelling == 0)
+			owner._segmentCondition.wait_for(lambda: record.closed or owner._stopGate.clear)
 			if record.closed:
 				# NVDA cancel already abandoned this queued record.
 				return
@@ -185,7 +245,7 @@ class _QueuedSpeech:
 			and host.control_error is None
 		):
 			try:
-				owner._SynthDriver__player.idle()
+				owner._inner.player.idle()
 				host.reach(record, "idle")
 			except Exception as error:
 				host.record_error(record, error)
@@ -193,7 +253,7 @@ class _QueuedSpeech:
 		with owner._segmentCondition:
 			owner._segmentById.pop(record.native.identity, None)
 		if record.operation is not None:
-			owner._SynthDriver__cancel_flag.clear()
+			owner._inner.cancel_flag.clear()
 		else:
 			host.forget(record)
 
@@ -216,20 +276,15 @@ class _RHVoiceStrategy(NativeStrategy):
 		try:
 			converter = rhvoice.SsmlConverter(driver, driver.language)
 			text = converter.convertToXml(commands)
-			library = record.native.library = _NativeLibrary(driver, driver._SynthDriver__lib, record)
-			task = rhvoice.SpeakText(
-				library,
-				driver._SynthDriver__tts_engine,
-				text,
-				driver._SynthDriver__cancel_flag,
-				driver._SynthDriver__player,
-			)
-			task.set_voice_profile(driver._SynthDriver__profile)
-			task.set_rate(driver._SynthDriver__rate)
-			task.set_pitch(driver._SynthDriver__pitch)
-			task.set_volume(driver._SynthDriver__volume)
-			task.configure_rate_boost(driver._SynthDriver__rate_boost)
-			driver._SynthDriver__tts_queue.put(_QueuedSpeech(driver, record, task))
+			inner = driver._inner
+			library = record.native.library = _NativeLibrary(host, inner.lib, record)
+			task = rhvoice.SpeakText(library, inner.tts_engine, text, inner.cancel_flag, inner.player)
+			task.set_voice_profile(inner.profile)
+			task.set_rate(inner.rate)
+			task.set_pitch(inner.pitch)
+			task.set_volume(inner.volume)
+			task.configure_rate_boost(inner.rate_boost)
+			inner.tts_queue.put(_QueuedSpeech(driver, record, task))
 		except Exception:
 			with driver._segmentCondition:
 				driver._segmentById.pop(identity, None)
@@ -237,11 +292,11 @@ class _RHVoiceStrategy(NativeStrategy):
 
 	def stop_native(self, host, record):
 		driver = self._driver()
-		driver._SynthDriver__cancel_flag.set()
-		driver._SynthDriver__player.stop()
+		driver._inner.cancel_flag.set()
+		driver._inner.player.stop()
 
 	def stop_player(self, host):
-		self._driver()._SynthDriver__player.stop()
+		self._driver()._inner.player.stop()
 
 
 class SynthDriver(rhvoice.SynthDriver):
@@ -250,11 +305,12 @@ class SynthDriver(rhvoice.SynthDriver):
 	def __init__(self):
 		self._segmentHost = SegmentHost("RHVoice", _RHVoiceStrategy(self))
 		self._segmentCondition = Condition(RLock())
+		self._stopGate = StopGate(self._segmentCondition)
 		self._segmentById = {}
 		self._segmentNextId = 1
-		self._segmentCancelling = 0
+		self._inner = _RHVoiceInner(self)
 		super().__init__()
-		player = self._SynthDriver__player
+		player = self._inner.player
 		original_get_player = player.get_player
 		wrapped = {}
 
@@ -263,20 +319,15 @@ class SynthDriver(rhvoice.SynthDriver):
 			if real is None:
 				return None
 			if real not in wrapped:
-				wrapped[real] = _WavePlayer(self, real)
+				wrapped[real] = _WavePlayer(self._segmentHost, real)
 			return wrapped[real]
 
 		player.get_player = get_player
 
 	def __setattr__(self, name, value):
 		# Inner init creates C callbacks just after assigning Python callables.
-		if name in (
-			"_SynthDriver__sample_rate_callback",
-			"_SynthDriver__speech_callback",
-			"_SynthDriver__mark_callback",
-			"_SynthDriver__done_callback",
-		):
-			value = _NativeCallback(self, value, name == "_SynthDriver__done_callback")
+		if name in _RHVoiceInner.CALLBACK_NAMES:
+			value = _NativeCallback(self, value, name == _RHVoiceInner.DONE_CALLBACK)
 		super().__setattr__(name, value)
 
 	def _native_callback(self, callback, is_done, *args):
@@ -302,7 +353,7 @@ class SynthDriver(rhvoice.SynthDriver):
 					host.record_error(record, error)
 					return refused
 
-	def get_segment_drain_support(self, *, nvda_version=None, audio_mode=None):
+	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		return unverified_drain_support(
 			runtime_profile("RHVoice", nvda_version, audio_mode),
 			"callback retirement and physical playback are",
@@ -323,41 +374,36 @@ class SynthDriver(rhvoice.SynthDriver):
 
 	def cancel(self):
 		host = self._segmentHost
-		with host.admission():
-			host.cancel()
-			with self._segmentCondition:
-				self._segmentCancelling += 1
-				current = host.current()
-				dropped = [record for record in self._segmentById.values() if record is not current]
+		with self._stopGate.hold():
+			with host.admission():
+				host.cancel()
+				with self._segmentCondition:
+					current = host.current()
+					dropped = [record for record in self._segmentById.values() if record is not current]
+					for record in dropped:
+						self._segmentById.pop(record.native.identity, None)
+				# Queued records never reach the worker; the inner cancel clears them.
 				for record in dropped:
-					self._segmentById.pop(record.native.identity, None)
-			# Queued records never reach the worker; the inner cancel clears them.
-			for record in dropped:
-				host.abandon(record)
-			error = None
-			try:
-				super().cancel()
-			except Exception as exc:
-				host.latch_control_error(exc)
-				error = exc
-		try:
+					host.abandon(record)
+				error = None
+				try:
+					super().cancel()
+				except Exception as exc:
+					host.latch_control_error(exc)
+					error = exc
 			host.wait_settled(current)
 			try:
-				self._SynthDriver__player.stop()
+				self._inner.player.stop()
 			except Exception as exc:
 				host.latch_control_error(exc)
 				if error is None:
 					error = exc
-		finally:
-			with self._segmentCondition:
-				self._segmentCancelling -= 1
-				self._segmentCondition.notify_all()
 		if error is not None:
 			raise error
 
 	def terminate(self):
 		with self._segmentHost.admission():
-			if self._SynthDriver__tts_engine is None:
+			if self._inner.tts_engine is None:
 				return
 			self._segmentHost.terminate()
 		error = None
@@ -365,13 +411,14 @@ class SynthDriver(rhvoice.SynthDriver):
 			self.cancel()
 		except Exception as exc:
 			error = exc
-		self._SynthDriver__tts_queue.put(None)
-		self._SynthDriver__tts_thread.join()
+		inner = self._inner
+		inner.tts_queue.put(None)
+		inner.tts_thread.join()
 		try:
-			self._SynthDriver__player.close()
+			inner.player.close()
 		finally:
-			self._SynthDriver__lib.RHVoice_delete_tts_engine(self._SynthDriver__tts_engine)
-			self._SynthDriver__tts_engine = None
+			inner.lib.RHVoice_delete_tts_engine(inner.tts_engine)
+			inner.tts_engine = None
 		if error is not None:
 			raise error
 
