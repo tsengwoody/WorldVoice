@@ -1265,3 +1265,100 @@ def test_ordinary_speech_waits_for_contextual_final_sync(env):
     assert len(events) == 1
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
     assert (events[0].source_id, events[0].segment_id) == (context.source_id, context.segment_id)
+
+
+def _hold_admission(env):
+    held, release = Event(), Event()
+
+    def hold():
+        with env.driver._segmentHost.admission():
+            held.set()
+            assert release.wait(2)
+
+    holder = in_thread(hold)
+    assert held.wait(1)
+    return holder, release
+
+
+def _wait_gate_held(env):
+    for _ in range(200):
+        with env.driver._segmentCondition:
+            if not env.driver._stopGate.clear:
+                return
+        Event().wait(0.005)
+    raise AssertionError("cancel never raised the stop gate")
+
+
+def test_pause_between_fault_capture_and_delivery_does_not_reach_the_player(env, monkeypatch):
+    captured, release_delivery = Event(), Event()
+    original_delivery = env.driver._deliverSegmentControlFailure
+
+    def held_delivery(failure):
+        captured.set()
+        assert release_delivery.wait(2)
+        return original_delivery(failure)
+
+    monkeypatch.setattr(env.driver, "_deliverSegmentControlFailure", held_delivery)
+    speak(env)
+    env.native.wait_calls(1)
+    pauses = []
+    original_pause = env.player.pause
+    env.player.pause = lambda switch: (pauses.append(switch), original_pause(switch))
+    faulting = in_thread(lambda: env.driver._failSegmentControl(OSError("player failed")))
+    assert captured.wait(1)
+    try:
+        pausing = in_thread(lambda: env.driver.pause(True))
+        assert pausing.done.wait(2) and pausing.errors == []
+        assert pauses == []
+        assert env.driver._segmentPaused is False
+    finally:
+        release_delivery.set()
+    assert faulting.done.wait(2)
+    with env.driver._segmentCondition:
+        assert env.driver._stopGate.clear
+
+
+def test_cancel_whose_player_stop_fails_releases_the_stop_gate(env):
+    speak(env)
+    env.native.wait_calls(1)
+
+    def failing_stop():
+        raise OSError("stop failed")
+
+    original_stop = env.player.stop
+    env.player.stop = failing_stop
+    try:
+        with pytest.raises(OSError):
+            env.driver.cancel()
+        with env.driver._segmentCondition:
+            assert env.driver._stopGate.clear
+    finally:
+        env.player.stop = original_stop
+
+
+def test_player_created_during_an_inflight_stop_is_not_paused(env):
+    env.driver._player = None
+    speak(env)
+    env.native.wait_calls(1)
+    env.driver.pause(True)
+    pauses = []
+    original_pause = env.player.pause
+    env.player.pause = lambda switch: (pauses.append(switch), original_pause(switch))
+    holder, release = _hold_admission(env)
+    cancelling = in_thread(env.driver.cancel)
+    try:
+        _wait_gate_held(env)
+        assert env.driver._segmentPaused is True
+        call = in_thread(lambda: env.native.respond(markers=""))
+        for _ in range(200):
+            if env.driver._player is not None:
+                break
+            Event().wait(0.005)
+        assert env.driver._player is not None
+        assert True not in pauses
+    finally:
+        release.set()
+        env.player.sync_release.set()
+    assert holder.done.wait(2) and cancelling.done.wait(2) and call.done.wait(2)
+    with env.driver._segmentCondition:
+        assert env.driver._stopGate.clear
