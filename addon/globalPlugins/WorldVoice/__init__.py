@@ -1,5 +1,4 @@
 import os
-from zipfile import ZipFile, BadZipFile
 
 import addonHandler
 import globalPluginHandler
@@ -12,6 +11,7 @@ import wx
 
 from .pipelineLog import ask_disable_on_start, ask_export, confirm_enable, pipeline_log
 from .speechSettingsDialog import WorldVoiceSettingsDialog
+from generics.coreArchive import extract_core_archive
 from generics.speechSymbols.views import SpeechSymbolsDialog
 
 from synthDrivers.WorldVoice.pipeline.scope import pipeline_scope
@@ -88,40 +88,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			core_zip_path = entryDialog.GetPath()
 
 		workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
-
 		try:
 			os.makedirs(workspace_path, exist_ok=True)
-
-			with ZipFile(core_zip_path, "r") as core_file:
-				try:
-					core_file.testzip()
-				except (BadZipFile, RuntimeError) as e:
-					log.error(f"Cannot extract corrupted archive '{os.path.basename(core_zip_path)}': {e}")
-					return
-
-				skipped_files = []
-				for member in core_file.infolist():
-					try:
-						core_file.extract(member, path=workspace_path)
-					except Exception as e:
-						# Catching a broad Exception is intentional. Locked files (e.g., in-use DLLs)
-						# can raise different errors on different OSes. This safely skips them.
-						log.warning(f"Could not extract '{member.filename}' (likely in use): {e}")
-						skipped_files.append(member.filename)
-
-				if skipped_files:
-					log.warning(
-						f"Update complete. Skipped {len(skipped_files)} in-use file(s): {skipped_files}",
-					)
-				else:
-					log.info("All components extracted successfully.")
-
+			extract_core_archive(core_zip_path, workspace_path)
 		except Exception:
-			# Catch any other unexpected errors during I/O or ZipFile init.
 			log.exception(
 				f"An unexpected error occurred while processing '{os.path.basename(core_zip_path)}'",
 			)
-
 			gui.messageBox(
 				_("Import fail"),
 				_("Import File"),

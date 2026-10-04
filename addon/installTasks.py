@@ -1,5 +1,6 @@
+import importlib.util
 import os
-from zipfile import ZipFile, BadZipFile
+from zipfile import BadZipFile
 
 from logHandler import log
 
@@ -7,32 +8,22 @@ import config
 import globalVars
 
 
+def _load_core_archive():
+	# Load by path: during installation an older `generics` may already be imported.
+	path = os.path.join(os.path.dirname(__file__), "generics", "coreArchive.py")
+	spec = importlib.util.spec_from_file_location("_worldvoice_install_core_archive", path)
+	module = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(module)
+	return module
+
+
 def _extract_core_archive(archive_path, workspace_path):
 	log.info(f"Found '{os.path.basename(archive_path)}', preparing to extract to '{workspace_path}'")
 
 	try:
-		with ZipFile(archive_path, "r") as core_file:
-			try:
-				core_file.testzip()
-			except (BadZipFile, RuntimeError) as e:
-				log.error(f"Cannot extract corrupted archive '{os.path.basename(archive_path)}': {e}")
-				return
-
-			skipped_files = []
-			for member in core_file.infolist():
-				try:
-					core_file.extract(member, path=workspace_path)
-				except Exception as e:
-					# Catching a broad Exception is intentional. Locked files (e.g., in-use DLLs)
-					# can raise different errors on different OSes. This safely skips them.
-					log.warning(f"Could not extract '{member.filename}' (likely in use): {e}")
-					skipped_files.append(member.filename)
-
-			if skipped_files:
-				log.warning(f"Update complete. Skipped {len(skipped_files)} in-use file(s): {skipped_files}")
-			else:
-				log.info("All components extracted successfully.")
-
+		_load_core_archive().extract_core_archive(archive_path, workspace_path)
+	except BadZipFile as e:
+		log.error(f"Cannot extract corrupted archive '{os.path.basename(archive_path)}': {e}")
 	except Exception:
 		# Catch any other unexpected errors during I/O or ZipFile init.
 		log.exception(f"An unexpected error occurred while processing '{os.path.basename(archive_path)}'")

@@ -58,6 +58,7 @@ addon_info = AddonInfo(
 # For more information on SCons Glob expressions please take a look at:
 # https://scons.org/doc/production/HTML/scons-user/apd.html
 pythonSources: list[str] = [
+	'addon/generics/*.py',
 	'addon/generics/*/*.py',
 	'addon/globalPlugins/*/*.py',
 	'addon/synthDrivers/*/*.py',
