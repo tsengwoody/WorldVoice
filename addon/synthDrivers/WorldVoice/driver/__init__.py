@@ -3,7 +3,6 @@
 import languageHandler
 
 from ..compat.voiceFacade import VoiceFacade
-from ..runtime.settings import VOICE_PARAMETERS, boolean
 
 
 def getVoiceKey(engine, voiceId):

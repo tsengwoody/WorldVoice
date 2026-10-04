@@ -1,5 +1,4 @@
 from collections import OrderedDict
-import importlib
 import os
 import sys
 import time
@@ -22,7 +21,6 @@ from speech.commands import (
 	PitchCommand,
 	RateCommand,
 	VolumeCommand,
-	SpeechCommand,
 	BreakCommand,
 )
 from speech.extensions import filter_speechSequence

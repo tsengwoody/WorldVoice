@@ -1,8 +1,7 @@
 from functools import wraps
 from itertools import chain, pairwise
 import re
-import string
-from typing import Iterable, Iterator, Union
+from typing import TYPE_CHECKING, Iterable, Iterator, Union
 import uuid
 
 import config
@@ -18,7 +17,13 @@ from ..log import PipelineLog
 from . import speech_dictionary
 from .settings import get_effective_pipeline_settings
 
-SpeechCmd = Union[str, "BaseSpeechCommand"]
+if TYPE_CHECKING:
+	from speech.commands import SpeechCommand
+
+	from ..driver import Voice
+	from ..voiceManager import VoiceManager
+
+SpeechCmd = Union[str, "SpeechCommand"]
 pl = PipelineLog("pipeline.csv")
 
 _COMMA_NUMBER_RE = re.compile(r"(?<=[0-9]),(?=[0-9])")

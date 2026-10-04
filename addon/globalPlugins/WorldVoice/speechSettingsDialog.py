@@ -1,5 +1,4 @@
 from collections import defaultdict, OrderedDict
-import importlib
 
 import wx
 import addonHandler
