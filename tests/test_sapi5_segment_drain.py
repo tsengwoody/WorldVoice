@@ -1331,3 +1331,29 @@ def test_hook_fault_after_binding_does_not_strand_the_worker(monkeypatch):
             player.feed_release.set()
             player.idle_release.set()
         env.driver.terminate()
+
+
+def test_cancel_player_stop_failure_latches_and_rejects_speech(env):
+    env.player.stop_error = True
+    with pytest.raises(OSError):
+        env.driver.cancel()
+    env.player.stop_error = None
+    assert str(env.driver._segmentHost.control_error) == "stop failed"
+    with pytest.raises(OSError, match="stop failed"):
+        env.driver.speak(["after"])
+
+
+def test_worker_stop_failure_latches_until_a_voice_reload(env):
+    env.player.stop_error = True
+    with pytest.raises(OSError):
+        env.driver._stopThread()
+    env.player.stop_error = None
+    assert str(env.driver._segmentHost.control_error) == "stop failed"
+    env.driver.voice = "voice"
+    assert env.driver._segmentHost.control_error is None
+    native, player = env.natives[-1], env.players[-1]
+    player.idle_release.set()
+    _, _, events = speak(env, segment=18)
+    native.wait_calls(1)
+    native.end()
+    assert wait_event(events).segment_id == 18

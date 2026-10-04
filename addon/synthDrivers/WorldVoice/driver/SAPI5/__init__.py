@@ -9,7 +9,8 @@ from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.segmentHost import NativeStrategy, SegmentHost
+from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -33,6 +34,33 @@ class _SapiRequest:
 
 def _purge_flags():
 	return sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak
+
+
+class _Sapi5Port:
+	"""NVDA synthDrivers.sapi5 private names this wrapper reads, writes or overrides.
+
+	The worker (_speakThread) re-implements NVDA's own loop around these, so
+	they are used in place rather than forwarded; compare this list with
+	NVDA's sapi5.py on every NVDA upgrade.
+	"""
+
+	NVDA_PRIVATES = frozenset(
+		{
+			"_SPEventEnum",
+			"_SapiEvent",
+			"_bookmarkLists",
+			"_isCancelling",
+			"_isCompleted",
+			"_isSpeaking",
+			"_isStoppingThread",
+			"_requestCompleted",
+			"_requestsAvailable",
+			"_speakRequests",
+			"_thread",
+			"_threadCond",
+		},
+	)
+	NVDA_OVERRIDES = frozenset({"_initTts", "_initWasapiAudio", "_onEndStream", "_speakThread"})
 
 
 class _Sapi5Strategy(NativeStrategy):
@@ -65,7 +93,7 @@ class _Sapi5Strategy(NativeStrategy):
 				# Segments arrive through the lifecycle's submit_native hook.
 				record.native = _SapiRequest()
 			record.native.request = request
-			driver._segmentRecords[id(request)] = record
+			driver._queued.add(id(request), record)
 
 	def stop_native(self, host, record):
 		driver = self._driver()
@@ -133,15 +161,12 @@ class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
 					raise
 
 
-class _SegmentPlayer:
-	"""Keep real WavePlayer operations and capture their admitted work."""
+class _SegmentPlayer(LeasedPlayer):
+	"""SAPI5's WavePlayer lease: legacy feeds pass through, index callbacks outlive admission."""
 
 	def __init__(self, driver, player):
+		super().__init__(driver._segmentHost, player, idle_barrier=None)
 		self._driver = weakref.ref(driver)
-		self._player = player
-
-	def __getattr__(self, name):
-		return getattr(self._player, name)
 
 	def feed(self, data, size=None, onDone=None):
 		driver = self._driver()
@@ -150,30 +175,32 @@ class _SegmentPlayer:
 		with driver._threadCond:
 			if self is not driver.player:
 				return None
-		host = driver._segmentHost
-		record = host.current()
-		if record is None:
+		if driver._segmentHost.current() is None:
 			return self._player.feed(data, size, onDone)
 		# A feed nested in an admitted PCM callback may pass after EndStream
 		# closed admission; any other late feed is dropped.
-		with host.consumer(record) as admitted:
-			if admitted is None:
-				return None
-			callback = onDone
-			if onDone is not None:
+		return super().feed(data, size, onDone)
 
-				def callback():
-					if record.is_valid():
-						onDone()
+	def _callback(self, record, onDone):
+		# NVDA queues bookmark indexes as feed(None, 0, onDone); they fire after
+		# EndStream closed admission, while the record is still valid.
+		def callback():
+			if record.is_valid():
+				onDone()
 
-			try:
-				return self._player.feed(data, size, callback)
-			except Exception as error:
-				driver._recordSegmentError(record, error)
-				raise
-			finally:
-				if not record.is_valid():
-					self._player.stop()
+		return callback
+
+	def _record_error(self, record, error):
+		driver = self._driver()
+		if driver is None:
+			return super()._record_error(record, error)
+		driver._recordSegmentError(record, error)
+
+	def _stop_failed(self, error):
+		driver = self._driver()
+		if driver is None:
+			return super()._stop_failed(error)
+		driver._failSegmentControl(error)
 
 	def idle(self):
 		driver = self._driver()
@@ -321,12 +348,20 @@ class SynthDriver(BaseSynthDriver):
 
 	def __init__(self, *args, **kwargs):
 		self._segmentHost = SegmentHost("SAPI5", _Sapi5Strategy(self))
-		self._segmentRecords = {}
+		self._queued = QueuedRecords()
+		self._stopGate = None
+		self._controlFault = None
 		self._segmentSeenStreams = set()
 		self._segmentSink = None
 		self._segmentAudio = None
-		self._segmentStops = 0
 		super().__init__(*args, **kwargs)
+		self._ensureEngineControl()
+
+	def _ensureEngineControl(self):
+		# NVDA creates _threadCond in its __init__ and may start the worker there.
+		if self._controlFault is None:
+			self._stopGate = StopGate(self._threadCond)
+			self._controlFault = ControlFaultPolicy(self._segmentHost, self._threadCond, self._dropQueued)
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		if audio_mode != "wasapi" or not self.useWasapi or self.player is None:
@@ -370,19 +405,17 @@ class SynthDriver(BaseSynthDriver):
 				return super().speak(speechSequence)
 		self._segmentHost.enqueue(speechSequence, barriers=_ORDINARY_BARRIERS, native=_SapiRequest())
 
-	def _dropQueuedRecords(self):
+	def _dropQueued(self):
 		# Called under _threadCond: the parent's request deque is being cleared,
 		# so these records never reach the worker.
-		dropped = list(self._segmentRecords.values())
-		self._segmentRecords.clear()
 		self._speakRequests.clear()
-		return dropped
+		return self._queued.take_all()
 
 	def _invalidateSegments(self):
 		with self._segmentHost.admission():
 			with self._threadCond:
 				self._segmentHost.cancel()
-				dropped = self._dropQueuedRecords()
+				dropped = self._dropQueued()
 			for record in dropped:
 				self._segmentHost.abandon(record)
 
@@ -406,6 +439,7 @@ class SynthDriver(BaseSynthDriver):
 		# Clear their control fault (and any lifecycle fault) before the
 		# replacement worker starts.
 		self._segmentHost.reset()
+		self._ensureEngineControl()
 		# The inner initializer constructs its own fixed AudioStream class.
 		# Keep its format/settings/player path, substituting only our owned
 		# COM callback object so pre-feed Sonic failures cannot escape capture.
@@ -455,16 +489,7 @@ class SynthDriver(BaseSynthDriver):
 		host.reach(record, "processed")
 
 	def _failSegmentControl(self, error):
-		host = self._segmentHost
-		with self._threadCond:
-			if host.control_error is not None:
-				return
-			host.latch_control_error(error)
-			dropped = self._dropQueuedRecords()
-			self._threadCond.notify_all()
-		# Queued work never reaches the worker; it fails with the latched error.
-		for record in dropped:
-			host.abandon(record)
+		self._controlFault.fail(error)
 
 	def _speakThread(self):
 		# NVDA publishes DONE before idle, only idles when its whole queue is
@@ -479,7 +504,7 @@ class SynthDriver(BaseSynthDriver):
 					lambda: (
 						self._isStoppingThread
 						or host.control_error is not None
-						or (self._segmentStops == 0 and self._requestsAvailable())
+						or (self._stopGate.clear and self._requestsAvailable())
 					),
 				)
 				if self._isStoppingThread or host.control_error is not None:
@@ -488,7 +513,7 @@ class SynthDriver(BaseSynthDriver):
 					record = None
 				else:
 					request = self._speakRequests.popleft()
-					record = self._segmentRecords.pop(id(request), None)
+					record = self._queued.pop(id(request))
 					if record is None:
 						# Not queued through the host (e.g. after a reload race).
 						record = host.new_record(barriers=_ORDINARY_BARRIERS, native=_SapiRequest(request))
@@ -604,16 +629,9 @@ class SynthDriver(BaseSynthDriver):
 			self._isCancelling = False
 
 	def cancel(self):
-		with self._segmentHost.admission():
-			with self._threadCond:
-				self._segmentStops += 1
+		with self._stopGate.hold():
 			self._invalidateSegments()
-		try:
 			return super().cancel()
-		finally:
-			with self._threadCond:
-				self._segmentStops -= 1
-				self._threadCond.notify_all()
 
 	def terminate(self):
 		self._invalidateSegments()

@@ -173,11 +173,7 @@ def test_ordinary_speak_after_terminate_raises(engine):
 		engine.speak_ordinary(("hello",))
 
 
-@pytest.mark.parametrize(
-	"engine",
-	_engines(SAPI5=("SAPI5 cancel() does not latch a player stop failure (phase 9b)", AssertionError)),
-	indirect=True,
-)
+@pytest.mark.parametrize("engine", _engines(), indirect=True)
 def test_segment_after_player_stop_failure_fails(engine):
 	engine.fail_next_stop()
 	with suppress(Exception):
