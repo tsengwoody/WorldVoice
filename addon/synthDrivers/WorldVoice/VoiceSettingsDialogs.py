@@ -1,13 +1,12 @@
 import addonHandler
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
-import config
 import gui
 from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
 from logHandler import log
 import wx
 
-from .pipeline.settings import DEFAULT_PIPELINE_SETTINGS
+from .pipeline.settings import PIPELINE_CONFIG_KEYS, pipeline_settings
 
 
 addonHandler.initTranslation()
@@ -15,6 +14,7 @@ addonHandler.initTranslation()
 
 class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 	def makeSettings(self, settingsSizer):
+		self._pipelineSnapshot = pipeline_settings.get() if self._isWorldVoice() else None
 		self.createDriverSettings()
 		super().makeSettings(settingsSizer)
 		self._addPunctuationPauseCharactersControl(settingsSizer)
@@ -79,17 +79,30 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			self.punctuationPauseCharactersEdit.MoveAfterInTabOrder(
 				self.punctuationwaitfactorSlider,
 			)
-		self.punctuationPauseCharactersEdit.SetValue(
-			config.conf["WorldVoice"]["pipeline"].get(
-				"punctuation_pause_characters",
-				DEFAULT_PIPELINE_SETTINGS["punctuation_pause_characters"],
-			),
-		)
+		self.punctuationPauseCharactersEdit.SetValue(pipeline_settings.get().punctuation_pause_characters)
 
 	def onSave(self):
-		value = self.punctuationPauseCharactersEdit.GetValue().strip()
-		config.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] = value
+		pipeline_settings.update(punctuation_pause_characters=self.punctuationPauseCharactersEdit.GetValue())
 		super().onSave()
+
+	def _isWorldVoice(self):
+		return getattr(self.driver, "name", None) == "WorldVoice"
+
+	def onDiscard(self):
+		super().onDiscard()
+		# Pipeline settings are not NVDA driver config, so loadSettings cannot
+		# restore values changed while this panel was open.
+		snapshot = getattr(self, "_pipelineSnapshot", None)
+		if snapshot is None or not self._isWorldVoice():
+			return
+		current = pipeline_settings.get()
+		changes = {
+			key: getattr(snapshot, key)
+			for key in PIPELINE_CONFIG_KEYS
+			if getattr(current, key) != getattr(snapshot, key)
+		}
+		if changes:
+			pipeline_settings.update(**changes)
 
 	def createDriverSettings(self, changedSetting=None):
 		"""

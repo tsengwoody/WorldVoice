@@ -12,15 +12,8 @@ from logHandler import log
 import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
-from synthDrivers.WorldVoice.pipeline import pl
-from synthDrivers.WorldVoice.pipeline.settings import (
-	PipelineSettings,
-	apply_global_pipeline_scope,
-	apply_pipeline_settings_to_speech_config,
-	apply_pipeline_settings_to_synth,
-	load_pipeline_settings,
-	save_pipeline_settings,
-)
+from synthDrivers.WorldVoice.pipeline import STAGES, pl
+from synthDrivers.WorldVoice.pipeline.settings import pipeline_settings
 from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
 from synthDrivers.WorldVoice.voiceManager import getPrimaryLocale
 import tones
@@ -29,6 +22,19 @@ from .utils import guard_errors
 
 
 addonHandler.initTranslation()
+
+# Labels for the per-stage log switches; the switches themselves come from STAGES.
+_LOG_LABELS = {
+	"apply_speech_dictionaries": _("apply_speech_dictionaries"),
+	"ignore_comma_between_number": _("Ignore comma between number"),
+	"number_language": _("Number language"),
+	"number_mode": _("Number mode"),
+	"chinesespace_wait_factor": _("chinese space wait factor"),
+	"item_wait_factor": _("item wait factor"),
+	"punctuation_wait_factor": _("punctuation wait factor"),
+	"number_wait_factor": _("number wait factor"),
+	"speech_viewer": _("speech viewer"),
+}
 
 
 def got_error_callback(self):
@@ -105,7 +111,7 @@ class SpeechPipelinePanel(SettingsPanel):
 
 	def makeSettings(self, sizer):
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
-		pipeline_settings = load_pipeline_settings()
+		settings = pipeline_settings.get()
 
 		scope_label = [
 			_("All Synthesizers (Global)"),
@@ -117,9 +123,8 @@ class SpeechPipelinePanel(SettingsPanel):
 			wx.Choice,
 			choices=scope_label,
 		)
-		self._scope = pipeline_settings.scope
 		try:
-			self._scope_choice.Select(self._scope_value.index(self._scope))
+			self._scope_choice.Select(self._scope_value.index(settings.scope))
 		except ValueError:
 			self._scope_choice.Select(0)
 
@@ -128,12 +133,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			label=_("Ignore comma between number"),
 		)
 		settingsSizerHelper.addItem(self._ignore_comma_between_number_checkbox)
-		self.Bind(
-			wx.EVT_CHECKBOX,
-			self.onIgnoreCommaBetweenNumberCheckboxChange,
-			self._ignore_comma_between_number_checkbox,
-		)
-		self._ignore_comma_between_number_checkbox.SetValue(pipeline_settings.ignore_comma_between_number)
+		self._ignore_comma_between_number_checkbox.SetValue(settings.ignore_comma_between_number)
 
 		number_mode_label = [
 			_("value"),
@@ -149,7 +149,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		)
 
 		try:
-			self._number_mode_choice.Select(self.number_mode_value.index(pipeline_settings.number_mode))
+			self._number_mode_choice.Select(self.number_mode_value.index(settings.number_mode))
 		except ValueError:
 			self._number_mode_choice.Select(0)
 
@@ -161,8 +161,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			maxValue=10,
 			style=wx.SL_HORIZONTAL,
 		)
-		self.Bind(wx.EVT_SLIDER, self.onGlobalWaitFactorSliderScroll, self._global_wait_factor_slider)
-		self._global_wait_factor_slider.SetValue(pipeline_settings.global_wait_factor // 10)
+		self._global_wait_factor_slider.SetValue(settings.global_wait_factor // 10)
 
 		self._number_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("number wait factor:"),
@@ -172,8 +171,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			maxValue=100,
 			style=wx.SL_HORIZONTAL,
 		)
-		self.Bind(wx.EVT_SLIDER, self.onNumberWaitFactorSliderScroll, self._number_wait_factor_slider)
-		self._number_wait_factor_slider.SetValue(pipeline_settings.number_wait_factor)
+		self._number_wait_factor_slider.SetValue(settings.number_wait_factor)
 
 		self._pair_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("pair wait factor:"),
@@ -183,8 +181,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			maxValue=100,
 			style=wx.SL_HORIZONTAL,
 		)
-		self.Bind(wx.EVT_SLIDER, self.onPairWaitFactorSliderScroll, self._pair_wait_factor_slider)
-		self._pair_wait_factor_slider.SetValue(pipeline_settings.pair_wait_factor)
+		self._pair_wait_factor_slider.SetValue(settings.pair_wait_factor)
 
 		self._item_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("item wait factor:"),
@@ -194,8 +191,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			maxValue=100,
 			style=wx.SL_HORIZONTAL,
 		)
-		self.Bind(wx.EVT_SLIDER, self.onItemWaitFactorSliderScroll, self._item_wait_factor_slider)
-		self._item_wait_factor_slider.SetValue(pipeline_settings.item_wait_factor)
+		self._item_wait_factor_slider.SetValue(settings.item_wait_factor)
 
 		self._sayall_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("sayall wait factor:"),
@@ -205,8 +201,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			maxValue=100,
 			style=wx.SL_HORIZONTAL,
 		)
-		self.Bind(wx.EVT_SLIDER, self.onSayallWaitFactorSliderScroll, self._sayall_wait_factor_slider)
-		self._sayall_wait_factor_slider.SetValue(pipeline_settings.sayall_wait_factor)
+		self._sayall_wait_factor_slider.SetValue(settings.sayall_wait_factor)
 
 		self._chinesespace_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("chinese space wait factor:"),
@@ -216,12 +211,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			maxValue=100,
 			style=wx.SL_HORIZONTAL,
 		)
-		self.Bind(
-			wx.EVT_SLIDER,
-			self.onChinesespaceWaitFactorSliderScroll,
-			self._chinesespace_wait_factor_slider,
-		)
-		self._chinesespace_wait_factor_slider.SetValue(pipeline_settings.chinesespace_wait_factor)
+		self._chinesespace_wait_factor_slider.SetValue(settings.chinesespace_wait_factor)
 
 		self._punctuation_pause_enabled_checkbox = wx.CheckBox(
 			self,
@@ -233,7 +223,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			self.onPunctuationPauseEnabledChange,
 			self._punctuation_pause_enabled_checkbox,
 		)
-		self._punctuation_pause_enabled_checkbox.SetValue(pipeline_settings.punctuation_pause_enabled)
+		self._punctuation_pause_enabled_checkbox.SetValue(settings.punctuation_pause_enabled)
 
 		self._remove_punctuation_characters_checkbox = wx.CheckBox(
 			self,
@@ -245,7 +235,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			self.onRemovePunctuationCharactersChange,
 			self._remove_punctuation_characters_checkbox,
 		)
-		self._remove_punctuation_characters_checkbox.SetValue(pipeline_settings.remove_punctuation_characters)
+		self._remove_punctuation_characters_checkbox.SetValue(settings.remove_punctuation_characters)
 
 		self._punctuation_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("punctuation wait factor:"),
@@ -255,59 +245,14 @@ class SpeechPipelinePanel(SettingsPanel):
 			maxValue=100,
 			style=wx.SL_HORIZONTAL,
 		)
-		self.Bind(
-			wx.EVT_SLIDER,
-			self.onPunctuationWaitFactorSliderScroll,
-			self._punctuation_wait_factor_slider,
-		)
-		self._punctuation_wait_factor_slider.SetValue(pipeline_settings.punctuation_wait_factor)
+		self._punctuation_wait_factor_slider.SetValue(settings.punctuation_wait_factor)
 
 		self._punctuation_pause_characters_edit = settingsSizerHelper.addLabeledControl(
 			_("Punctuation pause characters:"),
 			wx.TextCtrl,
 		)
-		self._punctuation_pause_characters_edit.SetValue(pipeline_settings.punctuation_pause_characters)
+		self._punctuation_pause_characters_edit.SetValue(settings.punctuation_pause_characters)
 		self.onPunctuationPauseEnabledChange(None)
-
-	def onScopeSelectionChange(self, event):
-		value = self._scope_value[self._scope_choice.GetCurrentSelection()]
-		settings = PipelineSettings(
-			scope=value,
-			ignore_comma_between_number=self._ignore_comma_between_number_checkbox.GetValue(),
-			number_mode=self.number_mode_value[self._number_mode_choice.GetCurrentSelection()],
-			global_wait_factor=self._global_wait_factor_slider.GetValue() * 10,
-			number_wait_factor=self._number_wait_factor_slider.GetValue(),
-			item_wait_factor=self._item_wait_factor_slider.GetValue(),
-			sayall_wait_factor=self._sayall_wait_factor_slider.GetValue(),
-			chinesespace_wait_factor=self._chinesespace_wait_factor_slider.GetValue(),
-			punctuation_wait_factor=self._punctuation_wait_factor_slider.GetValue(),
-			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
-			remove_punctuation_characters=self._remove_punctuation_characters_checkbox.GetValue(),
-			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
-			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
-		)
-		apply_global_pipeline_scope(settings, getSynth().name)
-
-	def onIgnoreCommaBetweenNumberCheckboxChange(self, event):
-		pass
-
-	def onGlobalWaitFactorSliderScroll(self, event):
-		pass
-
-	def onNumberWaitFactorSliderScroll(self, event):
-		pass
-
-	def onPairWaitFactorSliderScroll(self, event):
-		pass
-
-	def onItemWaitFactorSliderScroll(self, event):
-		pass
-
-	def onSayallWaitFactorSliderScroll(self, event):
-		pass
-
-	def onChinesespaceWaitFactorSliderScroll(self, event):
-		pass
 
 	def onPunctuationPauseEnabledChange(self, event):
 		enabled = self._punctuation_pause_enabled_checkbox.GetValue()
@@ -322,44 +267,8 @@ class SpeechPipelinePanel(SettingsPanel):
 			or self._remove_punctuation_characters_checkbox.GetValue(),
 		)
 
-	def onPunctuationWaitFactorSliderScroll(self, event):
-		pass
-
-	def sliderEnable(self):
-		self._ignore_comma_between_number_checkbox.Enable()
-		self._number_mode_choice.Enable()
-		self._global_wait_factor_slider.Enable()
-		self._number_wait_factor_slider.Enable()
-		self._pair_wait_factor_slider.Enable()
-		self._item_wait_factor_slider.Enable()
-		self._sayall_wait_factor_slider.Enable()
-		self._chinesespace_wait_factor_slider.Enable()
-		self._punctuation_pause_enabled_checkbox.Enable()
-		self._remove_punctuation_characters_checkbox.Enable()
-		if self._punctuation_pause_enabled_checkbox.GetValue():
-			self._punctuation_wait_factor_slider.Enable()
-		if (
-			self._punctuation_pause_enabled_checkbox.GetValue()
-			or self._remove_punctuation_characters_checkbox.GetValue()
-		):
-			self._punctuation_pause_characters_edit.Enable()
-
-	def sliderDisable(self):
-		self._ignore_comma_between_number_checkbox.Disable()
-		self._number_mode_choice.Disable()
-		self._global_wait_factor_slider.Disable()
-		self._number_wait_factor_slider.Disable()
-		self._pair_wait_factor_slider.Disable()
-		self._item_wait_factor_slider.Disable()
-		self._sayall_wait_factor_slider.Disable()
-		self._chinesespace_wait_factor_slider.Disable()
-		self._punctuation_pause_enabled_checkbox.Disable()
-		self._remove_punctuation_characters_checkbox.Disable()
-		self._punctuation_wait_factor_slider.Disable()
-		self._punctuation_pause_characters_edit.Disable()
-
 	def onSave(self):
-		settings = PipelineSettings(
+		pipeline_settings.update(
 			scope=self._scope_value[self._scope_choice.GetCurrentSelection()],
 			ignore_comma_between_number=self._ignore_comma_between_number_checkbox.GetValue(),
 			number_mode=self.number_mode_value[self._number_mode_choice.GetCurrentSelection()],
@@ -374,15 +283,6 @@ class SpeechPipelinePanel(SettingsPanel):
 			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
 			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
 		)
-		save_pipeline_settings(settings)
-
-		self.onScopeSelectionChange(None)
-
-		if getSynth().name == "WorldVoice":
-			apply_pipeline_settings_to_synth(getSynth(), settings)
-			getSynth().saveSettings()
-		else:
-			apply_pipeline_settings_to_speech_config(settings)
 
 
 class SpeechRoleSettingsPanel(SettingsPanel):
@@ -1060,16 +960,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 	title = _("Log Record")
 	field = "log"
 	settings = OrderedDict(
-		{
-			"ignore_comma_between_number": {"label": _("Ignore comma between number")},
-			"number_mode": {"label": _("Number mode")},
-			"number_language": {"label": _("Number language")},
-			"number_wait_factor": {"label": _("number wait factor")},
-			"item_wait_factor": {"label": _("item wait factor")},
-			"chinesespace_wait_factor": {"label": _("chinese space wait factor")},
-			"speech_viewer": {"label": _("speech viewer")},
-			"apply_speech_dictionaries": {"label": _("apply_speech_dictionaries")},
-		},
+		(stage.log_key, {"label": _LOG_LABELS.get(stage.log_key, stage.log_key)}) for stage in STAGES
 	)
 
 	def makeSettings(self, sizer):
