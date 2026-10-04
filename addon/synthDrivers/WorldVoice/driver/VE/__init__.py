@@ -1,13 +1,11 @@
 import languageHandler
-import locale
 import queue
 import threading
 import weakref
 from contextlib import contextmanager
-from ctypes import POINTER, c_char_p, c_size_t, c_void_p, cast, byref, sizeof, string_at
+from ctypes import POINTER, c_char_p, c_void_p, cast, byref, sizeof, string_at
 from dataclasses import dataclass
 from io import BytesIO
-from synthDriverHandler import LanguageInfo
 from logHandler import log
 
 from . import driver as base
@@ -678,6 +676,10 @@ class SynthDriver(BaseSynthDriver):
 		try:
 			with self._player_operation():
 				self._real_player.stop()
+		except Exception as error:
+			# A failed stop leaves the player state unknown: reject successors.
+			self._segmentHost.latch_control_error(error)
+			raise
 		finally:
 			with self._speechStateLock:
 				self._stops -= 1
@@ -709,6 +711,9 @@ class SynthDriver(BaseSynthDriver):
 				host.abandon(record)
 		try:
 			self._real_player.stop()
+		except Exception as error:
+			host.latch_control_error(error)
+			raise
 		finally:
 			with self._speechStateLock:
 				self._stops -= 1

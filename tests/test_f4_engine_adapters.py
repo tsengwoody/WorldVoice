@@ -89,3 +89,18 @@ def test_onecore_language_is_applied_only_on_activation():
 	assert core.language == "original"
 	adapter.applyEngineSettings(core, types.SimpleNamespace(language="fr"))
 	assert core.language == "fr"
+
+
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
+def test_voice_metadata_names_the_declaring_engine(monkeypatch, engine):
+	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
+	voice_class = harness.module.Voice
+	monkeypatch.setattr(voice_class, "ready", classmethod(lambda cls: True), raising=False)
+	monkeypatch.setattr(voice_class, "engine", "Renamed")
+	monkeypatch.setattr(harness.module, "languageHandler",
+		types.SimpleNamespace(getLanguageDescription=lambda locale: "English"))
+	core = types.SimpleNamespace(availableVoices={
+		"x": types.SimpleNamespace(id="x", language="en", displayName="x"),
+	})
+	[metadata] = voice_class.voices(core)
+	assert metadata["engine"] == "Renamed"

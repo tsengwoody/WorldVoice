@@ -1612,3 +1612,36 @@ def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):
     finally:
         release.set()
     finish(call)
+
+
+def test_cancel_player_stop_failure_rejects_successor(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    failures = [OSError("stop failed")]
+    def stop():
+        # Only the first stop fails; later stops succeed like a recovered player.
+        if failures:
+            raise failures.pop()
+    env.core._real_player.stop = stop
+    with pytest.raises(OSError):
+        env.core.cancel()
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    _, context, call = speak(env)
+    finish(call)
+    assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
+    assert env.events[0].source_id is context.source_id
+
+
+def test_stop_player_failure_rejects_successor(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    failures = [OSError("stop failed")]
+    def stop():
+        # Only the first stop fails; later stops succeed like a recovered player.
+        if failures:
+            raise failures.pop()
+    env.core._real_player.stop = stop
+    with pytest.raises(OSError):
+        env.core._stop_player()
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    _, context, call = speak(env)
+    finish(call)
+    assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
