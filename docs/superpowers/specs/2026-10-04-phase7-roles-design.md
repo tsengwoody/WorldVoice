@@ -158,7 +158,7 @@ class RolePanelPresenter:
 - `set_engine_consistency`：設定 `manager.engine_consistency.enabled`（預覽，影響 `locales`/`voices`）。
 - `set_parameter_consistency(enabled)`（D1）：
   - 由關到開：記下 `settings.keys()` 每個 state 的五個參數，然後 `previewVoiceParameterConsistent(default)`；
-  - 由開到關：若有記錄，就逐一 `state.update(**記錄)` 還原後清除記錄。開啟對話框時旗標本來就是開，不會有記錄，這時關閉不做任何事（與現行相同：沒有可還原的預覽）。
+  - 由開到關：若有記錄，就逐一 `state.update(**記錄)` 還原後清除記錄；預覽期間才載入的語音不在記錄中，還原成它載入時的值（baseline）。開啟對話框時旗標本來就是開，不會有記錄，這時關閉不做任何事（與現行相同：沒有可還原的預覽）。
 - `apply()`：
   1. 參數一致開啟時，從主語音 preview。
   2. `edit.apply()`。失敗時直接拋出，其後步驟都不執行（pending 保留）。

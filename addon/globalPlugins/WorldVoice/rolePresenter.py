@@ -104,8 +104,14 @@ class RolePanelPresenter:
 		elif not enabled and self.keep_parameters:
 			self.keep_parameters = False
 			# Undo only this dialog's preview, keeping other edits made before it.
-			for key, values in (self._before_parameter_preview or {}).items():
-				self._manager.settings.state(key).update(**values)
+			# A voice first loaded during the preview goes back to its loaded values.
+			record = self._before_parameter_preview
+			if record is not None:
+				settings = self._manager.settings
+				for key in settings.keys():
+					state = settings.state(key)
+					values = record.get(key) or {p: state.baseline(p) for p in PARAMETER_NAMES}
+					state.update(**values)
 			self._before_parameter_preview = None
 
 	# Transaction

@@ -25,11 +25,17 @@ class ConfigVoiceSettingsRepository:
 			voices[spec.name] = values.copy()
 		# Persist the legacy defaults, but load effective main-synth values on
 		# first use too, before the shared state establishes its edit baseline.
-		source = self._parameters.shared_section(self._synth_name)
-		if source is None:
-			source = voices[spec.name]
+		shared = self._parameters.shared_section(self._synth_name)
 		for name, convert, _ in VOICE_PARAMETERS:
-			value = source.get(name, None)
+			value = None
+			if shared is None:
+				value = voices[spec.name].get(name, None)
+			else:
+				try:
+					value = shared.get(name, None)
+				except Exception:
+					# An invalid main-synth value falls back to this voice's own.
+					value = voices[spec.name].get(name, None)
 			if value is not None:
 				values[name] = convert(value)
 		return values

@@ -107,3 +107,16 @@ def test_repository_load_and_save_need_no_nvda_or_engine_imports(monkeypatch, rt
     values = repository.load(make_spec())
     repository.save(make_spec(), values)
     assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS
+
+
+def test_invalid_main_value_falls_back_to_the_voice_for_that_key_only(repository, conf):
+    class Section(dict):
+        def get(self, key, default=None):
+            if key == "rate":
+                raise ValueError("invalid rate in nvda.ini")
+            return super().get(key, default)
+
+    conf["speech"]["WorldVoice"] = Section(pitch="61")
+    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+    conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "pitch": "30"}
+    assert repository.load(make_spec()) == dict(DEFAULTS, rate=72, pitch=61)

@@ -31,6 +31,7 @@ def test_failed_apply_shows_error_and_raises_value_error():
 		"wx": types.SimpleNamespace(OK=1, ICON_ERROR=2),
 		"gui": types.SimpleNamespace(messageBox=lambda *args: messages.append(args)),
 		"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
+		"getSynth": lambda: types.SimpleNamespace(name="WorldVoice"),
 	})
 	panel = object.__new__(panel_type)
 	panel.disable = False
@@ -120,3 +121,17 @@ def test_panel_opens_its_presenter_only_when_the_manager_is_ready(ready):
 	else:
 		assert created == []
 		assert panel.disable is True
+
+
+def test_save_does_nothing_after_the_synth_was_switched_away():
+	applied = []
+	panel_type = load_panel({
+		"SettingsPanel": object, "_": lambda text: text,
+		"guard_errors": lambda **kwargs: (lambda method: method), "got_error_callback": None,
+		"getSynth": lambda: types.SimpleNamespace(name="eSpeak"),
+	})
+	panel = object.__new__(panel_type)
+	panel.disable = False
+	panel._presenter = types.SimpleNamespace(apply=lambda: applied.append(True))
+	panel.onSave()
+	assert applied == []

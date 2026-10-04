@@ -284,3 +284,13 @@ def test_preview_b_while_a_is_playing_then_discard_restores_next_segment(env):
 	assert (a.rate, b.rate) == (50, 50)
 	b.active()
 	assert (core.voice, core.rate) == ("b", 50)
+
+
+def test_unticking_restores_voices_loaded_during_the_preview(env):
+	env.presenter.set_parameter_consistency(True)
+	late = env.manager.settings.ensure(type(env.a._state.spec)("late", "A:late", "A:late", "en", "A", "en"))
+	env.presenter.set_parameter(env.a.name, "rate", 72)
+	assert late.get("rate") == 72
+	env.presenter.set_parameter_consistency(False)
+	assert late.get("rate") == 50
+	assert env.a.rate == 50
