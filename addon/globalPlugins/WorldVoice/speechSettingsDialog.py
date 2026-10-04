@@ -11,11 +11,12 @@ from logHandler import log
 import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
-from synthDrivers.WorldVoice.pipeline import STAGES, pl
+from synthDrivers.WorldVoice.pipeline import STAGES
 from synthDrivers.WorldVoice.pipeline.settings import pipeline_settings
 from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
 import tones
 
+from .pipelineLog import ask_export, confirm_enable, pipeline_log
 from .rolePresenter import RolePanelPresenter
 from .utils import guard_errors
 
@@ -837,7 +838,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 		sizer.Add(group_sizer, proportion=1, flag=wx.EXPAND)
 
 		self.Bind(wx.EVT_CHECKBOX, self.onEnableCheckboxChange, self._enable_checkbox)
-		self._enable_checkbox.SetValue(config.conf["WorldVoice"]["log"]["enable"])
+		self._enable_checkbox.SetValue(pipeline_log.enabled)
 		super().makeSettings(group_sizer)
 		self.onEnableCheckboxChange(None)
 
@@ -856,50 +857,27 @@ class LogSettingsPanel(BaseSettingsPanel):
 			getattr(self, k + "CheckBox").Disable()
 
 	def isValid(self) -> bool:
-		enabled_before = config.conf["WorldVoice"]["log"]["enable"]
-		enabled_after = self._enable_checkbox.GetValue()
-		if enabled_before != enabled_after:
-			if enabled_after:
-				self.confirm = gui.messageBox(
-					# Translators: The message displayed
-					_(
-						"Enabling logging of WorldVoice’s speech pipeline will reduce speech response speed. If you are not debugging, we recommend keeping it disabled. Would you like to enable it anyway?",
-					),
-					# Translators: The title of the dialog
-					_("Speech Pipeline Logging"),
-					wx.YES | wx.NO | wx.CANCEL,
-					gui.mainFrame,
-				)
-				if self.confirm == wx.CANCEL:
-					self._enable_checkbox.SetValue(False)
-					self.onEnableCheckboxChange(None)
-					return False
+		if self._enable_checkbox.GetValue() and not pipeline_log.enabled:
+			answer = confirm_enable(allow_cancel=True)
+			if answer == wx.CANCEL:
+				self._enable_checkbox.SetValue(False)
+				self.onEnableCheckboxChange(None)
+				return False
+			if answer != wx.YES:
+				# "No" keeps logging off; show that instead of a checked box.
+				self._enable_checkbox.SetValue(False)
+				self.onEnableCheckboxChange(None)
 		return True
 
 	def onSave(self):
-		enabled_before = config.conf["WorldVoice"]["log"]["enable"]
+		enabled_before = pipeline_log.enabled
 		enabled_after = self._enable_checkbox.GetValue()
-		if enabled_before != enabled_after:
-			if enabled_after:
-				if self.confirm == wx.YES:
-					config.conf["WorldVoice"]["log"]["enable"] = True
-			else:
-				config.conf["WorldVoice"]["log"]["enable"] = False
-				if (
-					gui.messageBox(
-						# Translators: The message displayed
-						_(
-							"Logging of WorldVoice’s speech pipeline has been disabled. Would you like to export the pipeline log now?",
-						),
-						# Translators: The title of the dialog
-						_("Speech Pipeline Logging"),
-						wx.YES | wx.NO,
-						gui.mainFrame,
-					)
-					== wx.YES
-				):
-					wx.CallAfter(pl.export)
-
+		if enabled_after and not enabled_before:
+			pipeline_log.enable()
+		elif enabled_before and not enabled_after:
+			pipeline_log.disable()
+			if ask_export():
+				wx.CallAfter(pipeline_log.export)
 		super().onSave()
 
 

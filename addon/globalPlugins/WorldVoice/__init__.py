@@ -2,7 +2,6 @@ import os
 from zipfile import ZipFile, BadZipFile
 
 import addonHandler
-import config
 import globalPluginHandler
 import globalVars
 import gui
@@ -11,10 +10,10 @@ from scriptHandler import script
 import ui
 import wx
 
+from .pipelineLog import ask_disable_on_start, ask_export, confirm_enable, pipeline_log
 from .speechSettingsDialog import WorldVoiceSettingsDialog
 from generics.speechSymbols.views import SpeechSymbolsDialog
 
-from synthDrivers.WorldVoice.pipeline import pl
 from synthDrivers.WorldVoice.pipeline.scope import pipeline_scope
 from synthDrivers.WorldVoice.sayAll import patch, unpatch
 
@@ -172,66 +171,23 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		category=ADDON_SUMMARY,
 	)
 	def script_switch_log_record(self, gesture):
-		if not config.conf["WorldVoice"]["log"]["enable"]:
+		if not pipeline_log.enabled:
 			wx.CallAfter(self.enable_log_record)
 		else:
 			wx.CallAfter(self.disable_log_record)
 
 	def check_log_record(self):
-		if config.conf["WorldVoice"]["log"]["enable"]:
-			if (
-				gui.messageBox(
-					# Translators: The message displayed
-					_(
-						"Logging of WorldVoice’s speech pipeline is enabled. This may reduce speech response speed. If you are not debugging, we recommend disabling it. Would you like to disable it now?",
-					),
-					# Translators: The title of the dialog
-					_("Speech Pipeline Logging"),
-					wx.YES | wx.NO,
-					gui.mainFrame,
-				)
-				== wx.YES
-			):
-				config.conf["WorldVoice"]["log"]["enable"] = False
-				try:
-					pl.export()
-				except Exception:
-					pass
+		if pipeline_log.enabled and ask_disable_on_start():
+			pipeline_log.disable()
+			pipeline_log.export()
 
 	def enable_log_record(self):
-		if (
-			gui.messageBox(
-				# Translators: The message displayed
-				_(
-					"Enabling logging of WorldVoice’s speech pipeline will reduce speech response speed. If you are not debugging, we recommend keeping it disabled. Would you like to enable it anyway?",
-				),
-				# Translators: The title of the dialog
-				_("Speech Pipeline Logging"),
-				wx.YES | wx.NO,
-				gui.mainFrame,
-			)
-			== wx.YES
-		):
-			config.conf["WorldVoice"]["log"]["enable"] = True
+		if confirm_enable(allow_cancel=False) == wx.YES:
+			pipeline_log.enable()
 			ui.message(_("turn on WorldVoice`s log record"))
 
 	def disable_log_record(self):
-		config.conf["WorldVoice"]["log"]["enable"] = False
-		if (
-			gui.messageBox(
-				# Translators: The message displayed
-				_(
-					"Logging of WorldVoice’s speech pipeline has been disabled. Would you like to export the pipeline log now?",
-				),
-				# Translators: The title of the dialog
-				_("Speech Pipeline Logging"),
-				wx.YES | wx.NO,
-				gui.mainFrame,
-			)
-			== wx.YES
-		):
-			try:
-				pl.export()
-			except Exception:
-				pass
+		pipeline_log.disable()
+		if ask_export():
+			pipeline_log.export()
 			ui.message(_("turn off WorldVoice`s log record"))
