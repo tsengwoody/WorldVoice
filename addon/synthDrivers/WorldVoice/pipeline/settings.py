@@ -1,41 +1,14 @@
-from dataclasses import dataclass
-from typing import Any, Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
+from typing import Any
 
+import addonHandler
 import config
+from logHandler import log
 from synthDriverHandler import getSynth
 
+addonHandler.initTranslation()
 
-DEFAULT_PIPELINE_SETTINGS = {
-	"scope": "WorldVoice",
-	"ignore_comma_between_number": False,
-	"number_mode": "value",
-	"global_wait_factor": 10,
-	"number_wait_factor": 10,
-	"item_wait_factor": 10,
-	"sayall_wait_factor": 10,
-	"chinesespace_wait_factor": 10,
-	"punctuation_wait_factor": 0,
-	"punctuation_pause_enabled": True,
-	"remove_punctuation_characters": False,
-	"punctuation_pause_characters": "،؛,.;:!؟?…",
-	"pair_wait_factor": 0,
-}
-
-PIPELINE_CONFIG_KEYS = (
-	"scope",
-	"ignore_comma_between_number",
-	"number_mode",
-	"global_wait_factor",
-	"number_wait_factor",
-	"item_wait_factor",
-	"sayall_wait_factor",
-	"chinesespace_wait_factor",
-	"punctuation_wait_factor",
-	"punctuation_pause_enabled",
-	"remove_punctuation_characters",
-	"punctuation_pause_characters",
-	"pair_wait_factor",
-)
 
 # Maximum pause (in milliseconds) injected after a punctuation mark.
 # The pause is intentionally capped so the voice never falls fully silent
@@ -53,10 +26,150 @@ PUNCTUATION_WAIT_UNIT_MS = 5
 # global wait factor.
 PAIR_WAIT_UNIT_MS = 5
 
-_last_scope_application: tuple[str, str] | None = None
+
+def _floor_to_ten(value: Any) -> int:
+	return int(value) // 10 * 10
 
 
-@dataclass
+def _strip(value: Any) -> str:
+	return str(value).strip()
+
+
+@dataclass(frozen=True)
+class PipelineSettingSpec:
+	"""One pipeline setting: its config key, type, default and synth-setting metadata."""
+
+	key: str
+	kind: type
+	default: Any
+	driver_id: str | None = None
+	label: str | None = None
+	display_name: str | None = None
+	ring: bool = True
+	min_step: int = 1
+	normalize: Callable[[Any], Any] | None = None
+
+	def convert(self, value: Any) -> Any:
+		if self.normalize is not None:
+			return self.normalize(value)
+		return self.kind(value)
+
+	@property
+	def confspec(self) -> str:
+		if self.kind is bool:
+			return f"boolean(default={str(self.default).lower()})"
+		if self.kind is int:
+			return f"integer(default={self.default},min=0,max=100)"
+		return f'string(default="{self.default}")'
+
+
+# Synth settings appear in the voice settings dialog in this order.
+PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
+	PipelineSettingSpec(
+		"ignore_comma_between_number",
+		bool,
+		False,
+		driver_id="cni",
+		label=_("Ignore comma between number"),
+		ring=False,
+	),
+	PipelineSettingSpec(
+		"number_mode",
+		str,
+		"value",
+		driver_id="nummod",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("Number &Mode"),
+		# Translators: Label for a setting in synth settings ring.
+		display_name=_("Number Mode"),
+	),
+	PipelineSettingSpec(
+		"global_wait_factor",
+		int,
+		10,
+		driver_id="globalwaitfactor",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("Global wait factor"),
+		min_step=10,
+		normalize=_floor_to_ten,
+	),
+	PipelineSettingSpec(
+		"number_wait_factor",
+		int,
+		10,
+		driver_id="numberwaitfactor",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("Number wait factor"),
+	),
+	PipelineSettingSpec(
+		"pair_wait_factor",
+		int,
+		0,
+		driver_id="pairwaitfactor",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("Pair wait factor"),
+	),
+	PipelineSettingSpec(
+		"item_wait_factor",
+		int,
+		10,
+		driver_id="itemwaitfactor",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("item wait factor"),
+	),
+	PipelineSettingSpec(
+		"sayall_wait_factor",
+		int,
+		10,
+		driver_id="sayallwaitfactor",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("Say all wait factor"),
+	),
+	PipelineSettingSpec(
+		"chinesespace_wait_factor",
+		int,
+		10,
+		driver_id="chinesespacewaitfactor",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("Chinese space wait factor"),
+	),
+	PipelineSettingSpec(
+		"punctuation_pause_enabled",
+		bool,
+		True,
+		driver_id="punctuationpauseenabled",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("Enable punctuation pause control"),
+		# Translators: Label for a setting in synth settings ring.
+		display_name=_("Punctuation pauses"),
+	),
+	PipelineSettingSpec(
+		"remove_punctuation_characters",
+		bool,
+		False,
+		driver_id="removepunctuationcharacters",
+		label=_("Remove configured punctuation at pause points"),
+		display_name=_("Remove punctuation at pause points"),
+	),
+	PipelineSettingSpec(
+		"punctuation_wait_factor",
+		int,
+		0,
+		driver_id="punctuationwaitfactor",
+		# Translators: Label for a setting in voice settings dialog.
+		label=_("Punctuation wait factor"),
+	),
+	PipelineSettingSpec("scope", str, "WorldVoice"),
+	PipelineSettingSpec("punctuation_pause_characters", str, "،؛,.;:!؟?…", normalize=_strip),
+)
+
+PIPELINE_SETTING_BY_KEY = {spec.key: spec for spec in PIPELINE_SETTINGS}
+DEFAULT_PIPELINE_SETTINGS = {spec.key: spec.default for spec in PIPELINE_SETTINGS}
+PIPELINE_CONFIG_KEYS = tuple(spec.key for spec in PIPELINE_SETTINGS)
+PIPELINE_CONFSPEC = {spec.key: spec.confspec for spec in PIPELINE_SETTINGS}
+
+
+@dataclass(frozen=True)
 class PipelineSettings:
 	scope: str
 	ignore_comma_between_number: bool
@@ -100,9 +213,31 @@ class PipelineSettings:
 			MAX_PUNCTUATION_WAIT_MS,
 		)
 
+	def effective(self, supports_roles: bool) -> "PipelineSettings":
+		"""The settings a synthesizer actually speaks with.
 
-def _pipeline_section(conf: Any) -> Any:
-	return conf["WorldVoice"]["pipeline"]
+		WorldVoice uses them as stored. Other synthesizers get the pipeline
+		only with scope "all"; otherwise every pause and removal is off.
+		"""
+		if supports_roles:
+			return self
+		if self.scope != "all":
+			return replace(
+				self,
+				ignore_comma_between_number=False,
+				number_wait_factor=0,
+				item_wait_factor=0,
+				sayall_wait_factor=0,
+				chinesespace_wait_factor=0,
+				punctuation_wait_factor=0,
+				punctuation_pause_enabled=False,
+				remove_punctuation_characters=False,
+				pair_wait_factor=0,
+			)
+		return replace(
+			self,
+			ignore_comma_between_number=bool(self.global_factor_units * self.ignore_comma_between_number),
+		)
 
 
 def _get_value(section: Any, key: str) -> Any:
@@ -115,26 +250,84 @@ def _get_value(section: Any, key: str) -> Any:
 			return DEFAULT_PIPELINE_SETTINGS[key]
 
 
+class ConfigPipelineRepository:
+	"""Read and write the pipeline section of the active NVDA configuration profile."""
+
+	def __init__(self, conf_provider: Callable[[], Any] = lambda: config.conf):
+		self._conf_provider = conf_provider
+
+	def _section(self) -> Any:
+		return self._conf_provider()["WorldVoice"]["pipeline"]
+
+	def load(self) -> PipelineSettings:
+		section = self._section()
+		return PipelineSettings(
+			**{spec.key: spec.convert(_get_value(section, spec.key)) for spec in PIPELINE_SETTINGS},
+		)
+
+	def save(self, changes: Mapping[str, Any]) -> None:
+		section = self._section()
+		for key, value in changes.items():
+			section[key] = value
+
+
+class PipelineSettingsService:
+	"""The only reader and writer of pipeline settings; notifies subscribers on change."""
+
+	def __init__(self, repository: ConfigPipelineRepository):
+		self._repository = repository
+		self._listeners: list[Callable[[PipelineSettings], None]] = []
+
+	def get(self) -> PipelineSettings:
+		return self._repository.load()
+
+	def effective(self, supports_roles: bool) -> PipelineSettings:
+		return self.get().effective(supports_roles)
+
+	def update(self, **changes: Any) -> PipelineSettings:
+		converted = {}
+		for key, value in changes.items():
+			try:
+				spec = PIPELINE_SETTING_BY_KEY[key]
+			except KeyError:
+				raise KeyError(f"Unknown pipeline setting: {key}") from None
+			converted[key] = spec.convert(value)
+		current = self.get()
+		changed = {key: value for key, value in converted.items() if getattr(current, key) != value}
+		if not changed:
+			return current
+		self._repository.save(changed)
+		settings = self.get()
+		for listener in tuple(self._listeners):
+			try:
+				listener(settings)
+			except Exception:
+				log.error("WorldVoice: pipeline settings listener failed", exc_info=True)
+		return settings
+
+	def subscribe(self, listener: Callable[[PipelineSettings], None]) -> None:
+		if listener not in self._listeners:
+			self._listeners.append(listener)
+
+	def unsubscribe(self, listener: Callable[[PipelineSettings], None]) -> None:
+		try:
+			self._listeners.remove(listener)
+		except ValueError:
+			pass
+
+
+pipeline_settings = PipelineSettingsService(ConfigPipelineRepository())
+
+
+_last_scope_application: tuple[str, str] | None = None
+
+
+def _pipeline_section(conf: Any) -> Any:
+	return conf["WorldVoice"]["pipeline"]
+
+
 def load_pipeline_settings(conf: Any = config.conf) -> PipelineSettings:
-	pipeline = _pipeline_section(conf)
-	punctuation_pause_characters = str(
-		_get_value(pipeline, "punctuation_pause_characters"),
-	).strip()
-	return PipelineSettings(
-		scope=str(_get_value(pipeline, "scope")),
-		ignore_comma_between_number=bool(_get_value(pipeline, "ignore_comma_between_number")),
-		number_mode=str(_get_value(pipeline, "number_mode")),
-		global_wait_factor=int(_get_value(pipeline, "global_wait_factor")),
-		number_wait_factor=int(_get_value(pipeline, "number_wait_factor")),
-		item_wait_factor=int(_get_value(pipeline, "item_wait_factor")),
-		sayall_wait_factor=int(_get_value(pipeline, "sayall_wait_factor")),
-		chinesespace_wait_factor=int(_get_value(pipeline, "chinesespace_wait_factor")),
-		punctuation_wait_factor=int(_get_value(pipeline, "punctuation_wait_factor")),
-		punctuation_pause_enabled=bool(_get_value(pipeline, "punctuation_pause_enabled")),
-		remove_punctuation_characters=bool(_get_value(pipeline, "remove_punctuation_characters")),
-		punctuation_pause_characters=punctuation_pause_characters,
-		pair_wait_factor=int(_get_value(pipeline, "pair_wait_factor")),
-	)
+	return ConfigPipelineRepository(lambda: conf).load()
 
 
 def save_pipeline_settings(settings: PipelineSettings, conf: Any = config.conf) -> None:
@@ -160,21 +353,7 @@ def get_effective_pipeline_settings(synth: Any | None = None, conf: Any = config
 
 	settings = load_pipeline_settings(conf)
 	if getattr(synth, "name", None) != "WorldVoice":
-		if settings.scope != "all":
-			settings.ignore_comma_between_number = False
-			settings.number_wait_factor = 0
-			settings.item_wait_factor = 0
-			settings.sayall_wait_factor = 0
-			settings.chinesespace_wait_factor = 0
-			settings.punctuation_wait_factor = 0
-			settings.punctuation_pause_enabled = False
-			settings.remove_punctuation_characters = False
-			settings.pair_wait_factor = 0
-			return settings
-		settings.ignore_comma_between_number = bool(
-			settings.global_factor_units * settings.ignore_comma_between_number,
-		)
-		return settings
+		return settings.effective(False)
 
 	return PipelineSettings(
 		scope=settings.scope,

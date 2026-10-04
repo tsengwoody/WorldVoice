@@ -1,3 +1,4 @@
+import dataclasses
 import importlib.util
 import sys
 from types import ModuleType, SimpleNamespace
@@ -7,6 +8,15 @@ def load_settings_module(monkeypatch, conf):
 	config = ModuleType("config")
 	config.conf = conf
 	monkeypatch.setitem(sys.modules, "config", config)
+
+	addon_handler = ModuleType("addonHandler")
+	addon_handler.initTranslation = lambda: None
+	monkeypatch.setitem(sys.modules, "addonHandler", addon_handler)
+	log_handler = ModuleType("logHandler")
+	log_handler.log = SimpleNamespace(error=lambda *args, **kwargs: None)
+	monkeypatch.setitem(sys.modules, "logHandler", log_handler)
+	import builtins
+	monkeypatch.setattr(builtins, "_", lambda text: text, raising=False)
 
 	synth_driver_handler = ModuleType("synthDriverHandler")
 	synth_driver_handler.getSynth = lambda: SimpleNamespace(name="WorldVoice")
@@ -28,7 +38,7 @@ def test_removal_defaults_off_and_round_trips_independently_of_pause(monkeypatch
 
 	settings = module.load_pipeline_settings(conf)
 	assert settings.remove_punctuation_characters is False
-	settings.remove_punctuation_characters = True
+	settings = dataclasses.replace(settings, remove_punctuation_characters=True)
 	module.save_pipeline_settings(settings, conf)
 
 	assert conf["WorldVoice"]["pipeline"]["remove_punctuation_characters"] is True
@@ -49,8 +59,7 @@ def test_removal_follows_pipeline_scope(monkeypatch):
 def test_removal_is_applied_to_synth_and_global_speech_settings(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}, "speech": {"WorldVoice": {}}}
 	module = load_settings_module(monkeypatch, conf)
-	settings = module.load_pipeline_settings(conf)
-	settings.remove_punctuation_characters = True
+	settings = dataclasses.replace(module.load_pipeline_settings(conf), remove_punctuation_characters=True)
 	synth = SimpleNamespace(name="WorldVoice")
 
 	module.apply_pipeline_settings_to_synth(synth, settings)
