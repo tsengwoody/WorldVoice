@@ -111,6 +111,8 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		"""
 		Creates, hides or updates existing GUI controls for all of supported settings.
 		"""
+		# Copied from NVDA's private AutoSettingsMixin.createDriverSettings to list
+		# allSupportedSettings; compare with NVDA's version on every NVDA upgrade.
 		settingsInst = self.getSettings()
 		settingsStorage = self._getSettingsStorage()
 		# firstly check already created options

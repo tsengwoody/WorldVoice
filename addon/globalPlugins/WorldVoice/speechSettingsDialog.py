@@ -37,10 +37,10 @@ _LOG_LABELS = {
 }
 
 
-def got_error_callback(self):
-	dialog_class = self.Parent.Parent.__class__
-	dialog_class.wvd.onCancel(None)
-	wx.CallAfter(gui.mainFrame.popupSettingsDialog, dialog_class)
+def got_error_callback(panel):
+	dialog = wx.GetTopLevelParent(panel)
+	dialog.onCancel(None)
+	wx.CallAfter(gui.mainFrame.popupSettingsDialog, type(dialog))
 
 
 def _as_bool(value):
@@ -903,10 +903,3 @@ class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
 			]
 		super().__init__(parent)  # 這時父類別會讀取 self.categoryClasses
 		self.SetTitle(_("WorldVoice - %s") % self.dialogTitle)
-
-		self.__class__.wvd = self
-		self.Bind(wx.EVT_WINDOW_DESTROY, self._onDestroy)
-
-	def _onDestroy(self, evt):
-		self.__class__.wvd = None
-		evt.Skip()
