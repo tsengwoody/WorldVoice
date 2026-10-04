@@ -4,7 +4,7 @@
 基準：`master`（`d7dca69`，階段 0–5 完成）。分支：`phase8-cleanup`。
 狀態：範圍與設計已獲使用者確認。使用者決定先做階段 8，階段 6、7 之後再處理。
 
-本文件是 [`refactor.md`](../../../refactor.md) §9 的階段 8，對應 §8（相容 shim、流程文件）、§2.1（`SpeechFuture.then`）與 §5.1（`order_move_to_end_register`）。另外處理階段 3e 留給本階段的 contextual legacy 去留。
+本文件是 [`refactor.md`](../../../refactor.md) §9 的階段 8，對應 §8（相容 shim、流程文件）與 §2.1（`SpeechFuture.then`）。refactor.md 列出的 `order_move_to_end_register`、`with_order_log` 依使用者決定保留。另外處理階段 3e 留給本階段的 contextual legacy 去留。
 
 ## 需求與範圍
 
@@ -13,8 +13,8 @@
 1. **刪除三個相容 shim**：`taskManager.py`、`requestBuilder.py`、`driver/engineSession.py`。
    - `WorldVoice-workspace` 中的 MSC、Natural 外掛只 import `synthDrivers.WorldVoice.driver`（從 bytecode 確認），不用這三個 shim。
 2. **刪除 `SpeechFuture.then`**：add-on 內沒有呼叫者。
-3. **刪除 `pipeline.order_move_to_end_register`**：沒有呼叫者。
-   - **保留**（使用者決定）：`with_order_log`、9 行被註解掉的 `# @with_order_log(...)`，以及主驅動的 `self.order`。
+3. **pipeline 完全不改**（使用者決定）：
+   - 保留 `order_move_to_end_register`、`with_order_log`、9 行被註解掉的 `# @with_order_log(...)`，以及主驅動的 `self.order`。
    - `with_order_log` 在 DEBUG 模式下會讀寫 `synth.order`；refactor.md「`self.order` 沒有任何地方讀取」的說法並不正確。
 4. **移除 contextual legacy**（使用者決定）：
    - 只有 Neural 實作過 `speak_legacy_segment`。Neural 自階段 3e 起就已無法載入。
@@ -34,10 +34,10 @@
 
 1. 三個 shim 檔案不存在；addon 與測試都不再以舊路徑匯入。
 2. addon 內不再出現：
-   - `def then`、`order_move_to_end_register`；
+   - `def then`；
    - `legacy_contextual`、`speak_legacy_segment`、`LEGACY_SEGMENT`、`legacy_segment_sink`、`configure_legacy_segment_events`。
 
-   由守門測試強制。`with_order_log` 與 `self.order` 仍在。
+   由守門測試強制。`order_move_to_end_register`、`with_order_log` 與 `self.order` 仍在。
 3. `CompletionMode` 的成員比較只出現在 `runtime/completion.py`、`runtime/models.py` 的 `__post_init__`、`compat/completionPolicies.py`。voiceManager 的 `_resource_completion` 隨 contextual legacy 一併刪除，因此從允許清單移除。
 4. 行為不變：開啟的引擎、完成合約、語音、設定、取消與關閉流程都和現在相同。
 5. 完整測試全部通過；`ruff format --check addon` 通過；`driver/` 下沒有任何變動；Neural 未被追蹤。
@@ -63,8 +63,7 @@
 
 ### 3. pipeline
 
-- 刪除 `order_move_to_end_register`。若因此有 import 變成沒人使用，一併刪除。
-- 不改 `with_order_log`、相關註解與 `self.order`。
+不改。`pipeline/__init__.py` 與主驅動的 `self.order` 都維持原樣。
 
 ### 4. contextual legacy
 
