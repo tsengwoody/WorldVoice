@@ -54,7 +54,7 @@
 1. 完整測試全部通過；新增的守門與行為測試涵蓋下文每一節。
 2. addon 內不再出現：`get_effective_pipeline_settings`、`_runtime_value`、`apply_pipeline_settings_to_synth`、`apply_pipeline_settings_to_speech_config`、`apply_global_pipeline_scope`、`apply_pipeline_after_worldvoice_end`、`clear_global_pipeline_scope`、`apply_worldvoice_pipeline`、`clear_pipeline`、`_last_scope_application`、`static_register`、`dynamic_register`、`with_speech_sequence_log`，以及 pipeline 的 10 個 `get_*` 存取器。由守門測試強制。
 3. `config.conf["WorldVoice"]["pipeline"]` 的直接讀寫只出現在 `pipeline/settings.py`（守門測試）。
-4. `pipeline/__init__.py` 不再呼叫 `getSynth()`；只有 `pipeline/context.py` 的 `current_context()` 呼叫。
+4. `pipeline/__init__.py` 的 stage 不再呼叫 `getSynth()`；只剩除錯工具 `with_order_log`（階段 8 保留，讀 `synth.order`）。stage 經由 `pipeline/context.py` 的 `current_context()` 取得 synth 資訊。
 5. `ruff check`（範圍同 refactor.md 附錄）的 `F401`、`F821` 為 0；`ruff format --check addon` 通過。
 6. `driver/<Engine>/driver/` 無變動；Neural 未被追蹤。
 
@@ -264,7 +264,7 @@ class PipelineScope:
    - handler 依 log 設定記錄；
    - D12；
    - number_mode/number_language 在 WorldVoice 與泛用 context 下的輸出；
-   - `pipeline/__init__.py` 無 `getSynth`（AST）。
+   - `pipeline/__init__.py` 只有 `with_order_log` 使用 `getSynth`（AST）。
 4. 改寫 `tests/test_pipeline_punctuation_pause.py`：stub 新的 settings/context 介面，改以 stage 函式三參數呼叫。
 5. 主驅動：
    - descriptor 讀寫經 service；
