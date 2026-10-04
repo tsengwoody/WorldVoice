@@ -123,6 +123,22 @@ def test_only_started_sessions_are_resolvable(composition):
     assert c.repo.saves == []
 
 
+def test_each_opened_engine_is_one_engine_resource(composition):
+    c = composition
+    classes = c.engine("first"), c.engine("second")
+    c.engine("failed", fail=True)
+    manager = c.create()
+    assert [resource.engine for resource in manager._resources] == ["first", "second"]
+    for resource, cls in zip(manager._resources, classes):
+        assert resource.voice_class is cls
+        assert resource.adapter.core is cls.opened is resource.binding.core
+        assert resource.session is resource.binding.session is manager.resolve_playback(cls.engine + ":a")
+        assert manager.getVoiceInstance(cls.engine + ":a")._binding is resource.binding
+    assert not hasattr(manager, "installEngine")
+    manager.terminate(commit=False)
+    assert manager._resources == [] and [cls.opened for cls in classes] == [None, None]
+
+
 @pytest.mark.parametrize("failure", ["empty", "bind"])
 def test_initialization_failure_closes_without_commit(composition, failure):
     c = composition

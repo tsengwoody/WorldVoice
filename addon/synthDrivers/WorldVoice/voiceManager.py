@@ -1,6 +1,6 @@
 from collections import OrderedDict, defaultdict
 from collections.abc import Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from operator import attrgetter
 from typing import Callable, TypeVar, Dict, List
 import re
@@ -21,6 +21,18 @@ from .runtime.settings import VoiceEditSession, VoiceSettingsStore
 from .nvdaEventBridge import NvdaEventBridge
 
 from .engine import EngineType, READY_ENGINE_CLASS, get_engine_enabled, refresh_ready_engine_classes
+
+
+@dataclass
+class EngineResource:
+	"""One opened engine: its adapter, playback session and voice binding."""
+
+	engine: str
+	voice_class: type
+	adapter: LegacyEngineAdapter
+	session: EngineSession
+	binding: LegacyVoiceBinding
+
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -78,8 +90,7 @@ class VoiceManager(object):
 		self._bridge = bridge
 		self._index_ledger = index_ledger
 		self._completion_for = completion_for
-		self.installEngine = []
-		self._resources = []
+		self._resources: list[EngineResource] = []
 		self._sessions = {}
 		self._bindings = {}
 		self._specs = {}
@@ -104,48 +115,53 @@ class VoiceManager(object):
 			cls = READY_ENGINE_CLASS.get(eng.name)
 			if cls is None:
 				continue
-			adapter = LegacyEngineAdapter(
-				cls,
-				self.getVoiceInstance,
-				index_ledger=self._index_ledger,
-			)
-			try:
-				adapter.open()
-			except Exception:
-				log.error("engine %s on error", eng.name, exc_info=True)
+			resource = self._open_engine(eng.name, cls)
+			if resource is None:
 				continue
-			session = EngineSession(adapter, self.settings)
-			# Retain identities (not equality) for the entire resource lifetime.
-			self._resources.append((adapter.notification_source, session, adapter, cls, True))
-			session.open()
-			completion = self._resource_completion(cls, adapter.notification_source)
-			adapter.configure_completion(completion)
-			# Claim ownership before binding, since bind may register then raise.
-			self._bridge.bind(adapter.notification_source, session.source_id, completion=completion)
-			if rule_for(completion).drain_event is not None:
-				adapter.configure_segment_events(
-					lambda context, source=adapter.notification_source: self._bridge.segment_sink(
-						source,
-						context,
-					),
-				)
-			elif completion.legacy_contextual:
-				adapter.configure_legacy_segment_events(
-					lambda context, source=adapter.notification_source: self._bridge.legacy_segment_sink(
-						source,
-						context,
-					),
-				)
-			# Only bound, operational resources become visible to resolvers.
-			self._sessions[eng.name] = session
-			self._bindings[eng.name] = LegacyVoiceBinding(self.settings, session, adapter.core)
-			self.installEngine.append(cls)
-			for spec in adapter.list_voices():
-				self._specs[spec.name] = spec
+			self._bind(resource)
+			self._publish(resource)
 		self._setVoiceDatas()
 		if not self.table:
 			raise RuntimeError("No WorldVoice voices are available from enabled speech engines.")
 		self._defaultVoiceInstance = self.getVoiceInstance(self._getDefaultVoiceMeta().name)
+
+	def _open_engine(self, name: str, cls: type) -> EngineResource | None:
+		adapter = LegacyEngineAdapter(cls, self.getVoiceInstance, index_ledger=self._index_ledger)
+		try:
+			adapter.open()
+		except Exception:
+			log.error("engine %s on error", name, exc_info=True)
+			return None
+		session = EngineSession(adapter, self.settings)
+		binding = LegacyVoiceBinding(self.settings, session, adapter.core)
+		resource = EngineResource(name, cls, adapter, session, binding)
+		# Claim cleanup before opening: every later step may fail.
+		self._resources.append(resource)
+		session.open()
+		return resource
+
+	def _bind(self, resource: EngineResource) -> None:
+		adapter, session = resource.adapter, resource.session
+		source = adapter.notification_source
+		completion = self._resource_completion(resource.voice_class, source)
+		adapter.configure_completion(completion)
+		# Claim ownership before binding, since bind may register then raise.
+		self._bridge.bind(source, session.source_id, completion=completion)
+		if rule_for(completion).drain_event is not None:
+			adapter.configure_segment_events(
+				lambda context: self._bridge.segment_sink(source, context),
+			)
+		elif completion.legacy_contextual:
+			adapter.configure_legacy_segment_events(
+				lambda context: self._bridge.legacy_segment_sink(source, context),
+			)
+
+	def _publish(self, resource: EngineResource) -> None:
+		# Only bound, operational resources become visible to resolvers.
+		self._sessions[resource.engine] = resource.session
+		self._bindings[resource.engine] = resource.binding
+		for spec in resource.adapter.list_voices():
+			self._specs[spec.name] = spec
 
 	def _resource_completion(self, cls, source):
 		completion = self._completion_for(cls, source)
@@ -169,17 +185,17 @@ class VoiceManager(object):
 				except Exception:
 					log.error("Failed to save voice %s", key, exc_info=True)
 		self._instanceCache.clear()
-		for source, session, adapter, cls, owns in reversed(self._resources):
+		for resource in reversed(self._resources):
+			engine = resource.voice_class.engine
 			try:
-				self._bridge.unbind(session.source_id)
+				self._bridge.unbind(resource.session.source_id)
 			except Exception:
-				log.error("Failed to unbind engine %s", cls.engine, exc_info=True)
+				log.error("Failed to unbind engine %s", engine, exc_info=True)
 			try:
-				session.close()
+				resource.session.close()
 			except Exception:
-				log.error("Failed to close engine %s", cls.engine, exc_info=True)
+				log.error("Failed to close engine %s", engine, exc_info=True)
 		self._resources.clear()
-		self.installEngine.clear()
 		self.taskManager = None
 
 	def resolve_playback(self, key: str) -> PlaybackPort | None:

@@ -223,13 +223,12 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}
-	manager.installEngine = [BrokenEngine, OtherEngine]
 	manager._sessions = {}
 	manager._bindings = {}
 	manager.settings = types.SimpleNamespace(keys=lambda: ())
 	manager._bridge = types.SimpleNamespace(unbind=lambda source: None)
 	manager._resources = [
-		(object(), types.SimpleNamespace(close=cls.close, source_id=object()), None, cls, True)
+		module.EngineResource(cls.engine, cls, None, types.SimpleNamespace(close=cls.close, source_id=object()), None)
 		for cls in (BrokenEngine, OtherEngine)
 	]
 	manager.terminate()
