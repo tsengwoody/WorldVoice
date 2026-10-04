@@ -24,7 +24,7 @@
    - `docs/superpowers/` 維持原位，它仍是使用中的流程目錄；
    - `review_gpt1.md` 與 `docs/superpowers/finish/` 移到 `docs/history/`；
    - 誤被追蹤的 `.superpowers/sdd/` 檔案取消追蹤；
-   - `readme.md` 說明這些是開發紀錄。
+   - 新增 `docs/README.md`，說明這些是開發紀錄。
 6. **沿用的限制**：
    - 不修改內層 driver；六個外層 wrapper 也完全不改；
    - 不碰使用者未 stage 的 `docs/superpowers/finish_task.md` 刪除，也不碰未追蹤的 `refactor.md`；
@@ -93,7 +93,8 @@
 - `git mv review_gpt1.md docs/history/review_gpt1.md`。
 - `git mv docs/superpowers/finish/*.md docs/history/`（3 份）。
 - `git rm --cached` 兩個 `.superpowers/sdd/2026-09-30-worldvoice-shared-segment-lifecycle/` 檔案；本機檔案保留。
-- `readme.md` 加一小段（英文，與 readme 原文一致）：`docs/superpowers/` 是各階段的設計與計畫，`docs/history/` 是過去的審查與驗證紀錄；兩者都是開發紀錄，不是現行規格。
+- 新增 `docs/README.md`（英文），說明 `docs/superpowers/` 是各階段的設計與計畫，`docs/history/` 是過去的審查與驗證紀錄；兩者都是開發紀錄，不是現行規格。
+  - plan 撰寫時由 `readme.md` 改為 `docs/README.md`：`sconstruct` 會把 `readme.md` 複製成 add-on 內附的英文使用說明（`doc/en/readme.html`），開發紀錄的說明不該出現在使用者文件中。`readme.md` 不改。
 - `docs/` 在 `.gitignore` 中，新增或移動的文件用 `git add -f`。
 
 ## 測試
@@ -120,7 +121,7 @@
 
 ## 驗收
 
-- `python3 -m pytest tests -q`：全部通過，沒有 skipped。
+- `python3 -m pytest tests -q`：`1394 passed`，沒有 skipped。
 - 守門測試通過。
 - `git diff master --stat -- addon/synthDrivers/WorldVoice/driver`：只列出被刪除的 `driver/engineSession.py`。
 - `ruff format --check addon` 通過；Neural 未被追蹤。
