@@ -18,16 +18,24 @@ class StopGate:
 		self._condition = condition
 		self._stops = 0
 
+	def enter(self) -> None:
+		"""Start a stop; call while holding the condition."""
+		self._stops += 1
+
+	def leave(self) -> None:
+		"""End a stop and wake waiters; call while holding the condition."""
+		self._stops -= 1
+		self._condition.notify_all()
+
 	@contextmanager
 	def hold(self) -> Iterator[None]:
 		with self._condition:
-			self._stops += 1
+			self.enter()
 		try:
 			yield
 		finally:
 			with self._condition:
-				self._stops -= 1
-				self._condition.notify_all()
+				self.leave()
 
 	@property
 	def clear(self) -> bool:

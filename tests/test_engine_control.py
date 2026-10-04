@@ -103,3 +103,23 @@ def test_control_fault_latches_once_and_abandons_outside_the_lock(control):
 	assert latched == [error] and abandoned == records and drops == [True]
 	assert policy.fail(OSError("again")) is False
 	assert latched == [error] and drops == [True]
+
+
+def test_stop_gate_two_phase_enter_and_leave(control):
+	condition = Condition()
+	gate = control.StopGate(condition)
+	woke = Event()
+	with condition:
+		gate.enter()
+		assert not gate.clear
+
+	def worker():
+		with condition:
+			condition.wait_for(lambda: gate.clear, 2)
+		woke.set()
+
+	Thread(target=worker, daemon=True).start()
+	assert not woke.wait(0.05)
+	with condition:
+		gate.leave()
+	assert woke.wait(2)
