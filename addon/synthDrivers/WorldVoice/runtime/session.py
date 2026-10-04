@@ -4,9 +4,9 @@ from collections.abc import Callable, Mapping
 from threading import RLock
 from typing import Protocol
 
+from .completion import rule_for
 from .models import (
 	CompletionContract,
-	CompletionMode,
 	EngineCapabilities,
 	PlaybackContext,
 	SourceId,
@@ -176,7 +176,7 @@ class EngineSession:
 			# notify would leave them blocked.
 			raise TypeError("speech tokens must implement CancellationView.add_callback")
 		if context is None:
-			if self.completion.mode is not CompletionMode.LEGACY_DONE:
+			if rule_for(self.completion).correlated:
 				raise ValueError("Correlated completion requires a playback context")
 			self._adapter.speak(commands, token)
 		else:

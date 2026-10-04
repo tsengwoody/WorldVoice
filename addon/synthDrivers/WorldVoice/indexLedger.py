@@ -8,6 +8,7 @@ publishing it through a fresh ledger.
 from dataclasses import dataclass, field
 from threading import Lock
 
+from .runtime.completion import CompletionRule, rule_for
 from .runtime.models import (
 	CompletionContract,
 	CompletionMode,
@@ -48,6 +49,7 @@ class _Source:
 	# Strong reference prevents id reuse even while this source is unbound.
 	source: object
 	mode: CompletionMode
+	rule: CompletionRule
 	minimum: int
 	maximum: int
 	next_index: int
@@ -73,15 +75,8 @@ class IndexLedger:
 	def bind(self, source: object, source_id: object, contract: CompletionContract) -> object:
 		"""Return an opaque token identifying this exact binding generation."""
 		mode, index_range = contract.mode, contract.index_range
-		if (
-			mode
-			not in (
-				CompletionMode.END_INDEX,
-				CompletionMode.END_INDEX_AND_DRAIN,
-				CompletionMode.DRAIN,
-			)
-			or index_range is None
-		):
+		rule = rule_for(contract)
+		if not rule.correlated or index_range is None:
 			raise InvalidIndexContext("Index allocation requires a correlated completion contract")
 		minimum, maximum = index_range.minimum, index_range.maximum
 		with self._lock:
@@ -99,7 +94,7 @@ class IndexLedger:
 						raise InvalidIndexContext("Source is already bound to another source ID")
 					return existing.token
 			else:
-				state = _Source(source, mode, minimum, maximum, minimum)
+				state = _Source(source, mode, rule, minimum, maximum, minimum)
 				self._sources[id(source)] = state
 			binding = _Binding(source_id, state)
 			state.binding = binding
@@ -118,7 +113,7 @@ class IndexLedger:
 			state = binding.state
 			if segment_id in state.segments:
 				raise InvalidIndexContext("Segment is already prepared and has not been retired")
-			marker = state.mode is not CompletionMode.DRAIN
+			marker = state.rule.requires_end
 			count = len(originals) + int(marker)
 			if state.next_index + count - 1 > state.maximum:
 				raise IndexSpaceExhausted("Source wire index range is exhausted")
@@ -162,7 +157,7 @@ class IndexLedger:
 			events = self._pending_indexes(source_id, segment, stop)
 			if terminal:
 				segment.end_seen = True
-				segment.finished = state.mode is CompletionMode.END_INDEX or segment.drain_seen
+				segment.finished = state.rule.is_complete(True, segment.drain_seen)
 				events.append(PlaybackEvent(EventKind.SEGMENT_END, source_id, segment_id=segment.segment_id))
 				self._remove_indexes(state, segment)
 			return tuple(events)
@@ -190,11 +185,11 @@ class IndexLedger:
 				segment.finished = True
 				self._remove_indexes(state, segment)
 				return (event,)
-			if state.mode is CompletionMode.END_INDEX or segment.drain_seen:
+			if not state.rule.requires_drain or segment.drain_seen:
 				return ()
 			events = self._pending_indexes(event.source_id, segment, len(segment.originals))
 			segment.drain_seen = True
-			segment.finished = state.mode is CompletionMode.DRAIN or segment.end_seen
+			segment.finished = state.rule.is_complete(segment.end_seen, True)
 			# AND still needs the real terminal callback when drain arrives first.
 			self._remove_indexes(state, segment, keep_terminal=not segment.finished)
 			return (*events, event)

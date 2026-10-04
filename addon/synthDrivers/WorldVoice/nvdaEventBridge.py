@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from threading import RLock
 
 from .indexLedger import IndexLedger
+from .runtime.completion import rule_for
 from .runtime.models import (
 	CompletionContract,
-	CompletionMode,
 	EventKind,
 	PlaybackContext,
 	PlaybackEvent,
@@ -108,7 +108,7 @@ class NvdaEventBridge:
 			if completion.legacy_contextual and self._batch_handler is None:
 				raise ValueError("Contextual legacy completion requires a batch handler")
 			ledger_token = None
-			if completion.mode is not CompletionMode.LEGACY_DONE:
+			if rule_for(completion).correlated:
 				if self._index_ledger is None or self._batch_handler is None:
 					raise ValueError("Marker completion requires an index ledger and batch handler")
 				if any(binding.source_id is source_id for binding in self._sources.values()):
@@ -130,7 +130,7 @@ class NvdaEventBridge:
 			bindings = [binding for binding in self._sources.values() if binding.source_id is source_id]
 			for binding in bindings:
 				del self._sources[id(binding.source)]
-			if any(binding.completion.mode is not CompletionMode.LEGACY_DONE for binding in bindings):
+			if any(rule_for(binding.completion).correlated for binding in bindings):
 				self._index_ledger.unbind(source_id)
 		# Release source references after unlocking.
 
@@ -148,11 +148,7 @@ class NvdaEventBridge:
 				or binding is None
 				or binding.source is not source
 				or binding.source_id is not context.source_id
-				or binding.completion.mode
-				not in (
-					CompletionMode.DRAIN,
-					CompletionMode.END_INDEX_AND_DRAIN,
-				)
+				or rule_for(binding.completion).drain_event is None
 			):
 				raise ValueError("Segment events require a matching drain-capable source binding")
 			batch_handler = self._batch_handler
@@ -231,7 +227,7 @@ class NvdaEventBridge:
 				if first_error is None:
 					first_error = error
 		for binding in sources.values():
-			if binding.completion.mode is CompletionMode.LEGACY_DONE:
+			if not rule_for(binding.completion).correlated:
 				continue
 			try:
 				self._index_ledger.unbind(binding.source_id)
@@ -257,7 +253,7 @@ class NvdaEventBridge:
 				return
 			handler = self._handler
 			batch_handler = self._batch_handler
-		if binding.completion.mode is CompletionMode.LEGACY_DONE:
+		if not rule_for(binding.completion).correlated:
 			if binding.completion.legacy_contextual:
 				return  # Only the context-bound sink may complete this source.
 			if handler is not None:

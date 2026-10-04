@@ -87,8 +87,9 @@ ADDON = RUNTIME.parent
 
 
 def _mode_comparisons(path):
-	"""Lines comparing against a CompletionMode member (is, ==, in, not in ...)."""
+	"""(line, enclosing function) of each comparison against a CompletionMode member."""
 	tree = ast.parse(path.read_text(encoding="utf-8"))
+	functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
 
 	def is_member(node):
 		if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
@@ -99,20 +100,47 @@ def _mode_comparisons(path):
 			and node.value.id == "CompletionMode"
 		)
 
+	def enclosing(line):
+		owners = [f for f in functions if f.lineno <= line <= f.end_lineno]
+		return max(owners, key=lambda f: f.lineno).name if owners else None
+
 	return sorted(
-		node.lineno
+		(node.lineno, enclosing(node.lineno))
 		for node in ast.walk(tree)
 		if isinstance(node, ast.Compare) and any(is_member(o) for o in (node.left, *node.comparators))
 	)
 
 
-# Components that already read contracts only through their completion rule.
-CONVERTED = ("runtime/scheduler.py", "compat/engineAdapter.py")
+# Only code that defines or builds a contract may compare CompletionMode
+# members; everything else reads the contract through its completion rule.
+ALLOWED = {
+	"runtime/completion.py": None,
+	"runtime/models.py": {"__post_init__"},
+	"compat/completionPolicies.py": None,
+	"voiceManager.py": {"_resource_completion"},
+}
 
 
-@pytest.mark.parametrize("path", CONVERTED)
-def test_converted_components_never_compare_completion_modes(path):
-	assert _mode_comparisons(ADDON / path) == []
+def test_completion_mode_is_compared_only_where_contracts_are_built():
+	found = []
+	for path in sorted(ADDON.rglob("*.py")):
+		relative = path.relative_to(ADDON).as_posix()
+		allowed = ALLOWED.get(relative, set())
+		for line, function in _mode_comparisons(path):
+			if allowed is not None and function not in allowed:
+				found.append(f"{relative}:{line} in {function}")
+	assert found == []
+
+
+def test_mode_comparison_scan_sees_members_and_tuples(tmp_path):
+	sample = tmp_path / "sample.py"
+	sample.write_text(
+		"def a(c):\n\treturn c.mode is CompletionMode.DRAIN\n"
+		"def b(c):\n\treturn c.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX)\n"
+		"def c(c):\n\treturn c.mode != other.mode\n",
+		encoding="utf-8",
+	)
+	assert _mode_comparisons(sample) == [(2, "a"), (4, "b")]
 
 
 def test_scheduler_phases_are_an_enum():

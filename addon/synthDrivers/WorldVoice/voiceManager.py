@@ -12,6 +12,7 @@ from synthDriverHandler import VoiceInfo
 
 from .compat.engineAdapter import LegacyEngineAdapter
 from .compat.voiceFacade import LegacyVoiceBinding
+from .runtime.completion import rule_for
 from .runtime.models import VoiceSpec, EngineCapabilities, CompletionContract, CompletionMode
 from .indexLedger import IndexLedger
 from .runtime.session import EngineSession, PlaybackPort
@@ -133,7 +134,7 @@ class VoiceManager(object):
 				adapter.configure_completion(completion)
 				# Claim ownership before binding, since bind may register then raise.
 				self._bridge.bind(adapter.notification_source, session.source_id, completion=completion)
-				if completion.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX_AND_DRAIN):
+				if rule_for(completion).drain_event is not None:
 					adapter.configure_segment_events(
 						lambda context, source=adapter.notification_source: self._bridge.segment_sink(
 							source,
