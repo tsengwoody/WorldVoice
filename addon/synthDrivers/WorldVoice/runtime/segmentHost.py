@@ -651,23 +651,26 @@ class LeasedPlayer:
 		return getattr(self._player, name)
 
 	def feed(self, data, size=None, onDone=None):
-		host = self._host
-		with host.consumer() as record:
+		with self._host.consumer() as record:
 			if record is None:
 				return None
-			callback = None if onDone is None else self._callback(record, onDone)
-			try:
-				if size is None:
-					return self._player.feed(data, onDone=callback)
-				return self._player.feed(data, size, onDone=callback)
-			except Exception as error:
-				self._record_error(record, error)
-				raise
-			finally:
-				# A feed that was already admitted may queue audio after cancel's
-				# stop. Stop it again before the FIFO barrier permits a successor.
-				if not record.is_valid():
-					self.stop()
+			return self._feed_admitted(record, data, size, onDone)
+
+	def _feed_admitted(self, record: NativeRecord, data, size, onDone):
+		"""Feed while ``record`` is admitted; subclasses choose which record to admit."""
+		callback = None if onDone is None else self._callback(record, onDone)
+		try:
+			if size is None:
+				return self._player.feed(data, onDone=callback)
+			return self._player.feed(data, size, onDone=callback)
+		except Exception as error:
+			self._record_error(record, error)
+			raise
+		finally:
+			# A feed that was already admitted may queue audio after cancel's
+			# stop. Stop it again before the FIFO barrier permits a successor.
+			if not record.is_valid():
+				self.stop()
 
 	def _callback(self, record: NativeRecord, onDone: Callable[[], None]) -> Callable[[], None]:
 		host = self._host

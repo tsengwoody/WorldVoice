@@ -1033,3 +1033,33 @@ def test_leased_player_hooks_can_be_overridden(env):
 	assert env.host.control_error is None
 	env.run_native(record)
 	events.wait_one()
+
+
+def test_feed_admitted_serves_subclasses_that_choose_their_record(env):
+	class Raw:
+		def __init__(self):
+			self.fed = []
+
+		def feed(self, data, size=None, onDone=None):
+			self.fed.append((data, size))
+
+		def stop(self):
+			pass
+
+	class Bound(env.module.LeasedPlayer):
+		def feed(self, data, onDone=None):
+			record = self._host.current()
+			with self._host.consumer(record) as admitted:
+				if admitted is None:
+					return None
+				return self._feed_admitted(admitted, data, None, onDone)
+
+	raw = Raw()
+	player = Bound(env.host, raw)
+	_, _, events = env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	player.feed(b"pcm")
+	assert raw.fed == [(b"pcm", None)]
+	env.run_native(record)
+	events.wait_one()
