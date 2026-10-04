@@ -1,7 +1,5 @@
-import ast
 import dataclasses
 import inspect
-from collections import defaultdict
 import importlib.util
 import sys
 import threading
@@ -10,12 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from test_worldvoice_request_manager import buses, manager, task_module, append_speech, cancel
+from test_worldvoice_request_manager import buses, manager, task_module, append_speech, cancel  # noqa: F401 (fixtures)
 from voice_binding_harness import install_binding, bind_core
 
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
-PANEL_PATH = WORLDVOICE.parents[1] / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 
 
 def _load_voice_manager(monkeypatch, engine_classes):
@@ -67,24 +64,6 @@ def _create_voices(monkeypatch, config):
 	spec.loader.exec_module(module)
 	voice = install_binding(module, config)
 	return voice("a", "A:a", "en"), voice("b", "B:b", "fr")
-
-
-def _load_panel_class(config):
-	tree = ast.parse(PANEL_PATH.read_text(encoding="utf-8"))
-	panel = next(node for node in tree.body
-		if isinstance(node, ast.ClassDef) and node.name == "SpeechRoleSettingsPanel")
-	environment = {
-		"SettingsPanel": object,
-		"_": lambda value: value,
-		"guard_errors": lambda **kwargs: lambda method: method,
-		"got_error_callback": lambda self: None,
-		"config": config,
-		"getSynth": lambda: types.SimpleNamespace(name="WorldVoice"),
-		"wx": types.SimpleNamespace(NOT_FOUND=-1),
-		"defaultdict": defaultdict,
-	}
-	exec(compile(ast.Module(body=[panel], type_ignores=[]), str(PANEL_PATH), "exec"), environment)
-	return environment["SpeechRoleSettingsPanel"]
 
 
 def _voices(monkeypatch):
@@ -284,59 +263,6 @@ def test_activation_error_fails_request_before_speech(manager, buses):
 	assert core.spoken == []
 
 
-def test_preview_b_while_a_is_playing_then_cancel_restores_next_segment(monkeypatch):
-	(a, b), config = _voices(monkeypatch)
-	class BlockingCore(RecordingCore):
-		def __init__(self):
-			super().__init__()
-			self.entered = threading.Event()
-			self.release = threading.Event()
-
-		def speak(self, text):
-			super().speak(text)
-			self.entered.set()
-			self.release.wait(2)
-
-	core = BlockingCore()
-	session = bind_core(core, a, b)
-	a.active()
-	playback = threading.Thread(target=core.speak, args=("A is speaking",))
-	playback.start()
-	assert core.entered.wait(1)
-	current_writes = list(core.writes)
-	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
-	manager_instance = object.__new__(manager_module.VoiceManager)
-	manager_instance._init_policies()
-	manager_instance._instanceCache = {a.name: a, b.name: b}
-	manager_instance.settings = a._binding.settings
-	manager_instance.getVoiceInstance = lambda name: manager_instance._instanceCache[name]
-	panel_type = _load_panel_class(config)
-	panel = panel_type()
-	panel.disable = False
-	panel._manager = manager_instance
-	panel._editSession = manager_instance.settings.begin_edit()
-	panel._dataToPercist = defaultdict(dict)
-	panel._initialKeepEngineConsistent = False
-	panel._voicesChoice = types.SimpleNamespace(GetCurrentSelection=lambda: 1)
-	panel._voiceNamesByChoiceIndex = [a.name, b.name]
-	panel._rateSlider = types.SimpleNamespace(GetValue=lambda: 72)
-	panel._keepParameterConsistentCheckBox = types.SimpleNamespace(GetValue=lambda: True)
-	try:
-		panel.onSpeechRateSliderScroll(None)
-		assert (a.rate, b.rate) == (72, 72)
-		assert playback.is_alive()
-		assert core.spoken == ["A is speaking"]
-		assert core.writes == current_writes
-	finally:
-		core.release.set()
-		playback.join(1)
-	assert not playback.is_alive()
-	b.active()
-	assert (core.voice, core.rate) == ("b", 72)
-	panel.onDiscard()
-	assert (a.rate, b.rate) == (50, 50)
-	b.active()
-	assert (core.voice, core.rate) == ("b", 50)
 
 
 def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
@@ -359,68 +285,3 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	assert (b.rate, b.pitch, b.volume) == (72, 60, 70)
 
 
-@pytest.mark.parametrize("action", ["onVoiceChange", "onKeepParameterConsistentChange"])
-def test_ui_consistency_copy_is_atomic_for_worker_activation(monkeypatch, action):
-	(a, b), config = _voices(monkeypatch)
-	a.update_settings(rate=72, pitch=61, volume=73, inflection=44, rateBoost=True)
-	core = RecordingCore()
-	bind_core(core, a, b)
-	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
-	manager_instance = object.__new__(manager_module.VoiceManager)
-	manager_instance._init_policies()
-	manager_instance._instanceCache = {a.name: a, b.name: b}
-	manager_instance.settings = a._binding.settings
-	manager_instance._defaultVoiceInstance = a
-	manager_instance.getVoiceInstance = lambda name: manager_instance._instanceCache[name]
-	panel = _load_panel_class(config)()
-	panel._manager = manager_instance
-	panel._localesChoice = types.SimpleNamespace(GetCurrentSelection=lambda: 0)
-	panel._locales = ["fr"]
-	panel._voicesChoice = types.SimpleNamespace(GetCurrentSelection=lambda: 1)
-	panel._voiceNamesByChoiceIndex = [a.name, b.name]
-	panel._dataToPercist = defaultdict(dict)
-	panel._keepParameterConsistentCheckBox = types.SimpleNamespace(GetValue=lambda: True)
-	for name in ("_rateSlider", "_pitchSlider", "_volumeSlider", "_inflectionSlider",
-			"_rateBoostCheckBox"):
-		setattr(panel, name, types.SimpleNamespace(SetValue=lambda value: None))
-	panel._updateVariantsSelection = lambda: None
-	panel.sliderDisable = lambda: None
-	panel.sliderEnable = lambda: None
-
-	rate_written = threading.Event()
-	release_copy = threading.Event()
-	worker_done = threading.Event()
-	errors = []
-	original_update = b._state.update
-	def gated_update(**values):
-		with b._state._lock:
-			original_update(**values)
-			if values.get("rate") == 72 and not rate_written.is_set():
-				rate_written.set()
-				release_copy.wait(2)
-	monkeypatch.setattr(b._state, "update", gated_update)
-
-	def activate_b():
-		try:
-			b.active()
-		except Exception as error:
-			errors.append(error)
-		finally:
-			worker_done.set()
-
-	ui_thread = threading.Thread(target=lambda: getattr(panel, action)(None))
-	worker_thread = threading.Thread(target=activate_b)
-	ui_thread.start()
-	try:
-		assert rate_written.wait(1)
-		worker_thread.start()
-		assert not worker_done.wait(0.05), "worker observed settings during the UI copy"
-	finally:
-		release_copy.set()
-		ui_thread.join(1)
-		if worker_thread.ident is not None:
-			worker_thread.join(1)
-	assert not ui_thread.is_alive() and not worker_thread.is_alive()
-	assert errors == []
-	assert (core.voice, core.rate, core.pitch, core.volume, core.inflection,
-		core.rateBoost) == ("b", 72, 61, 73, 44, True)

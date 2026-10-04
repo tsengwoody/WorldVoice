@@ -1,4 +1,4 @@
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict
 
 import wx
 import addonHandler
@@ -7,7 +7,6 @@ import core
 import gui
 from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
-import languageHandler
 from logHandler import log
 import queueHandler
 from synthDriverHandler import getSynth
@@ -15,9 +14,9 @@ from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.pipeline import STAGES, pl
 from synthDrivers.WorldVoice.pipeline.settings import pipeline_settings
 from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
-from synthDrivers.WorldVoice.voiceManager import getPrimaryLocale
 import tones
 
+from .rolePresenter import RolePanelPresenter
 from .utils import guard_errors
 
 
@@ -303,9 +302,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			return
 
 		self._manager = getSynth()._voiceManager
-		self._initialKeepEngineConsistent = self._manager.keepMainLocaleEngineConsistent
-		self.ready = self._manager.ready()
-		if not self.ready:
+		if not self._manager.ready():
 			infoCtrl = wx.TextCtrl(
 				self,
 				value=_("Your current speech synthesizer is not ready."),
@@ -316,19 +313,22 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self.disable = True
 			return
 
-		self._editSession = self._manager.beginVoiceSettingsEdit()
-		self.Bind(wx.EVT_WINDOW_DESTROY, self._onDestroy)
-		self._localeToVoices = self._manager.localeToVoicesMap
-		self.localesToNames = self._manager.localesToNamesMap
-		self._locales = self._manager.languages
-		self._voiceDescriptions = {v.name: v.description for v in self._manager.table}
-		self._voiceNameByDescription = {}
-		for voiceName, description in self._voiceDescriptions.items():
-			if description and description not in self._voiceNameByDescription:
-				self._voiceNameByDescription[description] = voiceName
-		self._voiceNamesByChoiceIndex = []
+		synth = getSynth()
 
-		self._dataToPercist = defaultdict(lambda: {})
+		def set_main_voice(name):
+			if getSynth().name == "WorldVoice":
+				getSynth().voice = name
+			config.conf["speech"]["WorldVoice"]["voice"] = name
+
+		self._presenter = RolePanelPresenter(
+			self._manager,
+			speech_section=lambda: config.conf["speech"][synth.name],
+			set_main_voice=set_main_voice,
+		)
+		self.Bind(wx.EVT_WINDOW_DESTROY, self._onDestroy)
+		locales = self._presenter.locales()
+		self._locales = [locale for locale, _name in locales]
+		self._voiceNamesByChoiceIndex = []
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 		helpLabel = wx.StaticText(
@@ -337,11 +337,10 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		)
 		helpLabel.Wrap(self.GetSize()[0])
 		settingsSizerHelper.addItem(helpLabel)
-		localeNames = [self.localesToNames[l] for l in self._locales]
 		self._localesChoice = settingsSizerHelper.addLabeledControl(
 			_("Locale Name:"),
 			wx.Choice,
-			choices=localeNames,
+			choices=[name for _locale, name in locales],
 		)
 		self.Bind(wx.EVT_CHOICE, self.onLocaleChanged, self._localesChoice)
 		self._voicesChoice = settingsSizerHelper.addLabeledControl(_("Voice Name:"), wx.Choice, choices=[])
@@ -402,9 +401,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self,
 			label=_("Keep main engine and locale engine consistent"),
 		)
-		self._keepEngineConsistentCheckBox.SetValue(
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"],
-		)
+		self._keepEngineConsistentCheckBox.SetValue(self._presenter.keep_engine)
 		settingsSizerHelper.addItem(self._keepEngineConsistentCheckBox)
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepEngineConsistentChange, self._keepEngineConsistentCheckBox)
 
@@ -412,18 +409,15 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self,
 			label=_("Keep main speech role and locale speech role consistent"),
 		)
-		self._keepConsistentCheckBox.SetValue(
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"],
-		)
+		self._keepConsistentCheckBox.SetValue(self._presenter.keep_voice)
 		settingsSizerHelper.addItem(self._keepConsistentCheckBox)
+		self.Bind(wx.EVT_CHECKBOX, self.onKeepVoiceConsistentChange, self._keepConsistentCheckBox)
 
 		self._keepParameterConsistentCheckBox = wx.CheckBox(
 			self,
 			label=_("Keep parameter settings consistent between different speech roles"),
 		)
-		self._keepParameterConsistentCheckBox.SetValue(
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"],
-		)
+		self._keepParameterConsistentCheckBox.SetValue(self._presenter.keep_parameters)
 		settingsSizerHelper.addItem(self._keepParameterConsistentCheckBox)
 		self.Bind(
 			wx.EVT_CHECKBOX,
@@ -441,10 +435,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	@property
 	def voiceInstance(self):
 		voiceName = self._getSelectedVoiceName()
-		if not voiceName:
-			return
-		voiceInstance = self._manager.getVoiceInstance(voiceName)
-		return voiceInstance
+		return self._presenter.voice(voiceName) if voiceName else None
 
 	def _getSelectedVoiceName(self):
 		index = self._voicesChoice.GetCurrentSelection()
@@ -454,65 +445,50 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			return ""
 		return self._voiceNamesByChoiceIndex[index]
 
-	def _resolveVoiceName(self, value):
-		"""Resolve a voice key from UI/maps to canonical voice name."""
-		if not value:
-			return ""
-		if value in self._voiceDescriptions:
-			return value
-		return self._voiceNameByDescription.get(value, value)
+	def _currentLocale(self):
+		index = self._localesChoice.GetCurrentSelection()
+		return self._locales[index] if 0 <= index < len(self._locales) else None
 
 	def _updateVoicesSelection(self):
-		localeIndex = self._localesChoice.GetCurrentSelection()
-		if localeIndex < 0:
+		locale = self._currentLocale()
+		if locale is None:
 			self._voiceNamesByChoiceIndex = []
 			self._voicesChoice.SetItems([])
-		else:
-			locale = self._locales[localeIndex]
-			rawVoiceValues = list(self._localeToVoices.get(locale, []))
-			voiceNames = []
-			for value in rawVoiceValues:
-				resolved = self._resolveVoiceName(value)
-				if resolved and resolved not in voiceNames:
-					voiceNames.append(resolved)
-			self._voiceNamesByChoiceIndex = [""] + voiceNames
-			voiceLabels = [self.NO_SELECT] + [self._voiceDescriptions.get(name, name) for name in voiceNames]
-			self._voicesChoice.SetItems(voiceLabels)
-			if locale in config.conf["WorldVoice"]["role"]:
-				try:
-					voice = config.conf["WorldVoice"]["role"][locale]["voice"]
-				except Exception:
-					self._voicesChoice.Select(0)
-					self.onVoiceChange(None)
-					return
-				if voice:
-					try:
-						self._voicesChoice.Select(voiceNames.index(voice) + 1)
-					except ValueError:
-						resolvedVoice = self._resolveVoiceName(voice)
-						if resolvedVoice in voiceNames:
-							self._voicesChoice.Select(voiceNames.index(resolvedVoice) + 1)
-						else:
-							self._voicesChoice.Select(0)
-					self.onVoiceChange(None)
-			else:
-				self._voicesChoice.Select(0)
-				self.onVoiceChange(None)
+			return
+		voices = self._presenter.voices(locale)
+		self._voiceNamesByChoiceIndex = [""] + [name for name, _label in voices]
+		self._voicesChoice.SetItems([self.NO_SELECT] + [label for _name, label in voices])
+		try:
+			self._voicesChoice.Select(
+				self._voiceNamesByChoiceIndex.index(self._presenter.selected_voice(locale))
+			)
+		except ValueError:
+			self._voicesChoice.Select(0)
+		self._showVoice(self._getSelectedVoiceName())
+
+	def _showVoice(self, voiceName):
+		if voiceName:
+			voiceInstance = self._presenter.voice(voiceName)
+			self._rateSlider.SetValue(voiceInstance.rate)
+			self._pitchSlider.SetValue(voiceInstance.pitch)
+			self._volumeSlider.SetValue(voiceInstance.volume)
+			self._inflectionSlider.SetValue(voiceInstance.inflection)
+			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
+		self._updateVariantsSelection()
+		self.sliderDisable()
+		self.sliderEnable()
 
 	def _updateVariantsSelection(self):
 		voiceName = self._getSelectedVoiceName()
-		if voiceName:
-			voiceInstance = self._manager.getVoiceInstance(voiceName)
-			variants = [i["id"] for i in self._manager.getVoiceVariants(voiceName) if i != ""]
-			variants = ["default"] + variants
-			variant = voiceInstance.variant
-			self._variantsChoice.SetItems(variants)
-			try:
-				self._variantsChoice.Select(variants.index(variant))
-			except ValueError:
-				self._variantsChoice.Select(0)
-		else:
+		if not voiceName:
 			self._variantsChoice.SetItems([])
+			return
+		variants = self._presenter.variants(voiceName)
+		self._variantsChoice.SetItems(variants)
+		try:
+			self._variantsChoice.Select(variants.index(self._presenter.voice(voiceName).variant))
+		except ValueError:
+			self._variantsChoice.Select(0)
 
 	@guard_errors(callback=got_error_callback)
 	def onLocaleChanged(self, event):
@@ -520,82 +496,40 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	@guard_errors(callback=got_error_callback)
 	def onVoiceChange(self, event):
-		localeIndex = self._localesChoice.GetCurrentSelection()
-		locale = self._locales[localeIndex]
+		locale = self._currentLocale()
+		if locale is None:
+			return
 		voiceName = self._getSelectedVoiceName()
-		if voiceName:
-			self._dataToPercist[locale]["voice"] = voiceName
-			voiceInstance = self._manager.getVoiceInstance(voiceName)
-			if self._keepParameterConsistentCheckBox.GetValue():
-				base = self._manager._defaultVoiceInstance.snapshot()
-				voiceInstance.update_settings(
-					rate=base.rate,
-					pitch=base.pitch,
-					volume=base.volume,
-					inflection=base.inflection,
-					rateBoost=base.rateBoost,
-				)
-			self._rateSlider.SetValue(voiceInstance.rate)
-			self._pitchSlider.SetValue(voiceInstance.pitch)
-			self._volumeSlider.SetValue(voiceInstance.volume)
-			self._inflectionSlider.SetValue(voiceInstance.inflection)
-			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
-		else:
-			self._dataToPercist[locale]["voice"] = self.NO_SELECT
-		self._updateVariantsSelection()
-		self.sliderDisable()
-		self.sliderEnable()
+		self._presenter.select_voice(locale, voiceName)
+		self._showVoice(voiceName)
 
 	@guard_errors(callback=got_error_callback)
 	def onVariantChange(self, event):
 		voiceName = self._getSelectedVoiceName()
 		if voiceName:
-			voiceInstance = self._manager.getVoiceInstance(voiceName)
-			voiceInstance.variant = self._variantsChoice.GetStringSelection()
+			self._presenter.set_variant(voiceName, self._variantsChoice.GetStringSelection())
 
 	@guard_errors(callback=got_error_callback)
 	def onKeepEngineConsistentChange(self, event):
-		self._manager.keepMainLocaleEngineConsistent = self._keepEngineConsistentCheckBox.GetValue()
-
-		self._localeToVoices = self._manager.localeToVoicesMap
-		self.localesToNames = self._manager.localesToNamesMap
-		self._locales = self._manager.languages
-
-		self._localesChoice.SetItems([self.localesToNames[l] for l in self._locales])
+		self._presenter.set_engine_consistency(self._keepEngineConsistentCheckBox.GetValue())
+		locales = self._presenter.locales()
+		self._locales = [locale for locale, _name in locales]
+		self._localesChoice.SetItems([name for _locale, name in locales])
 		self._updateVoicesSelection()
 
 	@guard_errors(callback=got_error_callback)
+	def onKeepVoiceConsistentChange(self, event):
+		self._presenter.set_voice_consistency(self._keepConsistentCheckBox.GetValue())
+
+	@guard_errors(callback=got_error_callback)
 	def onKeepParameterConsistentChange(self, event):
-		if self._voicesChoice.GetCurrentSelection() == wx.NOT_FOUND:
-			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.previewVoiceParameterConsistent(self._manager._defaultVoiceInstance)
-			return
-		voiceName = self._getSelectedVoiceName()
-		if voiceName:
-			self.sliderEnable()
-			voiceInstance = self._manager.getVoiceInstance(voiceName)
-			if self._keepParameterConsistentCheckBox.GetValue():
-				base = self._manager._defaultVoiceInstance.snapshot()
-				voiceInstance.update_settings(
-					rate=base.rate,
-					pitch=base.pitch,
-					volume=base.volume,
-					inflection=base.inflection,
-					rateBoost=base.rateBoost,
-				)
-			self._rateSlider.SetValue(voiceInstance.rate)
-			self._pitchSlider.SetValue(voiceInstance.pitch)
-			self._volumeSlider.SetValue(voiceInstance.volume)
-			self._inflectionSlider.SetValue(voiceInstance.inflection)
-			self._rateBoostCheckBox.SetValue(voiceInstance.rateBoost)
-		else:
-			self.sliderDisable()
-		if self._keepParameterConsistentCheckBox.GetValue():
-			self._manager.previewVoiceParameterConsistent(self._manager._defaultVoiceInstance)
+		self._presenter.set_parameter_consistency(self._keepParameterConsistentCheckBox.GetValue())
+		self._showVoice(self._getSelectedVoiceName())
 
 	def sliderEnable(self):
-		if self.voiceInstance:
-			supportedSettings = self._getVoiceSupportedSettings()
+		voiceName = self._getSelectedVoiceName()
+		if voiceName:
+			supportedSettings = self._presenter.capabilities(voiceName)
 			self._rateSlider.Enable()
 			self._pitchSlider.Enable()
 			self._volumeSlider.Enable()
@@ -604,10 +538,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			if "rateBoost" in supportedSettings:
 				self._rateBoostCheckBox.Enable()
 
-	def _getVoiceSupportedSettings(self):
-		voiceName = self._getSelectedVoiceName()
-		return self._manager.getVoiceCapabilities(voiceName).settings if voiceName else frozenset()
-
 	def sliderDisable(self):
 		self._rateSlider.Disable()
 		self._pitchSlider.Disable()
@@ -615,62 +545,51 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._inflectionSlider.Disable()
 		self._rateBoostCheckBox.Disable()
 
+	def _setParameter(self, parameter, value):
+		voiceName = self._getSelectedVoiceName()
+		if voiceName:
+			self._presenter.set_parameter(voiceName, parameter, value)
+
 	@guard_errors(callback=got_error_callback)
 	def onSpeechRateSliderScroll(self, event):
-		if self.voiceInstance:
-			self.voiceInstance.rate = self._rateSlider.GetValue()
-			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
+		self._setParameter("rate", self._rateSlider.GetValue())
 
 	@guard_errors(callback=got_error_callback)
 	def onPitchSliderScroll(self, event):
-		if self.voiceInstance:
-			self.voiceInstance.pitch = self._pitchSlider.GetValue()
-			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
+		self._setParameter("pitch", self._pitchSlider.GetValue())
 
 	@guard_errors(callback=got_error_callback)
 	def onVolumeSliderScroll(self, event):
-		if self.voiceInstance:
-			self.voiceInstance.volume = self._volumeSlider.GetValue()
-			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
+		self._setParameter("volume", self._volumeSlider.GetValue())
 
 	@guard_errors(callback=got_error_callback)
 	def onInflectionSliderScroll(self, event):
-		if self.voiceInstance:
-			self.voiceInstance.inflection = self._inflectionSlider.GetValue()
-			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
+		self._setParameter("inflection", self._inflectionSlider.GetValue())
 
 	@guard_errors(callback=got_error_callback)
 	def onRateBoostChange(self, event):
-		if self.voiceInstance:
-			self.voiceInstance.rateBoost = self._rateBoostCheckBox.GetValue()
-			if self._keepParameterConsistentCheckBox.GetValue():
-				self._manager.previewVoiceParameterConsistent(self.voiceInstance)
+		self._setParameter("rateBoost", self._rateBoostCheckBox.GetValue())
 
 	@guard_errors(callback=lambda self: None)
 	def onDiscard(self):
 		if self.disable:
 			return
-		self._editSession.discard()
-		self._dataToPercist.clear()
-		self._manager.keepMainLocaleEngineConsistent = self._initialKeepEngineConsistent
+		self._presenter.discard()
 
 	def _onDestroy(self, event):
 		# Child control destruction also bubbles through the panel.
 		if event.GetEventObject() is self:
-			self._editSession.close()
+			self._presenter.close()
 		event.Skip()
 
 	def onSave(self):
-		if self.disable or not getSynth().name == "WorldVoice":
+		if self.disable:
 			return
-		if self._keepParameterConsistentCheckBox.GetValue():
-			self._manager.previewVoiceParameterConsistent(self._manager.defaultVoiceInstance)
+		self._presenter.set_engine_consistency(self._keepEngineConsistentCheckBox.GetValue())
+		self._presenter.set_voice_consistency(self._keepConsistentCheckBox.GetValue())
+		self._presenter.set_parameter_consistency(self._keepParameterConsistentCheckBox.GetValue())
 		try:
-			self._editSession.apply()
+			self._presenter.apply()
 		except Exception as error:
 			log.error("Failed to save voice settings", exc_info=True)
 			gui.messageBox(
@@ -682,66 +601,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 				_("WorldVoice Setting Dialog - Error"),
 				wx.OK | wx.ICON_ERROR,
 			)
-			# Abort NVDA's save/close sequence, retaining the edit for retry.
-			raise
-		temp = defaultdict(lambda: {})
-		for key, value in config.conf["WorldVoice"]["role"].items():
-			if isinstance(value, config.AggregatedSection):
-				try:
-					temp[key]["voice"] = config.conf["WorldVoice"]["role"][key]["voice"]
-				except KeyError:
-					pass
-
-		for locale in self._dataToPercist:
-			if "voice" in self._dataToPercist[locale] and self._dataToPercist[locale]["voice"] != "no-select":
-				temp[locale] = self._dataToPercist[locale]
-			else:
-				try:
-					del temp[locale]
-				except Exception:
-					pass
-
-		config.conf["WorldVoice"]["role"] = temp
-
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] = (
-			self._keepEngineConsistentCheckBox.GetValue()
-		)
-		self._manager.onKeepEngineConsistent()
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = (
-			self._keepParameterConsistentCheckBox.GetValue()
-		)
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] = (
-			self._keepConsistentCheckBox.GetValue()
-		)
-
-		try:
-			speechConfig = config.conf["speech"][getSynth().name]
-			snapshot = self._manager.settings.snapshot(speechConfig["voice"])
-			for name in ("rate", "pitch", "volume", "inflection", "rateBoost"):
-				speechConfig[name] = getattr(snapshot, name)
-		except KeyError:
-			pass
-
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"]:
-			locale = (
-				self._manager.defaultVoiceInstance.language
-				if self._manager.defaultVoiceInstance.language
-				else languageHandler.getLanguage()
-			)
-			locale = getPrimaryLocale(locale)
-			try:
-				different = (
-					self._dataToPercist[locale]["voice"] != self._manager.defaultVoiceInstance.name
-					and self._dataToPercist[locale]["voice"] != "no-select"
-				)
-			except KeyError:
-				different = False
-			if different:
-				if getSynth().name == "WorldVoice":
-					getSynth().voice = self._dataToPercist[locale]["voice"]
-				config.conf["speech"]["WorldVoice"]["voice"] = self._dataToPercist[locale]["voice"]
-		self._initialKeepEngineConsistent = self._manager.keepMainLocaleEngineConsistent
-		self._dataToPercist.clear()
+			# NVDA's settings dialog aborts the save and stays open only on ValueError.
+			raise ValueError("WorldVoice voice settings were not saved") from error
 
 
 class UnicodeDetectionSettingsPanel(SettingsPanel):

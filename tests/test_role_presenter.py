@@ -71,6 +71,7 @@ def test_parameter_preview_is_undone_by_discard(env):
 	env.presenter.discard()
 	assert (env.a.rate, env.b.rate) == (50, 50)
 	assert env.conf["WorldVoice"]["voices"][env.a.name]["rate"] == 50
+	assert env.conf["WorldVoice"]["voices"][env.b.name]["rate"] == 50
 
 
 def test_unticking_parameter_consistency_restores_the_previewed_voices(env):
@@ -117,6 +118,7 @@ def test_late_voice_is_restored_on_discard(env):
 	env.presenter.discard()
 	assert late.get("rate") == 50
 	assert env.b.rate == 50
+	assert env.conf["WorldVoice"]["voices"][env.b.name]["rate"] == 50
 
 
 def test_apply_rebases_voice_and_role_edit_state(env):
@@ -185,6 +187,9 @@ def test_apply_previews_consistency_before_saving(env):
 	env.a.rate = 66  # edited after the preview, e.g. via the main synth
 	env.presenter.apply()
 	assert env.conf["WorldVoice"]["voices"][env.b.name]["rate"] == 66
+	env.b.rate = 90
+	env.presenter.discard()
+	assert env.b.rate == 66
 
 
 def test_queries_go_through_the_manager(env):
@@ -240,3 +245,42 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 		if worker_thread.ident is not None:
 			worker_thread.join(1)
 	assert errors == []
+
+
+def test_preview_b_while_a_is_playing_then_discard_restores_next_segment(env):
+	a, b = env.a, env.b
+	class BlockingCore(RecordingCore):
+		def __init__(self):
+			super().__init__()
+			self.entered = threading.Event()
+			self.release = threading.Event()
+
+		def speak(self, text):
+			super().speak(text)
+			self.entered.set()
+			self.release.wait(2)
+
+	core = BlockingCore()
+	bind_core(core, a, b)
+	a.active()
+	playback = threading.Thread(target=core.speak, args=("A is speaking",))
+	playback.start()
+	assert core.entered.wait(1)
+	current_writes = list(core.writes)
+	try:
+		env.presenter.set_parameter_consistency(True)
+		env.presenter.set_parameter(b.name, "rate", 72)
+		assert (a.rate, b.rate) == (72, 72)
+		assert playback.is_alive()
+		assert core.spoken == ["A is speaking"]
+		assert core.writes == current_writes
+	finally:
+		core.release.set()
+		playback.join(1)
+	assert not playback.is_alive()
+	b.active()
+	assert (core.voice, core.rate) == ("b", 72)
+	env.presenter.discard()
+	assert (a.rate, b.rate) == (50, 50)
+	b.active()
+	assert (core.voice, core.rate) == ("b", 50)
