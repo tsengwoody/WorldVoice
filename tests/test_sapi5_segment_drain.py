@@ -1357,3 +1357,32 @@ def test_worker_stop_failure_latches_until_a_voice_reload(env):
     native.wait_calls(1)
     native.end()
     assert wait_event(events).segment_id == 18
+
+
+def test_stop_failure_after_an_invalidated_feed_latches(env):
+    _, _, first = speak(env)
+    env.native.wait_calls(1)
+    env.player.feed_release.clear()
+    failures = []
+
+    def write_pcm():
+        try:
+            env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
+        except Exception as error:
+            failures.append(error)
+
+    callback = Thread(target=write_pcm, daemon=True)
+    env.player.feed_entered.clear()
+    callback.start()
+    assert env.player.feed_entered.wait(2)
+    env.driver.cancel()
+    # The admitted feed now returns into an invalid record; its final stop fails.
+    env.player.stop_error = True
+    env.player.feed_release.set()
+    callback.join(2)
+    env.player.stop_error = None
+    assert not callback.is_alive()
+    assert str(env.driver._segmentHost.control_error) == "stop failed"
+    _, _, successor = speak(env, segment=18)
+    assert wait_event(successor).kind is env.rt.models.EventKind.SEGMENT_FAILED
+    assert len(env.native.calls) == 1
