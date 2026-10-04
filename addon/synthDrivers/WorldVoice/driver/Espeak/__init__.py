@@ -7,7 +7,7 @@ from synthDriverHandler import synthDoneSpeaking
 from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import runtime_profile, unverified_drain_support
+from ...runtime.playbackWork import DrainProfile, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeRecord, SegmentHost
 from ...runtime.session import CancellationView
 
@@ -178,4 +178,5 @@ class SynthDriver(BaseSynthDriver):
 class Voice(Voice):
 	core = None
 	engine = "Espeak"
+	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver

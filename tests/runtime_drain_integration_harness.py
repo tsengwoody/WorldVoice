@@ -262,7 +262,6 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
     engine_module.refresh_ready_engine_classes = lambda *args: None
     monkeypatch.setitem(sys.modules, engine_module.__name__, engine_module)
     manager_module = importlib.import_module(PACKAGE + ".voiceManager")
-    policy = importlib.import_module(PACKAGE + ".compat.completionPolicies")
     ledger = importlib.import_module(PACKAGE + ".indexLedger").IndexLedger()
     bridge_type = importlib.import_module(PACKAGE + ".nvdaEventBridge").NvdaEventBridge
     output = SimpleNamespace(indexes=[], dones=[], drains=[], timeline=[], condition=Condition())
@@ -308,16 +307,13 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
     store = rt.settings.VoiceSettingsStore(repo)
 
     def completion_for(cls, core):
-        if supported:
+        if supported and cls.drain_profile is not None:
             # Explicit fake-native callback exclusion evidence, not certification
             # of any installed SDK or physical Windows playback profile.
-            enabled = True
-        else:
-            # Exercise the supported generic fallback branch independently of
-            # the wrappers' newly enabled real-profile capability declarations.
-            enabled = False
-        return policy.get_completion_contract(cls.engine, nvda_version="unverified",
-            audio_mode="unverified", segment_drain_supported=enabled)
+            return rt.models.CompletionContract(rt.models.CompletionMode.DRAIN, rt.models.IndexRange(1, 9999))
+        # Exercise the generic fallback independently of the wrappers' own
+        # drain support checks.
+        return rt.models.CompletionContract()
 
     manager = manager_module.VoiceManager(tasks, store, bridge,
         index_ledger=ledger, completion_for=completion_for)

@@ -36,7 +36,7 @@ from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
 from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import DrainSupport, unverified_drain_support
+from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
 from ...runtime.segmentHost import SegmentHost
 from ...runtime.session import CancellationView
 
@@ -911,6 +911,7 @@ class Voice(Voice):
 	extra_capabilities = frozenset({"waitfactor", "variant"})
 	core = None
 	engine = "VE"
+	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver
 
 	def applyEngineSettings(self, core, snapshot):

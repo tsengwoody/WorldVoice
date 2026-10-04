@@ -197,7 +197,8 @@ def test_cached_onecore_voice_round_trip_through_manager(composition):
     path = WORLDVOICE / "driver/OneCore/__init__.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     voice_class = next(node for node in tree.body if isinstance(node, ast.ClassDef))
-    environment = {"Voice": c.driver.Voice, "SynthDriver": c.Core}
+    environment = {"Voice": c.driver.Voice, "SynthDriver": c.Core,
+                   "DrainProfile": importlib.import_module(c.module.__package__ + ".runtime.playbackWork").DrainProfile}
     exec(compile(ast.Module(body=[voice_class], type_ignores=[]), str(path), "exec"), environment)
     c.module.READY_ENGINE_CLASS["OneCore"] = environment["Voice"]
     manager = c.create()
@@ -638,8 +639,11 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
         policies = importlib.import_module(package + ".compat.completionPolicies")
         models = importlib.import_module(package + ".runtime.models")
         assert module.IndexLedger is ledger.IndexLedger
-        assert module.get_completion_contract is policies.get_completion_contract
-        assert module.get_completion_contract("unverified", nvda_version="test", audio_mode="test").mode is models.CompletionMode.LEGACY_DONE
+        assert module.CompletionPolicy is policies.CompletionPolicy
+        voice = SimpleNamespace(engine="unverified", drain_profile=None)
+        contract, support = module.CompletionPolicy().contract_for(
+            voice, object(), nvda_version="test", audio_mode="test")
+        assert contract.mode is models.CompletionMode.LEGACY_DONE and support is None
         assert module.SynthDriver.__module__ == package
         assert ledger.__file__ == str(WORLDVOICE / "indexLedger.py")
         assert policies.__file__ == str(WORLDVOICE / "compat/completionPolicies.py")
@@ -662,19 +666,20 @@ def runtime_completion_selector(c, version="synthetic"):
     root = _load_synth_class({
         "SynthDriver": object, "synthIndexReached": object(), "synthDoneSpeaking": object(),
         "versionInfo": SimpleNamespace(version=version),
-        "get_completion_contract": policies.get_completion_contract,
-        "get_segment_drain_support": policies.get_segment_drain_support,
-        "resolve_audio_mode": policies.resolve_audio_mode, "DRAIN_ENGINES": policies.DRAIN_ENGINES,
+        "CompletionPolicy": policies.CompletionPolicy,
         "nvdaLog": SimpleNamespace(warning=lambda *args: logs.append(args)), **commands,
     })
-    return object.__new__(root)._completion_for, logs
+    synth = object.__new__(root)
+    synth._completionPolicy = policies.CompletionPolicy()
+    return synth._completion_for, logs
 
 
 def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
     """Replace unavailable native resources at the installed-driver boundary."""
-    support_type = importlib.import_module(c.module.__package__ + ".runtime.playbackWork").DrainSupport
+    work = importlib.import_module(c.module.__package__ + ".runtime.playbackWork")
+    support_type = work.DrainSupport
     cls = c.engine(name)
-    module_name = c.module.__package__ + ".driver." + name
+    cls.drain_profile = work.DrainProfile(wasapi_dependent=name in ("OneCore", "SAPI5"))
     checked, spoken = [], []
 
     class SynthDriver(c.Core):
@@ -687,13 +692,9 @@ def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
             on_event(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
                                            context.source_id, segment_id=context.segment_id))
 
-    SynthDriver.__module__ = cls.__module__ = module_name
     cls.synth_driver_class = SynthDriver
     cls.engineOn = classmethod(lambda voice: setattr(voice, "core", SynthDriver()))
-    module = ModuleType(module_name)
-    module.Voice, module.SynthDriver = cls, SynthDriver
-    monkeypatch.setitem(sys.modules, module_name, module)
-    return SimpleNamespace(voice=cls, driver=SynthDriver, module=module,
+    return SimpleNamespace(voice=cls, driver=SynthDriver,
                            checked=checked, spoken=spoken, support_type=support_type)
 
 
@@ -803,23 +804,16 @@ def test_wasapi_mode_sensitive_support_uses_actual_opened_core(
 
 
 @pytest.mark.parametrize("engine", ["OneCore", "SAPI5", "Espeak"])
-@pytest.mark.parametrize("failure", ["foreign_voice", "foreign_driver", "wrong_core", "missing_entry",
-                                    "wrong_signature", "missing_support", "invalid_support",
+@pytest.mark.parametrize("failure", ["wrong_core", "missing_entry", "missing_support", "invalid_support",
                                     "truthy_support", "unsupported", "support_error"])
 def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(composition, monkeypatch, engine, failure):
     c = composition
     installed = installed_drain_voice(c, monkeypatch, engine)
     cls = installed.voice
-    if failure == "foreign_voice":
-        installed.module.Voice = type("ForeignVoice", (), {})
-    elif failure == "foreign_driver":
-        installed.driver.__module__ = "foreign_driver"
-    elif failure == "wrong_core":
+    if failure == "wrong_core":
         cls.engineOn = classmethod(lambda voice: setattr(voice, "core", c.Core()))
     elif failure == "missing_entry":
         installed.driver.speak_segment = None
-    elif failure == "wrong_signature":
-        installed.driver.speak_segment = lambda self, commands: None
     elif failure == "missing_support":
         installed.driver.get_segment_drain_support = None
     elif failure == "invalid_support":

@@ -108,6 +108,7 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		"WorldVoiceVoiceSettingsPanel": object(),
 		"TaskManager": TaskManager,
 		"VoiceManager": VoiceManager,
+		"CompletionPolicy": lambda: object(),
 		"IndexLedger": Ledger,
 		"NvdaEventBridge": Bridge,
 		"ConfigVoiceSettingsRepository": lambda *args: object(),

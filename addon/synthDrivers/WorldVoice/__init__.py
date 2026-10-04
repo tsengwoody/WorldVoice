@@ -48,12 +48,7 @@ from .configRepository import ConfigVoiceSettingsRepository
 from .runtime.settings import VoiceSettingsStore
 from .nvdaEventBridge import NvdaEventBridge
 from .indexLedger import IndexLedger
-from .compat.completionPolicies import (
-	DRAIN_ENGINES,
-	get_completion_contract,
-	get_segment_drain_support,
-	resolve_audio_mode,
-)
+from .compat.completionPolicies import CompletionPolicy
 from .compat.commands import normalize_legacy_commands
 from .taskManager import TaskManager
 from .requestBuilder import queue_speech_sequence
@@ -446,6 +441,7 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: TaskManager %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
+		self._completionPolicy = CompletionPolicy()
 		self._voiceManager = VoiceManager(
 			taskManager=self.taskManager,
 			settings=self._settingsStore,
@@ -487,26 +483,18 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
 
 	def _completion_for(self, voice_class, core):
-		engine = voice_class.engine
+		policy = self._completionPolicy
 		nvda_version = versionInfo.version
-		audio_mode = resolve_audio_mode(engine, core)
-		drain_supported = False
-		if engine in DRAIN_ENGINES:
-			support = get_segment_drain_support(
-				voice_class,
-				core,
-				nvda_version=nvda_version,
-				audio_mode=audio_mode,
-			)
-			drain_supported = support.supported
-			if not drain_supported:
-				self._warn_drain_fallback(engine, nvda_version, audio_mode, support)
-		return get_completion_contract(
-			engine,
+		audio_mode = policy.audio_mode(voice_class, core)
+		contract, support = policy.contract_for(
+			voice_class,
+			core,
 			nvda_version=nvda_version,
 			audio_mode=audio_mode,
-			segment_drain_supported=drain_supported,
 		)
+		if support is not None and not support.supported:
+			self._warn_drain_fallback(voice_class.engine, nvda_version, audio_mode, support)
+		return contract
 
 	def _warn_drain_fallback(self, engine, nvda_version, audio_mode, support):
 		# Log each distinct fallback profile once per synth instance.

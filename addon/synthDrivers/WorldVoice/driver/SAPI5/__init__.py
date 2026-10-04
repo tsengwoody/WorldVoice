@@ -8,7 +8,7 @@ from synthDriverHandler import synthIndexReached
 from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import DrainSupport, unverified_drain_support
+from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
 from ...runtime.segmentHost import SegmentHost
 from ...runtime.session import CancellationView
 
@@ -628,5 +628,6 @@ class SynthDriver(BaseSynthDriver):
 class Voice(Voice):
 	core = None
 	engine = "SAPI5"
+	drain_profile = DrainProfile(wasapi_dependent=True)
 
 	synth_driver_class = SynthDriver

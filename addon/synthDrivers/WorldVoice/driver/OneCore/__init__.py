@@ -12,7 +12,7 @@ from synthDriverHandler import synthDoneSpeaking, synthIndexReached
 from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import DrainSupport, runtime_profile, unverified_drain_support
+from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import SegmentHost
 from ...runtime.session import CancellationView
 
@@ -25,6 +25,7 @@ SynthDriver = BaseOneCoreSynthDriver
 class Voice(Voice):
 	core = None
 	engine = "OneCore"
+	drain_profile = DrainProfile(wasapi_dependent=True)
 	synth_driver_class = SynthDriver
 
 	def applyEngineSettings(self, core, snapshot):

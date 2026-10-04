@@ -21,6 +21,17 @@ class DrainSupport:
 	reason: str
 
 
+@dataclass(frozen=True)
+class DrainProfile:
+	"""A Voice's declaration that its core reports segment drain.
+
+	The core still decides at runtime through ``get_segment_drain_support``.
+	"""
+
+	# The audio mode follows the opened core's useWasapi setting.
+	wasapi_dependent: bool = False
+
+
 def runtime_profile(engine: str, nvda_version, audio_mode) -> str:
 	"""Name a wrapper profile by engine and the runtime it was opened under."""
 	return f"{engine}/{nvda_version or 'unknown'}/{audio_mode or 'unknown'}"

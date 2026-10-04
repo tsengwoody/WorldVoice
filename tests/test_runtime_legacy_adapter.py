@@ -245,7 +245,7 @@ def test_onecore_cached_a_b_a_restores_language(compat, rt):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
     core = Core()
-    env = {"Voice": legacy_class(core), "SynthDriver": object}
+    env = {"Voice": legacy_class(core), "SynthDriver": object, "DrainProfile": rt.playback_work.DrainProfile}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), "exec"), env)
     cls = env["Voice"]
     store = rt.settings.VoiceSettingsStore(MemoryRepository())

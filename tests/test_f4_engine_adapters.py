@@ -79,7 +79,7 @@ def test_onecore_language_is_applied_only_on_activation():
 		def __init__(self, id, name, taskManager, language=None):
 			self.language = language
 	core = types.SimpleNamespace(language="original")
-	environment = {"Voice": BaseVoice, "SynthDriver": object}
+	environment = {"Voice": BaseVoice, "SynthDriver": object, "DrainProfile": lambda **kwargs: None}
 	exec(compile(ast.Module(body=[voice_class], type_ignores=[]), str(path), "exec"), environment)
 	environment["Voice"].core = core
 	adapter = environment["Voice"]("a", "OneCore:a", None, language="en")
