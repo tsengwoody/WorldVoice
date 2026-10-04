@@ -47,7 +47,7 @@
    plan 逐一列出對應關係。完整套件全部通過，沒有 skip。
 4. **範圍**：
    - `driver/*/driver/`（內層）完全不改；
-   - 外層 wrapper 的 diff 只落在 `Voice` 類別內；
+   - 外層 wrapper 的 diff 只落在 `Voice` 類別內，外加一行 `from ...runtime.playbackWork import` 加入 `DrainProfile`；
    - `ruff format --check addon` 通過；Neural 未被追蹤。
 
 **不在範圍內**：
@@ -145,20 +145,23 @@ class CompletionPolicy:
 	def drain_support(self, voice_class, core, *, nvda_version, audio_mode) -> DrainSupport:
 		# 1. voice_class.drain_profile is None → 不支援。
 		# 2. core 不是 voice_class.synth_driver_class 的實例 → 不支援。
+		# 2b. core 沒有可呼叫的 speak_segment → 不支援（原文訊息；見下方說明）。
 		# 3. 呼叫 core.get_segment_drain_support(nvda_version=, audio_mode=)：
 		#    不可呼叫、拋例外、回傳非 DrainSupport 或非布林 → 不支援（原因與原碼相同）。
 		# 4. 不支援且沒有原因 → 不支援（原文訊息）。
 		# 5. 支援但 force_unverified_drain 為 False → 不支援（原文訊息）。
 
-	def contract_for(self, voice_class, core, *, nvda_version) -> tuple[CompletionContract, DrainSupport | None]:
+	def contract_for(self, voice_class, core, *, nvda_version, audio_mode) -> tuple[CompletionContract, DrainSupport | None]:
 		# 有 profile：DRAIN（支援）或 CompletionContract()（不支援），並回傳 support 供主驅動記錄 fallback。
 		# 無 profile：_VERIFIED_CONTRACTS.get((engine, nvda_version, audio_mode), CompletionContract())，support 為 None。
 ```
 - 刪除 `DRAIN_ENGINES`、`_WASAPI_MODE_ENGINES`、`FORCE_UNVERIFIED_DRAIN`、`resolve_audio_mode`、`get_completion_contract`、`get_segment_drain_support`，以及 `sys`、`signature` 的 import。
-- 被刪除的反射檢查有：模組歸屬、`driver.__module__`、`speak_segment` 是否可呼叫及其簽名。倉庫內六個引擎今天全部都會通過這些檢查，因此結果不變。`speak_segment` 是否存在，仍由 `LegacyEngineAdapter.configure_segment_events` 的既有檢查負責。
+- 被刪除的反射檢查有：模組歸屬、`driver.__module__`、`speak_segment` 的 `signature().bind()`。倉庫內六個引擎今天全部都會通過這些檢查，因此結果不變。
+- **plan 撰寫時保留**「`speak_segment` 可否呼叫」這項便宜的檢查。若刪除它，宣告了 profile 卻沒有 `speak_segment` 的 wrapper，結果會從「退回 LEGACY_DONE」變成「`configure_segment_events` 拋例外，整個引擎開啟失敗」。
 - 主驅動（`WorldVoice/__init__.py`）：
-  - 建立 `self._completionPolicy = CompletionPolicy()`；
-  - `_completion_for(voice_class, core)` 改為呼叫 `contract_for`。若回傳的 support 不為 None 且不支援，照舊呼叫 `_warn_drain_fallback`。
+  - 在建立 `VoiceManager` 之前，建立 `self._completionPolicy = CompletionPolicy()`；
+  - `_completion_for(voice_class, core)` 先以 `policy.audio_mode` 取得音訊模式，再呼叫 `contract_for`。若回傳的 support 不為 None 且不支援，照舊呼叫 `_warn_drain_fallback`；
+  - fallback 原因中的旗標名稱由 `FORCE_UNVERIFIED_DRAIN` 改為 `force_unverified_drain`。
 
 ### 4. EngineResource 與 VoiceManager
 
@@ -194,8 +197,10 @@ class EngineResource:
 
    plan 逐檔列出。
 2. **刪除**：
-   - 3 個 alias 測試（`test_runtime_composition.py` 的 `test_shared_source_alias_uses_one_session_and_close`、`test_failed_alias_open_preserves_existing_owner_and_closes_once`、`test_alias_uses_one_allocator_and_one_close`），以及 `test_runtime_legacy_adapter.py` 的 `test_alias_detach_preserves_shared_resource_owner`；
-   - completion policy 中專門驗證已刪除反射檢查的測試。
+   - alias 測試，plan 撰寫時共找到 7 個，都只在兩個引擎共用同一個 core 時成立：
+     - `test_runtime_composition.py`：`test_shared_source_alias_uses_one_session_and_close`、`test_failed_alias_open_preserves_existing_owner_and_closes_once`、`test_alias_uses_one_allocator_and_one_close`、`test_alias_conflicting_completion_contract_is_rejected`、`test_unsupported_targets_sharing_core_keep_one_legacy_owner`、`test_drain_alias_uses_only_owner_event_factory`；
+     - `test_runtime_legacy_adapter.py`：`test_alias_detach_preserves_shared_resource_owner`。
+   - completion policy 中驗證已刪除反射檢查的失敗案例：`foreign_voice`、`foreign_driver`、`wrong_signature`。
 
    plan 寫明每個被刪測試保護的行為為何已不存在。
 3. **新增**：
@@ -209,10 +214,19 @@ class EngineResource:
    - `close()` 不呼叫 `destroy_core`；
    - 加回一處 `cls.core =` 寫入。
 
+### 測試的其他調整（plan 撰寫時確認）
+
+- **`create_core` 的失敗契約**：要嘛回傳 core，要嘛拋例外且不留下 core。以前「`engineOn` 先取得 core 再失敗，adapter 負責清理」的語意不再存在。
+  - `test_partial_engine_open_is_cleaned_once` 改寫成兩個測試：`test_failed_core_creation_leaves_nothing_to_clean` 與 `test_close_releases_adapter_state_even_when_destroy_core_fails`。
+  - `test_only_started_sessions_are_resolvable` 改為斷言失敗的引擎沒有建立任何 core。
+- **composition 測試的假引擎** 以僅供測試的 `opened` 屬性記錄目前開著的 core，取代原本讀取 `cls.core` 的寫法。
+- **斷言「類別狀態尚未公開」的 `cls.session is None`、`cls._runtime_binding is None`**：因為已沒有類別狀態，一併刪除。
+- **最終數量**：1420 passed，沒有 skip。
+
 ## 驗收
 
 - `python3 -m pytest tests -q`：全部通過，沒有 skipped 或 xfailed。
 - 守門測試通過。
 - `git diff master --stat -- 'addon/synthDrivers/WorldVoice/driver/*/driver'`：無輸出。
-- 外層 wrapper（`driver/<Engine>/__init__.py`）的 diff 只落在 `class Voice` 內。
+- 外層 wrapper（`driver/<Engine>/__init__.py`）的 diff 只落在 `class Voice` 內，外加 `DrainProfile` 的 import 一行。
 - `ruff format --check addon` 通過；Neural 未被追蹤。
