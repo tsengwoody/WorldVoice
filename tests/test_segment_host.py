@@ -997,3 +997,39 @@ def test_terminated_host_rejects_new_ordinary_speech(env):
 	with pytest.raises(RuntimeError, match="Fake driver has terminated"):
 		env.host.enqueue(("late",))
 	assert env.strategy.submitted == []
+
+
+def test_leased_player_hooks_can_be_overridden(env):
+	calls = []
+
+	class Raw:
+		def feed(self, data, size=None, onDone=None):
+			calls.append(("feed", data, onDone is not None))
+			raise OSError("feed failed")
+
+		def stop(self):
+			raise OSError("stop failed")
+
+	class Custom(env.module.LeasedPlayer):
+		def _callback(self, record, onDone):
+			calls.append("callback")
+			return onDone
+
+		def _record_error(self, record, error):
+			calls.append(("record_error", str(error)))
+
+		def _stop_failed(self, error):
+			calls.append(("stop_failed", str(error)))
+
+	player = Custom(env.host, Raw())
+	_, _, events = env.speak()
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	with pytest.raises(OSError, match="feed failed"):
+		player.feed(b"pcm", onDone=lambda: None)
+	with pytest.raises(OSError, match="stop failed"):
+		player.stop()
+	assert calls == ["callback", ("feed", b"pcm", True), ("record_error", "feed failed"), ("stop_failed", "stop failed")]
+	assert env.host.control_error is None
+	env.run_native(record)
+	events.wait_one()

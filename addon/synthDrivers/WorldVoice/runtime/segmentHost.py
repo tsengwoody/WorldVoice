@@ -636,7 +636,11 @@ class SegmentHost:
 
 
 class LeasedPlayer:
-	"""Admit every feed/idle as a consumer of the current record."""
+	"""Admit every feed/idle as a consumer of the current record.
+
+	Engines adjust three hooks: how a feed's onDone callback is wrapped, how a
+	feed error is recorded, and what a failed stop does.
+	"""
 
 	def __init__(self, host: SegmentHost, player, *, idle_barrier: str | None = "idle"):
 		self._host = host
@@ -651,32 +655,41 @@ class LeasedPlayer:
 		with host.consumer() as record:
 			if record is None:
 				return None
-			callback = None
-			if onDone is not None:
-
-				def callback():
-					with host.consumer(record) as admitted:
-						if admitted is None:
-							return
-						with host.bound_callback(record):
-							try:
-								onDone()
-							except Exception as error:
-								host.record_error(record, error)
-								raise
-
+			callback = None if onDone is None else self._callback(record, onDone)
 			try:
 				if size is None:
 					return self._player.feed(data, onDone=callback)
 				return self._player.feed(data, size, onDone=callback)
 			except Exception as error:
-				host.record_error(record, error)
+				self._record_error(record, error)
 				raise
 			finally:
 				# A feed that was already admitted may queue audio after cancel's
 				# stop. Stop it again before the FIFO barrier permits a successor.
 				if not record.is_valid():
 					self.stop()
+
+	def _callback(self, record: NativeRecord, onDone: Callable[[], None]) -> Callable[[], None]:
+		host = self._host
+
+		def callback():
+			with host.consumer(record) as admitted:
+				if admitted is None:
+					return
+				with host.bound_callback(record):
+					try:
+						onDone()
+					except Exception as error:
+						host.record_error(record, error)
+						raise
+
+		return callback
+
+	def _record_error(self, record: NativeRecord, error: Exception) -> None:
+		self._host.record_error(record, error)
+
+	def _stop_failed(self, error: Exception) -> None:
+		self._host.latch_control_error(error)
 
 	def idle(self):
 		host = self._host
@@ -696,5 +709,5 @@ class LeasedPlayer:
 		try:
 			return self._player.stop()
 		except Exception as error:
-			self._host.latch_control_error(error)
+			self._stop_failed(error)
 			raise
