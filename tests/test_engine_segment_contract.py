@@ -5,6 +5,7 @@ gaps are strict xfails: fixing one turns it into XPASS, which fails the run
 until the mark is removed.
 """
 
+from contextlib import suppress
 from threading import Condition, Thread, get_ident
 
 import pytest
@@ -32,12 +33,14 @@ class C3Blocking(AssertionError):
 
 
 def _engines(**xfails):
+	"""Every engine; ``xfails`` maps an engine to its known gap as (reason, raised type)."""
 	params = []
 	for name in ADAPTERS:
 		marks = []
 		if name in xfails:
+			reason, raises = xfails[name]
 			# Only the known gap may xfail; any other failure still fails the run.
-			marks.append(pytest.mark.xfail(strict=True, raises=C3Blocking, reason=xfails[name]))
+			marks.append(pytest.mark.xfail(strict=True, raises=raises, reason=reason))
 		params.append(pytest.param(name, marks=marks, id=name))
 	return params
 
@@ -161,3 +164,31 @@ def test_speak_segment_returns_before_delivery(engine):
 	# Checked last so every other assertion still applies to the C3 engines.
 	if not returned_early:
 		raise C3Blocking("speak_segment did not return before the segment completed")
+
+
+@pytest.mark.parametrize("engine", _engines(), indirect=True)
+def test_ordinary_speak_after_terminate_raises(engine):
+	engine.terminate()
+	with pytest.raises(RuntimeError):
+		engine.speak_ordinary(("hello",))
+
+
+@pytest.mark.parametrize(
+	"engine",
+	_engines(SAPI5=("SAPI5 cancel() does not latch a player stop failure (phase 9b)", AssertionError)),
+	indirect=True,
+)
+def test_segment_after_player_stop_failure_fails(engine):
+	engine.fail_next_stop()
+	with suppress(Exception):
+		engine.core.cancel()
+	context = engine.PlaybackContext(object(), 25)
+	events = Events(engine)
+	caller, errors = _start_speak(engine, engine.new_token(), context, events)
+
+	event = events.wait_one()
+	caller.join(2)
+
+	assert not caller.is_alive() and errors == []
+	assert event.kind is engine.EventKind.SEGMENT_FAILED
+	assert event.segment_id == 25

@@ -48,6 +48,25 @@ class _Adapter:
 	def on_delivery_thread(self):
 		return self.core._segmentHost.on_delivery_thread()
 
+	def speak_ordinary(self, commands):
+		self.core.speak(commands)
+
+	def _player(self):
+		return self.env.player
+
+	def fail_next_stop(self):
+		"""Make the engine's real player fail its next stop() once."""
+		player = self._player()
+		original = player.stop
+		failures = [OSError("player stop failed")]
+
+		def stop(*args, **kwargs):
+			if failures:
+				raise failures.pop()
+			return original(*args, **kwargs)
+
+		player.stop = stop
+
 
 class EspeakAdapter(_Adapter):
 	engine = "Espeak"
@@ -83,6 +102,9 @@ class RHVoiceAdapter(_Adapter):
 
 	def native_call_count(self):
 		return len(self.env.native.calls)
+
+	def _player(self):
+		return self.core._SynthDriver__player
 
 	def close(self):
 		finish_rhvoice(self.env)
@@ -170,6 +192,9 @@ class _NuanceAdapter(_Adapter):
 
 	def native_call_count(self):
 		return len(self.calls)
+
+	def _player(self):
+		return self.core._real_player
 
 	def close(self):
 		self.idle_release.set()
