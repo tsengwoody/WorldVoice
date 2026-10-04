@@ -2,14 +2,21 @@
 
 from collections.abc import Callable, Mapping, MutableMapping
 
+from .mainLocalePolicy import ParameterConsistency
 from .runtime.models import SettingValue, VoiceSpec, VoiceValues
 from .runtime.settings import VOICE_PARAMETERS
 
 
 class ConfigVoiceSettingsRepository:
-	def __init__(self, conf: MutableMapping, synth_name: Callable[[], str]):
+	def __init__(
+		self,
+		conf: MutableMapping,
+		synth_name: Callable[[], str],
+		parameters: ParameterConsistency | None = None,
+	):
 		self._conf = conf
 		self._synth_name = synth_name
+		self._parameters = parameters or ParameterConsistency(lambda: conf)
 
 	def load(self, spec: VoiceSpec) -> VoiceValues:
 		voices = self._conf["WorldVoice"]["voices"]
@@ -18,17 +25,11 @@ class ConfigVoiceSettingsRepository:
 			voices[spec.name] = values.copy()
 		# Persist the legacy defaults, but load effective main-synth values on
 		# first use too, before the shared state establishes its edit baseline.
-
-		consistent = self._conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]
+		source = self._parameters.shared_section(self._synth_name)
+		if source is None:
+			source = voices[spec.name]
 		for name, convert, _ in VOICE_PARAMETERS:
-			if consistent:
-				try:
-					value = self._conf["speech"][self._synth_name()].get(name, None)
-				except Exception:
-					# Preserve the legacy fallback even during synth startup.
-					value = voices[spec.name].get(name, None)
-			else:
-				value = voices[spec.name].get(name, None)
+			value = source.get(name, None)
 			if value is not None:
 				values[name] = convert(value)
 		return values
