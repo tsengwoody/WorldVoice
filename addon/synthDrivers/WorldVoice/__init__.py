@@ -28,6 +28,7 @@ from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
 from . import languageDetection
 from .pipeline import (
+	STAGES,
 	inject_langchange_reorder,
 	deduplicate_language_command,
 	lang_cmd_to_voice,
@@ -36,10 +37,7 @@ from .pipeline import (
 )
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext
 from .pipeline.scope import pipeline_scope
-from .pipeline.settings import (
-	get_effective_pipeline_settings,
-	save_pipeline_settings,
-)
+from .pipeline.settings import PIPELINE_CONFSPEC, PIPELINE_SETTINGS, pipeline_settings
 from .configRepository import ConfigVoiceSettingsRepository
 from .runtime.settings import VoiceSettingsStore
 from .nvdaEventBridge import NvdaEventBridge
@@ -71,36 +69,14 @@ config.conf.spec["WorldVoice"] = {
 		"KeepMainLocaleParameterConsistent": "boolean(default=false)",
 		"KeepMainLocaleEngineConsistent": "boolean(default=true)",
 	},
-	"pipeline": {
-		"scope": "string(default=WorldVoice)",
-		"ignore_comma_between_number": "boolean(default=false)",
-		"number_mode": "string(default=value)",
-		"global_wait_factor": "integer(default=10,min=0,max=100)",
-		"number_wait_factor": "integer(default=10,min=0,max=100)",
-		"pair_wait_factor": "integer(default=0,min=0,max=100)",
-		"item_wait_factor": "integer(default=10,min=0,max=100)",
-		"sayall_wait_factor": "integer(default=10,min=0,max=100)",
-		"chinesespace_wait_factor": "integer(default=10,min=0,max=100)",
-		"punctuation_wait_factor": "integer(default=0,min=0,max=100)",
-		"punctuation_pause_enabled": "boolean(default=true)",
-		"remove_punctuation_characters": "boolean(default=false)",
-		"punctuation_pause_characters": 'string(default="،؛,.;:!؟?…")',
-	},
+	"pipeline": dict(PIPELINE_CONFSPEC),
 	"role": {},
 	"engine": {
 		"__many__": "boolean(default=false)",
 	},
 	"log": {
 		"enable": "boolean(default=false)",
-		"ignore_comma_between_number": "boolean(default=false)",
-		"number_mode": "boolean(default=false)",
-		"number_language": "boolean(default=false)",
-		"number_wait_factor": "boolean(default=false)",
-		"item_wait_factor": "boolean(default=false)",
-		"chinesespace_wait_factor": "boolean(default=false)",
-		"punctuation_wait_factor": "boolean(default=false)",
-		"speech_viewer": "boolean(default=false)",
-		"apply_speech_dictionaries": "boolean(default=false)",
+		**{stage.log_key: "boolean(default=false)" for stage in STAGES},
 	},
 	"voices": {
 		"__many__": {
@@ -135,142 +111,27 @@ class SynthDriver(SynthDriver):
 	def check(cls):
 		return True
 
-	@property
-	def supportedSettings(self):
-		capabilities = self._voiceManager.getVoiceCapabilities(self._voiceManager.defaultVoiceName)
-		settings = [
-			SynthDriver.VoiceSetting(),
-		]
-		settings.append(SynthDriver.VariantSetting())
-		settings.append(SynthDriver.RateSetting())
-		if "rateBoost" in capabilities.settings:
-			settings.append(SynthDriver.RateBoostSetting())
-		settings.extend(
-			[
-				SynthDriver.PitchSetting(),
-			],
-		)
-		if "inflection" in capabilities.settings:
-			settings.append(SynthDriver.InflectionSetting())
-		settings.extend(
-			[
-				SynthDriver.VolumeSetting(),
-				BooleanDriverSetting(
-					"uwv",
-					_("Detect language based on Unicode characters"),
-					availableInSettingsRing=True,
-					defaultVal=True,
-					displayName=_("Detect language based on Unicode characters"),
-				),
-				BooleanDriverSetting(
-					"cni",
-					_("Ignore comma between number"),
-					defaultVal=False,
-				),
-				DriverSetting(
-					"numlan",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Number &Language"),
-					availableInSettingsRing=True,
-					defaultVal="default",
-					# Translators: Label for a setting in synth settings ring.
-					displayName=_("Number Language"),
-				),
-				DriverSetting(
-					"nummod",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Number &Mode"),
-					availableInSettingsRing=True,
-					defaultVal="value",
-					# Translators: Label for a setting in synth settings ring.
-					displayName=_("Number Mode"),
-				),
-				NumericDriverSetting(
-					"globalwaitfactor",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Global wait factor"),
-					availableInSettingsRing=True,
-					defaultVal=50,
-					minStep=10,
-				),
-				NumericDriverSetting(
-					"numberwaitfactor",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Number wait factor"),
-					availableInSettingsRing=True,
-					defaultVal=0,
-					minStep=1,
-				),
-				NumericDriverSetting(
-					"pairwaitfactor",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Pair wait factor"),
-					availableInSettingsRing=True,
-					defaultVal=0,
-					minStep=1,
-				),
-				NumericDriverSetting(
-					"itemwaitfactor",
-					# Translators: Label for a setting in voice settings dialog.
-					_("item wait factor"),
-					availableInSettingsRing=True,
-					defaultVal=0,
-					minStep=1,
-				),
-				NumericDriverSetting(
-					"sayallwaitfactor",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Say all wait factor"),
-					availableInSettingsRing=True,
-					defaultVal=0,
-					minStep=1,
-				),
-				NumericDriverSetting(
-					"chinesespacewaitfactor",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Chinese space wait factor"),
-					availableInSettingsRing=True,
-					defaultVal=0,
-					minStep=1,
-				),
-				BooleanDriverSetting(
-					"punctuationpauseenabled",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Enable punctuation pause control"),
-					availableInSettingsRing=True,
-					defaultVal=True,
-					# Translators: Label for a setting in synth settings ring.
-					displayName=_("Punctuation pauses"),
-				),
-				BooleanDriverSetting(
-					"removepunctuationcharacters",
-					_("Remove configured punctuation at pause points"),
-					availableInSettingsRing=True,
-					defaultVal=False,
-					displayName=_("Remove punctuation at pause points"),
-				),
-				NumericDriverSetting(
-					"punctuationwaitfactor",
-					# Translators: Label for a setting in voice settings dialog.
-					_("Punctuation wait factor"),
-					availableInSettingsRing=True,
-					defaultVal=0,
-					minStep=1,
-				),
-			],
-		)
-		return settings
+	@staticmethod
+	def _pipeline_driver_setting(spec):
+		options = {"availableInSettingsRing": spec.ring, "defaultVal": spec.default, "useConfig": False}
+		if spec.display_name is not None:
+			options["displayName"] = spec.display_name
+		if spec.kind is bool:
+			return BooleanDriverSetting(spec.driver_id, spec.label, **options)
+		if spec.kind is int:
+			return NumericDriverSetting(spec.driver_id, spec.label, minStep=spec.min_step, **options)
+		return DriverSetting(spec.driver_id, spec.label, **options)
 
-	@property
-	def allSupportedSettings(self):
-		settings = [
-			SynthDriver.VoiceSetting(),
-			SynthDriver.VariantSetting(),
-			SynthDriver.RateSetting(),
-			SynthDriver.RateBoostSetting(),
-			SynthDriver.PitchSetting(),
-			SynthDriver.InflectionSetting(),
-			SynthDriver.VolumeSetting(),
+	def _driver_settings(self, capabilities):
+		"""The synth settings; ``capabilities`` None lists every optional voice setting."""
+		settings = [SynthDriver.VoiceSetting(), SynthDriver.VariantSetting(), SynthDriver.RateSetting()]
+		if capabilities is None or "rateBoost" in capabilities:
+			settings.append(SynthDriver.RateBoostSetting())
+		settings.append(SynthDriver.PitchSetting())
+		if capabilities is None or "inflection" in capabilities:
+			settings.append(SynthDriver.InflectionSetting())
+		settings.append(SynthDriver.VolumeSetting())
+		settings.append(
 			BooleanDriverSetting(
 				"uwv",
 				_("Detect language based on Unicode characters"),
@@ -278,108 +139,39 @@ class SynthDriver(SynthDriver):
 				defaultVal=True,
 				displayName=_("Detect language based on Unicode characters"),
 			),
-			BooleanDriverSetting(
-				"cni",
-				_("Ignore comma between number"),
-				defaultVal=False,
-			),
-			DriverSetting(
-				"numlan",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number &Language"),
-				availableInSettingsRing=True,
-				defaultVal="default",
-				# Translators: Label for a setting in synth settings ring.
-				displayName=_("Number Language"),
-			),
-			DriverSetting(
-				"nummod",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number &Mode"),
-				availableInSettingsRing=True,
-				defaultVal="value",
-				# Translators: Label for a setting in synth settings ring.
-				displayName=_("Number Mode"),
-			),
-			NumericDriverSetting(
-				"globalwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Global wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=50,
-				minStep=10,
-			),
-			NumericDriverSetting(
-				"numberwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Number wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"pairwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Pair wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"itemwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("item wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"sayallwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Say all wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			NumericDriverSetting(
-				"chinesespacewaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Chinese space wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-			BooleanDriverSetting(
-				"punctuationpauseenabled",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Enable punctuation pause control"),
-				availableInSettingsRing=True,
-				defaultVal=True,
-				# Translators: Label for a setting in synth settings ring.
-				displayName=_("Punctuation pauses"),
-			),
-			BooleanDriverSetting(
-				"removepunctuationcharacters",
-				_("Remove configured punctuation at pause points"),
-				availableInSettingsRing=True,
-				defaultVal=False,
-				displayName=_("Remove punctuation at pause points"),
-			),
-			NumericDriverSetting(
-				"punctuationwaitfactor",
-				# Translators: Label for a setting in voice settings dialog.
-				_("Punctuation wait factor"),
-				availableInSettingsRing=True,
-				defaultVal=0,
-				minStep=1,
-			),
-		]
+		)
+		for spec in PIPELINE_SETTINGS:
+			if spec.driver_id is None:
+				continue
+			settings.append(self._pipeline_driver_setting(spec))
+			if spec.driver_id == "cni":
+				settings.append(
+					DriverSetting(
+						"numlan",
+						# Translators: Label for a setting in voice settings dialog.
+						_("Number &Language"),
+						availableInSettingsRing=True,
+						defaultVal="default",
+						# Translators: Label for a setting in synth settings ring.
+						displayName=_("Number Language"),
+					),
+				)
 		return settings
+
+	@property
+	def supportedSettings(self):
+		capabilities = self._voiceManager.getVoiceCapabilities(self._voiceManager.defaultVoiceName)
+		return self._driver_settings(capabilities.settings)
+
+	@property
+	def allSupportedSettings(self):
+		return self._driver_settings(None)
 
 	def __init__(self):
 		self._terminated = False
 		self._startNotified = False
 		self._pipelineRegistered = False
+		self._pipelineSubscribed = False
 		self._voicePanelPatched = False
 		self._spellingPatched = False
 		self.OriginVoiceSettingsPanel = None
@@ -446,6 +238,10 @@ class SynthDriver(SynthDriver):
 			completion_for=self._completion_for,
 		)
 		nvdaLog.debug("WorldVoice init timing: VoiceManager %.3fs", time.perf_counter() - step_start)
+
+		self._apply_pipeline_settings(pipeline_settings.get())
+		pipeline_settings.subscribe(self._apply_pipeline_settings)
+		self._pipelineSubscribed = True
 
 		step_start = time.perf_counter()
 		self._realSpellingFunc = speech.speech.speakSpelling
@@ -547,6 +343,13 @@ class SynthDriver(SynthDriver):
 			_run_cleanup("event bridge close", bridge.close)
 		self._eventBridge = None
 
+		if self._pipelineSubscribed:
+			_run_cleanup(
+				"pipeline settings unsubscribe",
+				lambda: pipeline_settings.unsubscribe(self._apply_pipeline_settings),
+			)
+			self._pipelineSubscribed = False
+
 		voiceManager = self._voiceManager
 		if voiceManager is not None:
 			_run_cleanup("voice manager terminate", lambda: voiceManager.terminate(commit=commit))
@@ -563,12 +366,14 @@ class SynthDriver(SynthDriver):
 
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)
+		# Pipeline settings are not NVDA driver config; re-read them for this profile.
+		self._apply_pipeline_settings(pipeline_settings.get())
 		self._voiceManager.reload()
-		save_pipeline_settings(get_effective_pipeline_settings(synth=self))
 
-	def saveSettings(self, *args, **kwargs):
-		super().saveSettings(*args, **kwargs)
-		save_pipeline_settings(get_effective_pipeline_settings(synth=self))
+	def _apply_pipeline_settings(self, settings):
+		manager = self._voiceManager
+		if manager is not None:
+			manager.waitfactor = min(settings.global_wait_factor // 10, 9)
 
 	def speak(self, speechSequence):
 		if self._terminated:
@@ -619,41 +424,36 @@ class SynthDriver(SynthDriver):
 			voice_for_language=manager.getVoiceInstanceForLanguage,
 		)
 
+	def _set_voice_parameter(self, name, value):
+		instance = self._voiceManager.defaultVoiceInstance
+		setattr(instance, name, value)
+		instance.commit()
+		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
+			self._voiceManager.onVoiceParameterConsistent(instance)
+
 	def _get_volume(self):
 		return self._voiceManager.defaultVoiceInstance.volume
 
 	def _set_volume(self, value):
-		self._voiceManager.defaultVoiceInstance.volume = value
-		self._voiceManager.defaultVoiceInstance.commit()
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
-			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
+		self._set_voice_parameter("volume", value)
 
 	def _get_rate(self):
 		return self._voiceManager.defaultVoiceInstance.rate
 
 	def _set_rate(self, value):
-		self._voiceManager.defaultVoiceInstance.rate = value
-		self._voiceManager.defaultVoiceInstance.commit()
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
-			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
+		self._set_voice_parameter("rate", value)
 
 	def _get_pitch(self):
 		return self._voiceManager.defaultVoiceInstance.pitch
 
 	def _set_pitch(self, value):
-		self._voiceManager.defaultVoiceInstance.pitch = value
-		self._voiceManager.defaultVoiceInstance.commit()
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
-			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
+		self._set_voice_parameter("pitch", value)
 
 	def _get_inflection(self):
 		return self._voiceManager.defaultVoiceInstance.inflection
 
 	def _set_inflection(self, value):
-		self._voiceManager.defaultVoiceInstance.inflection = value
-		self._voiceManager.defaultVoiceInstance.commit()
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
-			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
+		self._set_voice_parameter("inflection", value)
 
 	def _getAvailableVoices(self):
 		return self._voiceManager.voiceInfos
@@ -686,19 +486,13 @@ class SynthDriver(SynthDriver):
 		return self._voiceManager.defaultVoiceInstance.variant
 
 	def _set_variant(self, value):
-		self._voiceManager.defaultVoiceInstance.variant = value
-		self._voiceManager.defaultVoiceInstance.commit()
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
-			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
+		self._set_voice_parameter("variant", value)
 
 	def _get_rateBoost(self):
 		return self._voiceManager.defaultVoiceInstance.rateBoost
 
 	def _set_rateBoost(self, enable):
-		self._voiceManager.defaultVoiceInstance.rateBoost = enable
-		self._voiceManager.defaultVoiceInstance.commit()
-		if config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"]:
-			self._voiceManager.onVoiceParameterConsistent(self._voiceManager.defaultVoiceInstance)
+		self._set_voice_parameter("rateBoost", enable)
 
 	def _get_uwv(self):
 		return self._uwv
@@ -716,13 +510,6 @@ class SynthDriver(SynthDriver):
 			order_move_to_start_register()
 		else:
 			filter_speechSequence.unregister(self.add_detected_language_commands)
-
-	def _get_cni(self):
-		return self._cni
-
-	def _set_cni(self, value):
-		self._cni = value
-		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self.cni
 
 	def _get_availableNumlans(self):
 		return dict(
@@ -753,85 +540,26 @@ class SynthDriver(SynthDriver):
 			},
 		)
 
-	def _get_nummod(self):
-		return self._nummod
-
-	def _set_nummod(self, value):
-		self._nummod = value
-		config.conf["WorldVoice"]["pipeline"]["number_mode"] = self.nummod
-
-	def _get_globalwaitfactor(self):
-		return self._globalwaitfactor * 10
-
-	def _set_globalwaitfactor(self, value):
-		self._globalwaitfactor = value // 10
-		self._voiceManager.waitfactor = min(value // 10, 9)
-		config.conf["WorldVoice"]["pipeline"]["global_wait_factor"] = self.globalwaitfactor
-
-	def _get_numberwaitfactor(self):
-		return self._numberwaitfactor
-
-	def _set_numberwaitfactor(self, value):
-		self._numberwaitfactor = value
-		config.conf["WorldVoice"]["pipeline"]["number_wait_factor"] = self.numberwaitfactor
-
-	def _get_pairwaitfactor(self):
-		# Defensive: the attribute may not exist yet when the driver was
-		# upgraded from a version without this setting.
-		return getattr(self, "_pairwaitfactor", 0)
-
-	def _set_pairwaitfactor(self, value):
-		self._pairwaitfactor = value
-		config.conf["WorldVoice"]["pipeline"]["pair_wait_factor"] = self.pairwaitfactor
-
-	def _get_itemwaitfactor(self):
-		return self._itemwaitfactor
-
-	def _set_itemwaitfactor(self, value):
-		self._itemwaitfactor = value
-		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self.itemwaitfactor
-
-	def _get_sayallwaitfactor(self):
-		return self._sayallwaitfactor
-
-	def _set_sayallwaitfactor(self, value):
-		self._sayallwaitfactor = value
-		config.conf["WorldVoice"]["pipeline"]["sayall_wait_factor"] = self.sayallwaitfactor
-
-	def _get_chinesespacewaitfactor(self):
-		return self._chinesespacewaitfactor
-
-	def _set_chinesespacewaitfactor(self, value):
-		self._chinesespacewaitfactor = value
-		config.conf["WorldVoice"]["pipeline"]["chinesespace_wait_factor"] = self.chinesespacewaitfactor
-
-	def _get_punctuationpauseenabled(self):
-		# Defensive: the attribute may not exist yet when the driver was
-		# upgraded from a version without this setting.
-		return getattr(self, "_punctuationpauseenabled", True)
-
-	def _set_punctuationpauseenabled(self, value):
-		self._punctuationpauseenabled = value
-		config.conf["WorldVoice"]["pipeline"]["punctuation_pause_enabled"] = self.punctuationpauseenabled
-
-	def _get_removepunctuationcharacters(self):
-		return getattr(self, "_removepunctuationcharacters", False)
-
-	def _set_removepunctuationcharacters(self, value):
-		self._removepunctuationcharacters = value
-		config.conf["WorldVoice"]["pipeline"]["remove_punctuation_characters"] = (
-			self.removepunctuationcharacters
-		)
-
-	def _get_punctuationwaitfactor(self):
-		# Defensive: the attribute may not exist yet when the driver was
-		# upgraded from a version without this setting.
-		return getattr(self, "_punctuationwaitfactor", 0)
-
-	def _set_punctuationwaitfactor(self, value):
-		self._punctuationwaitfactor = value
-		config.conf["WorldVoice"]["pipeline"]["punctuation_wait_factor"] = self.punctuationwaitfactor
-
 	def _getLocaleReadableName(self, locale):
 		description = languageHandler.getLanguageDescription(locale)
 		return "%s" % (description) if description else locale
+
+
+class _PipelineSetting:
+	"""A synth attribute stored only in the pipeline config, never in NVDA's speech config."""
+
+	def __init__(self, key):
+		self._key = key
+
+	def __get__(self, synth, owner=None):
+		if synth is None:
+			return self
+		return getattr(pipeline_settings.get(), self._key)
+
+	def __set__(self, synth, value):
+		pipeline_settings.update(**{self._key: value})
+
+
+for _spec in PIPELINE_SETTINGS:
+	if _spec.driver_id is not None:
+		setattr(SynthDriver, _spec.driver_id, _PipelineSetting(_spec.key))

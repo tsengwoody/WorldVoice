@@ -274,6 +274,7 @@ def make_synth(c, manager):
     })
     synth = object.__new__(root)
     synth._terminated = synth._pipelineRegistered = synth._voicePanelPatched = False
+    synth._pipelineSubscribed = False
     synth._spellingPatched = synth._startNotified = False
     synth.taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
     synth._indexLedger = c.ledger
@@ -568,11 +569,11 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
     # Unrelated UI and pipeline modules need NVDA, but all changed composition
     # boundaries below are imported from their actual files by __init__.py.
     stub(package + ".languageDetection")
-    stub(package + ".pipeline", **{name: lambda *args: None for name in (
+    stub(package + ".pipeline", STAGES=(), **{name: lambda *args: None for name in (
         "inject_langchange_reorder", "deduplicate_language_command", "lang_cmd_to_voice",
         "order_move_to_start_register", "listable")})
-    stub(package + ".pipeline.settings", **{name: lambda *args: None for name in (
-        "get_effective_pipeline_settings", "save_pipeline_settings")})
+    stub(package + ".pipeline.settings", PIPELINE_CONFSPEC={}, PIPELINE_SETTINGS=(),
+         pipeline_settings=SimpleNamespace())
     stub(package + ".pipeline.context", GENERIC_CONTEXT=object(), SpeechContext=object)
     stub(package + ".pipeline.scope", pipeline_scope=SimpleNamespace())
     stub(package + ".engine", EngineType=[], READY_ENGINE_CLASS={},

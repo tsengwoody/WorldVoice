@@ -103,6 +103,11 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		"time": types.SimpleNamespace(perf_counter=lambda: 0),
 		"nvdaLog": types.SimpleNamespace(debug=lambda *args: None, error=lambda *args, **kwargs: None),
 		"pipeline_scope": types.SimpleNamespace(worldvoice_started=apply_pipeline, worldvoice_ended=clear_pipeline),
+		"pipeline_settings": types.SimpleNamespace(
+			get=lambda: types.SimpleNamespace(global_wait_factor=10),
+			subscribe=lambda listener: changes.append("settings subscribed"),
+			unsubscribe=lambda listener: changes.append("settings unsubscribed"),
+		),
 		"gui": gui,
 		"WorldVoiceVoiceSettingsPanel": object(),
 		"TaskManager": TaskManager,
@@ -132,6 +137,7 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		assert changes.index("engine stopped") < changes.index("ledger stopped")
 	assert "pipeline stopped" in changes
 	assert changes.count("end") == 1
+	assert changes.count("settings subscribed") == changes.count("settings unsubscribed")
 	if failure == "symbols":
 		assert "engine stopped" in changes
 		assert changes.index("bridge stopped") < changes.index("engine stopped")
@@ -368,6 +374,7 @@ def test_terminate_cleanup_logs_errors_but_lets_interrupts_through(error):
 	driver._terminated = False
 	driver.taskManager = None
 	driver._pipelineRegistered = False
+	driver._pipelineSubscribed = False
 	driver._voicePanelPatched = False
 	driver._spellingPatched = False
 	driver._eventBridge = Bridge()

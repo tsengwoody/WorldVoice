@@ -304,11 +304,12 @@ def _synth_settings_class(config):
 	path = WORLDVOICE / "__init__.py"
 	tree = ast.parse(path.read_text(encoding="utf-8"))
 	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
-	names = {"supportedSettings", "_get_availableVariants", "_set_rate", "_get_voice", "_set_voice"}
+	names = {"supportedSettings", "_driver_settings", "_pipeline_driver_setting", "_get_availableVariants",
+		"_set_rate", "_set_voice_parameter", "_get_voice", "_set_voice"}
 	driver.body = [node for node in driver.body if isinstance(node, ast.FunctionDef) and node.name in names]
 	driver.bases = []
 	setting = lambda name, *args, **kwargs: name
-	env = {"_": lambda text: text, "OrderedDict": OrderedDict, "config": config,
+	env = {"_": lambda text: text, "OrderedDict": OrderedDict, "config": config, "PIPELINE_SETTINGS": (),
 		"BooleanDriverSetting": setting, "NumericDriverSetting": setting, "DriverSetting": setting,
 		"StringParameterInfo": lambda id, name: types.SimpleNamespace(id=id, name=name)}
 	exec(compile(ast.Module(body=[driver], type_ignores=[]), str(path), "exec"), env)
