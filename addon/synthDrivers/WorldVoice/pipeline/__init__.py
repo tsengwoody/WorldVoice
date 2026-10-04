@@ -724,11 +724,14 @@ def _run_logged(label, fn, speechSequence, settings, ctx):
 
 
 def _stage_handler(log_key, fn):
-	@wraps(fn)
 	def handler(speechSequence):
 		ctx = current_context()
 		return _run_logged(log_key, fn, speechSequence, pipeline_settings.effective(ctx.supports_roles), ctx)
 
+	# Not functools.wraps: NVDA binds filter values against inspect.signature,
+	# which would follow __wrapped__ to the three-argument stage function.
+	handler.__name__ = handler.__qualname__ = fn.__name__
+	handler.__doc__ = fn.__doc__
 	return handler
 
 

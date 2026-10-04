@@ -84,6 +84,9 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 	def onSave(self):
 		pipeline_settings.update(punctuation_pause_characters=self.punctuationPauseCharactersEdit.GetValue())
 		super().onSave()
+		if self._isWorldVoice():
+			# After Apply, a later Cancel keeps what was applied, like NVDA's own settings.
+			self._pipelineSnapshot = pipeline_settings.get()
 
 	def _isWorldVoice(self):
 		return getattr(self.driver, "name", None) == "WorldVoice"

@@ -211,7 +211,7 @@ class PipelineScope:
 - `class _PipelineSetting`（descriptor）：`__get__` 回傳 `getattr(pipeline_settings.get(), key)`；`__set__` 呼叫 `pipeline_settings.update(**{key: value})`。類別定義後依表 `setattr(SynthDriver, spec.driver_id, _PipelineSetting(spec.key))`。
 - 刪除 11 組 `_get_x/_set_x`（`cni`、`nummod`、`globalwaitfactor`、`numberwaitfactor`、`pairwaitfactor`、`itemwaitfactor`、`sayallwaitfactor`、`chinesespacewaitfactor`、`punctuationpauseenabled`、`removepunctuationcharacters`、`punctuationwaitfactor`）。`numlan`、`uwv`、`availableNummods`、`availableNumlans` 保留。
 - 全域等待係數與 `VoiceManager.waitfactor`：
-  - `_apply_pipeline_settings(settings)` 設 `self._voiceManager.waitfactor = min(settings.global_wait_factor // 10, 9)`，只在值改變時設定；
+  - `_apply_pipeline_settings(settings)` 設 `self._voiceManager.waitfactor = min(settings.global_wait_factor // 10, 9)`。即使值沒變也每次都設：VoiceManager 從 0 起算，而它的 setter 會把值寫進每個語音的設定；
   - `_initialize` 建好 VoiceManager 後呼叫一次並 `pipeline_settings.subscribe(self._apply_pipeline_settings)`；
   - `terminate` 以 `_run_cleanup` 取消訂閱；
   - `loadSettings`：`super().loadSettings()` → `_apply_pipeline_settings(pipeline_settings.get())` → `self._voiceManager.reload()`，不再寫 config（D11）。
@@ -228,7 +228,7 @@ class PipelineScope:
 - `WorldVoiceVoiceSettingsPanel`（`VoiceSettingsDialogs.py`）：
   - 標點字元讀 `pipeline_settings.get().punctuation_pause_characters`；
   - `onSave` 以 `pipeline_settings.update(punctuation_pause_characters=...)` 取代直接寫 config；
-  - 新增 `makeSettings` 快照與 `onDiscard` 還原（決定 2）。
+  - 新增 `makeSettings` 快照與 `onDiscard` 還原（決定 2）；`onSave`（NVDA 的「套用」）後更新快照，讓之後的「取消」保留已套用的值。
 - `LogSettingsPanel`：§4。
 - `GlobalPlugin`：§5 與 D3。`check_log_record` 等 log 開關邏輯不動（階段 7）。
 

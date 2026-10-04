@@ -132,3 +132,13 @@ def test_only_the_order_log_debug_tool_asks_for_the_synth():
 		and any(isinstance(inner, ast.Name) and inner.id == "getSynth" for inner in ast.walk(node))
 	}
 	assert users == {"with_order_log"}
+
+
+def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):
+	# NVDA's Filter.apply calls callWithSupportedKwargs, which binds the value
+	# against inspect.signature(handler); that follows __wrapped__.
+	import inspect
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	for stage in module.STAGES:
+		inspect.signature(stage.handler).bind(["text"])
+		assert stage.handler.__name__ == stage.fn.__name__

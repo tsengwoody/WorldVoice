@@ -101,3 +101,33 @@ def test_voice_panel_discard_restores_live_pipeline_changes():
 
 	assert updates == ["nvda discard", {"item_wait_factor": 10}]
 	assert state["item_wait_factor"] == 10
+
+
+def test_voice_panel_discard_after_apply_keeps_applied_pipeline_values():
+	state = {"item_wait_factor": 10, "punctuation_pause_characters": "."}
+	def update(**changes):
+		state.update(changes)
+
+	class Base:
+		def onSave(self):
+			pass
+
+		def onDiscard(self):
+			pass
+
+	environment = load(VOICE_PANEL, {"WorldVoiceVoiceSettingsPanel"}, {
+		"VoiceSettingsPanel": Base,
+		"pipeline_settings": types.SimpleNamespace(get=lambda: types.SimpleNamespace(**state), update=update),
+		"PIPELINE_CONFIG_KEYS": ("item_wait_factor", "punctuation_pause_characters"),
+	})
+	panel = object.__new__(environment["WorldVoiceVoiceSettingsPanel"])
+	type(panel).driver = property(lambda self: types.SimpleNamespace(name="WorldVoice"))
+	panel._pipelineSnapshot = types.SimpleNamespace(**state)
+	panel.punctuationPauseCharactersEdit = Widget(".")
+	state["item_wait_factor"] = 40
+
+	panel.onSave()  # NVDA Apply
+	state["item_wait_factor"] = 70
+	panel.onDiscard()  # then Cancel
+
+	assert state["item_wait_factor"] == 40
