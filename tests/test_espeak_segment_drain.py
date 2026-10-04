@@ -471,3 +471,10 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
     assert threads == [env.driver._segmentHost._lifecycle._delivery_thread.ident]
     assert threads[0] != caller
     assert env.native.calls == []
+
+
+def test_cancel_after_terminate_leaves_nvda_espeak_alone(env):
+    env.driver.terminate()
+    # NVDA's _espeak.terminate() nulls its player; cancel must not reach it.
+    env.inner.player = None
+    env.driver.cancel()

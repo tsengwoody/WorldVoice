@@ -7,7 +7,7 @@ from synthDriverHandler import synthDoneSpeaking
 from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
-from ...runtime.playbackWork import DrainProfile, runtime_profile, unverified_drain_support
+from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
@@ -15,9 +15,10 @@ from ...runtime.session import CancellationView
 class _SegmentNative:
 	"""Observe errors swallowed by NVDA's native callback/queue boundaries."""
 
-	def __init__(self, driver, native):
+	def __init__(self, driver, native, ok):
 		self._driver = weakref.ref(driver)
 		self._native = native
+		self._ok = ok
 
 	def __getattr__(self, name):
 		return getattr(self._native, name)
@@ -25,7 +26,7 @@ class _SegmentNative:
 	def espeak_ng_Cancel(self, *args):
 		driver = self._driver()
 		if driver is not None and driver._segmentHost.control_error is not None:
-			return _espeak.EE_OK
+			return self._ok
 		try:
 			return self._native.espeak_ng_Cancel(*args)
 		except Exception as error:
@@ -37,14 +38,14 @@ class _SegmentNative:
 	def espeak_Synth(self, *args):
 		driver = self._driver()
 		if driver is None:
-			return _espeak.EE_OK
+			return self._ok
 		host = driver._segmentHost
 		record = host.current()
 		if record is None or host.control_error is not None or not record.is_valid():
-			return _espeak.EE_OK
+			return self._ok
 		try:
 			result = self._native.espeak_Synth(*args)
-			if result != _espeak.EE_OK:
+			if result != self._ok:
 				raise RuntimeError("eSpeak synthesis failed with code %s" % result)
 			return result
 		except Exception as error:
@@ -52,6 +53,31 @@ class _SegmentNative:
 			raise
 		finally:
 			host.reach(record, "returned")
+
+
+class _EspeakPort:
+	"""Every NVDA private the wrapper touches in synthDrivers._espeak.
+
+	NVDA's _espeak.terminate() resets player, espeakDLL and onIndexReached to
+	None, so nothing here needs restoring.
+	"""
+
+	def install(self, host, driver):
+		_espeak.player = LeasedPlayer(host, _espeak.player)
+		_espeak.espeakDLL = _SegmentNative(driver, _espeak.espeakDLL, _espeak.EE_OK)
+
+	def run_when_done(self, function, record):
+		_espeak._execWhenDone(function, record, mustBeAsync=True)
+
+	def set_index_callback(self, callback):
+		_espeak.onIndexReached = callback
+
+	def mark_not_speaking(self):
+		_espeak.isSpeaking = False
+
+	def stop_player(self):
+		_espeak.isSpeaking = False
+		_espeak.player.stop()
 
 
 class _EspeakStrategy(NativeStrategy):
@@ -66,32 +92,31 @@ class _EspeakStrategy(NativeStrategy):
 		driver = self._driver()
 		# Begin and retirement remain separate queue entries: NVDA stop()
 		# removes queued _speak calls but preserves both identity barriers.
-		_espeak._execWhenDone(driver._beginSpeech, record, mustBeAsync=True)
+		driver._port.run_when_done(driver._beginSpeech, record)
 		try:
 			BaseSynthDriver.speak(driver, commands)
 		except Exception as error:
 			host.record_error(record, error)
 		finally:
-			_espeak._execWhenDone(driver._retireSpeech, record, mustBeAsync=True)
+			driver._port.run_when_done(driver._retireSpeech, record)
 
 	def stop_native(self, host, record):
 		self.stop_player(host)
 
 	def stop_player(self, host):
-		_espeak.isSpeaking = False
-		_espeak.player.stop()
+		self._driver()._port.stop_player()
 
 
 class SynthDriver(BaseSynthDriver):
 	"""Add correlated completion without changing NVDA's synthesis queue."""
 
 	def __init__(self):
+		self._port = _EspeakPort()
 		self._segmentHost = SegmentHost("eSpeak", _EspeakStrategy(self))
 		super().__init__()
-		_espeak.player = LeasedPlayer(self._segmentHost, _espeak.player)
-		_espeak.espeakDLL = _SegmentNative(self, _espeak.espeakDLL)
+		self._port.install(self._segmentHost, self)
 
-	def get_segment_drain_support(self, *, nvda_version=None, audio_mode=None):
+	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		return unverified_drain_support(
 			runtime_profile("espeak", nvda_version, audio_mode),
 			"callback retirement and physical playback are",
@@ -119,7 +144,7 @@ class SynthDriver(BaseSynthDriver):
 			if owner is not None:
 				owner._indexFor(record, index)
 
-		_espeak.onIndexReached = index_callback
+		self._port.set_index_callback(index_callback)
 
 	def _indexFor(self, record, index):
 		# NVDA's onDone lambdas resolve its mutable onIndexReached global.
@@ -147,7 +172,7 @@ class SynthDriver(BaseSynthDriver):
 		if outcome is None or outcome.cancelled:
 			return
 		if outcome.error is not None:
-			_espeak.isSpeaking = False
+			self._port.mark_not_speaking()
 		Thread(
 			target=self._notifyDone,
 			args=(record,),
