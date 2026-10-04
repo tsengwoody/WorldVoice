@@ -6,12 +6,29 @@ from pathlib import Path
 ADDON = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 
 
+def _relative_imports(path):
+	tree = ast.parse(path.read_text(encoding="utf-8"))
+	return {
+		(node.module, alias.name)
+		for node in ast.walk(tree)
+		if isinstance(node, ast.ImportFrom) and node.level == 1
+		for alias in node.names
+	}
+
+
 def test_compatibility_shims_are_gone():
 	for shim in ("taskManager.py", "requestBuilder.py", "driver/engineSession.py"):
 		assert not (ADDON / shim).exists(), shim
-	text = (ADDON / "__init__.py").read_text(encoding="utf-8")
-	assert "from .runtime.scheduler import TaskManager\n" in text
-	assert "from .runtime.requestBuilder import queue_speech_sequence\n" in text
+	imports = _relative_imports(ADDON / "__init__.py")
+	assert {("runtime.scheduler", "TaskManager"), ("runtime.requestBuilder", "queue_speech_sequence")} <= imports
+	assert not {module for module, _ in imports} & {"taskManager", "requestBuilder", "driver.engineSession"}
+
+
+def test_execution_ledgers_are_ignored_in_every_checkout():
+	# The plan executor writes ledgers under .superpowers/; a fresh clone has
+	# no local ignore file there, so the root .gitignore must cover them.
+	lines = (ADDON.parents[2] / ".gitignore").read_text(encoding="utf-8").splitlines()
+	assert ".superpowers/" in lines
 
 
 def test_speech_future_has_no_then():

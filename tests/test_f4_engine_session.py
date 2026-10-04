@@ -1,8 +1,5 @@
-import importlib
-import sys
 from dataclasses import FrozenInstanceError
-from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
 
