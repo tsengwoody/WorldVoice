@@ -42,3 +42,70 @@ def test_espeak_drain_support_requires_keywords():
 	)
 	assert [a.arg for a in method.args.kwonlyargs] == ["nvda_version", "audio_mode"]
 	assert method.args.kw_defaults == [None, None]
+
+
+NVDA_SAPI5 = Path(__file__).resolve().parents[1] / "ref/nvda/source/synthDrivers/sapi5.py"
+
+
+def _sapi5_tree():
+	return ast.parse((ROOT / "driver/SAPI5/__init__.py").read_text(encoding="utf-8"))
+
+
+def _class_constant(tree, class_name, constant):
+	node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name)
+	assign = next(
+		n for n in node.body
+		if isinstance(n, ast.Assign) and any(getattr(t, "id", None) == constant for t in n.targets)
+	)
+	return set(ast.literal_eval(assign.value.args[0]))
+
+
+def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
+	tree = _sapi5_tree()
+	privates = _class_constant(tree, "_Sapi5Port", "NVDA_PRIVATES")
+	overrides = _class_constant(tree, "_Sapi5Port", "NVDA_OVERRIDES")
+	own = set()
+	for node in tree.body:
+		if isinstance(node, ast.ClassDef):
+			for item in node.body:
+				if isinstance(item, ast.FunctionDef):
+					own.add(item.name)
+					if item.name == "__init__":
+						own |= {
+							n.attr for n in ast.walk(item)
+							if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store)
+							and isinstance(n.value, ast.Name) and n.value.id == "self"
+						}
+	# Attributes set up by our own runtime base classes are not NVDA's.
+	host_tree = ast.parse((ROOT / "runtime/segmentHost.py").read_text(encoding="utf-8"))
+	leased = next(n for n in host_tree.body if isinstance(n, ast.ClassDef) and n.name == "LeasedPlayer")
+	own |= {item.name for item in leased.body if isinstance(item, ast.FunctionDef)}
+	own |= {
+		n.attr for n in ast.walk(leased)
+		if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store)
+		and isinstance(n.value, ast.Name) and n.value.id == "self"
+	}
+	accessed = {
+		n.attr for n in ast.walk(tree)
+		if isinstance(n, ast.Attribute) and n.attr.startswith("_") and not n.attr.startswith("__")
+		and isinstance(n.value, ast.Name) and n.value.id in {"self", "driver", "sapi5", "synth"}
+	}
+	assert accessed - own <= privates
+	nvda = NVDA_SAPI5.read_text(encoding="utf-8")
+	assert all(name in nvda for name in privates)
+	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
+	overridden = {
+		n.name for n in synth.body
+		if isinstance(n, ast.FunctionDef) and n.name.startswith("_") and not n.name.startswith("__")
+		and f"def {n.name}(" in nvda
+	}
+	assert overridden == overrides
+
+
+def test_sapi5_uses_the_shared_engine_controls():
+	source = (ROOT / "driver/SAPI5/__init__.py").read_text(encoding="utf-8")
+	for retired in ("_segmentStops", "_segmentRecords", "_dropQueuedRecords"):
+		assert retired not in source
+	tree = _sapi5_tree()
+	player = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_SegmentPlayer")
+	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]
