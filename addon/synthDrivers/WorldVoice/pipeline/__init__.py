@@ -1,7 +1,8 @@
+from dataclasses import dataclass, field
 from functools import wraps
 from itertools import chain, pairwise
 import re
-from typing import TYPE_CHECKING, Iterable, Iterator, Union
+from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Union
 import uuid
 
 import config
@@ -15,13 +16,15 @@ from ..runtime.models import SelectVoice
 from .._speechcommand import WVLangChangeCommand
 from ..log import PipelineLog
 from . import speech_dictionary
-from .settings import get_effective_pipeline_settings
+from .context import GENERIC_CONTEXT as GENERIC_CONTEXT, SpeechContext, current_context
+from .settings import pipeline_settings
 
 if TYPE_CHECKING:
 	from speech.commands import SpeechCommand
 
 	from ..driver import Voice
 	from ..voiceManager import VoiceManager
+	from .settings import PipelineSettings
 
 SpeechCmd = Union[str, "SpeechCommand"]
 pl = PipelineLog("pipeline.csv")
@@ -47,7 +50,7 @@ def with_order_log(label: str):
 
 	def decorator(func):
 		@wraps(func)
-		def wrapper(speechSequence):
+		def wrapper(speechSequence, *args, **kwargs):
 			if config.conf["general"]["loggingLevel"] == "DEBUG":
 				try:
 					synth = getSynth()
@@ -55,36 +58,7 @@ def with_order_log(label: str):
 					log.debug(f"{label} order {synth.order}")
 				except Exception:
 					pass
-			return func(speechSequence)
-
-		return wrapper
-
-	return decorator
-
-
-def with_speech_sequence_log(label: str):
-	def decorator(func):
-		@wraps(func)
-		def wrapper(speechSequence):
-			if (
-				config.conf["general"]["loggingLevel"] == "DEBUG"
-				or config.conf["WorldVoice"]["log"]["enable"]
-			) and config.conf["WorldVoice"]["log"][label]:
-				_id = uuid.uuid4().hex
-				speechSequence = list(speechSequence)
-				if config.conf["general"]["loggingLevel"] == "DEBUG":
-					log.debug(f"speech sequence before {label} pipeline: {speechSequence}")
-				if config.conf["WorldVoice"]["log"]["enable"]:
-					pl.write(_id, label, "before", speechSequence)
-				speechSequence = func(speechSequence)
-				speechSequence = list(speechSequence)
-				if config.conf["general"]["loggingLevel"] == "DEBUG":
-					log.debug(f"speech sequence after {label} pipeline: {speechSequence}")
-				if config.conf["WorldVoice"]["log"]["enable"]:
-					pl.write(_id, label, "after", speechSequence)
-			else:
-				speechSequence = func(speechSequence)
-			return speechSequence
+			return func(speechSequence, *args, **kwargs)
 
 		return wrapper
 
@@ -102,82 +76,26 @@ def listable(func):
 	return wrapper
 
 
-def get_ignore_comma_between_number():
-	settings = get_effective_pipeline_settings()
-	return settings.ignore_comma_between_number
-
-
-def get_number_mode():
-	settings = get_effective_pipeline_settings()
-	return settings.number_mode
-
-
-def get_translate_table():
-	synth = getSynth()
-	if synth.name == "WorldVoice":
-		number_language = synth._numlan
-		speech_symbols = synth.speechSymbols
-	else:
-		number_language = "Windows"
-		speech_symbols = None
-
+def get_translate_table(ctx: SpeechContext) -> dict[int, str]:
 	# Build translation table for single digits
 	translate_table: dict[int, str] = {}
-	if speech_symbols:
+	if ctx.speech_symbols:
 		for d in "0123456789":
-			if d in speech_symbols.symbols:
-				sym = speech_symbols.symbols[d]
-				if sym.language in (number_language, "Windows"):
+			if d in ctx.speech_symbols.symbols:
+				sym = ctx.speech_symbols.symbols[d]
+				if sym.language in (ctx.number_language, "Windows"):
 					translate_table[ord(d)] = sym.replacement or d
-
 	return translate_table
 
 
-def get_item_wait_factor():
-	settings = get_effective_pipeline_settings()
-	return settings.scaled_item_wait()
-
-
-def get_number_wait_factor():
-	settings = get_effective_pipeline_settings()
-	return settings.scaled_number_wait()
-
-
-def get_chinesespace_wait_factor():
-	settings = get_effective_pipeline_settings()
-	return settings.scaled_chinesespace_wait()
-
-
-def get_punctuation_wait_factor():
-	settings = get_effective_pipeline_settings()
-	return settings.scaled_punctuation_wait()
-
-
-def get_punctuation_pause_chars():
-	settings = get_effective_pipeline_settings()
-	return settings.punctuation_pause_characters.strip()
-
-
-def get_punctuation_pause_enabled():
-	settings = get_effective_pipeline_settings()
-	return settings.punctuation_pause_enabled
-
-
-def get_pair_wait_factor():
-	settings = get_effective_pipeline_settings()
-	return settings.scaled_pair_wait()
-
-
 # @with_order_log("speech_view")
-@with_speech_sequence_log("speech_viewer")
-def speech_viewer(speechSequence):
+def speech_viewer(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
 	return list(speechSequence)
 
 
 # @with_order_log("ignore_comma_between_number")
-@with_speech_sequence_log("ignore_comma_between_number")
-def ignore_comma_between_number(speechSequence):
-	if get_ignore_comma_between_number():
+def ignore_comma_between_number(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
+	if settings.ignore_comma_between_number:
 		yield from (
 			_COMMA_NUMBER_RE.sub(lambda m: "", command) if isinstance(command, str) else command
 			for command in speechSequence
@@ -187,8 +105,7 @@ def ignore_comma_between_number(speechSequence):
 
 
 # @with_order_log("apply_speech_dictionaries")
-@with_speech_sequence_log("apply_speech_dictionaries")
-def apply_speech_dictionaries(speechSequence):
+def apply_speech_dictionaries(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
 	for item in speechSequence:
 		if isinstance(item, str):
 			yield speechDictHandler.processText(item)
@@ -197,15 +114,16 @@ def apply_speech_dictionaries(speechSequence):
 
 
 # @with_order_log("item_wait_factor")
-@with_speech_sequence_log("item_wait_factor")
 def item_wait_factor(
 	speechSequence: Iterable[SpeechCmd],
+	settings: "PipelineSettings",
+	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert a BreakCommand between every two consecutive plain‑text items.
 	Implemented with itertools.pairwise() for clarity.
 	"""
-	wait_factor = get_item_wait_factor()
+	wait_factor = settings.scaled_item_wait()
 	if wait_factor <= 0:
 		yield from speechSequence
 		return
@@ -245,18 +163,14 @@ def item_wait_factor(
 
 def _insert_BreakCommand_between_number(
 	speechSequence: Iterable[SpeechCmd],
+	wait_factor: int,
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert a BreakCommand between every two consecutive plain‑text items.
 
-	The inserted pause length equals synth._itemwaitfactor × 5.
+	The inserted pause length is the scaled number wait factor.
 	Implemented with itertools.pairwise() for clarity.
 	"""
-	wait_factor = get_number_wait_factor()
-	if wait_factor <= 0:
-		yield from speechSequence
-		return
-
 	break_cmd = BreakCommand(wait_factor)
 
 	# Convert to iterator so we can check length‑1 cases quickly.
@@ -321,13 +235,16 @@ def _remove_space(
 
 
 # @with_order_log("number_wait_factor")
-@with_speech_sequence_log("number_wait_factor")
 def number_wait_factor(
 	speechSequence: Iterable[SpeechCmd],
+	settings: "PipelineSettings",
+	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
-	speechSequence = _remove_space(speechSequence)
-	speechSequence = _insert_BreakCommand_between_number(speechSequence)
-	yield from speechSequence
+	wait_factor = settings.scaled_number_wait()
+	if wait_factor <= 0:
+		yield from speechSequence
+		return
+	yield from _insert_BreakCommand_between_number(_remove_space(speechSequence), wait_factor)
 
 
 def remove_language_command(speechSequence):
@@ -341,16 +258,16 @@ def remove_language_command(speechSequence):
 
 def _insert_WVLangChangeCommand_between_number(
 	speechSequence: Iterable[SpeechCmd],
+	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	"""
 	Yield *speechSequence* while wrapping every numeric fragment with
 	`WVLangChangeCommand`s so the TTS switches to *number_language* for
 	numbers and then back to the current language.
 	"""
-	synth = getSynth()
-	number_language = synth._numlan
-	current_lang = synth.language
-	default_lang = synth.language
+	number_language = ctx.number_language
+	current_lang = ctx.language
+	default_lang = ctx.language
 
 	for item in speechSequence:
 		# Forward non-string commands; update current_lang for explicit changes
@@ -362,6 +279,7 @@ def _insert_WVLangChangeCommand_between_number(
 		yield from merge_consecutive_strings(
 			deduplicate_language_command(
 				iter_number_speech_segments_language(item, current_lang, number_language),
+				ctx,
 			),
 		)
 
@@ -400,29 +318,25 @@ def iter_number_speech_segments_language(item, current_lang, number_language, nu
 
 
 # @with_order_log("number_language")
-@with_speech_sequence_log("number_language")
 def inject_number_language(
 	speechSequence: Iterable[SpeechCmd],
+	settings: "PipelineSettings",
+	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
-	synth = getSynth()
-	if hasattr(synth, "_voiceManager"):
-		if synth._numlan == "default":
+	if ctx.supports_roles:
+		if ctx.number_language == "default":
 			# The number-language wrapper commands are always dropped by
 			# deduplicate_language_command in this case, so the pass-through
 			# below is behavior-identical and avoids scanning every string
 			# for numbers.
 			yield from speechSequence
 			return
-		speechSequence = _insert_WVLangChangeCommand_between_number(speechSequence)
-		yield from speechSequence
+		yield from _insert_WVLangChangeCommand_between_number(speechSequence, ctx)
 		return
-	else:
-		speechSequence = remove_language_command(speechSequence)
-		yield from speechSequence
-		return
+	yield from remove_language_command(speechSequence)
 
 
-def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[SpeechCmd]:
+def _translate_number(raw: str, mode: str, table: dict[int, str], pair_pause: int = 0) -> Iterator[SpeechCmd]:
 	if mode == "value":
 		yield raw
 		return
@@ -439,7 +353,7 @@ def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[Sp
 			sign = digits[0]
 			digits = digits[1:]
 		pairs = [digits[i : i + 2] for i in range(0, len(digits), 2)]
-		pause = get_pair_wait_factor()
+		pause = pair_pause
 		separator: SpeechCmd = PairNumberBreakCommand(pause) if pause > 0 else " "
 		for index, pair in enumerate(pairs):
 			if index > 0:
@@ -457,30 +371,25 @@ def _translate_number(raw: str, mode: str, table: dict[int, str]) -> Iterator[Sp
 
 
 # @with_order_log("number_mode")
-@with_speech_sequence_log("number_mode")
 def inject_number_mode(
 	speechSequence: Iterable[SpeechCmd],
+	settings: "PipelineSettings",
+	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
-	mode = get_number_mode()
-	translate_table = get_translate_table()
-
+	mode = settings.number_mode
+	translate_table = get_translate_table(ctx)
+	pair_pause = settings.scaled_pair_wait()
 	for item in speechSequence:
 		if not isinstance(item, str):
 			yield item
 			continue
-
-		synth = getSynth()
-		if synth.name == "WorldVoice":
-			yield from merge_consecutive_strings(
-				deduplicate_language_command(iter_number_speech_segments_mode(item, mode, translate_table)),
-			)
-		else:
-			yield from merge_consecutive_strings(
-				iter_number_speech_segments_mode(item, mode, translate_table),
-			)
+		segments = iter_number_speech_segments_mode(item, mode, translate_table, pair_pause)
+		if ctx.supports_roles:
+			segments = deduplicate_language_command(segments, ctx)
+		yield from merge_consecutive_strings(segments)
 
 
-def iter_number_speech_segments_mode(item, mode, translate_table, number_re=_NUMBER_RE):
+def iter_number_speech_segments_mode(item, mode, translate_table, pair_pause=0, number_re=_NUMBER_RE):
 	pos = 0
 	previous_was_number = False
 	for m in number_re.finditer(item):
@@ -493,7 +402,7 @@ def iter_number_speech_segments_mode(item, mode, translate_table, number_re=_NUM
 			yield prefix
 		if prefix.endswith("."):
 			yield " "
-		yield from _translate_number(number_raw, mode, translate_table)
+		yield from _translate_number(number_raw, mode, translate_table, pair_pause)
 		pos = end
 		previous_was_number = True
 	if pos < len(item):
@@ -518,11 +427,12 @@ def merge_consecutive_strings(items):
 
 
 # @with_order_log("chinesespace_wait_factor")
-@with_speech_sequence_log("chinesespace_wait_factor")
 def inject_chinese_space_pause(
 	speechSequence: Iterable[SpeechCmd],
+	settings: "PipelineSettings",
+	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
-	waitfactor = get_chinesespace_wait_factor()
+	waitfactor = settings.scaled_chinesespace_wait()
 	if waitfactor <= 0:
 		yield from speechSequence
 		return
@@ -591,9 +501,10 @@ def _split_punctuation_segments(
 
 
 # @with_order_log("punctuation_wait_factor")
-@with_speech_sequence_log("punctuation_wait_factor")
 def inject_punctuation_pause(
 	speechSequence: Iterable[SpeechCmd],
+	settings: "PipelineSettings",
+	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	"""
 	Insert pauses at eligible punctuation and optionally omit those marks
@@ -614,7 +525,6 @@ def inject_punctuation_pause(
 	* When removal is enabled, eligible punctuation is omitted even when the
 	  pause duration is zero or an existing BreakCommand supplies the pause.
 	"""
-	settings = get_effective_pipeline_settings()
 	wait_factor = settings.scaled_punctuation_wait() if settings.punctuation_pause_enabled else 0
 	remove_punctuation = settings.remove_punctuation_characters
 	if wait_factor <= 0 and not remove_punctuation:
@@ -694,7 +604,7 @@ def inject_punctuation_pause(
 	yield from pending_breaks
 
 
-def deduplicate_language_command(speechSequence):
+def deduplicate_language_command(speechSequence, ctx: SpeechContext):
 	"""
 	Stream *speech_sequence* and emit only the language-change commands
 	that actually switch to a different voice instance.
@@ -707,11 +617,9 @@ def deduplicate_language_command(speechSequence):
 	   voice instance than the one currently in use.
 	3. Forward all non-language-change commands unchanged.
 	"""
-	synth = getSynth()
-
 	# Initial voice / language
-	voice_instance = default_instance = synth._voiceManager.defaultVoiceInstance
-	current_language = default_language = synth.language
+	voice_instance = default_instance = ctx.default_voice
+	current_language = default_language = ctx.language
 
 	for command in speechSequence:
 		# Handle language-change commands
@@ -725,7 +633,7 @@ def deduplicate_language_command(speechSequence):
 				new_instance = default_instance
 				current_language = default_language
 			else:
-				new_instance = synth._voiceManager.getVoiceInstanceForLanguage(command.lang)
+				new_instance = ctx.voice_for_language(command.lang)
 				current_language = command.lang
 				if new_instance is None:  # Fallback when no voice found
 					new_instance = default_instance
@@ -796,62 +704,83 @@ def inject_langchange_reorder(
 		yield from buffer
 
 
+def _run_logged(label, fn, speechSequence, settings, ctx):
+	debug = config.conf["general"]["loggingLevel"] == "DEBUG"
+	recording = config.conf["WorldVoice"]["log"]["enable"]
+	if not ((debug or recording) and config.conf["WorldVoice"]["log"][label]):
+		return fn(speechSequence, settings, ctx)
+	_id = uuid.uuid4().hex
+	speechSequence = list(speechSequence)
+	if debug:
+		log.debug(f"speech sequence before {label} pipeline: {speechSequence}")
+	if recording:
+		pl.write(_id, label, "before", speechSequence)
+	speechSequence = list(fn(speechSequence, settings, ctx))
+	if debug:
+		log.debug(f"speech sequence after {label} pipeline: {speechSequence}")
+	if recording:
+		pl.write(_id, label, "after", speechSequence)
+	return speechSequence
+
+
+def _stage_handler(log_key, fn):
+	@wraps(fn)
+	def handler(speechSequence):
+		ctx = current_context()
+		return _run_logged(log_key, fn, speechSequence, pipeline_settings.effective(ctx.supports_roles), ctx)
+
+	return handler
+
+
+@dataclass(frozen=True)
+class Stage:
+	"""One speech-sequence filter. Its handler is bound once, so NVDA's weak registry keeps it."""
+
+	log_key: str
+	fn: Callable[..., Iterable[SpeechCmd]]
+	handler: Callable[[Iterable[SpeechCmd]], Iterable[SpeechCmd]] = field(
+		init=False, repr=False, compare=False
+	)
+
+	def __post_init__(self):
+		object.__setattr__(self, "handler", _stage_handler(self.log_key, self.fn))
+
+
+# The order NVDA runs the filters in; register, reorder and the log switches derive from it.
+STAGES: tuple[Stage, ...] = (
+	Stage("apply_speech_dictionaries", apply_speech_dictionaries),
+	Stage("ignore_comma_between_number", ignore_comma_between_number),
+	Stage("number_language", inject_number_language),
+	Stage("number_mode", inject_number_mode),
+	Stage("chinesespace_wait_factor", inject_chinese_space_pause),
+	Stage("item_wait_factor", item_wait_factor),
+	Stage("punctuation_wait_factor", inject_punctuation_pause),
+	Stage("number_wait_factor", number_wait_factor),
+	Stage("speech_viewer", speech_viewer),
+)
+
+
 def order_move_to_start_register():
-	# stack: first in last out
-	filter_speechSequence.moveToEnd(speech_viewer, False)
-	filter_speechSequence.moveToEnd(number_wait_factor, False)
-	filter_speechSequence.moveToEnd(inject_punctuation_pause, False)
-	filter_speechSequence.moveToEnd(item_wait_factor, False)
-	filter_speechSequence.moveToEnd(inject_chinese_space_pause, False)
-	filter_speechSequence.moveToEnd(inject_number_mode, False)
-	filter_speechSequence.moveToEnd(inject_number_language, False)
-	filter_speechSequence.moveToEnd(ignore_comma_between_number, False)
-	filter_speechSequence.moveToEnd(apply_speech_dictionaries, False)
+	# Move to the front in reverse, so STAGES runs first and in order.
+	for stage in reversed(STAGES):
+		filter_speechSequence.moveToEnd(stage.handler, False)
 
 
 def order_move_to_end_register():
-	# queue: first in first out
-	filter_speechSequence.moveToEnd(apply_speech_dictionaries, True)
-	filter_speechSequence.moveToEnd(ignore_comma_between_number, True)
-	filter_speechSequence.moveToEnd(inject_number_language, True)
-	filter_speechSequence.moveToEnd(inject_number_mode, True)
-	filter_speechSequence.moveToEnd(inject_chinese_space_pause, True)
-	filter_speechSequence.moveToEnd(item_wait_factor, True)
-	filter_speechSequence.moveToEnd(inject_punctuation_pause, True)
-	filter_speechSequence.moveToEnd(number_wait_factor, True)
-	filter_speechSequence.moveToEnd(speech_viewer, True)
+	for stage in STAGES:
+		filter_speechSequence.moveToEnd(stage.handler, True)
 
 
-def static_register():
-	log.debug("static register")
-
+def register_stages():
+	log.debug("register pipeline stages")
 	speech_dictionary.install()
-	filter_speechSequence.register(apply_speech_dictionaries)
-	filter_speechSequence.register(inject_chinese_space_pause)
-	filter_speechSequence.register(inject_number_language)
-	filter_speechSequence.register(inject_number_mode)
-	filter_speechSequence.register(number_wait_factor)
-	filter_speechSequence.register(inject_punctuation_pause)
-	filter_speechSequence.register(speech_viewer)
+	for stage in STAGES:
+		filter_speechSequence.register(stage.handler)
+	order_move_to_start_register()
 
 
-def dynamic_register():
-	log.debug("dynamic register")
-
-	filter_speechSequence.register(ignore_comma_between_number)
-	filter_speechSequence.register(item_wait_factor)
-
-
-def unregister():
-	log.debug("unregister")
-
-	filter_speechSequence.unregister(apply_speech_dictionaries)
-	filter_speechSequence.unregister(ignore_comma_between_number)
-	filter_speechSequence.unregister(inject_chinese_space_pause)
-	filter_speechSequence.unregister(inject_number_mode)
-	filter_speechSequence.unregister(inject_number_language)
-	filter_speechSequence.unregister(item_wait_factor)
-	filter_speechSequence.unregister(inject_punctuation_pause)
-	filter_speechSequence.unregister(number_wait_factor)
-	filter_speechSequence.unregister(speech_viewer)
+def unregister_stages():
+	log.debug("unregister pipeline stages")
+	for stage in STAGES:
+		filter_speechSequence.unregister(stage.handler)
 	speech_dictionary.uninstall()

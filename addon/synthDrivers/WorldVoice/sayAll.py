@@ -11,7 +11,8 @@ from speech import sayAll
 from speech.commands import BreakCommand
 from speech.types import SpeechSequence
 
-from .pipeline.settings import get_effective_pipeline_settings
+from .pipeline.context import current_context
+from .pipeline.settings import pipeline_settings
 
 
 def _wrap_get_text_info_speech_with_sayall_break(
@@ -22,7 +23,7 @@ def _wrap_get_text_info_speech_with_sayall_break(
 	def getTextInfoSpeechWithSayAllBreak(*args, **kwargs):
 		yield from getTextInfoSpeech(*args, **kwargs)
 
-		waitFactor = get_effective_pipeline_settings().scaled_sayall_wait()
+		waitFactor = pipeline_settings.effective(current_context().supports_roles).scaled_sayall_wait()
 		if waitFactor > 0:
 			yield [BreakCommand(waitFactor + 100)]
 

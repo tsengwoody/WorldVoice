@@ -569,10 +569,12 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
     # boundaries below are imported from their actual files by __init__.py.
     stub(package + ".languageDetection")
     stub(package + ".pipeline", **{name: lambda *args: None for name in (
-        "ignore_comma_between_number", "item_wait_factor", "inject_langchange_reorder",
-        "deduplicate_language_command", "lang_cmd_to_voice", "order_move_to_start_register", "listable")})
+        "inject_langchange_reorder", "deduplicate_language_command", "lang_cmd_to_voice",
+        "order_move_to_start_register", "listable")})
     stub(package + ".pipeline.settings", **{name: lambda *args: None for name in (
-        "apply_worldvoice_pipeline", "clear_pipeline", "get_effective_pipeline_settings", "save_pipeline_settings")})
+        "get_effective_pipeline_settings", "save_pipeline_settings")})
+    stub(package + ".pipeline.context", GENERIC_CONTEXT=object(), SpeechContext=object)
+    stub(package + ".pipeline.scope", pipeline_scope=SimpleNamespace())
     stub(package + ".engine", EngineType=[], READY_ENGINE_CLASS={},
          get_engine_enabled=lambda *args: True, refresh_ready_engine_classes=lambda *args: None)
     stub(package + ".VoiceSettingsDialogs", WorldVoiceVoiceSettingsPanel=object)

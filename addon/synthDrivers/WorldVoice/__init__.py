@@ -28,17 +28,15 @@ from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking
 
 from . import languageDetection
 from .pipeline import (
-	ignore_comma_between_number,
-	item_wait_factor,
 	inject_langchange_reorder,
 	deduplicate_language_command,
 	lang_cmd_to_voice,
 	order_move_to_start_register,
 	listable,
 )
+from .pipeline.context import GENERIC_CONTEXT, SpeechContext
+from .pipeline.scope import pipeline_scope
 from .pipeline.settings import (
-	apply_worldvoice_pipeline,
-	clear_pipeline,
 	get_effective_pipeline_settings,
 	save_pipeline_settings,
 )
@@ -409,7 +407,7 @@ class SynthDriver(SynthDriver):
 
 		step_start = time.perf_counter()
 		self._pipelineRegistered = True
-		apply_worldvoice_pipeline()
+		pipeline_scope.worldvoice_started()
 		nvdaLog.debug("WorldVoice init timing: pipeline register %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
@@ -530,7 +528,7 @@ class SynthDriver(SynthDriver):
 				lambda: filter_speechSequence.unregister(self.add_detected_language_commands),
 			)
 		if self._pipelineRegistered:
-			_run_cleanup("pipeline cleanup", clear_pipeline)
+			_run_cleanup("pipeline cleanup", pipeline_scope.worldvoice_ended)
 			self._pipelineRegistered = False
 		if self._voicePanelPatched:
 			_run_cleanup(
@@ -580,7 +578,7 @@ class SynthDriver(SynthDriver):
 			speechSequence = self.add_detected_language_commands(speechSequence)
 
 		speechSequence = inject_langchange_reorder(speechSequence)
-		speechSequence = deduplicate_language_command(speechSequence)
+		speechSequence = deduplicate_language_command(speechSequence, self.speech_context())
 
 		speechSequence = lang_cmd_to_voice(
 			speechSequence=speechSequence,
@@ -607,6 +605,19 @@ class SynthDriver(SynthDriver):
 
 	def pause(self, switch):
 		self.taskManager.pause_current(switch)
+
+	def speech_context(self) -> SpeechContext:
+		manager = self._voiceManager
+		if manager is None:
+			return GENERIC_CONTEXT
+		return SpeechContext(
+			supports_roles=True,
+			language=self.language,
+			number_language=getattr(self, "_numlan", "default"),
+			speech_symbols=getattr(self, "speechSymbols", None),
+			default_voice=manager.defaultVoiceInstance,
+			voice_for_language=manager.getVoiceInstanceForLanguage,
+		)
 
 	def _get_volume(self):
 		return self._voiceManager.defaultVoiceInstance.volume
@@ -711,11 +722,6 @@ class SynthDriver(SynthDriver):
 
 	def _set_cni(self, value):
 		self._cni = value
-		if value:
-			filter_speechSequence.register(ignore_comma_between_number)
-			order_move_to_start_register()
-		else:
-			filter_speechSequence.unregister(ignore_comma_between_number)
 		config.conf["WorldVoice"]["pipeline"]["ignore_comma_between_number"] = self.cni
 
 	def _get_availableNumlans(self):
@@ -783,11 +789,6 @@ class SynthDriver(SynthDriver):
 
 	def _set_itemwaitfactor(self, value):
 		self._itemwaitfactor = value
-		if value > 0:
-			filter_speechSequence.register(item_wait_factor)
-			order_move_to_start_register()
-		else:
-			filter_speechSequence.unregister(item_wait_factor)
 		config.conf["WorldVoice"]["pipeline"]["item_wait_factor"] = self.itemwaitfactor
 
 	def _get_sayallwaitfactor(self):

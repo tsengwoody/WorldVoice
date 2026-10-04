@@ -34,6 +34,8 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice.pipeline",
 		"synthDrivers.WorldVoice.pipeline.speech_dictionary",
 		"synthDrivers.WorldVoice.pipeline.settings",
+		"synthDrivers.WorldVoice.pipeline.context",
+		"synthDrivers.WorldVoice.pipeline.scope",
 	]:
 		sys.modules.pop(name, None)
 
@@ -108,7 +110,7 @@ def load_pipeline_module(monkeypatch, settings):
 	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.log", worldVoiceLog)
 
 	settingsModule = ModuleType("synthDrivers.WorldVoice.pipeline.settings")
-	settingsModule.get_effective_pipeline_settings = lambda: settings
+	settingsModule.pipeline_settings = SimpleNamespace(effective=lambda supports_roles: settings)
 	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.pipeline.settings", settingsModule)
 
 	spec = importlib.util.spec_from_file_location(
@@ -118,6 +120,7 @@ def load_pipeline_module(monkeypatch, settings):
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, spec.name, module)
 	spec.loader.exec_module(module)
+	module._test_settings = settings
 	return module, BreakCommand
 
 
@@ -125,6 +128,7 @@ def punctuation_settings(wait_factor, remove_characters=False):
 	return SimpleNamespace(
 		ignore_comma_between_number=False,
 		number_mode="value",
+		scope="WorldVoice",
 		punctuation_pause_characters=".,",
 		punctuation_pause_enabled=True,
 		remove_punctuation_characters=remove_characters,
@@ -137,7 +141,7 @@ def punctuation_settings(wait_factor, remove_characters=False):
 
 
 def run_punctuation_filters(module, speech_sequence):
-	return list(module.inject_punctuation_pause(speech_sequence))
+	return list(module.inject_punctuation_pause(speech_sequence, module._test_settings, module.GENERIC_CONTEXT))
 
 
 def test_zero_punctuation_wait_factor_preserves_existing_text_and_breaks(monkeypatch):
@@ -152,7 +156,7 @@ def test_zero_punctuation_wait_factor_preserves_existing_text_and_breaks(monkeyp
 def test_positive_punctuation_wait_factor_inserts_a_punctuation_break(monkeypatch):
 	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250))
 
-	result = list(module.inject_punctuation_pause(["Hello. World"]))
+	result = run_punctuation_filters(module, ["Hello. World"])
 
 	assert result[0] == "Hello"
 	assert result[1] == "."
@@ -227,6 +231,7 @@ def test_zero_wait_removes_pause_point_before_an_existing_break(monkeypatch):
 def test_pause_filter_is_registered_when_wait_is_zero(monkeypatch):
 	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0, remove_characters=True))
 	monkeypatch.setattr(module.speech_dictionary, "install", lambda: None)
-	module.static_register()
+	module.register_stages()
 
-	assert module.inject_punctuation_pause in sys.modules["speech.extensions"].filter_speechSequence.registered
+	handler = next(stage.handler for stage in module.STAGES if stage.log_key == "punctuation_wait_factor")
+	assert handler in sys.modules["speech.extensions"].filter_speechSequence.registered
