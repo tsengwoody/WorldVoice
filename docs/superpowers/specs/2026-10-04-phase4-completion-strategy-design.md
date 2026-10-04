@@ -89,12 +89,16 @@ class CompletionRule:
 - **DRAIN 的 `end_event` 是 SEGMENT_END**：scheduler 原本在非 legacy 模式都會記錄 `end_seen`，DRAIN 的完成判定只是不看它。這列照實保留。
 - **END_INDEX 的 `drain_event` 是 None**：原碼在 END_INDEX 收到 SEGMENT_DRAINED 時也會記錄 `drain_seen`，但 END_INDEX 的 `is_complete` 與 `indexes_finished` 都不讀 `drain_seen`，bridge 也不會為 END_INDEX 建立 segment 事件 sink（`segment_sink` 只接受 DRAIN 與 AND）。`drain_event` 同時代表「有 segment 事件」，所以 END_INDEX 必須是 None，ledger 與 bridge 的判定才會和原碼一致。特性測試會鎖定「END_INDEX 收到 SEGMENT_DRAINED 不影響完成」。
 
-通用函式（只讀規則欄位，不依模式分支）：
-- `rule_for(contract) -> CompletionRule`。`CompletionContract` 另提供 `rule` 屬性，回傳 `rule_for(self)`。
-- `accepts_segment(rule, task_segment_id, event_segment_id) -> bool`
-- `record(rule, state, event)`：依 `end_event`／`drain_event`／`fails_on_segment_failed`，設定 `state.end_seen`、`state.drain_seen`、`state.error`。
-- `is_complete(rule, end_seen, drain_seen) -> bool`：`(not requires_end or end_seen) and (not requires_drain or drain_seen)`。
-- `indexes_finished(rule, end_seen, drain_seen) -> bool`：`drain_seen` if `not requires_end` else `end_seen`。
+查詢介面（只讀規則欄位，不依模式分支）：
+- 模組函式 `rule_for(contract) -> CompletionRule`。
+  - plan 撰寫時改為只提供這個函式，不在 `CompletionContract` 加 `rule` 屬性：`completion.py` 必須 import `models.py`，反方向會形成循環 import。
+  - 所有元件都呼叫 `rule_for(contract)`。
+- `CompletionRule` 的方法：
+  - `accepts_segment(segment_id, event_segment_id) -> bool`
+  - `signal_for(kind) -> Signal | None`：回傳 `Signal.END`／`DRAIN`／`FAIL`，或 None。
+    - plan 撰寫時由 `record(rule, state, event)` 改為這個方法：規則不直接改寫 scheduler 的 task 欄位，而是由 scheduler 依訊號設定 `end_seen`、`drain_seen`、`error`。
+  - `is_complete(end_seen, drain_seen) -> bool`：`(end_seen or not requires_end) and (drain_seen or not requires_drain)`。
+  - `indexes_finished(end_seen, drain_seen) -> bool`：`end_seen` if `requires_end` else `drain_seen`。
 
 **行為對照**（以原碼為準，plan 的特性測試逐條鎖定）：
 - scheduler `_completion_ready_locked`：
@@ -127,7 +131,8 @@ class CompletionRule:
 
 - `_process_event_batch` 的篩選與記錄改為 `accepts_segment` 加 `record`。INDEX 事件的處理（去重、`indexes_finished` 後忽略）屬於通用邏輯，留在 scheduler。
 - `_completion_ready_locked`、`_indexes_finished_locked` 委派給 `is_complete`、`indexes_finished`。
-- 新增 `TaskPhase(Enum)`：`STARTING`、`AWAITING_COMPLETION`、`FINISHING`。`_current_phase` 的 5 處字串改用它。
+- 新增 `TaskPhase(Enum)`：`STARTING`、`AWAITING_COMPLETION`、`FINISHING`，值用 `auto()`。`_current_phase` 的 5 處字串改用它。
+- `_Task` 新增 `rule` 欄位，在讀取 `playback.completion` 的同一處以 `rule_for` 設定，合約仍然每個 segment 只讀一次。
 - `_run_one` 拆成三段，原有的每一次狀態轉換、驗證與鎖外呼叫順序都保留：
   - `_acquire(task) -> bool`：等待 stop 結束、驗證、設定目前 task；
   - `_execute(task) -> bool | None`：
@@ -154,9 +159,20 @@ class CompletionRule:
 - 最後依 `rule.entry` 查表呼叫 core。`PLAIN` 仍依 `supports_cancellation_token` 決定是否傳入 token。
 - 原碼中「`legacy_contextual` 但 context 為 None」會先 raise，所以 contextual legacy 一定帶 context，規則表不需要另一列。
 
-### 4. 守門測試
+### 4. 測試環境：`tests/conftest.py`
 
-新增 `tests/test_completion_rules.py`，包含：
+各測試 harness 每次都會重新載入 `runtime.models`，而且常掛在不同的別名套件下。`runtime.completion` 若沿用前一個測試載入的模組，就會綁定舊的 `CompletionMode`／`EventKind`，查表時發生 `KeyError`。
+
+新增 `tests/conftest.py`，其中的 autouse fixture 在每個測試開始前，從 `sys.modules` 移除所有 `runtime/completion.py` 的模組實體，讓它重新綁定當下的 `models`。正式環境只 import 一次，不受影響。
+
+### 5. 守門測試
+
+新增 `tests/test_completion_rules.py`。守門測試隨施工逐步加入：
+- Task 3 只檢查 scheduler（以及 phase 改成 Enum）；
+- Task 4 加入 adapter；
+- Task 5 換成下面的全域掃描。
+
+這樣每一步都有自己的 RED。最終包含：
 - **規則表涵蓋性**：每個合法的 `CompletionContract` 組合都有規則；非法組合仍由 `CompletionContract` 拒絕。
 - **規則與原碼一致**：用上表逐欄斷言 5 列的值。這同時是表的文件。
 - **單一來源**：以 AST 掃描 addon，`CompletionMode.<member>` 只出現在成功條件 1 列出的允許位置。
@@ -166,8 +182,17 @@ class CompletionRule:
 1. **特性測試（Task 1，重構前就必須通過）**，鎖定現有行為：
    - scheduler：對 5 種合約，各送一組事件序列（DONE、SEGMENT_END、SEGMENT_DRAINED、SEGMENT_FAILED、錯誤 segment、無 segment、INDEX 在完成前後）。斷言 future 結果、index 輸出、錯誤。
    - adapter：對 5 種合約，斷言呼叫的 core 入口、是否編碼 marker、使用哪個事件 factory、五種前置錯誤的訊息與順序。
-   - ledger：對 3 種關聯模式，斷言結尾 marker 是否配置、各事件順序下 `finished` 的變化。
-   - 若既有測試已涵蓋某一條，plan 中寫明對應的測試名稱，不重複新增。
+   - ledger：既有的 `tests/test_index_ledger.py` 已逐模式涵蓋，不另寫特性測試。對應的測試：
+     - END_INDEX 的結尾 marker：`test_terminal_marker_replays_missing_originals_before_end`、`test_empty_originals_still_allocate_terminal`；
+     - END_INDEX 忽略 drain、接受失敗：`test_end_index_contract_rejects_drain_but_accepts_failure`；
+     - DRAIN 沒有結尾 marker：`test_drain_allocation_has_no_terminal_and_empty_uses_no_wire`；
+     - DRAIN 在 drain 時補發 index：`test_drain_restores_indexes_in_one_batch_before_completion`；
+     - AND 的兩種到達順序：`test_and_drain_first_keeps_real_terminal_marker_mapping`、`test_and_end_first_keeps_segment_record_for_later_drain`；
+     - 失敗：`test_and_failure_before_both_conditions_retires_remaining_completion`。
+   - 特性測試放在 `tests/test_completion_characterization.py`：
+     - 5 種合約 × 9 種事件情境的 scheduler 結果矩陣；
+     - AND／DRAIN 在 end 之後的 index 行為；
+     - adapter 的入口矩陣，以及 7 種前置錯誤的逐字訊息。
 2. **既有測試**：1373 個全部不需修改即通過。
 3. **變異證明**（commit 之後）：
    - 每改動一個元件，就改壞規則表或通用函式的一處（例如對調 DRAIN 的 `requires_end`／`requires_drain`、把 `entry` 改成 PLAIN、讓 `accepts_segment` 忽略 segment_id），對應的特性測試必須變紅。
@@ -175,7 +200,7 @@ class CompletionRule:
 
 ## 驗收
 
-- `python3 -m pytest tests -q`：全部通過，沒有 skipped 或 xfailed。
+- `python3 -m pytest tests -q`：`1446 passed`（基線 1373，加上 59 個特性測試與 14 個規則／守門測試），沒有 skipped 或 xfailed。
 - 守門測試通過：addon 內 `CompletionMode` 成員比較只出現在允許位置。
 - `grep -n '"starting"\|"awaiting_completion"\|"finishing"' addon/synthDrivers/WorldVoice/runtime/scheduler.py`：無輸出。
 - `git diff master --stat -- addon/synthDrivers/WorldVoice/driver`：無輸出。
