@@ -12,27 +12,10 @@ from synthDriverHandler import synthDoneSpeaking, synthIndexReached
 from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
+from ...runtime.engineControl import StopGate
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
-
-
-# Keep the facade first for consumers that load its class independently. The
-# correlated subclass replaces this initial class reference below.
-SynthDriver = BaseOneCoreSynthDriver
-
-
-class Voice(Voice):
-	engine = "OneCore"
-	drain_profile = DrainProfile(wasapi_dependent=True)
-	synth_driver_class = SynthDriver
-
-	def applyEngineSettings(self, core, snapshot):
-		core.language = snapshot.language
-
-	@classmethod
-	def supportedSettings(cls):
-		return ["voice", "rate", "rateBoost", "pitch", "volume", "useWasapi"]
 
 
 # The reviewed helper can time out of terminate without invalidating the native
@@ -43,6 +26,33 @@ _TERMINATED_CALLBACKS = []
 # Ordinary (legacy) text proves only that its callback returned; the parent
 # owns its queue-empty sync, idle and DONE.
 _ORDINARY_BARRIERS = frozenset({"callback"})
+
+
+class _OneCorePort:
+	"""Parent private names (vendored OneCoreSynthDriver and NVDA oneCore) this wrapper uses.
+
+	The worker and native callback re-implement the parent's flow around these,
+	so they are used in place; compare these lists with both parents on upgrade.
+	"""
+
+	NVDA_PRIVATES = frozenset(
+		{
+			"_OcPreAPI5SsmlConverter",
+			"_OcSsmlConverter",
+			"_callbackInst",
+			"_dll",
+			"_earlyExitCB",
+			"_isProcessing",
+			"_ocSpeechToken",
+			"_pitch",
+			"_player",
+			"_queuedSpeech",
+			"_rate",
+			"_volume",
+			"_wasCancelled",
+		},
+	)
+	NVDA_OVERRIDES = frozenset({"_queueSpeech", "_processQueue", "_callback", "_maybeInitPlayer"})
 
 
 class _DetachableCallback:
@@ -174,7 +184,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		self._segmentTerminated = False
 		self._segmentPaused = False
 		self._segmentControlGeneration = 0
-		self._segmentStops = 0
+		self._stopGate = StopGate(self._segmentCondition)
 		self._segmentWorker = None
 		self._segmentNative = None
 		self._segmentCallback = _DetachableCallback(self)
@@ -258,11 +268,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					lambda: (
 						self._segmentTerminated
 						or host.control_error is not None
-						or (
-							self._segmentNative is None
-							and self._segmentStops == 0
-							and bool(self._queuedSpeech)
-						)
+						or (self._segmentNative is None and self._stopGate.clear and bool(self._queuedSpeech))
 					),
 				)
 				if self._segmentTerminated or host.control_error is not None:
@@ -456,7 +462,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			host.latch_control_error(error)
 			self._segmentControlGeneration += 1
 			self._wasCancelled = True
-			self._segmentStops += 1
+			self._stopGate.enter()
 			dropped = [item.record for item in self._queuedSpeech if isinstance(item, _SpeechJob)]
 			legacy = any(record.operation is None for record in dropped) or (
 				self._segmentNative is not None and self._segmentNative.operation is None
@@ -487,8 +493,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 		finally:
 			with self._segmentCondition:
 				self._segmentPaused = False
-				self._segmentStops -= 1
-				self._segmentCondition.notify_all()
+				self._stopGate.leave()
 
 	def _failSegmentControl(self, error):
 		self._deliverSegmentControlFailure(self._captureSegmentControlFailure(error))
@@ -501,7 +506,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					with self._segmentCondition:
 						self._checkSegmentAdmission()
 					super()._maybeInitPlayer(wav)
-					if self._segmentPaused and not self._segmentStops:
+					if self._segmentPaused and self._stopGate.clear:
 						self._player.pause(True)
 				except Exception as error:
 					failure = self._captureSegmentControlFailure(error)
@@ -512,44 +517,40 @@ class SynthDriver(BaseOneCoreSynthDriver):
 
 	def cancel(self):
 		host = self._segmentHost
-		with host.admission():
-			host.cancel()
-			with self._segmentCondition:
-				self._wasCancelled = True
-				self._segmentPaused = False
-				self._segmentControlGeneration += 1
-				self._segmentStops += 1
-				dropped = [item.record for item in self._queuedSpeech if isinstance(item, _SpeechJob)]
-				# Settings changes keep their queue position.
-				self._queuedSpeech = [item for item in self._queuedSpeech if isinstance(item, tuple)]
-				self._segmentCondition.notify_all()
-			# Queued records never reach the worker.
-			for record in dropped:
-				host.abandon(record)
-		try:
+		with self._stopGate.hold():
+			with host.admission():
+				host.cancel()
+				with self._segmentCondition:
+					self._wasCancelled = True
+					self._segmentPaused = False
+					self._segmentControlGeneration += 1
+					dropped = [item.record for item in self._queuedSpeech if isinstance(item, _SpeechJob)]
+					# Settings changes keep their queue position.
+					self._queuedSpeech = [item for item in self._queuedSpeech if isinstance(item, tuple)]
+					self._segmentCondition.notify_all()
+				# Queued records never reach the worker.
+				for record in dropped:
+					host.abandon(record)
 			try:
-				if self._player:
-					self._player.stop()
-			finally:
-				# Stop first to release callback/player waits. Keep cancellation
-				# admission reserved until every older control operation exits;
-				# then undo a late pause before letting a successor use the player.
-				with self._segmentPauseLock:
+				try:
 					if self._player:
-						if host.control_error is None:
-							self._player.pause(False)
 						self._player.stop()
-		except Exception as error:
-			self._failSegmentControl(error)
-			raise
-		finally:
-			with self._segmentCondition:
-				self._segmentStops -= 1
-				self._segmentCondition.notify_all()
+				finally:
+					# Stop first to release callback/player waits. Keep cancellation
+					# admission reserved until every older control operation exits;
+					# then undo a late pause before letting a successor use the player.
+					with self._segmentPauseLock:
+						if self._player:
+							if host.control_error is None:
+								self._player.pause(False)
+							self._player.stop()
+			except Exception as error:
+				self._failSegmentControl(error)
+				raise
 
 	def pause(self, switch):
 		with self._segmentCondition:
-			if self._segmentTerminated or self._segmentStops:
+			if self._segmentTerminated or not self._stopGate.clear:
 				return
 			self._checkSegmentAdmission()
 			generation = self._segmentControlGeneration
@@ -561,7 +562,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 						if (
 							generation != self._segmentControlGeneration
 							or self._segmentTerminated
-							or self._segmentStops
+							or not self._stopGate.clear
 						):
 							return
 						self._checkSegmentAdmission()
@@ -602,4 +603,14 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			super().terminate()
 
 
-Voice.synth_driver_class = SynthDriver
+class Voice(Voice):
+	engine = "OneCore"
+	drain_profile = DrainProfile(wasapi_dependent=True)
+	synth_driver_class = SynthDriver
+
+	def applyEngineSettings(self, core, snapshot):
+		core.language = snapshot.language
+
+	@classmethod
+	def supportedSettings(cls):
+		return ["voice", "rate", "rateBoost", "pitch", "volume", "useWasapi"]

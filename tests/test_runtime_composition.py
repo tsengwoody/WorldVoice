@@ -178,7 +178,7 @@ def test_cached_onecore_voice_round_trip_through_manager(composition):
     c.engine("OneCore")
     path = WORLDVOICE / "driver/OneCore/__init__.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    voice_class = next(node for node in tree.body if isinstance(node, ast.ClassDef))
+    voice_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Voice")
     environment = {"Voice": c.driver.Voice, "SynthDriver": c.Core,
                    "DrainProfile": importlib.import_module(c.module.__package__ + ".runtime.playbackWork").DrainProfile}
     exec(compile(ast.Module(body=[voice_class], type_ignores=[]), str(path), "exec"), environment)
