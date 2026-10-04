@@ -13,7 +13,7 @@ from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import SegmentHost
+from ...runtime.segmentHost import NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -91,7 +91,7 @@ class _SpeechJob:
 	record: object
 
 
-class _OneCoreStrategy:
+class _OneCoreStrategy(NativeStrategy):
 	"""OneCore's native queue: the parent's _queuedSpeech and the outer worker."""
 
 	barriers = frozenset({"callback", "synced"})
@@ -167,9 +167,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 	"""Retain terminal callback ownership and drain each correlated utterance."""
 
 	def __init__(self):
-		self._segmentHost = SegmentHost(
-			"OneCore", _OneCoreStrategy(self), fail_accepted_on_control_error=True
-		)
+		self._segmentHost = SegmentHost("OneCore", _OneCoreStrategy(self))
 		self._segmentCondition = Condition()
 		self._segmentPauseLock = Lock()
 		self._segmentMode = False

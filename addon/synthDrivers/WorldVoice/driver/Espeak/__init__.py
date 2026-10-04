@@ -8,7 +8,7 @@ from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeRecord, SegmentHost
+from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -54,7 +54,7 @@ class _SegmentNative:
 			host.reach(record, "returned")
 
 
-class _EspeakStrategy:
+class _EspeakStrategy(NativeStrategy):
 	"""eSpeak's native queue: NVDA's FIFO with begin and retire markers."""
 
 	barriers = frozenset({"returned", "ended", "idle"})

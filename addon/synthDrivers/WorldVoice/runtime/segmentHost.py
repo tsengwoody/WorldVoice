@@ -13,12 +13,12 @@ condition. The host never calls the strategy, a sink or a player while holding
 its own condition.
 """
 
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 import logging
 from threading import Condition, Event, RLock, Thread, local
-from typing import Protocol
 
 from .models import EventKind, PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork
@@ -69,44 +69,59 @@ class OrdinaryOutcome:
 	error: Exception | None
 
 
-class NativeStrategy(Protocol):
-	"""What an engine supplies; everything else is the host's."""
+class NativeStrategy(ABC):
+	"""What an engine supplies; everything else is the host's.
 
-	barriers: frozenset[str]
+	The three optional hooks have defaults, so an engine overrides only what it needs.
+	"""
 
+	barriers: frozenset[str] = frozenset()
+
+	@abstractmethod
 	def submit(self, host: "SegmentHost", record: NativeRecord, commands: SpeechCommands) -> None:
 		"""Queue native work for ``record``; arrange for ``host.retire(record)`` when it ends."""
 
+	@abstractmethod
 	def stop_native(self, host: "SegmentHost", record: NativeRecord) -> None:
 		"""Stop the native work that is currently running ``record``."""
 
+	@abstractmethod
 	def stop_player(self, host: "SegmentHost") -> None:
 		"""Discard queued audio; used after cancellation or failure."""
 
-	# Optional: def prepare(self, host, commands, operation) -> SpeechCommands
-	# Called by enqueue() outside host admission before the record exists; it
-	# returns what submit() receives. A raised error fails the segment (or is
-	# raised to an ordinary caller).
-	#
-	# Optional: def admission_error(self, host) -> Exception | None
-	# Called under host admission before a segment is accepted; a returned error
-	# rejects the segment (e.g. an audio route that cannot drain).
-	#
-	# Optional: def drain(self, host, record) -> None
-	# Wait for this record's playback to finish on the lifecycle thread, reaching
-	# any barriers it proves. Record failures with host.record_error() instead of
-	# raising; it may be called more than once for the same record.
+	def prepare(
+		self,
+		host: "SegmentHost",
+		commands: SpeechCommands,
+		operation: SegmentOperation | None,
+	) -> SpeechCommands:
+		"""Return what submit() receives.
+
+		Called by enqueue() outside host admission before the record exists. A
+		raised error fails the segment (or is raised to an ordinary caller).
+		"""
+		return commands
+
+	def admission_error(self, host: "SegmentHost") -> Exception | None:
+		"""Called under host admission before a segment is accepted.
+
+		A returned error rejects the segment (e.g. an audio route that cannot drain).
+		"""
+		return None
+
+	def drain(self, host: "SegmentHost", record: NativeRecord) -> None:
+		"""Wait for this record's playback to finish on the lifecycle thread.
+
+		Reach any barriers it proves. Record failures with host.record_error()
+		instead of raising; it may be called more than once for the same record.
+		The host checks the barriers afterwards.
+		"""
 
 
 class SegmentHost:
-	def __init__(
-		self, engine: str, strategy: NativeStrategy, *, fail_accepted_on_control_error: bool = False
-	):
+	def __init__(self, engine: str, strategy: NativeStrategy):
 		self.engine = engine
 		self._strategy = strategy
-		# Opt-in: a control error also fails every accepted operation, including
-		# ones that already drained but are not yet published.
-		self._fail_accepted = fail_accepted_on_control_error
 		self._admission = RLock()
 		self._condition = Condition(RLock())
 		self._callback_local = local()
@@ -166,8 +181,7 @@ class SegmentHost:
 			if control_error is not None:
 				self._lifecycle.reject_new(context, token, on_event, control_error)
 				return
-			admission_error = getattr(self._strategy, "admission_error", None)
-			engine_error = admission_error(self) if admission_error is not None else None
+			engine_error = self._strategy.admission_error(self)
 			if engine_error is not None:
 				self._lifecycle.reject_new(context, token, on_event, engine_error)
 				return
@@ -195,22 +209,21 @@ class SegmentHost:
 	) -> None:
 		"""Queue native work; ordinary speech passes no operation."""
 		work = operation.work if operation is not None else None
-		prepare = getattr(self._strategy, "prepare", None)
-		if prepare is not None:
-			# Engine preparation (e.g. SSML conversion) runs outside admission so
-			# cancel() and terminate() never wait for it.
-			try:
-				commands = prepare(self, commands, operation)
-			except Exception as error:
-				if operation is None:
-					raise
-				self._lifecycle_of(operation).fail(operation, error)
-				return
+		# Engine preparation (e.g. SSML conversion) runs outside admission so
+		# cancel() and terminate() never wait for it.
+		try:
+			commands = self._strategy.prepare(self, commands, operation)
+		except Exception as error:
+			if operation is None:
+				raise
+			self._lifecycle_of(operation).fail(operation, error)
+			return
 		record = self.new_record(operation, barriers=barriers, native=native)
 		with self._admission:
 			if self._terminated:
-				if work is not None:
-					work.cancel()
+				if work is None:
+					raise RuntimeError(f"{self.engine} driver has terminated")
+				work.cancel()
 				return
 			with self._condition:
 				control_error = self._control_error
@@ -389,7 +402,8 @@ class SegmentHost:
 
 	def latch_control_error(self, error: Exception) -> None:
 		# A stop failure does not prove queued callbacks were discarded. Keep the
-		# first control error until the driver reloads, and fail pending work.
+		# first control error until the driver reloads, and fail pending and
+		# accepted work: a stop failure must never be reported as success.
 		with self._condition:
 			if self._control_error is None:
 				self._control_error = error
@@ -397,7 +411,7 @@ class SegmentHost:
 				if record.error is None:
 					record.error = self._control_error
 			latched = self._control_error
-			accepted = tuple(self._accepted) if self._fail_accepted else ()
+			accepted = tuple(self._accepted)
 		for operation in accepted:
 			self._lifecycle_of(operation).fail(operation, latched)
 
@@ -520,20 +534,18 @@ class SegmentHost:
 		if not operation.work.is_valid() or record.error is not None:
 			self._strategy.stop_player(self)
 			return
-		drain = getattr(self._strategy, "drain", None)
-		if drain is not None:
-			try:
-				drain(self, record)
-			except Exception as error:
-				# A raising drain fails this segment, never the whole lifecycle.
-				self.record_error(record, error)
-				lifecycle.fail(operation, record.error)
-				self._strategy.stop_player(self)
-				return
-			if record.error is not None:
-				# The strategy already stopped or purged what it needed to.
-				lifecycle.fail(operation, record.error)
-				return
+		try:
+			self._strategy.drain(self, record)
+		except Exception as error:
+			# A raising drain fails this segment, never the whole lifecycle.
+			self.record_error(record, error)
+			lifecycle.fail(operation, record.error)
+			self._strategy.stop_player(self)
+			return
+		if record.error is not None:
+			# The strategy already stopped or purged what it needed to.
+			lifecycle.fail(operation, record.error)
+			return
 		if not record.barriers_met():
 			lifecycle.fail(operation, self._missing_barriers_error(record))
 			self._strategy.stop_player(self)
@@ -584,11 +596,7 @@ class SegmentHost:
 				control_error = self._control_error
 				self._delivering.add(operation)
 			if not operation.work.token.is_cancelled() and not silenced and not self._terminated:
-				if (
-					self._fail_accepted
-					and control_error is not None
-					and event.kind is EventKind.SEGMENT_DRAINED
-				):
+				if control_error is not None and event.kind is EventKind.SEGMENT_DRAINED:
 					event = PlaybackEvent(
 						EventKind.SEGMENT_FAILED,
 						event.source_id,

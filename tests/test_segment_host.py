@@ -64,6 +64,11 @@ class Events(list):
 			return self[0]
 
 
+def native(module, strategy_type):
+	"""An engine-style strategy: the fake's behavior on the real NativeStrategy base."""
+	return type(strategy_type.__name__, (strategy_type, module.NativeStrategy), {})()
+
+
 def _load(monkeypatch, rt, name):
 	full = f"{rt.package.__name__}.{name}"
 	spec = importlib.util.spec_from_file_location(full, RUNTIME / f"{name}.py")
@@ -80,7 +85,7 @@ def env(monkeypatch, request):
 	scheduler = load_scheduler(monkeypatch, rt)
 	_load(monkeypatch, rt, "_segmentLifecycle")
 	module = _load(monkeypatch, rt, "segmentHost")
-	strategy = FakeStrategy()
+	strategy = native(module, FakeStrategy)
 	host = module.SegmentHost("Fake", strategy, **options)
 	threads = []
 
@@ -425,7 +430,7 @@ class DrainingStrategy(FakeStrategy):
 
 @pytest.fixture
 def drain_env(env):
-	strategy = DrainingStrategy()
+	strategy = native(env.module, DrainingStrategy)
 	env.host._strategy = strategy
 	env.strategy = strategy
 	return env
@@ -809,12 +814,7 @@ def test_wait_settled_from_a_callback_does_not_wait_for_sinks(env):
 		release.set()
 
 
-@pytest.mark.parametrize(
-	("env", "kind"),
-	[({}, "SEGMENT_DRAINED"), ({"fail_accepted_on_control_error": True}, "SEGMENT_FAILED")],
-	indirect=["env"],
-)
-def test_control_error_and_an_unpublished_drain(env, kind):
+def test_control_error_fails_an_unpublished_drain(env):
 	entered, release = Event(), Event()
 
 	def blocking(event):
@@ -829,11 +829,10 @@ def test_control_error_and_an_unpublished_drain(env, kind):
 	assert env.host._lifecycle.wait_idle()
 	env.host.latch_control_error(OSError("stop failed"))
 	release.set()
-	assert events.wait_one().kind is getattr(env.rt.models.EventKind, kind)
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 
 
-@pytest.mark.parametrize("env", [{"fail_accepted_on_control_error": True}], indirect=True)
-def test_opted_in_control_error_relabels_a_drain_the_lifecycle_already_committed(env, monkeypatch):
+def test_control_error_relabels_a_drain_the_lifecycle_already_committed(env, monkeypatch):
 	# lifecycle.fail() can land after the delivery thread read the result; the
 	# host itself must not publish success once the control error is latched.
 	monkeypatch.setattr(env.host._lifecycle, "fail", lambda operation, error: None)
@@ -856,22 +855,13 @@ def test_opted_in_control_error_relabels_a_drain_the_lifecycle_already_committed
 	assert str(event.error) == "stop failed"
 
 
-@pytest.mark.parametrize(
-	("env", "stopped"),
-	[({}, False), ({"fail_accepted_on_control_error": True}, True)],
-	indirect=["env"],
-)
-def test_control_error_and_the_active_segment(env, stopped):
-	# Opted in, a control error stops the active segment at once; by default it
-	# finishes and then fails through its record.
+def test_control_error_stops_the_active_segment(env):
+	# A control error stops the active segment at once; it never reports success.
 	_, _, events = env.speak()
 	record = env.strategy.wait_submitted()
 	env.host.begin(record)
 	env.host.latch_control_error(OSError("stop failed"))
-	if stopped:
-		assert wait_until(lambda: record in env.strategy.native_stops)
-	else:
-		assert not wait_until(lambda: bool(env.strategy.native_stops), 0.2)
+	assert wait_until(lambda: record in env.strategy.native_stops)
 	env.run_native(record)
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 
@@ -896,7 +886,7 @@ class PreparingStrategy(FakeStrategy):
 
 @pytest.fixture
 def prepare_env(env):
-	strategy = PreparingStrategy()
+	strategy = native(env.module, PreparingStrategy)
 	env.host._strategy = strategy
 	env.strategy = strategy
 	return env
@@ -958,3 +948,52 @@ def test_wait_idle_returns_once_the_last_segment_retires(env):
 	assert not waited.wait(0.1)
 	env.run_native(record)
 	assert waited.wait(1)
+
+
+def test_default_hooks_finish_a_segment(env):
+	class Bare(env.module.NativeStrategy):
+		barriers = frozenset({"done"})
+
+		def __init__(self):
+			self.submitted = Event()
+			self.record = None
+
+		def submit(self, host, record, commands):
+			self.record = record
+			self.submitted.set()
+
+		def stop_native(self, host, record):
+			pass
+
+		def stop_player(self, host):
+			pass
+
+	strategy = Bare()
+	assert strategy.prepare(None, ("x",), None) == ("x",)
+	assert strategy.admission_error(None) is None
+	assert strategy.drain(None, None) is None
+	host = env.module.SegmentHost("Bare", strategy)
+	events = Events()
+	context = env.rt.models.PlaybackContext(object(), 31)
+	host.speak_segment(("hello",), env.scheduler.CancellationToken(), context=context, on_event=events.append)
+	assert strategy.submitted.wait(2)
+
+	def work():
+		host.begin(strategy.record)
+		host.reach(strategy.record, "done")
+		host.retire(strategy.record)
+
+	worker = Thread(target=work, daemon=True)
+	worker.start()
+	try:
+		assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+	finally:
+		worker.join(2)
+		host.terminate()
+
+
+def test_terminated_host_rejects_new_ordinary_speech(env):
+	env.host.terminate()
+	with pytest.raises(RuntimeError, match="Fake driver has terminated"):
+		env.host.enqueue(("late",))
+	assert env.strategy.submitted == []

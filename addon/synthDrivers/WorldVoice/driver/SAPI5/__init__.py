@@ -9,7 +9,7 @@ from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.segmentHost import SegmentHost
+from ...runtime.segmentHost import NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -35,7 +35,7 @@ def _purge_flags():
 	return sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak
 
 
-class _Sapi5Strategy:
+class _Sapi5Strategy(NativeStrategy):
 	"""SAPI5's native queue: the parent's request deque and the outer worker."""
 
 	barriers = frozenset({"ended", "processed", "idle"})

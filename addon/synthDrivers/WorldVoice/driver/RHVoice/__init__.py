@@ -8,7 +8,7 @@ from . import driver as rhvoice
 from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import SegmentHost
+from ...runtime.segmentHost import NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -198,7 +198,7 @@ class _QueuedSpeech:
 			host.forget(record)
 
 
-class _RHVoiceStrategy:
+class _RHVoiceStrategy(NativeStrategy):
 	"""RHVoice's native queue: the inner tts queue and its single worker."""
 
 	barriers = frozenset({"message", "done", "returned", "idle"})
@@ -248,9 +248,7 @@ class SynthDriver(rhvoice.SynthDriver):
 	"""Retain RHVoice's single worker and observe its actual completion barriers."""
 
 	def __init__(self):
-		self._segmentHost = SegmentHost(
-			"RHVoice", _RHVoiceStrategy(self), fail_accepted_on_control_error=True
-		)
+		self._segmentHost = SegmentHost("RHVoice", _RHVoiceStrategy(self))
 		self._segmentCondition = Condition(RLock())
 		self._segmentById = {}
 		self._segmentNextId = 1

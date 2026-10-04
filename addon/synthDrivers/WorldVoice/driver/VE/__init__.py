@@ -35,7 +35,7 @@ from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.segmentHost import SegmentHost
+from ...runtime.segmentHost import NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -287,7 +287,7 @@ class _ContextualVECallback(base.VECallback):
 		self._feedBuf = BytesIO()
 
 
-class _VEStrategy:
+class _VEStrategy(NativeStrategy):
 	"""VE's native queue: the inner BgThread, each record's tasks queued around speak()."""
 
 	barriers = frozenset({"spoken", "idle"})
@@ -342,7 +342,7 @@ class SynthDriver(BaseSynthDriver):
 	def __init__(self):
 		self._guard_installed = False
 		self._speechStateLock = threading.Condition()
-		self._segmentHost = SegmentHost("VE", _VEStrategy(self), fail_accepted_on_control_error=True)
+		self._segmentHost = SegmentHost("VE", _VEStrategy(self))
 		self._submitting = None
 		self._currentRecord = None
 		self._doneOwner = None
