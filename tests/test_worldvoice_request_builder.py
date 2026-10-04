@@ -47,8 +47,8 @@ def modules(monkeypatch, nvda_commands):
     def load(name):
         return importlib.import_module(package_name + "." + name)
     return types.SimpleNamespace(
-        driver=load("driver"), manager_module=load("taskManager"),
-        builder=load("requestBuilder"), models=load("runtime.models"),
+        driver=load("driver"), manager_module=load("runtime.scheduler"),
+        builder=load("runtime.requestBuilder"), models=load("runtime.models"),
         settings=load("runtime.settings"), session=load("runtime.session"),
         adapter=load("compat.engineAdapter"), facade=load("compat.voiceFacade"),
         commands=load("compat.commands"), bridge=load("nvdaEventBridge"),

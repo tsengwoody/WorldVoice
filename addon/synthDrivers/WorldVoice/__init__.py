@@ -50,8 +50,8 @@ from .nvdaEventBridge import NvdaEventBridge
 from .indexLedger import IndexLedger
 from .compat.completionPolicies import CompletionPolicy
 from .compat.commands import normalize_legacy_commands
-from .taskManager import TaskManager
-from .requestBuilder import queue_speech_sequence
+from .runtime.scheduler import TaskManager
+from .runtime.requestBuilder import queue_speech_sequence
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 

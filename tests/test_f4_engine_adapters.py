@@ -1,11 +1,14 @@
 import ast
+from pathlib import Path
 from dataclasses import replace
 import types
 
 import pytest
 
-from test_f4_engine_session import MODULE_PATH, module, snap, rt
+from test_f4_engine_session import module, snap, rt
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
+
+DRIVERS = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
@@ -72,7 +75,7 @@ def test_variant_metadata_read_preserves_playback_state(monkeypatch, engine):
 
 
 def test_onecore_language_is_applied_only_on_activation():
-	path = MODULE_PATH.parent / "OneCore/__init__.py"
+	path = DRIVERS / "OneCore/__init__.py"
 	tree = ast.parse(path.read_text(encoding="utf-8"))
 	voice_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Voice")
 	class BaseVoice:

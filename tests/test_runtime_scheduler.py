@@ -284,12 +284,11 @@ def test_future_callback_can_cancel_and_submit(manager, port, rt, output):
         manager.append_speech(new, other, "Fake:b", ("new",))
         assert manager.submit_request(new)
         callback_done.set()
-    chained = future.then(callback)
+    future.add_done_callback(callback)
     assert manager.submit_request(request)
     assert port.entered.wait(1)
     event(manager, rt, port)
     assert callback_done.wait(1)
-    assert chained.result(1) is None
     assert output.wait_done() == 1
 
 
@@ -508,26 +507,6 @@ def test_direct_playback_stop_does_not_cancel_request(manager, port, rt, output)
     assert not request.token.is_cancelled()
 
 
-def test_then_flattens_results_errors_and_cancellation(scheduler):
-    future = scheduler.SpeechFuture()
-    chained = future.then(lambda f: f.result() + 1)
-    future.set_result(3)
-    assert chained.result(1) == 4
-    cancelled = scheduler.SpeechFuture()
-    next_future = cancelled.then(lambda _: 1)
-    cancelled.cancel()
-    assert next_future.cancelled()
-    inner = scheduler.SpeechFuture()
-    flattened = future.then(lambda _: inner)
-    inner.set_result(8)
-    assert flattened.result(1) == 8
-    failed = scheduler.SpeechFuture()
-    propagated = failed.then(lambda f: f.result())
-    failed.set_exception(ValueError("failed"))
-    with pytest.raises(ValueError, match="failed"):
-        propagated.result(1)
-
-
 def test_token_cancellation_inside_speak_suppresses_done(manager, port, output, scheduler):
     request = manager.new_request()
     future = manager.append_speech(request, port, "Fake:a", ())
@@ -715,31 +694,21 @@ def test_public_cancel_racing_abort_settles_remaining_futures(manager, monkeypat
     assert request.request_id not in manager._requests
 
 
-@pytest.mark.parametrize("flatten", [False, True])
-@pytest.mark.parametrize("outcome", ["result", "exception"])
-def test_then_public_cancel_racing_settlement_has_no_callback_error(
-        scheduler, monkeypatch, caplog, flatten, outcome):
-    source = scheduler.SpeechFuture()
-    inner = scheduler.SpeechFuture()
-    def callback(future):
-        if flatten:
-            return inner
-        if outcome == "exception":
-            raise ValueError("callback failed")
-        return 42
-    following = source.then(callback)
-    setter = getattr(following, "set_" + outcome)
-    def settle(value):
-        assert following.cancel()
-        setter(value)
-    monkeypatch.setattr(following, "set_" + outcome, settle)
-    source.set_result(None)
-    if flatten:
-        if outcome == "exception":
-            inner.set_exception(ValueError("inner failed"))
-        else:
-            inner.set_result(42)
-    assert following.cancelled()
+@pytest.mark.parametrize("outcome", ["result", "error"])
+def test_settle_future_lets_a_racing_public_cancel_win(scheduler, monkeypatch, caplog, outcome):
+    future = scheduler.SpeechFuture()
+    setter = "set_exception" if outcome == "error" else "set_result"
+    original = getattr(future, setter)
+    def cancel_then_settle(value):
+        # Public cancellation lands after _settle_future checked done().
+        assert future.cancel()
+        original(value)
+    monkeypatch.setattr(future, setter, cancel_then_settle)
+    if outcome == "error":
+        scheduler._settle_future(future, error=ValueError("late"))
+    else:
+        scheduler._settle_future(future, result=42)
+    assert future.cancelled()
     assert not caplog.records
 
 

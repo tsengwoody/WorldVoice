@@ -10,22 +10,9 @@ from runtime_harness import MemoryRepository, make_spec, rt
 from test_runtime_legacy_adapter import compat
 
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver/engineSession.py"
-
-
 @pytest.fixture
-def module(monkeypatch, rt):
-    package = ModuleType("f4_session_boundary")
-    package.__path__ = [str(MODULE_PATH.parent.parent)]
-    driver = ModuleType("f4_session_boundary.driver")
-    driver.__path__ = [str(MODULE_PATH.parent)]
-    monkeypatch.setitem(sys.modules, package.__name__, package)
-    monkeypatch.setitem(sys.modules, driver.__name__, driver)
-    for suffix, value in (("", rt.package), (".models", rt.models), (".session", rt.session)):
-        monkeypatch.setitem(sys.modules, package.__name__ + ".runtime" + suffix, value)
-    name = driver.__name__ + ".engineSession"
-    monkeypatch.delitem(sys.modules, name, raising=False)
-    return importlib.import_module(name)
+def module(rt):
+    return SimpleNamespace(EngineSession=rt.session.EngineSession, VoiceSnapshot=rt.models.VoiceSnapshot)
 
 
 @pytest.fixture

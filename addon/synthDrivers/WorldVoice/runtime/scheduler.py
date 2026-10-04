@@ -112,38 +112,7 @@ def _settle_future(future, *, result=None, error=None):
 
 
 class SpeechFuture(Future):
-	"""Future with the legacy callback-taking, Future-flattening then API."""
-
-	def then(self, fn):
-		following = SpeechFuture()
-
-		def transfer(result):
-			if following.done():
-				return
-			if result.cancelled():
-				following.cancel()
-			elif result.exception() is not None:
-				_settle_future(following, error=result.exception())
-			else:
-				_settle_future(following, result=result.result())
-
-		def callback(future):
-			if following.done():
-				return
-			if future.cancelled():
-				following.cancel()
-				return
-			try:
-				result = fn(future)
-				if isinstance(result, Future):
-					result.add_done_callback(transfer)
-				else:
-					_settle_future(following, result=result)
-			except Exception as error:
-				_settle_future(following, error=error)
-
-		self.add_done_callback(callback)
-		return following
+	"""The Future a speech or break task settles when it finishes."""
 
 
 class RequestState(Enum):

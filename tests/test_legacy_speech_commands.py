@@ -22,7 +22,7 @@ def legacy(monkeypatch, rt, nvda_commands):
     monkeypatch.setitem(sys.modules, "languageHandler", SimpleNamespace())
     monkeypatch.setitem(sys.modules, "synthDriverHandler", SimpleNamespace(getSynth=lambda: None))
 
-    for suffix in ("driver", "driver.engineSession", "compat", "compat.commands", "_speechcommand"):
+    for suffix in ("driver", "compat", "compat.commands", "_speechcommand"):
         monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
     driver = importlib.import_module(name + ".driver")
     commands = importlib.import_module(name + ".compat.commands")
