@@ -1,5 +1,6 @@
 """The completion rule table is the one place that interprets a completion contract."""
 
+import ast
 import importlib.util
 import sys
 
@@ -80,3 +81,42 @@ def test_rule_queries_read_only_the_rule_fields(completion, rt, key):
 				(end_seen or not rule.requires_end) and (drain_seen or not rule.requires_drain))
 			assert rule.indexes_finished(end_seen, drain_seen) is (
 				end_seen if rule.requires_end else drain_seen)
+
+
+ADDON = RUNTIME.parent
+
+
+def _mode_comparisons(path):
+	"""Lines comparing against a CompletionMode member (is, ==, in, not in ...)."""
+	tree = ast.parse(path.read_text(encoding="utf-8"))
+
+	def is_member(node):
+		if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+			return any(is_member(element) for element in node.elts)
+		return (
+			isinstance(node, ast.Attribute)
+			and isinstance(node.value, ast.Name)
+			and node.value.id == "CompletionMode"
+		)
+
+	return sorted(
+		node.lineno
+		for node in ast.walk(tree)
+		if isinstance(node, ast.Compare) and any(is_member(o) for o in (node.left, *node.comparators))
+	)
+
+
+# Components that already read contracts only through their completion rule.
+CONVERTED = ("runtime/scheduler.py",)
+
+
+@pytest.mark.parametrize("path", CONVERTED)
+def test_converted_components_never_compare_completion_modes(path):
+	assert _mode_comparisons(ADDON / path) == []
+
+
+def test_scheduler_phases_are_an_enum():
+	text = (RUNTIME / "scheduler.py").read_text(encoding="utf-8")
+	assert "class TaskPhase(Enum):" in text
+	for phase in ("starting", "awaiting_completion", "finishing"):
+		assert f'"{phase}"' not in text, phase

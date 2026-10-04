@@ -10,16 +10,16 @@ from collections import deque
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future, InvalidStateError
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 from itertools import count
 import logging
 import queue
 import threading
 from typing import Protocol
 
+from .completion import CompletionRule, Signal, rule_for
 from .models import (
 	CompletionContract,
-	CompletionMode,
 	EventKind,
 	PlaybackContext,
 	PlaybackEvent,
@@ -154,6 +154,12 @@ class RequestState(Enum):
 	FAILED = "failed"
 
 
+class TaskPhase(Enum):
+	STARTING = auto()
+	AWAITING_COMPLETION = auto()
+	FINISHING = auto()
+
+
 class InvalidRequestState(RuntimeError):
 	pass
 
@@ -185,6 +191,7 @@ class _Task:
 	segment_id: int | None = None
 	context: PlaybackContext | None = None
 	completion: CompletionContract | None = None
+	rule: CompletionRule | None = None
 	end_seen: bool = False
 	drain_seen: bool = False
 	error: Exception | None = None
@@ -308,22 +315,16 @@ class TaskManager:
 			task is not None
 			and task.playback is not None
 			and self._current_task is task
-			and self._current_phase == "awaiting_completion"
+			and self._current_phase is TaskPhase.AWAITING_COMPLETION
 			and self._valid_locked(task)
 			and task.error is None
 		)
 
 	def _completion_ready_locked(self, task):
-		if task.completion.mode is CompletionMode.DRAIN:
-			return task.drain_seen
-		return task.end_seen and (
-			task.completion.mode is not CompletionMode.END_INDEX_AND_DRAIN or task.drain_seen
-		)
+		return task.rule.is_complete(task.end_seen, task.drain_seen)
 
 	def _indexes_finished_locked(self, task):
-		if task.completion.mode is CompletionMode.DRAIN:
-			return task.drain_seen
-		return task.end_seen
+		return task.rule.indexes_finished(task.end_seen, task.drain_seen)
 
 	def on_event(self, event: PlaybackEvent) -> None:
 		self.on_events(lambda: (event,))
@@ -356,11 +357,8 @@ class TaskManager:
 				with self._state_cond:
 					if not self._accepts_events_locked(task) or event.source_id is not task.source_id:
 						continue
-					legacy = task.completion.mode is CompletionMode.LEGACY_DONE
-					if legacy and not task.completion.legacy_contextual:
-						if event.segment_id is not None:
-							continue
-					elif event.segment_id != task.segment_id:
+					rule = task.rule
+					if not rule.accepts_segment(task.segment_id, event.segment_id):
 						continue
 					if event.kind is EventKind.INDEX:
 						if (
@@ -371,20 +369,14 @@ class TaskManager:
 							continue
 						self._current_indexes.add(event.index)
 						index = event.index
-					elif legacy and event.kind is EventKind.DONE:
-						task.end_seen = True
-					elif (
-						legacy
-						and task.completion.legacy_contextual
-						and event.kind is EventKind.SEGMENT_FAILED
-					):
-						task.error = event.error or RuntimeError("Speech segment failed")
-					elif not legacy and event.kind is EventKind.SEGMENT_END:
-						task.end_seen = True
-					elif not legacy and event.kind is EventKind.SEGMENT_DRAINED:
-						task.drain_seen = True
-					elif not legacy and event.kind is EventKind.SEGMENT_FAILED:
-						task.error = event.error or RuntimeError("Speech segment failed")
+					else:
+						signal = rule.signal_for(event.kind)
+						if signal is Signal.END:
+							task.end_seen = True
+						elif signal is Signal.DRAIN:
+							task.drain_seen = True
+						elif signal is Signal.FAIL:
+							task.error = event.error or RuntimeError("Speech segment failed")
 				if index is not None:
 					self._deliver_index(task, index)
 		except Exception as error:
@@ -397,7 +389,7 @@ class TaskManager:
 				if (
 					task is not None
 					and self._current_task is task
-					and self._current_phase == "awaiting_completion"
+					and self._current_phase is TaskPhase.AWAITING_COMPLETION
 					and (task.error is not None or self._completion_ready_locked(task))
 				):
 					self._current_done_event.set()
@@ -499,7 +491,7 @@ class TaskManager:
 				current.playback
 				if current
 				and self._valid_locked(current)
-				and self._current_phase in ("starting", "awaiting_completion")
+				and self._current_phase in (TaskPhase.STARTING, TaskPhase.AWAITING_COMPLETION)
 				else None
 			)
 		if playback is not None:
@@ -530,58 +522,8 @@ class TaskManager:
 	def _run_one(self, task):
 		result, error, failed = None, None, False
 		try:
-			source = task.playback.source_id if task.playback is not None else None
-			with self._state_cond:
-				while self._stops_in_flight:
-					self._state_cond.wait()
-				valid = self._valid_locked(task)
-				if valid:
-					task.source_id = source
-					if task.playback is not None:
-						task.context = PlaybackContext(source, task.segment_id)
-					self._current_task = task
-					self._current_phase = "starting"
-					self._current_indexes = set()
-					self._current_done_event = threading.Event()
-			if not valid:
-				return
-			if task.playback is None:
-				task.request.token.wait(task.seconds)
-				return
-			task.completion = task.playback.completion
-			task.playback.activate(task.voice_key)
-			with self._state_cond:
-				if not self._valid_locked(task):
-					return
-				# Register before entry because speak can synchronously report completion.
-				self._current_phase = "awaiting_completion"
-				done = self._current_done_event
-			# Future.cancel is public too. Wake this task's event even when
-			# cancellation races the validity check or an active done wait.
-			# Registration is outside state: an already-settled Future invokes
-			# its callback immediately. The callback never finishes the task.
-			task.future.add_done_callback(lambda future: done.set() if future.cancelled() else None)
-			task.playback.speak(task.commands, task.request.token, context=task.context)
-			if task.request.token.is_cancelled():
-				# A non-token-aware synchronous speak may outlive the first stop.
-				self._stop_playback(task.playback)
-				return
-			with self._state_cond:
-				if not self._valid_locked(task):
-					return
-			done.wait()
-			# A wake is only a signal. Wait for the complete delivery batch and
-			# then validate after speak returned; errors/cancellation beat completion.
-			with self._delivery_lock:
-				with self._state_cond:
-					if not self._valid_locked(task):
-						return
-					if task.error is not None:
-						raise task.error
-					if not self._completion_ready_locked(task):
-						return
-					self._current_phase = "finishing"
-					result = True
+			if self._acquire(task):
+				result = self._execute(task)
 		except Exception as caught:
 			error = caught
 			with self._state_cond:
@@ -591,33 +533,100 @@ class TaskManager:
 					failed = True
 			self._logger.error("Speech scheduler task error", exc_info=True)
 		finally:
-			if failed and task.playback is not None:
-				self._stop_playback(task.playback)
-			if task.context is not None:
-				try:
-					task.playback.finish_segment(task.context)
-				except Exception:
-					self._logger.error("Failed to finish speech segment", exc_info=True)
+			self._settle(task, result, error, failed)
+
+	def _acquire(self, task):
+		"""Wait out in-flight stops, then make a still-valid task current."""
+		source = task.playback.source_id if task.playback is not None else None
+		with self._state_cond:
+			while self._stops_in_flight:
+				self._state_cond.wait()
+			if not self._valid_locked(task):
+				return False
+			task.source_id = source
+			if task.playback is not None:
+				task.context = PlaybackContext(source, task.segment_id)
+			self._current_task = task
+			self._current_phase = TaskPhase.STARTING
+			self._current_indexes = set()
+			self._current_done_event = threading.Event()
+		return True
+
+	def _execute(self, task):
+		"""Run the current task; True on completion, None when it stopped early.
+
+		Validity is checked again after each engine call, because activate and
+		speak run outside the state condition and cancellation can win at any
+		point. The final decision waits for the whole event batch to finish.
+		"""
+		if task.playback is None:
+			task.request.token.wait(task.seconds)
+			return None
+		task.completion = task.playback.completion
+		task.rule = rule_for(task.completion)
+		task.playback.activate(task.voice_key)
+		with self._state_cond:
+			if not self._valid_locked(task):
+				return None
+			# Register before entry because speak can synchronously report completion.
+			self._current_phase = TaskPhase.AWAITING_COMPLETION
+			done = self._current_done_event
+		# Future.cancel is public too. Wake this task's event even when
+		# cancellation races the validity check or an active done wait.
+		# Registration is outside state: an already-settled Future invokes
+		# its callback immediately. The callback never finishes the task.
+		task.future.add_done_callback(lambda future: done.set() if future.cancelled() else None)
+		task.playback.speak(task.commands, task.request.token, context=task.context)
+		if task.request.token.is_cancelled():
+			# A non-token-aware synchronous speak may outlive the first stop.
+			self._stop_playback(task.playback)
+			return None
+		with self._state_cond:
+			if not self._valid_locked(task):
+				return None
+		done.wait()
+		# A wake is only a signal. Wait for the complete delivery batch and
+		# then validate after speak returned; errors/cancellation beat completion.
+		with self._delivery_lock:
 			with self._state_cond:
-				valid = self._valid_locked(task)
-				if self._current_task is task:
-					self._current_task = None
-					self._current_phase = None
-					self._current_done_event = None
-					self._current_indexes = set()
-				notify_done = self._finish_task_locked(task)
-			# The state transition happens before user callbacks can re-enter.
-			if error is not None:
-				_settle_future(task.future, error=error)
-			elif valid:
-				_settle_future(task.future, result=result)
-			else:
-				task.future.cancel()
-			if notify_done:
-				try:
-					self._deliver_done(task.request)
-				except Exception:
-					self._logger.error("Speech done notification error", exc_info=True)
+				if not self._valid_locked(task):
+					return None
+				if task.error is not None:
+					raise task.error
+				if not self._completion_ready_locked(task):
+					return None
+				self._current_phase = TaskPhase.FINISHING
+				return True
+
+	def _settle(self, task, result, error, failed):
+		"""Release the task's resources, then settle its Future and the request."""
+		if failed and task.playback is not None:
+			self._stop_playback(task.playback)
+		if task.context is not None:
+			try:
+				task.playback.finish_segment(task.context)
+			except Exception:
+				self._logger.error("Failed to finish speech segment", exc_info=True)
+		with self._state_cond:
+			valid = self._valid_locked(task)
+			if self._current_task is task:
+				self._current_task = None
+				self._current_phase = None
+				self._current_done_event = None
+				self._current_indexes = set()
+			notify_done = self._finish_task_locked(task)
+		# The state transition happens before user callbacks can re-enter.
+		if error is not None:
+			_settle_future(task.future, error=error)
+		elif valid:
+			_settle_future(task.future, result=result)
+		else:
+			task.future.cancel()
+		if notify_done:
+			try:
+				self._deliver_done(task.request)
+			except Exception:
+				self._logger.error("Speech done notification error", exc_info=True)
 
 	def _finish_task_locked(self, task):
 		request = task.request
