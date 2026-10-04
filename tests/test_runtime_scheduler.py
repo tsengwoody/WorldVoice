@@ -63,35 +63,6 @@ def test_synchronous_done_finishes_once(manager, port, output, rt, scheduler):
     assert port.spoken == [(("hello",), request.token)]
 
 
-def test_contextual_legacy_completion_requires_exact_segment_identity(manager, port, output, rt):
-    port.completion = rt.models.CompletionContract(legacy_contextual=True)
-    request, future = speech(manager, port)
-    task = request.tasks[0]
-    for source, segment in ((port.source_id, None), (port.source_id, task.segment_id + 1),
-                            (object(), task.segment_id)):
-        manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, source, segment_id=segment))
-        assert not future.done()
-    manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, port.source_id,
-                                            segment_id=task.segment_id))
-    assert future.result(1) is True
-    assert output.wait_done() == 1
-
-
-def test_contextual_legacy_segment_failure_fails_request(manager, port, output, rt, scheduler):
-    # A contextual legacy segment that fails (e.g. a pause/resume fault) must
-    # fail its request instead of waiting for a DONE that never comes.
-    port.completion = rt.models.CompletionContract(legacy_contextual=True)
-    request, future = speech(manager, port)
-    task = request.tasks[0]
-    error = OSError("audio control failed")
-    manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.SEGMENT_FAILED, port.source_id,
-                                            segment_id=task.segment_id, error=error))
-    with pytest.raises(OSError, match="audio control failed"):
-        future.result(1)
-    assert output.wait_done() == 1
-    assert request.state is scheduler.RequestState.FAILED
-
-
 def test_synchronous_done_advances_only_after_speak_returns(manager, port, output, rt):
     second = FakePlayback()
     release = Event()

@@ -12,15 +12,13 @@ from runtime_harness import FakePlayback, RecordingOutput, load_index_support, l
 from test_runtime_legacy_adapter import Core, compat, legacy_class
 from test_worldvoice_index_command import nvda_commands
 
-CONTRACTS = ("plain", "contextual", "END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN")
+CONTRACTS = ("plain", "END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN")
 
 
 def contract(rt, name):
 	models = rt.models
 	if name == "plain":
 		return models.CompletionContract()
-	if name == "contextual":
-		return models.CompletionContract(legacy_contextual=True)
 	return models.CompletionContract(getattr(models.CompletionMode, name), models.IndexRange(1, 1000))
 
 
@@ -57,17 +55,6 @@ OUTCOMES = {
 		"end_own": "pending",
 		"drained_own": "pending",
 		"failed_own": "pending",
-		"failed_anonymous": "pending",
-		"end_then_drained": "pending",
-		"drained_then_end": "pending",
-		"other_segment": "pending",
-	},
-	"contextual": {
-		"done_anonymous": "pending",
-		"done_own": "complete",
-		"end_own": "pending",
-		"drained_own": "pending",
-		"failed_own": "failed",
 		"failed_anonymous": "pending",
 		"end_then_drained": "pending",
 		"drained_then_end": "pending",
@@ -170,16 +157,13 @@ class EntryCore(Core):
 	def speak_segment(self, commands, token, *, context, on_event):
 		self.entries.append(("speak_segment", commands, on_event))
 
-	def speak_legacy_segment(self, commands, token, *, context, on_event):
-		self.entries.append(("speak_legacy_segment", commands, on_event))
-
 
 @pytest.fixture
 def adapter_env(monkeypatch, compat, rt, nvda_commands):
 	support = load_index_support(monkeypatch, rt, "worldvoice_compat_test")
 	ledgers = []
 
-	def make(name, *, ledger=True, segment_events=True, legacy_events=True):
+	def make(name, *, ledger=True, segment_events=True):
 		core = EntryCore()
 		cls = legacy_class(core)
 		index_ledger = support.ledger.IndexLedger() if ledger else None
@@ -194,12 +178,10 @@ def adapter_env(monkeypatch, compat, rt, nvda_commands):
 				index_ledger.bind(core, source_id, chosen)
 		else:
 			ledgers.append((adapter, None))
-		sinks = SimpleNamespace(segment=lambda event: None, legacy=lambda event: None)
+		sinks = SimpleNamespace(segment=lambda event: None)
 		if segment_events and chosen.mode in (rt.models.CompletionMode.DRAIN,
 				rt.models.CompletionMode.END_INDEX_AND_DRAIN):
 			adapter.configure_segment_events(lambda context: sinks.segment)
-		if legacy_events and chosen.legacy_contextual:
-			adapter.configure_legacy_segment_events(lambda context: sinks.legacy)
 		return SimpleNamespace(adapter=adapter, core=core, sinks=sinks,
 			context=rt.models.PlaybackContext(source_id, 1))
 
@@ -214,7 +196,6 @@ def adapter_env(monkeypatch, compat, rt, nvda_commands):
 # (native entry, markers encoded, event sink) per contract.
 ENTRIES = {
 	"plain": ("speak", False, None),
-	"contextual": ("speak_legacy_segment", False, "legacy"),
 	"END_INDEX": ("speak", True, None),
 	"END_INDEX_AND_DRAIN": ("speak_segment", True, "segment"),
 	"DRAIN": ("speak_segment", True, "segment"),
@@ -240,18 +221,14 @@ def test_adapter_entry_per_contract(adapter_env, name):
 
 
 @pytest.mark.parametrize("name,missing,error,message", [
-	("contextual", "context", ValueError, "Contextual legacy completion requires a playback context"),
 	("END_INDEX", "context", ValueError, "Correlated completion requires a playback context"),
 	("DRAIN", "context", ValueError, "Correlated completion requires a playback context"),
 	("END_INDEX", "ledger", ValueError, "Marker completion requires an index ledger"),
 	("DRAIN", "segment_events", RuntimeError, "Drain completion requires a segment event factory"),
 	("END_INDEX_AND_DRAIN", "segment_events", RuntimeError, "Drain completion requires a segment event factory"),
-	("contextual", "legacy_events", RuntimeError,
-		"Contextual legacy completion requires a segment event factory"),
 ])
 def test_adapter_precondition_errors_per_contract(adapter_env, name, missing, error, message):
-	env = adapter_env.make(name, ledger=missing != "ledger", segment_events=missing != "segment_events",
-		legacy_events=missing != "legacy_events")
+	env = adapter_env.make(name, ledger=missing != "ledger", segment_events=missing != "segment_events")
 	context = None if missing == "context" else env.context
 	with pytest.raises(error) as caught:
 		env.adapter.speak(("hello",), adapter_env.token, context=context)

@@ -1,6 +1,6 @@
 from collections import OrderedDict, defaultdict
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from operator import attrgetter
 from typing import Callable, TypeVar, Dict, List
 import re
@@ -13,7 +13,7 @@ from synthDriverHandler import VoiceInfo
 from .compat.engineAdapter import LegacyEngineAdapter
 from .compat.voiceFacade import LegacyVoiceBinding
 from .runtime.completion import rule_for
-from .runtime.models import VoiceSpec, EngineCapabilities, CompletionContract, CompletionMode
+from .runtime.models import VoiceSpec, EngineCapabilities, CompletionContract
 from .indexLedger import IndexLedger
 from .runtime.session import EngineSession, PlaybackPort
 from .runtime.scheduler import TaskManager
@@ -143,17 +143,13 @@ class VoiceManager(object):
 	def _bind(self, resource: EngineResource) -> None:
 		adapter, session = resource.adapter, resource.session
 		source = adapter.notification_source
-		completion = self._resource_completion(resource.voice_class, source)
+		completion = self._completion_for(resource.voice_class, source)
 		adapter.configure_completion(completion)
 		# Claim ownership before binding, since bind may register then raise.
 		self._bridge.bind(source, session.source_id, completion=completion)
 		if rule_for(completion).drain_event is not None:
 			adapter.configure_segment_events(
 				lambda context: self._bridge.segment_sink(source, context),
-			)
-		elif completion.legacy_contextual:
-			adapter.configure_legacy_segment_events(
-				lambda context: self._bridge.legacy_segment_sink(source, context),
 			)
 
 	def _publish(self, resource: EngineResource) -> None:
@@ -162,14 +158,6 @@ class VoiceManager(object):
 		self._bindings[resource.engine] = resource.binding
 		for spec in resource.adapter.list_voices():
 			self._specs[spec.name] = spec
-
-	def _resource_completion(self, cls, source):
-		completion = self._completion_for(cls, source)
-		if completion.mode is CompletionMode.LEGACY_DONE and callable(
-			getattr(source, "speak_legacy_segment", None),
-		):
-			completion = replace(completion, legacy_contextual=True)
-		return completion
 
 	def terminate(self, *, commit=True):
 		if self._terminated:

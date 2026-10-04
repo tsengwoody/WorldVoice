@@ -15,7 +15,6 @@ class SpeakEntry(Enum):
 	"""Which core entry the adapter calls; runtime never calls a core itself."""
 
 	SEGMENT = "segment"  # speak_segment(commands, token, context=, on_event=)
-	LEGACY_SEGMENT = "legacy_segment"  # speak_legacy_segment(commands, token, context=, on_event=)
 	PLAIN = "plain"  # speak(commands[, cancellationToken=])
 
 
@@ -64,7 +63,7 @@ class CompletionRule:
 
 
 _RULES = {
-	(CompletionMode.LEGACY_DONE, False): CompletionRule(
+	CompletionMode.LEGACY_DONE: CompletionRule(
 		correlated=False,
 		segment_scoped=False,
 		end_event=EventKind.DONE,
@@ -74,18 +73,7 @@ _RULES = {
 		requires_drain=False,
 		entry=SpeakEntry.PLAIN,
 	),
-	# Contextual legacy: software-correlated DONE without a native drain barrier.
-	(CompletionMode.LEGACY_DONE, True): CompletionRule(
-		correlated=False,
-		segment_scoped=True,
-		end_event=EventKind.DONE,
-		drain_event=None,
-		fails_on_segment_failed=True,
-		requires_end=True,
-		requires_drain=False,
-		entry=SpeakEntry.LEGACY_SEGMENT,
-	),
-	(CompletionMode.END_INDEX, False): CompletionRule(
+	CompletionMode.END_INDEX: CompletionRule(
 		correlated=True,
 		segment_scoped=True,
 		end_event=EventKind.SEGMENT_END,
@@ -95,7 +83,7 @@ _RULES = {
 		requires_drain=False,
 		entry=SpeakEntry.PLAIN,
 	),
-	(CompletionMode.END_INDEX_AND_DRAIN, False): CompletionRule(
+	CompletionMode.END_INDEX_AND_DRAIN: CompletionRule(
 		correlated=True,
 		segment_scoped=True,
 		end_event=EventKind.SEGMENT_END,
@@ -106,7 +94,7 @@ _RULES = {
 		entry=SpeakEntry.SEGMENT,
 	),
 	# A drain segment has no terminal marker; SEGMENT_END is recorded but never required.
-	(CompletionMode.DRAIN, False): CompletionRule(
+	CompletionMode.DRAIN: CompletionRule(
 		correlated=True,
 		segment_scoped=True,
 		end_event=EventKind.SEGMENT_END,
@@ -120,4 +108,4 @@ _RULES = {
 
 
 def rule_for(contract: CompletionContract) -> CompletionRule:
-	return _RULES[(contract.mode, contract.legacy_contextual)]
+	return _RULES[contract.mode]

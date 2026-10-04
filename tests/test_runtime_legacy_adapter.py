@@ -122,30 +122,6 @@ def test_lifecycle_metadata_and_apply_order(compat, rt):
     assert (cls.opens, cls.closes) == (2, 2)
 
 
-def test_contextual_legacy_reopen_reconfigures_segment_events(compat, rt):
-    core = Core()
-    core.speak_legacy_segment = lambda commands, token, *, context, on_event: core.spoken.append(
-        (commands, context, token, on_event))
-    cls = legacy_class(core)
-    adapter = compat.adapter.LegacyEngineAdapter(
-        cls, lambda key: cls(), completion=rt.models.CompletionContract(
-            mode=rt.models.CompletionMode.LEGACY_DONE, legacy_contextual=True))
-    first_context = rt.models.PlaybackContext(11, 21)
-    first_sink = lambda event: None
-    adapter.open()
-    adapter.configure_legacy_segment_events(lambda context: first_sink)
-    token = SimpleNamespace(is_cancelled=lambda: False)
-    adapter.speak(("first",), token, context=first_context)
-    adapter.close()
-
-    adapter.open()
-    second_context = rt.models.PlaybackContext(12, 22)
-    second_sink = lambda event: None
-    adapter.configure_legacy_segment_events(lambda context: second_sink)
-    adapter.speak(("second",), token, context=second_context)
-    assert core.spoken[-1] == (("second",), second_context, token, second_sink)
-
-
 @pytest.mark.parametrize("extra", [{}, {"name": "noncanonical", "description": "", "locale": "en_US"}])
 def test_voice_metadata_defaults_and_canonical_key(compat, rt, extra):
     cls = legacy_class(Core())
@@ -414,48 +390,6 @@ def test_legacy_without_context_preserves_commands(compat, monkeypatch):
     monkeypatch.setattr(builtins, "__import__", guard)
     adapter.speak(commands, SimpleNamespace(is_cancelled=lambda: False))
     assert core.spoken[0][0] is commands
-
-
-def test_contextual_legacy_entry_preserves_commands_and_original_context(compat, rt):
-    core, calls, events = Core(), [], []
-
-    def speak_legacy_segment(commands, token, *, context, on_event):
-        calls.append((commands, token, context))
-        on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, context.source_id,
-                                        segment_id=context.segment_id))
-
-    core.speak_legacy_segment = speak_legacy_segment
-    cls = legacy_class(core)
-    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
-    adapter.open()
-    adapter.configure_completion(rt.models.CompletionContract(legacy_contextual=True))
-    adapter.configure_legacy_segment_events(lambda context: events.append)
-    commands = ("hello", object())
-    token = SimpleNamespace(is_cancelled=lambda: False)
-    context = rt.models.PlaybackContext(object(), 4)
-    try:
-        adapter.speak(commands, token, context=context)
-        assert calls == [(commands, token, context)]
-        assert calls[0][0] is commands and calls[0][2] is context
-        assert events == [rt.models.PlaybackEvent(rt.models.EventKind.DONE, context.source_id, segment_id=4)]
-        assert core.spoken == []
-    finally:
-        adapter.close()
-
-
-def test_contextual_legacy_requires_context_instead_of_anonymous_fallback(compat, rt):
-    core = Core()
-    core.speak_legacy_segment = lambda *args, **kwargs: pytest.fail("Missing context reached native entry")
-    cls = legacy_class(core)
-    adapter = compat.adapter.LegacyEngineAdapter(cls, lambda key: cls())
-    adapter.open()
-    adapter.configure_completion(rt.models.CompletionContract(legacy_contextual=True))
-    try:
-        with pytest.raises(ValueError, match="context"):
-            adapter.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False))
-        assert core.spoken == []
-    finally:
-        adapter.close()
 
 
 def test_marker_mode_requires_context(marker_env):

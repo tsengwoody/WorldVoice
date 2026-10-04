@@ -157,13 +157,6 @@ def test_invalid_range_is_rejected(env, minimum, maximum):
         env.models.IndexRange(minimum, maximum)
 
 
-@pytest.mark.parametrize("mode", ["END_INDEX", "DRAIN"])
-def test_contextual_legacy_option_cannot_change_marker_completion(env, mode):
-    with pytest.raises(ValueError):
-        env.models.CompletionContract(getattr(env.models.CompletionMode, mode),
-            env.models.IndexRange(1, 9999), legacy_contextual=True)
-
-
 def make_adapter(env):
     class Voice:
         @classmethod

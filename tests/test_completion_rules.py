@@ -19,28 +19,27 @@ def completion(monkeypatch, rt):
 	return module
 
 
-def _contract(rt, mode, contextual=False):
+def _contract(rt, mode):
 	models = rt.models
 	mode = getattr(models.CompletionMode, mode)
 	if mode is models.CompletionMode.LEGACY_DONE:
-		return models.CompletionContract(legacy_contextual=contextual)
+		return models.CompletionContract()
 	return models.CompletionContract(mode, models.IndexRange(1, 10))
 
 
 # correlated, segment_scoped, end_event, drain_event, fails_on_segment_failed,
 # requires_end, requires_drain, entry
 TABLE = {
-	("LEGACY_DONE", False): (False, False, "DONE", None, False, True, False, "PLAIN"),
-	("LEGACY_DONE", True): (False, True, "DONE", None, True, True, False, "LEGACY_SEGMENT"),
-	("END_INDEX", False): (True, True, "SEGMENT_END", None, True, True, False, "PLAIN"),
-	("END_INDEX_AND_DRAIN", False): (True, True, "SEGMENT_END", "SEGMENT_DRAINED", True, True, True, "SEGMENT"),
-	("DRAIN", False): (True, True, "SEGMENT_END", "SEGMENT_DRAINED", True, False, True, "SEGMENT"),
+	"LEGACY_DONE": (False, False, "DONE", None, False, True, False, "PLAIN"),
+	"END_INDEX": (True, True, "SEGMENT_END", None, True, True, False, "PLAIN"),
+	"END_INDEX_AND_DRAIN": (True, True, "SEGMENT_END", "SEGMENT_DRAINED", True, True, True, "SEGMENT"),
+	"DRAIN": (True, True, "SEGMENT_END", "SEGMENT_DRAINED", True, False, True, "SEGMENT"),
 }
 
 
 @pytest.mark.parametrize("key", TABLE)
 def test_rule_table_rows(completion, rt, key):
-	rule = completion.rule_for(_contract(rt, *key))
+	rule = completion.rule_for(_contract(rt, key))
 	kinds = rt.models.EventKind
 	correlated, scoped, end, drain, fails, requires_end, requires_drain, entry = TABLE[key]
 	assert rule == completion.CompletionRule(
@@ -55,16 +54,15 @@ def test_rule_table_rows(completion, rt, key):
 	)
 
 
-def test_every_valid_contract_has_exactly_one_rule(completion, rt):
-	modes = rt.models.CompletionMode
-	valid = {(mode.name, False) for mode in modes} | {("LEGACY_DONE", True)}
-	assert set(TABLE) == valid
-	assert len({id(completion.rule_for(_contract(rt, *key))) for key in valid}) == len(valid)
+def test_every_completion_mode_has_exactly_one_rule(completion, rt):
+	modes = {mode.name for mode in rt.models.CompletionMode}
+	assert set(TABLE) == modes
+	assert len({id(completion.rule_for(_contract(rt, mode))) for mode in modes}) == len(modes)
 
 
 @pytest.mark.parametrize("key", TABLE)
 def test_rule_queries_read_only_the_rule_fields(completion, rt, key):
-	rule = completion.rule_for(_contract(rt, *key))
+	rule = completion.rule_for(_contract(rt, key))
 	kinds, signal = rt.models.EventKind, completion.Signal
 	assert rule.accepts_segment(7, 7) is rule.segment_scoped
 	assert rule.accepts_segment(7, None) is not rule.segment_scoped
@@ -117,7 +115,6 @@ ALLOWED = {
 	"runtime/completion.py": None,
 	"runtime/models.py": {"__post_init__"},
 	"compat/completionPolicies.py": None,
-	"voiceManager.py": {"_resource_completion"},
 }
 
 

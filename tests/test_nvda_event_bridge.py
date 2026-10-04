@@ -76,42 +76,6 @@ def test_routes_bound_source_index_and_done(env):
     assert all(event.source_id is source_id for event in env.received)
 
 
-@pytest.mark.parametrize("release", ["unchanged", "unbind", "rebind", "close"])
-def test_contextual_legacy_supplier_rechecks_source_binding(env, release):
-    source, source_id, suppliers = object(), object(), []
-    contract = env.models.CompletionContract(legacy_contextual=True)
-    env.bridge.start(env.received.append, batch_handler=suppliers.append)
-    env.bridge.bind(source, source_id, completion=contract)
-    context = env.models.PlaybackContext(source_id, 7)
-    sink = env.bridge.legacy_segment_sink(source, context)
-    event = env.models.PlaybackEvent(env.models.EventKind.DONE, source_id, segment_id=7)
-    sink(event)
-    assert env.received == []
-    assert len(suppliers) == 1
-    if release == "close":
-        env.bridge.close()
-    elif release != "unchanged":
-        env.bridge.unbind(source_id)
-        if release == "rebind":
-            env.bridge.bind(source, source_id, completion=contract)
-    assert suppliers[0]() == ((event,) if release == "unchanged" else ())
-
-
-@pytest.mark.parametrize("mismatch", ["source", "segment", "anonymous", "drain"])
-def test_contextual_legacy_sink_rejects_unrelated_events(env, mismatch):
-    source, source_id, suppliers = object(), object(), []
-    env.bridge.start(env.received.append, batch_handler=suppliers.append)
-    env.bridge.bind(source, source_id, completion=env.models.CompletionContract(legacy_contextual=True))
-    context = env.models.PlaybackContext(source_id, 7)
-    sink = env.bridge.legacy_segment_sink(source, context)
-    event = env.models.PlaybackEvent(
-        env.models.EventKind.SEGMENT_DRAINED if mismatch == "drain" else env.models.EventKind.DONE,
-        object() if mismatch == "source" else source_id,
-        segment_id=8 if mismatch == "segment" else None if mismatch == "anonymous" else 7)
-    sink(event)
-    assert suppliers == []
-
-
 def test_unknown_and_owner_sources_are_ignored(env):
     env.bridge.bind(env.owner, object())
     env.bridge.start(env.received.append)
