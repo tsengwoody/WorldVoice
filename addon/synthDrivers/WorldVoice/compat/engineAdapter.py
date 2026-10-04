@@ -6,9 +6,9 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 import logging
 
+from ..runtime.completion import SpeakEntry, rule_for
 from ..runtime.models import (
 	CompletionContract,
-	CompletionMode,
 	EngineCapabilities,
 	PlaybackContext,
 	SegmentEventSink,
@@ -20,6 +20,29 @@ from ..runtime.session import CancellationView
 
 if TYPE_CHECKING:
 	from ..indexLedger import IndexLedger
+
+
+def _speak_segment(adapter, commands, token, context, on_event):
+	adapter._core.speak_segment(commands, token, context=context, on_event=on_event)
+
+
+def _speak_legacy_segment(adapter, commands, token, context, on_event):
+	adapter._core.speak_legacy_segment(commands, token, context=context, on_event=on_event)
+
+
+def _speak_plain(adapter, commands, token, context, on_event):
+	if adapter.capabilities.supports_cancellation_token:
+		adapter._core.speak(commands, cancellationToken=token)
+	else:
+		adapter._core.speak(commands)
+
+
+# The completion rule names the core entry; each entry has its own signature.
+_ENTRIES = {
+	SpeakEntry.SEGMENT: _speak_segment,
+	SpeakEntry.LEGACY_SEGMENT: _speak_legacy_segment,
+	SpeakEntry.PLAIN: _speak_plain,
+}
 
 
 class LegacyEngineAdapter:
@@ -174,48 +197,42 @@ class LegacyEngineAdapter:
 		context: PlaybackContext | None = None,
 	) -> None:
 		self._spoken = True
-		marker_mode = self._completion.mode is not CompletionMode.LEGACY_DONE
-		drain_mode = self._completion.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX_AND_DRAIN)
-		legacy_contextual = self._completion.legacy_contextual and context is not None
-		if self._completion.legacy_contextual and context is None:
+		rule = rule_for(self._completion)
+		contextual = rule.entry is SpeakEntry.LEGACY_SEGMENT
+		if contextual and context is None:
 			raise ValueError("Contextual legacy completion requires a playback context")
-		if marker_mode:
+		if rule.correlated:
 			if context is None:
 				raise ValueError("Correlated completion requires a playback context")
 			if self._index_ledger is None:
 				raise ValueError("Marker completion requires an index ledger")
 			self._source_id = context.source_id
-		if drain_mode and self._segment_events is None:
+		if rule.drain_event is not None and self._segment_events is None:
 			raise RuntimeError("Drain completion requires a segment event factory")
-		if legacy_contextual and self._legacy_events is None:
+		if contextual and self._legacy_events is None:
 			raise RuntimeError("Contextual legacy completion requires a segment event factory")
 		if token.is_cancelled():
-			if marker_mode:
+			if rule.correlated:
 				self.finish_segment(context)
 			return
 		try:
-			if marker_mode:
+			if rule.correlated:
 				# Legacy direct calls must not load NVDA command dependencies.
 				from .indexCodec import encode_segment
 
 				commands = encode_segment(commands, context, self._index_ledger)
-			on_event = self._segment_events(context) if drain_mode else None
-			if legacy_contextual:
+			on_event = None
+			if rule.entry is SpeakEntry.SEGMENT:
+				on_event = self._segment_events(context)
+			elif contextual:
 				on_event = self._legacy_events(context)
 			if token.is_cancelled():
-				if marker_mode:
+				if rule.correlated:
 					self.finish_segment(context)
 				return
-			if drain_mode:
-				self._core.speak_segment(commands, token, context=context, on_event=on_event)
-			elif legacy_contextual:
-				self._core.speak_legacy_segment(commands, token, context=context, on_event=on_event)
-			elif self.capabilities.supports_cancellation_token:
-				self._core.speak(commands, cancellationToken=token)
-			else:
-				self._core.speak(commands)
+			_ENTRIES[rule.entry](self, commands, token, context, on_event)
 		except Exception:
-			if marker_mode:
+			if rule.correlated:
 				self.finish_segment(context)
 			raise
 

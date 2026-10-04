@@ -107,7 +107,7 @@ def _mode_comparisons(path):
 
 
 # Components that already read contracts only through their completion rule.
-CONVERTED = ("runtime/scheduler.py",)
+CONVERTED = ("runtime/scheduler.py", "compat/engineAdapter.py")
 
 
 @pytest.mark.parametrize("path", CONVERTED)
