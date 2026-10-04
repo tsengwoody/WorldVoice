@@ -41,14 +41,6 @@ def plugin_environment(calls, *, secure, menu_error=None):
 		"wx": types.SimpleNamespace(CallAfter=lambda *args: None, ID_ANY=-1),
 		"patch": record("patch"),
 		"unpatch": record("unpatch"),
-		"getSynth": lambda: types.SimpleNamespace(name="eSpeak"),
-		"load_pipeline_settings": lambda: types.SimpleNamespace(scope="WorldVoice"),
-		"apply_global_pipeline_scope": record("apply scope"),
-		"clear_global_pipeline_scope": record("clear scope"),
-		"on_worldvoice_start": object(),
-		"on_worldvoice_end": object(),
-		"WVStart": types.SimpleNamespace(register=record("start register"), unregister=record("start unregister")),
-		"WVEnd": types.SimpleNamespace(register=record("end register"), unregister=record("end unregister")),
 		"pipeline_scope": types.SimpleNamespace(
 			attach_global=record("attach"),
 			detach_global=record("detach"),
@@ -64,7 +56,7 @@ def test_secure_mode_terminate_runs_every_cleanup_step():
 	plugin.terminate()
 
 	assert "unpatch" in calls
-	assert calls[-1] in {"end unregister", "detach"}
+	assert calls[-1] == "detach"
 
 
 def test_dead_menu_runtime_error_does_not_stop_cleanup():
@@ -76,4 +68,4 @@ def test_dead_menu_runtime_error_does_not_stop_cleanup():
 	plugin.terminate()
 
 	assert "unpatch" in calls
-	assert calls[-1] in {"end unregister", "detach"}
+	assert calls[-1] == "detach"
