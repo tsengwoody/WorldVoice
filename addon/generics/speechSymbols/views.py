@@ -321,7 +321,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 			self.speechSymbols.updateSymbol(symbol)
 		try:
 			self.speechSymbols.save()
-		except IOError as e:
+		except OSError as e:
 			log.error("Error saving user symbols info: %s", e)
 		self.speechSymbols = None
 		if (

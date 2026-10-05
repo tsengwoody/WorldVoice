@@ -429,28 +429,26 @@ class TaskManager:
 		# Resolve port properties before locking: ports can contain engine code.
 		candidates = [(playback, playback.source_id) for playback in playbacks]
 		futures = []
-		with self._delivery_lock:
-			with self._state_cond:
-				self._epoch += 1
-				for request in tuple(self._requests.values()):
-					futures.extend(self._cancel_request_locked(request))
-				self._wake_current_locked()
-				ordered = self._ordered_playbacks_locked(candidates)
-				self._stops_in_flight += 1
+		with self._delivery_lock, self._state_cond:
+			self._epoch += 1
+			for request in tuple(self._requests.values()):
+				futures.extend(self._cancel_request_locked(request))
+			self._wake_current_locked()
+			ordered = self._ordered_playbacks_locked(candidates)
+			self._stops_in_flight += 1
 		self._stop_all(ordered)
 		for future in futures:
 			future.cancel()
 
 	def cancel_current(self) -> None:
-		with self._delivery_lock:
-			with self._state_cond:
-				current = self._current_task
-				if current is None:
-					return
-				self._cancel_request_locked(current.request)
-				self._wake_current_locked()
-				ordered = self._ordered_playbacks_locked([])
-				self._stops_in_flight += 1
+		with self._delivery_lock, self._state_cond:
+			current = self._current_task
+			if current is None:
+				return
+			self._cancel_request_locked(current.request)
+			self._wake_current_locked()
+			ordered = self._ordered_playbacks_locked([])
+			self._stops_in_flight += 1
 		self._stop_all(ordered)
 
 	def pause_current(self, switch: bool) -> None:
@@ -556,16 +554,15 @@ class TaskManager:
 		done.wait()
 		# A wake is only a signal. Wait for the complete delivery batch and
 		# then validate after speak returned; errors/cancellation beat completion.
-		with self._delivery_lock:
-			with self._state_cond:
-				if not self._valid_locked(task):
-					return None
-				if task.error is not None:
-					raise task.error
-				if not self._completion_ready_locked(task):
-					return None
-				self._current_phase = TaskPhase.FINISHING
-				return True
+		with self._delivery_lock, self._state_cond:
+			if not self._valid_locked(task):
+				return None
+			if task.error is not None:
+				raise task.error
+			if not self._completion_ready_locked(task):
+				return None
+			self._current_phase = TaskPhase.FINISHING
+			return True
 
 	def _settle(self, task, result, error, failed):
 		"""Release the task's resources, then settle its Future and the request."""

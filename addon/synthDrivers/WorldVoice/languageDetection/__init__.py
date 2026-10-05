@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from speech.commands import LangChangeCommand
 
 from .._speechcommand import WVLangChangeCommand

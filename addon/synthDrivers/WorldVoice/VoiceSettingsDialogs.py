@@ -34,7 +34,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 
 	def _onPunctuationPauseEnabledToggle(self, evt):
 		evt.Skip()
-		setattr(self._getSettingsStorage(), "punctuationpauseenabled", evt.IsChecked())
+		self._getSettingsStorage().punctuationpauseenabled = evt.IsChecked()
 		self._applyPunctuationWaitFactorVisibility()
 
 	def _applyPunctuationWaitFactorVisibility(self):

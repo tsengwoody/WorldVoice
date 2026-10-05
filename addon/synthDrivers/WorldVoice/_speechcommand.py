@@ -1,5 +1,3 @@
-from typing import Optional
-
 from speech.commands import IndexCommand, SynthParamCommand
 
 
@@ -27,7 +25,7 @@ class WVLangChangeCommand(SynthParamCommand):
 	own when reportLanguage or its automatic language switching is on.
 	"""
 
-	def __init__(self, lang: Optional[str]):
+	def __init__(self, lang: str | None):
 		"""
 		@param lang: the language to switch to: If None then the NVDA locale will be used.
 		"""
