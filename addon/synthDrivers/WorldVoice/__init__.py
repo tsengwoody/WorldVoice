@@ -360,9 +360,13 @@ class SynthDriver(SynthDriver):
 			self._realSpellingFunc(text, locale, useCharacterDescriptions, priority=priority)
 
 	def cancel(self):
+		if self._terminated:
+			return
 		self._voiceManager.cancel()
 
 	def pause(self, switch):
+		if self._terminated:
+			return
 		self.taskManager.pause_current(switch)
 
 	@property

@@ -197,6 +197,16 @@ def test_construction_failing_after_detection_subscribed_unsubscribes():
 	assert changes.index("detection unsubscribed") < changes.index("filter unregistered")
 
 
+def test_entry_points_are_silent_after_terminate():
+	# NVDA may cancel speech from any thread while it is switching synths.
+	changes = []
+	driver = _load_synth_class(_construction_environment(None, changes).environment)()
+	driver.terminate()
+	driver.speak([])
+	driver.cancel()
+	driver.pause(True)
+
+
 def test_stages_register_after_symbols_and_detector():
 	changes = []
 	_load_synth_class(_construction_environment(None, changes).environment)()
