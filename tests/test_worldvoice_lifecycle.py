@@ -51,10 +51,14 @@ def _construction_environment(failure, changes):
 		allLanguages = ("en",)
 		waitfactor = 0
 
-		def __init__(self, taskManager, settings=None, bridge=None, *, index_ledger, completion_for, engine_classes):
+		def __init__(self, taskManager, settings=None, bridge=None, *, index_ledger, completion_for, engine_classes,
+				conf_provider, get_language, parameter_consistency):
 			assert index_ledger is bridge.ledger
 			assert callable(completion_for)
 			assert engine_classes == {"A": object}
+			assert conf_provider() is environment["config"].conf
+			assert get_language() == "en"
+			managers.append(parameter_consistency)
 			if failure == "manager":
 				raise RuntimeError("no voices")
 			changes.append("engine started")
@@ -114,6 +118,11 @@ def _construction_environment(failure, changes):
 		changes.append("pipeline stopped")
 
 	repositories = []
+	managers = []
+
+	class ParameterConsistency:
+		def __init__(self, conf_provider):
+			assert conf_provider() is environment["config"].conf
 
 	def unavailable_synth():
 		# NVDA's setSynth clears its current synth before constructing the next one.
@@ -146,6 +155,8 @@ def _construction_environment(failure, changes):
 		"VoiceSettingsStore": lambda repository: object(),
 		"config": types.SimpleNamespace(conf={"WorldVoice": {"engine": {}}}),
 		"getSynth": unavailable_synth,
+		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "en"),
+		"ParameterConsistency": ParameterConsistency,
 		"speech": speech,
 		"SpeechSymbols": SpeechSymbols,
 		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: changes.append("filter unregistered")),
@@ -159,7 +170,8 @@ def _construction_environment(failure, changes):
 		**commands,
 	}
 	return types.SimpleNamespace(environment=environment, settings_dialogs=settings_dialogs, panel=panel,
-		speech_api=speech_api, spelling=spelling, repositories=repositories)
+		speech_api=speech_api, spelling=spelling, repositories=repositories, managers=managers,
+		ParameterConsistency=ParameterConsistency)
 
 
 @pytest.mark.parametrize("failure", ["manager", "symbols", "bridge"])
@@ -219,6 +231,14 @@ def test_voice_settings_load_from_the_synths_own_speech_section():
 	assert [args[1] for args in built.repositories] == ["WorldVoice"]
 
 
+def test_repository_and_manager_share_one_parameter_policy():
+	built = _construction_environment(None, [])
+	_load_synth_class(built.environment)()
+	[(_, _, parameters)] = built.repositories
+	assert isinstance(parameters, built.ParameterConsistency)
+	assert built.managers == [parameters]
+
+
 def test_stages_register_after_symbols_and_detector():
 	changes = []
 	_load_synth_class(_construction_environment(None, changes).environment)()
@@ -253,6 +273,17 @@ def _load_voice_manager(monkeypatch):
 	return module
 
 
+def init_policies(manager):
+	"""Give a bare manager the policies the composition root would inject."""
+	config = sys.modules["config"]
+	manager._init_policies(lambda: config.conf, lambda: "en")
+
+
+def manager_providers():
+	config = sys.modules["config"]
+	return {"conf_provider": lambda: config.conf, "get_language": lambda: "en"}
+
+
 def test_voice_manager_closes_engine_when_no_voices(monkeypatch):
 	closed = []
 
@@ -278,7 +309,8 @@ def test_voice_manager_closes_engine_when_no_voices(monkeypatch):
 	with pytest.raises(RuntimeError, match="No WorldVoice voices"):
 		module.VoiceManager(taskManager=object(), settings=store, bridge=bridge,
 			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
-			completion_for=lambda cls, core: module.CompletionContract(), engine_classes={"A": Engine})
+			completion_for=lambda cls, core: module.CompletionContract(), engine_classes={"A": Engine},
+			**manager_providers())
 	assert closed == ["A"]
 
 
@@ -302,7 +334,7 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 
 	module = _load_voice_manager(monkeypatch)
 	manager = object.__new__(module.VoiceManager)
-	manager._init_policies()
+	init_policies(manager)
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}
@@ -330,7 +362,7 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	monkeypatch.setattr(module, "log", types.SimpleNamespace(
 		error=lambda message, *args, **kwargs: errors.append(message % args)))
 	manager = object.__new__(module.VoiceManager)
-	manager._init_policies()
+	init_policies(manager)
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}
@@ -410,7 +442,7 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
 			completion_for=lambda cls, core: models.CompletionContract(
 				models.CompletionMode.DRAIN, models.IndexRange(1, 9999)),
-			engine_classes={"first": First, "broken": Broken})
+			engine_classes={"first": First, "broken": Broken}, **manager_providers())
 	assert closed == ["broken", "first"] and bound == {}
 
 

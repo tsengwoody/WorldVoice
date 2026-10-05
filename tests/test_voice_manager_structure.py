@@ -1,5 +1,6 @@
 """Structures removed in phase 10a stay removed; the voice facade keeps only live members."""
 
+import ast
 import inspect
 from pathlib import Path
 
@@ -50,6 +51,13 @@ FORBIDDEN = {
 def test_removed_structures_stay_removed(path):
 	source = (ADDON / path).read_text(encoding="utf-8")
 	assert [name for name in FORBIDDEN[path] if name in source] == []
+
+
+def test_voice_manager_gets_config_and_language_injected():
+	tree = ast.parse((ADDON / "synthDrivers/WorldVoice/voiceManager.py").read_text(encoding="utf-8"))
+	imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
+	imported |= {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module}
+	assert not imported & {"config", "languageHandler"}
 
 
 def test_one_boolean_coercion():

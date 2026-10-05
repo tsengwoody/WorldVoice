@@ -8,6 +8,7 @@ import types
 import pytest
 
 from test_f4_voice_state import _load_voice_manager, _create_voices, RecordingCore
+from test_worldvoice_lifecycle import init_policies
 from voice_binding_harness import bind_core
 
 
@@ -39,7 +40,7 @@ def env(monkeypatch):
 	c = type(a)(type(a._state.spec)("c", "A:c", "A:c", "en", "A", "en"), a._binding)
 	voices = {voice.name: voice for voice in (a, b, c)}
 	manager = object.__new__(module.VoiceManager)
-	manager._init_policies()
+	init_policies(manager)
 	manager.settings = a._binding.settings
 	manager._instanceCache = dict(voices)
 	manager.catalog = module.VoiceCatalog.from_specs(voice._state.spec for voice in voices.values())

@@ -4,7 +4,7 @@ import importlib.util
 import sys
 import types
 
-from test_worldvoice_lifecycle import _load_voice_manager, WORLDVOICE
+from test_worldvoice_lifecycle import _load_voice_manager, init_policies, WORLDVOICE
 
 
 
@@ -36,7 +36,7 @@ def _editing_manager(monkeypatch):
 	a, b = _create_voices(monkeypatch, config)
 	config.conf["speech"] = {"WorldVoice": {"voice": a.name}}
 	manager = object.__new__(module.VoiceManager)
-	manager._init_policies()
+	init_policies(manager)
 	manager.settings = a._binding.settings
 	manager._instanceCache = {a.name: a}
 	manager._defaultVoiceInstance = a

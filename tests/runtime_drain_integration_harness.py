@@ -311,7 +311,8 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
         return rt.models.CompletionContract()
 
     manager = manager_module.VoiceManager(tasks, store, bridge,
-        index_ledger=ledger, completion_for=completion_for, engine_classes=engine_classes)
+        index_ledger=ledger, completion_for=completion_for, engine_classes=engine_classes,
+        conf_provider=lambda: config.conf, get_language=lambda: "en")
     builder = importlib.import_module(PACKAGE + ".runtime.requestBuilder")
     for name, control in controls.items():
         session = manager.resolve_playback(next(spec.name for spec in manager.table if spec.engine == name))

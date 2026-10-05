@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from test_worldvoice_request_manager import buses, manager, task_module, append_speech, cancel  # noqa: F401 (fixtures)
+from test_worldvoice_lifecycle import init_policies
 from voice_binding_harness import install_binding, bind_core
 
 
@@ -145,7 +146,7 @@ def test_manager_binds_new_voice_to_its_engine(monkeypatch):
 	module = sys.modules["f4_test_worldvoice.voiceManager"]
 	voice_meta = type(a._state.spec)("new", "A:new", "A:new", "en", "A", "en")
 	manager_instance = object.__new__(module.VoiceManager)
-	manager_instance._init_policies()
+	init_policies(manager_instance)
 	manager_instance.catalog = module.VoiceCatalog.from_specs([voice_meta])
 	manager_instance._resources = {"A": module.EngineResource(
 		"A", a.__class__, None, a._binding.session, a._binding, voices=(voice_meta,), published=True)}
@@ -251,7 +252,7 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	(a, b), _ = _voices(monkeypatch)
 	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
-	manager_instance._init_policies()
+	init_policies(manager_instance)
 	manager_instance._instanceCache = {a.name: a, b.name: b}
 	manager_instance.settings = a._binding.settings
 	updates = []

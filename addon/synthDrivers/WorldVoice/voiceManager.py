@@ -1,8 +1,7 @@
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import Any
 
-import config
-import languageHandler
 from logHandler import log
 
 from .compat.engineAdapter import LegacyEngineAdapter
@@ -42,6 +41,9 @@ class VoiceManager:
 		index_ledger: IndexLedger,
 		completion_for: Callable[[type, object], CompletionContract],
 		engine_classes: Mapping[str, type],
+		conf_provider: Callable[[], Any],
+		get_language: Callable[[], str],
+		parameter_consistency: ParameterConsistency | None = None,
 		roles: ConfigRoleRepository | None = None,
 	):
 		self.taskManager = taskManager
@@ -55,21 +57,24 @@ class VoiceManager:
 		self._waitfactor = 0
 		self._terminated = False
 		try:
-			self._init_policies(roles)
+			self._init_policies(
+				conf_provider,
+				get_language,
+				roles=roles,
+				parameter_consistency=parameter_consistency,
+			)
 			self._initialize(engine_classes)
 		except BaseException:
 			# Release acquired resources even on KeyboardInterrupt, then re-raise.
 			self.terminate(commit=False)
 			raise
 
-	def _init_policies(self, roles=None):
-		def conf_provider():
-			return config.conf
-
+	def _init_policies(self, conf_provider, get_language, *, roles=None, parameter_consistency=None):
+		self._get_language = get_language
 		self.roles = roles or ConfigRoleRepository(conf_provider)
 		self.engine_consistency = EngineConsistency(conf_provider)
-		self.voice_consistency = VoiceConsistency(conf_provider, self.roles, languageHandler.getLanguage)
-		self.parameter_consistency = ParameterConsistency(conf_provider)
+		self.voice_consistency = VoiceConsistency(conf_provider, self.roles, get_language)
+		self.parameter_consistency = parameter_consistency or ParameterConsistency(conf_provider)
 
 	def _initialize(self, engine_classes: Mapping[str, type]):
 		for name, cls in engine_classes.items():
@@ -199,7 +204,7 @@ class VoiceManager:
 				self.settings.ensure(self.getVoiceSpec(key)).update(waitfactor=value)
 
 	def _getDefaultVoiceSpec(self) -> VoiceSpec:
-		lang = languageHandler.getLanguage()
+		lang = self._get_language()
 		try:
 			return next(v for v in self.table if v.language == lang)
 		except StopIteration:

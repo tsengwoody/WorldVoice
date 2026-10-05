@@ -4,6 +4,7 @@ import sys
 import types
 
 from test_f4_voice_state import _load_voice_manager
+from test_worldvoice_lifecycle import init_policies
 
 
 def make_manager(monkeypatch, *, engine=True, voice=True):
@@ -13,7 +14,7 @@ def make_manager(monkeypatch, *, engine=True, voice=True):
 		KeepMainLocaleEngineConsistent=engine, KeepMainLocaleVoiceConsistent=voice)
 	conf["WorldVoice"]["role"] = {"fr": {"voice": "B:b"}, "en": {"voice": "X:gone"}}
 	manager = object.__new__(module.VoiceManager)
-	manager._init_policies()
+	init_policies(manager)
 	spec = module.VoiceSpec
 	manager.catalog = module.VoiceCatalog.from_specs([spec("a", "A:a", "A", "en_US", "A", "en_US"),
 		spec("b", "B:b", "B", "fr", "B", "fr"), spec("c", "A:c", "C", "fr", "A", "fr")])

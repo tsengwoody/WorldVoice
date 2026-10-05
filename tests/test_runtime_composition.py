@@ -95,17 +95,21 @@ def composition(monkeypatch):
     engines = {}
     managers = []
 
-    def create(completion_for=lambda cls, core: models.CompletionContract(), engine_classes=None):
+    config = sys.modules["config"]
+
+    def create(completion_for=lambda cls, core: models.CompletionContract(), engine_classes=None,
+               get_language=lambda: "en"):
         manager = manager_module.VoiceManager(tasks, store, bridge,
             index_ledger=ledger, completion_for=completion_for,
-            engine_classes=engines if engine_classes is None else engine_classes)
+            engine_classes=engines if engine_classes is None else engine_classes,
+            conf_provider=lambda: config.conf, get_language=get_language)
         managers.append(manager)
         return manager
 
     yield SimpleNamespace(engine=engine, engines=engines, create=create, store=store, repo=repo,
                           bridge=bridge, tasks=tasks, cores=cores, Core=Core,
                           module=manager_module, driver=driver, ledger=ledger, models=models,
-                          done=done, index=index, owner=owner)
+                          done=done, index=index, owner=owner, config=config)
     tasks.shutdown()
     bridge.close()
     for manager in managers:
@@ -123,6 +127,12 @@ def test_only_started_sessions_are_resolvable(composition):
     # A failed create_core leaves no core behind; only the started engine opened one.
     assert [core.closes for core in c.cores] == [0]
     assert c.repo.saves == []
+
+
+def test_default_voice_follows_the_injected_language(composition):
+    composition.engine("x")
+    assert composition.create(get_language=lambda: "zh").defaultVoiceName == "x:b"
+    assert composition.create(get_language=lambda: "en").defaultVoiceName == "x:a"
 
 
 def test_each_opened_engine_is_one_engine_resource(composition):
@@ -261,7 +271,7 @@ def test_facade_creation_preserves_existing_pending_state_and_edit_baseline(comp
 def test_first_voice_resolution_inherits_main_values_and_keeps_cancel_baseline(composition, during_edit):
     c = composition
     c.engine("ok")
-    conf = c.module.config.conf
+    conf = c.config.conf
     conf["WorldVoice"]["voices"] = {}
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
     conf["speech"] = {"WorldVoice": {"rate": 83}}
@@ -418,7 +428,7 @@ def test_pipeline_emits_voice_keys_without_constructing_selected_facades(composi
     c = composition
     c.engine("ok")
     manager = c.create()
-    c.module.config.conf["WorldVoice"]["role"] = {"zh": {"voice": "ok:b"}}
+    c.config.conf["WorldVoice"]["role"] = {"zh": {"voice": "ok:b"}}
     models = importlib.import_module(c.module.__package__ + ".runtime.models")
     class Language:
         def __init__(self, lang):

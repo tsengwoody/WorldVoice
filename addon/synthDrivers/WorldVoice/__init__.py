@@ -33,6 +33,7 @@ from .configRepository import ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
 from .indexLedger import IndexLedger
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
+from .mainLocalePolicy import ParameterConsistency
 from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	STAGES,
@@ -239,7 +240,9 @@ class SynthDriver(SynthDriver):
 				)
 
 			with timed(nvdaLog, "TaskManager"):
-				repository = ConfigVoiceSettingsRepository(config.conf, self.name)
+				# One policy instance: the repository loads through it, the manager copies through it.
+				parameters = ParameterConsistency(lambda: config.conf)
+				repository = ConfigVoiceSettingsRepository(config.conf, self.name, parameters)
 				self._settingsStore = VoiceSettingsStore(repository)
 				# One ledger spans every binding of a live core in this runtime. A core
 				# handed to a new runtime must first close, or retain its original ledger.
@@ -263,6 +266,9 @@ class SynthDriver(SynthDriver):
 					index_ledger=self._indexLedger,
 					completion_for=self._completionPolicy.select,
 					engine_classes=ready_engine_classes(config.conf["WorldVoice"]["engine"]),
+					conf_provider=lambda: config.conf,
+					get_language=languageHandler.getLanguage,
+					parameter_consistency=parameters,
 				)
 
 			self._apply_pipeline_settings(pipeline_settings.get())
