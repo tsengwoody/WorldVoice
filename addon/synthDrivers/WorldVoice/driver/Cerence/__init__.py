@@ -340,7 +340,7 @@ class _CerenceStrategy(NativeStrategy):
 				return RuntimeError("Cerence driver has terminated")
 			if driver._legacyUsed:
 				return RuntimeError(
-					"Legacy Cerence callback lifetimes are unproven; cannot enter correlated mode"
+					"Legacy Cerence callback lifetimes are unproven; cannot enter correlated mode",
 				)
 		return None
 
@@ -908,7 +908,9 @@ class SynthDriver(BaseSynthDriver):
 			# itself; a closer thread finishes once they all retire.
 			if first:
 				threading.Thread(
-					target=self._finish_termination, name="WorldVoice Cerence close", daemon=True
+					target=self._finish_termination,
+					name="WorldVoice Cerence close",
+					daemon=True,
 				).start()
 			return
 		self._finish_termination()

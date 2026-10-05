@@ -456,7 +456,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._voicesChoice.SetItems([self.NO_SELECT] + [label for _name, label in voices])
 		try:
 			self._voicesChoice.Select(
-				self._voiceNamesByChoiceIndex.index(self._presenter.selected_voice(locale))
+				self._voiceNamesByChoiceIndex.index(self._presenter.selected_voice(locale)),
 			)
 		except ValueError:
 			self._voicesChoice.Select(0)

@@ -310,7 +310,8 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					# Ordinary speech skips only this sentence; the next one opens the
 					# player again. It still completes below, or its speaking wait hangs.
 					log.error(
-						"OneCore could not open the audio player; skipping this sentence", exc_info=True
+						"OneCore could not open the audio player; skipping this sentence",
+						exc_info=True,
 					)
 					skipped = True
 				self._releaseSegmentWorker(record)

@@ -284,7 +284,7 @@ class SynthDriver(SynthDriver):
 					language=lambda: self.language,
 				)
 				self.add_detected_language_commands = listable(
-					self._languageDetector.add_detected_language_commands
+					self._languageDetector.add_detected_language_commands,
 				)
 				self._teardown.add(
 					"language detection unregister",

@@ -901,7 +901,9 @@ class SynthDriver(BaseSynthDriver):
 			# itself; a closer thread finishes once they all retire.
 			if first:
 				threading.Thread(
-					target=self._finish_termination, name="WorldVoice VE close", daemon=True
+					target=self._finish_termination,
+					name="WorldVoice VE close",
+					daemon=True,
 				).start()
 			return
 		self._finish_termination()

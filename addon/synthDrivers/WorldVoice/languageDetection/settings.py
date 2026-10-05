@@ -61,7 +61,7 @@ class DetectionSettingsService:
 		return DetectionSettings(
 			ignore_numbers=bool(section[_IGNORE_NUMBERS_KEY]),
 			script_language=MappingProxyType(
-				{script: section[key] for script, key in SCRIPT_CONFIG_KEYS.items()}
+				{script: section[key] for script, key in SCRIPT_CONFIG_KEYS.items()},
 			),
 			timing=section[_TIMING_KEY],
 		)
