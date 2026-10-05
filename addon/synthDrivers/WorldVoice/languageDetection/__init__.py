@@ -95,14 +95,6 @@ SCRIPT_LANGUAGES = {
 }
 
 
-# The Unicode panel still reads this; it moves to settings.py with the panel's switch to the service.
-SCRIPT_CONFIG_KEYS = {
-	"Latin": "latinCharactersLanguage",
-	"Han": "CJKCharactersLanguage",
-	"Arabic": "arabicCharactersLanguage",
-}
-
-
 def get_primary_language(locale: str) -> str:
 	return locale.replace("-", "_").split("_", maxsplit=1)[0].lower()
 

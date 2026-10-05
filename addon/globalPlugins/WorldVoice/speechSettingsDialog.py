@@ -13,6 +13,7 @@ from logHandler import log
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
+from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
 from synthDrivers.WorldVoice.pipeline import STAGES
 from synthDrivers.WorldVoice.pipeline.settings import pipeline_settings
 
@@ -616,6 +617,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 
 		self.localesToNames = self._manager.localesToNamesMap
 		self._locales = self._manager.languages
+		self._detection = detection_settings.get()
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 
@@ -624,9 +626,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			# Translators: Either to ignore or not numbers when language detection is active
 			label=_("Ignore numbers when detecting text language"),
 		)
-		self._ignoreNumbersCheckBox.SetValue(
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"],
-		)
+		self._ignoreNumbersCheckBox.SetValue(self._detection.ignore_numbers)
 		settingsSizerHelper.addItem(self._ignoreNumbersCheckBox)
 
 		self._scriptChoices = {
@@ -644,9 +644,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			wx.Choice,
 			choices=DetectLanguageTimingLabel,
 		)
-		self._DetectLanguageTiming = config.conf["WorldVoice"]["autoLanguageSwitching"][
-			"DetectLanguageTiming"
-		]
+		self._DetectLanguageTiming = self._detection.timing
 		try:
 			self._DLTChoice.Select(self._DetectLanguageTimingValue.index(self._DetectLanguageTiming))
 		except ValueError:
@@ -665,9 +663,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		locales = sorted(candidates & {locale for locale in self._locales if len(locale) == 2})
 		names = [self.localesToNames[locale] for locale in locales]
 		choice = helper.addLabeledControl(label, wx.Choice, choices=names)
-		stored = config.conf["WorldVoice"]["autoLanguageSwitching"][
-			languageDetection.SCRIPT_CONFIG_KEYS[script]
-		]
+		stored = self._detection.script_language[script]
 		try:
 			choice.Select(locales.index(stored))
 		except ValueError:
@@ -679,20 +675,16 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 	def onSave(self):
 		if self.disable or not getSynth().name == "WorldVoice":
 			return
-		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = (
-			self._ignoreNumbersCheckBox.GetValue()
+		# The driver subscribes to these settings and re-registers detection when the timing changes.
+		detection_settings.update(
+			ignore_numbers=self._ignoreNumbersCheckBox.GetValue(),
+			script_language={
+				script: locales[choice.GetCurrentSelection()]
+				for script, (choice, locales) in self._scriptChoices.items()
+				if choice.IsEnabled()
+			},
+			timing=self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()],
 		)
-		for script, (choice, locales) in self._scriptChoices.items():
-			if choice.IsEnabled():
-				config.conf["WorldVoice"]["autoLanguageSwitching"][
-					languageDetection.SCRIPT_CONFIG_KEYS[script]
-				] = locales[choice.GetCurrentSelection()]
-
-		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
-		current_DLT = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
-		if current_DLT != previous_DLT:
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = current_DLT
-			getSynth().refresh_language_detection()
 
 
 class SpeechEngineSettingsPanel(BaseSettingsPanel):
