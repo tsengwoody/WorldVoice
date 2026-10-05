@@ -3,26 +3,24 @@
 from dataclasses import fields
 import importlib.util
 import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
 
+from nvda_stubs import StubModules
+
 
 def load_settings_module(monkeypatch, conf, errors=None):
-	config = ModuleType("config")
+	stubs = StubModules(monkeypatch)
+	config = stubs.module("config")
 	config.conf = conf
-	monkeypatch.setitem(sys.modules, "config", config)
-	addon_handler = ModuleType("addonHandler")
+	addon_handler = stubs.module("addonHandler")
 	addon_handler.initTranslation = lambda: None
-	monkeypatch.setitem(sys.modules, "addonHandler", addon_handler)
-	log_handler = ModuleType("logHandler")
+	log_handler = stubs.module("logHandler")
 	log_handler.log = SimpleNamespace(error=lambda *args, **kwargs: (errors if errors is not None else []).append(args))
-	monkeypatch.setitem(sys.modules, "logHandler", log_handler)
-	synth_driver_handler = ModuleType("synthDriverHandler")
+	synth_driver_handler = stubs.module("synthDriverHandler")
 	synth_driver_handler.getSynth = lambda: None
-	monkeypatch.setitem(sys.modules, "synthDriverHandler", synth_driver_handler)
-	import builtins
-	monkeypatch.setattr(builtins, "_", lambda text: text, raising=False)
+	stubs.translation()
 	spec = importlib.util.spec_from_file_location(
 		"pipeline_settings_under_test",
 		"addon/synthDrivers/WorldVoice/pipeline/settings.py",

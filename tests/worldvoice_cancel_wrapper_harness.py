@@ -5,6 +5,7 @@ import sys
 import threading
 import types
 from pathlib import Path
+from nvda_stubs import StubModules
 
 
 class FakePlayer:
@@ -39,17 +40,8 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 	root = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
 	engine_path = root / engine
 	native_name = "ve2" if engine == "VE" else "ttsapi"
-	def module(name, **attributes):
-		value = types.ModuleType(name)
-		value.__dict__.update(attributes)
-		monkeypatch.setitem(sys.modules, name, value)
-		return value
-
-	def package(name, path, **attributes):
-		value = module(name, **attributes)
-		value.__path__ = [str(path)]
-		return value
-
+	stubs = StubModules(monkeypatch)
+	module, package = stubs.module, stubs.package
 	class Setting:
 		def __init__(self, *args, **kwargs):
 			self.id = args[0] if args else ""

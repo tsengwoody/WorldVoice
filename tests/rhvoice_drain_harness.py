@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 from threading import Condition, Event, Thread, current_thread
 from types import ModuleType, SimpleNamespace
+from nvda_stubs import StubModules
 
 from runtime_harness import load_runtime, load_scheduler
 
@@ -193,17 +194,8 @@ class Events(list):
 
 
 def load_rhvoice(monkeypatch, tmp_path):
-    def module(name, **attrs):
-        item = ModuleType(name)
-        item.__dict__.update(attrs)
-        monkeypatch.setitem(sys.modules, name, item)
-        return item
-
-    def package(name, path, **attrs):
-        item = module(name, **attrs)
-        item.__path__ = [str(path)]
-        return item
-
+    stubs = StubModules(monkeypatch)
+    module, package = stubs.module, stubs.package
     def load(name, path):
         spec = importlib.util.spec_from_file_location(name, path)
         item = importlib.util.module_from_spec(spec)

@@ -59,3 +59,14 @@ def test_generics_is_imported_only_after_the_package_that_adds_its_path():
 			continue
 		worldvoice = [node.lineno for node in imports if node.module.startswith("synthDrivers.WorldVoice")]
 		assert worldvoice and min(worldvoice) < min(generics), path
+
+
+def test_tests_share_one_module_stub_helper():
+	local = []
+	for path in (ROOT / "tests").glob("*.py"):
+		if path.name == "nvda_stubs.py":
+			continue
+		for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+			if re.match(r"\s*def (module|package|stub)\(name", line):
+				local.append(f"{path.name}:{number}")
+	assert local == []

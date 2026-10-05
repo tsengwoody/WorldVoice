@@ -9,6 +9,8 @@ from zipfile import BadZipFile, ZipFile
 
 import pytest
 
+from nvda_stubs import StubModules
+
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE = ROOT / "addon/generics/coreArchive.py"
 INSTALL = ROOT / "addon/installTasks.py"
@@ -16,10 +18,10 @@ PLUGIN = ROOT / "addon/globalPlugins/WorldVoice/__init__.py"
 
 
 def load(path, name, monkeypatch, logged):
-	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=types.SimpleNamespace(
+	StubModules(monkeypatch).module("logHandler", log=types.SimpleNamespace(
 		info=lambda *a: logged.append(("info",) + a), warning=lambda *a: logged.append(("warning",) + a),
 		error=lambda *a: logged.append(("error",) + a), exception=lambda *a: logged.append(("exception",) + a),
-	)))
+	))
 	spec = importlib.util.spec_from_file_location(name, path)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, name, module)
@@ -61,8 +63,9 @@ def test_corrupt_archive_raises_bad_zip(tmp_path, monkeypatch):
 @pytest.mark.parametrize("corrupt", [False, True])
 def test_install_always_removes_the_archive(tmp_path, monkeypatch, corrupt):
 	logged = []
-	monkeypatch.setitem(sys.modules, "config", types.SimpleNamespace(conf={}))
-	monkeypatch.setitem(sys.modules, "globalVars", types.SimpleNamespace())
+	stubs = StubModules(monkeypatch)
+	stubs.module("config", conf={})
+	stubs.module("globalVars")
 	module = load(INSTALL, "install_tasks_under_test", monkeypatch, logged)
 	archive = tmp_path / "core.zip"
 	if corrupt:

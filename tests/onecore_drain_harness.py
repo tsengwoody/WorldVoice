@@ -13,6 +13,7 @@ import sys
 from threading import Condition, Event, Thread
 from types import ModuleType, SimpleNamespace
 import wave
+from nvda_stubs import StubModules
 
 from runtime_harness import load_runtime, load_scheduler
 
@@ -147,17 +148,8 @@ def in_thread(function):
 
 
 def load_onecore(monkeypatch, *, rt=None, scheduler=None, voice_base=object, commands=None):
-    def module(name, **attrs):
-        result = ModuleType(name)
-        result.__dict__.update(attrs)
-        monkeypatch.setitem(sys.modules, name, result)
-        return result
-
-    def package(name, path, **attrs):
-        result = module(name, **attrs)
-        result.__path__ = [str(path)]
-        return result
-
+    stubs = StubModules(monkeypatch)
+    module, package = stubs.module, stubs.package
     def load(name, path):
         spec = importlib.util.spec_from_file_location(name, path)
         result = importlib.util.module_from_spec(spec)

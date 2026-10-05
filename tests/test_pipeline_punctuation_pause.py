@@ -1,4 +1,6 @@
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
+
+from nvda_stubs import StubModules
 import importlib.util
 import sys
 
@@ -18,6 +20,7 @@ class FakeSpeechSequenceFilter:
 
 
 def load_pipeline_module(monkeypatch, settings):
+	stubs = StubModules(monkeypatch)
 	for name in [
 		"config",
 		"globalVars",
@@ -39,22 +42,19 @@ def load_pipeline_module(monkeypatch, settings):
 	]:
 		sys.modules.pop(name, None)
 
-	config = ModuleType("config")
+	config = stubs.module("config")
 	config.conf = {
 		"general": {"loggingLevel": "INFO"},
 		"WorldVoice": {"log": {"enable": False}},
 	}
-	monkeypatch.setitem(sys.modules, "config", config)
 
-	globalVars = ModuleType("globalVars")
+	globalVars = stubs.module("globalVars")
 	globalVars.speechDictionaryProcessing = True
-	monkeypatch.setitem(sys.modules, "globalVars", globalVars)
 
-	logHandler = ModuleType("logHandler")
+	logHandler = stubs.module("logHandler")
 	logHandler.log = SimpleNamespace(debug=lambda *args, **kwargs: None)
-	monkeypatch.setitem(sys.modules, "logHandler", logHandler)
 
-	commands = ModuleType("speech.commands")
+	commands = stubs.module("speech.commands")
 
 	class BreakCommand:
 		def __init__(self, time):
@@ -66,52 +66,42 @@ def load_pipeline_module(monkeypatch, settings):
 
 	commands.BreakCommand = BreakCommand
 	commands.LangChangeCommand = LangChangeCommand
-	monkeypatch.setitem(sys.modules, "speech.commands", commands)
 
-	speech = ModuleType("speech")
+	speech = stubs.module("speech")
 	speech.speech = SimpleNamespace(processText=lambda *args, **kwargs: args[1])
-	monkeypatch.setitem(sys.modules, "speech", speech)
 
-	extensions = ModuleType("speech.extensions")
+	extensions = stubs.module("speech.extensions")
 	extensions.filter_speechSequence = FakeSpeechSequenceFilter()
-	monkeypatch.setitem(sys.modules, "speech.extensions", extensions)
 
-	speechDictHandler = ModuleType("speechDictHandler")
+	speechDictHandler = stubs.module("speechDictHandler")
 	speechDictHandler.processText = lambda text: text
-	monkeypatch.setitem(sys.modules, "speechDictHandler", speechDictHandler)
 
-	synthDriverHandler = ModuleType("synthDriverHandler")
+	synthDriverHandler = stubs.module("synthDriverHandler")
 	synthDriverHandler.getSynth = lambda: SimpleNamespace(name="notWorldVoice")
-	monkeypatch.setitem(sys.modules, "synthDriverHandler", synthDriverHandler)
 
-	synthDrivers = ModuleType("synthDrivers")
+	synthDrivers = stubs.module("synthDrivers")
 	synthDrivers.__path__ = []
-	monkeypatch.setitem(sys.modules, "synthDrivers", synthDrivers)
 
-	worldVoice = ModuleType("synthDrivers.WorldVoice")
+	worldVoice = stubs.module("synthDrivers.WorldVoice")
 	worldVoice.__path__ = ["addon/synthDrivers/WorldVoice"]
-	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice", worldVoice)
 
-	speechcommand = ModuleType("synthDrivers.WorldVoice._speechcommand")
+	speechcommand = stubs.module("synthDrivers.WorldVoice._speechcommand")
 
 	class WVLangChangeCommand(LangChangeCommand):
 		pass
 
 	speechcommand.WVLangChangeCommand = WVLangChangeCommand
-	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice._speechcommand", speechcommand)
 
-	worldVoiceLog = ModuleType("synthDrivers.WorldVoice.log")
+	worldVoiceLog = stubs.module("synthDrivers.WorldVoice.log")
 
 	class PipelineLog:
 		def __init__(self, *args, **kwargs):
 			pass
 
 	worldVoiceLog.PipelineLog = PipelineLog
-	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.log", worldVoiceLog)
 
-	settingsModule = ModuleType("synthDrivers.WorldVoice.pipeline.settings")
+	settingsModule = stubs.module("synthDrivers.WorldVoice.pipeline.settings")
 	settingsModule.pipeline_settings = SimpleNamespace(effective=lambda supports_roles: settings)
-	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.pipeline.settings", settingsModule)
 
 	spec = importlib.util.spec_from_file_location(
 		"synthDrivers.WorldVoice.pipeline",

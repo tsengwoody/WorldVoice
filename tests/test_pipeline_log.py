@@ -6,6 +6,8 @@ from pathlib import Path
 import sys
 import types
 
+from nvda_stubs import StubModules
+
 ROOT = Path(__file__).resolve().parents[1]
 SERVICE = ROOT / "addon/globalPlugins/WorldVoice/pipelineLog.py"
 PANEL = ROOT / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
@@ -24,15 +26,15 @@ def load_service(monkeypatch, answers=None):
 		"synthDrivers.WorldVoice": types.SimpleNamespace(__path__=[]),
 		"synthDrivers.WorldVoice.pipeline": types.SimpleNamespace(pl=types.SimpleNamespace(export=lambda: asked.append("exported"))),
 	}
-	for name, module in stubs.items():
-		monkeypatch.setitem(sys.modules, name, module)
-	import builtins
-	monkeypatch.setattr(builtins, "_", lambda text: text, raising=False)
+	modules = StubModules(monkeypatch)
+	for name, namespace in stubs.items():
+		modules.module(name, **vars(namespace))
+	modules.translation()
 	spec = importlib.util.spec_from_file_location("pipeline_log_under_test", SERVICE)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, spec.name, module)
 	spec.loader.exec_module(module)
-	return module, stubs["config"].conf, asked
+	return module, sys.modules["config"].conf, asked
 
 
 def test_service_switches_config_and_swallows_export_errors(monkeypatch):

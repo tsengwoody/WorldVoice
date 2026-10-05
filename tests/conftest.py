@@ -4,6 +4,8 @@ import sys
 
 import pytest
 
+from nvda_stubs import StubModules
+
 
 @pytest.fixture(autouse=True)
 def fresh_completion_rules(monkeypatch):
@@ -15,3 +17,10 @@ def fresh_completion_rules(monkeypatch):
 	for name, module in tuple(sys.modules.items()):
 		if (getattr(module, "__file__", None) or "").replace("\\", "/").endswith("runtime/completion.py"):
 			monkeypatch.delitem(sys.modules, name)
+
+
+@pytest.fixture
+def stub_modules(monkeypatch):
+	"""Register stub NVDA modules for this test only."""
+	return StubModules(monkeypatch)
+

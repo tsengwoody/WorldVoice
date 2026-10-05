@@ -5,11 +5,12 @@ from concurrent.futures import CancelledError
 import importlib
 import sys
 import threading
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
 
 from runtime_harness import MemoryRepository
+from nvda_stubs import StubModules
 from test_worldvoice_lifecycle import _load_voice_manager, _load_synth_class, WORLDVOICE
 from test_worldvoice_request_builder import EventStub
 from test_worldvoice_index_command import nvda_commands
@@ -537,14 +538,8 @@ def test_live_core_rebind_preserves_allocator_high_water(composition, nvda_comma
 
 def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda_commands):
     """Execute the entire addon module, including its real relative imports."""
-    from types import ModuleType
-
     package = "worldvoice_entrypoint_import_test"
-    def stub(name, **values):
-        module = ModuleType(name)
-        module.__dict__.update(values)
-        monkeypatch.setitem(sys.modules, name, module)
-        return module
+    stub = StubModules(monkeypatch).module
 
     stub("addonHandler", initTranslation=lambda: None)
     stub("autoSettingsUtils", __path__=[])
