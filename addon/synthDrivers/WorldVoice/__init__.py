@@ -32,6 +32,7 @@ from .compat.completionPolicies import CompletionPolicy
 from .configRepository import ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
 from .indexLedger import IndexLedger
+from .languageDetection.settings import detection_settings
 from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	STAGES,
@@ -291,7 +292,7 @@ class SynthDriver(SynthDriver):
 				self._languageDetector = languageDetection.LanguageDetector(
 					list(self._voiceManager.allLanguages),
 					self.speechSymbols,
-					conf_provider=lambda: config.conf,
+					settings=detection_settings,
 					language=lambda: self.language,
 				)
 				self.add_detected_language_commands = listable(

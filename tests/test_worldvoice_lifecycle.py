@@ -88,7 +88,7 @@ def _construction_environment(failure, changes):
 
 	class LanguageDetector:
 		def __init__(self, languages, symbols, **providers):
-			assert set(providers) == {"conf_provider", "language"}
+			assert set(providers) == {"settings", "language"}
 			changes.append("detector built")
 
 		def add_detected_language_commands(self, sequence):
@@ -142,6 +142,7 @@ def _construction_environment(failure, changes):
 		"SpeechSymbols": SpeechSymbols,
 		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: None),
 		"languageDetection": types.SimpleNamespace(LanguageDetector=LanguageDetector),
+		"detection_settings": types.SimpleNamespace(),
 		"listable": lambda function: function,
 		**_assembly(),
 		**commands,

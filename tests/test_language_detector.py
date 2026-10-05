@@ -16,7 +16,7 @@ def env(stub_modules, monkeypatch):
 def make_detector(env, languages=("en_US", "zh_TW", "ja"), symbols=None):
 	"""The one place the detector is built; its dependencies come from env."""
 	return env.module.LanguageDetector(
-		list(languages), symbols, conf_provider=lambda: env.conf, language=lambda: env.state.language,
+		list(languages), symbols, settings=env.settings, language=lambda: env.state.language,
 	)
 
 
@@ -85,3 +85,32 @@ def test_language_is_read_per_call(env):
 	assert shape(env, detector.add_detected_language_commands(["中"])) == [("lang", "zh"), "中"]
 	env.state.language = "zh_TW"
 	assert shape(env, detector.add_detected_language_commands(["中"])) == ["中"]
+
+
+class CountingSettings:
+	def __init__(self, settings):
+		self._settings, self.reads = settings, 0
+
+	def get(self):
+		self.reads += 1
+		return self._settings.get()
+
+
+def test_one_settings_read_per_sequence(env):
+	switching(env)["ignoreNumbersInLanguageDetection"] = True
+	counting = CountingSettings(env.settings)
+	detector = env.module.LanguageDetector(
+		["en_US", "zh_TW", "ar"], None, settings=counting, language=lambda: env.state.language,
+	)
+	result = detector.add_detected_language_commands(["中1中1 abc عربي 2"])
+	assert shape(env, result) == [("lang", "zh"), "中1中1 ", ("lang", "en"), "abc ", ("lang", "ar"), "عربي 2"]
+	assert counting.reads == 1
+
+
+def test_one_settings_read_per_spelling(env):
+	counting = CountingSettings(env.settings)
+	detector = env.module.LanguageDetector(
+		["en_US", "zh_TW", "ar"], None, settings=counting, language=lambda: env.state.language,
+	)
+	assert list(detector.process_for_spelling("中a中a")) == [("中", "zh"), ("a", "en_US"), ("中", "zh"), ("a", "en_US")]
+	assert counting.reads == 1

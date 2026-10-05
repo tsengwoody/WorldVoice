@@ -93,6 +93,9 @@ SCRIPT_LANGUAGES = {
 	"Mongolian": ("mn",),
 	"Khmer": ("km",),
 }
+
+
+# The Unicode panel still reads this; it moves to settings.py with the panel's switch to the service.
 SCRIPT_CONFIG_KEYS = {
 	"Latin": "latinCharactersLanguage",
 	"Han": "CJKCharactersLanguage",
@@ -108,24 +111,22 @@ class LanguageDetector:
 	"""Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
 
-	def __init__(self, availableLanguages, speechSymbols=None, *, conf_provider, language):
-		"""conf_provider returns NVDA's config; language returns the synth's current language."""
+	def __init__(self, availableLanguages, speechSymbols=None, *, settings, language):
+		"""settings.get() returns the detection settings; language returns the synth's current language."""
 		self.speechSymbols = speechSymbols
-		self._conf_provider = conf_provider
+		self._settings = settings
 		self._language = language
 		self.availableLanguages = frozenset(get_primary_language(lang) for lang in availableLanguages)
 
-	def _switching(self):
-		return self._conf_provider()["WorldVoice"]["autoLanguageSwitching"]
-
-	def find_language_for_script(self, script, current_language):
+	def find_language_for_script(self, script, current_language, settings=None):
 		candidates = SCRIPT_LANGUAGES.get(script, ())
 		current_primary = get_primary_language(current_language)
 		if not candidates or current_primary in candidates:
 			return current_language
-		config_key = SCRIPT_CONFIG_KEYS.get(script)
-		if config_key is not None:
-			configured = self._switching()[config_key]
+		if settings is None:
+			settings = self._settings.get()
+		configured = settings.script_language.get(script)
+		if configured is not None:
 			configured_primary = get_primary_language(configured)
 			if configured_primary in candidates and configured_primary in self.availableLanguages:
 				return configured
@@ -134,17 +135,19 @@ class LanguageDetector:
 				return candidate
 		return current_language
 
-	def _language_for_character(self, character, current_language, base_language):
+	def _language_for_character(self, character, current_language, base_language, settings):
 		if character.isdigit():
-			if self._switching()["ignoreNumbersInLanguageDetection"]:
+			if settings.ignore_numbers:
 				return current_language
 			return base_language
 		script = get_script(ord(character))
 		if script in (None, "Common", "Inherited"):
 			return current_language
-		return self.find_language_for_script(script, current_language)
+		return self.find_language_for_script(script, current_language, settings)
 
 	def add_detected_language_commands(self, speechSequence):
+		# Read the settings once, so the whole sequence is detected with the same values.
+		settings = self._settings.get()
 		defaultLang = self._language()
 		curLang = defaultLang
 		tmpLang = curLang
@@ -162,7 +165,7 @@ class LanguageDetector:
 						targetLang = symbol.language if symbol.mode == 1 else tmpLang
 					else:
 						text = c
-						targetLang = self._language_for_character(c, tmpLang, curLang)
+						targetLang = self._language_for_character(c, tmpLang, curLang, settings)
 
 					if get_primary_language(targetLang) != get_primary_language(tmpLang):
 						if buffer:
@@ -177,6 +180,7 @@ class LanguageDetector:
 				yield command
 
 	def process_for_spelling(self, text, locale=None):
+		settings = self._settings.get()
 		default_language = locale if locale is not None else self._language()
 		current_language = default_language
 		buffer = []
@@ -188,7 +192,7 @@ class LanguageDetector:
 				if script in (None, "Common", "Inherited"):
 					target_language = current_language
 				else:
-					target_language = self.find_language_for_script(script, current_language)
+					target_language = self.find_language_for_script(script, current_language, settings)
 
 			if get_primary_language(target_language) == get_primary_language(default_language):
 				target_language = default_language

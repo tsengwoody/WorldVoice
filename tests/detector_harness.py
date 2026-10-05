@@ -24,6 +24,7 @@ def load_language_detection(stub_modules, monkeypatch):
 		"latinCharactersLanguage": "en",
 		"CJKCharactersLanguage": "zh",
 		"arabicCharactersLanguage": "ar",
+		"DetectLanguageTiming": "after",
 	}}}
 	state = SimpleNamespace(language="en_US")
 	stub_modules.module("speech")
@@ -34,6 +35,10 @@ def load_language_detection(stub_modules, monkeypatch):
 		SynthCommand=type("SynthCommand", (), {}),
 		SynthParamCommand=type("SynthParamCommand", (), {}),
 	)
+	stub_modules.module("config", conf=conf)
+	stub_modules.module("logHandler", log=SimpleNamespace(error=lambda *args, **kwargs: None))
 	module = importlib.import_module(PACKAGE + ".languageDetection")
-	return SimpleNamespace(module=module, conf=conf, state=state,
+	settings_module = importlib.import_module(PACKAGE + ".languageDetection.settings")
+	return SimpleNamespace(module=module, conf=conf, state=state, settings_module=settings_module,
+		settings=settings_module.DetectionSettingsService(lambda: conf),
 		WV=importlib.import_module(PACKAGE + "._speechcommand").WVLangChangeCommand)

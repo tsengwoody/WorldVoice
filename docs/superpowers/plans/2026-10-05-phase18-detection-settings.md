@@ -86,7 +86,7 @@
 ### Task 3: The detector reads the service
 
 **Files:**
-- Modify: `addon/synthDrivers/WorldVoice/languageDetection/__init__.py`, `tests/detector_harness.py`, `tests/test_language_detector.py`
+- Modify: `addon/synthDrivers/WorldVoice/languageDetection/__init__.py`, `tests/detector_harness.py`, `tests/test_language_detector.py`; and, so the commit leaves the driver working, the detector construction in `addon/synthDrivers/WorldVoice/__init__.py` with `tests/test_worldvoice_lifecycle.py` (providers `{"settings", "language"}`) and the entry-point stub in `tests/test_runtime_composition.py` (moved here from Task 4)
 
 - [ ] **Step 1: Tests first.**
   - `detector_harness.load_language_detection` also loads `languageDetection/settings.py`. Add stub `config` and `logHandler` modules; `config.conf` is the harness `conf`, now with `DetectLanguageTiming` too. Expose `env.settings_module` and `env.settings = settings_module.DetectionSettingsService(lambda: env.conf)`.
@@ -94,7 +94,7 @@
   - New test: a counting wrapper around `env.settings` sees exactly one `get()` for one `add_detected_language_commands([...])` call over text that needs several lookups (`"中1中1"` with `ignoreNumbers` on). Likewise one `get()` for one `process_for_spelling` call.
 - [ ] **Step 2: Run** → FAIL (`settings` is an unexpected keyword).
 - [ ] **Step 3: Implement** per spec §2.
-  - The constructor takes `*, settings, language`; delete `_conf_provider`, `_switching` and `SCRIPT_CONFIG_KEYS`.
+  - The constructor takes `*, settings, language`; delete `_conf_provider` and `_switching`. `SCRIPT_CONFIG_KEYS` stays until Task 5, because the Unicode panel still reads it from this module.
   - `find_language_for_script(script, current_language, settings=None)`: when `settings` is None, use `self._settings.get()`. A configured language comes from `settings.script_language.get(script)`.
   - `_language_for_character(character, current_language, base_language, settings)`.
   - `add_detected_language_commands` and `process_for_spelling` take one snapshot at the start, next to `self._language()`.
@@ -146,7 +146,7 @@
     - The timing test becomes: after `onSave`, the listener saw `"timing"` in `changed` exactly when the timing changed, and `built.synth.events == []` in both cases.
   - `tests/test_detection_settings_guards.py`:
     - the five key names (regex on the quoted literals) occur in add-on sources only in `synthDrivers/WorldVoice/languageDetection/settings.py`. Reuse the `addon_sources()` skip rule from `tests/test_role_guards.py`;
-    - `speechSettingsDialog.py` contains neither `refresh_language_detection` nor `SCRIPT_CONFIG_KEYS`;
+    - `speechSettingsDialog.py` contains neither `refresh_language_detection` nor `SCRIPT_CONFIG_KEYS`; delete the leftover `SCRIPT_CONFIG_KEYS` from `languageDetection/__init__.py`;
     - `languageDetection/__init__.py` contains no `SCRIPT_CONFIG_KEYS`.
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement** per spec §4.
