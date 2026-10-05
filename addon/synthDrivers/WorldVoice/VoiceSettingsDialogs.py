@@ -109,9 +109,13 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 	def createDriverSettings(self, changedSetting=None):
 		"""
 		Creates, hides or updates existing GUI controls for all of supported settings.
+
+		Every control is created up front in its standard order, so a voice switch that
+		reveals RateBoost or Inflection shows them in place instead of at the end.
 		"""
-		# Copied from NVDA's private AutoSettingsMixin.createDriverSettings to list
-		# allSupportedSettings; compare with NVDA's version on every NVDA upgrade.
+		# Copied from NVDA's AutoSettingsMixin.updateDriverSettings, listing allSupportedSettings
+		# so every control exists in its standard order; compare with NVDA's version on every
+		# NVDA upgrade (tests/test_nvda_settings_copy.py fails when they drift).
 		settingsInst = self.getSettings()
 		settingsStorage = self._getSettingsStorage()
 		# firstly check already created options
@@ -137,6 +141,9 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 				continue
 			if setting.id in self.sizerDict:  # update a value
 				self._updateValueForControl(setting, settingsStorage)
+			elif setting.id.startswith("_"):
+				# Skip private settings.
+				continue
 			else:  # create a new control
 				self._createNewControl(setting, settingsStorage)
 		# Update graphical layout of the dialog
