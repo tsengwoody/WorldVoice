@@ -3,6 +3,8 @@
 import inspect
 from pathlib import Path
 
+import pytest
+
 from runtime_harness import rt  # noqa: F401 - pytest fixture
 from test_runtime_legacy_adapter import compat  # noqa: F401 - pytest fixture
 
@@ -25,3 +27,28 @@ def test_voice_facade_exposes_only_live_members(compat):  # noqa: F811
 def test_create_core_does_not_tag_the_core():
 	source = (ADDON / "synthDrivers/WorldVoice/driver/__init__.py").read_text(encoding="utf-8")
 	assert ".wv" not in source
+
+
+FORBIDDEN = {
+	"synthDrivers/WorldVoice/voiceManager.py": [
+		"self._sessions", "self._bindings", "self._specs", "READY_ENGINE_CLASS", "EngineType",
+		"VoiceMeta", "groupByField", "keepMainLocaleEngineConsistent", "def ready",
+	],
+	"synthDrivers/WorldVoice/engine/__init__.py": ["READY_ENGINE_CLASS", "EngineType", "refresh_ready_engine_classes"],
+	"globalPlugins/WorldVoice/speechSettingsDialog.py": ["EngineType", "_manager.ready"],
+	"synthDrivers/WorldVoice/__init__.py": ["_completion_for", "_warn_drain_fallback", "_drainFallbacks"],
+}
+
+
+@pytest.mark.parametrize("path", sorted(FORBIDDEN))
+def test_removed_structures_stay_removed(path):
+	source = (ADDON / path).read_text(encoding="utf-8")
+	assert [name for name in FORBIDDEN[path] if name in source] == []
+
+
+def test_one_boolean_coercion():
+	sources = [
+		(ADDON / path).read_text(encoding="utf-8")
+		for path in ("synthDrivers/WorldVoice/engine/__init__.py", "synthDrivers/WorldVoice/engine/discovery.py")
+	]
+	assert sum(source.count('{"false", "0", ""}') for source in sources) == 1
