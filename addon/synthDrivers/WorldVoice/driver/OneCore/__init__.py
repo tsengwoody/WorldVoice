@@ -301,7 +301,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			try:
 				if self._player:
 					self._player.open()
-			except Exception as error:  # noqa: BLE001 - recorded on the record; a segment's failure also latches
+			except Exception as error:
 				host.record_error(record, error)
 				if record.operation is not None:
 					# Under a drain contract the player state is now unknown: latch.
@@ -496,7 +496,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 	def _deliverSegmentControlFailure(self, failure):
 		if failure is None:
 			return
-		error, dropped, legacy = failure
+		_error, dropped, legacy = failure
 		try:
 			# Queued records never reach the worker; they fail with the latched error.
 			for record in dropped:
