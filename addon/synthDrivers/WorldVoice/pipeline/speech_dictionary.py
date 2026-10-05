@@ -1,21 +1,21 @@
 from functools import wraps
-from typing import Any, Callable
+from typing import Callable
 
 import globalVars
 import speech
 
-_original_process_text: Callable[..., Any] | None = None
-_wrapped_process_text: Callable[..., Any] | None = None
+from ..assembly import patch_attribute
+
+_restore: Callable[[], None] | None = None
 
 
 def install() -> None:
-	global _original_process_text, _wrapped_process_text
+	global _restore
 
-	if _wrapped_process_text is not None:
+	if _restore is not None:
 		return
 
 	original_process_text = speech.speech.processText
-	_original_process_text = original_process_text
 
 	@wraps(original_process_text)
 	def process_text_without_dictionaries(*args, **kwargs):
@@ -26,18 +26,14 @@ def install() -> None:
 		finally:
 			globalVars.speechDictionaryProcessing = previous
 
-	_wrapped_process_text = process_text_without_dictionaries
-	speech.speech.processText = _wrapped_process_text
+	_restore = patch_attribute(speech.speech, "processText", process_text_without_dictionaries)
 
 
 def uninstall() -> None:
-	global _original_process_text, _wrapped_process_text
+	global _restore
 
-	if _wrapped_process_text is None:
+	if _restore is None:
 		return
 
-	original_process_text = _original_process_text
-	assert original_process_text is not None
-	speech.speech.processText = original_process_text
-	_original_process_text = None
-	_wrapped_process_text = None
+	restore, _restore = _restore, None
+	restore()

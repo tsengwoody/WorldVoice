@@ -4,10 +4,11 @@ import importlib
 import json
 import os
 import sys
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from ..assembly import timed
 
 MANIFEST_FILENAME = "manifest.json"
 
@@ -153,65 +154,32 @@ def load_enabled_engine_classes(
 	for spec in engine_specs:
 		if not get_engine_enabled(engine_config, spec):
 			continue
-		engine_start = time.perf_counter()
-		try:
-			step_start = time.perf_counter()
+		with timed(logger, f"ready check {spec.name} total"):
 			try:
-				module = _load_module(spec.module_name, spec.import_root)
-			finally:
-				_log(
-					logger,
-					"debug",
-					"WorldVoice init timing: ready check %s module import %.3fs",
-					spec.name,
-					time.perf_counter() - step_start,
-				)
-			step_start = time.perf_counter()
-			voice = getattr(module, "Voice", None)
-			_log(
-				logger,
-				"debug",
-				"WorldVoice init timing: ready check %s Voice lookup %.3fs",
-				spec.name,
-				time.perf_counter() - step_start,
-			)
-			if voice is None:
-				_log(logger, "warning", "Skipping %s engine candidate: Voice export missing", spec.name)
-				continue
-			voice_engine = getattr(voice, "engine", None)
-			if voice_engine is not None and voice_engine != spec.name:
-				_log(
-					logger,
-					"warning",
-					"Skipping %s engine candidate: Voice.engine mismatch (%s)",
-					spec.name,
-					voice_engine,
-				)
-				continue
-			step_start = time.perf_counter()
-			try:
-				is_ready = voice.ready()
-			finally:
-				_log(
-					logger,
-					"debug",
-					"WorldVoice init timing: ready check %s voice.ready %.3fs",
-					spec.name,
-					time.perf_counter() - step_start,
-				)
-			if not is_ready:
-				continue
-			ready[spec.name] = voice
-		except Exception as error:  # noqa: BLE001 - one engine failing to load is logged and skipped
-			_log(logger, "error", "Failed to load ready state for %s: %s", spec.name, error)
-		finally:
-			_log(
-				logger,
-				"debug",
-				"WorldVoice init timing: ready check %s total %.3fs",
-				spec.name,
-				time.perf_counter() - engine_start,
-			)
+				with timed(logger, f"ready check {spec.name} module import"):
+					module = _load_module(spec.module_name, spec.import_root)
+				with timed(logger, f"ready check {spec.name} Voice lookup"):
+					voice = getattr(module, "Voice", None)
+				if voice is None:
+					_log(logger, "warning", "Skipping %s engine candidate: Voice export missing", spec.name)
+					continue
+				voice_engine = getattr(voice, "engine", None)
+				if voice_engine is not None and voice_engine != spec.name:
+					_log(
+						logger,
+						"warning",
+						"Skipping %s engine candidate: Voice.engine mismatch (%s)",
+						spec.name,
+						voice_engine,
+					)
+					continue
+				with timed(logger, f"ready check {spec.name} voice.ready"):
+					is_ready = voice.ready()
+				if not is_ready:
+					continue
+				ready[spec.name] = voice
+			except Exception as error:  # noqa: BLE001 - one engine failing to load is logged and skipped
+				_log(logger, "error", "Failed to load ready state for %s: %s", spec.name, error)
 	return ready
 
 
