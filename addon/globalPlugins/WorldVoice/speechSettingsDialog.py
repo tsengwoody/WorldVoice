@@ -51,7 +51,7 @@ def _as_bool(value):
 class BaseSettingsPanel(SettingsPanel):
 	# Translators: Title of a setting dialog.
 	title = _("WorldVoice")
-	settings = OrderedDict({})
+	settings = OrderedDict({})  # noqa: RUF012
 	field = "WorldVoice"
 
 	def makeSettings(self, settingsSizer, settingsSizerHelper=None):
@@ -772,7 +772,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 	# Translators: Title of a setting dialog.
 	title = _("Log Record")
 	field = "log"
-	settings = OrderedDict(
+	settings = OrderedDict(  # noqa: RUF012
 		(stage.log_key, {"label": _LOG_LABELS.get(stage.log_key, stage.log_key)}) for stage in STAGES
 	)
 

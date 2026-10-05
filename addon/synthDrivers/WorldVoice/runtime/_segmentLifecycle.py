@@ -25,8 +25,9 @@ callbacks, PlaybackWork.cancel(), wake_waiters()), never by polling.
 
 import logging
 from collections import deque
+from collections.abc import Callable
 from threading import Condition, Event, Thread, current_thread
-from typing import Callable, Protocol
+from typing import Protocol
 
 from .models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork

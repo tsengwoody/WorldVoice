@@ -47,7 +47,7 @@ class _SegmentNative:
 		try:
 			result = self._native.espeak_Synth(*args)
 			if result != self._ok:
-				raise RuntimeError("eSpeak synthesis failed with code %s" % result)
+				raise RuntimeError(f"eSpeak synthesis failed with code {result}")
 			return result
 		except Exception as error:
 			host.record_error(record, error)

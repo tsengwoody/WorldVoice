@@ -1,6 +1,5 @@
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Callable
 
 import config
 import languageHandler
@@ -33,7 +32,7 @@ class EngineResource:
 	published: bool = False
 
 
-class VoiceManager(object):
+class VoiceManager:
 	def __init__(
 		self,
 		taskManager: TaskManager,

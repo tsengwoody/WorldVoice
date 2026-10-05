@@ -42,7 +42,7 @@ class VoiceCatalog:
 
 	def readable_name(self, locale: str) -> str:
 		description = languageHandler.getLanguageDescription(locale)
-		return "%s - %s" % (description, locale) if description else locale
+		return f"{description} - {locale}" if description else locale
 
 
 EMPTY_CATALOG = VoiceCatalog.from_specs(())

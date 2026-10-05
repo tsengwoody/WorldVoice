@@ -47,7 +47,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 	_instance = None
 
 	def __new__(cls, *args, **kwargs):
-		obj = super(SpeechSymbolsDialog, cls).__new__(cls, *args, **kwargs)
+		obj = super().__new__(cls, *args, **kwargs)
 		cls._instance = obj
 		return obj
 
@@ -55,7 +55,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 		self.speechSymbols = None
 		# Translators: This is the label for the unicode setting dialog.
 		self.title = _("Unicode Setting")
-		super(SpeechSymbolsDialog, self).__init__(
+		super().__init__(
 			parent,
 			resizeable=True,
 		)
@@ -221,7 +221,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 		elif column == 3:
 			return SPEECH_SYMBOL_MODE_LABELS[symbol.mode]
 		else:
-			raise ValueError("Unknown column: %d" % column)
+			raise ValueError(f"Unknown column: {column:d}")
 
 	def onSymbolEdited(self):
 		if self.editingItem is not None:
@@ -313,7 +313,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 
 	def onCancel(self, event):
 		self.__class__._instance = None
-		super(SpeechSymbolsDialog, self).onCancel(event)
+		super().onCancel(event)
 
 	def onOk(self, evt):
 		self.onSymbolEdited()
@@ -325,7 +325,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 		try:
 			self.speechSymbols.save()
 		except IOError as e:
-			log.error("Error saving user symbols info: %s" % e)
+			log.error("Error saving user symbols info: %s", e)
 		self.speechSymbols = None
 		if (
 			gui.messageBox(
@@ -343,7 +343,7 @@ class SpeechSymbolsDialog(SettingsDialog):
 			queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 		self.__class__._instance = None
-		super(SpeechSymbolsDialog, self).onOk(evt)
+		super().onOk(evt)
 
 	def _refreshVisibleItems(self):
 		count = self.symbolsList.GetCountPerPage()

@@ -1,8 +1,9 @@
 import re
 import uuid
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Union
+from typing import TYPE_CHECKING, Union
 
 import config
 import speechDictHandler

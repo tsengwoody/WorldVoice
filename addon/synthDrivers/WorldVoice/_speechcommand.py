@@ -14,11 +14,11 @@ class WVLangChangeCommand(SynthParamCommand):
 		self.isDefault = not lang
 
 	def __repr__(self):
-		return "WVLangChangeCommand (%r)" % self.lang
+		return f"WVLangChangeCommand ({self.lang!r})"
 
 
 class WorldVoiceIndexCommand(IndexCommand):
 	"""Internal segment marker carried through the engine index boundary."""
 
 	def __repr__(self):
-		return "WorldVoiceIndexCommand(%d)" % self.index
+		return f"WorldVoiceIndexCommand({self.index:d})"

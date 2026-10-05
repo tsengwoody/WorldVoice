@@ -1008,6 +1008,6 @@ class Voice(Voice):
 			"locale": localeName,
 			"language": localeName,
 			"langDescription": langDescription,
-			"description": "%s - %s [%s]" % (voice.id, langDescription, cls.engine),
+			"description": f"{voice.id} - {langDescription} [{cls.engine}]",
 			"engine": cls.engine,
 		}

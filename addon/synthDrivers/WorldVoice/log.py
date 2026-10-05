@@ -11,7 +11,7 @@ MAX_LOG_SIZE = 5 * 1024 * 1024
 
 
 class PipelineLog:
-	FIELDNAMES = ["id", "label", "timing", "timestamp", "sequence"]
+	FIELDNAMES = ("id", "label", "timing", "timestamp", "sequence")
 
 	def __init__(self, log_name):
 		self.log_file = log_dir / log_name

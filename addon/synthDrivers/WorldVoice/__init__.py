@@ -96,7 +96,7 @@ WVEnd = extensionPoints.Action()
 class SynthDriver(SynthDriver):
 	name = "WorldVoice"
 	description = "WorldVoice"
-	supportedCommands = {
+	supportedCommands = {  # noqa: RUF012
 		IndexCommand,
 		CharacterModeCommand,
 		LangChangeCommand,
@@ -105,7 +105,7 @@ class SynthDriver(SynthDriver):
 		RateCommand,
 		VolumeCommand,
 	}
-	supportedNotifications = {synthIndexReached, synthDoneSpeaking}
+	supportedNotifications = {synthIndexReached, synthDoneSpeaking}  # noqa: RUF012
 
 	@classmethod
 	def check(cls):
@@ -500,7 +500,7 @@ class SynthDriver(SynthDriver):
 	def _numlanDisplayName(self, locale):
 		# Settings-ring entries show the language description only.
 		description = languageHandler.getLanguageDescription(locale)
-		return "%s" % (description) if description else locale
+		return f"{description}" if description else locale
 
 
 class _PipelineSetting:

@@ -6,7 +6,7 @@ from ..compat.voiceFacade import VoiceFacade
 
 
 def getVoiceKey(engine, voiceId):
-	return "%s:%s" % (engine, voiceId)
+	return f"{engine}:{voiceId}"
 
 
 class Voice(VoiceFacade):
@@ -43,7 +43,7 @@ class Voice(VoiceFacade):
 			"locale": localeName,
 			"language": localeName,
 			"langDescription": langDescription,
-			"description": "%s - %s [%s]" % (voice.displayName, langDescription, cls.engine),
+			"description": f"{voice.displayName} - {langDescription} [{cls.engine}]",
 			"engine": cls.engine,
 		}
 

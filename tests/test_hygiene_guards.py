@@ -9,6 +9,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDON = ROOT / "addon"
+# G201 is ignored in pyproject.toml, and an explicit --select would override that.
+GATED_RULES = "BLE001,I001,UP004,UP008,UP031,UP035,RUF012"
 RUFF_SCOPE = [
 	"--exclude", "addon/synthDrivers/WorldVoice/driver/*/driver",
 	"--exclude", "addon/synthDrivers/WorldVoice/driver/sonic",
@@ -35,9 +37,9 @@ def test_every_blind_except_says_where_the_error_goes():
 
 
 @pytest.mark.skipif(shutil.which("ruff") is None, reason="ruff is not installed")
-def test_ruff_reports_no_blind_except_or_unsorted_import():
+def test_ruff_reports_none_of_the_gated_rules():
 	result = subprocess.run(
-		["ruff", "check", "addon", *RUFF_SCOPE, "--select", "BLE001,I001", "--output-format", "concise"],
+		["ruff", "check", "addon", *RUFF_SCOPE, "--select", GATED_RULES, "--output-format", "concise"],
 		cwd=ROOT, capture_output=True, text=True,
 	)
 	assert result.returncode == 0, result.stdout
@@ -105,3 +107,8 @@ def test_blind_except_reasons_match_their_handlers():
 			if expected is not None and match.group(1) != expected:
 				wrong.append(f"{path.relative_to(ROOT)}:{node.lineno}: {match.group(1)!r} != {expected!r}")
 	assert wrong == []
+
+
+def test_g201_is_ignored_for_the_documented_nvda_reason():
+	config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+	assert '"G201",' in config and "log.exception lowers expected Windows/COM errors" in config

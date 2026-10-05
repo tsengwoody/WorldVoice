@@ -3,8 +3,7 @@
 # See the file COPYING for more details.
 
 
-from collections.abc import Iterable
-from typing import Callable
+from collections.abc import Callable, Iterable
 
 import speech
 from speech import sayAll

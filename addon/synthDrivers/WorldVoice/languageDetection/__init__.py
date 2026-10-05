@@ -104,7 +104,7 @@ def get_primary_language(locale: str) -> str:
 	return locale.replace("-", "_").split("_", maxsplit=1)[0].lower()
 
 
-class LanguageDetector(object):
+class LanguageDetector:
 	"""Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
 

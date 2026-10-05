@@ -22,7 +22,7 @@ SPEECH_SYMBOL_MODE_LABELS = {
 }
 
 
-class SpeechSymbol(object):
+class SpeechSymbol:
 	__slots__ = ("identifier", "replacement", "language", "mode", "displayName")
 
 	def __init__(self, identifier, replacement=None, language=None, mode=None, displayName=None):
@@ -41,10 +41,10 @@ class SpeechSymbol(object):
 					val=getattr(self, attr),
 				),
 			)
-		return "SpeechSymbol(%s)" % ", ".join(attrs)
+		return f"SpeechSymbol({', '.join(attrs)})"
 
 
-class SpeechSymbols(object):
+class SpeechSymbols:
 	"""
 	Contains raw information about the pronunciation of symbols.
 	It does not handle inheritance of data from other sources, processing of text, etc.
@@ -95,7 +95,7 @@ class SpeechSymbols(object):
 		except KeyError:
 			raise ValueError
 
-	IDENTIFIER_ESCAPES_INPUT = {
+	IDENTIFIER_ESCAPES_INPUT = {  # noqa: RUF012
 		"0": "\0",
 		"t": "\t",
 		"n": "\n",
@@ -105,12 +105,12 @@ class SpeechSymbols(object):
 		"#": "#",
 		"\\": "\\",
 	}
-	IDENTIFIER_ESCAPES_OUTPUT = {v: k for k, v in IDENTIFIER_ESCAPES_INPUT.items()}
-	MODE_INPUT = {
+	IDENTIFIER_ESCAPES_OUTPUT = {v: k for k, v in IDENTIFIER_ESCAPES_INPUT.items()}  # noqa: RUF012
+	MODE_INPUT = {  # noqa: RUF012
 		"context": SYMMOD_CONTEXT,
 		"force": SYMMOD_FORCE,
 	}
-	MODE_OUTPUT = {v: k for k, v in MODE_INPUT.items()}
+	MODE_OUTPUT = {v: k for k, v in MODE_INPUT.items()}  # noqa: RUF012
 
 	def _loadSymbol(self, line):
 		line = line.split("\t")
@@ -159,7 +159,7 @@ class SpeechSymbols(object):
 		with codecs.open(fileName, "w", "utf_8_sig", errors="replace") as f:
 			if self.symbols:
 				for symbol in self.symbols.values():
-					f.write("%s\r\n" % self._saveSymbol(symbol))
+					f.write(f"{self._saveSymbol(symbol)}\r\n")
 
 	def _saveSymbolField(self, output, outputMap=None):
 		if output is None:
@@ -174,10 +174,7 @@ class SpeechSymbols(object):
 	def _saveSymbol(self, symbol):
 		identifier = symbol.identifier
 		try:
-			identifier = "\\%s%s" % (
-				self.IDENTIFIER_ESCAPES_OUTPUT[identifier[0]],
-				identifier[1:],
-			)
+			identifier = f"\\{self.IDENTIFIER_ESCAPES_OUTPUT[identifier[0]]}{identifier[1:]}"
 		except KeyError:
 			pass
 		fields = [
@@ -197,7 +194,7 @@ class SpeechSymbols(object):
 				# This field specifies a value, so no more fields can be stripped.
 				break
 		if symbol.displayName:
-			fields.append("# %s" % symbol.displayName)
+			fields.append(f"# {symbol.displayName}")
 		return "\t".join(fields)
 
 	def updateSymbol(self, symbol):

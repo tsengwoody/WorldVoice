@@ -44,6 +44,10 @@ ignore = [
 	"W191",
 	# lower snake case module names, we use lowerCamelCase instead
 	"N999",
+	# log.error(..., exc_info=True) stays: NVDA's log.exception lowers expected Windows/COM errors
+	# to debugWarning (ref/nvda/source/logHandler.py), and WorldVoice wants these at ERROR.
+	# NVDA keeps the same calls with inline noqa.
+	"G201",
 ]
 extend-unsafe-fixes = [
 	# Sort imports
