@@ -59,9 +59,12 @@ def onInstall():
 	"""
 	log.info("Checking for WorldVoice core components to install/update...")
 
-	# For a first-time install, set a default configuration value.
 	if "WorldVoice" not in config.conf:
 		log.info("First-time installation: setting default configuration.")
+		# WorldVoice detects languages itself and inserts WVLangChangeCommand. With NVDA's
+		# automatic language switching on, NVDA would add its own LangChangeCommand set from
+		# document markup on top. Turn it off once; users may turn it back on, and WorldVoice
+		# honours both command types.
 		config.conf["speech"]["autoLanguageSwitching"] = False
 
 	core_dir = os.path.join(os.path.dirname(__file__), "core")
