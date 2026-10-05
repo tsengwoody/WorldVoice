@@ -14,6 +14,9 @@ from .runtime.models import (
 	SegmentEventSink,
 )
 
+# Frozen, so one instance can be every binding's default.
+_LEGACY_CONTRACT = CompletionContract()
+
 
 @dataclass(frozen=True, eq=False)
 class _Binding:
@@ -93,7 +96,7 @@ class NvdaEventBridge:
 		source: object,
 		source_id: object,
 		*,
-		completion: CompletionContract = CompletionContract(),
+		completion: CompletionContract = _LEGACY_CONTRACT,
 	) -> None:
 		with self._lock:
 			if self._closed:

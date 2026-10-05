@@ -352,8 +352,8 @@ class SynthDriver(SynthDriver):
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
 		if self.uwv and config.conf["speech"]["trustVoiceLanguage"]:
-			for text, loc in self._languageDetector.process_for_spelling(text, locale):
-				self._realSpellingFunc(text, loc, useCharacterDescriptions, priority=priority)
+			for part, loc in self._languageDetector.process_for_spelling(text, locale):
+				self._realSpellingFunc(part, loc, useCharacterDescriptions, priority=priority)
 		else:
 			self._realSpellingFunc(text, locale, useCharacterDescriptions, priority=priority)
 
