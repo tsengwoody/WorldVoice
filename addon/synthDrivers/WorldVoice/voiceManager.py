@@ -218,7 +218,7 @@ class VoiceManager(object):
 		spec = self.getVoiceSpec(voiceName)
 		resource = self._published(spec.engine)
 		self.settings.ensure(spec)
-		voiceInstance = resource.voice_class(spec, resource.binding, self.taskManager)
+		voiceInstance = resource.voice_class(spec, resource.binding)
 		self._instanceCache[voiceName] = voiceInstance
 		return voiceInstance
 

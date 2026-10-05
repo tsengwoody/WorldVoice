@@ -98,7 +98,7 @@ def test_main_synth_explicit_commit_updates_resolver_only_states(monkeypatch):
 	assert config.conf["WorldVoice"]["voices"][a.name]["rate"] == 72
 	assert config.conf["WorldVoice"]["voices"][b.name]["rate"] == 72
 	b.rate = 81
-	b.rollback()
+	b._binding.settings.rollback(b.name)
 	assert b.rate == 72
 
 

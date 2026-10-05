@@ -59,6 +59,10 @@ def _create_voices(monkeypatch, config):
 	return voice("a", "A:a", "en"), voice("b", "B:b", "fr")
 
 
+def activate(voice):
+	return voice._binding.session.activate(voice.name)
+
+
 def _voices(monkeypatch):
 	_load_voice_manager(monkeypatch)
 	config = sys.modules["config"]
@@ -88,27 +92,27 @@ def test_voice_settings_are_pending_and_revision_tracks_real_changes(monkeypatch
 	(a, b), config = _voices(monkeypatch)
 	core = RecordingCore()
 	spec = type(a._state.spec)("c", "C:c", "C:c", "en", "C", "en")
-	c = a.__class__(spec, dataclasses.replace(a._binding, core=core), None)
-	assert (a.revision, b.revision, c.revision) == (0, 0, 0)
+	c = a.__class__(spec, dataclasses.replace(a._binding, core=core))
+	assert (a.snapshot().revision, b.snapshot().revision, c.snapshot().revision) == (0, 0, 0)
 	assert core.writes == []
 	a.rate = 72
-	assert a.revision == 1
+	assert a.snapshot().revision == 1
 	a.rate = 72
-	assert a.revision == 1
+	assert a.snapshot().revision == 1
 	first = a.snapshot()
 	a.rate = 81
 	assert (first.rate, first.revision) == (72, 1)
 	assert (a.snapshot().rate, a.snapshot().revision) == (81, 2)
-	a.rollback()
-	assert (a.rate, a.revision) == (50, 3)
+	a._binding.settings.rollback(a.name)
+	assert (a.rate, a.snapshot().revision) == (50, 3)
 	a.variant = "fast"
 	a.waitfactor = 2
-	assert a.revision == 5
+	assert a.snapshot().revision == 5
 	a.update_settings(pitch=60, volume=70)
-	assert (a.pitch, a.volume, a.revision) == (60, 70, 7)
+	assert (a.pitch, a.volume, a.snapshot().revision) == (60, 70, 7)
 	with pytest.raises(ValueError, match="Unknown voice setting"):
 		a.update_settings(rate=75, unknown=1)
-	assert (a.rate, a.revision) == (50, 7)
+	assert (a.rate, a.snapshot().revision) == (50, 7)
 	assert core.writes == []
 	assert config.conf["WorldVoice"]["voices"][a.name]["rate"] == 50
 
@@ -117,10 +121,10 @@ def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	core = RecordingCore()
 	bind_core(core, a)
-	a.active()
+	activate(a)
 	first_count = len(core.writes)
 	assert first_count > 0
-	a.active()
+	activate(a)
 	assert len(core.writes) == first_count
 	a.rate = 72
 	# Activation reads one immutable snapshot; an edit during apply is deferred.
@@ -129,25 +133,11 @@ def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 		a.rate = 81
 		original_apply(core, snapshot)
 	a.applyEngineSettings = edit_during_apply
-	a.active()
+	activate(a)
 	assert core.rate == 72
-	a.active()
+	activate(a)
 	assert core.rate == 81
 	assert len(core.writes) == first_count * 3
-
-
-def test_speech_queue_does_not_activate_voice(monkeypatch):
-	(a, _), _ = _voices(monkeypatch)
-	core = RecordingCore()
-	bind_core(core, a)
-	queued = []
-	a.taskManager = types.SimpleNamespace(append_speech=lambda *args: queued.append(args))
-	a.active = lambda: (_ for _ in ()).throw(AssertionError("queue activated voice"))
-	request = object()
-	a.speak(["hello"], request)
-	assert queued == [(request, a._binding.session, a.name, ("hello",))]
-	assert core.spoken == []
-	assert core.writes == []
 
 
 def test_manager_binds_new_voice_to_its_engine(monkeypatch):
@@ -183,7 +173,6 @@ def test_engine_core_factory_keeps_no_class_state(monkeypatch):
 	Voice.engine = "A"
 	first, second = Voice.create_core(), Voice.create_core()
 	assert isinstance(first, Core) and first is not second
-	assert first.wv == "A"
 	Voice.destroy_core(first)
 	assert terminated == [first]
 	assert {"core", "session", "_runtime_binding"}.isdisjoint(vars(Voice))

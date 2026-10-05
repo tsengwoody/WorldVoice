@@ -79,9 +79,7 @@ class Voice(VoiceFacade):
 
 	@classmethod
 	def create_core(cls):
-		core = cls.synth_driver_class()
-		core.wv = cls.engine
-		return core
+		return cls.synth_driver_class()
 
 	@classmethod
 	def destroy_core(cls, core):

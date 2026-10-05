@@ -105,7 +105,7 @@ def assembly(modules):
         adapter = modules.adapter.LegacyEngineAdapter(Voice, voices.__getitem__)
         session = modules.session.EngineSession(adapter, store)
         session.open()
-        instance = Voice(spec, modules.facade.LegacyVoiceBinding(store, session, adapter.core), manager)
+        instance = Voice(spec, modules.facade.LegacyVoiceBinding(store, session, adapter.core))
         voices[key] = instance
         ports[key] = session
         bridge.bind(adapter.notification_source, session.source_id)
@@ -194,7 +194,7 @@ def test_voice_passes_token_only_to_opted_in_core(modules, assembly, supports_to
     a = assembly
     voice = a.voice("Fake:a", supports_token=supports_token)
     request = a.manager.new_request()
-    voice.speak(["hello"], request)
+    a.manager.append_speech(request, a.ports[voice.name], voice.name, ("hello",))
     assert len(request.tasks) == 1
     assert a.manager.submit_request(request)
     assert a.done_seen.wait(1)
@@ -227,7 +227,7 @@ def test_voice_cancelled_before_run_does_not_call_core(modules, assembly):
     a = assembly
     voice = a.voice("Fake:a")
     request = a.manager.new_request()
-    voice.speak(["hello"], request)
+    a.manager.append_speech(request, a.ports[voice.name], voice.name, ("hello",))
     request.token.cancel()
     assert a.manager.submit_request(request) is False
     assert voice.core.spoken == []

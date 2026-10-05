@@ -19,7 +19,7 @@ def install_binding(driver, config):
 
     def voice(voice_id, key, language):
         engine = key.split(":", 1)[0]
-        return driver.Voice(models.VoiceSpec(voice_id, key, key, language, engine, language), binding, None)
+        return driver.Voice(models.VoiceSpec(voice_id, key, key, language, engine, language), binding)
 
     return voice
 

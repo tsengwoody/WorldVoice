@@ -36,7 +36,7 @@ def env(monkeypatch):
 	a, b = _create_voices(monkeypatch, config)
 	# Real engine classes declare their engine; the harness base class does not.
 	monkeypatch.setattr(type(a), "engine", "A")
-	c = type(a)(type(a._state.spec)("c", "A:c", "A:c", "en", "A", "en"), a._binding, None)
+	c = type(a)(type(a._state.spec)("c", "A:c", "A:c", "en", "A", "en"), a._binding)
 	voices = {voice.name: voice for voice in (a, b, c)}
 	manager = object.__new__(module.VoiceManager)
 	manager._init_policies()
@@ -225,7 +225,7 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 
 	def activate_b():
 		try:
-			env.b.active()
+			env.b._binding.session.activate(env.b.name)
 		except Exception as error:
 			errors.append(error)
 		finally:
@@ -261,7 +261,7 @@ def test_preview_b_while_a_is_playing_then_discard_restores_next_segment(env):
 
 	core = BlockingCore()
 	bind_core(core, a, b)
-	a.active()
+	a._binding.session.activate(a.name)
 	playback = threading.Thread(target=core.speak, args=("A is speaking",))
 	playback.start()
 	assert core.entered.wait(1)
@@ -277,11 +277,11 @@ def test_preview_b_while_a_is_playing_then_discard_restores_next_segment(env):
 		core.release.set()
 		playback.join(1)
 	assert not playback.is_alive()
-	b.active()
+	b._binding.session.activate(b.name)
 	assert (core.voice, core.rate) == ("b", 72)
 	env.presenter.discard()
 	assert (a.rate, b.rate) == (50, 50)
-	b.active()
+	b._binding.session.activate(b.name)
 	assert (core.voice, core.rate) == ("b", 50)
 
 

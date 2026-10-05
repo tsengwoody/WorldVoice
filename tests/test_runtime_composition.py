@@ -236,7 +236,7 @@ def test_cached_onecore_voice_round_trip_through_manager(composition):
     a.update_settings(rate=72, pitch=61, volume=83)
     b.update_settings(rate=33, pitch=44, volume=55)
     for voice in (a, b, manager.getVoiceInstance(a.name)):
-        voice.active()
+        voice._binding.session.activate(voice.name)
     core = c.cores[0]
     assert (core.voice, core.language, core.rate, core.pitch, core.volume) == ("a", "en", 72, 61, 83)
     assert c.repo.loads == ["OneCore:a", "OneCore:b"]
