@@ -713,17 +713,15 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 
 		super().makeSettings(group_sizer)
 
-		self.previousActiveEngine = set(
-			[
-				eng.name
-				for eng in ENGINE_SPECS
-				if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
-			],
-		)
+		self.previousActiveEngine = {
+			eng.name
+			for eng in ENGINE_SPECS
+			if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
+		}
 
 	def isValid(self) -> bool:
 		self.activeEngine = set()
-		for k, v in self.settings.items():
+		for k in self.settings:
 			if getattr(self, k + "CheckBox").IsChecked():
 				self.activeEngine.add(k)
 
@@ -753,11 +751,14 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		return True
 
 	def onSave(self):
-		if self.activeEngine != self.previousActiveEngine:
-			# Write the engine flags first so the saved configuration includes them.
-			if self._write_settings() and self.confirm == wx.YES:
-				gui.mainFrame.onSaveConfigurationCommand(None)
-				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
+		# Write the engine flags first so the saved configuration includes them.
+		if (
+			self.activeEngine != self.previousActiveEngine
+			and self._write_settings()
+			and self.confirm == wx.YES
+		):
+			gui.mainFrame.onSaveConfigurationCommand(None)
+			queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
 
 class LogSettingsPanel(BaseSettingsPanel):
@@ -792,11 +793,11 @@ class LogSettingsPanel(BaseSettingsPanel):
 			self.sliderDisable()
 
 	def sliderEnable(self):
-		for k, v in self.settings.items():
+		for k in self.settings:
 			getattr(self, k + "CheckBox").Enable()
 
 	def sliderDisable(self):
-		for k, v in self.settings.items():
+		for k in self.settings:
 			getattr(self, k + "CheckBox").Disable()
 
 	def isValid(self) -> bool:

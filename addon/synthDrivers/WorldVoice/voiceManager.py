@@ -240,7 +240,7 @@ class VoiceManager:
 		self.voice_consistency.follow(self.defaultVoiceInstance)
 
 	def reload(self):
-		for voiceName, instance in self._instanceCache.items():
+		for instance in self._instanceCache.values():
 			instance.loadParameter()
 
 	def cancel(self):

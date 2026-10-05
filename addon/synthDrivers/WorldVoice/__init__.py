@@ -499,13 +499,11 @@ class SynthDriver(SynthDriver):
 		self._numlan = value
 
 	def _get_availableNummods(self):
-		return dict(
-			{
-				"value": StringParameterInfo("value", _("value")),
-				"number": StringParameterInfo("number", _("number")),
-				"pair": StringParameterInfo("pair", _("pair")),
-			},
-		)
+		return {
+			"value": StringParameterInfo("value", _("value")),
+			"number": StringParameterInfo("number", _("number")),
+			"pair": StringParameterInfo("pair", _("pair")),
+		}
 
 	def _numlanDisplayName(self, locale):
 		# Settings-ring entries show the language description only.
