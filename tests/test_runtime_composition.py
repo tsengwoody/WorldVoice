@@ -98,11 +98,12 @@ def composition(monkeypatch):
     config = sys.modules["config"]
 
     def create(completion_for=lambda cls, core: models.CompletionContract(), engine_classes=None,
-               get_language=lambda: "en"):
+               get_language=lambda: "en", parameter_consistency=None, roles=None):
         manager = manager_module.VoiceManager(tasks, store, bridge,
             index_ledger=ledger, completion_for=completion_for,
             engine_classes=engines if engine_classes is None else engine_classes,
-            conf_provider=lambda: config.conf, get_language=get_language)
+            conf_provider=lambda: config.conf, get_language=get_language,
+            parameter_consistency=parameter_consistency, roles=roles)
         managers.append(manager)
         return manager
 
@@ -133,6 +134,28 @@ def test_default_voice_follows_the_injected_language(composition):
     composition.engine("x")
     assert composition.create(get_language=lambda: "zh").defaultVoiceName == "x:b"
     assert composition.create(get_language=lambda: "en").defaultVoiceName == "x:a"
+
+
+def test_manager_keeps_the_injected_policy_and_roles(composition):
+    c = composition
+    c.engine("ok")
+    policies = importlib.import_module(c.module.__package__ + ".mainLocalePolicy")
+    roles_module = importlib.import_module(c.module.__package__ + ".roles")
+    parameters = policies.ParameterConsistency(lambda: c.config.conf)
+    roles = roles_module.ConfigRoleRepository(lambda: c.config.conf)
+    manager = c.create(parameter_consistency=parameters, roles=roles)
+    assert manager.parameter_consistency is parameters
+    assert manager.roles is roles
+    assert manager.voice_consistency._roles is roles
+
+
+def test_manager_builds_its_own_policy_and_roles_when_none_are_injected(composition):
+    c = composition
+    c.engine("ok")
+    policies = importlib.import_module(c.module.__package__ + ".mainLocalePolicy")
+    manager = c.create()
+    assert isinstance(manager.parameter_consistency, policies.ParameterConsistency)
+    assert manager.roles is not None
 
 
 def test_each_opened_engine_is_one_engine_resource(composition):
