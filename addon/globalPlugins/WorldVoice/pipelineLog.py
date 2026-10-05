@@ -37,9 +37,9 @@ class PipelineLogService:
 			log.error("WorldVoice: exporting the pipeline log failed", exc_info=True)
 
 
-def export_with_dialog(log=None):
+def export_with_dialog(pipeline_log_file=None):
 	"""Ask where to save the pipeline log, move it there and report the result."""
-	log = log or pl
+	pipeline_log_file = pipeline_log_file or pl
 	with wx.FileDialog(
 		gui.mainFrame,
 		# Translators: The title of the Export pipeline log file window
@@ -54,7 +54,7 @@ def export_with_dialog(log=None):
 		dst = Path(entryDialog.GetPath())
 
 	try:
-		log.move_to(dst)
+		pipeline_log_file.move_to(dst)
 		wx.MessageBox(
 			_("Log exported to:\n{}").format(dst),
 			_("Success"),

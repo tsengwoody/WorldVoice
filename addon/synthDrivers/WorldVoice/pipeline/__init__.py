@@ -3,7 +3,7 @@ import uuid
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Literal, Union
 
 import config
 import speechDictHandler
@@ -131,7 +131,9 @@ def _insert_between(
 		yield previous
 
 
-def _split_by(regex: re.Pattern, text: str) -> Iterator[tuple[str, Union[str, re.Match]]]:
+def _split_by(
+	regex: re.Pattern, text: str
+) -> Iterator[tuple[Literal["text", "match"], Union[str, re.Match]]]:
 	"""Yield ("text", str) for the non-empty parts between matches and ("match", Match) for each match."""
 	pos = 0
 	for match in regex.finditer(text):

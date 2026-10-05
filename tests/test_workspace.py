@@ -37,3 +37,16 @@ def test_workspace_directory_name_has_one_home():
 		and '"WorldVoice-workspace"' in path.read_text(encoding="utf-8")
 	]
 	assert homes == ["addon/synthDrivers/WorldVoice/workspace.py"]
+
+
+def test_install_without_core_files_does_not_load_the_workspace(stub_modules, monkeypatch, tmp_path):
+	stub_modules.module("config", conf={"WorldVoice": {}})
+	stub_modules.module("globalVars", appArgs=SimpleNamespace(configPath=str(tmp_path)))
+	module = load(INSTALL, "install_tasks_no_core_test", monkeypatch, [])
+
+	def unexpected():
+		raise AssertionError("the workspace is only needed to extract core files")
+
+	monkeypatch.setattr(module, "_workspace_path", unexpected)
+	monkeypatch.setattr(module.os.path, "isdir", lambda path: False)
+	module.onInstall()

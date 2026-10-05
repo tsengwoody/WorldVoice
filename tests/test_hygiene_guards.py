@@ -145,3 +145,16 @@ def test_last_dead_code_and_stale_details_stay_gone():
 	sapi5 = (worldvoice / "driver/SAPI5/__init__.py").read_text(encoding="utf-8")
 	stop_player = sapi5[sapi5.index("	def stop_player(self, host):"):sapi5.index("	def drain(self, host, record):")]
 	assert "driver is not None" not in stop_player
+
+
+def test_small_tidy_ups_stay():
+	import ast
+
+	worldvoice = ADDON / "synthDrivers/WorldVoice"
+	assert "idle_barrier" not in (worldvoice / "driver/RHVoice/__init__.py").read_text(encoding="utf-8")
+	plugin_log = ast.parse((ADDON / "globalPlugins/WorldVoice/pipelineLog.py").read_text(encoding="utf-8"))
+	(export,) = [n for n in plugin_log.body if isinstance(n, ast.FunctionDef) and n.name == "export_with_dialog"]
+	assert "log" not in [argument.arg for argument in export.args.args]
+	pipeline = ast.parse((worldvoice / "pipeline/__init__.py").read_text(encoding="utf-8"))
+	(split_by,) = [n for n in pipeline.body if isinstance(n, ast.FunctionDef) and n.name == "_split_by"]
+	assert "Literal" in ast.unparse(split_by.returns)

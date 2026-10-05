@@ -65,7 +65,6 @@ def onInstall():
 		config.conf["speech"]["autoLanguageSwitching"] = False
 
 	core_dir = os.path.join(os.path.dirname(__file__), "core")
-	workspace_path = _workspace_path()
 	if not os.path.isdir(core_dir):
 		return
 
@@ -75,6 +74,7 @@ def onInstall():
 	if not core_zip_paths:
 		return
 
+	workspace_path = _workspace_path()
 	try:
 		os.makedirs(workspace_path, exist_ok=True)
 	except Exception:

@@ -33,6 +33,8 @@ FORBIDDEN = {
 	"synthDrivers/WorldVoice/voiceManager.py": [
 		"self._sessions", "self._bindings", "self._specs", "READY_ENGINE_CLASS", "EngineType",
 		"VoiceMeta", "groupByField", "keepMainLocaleEngineConsistent", "def ready",
+		# The engine classes are only needed while opening engines.
+		"self._engine_classes",
 	],
 	"synthDrivers/WorldVoice/engine/__init__.py": ["READY_ENGINE_CLASS", "EngineType", "refresh_ready_engine_classes"],
 	"globalPlugins/WorldVoice/speechSettingsDialog.py": ["EngineType", "_manager.ready"],

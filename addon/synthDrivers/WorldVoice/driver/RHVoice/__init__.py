@@ -170,7 +170,7 @@ class _WavePlayer(LeasedPlayer):
 	"""Keep a queued index callback tied to its originating native message."""
 
 	def __init__(self, host, player):
-		super().__init__(host, player, idle_barrier=None)
+		super().__init__(host, player)
 
 	def feed(self, data, onDone=None):
 		host = self._host

@@ -49,7 +49,6 @@ class VoiceManager:
 		self._bridge = bridge
 		self._index_ledger = index_ledger
 		self._completion_for = completion_for
-		self._engine_classes = dict(engine_classes)
 		self._resources: dict[str, EngineResource] = {}
 		self.catalog = EMPTY_CATALOG
 		self._instanceCache = {}
@@ -57,7 +56,7 @@ class VoiceManager:
 		self._terminated = False
 		try:
 			self._init_policies(roles)
-			self._initialize()
+			self._initialize(engine_classes)
 		except BaseException:
 			# Release acquired resources even on KeyboardInterrupt, then re-raise.
 			self.terminate(commit=False)
@@ -72,8 +71,8 @@ class VoiceManager:
 		self.voice_consistency = VoiceConsistency(conf_provider, self.roles, languageHandler.getLanguage)
 		self.parameter_consistency = ParameterConsistency(conf_provider)
 
-	def _initialize(self):
-		for name, cls in self._engine_classes.items():
+	def _initialize(self, engine_classes: Mapping[str, type]):
+		for name, cls in engine_classes.items():
 			resource = self._open_engine(name, cls)
 			if resource is None:
 				continue
