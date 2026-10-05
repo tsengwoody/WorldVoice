@@ -122,7 +122,8 @@ class VoiceSettingsStore:
 		with self._lock:
 			return self._states[key]
 
-	def keys(self) -> tuple[str, ...]:
+	def names(self) -> tuple[str, ...]:
+		"""The names of the voices with a state, as a snapshot taken under the lock."""
 		with self._lock:
 			return tuple(self._states)
 
@@ -167,7 +168,7 @@ class VoiceEditSession:
 		with self._store._lock:
 			if self._store._edit is not self:
 				raise RuntimeError("This voice settings edit is closed")
-			return self._store.keys()
+			return self._store.names()
 
 	def apply(self) -> None:
 		# Each successful save advances only that voice's baseline. Exceptions

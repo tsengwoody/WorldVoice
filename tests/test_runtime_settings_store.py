@@ -23,7 +23,9 @@ def test_ensure_returns_same_state(store, repo):
     assert store.ensure(make_spec()) is state
     assert store.state("Fake:a") is state
     assert store.snapshot("Fake:a").rate == 72
-    assert store.keys() == ("Fake:a",)
+    assert store.names() == ("Fake:a",)
+    # Not a mapping: a dict-like keys() would invite `for key in store`, which raises.
+    assert not hasattr(store, "keys")
     assert repo.loads == ["Fake:a"]
 
 

@@ -78,7 +78,7 @@ def test_parameter_copy_updates_each_voice_once(monkeypatch):
 			updates.setdefault(self.key, []).append(values)
 	base = SimpleNamespace(rate=72, pitch=60, volume=70, inflection=55, rateBoost=True, variant="x")
 	store = SimpleNamespace(
-		snapshot=lambda key: base, keys=lambda: ("a", "b"), state=State,
+		snapshot=lambda key: base, names=lambda: ("a", "b"), state=State,
 	)
 	module.ParameterConsistency(lambda: flags()).copy_from(store, "a")
 	expected = [{"rate": 72, "pitch": 60, "volume": 70, "inflection": 55, "rateBoost": True}]

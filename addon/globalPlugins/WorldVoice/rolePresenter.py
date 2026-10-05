@@ -97,7 +97,7 @@ class RolePanelPresenter:
 			settings = self._manager.settings
 			self._before_parameter_preview = {
 				key: {parameter: settings.state(key).get(parameter) for parameter in PARAMETER_NAMES}
-				for key in settings.keys()
+				for key in settings.names()
 			}
 			self.keep_parameters = True
 			self._manager.previewVoiceParameterConsistent(self._manager.defaultVoiceInstance)
@@ -108,7 +108,7 @@ class RolePanelPresenter:
 			record = self._before_parameter_preview
 			if record is not None:
 				settings = self._manager.settings
-				for key in settings.keys():
+				for key in settings.names():
 					state = settings.state(key)
 					values = record.get(key) or {p: state.baseline(p) for p in PARAMETER_NAMES}
 					state.update(**values)

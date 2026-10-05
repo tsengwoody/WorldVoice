@@ -134,7 +134,7 @@ class VoiceManager:
 		for resource in self._resources.values():
 			resource.published = False
 		if commit:
-			for key in self.settings.keys():
+			for key in self.settings.names():
 				try:
 					self.settings.commit(key)
 				except Exception:
@@ -230,7 +230,7 @@ class VoiceManager:
 
 	def onVoiceParameterConsistent(self, baseInstance):
 		self.previewVoiceParameterConsistent(baseInstance)
-		for key in self.settings.keys():
+		for key in self.settings.names():
 			self.settings.commit(key)
 
 	def onKeepEngineConsistent(self):

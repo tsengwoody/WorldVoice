@@ -362,7 +362,7 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}
-	manager.settings = types.SimpleNamespace(keys=lambda: ())
+	manager.settings = types.SimpleNamespace(names=lambda: ())
 	manager._bridge = types.SimpleNamespace(unbind=lambda source: None)
 	manager._resources = {
 		cls.engine: module.EngineResource(
@@ -390,7 +390,7 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}
-	manager.settings = types.SimpleNamespace(keys=lambda: ())
+	manager.settings = types.SimpleNamespace(names=lambda: ())
 	manager._bridge = types.SimpleNamespace(unbind=fail)
 	manager._resources = {
 		"published": module.EngineResource(

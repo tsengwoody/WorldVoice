@@ -186,7 +186,7 @@ def test_capability_and_metadata_queries_do_not_activate(session, adapter, store
     assert session.capabilities is adapter.capabilities
     assert session.variants("Fake:a") == ({"id": "default", "name": "Default"},)
     assert adapter.applied == []
-    assert store.keys() == ()
+    assert store.names() == ()
 
 
 class EventToken:

@@ -84,7 +84,7 @@ class ParameterConsistency:
 	def copy_from(self, store, base_name: str) -> None:
 		base = store.snapshot(base_name)
 		values = {name: getattr(base, name) for name in PARAMETER_NAMES}
-		for key in store.keys():
+		for key in store.names():
 			# One update per voice keeps each copy atomic for a worker activation.
 			store.state(key).update(**values)
 
