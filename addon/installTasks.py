@@ -2,10 +2,9 @@ import importlib.util
 import os
 from zipfile import BadZipFile
 
-from logHandler import log
-
 import config
 import globalVars
+from logHandler import log
 
 
 def _load_core_archive():

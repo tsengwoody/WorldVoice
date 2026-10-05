@@ -13,18 +13,17 @@ condition. The host never calls the strategy, a sink or a player while holding
 its own condition.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-import logging
 from threading import Condition, Event, RLock, Thread, local
 
+from ._segmentLifecycle import ProducerLease, SegmentLifecycle, SegmentOperation
 from .models import EventKind, PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork
-from ._segmentLifecycle import ProducerLease, SegmentLifecycle, SegmentOperation
 from .session import CancellationView
-
 
 log = logging.getLogger(__name__)
 

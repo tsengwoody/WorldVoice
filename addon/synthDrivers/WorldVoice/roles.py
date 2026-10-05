@@ -1,7 +1,7 @@
 """Locale to voice assignments ("speech roles") stored in the WorldVoice config."""
 
-from collections.abc import Callable, Collection, Mapping
 import re
+from collections.abc import Callable, Collection, Mapping
 from typing import Any
 
 

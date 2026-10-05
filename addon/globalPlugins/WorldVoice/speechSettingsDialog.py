@@ -1,25 +1,24 @@
 from collections import OrderedDict
 
-import wx
 import addonHandler
 import config
 import core
 import gui
+import queueHandler
+import tones
+import wx
 from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 from logHandler import log
-import queueHandler
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
+from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
 from synthDrivers.WorldVoice.pipeline import STAGES
 from synthDrivers.WorldVoice.pipeline.settings import pipeline_settings
-from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
-import tones
 
 from .pipelineLog import ask_export, confirm_enable, pipeline_log
 from .rolePresenter import RolePanelPresenter
 from .utils import guard_errors
-
 
 addonHandler.initTranslation()
 

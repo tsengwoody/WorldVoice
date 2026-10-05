@@ -1,54 +1,53 @@
-from collections import OrderedDict
 import os
 import sys
 import time
+from collections import OrderedDict
 from typing import Any
 
 import addonHandler
-from autoSettingsUtils.driverSetting import BooleanDriverSetting, DriverSetting, NumericDriverSetting
-from autoSettingsUtils.utils import StringParameterInfo
 import config
 import extensionPoints
 import gui
 import languageHandler
-from logHandler import log as nvdaLog
 import speech
 import versionInfo
+from autoSettingsUtils.driverSetting import BooleanDriverSetting, DriverSetting, NumericDriverSetting
+from autoSettingsUtils.utils import StringParameterInfo
+from logHandler import log as nvdaLog
 from speech.commands import (
-	IndexCommand,
+	BreakCommand,
 	CharacterModeCommand,
+	IndexCommand,
 	LangChangeCommand,
 	PitchCommand,
 	RateCommand,
 	VolumeCommand,
-	BreakCommand,
 )
 from speech.extensions import filter_speechSequence
-from synthDriverHandler import SynthDriver, synthIndexReached, synthDoneSpeaking, getSynth
+from synthDriverHandler import SynthDriver, getSynth, synthDoneSpeaking, synthIndexReached
 
 from . import languageDetection
+from .compat.commands import normalize_legacy_commands
+from .compat.completionPolicies import CompletionPolicy
+from .configRepository import ConfigVoiceSettingsRepository
+from .indexLedger import IndexLedger
+from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	STAGES,
-	inject_langchange_reorder,
 	deduplicate_language_command,
+	inject_langchange_reorder,
 	lang_cmd_to_voice,
-	order_move_to_start_register,
 	listable,
+	order_move_to_start_register,
 )
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext
 from .pipeline.scope import pipeline_scope
 from .pipeline.settings import PIPELINE_CONFSPEC, PIPELINE_SETTINGS, pipeline_settings
-from .configRepository import ConfigVoiceSettingsRepository
-from .runtime.settings import VoiceSettingsStore
-from .nvdaEventBridge import NvdaEventBridge
-from .indexLedger import IndexLedger
-from .compat.completionPolicies import CompletionPolicy
-from .compat.commands import normalize_legacy_commands
-from .runtime.scheduler import TaskManager
 from .runtime.requestBuilder import queue_speech_sequence
+from .runtime.scheduler import TaskManager
+from .runtime.settings import VoiceSettingsStore
 from .voiceManager import VoiceManager
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
-
 
 _: Any
 

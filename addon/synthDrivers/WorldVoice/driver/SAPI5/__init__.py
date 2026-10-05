@@ -1,18 +1,18 @@
+import weakref
 from dataclasses import dataclass, field
 from threading import RLock, Thread
-import weakref
 
+from logHandler import log
+from synthDriverHandler import synthIndexReached
 from synthDrivers import sapi5
 from synthDrivers.sapi5 import SynthDriver as BaseSynthDriver
-from synthDriverHandler import synthIndexReached
-from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice
+
+from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
-
 
 # Ordinary requests keep the parent's queue-empty idle, so they prove no idle.
 _ORDINARY_BARRIERS = frozenset({"ended", "processed"})

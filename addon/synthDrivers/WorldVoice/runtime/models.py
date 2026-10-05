@@ -4,7 +4,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
-
 VoiceKey = str
 SettingValue = int | str | bool
 VoiceValues = dict[str, SettingValue]

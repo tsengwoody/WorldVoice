@@ -1,22 +1,21 @@
 import ctypes
-from dataclasses import dataclass
 import io
-from threading import Condition, Lock, Thread
 import wave
 import weakref
+from dataclasses import dataclass
+from threading import Condition, Lock, Thread
 
-from synthDrivers import oneCore
 from logHandler import log
 from synthDriverHandler import synthDoneSpeaking, synthIndexReached
-
-from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
+from synthDrivers import oneCore
 from synthDrivers.WorldVoice.driver import Voice
-from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
+
 from ...runtime.engineControl import StopGate
+from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
-
+from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 
 # The reviewed helper can time out of terminate without invalidating the native
 # callback. Keep only its detached ctypes trampoline alive for the process

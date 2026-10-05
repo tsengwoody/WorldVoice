@@ -15,7 +15,6 @@ turning it off restores LEGACY_DONE for every one.
 from ..runtime.models import CompletionContract, CompletionMode, IndexRange
 from ..runtime.playbackWork import DrainSupport
 
-
 _VERIFIED_CONTRACTS: dict[tuple[str, str, str], CompletionContract] = {}
 
 _DRAIN_CONTRACT = CompletionContract(CompletionMode.DRAIN, IndexRange(1, 9999))

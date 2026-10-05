@@ -1,17 +1,17 @@
 import copy
-import wx
 
 import addonHandler
 import core
 import globalVars
 import gui
+import queueHandler
+import wx
 from gui import guiHelper, nvdaControls
 from gui.contextHelp import ContextHelpMixin
 from gui.settingsDialogs import SettingsDialog
 from logHandler import log
-import queueHandler
 
-from .models import SpeechSymbols, SpeechSymbol, SPEECH_SYMBOL_LANGUAGE_LABELS, SPEECH_SYMBOL_MODE_LABELS
+from .models import SPEECH_SYMBOL_LANGUAGE_LABELS, SPEECH_SYMBOL_MODE_LABELS, SpeechSymbol, SpeechSymbols
 
 addonHandler.initTranslation()
 

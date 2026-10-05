@@ -4,18 +4,22 @@ import addonHandler
 import globalPluginHandler
 import globalVars
 import gui
-from logHandler import log
-from scriptHandler import script
 import ui
 import wx
+from logHandler import log
+from scriptHandler import script
 
-from .pipelineLog import ask_disable_on_start, ask_export, confirm_enable, pipeline_log
-from .speechSettingsDialog import WorldVoiceSettingsDialog
+# Importing the WorldVoice synth package puts the add-on root, home of
+# `generics`, on sys.path; keep these before the generics imports.
+from synthDrivers.WorldVoice.pipeline.scope import pipeline_scope
+from synthDrivers.WorldVoice.sayAll import patch, unpatch
+
+# isort: split
 from generics.coreArchive import extract_core_archive
 from generics.speechSymbols.views import SpeechSymbolsDialog
 
-from synthDrivers.WorldVoice.pipeline.scope import pipeline_scope
-from synthDrivers.WorldVoice.sayAll import patch, unpatch
+from .pipelineLog import ask_disable_on_start, ask_export, confirm_enable, pipeline_log
+from .speechSettingsDialog import WorldVoiceSettingsDialog
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]

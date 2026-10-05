@@ -41,3 +41,21 @@ def test_ruff_reports_no_blind_except_or_unsorted_import():
 		cwd=ROOT, capture_output=True, text=True,
 	)
 	assert result.returncode == 0, result.stdout
+
+
+def test_generics_is_imported_only_after_the_package_that_adds_its_path():
+	# `generics` lives at the add-on root, which only the WorldVoice synth
+	# package adds to sys.path; import sorting must not move it first.
+	import ast
+
+	for path in _addon_sources():
+		tree = ast.parse(path.read_text(encoding="utf-8"))
+		imports = [
+			node for node in tree.body
+			if isinstance(node, ast.ImportFrom) and node.module and node.level == 0
+		]
+		generics = [node.lineno for node in imports if node.module.split(".")[0] == "generics"]
+		if not generics or path.relative_to(ADDON).parts[:2] == ("synthDrivers", "WorldVoice"):
+			continue
+		worldvoice = [node.lineno for node in imports if node.module.startswith("synthDrivers.WorldVoice")]
+		assert worldvoice and min(worldvoice) < min(generics), path

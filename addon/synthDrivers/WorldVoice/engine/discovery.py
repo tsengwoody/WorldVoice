@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import importlib
 import json
 import os
-from pathlib import Path
 import sys
 import time
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
-
 
 MANIFEST_FILENAME = "manifest.json"
 

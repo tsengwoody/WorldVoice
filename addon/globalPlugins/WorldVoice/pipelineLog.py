@@ -3,9 +3,8 @@
 import addonHandler
 import config
 import gui
-from logHandler import log
 import wx
-
+from logHandler import log
 from synthDrivers.WorldVoice.pipeline import pl
 
 addonHandler.initTranslation()

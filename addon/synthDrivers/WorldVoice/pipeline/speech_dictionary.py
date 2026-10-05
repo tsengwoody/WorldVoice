@@ -4,7 +4,6 @@ from typing import Any, Callable
 import globalVars
 import speech
 
-
 _original_process_text: Callable[..., Any] | None = None
 _wrapped_process_text: Callable[..., Any] | None = None
 

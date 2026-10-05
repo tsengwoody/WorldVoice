@@ -1,13 +1,12 @@
 import addonHandler
-from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
 import gui
+import wx
+from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
 from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
 from logHandler import log
-import wx
 
 from .pipeline.settings import PIPELINE_CONFIG_KEYS, pipeline_settings
-
 
 addonHandler.initTranslation()
 

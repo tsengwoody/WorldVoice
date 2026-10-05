@@ -1,6 +1,6 @@
 from bisect import bisect_right
 
-from .script_data import SCRIPT_RANGES, SCRIPT_RANGE_STARTS
+from .script_data import SCRIPT_RANGE_STARTS, SCRIPT_RANGES
 
 
 def get_script(codepoint: int) -> str | None:

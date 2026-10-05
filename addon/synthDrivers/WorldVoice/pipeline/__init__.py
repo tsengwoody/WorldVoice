@@ -1,20 +1,20 @@
+import re
+import uuid
 from dataclasses import dataclass, field
 from functools import wraps
 from itertools import chain, pairwise
-import re
 from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Union
-import uuid
 
 import config
+import speechDictHandler
 from logHandler import log
 from speech.commands import BreakCommand, LangChangeCommand
 from speech.extensions import filter_speechSequence
-import speechDictHandler
 from synthDriverHandler import getSynth
 
-from ..runtime.models import SelectVoice
 from .._speechcommand import WVLangChangeCommand
 from ..log import PipelineLog
+from ..runtime.models import SelectVoice
 from . import speech_dictionary
 from .context import GENERIC_CONTEXT as GENERIC_CONTEXT, SpeechContext, current_context
 from .settings import pipeline_settings

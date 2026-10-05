@@ -1,44 +1,44 @@
-import languageHandler
 import queue
 import threading
 import weakref
 from contextlib import contextmanager
-from ctypes import POINTER, c_char_p, c_void_p, cast, byref, sizeof, string_at
+from ctypes import POINTER, byref, c_char_p, c_void_p, cast, sizeof, string_at
 from dataclasses import dataclass
 from io import BytesIO
-from logHandler import log
 
-from . import driver as base
-from .driver import (
-	SynthDriver as BaseSynthDriver,
-	TtsSetParamList,
-	ProcessText2Speech as BaseProcessText2Speech,
-)
-from .driver import ttsapi
-from .driver.ttsapi.veTypes import (
-	VE_PARAM_LANGUAGE,
-	VE_PARAM_VOICE_OPERATING_POINT,
-	VE_CBOUTNOTIFY,
-	VE_OUTDATA,
-	VE_MARKINFO,
-	VE_INTEXT,
-	VE_NORM_TEXT,
-	VE_MSG_OUTBUFREQ,
-	VE_MSG_OUTBUFDONE,
-	VE_MSG_ENDPROCESS,
-	VE_MRK_BOOKMARK,
-	NUAN_OK,
-	NUAN_E_TTS_USERSTOP,
-)
+import languageHandler
+from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
 from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
+
+from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.engineControl import StopGate
 from ...runtime.segmentHost import NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
-
+from . import driver as base
+from .driver import (
+	ProcessText2Speech as BaseProcessText2Speech,
+	SynthDriver as BaseSynthDriver,
+	TtsSetParamList,
+	ttsapi,
+)
+from .driver.ttsapi.veTypes import (
+	NUAN_E_TTS_USERSTOP,
+	NUAN_OK,
+	VE_CBOUTNOTIFY,
+	VE_INTEXT,
+	VE_MARKINFO,
+	VE_MRK_BOOKMARK,
+	VE_MSG_ENDPROCESS,
+	VE_MSG_OUTBUFDONE,
+	VE_MSG_OUTBUFREQ,
+	VE_NORM_TEXT,
+	VE_OUTDATA,
+	VE_PARAM_LANGUAGE,
+	VE_PARAM_VOICE_OPERATING_POINT,
+)
 
 _PROFILE = "cerence-ttsapi-0x0520-unverified"
 _RETAINED_CALLBACKS = []

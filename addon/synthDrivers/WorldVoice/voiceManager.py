@@ -2,7 +2,7 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
 from operator import attrgetter
-from typing import Callable, TypeVar, Dict, List
+from typing import Callable, Dict, List, TypeVar
 
 import config
 import languageHandler
@@ -11,19 +11,18 @@ from synthDriverHandler import VoiceInfo
 
 from .compat.engineAdapter import LegacyEngineAdapter
 from .compat.voiceFacade import LegacyVoiceBinding
-from .runtime.completion import rule_for
-from .runtime.models import VoiceSpec, EngineCapabilities, CompletionContract
+from .engine import READY_ENGINE_CLASS, EngineType, get_engine_enabled, refresh_ready_engine_classes
 from .indexLedger import IndexLedger
-from .runtime.session import EngineSession, PlaybackPort
-from .runtime.scheduler import TaskManager
-from .runtime.settings import VoiceEditSession, VoiceSettingsStore
-from .nvdaEventBridge import NvdaEventBridge
-
 from .mainLocalePolicy import EngineConsistency, ParameterConsistency, VoiceConsistency
+from .nvdaEventBridge import NvdaEventBridge
 
 # getPrimaryLocale is re-exported for callers of this module.
 from .roles import ConfigRoleRepository, getPrimaryLocale
-from .engine import EngineType, READY_ENGINE_CLASS, get_engine_enabled, refresh_ready_engine_classes
+from .runtime.completion import rule_for
+from .runtime.models import CompletionContract, EngineCapabilities, VoiceSpec
+from .runtime.scheduler import TaskManager
+from .runtime.session import EngineSession, PlaybackPort
+from .runtime.settings import VoiceEditSession, VoiceSettingsStore
 
 
 @dataclass

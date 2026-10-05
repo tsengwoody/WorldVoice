@@ -6,15 +6,15 @@ user callbacks) always execute outside the state condition. Only the worker
 finishes submitted tasks; engine callbacks record signals or delivery intents.
 """
 
+import logging
+import queue
+import threading
 from collections import deque
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future, InvalidStateError
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from itertools import count
-import logging
-import queue
-import threading
 from typing import Protocol
 
 from .completion import CompletionRule, Signal, rule_for

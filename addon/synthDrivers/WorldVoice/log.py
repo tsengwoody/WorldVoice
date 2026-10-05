@@ -1,7 +1,7 @@
 import csv
-from pathlib import Path
 import shutil
 import time
+from pathlib import Path
 
 import addonHandler
 import gui

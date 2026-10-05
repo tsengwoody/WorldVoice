@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import config
-from synthDriverHandler import getSynth
 from speech.commands import LangChangeCommand
+from synthDriverHandler import getSynth
 
-from .scripts import get_script
 from .._speechcommand import WVLangChangeCommand
+from .scripts import get_script
 
 BASIC_LATIN = (
 	"en",

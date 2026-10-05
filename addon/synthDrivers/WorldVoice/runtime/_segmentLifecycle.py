@@ -23,15 +23,14 @@ Waits are woken by notifications (resource release, cancel(), token
 callbacks, PlaybackWork.cancel(), wake_waiters()), never by polling.
 """
 
-from collections import deque
 import logging
+from collections import deque
 from threading import Condition, Event, Thread, current_thread
 from typing import Callable, Protocol
 
 from .models import PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import PlaybackWork
 from .session import CancellationView
-
 
 log = logging.getLogger(__name__)
 

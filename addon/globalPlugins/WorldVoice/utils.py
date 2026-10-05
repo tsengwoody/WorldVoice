@@ -1,7 +1,8 @@
-import wx
 from functools import wraps
-from logHandler import log
+
 import gui
+import wx
+from logHandler import log
 
 
 def guard_errors(callback=None):
