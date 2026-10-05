@@ -38,6 +38,8 @@ FORBIDDEN = {
 		# getVoiceNameForLanguage always names a voice; nothing asked for the instance.
 		"getVoiceInstanceForLanguage",
 	],
+	# A session plays; the manager opens engines and lists their voices through the concrete adapter.
+	"synthDrivers/WorldVoice/runtime/session.py": ["def replace_adapter", "def list_voices", "notification_source"],
 	"synthDrivers/WorldVoice/engine/__init__.py": ["READY_ENGINE_CLASS", "EngineType", "refresh_ready_engine_classes"],
 	"globalPlugins/WorldVoice/speechSettingsDialog.py": ["EngineType", "_manager.ready"],
 	"synthDrivers/WorldVoice/__init__.py": ["_completion_for", "_warn_drain_fallback", "_drainFallbacks"],

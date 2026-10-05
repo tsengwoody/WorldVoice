@@ -88,23 +88,6 @@ def test_explicit_invalidation_reapplies_same_revision(session, adapter, store):
     assert len(adapter.applied) == 2
 
 
-def test_replace_adapter_changes_source_and_reapplies(session, adapter, store):
-    store.ensure(make_spec())
-    session.activate("Fake:a")
-    source = session.source_id
-    replacement = FakeAdapter(adapter.capabilities)
-    session.replace_adapter(replacement)
-    assert session.source_id is not source
-    assert session.source_id is not replacement.notification_source
-    assert adapter.close_count == 1
-    assert replacement.open_count == 1
-    assert session.activate("Fake:a") is True
-    assert len(replacement.applied) == 1
-    session.close()
-    session.close()
-    assert (adapter.close_count, replacement.close_count) == (1, 1)
-
-
 def test_cancel_can_enter_while_speak_blocks(session, adapter):
     speaking = Event()
     finish_speak = Event()
@@ -199,10 +182,8 @@ def test_open_is_explicit_and_reopen_gets_new_source(rt, adapter, store):
 
 
 def test_capability_and_metadata_queries_do_not_activate(session, adapter, store):
-    adapter.voices = (make_spec(),)
     adapter.voice_variants = {"Fake:a": ({"id": "default", "name": "Default"},)}
     assert session.capabilities is adapter.capabilities
-    assert session.list_voices() == adapter.voices
     assert session.variants("Fake:a") == ({"id": "default", "name": "Default"},)
     assert adapter.applied == []
     assert store.keys() == ()

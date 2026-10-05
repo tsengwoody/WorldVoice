@@ -32,14 +32,18 @@ class CancellationView(Protocol):
 
 
 class EngineAdapter(Protocol):
-	notification_source: object
+	"""What an EngineSession uses of its adapter while it plays.
+
+	The voice manager builds the concrete adapter and uses it directly for the
+	rest: listing voices, its notification source, and configuring completion
+	and segment events.
+	"""
+
 	capabilities: EngineCapabilities
 
 	def open(self) -> None: ...
 
 	def close(self) -> None: ...
-
-	def list_voices(self) -> tuple[VoiceSpec, ...]: ...
 
 	def variants(self, key: str) -> tuple[Mapping[str, str], ...]: ...
 
@@ -84,8 +88,8 @@ class PlaybackPort(Protocol):
 class EngineSession:
 	"""Own one adapter lifecycle and remember only successful activations.
 
-	The assembly owner opens, closes, or replaces resources only while the
-	session is idle. Activation is serialized separately from playback:
+	The assembly owner opens or closes resources only while the session is
+	idle. Activation is serialized separately from playback:
 	cancel and pause never wait on an activation or a blocking speak call.
 	"""
 
@@ -122,12 +126,6 @@ class EngineSession:
 		self.invalidate()
 		self._adapter.close()
 
-	def replace_adapter(self, adapter: EngineAdapter) -> None:
-		"""Replace idle resources; the assembly owner must rebind events."""
-		self.close()
-		self._adapter = adapter
-		self.open()
-
 	def invalidate(self) -> None:
 		with self._activation_lock:
 			self._applied = None
@@ -139,9 +137,6 @@ class EngineSession:
 	@property
 	def completion(self) -> CompletionContract:
 		return self.capabilities.completion
-
-	def list_voices(self) -> tuple[VoiceSpec, ...]:
-		return self._adapter.list_voices()
 
 	def variants(self, key: str) -> tuple[Mapping[str, str], ...]:
 		return self._adapter.variants(key)

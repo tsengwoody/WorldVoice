@@ -105,12 +105,13 @@ def test_revision_change_reapplies_same_voice(engine):
     assert engine.core.rate == 72
 
 
-def test_replace_core_reapplies_same_snapshot(engine):
+def test_reopen_reapplies_same_snapshot(engine):
     assert engine.session.activate("Fake:a") is True
-    new_core = FakeCore()
-    engine.session.replace_adapter(engine.adapter(new_core))
+    engine.session.close()
+    engine.session.open()
+    engine.core.writes.clear()
     assert engine.session.activate("Fake:a") is True
-    assert new_core.writes == [
+    assert engine.core.writes == [
         ("voice", "a"), ("rate", 50), ("pitch", 50), ("volume", 50),
     ]
 

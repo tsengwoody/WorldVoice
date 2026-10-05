@@ -421,7 +421,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
     store = rt.settings.VoiceSettingsStore(repo)
     session = rt.session.EngineSession(adapter, store)
     session.open()
-    for spec in session.list_voices():
+    for spec in adapter.list_voices():
         store.ensure(spec)
     output = RecordingOutput()
     tasks = scheduler.TaskManager(output)
