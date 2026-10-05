@@ -228,13 +228,13 @@ class SynthDriver(SynthDriver):
 		nvdaLog.debug("WorldVoice init timing: TaskManager %.3fs", time.perf_counter() - step_start)
 
 		step_start = time.perf_counter()
-		self._completionPolicy = CompletionPolicy()
+		self._completionPolicy = CompletionPolicy(nvda_version=versionInfo.version, logger=nvdaLog)
 		self._voiceManager = VoiceManager(
 			taskManager=self.taskManager,
 			settings=self._settingsStore,
 			bridge=self._eventBridge,
 			index_ledger=self._indexLedger,
-			completion_for=self._completion_for,
+			completion_for=self._completionPolicy.select,
 		)
 		nvdaLog.debug("WorldVoice init timing: VoiceManager %.3fs", time.perf_counter() - step_start)
 
@@ -272,33 +272,6 @@ class SynthDriver(SynthDriver):
 
 		self._voice = None
 		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
-
-	def _completion_for(self, voice_class, core):
-		policy = self._completionPolicy
-		nvda_version = versionInfo.version
-		audio_mode = policy.audio_mode(voice_class, core)
-		contract, support = policy.contract_for(
-			voice_class,
-			core,
-			nvda_version=nvda_version,
-			audio_mode=audio_mode,
-		)
-		if support is not None and not support.supported:
-			self._warn_drain_fallback(voice_class.engine, nvda_version, audio_mode, support)
-		return contract
-
-	def _warn_drain_fallback(self, engine, nvda_version, audio_mode, support):
-		# Log each distinct fallback profile once per synth instance.
-		fallbacks = getattr(self, "_drainFallbacks", None)
-		if fallbacks is None:
-			self._drainFallbacks = fallbacks = set()
-		profile = (engine, nvda_version, audio_mode, support.profile, support.reason)
-		if profile not in fallbacks:
-			fallbacks.add(profile)
-			nvdaLog.warning(
-				"WorldVoice %s uses LEGACY_DONE (NVDA %s, audio %s, profile %s): %s",
-				*profile,
-			)
 
 	def terminate(self, *, commit=True):
 		if self._terminated:

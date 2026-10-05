@@ -605,19 +605,10 @@ def drain_contract(c, mode="DRAIN"):
 
 def runtime_completion_selector(c, version="synthetic"):
     policies = importlib.import_module(c.module.__package__ + ".compat.completionPolicies")
-    commands = {name: type(name, (), {}) for name in (
-        "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
-        "PitchCommand", "RateCommand", "VolumeCommand")}
     logs = []
-    root = _load_synth_class({
-        "SynthDriver": object, "synthIndexReached": object(), "synthDoneSpeaking": object(),
-        "versionInfo": SimpleNamespace(version=version),
-        "CompletionPolicy": policies.CompletionPolicy,
-        "nvdaLog": SimpleNamespace(warning=lambda *args: logs.append(args)), **commands,
-    })
-    synth = object.__new__(root)
-    synth._completionPolicy = policies.CompletionPolicy()
-    return synth._completion_for, logs
+    policy = policies.CompletionPolicy(nvda_version=version,
+        logger=SimpleNamespace(warning=lambda *args: logs.append(args)))
+    return policy.select, logs
 
 
 def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):

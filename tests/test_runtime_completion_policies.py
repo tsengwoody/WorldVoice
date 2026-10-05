@@ -196,15 +196,12 @@ COMMANDS = ("IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakC
 
 
 def real_completion_selector(policies, warnings, *, policy=None, version="2026.1"):
-    """The real driver's _completion_for, without running its NVDA constructor."""
-    root = _load_synth_class({"SynthDriver": object, "synthIndexReached": object(),
-        "synthDoneSpeaking": object(), "versionInfo": SimpleNamespace(version=version),
-        "CompletionPolicy": policies.CompletionPolicy,
-        "nvdaLog": SimpleNamespace(warning=lambda *args: warnings.append(args)),
-        **{name: type(name, (), {}) for name in COMMANDS}})
-    synth = object.__new__(root)
-    synth._completionPolicy = policy or policies.CompletionPolicy()
-    return synth._completion_for
+    """The driver's selector: CompletionPolicy.select with NVDA's version and logger."""
+    if policy is None:
+        policy = policies.CompletionPolicy()
+    policy.nvda_version = version
+    policy._logger = SimpleNamespace(warning=lambda *args: warnings.append(args))
+    return policy.select
 
 
 @pytest.mark.parametrize("profile,use_wasapi,expected", [
@@ -405,3 +402,40 @@ def test_each_installed_voice_declares_its_drain_profile(engine, wasapi_dependen
                 if isinstance(node, ast.Assign) and [t.id for t in node.targets] == ["drain_profile"]]
     expected = "DrainProfile(wasapi_dependent=True)" if wasapi_dependent else "DrainProfile()"
     assert declared == [expected]
+
+
+def test_select_warns_once_per_distinct_fallback_profile(env):
+    policies = policies_of(env)
+    warnings = []
+    policy = policies.CompletionPolicy(nvda_version="2026.1",
+        logger=SimpleNamespace(warning=lambda *args: warnings.append(args)))
+    first = fake_voice(env, supported=False, reason="reason a", engine="Fake")
+    second = fake_voice(env, supported=False, reason="reason b", engine="Fake")
+    for pair in (first, first, second):
+        assert policy.select(pair.voice, pair.core) == env.models.CompletionContract()
+    assert [args[1:] for args in warnings] == [
+        ("Fake", "2026.1", "default", "test-profile", "reason a"),
+        ("Fake", "2026.1", "default", "test-profile", "reason b"),
+    ]
+    assert warnings[0][0] == "WorldVoice %s uses LEGACY_DONE (NVDA %s, audio %s, profile %s): %s"
+
+
+def test_fallback_dedupe_belongs_to_one_policy(env):
+    policies = policies_of(env)
+    warnings = []
+    logger = SimpleNamespace(warning=lambda *args: warnings.append(args))
+    pair = fake_voice(env, supported=False)
+    for _ in range(2):
+        policies.CompletionPolicy(nvda_version="2026.1", logger=logger).select(pair.voice, pair.core)
+    assert len(warnings) == 2
+
+
+@pytest.mark.parametrize("profile,supported", [(True, True), (True, False), (False, True)])
+def test_select_matches_contract_for(env, profile, supported):
+    policies = policies_of(env)
+    policy = policies.CompletionPolicy(nvda_version="2026.1",
+        logger=SimpleNamespace(warning=lambda *args: None))
+    pair = fake_voice(env, profile=profile, supported=supported)
+    expected, _ = policy.contract_for(pair.voice, pair.core, nvda_version="2026.1",
+        audio_mode=policy.audio_mode(pair.voice, pair.core))
+    assert policy.select(pair.voice, pair.core) == expected

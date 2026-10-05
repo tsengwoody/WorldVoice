@@ -12,6 +12,8 @@ so DRAIN for them is a forced activation controlled by ``force_unverified_drain`
 turning it off restores LEGACY_DONE for every one.
 """
 
+import logging
+
 from ..runtime.models import CompletionContract, CompletionMode, IndexRange
 from ..runtime.playbackWork import DrainSupport
 
@@ -21,9 +23,37 @@ _DRAIN_CONTRACT = CompletionContract(CompletionMode.DRAIN, IndexRange(1, 9999))
 
 
 class CompletionPolicy:
-	def __init__(self, *, force_unverified_drain: bool = True):
+	def __init__(
+		self,
+		*,
+		nvda_version: str | None = None,
+		logger=None,
+		force_unverified_drain: bool = True,
+	):
 		# Forced activation of DRAIN on wrapper profiles without playback evidence.
 		self.force_unverified_drain = force_unverified_drain
+		self.nvda_version = nvda_version
+		self._logger = logger or logging.getLogger(__name__)
+		self._fallbacks: set[tuple] = set()
+
+	def select(self, voice_class: type, core: object) -> CompletionContract:
+		"""Choose the opened core's contract, logging each distinct fallback once."""
+		audio_mode = self.audio_mode(voice_class, core)
+		contract, support = self.contract_for(
+			voice_class,
+			core,
+			nvda_version=self.nvda_version,
+			audio_mode=audio_mode,
+		)
+		if support is not None and not support.supported:
+			profile = (voice_class.engine, self.nvda_version, audio_mode, support.profile, support.reason)
+			if profile not in self._fallbacks:
+				self._fallbacks.add(profile)
+				self._logger.warning(
+					"WorldVoice %s uses LEGACY_DONE (NVDA %s, audio %s, profile %s): %s",
+					*profile,
+				)
+		return contract
 
 	def audio_mode(self, voice_class: type, core: object) -> str:
 		"""Report the opened core's audio path; only explicit booleans are trusted."""
