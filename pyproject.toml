@@ -1,4 +1,7 @@
 [tool.ruff]
+# Matches the ruff-pre-commit rev in .pre-commit-config.yaml and NVDA's lint group (ref/nvda/pyproject.toml).
+# The lint rules are ruff's defaults minus the ignores below, so another ruff version could check other rules.
+required-version = "==0.16.3"
 line-length = 110
 
 builtins = [

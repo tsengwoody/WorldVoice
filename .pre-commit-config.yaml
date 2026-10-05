@@ -1,4 +1,6 @@
 # Formatting hooks follow NVDA's .pre-commit-config.yaml (ref/nvda).
+# Install the Git hooks with prek, as NVDA does (ref/nvda/projectDocs/testing/automated.md): `prek install`.
+# The lint hook applies safe fixes and fails that commit; stage the fixes and commit again.
 # Formatting hooks only touch add-on sources; tests keep their own style.
 exclude: |
   (?x)^addon/synthDrivers/WorldVoice/(
@@ -36,7 +38,7 @@ repos:
         files: ^addon/
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Matches the Ruff version used by NVDA.
+    # Matches the Ruff version used by NVDA and required-version in pyproject.toml.
     rev: v0.16.3
     hooks:
       - id: ruff

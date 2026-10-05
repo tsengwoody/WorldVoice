@@ -30,17 +30,26 @@ def test_every_blind_except_says_where_the_error_goes():
 	assert missing == []
 
 
+def test_ruff_version_matches_the_pre_commit_hook():
+	pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+	config = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+	required = re.search(r'^required-version = "==(\S+)"$', pyproject, re.MULTILINE)
+	hook = re.search(r"ruff-pre-commit\n(?:\s*#.*\n)*\s*rev: v(\S+)", config)
+	assert required and hook
+	assert required.group(1) == hook.group(1)
+
+
 @pytest.mark.skipif(shutil.which("ruff") is None, reason="ruff is not installed")
 def test_ruff_reports_nothing():
 	# Every rule, as pyproject.toml configures it. No CLI --select or --exclude: either would
 	# replace the pyproject lists, and --exclude would bring script_data.py back in.
-	# pyproject has no `select`, so the rules are ruff 0.16's defaults minus the ignores. A newer
-	# ruff with a larger default set may fail this test while the pinned pre-commit hook passes.
+	# pyproject has no `select`, so the rules are ruff's defaults minus the ignores; its
+	# required-version makes any other ruff fail here instead of checking other rules.
 	result = subprocess.run(
 		["ruff", "check", "addon", "--output-format", "concise"],
 		cwd=ROOT, capture_output=True, text=True,
 	)
-	assert result.returncode == 0, result.stdout
+	assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_pre_commit_runs_the_ruff_lint_hook():
