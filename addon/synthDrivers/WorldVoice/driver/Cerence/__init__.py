@@ -46,9 +46,41 @@ _RETAINED_CALLBACKS = []
 # driver's DoneSpeaking, its failures are recorded errors, and its token is
 # the worker's to honour (a token-cancelled request is not a failure).
 _ORDINARY_BARRIERS = frozenset()
-# Queued in place of ordinary speech that cancel() drops: like the original
-# add-on, cancel discards queued speech but keeps its DONE notification.
-_DONE = object()
+
+
+def _strip_bytes_repr(text):
+	return text.strip("b'").strip("'") if (text.startswith("b'") and text.endswith("'")) else text
+
+
+class _CerencePort:
+	"""Private names of the vendored inner Cerence driver this wrapper reads, writes or overrides.
+
+	Not used at runtime; tests/test_native_strategy_guards.py pins these lists
+	against the inner package, so an update of the vendored driver is checked here.
+	"""
+
+	INNER_PRIVATES = frozenset(
+		{
+			"_bgQueue",
+			"_bgThread",
+			"_ensureSonicStream",
+			"_feedBuf",
+			"_instanceCache",
+			"_isSilence",
+			"_markBuf",
+			"_normalization",
+			"_pcmBuf",
+			"_player",
+			"_rateBoost",
+			"_resources",
+			"_sonicEnabled",
+			"_sonicInitTried",
+			"_veCallback",
+			"_veCallbackHandler",
+			"_voice",
+		},
+	)
+	INNER_OVERRIDES = frozenset({"_speak", "_onIndexReached"})
 
 
 class _SilenceGate(threading.Event):
@@ -921,10 +953,13 @@ class Voice(Voice):
 	engine = "Cerence"
 	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver
+	# The engine's own default variant, captured once per core.
+	_defaultVariant = None
+	_defaultVariantCore = None
 
 	def applyEngineSettings(self, core, snapshot):
 		instance = core.getVoiceInstance(snapshot.voice_id)
-		if getattr(self, "_defaultVariantCore", None) is not core:
+		if self._defaultVariantCore is not core:
 			self._defaultVariant = core.getParameter(
 				instance,
 				VE_PARAM_VOICE_OPERATING_POINT,
@@ -959,39 +994,20 @@ class Voice(Voice):
 			return []
 
 	@classmethod
-	def voices(cls, core):
-		result = []
-		if not cls.ready() or not core:
-			return result
-
-		try:
-			voices = core.availableVoices.values()
-		except Exception:
-			return result
-
-		def clean(s):
-			return s.strip("b'").strip("'") if (s.startswith("b'") and s.endswith("'")) else s
-
-		for voice in voices:
-			localeName = voice.language or "unknown"
-			langDescription = languageHandler.getLanguageDescription(localeName)
-			if not langDescription:
-				if " - " in voice.displayName:
-					langDescription = voice.displayName.split(" - ", 1)[1]
-					langDescription = clean(langDescription)
-				else:
-					langDescription = localeName
-			name = voice.id
-			result.append(
-				{
-					"id": name,
-					"name": getVoiceKey(cls.engine, name),
-					"locale": localeName,
-					"language": localeName,
-					"langDescription": langDescription,
-					"description": "%s - %s [%s]" % (name, langDescription, cls.engine),
-					"engine": cls.engine,
-				},
-			)
-
-		return result
+	def voiceInfoToMetadata(cls, voice):
+		localeName = voice.language or "unknown"
+		langDescription = languageHandler.getLanguageDescription(localeName)
+		if not langDescription:
+			if " - " in voice.displayName:
+				langDescription = _strip_bytes_repr(voice.displayName.split(" - ", 1)[1])
+			else:
+				langDescription = localeName
+		return {
+			"id": voice.id,
+			"name": getVoiceKey(cls.engine, voice.id),
+			"locale": localeName,
+			"language": localeName,
+			"langDescription": langDescription,
+			"description": "%s - %s [%s]" % (voice.id, langDescription, cls.engine),
+			"engine": cls.engine,
+		}

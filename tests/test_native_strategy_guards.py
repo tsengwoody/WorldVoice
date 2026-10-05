@@ -188,3 +188,50 @@ def test_onecore_uses_the_stop_gate_and_declares_voice_last():
 		isinstance(n, ast.Assign) and any(ast.unparse(t) in {"SynthDriver", "Voice.synth_driver_class"} for t in n.targets)
 		for n in tree.body
 	)
+
+
+def _vocalizer_own_names(tree):
+	own = _own_names(tree)
+	for node in tree.body:
+		if isinstance(node, ast.ClassDef):
+			for item in node.body:
+				if isinstance(item, ast.Assign):
+					own |= {t.id for t in item.targets if isinstance(t, ast.Name)}
+				if isinstance(item, ast.FunctionDef) and item.name == "_install_guard":
+					own |= {
+						n.attr for n in ast.walk(item)
+						if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store)
+						and isinstance(n.value, ast.Name) and n.value.id == "self"
+					}
+	return own
+
+
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
+def test_vocalizer_inner_privates_are_listed_and_exist(engine):
+	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+	port = f"_{engine}Port"
+	privates = _class_constant(tree, port, "INNER_PRIVATES")
+	overrides = _class_constant(tree, port, "INNER_OVERRIDES")
+	accessed = {
+		n.attr for n in ast.walk(tree)
+		if isinstance(n, ast.Attribute) and n.attr.startswith("_") and not n.attr.startswith("__")
+		and isinstance(n.value, ast.Name)
+	}
+	assert accessed - _vocalizer_own_names(tree) <= privates
+	inner = "".join(p.read_text(encoding="utf-8") for p in (ROOT / "driver" / engine / "driver").rglob("*.py"))
+	assert all(re.search(rf"\b{re.escape(name)}\b", inner) for name in privates)
+	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
+	overridden = {
+		n.name for n in synth.body
+		if isinstance(n, ast.FunctionDef) and n.name.startswith("_") and not n.name.startswith("__")
+		and re.search(rf"def {n.name}\(", inner)
+	}
+	assert overridden == overrides
+
+
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
+def test_vocalizer_retired_names_are_gone(engine):
+	source = (ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
+	assert "_stops" not in source.replace("_stopGate", "")
+	assert "_DONE" not in source
+	assert "def voices(" not in source
