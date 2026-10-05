@@ -127,7 +127,7 @@ def test_failed_save_changes_no_settings_and_logs():
 	panel.OneCoreCheckBox = _checkbox(RuntimeError("checkbox destroyed"))
 	panel.SAPI5CheckBox = _checkbox(True)
 
-	assert panel.onSave() is False
+	assert panel._write_settings() is False
 
 	assert calls == [("beep",)]
 	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}
@@ -149,7 +149,7 @@ def test_failed_choice_save_changes_no_settings():
 	panel.OneCoreSelection = types.SimpleNamespace(GetSelection=lambda: 7)
 	panel.SAPI5Selection = types.SimpleNamespace(GetSelection=lambda: 1)
 
-	assert panel.onSave() is False
+	assert panel._write_settings() is False
 
 	assert calls == [("beep",)]
 	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}
@@ -169,3 +169,15 @@ def test_failed_save_does_not_swallow_keyboard_interrupt():
 
 	assert calls == []
 	assert logged == []
+
+
+def test_on_save_returns_nothing_like_nvda_panels():
+	calls, logged = [], []
+	environment, section = _load_panels(calls, logged)
+	panel = environment["BaseSettingsPanel"]()
+	panel.field = "engine"
+	panel.settings = OrderedDict((name, {"label": name}) for name in ("VE", "OneCore"))
+	panel.VECheckBox = _checkbox(True)
+	panel.OneCoreCheckBox = _checkbox(False)
+	assert panel.onSave() is None
+	assert dict(section) == {"VE": True, "OneCore": False, "SAPI5": False}

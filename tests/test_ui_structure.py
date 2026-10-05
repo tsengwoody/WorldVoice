@@ -38,3 +38,15 @@ def test_ui_uses_only_public_driver_hooks():
 	for path in (ADDON / "globalPlugins/WorldVoice").glob("*.py"):
 		source = path.read_text(encoding="utf-8")
 		assert "._voiceManager" not in source and ".uwv =" not in source, path.name
+
+
+def test_base_panel_on_save_returns_nothing():
+	function = method(DIALOG, "BaseSettingsPanel", "onSave")
+	assert not [node for node in ast.walk(function) if isinstance(node, ast.Return) and node.value is not None]
+	method(DIALOG, "BaseSettingsPanel", "_write_settings")
+
+
+def test_global_plugin_has_no_shadowed_workspace_constant():
+	tree = ast.parse((ADDON / "globalPlugins/WorldVoice/__init__.py").read_text(encoding="utf-8"))
+	targets = {t.id for node in tree.body if isinstance(node, ast.Assign) for t in node.targets if isinstance(t, ast.Name)}
+	assert "workspace_path" not in targets

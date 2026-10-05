@@ -23,7 +23,6 @@ from .speechSettingsDialog import WorldVoiceSettingsDialog
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
-workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
 
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):

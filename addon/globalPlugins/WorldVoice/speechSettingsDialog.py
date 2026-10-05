@@ -83,7 +83,10 @@ class BaseSettingsPanel(SettingsPanel):
 				getattr(self, k + "CheckBox").SetValue(_as_bool(value))
 		return settingsSizerHelper
 
-	def onSave(self) -> bool:
+	def onSave(self) -> None:
+		self._write_settings()
+
+	def _write_settings(self) -> bool:
 		"""Write the panel's widgets to config; return False if any value could not be written.
 
 		Every widget is read before anything is written, so a failed read leaves config untouched.
@@ -760,7 +763,7 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 	def onSave(self):
 		if self.activeEngine != self.previousActiveEngine:
 			# Write the engine flags first so the saved configuration includes them.
-			if super().onSave() and self.confirm == wx.YES:
+			if self._write_settings() and self.confirm == wx.YES:
 				gui.mainFrame.onSaveConfigurationCommand(None)
 				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
@@ -826,7 +829,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 			pipeline_log.disable()
 			if ask_export():
 				wx.CallAfter(pipeline_log.export)
-		super().onSave()
+		self._write_settings()
 
 
 class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
