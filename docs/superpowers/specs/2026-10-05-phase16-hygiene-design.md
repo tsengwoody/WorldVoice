@@ -52,9 +52,8 @@ def workspace_path() -> str:
   - `engine/__init__.py`：`WVW_PATH = workspace_path()`；
   - GlobalPlugin `onFileImport`：`workspace_path()`；
   - `installTasks.py`：以 `importlib.util.spec_from_file_location` 從 `synthDrivers/WorldVoice/workspace.py` 載入。這與它載入 `generics/coreArchive.py` 的方式相同，因為安裝期間不能 import 尚未生效的 add-on 套件。
-- **行為**：
-  - 一般安裝（`<configPath>/addons/WorldVoice/...`）兩種推導結果相同。
-  - 以 NVDA scratchpad 載入（`<configPath>/scratchpad/synthDrivers/WorldVoice`）時，舊的「往上四層」會指到 config 目錄的上一層，與 GlobalPlugin、installTasks 不一致。統一後三者都指向 config 目錄。這是修正。
+- **行為**：在所有能載入 WorldVoice 的配置下（一般安裝、`--config-path`、可攜版、安全模式的 `systemConfig`），兩種推導結果相同，所以使用者看到的行為不變。這次改動消除的是對目錄深度的耦合，不修正任何現有錯誤。
+  - 更正（Fable review，2026-10-05）：本 spec 初稿說「以 scratchpad 載入時舊推導會指錯目錄，統一後是修正」。這不成立：WorldVoice 在 import 時呼叫 `addonHandler.initTranslation()`，而 NVDA 的 `getCodeAddon` 只接受 `<config>/addons` 下的程式碼（`ref/nvda/source/addonHandler/__init__.py:422-429`），所以 WorldVoice 根本無法從 scratchpad 載入。
 
 ### 3. 死碼
 
