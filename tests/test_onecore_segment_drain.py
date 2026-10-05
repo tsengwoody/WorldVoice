@@ -1378,10 +1378,24 @@ def test_ordinary_player_open_failure_fails_only_its_sentence(env):
         original_open()
 
     env.player.open = open_once
+    dones = []
+    first_done = Event()
+    original_done = env.outer.synthDoneSpeaking.notify
+
+    def completed(**kwargs):
+        original_done(**kwargs)
+        dones.append(kwargs.get("synth"))
+        first_done.set()
+
+    env.outer.synthDoneSpeaking.notify = completed
     env.driver.speak(("first",))
+    # The skipped sentence still completes, or the scheduler waits for it until a cancel.
+    assert first_done.wait(1), "a sentence that could not open the player never completed"
+    Event().wait(0.05)
+    assert dones == [env.driver]
+    assert env.driver._segmentHost.control_error is None
     env.driver.speak(("second",))
     env.native.wait_calls(1)
-    assert env.driver._segmentHost.control_error is None
     assert len(env.native.calls) == 1 and "second" in env.native.calls[0]
 
 

@@ -296,17 +296,23 @@ class SynthDriver(BaseOneCoreSynthDriver):
 
 	def _speakRecord(self, record):
 		host = self._segmentHost
+		skipped = False
 		try:
 			try:
 				if self._player:
 					self._player.open()
 			except Exception as error:  # noqa: BLE001 - recorded on the record; a segment's failure also latches
 				host.record_error(record, error)
-				# Like NVDA's OneCore, a sentence that cannot open the device fails alone;
-				# the next one opens it again. A segment's failure leaves the player
-				# state unknown under a drain contract, so it still latches.
 				if record.operation is not None:
+					# Under a drain contract the player state is now unknown: latch.
 					self._failSegmentControl(error)
+				else:
+					# Ordinary speech skips only this sentence; the next one opens the
+					# player again. It still completes below, or its speaking wait hangs.
+					log.error(
+						"OneCore could not open the audio player; skipping this sentence", exc_info=True
+					)
+					skipped = True
 				self._releaseSegmentWorker(record)
 			else:
 				if not record.is_valid():
@@ -330,12 +336,24 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			host.retire(record)
 			if record.operation is None:
 				host.forget(record)
+				if skipped:
+					self._completeSkippedSentence()
 		finally:
 			with self._segmentCondition:
 				if self._segmentNative is record:
 					self._segmentNative = None
 					self._isProcessing = False
 				self._segmentCondition.notify_all()
+
+	def _completeSkippedSentence(self):
+		# As the legacy callback does after the last sentence: DONE once nothing is queued.
+		with self._segmentCondition:
+			last = not self._queuedSpeech and not self._wasCancelled and not self._segmentTerminated
+		if last:
+			try:
+				synthDoneSpeaking.notify(synth=self)
+			except Exception:
+				log.exception("OneCore completion of a skipped sentence failed")
 
 	def _retireSegmentNative(self, record):
 		# The callback has returned: no further native callback enters this record.
