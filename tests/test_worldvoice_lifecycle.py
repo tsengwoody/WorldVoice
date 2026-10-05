@@ -25,7 +25,7 @@ def _assembly():
 	return {name: getattr(module, name) for name in ("Teardown", "timed", "patch_attribute")}
 
 
-def _construction_environment(failure, changes):
+def _construction_environment(failure, changes, close_error=None):
 	panel = object()
 	spelling = object()
 	settings_dialogs = types.SimpleNamespace(VoiceSettingsPanel=panel)
@@ -64,7 +64,8 @@ def _construction_environment(failure, changes):
 			changes.append("engine started")
 
 		def terminate(self, *, commit=True):
-			assert commit is False
+			# Only a failed construction discards unsaved voice settings.
+			assert commit is (failure is None)
 			changes.append("engine stopped")
 
 	class Bridge:
@@ -79,6 +80,8 @@ def _construction_environment(failure, changes):
 
 		def close(self):
 			changes.append("bridge stopped")
+			if close_error is not None:
+				raise close_error
 
 	class Ledger:
 		def close(self):
@@ -119,6 +122,7 @@ def _construction_environment(failure, changes):
 
 	repositories = []
 	managers = []
+	logged = []
 
 	class ParameterConsistency:
 		def __init__(self, conf_provider):
@@ -135,7 +139,7 @@ def _construction_environment(failure, changes):
 		"WVStart": Action("start"),
 		"WVEnd": Action("end"),
 		"time": types.SimpleNamespace(perf_counter=lambda: 0),
-		"nvdaLog": types.SimpleNamespace(debug=lambda *args: None, error=lambda *args, **kwargs: None),
+		"nvdaLog": types.SimpleNamespace(debug=lambda *args: None, error=lambda *args, **kwargs: logged.append(args)),
 		"pipeline_scope": types.SimpleNamespace(worldvoice_started=apply_pipeline, worldvoice_ended=clear_pipeline),
 		"pipeline_settings": types.SimpleNamespace(
 			get=lambda: types.SimpleNamespace(global_wait_factor=10),
@@ -170,7 +174,7 @@ def _construction_environment(failure, changes):
 		**commands,
 	}
 	return types.SimpleNamespace(environment=environment, settings_dialogs=settings_dialogs, panel=panel,
-		speech_api=speech_api, spelling=spelling, repositories=repositories, managers=managers,
+		speech_api=speech_api, spelling=spelling, repositories=repositories, managers=managers, logged=logged,
 		ParameterConsistency=ParameterConsistency)
 
 
@@ -448,54 +452,16 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 
 @pytest.mark.parametrize("error", [RuntimeError("bridge failure"), KeyboardInterrupt()])
 def test_terminate_cleanup_logs_errors_but_lets_interrupts_through(error):
-	logged, closed = [], []
-
-	class Bridge:
-		def close(self):
-			raise error
-
-	class Ledger:
-		def close(self):
-			closed.append("ledger")
-
-	environment = {
-		"SynthDriver": type("NVDASynthDriver", (), {}),
-		"synthIndexReached": object(),
-		"synthDoneSpeaking": object(),
-		"nvdaLog": types.SimpleNamespace(
-			debug=lambda *args: None,
-			error=lambda *args, **kwargs: logged.append(args),
-		),
-		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: changes.append("filter unregistered")),
-		**_assembly(),
-		**{
-			name: type(name, (), {})
-			for name in (
-				"IndexCommand",
-				"CharacterModeCommand",
-				"LangChangeCommand",
-				"BreakCommand",
-				"PitchCommand",
-				"RateCommand",
-				"VolumeCommand",
-			)
-		},
-	}
-	driver = object.__new__(_load_synth_class(environment))
-	driver._terminated = False
-	driver._terminateCommit = True
-	driver.taskManager = None
-	driver._eventBridge = Bridge()
-	driver._voiceManager = None
-	driver._indexLedger = Ledger()
-	driver._teardown = driver._new_teardown()
+	changes = []
+	built = _construction_environment(None, changes, close_error=error)
+	driver = _load_synth_class(built.environment)()
 
 	if isinstance(error, KeyboardInterrupt):
 		with pytest.raises(KeyboardInterrupt):
 			driver.terminate()
-		assert logged == []
-		assert closed == []
+		assert built.logged == []
+		assert "ledger stopped" not in changes
 	else:
 		driver.terminate()
-		assert logged == [("WorldVoice terminate: %s", "event bridge close")]
-		assert closed == ["ledger"]
+		assert built.logged == [("WorldVoice terminate: %s", "event bridge close")]
+		assert "ledger stopped" in changes
