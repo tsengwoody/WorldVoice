@@ -291,6 +291,8 @@ class SynthDriver(SynthDriver):
 				self._languageDetector = languageDetection.LanguageDetector(
 					list(self._voiceManager.allLanguages),
 					self.speechSymbols,
+					conf_provider=lambda: config.conf,
+					language=lambda: self.language,
 				)
 				self.add_detected_language_commands = listable(
 					self._languageDetector.add_detected_language_commands
@@ -332,7 +334,7 @@ class SynthDriver(SynthDriver):
 		if self._terminated:
 			return
 		self.order = 0
-		if self.uwv and config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == "after":
+		if self.uwv and self._detectLanguageTiming() == "after":
 			speechSequence = self.add_detected_language_commands(speechSequence)
 
 		ctx = self.speech_context()
@@ -450,11 +452,11 @@ class SynthDriver(SynthDriver):
 		self._uwv = value
 		self.detect_language_timing()
 
+	def _detectLanguageTiming(self):
+		return config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
+
 	def detect_language_timing(self):
-		if (
-			self.uwv
-			and config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == "before"
-		):
+		if self.uwv and self._detectLanguageTiming() == "before":
 			filter_speechSequence.register(self.add_detected_language_commands)
 			order_move_to_start_register()
 		else:

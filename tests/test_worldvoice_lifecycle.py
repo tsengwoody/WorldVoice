@@ -87,7 +87,8 @@ def _construction_environment(failure, changes):
 			changes.append("symbols loaded")
 
 	class LanguageDetector:
-		def __init__(self, languages, symbols):
+		def __init__(self, languages, symbols, **providers):
+			assert set(providers) == {"conf_provider", "language"}
 			changes.append("detector built")
 
 		def add_detected_language_commands(self, sequence):

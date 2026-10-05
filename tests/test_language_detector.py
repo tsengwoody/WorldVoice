@@ -29,14 +29,6 @@ def env(stub_modules, monkeypatch):
 		"arabicCharactersLanguage": "ar",
 	}}}
 	state = SimpleNamespace(language="en_US")
-
-	class Synth:
-		@property
-		def language(self):
-			return state.language
-
-	stub_modules.module("config", conf=conf)
-	stub_modules.module("synthDriverHandler", getSynth=lambda: Synth())
 	stub_modules.module("speech")
 	stub_modules.module(
 		"speech.commands",
@@ -52,7 +44,9 @@ def env(stub_modules, monkeypatch):
 
 def make_detector(env, languages=("en_US", "zh_TW", "ja"), symbols=None):
 	"""The one place the detector is built; its dependencies come from env."""
-	return env.module.LanguageDetector(list(languages), symbols)
+	return env.module.LanguageDetector(
+		list(languages), symbols, conf_provider=lambda: env.conf, language=lambda: env.state.language,
+	)
 
 
 def shape(env, sequence):

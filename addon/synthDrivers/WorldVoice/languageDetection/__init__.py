@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import config
 from speech.commands import LangChangeCommand
-from synthDriverHandler import getSynth
 
 from .._speechcommand import WVLangChangeCommand
 from .scripts import get_script
@@ -110,9 +108,15 @@ class LanguageDetector(object):
 	"""Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
 
-	def __init__(self, availableLanguages, speechSymbols=None):
+	def __init__(self, availableLanguages, speechSymbols=None, *, conf_provider, language):
+		"""conf_provider returns NVDA's config; language returns the synth's current language."""
 		self.speechSymbols = speechSymbols
+		self._conf_provider = conf_provider
+		self._language = language
 		self.availableLanguages = frozenset(get_primary_language(lang) for lang in availableLanguages)
+
+	def _switching(self):
+		return self._conf_provider()["WorldVoice"]["autoLanguageSwitching"]
 
 	def find_language_for_script(self, script, current_language):
 		candidates = SCRIPT_LANGUAGES.get(script, ())
@@ -121,7 +125,7 @@ class LanguageDetector(object):
 			return current_language
 		config_key = SCRIPT_CONFIG_KEYS.get(script)
 		if config_key is not None:
-			configured = config.conf["WorldVoice"]["autoLanguageSwitching"][config_key]
+			configured = self._switching()[config_key]
 			configured_primary = get_primary_language(configured)
 			if configured_primary in candidates and configured_primary in self.availableLanguages:
 				return configured
@@ -132,7 +136,7 @@ class LanguageDetector(object):
 
 	def _language_for_character(self, character, current_language, base_language):
 		if character.isdigit():
-			if config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"]:
+			if self._switching()["ignoreNumbersInLanguageDetection"]:
 				return current_language
 			return base_language
 		script = get_script(ord(character))
@@ -141,7 +145,7 @@ class LanguageDetector(object):
 		return self.find_language_for_script(script, current_language)
 
 	def add_detected_language_commands(self, speechSequence):
-		defaultLang = getSynth().language
+		defaultLang = self._language()
 		curLang = defaultLang
 		tmpLang = curLang
 		for command in speechSequence:
@@ -173,7 +177,7 @@ class LanguageDetector(object):
 				yield command
 
 	def process_for_spelling(self, text, locale=None):
-		default_language = locale if locale is not None else getSynth().language
+		default_language = locale if locale is not None else self._language()
 		current_language = default_language
 		buffer = []
 		for character in text:
