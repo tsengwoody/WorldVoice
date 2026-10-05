@@ -23,3 +23,12 @@ def method(path, cls, name):
 def test_unicode_panel_has_one_script_choice_path():
 	_, source = class_source(DIALOG, "UnicodeDetectionSettingsPanel")
 	assert [name for name in ("_latinChoice", "_CJKChoice", "_arabicChoice") if name in source] == []
+
+
+def test_policies_have_no_separate_persist_step():
+	assert "def persist" not in (ADDON / "synthDrivers/WorldVoice/mainLocalePolicy.py").read_text(encoding="utf-8")
+
+
+def test_role_panel_save_only_applies():
+	source = ast.unparse(method(DIALOG, "SpeechRoleSettingsPanel", "onSave"))
+	assert "set_" not in source

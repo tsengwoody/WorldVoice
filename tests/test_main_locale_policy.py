@@ -26,17 +26,29 @@ def flags(**values):
 	}}, "speech": {"WorldVoice": {"rate": 70}}}
 
 
-def test_engine_consistency_is_a_pending_flag_until_persisted(monkeypatch):
+def test_engine_consistency_reads_config_and_previews_without_saving(monkeypatch):
 	module = load_policy(monkeypatch)
 	conf = flags(engine=True)
 	policy = module.EngineConsistency(lambda: conf)
 	table = [SimpleNamespace(engine="A", name="a"), SimpleNamespace(engine="B", name="b")]
 	assert [v.name for v in policy.visible(table, "A")] == ["a"]
-	policy.enabled = False
+	policy.preview = False
 	assert [v.name for v in policy.visible(table, "A")] == ["a", "b"]
 	assert conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is True
-	policy.persist()
+	policy.preview = None
+	policy.enabled = False
 	assert conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is False
+	assert [v.name for v in policy.visible(table, "A")] == ["a", "b"]
+
+
+def test_engine_consistency_follows_a_profile_switch(monkeypatch):
+	module = load_policy(monkeypatch)
+	profiles = {"normal": flags(engine=False), "app": flags(engine=True)}
+	active = {"name": "normal"}
+	policy = module.EngineConsistency(lambda: profiles[active["name"]])
+	assert policy.enabled is False
+	active["name"] = "app"
+	assert policy.enabled is True
 
 
 def test_voice_consistency_follows_the_main_voice_only_when_enabled(monkeypatch):

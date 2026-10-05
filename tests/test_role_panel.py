@@ -51,7 +51,8 @@ def test_failed_apply_shows_error_and_raises_value_error():
 	with pytest.raises(ValueError):
 		panel.onSave()
 
-	assert calls == [("engine", True), ("voice", False), ("parameter", True)]
+	# The checkbox handlers already told the presenter; saving only applies.
+	assert calls == []
 	assert messages and "save failed" in messages[0][0]
 	assert logged
 

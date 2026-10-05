@@ -576,9 +576,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		# The dialog is not modal: the synth may have changed since it opened.
 		if self.disable or getSynth().name != "WorldVoice":
 			return
-		self._presenter.set_engine_consistency(self._keepEngineConsistentCheckBox.GetValue())
-		self._presenter.set_voice_consistency(self._keepConsistentCheckBox.GetValue())
-		self._presenter.set_parameter_consistency(self._keepParameterConsistentCheckBox.GetValue())
 		try:
 			self._presenter.apply()
 		except Exception as error:

@@ -24,7 +24,6 @@ class RolePanelPresenter:
 		self._set_main_voice = set_main_voice
 		self._edit = manager.beginVoiceSettingsEdit()
 		self._pending: dict[str, str] = {}
-		self._initial_engine = manager.engine_consistency.enabled
 		self._before_parameter_preview: dict[str, dict] | None = None
 		self._read_flags()
 
@@ -87,7 +86,8 @@ class RolePanelPresenter:
 
 	def set_engine_consistency(self, enabled: bool) -> None:
 		self.keep_engine = enabled
-		self._manager.engine_consistency.enabled = enabled
+		# Only this flag changes which voices are listed, so it is previewed.
+		self._manager.engine_consistency.preview = enabled
 
 	def set_voice_consistency(self, enabled: bool) -> None:
 		self.keep_voice = enabled
@@ -129,7 +129,7 @@ class RolePanelPresenter:
 			else:
 				assignments.pop(locale, None)
 		manager.engine_consistency.enabled = self.keep_engine
-		manager.engine_consistency.persist()
+		manager.engine_consistency.preview = None
 		manager.voice_consistency.enabled = self.keep_voice
 		manager.parameter_consistency.enabled = self.keep_parameters
 		available = manager.localeToVoicesMap
@@ -157,13 +157,12 @@ class RolePanelPresenter:
 
 		self._pending.clear()
 		self._before_parameter_preview = None
-		self._initial_engine = manager.engine_consistency.enabled
 
 	def discard(self) -> None:
 		self._edit.discard()
 		self._pending.clear()
 		self._before_parameter_preview = None
-		self._manager.engine_consistency.enabled = self._initial_engine
+		self._manager.engine_consistency.preview = None
 		self._read_flags()
 
 	def close(self) -> None:

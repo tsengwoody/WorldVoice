@@ -15,20 +15,27 @@ def _flags(conf_provider: Callable[[], Any]) -> Any:
 class EngineConsistency:
 	"""KeepMainLocaleEngineConsistent: role choices come from the main voice's engine.
 
-	``enabled`` is a pending value the settings panel previews; ``persist`` saves it.
+	``enabled`` is the saved flag; ``preview`` is a settings panel's unsaved choice,
+	which the visible voice list follows until it is cleared.
 	"""
 
 	_KEY = "KeepMainLocaleEngineConsistent"
 
 	def __init__(self, conf_provider: Callable[[], Any]):
 		self._conf_provider = conf_provider
-		self.enabled = bool(_flags(conf_provider)[self._KEY])
+		self.preview: bool | None = None
 
-	def persist(self) -> None:
-		_flags(self._conf_provider)[self._KEY] = self.enabled
+	@property
+	def enabled(self) -> bool:
+		return bool(_flags(self._conf_provider)[self._KEY])
+
+	@enabled.setter
+	def enabled(self, value: bool) -> None:
+		_flags(self._conf_provider)[self._KEY] = value
 
 	def visible(self, table, default_engine: str) -> list:
-		if self.enabled:
+		active = self.enabled if self.preview is None else self.preview
+		if active:
 			return [voice for voice in table if voice.engine == default_engine]
 		return list(table)
 
