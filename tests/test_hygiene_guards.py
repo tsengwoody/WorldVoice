@@ -135,6 +135,24 @@ def test_g201_ignore_keeps_its_documented_nvda_reason():
 	assert '"G201",' in config and "log.exception lowers expected Windows/COM errors" in config
 
 
+def test_lint_ignores_keep_their_documented_reasons():
+	import tomllib
+
+	text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+	lint = tomllib.loads(text)["tool"]["ruff"]["lint"]
+	assert "S110" in lint["ignore"]
+	assert "S110 only reports handlers that BLE001 or E722 already report" in text
+	compat = "addon/synthDrivers/WorldVoice/compat/"
+	assert {path: rules for path, rules in lint["per-file-ignores"].items() if "TRY004" in rules} == {
+		compat + "commands.py": ["TRY004"],
+		compat + "engineAdapter.py": ["TRY004"],
+		compat + "indexCodec.py": ["TRY004"],
+	}
+	assert "ValueError is the runtime boundary's contract" in text
+	assert "./addon/synthDrivers/WorldVoice/driver/sonic" in tomllib.loads(text)["tool"]["ruff"]["exclude"]
+	assert "driver/sonic/" in (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+
+
 def test_last_dead_code_and_stale_details_stay_gone():
 	worldvoice = ADDON / "synthDrivers/WorldVoice"
 	assert [p.name for p in _addon_sources() if "CancellableSynthDriver" in p.read_text(encoding="utf-8")] == []
