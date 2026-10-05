@@ -610,7 +610,7 @@ class SynthDriver(BaseSynthDriver):
 										break
 							sonic.flush()
 							sonic.readShort()
-					except Exception as control_error:  # noqa: BLE001 - recorded on the record; the segment fails
+					except Exception as control_error:  # noqa: BLE001 - latched: the player or engine state is unknown
 						self._failSegmentControl(control_error)
 				if error is not None:
 					host.record_error(record, error)

@@ -70,3 +70,38 @@ def test_tests_share_one_module_stub_helper():
 			if re.match(r"\s*def (module|package|stub)\(name", line):
 				local.append(f"{path.name}:{number}")
 	assert local == []
+
+
+# The spec's reason table: the first entry whose call appears in a handler's
+# own body names where its error goes.
+_REASONS = (
+	("record_error", "recorded on the record; the segment fails"),
+	("latch_control_error", "latched: the player or engine state is unknown"),
+	("_failSegmentControl", "latched: the player or engine state is unknown"),
+	("_latch_fault", "latched as a lifecycle fault"),
+	("_terminationError", "kept and raised once termination finishes"),
+	("first_error", "collected; the first is raised after every step ran"),
+	("error = exc", "kept and raised after the remaining cleanup"),
+	("return unsupported", "any failure means drain is unsupported"),
+	("return error", "returned as the admission error"),
+)
+
+
+def test_blind_except_reasons_match_their_handlers():
+	import ast
+
+	wrong = []
+	for path in _addon_sources():
+		source = path.read_text(encoding="utf-8")
+		lines = source.splitlines()
+		for node in ast.walk(ast.parse(source)):
+			if not isinstance(node, ast.ExceptHandler):
+				continue
+			match = re.search(r"noqa: BLE001 - (.+)$", lines[node.lineno - 1])
+			if match is None:
+				continue
+			body = "\n".join(ast.unparse(statement) for statement in node.body)
+			expected = next((reason for key, reason in _REASONS if key in body), None)
+			if expected is not None and match.group(1) != expected:
+				wrong.append(f"{path.relative_to(ROOT)}:{node.lineno}: {match.group(1)!r} != {expected!r}")
+	assert wrong == []
