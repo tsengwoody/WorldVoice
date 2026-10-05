@@ -49,7 +49,10 @@ _ORDINARY_BARRIERS = frozenset()
 
 
 def _strip_bytes_repr(text):
-	return text.strip("b'").strip("'") if (text.startswith("b'") and text.endswith("'")) else text
+	"""Turn a bytes repr like "b'English'" into its text, keeping every letter."""
+	if len(text) >= 3 and text.startswith("b'") and text.endswith("'"):
+		return text[2:-1]
+	return text
 
 
 class _CerencePort:

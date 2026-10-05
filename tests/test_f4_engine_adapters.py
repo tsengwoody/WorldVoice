@@ -117,3 +117,12 @@ def test_voice_metadata_keeps_vocalizer_quirks(monkeypatch, engine):
 	assert metadata["langDescription"] == "English"
 	assert metadata["description"] == f"x - English [{voice_class.engine}]"
 	assert metadata["name"] == f"{voice_class.engine}:x"
+
+
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
+@pytest.mark.parametrize("raw,expected", [
+	("b'bengali'", "bengali"), ("b'Arabic'", "Arabic"), ("b'b'", "b"), ("plain", "plain"), ("b'", "b'"),
+])
+def test_bytes_repr_loses_only_its_wrapper(monkeypatch, engine, raw, expected):
+	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
+	assert harness.module._strip_bytes_repr(raw) == expected

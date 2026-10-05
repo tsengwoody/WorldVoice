@@ -1,6 +1,6 @@
 import gc
 import sys
-from threading import Event, get_ident
+from threading import Event, current_thread, get_ident
 import weakref
 
 import pytest
@@ -1362,3 +1362,35 @@ def test_player_created_during_an_inflight_stop_is_not_paused(env):
     assert holder.done.wait(2) and cancelling.done.wait(2) and call.done.wait(2)
     with env.driver._segmentCondition:
         assert env.driver._stopGate.clear
+
+
+def test_ordinary_player_open_failure_fails_only_its_sentence(env):
+    original_open = env.player.open
+    opens = []
+
+    def open_once():
+        # NVDA's speak() opens first; the worker's open for the first sentence fails.
+        opens.append(current_thread().name)
+        if opens.count("WorldVoice OneCore") == 1 and opens[-1] == "WorldVoice OneCore":
+            raise OSError("audio device busy")
+        original_open()
+
+    env.player.open = open_once
+    env.driver.speak(("first",))
+    env.driver.speak(("second",))
+    env.native.wait_calls(1)
+    assert env.driver._segmentHost.control_error is None
+    assert len(env.native.calls) == 1 and "second" in env.native.calls[0]
+
+
+def test_segment_player_open_failure_still_latches(env):
+    error = OSError("audio device gone")
+
+    def fail_open():
+        raise error
+
+    env.player.open = fail_open
+    _, _, events = speak(env)
+    wait_events(events)
+    assert events[0].error is error
+    assert env.driver._segmentHost.control_error is error

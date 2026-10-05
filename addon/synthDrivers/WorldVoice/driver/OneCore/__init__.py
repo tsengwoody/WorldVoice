@@ -302,7 +302,11 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					self._player.open()
 			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				host.record_error(record, error)
-				self._failSegmentControl(error)
+				# Like NVDA's OneCore, a sentence that cannot open the device fails alone;
+				# the next one opens it again. A segment's failure leaves the player
+				# state unknown under a drain contract, so it still latches.
+				if record.operation is not None:
+					self._failSegmentControl(error)
 				self._releaseSegmentWorker(record)
 			else:
 				if not record.is_valid():
