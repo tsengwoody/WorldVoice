@@ -1645,3 +1645,42 @@ def test_stop_player_failure_rejects_successor(env, monkeypatch):
     _, context, call = speak(env)
     finish(call)
     assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
+
+
+def test_cancel_releases_the_stop_gate_when_abandon_fails(env, monkeypatch):
+    prove_fake_quiescence(env, monkeypatch)
+    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+    host = env.core._segmentHost
+    retire = host.retire
+    held, release = Event(), Event()
+    def held_retire(record, **kwargs):
+        result = retire(record, **kwargs)
+        if not held.is_set():
+            held.set()
+            assert release.wait(2)
+        return result
+    monkeypatch.setattr(host, "retire", held_retire)
+    _, _, first = speak(env)
+    abandon = host.abandon
+    try:
+        assert held.wait(1)
+        context = env.rt.models.PlaybackContext(object(), 18)
+        env.core.speak_segment(("second",), Token(), context=context, on_event=env.events.append)
+        wait_for(lambda: any(isinstance(task, env.module._Begin) for task in list(env.core._bgQueue.queue)))
+        dropped = []
+        def failing_abandon(record):
+            dropped.append(record)
+            raise RuntimeError("abandon failed")
+        monkeypatch.setattr(host, "abandon", failing_abandon)
+        with pytest.raises(RuntimeError, match="abandon failed"):
+            env.core.cancel()
+        with env.core._speechStateLock:
+            assert env.core._stopGate.clear
+    finally:
+        monkeypatch.setattr(host, "abandon", abandon)
+        for record in locals().get("dropped", []):
+            abandon(record)
+        release.set()
+    finish(first)
+    settle_segment(env, context)
+    settle_worker(env)

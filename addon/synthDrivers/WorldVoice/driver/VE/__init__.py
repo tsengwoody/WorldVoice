@@ -35,6 +35,7 @@ from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
+from ...runtime.engineControl import StopGate
 from ...runtime.segmentHost import NativeStrategy, SegmentHost
 from ...runtime.session import CancellationView
 
@@ -348,7 +349,7 @@ class SynthDriver(BaseSynthDriver):
 		self._doneOwner = None
 		self._nativeCall = None
 		self._legacyUsed = False
-		self._stops = 0
+		self._stopGate = StopGate(self._speechStateLock)
 		self._paused = False
 		self._pauseRevision = 0
 		self._pauses = 0
@@ -504,7 +505,7 @@ class SynthDriver(BaseSynthDriver):
 	def _begin_record(self, record):
 		host = self._segmentHost
 		with self._speechStateLock:
-			self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
+			self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			record.native.began = True
 			self._doneOwner = record
 			if not self._record_valid(record) or record.abandoned or host.control_error is not None:
@@ -526,7 +527,7 @@ class SynthDriver(BaseSynthDriver):
 			if "spoken" in record.barriers and self._record_valid(record):
 				host.reach(record, "spoken")
 			with self._speechStateLock:
-				self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
+				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			host.retire(record)
 			if record.operation is None:
 				host.forget(record)
@@ -579,7 +580,7 @@ class SynthDriver(BaseSynthDriver):
 			return
 		call = _NativeCall(record, voiceInstance)
 		with self._speechStateLock:
-			self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
+			self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			self._nativeCall = call
 			self._isSilence._inside_native_call = True
 		invoked = False
@@ -606,7 +607,7 @@ class SynthDriver(BaseSynthDriver):
 					host.latch_control_error(error)
 					blocked = error
 			with self._speechStateLock:
-				self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
+				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 				if blocked is None:
 					self._nativeCall = None
 			if blocked is not None:
@@ -670,55 +671,52 @@ class SynthDriver(BaseSynthDriver):
 			self._playerLocal.depth -= 1
 
 	def _stop_player(self):
-		with self._speechStateLock:
-			self._stops += 1
-			self._speechStateLock.notify_all()
-		try:
-			with self._player_operation():
-				self._real_player.stop()
-		except Exception as error:
-			# A failed stop leaves the player state unknown: reject successors.
-			self._segmentHost.latch_control_error(error)
-			raise
-		finally:
-			with self._speechStateLock:
-				self._stops -= 1
-				self._speechStateLock.notify_all()
+		with self._stopGate.hold():
+			try:
+				with self._player_operation():
+					self._real_player.stop()
+			except Exception as error:
+				# A failed stop leaves the player state unknown: reject successors.
+				self._segmentHost.latch_control_error(error)
+				raise
 
 	def cancel(self):
 		if not self._guard_installed:
 			return super().cancel()
 		host = self._segmentHost
-		with host.admission():
-			with self._speechStateLock:
-				if self._playerClosing:
-					return
-			host.cancel()
-			with self._speechStateLock:
-				self._isSilence.set()
-				# WavePlayer.stop clears its own pause state. Keep the final idle
-				# predicate in sync so fresh speech does not await a stale pause.
-				self._paused = False
-				self._pauseRevision += 1
-				dropped = self._drop_queued_speech()
-				call = self._nativeCall
-				if call is not None:
-					call.admitting = False
-				self._stops += 1
-				self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
-				self._speechStateLock.notify_all()
-			for record in dropped:
-				host.abandon(record)
+		entered = False
 		try:
-			self._real_player.stop()
-		except Exception as error:
-			host.latch_control_error(error)
-			raise
+			with host.admission():
+				with self._speechStateLock:
+					if self._playerClosing:
+						return
+				host.cancel()
+				with self._speechStateLock:
+					self._isSilence.set()
+					# WavePlayer.stop clears its own pause state. Keep the final idle
+					# predicate in sync so fresh speech does not await a stale pause.
+					self._paused = False
+					self._pauseRevision += 1
+					dropped = self._drop_queued_speech()
+					call = self._nativeCall
+					if call is not None:
+						call.admitting = False
+					self._stopGate.enter()
+					entered = True
+					self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
+					self._speechStateLock.notify_all()
+				for record in dropped:
+					host.abandon(record)
+			try:
+				self._real_player.stop()
+			except Exception as error:
+				host.latch_control_error(error)
+				raise
 		finally:
-			with self._speechStateLock:
-				self._stops -= 1
-				self._speechStateLock.notify_all()
-			self._retire_player_operation()
+			if entered:
+				with self._speechStateLock:
+					self._stopGate.leave()
+				self._retire_player_operation()
 
 	def _drop_queued_speech(self):
 		"""Like the add-on's cancel: drop queued speech, keep settings and DONE.
@@ -793,7 +791,7 @@ class SynthDriver(BaseSynthDriver):
 		try:
 			while True:
 				with self._speechStateLock:
-					self._speechStateLock.wait_for(lambda: self._stops == 0)
+					self._speechStateLock.wait_for(lambda: self._stopGate.clear)
 					if self._terminated:
 						break
 					revision, target = self._pauseRevision, self._paused
@@ -813,7 +811,7 @@ class SynthDriver(BaseSynthDriver):
 				if call is not None:
 					call.admitting = False
 				self._pauseRevision += 1
-				self._stops += 1
+				self._stopGate.enter()
 				self._speechStateLock.notify_all()
 			if record is not None:
 				host.record_error(record, error)
@@ -824,8 +822,7 @@ class SynthDriver(BaseSynthDriver):
 				log.error("WorldVoice pause failure cleanup failed", exc_info=True)
 			finally:
 				with self._speechStateLock:
-					self._stops -= 1
-					self._speechStateLock.notify_all()
+					self._stopGate.leave()
 			raise
 		finally:
 			with self._speechStateLock:
@@ -891,7 +888,7 @@ class SynthDriver(BaseSynthDriver):
 			self._bgThread.join()
 			self._segmentHost.wait_idle()
 			with self._speechStateLock:
-				self._speechStateLock.wait_for(lambda: self._stops == 0 and self._pauses == 0)
+				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 				# Seal atomically with the zero-operation barrier so a late
 				# cancel cannot start another stop against closing resources.
 				self._playerClosing = True
