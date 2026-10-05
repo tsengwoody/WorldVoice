@@ -18,9 +18,14 @@ def _load_synth_class(environment):
 	return environment["SynthDriver"]
 
 
-@pytest.mark.parametrize("failure", ["manager", "symbols", "bridge"])
-def test_failed_synth_construction_releases_acquired_resources(failure):
-	changes = []
+def _assembly():
+	spec = importlib.util.spec_from_file_location("lifecycle_assembly", WORLDVOICE / "assembly.py")
+	module = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(module)
+	return {name: getattr(module, name) for name in ("Teardown", "timed", "patch_attribute")}
+
+
+def _construction_environment(failure, changes):
 	panel = object()
 	spelling = object()
 	settings_dialogs = types.SimpleNamespace(VoiceSettingsPanel=panel)
@@ -43,6 +48,8 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 
 	class VoiceManager:
 		playback_ports = ()
+		allLanguages = ("en",)
+		waitfactor = 0
 
 		def __init__(self, taskManager, settings=None, bridge=None, *, index_ledger, completion_for, engine_classes):
 			assert index_ledger is bridge.ledger
@@ -77,6 +84,14 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		def load(self, path):
 			if failure == "symbols":
 				raise RuntimeError("dictionary failure")
+			changes.append("symbols loaded")
+
+	class LanguageDetector:
+		def __init__(self, languages, symbols):
+			changes.append("detector built")
+
+		def add_detected_language_commands(self, sequence):
+			return sequence
 
 	class Action:
 		def __init__(self, label):
@@ -125,8 +140,21 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		"speech": speech,
 		"SpeechSymbols": SpeechSymbols,
 		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: None),
+		"languageDetection": types.SimpleNamespace(LanguageDetector=LanguageDetector),
+		"listable": lambda function: function,
+		**_assembly(),
 		**commands,
 	}
+	return types.SimpleNamespace(environment=environment, settings_dialogs=settings_dialogs, panel=panel,
+		speech_api=speech_api, spelling=spelling)
+
+
+@pytest.mark.parametrize("failure", ["manager", "symbols", "bridge"])
+def test_failed_synth_construction_releases_acquired_resources(failure):
+	changes = []
+	built = _construction_environment(failure, changes)
+	environment, settings_dialogs, panel = built.environment, built.settings_dialogs, built.panel
+	speech_api, spelling = built.speech_api, built.spelling
 	with pytest.raises(RuntimeError, match="no voices|dictionary failure|bridge failure"):
 		_load_synth_class(environment)()
 
@@ -138,12 +166,20 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 	assert changes.index("bridge stopped") < changes.index("ledger stopped")
 	if "engine stopped" in changes:
 		assert changes.index("engine stopped") < changes.index("ledger stopped")
-	assert "pipeline stopped" in changes
+	# Stages register last, so a construction that failed earlier never started them.
+	assert "pipeline started" not in changes and "pipeline stopped" not in changes
 	assert changes.count("end") == 1
 	assert changes.count("settings subscribed") == changes.count("settings unsubscribed")
 	if failure == "symbols":
 		assert "engine stopped" in changes
 		assert changes.index("bridge stopped") < changes.index("engine stopped")
+
+
+def test_stages_register_after_symbols_and_detector():
+	changes = []
+	_load_synth_class(_construction_environment(None, changes).environment)()
+	assert changes.index("symbols loaded") < changes.index("pipeline started")
+	assert changes.index("detector built") < changes.index("pipeline started")
 
 
 def _load_voice_manager(monkeypatch):
@@ -355,6 +391,7 @@ def test_terminate_cleanup_logs_errors_but_lets_interrupts_through(error):
 			error=lambda *args, **kwargs: logged.append(args),
 		),
 		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: None),
+		**_assembly(),
 		**{
 			name: type(name, (), {})
 			for name in (
@@ -370,15 +407,12 @@ def test_terminate_cleanup_logs_errors_but_lets_interrupts_through(error):
 	}
 	driver = object.__new__(_load_synth_class(environment))
 	driver._terminated = False
+	driver._terminateCommit = True
 	driver.taskManager = None
-	driver._pipelineRegistered = False
-	driver._pipelineSubscribed = False
-	driver._voicePanelPatched = False
-	driver._spellingPatched = False
 	driver._eventBridge = Bridge()
 	driver._voiceManager = None
 	driver._indexLedger = Ledger()
-	driver._startNotified = False
+	driver._teardown = driver._new_teardown()
 
 	if isinstance(error, KeyboardInterrupt):
 		with pytest.raises(KeyboardInterrupt):

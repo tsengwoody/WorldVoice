@@ -311,6 +311,7 @@ def test_normal_shutdown_saves_settings_without_a_facade(composition):
 
 
 def make_synth(c, manager):
+    assembly = importlib.import_module(c.module.__package__ + ".assembly")
     commands = {name: type(name, (), {}) for name in (
         "IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
         "PitchCommand", "RateCommand", "VolumeCommand",
@@ -319,13 +320,14 @@ def make_synth(c, manager):
     root = _load_synth_class({
         "SynthDriver": object, "synthIndexReached": object(), "synthDoneSpeaking": object(),
         "nvdaLog": SimpleNamespace(error=lambda *args, **kwargs: errors.append(args)), **commands,
+        **{name: getattr(assembly, name) for name in ("Teardown", "timed", "patch_attribute")},
     })
     synth = object.__new__(root)
-    synth._terminated = synth._pipelineRegistered = synth._voicePanelPatched = False
-    synth._pipelineSubscribed = False
-    synth._spellingPatched = synth._startNotified = False
+    synth._terminated = False
+    synth._terminateCommit = True
     synth.taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
     synth._indexLedger = c.ledger
+    synth._teardown = synth._new_teardown()
     return synth, errors
 
 

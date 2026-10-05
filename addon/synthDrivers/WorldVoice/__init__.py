@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 from collections import OrderedDict
 from typing import Any
 
@@ -27,6 +26,7 @@ from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, getSynth, synthDoneSpeaking, synthIndexReached
 
 from . import languageDetection
+from .assembly import Teardown, patch_attribute, timed
 from .compat.commands import normalize_legacy_commands
 from .compat.completionPolicies import CompletionPolicy
 from .configRepository import ConfigVoiceSettingsRepository
@@ -167,20 +167,31 @@ class SynthDriver(SynthDriver):
 	def allSupportedSettings(self):
 		return self._driver_settings(None)
 
+	_TEARDOWN_ORDER = (
+		"task manager shutdown",
+		"language detection unregister",
+		"pipeline cleanup",
+		"voice settings panel restore",
+		"spelling function restore",
+		"event bridge close",
+		"pipeline settings unsubscribe",
+		"voice manager terminate",
+		"index ledger close",
+		"end notification",
+	)
+
 	def __init__(self):
 		self._terminated = False
-		self._startNotified = False
-		self._pipelineRegistered = False
-		self._pipelineSubscribed = False
-		self._voicePanelPatched = False
-		self._spellingPatched = False
-		self.OriginVoiceSettingsPanel = None
+		self._terminateCommit = True
+		self._numlan = "default"
+		self.speechSymbols = None
 		self._realSpellingFunc = None
 		self.taskManager = None
 		self._voiceManager = None
 		self._eventBridge = None
 		self._settingsStore = None
 		self._indexLedger = None
+		self._teardown = self._new_teardown()
 		try:
 			self._initialize()
 		except BaseException:
@@ -188,155 +199,123 @@ class SynthDriver(SynthDriver):
 			self.terminate(commit=False)
 			raise
 
+	def _new_teardown(self):
+		"""A teardown that already owns the runtime objects, whichever of them exist."""
+		teardown = Teardown(self._TEARDOWN_ORDER, nvdaLog)
+
+		def shutdown_tasks():
+			if self.taskManager is not None:
+				manager = self._voiceManager
+				self.taskManager.shutdown(manager.playback_ports if manager is not None else ())
+
+		def close_bridge():
+			if self._eventBridge is not None:
+				self._eventBridge.close()
+
+		def terminate_voices():
+			if self._voiceManager is not None:
+				self._voiceManager.terminate(commit=self._terminateCommit)
+
+		def close_ledger():
+			if self._indexLedger is not None:
+				self._indexLedger.close()
+
+		teardown.add("task manager shutdown", shutdown_tasks)
+		teardown.add("event bridge close", close_bridge)
+		teardown.add("voice manager terminate", terminate_voices)
+		teardown.add("index ledger close", close_ledger)
+		return teardown
+
 	def _initialize(self):
-		init_start = time.perf_counter()
-		step_start = init_start
-		self._startNotified = True
-		WVStart.notify()
-		nvdaLog.debug("WorldVoice init timing: WVStart.notify %.3fs", time.perf_counter() - step_start)
+		with timed(nvdaLog, "total"):
+			with timed(nvdaLog, "WVStart.notify"):
+				self._teardown.add("end notification", WVEnd.notify)
+				WVStart.notify()
 
-		self.order = 0
+			self.order = 0
 
-		step_start = time.perf_counter()
-		self._pipelineRegistered = True
-		pipeline_scope.worldvoice_started()
-		nvdaLog.debug("WorldVoice init timing: pipeline register %.3fs", time.perf_counter() - step_start)
+			with timed(nvdaLog, "voice settings panel patch"):
+				self._teardown.add(
+					"voice settings panel restore",
+					patch_attribute(gui.settingsDialogs, "VoiceSettingsPanel", WorldVoiceVoiceSettingsPanel),
+				)
 
-		step_start = time.perf_counter()
-		self.OriginVoiceSettingsPanel = gui.settingsDialogs.VoiceSettingsPanel
-		self._voicePanelPatched = True
-		gui.settingsDialogs.VoiceSettingsPanel = WorldVoiceVoiceSettingsPanel
-		nvdaLog.debug(
-			"WorldVoice init timing: voice settings panel patch %.3fs",
-			time.perf_counter() - step_start,
-		)
+			with timed(nvdaLog, "TaskManager"):
+				repository = ConfigVoiceSettingsRepository(config.conf, lambda: getSynth().name)
+				self._settingsStore = VoiceSettingsStore(repository)
+				# One ledger spans every binding of a live core in this runtime. A core
+				# handed to a new runtime must first close, or retain its original ledger.
+				self._indexLedger = IndexLedger()
+				self._eventBridge = NvdaEventBridge(
+					self,
+					done_event=synthDoneSpeaking,
+					index_event=synthIndexReached,
+					get_synth=getSynth,
+					index_ledger=self._indexLedger,
+				)
+				self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
+				self._eventBridge.start(self.taskManager.on_event, batch_handler=self.taskManager.on_events)
 
-		step_start = time.perf_counter()
-		repository = ConfigVoiceSettingsRepository(config.conf, lambda: getSynth().name)
-		self._settingsStore = VoiceSettingsStore(repository)
-		# One ledger spans every binding of a live core in this runtime. A core
-		# handed to a new runtime must first close, or retain its original ledger.
-		self._indexLedger = IndexLedger()
-		self._eventBridge = NvdaEventBridge(
-			self,
-			done_event=synthDoneSpeaking,
-			index_event=synthIndexReached,
-			get_synth=getSynth,
-			index_ledger=self._indexLedger,
-		)
-		self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
-		self._eventBridge.start(self.taskManager.on_event, batch_handler=self.taskManager.on_events)
-		nvdaLog.debug("WorldVoice init timing: TaskManager %.3fs", time.perf_counter() - step_start)
+			with timed(nvdaLog, "VoiceManager"):
+				self._completionPolicy = CompletionPolicy(nvda_version=versionInfo.version, logger=nvdaLog)
+				self._voiceManager = VoiceManager(
+					taskManager=self.taskManager,
+					settings=self._settingsStore,
+					bridge=self._eventBridge,
+					index_ledger=self._indexLedger,
+					completion_for=self._completionPolicy.select,
+					engine_classes=ready_engine_classes(config.conf["WorldVoice"]["engine"]),
+				)
 
-		step_start = time.perf_counter()
-		self._completionPolicy = CompletionPolicy(nvda_version=versionInfo.version, logger=nvdaLog)
-		self._voiceManager = VoiceManager(
-			taskManager=self.taskManager,
-			settings=self._settingsStore,
-			bridge=self._eventBridge,
-			index_ledger=self._indexLedger,
-			completion_for=self._completionPolicy.select,
-			engine_classes=ready_engine_classes(config.conf["WorldVoice"]["engine"]),
-		)
-		nvdaLog.debug("WorldVoice init timing: VoiceManager %.3fs", time.perf_counter() - step_start)
+			self._apply_pipeline_settings(pipeline_settings.get())
+			pipeline_settings.subscribe(self._apply_pipeline_settings)
+			self._teardown.add(
+				"pipeline settings unsubscribe",
+				lambda: pipeline_settings.unsubscribe(self._apply_pipeline_settings),
+			)
 
-		self._apply_pipeline_settings(pipeline_settings.get())
-		pipeline_settings.subscribe(self._apply_pipeline_settings)
-		self._pipelineSubscribed = True
+			with timed(nvdaLog, "speakSpelling patch"):
+				self._realSpellingFunc = speech.speech.speakSpelling
+				self._teardown.add(
+					"spelling function restore",
+					patch_attribute(speech.speech, "speakSpelling", self.patchedSpeakSpelling),
+				)
 
-		step_start = time.perf_counter()
-		self._realSpellingFunc = speech.speech.speakSpelling
-		self._spellingPatched = True
-		speech.speech.speakSpelling = self.patchedSpeakSpelling
-		nvdaLog.debug("WorldVoice init timing: speakSpelling patch %.3fs", time.perf_counter() - step_start)
+			with timed(nvdaLog, "SpeechSymbols construct"):
+				self.speechSymbols = SpeechSymbols()
 
-		step_start = time.perf_counter()
-		self.speechSymbols = SpeechSymbols()
-		nvdaLog.debug(
-			"WorldVoice init timing: SpeechSymbols construct %.3fs",
-			time.perf_counter() - step_start,
-		)
+			with timed(nvdaLog, "SpeechSymbols.load unicode.dic"):
+				self.speechSymbols.load("unicode.dic")
 
-		step_start = time.perf_counter()
-		self.speechSymbols.load("unicode.dic")
-		nvdaLog.debug(
-			"WorldVoice init timing: SpeechSymbols.load unicode.dic %.3fs",
-			time.perf_counter() - step_start,
-		)
+			with timed(nvdaLog, "LanguageDetector"):
+				self._languageDetector = languageDetection.LanguageDetector(
+					list(self._voiceManager.allLanguages),
+					self.speechSymbols,
+				)
+				self.add_detected_language_commands = listable(
+					self._languageDetector.add_detected_language_commands
+				)
+				self._teardown.add(
+					"language detection unregister",
+					lambda: filter_speechSequence.unregister(self.add_detected_language_commands),
+				)
 
-		step_start = time.perf_counter()
-		self._languageDetector = languageDetection.LanguageDetector(
-			list(self._voiceManager.allLanguages),
-			self.speechSymbols,
-		)
-		self.add_detected_language_commands = listable(self._languageDetector.add_detected_language_commands)
-		nvdaLog.debug("WorldVoice init timing: LanguageDetector %.3fs", time.perf_counter() - step_start)
+			self._voice = None
 
-		self._voice = None
-		nvdaLog.debug("WorldVoice init timing: total %.3fs", time.perf_counter() - init_start)
+			# Stages see a fully built synth: voices, symbols and the number language exist.
+			with timed(nvdaLog, "pipeline register"):
+				self._teardown.add("pipeline cleanup", pipeline_scope.worldvoice_ended)
+				pipeline_scope.worldvoice_started()
 
 	def terminate(self, *, commit=True):
 		if self._terminated:
 			return
 		self._terminated = True
-
-		def _run_cleanup(name, cleanup):
-			try:
-				cleanup()
-			except Exception:
-				nvdaLog.error("WorldVoice terminate: %s", name, exc_info=True)
-
-		taskManager = self.taskManager
-		if taskManager is not None:
-			playbacks = self._voiceManager.playback_ports if self._voiceManager is not None else ()
-			_run_cleanup("task manager shutdown", lambda: taskManager.shutdown(playbacks))
-		self.taskManager = None
-
-		if hasattr(self, "add_detected_language_commands"):
-			_run_cleanup(
-				"language detection unregister",
-				lambda: filter_speechSequence.unregister(self.add_detected_language_commands),
-			)
-		if self._pipelineRegistered:
-			_run_cleanup("pipeline cleanup", pipeline_scope.worldvoice_ended)
-			self._pipelineRegistered = False
-		if self._voicePanelPatched:
-			_run_cleanup(
-				"voice settings panel restore",
-				lambda: setattr(gui.settingsDialogs, "VoiceSettingsPanel", self.OriginVoiceSettingsPanel),
-			)
-			self._voicePanelPatched = False
-		if self._spellingPatched:
-			_run_cleanup(
-				"spelling function restore",
-				lambda: setattr(speech.speech, "speakSpelling", self._realSpellingFunc),
-			)
-			self._spellingPatched = False
-		bridge = self._eventBridge
-		if bridge is not None:
-			_run_cleanup("event bridge close", bridge.close)
-		self._eventBridge = None
-
-		if self._pipelineSubscribed:
-			_run_cleanup(
-				"pipeline settings unsubscribe",
-				lambda: pipeline_settings.unsubscribe(self._apply_pipeline_settings),
-			)
-			self._pipelineSubscribed = False
-
-		voiceManager = self._voiceManager
-		if voiceManager is not None:
-			_run_cleanup("voice manager terminate", lambda: voiceManager.terminate(commit=commit))
-		self._voiceManager = None
-
-		ledger = self._indexLedger
-		if ledger is not None:
-			_run_cleanup("index ledger close", ledger.close)
-		self._indexLedger = None
-
-		if self._startNotified:
-			_run_cleanup("end notification", WVEnd.notify)
-			self._startNotified = False
+		self._terminateCommit = commit
+		try:
+			self._teardown.run()
+		finally:
+			self.taskManager = self._eventBridge = self._voiceManager = self._indexLedger = None
 
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)
@@ -392,8 +371,8 @@ class SynthDriver(SynthDriver):
 		return SpeechContext(
 			supports_roles=True,
 			language=self.language,
-			number_language=getattr(self, "_numlan", "default"),
-			speech_symbols=getattr(self, "speechSymbols", None),
+			number_language=self._numlan,
+			speech_symbols=self.speechSymbols,
 			default_voice=manager.defaultVoiceInstance,
 			voice_for_language=manager.getVoiceInstanceForLanguage,
 		)
