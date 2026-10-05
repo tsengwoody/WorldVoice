@@ -323,8 +323,9 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					except Exception as error:
 						log.exception("OneCore queued operation failed")
 						host.record_error(record, error)
-						if record.operation is None:
-							self._failSegmentControl(error)
+						# Like a failed player open: ordinary speech skips only this
+						# sentence and still completes; a segment fails with its error.
+						skipped = record.operation is None
 						self._releaseSegmentWorker(record)
 			with self._segmentCondition:
 				# The native callback returns once per call, even when cancelled.

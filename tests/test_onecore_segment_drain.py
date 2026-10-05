@@ -1410,3 +1410,26 @@ def test_segment_player_open_failure_still_latches(env):
     wait_events(events)
     assert events[0].error is error
     assert env.driver._segmentHost.control_error is error
+
+
+def test_ordinary_native_speak_failure_fails_only_its_sentence(env):
+    dones = []
+    done = Event()
+    original_done = env.outer.synthDoneSpeaking.notify
+
+    def completed(**kwargs):
+        original_done(**kwargs)
+        dones.append(kwargs.get("synth"))
+        done.set()
+
+    env.outer.synthDoneSpeaking.notify = completed
+    env.native.submit_error = OSError("speech engine busy")
+    env.driver.speak(("first",))
+    assert done.wait(1), "a sentence the engine rejected never completed"
+    Event().wait(0.05)
+    assert dones == [env.driver]
+    assert env.driver._segmentHost.control_error is None
+    env.native.submit_error = None
+    env.driver.speak(("second",))
+    env.native.wait_calls(1)
+    assert "second" in env.native.calls[-1]
