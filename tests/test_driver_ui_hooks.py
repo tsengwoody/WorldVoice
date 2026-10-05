@@ -9,10 +9,15 @@ from test_worldvoice_pipeline_settings import load_synth
 
 @pytest.fixture
 def synth(monkeypatch):
-	conf = {"WorldVoice": {"pipeline": {}, "autoLanguageSwitching": {"DetectLanguageTiming": "before"}}}
+	# Timing lives only behind the detection settings service, never in the config the class sees.
+	conf = {"WorldVoice": {"pipeline": {}}}
 	synth_class, _ = load_synth(monkeypatch, conf)
 	calls = []
 	globals_ = synth_class.refresh_language_detection.__globals__
+	detection = types.SimpleNamespace(timing="before")
+	monkeypatch.setitem(globals_, "detection_settings", types.SimpleNamespace(
+		get=lambda: types.SimpleNamespace(timing=detection.timing),
+	))
 	monkeypatch.setitem(globals_, "filter_speechSequence", types.SimpleNamespace(
 		register=lambda handler: calls.append(("register", handler)),
 		unregister=lambda handler: calls.append(("unregister", handler)),
@@ -20,7 +25,7 @@ def synth(monkeypatch):
 	monkeypatch.setitem(globals_, "order_move_to_start_register", lambda: calls.append(("reorder",)))
 	instance = object.__new__(synth_class)
 	instance.add_detected_language_commands = handler = object()
-	return types.SimpleNamespace(synth=instance, calls=calls, conf=conf, handler=handler)
+	return types.SimpleNamespace(synth=instance, calls=calls, detection=detection, handler=handler)
 
 
 def test_voice_manager_is_the_private_manager_or_none(synth):
@@ -42,7 +47,7 @@ def test_refresh_without_detection_only_unregisters(synth):
 	("after", ["unregister"]),
 ])
 def test_refresh_registers_only_for_detection_before_nvda(synth, timing, expected):
-	synth.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = timing
+	synth.detection.timing = timing
 	synth.synth.uwv = True
 	synth.synth.refresh_language_detection()
 	assert [call[0] for call in synth.calls] == expected
@@ -54,3 +59,20 @@ def test_setting_uwv_refreshes_language_detection(synth, monkeypatch):
 	synth.synth._set_uwv(False)
 	assert synth.synth._uwv is False
 	assert synth.calls == [("unregister", synth.handler)]
+
+
+def test_detection_timing_comes_from_the_settings_service(synth):
+	synth.detection.timing = "after"
+	assert synth.synth._detectLanguageTiming() == "after"
+
+
+def test_a_timing_change_refreshes_language_detection(synth):
+	synth.synth.uwv = True
+	synth.synth._on_detection_settings(object(), frozenset({"timing"}))
+	assert [call[0] for call in synth.calls] == ["register", "reorder"]
+
+
+def test_other_detection_changes_leave_the_filter_order_alone(synth):
+	synth.synth.uwv = True
+	synth.synth._on_detection_settings(object(), frozenset({"ignore_numbers", "script_language"}))
+	assert synth.calls == []

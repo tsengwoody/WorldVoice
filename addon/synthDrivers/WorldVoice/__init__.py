@@ -32,7 +32,7 @@ from .compat.completionPolicies import CompletionPolicy
 from .configRepository import ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
 from .indexLedger import IndexLedger
-from .languageDetection.settings import detection_settings
+from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
 from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	STAGES,
@@ -61,11 +61,7 @@ addonHandler.initTranslation()
 
 config.conf.spec["WorldVoice"] = {
 	"autoLanguageSwitching": {
-		"ignoreNumbersInLanguageDetection": "boolean(default=false)",
-		"latinCharactersLanguage": "string(default=en)",
-		"CJKCharactersLanguage": "string(default=ja)",
-		"arabicCharactersLanguage": "string(default=ar)",
-		"DetectLanguageTiming": "string(default=after)",
+		**DETECTION_CONFSPEC,
 		"KeepMainLocaleVoiceConsistent": "boolean(default=true)",
 		"KeepMainLocaleParameterConsistent": "boolean(default=false)",
 		"KeepMainLocaleEngineConsistent": "boolean(default=true)",
@@ -170,6 +166,7 @@ class SynthDriver(SynthDriver):
 
 	_TEARDOWN_ORDER = (
 		"task manager shutdown",
+		"detection settings unsubscribe",
 		"language detection unregister",
 		"pipeline cleanup",
 		"voice settings panel restore",
@@ -301,6 +298,11 @@ class SynthDriver(SynthDriver):
 				self._teardown.add(
 					"language detection unregister",
 					lambda: filter_speechSequence.unregister(self.add_detected_language_commands),
+				)
+				detection_settings.subscribe(self._on_detection_settings)
+				self._teardown.add(
+					"detection settings unsubscribe",
+					lambda: detection_settings.unsubscribe(self._on_detection_settings),
 				)
 
 			self._voice = None
@@ -459,10 +461,18 @@ class SynthDriver(SynthDriver):
 		self.refresh_language_detection()
 
 	def _detectLanguageTiming(self):
-		return config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
+		return detection_settings.get().timing
+
+	def _on_detection_settings(self, settings, changed):
+		# Only the timing decides the filter registration; refreshing also reorders NVDA's filters.
+		if "timing" in changed:
+			self.refresh_language_detection()
 
 	def refresh_language_detection(self):
-		"""Register language detection as an NVDA filter only when it runs before NVDA's processing."""
+		"""Register language detection as an NVDA filter only when it runs before NVDA's processing.
+
+		Called when uwv or the detection timing changes.
+		"""
 		if self.uwv and self._detectLanguageTiming() == "before":
 			filter_speechSequence.register(self.add_detected_language_commands)
 			order_move_to_start_register()

@@ -106,6 +106,8 @@ def _construction_environment(failure, changes):
 		"PitchCommand", "RateCommand", "VolumeCommand",
 	)}
 	def apply_pipeline():
+		if failure == "pipeline":
+			raise RuntimeError("pipeline failure")
 		changes.append("pipeline started")
 
 	def clear_pipeline():
@@ -140,9 +142,12 @@ def _construction_environment(failure, changes):
 		"getSynth": lambda: None,
 		"speech": speech,
 		"SpeechSymbols": SpeechSymbols,
-		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: None),
+		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: changes.append("filter unregistered")),
 		"languageDetection": types.SimpleNamespace(LanguageDetector=LanguageDetector),
-		"detection_settings": types.SimpleNamespace(),
+		"detection_settings": types.SimpleNamespace(
+			subscribe=lambda listener: changes.append("detection subscribed"),
+			unsubscribe=lambda listener: changes.append("detection unsubscribed"),
+		),
 		"listable": lambda function: function,
 		**_assembly(),
 		**commands,
@@ -175,6 +180,21 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 	if failure == "symbols":
 		assert "engine stopped" in changes
 		assert changes.index("bridge stopped") < changes.index("engine stopped")
+
+
+def test_detection_settings_unsubscribe_before_the_filter_unregisters():
+	changes = []
+	_load_synth_class(_construction_environment(None, changes).environment)().terminate()
+	assert changes.count("detection subscribed") == changes.count("detection unsubscribed") == 1
+	assert changes.index("detection unsubscribed") < changes.index("filter unregistered")
+
+
+def test_construction_failing_after_detection_subscribed_unsubscribes():
+	changes = []
+	with pytest.raises(RuntimeError, match="pipeline failure"):
+		_load_synth_class(_construction_environment("pipeline", changes).environment)()
+	assert changes.count("detection subscribed") == changes.count("detection unsubscribed") == 1
+	assert changes.index("detection unsubscribed") < changes.index("filter unregistered")
 
 
 def test_stages_register_after_symbols_and_detector():
@@ -392,7 +412,7 @@ def test_terminate_cleanup_logs_errors_but_lets_interrupts_through(error):
 			debug=lambda *args: None,
 			error=lambda *args, **kwargs: logged.append(args),
 		),
-		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: None),
+		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: changes.append("filter unregistered")),
 		**_assembly(),
 		**{
 			name: type(name, (), {})
