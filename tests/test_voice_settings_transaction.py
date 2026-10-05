@@ -70,6 +70,7 @@ def _synth_settings_class(config):
 	driver.bases = []
 	setting = lambda name, *args, **kwargs: name
 	env = {"_": lambda text: text, "OrderedDict": OrderedDict, "config": config, "PIPELINE_SETTINGS": (),
+		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "fr"),
 		"BooleanDriverSetting": setting, "NumericDriverSetting": setting, "DriverSetting": setting,
 		"StringParameterInfo": lambda id, name: types.SimpleNamespace(id=id, name=name)}
 	exec(compile(ast.Module(body=[driver], type_ignores=[]), str(path), "exec"), env)
@@ -87,6 +88,17 @@ def test_main_synth_settings_use_manager_capabilities_and_variants(monkeypatch):
 	synth._voiceManager = manager
 	assert {"rateboost", "inflection"} <= set(synth.supportedSettings)
 	assert synth._get_availableVariants()["bright"].name == "Bright"
+
+
+def test_main_voice_follows_the_nvda_language_until_one_is_chosen(monkeypatch):
+	manager, a, b, config = _editing_manager(monkeypatch)
+	manager.roles.assign("fr", b.name)
+	synth = _synth_settings_class(config)()
+	synth._voiceManager = manager
+	synth._voice = None
+	assert synth._get_voice() == b.name
+	synth._voice = b.name
+	assert synth._get_voice() == manager.defaultVoiceName == a.name
 
 
 def test_main_synth_explicit_commit_updates_resolver_only_states(monkeypatch):

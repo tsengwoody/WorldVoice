@@ -284,11 +284,5 @@ class VoiceManager:
 			return configured
 		return self.defaultVoiceName
 
-	def getVoiceInstanceForLanguage(self, language):
-		voiceName = self.getVoiceNameForLanguage(language)
-		if voiceName:
-			return self.getVoiceInstance(voiceName)
-		return None
-
 	def _getConfiguredVoiceNameForLanguage(self, language):
 		return self.roles.voice_for(language)

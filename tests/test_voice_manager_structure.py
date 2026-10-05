@@ -35,6 +35,8 @@ FORBIDDEN = {
 		"VoiceMeta", "groupByField", "keepMainLocaleEngineConsistent", "def ready",
 		# The engine classes are only needed while opening engines.
 		"self._engine_classes",
+		# getVoiceNameForLanguage always names a voice; nothing asked for the instance.
+		"getVoiceInstanceForLanguage",
 	],
 	"synthDrivers/WorldVoice/engine/__init__.py": ["READY_ENGINE_CLASS", "EngineType", "refresh_ready_engine_classes"],
 	"globalPlugins/WorldVoice/speechSettingsDialog.py": ["EngineType", "_manager.ready"],
