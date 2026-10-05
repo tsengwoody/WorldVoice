@@ -21,6 +21,10 @@ from ..runtime.session import CancellationView
 if TYPE_CHECKING:
 	from ..indexLedger import IndexLedger
 
+# runtime.settings.PARAMETER_NAMES in the order engines receive them. rateBoost comes first:
+# eSpeak converts the rate through the current rate boost (NVDA synthDrivers/espeak.py _set_rate).
+APPLY_ORDER = ("rateBoost", "rate", "pitch", "volume", "inflection")
+
 
 def _speak_segment(adapter, commands, token, context, on_event):
 	adapter._core.speak_segment(commands, token, context=context, on_event=on_event)
@@ -140,7 +144,7 @@ class LegacyEngineAdapter:
 		core = self._core
 		core.voice = spec.id
 		supported = self.capabilities.settings
-		for name in ("rateBoost", "rate", "pitch", "volume", "inflection"):
+		for name in APPLY_ORDER:
 			if name in supported:
 				setattr(core, name, getattr(snapshot, name))
 		self._resolve_voice(spec.name).applyEngineSettings(core, snapshot)

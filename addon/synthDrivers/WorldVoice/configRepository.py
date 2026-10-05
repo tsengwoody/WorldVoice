@@ -4,7 +4,22 @@ from collections.abc import Mapping, MutableMapping
 
 from .mainLocalePolicy import ParameterConsistency
 from .runtime.models import SettingValue, VoiceSpec, VoiceValues
-from .runtime.settings import VOICE_PARAMETERS
+from .runtime.settings import VOICE_PARAMETERS, boolean
+
+
+def _confspec(convert, default) -> str:
+	if convert is int:
+		return f"integer(default={default},min=0,max=100)"
+	if convert is boolean:
+		return f"boolean(default={default})"
+	return f"string(default={default})"
+
+
+# The keys load and save store for each voice. NVDA's aggregated config sections do not expand
+# __many__ (ref/nvda/source/config/__init__.py, AggregatedSection.__getitem__ looks the key up
+# directly), so values come back as stored strings and VOICE_PARAMETERS converts them; this spec
+# documents the stored keys, and every value save writes satisfies it.
+VOICE_CONFSPEC = {name: _confspec(convert, default) for name, convert, default in VOICE_PARAMETERS}
 
 
 class ConfigVoiceSettingsRepository:

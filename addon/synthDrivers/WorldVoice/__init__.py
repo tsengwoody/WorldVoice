@@ -29,7 +29,7 @@ from . import languageDetection
 from .assembly import Teardown, patch_attribute, timed
 from .compat.commands import normalize_legacy_commands
 from .compat.completionPolicies import CompletionPolicy
-from .configRepository import ConfigVoiceSettingsRepository
+from .configRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
 from .indexLedger import IndexLedger
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
@@ -76,15 +76,7 @@ config.conf.spec["WorldVoice"] = {
 		"enable": "boolean(default=false)",
 		**{stage.log_key: "boolean(default=false)" for stage in STAGES},
 	},
-	"voices": {
-		"__many__": {
-			"variant": "string(default=None)",
-			"rate": "integer(default=50,min=0,max=100)",
-			"pitch": "integer(default=50,min=0,max=100)",
-			"volume": "integer(default=50,min=0,max=100)",
-			"waitfactor": "integer(default=0,min=0,max=10)",
-		},
-	},
+	"voices": {"__many__": dict(VOICE_CONFSPEC)},
 }
 
 WVStart = extensionPoints.Action()

@@ -2,7 +2,7 @@
 
 from collections.abc import Callable, MutableMapping
 
-PARAMETER_NAMES = ("rate", "pitch", "volume", "inflection", "rateBoost")
+from synthDrivers.WorldVoice.runtime.settings import PARAMETER_NAMES
 
 
 class RolePanelPresenter:

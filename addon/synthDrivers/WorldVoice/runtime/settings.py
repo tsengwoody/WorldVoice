@@ -23,6 +23,9 @@ VOICE_PARAMETERS = (
 	("rateBoost", boolean, False),
 )
 
+# The parameters one voice can copy to another: every voice parameter but the variant.
+PARAMETER_NAMES = tuple(name for name, _, _ in VOICE_PARAMETERS if name != "variant")
+
 _SETTING_NAMES = frozenset(name for name, _, _ in VOICE_PARAMETERS) | {"waitfactor"}
 
 

@@ -4,8 +4,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from .roles import getPrimaryLocale
-
-PARAMETER_NAMES = ("rate", "pitch", "volume", "inflection", "rateBoost")
+from .runtime.settings import PARAMETER_NAMES
 
 
 def _flags(conf_provider: Callable[[], Any]) -> Any:

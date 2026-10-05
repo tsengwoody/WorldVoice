@@ -9,13 +9,19 @@ import pytest
 
 from test_f4_voice_state import _load_voice_manager, _create_voices, RecordingCore
 from test_worldvoice_lifecycle import init_policies
+from nvda_stubs import StubModules
 from voice_binding_harness import bind_core
 
 
 PRESENTER = "addon/globalPlugins/WorldVoice/rolePresenter.py"
 
 
-def load_presenter(monkeypatch):
+def load_presenter(monkeypatch, runtime_settings):
+	"""Load the presenter against the runtime settings module the manager under test uses."""
+	stub = StubModules(monkeypatch)
+	for package in ("synthDrivers", "synthDrivers.WorldVoice", "synthDrivers.WorldVoice.runtime"):
+		stub.module(package, __path__=[])
+	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.runtime.settings", runtime_settings)
 	spec = importlib.util.spec_from_file_location("role_presenter_under_test", PRESENTER)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, spec.name, module)
@@ -54,7 +60,8 @@ def env(monkeypatch):
 		manager.defaultVoiceName = name
 		conf["speech"]["WorldVoice"]["voice"] = name
 
-	presenter = load_presenter(monkeypatch)(
+	runtime_settings = sys.modules[module.__package__ + ".runtime.settings"]
+	presenter = load_presenter(monkeypatch, runtime_settings)(
 		manager,
 		speech_section=lambda: conf["speech"]["WorldVoice"],
 		set_main_voice=set_main_voice,
