@@ -23,7 +23,9 @@ SPEECH_SYMBOL_MODE_LABELS = {
 
 
 class SpeechSymbol:
-	__slots__ = ("identifier", "replacement", "language", "mode", "displayName")
+	__slots__ = ("displayName", "identifier", "language", "mode", "replacement")
+	# repr keeps the constructor's order, which the sorted __slots__ no longer follows.
+	_REPR_FIELDS = ("identifier", "replacement", "language", "mode", "displayName")
 
 	def __init__(self, identifier, replacement=None, language=None, mode=None, displayName=None):
 		self.identifier = identifier
@@ -34,12 +36,9 @@ class SpeechSymbol:
 
 	def __repr__(self):
 		attrs = []
-		for attr in self.__slots__:
+		for attr in self._REPR_FIELDS:
 			attrs.append(
-				"{name}={val!r}".format(
-					name=attr,
-					val=getattr(self, attr),
-				),
+				f"{attr}={getattr(self, attr)!r}",
 			)
 		return f"SpeechSymbol({', '.join(attrs)})"
 
@@ -77,10 +76,7 @@ class SpeechSymbols:
 					handler(line)
 				except ValueError:
 					log.warning(
-						"Invalid line in file {file}: {line}".format(
-							file=fileName,
-							line=line,
-						),
+						f"Invalid line in file {fileName}: {line}",
 					)
 
 	def _loadSymbolField(self, input, inputMap=None):

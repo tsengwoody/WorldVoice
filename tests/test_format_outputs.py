@@ -44,6 +44,12 @@ def test_speech_symbol_repr(models):
 	assert repr(symbol) == EXPECTED_REPR
 
 
+def test_repr_lists_every_slot(models):
+	slots = models.SpeechSymbol.__slots__
+	assert list(slots) == sorted(slots)
+	assert set(models.SpeechSymbol._REPR_FIELDS) == set(slots)
+
+
 def test_saved_symbol_lines(models, tmp_path):
 	symbols = models.SpeechSymbols()
 	escaped = models.SpeechSymbol("\tx", replacement="tab", language="en", mode=models.SYMMOD_FORCE, displayName="Tab")

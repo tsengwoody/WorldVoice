@@ -273,8 +273,8 @@ class SpeechSymbolsDialog(SettingsDialog):
 			pass
 		addedSymbol.displayName = identifier
 		addedSymbol.replacement = ""
-		addedSymbol.language = list(SPEECH_SYMBOL_LANGUAGE_LABELS.keys())[0]
-		addedSymbol.mode = list(SPEECH_SYMBOL_MODE_LABELS.keys())[0]
+		addedSymbol.language = next(iter(SPEECH_SYMBOL_LANGUAGE_LABELS))
+		addedSymbol.mode = next(iter(SPEECH_SYMBOL_MODE_LABELS))
 		self.symbols.append(addedSymbol)
 		self.symbolsList.ItemCount = len(self.symbols)
 		index = self.symbolsList.ItemCount - 1
