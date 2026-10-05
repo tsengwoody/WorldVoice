@@ -618,12 +618,6 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		self._locales = self._manager.languages
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
-		latinSet = set(languageDetection.ALL_LATIN) & set(l for l in self._locales if len(l) == 2)
-		self._latinLocales = sorted(list(latinSet))
-		CJKSet = set(languageDetection.CJK) & set(l for l in self._locales if len(l) == 2)
-		self._CJKLocales = sorted(list(CJKSet))
-		arabicSet = set(languageDetection.ARABIC) & set(l for l in self._locales if len(l) == 2)
-		self._arabicLocales = sorted(list(arabicSet))
 
 		self._ignoreNumbersCheckBox = wx.CheckBox(
 			self,
@@ -635,47 +629,10 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		)
 		settingsSizerHelper.addItem(self._ignoreNumbersCheckBox)
 
-		latinChoiceLocaleNames = [self.localesToNames[l] for l in self._latinLocales]
-		self._latinChoice = settingsSizerHelper.addLabeledControl(
-			_("Language assumed for latin characters:"),
-			wx.Choice,
-			choices=latinChoiceLocaleNames,
-		)
-		latinLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"]
-		try:
-			self._latinChoice.Select(self._latinLocales.index(latinLocale))
-		except ValueError:
-			self._latinChoice.Select(0)
-		if not latinChoiceLocaleNames:
-			self._latinChoice.Disable()
-
-		CJKChoiceLocaleNames = [self.localesToNames[l] for l in self._CJKLocales]
-		self._CJKChoice = settingsSizerHelper.addLabeledControl(
-			_("Language assumed for CJK characters:"),
-			wx.Choice,
-			choices=CJKChoiceLocaleNames,
-		)
-		CJKLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"]
-		try:
-			self._CJKChoice.Select(self._CJKLocales.index(CJKLocale))
-		except ValueError:
-			self._CJKChoice.Select(0)
-		if not CJKChoiceLocaleNames:
-			self._CJKChoice.Disable()
-
-		arabicChoiceLocaleNames = [self.localesToNames[l] for l in self._arabicLocales]
-		self._arabicChoice = settingsSizerHelper.addLabeledControl(
-			_("Language assumed for arabic characters:"),
-			wx.Choice,
-			choices=arabicChoiceLocaleNames,
-		)
-		arabicLocale = config.conf["WorldVoice"]["autoLanguageSwitching"]["arabicCharactersLanguage"]
-		try:
-			self._arabicChoice.Select(self._arabicLocales.index(arabicLocale))
-		except ValueError:
-			self._arabicChoice.Select(0)
-		if not arabicChoiceLocaleNames:
-			self._arabicChoice.Disable()
+		self._scriptChoices = {
+			script: self._add_script_choice(settingsSizerHelper, script, label)
+			for script, label in self._script_labels().items()
+		}
 
 		DetectLanguageTimingLabel = [
 			_("Before NVDA processes speech commands"),
@@ -695,24 +652,41 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		except ValueError:
 			self._DLTChoice.Select(0)
 
+	def _script_labels(self):
+		return {
+			"Latin": _("Language assumed for latin characters:"),
+			"Han": _("Language assumed for CJK characters:"),
+			"Arabic": _("Language assumed for arabic characters:"),
+		}
+
+	def _add_script_choice(self, helper, script, label):
+		"""A choice of the available two-letter languages written in script."""
+		candidates = set(languageDetection.SCRIPT_LANGUAGES[script])
+		locales = sorted(candidates & {locale for locale in self._locales if len(locale) == 2})
+		names = [self.localesToNames[locale] for locale in locales]
+		choice = helper.addLabeledControl(label, wx.Choice, choices=names)
+		stored = config.conf["WorldVoice"]["autoLanguageSwitching"][
+			languageDetection.SCRIPT_CONFIG_KEYS[script]
+		]
+		try:
+			choice.Select(locales.index(stored))
+		except ValueError:
+			choice.Select(0)
+		if not names:
+			choice.Disable()
+		return choice, locales
+
 	def onSave(self):
 		if self.disable or not getSynth().name == "WorldVoice":
 			return
 		config.conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = (
 			self._ignoreNumbersCheckBox.GetValue()
 		)
-		if self._latinChoice.IsEnabled():
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["latinCharactersLanguage"] = (
-				self._latinLocales[self._latinChoice.GetCurrentSelection()]
-			)
-		if self._CJKChoice.IsEnabled():
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["CJKCharactersLanguage"] = self._CJKLocales[
-				self._CJKChoice.GetCurrentSelection()
-			]
-		if self._arabicChoice.IsEnabled():
-			config.conf["WorldVoice"]["autoLanguageSwitching"]["arabicCharactersLanguage"] = (
-				self._arabicLocales[self._arabicChoice.GetCurrentSelection()]
-			)
+		for script, (choice, locales) in self._scriptChoices.items():
+			if choice.IsEnabled():
+				config.conf["WorldVoice"]["autoLanguageSwitching"][
+					languageDetection.SCRIPT_CONFIG_KEYS[script]
+				] = locales[choice.GetCurrentSelection()]
 
 		previous_DLT = config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 		current_DLT = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
