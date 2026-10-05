@@ -166,4 +166,6 @@ class RolePanelPresenter:
 		self._read_flags()
 
 	def close(self) -> None:
+		# A panel destroyed without OK or Cancel must not leave its preview filtering voices.
+		self._manager.engine_consistency.preview = None
 		self._edit.close()

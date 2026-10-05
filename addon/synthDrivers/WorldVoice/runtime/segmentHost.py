@@ -119,6 +119,9 @@ class NativeStrategy(ABC):
 
 class SegmentHost:
 	def __init__(self, engine: str, strategy: NativeStrategy):
+		if not strategy.barriers:
+			# With no barriers a segment would drain before its audio has played.
+			raise ValueError(f"{engine} strategy declares no playback barriers")
 		self.engine = engine
 		self._strategy = strategy
 		self._admission = RLock()
@@ -383,6 +386,8 @@ class SegmentHost:
 			if self._current is record:
 				self._current = None
 			producer, record.producer = record.producer, None
+			# wait_settled() waits for the current record to change.
+			self._condition.notify_all()
 		if producer is not None:
 			self._lifecycle_of(record.operation).retire_producer(producer)
 		if record.retired is not None:
@@ -630,8 +635,6 @@ class SegmentHost:
 				self._lifecycle.cancel(operation)
 			for record in self._pending:
 				record.cancelled = True
-				if record.work is not None and record.operation is None:
-					record.work.cancel()
 
 
 class LeasedPlayer:

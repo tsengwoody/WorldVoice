@@ -1391,3 +1391,21 @@ def test_strategy_stop_player_without_a_wasapi_player_does_nothing(env):
     finally:
         env.driver.player = player
     assert stopped == [True]
+
+
+def test_segment_feed_admits_the_record_it_read(env, monkeypatch):
+    from contextlib import contextmanager
+
+    host = env.driver._segmentHost
+    stale = object()
+    asked = []
+
+    @contextmanager
+    def consumer(record=None, **options):
+        asked.append(record)
+        yield None
+
+    monkeypatch.setattr(host, "current", lambda: stale)
+    monkeypatch.setattr(host, "consumer", consumer)
+    assert env.driver.player.feed(b"pcm", 3) is None
+    assert asked == [stale]

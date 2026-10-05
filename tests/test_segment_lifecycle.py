@@ -945,3 +945,59 @@ def test_wait_idle_rechecks_still_wanted_on_wake_waiters(env):
     assert results == [False]
     hooks.release_boundary.set()
     owner_call.finish()
+
+
+def test_idle_delivery_thread_releases_a_delivered_error(env):
+    lifecycle, hooks, events, accept = env
+    delivered = Event()
+
+    class Sink:
+        def __call__(self, event):
+            delivered.set()
+
+    def raised_with(holder):
+        try:
+            raise RuntimeError("native failed")
+        except RuntimeError as error:
+            return error
+
+    sink = Sink()
+    reference = weakref.ref(sink)
+    operation, _ = accept(18, sink)
+    lifecycle.fail(operation, raised_with(sink))
+    assert delivered.wait(1)
+    del operation, sink
+    for _ in range(100):
+        gc.collect()
+        if reference() is None:
+            break
+        Event().wait(0.01)
+    assert reference() is None, "the idle delivery thread still holds the delivered error"
+
+
+def test_failed_waiter_never_takes_a_resource_freed_at_the_same_time(env, monkeypatch):
+    lifecycle, hooks, events, accept = env
+    old, _ = accept(1)
+    queued, _ = accept(2)
+    first = Call(lambda: lifecycle.run(old, ("old",)))
+    assert hooks.boundary_entered.wait(1)
+    owned = []
+    original = lifecycle._run_owned
+    monkeypatch.setattr(lifecycle, "_run_owned", lambda operation, commands: (
+        owned.append(operation), original(operation, commands))[1])
+    second = Call(lambda: lifecycle.run(queued, ("queued",)))
+    for _ in range(200):
+        with lifecycle._condition:
+            if queued._waiting:
+                break
+        Event().wait(0.005)
+    with lifecycle._condition:
+        lifecycle.fail(queued, RuntimeError("control error"))
+        # The old operation releases the resource before the waiter re-checks.
+        lifecycle._resource_busy = False
+    second.finish()
+    with lifecycle._condition:
+        lifecycle._resource_busy = True
+    assert queued not in owned
+    hooks.release_boundary.set()
+    first.finish()

@@ -308,3 +308,9 @@ def test_unticking_restores_voices_loaded_during_the_preview(env):
 	env.presenter.set_parameter_consistency(False)
 	assert late.get("rate") == 50
 	assert env.a.rate == 50
+
+
+def test_closing_the_panel_drops_an_unsaved_engine_preview(env):
+	env.presenter.set_engine_consistency(True)
+	env.presenter.close()
+	assert env.manager.engine_consistency.preview is None

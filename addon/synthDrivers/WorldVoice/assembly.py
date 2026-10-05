@@ -12,8 +12,11 @@ class Teardown:
 		self._order = tuple(order)
 		self._logger = logger
 		self._cleanups: dict[str, Callable[[], object]] = {}
+		self._ran = False
 
 	def add(self, name: str, cleanup: Callable[[], object]) -> None:
+		if self._ran:
+			raise RuntimeError(f"{name!r} was registered after teardown ran")
 		if name not in self._order:
 			raise ValueError(f"{name!r} has no place in the teardown order")
 		if name in self._cleanups:
@@ -21,6 +24,7 @@ class Teardown:
 		self._cleanups[name] = cleanup
 
 	def run(self) -> None:
+		self._ran = True
 		cleanups, self._cleanups = self._cleanups, {}
 		for name in self._order:
 			cleanup = cleanups.get(name)

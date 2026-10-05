@@ -110,3 +110,10 @@ def test_patch_attribute_restores_once(assembly):
 	owner.value = "newer"
 	restore()
 	assert owner.value == "newer"
+
+
+def test_teardown_refuses_registration_after_it_ran(assembly):
+	teardown = assembly.Teardown(("a",), Log())
+	teardown.run()
+	with pytest.raises(RuntimeError):
+		teardown.add("a", lambda: None)

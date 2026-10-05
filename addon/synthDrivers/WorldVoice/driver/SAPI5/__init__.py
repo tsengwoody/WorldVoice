@@ -175,11 +175,17 @@ class _SegmentPlayer(LeasedPlayer):
 		with driver._threadCond:
 			if self is not driver.player:
 				return None
-		if driver._segmentHost.current() is None:
+		host = driver._segmentHost
+		record = host.current()
+		if record is None:
 			return self._player.feed(data, size, onDone)
-		# A feed nested in an admitted PCM callback may pass after EndStream
-		# closed admission; any other late feed is dropped.
-		return super().feed(data, size, onDone)
+		# Admit the record just read, so a retire/begin in between cannot hand
+		# this feed to the successor. A feed nested in an admitted PCM callback
+		# may pass after EndStream closed admission; any other late feed is dropped.
+		with host.consumer(record) as admitted:
+			if admitted is None:
+				return None
+			return self._feed_admitted(admitted, data, size, onDone)
 
 	def _callback(self, record, onDone):
 		# NVDA queues bookmark indexes as feed(None, 0, onDone); they fire after

@@ -1063,3 +1063,23 @@ def test_feed_admitted_serves_subclasses_that_choose_their_record(env):
 	assert raw.fed == [(b"pcm", None)]
 	env.run_native(record)
 	events.wait_one()
+
+
+def test_abandoning_the_current_record_wakes_settle_waiters(env):
+	env.host.enqueue(("ordinary",))
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	settled = Event()
+	waiter = Thread(target=lambda: (env.host.wait_settled(record), settled.set()), daemon=True)
+	waiter.start()
+	assert not settled.wait(0.05)
+	env.host.abandon(record)
+	assert settled.wait(1), "wait_settled missed the abandon"
+
+
+def test_a_strategy_without_barriers_is_rejected(env):
+	class Barrierless(FakeStrategy):
+		barriers = frozenset()
+
+	with pytest.raises(ValueError, match="barriers"):
+		env.module.SegmentHost("Fake", native(env.module, Barrierless))
