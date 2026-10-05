@@ -60,7 +60,7 @@ class CompletionPolicy:
 			return unsupported("The custom core has no callable get_segment_drain_support check")
 		try:
 			support = check(nvda_version=nvda_version, audio_mode=audio_mode)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - any failure means drain is unsupported
 			return unsupported(f"Drain support inspection failed: {type(error).__name__}: {error}")
 		if not isinstance(support, DrainSupport) or not isinstance(support.supported, bool):
 			return unsupported("The wrapper did not return an explicit DrainSupport boolean decision")

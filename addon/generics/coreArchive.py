@@ -23,7 +23,7 @@ def extract_core_archive(archive_path: str, workspace_path: str) -> list[str]:
 		for member in core_file.infolist():
 			try:
 				core_file.extract(member, path=workspace_path)
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - in-use files raise OS-specific errors; they are skipped and reported
 				# Catching a broad Exception is intentional. Locked files (e.g., in-use DLLs)
 				# can raise different errors on different OSes. This safely skips them.
 				log.warning(f"Could not extract '{member.filename}' (likely in use): {error}")

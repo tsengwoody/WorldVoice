@@ -310,7 +310,7 @@ class _ContextualCerenceCallback(base.VECallback):
 			try:
 				if not driver._record_valid(record):
 					driver._real_player.stop()
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				host.record_error(record, error)
 
 	def detach(self):
@@ -364,7 +364,7 @@ class _CerenceStrategy(NativeStrategy):
 							(driver._pauses == 0 and not driver._paused) or not driver._record_valid(record)
 						),
 					)
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				# The player state is uncertain after a failed idle: reject successors.
 				host.record_error(record, error)
 				host.latch_control_error(error)
@@ -636,7 +636,7 @@ class SynthDriver(BaseSynthDriver):
 			if invoked:
 				try:
 					self._confirm_native_quiescence(call)
-				except Exception as error:
+				except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 					host.record_error(record, error)
 					host.latch_control_error(error)
 					blocked = error
@@ -647,7 +647,7 @@ class SynthDriver(BaseSynthDriver):
 			if blocked is not None:
 				try:
 					self._real_player.stop()
-				except Exception as error:
+				except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 					host.record_error(record, error)
 
 	def _close_admission(self, call):
@@ -898,7 +898,7 @@ class SynthDriver(BaseSynthDriver):
 			self._segmentHost.terminate()
 			try:
 				self.cancel()
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - kept and raised once termination finishes
 				self._terminationError = error
 		if reentrant:
 			# The caller owns a callback, a player operation or the BgThread
@@ -990,7 +990,7 @@ class Voice(Voice):
 				}
 				for item in dbs
 			]
-		except Exception:
+		except Exception:  # noqa: BLE001 - missing speech databases mean no variants
 			return []
 
 	@classmethod

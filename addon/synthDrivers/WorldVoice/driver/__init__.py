@@ -55,7 +55,7 @@ class Voice(VoiceFacade):
 
 		try:
 			voices = core.availableVoices.values()
-		except Exception:
+		except Exception:  # noqa: BLE001 - an engine without voice metadata contributes no voices
 			return result
 
 		for voice in voices:

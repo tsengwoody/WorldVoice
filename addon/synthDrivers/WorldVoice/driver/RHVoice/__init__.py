@@ -192,7 +192,7 @@ class _WavePlayer(LeasedPlayer):
 				with host.bound_callback(record):
 					try:
 						onDone()
-					except Exception as error:
+					except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 						host.record_error(record, error)
 
 		return index_done
@@ -231,7 +231,7 @@ class _QueuedSpeech:
 			if record.is_valid() and host.control_error is None:
 				with host.bound_callback(record):
 					self._task()
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 			host.record_error(record, error)
 		# Stop new native callbacks, but let admitted ones finish their player
 		# work before the final idle.
@@ -247,7 +247,7 @@ class _QueuedSpeech:
 			try:
 				owner._inner.player.idle()
 				host.reach(record, "idle")
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				host.record_error(record, error)
 		host.retire(record, finish=record.native.library.cleanup)
 		with owner._segmentCondition:
@@ -349,7 +349,7 @@ class SynthDriver(rhvoice.SynthDriver):
 					elif not result:
 						host.record_error(record, RuntimeError("RHVoice callback failed"))
 					return result
-				except Exception as error:
+				except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 					host.record_error(record, error)
 					return refused
 
@@ -388,13 +388,13 @@ class SynthDriver(rhvoice.SynthDriver):
 				error = None
 				try:
 					super().cancel()
-				except Exception as exc:
+				except Exception as exc:  # noqa: BLE001 - latched: the player or engine state is unknown
 					host.latch_control_error(exc)
 					error = exc
 			host.wait_settled(current)
 			try:
 				self._inner.player.stop()
-			except Exception as exc:
+			except Exception as exc:  # noqa: BLE001 - latched: the player or engine state is unknown
 				host.latch_control_error(exc)
 				if error is None:
 					error = exc
@@ -409,7 +409,7 @@ class SynthDriver(rhvoice.SynthDriver):
 		error = None
 		try:
 			self.cancel()
-		except Exception as exc:
+		except Exception as exc:  # noqa: BLE001 - kept and raised after the remaining cleanup
 			error = exc
 		inner = self._inner
 		inner.tts_queue.put(None)

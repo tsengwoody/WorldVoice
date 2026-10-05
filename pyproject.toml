@@ -37,6 +37,8 @@ line-ending = "lf"
 max-complexity = 15
 
 [tool.ruff.lint]
+# NVDA's logger, as in ref/nvda/pyproject.toml: handlers that log through it are not blind.
+logger-objects = ["logHandler.log"]
 ignore = [
 	# indentation contains tabs
 	"W191",

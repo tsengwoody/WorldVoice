@@ -456,7 +456,7 @@ class SegmentHost:
 		if finish is not None:
 			try:
 				finish()
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				self.record_error(record, error)
 		with self._condition:
 			valid = valid and not record.cancelled and (record.work is None or record.work.is_valid())
@@ -536,7 +536,7 @@ class SegmentHost:
 			return
 		try:
 			self._strategy.drain(self, record)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 			# A raising drain fails this segment, never the whole lifecycle.
 			self.record_error(record, error)
 			lifecycle.fail(operation, record.error)
@@ -566,7 +566,7 @@ class SegmentHost:
 		lifecycle = self._lifecycle_of(operation)
 		try:
 			lifecycle.run(operation, commands)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - delivered as the segment's terminal failure
 			lifecycle.reject_new(
 				operation.work.context,
 				operation.work.token,

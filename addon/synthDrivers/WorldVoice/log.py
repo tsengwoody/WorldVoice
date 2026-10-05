@@ -75,7 +75,7 @@ class PipelineLog:
 				_("Success"),
 				style=wx.OK | wx.ICON_INFORMATION,
 			)
-		except Exception as e:
+		except Exception as e:  # noqa: BLE001 - reported to the user
 			wx.LogError(
 				_("Cannot export log to {}:\n{}").format(dst, e),
 			)

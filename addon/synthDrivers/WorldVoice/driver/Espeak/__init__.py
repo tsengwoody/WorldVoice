@@ -95,7 +95,7 @@ class _EspeakStrategy(NativeStrategy):
 		driver._port.run_when_done(driver._beginSpeech, record)
 		try:
 			BaseSynthDriver.speak(driver, commands)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 			host.record_error(record, error)
 		finally:
 			driver._port.run_when_done(driver._retireSpeech, record)

@@ -23,7 +23,7 @@ GENERIC_CONTEXT = SpeechContext(supports_roles=False, language=None, number_lang
 def current_context() -> SpeechContext:
 	try:
 		synth = getSynth()
-	except Exception:
+	except Exception:  # noqa: BLE001 - no synth yet: use the generic context
 		return GENERIC_CONTEXT
 	if getattr(synth, "name", None) != "WorldVoice":
 		return GENERIC_CONTEXT

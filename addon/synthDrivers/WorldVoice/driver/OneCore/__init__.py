@@ -166,7 +166,7 @@ class _OneCoreStrategy(NativeStrategy):
 					driver._segmentCondition.wait_for(
 						lambda: not driver._segmentPaused or not record.work.is_valid(),
 					)
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				host.record_error(record, error)
 				driver._failSegmentControl(error)
 				return
@@ -301,7 +301,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			try:
 				if self._player:
 					self._player.open()
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				host.record_error(record, error)
 				self._failSegmentControl(error)
 				self._releaseSegmentWorker(record)

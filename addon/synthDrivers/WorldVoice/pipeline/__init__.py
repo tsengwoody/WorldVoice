@@ -56,7 +56,7 @@ def with_order_log(label: str):
 					synth = getSynth()
 					synth.order += 1
 					log.debug(f"{label} order {synth.order}")
-				except Exception:
+				except Exception:  # noqa: BLE001 - debug counter only; never affects speech
 					pass
 			return func(speechSequence, *args, **kwargs)
 

@@ -307,7 +307,7 @@ class SegmentLifecycle:
 				elif needs_playback:
 					try:
 						self._hooks.wait_playback_drained(operation)
-					except Exception as error:
+					except Exception as error:  # noqa: BLE001 - latched as a lifecycle fault
 						self._latch_fault(operation, error)
 					else:
 						with self._condition:
@@ -337,7 +337,7 @@ class SegmentLifecycle:
 				stop_done = operation._stop_done
 			if stop_done is not None:
 				stop_done.wait()
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - latched as a lifecycle fault
 			self._latch_fault(operation, error)
 		finally:
 			self.close_admission(operation)
@@ -483,7 +483,7 @@ class SegmentLifecycle:
 				if submitting:
 					operation._submit_done.wait()
 					self._hooks.request_stop(operation)
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - latched as a lifecycle fault
 				self._latch_fault(operation, error)
 			finally:
 				done.set()

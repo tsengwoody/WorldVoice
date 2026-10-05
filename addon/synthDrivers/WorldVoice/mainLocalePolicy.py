@@ -88,6 +88,6 @@ class ParameterConsistency:
 			return None
 		try:
 			return self._conf_provider()["speech"][synth_name()]
-		except Exception:
+		except Exception:  # noqa: BLE001 - the speech section may not exist during synth startup
 			# Preserve the legacy fallback even during synth startup.
 			return None

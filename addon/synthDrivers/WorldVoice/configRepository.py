@@ -33,7 +33,7 @@ class ConfigVoiceSettingsRepository:
 			else:
 				try:
 					value = shared.get(name, None)
-				except Exception:
+				except Exception:  # noqa: BLE001 - an invalid main-synth value falls back to the voice's own
 					# An invalid main-synth value falls back to this voice's own.
 					value = voices[spec.name].get(name, None)
 			if value is not None:

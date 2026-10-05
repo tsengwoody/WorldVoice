@@ -76,7 +76,7 @@ class _Sapi5Strategy(NativeStrategy):
 		with driver._threadCond:
 			try:
 				driver._checkWorker()
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - returned as the admission error
 				return error
 			if not driver.useWasapi or driver.player is None:
 				return RuntimeError("Correlated SAPI5 playback requires the WASAPI player")
@@ -105,7 +105,7 @@ class _Sapi5Strategy(NativeStrategy):
 		if player is not None:
 			try:
 				player.stop()
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - latched: the player or engine state is unknown
 				driver._failSegmentControl(error)
 
 	def stop_player(self, host):
@@ -121,12 +121,12 @@ class _Sapi5Strategy(NativeStrategy):
 			return
 		try:
 			player.idle()
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 			host.record_error(record, error)
 			try:
 				player.stop()
 				native.tts.Speak(None, _purge_flags())
-			except Exception as control_error:
+			except Exception as control_error:  # noqa: BLE001 - latched: the player or engine state is unknown
 				self._driver()._failSegmentControl(control_error)
 			return
 		host.reach(record, "idle")
@@ -529,7 +529,7 @@ class SynthDriver(BaseSynthDriver):
 			if record is None:
 				try:
 					self._purgeCancelledSpeech(self.tts, self.sonicStream)
-				except Exception as error:
+				except Exception as error:  # noqa: BLE001 - latched: the player or engine state is unknown
 					self._failSegmentControl(error)
 				continue
 			error = None
@@ -588,7 +588,7 @@ class SynthDriver(BaseSynthDriver):
 						# to a new request. Require resource replacement after an
 						# ordinary failure rather than accepting a false successor drain.
 						self._failSegmentControl(failure)
-				except Exception as control_error:
+				except Exception as control_error:  # noqa: BLE001 - latched: the player or engine state is unknown
 					self._failSegmentControl(control_error)
 			finally:
 				# A feed admitted before cancellation may return after stop. Its
@@ -610,7 +610,7 @@ class SynthDriver(BaseSynthDriver):
 										break
 							sonic.flush()
 							sonic.readShort()
-					except Exception as control_error:
+					except Exception as control_error:  # noqa: BLE001 - recorded on the record; the segment fails
 						self._failSegmentControl(control_error)
 				if error is not None:
 					host.record_error(record, error)

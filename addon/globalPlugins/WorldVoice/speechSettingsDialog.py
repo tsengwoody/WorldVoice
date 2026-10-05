@@ -70,7 +70,7 @@ class BaseSettingsPanel(SettingsPanel):
 				setattr(self, attr, widget)
 				try:
 					index = list(v["options"].keys()).index(str(config.conf["WorldVoice"][self.field][k]))
-				except Exception:
+				except Exception:  # noqa: BLE001 - a missing or invalid stored value selects the first option
 					index = 0
 					tones.beep(100, 100)
 				widget.Selection = index

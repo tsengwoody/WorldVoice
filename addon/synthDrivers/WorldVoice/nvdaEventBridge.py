@@ -187,7 +187,7 @@ class NvdaEventBridge:
 		for event, callback in registrations:
 			try:
 				event.unregister(callback)
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - collected; the first is raised after every step ran
 				if first_error is None:
 					first_error = error
 		for binding in sources.values():
@@ -195,7 +195,7 @@ class NvdaEventBridge:
 				continue
 			try:
 				self._index_ledger.unbind(binding.source_id)
-			except Exception as error:
+			except Exception as error:  # noqa: BLE001 - collected; the first is raised after every step ran
 				if first_error is None:
 					first_error = error
 		sources.clear()

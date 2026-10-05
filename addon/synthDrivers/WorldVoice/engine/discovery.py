@@ -66,7 +66,7 @@ def _load_manifest(path: Path, logger: Any = None) -> dict[str, Any] | None:
 		return None
 	try:
 		data = json.loads(path.read_text(encoding="utf-8"))
-	except Exception as error:  # noqa: BLE001
+	except Exception as error:  # noqa: BLE001 - a broken manifest skips that engine with a warning
 		_log(
 			logger,
 			"warning",
@@ -203,7 +203,7 @@ def load_enabled_engine_classes(
 			if not is_ready:
 				continue
 			ready[spec.name] = voice
-		except Exception as error:  # noqa: BLE001
+		except Exception as error:  # noqa: BLE001 - one engine failing to load is logged and skipped
 			_log(logger, "error", "Failed to load ready state for %s: %s", spec.name, error)
 		finally:
 			_log(
