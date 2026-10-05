@@ -3,16 +3,10 @@ import shutil
 import time
 from pathlib import Path
 
-import addonHandler
-import gui
-import wx
-
-addonHandler.initTranslation()
 script_dir = Path(__file__).resolve().parent
 parent_dir = script_dir.parent.parent
 
 log_dir = parent_dir / "log"
-log_dir.mkdir(parents=True, exist_ok=True)
 MAX_LOG_SIZE = 5 * 1024 * 1024
 
 
@@ -21,9 +15,9 @@ class PipelineLog:
 
 	def __init__(self, log_name):
 		self.log_file = log_dir / log_name
-		self._ensure_log_file()
 
 	def _ensure_log_file(self):
+		self.log_file.parent.mkdir(parents=True, exist_ok=True)
 		if self.log_file.exists() and self.log_file.stat().st_size > 0:
 			return
 		with self.log_file.open(mode="a", encoding="utf-8", newline="") as csvfile:
@@ -52,30 +46,8 @@ class PipelineLog:
 				},
 			)
 
-	def export(self):
-		with wx.FileDialog(
-			gui.mainFrame,
-			# Translators: The title of the Export pipeline log file window
-			message=_("Export pipeline log files..."),
-			defaultDir="",
-			defaultFile="pipeline_log.csv",
-			wildcard="csv files (*.csv)|*.csv",
-			style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
-		) as entryDialog:
-			if entryDialog.ShowModal() != wx.ID_OK:
-				return
-			dst = Path(entryDialog.GetPath())
-
-		try:
-			dst.parent.mkdir(parents=True, exist_ok=True)
-			shutil.move(str(self.log_file), str(dst))
-			self._ensure_log_file()
-			wx.MessageBox(
-				_("Log exported to:\n{}").format(dst),
-				_("Success"),
-				style=wx.OK | wx.ICON_INFORMATION,
-			)
-		except Exception as e:  # noqa: BLE001 - reported to the user
-			wx.LogError(
-				_("Cannot export log to {}:\n{}").format(dst, e),
-			)
+	def move_to(self, dst: Path) -> None:
+		"""Move the current log to dst and start a new, empty one."""
+		dst.parent.mkdir(parents=True, exist_ok=True)
+		shutil.move(str(self.log_file), str(dst))
+		self._ensure_log_file()

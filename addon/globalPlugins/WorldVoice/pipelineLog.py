@@ -1,5 +1,7 @@
 """Turning the speech pipeline log on and off, shared by the plugin and the log panel."""
 
+from pathlib import Path
+
 import addonHandler
 import config
 import gui
@@ -13,7 +15,7 @@ addonHandler.initTranslation()
 class PipelineLogService:
 	def __init__(self, conf_provider=lambda: config.conf, exporter=None):
 		self._conf_provider = conf_provider
-		self._exporter = exporter or pl.export
+		self._exporter = exporter or export_with_dialog
 
 	def _section(self):
 		return self._conf_provider()["WorldVoice"]["log"]
@@ -33,6 +35,35 @@ class PipelineLogService:
 			self._exporter()
 		except Exception:
 			log.error("WorldVoice: exporting the pipeline log failed", exc_info=True)
+
+
+def export_with_dialog(log=None):
+	"""Ask where to save the pipeline log, move it there and report the result."""
+	log = log or pl
+	with wx.FileDialog(
+		gui.mainFrame,
+		# Translators: The title of the Export pipeline log file window
+		message=_("Export pipeline log files..."),
+		defaultDir="",
+		defaultFile="pipeline_log.csv",
+		wildcard="csv files (*.csv)|*.csv",
+		style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+	) as entryDialog:
+		if entryDialog.ShowModal() != wx.ID_OK:
+			return
+		dst = Path(entryDialog.GetPath())
+
+	try:
+		log.move_to(dst)
+		wx.MessageBox(
+			_("Log exported to:\n{}").format(dst),
+			_("Success"),
+			style=wx.OK | wx.ICON_INFORMATION,
+		)
+	except Exception as e:  # noqa: BLE001 - reported to the user
+		wx.LogError(
+			_("Cannot export log to {}:\n{}").format(dst, e),
+		)
 
 
 pipeline_log = PipelineLogService()
