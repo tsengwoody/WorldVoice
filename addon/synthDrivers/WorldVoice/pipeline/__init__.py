@@ -148,6 +148,7 @@ def _both_text(previous: SpeechCmd, current: SpeechCmd) -> bool:
 
 
 def _both_numbers(previous: SpeechCmd, current: SpeechCmd) -> bool:
+	# A prefix match on purpose: number_wait_factor has always treated "12abc" as a number item.
 	return (
 		_both_text(previous, current) and bool(_NUMBER_RE.match(previous)) and bool(_NUMBER_RE.match(current))
 	)

@@ -22,7 +22,8 @@ class CancellationView(Protocol):
 
 	add_callback(callback) calls ``callback`` once when the token is cancelled,
 	immediately if it already is, and returns a function that removes it.
-	Callbacks run outside the token's lock and must only notify.
+	A callback that cancel() is already dispatching may still run once after
+	its removal returns. Callbacks run outside the token's lock and must only notify.
 	"""
 
 	def is_cancelled(self) -> bool: ...

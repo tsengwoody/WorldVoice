@@ -74,9 +74,13 @@ class _EspeakPort:
 		_espeak.onIndexReached = callback
 
 	def mark_not_speaking(self):
+		# NVDA's callback clears isSpeaking on its final empty-wav call; a failed
+		# utterance never reaches it, so clear it here or the next one is aborted early.
 		_espeak.isSpeaking = False
 
 	def stop_player(self):
+		# As NVDA's stop(): an in-flight callback sees isSpeaking False and aborts
+		# synthesis instead of feeding the player after it was stopped.
 		_espeak.isSpeaking = False
 		_espeak.player.stop()
 

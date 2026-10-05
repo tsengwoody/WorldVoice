@@ -480,6 +480,8 @@ class SegmentHost:
 			return None
 		if not valid:
 			# Token-only cancellation can skip the terminal idle; discard queued audio.
+			# Ordinary speech only logs a failed stop here; a segment's drain path
+			# latches it as a lifecycle fault, because its successor waits on the drain.
 			try:
 				self._strategy.stop_player(self)
 			except Exception:

@@ -24,6 +24,7 @@ def group_by_primary_locale(specs: Iterable[VoiceSpec]) -> dict[str, list[str]]:
 class VoiceCatalog:
 	table: tuple[VoiceSpec, ...]
 	by_name: Mapping[str, VoiceSpec]
+	# Mutable on purpose: NVDA's SynthDriver.availableVoices is an OrderedDict.
 	voice_infos: "OrderedDict[str, VoiceInfo]"
 	all_languages: tuple[str, ...]
 

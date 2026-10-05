@@ -383,19 +383,21 @@ class SynthDriver(rhvoice.SynthDriver):
 					dropped = [record for record in self._segmentById.values() if record is not current]
 					for record in dropped:
 						self._segmentById.pop(record.native.identity, None)
-				# Queued records never reach the worker; the inner cancel clears them.
+				# Every record but the current one: queued (the inner cancel also empties
+				# tts_queue), held at the stop gate, or retired but not yet popped. Abandon
+				# closes each, so a worker waiting at the gate returns without speaking.
 				for record in dropped:
 					host.abandon(record)
 				error = None
 				try:
 					super().cancel()
-				except Exception as exc:  # noqa: BLE001 - latched: the player or engine state is unknown
+				except Exception as exc:  # noqa: BLE001 - latched, and kept to raise after the remaining cleanup
 					host.latch_control_error(exc)
 					error = exc
 			host.wait_settled(current)
 			try:
 				self._inner.player.stop()
-			except Exception as exc:  # noqa: BLE001 - latched: the player or engine state is unknown
+			except Exception as exc:  # noqa: BLE001 - latched, and kept to raise after the remaining cleanup
 				host.latch_control_error(exc)
 				if error is None:
 					error = exc

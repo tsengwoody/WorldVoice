@@ -365,7 +365,7 @@ class _VEStrategy(NativeStrategy):
 							(driver._pauses == 0 and not driver._paused) or not driver._record_valid(record)
 						),
 					)
-			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
+			except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
 				# The player state is uncertain after a failed idle: reject successors.
 				host.record_error(record, error)
 				host.latch_control_error(error)
@@ -637,7 +637,7 @@ class SynthDriver(BaseSynthDriver):
 			if invoked:
 				try:
 					self._confirm_native_quiescence(call)
-				except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
+				except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
 					host.record_error(record, error)
 					host.latch_control_error(error)
 					blocked = error

@@ -74,19 +74,39 @@ def test_tests_share_one_module_stub_helper():
 	assert local == []
 
 
-# The spec's reason table: the first entry whose call appears in a handler's
-# own body names where its error goes.
+# The spec's reason table: the first entry whose calls all appear in a handler's
+# own body names where its error goes. Combined entries come first, so a handler
+# that both records and latches says both.
+_LATCHED = "recorded on the record and latched: later speech is rejected"
 _REASONS = (
-	("record_error", "recorded on the record; the segment fails"),
-	("latch_control_error", "latched: the player or engine state is unknown"),
-	("_failSegmentControl", "latched: the player or engine state is unknown"),
-	("_latch_fault", "latched as a lifecycle fault"),
-	("_terminationError", "kept and raised once termination finishes"),
-	("first_error", "collected; the first is raised after every step ran"),
-	("error = exc", "kept and raised after the remaining cleanup"),
-	("return unsupported", "any failure means drain is unsupported"),
-	("return error", "returned as the admission error"),
+	(("record_error", "operation is not None", "_failSegmentControl"),
+		"recorded on the record; a segment's failure also latches"),
+	(("record_error", "latch_control_error"), _LATCHED),
+	(("record_error", "_failSegmentControl"), _LATCHED),
+	(("latch_control_error", "error = exc"), "latched, and kept to raise after the remaining cleanup"),
+	(("record_error",), "recorded on the record; the segment fails"),
+	(("latch_control_error",), "latched: the player or engine state is unknown"),
+	(("_failSegmentControl",), "latched: the player or engine state is unknown"),
+	(("_latch_fault",), "latched as a lifecycle fault"),
+	(("_terminationError",), "kept and raised once termination finishes"),
+	(("first_error",), "collected; the first is raised after every step ran"),
+	(("error = exc",), "kept and raised after the remaining cleanup"),
+	(("return unsupported",), "any failure means drain is unsupported"),
+	(("return error",), "returned as the admission error"),
 )
+
+
+def _own_body(handler):
+	"""The handler's statements, without the bodies of handlers nested inside it."""
+	import ast
+	import copy
+
+	body = copy.deepcopy(handler.body)
+	for statement in body:
+		for nested in ast.walk(statement):
+			if isinstance(nested, ast.ExceptHandler):
+				nested.body = [ast.Pass()]
+	return "\n".join(ast.unparse(statement) for statement in body)
 
 
 def test_blind_except_reasons_match_their_handlers():
@@ -102,8 +122,8 @@ def test_blind_except_reasons_match_their_handlers():
 			match = re.search(r"noqa: BLE001 - (.+)$", lines[node.lineno - 1])
 			if match is None:
 				continue
-			body = "\n".join(ast.unparse(statement) for statement in node.body)
-			expected = next((reason for key, reason in _REASONS if key in body), None)
+			body = _own_body(node)
+			expected = next((reason for keys, reason in _REASONS if all(key in body for key in keys)), None)
 			if expected is not None and match.group(1) != expected:
 				wrong.append(f"{path.relative_to(ROOT)}:{node.lineno}: {match.group(1)!r} != {expected!r}")
 	assert wrong == []

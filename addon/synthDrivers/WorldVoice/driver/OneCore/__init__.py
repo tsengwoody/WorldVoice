@@ -165,7 +165,7 @@ class _OneCoreStrategy(NativeStrategy):
 					driver._segmentCondition.wait_for(
 						lambda: not driver._segmentPaused or not record.work.is_valid(),
 					)
-			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
+			except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
 				host.record_error(record, error)
 				driver._failSegmentControl(error)
 				return
@@ -300,7 +300,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			try:
 				if self._player:
 					self._player.open()
-			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
+			except Exception as error:  # noqa: BLE001 - recorded on the record; a segment's failure also latches
 				host.record_error(record, error)
 				# Like NVDA's OneCore, a sentence that cannot open the device fails alone;
 				# the next one opens it again. A segment's failure leaves the player
