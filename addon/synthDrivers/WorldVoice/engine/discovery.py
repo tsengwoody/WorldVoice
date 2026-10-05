@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import os
 import sys
 from dataclasses import dataclass
@@ -23,13 +24,8 @@ class EngineSpec:
 	default_enabled: bool
 
 
-def _log(logger: Any, method: str, message: str, *args):
-	if logger is None:
-		return
-	log_method = getattr(logger, method, None)
-	if log_method is None:
-		return
-	log_method(message, *args)
+# Callers that pass no logger report through stdlib logging, which NVDA routes to its log.
+_LOG = logging.getLogger(__name__)
 
 
 def coerce_bool(value: Any) -> bool:
@@ -62,23 +58,20 @@ def _iter_external_candidates(external_root: Path):
 
 
 def _load_manifest(path: Path, logger: Any = None) -> dict[str, Any] | None:
+	logger = logger or _LOG
 	if not path.is_file():
 		return None
 	try:
 		data = json.loads(path.read_text(encoding="utf-8"))
 	except Exception as error:  # noqa: BLE001 - a broken manifest skips that engine with a warning
-		_log(
-			logger,
-			"warning",
+		logger.warning(
 			"Skipping %s engine candidate: invalid manifest (%s)",
 			path.parent.name,
 			error,
 		)
 		return None
 	if not isinstance(data, dict):
-		_log(
-			logger,
-			"warning",
+		logger.warning(
 			"Skipping %s engine candidate: manifest must be a JSON object",
 			path.parent.name,
 		)
@@ -117,6 +110,7 @@ def discover_engine_specs(
 	external_root: str | os.PathLike[str],
 	logger: Any = None,
 ) -> list[EngineSpec]:
+	logger = logger or _LOG
 	specs: list[EngineSpec] = []
 	internal_root_path = Path(internal_root)
 	external_root_path = Path(external_root)
@@ -124,7 +118,7 @@ def discover_engine_specs(
 
 	for name, manifest_path, source in _iter_internal_candidates(internal_root_path):
 		if not manifest_path.is_file():
-			_log(logger, "debug", "Skipping %s engine candidate: manifest missing", name)
+			logger.debug("Skipping %s engine candidate: manifest missing", name)
 			continue
 		manifest = _load_manifest(manifest_path, logger=logger)
 		if manifest is None:
@@ -135,7 +129,7 @@ def discover_engine_specs(
 
 	for name, manifest_path, source in _iter_external_candidates(external_root_path):
 		if not manifest_path.is_file():
-			_log(logger, "debug", "Skipping %s engine candidate: manifest missing", name)
+			logger.debug("Skipping %s engine candidate: manifest missing", name)
 			continue
 		manifest = _load_manifest(manifest_path, logger=logger)
 		if manifest is None:
@@ -150,6 +144,7 @@ def load_enabled_engine_classes(
 	engine_config: dict[str, Any],
 	logger: Any = None,
 ) -> dict[str, type]:
+	logger = logger or _LOG
 	ready: dict[str, type] = {}
 	for spec in engine_specs:
 		if not get_engine_enabled(engine_config, spec):
@@ -161,13 +156,11 @@ def load_enabled_engine_classes(
 				with timed(logger, f"ready check {spec.name} Voice lookup"):
 					voice = getattr(module, "Voice", None)
 				if voice is None:
-					_log(logger, "warning", "Skipping %s engine candidate: Voice export missing", spec.name)
+					logger.warning("Skipping %s engine candidate: Voice export missing", spec.name)
 					continue
 				voice_engine = getattr(voice, "engine", None)
 				if voice_engine is not None and voice_engine != spec.name:
-					_log(
-						logger,
-						"warning",
+					logger.warning(
 						"Skipping %s engine candidate: Voice.engine mismatch (%s)",
 						spec.name,
 						voice_engine,
@@ -179,7 +172,7 @@ def load_enabled_engine_classes(
 					continue
 				ready[spec.name] = voice
 			except Exception as error:  # noqa: BLE001 - one engine failing to load is logged and skipped
-				_log(logger, "error", "Failed to load ready state for %s: %s", spec.name, error)
+				logger.error("Failed to load ready state for %s: %s", spec.name, error)
 	return ready
 
 

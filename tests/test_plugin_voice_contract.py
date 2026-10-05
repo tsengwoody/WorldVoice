@@ -86,3 +86,19 @@ def test_reference_neural_plugin_uses_only_plugin_attributes():
 		assert isinstance(statement, ast.Assign), ast.dump(statement)
 		assigned |= {target.id for target in statement.targets}
 	assert assigned <= PLUGIN_VOICE_ATTRIBUTES
+
+
+def test_base_voice_lists_the_core_voices(composition):  # noqa: F811
+	Voice = neural_voice(composition.driver.Voice)
+	assert Voice.voices(None) == []
+	assert Voice.voices(SimpleNamespace()) == []
+	assert [(meta["name"], meta["language"]) for meta in Voice.voices(FakeCore())] == [("Neural:v1", "en")]
+
+
+def test_listing_voices_trusts_the_ready_check_discovery_made(composition):  # noqa: F811
+	class Voice(neural_voice(composition.driver.Voice)):
+		@classmethod
+		def ready(cls):
+			raise AssertionError("discovery already asked")
+
+	assert [meta["name"] for meta in Voice.voices(FakeCore())] == ["Neural:v1"]

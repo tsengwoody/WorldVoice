@@ -49,8 +49,9 @@ class Voice(VoiceFacade):
 
 	@classmethod
 	def voices(cls, core):
+		# Engine discovery loads only classes whose ready() is true.
 		result = []
-		if not cls.ready() or not core:
+		if not core:
 			return result
 
 		try:
