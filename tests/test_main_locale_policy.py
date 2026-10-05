@@ -95,3 +95,28 @@ def test_shared_section_only_when_enabled_and_available(monkeypatch):
 		raise RuntimeError("no synth")
 	assert policy.shared_section(unavailable) is None
 	assert policy.shared_section(lambda: "Other") is None
+
+
+class AggregatedSpeech:
+	"""NVDA's speech section: indexing a synth it has never saved raises, get returns the default."""
+
+	def __init__(self, sections):
+		self._sections = sections
+
+	def __getitem__(self, key):
+		return self._sections[key]
+
+	def get(self, key, default=None):
+		return self._sections.get(key, default)
+
+
+def test_shared_section_is_none_before_nvda_first_saves_the_synth(monkeypatch):
+	module = load_policy(monkeypatch)
+	conf = flags(parameter=True)
+	policy = module.ParameterConsistency(lambda: conf)
+	conf["speech"] = {}
+	assert policy.shared_section(lambda: "WorldVoice") is None
+	conf["speech"] = AggregatedSpeech({})
+	assert policy.shared_section(lambda: "WorldVoice") is None
+	conf["speech"] = AggregatedSpeech({"WorldVoice": {"rate": 70}})
+	assert policy.shared_section(lambda: "WorldVoice") == {"rate": 70}
