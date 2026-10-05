@@ -40,8 +40,8 @@ def _editing_manager(monkeypatch):
 	manager.settings = a._binding.settings
 	manager._instanceCache = {a.name: a}
 	manager._defaultVoiceInstance = a
-	manager.keepMainLocaleEngineConsistent = False
-	manager.table = [a._state.spec, b._state.spec]
+	manager.engine_consistency.enabled = False
+	manager.catalog = module.VoiceCatalog.from_specs([a._state.spec, b._state.spec])
 	manager.getVoiceInstance = lambda key: {a.name: a, b.name: b}[key]
 	return manager, a, b, config
 

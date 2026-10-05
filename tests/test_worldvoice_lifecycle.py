@@ -161,7 +161,8 @@ def _load_voice_manager(monkeypatch, engine_classes):
 	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=types.SimpleNamespace(
 		debug=lambda *args: None, error=lambda *args, **kwargs: None,
 	)))
-	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(VoiceInfo=object))
+	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
+		VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(id=id, displayName=displayName, language=language)))
 	engine_name = f"{package_name}.engine"
 	engine = types.ModuleType(engine_name)
 	engine.EngineType = [types.SimpleNamespace(name=name) for name in engine_classes]

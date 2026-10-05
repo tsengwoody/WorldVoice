@@ -42,8 +42,7 @@ def env(monkeypatch):
 	manager._init_policies()
 	manager.settings = a._binding.settings
 	manager._instanceCache = dict(voices)
-	manager._voiceInfos = dict.fromkeys(voices)
-	manager.table = [voice._state.spec for voice in voices.values()]
+	manager.catalog = module.VoiceCatalog.from_specs(voice._state.spec for voice in voices.values())
 	manager._defaultVoiceInstance = a
 	manager.getVoiceInstance = voices.__getitem__
 	conf["speech"] = {"WorldVoice": {"voice": a.name}}
@@ -98,17 +97,17 @@ def test_unticking_a_consistency_that_was_already_on_changes_nothing(env):
 def test_engine_consistency_preview_cancel_and_apply(env):
 	env.conf["WorldVoice"]["role"]["fr"] = {"voice": env.b.name}
 	env.presenter.set_engine_consistency(True)
-	assert env.manager.keepMainLocaleEngineConsistent is True
+	assert env.manager.engine_consistency.enabled is True
 	assert [locale for locale, _ in env.presenter.locales()] == ["en"]
 	assert env.conf["WorldVoice"]["role"]["fr"]["voice"] == env.b.name
 	env.presenter.discard()
-	assert env.manager.keepMainLocaleEngineConsistent is False
+	assert env.manager.engine_consistency.enabled is False
 	env.presenter.set_engine_consistency(True)
 	env.presenter.apply()
 	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is True
 	assert "fr" not in env.conf["WorldVoice"]["role"]
 	env.presenter.discard()
-	assert env.manager.keepMainLocaleEngineConsistent is True
+	assert env.manager.engine_consistency.enabled is True
 
 
 def test_late_voice_is_restored_on_discard(env):
@@ -179,7 +178,7 @@ def test_save_failure_writes_nothing_else_and_keeps_pending(env, monkeypatch):
 	assert env.presenter.selected_voice("fr") == env.b.name
 	env.presenter.discard()
 	assert env.a.rate == 50
-	assert env.manager.keepMainLocaleEngineConsistent is False
+	assert env.manager.engine_consistency.enabled is False
 
 
 def test_apply_previews_consistency_before_saving(env):

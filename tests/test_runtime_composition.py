@@ -26,7 +26,7 @@ def _idle_token():
 def composition(monkeypatch):
     manager_module = _load_voice_manager(monkeypatch, {})
     package = manager_module.__package__
-    monkeypatch.setattr(manager_module, "VoiceInfo", lambda key, description, language:
+    monkeypatch.setattr(importlib.import_module(package + ".voiceCatalog"), "VoiceInfo", lambda key, description, language:
                         SimpleNamespace(id=key, description=description, language=language))
     monkeypatch.setattr(sys.modules["languageHandler"], "getLanguageDescription", lambda value: value, raising=False)
     monkeypatch.setattr(sys.modules["synthDriverHandler"], "getSynth", lambda: None, raising=False)

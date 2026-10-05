@@ -40,7 +40,7 @@ def _load_voice_manager(monkeypatch, engine_classes):
 	)
 	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=log))
 	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
-		VoiceInfo=object, getSynth=lambda: types.SimpleNamespace(name="WorldVoice")))
+		VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(id=id, displayName=displayName, language=language), getSynth=lambda: types.SimpleNamespace(name="WorldVoice")))
 	engine_name = f"{package_name}.engine"
 	engine = types.ModuleType(engine_name)
 	engine.EngineType = [types.SimpleNamespace(name=name) for name in engine_classes]
@@ -164,7 +164,7 @@ def test_manager_binds_new_voice_to_its_engine(monkeypatch):
 	voice_meta = type(a._state.spec)("new", "A:new", "A:new", "en", "A", "en")
 	manager_instance = object.__new__(module.VoiceManager)
 	manager_instance._init_policies()
-	manager_instance._specs = {voice_meta.name: voice_meta}
+	manager_instance.catalog = module.VoiceCatalog.from_specs([voice_meta])
 	manager_instance._bindings = {"A": a._binding}
 	manager_instance.settings = a._binding.settings
 	manager_instance.taskManager = None

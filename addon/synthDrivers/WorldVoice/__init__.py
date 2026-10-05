@@ -492,7 +492,7 @@ class SynthDriver(SynthDriver):
 				locale: StringParameterInfo(locale, name)
 				for locale, name in zip(
 					self._voiceManager.languages,
-					list(map(self._getLocaleReadableName, self._voiceManager.languages)),
+					list(map(self._numlanDisplayName, self._voiceManager.languages)),
 				)
 			},
 		)
@@ -512,7 +512,8 @@ class SynthDriver(SynthDriver):
 			},
 		)
 
-	def _getLocaleReadableName(self, locale):
+	def _numlanDisplayName(self, locale):
+		# Settings-ring entries show the language description only.
 		description = languageHandler.getLanguageDescription(locale)
 		return "%s" % (description) if description else locale
 

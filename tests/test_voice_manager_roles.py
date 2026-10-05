@@ -14,9 +14,9 @@ def make_manager(monkeypatch, *, engine=True, voice=True):
 	conf["WorldVoice"]["role"] = {"fr": {"voice": "B:b"}, "en": {"voice": "X:gone"}}
 	manager = object.__new__(module.VoiceManager)
 	manager._init_policies()
-	spec = module.VoiceMeta
-	manager.table = [spec("a", "A:a", "A", "en_US", "A", "en_US"), spec("b", "B:b", "B", "fr", "B", "fr"),
-		spec("c", "A:c", "C", "fr", "A", "fr")]
+	spec = module.VoiceSpec
+	manager.catalog = module.VoiceCatalog.from_specs([spec("a", "A:a", "A", "en_US", "A", "en_US"),
+		spec("b", "B:b", "B", "fr", "B", "fr"), spec("c", "A:c", "C", "fr", "A", "fr")])
 	manager._defaultVoiceInstance = types.SimpleNamespace(name="A:a", engine="A", language="en_US")
 	return module, conf, manager
 
@@ -26,9 +26,8 @@ def test_engine_filter_is_shared_by_every_locale_view(monkeypatch):
 	assert manager.languages == ["en", "fr"]
 	assert manager.localeToVoicesMap == {"en": ["A:a"], "fr": ["A:c"]}
 	assert set(manager.localesToNamesMap) == {"en", "fr"}
-	manager.keepMainLocaleEngineConsistent = False
-	assert manager.engine_consistency.enabled is False
-	assert manager.localeToVoicesMap == {"en": ["A:a"], "fr": ["B:b", "A:c"]}
+	manager.engine_consistency.enabled = False
+	assert manager.localeToVoicesMap == {"en": ["A:a"], "fr": ["A:c", "B:b"]}
 
 
 def test_keep_engine_consistent_prunes_through_the_repository(monkeypatch):
@@ -44,8 +43,8 @@ def test_main_locale_voice_follows_default_voice(monkeypatch):
 
 
 def test_configured_voice_comes_from_the_repository(monkeypatch):
-	_, conf, manager = make_manager(monkeypatch)
-	manager._voiceInfos = {"B:b": object()}
+	module, conf, manager = make_manager(monkeypatch)
+	manager.catalog = module.VoiceCatalog.from_specs([s for s in manager.table if s.name == "B:b"])
 	manager._defaultVoiceInstance.name = "A:a"
 	assert manager.getVoiceNameForLanguage("fr_CA") == "B:b"
 	assert manager.getVoiceNameForLanguage("en") == "A:a"

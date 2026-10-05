@@ -302,16 +302,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			return
 
 		self._manager = getSynth()._voiceManager
-		if not self._manager.ready():
-			infoCtrl = wx.TextCtrl(
-				self,
-				value=_("Your current speech synthesizer is not ready."),
-				style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE,
-			)
-			infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
-			sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
-			self.disable = True
-			return
 
 		synth = getSynth()
 
@@ -623,17 +613,6 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			return
 
 		self._manager = getSynth()._voiceManager
-		self.ready = self._manager.ready()
-		if not self.ready:
-			infoCtrl = wx.TextCtrl(
-				self,
-				value=_("Your current speech synthesizer is not ready."),
-				style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE,
-			)
-			infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
-			sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
-			self.disable = True
-			return
 
 		self.localesToNames = self._manager.localesToNamesMap
 		self._locales = self._manager.languages

@@ -1,13 +1,10 @@
-from collections import OrderedDict, defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
-from operator import attrgetter
-from typing import Callable, Dict, List, TypeVar
+from typing import Callable
 
 import config
 import languageHandler
 from logHandler import log
-from synthDriverHandler import VoiceInfo
 
 from .compat.engineAdapter import LegacyEngineAdapter
 from .compat.voiceFacade import LegacyVoiceBinding
@@ -15,14 +12,13 @@ from .engine import READY_ENGINE_CLASS, EngineType, get_engine_enabled, refresh_
 from .indexLedger import IndexLedger
 from .mainLocalePolicy import EngineConsistency, ParameterConsistency, VoiceConsistency
 from .nvdaEventBridge import NvdaEventBridge
-
-# getPrimaryLocale is re-exported for callers of this module.
-from .roles import ConfigRoleRepository, getPrimaryLocale
+from .roles import ConfigRoleRepository
 from .runtime.completion import rule_for
 from .runtime.models import CompletionContract, EngineCapabilities, VoiceSpec
 from .runtime.scheduler import TaskManager
 from .runtime.session import EngineSession, PlaybackPort
 from .runtime.settings import VoiceEditSession, VoiceSettingsStore
+from .voiceCatalog import EMPTY_CATALOG, VoiceCatalog, group_by_primary_locale
 
 
 @dataclass
@@ -36,41 +32,7 @@ class EngineResource:
 	binding: LegacyVoiceBinding
 
 
-T = TypeVar("T")
-K = TypeVar("K")
-V = TypeVar("V")
-
-
-def groupByField(
-	arrSrc: List[T],
-	field: str,
-	applyKey: Callable[[str], K],
-	applyValue: Callable[[T], V],
-) -> Dict[K, List[V]]:
-	groups: Dict[K, List[V]] = defaultdict(list)
-	for item in arrSrc:
-		val = getattr(item, field)
-		key = applyKey(val)
-		groups[key].append(applyValue(item))
-	return groups
-
-
-def groupVoicesByPrimaryLocale(table: list["VoiceMeta"]) -> dict[str, list[str]]:
-	return groupByField(table, "locale", getPrimaryLocale, lambda i: i.name)
-
-
-def getVoiceKey(engine: str, voiceId: str) -> str:
-	return "%s:%s" % (engine, voiceId)
-
-
-VoiceMeta = VoiceSpec
-
-
 class VoiceManager(object):
-	@classmethod
-	def ready(cls):
-		return True
-
 	def __init__(
 		self,
 		taskManager: TaskManager,
@@ -90,6 +52,7 @@ class VoiceManager(object):
 		self._sessions = {}
 		self._bindings = {}
 		self._specs = {}
+		self.catalog = EMPTY_CATALOG
 		self._instanceCache = {}
 		self._waitfactor = 0
 		self._terminated = False
@@ -110,14 +73,6 @@ class VoiceManager(object):
 		self.voice_consistency = VoiceConsistency(conf_provider, self.roles, languageHandler.getLanguage)
 		self.parameter_consistency = ParameterConsistency(conf_provider)
 
-	@property
-	def keepMainLocaleEngineConsistent(self):
-		return self.engine_consistency.enabled
-
-	@keepMainLocaleEngineConsistent.setter
-	def keepMainLocaleEngineConsistent(self, value):
-		self.engine_consistency.enabled = value
-
 	def _initialize(self):
 		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
 		for eng in EngineType:
@@ -134,7 +89,7 @@ class VoiceManager(object):
 		self._setVoiceDatas()
 		if not self.table:
 			raise RuntimeError("No WorldVoice voices are available from enabled speech engines.")
-		self._defaultVoiceInstance = self.getVoiceInstance(self._getDefaultVoiceMeta().name)
+		self._defaultVoiceInstance = self.getVoiceInstance(self._getDefaultVoiceSpec().name)
 
 	def _open_engine(self, name: str, cls: type) -> EngineResource | None:
 		adapter = LegacyEngineAdapter(cls, self.getVoiceInstance, index_ledger=self._index_ledger)
@@ -207,7 +162,7 @@ class VoiceManager(object):
 		return session
 
 	def getVoiceSpec(self, key: str) -> VoiceSpec:
-		return self._specs[key]
+		return self.catalog.by_name[key]
 
 	def getVoiceCapabilities(self, key: str) -> EngineCapabilities:
 		return self._sessions[self.getVoiceSpec(key).engine].capabilities
@@ -228,7 +183,7 @@ class VoiceManager(object):
 
 	@defaultVoiceName.setter
 	def defaultVoiceName(self, name):
-		if name not in self._voiceInfos:
+		if name not in self.catalog.voice_infos:
 			log.debugWarning("Voice not available, using default voice.")
 			return
 		self._defaultVoiceInstance = self.getVoiceInstance(name)
@@ -242,11 +197,11 @@ class VoiceManager(object):
 	@waitfactor.setter
 	def waitfactor(self, value):
 		self._waitfactor = value
-		for key in self._specs:
+		for key in self.catalog.by_name:
 			if self.getVoiceCapabilities(key).supports_waitfactor:
 				self.settings.ensure(self.getVoiceSpec(key)).update(waitfactor=value)
 
-	def _getDefaultVoiceMeta(self) -> VoiceMeta:
+	def _getDefaultVoiceSpec(self) -> VoiceSpec:
 		lang = languageHandler.getLanguage()
 		try:
 			return next(v for v in self.table if v.language == lang)
@@ -295,36 +250,34 @@ class VoiceManager(object):
 		return tuple(dict.fromkeys(self._sessions.values()))
 
 	def _setVoiceDatas(self):
-		self.table = sorted(self._specs.values(), key=attrgetter("engine", "language", "name"))
-		voiceInfos = [VoiceInfo(v.name, v.description, v.language) for v in self.table]
-		self._voiceInfos = OrderedDict((v.id, v) for v in voiceInfos)
+		self.catalog = VoiceCatalog.from_specs(self._specs.values())
+
+	@property
+	def table(self) -> tuple[VoiceSpec, ...]:
+		return self.catalog.table
 
 	@property
 	def voiceInfos(self):
-		return self._voiceInfos
+		return self.catalog.voice_infos
 
 	@property
 	def allLanguages(self):
-		table = [v for v in self.table]
-		_localesToVoices = groupVoicesByPrimaryLocale(table)
-		return sorted([l for l in _localesToVoices if len(_localesToVoices[l]) > 0])
+		return list(self.catalog.all_languages)
 
 	def _visible_table(self):
 		return self.engine_consistency.visible(self.table, self._defaultVoiceInstance.engine)
 
 	@property
 	def languages(self):
-		_localesToVoices = groupVoicesByPrimaryLocale(self._visible_table())
-		return sorted([l for l in _localesToVoices if len(_localesToVoices[l]) > 0])
+		return sorted(group_by_primary_locale(self._visible_table()))
 
 	@property
 	def localeToVoicesMap(self):
-		return groupVoicesByPrimaryLocale(self._visible_table())
+		return group_by_primary_locale(self._visible_table())
 
 	@property
 	def localesToNamesMap(self):
-		_localesToVoices = groupVoicesByPrimaryLocale(self._visible_table())
-		return {item: self._getLocaleReadableName(item) for item in _localesToVoices}
+		return {locale: self.catalog.readable_name(locale) for locale in self.localeToVoicesMap}
 
 	def getVoiceNameForLanguage(self, language):
 		configured = self._getConfiguredVoiceNameForLanguage(language)
@@ -340,7 +293,3 @@ class VoiceManager(object):
 
 	def _getConfiguredVoiceNameForLanguage(self, language):
 		return self.roles.voice_for(language)
-
-	def _getLocaleReadableName(self, locale_):
-		description = languageHandler.getLanguageDescription(locale_)
-		return "%s - %s" % (description, locale_) if description else locale_

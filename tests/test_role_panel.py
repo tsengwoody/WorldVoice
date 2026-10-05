@@ -82,10 +82,9 @@ class Control:
 		return lambda *args, **kwargs: None
 
 
-@pytest.mark.parametrize("ready", [False, True])
-def test_panel_opens_its_presenter_only_when_the_manager_is_ready(ready):
+def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 	created = []
-	manager = types.SimpleNamespace(ready=lambda: ready)
+	manager = types.SimpleNamespace()
 
 	class Presenter:
 		def __init__(self, manager, **kwargs):
@@ -114,13 +113,10 @@ def test_panel_opens_its_presenter_only_when_the_manager_is_ready(ready):
 	panel.GetSize = lambda: (1000, 480)
 	panel.GetBackgroundColour = lambda: None
 	panel.makeSettings(types.SimpleNamespace(Add=lambda *args, **kwargs: None))
-	if ready:
-		assert created == [(manager, ["set_main_voice", "speech_section"])]
-		assert panel._onDestroy in bindings
-		assert panel._locales == ["en"]
-	else:
-		assert created == []
-		assert panel.disable is True
+	assert created == [(manager, ["set_main_voice", "speech_section"])]
+	assert panel._onDestroy in bindings
+	assert panel._locales == ["en"]
+	assert panel.disable is False
 
 
 def test_save_does_nothing_after_the_synth_was_switched_away():
