@@ -27,11 +27,15 @@ def models(stub_modules, tmp_path):
 	stub_modules.module("addonHandler", initTranslation=lambda: None)
 	stub_modules.module("globalVars", appArgs=SimpleNamespace(configPath=str(tmp_path)))
 	stub_modules.module("languageHandler", getAvailableLanguages=lambda: [("en", "English")])
-	stub_modules.module("logHandler", log=SimpleNamespace(error=lambda *a, **k: None, debugWarning=lambda *a, **k: None))
+	warnings = []
+	stub_modules.module("logHandler", log=SimpleNamespace(
+		error=lambda *a, **k: None, debugWarning=lambda *a, **k: None, warning=lambda *a, **k: warnings.append(a),
+	))
 	stub_modules.translation()
 	spec = importlib.util.spec_from_file_location("speech_symbol_models_under_test", MODELS)
 	module = importlib.util.module_from_spec(spec)
 	spec.loader.exec_module(module)
+	module.warnings = warnings
 	return module
 
 
@@ -51,6 +55,13 @@ def test_saved_symbol_lines(models, tmp_path):
 	path = tmp_path / "out.dic"
 	symbols.save(str(path))
 	assert path.read_bytes() == EXPECTED_FILE
+
+
+def test_invalid_symbol_line_warning(models, tmp_path):
+	path = tmp_path / "symbols.dic"
+	path.write_text("# comment\nx\ty\ten\tbogus\n", encoding="utf-8")
+	models.SpeechSymbols().load(str(path))
+	assert models.warnings == [(f"Invalid line in file {path}: x\ty\ten\tbogus",)]
 
 
 EXPECTED_REPR = "SpeechSymbol(identifier='a', replacement='alpha', language=None, mode=None, displayName=None)"
