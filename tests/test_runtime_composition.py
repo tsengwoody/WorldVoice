@@ -329,9 +329,10 @@ def make_synth(c, manager):
         "PitchCommand", "RateCommand", "VolumeCommand",
     )}
     errors = []
+    log = SimpleNamespace(error=lambda *args, **kwargs: errors.append(args))
     root = _load_synth_class({
         "SynthDriver": object, "synthIndexReached": object(), "synthDoneSpeaking": object(),
-        "nvdaLog": SimpleNamespace(error=lambda *args, **kwargs: errors.append(args)), **commands,
+        "nvdaLog": log, **commands,
         **{name: getattr(assembly, name) for name in ("Teardown", "timed", "patch_attribute")},
     })
     synth = object.__new__(root)
@@ -339,7 +340,12 @@ def make_synth(c, manager):
     synth._terminateCommit = True
     synth.taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
     synth._indexLedger = c.ledger
-    synth._teardown = synth._new_teardown()
+    # Register the runtime cleanups as _initialize does once each object exists.
+    synth._teardown = assembly.Teardown(root._TEARDOWN_ORDER, log)
+    synth._teardown.add("index ledger close", c.ledger.close)
+    synth._teardown.add("event bridge close", c.bridge.close)
+    synth._teardown.add("task manager shutdown", lambda: c.tasks.shutdown(manager.playback_ports))
+    synth._teardown.add("voice manager terminate", lambda: manager.terminate(commit=synth._terminateCommit))
     return synth, errors
 
 

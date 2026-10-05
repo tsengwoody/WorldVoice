@@ -182,40 +182,13 @@ class SynthDriver(SynthDriver):
 		self._eventBridge = None
 		self._settingsStore = None
 		self._indexLedger = None
-		self._teardown = self._new_teardown()
+		self._teardown = Teardown(self._TEARDOWN_ORDER, nvdaLog)
 		try:
 			self._initialize()
 		except BaseException:
 			# Release acquired resources even on KeyboardInterrupt, then re-raise.
 			self.terminate(commit=False)
 			raise
-
-	def _new_teardown(self):
-		"""A teardown that already owns the runtime objects, whichever of them exist."""
-		teardown = Teardown(self._TEARDOWN_ORDER, nvdaLog)
-
-		def shutdown_tasks():
-			if self.taskManager is not None:
-				manager = self._voiceManager
-				self.taskManager.shutdown(manager.playback_ports if manager is not None else ())
-
-		def close_bridge():
-			if self._eventBridge is not None:
-				self._eventBridge.close()
-
-		def terminate_voices():
-			if self._voiceManager is not None:
-				self._voiceManager.terminate(commit=self._terminateCommit)
-
-		def close_ledger():
-			if self._indexLedger is not None:
-				self._indexLedger.close()
-
-		teardown.add("task manager shutdown", shutdown_tasks)
-		teardown.add("event bridge close", close_bridge)
-		teardown.add("voice manager terminate", terminate_voices)
-		teardown.add("index ledger close", close_ledger)
-		return teardown
 
 	def _initialize(self):
 		with timed(nvdaLog, "total"):
@@ -239,6 +212,7 @@ class SynthDriver(SynthDriver):
 				# One ledger spans every binding of a live core in this runtime. A core
 				# handed to a new runtime must first close, or retain its original ledger.
 				self._indexLedger = IndexLedger()
+				self._teardown.add("index ledger close", self._indexLedger.close)
 				self._eventBridge = NvdaEventBridge(
 					self,
 					done_event=synthDoneSpeaking,
@@ -246,8 +220,16 @@ class SynthDriver(SynthDriver):
 					get_synth=getSynth,
 					index_ledger=self._indexLedger,
 				)
-				self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
-				self._eventBridge.start(self.taskManager.on_event, batch_handler=self.taskManager.on_events)
+				self._teardown.add("event bridge close", self._eventBridge.close)
+				tasks = self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
+
+				def shutdown_tasks():
+					# The voice manager comes later, so it may not exist yet.
+					manager = self._voiceManager
+					tasks.shutdown(manager.playback_ports if manager is not None else ())
+
+				self._teardown.add("task manager shutdown", shutdown_tasks)
+				self._eventBridge.start(tasks.on_event, batch_handler=tasks.on_events)
 
 			with timed(nvdaLog, "VoiceManager"):
 				self._completionPolicy = CompletionPolicy(nvda_version=versionInfo.version, logger=nvdaLog)
@@ -261,6 +243,11 @@ class SynthDriver(SynthDriver):
 					conf_provider=lambda: config.conf,
 					get_language=languageHandler.getLanguage,
 					parameter_consistency=parameters,
+				)
+				manager = self._voiceManager
+				self._teardown.add(
+					"voice manager terminate",
+					lambda: manager.terminate(commit=self._terminateCommit),
 				)
 
 			self._apply_pipeline_settings(pipeline_settings.get())

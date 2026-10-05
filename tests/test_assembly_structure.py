@@ -12,6 +12,8 @@ FORBIDDEN = {
 		"_spellingPatched", "_run_cleanup", "OriginVoiceSettingsPanel",
 		'hasattr(self, "add_detected_language_commands")', 'getattr(self, "_numlan"',
 		'getattr(self, "speechSymbols"', "step_start",
+		# Each cleanup is registered once its resource exists, not ahead of it behind None checks.
+		"_new_teardown",
 	],
 }
 
