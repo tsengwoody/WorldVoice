@@ -56,6 +56,13 @@ def test_create_driver_settings_is_nvdas_update_driver_settings_over_all_setting
 		if not is_settings_source(s)]
 	assert [ast.unparse(s) for s in ours] == [ast.unparse(s) for s in theirs]
 	assert [ast.dump(s) for s in ours] == [ast.dump(s) for s in theirs]
+	# The one intended difference: the copy lists every setting, not only the supported ones.
+	(source,) = [s for s in without_docstring(method(COPY, "WorldVoiceVoiceSettingsPanel", "createDriverSettings"))
+		if is_settings_source(s)]
+	assert ast.unparse(source.value) == (
+		"settingsInst.allSupportedSettings if hasattr(settingsInst, 'allSupportedSettings') "
+		"else settingsInst.supportedSettings"
+	)
 
 
 def test_nvda_update_value_for_control_is_the_reviewed_version(nvda):

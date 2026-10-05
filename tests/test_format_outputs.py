@@ -7,13 +7,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from test_language_detector import env  # noqa: F401 - pytest fixture
+from detector_harness import load_language_detection
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = ROOT / "addon/generics/speechSymbols/models.py"
 
 
-def test_speech_command_reprs(env):  # noqa: F811
+def test_speech_command_reprs(env):
 	commands = importlib.import_module(env.module.__name__.rsplit(".", 1)[0] + "._speechcommand")
 	assert repr(commands.WVLangChangeCommand("zh")) == "WVLangChangeCommand ('zh')"
 	assert repr(commands.WVLangChangeCommand(None)) == "WVLangChangeCommand (None)"
@@ -57,3 +57,8 @@ EXPECTED_REPR = "SpeechSymbol(identifier='a', replacement='alpha', language=None
 EXPECTED_ESCAPED = "\\tx\ttab\ten\tforce\t# Tab"
 EXPECTED_PLAIN = "b\tbravo"
 EXPECTED_FILE = b"\xef\xbb\xbf\\tx\ttab\ten\tforce\t# Tab\r\nb\tbravo\r\n"
+
+
+@pytest.fixture
+def env(stub_modules, monkeypatch):
+	return load_language_detection(stub_modules, monkeypatch)

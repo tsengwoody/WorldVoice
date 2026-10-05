@@ -96,7 +96,8 @@ def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 	}
 	assert accessed - own <= privates
 	nvda = NVDA_SAPI5.read_text(encoding="utf-8")
-	assert all(name in nvda for name in privates)
+	# Whole words: `_thread` must not pass on `_threadCond` alone.
+	assert [name for name in privates if not re.search(rf"\b{re.escape(name)}\b", nvda)] == []
 	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
 	overridden = {
 		n.name for n in synth.body
@@ -124,7 +125,12 @@ def test_rhvoice_reaches_inner_privates_only_through_its_port():
 	port = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_RHVoiceInner")
 	port_source = ast.get_source_segment(source, port)
 	assert "_SynthDriver__" not in source.replace(port_source, "")
-	inner = INNER_RHVOICE.read_text(encoding="utf-8")
+	inner_source = INNER_RHVOICE.read_text(encoding="utf-8")
+	# Only the inner SynthDriver mangles to _SynthDriver__; other classes reuse the same names.
+	inner_class = next(
+		n for n in ast.parse(inner_source).body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver"
+	)
+	inner = ast.get_source_segment(inner_source, inner_class)
 	for name in set(re.findall(r"_SynthDriver__(\w+)", port_source)):
 		assert re.search(rf"self\.__{name}\b", inner), name
 

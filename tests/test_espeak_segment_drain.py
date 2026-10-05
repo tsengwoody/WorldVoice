@@ -463,6 +463,8 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
     env.driver.speak_segment(("after terminate", env.commands.IndexCommand(7)), token,
         context=context, on_event=sink)
     assert received.wait(1), "terminated driver dropped the segment silently"
+    # Give a duplicate failure time to arrive before counting.
+    Event().wait(0.1)
     assert len(events) == 1
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert events[0].source_id is context.source_id

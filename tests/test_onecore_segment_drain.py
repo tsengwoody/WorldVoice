@@ -571,6 +571,8 @@ def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env, terminated)
 
     env.driver.speak_segment(("rejected",), token, context=context, on_event=sink)
     assert received.wait(1)
+    # Give a duplicate failure time to arrive before counting.
+    Event().wait(0.1)
     assert len(events) == 1
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert events[0].source_id is context.source_id

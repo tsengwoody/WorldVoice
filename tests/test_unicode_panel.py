@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from test_language_detector import env  # noqa: F401 - pytest fixture
+from detector_harness import load_language_detection
 
 PANEL = Path(__file__).resolve().parents[1] / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
 
@@ -50,7 +50,7 @@ class Synth:
 		self.events.append(("refresh",))
 
 
-def build(env, languages, stored):  # noqa: F811
+def build(env, languages, stored):
 	switching = {
 		"ignoreNumbersInLanguageDetection": True,
 		"latinCharactersLanguage": "en",
@@ -97,7 +97,7 @@ def build(env, languages, stored):  # noqa: F811
 LANGUAGES = ["en", "fr", "zh", "ja", "ar", "en_US"]
 
 
-def test_controls_choices_and_selections(env):  # noqa: F811
+def test_controls_choices_and_selections(env):
 	built = build(env, LANGUAGES, {"latinCharactersLanguage": "fr", "CJKCharactersLanguage": "ja"})
 	labels = [control.label for control in built.added]
 	assert labels == [
@@ -114,7 +114,7 @@ def test_controls_choices_and_selections(env):  # noqa: F811
 	assert built.added[0].value is True
 
 
-def test_save_writes_each_enabled_choice(env):  # noqa: F811
+def test_save_writes_each_enabled_choice(env):
 	built = build(env, LANGUAGES, {"latinCharactersLanguage": "fr", "CJKCharactersLanguage": "ja"})
 	built.added[1].Select(0)
 	built.added[2].Select(1)
@@ -125,12 +125,12 @@ def test_save_writes_each_enabled_choice(env):  # noqa: F811
 		"en", "zh", "ar", False)
 
 
-def test_stored_language_not_offered_selects_the_first(env):  # noqa: F811
+def test_stored_language_not_offered_selects_the_first(env):
 	built = build(env, LANGUAGES, {"latinCharactersLanguage": "xx"})
 	assert built.added[1].selection == 0
 
 
-def test_script_without_candidates_is_disabled_and_not_saved(env):  # noqa: F811
+def test_script_without_candidates_is_disabled_and_not_saved(env):
 	built = build(env, ["en", "zh"], {"arabicCharactersLanguage": "fa"})
 	arabic = built.added[3]
 	assert arabic.choices == [] and arabic.enabled is False
@@ -139,10 +139,15 @@ def test_script_without_candidates_is_disabled_and_not_saved(env):  # noqa: F811
 
 
 @pytest.mark.parametrize("timing,refreshed", [("before", True), ("after", False)])
-def test_changing_detection_timing_refreshes_detection(env, timing, refreshed):  # noqa: F811
+def test_changing_detection_timing_refreshes_detection(env, timing, refreshed):
 	built = build(env, LANGUAGES, {})
 	built.added[4].Select(["before", "after"].index(timing))
 	built.synth.events.clear()
 	built.panel.onSave()
 	assert built.switching["DetectLanguageTiming"] == timing
 	assert built.synth.events == ([("refresh",)] if refreshed else [])
+
+
+@pytest.fixture
+def env(stub_modules, monkeypatch):
+	return load_language_detection(stub_modules, monkeypatch)

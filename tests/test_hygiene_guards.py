@@ -109,7 +109,8 @@ def test_blind_except_reasons_match_their_handlers():
 	assert wrong == []
 
 
-def test_g201_is_ignored_for_the_documented_nvda_reason():
+def test_g201_ignore_keeps_its_documented_nvda_reason():
+	# Checks the recorded decision in pyproject.toml; ruff itself never reports G201 here.
 	config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 	assert '"G201",' in config and "log.exception lowers expected Windows/COM errors" in config
 

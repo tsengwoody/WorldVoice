@@ -64,6 +64,8 @@ def test_all_settings_are_live_proxies(setup):
     setup.store.rollback(voice.name)
     assert voice.rate == 72
     assert len(setup.repo.saves) == 1
+    # A snapshot is a value: later edits and rollbacks do not change it.
+    assert snapshot.rate == 72
 
 
 def test_failed_commit_does_not_advance_the_baseline(setup):

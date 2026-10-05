@@ -53,6 +53,16 @@ class RecordedEvents(list):
             assert self._condition.wait_for(lambda: len(self) >= count, timeout=1), self
 
 
+def wait_until_waiting(lifecycle, operation):
+    """Block until ``operation`` is waiting for the resource inside run()."""
+    for _ in range(200):
+        with lifecycle._condition:
+            if operation._waiting:
+                return
+        Event().wait(0.005)
+    raise AssertionError("operation never started waiting for the resource")
+
+
 class Hooks:
     def __init__(self):
         self.submitted = []
@@ -169,7 +179,9 @@ def test_native_boundary_precedes_admission_close(env):
     assert len(events) == 1
     assert events[0].source_id is context.source_id
     assert events[0].segment_id == context.segment_id
-    assert len(hooks.submitted) <= 2
+    # The successor takes the freed resource and submits exactly once, after the old one.
+    assert hooks.second_submitted.wait(1)
+    assert [operation for operation, _ in hooks.submitted] == [old, new]
     hooks.release_second_boundary.set()
     second.finish()
 
@@ -306,7 +318,7 @@ def test_failed_waiting_operation_is_published_before_the_resource_frees(env):
     first = Call(lambda: lifecycle.run(old, ("old",)))
     assert hooks.boundary_entered.wait(1)
     second = Call(lambda: lifecycle.run(queued, ("queued",)))
-    second.blocked()
+    wait_until_waiting(lifecycle, queued)
     lifecycle.fail(queued, RuntimeError("control error"))
     second.finish()
     events.wait_for_count(1)
@@ -323,6 +335,7 @@ def test_failed_waiting_operation_is_published_before_the_resource_frees(env):
 def test_failed_operation_that_never_ran_is_published_and_its_run_is_a_no_op(env):
     lifecycle, hooks, events, accept = env
     operation, context = accept(5)
+    assert not operation._run_started
     lifecycle.fail(operation, RuntimeError("control error"))
     events.wait_for_count(1)
     assert [(event.source_id, event.kind.value) for event in events] == [
@@ -868,6 +881,7 @@ def test_operation_state_follows_run_and_retirement(env):
 def test_failed_pending_operation_is_started_and_retired(env):
     lifecycle, hooks, events, accept = env
     operation, _ = accept(1)
+    assert not operation._run_started
     lifecycle.fail(operation, RuntimeError("rejected"))
     assert operation._run_started
     assert operation._retired
@@ -986,11 +1000,7 @@ def test_failed_waiter_never_takes_a_resource_freed_at_the_same_time(env, monkey
     monkeypatch.setattr(lifecycle, "_run_owned", lambda operation, commands: (
         owned.append(operation), original(operation, commands))[1])
     second = Call(lambda: lifecycle.run(queued, ("queued",)))
-    for _ in range(200):
-        with lifecycle._condition:
-            if queued._waiting:
-                break
-        Event().wait(0.005)
+    wait_until_waiting(lifecycle, queued)
     with lifecycle._condition:
         lifecycle.fail(queued, RuntimeError("control error"))
         # The old operation releases the resource before the waiter re-checks.

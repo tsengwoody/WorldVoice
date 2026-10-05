@@ -1582,13 +1582,22 @@ def test_ordinary_waiting_behind_contextual_does_not_poll(env, monkeypatch):
     held = hold_contextual_final_idle(env, monkeypatch)
     token = CountingToken()
     try:
-        ordinary = start_ordinary_behind(held, env, token)
+        start_ordinary_behind(held, env, token)
         assert_not_polled(lambda: token.checks)
         token.cancel()
-        finish(ordinary)
     finally:
         held.release.set()
     finish(held.contextual)
+    # Once the segment lets go, the cancelled ordinary request is dropped promptly
+    # and never reaches native.
+    woken = Event()
+    for _ in range(100):
+        if queued_ordinary(env) == 0 and env.core._bgQueue.unfinished_tasks == 0:
+            woken.set()
+            break
+        Event().wait(0.005)
+    assert woken.is_set(), "the cancelled ordinary request was not dropped within 0.5 s"
+    assert [text for text, _ in held.native_calls] == ["hello"]
 
 
 def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):

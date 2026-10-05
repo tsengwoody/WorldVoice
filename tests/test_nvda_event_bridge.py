@@ -531,7 +531,7 @@ def test_segment_sink_rejects_unrelated_events(drain_env, mismatch):
     assert env.suppliers[0]()[-1].kind is env.models.EventKind.SEGMENT_DRAINED
 
 
-@pytest.mark.parametrize("invalid", ["unknown", "wrong_context", "owner", "legacy"])
+@pytest.mark.parametrize("invalid", ["unknown", "wrong_context", "owner", "legacy", "end_index"])
 def test_segment_sink_requires_correlated_source_binding(drain_env, invalid):
     env = drain_env
     source, context = env.source, env.context
@@ -544,6 +544,12 @@ def test_segment_sink_requires_correlated_source_binding(drain_env, invalid):
         owner_id = object()
         env.bridge.bind(source, owner_id, completion=env.contract)
         context = env.models.PlaybackContext(owner_id, 9)
+    elif invalid == "end_index":
+        # Correlated, but completed by its end index: no drain event to sink.
+        source, end_index_id = object(), object()
+        env.bridge.bind(source, end_index_id, completion=env.models.CompletionContract(
+            env.models.CompletionMode.END_INDEX, env.models.IndexRange(1, 9999)))
+        context = env.models.PlaybackContext(end_index_id, 9)
     else:
         env.bridge.unbind(env.source_id)
         env.bridge.bind(source, env.source_id)

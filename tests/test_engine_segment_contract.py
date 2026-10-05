@@ -170,8 +170,10 @@ def test_speak_segment_returns_before_delivery(engine):
 @pytest.mark.parametrize("engine", _engines(), indirect=True)
 def test_ordinary_speak_after_terminate_raises(engine):
 	engine.terminate()
-	with pytest.raises(RuntimeError):
+	calls = engine.native_call_count()
+	with pytest.raises(RuntimeError, match="driver has terminated"):
 		engine.speak_ordinary(("hello",))
+	assert engine.native_call_count() == calls
 
 
 @pytest.mark.parametrize("engine", _engines(), indirect=True)

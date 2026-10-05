@@ -46,3 +46,11 @@ def test_refresh_registers_only_for_detection_before_nvda(synth, timing, expecte
 	synth.synth.uwv = True
 	synth.synth.refresh_language_detection()
 	assert [call[0] for call in synth.calls] == expected
+
+
+def test_setting_uwv_refreshes_language_detection(synth, monkeypatch):
+	# NVDA's AutoPropertyObject maps uwv to _get_uwv; the exec harness has no such metaclass.
+	monkeypatch.setattr(type(synth.synth), "uwv", property(lambda self: self._get_uwv()), raising=False)
+	synth.synth._set_uwv(False)
+	assert synth.synth._uwv is False
+	assert synth.calls == [("unregister", synth.handler)]
