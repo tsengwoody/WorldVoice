@@ -160,3 +160,11 @@ def test_export_with_dialog(monkeypatch, tmp_path, outcome):
 	module.export_with_dialog(types.SimpleNamespace(move_to=move_to))
 	assert moved == ([Path(path)] if outcome == "ok" else [])
 	assert shown == {"cancel": [], "ok": ["message"], "fail": ["error"]}[outcome]
+
+
+def test_move_to_exports_a_log_that_was_never_written(log_module, tmp_path):
+	pipeline = log_module.PipelineLog("pipeline.csv")
+	dst = tmp_path / "exported" / "out.csv"
+	pipeline.move_to(dst)
+	assert dst.read_text(encoding="utf-8").splitlines() == [",".join(log_module.PipelineLog.FIELDNAMES)]
+	assert pipeline.log_file.read_text(encoding="utf-8").splitlines() == [",".join(log_module.PipelineLog.FIELDNAMES)]

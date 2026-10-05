@@ -48,6 +48,8 @@ class PipelineLog:
 
 	def move_to(self, dst: Path) -> None:
 		"""Move the current log to dst and start a new, empty one."""
+		# A log nobody has written yet still exports, as a header-only file.
+		self._ensure_log_file()
 		dst.parent.mkdir(parents=True, exist_ok=True)
 		shutil.move(str(self.log_file), str(dst))
 		self._ensure_log_file()
