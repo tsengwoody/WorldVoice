@@ -133,7 +133,7 @@ def test_builder_submits_complete_multivoice_request_once(modules, assembly):
         submitted.append(request)
         return original(request)
     a.manager.submit_request = submit
-    assert a.queue(["中", en, "English", modules.BreakCommand(0)], zh)
+    assert a.queue(["中", modules.models.SelectVoice(en.name), "English", modules.BreakCommand(0)], zh)
     assert a.done_seen.wait(1)
     assert len(submitted) == 1
     assert [(task.voice_key, task.commands, task.seconds) for task in submitted[0].tasks] == [
@@ -170,7 +170,7 @@ def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_brea
                               on_speak=speak))
     sequence = []
     for voice, text in zip(voices, texts):
-        sequence.extend((voice, text))
+        sequence.extend((modules.models.SelectVoice(voice.name), text))
     sequence.append(modules.BreakCommand(200))
     try:
         assert a.queue(sequence, voices[0])

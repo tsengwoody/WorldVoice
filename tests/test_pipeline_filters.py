@@ -104,3 +104,29 @@ def test_punctuation_segments(env):
 	assert list(env.module._split_punctuation_segments("a, b,, 12,500. c", regex)) == [
 		("text", "a"), ("punct", ","), ("text", " b"), ("punct", ",,"), ("text", " 12,500"), ("punct", "."), ("text", " c"),
 	]
+
+
+@pytest.mark.parametrize("level,enable,label_on,writes", [
+	("INFO", False, True, []),
+	("INFO", True, False, []),
+	("INFO", True, True, ["before", "after"]),
+	("DEBUG", False, True, []),
+])
+def test_run_logged_records_only_when_switched_on(env, monkeypatch, level, enable, label_on, writes):
+	import sys
+
+	conf = sys.modules["config"].conf
+	conf["general"]["loggingLevel"] = level
+	conf["WorldVoice"]["log"] = {"enable": enable, "number_mode": label_on}
+	written = []
+	monkeypatch.setattr(env.module, "pl", SimpleNamespace(write=lambda _id, label, timing, seq: written.append(timing)))
+	calls = []
+
+	def stage(sequence, settings, ctx):
+		calls.append(list(sequence))
+		return iter(["out"])
+
+	result = env.module._run_logged("number_mode", stage, ["in"], env.settings, env.module.GENERIC_CONTEXT)
+	assert list(result) == ["out"]
+	assert calls == [["in"]]
+	assert written == writes

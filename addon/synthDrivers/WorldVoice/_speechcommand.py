@@ -1,6 +1,6 @@
 from typing import Optional
 
-from speech.commands import IndexCommand, SynthCommand, SynthParamCommand
+from speech.commands import IndexCommand, SynthParamCommand
 
 
 class WVLangChangeCommand(SynthParamCommand):
@@ -15,13 +15,6 @@ class WVLangChangeCommand(SynthParamCommand):
 
 	def __repr__(self):
 		return "WVLangChangeCommand (%r)" % self.lang
-
-
-class SplitCommand(SynthCommand):
-	"""Insert a split command when text exceed max length."""
-
-	def __repr__(self):
-		return "SplitCommand()"
 
 
 class WorldVoiceIndexCommand(IndexCommand):

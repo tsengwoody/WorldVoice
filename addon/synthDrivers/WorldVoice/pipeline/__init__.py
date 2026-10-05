@@ -635,8 +635,9 @@ def inject_langchange_reorder(
 
 def _run_logged(label, fn, speechSequence, settings, ctx):
 	debug = config.conf["general"]["loggingLevel"] == "DEBUG"
-	recording = config.conf["WorldVoice"]["log"]["enable"]
-	if not ((debug or recording) and config.conf["WorldVoice"]["log"][label]):
+	section = config.conf["WorldVoice"]["log"]
+	recording = section["enable"]
+	if not ((debug or recording) and section[label]):
 		return fn(speechSequence, settings, ctx)
 	_id = uuid.uuid4().hex
 	speechSequence = list(speechSequence)

@@ -31,13 +31,19 @@ def legacy(monkeypatch, rt, nvda_commands):
                            commands=commands, speechcommand=speechcommand)
 
 
-def test_normalizer_handles_voice_and_break(legacy, rt):
+def test_normalizer_converts_breaks_and_keeps_other_commands(legacy, rt):
+    select = rt.models.SelectVoice("Fake:a")
+    index = object()
+    normalized = list(legacy.commands.normalize_legacy_commands([select, "hello", index, legacy.BreakCommand(200)]))
+    assert normalized == [select, "hello", index, rt.models.Pause(0.2)]
+    assert normalized[0] is select and normalized[2] is index
+
+
+def test_normalizer_passes_voice_objects_through_unchanged(legacy):
+    # Voices are chosen by SelectVoice from lang_cmd_to_voice; a Voice object is not a command.
     voice = object.__new__(legacy.Voice)
     voice.name = "Fake:a"
-    index = object()
-    normalized = list(legacy.commands.normalize_legacy_commands([voice, "hello", index, legacy.BreakCommand(200)]))
-    assert normalized == [rt.models.SelectVoice("Fake:a"), "hello", index, rt.models.Pause(0.2)]
-    assert normalized[2] is index
+    assert list(legacy.commands.normalize_legacy_commands([voice])) == [voice]
 
 
 def test_normalizer_is_lazy_and_preserves_unrecognized_objects(legacy, rt):
@@ -68,11 +74,10 @@ def test_normalizer_rejects_external_marker(legacy):
 
 
 def test_full_sequence_normalizes_without_inserting_internal_markers(legacy, rt, nvda_commands):
-    voice = object.__new__(legacy.Voice)
-    voice.name = "Fake:b"
+    select = rt.models.SelectVoice("Fake:b")
     index = nvda_commands.IndexCommand(123)
     result = list(legacy.commands.normalize_legacy_commands([
-        "A", voice, voice, "B", index, legacy.BreakCommand(200), "C"]))
+        "A", select, select, "B", index, legacy.BreakCommand(200), "C"]))
     assert result == ["A", rt.models.SelectVoice("Fake:b"), rt.models.SelectVoice("Fake:b"),
                       "B", index, rt.models.Pause(0.2), "C"]
     assert result[4] is index
