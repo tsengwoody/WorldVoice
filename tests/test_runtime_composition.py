@@ -24,7 +24,7 @@ def _idle_token():
 
 @pytest.fixture
 def composition(monkeypatch):
-    manager_module = _load_voice_manager(monkeypatch, {})
+    manager_module = _load_voice_manager(monkeypatch)
     package = manager_module.__package__
     monkeypatch.setattr(importlib.import_module(package + ".voiceCatalog"), "VoiceInfo", lambda key, description, language:
                         SimpleNamespace(id=key, description=description, language=language))
@@ -89,19 +89,20 @@ def composition(monkeypatch):
                 core.language = snapshot.language
 
         Voice.engine = name
-        manager_module.EngineType.append(SimpleNamespace(name=name))
-        manager_module.READY_ENGINE_CLASS[name] = Voice
+        engines[name] = Voice
         return Voice
 
+    engines = {}
     managers = []
 
-    def create(completion_for=lambda cls, core: models.CompletionContract()):
+    def create(completion_for=lambda cls, core: models.CompletionContract(), engine_classes=None):
         manager = manager_module.VoiceManager(tasks, store, bridge,
-            index_ledger=ledger, completion_for=completion_for)
+            index_ledger=ledger, completion_for=completion_for,
+            engine_classes=engines if engine_classes is None else engine_classes)
         managers.append(manager)
         return manager
 
-    yield SimpleNamespace(engine=engine, create=create, store=store, repo=repo,
+    yield SimpleNamespace(engine=engine, engines=engines, create=create, store=store, repo=repo,
                           bridge=bridge, tasks=tasks, cores=cores, Core=Core,
                           module=manager_module, driver=driver, ledger=ledger, models=models,
                           done=done, index=index, owner=owner)
@@ -129,15 +130,15 @@ def test_each_opened_engine_is_one_engine_resource(composition):
     classes = c.engine("first"), c.engine("second")
     c.engine("failed", fail=True)
     manager = c.create()
-    assert [resource.engine for resource in manager._resources] == ["first", "second"]
-    for resource, cls in zip(manager._resources, classes):
+    assert [resource.engine for resource in manager._resources.values()] == ["first", "second"]
+    for resource, cls in zip(manager._resources.values(), classes):
         assert resource.voice_class is cls
         assert resource.adapter.core is cls.opened is resource.binding.core
         assert resource.session is resource.binding.session is manager.resolve_playback(cls.engine + ":a")
         assert manager.getVoiceInstance(cls.engine + ":a")._binding is resource.binding
     assert not hasattr(manager, "installEngine")
     manager.terminate(commit=False)
-    assert manager._resources == [] and [cls.opened for cls in classes] == [None, None]
+    assert manager._resources == {} and [cls.opened for cls in classes] == [None, None]
 
 
 @pytest.mark.parametrize("failure", ["empty", "bind"])
@@ -157,6 +158,52 @@ def test_initialization_failure_closes_without_commit(composition, failure):
     assert c.repo.saves == []
 
 
+def test_an_unpublished_engine_is_never_visible(composition):
+    c = composition
+    c.engine("first"), c.engine("second")
+    manager = c.create()
+    first, second = manager._resources["first"], manager._resources["second"]
+    second.published = False
+    assert manager.playback_ports == (first.session,)
+    assert manager.resolve_playback("second:a") is None
+    with pytest.raises(KeyError):
+        manager.getVoiceCapabilities("second:a")
+    with pytest.raises(KeyError):
+        manager.getVoiceVariants("second:a")
+
+
+def test_after_terminate_nothing_resolves(composition):
+    c = composition
+    c.engine("ok")
+    manager = c.create()
+    manager.terminate(commit=False)
+    assert manager.resolve_playback("ok:a") is None
+    assert manager.playback_ports == ()
+    with pytest.raises(KeyError):
+        manager.getVoiceCapabilities("ok:a")
+
+
+def test_engines_open_in_engine_classes_order(composition):
+    c = composition
+    first, second = c.engine("first"), c.engine("second")
+    manager = c.create(engine_classes={"second": second, "first": first})
+    assert list(manager._resources) == ["second", "first"]
+    assert [port.source_id for port in manager.playback_ports] == [
+        manager._resources[name].session.source_id for name in ("second", "first")]
+
+
+def test_engine_voices_are_listed_once_when_published(composition):
+    c = composition
+    cls = c.engine("ok")
+    calls = []
+    original = cls.voices
+    cls.voices = classmethod(lambda cls_, core: calls.append(core) or original(core))
+    manager = c.create()
+    assert len(calls) == 1
+    assert [spec.name for spec in manager._resources["ok"].voices] == ["ok:a", "ok:b"]
+    assert [spec.name for spec in manager.table] == ["ok:a", "ok:b"]
+
+
 def test_source_is_bound_before_engine_is_published(composition):
     c = composition
     c.engine("ok")
@@ -166,11 +213,11 @@ def test_source_is_bound_before_engine_is_published(composition):
         # only a resource whose notifications can already reach the scheduler.
         original(source, source_id, **kwargs)
     c.bridge.bind = bind
-    original_voices = c.module.READY_ENGINE_CLASS["ok"].voices
+    original_voices = c.engines["ok"].voices
     def voices(cls, core):
         assert id(core) in c.bridge._sources
         return original_voices(core)
-    c.module.READY_ENGINE_CLASS["ok"].voices = classmethod(voices)
+    c.engines["ok"].voices = classmethod(voices)
     assert c.create().resolve_playback("ok:a") is not None
 
 
@@ -183,7 +230,7 @@ def test_cached_onecore_voice_round_trip_through_manager(composition):
     environment = {"Voice": c.driver.Voice, "SynthDriver": c.Core,
                    "DrainProfile": importlib.import_module(c.module.__package__ + ".runtime.playbackWork").DrainProfile}
     exec(compile(ast.Module(body=[voice_class], type_ignores=[]), str(path), "exec"), environment)
-    c.module.READY_ENGINE_CLASS["OneCore"] = environment["Voice"]
+    c.engines["OneCore"] = environment["Voice"]
     manager = c.create()
     a, b = (manager.getVoiceInstance("OneCore:" + key) for key in ("a", "b"))
     a.update_settings(rate=72, pitch=61, volume=83)
@@ -571,8 +618,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
          pipeline_settings=SimpleNamespace())
     stub(package + ".pipeline.context", GENERIC_CONTEXT=object(), SpeechContext=object)
     stub(package + ".pipeline.scope", pipeline_scope=SimpleNamespace())
-    stub(package + ".engine", EngineType=[], READY_ENGINE_CLASS={},
-         get_engine_enabled=lambda *args: True, refresh_ready_engine_classes=lambda *args: None)
+    stub(package + ".engine", ready_engine_classes=lambda engine_config: {})
     stub(package + ".VoiceSettingsDialogs", WorldVoiceVoiceSettingsPanel=object)
     monkeypatch.setattr(sys, "path", list(sys.path))
     spec = importlib.util.spec_from_file_location(package, WORLDVOICE / "__init__.py",

@@ -4,6 +4,7 @@ import addonHandler
 from logHandler import log
 
 from .discovery import (
+	coerce_bool,
 	discover_engine_specs,
 	get_engine_enabled as _get_engine_enabled,
 	load_enabled_engine_classes,
@@ -30,28 +31,16 @@ ENGINE_SPECS = tuple(
 )
 ENGINE_SPEC_INDEX = {spec.name: spec for spec in ENGINE_SPECS}
 
-# Compatibility shim for existing iteration sites that expect `for eng in EngineType`.
-EngineType = ENGINE_SPECS
 
-READY_ENGINE_CLASS = {}
-
-
-def refresh_ready_engine_classes(engine_config) -> dict[str, type]:
-	ready = load_enabled_engine_classes(list(ENGINE_SPECS), engine_config, logger=log)
-	READY_ENGINE_CLASS.clear()
-	READY_ENGINE_CLASS.update(ready)
-	return READY_ENGINE_CLASS
+def ready_engine_classes(engine_config) -> dict[str, type]:
+	"""Load the enabled, ready Voice classes in discovery order."""
+	return load_enabled_engine_classes(list(ENGINE_SPECS), engine_config, logger=log)
 
 
 def get_engine_enabled(engine_name: str, engine_config) -> bool:
 	spec = ENGINE_SPEC_INDEX.get(engine_name)
 	if spec is None:
-		if engine_name not in engine_config:
-			return False
-		value = engine_config[engine_name]
-		if isinstance(value, str):
-			return value.lower() not in {"false", "0", ""}
-		return bool(value)
+		return engine_name in engine_config and coerce_bool(engine_config[engine_name])
 	return _get_engine_enabled(engine_config, spec)
 
 

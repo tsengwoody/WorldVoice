@@ -24,7 +24,7 @@ def load_presenter(monkeypatch):
 
 @pytest.fixture
 def env(monkeypatch):
-	module = _load_voice_manager(monkeypatch, {})
+	module = _load_voice_manager(monkeypatch)
 	config = sys.modules["config"]
 	conf = config.conf
 	conf["WorldVoice"]["autoLanguageSwitching"].update(

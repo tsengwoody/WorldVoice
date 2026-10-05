@@ -28,7 +28,7 @@ def _create_voices(monkeypatch, config):
 
 
 def _editing_manager(monkeypatch):
-	module = _load_voice_manager(monkeypatch, {})
+	module = _load_voice_manager(monkeypatch)
 	config = sys.modules["config"]
 	config.AggregatedSection = dict
 	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] = False

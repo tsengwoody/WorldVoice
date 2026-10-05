@@ -30,6 +30,7 @@ from . import languageDetection
 from .compat.commands import normalize_legacy_commands
 from .compat.completionPolicies import CompletionPolicy
 from .configRepository import ConfigVoiceSettingsRepository
+from .engine import ready_engine_classes
 from .indexLedger import IndexLedger
 from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
@@ -235,6 +236,7 @@ class SynthDriver(SynthDriver):
 			bridge=self._eventBridge,
 			index_ledger=self._indexLedger,
 			completion_for=self._completionPolicy.select,
+			engine_classes=ready_engine_classes(config.conf["WorldVoice"]["engine"]),
 		)
 		nvdaLog.debug("WorldVoice init timing: VoiceManager %.3fs", time.perf_counter() - step_start)
 

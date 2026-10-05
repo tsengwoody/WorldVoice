@@ -8,7 +8,6 @@ from logHandler import log
 
 from .compat.engineAdapter import LegacyEngineAdapter
 from .compat.voiceFacade import LegacyVoiceBinding
-from .engine import READY_ENGINE_CLASS, EngineType, get_engine_enabled, refresh_ready_engine_classes
 from .indexLedger import IndexLedger
 from .mainLocalePolicy import EngineConsistency, ParameterConsistency, VoiceConsistency
 from .nvdaEventBridge import NvdaEventBridge
@@ -30,6 +29,8 @@ class EngineResource:
 	adapter: LegacyEngineAdapter
 	session: EngineSession
 	binding: LegacyVoiceBinding
+	voices: tuple[VoiceSpec, ...] = ()
+	published: bool = False
 
 
 class VoiceManager(object):
@@ -41,6 +42,7 @@ class VoiceManager(object):
 		*,
 		index_ledger: IndexLedger,
 		completion_for: Callable[[type, object], CompletionContract],
+		engine_classes: Mapping[str, type],
 		roles: ConfigRoleRepository | None = None,
 	):
 		self.taskManager = taskManager
@@ -48,10 +50,8 @@ class VoiceManager(object):
 		self._bridge = bridge
 		self._index_ledger = index_ledger
 		self._completion_for = completion_for
-		self._resources: list[EngineResource] = []
-		self._sessions = {}
-		self._bindings = {}
-		self._specs = {}
+		self._engine_classes = dict(engine_classes)
+		self._resources: dict[str, EngineResource] = {}
 		self.catalog = EMPTY_CATALOG
 		self._instanceCache = {}
 		self._waitfactor = 0
@@ -74,14 +74,8 @@ class VoiceManager(object):
 		self.parameter_consistency = ParameterConsistency(conf_provider)
 
 	def _initialize(self):
-		refresh_ready_engine_classes(config.conf["WorldVoice"]["engine"])
-		for eng in EngineType:
-			if not get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"]):
-				continue
-			cls = READY_ENGINE_CLASS.get(eng.name)
-			if cls is None:
-				continue
-			resource = self._open_engine(eng.name, cls)
+		for name, cls in self._engine_classes.items():
+			resource = self._open_engine(name, cls)
 			if resource is None:
 				continue
 			self._bind(resource)
@@ -102,7 +96,7 @@ class VoiceManager(object):
 		binding = LegacyVoiceBinding(self.settings, session, adapter.core)
 		resource = EngineResource(name, cls, adapter, session, binding)
 		# Claim cleanup before opening: every later step may fail.
-		self._resources.append(resource)
+		self._resources[name] = resource
 		session.open()
 		return resource
 
@@ -120,18 +114,22 @@ class VoiceManager(object):
 
 	def _publish(self, resource: EngineResource) -> None:
 		# Only bound, operational resources become visible to resolvers.
-		self._sessions[resource.engine] = resource.session
-		self._bindings[resource.engine] = resource.binding
-		for spec in resource.adapter.list_voices():
-			self._specs[spec.name] = spec
+		resource.voices = resource.adapter.list_voices()
+		resource.published = True
+
+	def _published(self, engine: str) -> EngineResource:
+		resource = self._resources[engine]
+		if not resource.published:
+			raise KeyError(engine)
+		return resource
 
 	def terminate(self, *, commit=True):
 		if self._terminated:
 			return
 		self._terminated = True
 		# Stop publication before releasing any resources.
-		self._sessions.clear()
-		self._bindings.clear()
+		for resource in self._resources.values():
+			resource.published = False
 		if commit:
 			for key in self.settings.keys():
 				try:
@@ -139,7 +137,7 @@ class VoiceManager(object):
 				except Exception:
 					log.error("Failed to save voice %s", key, exc_info=True)
 		self._instanceCache.clear()
-		for resource in reversed(self._resources):
+		for resource in reversed(list(self._resources.values())):
 			engine = resource.engine
 			try:
 				self._bridge.unbind(resource.session.source_id)
@@ -153,22 +151,23 @@ class VoiceManager(object):
 		self.taskManager = None
 
 	def resolve_playback(self, key: str) -> PlaybackPort | None:
-		spec = self._specs.get(key)
+		spec = self.catalog.by_name.get(key)
 		if spec is None:
 			return None
-		session = self._sessions.get(spec.engine)
-		if session is not None:
-			self.settings.ensure(spec)
-		return session
+		resource = self._resources.get(spec.engine)
+		if resource is None or not resource.published:
+			return None
+		self.settings.ensure(spec)
+		return resource.session
 
 	def getVoiceSpec(self, key: str) -> VoiceSpec:
 		return self.catalog.by_name[key]
 
 	def getVoiceCapabilities(self, key: str) -> EngineCapabilities:
-		return self._sessions[self.getVoiceSpec(key).engine].capabilities
+		return self._published(self.getVoiceSpec(key).engine).session.capabilities
 
 	def getVoiceVariants(self, key: str) -> tuple[Mapping[str, str], ...]:
-		return self._sessions[self.getVoiceSpec(key).engine].variants(key)
+		return self._published(self.getVoiceSpec(key).engine).session.variants(key)
 
 	def beginVoiceSettingsEdit(self) -> VoiceEditSession:
 		return self.settings.begin_edit()
@@ -217,9 +216,9 @@ class VoiceManager(object):
 
 	def _createVoiceInstance(self, voiceName: str):
 		spec = self.getVoiceSpec(voiceName)
-		cls = READY_ENGINE_CLASS[spec.engine]
+		resource = self._published(spec.engine)
 		self.settings.ensure(spec)
-		voiceInstance = cls(spec, self._bindings[spec.engine], self.taskManager)
+		voiceInstance = resource.voice_class(spec, resource.binding, self.taskManager)
 		self._instanceCache[voiceName] = voiceInstance
 		return voiceInstance
 
@@ -247,10 +246,12 @@ class VoiceManager(object):
 
 	@property
 	def playback_ports(self) -> tuple[PlaybackPort, ...]:
-		return tuple(dict.fromkeys(self._sessions.values()))
+		return tuple(resource.session for resource in self._resources.values() if resource.published)
 
 	def _setVoiceDatas(self):
-		self.catalog = VoiceCatalog.from_specs(self._specs.values())
+		self.catalog = VoiceCatalog.from_specs(
+			spec for resource in self._resources.values() if resource.published for spec in resource.voices
+		)
 
 	@property
 	def table(self) -> tuple[VoiceSpec, ...]:

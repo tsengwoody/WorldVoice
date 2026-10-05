@@ -12,7 +12,7 @@ from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 from logHandler import log
 from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
-from synthDrivers.WorldVoice.engine import EngineType, get_engine_enabled
+from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.pipeline import STAGES
 from synthDrivers.WorldVoice.pipeline.settings import pipeline_settings
 
@@ -744,7 +744,7 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		sizer.Add(group_sizer, proportion=1, flag=wx.EXPAND)
 
 		self.settings = OrderedDict(
-			{eng.name: {"label": eng.label, "default": eng.default_enabled} for eng in EngineType},
+			{eng.name: {"label": eng.label, "default": eng.default_enabled} for eng in ENGINE_SPECS},
 		)
 
 		super().makeSettings(group_sizer)
@@ -752,7 +752,7 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		self.previousActiveEngine = set(
 			[
 				eng.name
-				for eng in EngineType
+				for eng in ENGINE_SPECS
 				if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
 			],
 		)

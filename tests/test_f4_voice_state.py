@@ -15,7 +15,7 @@ from voice_binding_harness import install_binding, bind_core
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 
 
-def _load_voice_manager(monkeypatch, engine_classes):
+def _load_voice_manager(monkeypatch):
 	package_name = "f4_test_worldvoice"
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
@@ -41,13 +41,6 @@ def _load_voice_manager(monkeypatch, engine_classes):
 	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=log))
 	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
 		VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(id=id, displayName=displayName, language=language), getSynth=lambda: types.SimpleNamespace(name="WorldVoice")))
-	engine_name = f"{package_name}.engine"
-	engine = types.ModuleType(engine_name)
-	engine.EngineType = [types.SimpleNamespace(name=name) for name in engine_classes]
-	engine.READY_ENGINE_CLASS = dict(engine_classes)
-	engine.get_engine_enabled = lambda *args: True
-	engine.refresh_ready_engine_classes = lambda *args: None
-	monkeypatch.setitem(sys.modules, engine_name, engine)
 	name = f"{package_name}.voiceManager"
 	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "voiceManager.py")
 	module = importlib.util.module_from_spec(spec)
@@ -67,7 +60,7 @@ def _create_voices(monkeypatch, config):
 
 
 def _voices(monkeypatch):
-	_load_voice_manager(monkeypatch, {})
+	_load_voice_manager(monkeypatch)
 	config = sys.modules["config"]
 	return _create_voices(monkeypatch, config), config
 
@@ -160,12 +153,12 @@ def test_speech_queue_does_not_activate_voice(monkeypatch):
 def test_manager_binds_new_voice_to_its_engine(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	module = sys.modules["f4_test_worldvoice.voiceManager"]
-	module.READY_ENGINE_CLASS["A"] = a.__class__
 	voice_meta = type(a._state.spec)("new", "A:new", "A:new", "en", "A", "en")
 	manager_instance = object.__new__(module.VoiceManager)
 	manager_instance._init_policies()
 	manager_instance.catalog = module.VoiceCatalog.from_specs([voice_meta])
-	manager_instance._bindings = {"A": a._binding}
+	manager_instance._resources = {"A": module.EngineResource(
+		"A", a.__class__, None, a._binding.session, a._binding, voices=(voice_meta,), published=True)}
 	manager_instance.settings = a._binding.settings
 	manager_instance.taskManager = None
 	manager_instance._instanceCache = {}

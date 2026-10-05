@@ -11,7 +11,7 @@ from test_worldvoice_lifecycle import _load_voice_manager, _load_synth_class
 
 @pytest.fixture
 def env(monkeypatch):
-    module = _load_voice_manager(monkeypatch, {})
+    module = _load_voice_manager(monkeypatch)
     models = importlib.import_module(module.__package__ + ".runtime.models")
     adapter = importlib.import_module(module.__package__ + ".compat.engineAdapter")
     return SimpleNamespace(module=module, models=models, adapter=adapter)

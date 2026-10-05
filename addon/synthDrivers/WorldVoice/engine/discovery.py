@@ -31,7 +31,7 @@ def _log(logger: Any, method: str, message: str, *args):
 	log_method(message, *args)
 
 
-def _coerce_bool(value: Any) -> bool:
+def coerce_bool(value: Any) -> bool:
 	if isinstance(value, str):
 		return value.lower() not in {"false", "0", ""}
 	return bool(value)
@@ -96,7 +96,7 @@ def _build_engine_spec(name: str, source: str, module_name: str, import_root: st
 		source=source,
 		module_name=module_name,
 		import_root=import_root,
-		default_enabled=_coerce_bool(default_enabled),
+		default_enabled=coerce_bool(default_enabled),
 	)
 
 
@@ -219,4 +219,4 @@ def get_engine_enabled(engine_config: dict[str, Any], engine_spec: EngineSpec) -
 	if engine_spec.name not in engine_config:
 		return engine_spec.default_enabled
 	value = engine_config[engine_spec.name]
-	return _coerce_bool(value)
+	return coerce_bool(value)

@@ -253,14 +253,9 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
     config = sys.modules["config"]
     config.conf["WorldVoice"] = {"autoLanguageSwitching": {"KeepMainLocaleEngineConsistent": False},
                                  "engine": {}, "role": {}}
-    engine_module = ModuleType(PACKAGE + ".engine")
-    engine_module.EngineType = [SimpleNamespace(name=name) for name in ENGINES]
-    engine_module.READY_ENGINE_CLASS = {
-        name: (control.env.outer if name == "OneCore" else control.env.module).Voice
-        for name, control in controls.items()}
-    engine_module.get_engine_enabled = lambda *args: True
-    engine_module.refresh_ready_engine_classes = lambda *args: None
-    monkeypatch.setitem(sys.modules, engine_module.__name__, engine_module)
+    engine_classes = {
+        name: (controls[name].env.outer if name == "OneCore" else controls[name].env.module).Voice
+        for name in ENGINES if name in controls}
     manager_module = importlib.import_module(PACKAGE + ".voiceManager")
     ledger = importlib.import_module(PACKAGE + ".indexLedger").IndexLedger()
     bridge_type = importlib.import_module(PACKAGE + ".nvdaEventBridge").NvdaEventBridge
@@ -316,7 +311,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
         return rt.models.CompletionContract()
 
     manager = manager_module.VoiceManager(tasks, store, bridge,
-        index_ledger=ledger, completion_for=completion_for)
+        index_ledger=ledger, completion_for=completion_for, engine_classes=engine_classes)
     builder = importlib.import_module(PACKAGE + ".runtime.requestBuilder")
     for name, control in controls.items():
         session = manager.resolve_playback(next(spec.name for spec in manager.table if spec.engine == name))

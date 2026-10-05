@@ -44,9 +44,10 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 	class VoiceManager:
 		playback_ports = ()
 
-		def __init__(self, taskManager, settings=None, bridge=None, *, index_ledger, completion_for):
+		def __init__(self, taskManager, settings=None, bridge=None, *, index_ledger, completion_for, engine_classes):
 			assert index_ledger is bridge.ledger
 			assert callable(completion_for)
+			assert engine_classes == {"A": object}
 			if failure == "manager":
 				raise RuntimeError("no voices")
 			changes.append("engine started")
@@ -114,11 +115,12 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		"VoiceManager": VoiceManager,
 		"CompletionPolicy": lambda **options: types.SimpleNamespace(select=lambda voice_class, core: None),
 		"versionInfo": types.SimpleNamespace(version="test"),
+		"ready_engine_classes": lambda engine_config: {"A": object},
 		"IndexLedger": Ledger,
 		"NvdaEventBridge": Bridge,
 		"ConfigVoiceSettingsRepository": lambda *args: object(),
 		"VoiceSettingsStore": lambda repository: object(),
-		"config": types.SimpleNamespace(conf={}),
+		"config": types.SimpleNamespace(conf={"WorldVoice": {"engine": {}}}),
 		"getSynth": lambda: None,
 		"speech": speech,
 		"SpeechSymbols": SpeechSymbols,
@@ -144,7 +146,7 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 		assert changes.index("bridge stopped") < changes.index("engine stopped")
 
 
-def _load_voice_manager(monkeypatch, engine_classes):
+def _load_voice_manager(monkeypatch):
 	package_name = "lifecycle_test_worldvoice"
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
@@ -163,13 +165,6 @@ def _load_voice_manager(monkeypatch, engine_classes):
 	)))
 	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
 		VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(id=id, displayName=displayName, language=language)))
-	engine_name = f"{package_name}.engine"
-	engine = types.ModuleType(engine_name)
-	engine.EngineType = [types.SimpleNamespace(name=name) for name in engine_classes]
-	engine.READY_ENGINE_CLASS = dict(engine_classes)
-	engine.get_engine_enabled = lambda *args: True
-	engine.refresh_ready_engine_classes = lambda *args: None
-	monkeypatch.setitem(sys.modules, engine_name, engine)
 	name = f"{package_name}.voiceManager"
 	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "voiceManager.py")
 	module = importlib.util.module_from_spec(spec)
@@ -196,14 +191,14 @@ def test_voice_manager_closes_engine_when_no_voices(monkeypatch):
 		def destroy_core(cls, core):
 			closed.append(cls.engine)
 
-	module = _load_voice_manager(monkeypatch, {"A": Engine})
+	module = _load_voice_manager(monkeypatch)
 	from runtime_harness import MemoryRepository
 	store = module.VoiceSettingsStore(MemoryRepository())
 	bridge = types.SimpleNamespace(bind=lambda *args, **kwargs: None, unbind=lambda *args: None)
 	with pytest.raises(RuntimeError, match="No WorldVoice voices"):
 		module.VoiceManager(taskManager=object(), settings=store, bridge=bridge,
 			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
-			completion_for=lambda cls, core: module.CompletionContract())
+			completion_for=lambda cls, core: module.CompletionContract(), engine_classes={"A": Engine})
 	assert closed == ["A"]
 
 
@@ -225,20 +220,19 @@ def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
 		def close(cls):
 			closed.append("other")
 
-	module = _load_voice_manager(monkeypatch, {"broken": BrokenEngine, "other": OtherEngine})
+	module = _load_voice_manager(monkeypatch)
 	manager = object.__new__(module.VoiceManager)
 	manager._init_policies()
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}
-	manager._sessions = {}
-	manager._bindings = {}
 	manager.settings = types.SimpleNamespace(keys=lambda: ())
 	manager._bridge = types.SimpleNamespace(unbind=lambda source: None)
-	manager._resources = [
-		module.EngineResource(cls.engine, cls, None, types.SimpleNamespace(close=cls.close, source_id=object()), None)
+	manager._resources = {
+		cls.engine: module.EngineResource(
+			cls.engine, cls, None, types.SimpleNamespace(close=cls.close, source_id=object()), None)
 		for cls in (BrokenEngine, OtherEngine)
-	]
+	}
 	manager.terminate()
 	assert set(closed) == {"broken", "other"}
 	assert manager.taskManager is None
@@ -251,7 +245,7 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	def fail(*args):
 		raise RuntimeError("close failed")
 
-	module = _load_voice_manager(monkeypatch, {})
+	module = _load_voice_manager(monkeypatch)
 	errors = []
 	monkeypatch.setattr(module, "log", types.SimpleNamespace(
 		error=lambda message, *args, **kwargs: errors.append(message % args)))
@@ -260,13 +254,12 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	manager.taskManager = object()
 	manager._terminated = False
 	manager._instanceCache = {}
-	manager._sessions = {}
-	manager._bindings = {}
 	manager.settings = types.SimpleNamespace(keys=lambda: ())
 	manager._bridge = types.SimpleNamespace(unbind=fail)
-	manager._resources = [
-		module.EngineResource("published", Engine, None, types.SimpleNamespace(close=fail, source_id=object()), None),
-	]
+	manager._resources = {
+		"published": module.EngineResource(
+			"published", Engine, None, types.SimpleNamespace(close=fail, source_id=object()), None),
+	}
 	manager.terminate()
 	assert errors == ["Failed to unbind engine published", "Failed to close engine published"]
 
@@ -294,7 +287,7 @@ def test_bridge_unregisters_events_if_registration_fails(monkeypatch, failure):
 			pass
 
 	done = DoneEvent()
-	module = _load_voice_manager(monkeypatch, {})
+	module = _load_voice_manager(monkeypatch)
 	bridge = module.NvdaEventBridge(object(), done_event=done,
 		index_event=FailingEvent(), get_synth=lambda: None)
 	with pytest.raises(RuntimeError, match="registration failed"):
@@ -324,7 +317,7 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 		engine = "first"
 	class Broken(Engine):
 		engine = "broken"
-	module = _load_voice_manager(monkeypatch, {"first": First, "broken": Broken})
+	module = _load_voice_manager(monkeypatch)
 	models = importlib.import_module(module.__package__ + ".runtime.models")
 	from runtime_harness import MemoryRepository
 	store = module.VoiceSettingsStore(MemoryRepository())
@@ -336,7 +329,8 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 		module.VoiceManager(object(), store, bridge,
 			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
 			completion_for=lambda cls, core: models.CompletionContract(
-				models.CompletionMode.DRAIN, models.IndexRange(1, 9999)))
+				models.CompletionMode.DRAIN, models.IndexRange(1, 9999)),
+			engine_classes={"first": First, "broken": Broken})
 	assert closed == ["broken", "first"] and bound == {}
 
 
