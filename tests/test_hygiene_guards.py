@@ -9,12 +9,6 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDON = ROOT / "addon"
-# G201 is ignored in pyproject.toml, and an explicit --select would override that.
-GATED_RULES = "BLE001,I001,UP004,UP008,UP031,UP035,RUF012"
-RUFF_SCOPE = [
-	"--exclude", "addon/synthDrivers/WorldVoice/driver/*/driver",
-	"--exclude", "addon/synthDrivers/WorldVoice/driver/sonic",
-]
 
 
 def _addon_sources():
@@ -37,12 +31,21 @@ def test_every_blind_except_says_where_the_error_goes():
 
 
 @pytest.mark.skipif(shutil.which("ruff") is None, reason="ruff is not installed")
-def test_ruff_reports_none_of_the_gated_rules():
+def test_ruff_reports_nothing():
+	# Every rule, as pyproject.toml configures it. No CLI --select or --exclude: either would
+	# replace the pyproject lists, and --exclude would bring script_data.py back in.
 	result = subprocess.run(
-		["ruff", "check", "addon", *RUFF_SCOPE, "--select", GATED_RULES, "--output-format", "concise"],
+		["ruff", "check", "addon", "--output-format", "concise"],
 		cwd=ROOT, capture_output=True, text=True,
 	)
 	assert result.returncode == 0, result.stdout
+
+
+def test_pre_commit_runs_the_ruff_lint_hook():
+	config = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+	lint = config.index("- id: ruff\n")
+	assert "args: [ --fix ]" in config[lint:config.index("- id: ruff-format")]
+	assert "omits the lint hook" not in config
 
 
 def test_generics_is_imported_only_after_the_package_that_adds_its_path():
@@ -130,7 +133,7 @@ def test_blind_except_reasons_match_their_handlers():
 
 
 def test_g201_ignore_keeps_its_documented_nvda_reason():
-	# Checks the recorded decision in pyproject.toml; ruff itself never reports G201 here.
+	# Checks the recorded decision in pyproject.toml; with the ignore, ruff never reports G201 here.
 	config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 	assert '"G201",' in config and "log.exception lowers expected Windows/COM errors" in config
 

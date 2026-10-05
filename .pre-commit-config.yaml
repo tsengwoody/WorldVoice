@@ -39,9 +39,10 @@ repos:
     # Matches the Ruff version used by NVDA.
     rev: v0.16.3
     hooks:
-      # NVDA also runs `ruff --fix` here. WorldVoice omits the lint hook until
-      # the existing lint findings are cleaned up; otherwise every commit that
-      # touches one of those files would be blocked.
+      - id: ruff
+        name: lint with ruff
+        args: [ --fix ]
+        files: ^addon/
       - id: ruff-format
         name: format with ruff
         files: ^addon/
