@@ -50,3 +50,7 @@ def test_global_plugin_has_no_shadowed_workspace_constant():
 	tree = ast.parse((ADDON / "globalPlugins/WorldVoice/__init__.py").read_text(encoding="utf-8"))
 	targets = {t.id for node in tree.body if isinstance(node, ast.Assign) for t in node.targets if isinstance(t, ast.Name)}
 	assert "workspace_path" not in targets
+
+
+def test_role_panel_names_the_speech_section_by_the_synth_name():
+	assert '["speech"]["WorldVoice"]' not in DIALOG.read_text(encoding="utf-8")

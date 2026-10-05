@@ -312,7 +312,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		def set_main_voice(name):
 			if getSynth().name == "WorldVoice":
 				getSynth().voice = name
-			config.conf["speech"]["WorldVoice"]["voice"] = name
+			config.conf["speech"][synth.name]["voice"] = name
 
 		self._presenter = RolePanelPresenter(
 			self._manager,
