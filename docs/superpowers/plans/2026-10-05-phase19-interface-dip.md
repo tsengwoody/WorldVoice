@@ -27,7 +27,7 @@
 
 - Never edit `driver/<Engine>/driver/` or `driver/sonic`. This phase touches no engine wrapper (`driver/<Engine>/__init__.py`); `driver/__init__.py` (the shared `Voice` base) is in scope.
 - The Neural plugin contract stays: `tests/test_plugin_voice_contract.py` passes, and no deleted name occurs in `ref/Neural`.
-- Config key names, stored values and every user-visible behavior stay the same. The two deliberate exceptions are in the spec: `cancel`/`pause` after terminate no longer raise (§1), and voices loaded during startup with parameter consistency on read the main synth's section like later voices (§2).
+- Config key names, stored values and every user-visible behavior stay the same. The one deliberate exception is `cancel`/`pause` after terminate no longer raising (spec §1). Startup voice loading is unchanged: an explicit gate (`main_settings_ready`, opened when the driver's `initSettings` returns, the moment NVDA's old `getSynth()` started returning the driver) keeps startup voices on their own values. The variant a lazily loaded voice inherits after startup is a known pre-existing issue, out of scope (spec §2).
 - `git add` explicit paths only (`-f` for files under the ignored `docs/`). Never stage `docs/superpowers/finish_task.md`, `refactor-cleanup.md`, `refactor.md` or anything under `storage/`.
 - Commits end with a blank line and `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Tab indentation, line length 110, `ruff format`.
@@ -40,7 +40,7 @@
 
 ## Review Focus
 
-1. **Startup parameter load (Task 4).** With parameter consistency on, `shared_section` now returns the main synth's section during construction. Check that `load` still falls back per key on invalid values, and that a missing section still yields the voice's own values.
+1. **Startup parameter load (Task 4, review fix).** With parameter consistency on, voices loaded during construction and NVDA's `initSettings` must keep their own values (including `variant`); only voices loaded after `initSettings` returns may read the main synth's section. `load` still falls back per key on invalid values, and a missing section still yields the voice's own values.
 2. **Teardown registration timing (Task 8).** `"task manager shutdown"` must be registered before `bridge.start()`; failing constructions must still release exactly what they acquired.
 3. **Manager injection (Task 5).** The repository and the manager share one `ParameterConsistency`; no test silently relies on the removed `config` import in `voiceManager.py`.
 4. **Confspec (Task 6).** `rate`/`pitch`/`volume` spec strings are unchanged byte for byte; the reason the `__many__` spec is inert in NVDA is written next to it.
@@ -132,6 +132,7 @@
   - Update `voice_binding_harness.py` and `test_runtime_composition.py:269` to pass the string.
 - [ ] **Step 4: Run** the full suite and the lint gate → PASS.
 - [ ] **Step 5: Commit** `refactor: give the voice repository the synth's own name instead of NVDA's current synth`.
+- [ ] **Review fix: startup gate.** Add `main_settings_ready` to `ConfigVoiceSettingsRepository` (default true). The driver passes `lambda: self._settingsInitialized`, set to true after `super().initSettings()` returns in an `initSettings` override. Characterization tests first (repository, composition, lifecycle), then implement. Commit `fix: keep startup voices on their own settings until NVDA makes the driver current`.
 
 ---
 
@@ -156,6 +157,7 @@
   - Lifecycle environment: add `ParameterConsistency` and `languageHandler` stubs.
 - [ ] **Step 3: Run** the full suite → PASS.
 - [ ] **Step 4: Commit** `refactor: inject the voice manager's config and language from the composition root`.
+- [ ] **Review fix:** the composition `create` passes `parameter_consistency` and `roles` through; tests assert the real manager keeps both injected objects. Commit `test: check the voice manager keeps the injected policy and roles`.
 
 ---
 

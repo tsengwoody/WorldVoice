@@ -93,11 +93,24 @@ NVDA 的 `AggregatedSection.__getitem__` 用 `self._spec.get(key)` 取子鍵的 
   - 用一個仿 `AggregatedSection` 的 stub：`__getitem__` 拋 `KeyError`、`get` 回傳預設值，結果同上。
 - 原本兩個測試固定的是「取名字的函式拋例外時退回語音自己的值」與「`KeyboardInterrupt` 不被吞」（`tests/test_voice_config_repository.py:55-76`，以及 `tests/test_main_locale_policy.py:94-96` 的 `unavailable`）。名字改為字串後這個輸入不再存在，這些測試刪除。
 - 主驅動測試：建構時 repository 收到的名字是 `"WorldVoice"`，建構過程不呼叫 `getSynth()`。
+- 啟動期間是否查共用區段，由下面的明確閘門決定（審查後補上）。
 
-**可見行為的差異**（刻意修正，與 N1 同類）：在 `KeepMainLocaleParameterConsistent` 開啟時，建構與 `loadSettings` 期間載入的語音，現在和之後才載入的語音一樣，從主 synth 的 speech 區段載入參數。
+**啟動期間的明確閘門**（審查後修正；啟動行為與舊實作完全相同）：
 
-- `rate`／`pitch`／`volume`／`variant`：沒有差異。NVDA 的 `loadSettings` 隨即對這幾個支援的設定逐一 `setattr`（`synthDriverHandler.py:402-408`），經 `_set_voice_parameter` → `onVoiceParameterConsistent`，主語音的值會複製到所有已載入的語音。
-- 唯一的差異：主語音**不支援**、因此 `loadSettings` 不會設定的參數（例如引擎沒有 `inflection` 時的 `inflection`、`rateBoost`）。舊實作中，啟動時載入的語音拿自己的值；之後才載入的語音拿 speech 區段的值。兩者不一致。新實作一律拿 speech 區段的值，這正是 `load` 註解「load effective main-synth values on first use too」想要的行為。
+- 舊實作「沒有共用區段」的期間，就是 `getSynth()` 為 `None` 的期間。NVDA 的 `setSynth` 先把 `_curSynth` 設為 `None`，再呼叫 `getSynthInstance()`；後者依序建構 driver、呼叫 `initSettings()`（首次載入是 `changeVoice` + `saveSettings`，否則是 `loadSettings`），回傳之後 `setSynth` 才執行 `_curSynth = …`（`synthDriverHandler.py:490-495、530-537`）。`initSettings` 回傳與 `_curSynth` 指派之間沒有任何 WorldVoice 程式碼執行，所以邊界就是「`initSettings` 回傳」。
+  - `_bridge/runtimes/synthDriverHost` 會在建構後直接指派 `_curSynth`、不呼叫 `initSettings`，但那是 32 位元 out-of-process 驅動的宿主，不會載入 WorldVoice 這個 add-on。
+- 實作：
+  - `ConfigVoiceSettingsRepository(conf, synth_name, parameters, *, main_settings_ready: Callable[[], bool] = lambda: True)`；`load` 只有在 `main_settings_ready()` 為真時才查 `shared_section`，否則等同沒有共用區段。
+  - 主驅動以 `main_settings_ready=lambda: self._settingsInitialized` 建立 repository；`__init__` 設為 `False`，覆寫 `initSettings()`：先呼叫 `super().initSettings()`，回傳後設為 `True`。
+  - `synth_name` 仍是 driver 自己的名字；閘門是另一個明確命名的條件，不再藉由例外表達。
+- 結果：建構期間（含 `_apply_pipeline_settings` → `waitfactor` setter 對每個 VE／Cerence 語音的 `settings.ensure`）與 NVDA `initSettings` 期間載入的語音，即使 `KeepMainLocaleParameterConsistent` 開啟，也載入自己的值（含 `variant`、`inflection`、`rateBoost`）。之後才延遲載入的語音照舊使用共用區段。
+- 為什麼一定要保留：`variant` 不在 `PARAMETER_NAMES` 裡，`copy_from`／`onVoiceParameterConsistent` 不會把它拉平。若啟動期間就讀共用區段，每個 VE／Cerence 語音都會拿到主 synth 的 variant（例如 eSpeak 的 `max`），`applyEngineSettings` 以 `ValueError("Unavailable variant")` 失敗、該句靜音，`onVoiceParameterConsistent` 的 commit 還會把外來的 variant 寫回 `voices[...]`。
+- 特性測試：
+  - repository：閘門關閉時載入語音自己的值，開啟後載入共用區段；
+  - 組裝：manager 建構期間載入的主語音保有自己的 `rate`／`variant`／`inflection`／`rateBoost`，閘門開啟後延遲載入的語音使用共用區段；
+  - 主驅動：建構後與 NVDA `initSettings` 執行期間閘門關閉，`initSettings` 回傳後開啟。
+- **已知的既有問題（不在範圍內）**：driver 上線之後，延遲載入的語音（或 profile 切換後重新載入）在參數一致性開啟時仍會從共用區段拿到主 synth 的 `variant`。這與舊實作相同，本階段不修。
+- 舊實作在 driver 被 `terminate`、另一個 synth 成為目前 synth 之後，`getSynth().name` 會是那個 synth 的名字；那時不會再有語音載入，所以不需要重現。
 
 ### 3. N4：刪死分支與無呼叫者的方法
 
@@ -193,6 +206,7 @@ NVDA 的 `AggregatedSection.__getitem__` 用 `self._spec.get(key)` 取子鍵的 
 
 ## 決定
 
+- **N2 啟動閘門以 `initSettings` 回傳為界**（審查後補上）：這正是舊實作 `getSynth()` 開始回傳這個 driver 的時點，所以啟動行為逐一相同；理由與證據見第 2 節。
 - **N2 的 `synth_name` 用字串而非 `lambda: self.name`**（`refactor4.md` §1.3 寫的是 lambda）：名字是類別常數，lambda 只是保留了「可能失敗」的形狀。改成字串之後，「取名字失敗」這種輸入不再存在，相關的兩個測試隨之刪除，不必保留一個不會發生的路徑。
 - **N5 一併刪 Protocol 的 `notification_source`、`list_voices`**（`refactor4.md` 只要求 docstring 註明分工）：Protocol 的意義是「session 需要什麼」。session 刪掉 `list_voices` 後，這兩個成員都只有 manager 經由具體類別使用。留在 Protocol 裡，會讓 docstring 寫的分工與宣告不一致。
 - **N7 的 `VOICE_CONFSPEC` 放 `configRepository.py`，不放 `runtime/settings.py`**：confspec 是 NVDA 設定格式的一部分，`configRepository.py` 的模組 docstring 就是「The existing NVDA config format」。`runtime/` 不依賴 NVDA 的格式。
@@ -214,7 +228,7 @@ NVDA 的 `AggregatedSection.__getitem__` 用 `self._spec.get(key)` 取子鍵的 
 
 1. 完整測試全部通過（基準 1725）；`tests/test_hygiene_guards.py` 的 lint gate 為 0；`ruff check addon --extend-exclude addon/synthDrivers/WorldVoice/driver/sonic` 總數不超過 39；`ruff format --check addon --extend-exclude addon/synthDrivers/WorldVoice/driver/sonic` 通過。
 2. N1：terminate 後 `speak`／`cancel`／`pause` 靜默的契約測試。
-3. N2：`shared_section` 的特性測試（停用、存在、不存在、仿 `AggregatedSection`）在刪 except 前後都通過；主驅動給 repository 的名字是 `"WorldVoice"`；`mainLocalePolicy.py` 沒有 `except`。
+3. N2：`shared_section` 的特性測試（停用、存在、不存在、仿 `AggregatedSection`）在刪 except 前後都通過；主驅動給 repository 的名字是 `"WorldVoice"`；`mainLocalePolicy.py` 沒有 `except`；啟動閘門的三組特性測試（repository、組裝、主驅動）通過。
 4. N4：`_get_voice` 兩條路的特性測試；`getVoiceInstanceForLanguage` 的守門。
 5. N5：重新開啟的測試改用 `close`／`open` 後通過；`replace_adapter`、`EngineSession.list_voices` 的守門。
 6. N7：`PARAMETER_NAMES`、`APPLY_ORDER`、`VOICE_CONFSPEC` 的守門；`rate`／`pitch`／`volume` 的 spec 字串逐字不變。
