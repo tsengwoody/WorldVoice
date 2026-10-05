@@ -32,3 +32,9 @@ def test_policies_have_no_separate_persist_step():
 def test_role_panel_save_only_applies():
 	source = ast.unparse(method(DIALOG, "SpeechRoleSettingsPanel", "onSave"))
 	assert "set_" not in source
+
+
+def test_ui_uses_only_public_driver_hooks():
+	for path in (ADDON / "globalPlugins/WorldVoice").glob("*.py"):
+		source = path.read_text(encoding="utf-8")
+		assert "._voiceManager" not in source and ".uwv =" not in source, path.name

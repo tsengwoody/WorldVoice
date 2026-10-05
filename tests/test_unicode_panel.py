@@ -39,7 +39,6 @@ class Synth:
 	def __init__(self, manager):
 		object.__setattr__(self, "events", [])
 		object.__setattr__(self, "name", "WorldVoice")
-		object.__setattr__(self, "_voiceManager", manager)
 		object.__setattr__(self, "voice_manager", manager)
 		object.__setattr__(self, "uwv", True)
 
@@ -146,4 +145,4 @@ def test_changing_detection_timing_refreshes_detection(env, timing, refreshed): 
 	built.synth.events.clear()
 	built.panel.onSave()
 	assert built.switching["DetectLanguageTiming"] == timing
-	assert bool(built.synth.events) is refreshed
+	assert built.synth.events == ([("refresh",)] if refreshed else [])

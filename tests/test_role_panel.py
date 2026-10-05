@@ -102,7 +102,7 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 		"SettingsPanel": object, "_": lambda text: text,
 		"guard_errors": lambda **kwargs: (lambda method: method), "got_error_callback": None,
 		"wx": wx,
-		"getSynth": lambda: types.SimpleNamespace(name="WorldVoice", _voiceManager=manager),
+		"getSynth": lambda: types.SimpleNamespace(name="WorldVoice", voice_manager=manager),
 		"config": types.SimpleNamespace(conf={}),
 		"guiHelper": types.SimpleNamespace(BoxSizerHelper=lambda *args, **kwargs: types.SimpleNamespace(
 			addLabeledControl=lambda *args, **kwargs: Control(**kwargs), addItem=lambda *args: None)),

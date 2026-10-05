@@ -301,7 +301,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self.disable = True
 			return
 
-		self._manager = getSynth()._voiceManager
+		self._manager = getSynth().voice_manager
 
 		synth = getSynth()
 
@@ -609,7 +609,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			self.disable = True
 			return
 
-		self._manager = getSynth()._voiceManager
+		self._manager = getSynth().voice_manager
 
 		self.localesToNames = self._manager.localesToNamesMap
 		self._locales = self._manager.languages
@@ -689,9 +689,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		current_DLT = self._DetectLanguageTimingValue[self._DLTChoice.GetCurrentSelection()]
 		if current_DLT != previous_DLT:
 			config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] = current_DLT
-
-			# trigger register/unregister language detector
-			getSynth().uwv = getSynth().uwv
+			getSynth().refresh_language_detection()
 
 
 class SpeechEngineSettingsPanel(BaseSettingsPanel):

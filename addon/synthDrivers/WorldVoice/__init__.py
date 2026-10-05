@@ -362,6 +362,11 @@ class SynthDriver(SynthDriver):
 	def pause(self, switch):
 		self.taskManager.pause_current(switch)
 
+	@property
+	def voice_manager(self):
+		"""The voice manager the settings panels read; None after terminate."""
+		return self._voiceManager
+
 	def speech_context(self) -> SpeechContext:
 		manager = self._voiceManager
 		if manager is None:
@@ -450,12 +455,13 @@ class SynthDriver(SynthDriver):
 
 	def _set_uwv(self, value):
 		self._uwv = value
-		self.detect_language_timing()
+		self.refresh_language_detection()
 
 	def _detectLanguageTiming(self):
 		return config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"]
 
-	def detect_language_timing(self):
+	def refresh_language_detection(self):
+		"""Register language detection as an NVDA filter only when it runs before NVDA's processing."""
 		if self.uwv and self._detectLanguageTiming() == "before":
 			filter_speechSequence.register(self.add_detected_language_commands)
 			order_move_to_start_register()
