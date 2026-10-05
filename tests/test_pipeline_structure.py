@@ -20,3 +20,9 @@ def imported_modules(path):
 
 def test_language_detection_reaches_for_no_nvda_globals():
 	assert not imported_modules(WORLDVOICE / "languageDetection" / "__init__.py") & {"config", "synthDriverHandler"}
+
+
+def test_one_break_insertion_and_one_regex_scan():
+	source = PIPELINE.read_text(encoding="utf-8")
+	assert "_insert_BreakCommand_between_number" not in source and "previousious" not in source
+	assert source.count(".finditer(") == 1

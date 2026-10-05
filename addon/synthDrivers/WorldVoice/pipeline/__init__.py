@@ -2,7 +2,6 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from functools import wraps
-from itertools import chain, pairwise
 from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Union
 
 import config
@@ -111,100 +110,60 @@ def apply_speech_dictionaries(speechSequence, settings: "PipelineSettings", ctx:
 			yield item
 
 
+_MISSING = object()
+
+
+def _insert_between(
+	speechSequence: Iterable[SpeechCmd],
+	should_break: Callable[[SpeechCmd, SpeechCmd], bool],
+	break_cmd: SpeechCmd,
+) -> Iterator[SpeechCmd]:
+	"""Yield *speechSequence* with *break_cmd* between each adjacent pair that *should_break* accepts."""
+	previous = _MISSING
+	for current in speechSequence:
+		if previous is not _MISSING:
+			yield previous
+			if should_break(previous, current):
+				yield break_cmd
+		previous = current
+	if previous is not _MISSING:
+		yield previous
+
+
+def _split_by(regex: re.Pattern, text: str) -> Iterator[tuple[str, Union[str, re.Match]]]:
+	"""Yield ("text", str) for the non-empty parts between matches and ("match", Match) for each match."""
+	pos = 0
+	for match in regex.finditer(text):
+		if match.start() > pos:
+			yield ("text", text[pos : match.start()])
+		yield ("match", match)
+		pos = match.end()
+	if pos < len(text):
+		yield ("text", text[pos:])
+
+
+def _both_text(previous: SpeechCmd, current: SpeechCmd) -> bool:
+	return isinstance(previous, str) and isinstance(current, str)
+
+
+def _both_numbers(previous: SpeechCmd, current: SpeechCmd) -> bool:
+	return (
+		_both_text(previous, current) and bool(_NUMBER_RE.match(previous)) and bool(_NUMBER_RE.match(current))
+	)
+
+
 # @with_order_log("item_wait_factor")
 def item_wait_factor(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
-	"""
-	Insert a BreakCommand between every two consecutive plain‑text items.
-	Implemented with itertools.pairwise() for clarity.
-	"""
+	"""Insert a BreakCommand between every two consecutive plain-text items."""
 	wait_factor = settings.scaled_item_wait()
 	if wait_factor <= 0:
 		yield from speechSequence
 		return
-
-	break_cmd = BreakCommand(wait_factor)
-
-	# Convert to iterator so we can check length‑1 cases quickly.
-	it = iter(speechSequence)
-
-	try:
-		first = next(it)  # Grab the first element.
-	except StopIteration:  # Empty sequence → nothing to yield.
-		return
-
-	# Special case: only one element in the whole sequence.
-	# Just yield it and stop early.
-	try:
-		second = next(it)
-	except StopIteration:
-		yield first
-		return
-
-	# --- Normal path: we have at least two items ---------------------------
-	# Re‑chain the first two elements back into a single iterable:
-	#   first, second, then the rest of *it*.
-	full_iter = chain([first, second], it)
-
-	# Use pairwise() on the *entire* stream so (first, second) is compared.
-	for previous, current in pairwise(full_iter):
-		yield previous  # Always emit the previousious element.
-		if isinstance(previous, str) and isinstance(current, str):
-			yield break_cmd  # Insert pause when both are strings.
-
-	# pairwise() stops before the last element, so emit it here.
-	yield current
-
-
-def _insert_BreakCommand_between_number(
-	speechSequence: Iterable[SpeechCmd],
-	wait_factor: int,
-) -> Iterator[SpeechCmd]:
-	"""
-	Insert a BreakCommand between every two consecutive plain‑text items.
-
-	The inserted pause length is the scaled number wait factor.
-	Implemented with itertools.pairwise() for clarity.
-	"""
-	break_cmd = BreakCommand(wait_factor)
-
-	# Convert to iterator so we can check length‑1 cases quickly.
-	it = iter(speechSequence)
-
-	try:
-		first = next(it)  # Grab the first element.
-	except StopIteration:  # Empty sequence → nothing to yield.
-		return
-
-	# Special case: only one element in the whole sequence.
-	# Just yield it and stop early.
-	try:
-		second = next(it)
-	except StopIteration:
-		yield first
-		return
-
-	# --- Normal path: we have at least two items ---------------------------
-	# Re‑chain the first two elements back into a single iterable:
-	#   first, second, then the rest of *it*.
-	full_iter = chain([first, second], it)
-
-	# Use pairwise() on the *entire* stream so (first, second) is compared.
-	for previous, current in pairwise(full_iter):
-		yield previous  # Always emit the previousious element.
-		if (
-			isinstance(previous, str)
-			and _NUMBER_RE.match(previous)
-			and isinstance(current, str)
-			and _NUMBER_RE.match(current)
-		):
-			yield break_cmd  # Insert pause when both are strings.
-
-	# pairwise() stops before the last element, so emit it here.
-	yield current
+	yield from _insert_between(speechSequence, _both_text, BreakCommand(wait_factor))
 
 
 def _remove_space(
@@ -242,7 +201,7 @@ def number_wait_factor(
 	if wait_factor <= 0:
 		yield from speechSequence
 		return
-	yield from _insert_BreakCommand_between_number(_remove_space(speechSequence), wait_factor)
+	yield from _insert_between(_remove_space(speechSequence), _both_numbers, BreakCommand(wait_factor))
 
 
 def remove_language_command(speechSequence):
@@ -292,27 +251,16 @@ def iter_number_speech_segments_language(item, current_lang, number_language, nu
 
 	The function processes the input string without building an intermediate list.
 	"""
-	pos = 0
-	for m in number_re.finditer(item):
-		start, end = m.span()
-		number_raw = m.group()
-
-		# Emit the text before the numeric match
-		if start > pos:
-			yield item[pos:start]
-		pos = end
-
+	for kind, value in _split_by(number_re, item):
+		if kind == "text":
+			yield value
+			continue
 		# Language for the numeric fragment
 		num_lang = number_language if number_language != "default" else current_lang
-
 		# Insert language switch and number
 		yield WVLangChangeCommand(num_lang)
-		yield number_raw
+		yield value.group()
 		yield WVLangChangeCommand(current_lang)
-
-	# Emit trailing text after the last match
-	if pos < len(item):
-		yield item[pos:]
 
 
 # @with_order_log("number_language")
@@ -388,26 +336,21 @@ def inject_number_mode(
 
 
 def iter_number_speech_segments_mode(item, mode, translate_table, pair_pause=0, number_re=_NUMBER_RE):
-	pos = 0
+	# A "." right after a number, or right before one, is spoken apart from it.
 	previous_was_number = False
-	for m in number_re.finditer(item):
-		start, end = m.span()
-		number_raw = m.group()
-		prefix = item[pos:start]
-		if prefix:
-			if previous_was_number and prefix[0] == ".":
+	preceding_text = ""
+	for kind, value in _split_by(number_re, item):
+		if kind == "text":
+			if previous_was_number and value[0] == ".":
 				yield " "
-			yield prefix
-		if prefix.endswith("."):
+			yield value
+			preceding_text = value
+			continue
+		if preceding_text.endswith("."):
 			yield " "
-		yield from _translate_number(number_raw, mode, translate_table, pair_pause)
-		pos = end
+		yield from _translate_number(value.group(), mode, translate_table, pair_pause)
 		previous_was_number = True
-	if pos < len(item):
-		tail = item[pos:]
-		if previous_was_number and tail[0] == ".":
-			yield " "
-		yield tail
+		preceding_text = ""
 
 
 def merge_consecutive_strings(items):
@@ -443,21 +386,12 @@ def inject_chinese_space_pause(
 			yield item
 			continue
 
-		pos = 0
-		for m in _CH_SPACE_RE.finditer(item):
-			start, end = m.span()
-
-			# emit text before the CJK-space-CJK pattern
-			if start > pos:
-				yield item[pos:start]
-			pos = end  # advance pointer to character after the space
-
-			# insert the pause once for this space
-			yield pause_cmd
-
-		# emit any tail text after the last match
-		if pos < len(item):
-			yield item[pos:]
+		# the space between two CJK characters becomes the pause
+		for kind, value in _split_by(_CH_SPACE_RE, item):
+			if kind == "text":
+				yield value
+			else:
+				yield pause_cmd
 
 
 _PUNCTUATION_RE_CACHE: dict[str, re.Pattern] = {}
@@ -488,14 +422,11 @@ def _split_punctuation_segments(
 	punctuation run surrounded by digits (e.g. the comma in "12,500" or the
 	dot in "3.5") is part of a "text" segment.
 	"""
-	pos = 0
-	for match in regex.finditer(text):
-		if match.start() > pos:
-			yield ("text", text[pos : match.start()])
-		yield ("punct", match.group())
-		pos = match.end()
-	if pos < len(text):
-		yield ("text", text[pos:])
+	for kind, value in _split_by(regex, text):
+		if kind == "text":
+			yield ("text", value)
+		else:
+			yield ("punct", value.group())
 
 
 # @with_order_log("punctuation_wait_factor")
