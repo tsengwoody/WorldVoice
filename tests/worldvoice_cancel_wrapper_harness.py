@@ -172,7 +172,7 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 
 	def new_core(missing=None, callback_proxy=None):
 		if missing is None and callback_proxy is None:
-			return wrapped.CancellableSynthDriver()
+			return wrapped.SynthDriver()
 		def custom_init(self):
 			initialize_native(self)
 			if callback_proxy:
@@ -181,14 +181,14 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 				owner = self._veCallbackHandler if missing.startswith("callback.") or missing == "_feedBuf" else self
 				field = missing.removeprefix("callback.")
 				delattr(owner, field)
-		initialize_native = getattr(wrapped.CancellableSynthDriver, "_initialize_native",
+		initialize_native = getattr(wrapped.SynthDriver, "_initialize_native",
 			original.SynthDriver.__init__)
 		with monkeypatch.context() as patch:
-			if hasattr(wrapped.CancellableSynthDriver, "_initialize_native"):
-				patch.setattr(wrapped.CancellableSynthDriver, "_initialize_native", custom_init)
+			if hasattr(wrapped.SynthDriver, "_initialize_native"):
+				patch.setattr(wrapped.SynthDriver, "_initialize_native", custom_init)
 			else:
 				patch.setattr(original.SynthDriver, "__init__", custom_init)
-			return wrapped.CancellableSynthDriver()
+			return wrapped.SynthDriver()
 
 	return types.SimpleNamespace(engine=engine, module=wrapped, original_driver=original,
 		native=native, types=native.veTypes, rt=rt, opened=opened,

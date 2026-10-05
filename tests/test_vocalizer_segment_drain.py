@@ -473,7 +473,6 @@ def test_native_constructor_owns_contextual_callback_before_first_open(env):
     message = native_message(env.types, env.types.VE_MSG_ENDPROCESS, env.types.VE_OUTDATA())
     assert env.opened[0][2](instance, None, message) == env.types.NUAN_E_TTS_USERSTOP
     assert env.core._veCallbackHandler._feedBuf.getvalue() == b"keep"
-    assert env.module.CancellableSynthDriver is env.module.SynthDriver
     assert env.module.Voice.synth_driver_class is env.module.SynthDriver
 
 

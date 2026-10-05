@@ -55,7 +55,6 @@ class SpeechSymbols:
 		"""Constructor."""
 		self.symbols = collections.OrderedDict()
 		self.fileName = None
-		self.localesToNames = dict(languageHandler.getAvailableLanguages())
 
 	def load(self, fileName):
 		"""Load symbol information from a file.

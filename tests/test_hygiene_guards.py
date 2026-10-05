@@ -112,3 +112,15 @@ def test_blind_except_reasons_match_their_handlers():
 def test_g201_is_ignored_for_the_documented_nvda_reason():
 	config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 	assert '"G201",' in config and "log.exception lowers expected Windows/COM errors" in config
+
+
+def test_last_dead_code_and_stale_details_stay_gone():
+	worldvoice = ADDON / "synthDrivers/WorldVoice"
+	assert [p.name for p in _addon_sources() if "CancellableSynthDriver" in p.read_text(encoding="utf-8")] == []
+	assert "localesToNames" not in (ADDON / "generics/speechSymbols/models.py").read_text(encoding="utf-8")
+	assert "base_path" not in (ADDON / "generics/speechSymbols/views.py").read_text(encoding="utf-8")
+	for engine in ("VE", "Cerence"):
+		assert "captured once per core" not in (worldvoice / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
+	sapi5 = (worldvoice / "driver/SAPI5/__init__.py").read_text(encoding="utf-8")
+	stop_player = sapi5[sapi5.index("	def stop_player(self, host):"):sapi5.index("	def drain(self, host, record):")]
+	assert "driver is not None" not in stop_player

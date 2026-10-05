@@ -1378,3 +1378,16 @@ def test_stop_failure_after_an_invalidated_feed_latches(env):
     _, _, successor = speak(env, segment=18)
     assert wait_event(successor).kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert len(env.native.calls) == 1
+
+
+def test_strategy_stop_player_without_a_wasapi_player_does_nothing(env):
+    strategy, host, player = env.driver._segmentHost._strategy, env.driver._segmentHost, env.driver.player
+    stopped = []
+    try:
+        env.driver.player = None
+        strategy.stop_player(host)
+        env.driver.player = SimpleNamespace(stop=lambda: stopped.append(True))
+        strategy.stop_player(host)
+    finally:
+        env.driver.player = player
+    assert stopped == [True]

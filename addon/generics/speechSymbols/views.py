@@ -2,7 +2,6 @@ import copy
 
 import addonHandler
 import core
-import globalVars
 import gui
 import queueHandler
 import wx
@@ -14,8 +13,6 @@ from logHandler import log
 from .models import SPEECH_SYMBOL_LANGUAGE_LABELS, SPEECH_SYMBOL_MODE_LABELS, SpeechSymbol, SpeechSymbols
 
 addonHandler.initTranslation()
-
-base_path = globalVars.appArgs.configPath
 
 
 class AddSymbolDialog(

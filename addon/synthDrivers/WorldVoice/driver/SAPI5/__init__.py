@@ -110,7 +110,7 @@ class _Sapi5Strategy(NativeStrategy):
 
 	def stop_player(self, host):
 		driver = self._driver()
-		if driver is not None and driver.player is not None:
+		if driver.player is not None:
 			driver.player.stop()
 
 	def drain(self, host, record):

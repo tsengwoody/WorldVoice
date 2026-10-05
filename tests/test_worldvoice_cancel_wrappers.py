@@ -85,7 +85,7 @@ def test_installs_gate_on_core_and_existing_callback(engine_harness):
 	assert core._player is core._veCallbackHandler._player
 	assert isinstance(core._isSilence, engine_harness.module._SilenceGate)
 	assert core._player._real is core._real_player
-	assert engine_harness.module.Voice.synth_driver_class is engine_harness.module.CancellableSynthDriver
+	assert engine_harness.module.Voice.synth_driver_class is engine_harness.module.SynthDriver
 
 
 @pytest.mark.parametrize("missing", ["_isSilence", "_player", "callback._isSilence",

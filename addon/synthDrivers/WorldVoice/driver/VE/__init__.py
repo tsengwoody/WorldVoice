@@ -938,15 +938,12 @@ class SynthDriver(BaseSynthDriver):
 			self._terminationDone.set()
 
 
-CancellableSynthDriver = SynthDriver
-
-
 class Voice(Voice):
 	extra_capabilities = frozenset({"waitfactor", "variant"})
 	engine = "VE"
 	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver
-	# The engine's own default variant, captured once per core.
+	# The engine's own default variant, cached on each voice and re-read when its core changes.
 	_defaultVariant = None
 	_defaultVariantCore = None
 
