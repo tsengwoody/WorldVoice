@@ -298,6 +298,30 @@ def test_first_voice_resolution_inherits_main_values_and_keeps_cancel_baseline(c
             edit.close()
 
 
+def test_voices_loaded_while_the_driver_starts_keep_their_own_values(composition):
+    c = composition
+    c.engine("ok")
+    conf = c.config.conf
+    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+    conf["WorldVoice"]["voices"] = {
+        "ok:a": {"rate": "40", "variant": "own", "inflection": "35", "rateBoost": "False"},
+        "ok:b": {"rate": "41", "variant": "own-b"},
+    }
+    conf["speech"] = {"WorldVoice": {"rate": 83, "variant": "max", "rateBoost": True}}
+    started = [False]
+    repository_module = importlib.import_module(c.module.__package__ + ".configRepository")
+    c.store._repository = repository_module.ConfigVoiceSettingsRepository(
+        conf, "WorldVoice", main_settings_ready=lambda: started[0])
+    manager = c.create()
+    state = c.store.state("ok:a")
+    assert (state.get("rate"), state.get("variant"), state.get("inflection"), state.get("rateBoost")) == (
+        40, "own", 35, False)
+    started[0] = True
+    assert manager.resolve_playback("ok:b") is not None
+    lazy = c.store.state("ok:b")
+    assert (lazy.get("rate"), lazy.get("variant"), lazy.get("rateBoost")) == (83, "max", True)
+
+
 def test_manager_cancel_passes_sessions_without_core_access(composition):
     c = composition
     c.engine("ok")

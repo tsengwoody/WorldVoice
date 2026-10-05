@@ -1,6 +1,6 @@
 """The existing NVDA config format, accessed through injected dependencies."""
 
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Callable, Mapping, MutableMapping
 
 from .mainLocalePolicy import ParameterConsistency
 from .runtime.models import SettingValue, VoiceSpec, VoiceValues
@@ -28,10 +28,14 @@ class ConfigVoiceSettingsRepository:
 		conf: MutableMapping,
 		synth_name: str,
 		parameters: ParameterConsistency | None = None,
+		*,
+		main_settings_ready: Callable[[], bool] = lambda: True,
 	):
+		"""``main_settings_ready`` tells whether voices may load the main synth's speech settings yet."""
 		self._conf = conf
 		self._synth_name = synth_name
 		self._parameters = parameters or ParameterConsistency(lambda: conf)
+		self._main_settings_ready = main_settings_ready
 
 	def load(self, spec: VoiceSpec) -> VoiceValues:
 		voices = self._conf["WorldVoice"]["voices"]
@@ -40,7 +44,7 @@ class ConfigVoiceSettingsRepository:
 			voices[spec.name] = values.copy()
 		# Persist the legacy defaults, but load effective main-synth values on
 		# first use too, before the shared state establishes its edit baseline.
-		shared = self._parameters.shared_section(self._synth_name)
+		shared = self._parameters.shared_section(self._synth_name) if self._main_settings_ready() else None
 		for name, convert, _ in VOICE_PARAMETERS:
 			value = None
 			if shared is None:

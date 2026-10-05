@@ -122,6 +122,12 @@ def _construction_environment(failure, changes, close_error=None):
 
 	repositories = []
 	managers = []
+
+	class NVDASynthDriver:
+		def initSettings(self):
+			# NVDA loads the saved settings here, before it makes this driver its current synth.
+			[(_, options)] = repositories
+			changes.append(("nvda settings loaded", options["main_settings_ready"]()))
 	logged = []
 
 	class ParameterConsistency:
@@ -133,7 +139,7 @@ def _construction_environment(failure, changes, close_error=None):
 		raise AssertionError("getSynth() is None while the synth is constructed")
 
 	environment = {
-		"SynthDriver": type("NVDASynthDriver", (), {}),
+		"SynthDriver": NVDASynthDriver,
 		"synthIndexReached": object(),
 		"synthDoneSpeaking": object(),
 		"WVStart": Action("start"),
@@ -155,7 +161,7 @@ def _construction_environment(failure, changes, close_error=None):
 		"ready_engine_classes": lambda engine_config: {"A": object},
 		"IndexLedger": Ledger,
 		"NvdaEventBridge": Bridge,
-		"ConfigVoiceSettingsRepository": lambda *args: repositories.append(args) or object(),
+		"ConfigVoiceSettingsRepository": lambda *args, **kwargs: repositories.append((args, kwargs)) or object(),
 		"VoiceSettingsStore": lambda repository: object(),
 		"config": types.SimpleNamespace(conf={"WorldVoice": {"engine": {}}}),
 		"getSynth": unavailable_synth,
@@ -232,15 +238,29 @@ def test_entry_points_are_silent_after_terminate():
 def test_voice_settings_load_from_the_synths_own_speech_section():
 	built = _construction_environment(None, [])
 	_load_synth_class(built.environment)()
-	assert [args[1] for args in built.repositories] == ["WorldVoice"]
+	assert [args[1] for args, _ in built.repositories] == ["WorldVoice"]
 
 
 def test_repository_and_manager_share_one_parameter_policy():
 	built = _construction_environment(None, [])
 	_load_synth_class(built.environment)()
-	[(_, _, parameters)] = built.repositories
+	[((_, _, parameters), _)] = built.repositories
 	assert isinstance(parameters, built.ParameterConsistency)
 	assert built.managers == [parameters]
+
+
+def test_voices_load_the_main_settings_only_once_nvda_has_made_the_driver_current():
+	# setSynth() clears the current synth, constructs the driver and runs initSettings, and only then
+	# makes it current; until then voices keep their own values, as when getSynth() was None.
+	changes = []
+	built = _construction_environment(None, changes)
+	driver = _load_synth_class(built.environment)()
+	[(_, options)] = built.repositories
+	ready = options["main_settings_ready"]
+	assert ready() is False
+	driver.initSettings()
+	assert ("nvda settings loaded", False) in changes
+	assert ready() is True
 
 
 def test_stages_register_after_symbols_and_detector():
