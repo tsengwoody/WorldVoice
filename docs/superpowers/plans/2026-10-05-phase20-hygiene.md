@@ -21,7 +21,7 @@
 
 ## Global Constraints
 
-- Never edit `driver/<Engine>/driver/` or `driver/sonic`, and keep both out of the new lint hook. The only engine wrapper touched is `driver/OneCore/__init__.py`. VE and Cerence are not touched, and the `tests/test_vocalizer_drift.py` allowlist stays.
+- Never edit `driver/<Engine>/driver/` or `driver/sonic`, and keep both out of the new lint hook. The only engine wrapper with lint fixes is `driver/OneCore/__init__.py`. VE and Cerence get only the Task 10b trailing commas, the same in both, and the `tests/test_vocalizer_drift.py` allowlist stays.
 - The Neural plugin contract stays: `tests/test_plugin_voice_contract.py` passes. `ref/Neural` does not use `VoiceSettingsStore.keys()`.
 - No user-visible behavior changes. Translated strings (`_()`, `pgettext`) are not edited. Kept by user decision: the `except Exception: pass` in `with_order_log`, VE/Cerence as separate copies, and the `exec`-based tests.
 - Before rewriting code whose output could change, add a test that pins the current output and passes on the current code.
@@ -92,7 +92,7 @@
 ### Task 4: Rename `VoiceSettingsStore.keys()` to `names()`
 
 **Files:**
-- Modify: `runtime/settings.py`, `voiceManager.py`, `mainLocalePolicy.py`, `globalPlugins/WorldVoice/rolePresenter.py`, `tests/test_runtime_settings_store.py`, `tests/test_runtime_session.py`
+- Modify: `runtime/settings.py`, `voiceManager.py`, `mainLocalePolicy.py`, `globalPlugins/WorldVoice/rolePresenter.py`, `tests/test_runtime_settings_store.py`, `tests/test_runtime_session.py`, and the store fakes in `tests/test_main_locale_policy.py` and `tests/test_worldvoice_lifecycle.py`
 
 - [ ] **Step 1: Failing test.** In `tests/test_runtime_settings_store.py`, change the existing assertion to `store.names() == ("Fake:a",)`, and add an assertion that `store` has no `keys` attribute. Run → FAIL.
 - [ ] **Step 2: Implement.**
@@ -130,7 +130,7 @@
     - `worldvoice_synth() is None` at 297, 581, 605 and 676;
     - `worldvoice_synth() is not None` at 833;
     - in `set_main_voice`, `current = worldvoice_synth()`, then `if current is not None: current.voice = name`.
-- [ ] **Step 3: Update the exec environments** in `test_role_panel.py` (four) and `test_unicode_panel.py` (one) to provide `worldvoice_synth`, with the same synth or `None` the test meant.
+- [ ] **Step 3: Update the exec environments** in `test_role_panel.py` (three) and `test_unicode_panel.py` (one) to provide `worldvoice_synth`, with the same synth or `None` the test meant. The panel-opening test also calls the captured `set_main_voice` before and after the synth is switched away: it sets the voice only while WorldVoice is current, and always writes the speech section.
 - [ ] **Step 4: Run** the full suite → PASS. The ruff total drops by 3. `grep -n '== "WorldVoice"' addon/globalPlugins` finds nothing.
 - [ ] **Step 5: Commit** `refactor: ask one helper whether WorldVoice is the current synth`.
 
@@ -192,10 +192,19 @@
 - [ ] **Step 4: Run** the full suite → PASS. Run `pre-commit run --all-files` (pre-commit from a scratch venv) → every hook passes with no file modified; if the environment cannot run it, record why.
 - [ ] **Step 5: Commit** `build: run ruff's lint hook in pre-commit and gate every rule`.
 
+### Task 10b: The trailing commas the pre-commit hooks ask for (added during implementation)
+
+**Files:**
+- Modify: the seven files `add-trailing-comma` rewrote on the first `pre-commit run --all-files` (main driver, `speechSettingsDialog.py`, `languageDetection/settings.py`, `pipeline/__init__.py`, OneCore, VE, Cerence)
+
+- [ ] **Step 1:** Run `pre-commit run --all-files`. Review that every change is a trailing comma, or ruff format splitting a call one argument per line; VE and Cerence change the same way.
+- [ ] **Step 2: Run** the full suite (including `tests/test_vocalizer_drift.py`), `ruff check addon` and `ruff format --check addon` → PASS.
+- [ ] **Step 3: Commit** `style: add the trailing commas the pre-commit hooks ask for`, then run `pre-commit run --all-files` again → every hook passes and no file changes.
+
 ### Task 11: Final verification
 
 - [ ] The full suite passes, at 1745 plus the new tests.
 - [ ] `ruff check addon` reports 0, and `ruff format --check addon` passes.
-- [ ] `git diff master --stat -- addon/synthDrivers/WorldVoice/driver/*/driver addon/synthDrivers/WorldVoice/driver/sonic addon/synthDrivers/WorldVoice/driver/VE addon/synthDrivers/WorldVoice/driver/Cerence` is empty.
+- [ ] `git diff master --stat -- addon/synthDrivers/WorldVoice/driver/*/driver addon/synthDrivers/WorldVoice/driver/sonic` is empty. VE and Cerence show only the Task 10b commas.
 - [ ] `git diff master -- addon | grep '^[-+].*_(\|pgettext'` shows no translated string text changed.
 - [ ] Align the spec and plan with what was implemented, if anything differed.

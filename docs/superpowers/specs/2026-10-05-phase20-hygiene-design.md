@@ -72,7 +72,7 @@
 - 呼叫端共 6 處：
   - 5 處 ruff 回報的位置；
   - `VoiceEditSession._keys()`（`runtime/settings.py:170`），不被回報，但呼叫同一個方法。
-- 測試 2 處（`test_runtime_settings_store.py:26`、`test_runtime_session.py:189`）跟著改。
+- 測試 2 處（`test_runtime_settings_store.py:26`、`test_runtime_session.py:189`）跟著改；兩個測試替身（`test_main_locale_policy.py:81`、`test_worldvoice_lifecycle.py:365、393` 的 `keys=lambda`）也跟著改名。
 - `ref/Neural` 不使用這個方法，外掛契約不變。
 
 這和 `refactor4.md` 的建議不同。審查把 `SIM118` 歸為「人工改」，但沒有注意到被呼叫的不是 dict。
@@ -105,6 +105,7 @@ def worldvoice_synth():
   - NVDA 只在 `setSynth` 換 synth 的瞬間讓 `_curSynth` 為 `None`（`synthDriverHandler.py:530-537`），這時設定對話框的程式碼不會執行。
   - 所以使用者可見的行為不變。
 - 以 `exec` 抽類別本體的 UI 測試（`test_role_panel.py`、`test_unicode_panel.py`）改為在環境中提供 `worldvoice_synth`。
+- `test_role_panel.py` 開啟面板的測試另外呼叫 `set_main_voice`，確認它在執行當下才查詢 synth：synth 換掉之後只寫設定，不設定舊 synth 的 voice。
 - `VoiceSettingsDialogs.py:91` 檢查的是 `self.driver` 而不是目前的 synth，不改。
 
 ### 6. 主驅動與事件橋接（`B020`／`PLR1704`、`B008`）
@@ -120,7 +121,7 @@ def worldvoice_synth():
 
 ### 7. OneCore wrapper（N12：`RUF100`、`RUF059`）
 
-`driver/OneCore/__init__.py` 是外層 wrapper，可以改。VE／Cerence 不涉及，漂移測試允許清單不變。
+`driver/OneCore/__init__.py` 是外層 wrapper，可以改。VE／Cerence 的 lint 項目不涉及，漂移測試允許清單不變（兩檔只有第 12 節的尾逗號）。
 
 - `RUF100`（304）：
   - `37004cb` 在這個 handler 的 `else` 分支加了 `log.error(..., exc_info=True)`。ruff 因此不再把它視為 blind except，`noqa: BLE001` 變成無作用。
@@ -176,6 +177,15 @@ def worldvoice_synth():
 - 新增 `test_pre_commit_runs_the_ruff_lint_hook`：`.pre-commit-config.yaml` 有 `id: ruff` 加 `--fix`，且兩個 exclude 都排除 sonic。
 - 突變驗證：任意加入一項 ruff finding，`test_ruff_reports_nothing` 必須失敗；還原後通過。
 
+### 12. 實作時補上：pre-commit 的尾逗號（審查後補上）
+
+第一次執行 `pre-commit run --all-files` 時，`add-trailing-comma` 改了 7 個檔案：
+
+- 主驅動、`speechSettingsDialog.py`、`languageDetection/settings.py`、`pipeline/__init__.py`、OneCore、VE、Cerence。
+- 都是先前階段只跑了 `ruff format`、沒跑 `add-trailing-comma` 留下的：多行呼叫的最後一個引數少了逗號。補上後 ruff format 會把它們展開成每行一個引數。
+- 只動格式，不改行為。VE 與 Cerence 的 `threading.Thread(...)` 改法相同；Cerence 多一處，是因為它的錯誤訊息較長，原本就已經拆成多行（VE 那一行沒有超過行寬）。漂移測試通過，允許清單不變。
+- 獨立成一個 commit，使 `pre-commit run --all-files` 全部通過且不修改任何檔案。
+
 ## 決定
 
 - **`SIM118` 改名 `names()`，不加 noqa、不讓 store 可迭代**（`refactor4.md` 寫「人工改」）：5 處都是誤報，理由見第 3 節。
@@ -189,6 +199,7 @@ def worldvoice_synth():
 - **sonic 加入 pyproject 與 pre-commit 的 exclude**（`refactor4.md` 沒有提到）：要讓 hook 不掃到 sonic，又不必每次都加 CLI 參數，這是唯一一致的作法。
 - **`worldvoice_synth()` 一併做**（`refactor4.md` 列為順手項）：`SIM201` 的三處正好都是這個判斷。七處判斷收成一處，UI 不再拼寫 synth 名稱字串。
 - **`B010` 只改成直接賦值，不刪除**：刪除屬於 N10，需要先確認 wx handler 的順序。
+- **補上 `add-trailing-comma` 的 7 處尾逗號**（`refactor4.md` 沒有提到）：不補，`pre-commit run --all-files` 就不會通過，新的 hook 也會在下一次碰到這些檔案時自動改動；見第 12 節。
 - **lint hook 用 NVDA 的 `id: ruff`**（ruff-pre-commit 新的 id 是 `ruff-check`，`ruff` 是相容別名）：與 NVDA 逐字相同，日後比對時比較容易。
 
 ## 排除
@@ -203,7 +214,7 @@ def worldvoice_synth():
 
 ## 成功條件
 
-1. 完整測試全部通過（基準 1745）。
+1. 完整測試全部通過（基準 1745；完成時 1753）。
 2. `ruff check addon` 為 0，不需要任何 CLI exclude；`ruff format --check addon` 通過。
 3. `test_ruff_reports_nothing` 在 0 項時通過，在加入任意一項時失敗（突變驗證）。
 4. `pre-commit run --all-files` 通過（環境允許時執行，否則說明原因）。
@@ -213,7 +224,7 @@ def worldvoice_synth():
    - `_get_availableNummods` 的內容與順序；
    - `worldvoice_synth()` 的三種情況。
    既有的 `EXPECTED_REPR` 不變。
-6. `driver/<Engine>/driver/`、`driver/sonic` 無變動；VE／Cerence 無變動；`tests/test_vocalizer_drift.py`、`tests/test_plugin_voice_contract.py` 通過。
+6. `driver/<Engine>/driver/`、`driver/sonic` 無變動；VE／Cerence 只有第 12 節的格式變動；`tests/test_vocalizer_drift.py`、`tests/test_plugin_voice_contract.py` 通過。
 7. 翻譯字串（`_()`、`pgettext`）內容沒有任何改變。
 
 ## 不在範圍內
