@@ -55,3 +55,25 @@ def test_number_modes_are_a_plain_dict_in_order():
 		("number", "number", "number"),
 		("pair", "pair", "pair"),
 	]
+
+
+def _context_module(stub_modules, synth):
+	import importlib.util
+
+	stub_modules.module("synthDriverHandler", getSynth=lambda: synth)
+	path = WORLDVOICE / "pipeline/context.py"
+	spec = importlib.util.spec_from_file_location("pipeline_context_under_test", path)
+	module = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(module)
+	return module
+
+
+def test_worldvoice_synth_returns_only_worldvoice(stub_modules):
+	worldvoice = types.SimpleNamespace(name="WorldVoice", speech_context=lambda: "worldvoice context")
+	module = _context_module(stub_modules, worldvoice)
+	assert module.worldvoice_synth() is worldvoice
+	assert module.current_context() == "worldvoice context"
+	for other in (types.SimpleNamespace(name="eSpeak"), types.SimpleNamespace(), None):
+		module = _context_module(stub_modules, other)
+		assert module.worldvoice_synth() is None
+		assert module.current_context() is module.GENERIC_CONTEXT

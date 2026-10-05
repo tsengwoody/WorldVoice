@@ -94,6 +94,7 @@ def build(env, languages, stored):
 		"guiHelper": SimpleNamespace(BoxSizerHelper=Helper),
 		"config": SimpleNamespace(conf=NoConfig()),
 		"getSynth": lambda: synth,
+		"worldvoice_synth": lambda: synth,
 		"languageDetection": env.module,
 		"detection_settings": service,
 	}

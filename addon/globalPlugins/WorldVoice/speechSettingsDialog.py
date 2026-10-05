@@ -15,6 +15,7 @@ from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
 from synthDrivers.WorldVoice.pipeline import STAGES
+from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
 from synthDrivers.WorldVoice.pipeline.settings import pipeline_settings
 
 from .pipelineLog import ask_export, confirm_enable, pipeline_log
@@ -294,7 +295,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	def makeSettings(self, sizer):
 		self.disable = False
-		if not getSynth().name == "WorldVoice":
+		if worldvoice_synth() is None:
 			infoCtrl = wx.TextCtrl(
 				self,
 				value=_("Your current speech synthesizer is not WorldVoice."),
@@ -310,8 +311,9 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		synth = getSynth()
 
 		def set_main_voice(name):
-			if getSynth().name == "WorldVoice":
-				getSynth().voice = name
+			current = worldvoice_synth()
+			if current is not None:
+				current.voice = name
 			config.conf["speech"][synth.name]["voice"] = name
 
 		self._presenter = RolePanelPresenter(
@@ -578,7 +580,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	def onSave(self):
 		# The dialog is not modal: the synth may have changed since it opened.
-		if self.disable or getSynth().name != "WorldVoice":
+		if self.disable or worldvoice_synth() is None:
 			return
 		try:
 			self._presenter.apply()
@@ -602,7 +604,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 
 	def makeSettings(self, sizer):
 		self.disable = False
-		if not getSynth().name == "WorldVoice":
+		if worldvoice_synth() is None:
 			infoCtrl = wx.TextCtrl(
 				self,
 				value=_("Your current speech synthesizer is not WorldVoice."),
@@ -673,7 +675,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		return choice, locales
 
 	def onSave(self):
-		if self.disable or not getSynth().name == "WorldVoice":
+		if self.disable or worldvoice_synth() is None:
 			return
 		# The driver subscribes to these settings and re-registers detection when the timing changes.
 		detection_settings.update(
@@ -831,7 +833,7 @@ class WorldVoiceSettingsDialog(MultiCategorySettingsDialog):
 	MIN_SIZE = (470, 240)
 
 	def __init__(self, parent):
-		if getSynth().name == "WorldVoice":
+		if worldvoice_synth() is not None:
 			self.categoryClasses = [
 				SpeechPipelinePanel,
 				SpeechRoleSettingsPanel,

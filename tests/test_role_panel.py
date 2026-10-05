@@ -31,7 +31,7 @@ def test_failed_apply_shows_error_and_raises_value_error():
 		"wx": types.SimpleNamespace(OK=1, ICON_ERROR=2),
 		"gui": types.SimpleNamespace(messageBox=lambda *args: messages.append(args)),
 		"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
-		"getSynth": lambda: types.SimpleNamespace(name="WorldVoice"),
+		"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice"),
 	})
 	panel = object.__new__(panel_type)
 	panel.disable = False
@@ -86,10 +86,15 @@ class Control:
 def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 	created = []
 	manager = types.SimpleNamespace()
+	synth = types.SimpleNamespace(name="WorldVoice", voice_manager=manager)
+	current = [synth]
+	speech = {"WorldVoice": {}}
+	hooks = {}
 
 	class Presenter:
 		def __init__(self, manager, **kwargs):
 			created.append((manager, sorted(kwargs)))
+			hooks.update(kwargs)
 			self.keep_engine = self.keep_voice = self.keep_parameters = False
 		def locales(self):
 			return [("en", "English")]
@@ -102,8 +107,9 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 		"SettingsPanel": object, "_": lambda text: text,
 		"guard_errors": lambda **kwargs: (lambda method: method), "got_error_callback": None,
 		"wx": wx,
-		"getSynth": lambda: types.SimpleNamespace(name="WorldVoice", voice_manager=manager),
-		"config": types.SimpleNamespace(conf={}),
+		"getSynth": lambda: synth,
+		"worldvoice_synth": lambda: current[0],
+		"config": types.SimpleNamespace(conf={"speech": speech}),
 		"guiHelper": types.SimpleNamespace(BoxSizerHelper=lambda *args, **kwargs: types.SimpleNamespace(
 			addLabeledControl=lambda *args, **kwargs: Control(**kwargs), addItem=lambda *args: None)),
 		"RolePanelPresenter": Presenter,
@@ -118,6 +124,12 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 	assert panel._onDestroy in bindings
 	assert panel._locales == ["en"]
 	assert panel.disable is False
+	# The dialog is not modal: setting the main voice asks for the current synth when it runs.
+	hooks["set_main_voice"]("b")
+	assert synth.voice == "b" and speech["WorldVoice"]["voice"] == "b"
+	current[0] = None
+	hooks["set_main_voice"]("c")
+	assert synth.voice == "b" and speech["WorldVoice"]["voice"] == "c"
 
 
 def test_save_does_nothing_after_the_synth_was_switched_away():
@@ -125,7 +137,7 @@ def test_save_does_nothing_after_the_synth_was_switched_away():
 	panel_type = load_panel({
 		"SettingsPanel": object, "_": lambda text: text,
 		"guard_errors": lambda **kwargs: (lambda method: method), "got_error_callback": None,
-		"getSynth": lambda: types.SimpleNamespace(name="eSpeak"),
+		"worldvoice_synth": lambda: None,
 	})
 	panel = object.__new__(panel_type)
 	panel.disable = False
