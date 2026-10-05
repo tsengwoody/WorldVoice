@@ -7,6 +7,7 @@ until the mark is removed.
 
 from contextlib import suppress
 from threading import Condition, Thread, get_ident
+from time import monotonic, sleep
 
 import pytest
 from engine_contract_harness import (
@@ -207,18 +208,22 @@ def test_segment_after_ordinary_speech_follows_the_engine_mode_rule(engine):
 	# VE/Cerence refuse correlated mode once legacy speech ran: its callback
 	# lifetimes are unproven. Every other engine runs the segment after it.
 	engine.speak_ordinary(("first",))
+	engine.complete_ordinary()
+	expected = getattr(engine.EventKind, ORDINARY_THEN_SEGMENT[engine.engine])
+	ordinary_calls = engine.native_call_count()
 	context = engine.PlaybackContext(object(), 27)
 	events = Events(engine)
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
-	for _ in range(3):
+	if expected is engine.EventKind.SEGMENT_DRAINED:
+		deadline = monotonic() + 2
+		while engine.native_call_count() <= ordinary_calls and monotonic() < deadline:
+			sleep(0.005)
+		assert engine.native_call_count() > ordinary_calls, "the segment never reached native synthesis"
 		engine.complete()
-		with events.condition:
-			if events.condition.wait_for(lambda: bool(events), 0.5):
-				break
 	event = events.wait_one()
 	caller.join(2)
 	assert not caller.is_alive() and errors == []
-	assert event.kind is getattr(engine.EventKind, ORDINARY_THEN_SEGMENT[engine.engine])
+	assert event.kind is expected
 	assert event.segment_id == 27
 	if event.kind is engine.EventKind.SEGMENT_FAILED:
 		assert "Legacy" in str(event.error)

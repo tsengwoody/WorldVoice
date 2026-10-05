@@ -51,6 +51,10 @@ class _Adapter:
 	def speak_ordinary(self, commands):
 		self.core.speak(commands)
 
+	def complete_ordinary(self):
+		"""Let ordinary speech queued by speak_ordinary finish."""
+		self.complete()
+
 	def _player(self):
 		return self.env.player
 
@@ -153,6 +157,11 @@ class OneCoreAdapter(_Adapter):
 
 	def native_call_count(self):
 		return len(self.env.native.calls)
+
+	def complete_ordinary(self):
+		# Legacy OneCore speech syncs and idles the player inside its callback.
+		self.env.player.sync_release.set()
+		self.complete()
 
 	def close(self):
 		self.env.player.feed_release.set()
