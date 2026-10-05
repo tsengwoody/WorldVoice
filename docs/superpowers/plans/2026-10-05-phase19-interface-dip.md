@@ -142,7 +142,7 @@
 
 - [ ] **Step 1: Failing tests.**
   - Add `init_policies(manager, config)` to `tests/test_f4_voice_state.py`. It calls `manager._init_policies(lambda: config.conf, lambda: "en")`. Every bare `manager._init_policies()` goes through it.
-  - The composition `create`, the drain harness and the two lifecycle constructions pass `conf_provider=` and `get_language=`.
+  - The composition `create`, the drain harness and the two lifecycle constructions pass `conf_provider=` and `get_language=`. Composition tests that reached the config stub through `c.module.config` use the fixture's `c.config`.
   - Lifecycle: the fake `VoiceManager` takes the new keywords and records `parameter_consistency`. The repository stub records `parameters`. Assert the two are the same object, and that it is a `ParameterConsistency` from the environment.
   - Guard: `voiceManager.py` imports neither `config` nor `languageHandler` (AST over `Import`/`ImportFrom`).
   - A default-voice test: with `get_language=lambda: "zh"`, a manager over `en` and `zh` voices picks the `zh` voice as default.
@@ -188,7 +188,7 @@
 ### Task 7: One spelling for the speech section (N9)
 
 **Files:**
-- Modify: `addon/globalPlugins/WorldVoice/speechSettingsDialog.py`, `tests/test_role_panel.py` (or `tests/test_ui_structure.py`)
+- Modify: `addon/globalPlugins/WorldVoice/speechSettingsDialog.py`, `tests/test_ui_structure.py`
 
 - [ ] **Step 1: Failing guard:** `speechSettingsDialog.py` does not contain `["speech"]["WorldVoice"]`. Run → FAIL.
 - [ ] **Step 2: Implement:** `config.conf["speech"][synth.name]["voice"] = name`.
@@ -200,7 +200,7 @@
 ### Task 8: Register driver cleanups as resources come up (N11)
 
 **Files:**
-- Modify: `addon/synthDrivers/WorldVoice/__init__.py`, `tests/test_worldvoice_lifecycle.py`
+- Modify: `addon/synthDrivers/WorldVoice/__init__.py`, `tests/test_worldvoice_lifecycle.py`, `tests/test_assembly_structure.py`, `tests/test_runtime_composition.py`
 
 - [ ] **Step 1: Rewrite the teardown error test on current code first.**
   - Give `_construction_environment` a `close_error` option: the bridge's `close` raises it after recording.
@@ -208,7 +208,7 @@
     - `RuntimeError`: logged once as `("WorldVoice terminate: %s", "event bridge close")`, and the ledger still closes;
     - `KeyboardInterrupt`: propagates, nothing logged, the ledger not closed.
   - Run → PASS.
-- [ ] **Step 2: Guard:** the driver source has no `_new_teardown`. Run → FAIL.
+- [ ] **Step 2: Guard:** the driver source has no `_new_teardown` (`tests/test_assembly_structure.py`). Run → FAIL.
 - [ ] **Step 3: Implement** per spec §8. The order of registration within the TaskManager step:
   1. ledger;
   2. bridge;
@@ -216,6 +216,8 @@
   4. `bridge.start(...)`.
 
   The voice manager registers right after its construction.
+
+  `tests/test_runtime_composition.py::make_synth` built its teardown through `_new_teardown()` around real runtime objects; it now builds a `Teardown` from the driver's `_TEARDOWN_ORDER` and registers the four runtime cleanups the way `_initialize` does.
 - [ ] **Step 4: Run** the lifecycle tests, then the full suite → PASS.
 - [ ] **Step 5: Commit** `refactor: register each driver cleanup once its resource exists`.
 
@@ -224,7 +226,7 @@
 ### Task 9: Drop the second ready check and the null-logger helper
 
 **Files:**
-- Modify: `addon/synthDrivers/WorldVoice/driver/__init__.py`, `addon/synthDrivers/WorldVoice/engine/discovery.py`, `tests/test_f4_engine_adapters.py` (or `tests/test_plugin_voice_contract.py`), `tests/test_engine_discovery.py`
+- Modify: `addon/synthDrivers/WorldVoice/driver/__init__.py`, `addon/synthDrivers/WorldVoice/engine/discovery.py`, `tests/test_plugin_voice_contract.py`, `tests/test_engine_discovery.py`
 
 - [ ] **Step 1: Characterization tests (pass now):**
   - `Voice.voices(None) == []`;

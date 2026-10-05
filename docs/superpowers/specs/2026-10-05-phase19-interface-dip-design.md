@@ -174,6 +174,7 @@ NVDA 的 `AggregatedSection.__getitem__` 用 `self._spec.get(key)` 取子鍵的 
 - 測試：
   - `tests/test_worldvoice_lifecycle.py` 既有的建構失敗測試（manager、symbols、bridge、pipeline）不改斷言；
   - `test_terminate_cleanup_logs_errors_but_lets_interrupts_through` 原本以 `_new_teardown()` 建立，改為走真正的建構流程（bridge 的 `close` 拋錯），斷言不變。
+  - `tests/test_runtime_composition.py` 的 `make_synth` 以真實 runtime 物件驗證拆卸順序，原本也呼叫 `_new_teardown()`。改為以驅動的 `_TEARDOWN_ORDER` 建 `Teardown`，並照 `_initialize` 的方式登記四個 runtime 清理。
 
 ### 9. `Voice.voices()` 不再檢查 `ready()`
 
