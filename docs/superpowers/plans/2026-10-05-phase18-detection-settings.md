@@ -8,7 +8,7 @@
 - Write down why `WVLangChangeCommand` is not a `LangChangeCommand`, why it has `isDefault`, and why installTasks turns NVDA's automatic language switching off.
 
 **Architecture:**
-- New module `synthDrivers/WorldVoice/languageDetection/settings.py`: `DETECTION_CONFSPEC`, `SCRIPT_CONFIG_KEYS`, the frozen `DetectionSettings`, `DetectionSettingsService` (Repository + Observer, shaped like `PipelineSettingsService`) and the singleton `detection_settings`.
+- New module `synthDrivers/WorldVoice/languageDetection/settings.py`: `DETECTION_CONFSPEC`, `SCRIPT_CONFIG_KEYS`, the frozen `DetectionSettings`, `DetectionSettingsService` and the singleton `detection_settings`. The service is also the repository: it reads and writes the config section itself and notifies subscribers (Observer). There is no separate repository class, unlike `pipeline/settings.py`'s `ConfigPipelineRepository` + `PipelineSettingsService`.
 - `languageDetection/__init__.py` still imports no `config`; it gets the service injected.
 - Docstring, comment and guard tests for the command contract.
 
@@ -31,7 +31,7 @@
 2. **Teardown order.** `"detection settings unsubscribe"` runs before `"language detection unregister"`, and a construction that fails after subscribing still unsubscribes (Task 4).
 3. **Snapshot per sequence.** The detector reads settings once per call, not once per character. The existing detector assertions must hold unchanged (Task 3).
 4. **The panel's partial save.** A disabled script choice is not written. `update(script_language=…)` merges and does not replace the mapping (Tasks 2 and 5).
-5. **Entry-point import test.** `tests/test_runtime_composition.py` executes the real `__init__.py` with stubbed subpackages; the new `languageDetection.settings` import needs its own stub (Task 4).
+5. **Entry-point import test.** `tests/test_runtime_composition.py` executes the real `__init__.py` with stubbed subpackages; the new `languageDetection.settings` import needs its own stub (Task 3, where the driver first imports it).
 
 ---
 
@@ -107,7 +107,7 @@
 ### Task 4: The driver subscribes to timing changes
 
 **Files:**
-- Modify: `addon/synthDrivers/WorldVoice/__init__.py`, `tests/test_driver_ui_hooks.py`, `tests/test_worldvoice_lifecycle.py`, `tests/test_runtime_composition.py`
+- Modify: `addon/synthDrivers/WorldVoice/__init__.py`, `tests/test_driver_ui_hooks.py`, `tests/test_worldvoice_lifecycle.py`
 
 - [ ] **Step 1: Failing tests.**
   - `tests/test_driver_ui_hooks.py`: put a `detection_settings` into the exec'd driver's globals, a stub whose `get()` returns `SimpleNamespace(timing=<conf value>)` read from the fixture's `conf`. Then:
@@ -115,17 +115,17 @@
     - `_on_detection_settings(settings, frozenset({"timing"}))` refreshes (register and reorder for `"before"`);
     - `_on_detection_settings(settings, frozenset({"ignore_numbers", "script_language"}))` records no call;
     - `_detectLanguageTiming()` returns the stub's timing.
-  - `tests/test_worldvoice_lifecycle.py`: add a `detection_settings` stub to the construction environment that records `"detection subscribed"` and `"detection unsubscribed"`. The fake `LanguageDetector` asserts its providers are `{"settings", "language"}`. Assert:
+  - `tests/test_worldvoice_lifecycle.py`: add a `detection_settings` stub to the construction environment that records `"detection subscribed"` and `"detection unsubscribed"` (the fake `LanguageDetector`'s `{"settings", "language"}` providers check already came in Task 3). Assert:
     - after a successful construction and `terminate()`, the unsubscribe happens before the filter unregister. Record the unregister through the `filter_speechSequence` stub;
     - every failing construction has as many unsubscribes as subscribes.
-  - `tests/test_runtime_composition.py::test_entry_point_imports_real_ledger_and_completion_policy`: stub `package + ".languageDetection.settings"` with `DETECTION_CONFSPEC={}` and `detection_settings=SimpleNamespace()`.
+  - The `tests/test_runtime_composition.py` entry-point stub for `languageDetection.settings` already came in Task 3.
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement** per spec §3.
-  - `from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings`.
+  - Extend Task 3's import to `from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings`.
   - Confspec: `"autoLanguageSwitching": {**DETECTION_CONFSPEC, <the three KeepMainLocale* entries unchanged>}`.
   - Add `"detection settings unsubscribe"` to `_TEARDOWN_ORDER` directly before `"language detection unregister"`.
   - In the `LanguageDetector` step:
-    - construct the detector with `settings=detection_settings`;
+    - the detector is already constructed with `settings=detection_settings` (Task 3);
     - after registering `"language detection unregister"`, subscribe `self._on_detection_settings` and register its unsubscribe.
   - `_detectLanguageTiming()` returns `detection_settings.get().timing`.
   - `_on_detection_settings(self, settings, changed)`: refresh only when `"timing" in changed`. Give it a one-line docstring with the reason (refresh reorders NVDA's filters).

@@ -26,7 +26,7 @@
 
 ### 1. `languageDetection/settings.py`：值物件與 Service
 
-新模組，形狀與 `pipeline/settings.py` 的 `PipelineSettingsService` 相同（Repository + Observer）：
+新模組。`DetectionSettingsService` 本身就是 Repository：直接讀寫 config 區段，並以 Observer 通知訂閱者，不另設 Repository 類別。這點與 `pipeline/settings.py` 分成 `ConfigPipelineRepository` 與 `PipelineSettingsService` 兩層不同：偵測設定只有五個鍵、一個呼叫端，沒有替換儲存層的需求。對外介面（`get`／`update`／`subscribe`／`unsubscribe`）與 `PipelineSettingsService` 相同：
 
 ```python
 DETECTION_CONFSPEC = {
@@ -98,6 +98,8 @@ detection_settings = DetectionSettingsService(lambda: config.conf)
 - 存檔寫入的值相同；
 - 停用的 script 選單不寫；
 - 時機改變時 filter 重新註冊／取消。舊實作由面板直接呼叫 synth；新實作由 service 通知 synth。時機未改變時都不呼叫（`refresh_language_detection` 會呼叫 `order_move_to_start_register`，重排 NVDA 的 filter 順序，所以不能每次存檔都呼叫）。
+
+有一處刻意的差異：舊實作中 `getSynth().refresh_language_detection()` 拋出的例外會從面板的 `onSave` 傳出去；現在由 `DetectionSettingsService` 以 `log.error(..., exc_info=True)` 記錄，存檔照常完成（設定已寫入）。這與 `PipelineSettingsService` 處理 listener 失敗的方式相同。
 
 ### 5. 隱性契約文件（§5.2、N6）
 
