@@ -13,6 +13,7 @@ from scriptHandler import script
 # `generics`, on sys.path; keep these before the generics imports.
 from synthDrivers.WorldVoice.pipeline.scope import pipeline_scope
 from synthDrivers.WorldVoice.sayAll import patch, unpatch
+from synthDrivers.WorldVoice.workspace import workspace_path
 
 # isort: split
 from generics.coreArchive import extract_core_archive
@@ -90,10 +91,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				return
 			core_zip_path = entryDialog.GetPath()
 
-		workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
+		workspace = workspace_path()
 		try:
-			os.makedirs(workspace_path, exist_ok=True)
-			extract_core_archive(core_zip_path, workspace_path)
+			os.makedirs(workspace, exist_ok=True)
+			extract_core_archive(core_zip_path, workspace)
 		except Exception:
 			log.exception(
 				f"An unexpected error occurred while processing '{os.path.basename(core_zip_path)}'",

@@ -102,7 +102,7 @@ def test_menu_import_reports_a_corrupt_archive(tmp_path):
 		"gui": types.SimpleNamespace(mainFrame=None, messageBox=lambda *args: shown.append(args) or 16),
 		"_": lambda text: text,
 		"os": __import__("os"),
-		"globalVars": types.SimpleNamespace(appArgs=types.SimpleNamespace(configPath=str(tmp_path))),
+		"workspace_path": lambda: str(tmp_path / "workspace"),
 		"log": types.SimpleNamespace(exception=lambda *a: None, info=lambda *a: None, warning=lambda *a: None),
 		"extract_core_archive": load(ARCHIVE, "core_archive_for_plugin", pytest.MonkeyPatch(), []).extract_core_archive,
 	}

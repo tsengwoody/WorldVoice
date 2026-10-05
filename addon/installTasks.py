@@ -3,7 +3,6 @@ import os
 from zipfile import BadZipFile
 
 import config
-import globalVars
 from logHandler import log
 
 
@@ -14,6 +13,15 @@ def _load_core_archive():
 	module = importlib.util.module_from_spec(spec)
 	spec.loader.exec_module(module)
 	return module
+
+
+def _workspace_path():
+	# Load by path too: the add-on being installed is not importable yet.
+	path = os.path.join(os.path.dirname(__file__), "synthDrivers", "WorldVoice", "workspace.py")
+	spec = importlib.util.spec_from_file_location("_worldvoice_install_workspace", path)
+	module = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(module)
+	return module.workspace_path()
 
 
 def _extract_core_archive(archive_path, workspace_path):
@@ -57,7 +65,7 @@ def onInstall():
 		config.conf["speech"]["autoLanguageSwitching"] = False
 
 	core_dir = os.path.join(os.path.dirname(__file__), "core")
-	workspace_path = os.path.join(globalVars.appArgs.configPath, "WorldVoice-workspace")
+	workspace_path = _workspace_path()
 	if not os.path.isdir(core_dir):
 		return
 
