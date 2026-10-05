@@ -1,6 +1,6 @@
 """The existing NVDA config format, accessed through injected dependencies."""
 
-from collections.abc import Callable, Mapping, MutableMapping
+from collections.abc import Mapping, MutableMapping
 
 from .mainLocalePolicy import ParameterConsistency
 from .runtime.models import SettingValue, VoiceSpec, VoiceValues
@@ -11,7 +11,7 @@ class ConfigVoiceSettingsRepository:
 	def __init__(
 		self,
 		conf: MutableMapping,
-		synth_name: Callable[[], str],
+		synth_name: str,
 		parameters: ParameterConsistency | None = None,
 	):
 		self._conf = conf

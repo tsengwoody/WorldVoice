@@ -239,7 +239,7 @@ class SynthDriver(SynthDriver):
 				)
 
 			with timed(nvdaLog, "TaskManager"):
-				repository = ConfigVoiceSettingsRepository(config.conf, lambda: getSynth().name)
+				repository = ConfigVoiceSettingsRepository(config.conf, self.name)
 				self._settingsStore = VoiceSettingsStore(repository)
 				# One ledger spans every binding of a live core in this runtime. A core
 				# handed to a new runtime must first close, or retain its original ledger.

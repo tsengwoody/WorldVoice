@@ -25,7 +25,7 @@ def conf():
 @pytest.fixture
 def repository(monkeypatch, rt, conf):
     module = load_config_repository(monkeypatch, rt)
-    return module.ConfigVoiceSettingsRepository(conf, lambda: "WorldVoice")
+    return module.ConfigVoiceSettingsRepository(conf, "WorldVoice")
 
 
 def test_load_converts_existing_values_and_defaults_missing_fields(repository, conf):
@@ -50,30 +50,6 @@ def test_consistency_uses_main_synth_and_does_not_fallback_for_missing_main_fiel
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
     conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "pitch": "91"}
     assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="main", rateBoost=True)
-
-
-@pytest.mark.parametrize("error", [LookupError, RuntimeError])
-def test_main_synth_lookup_exception_falls_back_to_voice(monkeypatch, rt, conf, error):
-    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "rateBoost": "False"}
-
-    def unavailable():
-        raise error("Synth unavailable")
-
-    repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf, unavailable)
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=72)
-
-
-def test_main_synth_lookup_does_not_swallow_keyboard_interrupt(monkeypatch, rt, conf):
-    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72"}
-
-    def interrupted():
-        raise KeyboardInterrupt
-
-    repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf, interrupted)
-    with pytest.raises(KeyboardInterrupt):
-        repository.load(make_spec())
 
 
 def test_missing_speech_node_falls_back_to_voice(repository, conf):
@@ -103,7 +79,7 @@ def test_repository_load_and_save_need_no_nvda_or_engine_imports(monkeypatch, rt
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
-    repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf, lambda: "WorldVoice")
+    repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf, "WorldVoice")
     values = repository.load(make_spec())
     repository.save(make_spec(), values)
     assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS

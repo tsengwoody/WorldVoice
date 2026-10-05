@@ -89,12 +89,12 @@ class ParameterConsistency:
 			# One update per voice keeps each copy atomic for a worker activation.
 			store.state(key).update(**values)
 
-	def shared_section(self, synth_name: Callable[[], str]) -> Mapping | None:
-		"""The main synth's speech settings every voice loads from, or None."""
+	def shared_section(self, synth_name: str) -> Mapping | None:
+		"""The main synth's speech settings every voice loads from, or None.
+
+		The section does not exist until NVDA first saves this synth's settings.
+		"""
 		if not self.enabled:
 			return None
-		try:
-			return self._conf_provider()["speech"][synth_name()]
-		except Exception:  # noqa: BLE001 - the speech section may not exist during synth startup
-			# Preserve the legacy fallback even during synth startup.
-			return None
+		speech = self._conf_provider().get("speech")
+		return None if speech is None else speech.get(synth_name)

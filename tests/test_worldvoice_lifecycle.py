@@ -113,6 +113,12 @@ def _construction_environment(failure, changes):
 	def clear_pipeline():
 		changes.append("pipeline stopped")
 
+	repositories = []
+
+	def unavailable_synth():
+		# NVDA's setSynth clears its current synth before constructing the next one.
+		raise AssertionError("getSynth() is None while the synth is constructed")
+
 	environment = {
 		"SynthDriver": type("NVDASynthDriver", (), {}),
 		"synthIndexReached": object(),
@@ -136,10 +142,10 @@ def _construction_environment(failure, changes):
 		"ready_engine_classes": lambda engine_config: {"A": object},
 		"IndexLedger": Ledger,
 		"NvdaEventBridge": Bridge,
-		"ConfigVoiceSettingsRepository": lambda *args: object(),
+		"ConfigVoiceSettingsRepository": lambda *args: repositories.append(args) or object(),
 		"VoiceSettingsStore": lambda repository: object(),
 		"config": types.SimpleNamespace(conf={"WorldVoice": {"engine": {}}}),
-		"getSynth": lambda: None,
+		"getSynth": unavailable_synth,
 		"speech": speech,
 		"SpeechSymbols": SpeechSymbols,
 		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: changes.append("filter unregistered")),
@@ -153,7 +159,7 @@ def _construction_environment(failure, changes):
 		**commands,
 	}
 	return types.SimpleNamespace(environment=environment, settings_dialogs=settings_dialogs, panel=panel,
-		speech_api=speech_api, spelling=spelling)
+		speech_api=speech_api, spelling=spelling, repositories=repositories)
 
 
 @pytest.mark.parametrize("failure", ["manager", "symbols", "bridge"])
@@ -205,6 +211,12 @@ def test_entry_points_are_silent_after_terminate():
 	driver.speak([])
 	driver.cancel()
 	driver.pause(True)
+
+
+def test_voice_settings_load_from_the_synths_own_speech_section():
+	built = _construction_environment(None, [])
+	_load_synth_class(built.environment)()
+	assert [args[1] for args in built.repositories] == ["WorldVoice"]
 
 
 def test_stages_register_after_symbols_and_detector():

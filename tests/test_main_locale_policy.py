@@ -2,6 +2,7 @@
 
 import importlib.util
 import sys
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 
@@ -88,13 +89,10 @@ def test_shared_section_only_when_enabled_and_available(monkeypatch):
 	module = load_policy(monkeypatch)
 	conf = flags(parameter=False)
 	policy = module.ParameterConsistency(lambda: conf)
-	assert policy.shared_section(lambda: "WorldVoice") is None
+	assert policy.shared_section("WorldVoice") is None
 	policy.enabled = True
-	assert policy.shared_section(lambda: "WorldVoice") == {"rate": 70}
-	def unavailable():
-		raise RuntimeError("no synth")
-	assert policy.shared_section(unavailable) is None
-	assert policy.shared_section(lambda: "Other") is None
+	assert policy.shared_section("WorldVoice") == {"rate": 70}
+	assert policy.shared_section("Other") is None
 
 
 class AggregatedSpeech:
@@ -115,8 +113,13 @@ def test_shared_section_is_none_before_nvda_first_saves_the_synth(monkeypatch):
 	conf = flags(parameter=True)
 	policy = module.ParameterConsistency(lambda: conf)
 	conf["speech"] = {}
-	assert policy.shared_section(lambda: "WorldVoice") is None
+	assert policy.shared_section("WorldVoice") is None
 	conf["speech"] = AggregatedSpeech({})
-	assert policy.shared_section(lambda: "WorldVoice") is None
+	assert policy.shared_section("WorldVoice") is None
 	conf["speech"] = AggregatedSpeech({"WorldVoice": {"rate": 70}})
-	assert policy.shared_section(lambda: "WorldVoice") == {"rate": 70}
+	assert policy.shared_section("WorldVoice") == {"rate": 70}
+
+
+def test_policies_catch_no_exceptions():
+	source = Path("addon/synthDrivers/WorldVoice/mainLocalePolicy.py").read_text(encoding="utf-8")
+	assert "except" not in source

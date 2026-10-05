@@ -266,7 +266,7 @@ def test_first_voice_resolution_inherits_main_values_and_keeps_cancel_baseline(c
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
     conf["speech"] = {"WorldVoice": {"rate": 83}}
     repository_module = importlib.import_module(c.module.__package__ + ".configRepository")
-    c.store._repository = repository_module.ConfigVoiceSettingsRepository(conf, lambda: "WorldVoice")
+    c.store._repository = repository_module.ConfigVoiceSettingsRepository(conf, "WorldVoice")
     manager = c.create()
     edit = c.store.begin_edit() if during_edit else None
     try:
