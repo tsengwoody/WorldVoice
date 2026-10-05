@@ -173,8 +173,8 @@ def worldvoice_synth():
 - `tests/test_hygiene_guards.py`：
   - `test_ruff_reports_none_of_the_gated_rules` 改為 `test_ruff_reports_nothing`：執行 `ruff check addon`，不帶 `--select`、不帶 CLI exclude，以 pyproject 設定檢查全部規則，結果必須為 0。
   - 刪除 `GATED_RULES`、`RUFF_SCOPE`；更新 `G201` 測試裡「explicit --select would override」的註解。
-- 新增 `test_lint_ignores_keep_their_documented_reasons`：`TRY004`、`S110` 的忽略與理由仍在 pyproject。
-- 新增 `test_pre_commit_runs_the_ruff_lint_hook`：`.pre-commit-config.yaml` 有 `id: ruff` 加 `--fix`，且兩個 exclude 都排除 sonic。
+- 新增 `test_lint_ignores_keep_their_documented_reasons`：`TRY004`、`S110` 的忽略與理由仍在 pyproject，且 pyproject 與 `.pre-commit-config.yaml` 兩個 exclude 都排除 sonic。
+- 新增 `test_pre_commit_runs_the_ruff_lint_hook`：`.pre-commit-config.yaml` 有 `id: ruff` 加 `--fix`。
 - 突變驗證：任意加入一項 ruff finding，`test_ruff_reports_nothing` 必須失敗；還原後通過。
 
 ### 12. 實作時補上：pre-commit 的尾逗號（審查後補上）
@@ -230,4 +230,5 @@ def worldvoice_synth():
 ## 不在範圍內
 
 - 使用者已否決或延後的方案（`refactor4.md` §10）。
-- `pre-commit install`（安裝到 `.git/hooks`）：由使用者自行決定是否啟用；本階段只提供設定。
+- `pre-commit install`（安裝到 `.git/hooks`）：由使用者自行決定是否啟用；本階段只提供設定。啟用後，lint hook 因為帶 `--fix`，會直接改寫可安全修正的檔案，該次 commit 隨之失敗，需重新 add 後再 commit（與 NVDA 相同）；`extend-unsafe-fixes = ["I001"]` 讓 import 不會被自動重排。
+- 已知限制：pyproject 沒有 `select`，gate 檢查的規則是 ruff 0.16 的預設規則減去 `ignore`（0.16.3 與 0.16.9 已確認相同）。較新的 ruff 若擴大預設規則，`test_ruff_reports_nothing` 可能失敗，而釘住版本的 pre-commit hook 仍通過。是否加 `required-version` 由使用者決定，本階段不加。

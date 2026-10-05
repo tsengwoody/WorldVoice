@@ -34,6 +34,8 @@ def test_every_blind_except_says_where_the_error_goes():
 def test_ruff_reports_nothing():
 	# Every rule, as pyproject.toml configures it. No CLI --select or --exclude: either would
 	# replace the pyproject lists, and --exclude would bring script_data.py back in.
+	# pyproject has no `select`, so the rules are ruff 0.16's defaults minus the ignores. A newer
+	# ruff with a larger default set may fail this test while the pinned pre-commit hook passes.
 	result = subprocess.run(
 		["ruff", "check", "addon", "--output-format", "concise"],
 		cwd=ROOT, capture_output=True, text=True,
