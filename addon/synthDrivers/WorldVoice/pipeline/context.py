@@ -14,7 +14,7 @@ class SpeechContext:
 	number_language: str
 	speech_symbols: Any = None
 	default_voice: Any = None
-	voice_for_language: Callable[[str], Any] = lambda language: None
+	voice_name_for_language: Callable[[str], str | None] = lambda language: None
 
 
 GENERIC_CONTEXT = SpeechContext(supports_roles=False, language=None, number_language="Windows")

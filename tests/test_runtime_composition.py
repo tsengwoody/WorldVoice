@@ -427,13 +427,14 @@ def test_pipeline_emits_voice_keys_without_constructing_selected_facades(composi
     tree = ast.parse(path.read_text(encoding="utf-8"))
     function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                     and node.name == "lang_cmd_to_voice")
-    environment = {"Iterable": list, "Iterator": list, "SpeechCmd": object,
+    environment = {"Iterable": list, "Iterator": list, "SpeechCmd": object, "SpeechContext": object,
                    "LangChangeCommand": Language, "WVLangChangeCommand": WVLanguage,
                    "SelectVoice": models.SelectVoice}
     exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), "exec"), environment)
+    ctx = SimpleNamespace(default_voice=manager.defaultVoiceInstance,
+                          voice_name_for_language=manager.getVoiceNameForLanguage)
     result = list(environment["lang_cmd_to_voice"](
-        [Language("zh"), "中文", WVLanguage(None), "English", Language("missing")],
-        manager, manager.defaultVoiceInstance))
+        [Language("zh"), "中文", WVLanguage(None), "English", Language("missing")], ctx))
     assert result == [models.SelectVoice("ok:b"), "中文", models.SelectVoice("ok:a"),
                       "English", models.SelectVoice("ok:a")]
     assert tuple(manager._instanceCache) == ("ok:a",)

@@ -113,10 +113,10 @@ def test_number_mode_reads_symbols_from_context(monkeypatch):
 def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 	settings = punctuation_settings(0)
 	module, _ = load_pipeline_module(monkeypatch, settings)
-	english, german = object(), object()
+	english = SimpleNamespace(name="A:en", language="en")
 	ctx = module.SpeechContext(
 		supports_roles=True, language="en", number_language="de", default_voice=english,
-		voice_for_language=lambda language: {"en": english, "de": german}.get(language),
+		voice_name_for_language={"en": "A:en", "de": "A:de"}.get,
 	)
 	result = list(module.inject_number_language(["a 1 b"], settings, ctx))
 	assert [getattr(item, "lang", item) for item in result] == ["a ", "de", "1", "en", " b"]

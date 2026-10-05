@@ -22,8 +22,6 @@ from .settings import pipeline_settings
 if TYPE_CHECKING:
 	from speech.commands import SpeechCommand
 
-	from ..driver import Voice
-	from ..voiceManager import VoiceManager
 	from .settings import PipelineSettings
 
 SpeechCmd = Union[str, "SpeechCommand"]
@@ -607,18 +605,21 @@ def inject_punctuation_pause(
 def deduplicate_language_command(speechSequence, ctx: SpeechContext):
 	"""
 	Stream *speech_sequence* and emit only the language-change commands
-	that actually switch to a different voice instance.
+	that actually switch to a different voice.
 
 	Workflow
 	--------
 	1. Walk through the sequence while tracking the *current language*
-	   and *current voiceInstance*.
+	   and the *current voice name*.
 	2. Yield a LangChangeCommand only when it maps to a **different**
-	   voice instance than the one currently in use.
+	   voice than the one currently in use.
 	3. Forward all non-language-change commands unchanged.
+
+	Voices are compared by name, so filtering creates no voice instances.
 	"""
-	# Initial voice / language
-	voice_instance = default_instance = ctx.default_voice
+	# Initial voice / language; a context without a default voice compares None.
+	default_voice = ctx.default_voice
+	voice_name = default_name = default_voice.name if default_voice is not None else None
 	current_language = default_language = ctx.language
 
 	for command in speechSequence:
@@ -628,22 +629,21 @@ def deduplicate_language_command(speechSequence, ctx: SpeechContext):
 			if command.lang == current_language:
 				continue
 
-			# Resolve the new language and its voice instance
+			# Resolve the new language and its voice
 			if command.lang is None:  # Revert to default language
-				new_instance = default_instance
+				new_name = default_name
 				current_language = default_language
 			else:
-				new_instance = ctx.voice_for_language(command.lang)
+				# Fall back to the default voice when no voice speaks the language
+				new_name = ctx.voice_name_for_language(command.lang) or default_name
 				current_language = command.lang
-				if new_instance is None:  # Fallback when no voice found
-					new_instance = default_instance
 
-			# Skip if the voice instance remains the same
-			if new_instance == voice_instance:
+			# Skip if the voice remains the same
+			if new_name == voice_name:
 				continue
 
 			# Effective switch: update state and yield the command
-			voice_instance = new_instance
+			voice_name = new_name
 			yield command
 		# Forward all other commands
 		else:
@@ -652,8 +652,7 @@ def deduplicate_language_command(speechSequence, ctx: SpeechContext):
 
 def lang_cmd_to_voice(
 	speechSequence: Iterable[SpeechCmd],
-	voice_manager: "VoiceManager",
-	default_instance: "Voice",
+	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	"""
 	Convert each LangChangeCommand / WVLangChangeCommand into a voice key.
@@ -661,9 +660,8 @@ def lang_cmd_to_voice(
 	"""
 	for cmd in speechSequence:
 		if isinstance(cmd, (LangChangeCommand, WVLangChangeCommand)):
-			lang = cmd.lang or voice_manager.defaultVoiceInstance.language
-			key = voice_manager.getVoiceNameForLanguage(lang) or default_instance.name
-			yield SelectVoice(key)
+			lang = cmd.lang or ctx.default_voice.language
+			yield SelectVoice(ctx.voice_name_for_language(lang) or ctx.default_voice.name)
 		else:
 			yield cmd
 

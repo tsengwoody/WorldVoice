@@ -28,11 +28,9 @@ def shape(sequence):
 
 def ctx(module, names, default):
 	"""A WorldVoice context whose languages resolve to the given voice names."""
-	voices = {name: SimpleNamespace(name=name) for name in set(names.values()) | {default.name}}
-	voices[default.name] = default
 	return module.SpeechContext(
 		supports_roles=True, language=default.language, number_language="de", default_voice=default,
-		voice_for_language=lambda language: voices.get(names.get(language)),
+		voice_name_for_language=names.get,
 	)
 
 

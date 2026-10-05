@@ -335,14 +335,10 @@ class SynthDriver(SynthDriver):
 		if self.uwv and config.conf["WorldVoice"]["autoLanguageSwitching"]["DetectLanguageTiming"] == "after":
 			speechSequence = self.add_detected_language_commands(speechSequence)
 
+		ctx = self.speech_context()
 		speechSequence = inject_langchange_reorder(speechSequence)
-		speechSequence = deduplicate_language_command(speechSequence, self.speech_context())
-
-		speechSequence = lang_cmd_to_voice(
-			speechSequence=speechSequence,
-			voice_manager=self._voiceManager,
-			default_instance=self._voiceManager.defaultVoiceInstance,
-		)
+		speechSequence = deduplicate_language_command(speechSequence, ctx)
+		speechSequence = lang_cmd_to_voice(speechSequence, ctx)
 
 		queue_speech_sequence(
 			self.taskManager,
@@ -374,7 +370,7 @@ class SynthDriver(SynthDriver):
 			number_language=self._numlan,
 			speech_symbols=self.speechSymbols,
 			default_voice=manager.defaultVoiceInstance,
-			voice_for_language=manager.getVoiceInstanceForLanguage,
+			voice_name_for_language=manager.getVoiceNameForLanguage,
 		)
 
 	def _set_voice_parameter(self, name, value):

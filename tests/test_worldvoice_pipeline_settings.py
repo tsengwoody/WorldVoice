@@ -185,7 +185,7 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	synth._voiceManager = None
 	assert synth.speech_context() is generic
 	voice = object()
-	synth._voiceManager = types.SimpleNamespace(defaultVoiceInstance=voice, getVoiceInstanceForLanguage=lambda lang: None)
+	synth._voiceManager = types.SimpleNamespace(defaultVoiceInstance=voice, getVoiceNameForLanguage=lambda lang: None)
 	synth.language = "en"
 	context = synth.speech_context()
 	assert (context["number_language"], context["speech_symbols"], context["default_voice"]) == ("default", None, voice)
