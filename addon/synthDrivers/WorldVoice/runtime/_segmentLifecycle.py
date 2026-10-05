@@ -258,6 +258,10 @@ class SegmentLifecycle:
 				operation._waiting = False
 				if remove_wake is not None:
 					remove_wake()
+			if operation._retired:
+				# fail() published it just as the resource freed; its work is
+				# invalidated asynchronously, so is_valid() may not show it yet.
+				return
 			if self._fault is not None:
 				# This accepted operation never acquired the resource. Retain
 				# its original context for asynchronous correlated failure.
