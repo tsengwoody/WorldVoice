@@ -1,0 +1,108 @@
+"""The pipeline filters' output, pinned before their loops were shared."""
+
+from types import SimpleNamespace
+
+import pytest
+
+from test_pipeline_punctuation_pause import load_pipeline_module, punctuation_settings
+
+
+@pytest.fixture
+def env(monkeypatch):
+	settings = punctuation_settings(0)
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	return SimpleNamespace(module=module, settings=settings)
+
+
+def shape(sequence):
+	result = []
+	for item in sequence:
+		if isinstance(item, str):
+			result.append(item)
+		elif hasattr(item, "lang"):
+			result.append(("lang", item.lang))
+		else:
+			result.append((type(item).__name__, item.time))
+	return result
+
+
+def ctx(module, names, default):
+	"""A WorldVoice context whose languages resolve to the given voice names."""
+	voices = {name: SimpleNamespace(name=name) for name in set(names.values()) | {default.name}}
+	voices[default.name] = default
+	return module.SpeechContext(
+		supports_roles=True, language=default.language, number_language="de", default_voice=default,
+		voice_for_language=lambda language: voices.get(names.get(language)),
+	)
+
+
+@pytest.mark.parametrize("sequence,expected", [
+	([], []),
+	(["a"], ["a"]),
+	(["", "b"], ["", ("BreakCommand", 30), "b"]),
+])
+def test_item_wait_factor_edges(env, sequence, expected):
+	env.settings.scaled_item_wait = lambda: 30
+	assert shape(env.module.item_wait_factor(sequence, env.settings, env.module.GENERIC_CONTEXT)) == expected
+
+
+def test_item_wait_factor_breaks_only_between_adjacent_text(env):
+	env.settings.scaled_item_wait = lambda: 30
+	marker = env.module.BreakCommand(5)
+	result = list(env.module.item_wait_factor(["a", "b", marker, "c", "d"], env.settings, env.module.GENERIC_CONTEXT))
+	assert shape(result) == ["a", ("BreakCommand", 30), "b", ("BreakCommand", 5), "c", ("BreakCommand", 30), "d"]
+	assert result[1] is result[5]
+	assert result[3] is marker
+
+
+def test_item_wait_factor_off_passes_through(env):
+	assert list(env.module.item_wait_factor(["a", "b"], env.settings, env.module.GENERIC_CONTEXT)) == ["a", "b"]
+
+
+def test_number_wait_factor_drops_blanks_then_breaks_between_numbers(env):
+	env.settings.scaled_number_wait = lambda: 40
+	result = list(env.module.number_wait_factor(["1", " ", "2", "a", "3", "4"], env.settings, env.module.GENERIC_CONTEXT))
+	assert shape(result) == ["1", ("BreakCommand", 40), "2", "a", "3", ("BreakCommand", 40), "4"]
+	assert result[1] is result[5]
+
+
+TEXTS = ["12.5", "-1234", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
+SHARED = {"v1.2": ["v1.2"], "a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "1.2.3": ["1.2 . 3"], "": []}
+NUMBER_MODES = {
+	("value", 0): {"12.5": ["12.5"], "-1234": ["-1234"]},
+	("number", 0): {"12.5": ["1 2.5"], "-1234": ["-1 2 3 4"]},
+	("pair", 0): {"12.5": ["12.5"], "-1234": ["-12 34"]},
+	("pair", 50): {"12.5": ["12.5"], "-1234": ["-12", ("PairNumberBreakCommand", 50), "34"]},
+}
+
+
+@pytest.mark.parametrize("mode,pause", sorted(NUMBER_MODES))
+@pytest.mark.parametrize("text", TEXTS)
+def test_number_mode(env, mode, pause, text):
+	env.settings.number_mode = mode
+	env.settings.scaled_pair_wait = lambda: pause
+	expected = {**SHARED, **NUMBER_MODES[(mode, pause)]}[text]
+	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+
+
+def test_number_language_wraps_each_number(env):
+	english = SimpleNamespace(name="A:en", language="en")
+	context = ctx(env.module, {"en": "A:en", "de": "A:de"}, english)
+	result = env.module.inject_number_language(["a1b2"], env.settings, context)
+	assert shape(result) == ["a", ("lang", "de"), "1", ("lang", "en"), "b", ("lang", "de"), "2", ("lang", "en")]
+	assert list(env.module.inject_number_language([""], env.settings, context)) == []
+
+
+def test_chinese_space_pause(env):
+	env.settings.scaled_chinesespace_wait = lambda: 20
+	result = env.module.inject_chinese_space_pause(["中 文 abc 中 文"], env.settings, env.module.GENERIC_CONTEXT)
+	assert shape(result) == ["中", ("BreakCommand", 20), "文 abc 中", ("BreakCommand", 20), "文"]
+	env.settings.scaled_chinesespace_wait = lambda: 0
+	assert list(env.module.inject_chinese_space_pause(["中 文"], env.settings, env.module.GENERIC_CONTEXT)) == ["中 文"]
+
+
+def test_punctuation_segments(env):
+	regex = env.module._get_punctuation_regex(".,")
+	assert list(env.module._split_punctuation_segments("a, b,, 12,500. c", regex)) == [
+		("text", "a"), ("punct", ","), ("text", " b"), ("punct", ",,"), ("text", " 12,500"), ("punct", "."), ("text", " c"),
+	]
