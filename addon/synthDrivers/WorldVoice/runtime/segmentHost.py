@@ -452,6 +452,10 @@ class SegmentHost:
 		runs on the calling (worker) thread once every consumer has left, before
 		the record stops being current; an exception it raises is recorded on
 		the record.
+
+		A still-valid ordinary record stays pending, so a cancel that arrives
+		before the caller reports completion still marks it cancelled; the
+		caller must ``forget`` it once that report is done.
 		"""
 		with self._condition:
 			valid = record.is_valid()
@@ -612,19 +616,19 @@ class SegmentHost:
 				self._delivering.discard(operation)
 				self._condition.notify_all()
 				self._accepted.pop(operation, None)
-				for record in self._pending:
-					if record.operation is operation:
-						self._pending.remove(record)
-						break
+				self._drop_pending_locked(operation)
 
 	def _forget_operation(self, operation: SegmentOperation) -> None:
 		"""Lifecycle discard callback: the operation will never be delivered."""
 		with self._condition:
 			self._accepted.pop(operation, None)
-			for record in self._pending:
-				if record.operation is operation:
-					self._pending.remove(record)
-					break
+			self._drop_pending_locked(operation)
+
+	def _drop_pending_locked(self, operation: SegmentOperation) -> None:
+		for record in self._pending:
+			if record.operation is operation:
+				self._pending.remove(record)
+				break
 
 	def _invalidate(self) -> None:
 		with self._condition:

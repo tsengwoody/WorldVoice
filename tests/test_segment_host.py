@@ -295,6 +295,21 @@ def test_retire_waits_for_admitted_consumers(env, start_delay):
 		assert late is None
 
 
+def test_a_retired_ordinary_record_stays_cancellable_until_forgotten(env):
+	# The engine reports DONE after retire(); a cancel in between must still mark the record.
+	env.host.enqueue(("ordinary",))
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	env.host.reach(record, "returned")
+	env.host.reach(record, "idle")
+	assert env.host.retire(record).cancelled is False
+	assert record in env.host._pending
+	env.host.cancel()
+	assert record.cancelled
+	env.host.forget(record)
+	assert record not in env.host._pending
+
+
 @pytest.mark.parametrize("case", ["complete", "missing", "error", "cancelled"])
 def test_ordinary_record_outcomes(env, case):
 	env.host.enqueue(("ordinary",))
