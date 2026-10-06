@@ -1,6 +1,7 @@
 import builtins
 
 import pytest
+from nvda_stubs import worldvoice_conf
 from runtime_harness import load_config_repository, make_spec
 
 DEFAULTS = {
@@ -16,10 +17,7 @@ DEFAULTS = {
 @pytest.fixture
 def conf():
 	return {
-		"WorldVoice": {
-			"voices": {},
-			"autoLanguageSwitching": {"KeepMainLocaleParameterConsistent": False},
-		},
+		**worldvoice_conf(),
 		"speech": {"WorldVoice": {"rate": "83", "variant": "main", "rateBoost": "True"}},
 	}
 

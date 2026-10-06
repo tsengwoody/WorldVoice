@@ -4,6 +4,7 @@ import types
 
 import pytest
 from addon_loader import WORLDVOICE, load_source
+from nvda_stubs import worldvoice_conf
 from worldvoice_harness import init_policies, load_synth_class, load_voice_manager
 
 
@@ -169,7 +170,7 @@ def _construction_environment(failure, changes, close_error=None):
 			repositories.append((args, kwargs)) or object()
 		),
 		"VoiceSettingsStore": lambda repository: object(),
-		"config": types.SimpleNamespace(conf={"WorldVoice": {"engine": {}}}),
+		"config": types.SimpleNamespace(conf=worldvoice_conf()),
 		"getSynth": unavailable_synth,
 		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "en"),
 		"speech": speech,

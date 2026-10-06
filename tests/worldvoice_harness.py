@@ -8,6 +8,7 @@ import sys
 import types
 
 from addon_loader import WORLDVOICE, alias_package, load_definitions, load_source
+from nvda_stubs import worldvoice_conf
 from voice_binding_harness import install_binding
 
 
@@ -36,6 +37,16 @@ def load_synth_class(environment):
 	return load_definitions(WORLDVOICE / "__init__.py", ["SynthDriver"], environment)["SynthDriver"]
 
 
+def _manager_conf():
+	"""Engine consistency off, so tests choose each voice's engine themselves."""
+	return worldvoice_conf(
+		autoLanguageSwitching={
+			"KeepMainLocaleEngineConsistent": False,
+			"KeepMainLocaleParameterConsistent": False,
+		},
+	)
+
+
 def load_voice_manager(monkeypatch):
 	"""voiceManager under lifecycle_test_worldvoice, with stub config, language, log and synth modules."""
 	package_name = "lifecycle_test_worldvoice"
@@ -43,17 +54,7 @@ def load_voice_manager(monkeypatch):
 		if name.startswith(package_name + "."):
 			monkeypatch.delitem(sys.modules, name)
 	alias_package(monkeypatch, package_name, WORLDVOICE)
-	config = types.SimpleNamespace(
-		conf={
-			"WorldVoice": {
-				"autoLanguageSwitching": {
-					"KeepMainLocaleEngineConsistent": False,
-					"KeepMainLocaleParameterConsistent": False,
-				},
-				"engine": {},
-			},
-		},
-	)
+	config = types.SimpleNamespace(conf=_manager_conf())
 	monkeypatch.setitem(sys.modules, "config", config)
 	monkeypatch.setitem(sys.modules, "languageHandler", types.SimpleNamespace(getLanguage=lambda: "en"))
 	monkeypatch.setitem(
@@ -87,24 +88,13 @@ def init_policies(manager):
 
 
 def load_f4_voice_manager(monkeypatch):
-	"""voiceManager under f4_test_worldvoice; its config stub also has an empty voices section."""
+	"""voiceManager under f4_test_worldvoice; its stubs also have getLanguageDescription and getSynth."""
 	package_name = "f4_test_worldvoice"
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
 			monkeypatch.delitem(sys.modules, name)
 	alias_package(monkeypatch, package_name, WORLDVOICE)
-	config = types.SimpleNamespace(
-		conf={
-			"WorldVoice": {
-				"voices": {},
-				"autoLanguageSwitching": {
-					"KeepMainLocaleEngineConsistent": False,
-					"KeepMainLocaleParameterConsistent": False,
-				},
-				"engine": {},
-			},
-		},
-	)
+	config = types.SimpleNamespace(conf=_manager_conf())
 	monkeypatch.setitem(sys.modules, "config", config)
 	monkeypatch.setitem(
 		sys.modules,

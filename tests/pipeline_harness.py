@@ -6,7 +6,7 @@ import types
 from types import SimpleNamespace
 
 from addon_loader import WORLDVOICE, alias_package, load_source
-from nvda_stubs import StubModules
+from nvda_stubs import StubModules, worldvoice_conf
 
 
 class FakeSpeechSequenceFilter:
@@ -47,10 +47,7 @@ def load_pipeline_module(monkeypatch, settings):
 		sys.modules.pop(name, None)
 
 	config = stubs.module("config")
-	config.conf = {
-		"general": {"loggingLevel": "INFO"},
-		"WorldVoice": {"log": {"enable": False}},
-	}
+	config.conf = {"general": {"loggingLevel": "INFO"}, **worldvoice_conf()}
 
 	globalVars = stubs.module("globalVars")
 	globalVars.speechDictionaryProcessing = True

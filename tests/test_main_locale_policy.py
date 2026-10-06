@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 from addon_loader import WORLDVOICE, alias_package, load_source
+from nvda_stubs import worldvoice_conf
 
 
 def load_policy(monkeypatch):
@@ -11,16 +12,14 @@ def load_policy(monkeypatch):
 
 
 def flags(**values):
-	return {
-		"WorldVoice": {
-			"autoLanguageSwitching": {
-				"KeepMainLocaleEngineConsistent": values.get("engine", True),
-				"KeepMainLocaleVoiceConsistent": values.get("voice", True),
-				"KeepMainLocaleParameterConsistent": values.get("parameter", False),
-			},
-		},
-		"speech": {"WorldVoice": {"rate": 70}},
+	given = {
+		"KeepMainLocaleEngineConsistent": values.get("engine"),
+		"KeepMainLocaleVoiceConsistent": values.get("voice"),
+		"KeepMainLocaleParameterConsistent": values.get("parameter"),
 	}
+	# A flag the test leaves out keeps the confspec default.
+	switching = {key: value for key, value in given.items() if value is not None}
+	return {**worldvoice_conf(autoLanguageSwitching=switching), "speech": {"WorldVoice": {"rate": 70}}}
 
 
 def test_engine_consistency_reads_config_and_previews_without_saving(monkeypatch):

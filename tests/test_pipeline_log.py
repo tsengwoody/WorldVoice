@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from addon_loader import ADDON, WORLDVOICE, load_definitions, load_source
-from nvda_stubs import StubModules
+from nvda_stubs import StubModules, worldvoice_conf
 
 LOG = WORLDVOICE / "log.py"
 SERVICE = ADDON / "globalPlugins/WorldVoice/pipelineLog.py"
@@ -17,7 +17,7 @@ def load_service(monkeypatch, answers=None):
 	answers = answers or []
 	asked = []
 	stubs = {
-		"config": types.SimpleNamespace(conf={"WorldVoice": {"log": {"enable": False}}}),
+		"config": types.SimpleNamespace(conf=worldvoice_conf()),
 		"gui": types.SimpleNamespace(
 			mainFrame=None,
 			messageBox=lambda *args: asked.append(args) or answers.pop(0),

@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+from nvda_stubs import worldvoice_conf
+
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon" / "synthDrivers" / "WorldVoice"
 PACKAGE = "detector_test_worldvoice"
 
@@ -19,17 +21,7 @@ def load_language_detection(stub_modules, monkeypatch):
 		if name.startswith(PACKAGE + "."):
 			monkeypatch.delitem(sys.modules, name)
 	stub_modules.package(PACKAGE, WORLDVOICE)
-	conf = {
-		"WorldVoice": {
-			"autoLanguageSwitching": {
-				"ignoreNumbersInLanguageDetection": False,
-				"latinCharactersLanguage": "en",
-				"CJKCharactersLanguage": "zh",
-				"arabicCharactersLanguage": "ar",
-				"DetectLanguageTiming": "after",
-			},
-		},
-	}
+	conf = worldvoice_conf(autoLanguageSwitching={"CJKCharactersLanguage": "zh"})
 	state = SimpleNamespace(language="en_US")
 	stub_modules.module("speech")
 	stub_modules.module(
