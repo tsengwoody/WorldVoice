@@ -189,3 +189,48 @@ def test_concurrent_ensure_loads_only_once(store, repo):
         states = list(executor.map(lambda _: store.ensure(make_spec()), range(12)))
     assert all(state is states[0] for state in states)
     assert repo.loads == ["Fake:a"]
+
+
+def test_inherited_values_seed_a_new_state_and_its_cancel_baseline(store, repo):
+    repo.values["Fake:b"] = {"rate": 41, "variant": "own"}
+    store.set_inheritance(lambda spec: {"rate": 83} if spec.name == "Fake:b" else {})
+    edit = store.begin_edit()
+    state = store.ensure(make_spec("Fake:b"))
+    assert (state.get("rate"), state.get("variant")) == (83, "own")
+    assert state.baseline("rate") == 83
+    state.update(rate=72)
+    edit.discard()
+    assert state.get("rate") == 83
+    # Inherited values are not saved until a commit.
+    assert repo.values["Fake:b"] == {"rate": 41, "variant": "own"}
+
+
+def test_reload_layers_inherited_values_over_the_saved_ones(store, repo):
+    inherited = {}
+    store.set_inheritance(lambda spec: dict(inherited))
+    state = store.ensure(make_spec())
+    repo.values["Fake:a"] = {"rate": 63, "variant": "new"}
+    inherited["rate"] = 90
+    store.reload("Fake:a")
+    assert (state.get("rate"), state.get("variant")) == (90, "new")
+    assert state.baseline("rate") == 90
+
+
+def test_no_thread_sees_a_state_before_it_inherits(store, repo):
+    entered, release = Event(), Event()
+
+    def inherit(spec):
+        entered.set()
+        assert release.wait(1)
+        return {"rate": 83}
+
+    store.set_inheritance(inherit)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(store.ensure, make_spec())
+        assert entered.wait(1)
+        second = executor.submit(store.ensure, make_spec())
+        assert not second.done()
+        release.set()
+        assert first.result(1) is second.result(1)
+    assert second.result().get("rate") == 83
+    assert repo.loads == ["Fake:a"]

@@ -81,9 +81,17 @@ class ParameterConsistency:
 	def enabled(self, value: bool) -> None:
 		_flags(self._conf_provider)[self._KEY] = value
 
-	def copy_from(self, store, base_name: str) -> None:
+	def values_of(self, store, base_name: str) -> dict:
+		"""The main voice's parameters every voice follows: all but the variant."""
 		base = store.snapshot(base_name)
-		values = {name: getattr(base, name) for name in PARAMETER_NAMES}
+		return {name: getattr(base, name) for name in PARAMETER_NAMES}
+
+	def inherited(self, store, base_name: str) -> dict:
+		"""What a voice takes from the main voice when it loads: nothing unless enabled."""
+		return self.values_of(store, base_name) if self.enabled else {}
+
+	def copy_from(self, store, base_name: str) -> None:
+		values = self.values_of(store, base_name)
 		for key in store.names():
 			# One update per voice keeps each copy atomic for a worker activation.
 			store.state(key).update(**values)

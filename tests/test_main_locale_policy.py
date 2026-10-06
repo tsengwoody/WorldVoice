@@ -85,39 +85,15 @@ def test_parameter_copy_updates_each_voice_once(monkeypatch):
 	assert updates == {"a": expected, "b": expected}
 
 
-def test_shared_section_only_when_enabled_and_available(monkeypatch):
+def test_inherited_parameters_follow_the_main_voice_only_when_enabled(monkeypatch):
 	module = load_policy(monkeypatch)
 	conf = flags(parameter=False)
 	policy = module.ParameterConsistency(lambda: conf)
-	assert policy.shared_section("WorldVoice") is None
+	base = SimpleNamespace(rate=72, pitch=60, volume=70, inflection=55, rateBoost=True, variant="x")
+	store = SimpleNamespace(snapshot=lambda key: base if key == "a" else None)
+	assert policy.inherited(store, "a") == {}
 	policy.enabled = True
-	assert policy.shared_section("WorldVoice") == {"rate": 70}
-	assert policy.shared_section("Other") is None
-
-
-class AggregatedSpeech:
-	"""NVDA's speech section: indexing a synth it has never saved raises, get returns the default."""
-
-	def __init__(self, sections):
-		self._sections = sections
-
-	def __getitem__(self, key):
-		return self._sections[key]
-
-	def get(self, key, default=None):
-		return self._sections.get(key, default)
-
-
-def test_shared_section_is_none_before_nvda_first_saves_the_synth(monkeypatch):
-	module = load_policy(monkeypatch)
-	conf = flags(parameter=True)
-	policy = module.ParameterConsistency(lambda: conf)
-	conf["speech"] = {}
-	assert policy.shared_section("WorldVoice") is None
-	conf["speech"] = AggregatedSpeech({})
-	assert policy.shared_section("WorldVoice") is None
-	conf["speech"] = AggregatedSpeech({"WorldVoice": {"rate": 70}})
-	assert policy.shared_section("WorldVoice") == {"rate": 70}
+	assert policy.inherited(store, "a") == {"rate": 72, "pitch": 60, "volume": 70, "inflection": 55, "rateBoost": True}
 
 
 def test_policies_catch_no_exceptions():

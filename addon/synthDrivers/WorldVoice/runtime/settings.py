@@ -1,6 +1,6 @@
 """Thread-safe pending voice settings, independent of persistence and engines."""
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from threading import RLock
 from typing import Protocol
 
@@ -102,9 +102,23 @@ class VoiceSettingsStore:
 
 	def __init__(self, repository: VoiceSettingsRepository):
 		self._repository = repository
+		self._inherit: Callable[[VoiceSpec], Mapping[str, SettingValue]] = lambda spec: {}
 		self._lock = RLock()
 		self._states: dict[str, VoiceState] = {}
 		self._edit: VoiceEditSession | None = None
+
+	def set_inheritance(self, provider: Callable[[VoiceSpec], Mapping[str, SettingValue]]) -> None:
+		"""Layer ``provider(spec)`` over the saved values whenever a voice loads or reloads.
+
+		The provider runs under the store lock, so no thread sees a state before it
+		inherits; it may read other states through this store.
+		"""
+		self._inherit = provider
+
+	def _load(self, spec: VoiceSpec) -> dict[str, SettingValue]:
+		values = dict(self._repository.load(spec))
+		values.update(self._inherit(spec))
+		return values
 
 	def ensure(self, spec: VoiceSpec) -> VoiceState:
 		with self._lock:
@@ -113,7 +127,7 @@ class VoiceSettingsStore:
 				if state.spec != spec:
 					raise ValueError(f"Conflicting metadata for voice {spec.name}")
 				return state
-			state = VoiceState(spec, self._repository.load(spec))
+			state = VoiceState(spec, self._load(spec))
 			self._states[spec.name] = state
 			# The initial baseline also enrolls a late voice in the active edit.
 			return state
@@ -143,7 +157,8 @@ class VoiceSettingsStore:
 
 	def reload(self, key: str) -> None:
 		state = self.state(key)
-		values = self._repository.load(state.spec)
+		with self._lock:
+			values = self._load(state.spec)
 		with state._lock:
 			state.update(**values)
 			state.checkpoint()
