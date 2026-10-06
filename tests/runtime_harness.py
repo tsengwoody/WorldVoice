@@ -617,3 +617,73 @@ def accepted_indexes(manager):
 	"""The indexes the scheduler accepted for its current request."""
 	with manager._state_cond:
 		return set(manager._current_indexes)
+
+
+def segment_host(driver):
+	"""The SegmentHost an engine wrapper runs its segments on."""
+	return driver._segmentHost
+
+
+def segment_lifecycle(host):
+	"""The SegmentLifecycle inside a SegmentHost."""
+	return host._lifecycle
+
+
+def accepted_operations(host):
+	"""Accepted operations the host still tracks, mapped to whether it cancelled them."""
+	with host._condition:
+		return dict(host._accepted)
+
+
+def pending_records(host):
+	"""Native records queued behind the current one."""
+	with host._condition:
+		return tuple(host._pending)
+
+
+def live_operations(lifecycle):
+	"""Operations the lifecycle has not retired yet."""
+	with lifecycle._condition:
+		return tuple(lifecycle._operations)
+
+
+def queued_deliveries(lifecycle):
+	"""Operations whose event still waits for the delivery thread."""
+	with lifecycle._condition:
+		return tuple(lifecycle._delivery_queue)
+
+
+def delivery_thread(lifecycle):
+	"""The thread that runs the lifecycle's sinks."""
+	with lifecycle._condition:
+		return lifecycle._delivery_thread
+
+
+def resource_busy(lifecycle):
+	"""Whether an operation owns the native resource."""
+	with lifecycle._condition:
+		return lifecycle._resource_busy
+
+
+def lifecycle_terminated(lifecycle):
+	"""Whether terminate() has shut the lifecycle."""
+	with lifecycle._condition:
+		return lifecycle._terminated
+
+
+def still_admitting(lifecycle, operation):
+	"""Whether ``operation`` still admits producers (it has not passed its native boundary)."""
+	with lifecycle._condition:
+		return operation._admitting
+
+
+def waiting_for_resource(lifecycle, operation):
+	"""Whether ``operation`` waits for the resource inside run()."""
+	with lifecycle._condition:
+		return operation._waiting
+
+
+def native_record(host, operation):
+	"""The NativeRecord the host created for an accepted segment operation."""
+	with host._condition:
+		return host._records[operation]

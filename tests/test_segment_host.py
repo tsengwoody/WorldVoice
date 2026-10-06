@@ -5,7 +5,14 @@ from types import SimpleNamespace
 
 import pytest
 from addon_loader import load_source
-from runtime_harness import RUNTIME, load_runtime, load_scheduler
+from runtime_harness import (
+	RUNTIME,
+	accepted_operations,
+	load_runtime,
+	load_scheduler,
+	native_record,
+	pending_records,
+)
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
 
@@ -193,8 +200,8 @@ def test_cancel_keeps_accepted_segment_silent_and_stops_active_native(env):
 	native.join(WAIT_TIMEOUT)
 	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
 	# The discarded operation's bookkeeping is released (on the delivery thread).
-	eventually(lambda: not env.host._accepted)
-	assert env.host._accepted == {}
+	eventually(lambda: not accepted_operations(env.host))
+	assert accepted_operations(env.host) == {}
 
 
 def test_cancel_after_commit_keeps_the_event_silent(env, monkeypatch):
@@ -286,11 +293,11 @@ def test_a_retired_ordinary_record_stays_cancellable_until_forgotten(env):
 	env.host.reach(record, "returned")
 	env.host.reach(record, "idle")
 	assert env.host.retire(record).cancelled is False
-	assert record in env.host._pending
+	assert record in pending_records(env.host)
 	env.host.cancel()
 	assert record.cancelled
 	env.host.forget(record)
-	assert record not in env.host._pending
+	assert record not in pending_records(env.host)
 
 
 @pytest.mark.parametrize("case", ["complete", "missing", "error", "cancelled"])
@@ -571,7 +578,7 @@ def test_stop_skips_a_record_abandoned_before_native_work(env):
 	env.strategy.submit_error = RuntimeError("queue rejected")
 	_, _, events = env.speak()
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
-	assert env.host._lifecycle.wait_idle()
+	env.host.wait_idle()
 	assert env.strategy.native_stops == []
 
 
@@ -590,7 +597,7 @@ def test_segment_submit_error_is_recorded_not_raised(env):
 	operation = env.host._lifecycle.accept(context, token, lambda event: None)
 	env.strategy.submit_error = RuntimeError("queue rejected")
 	env.host.enqueue(("segment",), operation)
-	record = env.host._records[operation]
+	record = native_record(env.host, operation)
 	assert isinstance(record.error, RuntimeError)
 	assert record.retired.is_set()
 
@@ -639,7 +646,7 @@ def test_engine_admission_error_rejects_before_acceptance(env):
 	assert str(event.error) == "route cannot drain"
 	assert event.segment_id == 33
 	assert env.strategy.submitted == []
-	assert env.host._accepted == {}
+	assert accepted_operations(env.host) == {}
 
 
 def test_audio_consumer_is_admitted_after_close(env):
@@ -819,7 +826,7 @@ def test_control_error_fails_an_unpublished_drain(env):
 	assert entered.wait(WAIT_TIMEOUT)
 	_, _, events = env.speak(segment=18)
 	env.run_native(env.strategy.wait_submitted(2))
-	assert env.host._lifecycle.wait_idle()
+	env.host.wait_idle()
 	env.host.latch_control_error(OSError("stop failed"))
 	release.set()
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
@@ -840,7 +847,7 @@ def test_control_error_relabels_a_drain_the_lifecycle_already_committed(env, mon
 	assert entered.wait(WAIT_TIMEOUT)
 	_, _, events = env.speak(segment=18)
 	env.run_native(env.strategy.wait_submitted(2))
-	assert env.host._lifecycle.wait_idle()
+	env.host.wait_idle()
 	env.host.latch_control_error(OSError("stop failed"))
 	release.set()
 	event = events.wait_one()

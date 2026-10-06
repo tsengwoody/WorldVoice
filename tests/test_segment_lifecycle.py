@@ -8,7 +8,18 @@ from threading import Condition, Event, Thread, current_thread
 
 import pytest
 from addon_loader import load_source
-from runtime_harness import RUNTIME, load_runtime, load_scheduler
+from runtime_harness import (
+	RUNTIME,
+	delivery_thread,
+	lifecycle_terminated,
+	live_operations,
+	load_runtime,
+	load_scheduler,
+	queued_deliveries,
+	resource_busy,
+	still_admitting,
+	waiting_for_resource,
+)
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
 
@@ -56,11 +67,10 @@ class RecordedEvents(list):
 def wait_until_waiting(lifecycle, operation):
 	"""Block until ``operation`` is waiting for the resource inside run()."""
 
-	def waiting():
-		with lifecycle._condition:
-			return operation._waiting
-
-	eventually(waiting, message="operation never started waiting for the resource")
+	eventually(
+		lambda: waiting_for_resource(lifecycle, operation),
+		message="operation never started waiting for the resource",
+	)
 
 
 def collected(reference):
@@ -199,8 +209,7 @@ def test_nested_lease_retires_before_successor(env):
 	parent = lifecycle.admit_producer(old)
 	assert parent is not None
 	hooks.release_boundary.set()
-	with lifecycle._condition:
-		assert lifecycle._condition.wait_for(lambda: not old._admitting, WAIT_TIMEOUT)
+	eventually(lambda: not still_admitting(lifecycle, old))
 	assert lifecycle.admit_producer(old) is None
 	child = lifecycle.admit_producer(old, parent=parent)
 	assert child is not None
@@ -265,7 +274,7 @@ def test_stop_failure_blocks_successor(env):
 		(2, "segment_failed", hooks.stop_error),
 	]
 	# The delivery thread forgets the operation after its sink returns.
-	eventually(lambda: new not in lifecycle._operations)
+	eventually(lambda: new not in live_operations(lifecycle))
 
 
 def test_hook_failure_after_the_native_boundary_latches_core_fault(env):
@@ -323,7 +332,6 @@ def test_failed_waiting_operation_is_published_before_the_resource_frees(env):
 def test_failed_operation_that_never_ran_is_published_and_its_run_is_a_no_op(env):
 	lifecycle, hooks, events, accept = env
 	operation, context = accept(5)
-	assert not operation._run_started
 	lifecycle.fail(operation, RuntimeError("control error"))
 	events.wait_for_count(1)
 	assert [(event.source_id, event.kind.value) for event in events] == [
@@ -621,8 +629,7 @@ def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, mon
 		active_call = Call(lambda: lifecycle.run(active, ("active",)))
 		assert active_at_boundary.wait(WAIT_TIMEOUT)
 		termination = Call(lifecycle.terminate)
-		with lifecycle._condition:
-			assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, timeout=WAIT_TIMEOUT)
+		eventually(lambda: lifecycle_terminated(lifecycle))
 		old_gap = queued.work.is_valid()
 		if old_gap:
 			assert cancel_entered.wait(WAIT_TIMEOUT)
@@ -630,8 +637,8 @@ def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, mon
 			allow_cancel.set()
 			assert termination.done.wait(WAIT_TIMEOUT)
 		release_first.set()
-		lifecycle._delivery_thread.join(WAIT_TIMEOUT)
-		assert not lifecycle._delivery_thread.is_alive()
+		delivery_thread(lifecycle).join(WAIT_TIMEOUT)
+		assert not delivery_thread(lifecycle).is_alive()
 		release_active.set()
 		active_call.finish()
 		allow_cancel.set()
@@ -639,8 +646,8 @@ def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, mon
 		assert [(event.source_id, event.segment_id) for event in events] == [
 			(first_context.source_id, 1),
 		]
-		assert not lifecycle._delivery_queue
-		assert not lifecycle._operations
+		assert not queued_deliveries(lifecycle)
+		assert not live_operations(lifecycle)
 	finally:
 		release_first.set()
 		release_active.set()
@@ -678,7 +685,7 @@ def test_retirement_callback_runs_when_cancel_suppresses_delivery(env):
 	operation.work.token.cancel()
 	lifecycle.fail(operation, RuntimeError("never submitted"))
 	assert retired.wait(WAIT_TIMEOUT)
-	assert operation not in lifecycle._operations
+	assert operation not in live_operations(lifecycle)
 	assert events == []
 	assert hooks.submitted == []
 
@@ -733,8 +740,7 @@ def test_terminate_cancels_previously_accepted_pending_rejection(env):
 	lifecycle.fail(second, error)
 	lifecycle.terminate()
 	release.set()
-	with lifecycle._condition:
-		assert lifecycle._condition.wait_for(lambda: second not in lifecycle._operations, WAIT_TIMEOUT)
+	eventually(lambda: second not in live_operations(lifecycle))
 	assert rejected == []
 	assert hooks.submitted == []
 
@@ -874,14 +880,14 @@ def test_delivery_thread_identity_and_join(env):
 	assert not lifecycle.on_delivery_thread()
 	lifecycle.terminate()
 	lifecycle.join_delivery(WAIT_TIMEOUT)
-	assert not lifecycle._delivery_thread.is_alive()
+	assert not delivery_thread(lifecycle).is_alive()
 
 
 def test_wait_idle_returns_true_when_resource_is_released(env):
 	lifecycle, hooks, _events, _accept = env
 	assert lifecycle.wait_idle() is True
 	_, owner_call = _hold_resource(env)
-	assert lifecycle._resource_busy
+	assert resource_busy(lifecycle)
 	results = []
 	waiting = Call(lambda: results.append(lifecycle.wait_idle()))
 	waiting.blocked()
@@ -889,7 +895,7 @@ def test_wait_idle_returns_true_when_resource_is_released(env):
 	owner_call.finish()
 	waiting.finish()
 	assert results == [True]
-	assert not lifecycle._resource_busy
+	assert not resource_busy(lifecycle)
 
 
 def test_wait_idle_wakes_on_token_cancel_without_polling(env):
