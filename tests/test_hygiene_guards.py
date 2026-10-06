@@ -46,7 +46,7 @@ def test_ruff_reports_nothing():
 	# pyproject has no `select`, so the rules are ruff's defaults minus the ignores; its
 	# required-version makes any other ruff fail here instead of checking other rules.
 	result = subprocess.run(
-		["ruff", "check", "addon", "--output-format", "concise"],
+		["ruff", "check", "addon", "tests", "--output-format", "concise"],
 		cwd=ROOT,
 		capture_output=True,
 		text=True,

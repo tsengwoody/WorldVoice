@@ -1,7 +1,7 @@
 # Formatting hooks follow NVDA's .pre-commit-config.yaml (ref/nvda).
 # Install the Git hooks with prek, as NVDA does (ref/nvda/projectDocs/testing/automated.md): `prek install`.
 # The lint hook applies safe fixes and fails that commit; stage the fixes and commit again.
-# Formatting hooks only touch add-on sources; tests keep their own style.
+# Formatting and lint hooks cover the add-on sources and the tests.
 exclude: |
   (?x)^addon/synthDrivers/WorldVoice/(
     # Original upstream engine drivers; WorldVoice never modifies them.
@@ -21,11 +21,11 @@ repos:
       - id: check-yaml
       # Removes trailing whitespace.
       - id: trailing-whitespace
-        files: ^addon/
+        files: ^(addon|tests)/
         types_or: [python]
       # Ensures all files end in 1 (and only 1) newline.
       - id: end-of-file-fixer
-        files: ^addon/
+        files: ^(addon|tests)/
         types_or: [python]
 
   - repo: https://github.com/asottile/add-trailing-comma
@@ -35,7 +35,7 @@ repos:
       # if a trailing comma is added.
       # This adds a trailing comma to args/iterable items in case it was missed.
       - id: add-trailing-comma
-        files: ^addon/
+        files: ^(addon|tests)/
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Matches the Ruff version used by NVDA and required-version in pyproject.toml.
@@ -44,7 +44,7 @@ repos:
       - id: ruff
         name: lint with ruff
         args: [ --fix ]
-        files: ^addon/
+        files: ^(addon|tests)/
       - id: ruff-format
         name: format with ruff
-        files: ^addon/
+        files: ^(addon|tests)/
