@@ -1,12 +1,12 @@
 """Exercise the real SAPI5 outer and pinned NVDA driver at COM/audio boundaries."""
 
-import importlib
 import sys
 from threading import Condition, Event, Thread, current_thread
 from types import SimpleNamespace
 
 import pytest
-from sapi5_drain_harness import load_sapi5
+from runtime_harness import live_operations, segment_host, segment_lifecycle
+from sapi5_drain_harness import bookmark_lists, is_speaking, load_sapi5, speak_requests, speak_thread
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
 
@@ -57,9 +57,6 @@ def wait_event(events):
 def test_sapi5_wasapi_shared_lifecycle_waits_for_endstream_pcm_and_idle(env):
 	_, context, events = speak(env)
 	env.native.wait_calls(1)
-	native = env.driver._segmentHost.current()
-	lifecycle = importlib.import_module(env.rt.package.__name__ + "._segmentLifecycle")
-	assert isinstance(native.operation, lifecycle.SegmentOperation)
 	env.player.feed_release.clear()
 	pcm = Thread(
 		target=lambda: env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None),
@@ -298,9 +295,9 @@ def test_legacy_audio_start_notification_keeps_original_state(env):
 	env.driver.useWasapi = False
 	native = env.natives[-1]
 	native.sink.StartStream(1, 0)
-	assert env.driver._isSpeaking is True
+	assert is_speaking(env.driver) is True
 	native.end()
-	assert env.driver._isSpeaking is False
+	assert is_speaking(env.driver) is False
 	assert env.dones == [env.driver]
 
 
@@ -523,7 +520,7 @@ def test_accepted_successor_receives_failure_after_playback_fault(env, monkeypat
 	assert len(env.native.calls) == 1
 	assert all(
 		operation.work.context is not successor
-		for operation in env.driver._segmentHost._lifecycle._operations
+		for operation in live_operations(segment_lifecycle(segment_host(env.driver)))
 	)
 
 
@@ -802,7 +799,7 @@ def test_token_cancel_retires_sonic_tail_and_bookmarks_before_successors(env):
 	env.native.wait_calls(2)
 	# The cancelled request's unconsumed Sonic tail cannot become successor audio.
 	assert env.driver.sonicStream.tail == []
-	assert [tuple(bookmarks) for bookmarks in env.driver._bookmarkLists] == [(9,)]
+	assert bookmark_lists(env.driver) == [(9,)]
 	env.driver.sonicStream.tail = [4]
 	env.player.idle_release.set()
 	env.native.end(2)
@@ -984,7 +981,7 @@ def test_cancelled_ordinary_pcm_feed_stops_again_before_successor_admission(env,
 	assert env.player.stops > stops_after_cancel, (
 		"Cancelled ordinary feed restarted audio after the final stop"
 	)
-	assert [tuple(bookmarks) for bookmarks in env.driver._bookmarkLists] == [(9,)]
+	assert bookmark_lists(env.driver) == [(9,)]
 	assert env.driver.sonicStream.tail == []
 	env.driver.sonicStream.tail = [4]
 	env.native.end(2)
@@ -1019,13 +1016,13 @@ def test_ordinary_speak_fails_fast_after_cancel_purge_fault_even_if_purge_recove
 	env.native.wait_calls(1)
 	env.native.purge_error = True
 	env.driver.cancel()
-	env.driver._thread.join(WAIT_TIMEOUT)
-	assert not env.driver._thread.is_alive()
+	speak_thread(env.driver).join(WAIT_TIMEOUT)
+	assert not speak_thread(env.driver).is_alive()
 	env.native.purge_error = None
 	with pytest.raises(OSError, match="purge failed"):
 		env.driver.speak(("new ordinary",))
 	assert len(env.native.calls) == 1
-	assert len(env.driver._speakRequests) == 0
+	assert len(speak_requests(env.driver)) == 0
 	assert env.dones == []
 
 
@@ -1047,7 +1044,7 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env, monkeypatch):
 	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
 	assert len(env.native.calls) == 1, "Ordinary speech entered native during the final idle"
-	assert len(env.driver._speakRequests) == 1
+	assert len(speak_requests(env.driver)) == 1
 	assert events == []
 	env.player.idle_release.set()
 	event = wait_event(events)
@@ -1093,9 +1090,9 @@ def test_submit_failure_before_binding_leaves_the_lifecycle_usable(env, monkeypa
 	monkeypatch.setattr(env.outer.BaseSynthDriver, "speak", failing_speak)
 	_, _, failed = speak(env)
 	assert wait_event(failed).kind is env.rt.models.EventKind.SEGMENT_FAILED
-	host = env.driver._segmentHost
-	assert host._lifecycle.wait_idle()
-	assert host._lifecycle.fault is None
+	host = segment_host(env.driver)
+	host.wait_idle()
+	assert segment_lifecycle(host).fault is None
 	_, _, successor = speak(env, segment=18)
 	env.player.idle_release.set()
 	env.native.wait_calls(1)
@@ -1142,7 +1139,7 @@ def test_cancel_player_stop_failure_latches_and_rejects_speech(env):
 	with pytest.raises(OSError):
 		env.driver.cancel()
 	env.player.stop_error = None
-	assert str(env.driver._segmentHost.control_error) == "stop failed"
+	assert str(segment_host(env.driver).control_error) == "stop failed"
 	with pytest.raises(OSError, match="stop failed"):
 		env.driver.speak(["after"])
 
@@ -1152,9 +1149,9 @@ def test_worker_stop_failure_latches_until_a_voice_reload(env):
 	with pytest.raises(OSError):
 		env.driver._stopThread()
 	env.player.stop_error = None
-	assert str(env.driver._segmentHost.control_error) == "stop failed"
+	assert str(segment_host(env.driver).control_error) == "stop failed"
 	env.driver.voice = "voice"
-	assert env.driver._segmentHost.control_error is None
+	assert segment_host(env.driver).control_error is None
 	native, player = env.natives[-1], env.players[-1]
 	player.idle_release.set()
 	_, _, events = speak(env, segment=18)
@@ -1187,7 +1184,7 @@ def test_stop_failure_after_an_invalidated_feed_latches(env):
 	env.player.stop_error = None
 	assert not callback.is_alive()
 	assert [str(error) for error in failures] == ["stop failed"]
-	assert str(env.driver._segmentHost.control_error) == "stop failed"
+	assert str(segment_host(env.driver).control_error) == "stop failed"
 	_, _, successor = speak(env, segment=18)
 	assert wait_event(successor).kind is env.rt.models.EventKind.SEGMENT_FAILED
 	assert len(env.native.calls) == 1

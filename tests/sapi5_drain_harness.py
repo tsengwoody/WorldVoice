@@ -339,3 +339,27 @@ def load_sapi5(monkeypatch, *, rt=None, scheduler=None, voice_base=object, comma
 		logs=logs,
 		commands=commands,
 	)
+
+
+# Named views of driver internals that tests check but no public API exposes; each private
+# name is read here only. They read without a lock, as the tests did.
+
+
+def is_speaking(driver):
+	"""The inner SAPI5 driver's own speaking flag."""
+	return driver._isSpeaking
+
+
+def bookmark_lists(driver):
+	"""The bookmark lists the inner driver still waits to report, one tuple per request."""
+	return [tuple(bookmarks) for bookmarks in tuple(driver._bookmarkLists)]
+
+
+def speak_requests(driver):
+	"""Speech requests queued for the inner driver's speak thread."""
+	return tuple(driver._speakRequests)
+
+
+def speak_thread(driver):
+	"""The inner driver's speak thread, or None before it started."""
+	return driver._thread
