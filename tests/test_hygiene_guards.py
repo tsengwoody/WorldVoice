@@ -23,7 +23,7 @@ def _addon_sources():
 
 def test_every_blind_except_says_where_the_error_goes():
 	missing = []
-	for path in _addon_sources():
+	for path in (*_addon_sources(), *(ROOT / "tests").glob("*.py")):
 		for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
 			if "noqa: BLE001" in line and not re.search(r"noqa: BLE001 - \S", line):
 				missing.append(f"{path.relative_to(ROOT)}:{number}")
@@ -60,6 +60,13 @@ def test_pre_commit_runs_the_ruff_lint_hook():
 	lint = config.index("- id: ruff\n")
 	assert "args: [ --fix ]" in config[lint : config.index("- id: ruff-format")]
 	assert "omits the lint hook" not in config
+
+
+def test_pre_commit_hooks_cover_the_addon_and_the_tests():
+	config = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+	scopes = re.findall(r"^\s*files: (\S+)$", config, re.MULTILINE)
+	assert scopes
+	assert set(scopes) == {"^(addon|tests)/"}
 
 
 def test_generics_is_imported_only_after_the_package_that_adds_its_path():
