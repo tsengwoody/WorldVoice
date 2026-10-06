@@ -71,7 +71,9 @@ def test_onecore_uses_shared_lifecycle_for_an_empty_segment(env):
 	_, context, _ = speak(env, commands=(), events=events)
 	# The actual wrapper must own the same operation that the coordinator runs.
 	env.native.wait_calls(1)
-	assert native_call(env.driver).operation.work.context is context
+	operation = native_call(env.driver).operation
+	assert operation.work.context is context
+	assert operation in live_operations(segment_lifecycle(segment_host(env.driver)))
 	response = in_thread(lambda: env.native.respond(frames=0, markers=""))
 	finish(response)
 	assert env.player.sync_entered.wait(WAIT_TIMEOUT)

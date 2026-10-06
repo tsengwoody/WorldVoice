@@ -38,5 +38,16 @@
 ## 驗證
 
 - 每個 commit：全套通過、收集清單不變、`ruff check/format` 乾淨。
-- 完成後：逐檔單獨執行；壓力測試（開 coverage，4 個 worker × 6 輪全套）0 失敗；另以 8 個行程的極端負載跑 2 輪全套，記錄結果。
+- 完成後：逐檔單獨執行；壓力測試（開 coverage，最多 3 個 worker，附記憶體看門狗）0 失敗。
 - 統計：寫死正向等待與私有狀態斷言的前後數量；第 2 類保留清單。
+
+## 實作備註
+
+- 19 個 commit（等待統一 9 個、私有狀態 9 個、收尾 1 個）＋審查後 1 個。
+- 寫死的正向等待：626 → 29（剩下的都是 `finally` 中或確認完成後的清理 join／wait）。新增 `waiting.HOLD_TIMEOUT = 2 * WAIT_TIMEOUT`，約 150 處「卡住 worker 直到測試放行」的假件改用它（原本 4、5 秒的卡住延長為 6 秒，沒有縮短），確保假件不會在測試的正向等待之前先到期、讓「卡住期間完成」的斷言誤判通過。
+- 讀私有狀態的 `assert`：86 → 1（以單行 `assert` 含私有屬性計算；含非斷言的讀取為 237 → 69，剩下的是第 4 類測試設置：monkeypatch 私有方法製造故障、`finally` 中救回卡住的鎖）。
+- 第 2 類集中成約 60 個具名查詢函式：`runtime_harness`（host／lifecycle／scheduler：`pending_records`、`live_operations`、`accepted_operations`、`still_admitting`…）、`worldvoice_cancel_wrapper_harness`（VE／Cerence：`real_player`、`termination_done`、`background_idle`…）、各 drain harness、`worldvoice_harness`（composition 與主驅動）。加鎖的查詢使用原本 `wait_for` 用的同一把鎖；不加鎖的與原本測試相同；回傳複本，避免迭代活的集合。
+- `test_stop_failure_fails_closed_for_later_work`（RHVoice）原本靠假件卡住到期（3 秒）才完成，現在在 stop 進入後放行 native，更貼近真實引擎。
+- 審查（Opus 5.5）後：補回 `test_onecore_uses_shared_lifecycle_for_an_empty_segment` 的「wrapper 的 operation 就是 lifecycle 正在執行的那個」斷言（原被歸為附帶檢查，但它正是測試名稱與註解所述的意圖）。
+- 驗證：收集清單不變、全套與逐檔通過、反轉順序通過、ruff 乾淨；壓力測試 3 個 worker × 5 輪（15 輪全套）全部通過。原 spec 的「8 個行程極端負載」超出 container 記憶體（每行程約 1.9 GB），曾造成 container 重啟，已刪除。
+- 留給後續：16 處無上限的 `_q.join()`／`bgQueue.join()`（不屬寫死秒數或斷言）；`has_segment_host` 仍以 `hasattr` 判斷。
