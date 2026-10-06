@@ -102,3 +102,4 @@ Protocol（`runtime/_segmentLifecycle.py:43`）、呼叫點（`:335`）、唯一
 - (f) presenter 改用 `prune_assignments` 後，`tests/test_role_presenter.py` 的 `load_presenter` 需把 manager 所用的 `roles` 模組放進 `synthDrivers.WorldVoice.roles`。
 - (h) `tests/test_role_panel.py` 的 synth stub 補上 `voice_manager`，panel 補上 `_manager`；新行為測試在 `tests/test_ui_structure.py`。
 - (g) 讀取路徑的無效值以 `log.debugWarning(..., exc_info=True)` 記錄。
+- (b) 啟動時 config 的 voice 無效（例如該引擎已停用）的新路徑：setter 拋 `LookupError` → NVDA `loadSettings` 接住 → `c["voice"] = self.voice`。此時 `_voice` 仍為 `None`，`_get_voice` 回傳 `getVoiceNameForLanguage(NVDA 語言)`（角色表指定的語音，或 `defaultVoiceName`），再 `changeVoice` 切換過去。舊行為是 config 留著無效名稱、主語音維持 `_getDefaultVoiceSpec` 選出的語音。新行為與 NVDA 首次載入（`voice = self.voice`）一致，且 config 立即修復；可見差異是主語音可能改為角色表為目前語言指定的語音。其他 `synth.voice = …` 路徑（settings ring、語音面板、角色面板）的名稱都來自 catalog，不會被拒。

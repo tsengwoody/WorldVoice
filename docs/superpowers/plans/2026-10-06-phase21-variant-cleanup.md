@@ -6,7 +6,7 @@ Spec：`docs/superpowers/specs/2026-10-06-phase21-variant-cleanup-design.md`。�
 
 ## 任務 1：N13 — `load` 只從共用區段讀 `PARAMETER_NAMES`
 
-1. `tests/test_voice_config_repository.py`：三個 `variant="main"` 期望改為語音自己的值；新增 `test_shared_variant_never_overrides_the_voice_variant`（共用 `variant="main"`、語音 `variant="bright"` → `bright`）；新增守門測試：`configRepository.py` 的 `load` 引用 `PARAMETER_NAMES`。
+1. `tests/test_voice_config_repository.py`：三個 `variant="main"` 期望改為語音自己的值；新增 `test_shared_variant_never_overrides_the_voice_variant`（共用 `variant="main"`、語音 `variant="bright"` → `bright`），以這個行為測試固定「共用讀取只限 `PARAMETER_NAMES`」。
 2. `configRepository.py`：import `PARAMETER_NAMES`；迴圈內 `own = voices[spec.name].get(name)`，`shared is None or name not in PARAMETER_NAMES` 時用 `own`。
 3. Commit：`fix: keep each voice's own variant when parameters follow the main voice`。
 
