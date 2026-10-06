@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import load_source
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
-from waiting import eventually, stays_false, stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
 
 class FakeStrategy:
@@ -38,7 +38,7 @@ class FakeStrategy:
 
 	def wait_submitted(self, count=1):
 		with self.condition:
-			assert self.condition.wait_for(lambda: len(self.submitted) >= count, 2), (
+			assert self.condition.wait_for(lambda: len(self.submitted) >= count, WAIT_TIMEOUT), (
 				"native work was not submitted"
 			)
 			return self.submitted[count - 1][0]
@@ -128,7 +128,7 @@ def test_completed_segment_drains_once_after_every_barrier(env):
 	assert record.operation is not None
 	native, _ = env.run_native(record)
 	event = events.wait_one()
-	native.join(2)
+	native.join(WAIT_TIMEOUT)
 	assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert (event.source_id, event.segment_id) == (context.source_id, 17)
 	assert env.strategy.player_stops == 0
@@ -188,9 +188,9 @@ def test_cancel_keeps_accepted_segment_silent_and_stops_active_native(env):
 	env.host.cancel()
 	# The lifecycle asks for the stop on its own thread.
 	with env.strategy.condition:
-		assert env.strategy.condition.wait_for(lambda: env.strategy.native_stops == [record], 1)
+		assert env.strategy.condition.wait_for(lambda: env.strategy.native_stops == [record], WAIT_TIMEOUT)
 	native, _ = env.run_native(record)
-	native.join(2)
+	native.join(WAIT_TIMEOUT)
 	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
 	# The discarded operation's bookkeeping is released (on the delivery thread).
 	eventually(lambda: not env.host._accepted)
@@ -205,7 +205,7 @@ def test_cancel_after_commit_keeps_the_event_silent(env, monkeypatch):
 
 	def run_until_cancelled(operation, commands):
 		real_run(operation, commands)
-		assert cancelled.wait(2)
+		assert cancelled.wait(WAIT_TIMEOUT)
 
 	monkeypatch.setattr(env.host._lifecycle, "run", run_until_cancelled)
 	_, _, events = env.speak()
@@ -215,7 +215,7 @@ def test_cancel_after_commit_keeps_the_event_silent(env, monkeypatch):
 	def cancel_before_publication(operation, sink, event):
 		env.host.cancel()
 		cancelled.set()
-		assert record.handoff.wait(1), "run thread did not finish"
+		assert record.handoff.wait(WAIT_TIMEOUT), "run thread did not finish"
 		original(operation, sink, event)
 
 	monkeypatch.setattr(env.host, "_deliver", cancel_before_publication)
@@ -232,7 +232,7 @@ def test_sink_can_terminate_without_self_join(env):
 
 	env.speak(sink=sink)
 	env.run_native(env.strategy.wait_submitted())
-	assert terminated.wait(2), "terminate() from the delivery thread deadlocked"
+	assert terminated.wait(WAIT_TIMEOUT), "terminate() from the delivery thread deadlocked"
 
 
 def test_terminate_does_not_hang_on_a_blocked_sink(env):
@@ -240,16 +240,16 @@ def test_terminate_does_not_hang_on_a_blocked_sink(env):
 
 	def sink(event):
 		entered.set()
-		release.wait(5)
+		release.wait(HOLD_TIMEOUT)
 
 	env.speak(sink=sink)
 	env.run_native(env.strategy.wait_submitted())
-	assert entered.wait(2)
+	assert entered.wait(WAIT_TIMEOUT)
 	finished = Event()
 	Thread(target=lambda: (env.host.terminate(), finished.set()), daemon=True).start()
 	try:
 		# The delivery join is bounded to one second.
-		assert finished.wait(2), "terminate() waited on a blocked sink"
+		assert finished.wait(WAIT_TIMEOUT), "terminate() waited on a blocked sink"
 	finally:
 		release.set()
 
@@ -265,15 +265,15 @@ def test_retire_waits_for_admitted_consumers(env, start_delay):
 		with env.host.consumer() as admitted:
 			assert admitted is record
 			entered.set()
-			release.wait(2)
+			release.wait(HOLD_TIMEOUT)
 
 	consumer = Thread(target=consume, daemon=True)
 	consumer.start()
-	assert entered.wait(1), "consumer was never admitted"
+	assert entered.wait(WAIT_TIMEOUT), "consumer was never admitted"
 	Thread(target=lambda: (env.host.retire(record), retired.set()), daemon=True).start()
 	stays_unset(retired, message="retire() did not wait for the admitted consumer")
 	release.set()
-	assert retired.wait(1)
+	assert retired.wait(WAIT_TIMEOUT)
 	with env.host.consumer(record) as late:
 		assert late is None
 
@@ -417,7 +417,7 @@ class DrainingStrategy(FakeStrategy):
 	def drain(self, host, record):
 		self.drains.append(record)
 		self.drain_entered.set()
-		assert self.drain_release.wait(2), "test did not release drain"
+		assert self.drain_release.wait(HOLD_TIMEOUT), "test did not release drain"
 		if self.drain_raises is not None:
 			raise self.drain_raises
 		if self.drain_error is not None:
@@ -478,11 +478,11 @@ def test_stop_reaches_a_record_that_is_still_draining(drain_env):
 	env.speak()
 	record = env.strategy.wait_submitted()
 	env.run_native(record, reach=("returned",))
-	assert env.strategy.drain_entered.wait(2)
+	assert env.strategy.drain_entered.wait(WAIT_TIMEOUT)
 	# NVDA's cancel reaches the lifecycle, which asks the host to stop the record.
 	env.host.cancel()
 	with env.strategy.condition:
-		stopped = env.strategy.condition.wait_for(lambda: record in env.strategy.native_stops, 1)
+		stopped = env.strategy.condition.wait_for(lambda: record in env.strategy.native_stops, WAIT_TIMEOUT)
 	env.strategy.drain_release.set()
 	assert stopped, "cancel could not stop the record during drain"
 
@@ -510,7 +510,7 @@ def test_abandon_retires_a_dropped_record_without_handoff(env):
 	record = env.strategy.wait_submitted()
 	finished = Event()
 	Thread(target=lambda: (env.host.abandon(record), finished.set()), daemon=True).start()
-	assert finished.wait(1), "abandon() waited for a handoff that never comes"
+	assert finished.wait(WAIT_TIMEOUT), "abandon() waited for a handoff that never comes"
 	assert record.retired.is_set()
 	env.host.abandon(record)  # idempotent
 	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
@@ -560,7 +560,7 @@ def test_hook_fault_stops_the_player_and_releases_the_worker(env, monkeypatch):
 	_, _, events = env.speak()
 	native, _ = env.run_native(env.strategy.wait_submitted())
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
-	native.join(2)
+	native.join(WAIT_TIMEOUT)
 	assert not native.is_alive(), "the FIFO worker stayed parked after a hook fault"
 	assert env.strategy.player_stops >= 1
 
@@ -665,10 +665,10 @@ def test_retire_seals_the_record_against_audio_consumers(env):
 		with env.host.consumer(record, audio=True) as admitted:
 			assert admitted is record
 			held.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 
 	Thread(target=hold, daemon=True).start()
-	assert held.wait(1)
+	assert held.wait(WAIT_TIMEOUT)
 	for barrier in ("returned", "idle"):
 		env.host.reach(record, barrier)
 	Thread(target=env.host.retire, args=(record,), daemon=True).start()
@@ -691,14 +691,14 @@ def test_retire_runs_finish_after_consumers_and_before_retirement(env):
 		with env.host.consumer(record) as admitted:
 			assert admitted is record
 			held.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 			order.append("consumer")
 
 	def finish():
 		order.append(("finish", record.consumers, record.retired.is_set(), env.host.current() is record))
 
 	Thread(target=hold, daemon=True).start()
-	assert held.wait(1)
+	assert held.wait(WAIT_TIMEOUT)
 	for barrier in ("returned", "idle"):
 		env.host.reach(record, barrier)
 	Thread(target=lambda: env.host.retire(record, finish=finish), daemon=True).start()
@@ -734,7 +734,7 @@ def test_wait_settled_waits_for_the_record_to_leave_the_worker(env):
 	Thread(target=lambda: (env.host.wait_settled(record), settled.set()), daemon=True).start()
 	stays_unset(settled)
 	env.run_native(record)
-	assert settled.wait(1)
+	assert settled.wait(WAIT_TIMEOUT)
 
 
 def test_wait_settled_from_the_records_own_callback_does_not_wait(env):
@@ -749,7 +749,7 @@ def test_wait_settled_from_the_records_own_callback_does_not_wait(env):
 		settled.set()
 
 	Thread(target=settle, daemon=True).start()
-	assert settled.wait(1)
+	assert settled.wait(WAIT_TIMEOUT)
 	env.run_native(record)
 
 
@@ -758,16 +758,16 @@ def test_wait_settled_waits_for_a_running_sink(env):
 
 	def sink(event):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	env.speak(sink=sink)
 	env.run_native(env.strategy.wait_submitted())
-	assert entered.wait(2)
+	assert entered.wait(WAIT_TIMEOUT)
 	settled = Event()
 	Thread(target=lambda: (env.host.wait_settled(None), settled.set()), daemon=True).start()
 	stays_unset(settled)
 	release.set()
-	assert settled.wait(1)
+	assert settled.wait(WAIT_TIMEOUT)
 
 
 def test_wait_settled_from_a_sink_does_not_wait_for_sinks(env):
@@ -779,7 +779,7 @@ def test_wait_settled_from_a_sink_does_not_wait_for_sinks(env):
 
 	env.speak(sink=sink)
 	env.run_native(env.strategy.wait_submitted())
-	assert settled.wait(1)
+	assert settled.wait(WAIT_TIMEOUT)
 
 
 def test_wait_settled_from_a_callback_does_not_wait_for_sinks(env):
@@ -787,12 +787,12 @@ def test_wait_settled_from_a_callback_does_not_wait_for_sinks(env):
 
 	def sink(event):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	env.speak(sink=sink)
 	first = env.strategy.wait_submitted()
 	env.run_native(first)
-	assert entered.wait(2)
+	assert entered.wait(WAIT_TIMEOUT)
 	settled = Event()
 
 	def settle():
@@ -802,7 +802,7 @@ def test_wait_settled_from_a_callback_does_not_wait_for_sinks(env):
 
 	Thread(target=settle, daemon=True).start()
 	try:
-		assert settled.wait(1)
+		assert settled.wait(WAIT_TIMEOUT)
 	finally:
 		release.set()
 
@@ -812,11 +812,11 @@ def test_control_error_fails_an_unpublished_drain(env):
 
 	def blocking(event):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	env.speak(segment=17, sink=blocking)
 	env.run_native(env.strategy.wait_submitted())
-	assert entered.wait(2)
+	assert entered.wait(WAIT_TIMEOUT)
 	_, _, events = env.speak(segment=18)
 	env.run_native(env.strategy.wait_submitted(2))
 	assert env.host._lifecycle.wait_idle()
@@ -833,11 +833,11 @@ def test_control_error_relabels_a_drain_the_lifecycle_already_committed(env, mon
 
 	def blocking(event):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	env.speak(segment=17, sink=blocking)
 	env.run_native(env.strategy.wait_submitted())
-	assert entered.wait(2)
+	assert entered.wait(WAIT_TIMEOUT)
 	_, _, events = env.speak(segment=18)
 	env.run_native(env.strategy.wait_submitted(2))
 	assert env.host._lifecycle.wait_idle()
@@ -871,7 +871,7 @@ class PreparingStrategy(FakeStrategy):
 
 	def prepare(self, host, commands, operation):
 		self.prepare_entered.set()
-		assert self.prepare_release.wait(2), "Test did not release prepare"
+		assert self.prepare_release.wait(HOLD_TIMEOUT), "Test did not release prepare"
 		if self.prepare_error is not None:
 			raise self.prepare_error
 		return ("prepared", *commands)
@@ -900,11 +900,11 @@ def test_cancel_does_not_wait_for_prepare(prepare_env):
 	env = prepare_env
 	env.strategy.prepare_release.clear()
 	_, _, events = env.speak()
-	assert env.strategy.prepare_entered.wait(1)
+	assert env.strategy.prepare_entered.wait(WAIT_TIMEOUT)
 	cancelled = Event()
 	Thread(target=lambda: (env.host.cancel(), cancelled.set()), daemon=True).start()
 	try:
-		assert cancelled.wait(1), "cancel() waited for prepare()"
+		assert cancelled.wait(WAIT_TIMEOUT), "cancel() waited for prepare()"
 	finally:
 		env.strategy.prepare_release.set()
 	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
@@ -939,7 +939,7 @@ def test_wait_idle_returns_once_the_last_segment_retires(env):
 	Thread(target=lambda: (env.host.wait_idle(), waited.set()), daemon=True).start()
 	stays_unset(waited)
 	env.run_native(record)
-	assert waited.wait(1)
+	assert waited.wait(WAIT_TIMEOUT)
 
 
 def test_default_hooks_finish_a_segment(env):
@@ -968,7 +968,7 @@ def test_default_hooks_finish_a_segment(env):
 	events = Events()
 	context = env.rt.models.PlaybackContext(object(), 31)
 	host.speak_segment(("hello",), env.scheduler.CancellationToken(), context=context, on_event=events.append)
-	assert strategy.submitted.wait(2)
+	assert strategy.submitted.wait(WAIT_TIMEOUT)
 
 	def work():
 		host.begin(strategy.record)
@@ -1071,7 +1071,7 @@ def test_abandoning_the_current_record_wakes_settle_waiters(env):
 	waiter.start()
 	stays_unset(settled)
 	env.host.abandon(record)
-	assert settled.wait(1), "wait_settled missed the abandon"
+	assert settled.wait(WAIT_TIMEOUT), "wait_settled missed the abandon"
 
 
 def test_a_strategy_without_barriers_is_rejected(env):

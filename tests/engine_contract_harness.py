@@ -13,6 +13,7 @@ from espeak_drain_harness import finish as finish_espeak, load_espeak
 from onecore_drain_harness import in_thread, load_onecore
 from rhvoice_drain_harness import finish as finish_rhvoice, load_rhvoice
 from sapi5_drain_harness import load_sapi5
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 from worldvoice_cancel_wrapper_harness import Token, emit, load_real_driver_with_native_stubs
 
 
@@ -147,7 +148,7 @@ class OneCoreAdapter(_Adapter):
 	def complete(self):
 		self.env.native.wait_calls(1)
 		response = in_thread(lambda: self.env.native.respond(frames=8, markers=""))
-		assert response.done.wait(2), "OneCore callback did not return"
+		assert response.done.wait(WAIT_TIMEOUT), "OneCore callback did not return"
 		assert response.errors == []
 		self.env.player.sync_release.set()
 
@@ -178,7 +179,7 @@ class _NuanceAdapter(_Adapter):
 		monkeypatch.setattr(env.native, "close", lambda instance: None)
 		monkeypatch.setattr(env.native, "terminate", lambda: None)
 		self.idle_release = Event()
-		core._real_player.idle = lambda: self.idle_release.wait(3)
+		core._real_player.idle = lambda: self.idle_release.wait(HOLD_TIMEOUT)
 		core._real_player.stop = self.idle_release.set
 		self.calls = []
 

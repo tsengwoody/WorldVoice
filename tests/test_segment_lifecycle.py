@@ -9,7 +9,7 @@ from threading import Condition, Event, Thread, current_thread
 import pytest
 from addon_loader import load_source
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
-from waiting import WAIT_TIMEOUT, eventually, stays_false, stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
 
 class Call:
@@ -32,7 +32,7 @@ class Call:
 		stays_unset(self.done, message=self.error)
 
 	def finish(self):
-		assert self.done.wait(1), "lifecycle call did not finish"
+		assert self.done.wait(WAIT_TIMEOUT), "lifecycle call did not finish"
 		self.thread.join(1)
 		if self.error:
 			raise self.error
@@ -50,7 +50,7 @@ class RecordedEvents(list):
 
 	def wait_for_count(self, count):
 		with self._condition:
-			assert self._condition.wait_for(lambda: len(self) >= count, timeout=1), self
+			assert self._condition.wait_for(lambda: len(self) >= count, timeout=WAIT_TIMEOUT), self
 
 
 def wait_until_waiting(lifecycle, operation):
@@ -94,7 +94,7 @@ class Hooks:
 
 	def submit_native(self, operation, commands):
 		self.submit_entered.set()
-		assert self.release_submit.wait(1)
+		assert self.release_submit.wait(HOLD_TIMEOUT)
 		self.submitted.append((operation, commands))
 		self.submitted_after_stops.append(self.stop_completions)
 		self.first_submitted.set()
@@ -105,7 +105,7 @@ class Hooks:
 		assert not operation.is_valid()
 		self.stop_calls += 1
 		self.stop_entered.set()
-		assert self.release_stop.wait(1)
+		assert self.release_stop.wait(HOLD_TIMEOUT)
 		self.stop_completions += 1
 		self.stop_exited.set()
 		if self.stop_error:
@@ -114,16 +114,16 @@ class Hooks:
 	def wait_native_boundary(self, operation):
 		if self.submitted[0][0] is operation:
 			self.boundary_entered.set()
-			assert self.release_boundary.wait(1)
+			assert self.release_boundary.wait(HOLD_TIMEOUT)
 		else:
-			assert self.release_second_boundary.wait(1)
+			assert self.release_second_boundary.wait(HOLD_TIMEOUT)
 		if self.boundary_error:
 			raise self.boundary_error
 
 	def wait_playback_drained(self, operation):
 		self.playback_calls += 1
 		self.playback_entered.set()
-		assert self.release_playback.wait(1)
+		assert self.release_playback.wait(HOLD_TIMEOUT)
 
 
 @pytest.fixture
@@ -163,7 +163,7 @@ def test_native_boundary_precedes_admission_close(env):
 	old, context = accept(1)
 	new, _ = accept(2)
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.boundary_entered.wait(1)
+	assert hooks.boundary_entered.wait(WAIT_TIMEOUT)
 	lease = lifecycle.admit_producer(old)
 	assert lease is not None
 	second = Call(lambda: lifecycle.run(new, ("new",)))
@@ -184,7 +184,7 @@ def test_native_boundary_precedes_admission_close(env):
 	assert events[0].source_id is context.source_id
 	assert events[0].segment_id == context.segment_id
 	# The successor takes the freed resource and submits exactly once, after the old one.
-	assert hooks.second_submitted.wait(1)
+	assert hooks.second_submitted.wait(WAIT_TIMEOUT)
 	assert [operation for operation, _ in hooks.submitted] == [old, new]
 	hooks.release_second_boundary.set()
 	second.finish()
@@ -195,12 +195,12 @@ def test_nested_lease_retires_before_successor(env):
 	old, context = accept(1)
 	new, _ = accept(2)
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.boundary_entered.wait(1)
+	assert hooks.boundary_entered.wait(WAIT_TIMEOUT)
 	parent = lifecycle.admit_producer(old)
 	assert parent is not None
 	hooks.release_boundary.set()
 	with lifecycle._condition:
-		assert lifecycle._condition.wait_for(lambda: not old._admitting, 1)
+		assert lifecycle._condition.wait_for(lambda: not old._admitting, WAIT_TIMEOUT)
 	assert lifecycle.admit_producer(old) is None
 	child = lifecycle.admit_producer(old, parent=parent)
 	assert child is not None
@@ -226,7 +226,7 @@ def test_cancelled_queued_operation_never_submits(env):
 	old, context = accept(1)
 	queued, _ = accept(2)
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.boundary_entered.wait(1)
+	assert hooks.boundary_entered.wait(WAIT_TIMEOUT)
 	second = Call(lambda: lifecycle.run(queued, ("queued",)))
 	lifecycle.cancel(queued)
 	second.finish()
@@ -246,10 +246,10 @@ def test_stop_failure_blocks_successor(env):
 	new, _ = accept(2)
 	hooks.stop_error = RuntimeError("native stop failed")
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.boundary_entered.wait(1)
+	assert hooks.boundary_entered.wait(WAIT_TIMEOUT)
 	second = Call(lambda: lifecycle.run(new, ("new",)))
 	lifecycle.cancel(old)
-	assert hooks.stop_entered.wait(1)
+	assert hooks.stop_entered.wait(WAIT_TIMEOUT)
 	hooks.release_boundary.set()
 	first.blocked()
 	second.blocked()
@@ -257,7 +257,7 @@ def test_stop_failure_blocks_successor(env):
 	assert len(hooks.submitted) == 1
 	hooks.release_stop.set()
 	first.finish()
-	assert second.done.wait(1)
+	assert second.done.wait(WAIT_TIMEOUT)
 	assert second.error is None
 	assert len(hooks.submitted) == 1
 	events.wait_for_count(1)
@@ -304,7 +304,7 @@ def test_failed_waiting_operation_is_published_before_the_resource_frees(env):
 	old, _ = accept(1)
 	queued, context = accept(2)
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.boundary_entered.wait(1)
+	assert hooks.boundary_entered.wait(WAIT_TIMEOUT)
 	second = Call(lambda: lifecycle.run(queued, ("queued",)))
 	wait_until_waiting(lifecycle, queued)
 	lifecycle.fail(queued, RuntimeError("control error"))
@@ -342,7 +342,7 @@ def test_late_cancel_cannot_stop_successor_resource(env):
 	lifecycle.run(old, ("old",))
 	events.wait_for_count(1)
 	second = Call(lambda: lifecycle.run(new, ("new",)))
-	assert hooks.second_submitted.wait(1)
+	assert hooks.second_submitted.wait(WAIT_TIMEOUT)
 	lifecycle.cancel(old)
 	stays_unset(hooks.stop_entered)
 	hooks.release_second_boundary.set()
@@ -358,11 +358,11 @@ def test_token_cancel_during_playback_stops_before_handoff(env):
 	hooks.release_boundary.set()
 	hooks.release_playback.clear()
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.playback_entered.wait(1)
+	assert hooks.playback_entered.wait(WAIT_TIMEOUT)
 	second = Call(lambda: lifecycle.run(new, ("new",)))
 	old.work.token.cancel()
 	hooks.release_playback.set()
-	assert hooks.stop_entered.wait(1)
+	assert hooks.stop_entered.wait(WAIT_TIMEOUT)
 	first.blocked()
 	second.blocked()
 	assert events == []
@@ -382,7 +382,7 @@ def test_invalidated_operation_waits_for_player_cleanup(env, invalidate):
 	old, context = accept(1)
 	new, _ = accept(2)
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.boundary_entered.wait(1)
+	assert hooks.boundary_entered.wait(WAIT_TIMEOUT)
 	second = Call(lambda: lifecycle.run(new, ("new",)))
 	hooks.release_stop.set()
 	hooks.release_playback.clear()
@@ -391,7 +391,7 @@ def test_invalidated_operation_waits_for_player_cleanup(env, invalidate):
 	else:
 		lifecycle.fail(old, RuntimeError("old segment failed"))
 	hooks.release_boundary.set()
-	assert hooks.playback_entered.wait(1)
+	assert hooks.playback_entered.wait(WAIT_TIMEOUT)
 	first.blocked()
 	second.blocked()
 	assert events == []
@@ -416,10 +416,10 @@ def test_stop_before_native_submission_requires_post_submit_stop(env):
 	hooks.release_stop.set()
 	hooks.release_boundary.set()
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.submit_entered.wait(1)
+	assert hooks.submit_entered.wait(WAIT_TIMEOUT)
 	second = Call(lambda: lifecycle.run(new, ("new",)))
 	lifecycle.cancel(old)
-	assert hooks.stop_exited.wait(1)
+	assert hooks.stop_exited.wait(WAIT_TIMEOUT)
 	# The first stop completed while the native submit hook had not submitted.
 	assert hooks.stop_calls == 1
 	assert hooks.submitted == []
@@ -445,7 +445,7 @@ def test_cancel_before_deferred_delivery_is_silent(env):
 
 	def first_sink(event):
 		first_entered.set()
-		assert release_first.wait(1)
+		assert release_first.wait(HOLD_TIMEOUT)
 		events.append(event)
 
 	first, first_context = accept(1, first_sink)
@@ -453,13 +453,13 @@ def test_cancel_before_deferred_delivery_is_silent(env):
 	last, last_context = accept(3, lambda event: (events.append(event), last_delivered.set()))
 	try:
 		Call(lambda: lifecycle.run(first, ("first",))).finish()
-		assert first_entered.wait(1)
+		assert first_entered.wait(WAIT_TIMEOUT)
 		Call(lambda: lifecycle.run(cancelled, ("cancelled",))).finish()
 		lifecycle.cancel(cancelled)
 		Call(lambda: lifecycle.run(last, ("last",))).finish()
 	finally:
 		release_first.set()
-	assert last_delivered.wait(1)
+	assert last_delivered.wait(WAIT_TIMEOUT)
 	assert [(event.source_id, event.segment_id) for event in events] == [
 		(first_context.source_id, 1),
 		(last_context.source_id, 3),
@@ -476,7 +476,7 @@ def test_failure_wins_over_queued_success(env):
 
 	def first_sink(event):
 		first_entered.set()
-		assert release_first.wait(1)
+		assert release_first.wait(HOLD_TIMEOUT)
 		events.append(event)
 
 	first, _ = accept(1, first_sink)
@@ -484,13 +484,13 @@ def test_failure_wins_over_queued_success(env):
 	first_error = RuntimeError("first failure")
 	try:
 		Call(lambda: lifecycle.run(first, ("first",))).finish()
-		assert first_entered.wait(1)
+		assert first_entered.wait(WAIT_TIMEOUT)
 		Call(lambda: lifecycle.run(failed, ("failed",))).finish()
 		lifecycle.fail(failed, first_error)
 		lifecycle.fail(failed, RuntimeError("second failure"))
 	finally:
 		release_first.set()
-	assert failed_delivered.wait(1)
+	assert failed_delivered.wait(WAIT_TIMEOUT)
 	assert len(events) == 2
 	assert events[1].kind.value == "segment_failed"
 	assert events[1].source_id is failed_context.source_id
@@ -520,7 +520,7 @@ def test_sink_can_cancel_and_terminate_without_self_join(env):
 		lifecycle.run(operation, ("first",))
 
 	Call(run).finish()
-	assert sink_done.wait(1)
+	assert sink_done.wait(WAIT_TIMEOUT)
 	assert sink_thread[0] is not run_thread[0]
 	assert [(event.kind.value, event.source_id, event.segment_id) for event in events] == [
 		("segment_drained", context.source_id, 1),
@@ -556,9 +556,9 @@ def test_raising_sink_does_not_relabel_successor(env, caplog):
 
 	with caplog.at_level(logging.ERROR):
 		Call(lambda: run(first, ("first",))).finish()
-		assert first_entered.wait(1)
+		assert first_entered.wait(WAIT_TIMEOUT)
 		Call(lambda: run(second, ("second",))).finish()
-		assert second_delivered.wait(1)
+		assert second_delivered.wait(WAIT_TIMEOUT)
 	assert all(thread not in run_threads for thread in sink_threads)
 	assert sink_threads[0] is sink_threads[1]
 	assert [(event.kind.value, event.source_id, event.segment_id) for event in events] == [
@@ -586,7 +586,7 @@ def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, mon
 
 	def first_sink(event):
 		first_entered.set()
-		assert release_first.wait(3)
+		assert release_first.wait(HOLD_TIMEOUT)
 		events.append(event)
 
 	first, first_context = accept(1, first_sink)
@@ -597,7 +597,7 @@ def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, mon
 	def boundary(operation):
 		if operation is active:
 			active_at_boundary.set()
-			assert release_active.wait(3)
+			assert release_active.wait(HOLD_TIMEOUT)
 		else:
 			original_boundary(operation)
 
@@ -606,7 +606,7 @@ def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, mon
 
 	def paused_cancel(operation):
 		cancel_entered.set()
-		assert allow_cancel.wait(3)
+		assert allow_cancel.wait(HOLD_TIMEOUT)
 		original_cancel(operation)
 
 	# Pause the old terminate() between publishing shutdown and cancel().
@@ -616,21 +616,21 @@ def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, mon
 	active_call = None
 	try:
 		Call(lambda: lifecycle.run(first, ("first",))).finish()
-		assert first_entered.wait(1)
+		assert first_entered.wait(WAIT_TIMEOUT)
 		Call(lambda: lifecycle.run(queued, ("queued",))).finish()
 		active_call = Call(lambda: lifecycle.run(active, ("active",)))
-		assert active_at_boundary.wait(1)
+		assert active_at_boundary.wait(WAIT_TIMEOUT)
 		termination = Call(lifecycle.terminate)
 		with lifecycle._condition:
-			assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, timeout=1)
+			assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, timeout=WAIT_TIMEOUT)
 		old_gap = queued.work.is_valid()
 		if old_gap:
-			assert cancel_entered.wait(1)
+			assert cancel_entered.wait(WAIT_TIMEOUT)
 		else:
 			allow_cancel.set()
-			assert termination.done.wait(1)
+			assert termination.done.wait(WAIT_TIMEOUT)
 		release_first.set()
-		lifecycle._delivery_thread.join(1)
+		lifecycle._delivery_thread.join(WAIT_TIMEOUT)
 		assert not lifecycle._delivery_thread.is_alive()
 		release_active.set()
 		active_call.finish()
@@ -677,7 +677,7 @@ def test_retirement_callback_runs_when_cancel_suppresses_delivery(env):
 	operation, _ = accept(18, on_retired=lambda owner: retired.set())
 	operation.work.token.cancel()
 	lifecycle.fail(operation, RuntimeError("never submitted"))
-	assert retired.wait(1)
+	assert retired.wait(WAIT_TIMEOUT)
 	assert operation not in lifecycle._operations
 	assert events == []
 	assert hooks.submitted == []
@@ -696,7 +696,7 @@ def test_idle_delivery_thread_releases_a_retired_operation(env):
 	operation, _ = accept(18, sink, on_retired=lambda owner: retired.set())
 	operation.work.token.cancel()
 	lifecycle.fail(operation, RuntimeError("never submitted"))
-	assert retired.wait(1)
+	assert retired.wait(WAIT_TIMEOUT)
 	del operation, sink
 	eventually(
 		lambda: collected(reference),
@@ -725,16 +725,16 @@ def test_reject_new_delivers_after_lifecycle_termination(env):
 def test_terminate_cancels_previously_accepted_pending_rejection(env):
 	lifecycle, hooks, _, accept = env
 	entered, release, rejected = Event(), Event(), RecordedEvents()
-	first, _ = accept(20, lambda event: (entered.set(), release.wait(2)))
+	first, _ = accept(20, lambda event: (entered.set(), release.wait(HOLD_TIMEOUT)))
 	lifecycle.fail(first, RuntimeError("first rejection"))
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	second, _ = accept(21, rejected.append)
 	error = OSError("second rejection")
 	lifecycle.fail(second, error)
 	lifecycle.terminate()
 	release.set()
 	with lifecycle._condition:
-		assert lifecycle._condition.wait_for(lambda: second not in lifecycle._operations, 1)
+		assert lifecycle._condition.wait_for(lambda: second not in lifecycle._operations, WAIT_TIMEOUT)
 	assert rejected == []
 	assert hooks.submitted == []
 
@@ -743,7 +743,7 @@ def _hold_resource(env):
 	lifecycle, hooks, _events, accept = env
 	owner, _ = accept(1)
 	call = Call(lambda: lifecycle.run(owner, ("owner",)))
-	assert hooks.boundary_entered.wait(1)
+	assert hooks.boundary_entered.wait(WAIT_TIMEOUT)
 	return owner, call
 
 
@@ -869,7 +869,7 @@ def test_delivery_thread_identity_and_join(env):
 	operation, _ = accept(1, sink=sink)
 	hooks.release_boundary.set()
 	Call(lambda: lifecycle.run(operation, ("hello",))).finish()
-	assert joined.wait(1)
+	assert joined.wait(WAIT_TIMEOUT)
 	assert seen == [True]
 	assert not lifecycle.on_delivery_thread()
 	lifecycle.terminate()
@@ -953,7 +953,7 @@ def test_idle_delivery_thread_releases_a_delivered_error(env):
 	reference = weakref.ref(sink)
 	operation, _ = accept(18, sink)
 	lifecycle.fail(operation, raised_with(sink))
-	assert delivered.wait(1)
+	assert delivered.wait(WAIT_TIMEOUT)
 	del operation, sink
 	eventually(
 		lambda: collected(reference),
@@ -966,7 +966,7 @@ def test_failed_waiter_never_takes_a_resource_freed_at_the_same_time(env, monkey
 	old, _ = accept(1)
 	queued, _ = accept(2)
 	first = Call(lambda: lifecycle.run(old, ("old",)))
-	assert hooks.boundary_entered.wait(1)
+	assert hooks.boundary_entered.wait(WAIT_TIMEOUT)
 	owned = []
 	original = lifecycle._run_owned
 	monkeypatch.setattr(

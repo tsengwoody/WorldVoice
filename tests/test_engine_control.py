@@ -5,7 +5,7 @@ from threading import Condition, Event, Thread
 import pytest
 from addon_loader import load_source
 from runtime_harness import RUNTIME, load_runtime
-from waiting import stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
 
 
 @pytest.fixture
@@ -23,21 +23,21 @@ def test_stop_gate_blocks_until_every_stop_returns(control):
 	def stopper():
 		with gate.hold(), gate.hold():
 			entered.set()
-			release.wait(2)
+			release.wait(HOLD_TIMEOUT)
 
 	def worker():
 		with condition:
-			condition.wait_for(lambda: gate.clear, 2)
+			condition.wait_for(lambda: gate.clear, HOLD_TIMEOUT)
 		woke.set()
 
 	Thread(target=stopper, daemon=True).start()
-	assert entered.wait(2)
+	assert entered.wait(WAIT_TIMEOUT)
 	with condition:
 		assert not gate.clear
 	Thread(target=worker, daemon=True).start()
 	stays_unset(woke)
 	release.set()
-	assert woke.wait(2)
+	assert woke.wait(WAIT_TIMEOUT)
 
 
 def test_stop_gate_releases_after_an_error(control):
@@ -72,7 +72,7 @@ def test_control_fault_latches_once_and_abandons_outside_the_lock(control):
 
 		def abandon(self, record):
 			# abandon waits for consumers that may need the engine lock.
-			acquired = condition.acquire(timeout=1)
+			acquired = condition.acquire(timeout=WAIT_TIMEOUT)
 			assert acquired, "abandon ran while the engine lock was held by another thread"
 			condition.release()
 			abandoned.append(record)
@@ -89,7 +89,7 @@ def test_control_fault_latches_once_and_abandons_outside_the_lock(control):
 	result = []
 	thread = Thread(target=lambda: result.append(policy.fail(error)))
 	thread.start()
-	thread.join(2)
+	thread.join(WAIT_TIMEOUT)
 	assert result == [True]
 	assert latched == [error] and abandoned == records and drops == [True]
 	assert policy.fail(OSError("again")) is False
@@ -106,11 +106,11 @@ def test_stop_gate_two_phase_enter_and_leave(control):
 
 	def worker():
 		with condition:
-			condition.wait_for(lambda: gate.clear, 2)
+			condition.wait_for(lambda: gate.clear, HOLD_TIMEOUT)
 		woke.set()
 
 	Thread(target=worker, daemon=True).start()
 	stays_unset(woke)
 	with condition:
 		gate.leave()
-	assert woke.wait(2)
+	assert woke.wait(WAIT_TIMEOUT)

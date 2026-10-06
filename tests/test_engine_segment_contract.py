@@ -17,7 +17,7 @@ from engine_contract_harness import (
 	SAPI5Adapter,
 	VEAdapter,
 )
-from waiting import eventually, stays_false
+from waiting import WAIT_TIMEOUT, eventually, stays_false
 
 ADAPTERS = {
 	"VE": VEAdapter,
@@ -62,7 +62,7 @@ class Events(list):
 			self.on_delivery_thread.append(on_delivery_thread)
 			self.condition.notify_all()
 
-	def wait_one(self, timeout=2):
+	def wait_one(self, timeout=WAIT_TIMEOUT):
 		eventually(lambda: bool(self), timeout, message="no terminal event delivered")
 		# A duplicate delivered shortly after the first event must still be caught.
 		stays_false(
@@ -103,7 +103,7 @@ def test_completed_segment_drains_once_on_the_delivery_thread(engine):
 
 	engine.complete()
 	event = events.wait_one()
-	caller.join(2)
+	caller.join(WAIT_TIMEOUT)
 
 	assert not caller.is_alive() and errors == []
 	assert event.kind is engine.EventKind.SEGMENT_DRAINED
@@ -121,7 +121,7 @@ def test_segment_after_terminate_fails_once_without_native_call(engine):
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
 
 	event = events.wait_one()
-	caller.join(2)
+	caller.join(WAIT_TIMEOUT)
 
 	assert not caller.is_alive() and errors == []
 	assert event.kind is engine.EventKind.SEGMENT_FAILED
@@ -137,7 +137,7 @@ def test_cancelled_token_never_reaches_native_or_sink(engine):
 	events = Events(engine)
 	caller, errors = _start_speak(engine, token, engine.PlaybackContext(object(), 21), events)
 
-	caller.join(2)
+	caller.join(WAIT_TIMEOUT)
 	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
 	assert not caller.is_alive() and errors == []
 	assert engine.native_call_count() == 0
@@ -149,12 +149,12 @@ def test_speak_segment_returns_before_delivery(engine):
 	events = Events(engine)
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
 
-	caller.join(1)
+	caller.join(WAIT_TIMEOUT)
 	returned_early = not caller.is_alive()
 	delivered_early = list(events)
 	engine.complete()
 	event = events.wait_one()
-	caller.join(2)
+	caller.join(WAIT_TIMEOUT)
 
 	assert delivered_early == []
 	assert errors == []
@@ -184,7 +184,7 @@ def test_segment_after_player_stop_failure_fails(engine):
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
 
 	event = events.wait_one()
-	caller.join(2)
+	caller.join(WAIT_TIMEOUT)
 
 	assert not caller.is_alive() and errors == []
 	assert event.kind is engine.EventKind.SEGMENT_FAILED
@@ -221,7 +221,7 @@ def test_segment_after_ordinary_speech_follows_the_engine_mode_rule(engine):
 		)
 		engine.complete()
 	event = events.wait_one()
-	caller.join(2)
+	caller.join(WAIT_TIMEOUT)
 	assert not caller.is_alive() and errors == []
 	assert event.kind is expected
 	assert event.segment_id == 27
