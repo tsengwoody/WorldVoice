@@ -101,7 +101,7 @@ def test_end_then_speak_error_is_failure(manager, rt, scheduler, output):
 
 	port.on_speak = speak
 	request, first = start(manager, port, second)
-	assert first.exception(1) is error
+	assert first.exception(WAIT_TIMEOUT) is error
 	with pytest.raises(CancelledError):
 		request.tasks[1].future.result(WAIT_TIMEOUT)
 	assert request.state is scheduler.RequestState.FAILED
@@ -222,7 +222,7 @@ def test_drain_does_not_override_failure_or_cancellation(manager, rt, scheduler,
 		assert request.state is scheduler.RequestState.CANCELLED
 		assert output.done_count == 0
 	else:
-		assert future.exception(1) is error
+		assert future.exception(WAIT_TIMEOUT) is error
 		assert request.state is scheduler.RequestState.FAILED
 		assert output.wait_done() == 1
 	with pytest.raises(CancelledError):
@@ -310,7 +310,7 @@ def test_missing_marker_failure_releases_request_once(manager, rt, scheduler, ou
 	error = ValueError("missing marker")
 	failure = make_event(rt, port, "SEGMENT_FAILED", error=error)
 	manager.on_events(lambda: (failure, failure))
-	assert future.exception(1) is error
+	assert future.exception(WAIT_TIMEOUT) is error
 	with pytest.raises(CancelledError):
 		request.tasks[1].future.result(WAIT_TIMEOUT)
 	assert request.state is scheduler.RequestState.FAILED
@@ -332,7 +332,7 @@ def test_finish_segment_runs_on_all_terminal_paths(manager, rt, outcome):
 		request = manager.new_request()
 		future = manager.append_speech(request, port, "Fake:a", ())
 		manager.submit_request(request)
-		assert future.exception(1) is error
+		assert future.exception(WAIT_TIMEOUT) is error
 	else:
 		_, future = start(manager, port)
 		if outcome == "success":
@@ -344,7 +344,7 @@ def test_finish_segment_runs_on_all_terminal_paths(manager, rt, outcome):
 			assert future.cancel()
 		else:
 			emit(manager, rt, port, "SEGMENT_FAILED", error=error)
-			assert future.exception(1) is error
+			assert future.exception(WAIT_TIMEOUT) is error
 	manager._q.join()
 	assert len(port.finished) == 1
 	assert port.finished[0].source_id is port.source_id
@@ -402,7 +402,7 @@ def test_boundary_errors_do_not_leave_waits_or_kill_worker(manager, rt, output, 
 	if failure_at == "cleanup":
 		assert future.result(WAIT_TIMEOUT) is True
 	else:
-		assert future.exception(1) is error
+		assert future.exception(WAIT_TIMEOUT) is error
 	other = marker(rt)
 	_, following = start(manager, other)
 	emit(manager, rt, other)
@@ -556,7 +556,7 @@ def test_reentrant_terminal_supplier_preserves_cancel_and_failure(manager, rt, o
 		assert output.indexes == [123]
 		assert output.done_count == 0
 	else:
-		assert future.exception(1) is error
+		assert future.exception(WAIT_TIMEOUT) is error
 		assert output.indexes == [123, 124]
 		assert output.wait_done() == 1
 	manager._q.join()

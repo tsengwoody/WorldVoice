@@ -122,7 +122,7 @@ def test_scheduler_outcome_per_contract(manager, rt, name, scenario):
 	if expected == "complete":
 		assert future.result(WAIT_TIMEOUT) is True
 	elif expected == "failed":
-		assert future.exception(1) is error
+		assert future.exception(WAIT_TIMEOUT) is error
 	else:
 		# on_event signals the worker synchronously when the task is ready.
 		assert not manager._current_done_event.is_set()

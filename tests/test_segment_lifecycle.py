@@ -873,7 +873,7 @@ def test_delivery_thread_identity_and_join(env):
 	assert seen == [True]
 	assert not lifecycle.on_delivery_thread()
 	lifecycle.terminate()
-	lifecycle.join_delivery(1)
+	lifecycle.join_delivery(WAIT_TIMEOUT)
 	assert not lifecycle._delivery_thread.is_alive()
 
 

@@ -208,7 +208,7 @@ def test_abort_building_releases_tracking_and_futures(manager, port, scheduler, 
 	assert request.state is scheduler.RequestState.FAILED
 	assert request.request_id not in manager._requests
 	assert request.token.is_cancelled()
-	assert all(future.exception(1) is error for future in futures)
+	assert all(future.exception(WAIT_TIMEOUT) is error for future in futures)
 	manager.abort_request(request, RuntimeError())
 	manager.cancel()
 	assert request.state is scheduler.RequestState.FAILED

@@ -294,7 +294,7 @@ def test_errors_before_core_entry_never_speak(marker_contract, failure):
 		if failure == "invalid_index":
 			commands[0].index = "invalid"
 		request = submit_contract_request(c, commands, default_key="Contract:a")
-		assert request.tasks[0].future.exception(1) is not None
+		assert request.tasks[0].future.exception(WAIT_TIMEOUT) is not None
 		c.tasks._q.join()
 		assert request.state is c.scheduler.RequestState.FAILED
 		assert c.output.done_count == 1
