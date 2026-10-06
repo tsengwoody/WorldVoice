@@ -94,3 +94,11 @@ Protocol（`runtime/_segmentLifecycle.py:43`）、呼叫點（`:335`）、唯一
 - `ruff check addon`、`ruff format --check addon` 0 項。
 - `tests/test_vocalizer_drift.py` 允許清單不變。
 - prek hook 在每次 commit 通過。
+
+## 實作備註（與上文的差異）
+
+- (a) 另有 `tests/test_runtime_composition.py::test_voices_loaded_while_the_driver_starts_keep_their_own_values` 以 `variant="max"` 固定外漏，期望改為語音自己的 `own-b`。「共用讀取只迭代 `PARAMETER_NAMES`」以行為測試 `test_shared_variant_never_overrides_the_voice_variant` 固定，不另加字串守門。
+- (d) `tests/test_sapi5_segment_drain.py::test_hook_fault_after_binding_does_not_strand_the_worker` 也以 `wait_native_retired` 注入故障，同樣改包 `wait_native_boundary`。
+- (f) presenter 改用 `prune_assignments` 後，`tests/test_role_presenter.py` 的 `load_presenter` 需把 manager 所用的 `roles` 模組放進 `synthDrivers.WorldVoice.roles`。
+- (h) `tests/test_role_panel.py` 的 synth stub 補上 `voice_manager`，panel 補上 `_manager`；新行為測試在 `tests/test_ui_structure.py`。
+- (g) 讀取路徑的無效值以 `log.debugWarning(..., exc_info=True)` 記錄。
