@@ -42,14 +42,21 @@ def test_load_converts_existing_values_and_defaults_missing_fields(repository, c
 
 def test_missing_voice_persists_six_defaults_but_loads_effective_main_values(repository, conf):
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="main", rateBoost=True)
+    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, rateBoost=True)
     assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS
 
 
 def test_consistency_uses_main_synth_and_does_not_fallback_for_missing_main_fields(repository, conf):
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
     conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "pitch": "91"}
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="main", rateBoost=True)
+    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, rateBoost=True)
+
+
+def test_shared_variant_never_overrides_the_voice_variant(repository, conf):
+    # Variants are per engine voice; only PARAMETER_NAMES follow the main voice.
+    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+    conf["WorldVoice"]["voices"]["Fake:a"] = {"variant": "bright"}
+    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="bright", rateBoost=True)
 
 
 def test_voices_keep_their_own_values_until_the_main_settings_are_ready(monkeypatch, rt, conf):
@@ -62,7 +69,7 @@ def test_voices_keep_their_own_values_until_the_main_settings_are_ready(monkeypa
         conf, "WorldVoice", main_settings_ready=lambda: ready[0])
     assert repository.load(make_spec()) == dict(DEFAULTS, rate=72, variant="own", inflection=35)
     ready[0] = True
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="main", rateBoost=True)
+    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="own", rateBoost=True)
 
 
 def test_missing_speech_node_falls_back_to_voice(repository, conf):

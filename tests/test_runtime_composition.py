@@ -342,7 +342,7 @@ def test_voices_loaded_while_the_driver_starts_keep_their_own_values(composition
     started[0] = True
     assert manager.resolve_playback("ok:b") is not None
     lazy = c.store.state("ok:b")
-    assert (lazy.get("rate"), lazy.get("variant"), lazy.get("rateBoost")) == (83, "max", True)
+    assert (lazy.get("rate"), lazy.get("variant"), lazy.get("rateBoost")) == (83, "own-b", True)
 
 
 def test_manager_cancel_passes_sessions_without_core_access(composition):

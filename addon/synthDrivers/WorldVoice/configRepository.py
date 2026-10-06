@@ -4,7 +4,7 @@ from collections.abc import Callable, Mapping, MutableMapping
 
 from .mainLocalePolicy import ParameterConsistency
 from .runtime.models import SettingValue, VoiceSpec, VoiceValues
-from .runtime.settings import VOICE_PARAMETERS, boolean
+from .runtime.settings import PARAMETER_NAMES, VOICE_PARAMETERS, boolean
 
 
 def _confspec(convert, default) -> str:
@@ -46,14 +46,12 @@ class ConfigVoiceSettingsRepository:
 		# first use too, before the shared state establishes its edit baseline.
 		shared = self._parameters.shared_section(self._synth_name) if self._main_settings_ready() else None
 		for name, convert, _ in VOICE_PARAMETERS:
-			value = None
-			if shared is None:
-				value = voices[spec.name].get(name, None)
-			else:
+			value = voices[spec.name].get(name, None)
+			# Only the copyable parameters follow the main voice; the variant stays the voice's own.
+			if shared is not None and name in PARAMETER_NAMES:
 				try:
 					value = shared.get(name, None)
 				except Exception:  # noqa: BLE001 - an invalid main-synth value falls back to the voice's own
-					# An invalid main-synth value falls back to this voice's own.
 					value = voices[spec.name].get(name, None)
 			if value is not None:
 				values[name] = convert(value)
