@@ -33,7 +33,6 @@ from .configRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
 from .indexLedger import IndexLedger
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
-from .mainLocalePolicy import ParameterConsistency
 from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	STAGES,
@@ -174,7 +173,6 @@ class SynthDriver(SynthDriver):
 	def __init__(self):
 		self._terminated = False
 		self._terminateCommit = True
-		self._settingsInitialized = False
 		self._numlan = "default"
 		self.speechSymbols = None
 		self._realSpellingFunc = None
@@ -206,15 +204,7 @@ class SynthDriver(SynthDriver):
 				)
 
 			with timed(nvdaLog, "TaskManager"):
-				# One policy instance: the repository loads through it, the manager copies through it.
-				parameters = ParameterConsistency(lambda: config.conf)
-				repository = ConfigVoiceSettingsRepository(
-					config.conf,
-					self.name,
-					parameters,
-					main_settings_ready=lambda: self._settingsInitialized,
-				)
-				self._settingsStore = VoiceSettingsStore(repository)
+				self._settingsStore = VoiceSettingsStore(ConfigVoiceSettingsRepository(config.conf))
 				# One ledger spans every binding of a live core in this runtime. A core
 				# handed to a new runtime must first close, or retain its original ledger.
 				self._indexLedger = IndexLedger()
@@ -248,7 +238,6 @@ class SynthDriver(SynthDriver):
 					engine_classes=ready_engine_classes(config.conf["WorldVoice"]["engine"]),
 					conf_provider=lambda: config.conf,
 					get_language=languageHandler.getLanguage,
-					parameter_consistency=parameters,
 				)
 				manager = self._voiceManager
 				self._teardown.add(
@@ -302,13 +291,6 @@ class SynthDriver(SynthDriver):
 			with timed(nvdaLog, "pipeline register"):
 				self._teardown.add("pipeline cleanup", pipeline_scope.worldvoice_ended)
 				pipeline_scope.worldvoice_started()
-
-	def initSettings(self):
-		super().initSettings()
-		# NVDA's setSynth makes this driver its current synth only after initSettings returns
-		# (synthDriverHandler.getSynthInstance). Voices loaded before then, during construction
-		# and NVDA's loadSettings, keep their own values; later ones may share the main settings.
-		self._settingsInitialized = True
 
 	def terminate(self, *, commit=True):
 		if self._terminated:

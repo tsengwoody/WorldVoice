@@ -56,6 +56,7 @@ class VoiceManager:
 		self._instanceCache = {}
 		self._waitfactor = 0
 		self._terminated = False
+		self._defaultVoiceInstance = None
 		try:
 			self._init_policies(
 				conf_provider,
@@ -63,6 +64,7 @@ class VoiceManager:
 				roles=roles,
 				parameter_consistency=parameter_consistency,
 			)
+			self.settings.set_inheritance(self._inherited_parameters)
 			self._initialize(engine_classes)
 		except BaseException:
 			# Release acquired resources even on KeyboardInterrupt, then re-raise.
@@ -224,6 +226,13 @@ class VoiceManager:
 		voiceInstance = resource.voice_class(spec, resource.binding)
 		self._instanceCache[voiceName] = voiceInstance
 		return voiceInstance
+
+	def _inherited_parameters(self, spec: VoiceSpec) -> Mapping[str, Any]:
+		"""A loading voice follows the main voice once one exists (the main voice loads first)."""
+		main = self._defaultVoiceInstance
+		if main is None:
+			return {}
+		return self.parameter_consistency.inherited(self.settings, main.name)
 
 	def previewVoiceParameterConsistent(self, baseInstance):
 		self.parameter_consistency.copy_from(self.settings, baseInstance.name)

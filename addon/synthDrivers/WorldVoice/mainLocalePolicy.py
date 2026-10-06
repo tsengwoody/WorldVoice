@@ -1,6 +1,6 @@
 """The three "keep main locale consistent" options, each owning its config flag."""
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Any
 
 from .roles import getPrimaryLocale
@@ -95,13 +95,3 @@ class ParameterConsistency:
 		for key in store.names():
 			# One update per voice keeps each copy atomic for a worker activation.
 			store.state(key).update(**values)
-
-	def shared_section(self, synth_name: str) -> Mapping | None:
-		"""The main synth's speech settings every voice loads from, or None.
-
-		The section does not exist until NVDA first saves this synth's settings.
-		"""
-		if not self.enabled:
-			return None
-		speech = self._conf_provider().get("speech")
-		return None if speech is None else speech.get(synth_name)

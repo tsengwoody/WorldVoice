@@ -290,23 +290,26 @@ def test_facade_creation_preserves_existing_pending_state_and_edit_baseline(comp
     assert voice.rate == 50
 
 
+def _config_repository(c):
+    repository_module = importlib.import_module(c.module.__package__ + ".configRepository")
+    c.store._repository = repository_module.ConfigVoiceSettingsRepository(c.config.conf)
+
+
 @pytest.mark.parametrize("during_edit", [False, True])
 def test_first_voice_resolution_inherits_main_values_and_keeps_cancel_baseline(composition, during_edit):
     c = composition
     c.engine("ok")
     conf = c.config.conf
-    conf["WorldVoice"]["voices"] = {}
+    conf["WorldVoice"]["voices"] = {"ok:a": {"rate": "83"}}
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    conf["speech"] = {"WorldVoice": {"rate": 83}}
-    repository_module = importlib.import_module(c.module.__package__ + ".configRepository")
-    c.store._repository = repository_module.ConfigVoiceSettingsRepository(conf, "WorldVoice")
+    _config_repository(c)
     manager = c.create()
     edit = c.store.begin_edit() if during_edit else None
     try:
+        assert manager.defaultVoiceInstance.rate == 83
         assert manager.resolve_playback("ok:b") is not None
         state = c.store.state("ok:b")
         assert state.get("rate") == 83
-        assert manager.defaultVoiceInstance.rate == 83
         if edit is None:
             edit = c.store.begin_edit()
         state.update(rate=72)
@@ -321,7 +324,7 @@ def test_first_voice_resolution_inherits_main_values_and_keeps_cancel_baseline(c
             edit.close()
 
 
-def test_voices_loaded_while_the_driver_starts_keep_their_own_values(composition):
+def test_voices_inherit_the_main_voice_once_it_exists_but_keep_their_variant(composition):
     c = composition
     c.engine("ok")
     conf = c.config.conf
@@ -330,19 +333,34 @@ def test_voices_loaded_while_the_driver_starts_keep_their_own_values(composition
         "ok:a": {"rate": "40", "variant": "own", "inflection": "35", "rateBoost": "False"},
         "ok:b": {"rate": "41", "variant": "own-b"},
     }
-    conf["speech"] = {"WorldVoice": {"rate": 83, "variant": "max", "rateBoost": True}}
-    started = [False]
-    repository_module = importlib.import_module(c.module.__package__ + ".configRepository")
-    c.store._repository = repository_module.ConfigVoiceSettingsRepository(
-        conf, "WorldVoice", main_settings_ready=lambda: started[0])
+    _config_repository(c)
     manager = c.create()
-    state = c.store.state("ok:a")
-    assert (state.get("rate"), state.get("variant"), state.get("inflection"), state.get("rateBoost")) == (
-        40, "own", 35, False)
-    started[0] = True
+    main = c.store.state("ok:a")
+    # The main voice loads first, from its own values.
+    assert (main.get("rate"), main.get("variant"), main.get("inflection")) == (40, "own", 35)
     assert manager.resolve_playback("ok:b") is not None
     lazy = c.store.state("ok:b")
-    assert (lazy.get("rate"), lazy.get("variant"), lazy.get("rateBoost")) == (83, "own-b", True)
+    assert (lazy.get("rate"), lazy.get("variant"), lazy.get("inflection")) == (40, "own-b", 35)
+
+
+def test_reload_takes_the_main_voice_parameters_while_they_are_kept_consistent(composition):
+    # NVDA's loadSettings sets the main voice from the profile before WorldVoice reloads every voice.
+    c = composition
+    c.engine("ok")
+    conf = c.config.conf
+    flags = conf["WorldVoice"]["autoLanguageSwitching"]
+    flags["KeepMainLocaleParameterConsistent"] = True
+    conf["WorldVoice"]["voices"] = {"ok:a": {"rate": "40"}, "ok:b": {"rate": "41", "variant": "own-b"}}
+    _config_repository(c)
+    manager = c.create()
+    other = manager.getVoiceInstance("ok:b")
+    c.store.state("ok:a").update(rate=83)
+    manager.reload()
+    assert (manager.defaultVoiceInstance.rate, other.rate, other.variant) == (83, 83, "own-b")
+    assert c.store.state("ok:b").baseline("rate") == 83
+    flags["KeepMainLocaleParameterConsistent"] = False
+    manager.reload()
+    assert (manager.defaultVoiceInstance.rate, other.rate) == (40, 41)
 
 
 def test_manager_cancel_passes_sessions_without_core_access(composition):

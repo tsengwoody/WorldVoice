@@ -251,7 +251,8 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
         SimpleNamespace(id=id, description=description, language=language))
     monkeypatch.setattr(sys.modules["languageHandler"], "getLanguage", lambda: "en", raising=False)
     config = sys.modules["config"]
-    config.conf["WorldVoice"] = {"autoLanguageSwitching": {"KeepMainLocaleEngineConsistent": False},
+    config.conf["WorldVoice"] = {"autoLanguageSwitching": {"KeepMainLocaleEngineConsistent": False,
+                                                         "KeepMainLocaleParameterConsistent": False},
                                  "engine": {}, "role": {}}
     engine_classes = {
         name: (controls[name].env.outer if name == "OneCore" else controls[name].env.module).Voice

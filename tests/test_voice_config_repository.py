@@ -1,4 +1,5 @@
 import builtins
+from pathlib import Path
 
 import pytest
 
@@ -25,7 +26,7 @@ def conf():
 @pytest.fixture
 def repository(monkeypatch, rt, conf):
     module = load_config_repository(monkeypatch, rt)
-    return module.ConfigVoiceSettingsRepository(conf, "WorldVoice")
+    return module.ConfigVoiceSettingsRepository(conf)
 
 
 def test_load_converts_existing_values_and_defaults_missing_fields(repository, conf):
@@ -38,45 +39,6 @@ def test_load_converts_existing_values_and_defaults_missing_fields(repository, c
                       "variant": "bright", "rateBoost": False}
     conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "pitch": None}
     assert repository.load(make_spec()) == dict(DEFAULTS, rate=72)
-
-
-def test_missing_voice_persists_six_defaults_but_loads_effective_main_values(repository, conf):
-    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, rateBoost=True)
-    assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS
-
-
-def test_consistency_uses_main_synth_and_does_not_fallback_for_missing_main_fields(repository, conf):
-    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "pitch": "91"}
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, rateBoost=True)
-
-
-def test_shared_variant_never_overrides_the_voice_variant(repository, conf):
-    # Variants are per engine voice; only PARAMETER_NAMES follow the main voice.
-    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    conf["WorldVoice"]["voices"]["Fake:a"] = {"variant": "bright"}
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="bright", rateBoost=True)
-
-
-def test_voices_keep_their_own_values_until_the_main_settings_are_ready(monkeypatch, rt, conf):
-    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    conf["WorldVoice"]["voices"]["Fake:a"] = {
-        "rate": "72", "variant": "own", "inflection": "35", "rateBoost": "False",
-    }
-    ready = [False]
-    repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(
-        conf, "WorldVoice", main_settings_ready=lambda: ready[0])
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=72, variant="own", inflection=35)
-    ready[0] = True
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=83, variant="own", rateBoost=True)
-
-
-def test_missing_speech_node_falls_back_to_voice(repository, conf):
-    conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72"}
-    conf["speech"].clear()
-    assert repository.load(make_spec())["rate"] == 72
 
 
 def test_save_converts_six_values_and_does_not_add_waitfactor(repository, conf):
@@ -99,20 +61,25 @@ def test_repository_load_and_save_need_no_nvda_or_engine_imports(monkeypatch, rt
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
-    repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf, "WorldVoice")
+    repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf)
     values = repository.load(make_spec())
     repository.save(make_spec(), values)
     assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS
 
 
-def test_invalid_main_value_falls_back_to_the_voice_for_that_key_only(repository, conf):
-    class Section(dict):
-        def get(self, key, default=None):
-            if key == "rate":
-                raise ValueError("invalid rate in nvda.ini")
-            return super().get(key, default)
+def test_missing_voice_persists_and_loads_the_six_defaults(repository, conf):
+    assert repository.load(make_spec()) == DEFAULTS
+    assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS
 
-    conf["speech"]["WorldVoice"] = Section(pitch="61")
+
+def test_voices_load_their_own_values_whatever_the_main_synth_has(repository, conf):
+    # Following the main voice is ParameterConsistency's job, through the settings store.
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
-    conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "pitch": "30"}
-    assert repository.load(make_spec()) == dict(DEFAULTS, rate=72, pitch=61)
+    conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "variant": "bright"}
+    assert repository.load(make_spec()) == dict(DEFAULTS, rate=72, variant="bright")
+
+
+def test_the_repository_knows_only_the_voices_section():
+    source = Path("addon/synthDrivers/WorldVoice/configRepository.py").read_text(encoding="utf-8")
+    assert '"speech"' not in source
+    assert "ParameterConsistency" not in source

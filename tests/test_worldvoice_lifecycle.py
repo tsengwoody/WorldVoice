@@ -52,13 +52,12 @@ def _construction_environment(failure, changes, close_error=None):
 		waitfactor = 0
 
 		def __init__(self, taskManager, settings=None, bridge=None, *, index_ledger, completion_for, engine_classes,
-				conf_provider, get_language, parameter_consistency):
+				conf_provider, get_language):
 			assert index_ledger is bridge.ledger
 			assert callable(completion_for)
 			assert engine_classes == {"A": object}
 			assert conf_provider() is environment["config"].conf
 			assert get_language() == "en"
-			managers.append(parameter_consistency)
 			if failure == "manager":
 				raise RuntimeError("no voices")
 			changes.append("engine started")
@@ -121,18 +120,11 @@ def _construction_environment(failure, changes, close_error=None):
 		changes.append("pipeline stopped")
 
 	repositories = []
-	managers = []
 
 	class NVDASynthDriver:
-		def initSettings(self):
-			# NVDA loads the saved settings here, before it makes this driver its current synth.
-			[(_, options)] = repositories
-			changes.append(("nvda settings loaded", options["main_settings_ready"]()))
-	logged = []
+		pass
 
-	class ParameterConsistency:
-		def __init__(self, conf_provider):
-			assert conf_provider() is environment["config"].conf
+	logged = []
 
 	def unavailable_synth():
 		# NVDA's setSynth clears its current synth before constructing the next one.
@@ -166,7 +158,6 @@ def _construction_environment(failure, changes, close_error=None):
 		"config": types.SimpleNamespace(conf={"WorldVoice": {"engine": {}}}),
 		"getSynth": unavailable_synth,
 		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "en"),
-		"ParameterConsistency": ParameterConsistency,
 		"speech": speech,
 		"SpeechSymbols": SpeechSymbols,
 		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: changes.append("filter unregistered")),
@@ -180,8 +171,7 @@ def _construction_environment(failure, changes, close_error=None):
 		**commands,
 	}
 	return types.SimpleNamespace(environment=environment, settings_dialogs=settings_dialogs, panel=panel,
-		speech_api=speech_api, spelling=spelling, repositories=repositories, managers=managers, logged=logged,
-		ParameterConsistency=ParameterConsistency)
+		speech_api=speech_api, spelling=spelling, repositories=repositories, logged=logged)
 
 
 @pytest.mark.parametrize("failure", ["manager", "symbols", "bridge"])
@@ -235,32 +225,17 @@ def test_entry_points_are_silent_after_terminate():
 	driver.pause(True)
 
 
-def test_voice_settings_load_from_the_synths_own_speech_section():
+def test_voice_settings_load_only_from_the_worldvoice_config():
 	built = _construction_environment(None, [])
 	_load_synth_class(built.environment)()
-	assert [args[1] for args, _ in built.repositories] == ["WorldVoice"]
+	assert built.repositories == [((built.environment["config"].conf,), {})]
 
 
-def test_repository_and_manager_share_one_parameter_policy():
-	built = _construction_environment(None, [])
-	_load_synth_class(built.environment)()
-	[((_, _, parameters), _)] = built.repositories
-	assert isinstance(parameters, built.ParameterConsistency)
-	assert built.managers == [parameters]
-
-
-def test_voices_load_the_main_settings_only_once_nvda_has_made_the_driver_current():
-	# setSynth() clears the current synth, constructs the driver and runs initSettings, and only then
-	# makes it current; until then voices keep their own values, as when getSynth() was None.
-	changes = []
-	built = _construction_environment(None, changes)
-	driver = _load_synth_class(built.environment)()
-	[(_, options)] = built.repositories
-	ready = options["main_settings_ready"]
-	assert ready() is False
-	driver.initSettings()
-	assert ("nvda settings loaded", False) in changes
-	assert ready() is True
+def test_the_driver_leaves_nvdas_settings_initialization_alone():
+	# Voices follow the main voice through the settings store, not through a startup gate.
+	tree = ast.parse((WORLDVOICE / "__init__.py").read_text(encoding="utf-8"))
+	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
+	assert "initSettings" not in {node.name for node in driver.body if isinstance(node, ast.FunctionDef)}
 
 
 def test_stages_register_after_symbols_and_detector():
@@ -279,7 +254,7 @@ def _load_voice_manager(monkeypatch):
 	package.__path__ = [str(WORLDVOICE)]
 	monkeypatch.setitem(sys.modules, package_name, package)
 	config = types.SimpleNamespace(conf={"WorldVoice": {
-		"autoLanguageSwitching": {"KeepMainLocaleEngineConsistent": False},
+		"autoLanguageSwitching": {"KeepMainLocaleEngineConsistent": False, "KeepMainLocaleParameterConsistent": False},
 		"engine": {},
 	}})
 	monkeypatch.setitem(sys.modules, "config", config)

@@ -1,10 +1,9 @@
 """The existing NVDA config format, accessed through injected dependencies."""
 
-from collections.abc import Callable, Mapping, MutableMapping
+from collections.abc import Mapping, MutableMapping
 
-from .mainLocalePolicy import ParameterConsistency
 from .runtime.models import SettingValue, VoiceSpec, VoiceValues
-from .runtime.settings import PARAMETER_NAMES, VOICE_PARAMETERS, boolean
+from .runtime.settings import VOICE_PARAMETERS, boolean
 
 
 def _confspec(convert, default) -> str:
@@ -23,36 +22,18 @@ VOICE_CONFSPEC = {name: _confspec(convert, default) for name, convert, default i
 
 
 class ConfigVoiceSettingsRepository:
-	def __init__(
-		self,
-		conf: MutableMapping,
-		synth_name: str,
-		parameters: ParameterConsistency | None = None,
-		*,
-		main_settings_ready: Callable[[], bool] = lambda: True,
-	):
-		"""``main_settings_ready`` tells whether voices may load the main synth's speech settings yet."""
+	"""Each voice's own values in WorldVoice.voices; what voices inherit is decided elsewhere."""
+
+	def __init__(self, conf: MutableMapping):
 		self._conf = conf
-		self._synth_name = synth_name
-		self._parameters = parameters or ParameterConsistency(lambda: conf)
-		self._main_settings_ready = main_settings_ready
 
 	def load(self, spec: VoiceSpec) -> VoiceValues:
 		voices = self._conf["WorldVoice"]["voices"]
 		values = {name: convert(default) for name, convert, default in VOICE_PARAMETERS}
 		if spec.name not in voices:
 			voices[spec.name] = values.copy()
-		# Persist the legacy defaults, but load effective main-synth values on
-		# first use too, before the shared state establishes its edit baseline.
-		shared = self._parameters.shared_section(self._synth_name) if self._main_settings_ready() else None
 		for name, convert, _ in VOICE_PARAMETERS:
 			value = voices[spec.name].get(name, None)
-			# Only the copyable parameters follow the main voice; the variant stays the voice's own.
-			if shared is not None and name in PARAMETER_NAMES:
-				try:
-					value = shared.get(name, None)
-				except Exception:  # noqa: BLE001 - an invalid main-synth value falls back to the voice's own
-					value = voices[spec.name].get(name, None)
 			if value is not None:
 				values[name] = convert(value)
 		return values
