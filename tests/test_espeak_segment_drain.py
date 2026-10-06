@@ -6,7 +6,7 @@ from threading import Event, current_thread, get_ident
 
 import pytest
 from espeak_drain_harness import finish, load_espeak, speak, wait_event
-from waiting import quiet_period
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, quiet_period
 
 
 @pytest.fixture
@@ -25,10 +25,10 @@ def test_callback_idle_end_precedes_native_return_and_drain_waits_for_fifo_barri
 		sink=lambda event: (delivery_threads.append(current_thread()), events.append(event)),
 	)
 	call = env.native.wait_calls(1)
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	assert events == []
 	env.player.idle_release.set()
-	assert call.after_callback.wait(1)
+	assert call.after_callback.wait(WAIT_TIMEOUT)
 	assert not call.returned.is_set()
 	assert env.indexes == [7]
 	assert events == []
@@ -62,7 +62,7 @@ def test_observable_callback_or_native_failure_fails_exact_context_after_return(
 	call = env.native.wait_calls(1)
 	env.player.idle_release.set()
 	if failure != "native":
-		assert call.after_callback.wait(1)
+		assert call.after_callback.wait(WAIT_TIMEOUT)
 		assert events == []
 		call.return_release.set()
 	event = wait_event(events)
@@ -80,13 +80,13 @@ def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
 	_, context, events = speak(env, commands=("",))
 	call = env.native.wait_calls(1)
 	assert isinstance(env.driver._segmentHost.current().operation, lifecycle.SegmentOperation)
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	old_index = call.index_callback
 	old_index(42)
 	assert env.indexes == [42]
 	assert events == []
 	env.player.idle_release.set()
-	assert call.after_callback.wait(1)
+	assert call.after_callback.wait(WAIT_TIMEOUT)
 	assert events == []
 	call.return_release.set()
 	event = wait_event(events)
@@ -101,7 +101,7 @@ def test_ordinary_speech_waits_for_contextual_final_stop_before_using_player(env
 	env.native.next_scripts.append({"hold_terminal": True} if cancelled else {"missing_end": True})
 	token, _, segment_events = speak(env)
 	first = env.native.wait_calls(1)
-	assert first.before_terminal.wait(1)
+	assert first.before_terminal.wait(WAIT_TIMEOUT)
 	assert env.player.queued_bytes == 8
 	if cancelled:
 		token.cancel()
@@ -111,7 +111,7 @@ def test_ordinary_speech_waits_for_contextual_final_stop_before_using_player(env
 
 	def held_stop():
 		stopped.set()
-		assert release_stop.wait(2), "Test did not release contextual cleanup"
+		assert release_stop.wait(HOLD_TIMEOUT), "Test did not release contextual cleanup"
 		original_stop()
 
 	env.player.stop = held_stop
@@ -120,7 +120,7 @@ def test_ordinary_speech_waits_for_contextual_final_stop_before_using_player(env
 		env.player.idle_release.set()
 	first.return_release.set()
 	try:
-		assert stopped.wait(1)
+		assert stopped.wait(WAIT_TIMEOUT)
 		assert len(env.native.calls) == 1, "Ordinary native work entered before old PCM cleanup"
 	finally:
 		release_stop.set()
@@ -140,7 +140,7 @@ def test_cancelling_queued_contextual_speech_preserves_active_ordinary_audio(env
 	env.native.next_scripts.append({"hold_terminal": True})
 	env.driver.speak(("ordinary remains active",))
 	ordinary = env.native.wait_calls(1)
-	assert ordinary.before_terminal.wait(1)
+	assert ordinary.before_terminal.wait(WAIT_TIMEOUT)
 	assert env.player.queued_bytes == 8
 	queued, release_queue = Event(), Event()
 	original_queue = env.driver._segmentHost.enqueue
@@ -149,19 +149,22 @@ def test_cancelling_queued_contextual_speech_preserves_active_ordinary_audio(env
 		result = original_queue(commands, operation, **kwargs)
 		if operation is not None:
 			queued.set()
-			assert release_queue.wait(2), "Test did not release contextual submission"
+			assert release_queue.wait(HOLD_TIMEOUT), "Test did not release contextual submission"
 		return result
 
 	monkeypatch.setattr(env.driver._segmentHost, "enqueue", queue_then_hold)
 	token, _, cancelled_events = speak(env, segment=18)
-	assert queued.wait(1)
+	assert queued.wait(WAIT_TIMEOUT)
 	token.cancel()
 	release_queue.set()
 	operation = next(iter(env.driver._segmentHost._accepted))
 	with operation._lifecycle._condition:
-		assert operation._lifecycle._condition.wait_for(lambda: operation._stop_done is not None, 1)
+		assert operation._lifecycle._condition.wait_for(
+			lambda: operation._stop_done is not None,
+			WAIT_TIMEOUT,
+		)
 		stop_done = operation._stop_done
-	assert stop_done.wait(1)
+	assert stop_done.wait(WAIT_TIMEOUT)
 	assert env.player.stops == 0, "Queued cancellation stopped the ordinary player"
 	assert env.player.queued_bytes == 8
 	assert env.inner.isSpeaking
@@ -182,7 +185,7 @@ def test_cancelling_queued_contextual_speech_preserves_active_ordinary_audio(env
 def test_cancelled_active_call_and_queued_call_retire_before_successor(env, token_only):
 	token, _, events = speak(env)
 	first = env.native.wait_calls(1)
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	queued_token, _, queued_events = speak(env, segment=18)
 	if token_only:
 		token.cancel()
@@ -195,7 +198,7 @@ def test_cancelled_active_call_and_queued_call_retire_before_successor(env, toke
 	first.return_release.set()
 	second = env.native.wait_calls(2)
 	assert first.returned.is_set()
-	assert second.after_callback.wait(1)
+	assert second.after_callback.wait(WAIT_TIMEOUT)
 	second.return_release.set()
 	event = wait_event(successor)
 	assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
@@ -207,13 +210,13 @@ def test_cancelled_active_call_and_queued_call_retire_before_successor(env, toke
 def test_retained_old_indexes_and_end_callback_cannot_complete_successor(env):
 	_, _, events = speak(env)
 	first = env.native.wait_calls(1)
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	retained = env.player.callbacks[0]
 	env.driver.cancel()
 	_, _, successor = speak(env, segment=18)
 	first.return_release.set()
 	second = env.native.wait_calls(2)
-	assert second.after_callback.wait(1)
+	assert second.after_callback.wait(WAIT_TIMEOUT)
 	indexes = list(env.indexes)
 	retained()
 	first.index_callback(99)
@@ -236,9 +239,9 @@ def test_terminal_sink_can_terminate_after_native_retirement(env):
 	speak(env, sink=sink)
 	call = env.native.wait_calls(1)
 	env.player.idle_release.set()
-	assert call.after_callback.wait(1)
+	assert call.after_callback.wait(WAIT_TIMEOUT)
 	call.return_release.set()
-	assert terminated.wait(1), "Completion sink deadlocked in native/bgThread termination"
+	assert terminated.wait(WAIT_TIMEOUT), "Completion sink deadlocked in native/bgThread termination"
 	assert len(deliveries) == 1
 	assert deliveries[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert env.native.terminated
@@ -251,7 +254,7 @@ def test_cancel_or_terminate_before_deferred_delivery_keeps_event_silent(env, mo
 
 	def delayed(*args):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		original(*args)
 		delivered.set()
 
@@ -260,12 +263,12 @@ def test_cancel_or_terminate_before_deferred_delivery_keeps_event_silent(env, mo
 	call = env.native.wait_calls(1)
 	env.player.idle_release.set()
 	call.return_release.set()
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	try:
 		env.driver.terminate() if terminate else env.driver.cancel()
 	finally:
 		release.set()
-	assert delivered.wait(1)
+	assert delivered.wait(WAIT_TIMEOUT)
 	assert events == []
 
 
@@ -273,7 +276,7 @@ def test_cancelled_feed_final_stop_finishes_before_successor_native_call(env):
 	env.player.feed_release.clear()
 	_, _, events = speak(env)
 	first = env.native.wait_calls(1)
-	assert env.player.feed_entered.wait(1)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	_, _, successor = speak(env, segment=18)
 	stopped, release_stop = Event(), Event()
@@ -281,13 +284,13 @@ def test_cancelled_feed_final_stop_finishes_before_successor_native_call(env):
 
 	def final_stop():
 		stopped.set()
-		assert release_stop.wait(2)
+		assert release_stop.wait(HOLD_TIMEOUT)
 		original_stop()
 
 	env.player.stop = final_stop
 	env.player.feed_release.set()
 	try:
-		assert stopped.wait(1)
+		assert stopped.wait(WAIT_TIMEOUT)
 		first.return_release.set()
 		assert len(env.native.calls) == 1
 		assert successor == []
@@ -303,7 +306,7 @@ def test_token_cancel_between_last_feed_and_terminal_discards_pcm_before_success
 	env.native.next_scripts.append({"hold_terminal": True})
 	token, _, events = speak(env)
 	first = env.native.wait_calls(1)
-	assert first.before_terminal.wait(1)
+	assert first.before_terminal.wait(WAIT_TIMEOUT)
 	assert env.player.queued_bytes == 8
 	token.cancel()
 	_, _, successor = speak(env, segment=18)
@@ -312,14 +315,14 @@ def test_token_cancel_between_last_feed_and_terminal_discards_pcm_before_success
 
 	def final_stop():
 		stopped.set()
-		assert release_stop.wait(2), "Test did not release final stop"
+		assert release_stop.wait(HOLD_TIMEOUT), "Test did not release final stop"
 		original_stop()
 
 	env.player.stop = final_stop
 	first.terminal_release.set()
 	first.return_release.set()
 	try:
-		assert stopped.wait(1), "Token cancellation left old PCM queued without a final stop"
+		assert stopped.wait(WAIT_TIMEOUT), "Token cancellation left old PCM queued without a final stop"
 		assert len(env.native.calls) == 1
 		assert events == successor == []
 	finally:
@@ -346,10 +349,10 @@ def test_failed_cleanup_stop_blocks_queued_and_later_native_admission(env, cance
 	token, _, failed = speak(env)
 	first = env.native.wait_calls(1)
 	if cancelled:
-		assert first.before_terminal.wait(1)
+		assert first.before_terminal.wait(WAIT_TIMEOUT)
 		token.cancel()
 		first.terminal_release.set()
-	assert first.after_callback.wait(1)
+	assert first.after_callback.wait(WAIT_TIMEOUT)
 	_, successor_context, successor = speak(env, segment=18)
 	first.return_release.set()
 	if not cancelled:
@@ -401,7 +404,7 @@ def test_failure_sink_can_cancel_and_admit_successor(env):
 
 	speak(env, sink=sink)
 	env.native.wait_calls(1)
-	assert admitted.wait(1)
+	assert admitted.wait(WAIT_TIMEOUT)
 	next_call = env.native.wait_calls(2)
 	env.player.idle_release.set()
 	next_call.return_release.set()
@@ -434,7 +437,7 @@ def test_correlated_path_preserves_base_language_variant_prosody_and_legacy_done
 	assert env.driver.variant == "max"
 	env.driver.speak(("legacy",))
 	legacy = env.native.wait_calls(2)
-	assert legacy.after_callback.wait(1)
+	assert legacy.after_callback.wait(WAIT_TIMEOUT)
 	legacy.return_release.set()
 	env.inner.bgQueue.join()
 	assert env.dones == [env.driver]
@@ -460,7 +463,7 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
 		context=context,
 		on_event=sink,
 	)
-	assert received.wait(1), "terminated driver dropped the segment silently"
+	assert received.wait(WAIT_TIMEOUT), "terminated driver dropped the segment silently"
 	# Give a duplicate failure time to arrive before counting.
 	quiet_period()
 	assert len(events) == 1

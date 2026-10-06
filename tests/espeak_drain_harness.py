@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from addon_loader import ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
 class Player:
@@ -29,7 +30,7 @@ class Player:
 
 	def feed(self, data, size=None, onDone=None):
 		self.feed_entered.set()
-		assert self.feed_release.wait(3), "Test did not release feed"
+		assert self.feed_release.wait(HOLD_TIMEOUT), "Test did not release feed"
 		if self.error == "feed":
 			raise OSError("feed failed")
 		self.fed.append(size)
@@ -39,7 +40,7 @@ class Player:
 
 	def idle(self):
 		self.idle_entered.set()
-		assert self.idle_release.wait(3), "Test did not release idle"
+		assert self.idle_release.wait(HOLD_TIMEOUT), "Test did not release idle"
 		if self.error == "idle":
 			raise OSError("idle failed")
 		callbacks, self.callbacks = self.callbacks, []
@@ -138,21 +139,21 @@ class Native:
 				self.callback(ctypes.addressof(wav), 4, events)
 			call.before_terminal.set()
 			if script.get("hold_terminal"):
-				assert call.terminal_release.wait(3), "Test did not release terminal callback"
+				assert call.terminal_release.wait(HOLD_TIMEOUT), "Test did not release terminal callback"
 			if not script.get("missing_end"):
 				terminal = (self.inner.espeak_EVENT * 1)()
 				self.callback(None, 0, terminal)
 			call.after_callback.set()
 			if script.get("auto_return"):
 				call.return_release.set()
-			assert call.return_release.wait(3), "Test did not release native return"
+			assert call.return_release.wait(HOLD_TIMEOUT), "Test did not release native return"
 			return script.get("result", 0)
 		finally:
 			call.returned.set()
 
 	def wait_calls(self, count):
 		with self.condition:
-			assert self.condition.wait_for(lambda: len(self.calls) >= count, 3), "No native call"
+			assert self.condition.wait_for(lambda: len(self.calls) >= count, WAIT_TIMEOUT), "No native call"
 			return self.calls[count - 1]
 
 	def release(self):
@@ -348,7 +349,7 @@ def speak(env, segment=17, commands=None, sink=None):
 
 def wait_event(events):
 	with events.condition:
-		assert events.condition.wait_for(lambda: bool(events), 3), "No terminal event delivered"
+		assert events.condition.wait_for(lambda: bool(events), WAIT_TIMEOUT), "No terminal event delivered"
 		assert len(events) == 1
 		return events[0]
 
