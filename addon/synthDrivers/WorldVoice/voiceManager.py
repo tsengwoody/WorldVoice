@@ -186,8 +186,8 @@ class VoiceManager:
 	@defaultVoiceName.setter
 	def defaultVoiceName(self, name):
 		if name not in self.catalog.voice_infos:
-			log.debugWarning("Voice not available, using default voice.")
-			return
+			# NVDA's SynthDriver.loadSettings repairs the saved voice only when this raises.
+			raise LookupError(name)
 		self._defaultVoiceInstance = self.getVoiceInstance(name)
 		self.onKeepEngineConsistent()
 		self.onKeepMainLocaleVoiceConsistent()

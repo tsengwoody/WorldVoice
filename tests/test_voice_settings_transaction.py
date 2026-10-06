@@ -4,6 +4,8 @@ import importlib.util
 import sys
 import types
 
+import pytest
+
 from test_worldvoice_lifecycle import _load_voice_manager, init_policies, WORLDVOICE
 
 
@@ -114,3 +116,17 @@ def test_main_synth_explicit_commit_updates_resolver_only_states(monkeypatch):
 	assert b.rate == 72
 
 
+
+
+def test_main_synth_records_a_chosen_voice_only_once_it_is_set(monkeypatch):
+	manager, a, b, config = _editing_manager(monkeypatch)
+	synth = _synth_settings_class(config)()
+	synth._voiceManager = manager
+	synth._voice = None
+	with pytest.raises(LookupError):
+		synth._set_voice("Missing:x")
+	assert synth._voice is None
+	assert manager.defaultVoiceName == a.name
+	synth._set_voice(b.name)
+	assert synth._voice == b.name
+	assert manager.defaultVoiceName == b.name

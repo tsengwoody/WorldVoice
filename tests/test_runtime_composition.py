@@ -1080,3 +1080,12 @@ def test_old_drain_sink_cannot_complete_request_after_core_rebind(composition, n
     new_sink(c.models.PlaybackEvent(c.models.EventKind.SEGMENT_DRAINED,
                                    new_context.source_id, segment_id=new_context.segment_id))
     assert future.result(1) is True and indexes == [42]
+
+
+def test_an_unavailable_main_voice_raises_and_keeps_the_current_one(composition):
+    # NVDA's SynthDriver.loadSettings repairs the saved voice only when the setter raises.
+    composition.engine("x")
+    manager = composition.create(get_language=lambda: "en")
+    with pytest.raises(LookupError):
+        manager.defaultVoiceName = "x:missing"
+    assert manager.defaultVoiceName == "x:a"

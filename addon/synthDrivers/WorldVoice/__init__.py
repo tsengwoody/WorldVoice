@@ -425,14 +425,14 @@ class SynthDriver(SynthDriver):
 		return self._voiceManager.defaultVoiceName
 
 	def _set_voice(self, voiceName):
+		if voiceName != self._voiceManager.defaultVoiceName:
+			# Stop speech before setting a new voice to avoid voice instances
+			# continuing speaking when changing voices for, e.g., say-all
+			# See NVDA ticket #3540
+			self._voiceManager.defaultVoiceInstance.stop()
+			# Raises LookupError for an unavailable voice, before the choice is recorded.
+			self._voiceManager.defaultVoiceName = voiceName
 		self._voice = voiceName
-		if voiceName == self._voiceManager.defaultVoiceName:
-			return
-		# Stop speech before setting a new voice to avoid voice instances
-		# continuing speaking when changing voices for, e.g., say-all
-		# See NVDA ticket #3540
-		self._voiceManager.defaultVoiceInstance.stop()
-		self._voiceManager.defaultVoiceName = voiceName
 
 	def _get_availableVariants(self):
 		values = OrderedDict([("default", StringParameterInfo("default", _("default")))])
