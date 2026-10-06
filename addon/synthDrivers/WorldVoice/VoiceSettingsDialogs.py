@@ -33,8 +33,8 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self._applyPunctuationWaitFactorVisibility()
 
 	def _onPunctuationPauseEnabledToggle(self, evt):
+		# NVDA's own checkbox handler writes the setting; this one only updates the slider.
 		evt.Skip()
-		self._getSettingsStorage().punctuationpauseenabled = evt.IsChecked()
 		self._applyPunctuationWaitFactorVisibility()
 
 	def _applyPunctuationWaitFactorVisibility(self):
