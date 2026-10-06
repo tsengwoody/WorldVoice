@@ -239,7 +239,7 @@ def test_cancel_between_acceptance_and_output_suppresses_index_and_done(manager,
 			manager.cancel([port])
 	finally:
 		release.set()
-		thread.join(1)
+		thread.join(WAIT_TIMEOUT)
 	manager.cancel([port])
 	manager._q.join()
 	assert not thread.is_alive()
@@ -466,7 +466,7 @@ def test_cancel_current_preserves_queued_request_and_gates_stop(manager, port, r
 		stays_unset(other.entered)
 	finally:
 		release.set()
-		thread.join(1)
+		thread.join(WAIT_TIMEOUT)
 		port.on_cancel = None
 	assert other.entered.wait(WAIT_TIMEOUT)
 	assert future.cancelled()

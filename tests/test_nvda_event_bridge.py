@@ -486,7 +486,7 @@ def test_supplier_cannot_decode_replacement_binding_after_validation(marker_env,
 		assert replacement_allocation.end_index == allocation.end_index
 	finally:
 		resume_decode.set()
-		worker.join(2)
+		worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive()
 	assert batches == [()]
 	monkeypatch.setattr(env.ledger, "receive_index", receive_index)

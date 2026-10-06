@@ -273,9 +273,9 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 		stays_unset(worker_done, message="worker observed settings during the UI copy")
 	finally:
 		release_copy.set()
-		ui_thread.join(1)
+		ui_thread.join(WAIT_TIMEOUT)
 		if worker_thread.ident is not None:
-			worker_thread.join(1)
+			worker_thread.join(WAIT_TIMEOUT)
 	assert errors == []
 
 
@@ -309,7 +309,7 @@ def test_preview_b_while_a_is_playing_then_discard_restores_next_segment(env):
 		assert core.writes == current_writes
 	finally:
 		core.release.set()
-		playback.join(1)
+		playback.join(WAIT_TIMEOUT)
 	assert not playback.is_alive()
 	b._binding.session.activate(b.name)
 	assert (core.voice, core.rate) == ("b", 72)

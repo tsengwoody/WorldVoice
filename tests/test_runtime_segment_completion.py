@@ -278,8 +278,8 @@ def test_index_delivery_precedes_terminal_batch(manager, rt, output):
 		assert not next_port.entered.is_set()
 	finally:
 		release.set()
-		index_thread.join(1)
-		end_thread.join(1)
+		index_thread.join(WAIT_TIMEOUT)
+		end_thread.join(WAIT_TIMEOUT)
 	assert next_port.entered.wait(WAIT_TIMEOUT)
 	assert loaded.is_set()
 	assert output.indexes == [123]

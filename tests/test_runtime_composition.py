@@ -354,7 +354,7 @@ def test_worker_stops_before_bridge_and_sessions_close(composition, bridge_error
 		assert core.closes == 0
 	finally:
 		release.set()
-		thread.join(1)
+		thread.join(WAIT_TIMEOUT)
 	assert not thread.is_alive()
 	assert len(errors) == int(bridge_error)
 	assert closed == ["worker", "bridge", "session"]
@@ -431,7 +431,7 @@ def test_termination_closes_admission_before_blocking_cancel(composition, submis
 		assert [core.closes for core in c.cores] == [0, 0]
 	finally:
 		release.set()
-		thread.join(1)
+		thread.join(WAIT_TIMEOUT)
 	assert not thread.is_alive()
 	assert errors == []
 	assert [core.cancels for core in c.cores] == [1, 1]

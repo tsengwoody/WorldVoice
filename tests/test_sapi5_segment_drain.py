@@ -389,7 +389,7 @@ def test_cancel_stops_player_while_final_idle_is_blocked(env, monkeypatch):
 		assert stop_called.wait(WAIT_TIMEOUT), "Cancel could not stop the player during idle"
 	finally:
 		env.player.idle_release.set()
-		cancellation.join(2)
+		cancellation.join(WAIT_TIMEOUT)
 	assert finished.is_set() and events == []
 
 
@@ -699,7 +699,7 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
 		assert events == []
 	finally:
 		release.set()
-		callback_thread.join(2)
+		callback_thread.join(WAIT_TIMEOUT)
 	assert not callback_thread.is_alive()
 	event = wait_event(events)
 	assert event.source_id is context.source_id
@@ -773,7 +773,7 @@ def test_admitted_com_sonic_operation_retires_before_final_tail_and_idle(env, mo
 		stays_unset(env.player.idle_entered, message="Idle overtook Sonic processing")
 	finally:
 		release.set()
-		callback.join(2)
+		callback.join(WAIT_TIMEOUT)
 	assert failures == [] and not callback.is_alive()
 	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert env.player.fed == [6, 0]
@@ -930,8 +930,8 @@ def test_voice_reload_retires_ordinary_pcm_callback_before_replacing_audio(env, 
 		assert env.driver.sonicStream is old_sonic
 	finally:
 		release.set()
-		callback.join(2)
-		reload_thread.join(2)
+		callback.join(WAIT_TIMEOUT)
+		reload_thread.join(WAIT_TIMEOUT)
 	assert not callback.is_alive() and not reload_thread.is_alive() and errors == []
 	native, player = env.natives[-1], env.players[-1]
 	_, _, events = speak(env, segment=18)
@@ -975,7 +975,7 @@ def test_cancelled_ordinary_pcm_feed_stops_again_before_successor_admission(env,
 		assert len(env.native.calls) == 1
 	finally:
 		release.set()
-		callback.join(2)
+		callback.join(WAIT_TIMEOUT)
 	assert not callback.is_alive() and failures == []
 	env.native.wait_calls(2)
 	assert env.player.stops > stops_after_cancel, (

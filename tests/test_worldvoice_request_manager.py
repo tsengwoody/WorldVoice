@@ -359,7 +359,7 @@ def test_cancel_after_index_acceptance_suppresses_old_index(manager, buses, two_
 	finally:
 		release_delivery.set()
 		buses.before_get_synth = None
-		index_thread.join(1)
+		index_thread.join(WAIT_TIMEOUT)
 	cancel(manager, [voice])
 	assert manager.new_request().epoch == old_epoch + 1
 	assert not index_thread.is_alive()
