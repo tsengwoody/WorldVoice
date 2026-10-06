@@ -9,7 +9,7 @@
 ## 現況
 
 - **以路徑載入模組**：`importlib.util.spec_from_file_location` → `module_from_spec` → `sys.modules[...] = module` → `exec_module` 這四步，在 30 個測試檔／harness 各寫一份（`runtime_harness.py` 3 份、`test_worldvoice_lifecycle.py`、`test_pipeline_log.py`、`test_f4_voice_state.py` 各 2 份，其餘各 1 份）。有的用 `monkeypatch.setitem` 登記、有的直接寫 `sys.modules`、有的先建別名 package。
-- **測試模組互相 import**：26 個 `from test_x import ...`，主要是 `test_worldvoice_lifecycle`（6）、`test_pipeline_punctuation_pause`（3）、`test_worldvoice_request_builder`、`test_worldvoice_cancel_wrappers`、`test_vocalizer_segment_drain`、`test_runtime_composition`、`test_f4_voice_state`（各 2）。被 import 的是 helper、常數與 `composition` fixture；pytest 也會把這些模組當測試收集，helper 散在測試檔中不易找到。
+- **測試模組互相 import**：30 行（26 個頂層 `from test_x import ...`，另有 4 個寫在函式內），主要是 `test_worldvoice_lifecycle`（6）、`test_pipeline_punctuation_pause`（3）、`test_worldvoice_request_builder`、`test_worldvoice_cancel_wrappers`、`test_vocalizer_segment_drain`、`test_runtime_composition`、`test_f4_voice_state`（各 2）。被 import 的是 helper、常數與 `composition` fixture；pytest 也會把這些模組當測試收集，helper 散在測試檔中不易找到。
 - **`exec` 抽原始碼**：15 個檔以 `ast` 抽出 add-on 的類別或函式，在 stub 命名空間 `exec`。理由多為 UI 類別需要 wx、或主驅動需要整個 NVDA。`pyproject.toml` 對 `tests/**` 忽略 S102（階段 25）。
 - **WorldVoice config stub**：各測試手寫 `{"WorldVoice": {"autoLanguageSwitching": {...}, ...}}`，常缺鍵；階段 22 就因 stub 少了 `KeepMainLocaleParameterConsistent` 改了兩個 harness。
 
@@ -61,3 +61,4 @@ def load_definitions(path, names, namespace):
 - 搬到 harness 的 helper 改為公開名稱（去掉底線）；兩版 voice manager loader 分別命名為 `load_voice_manager`、`load_f4_voice_manager`。
 - `worldvoice_conf` 以 ast 讀主驅動的 `config.conf.spec["WorldVoice"]`、`DETECTION_CONFSPEC`、`PIPELINE_SETTINGS`、pipeline `STAGES` 的 log key；validator 只解析 boolean／integer／string，未預期的寫法直接報錯；`__many__` 區段預設 `{}`。刻意測缺鍵或使用 Section 物件的測試保留手寫。
 - 守門測試兩個（在 `test_hygiene_guards.py`），收集數 1492 → 1494。
+- 審查（Opus 5.5，因 Fable 額度用完由使用者改用）後：另外 5 處手建別名 package（`runtime_drain_integration_harness`、`test_index_ledger`、`test_legacy_speech_commands`、`test_worldvoice_request_builder`、`test_worldvoice_request_manager`）也改用 `alias_package`；新增 `tests/test_config_stub.py`，以 add-on 實際登記的 `PIPELINE_CONFSPEC` 比對 `worldvoice_conf()` 的 pipeline 預設值，避免 stub 讀取 `PIPELINE_SETTINGS` 的方式與 add-on 產生 confspec 的方式日後分歧。

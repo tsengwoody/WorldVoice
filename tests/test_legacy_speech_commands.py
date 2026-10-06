@@ -2,18 +2,17 @@
 
 import importlib
 import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
+from addon_loader import alias_package
 from runtime_harness import RUNTIME
 
 
 @pytest.fixture
 def legacy(monkeypatch, rt, nvda_commands):
 	name = "worldvoice_commands_test"
-	package = ModuleType(name)
-	package.__path__ = [str(RUNTIME.parent)]
-	monkeypatch.setitem(sys.modules, name, package)
+	alias_package(monkeypatch, name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, name + ".runtime", rt.package)
 	monkeypatch.setitem(sys.modules, name + ".runtime.models", rt.models)
 	monkeypatch.setitem(sys.modules, "config", SimpleNamespace(conf={}))

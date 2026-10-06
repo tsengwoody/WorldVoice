@@ -5,6 +5,7 @@ import types
 from pathlib import Path
 
 import pytest
+from addon_loader import alias_package
 from runtime_harness import MemoryRepository
 from worldvoice_harness import EventStub
 
@@ -17,9 +18,7 @@ def modules(monkeypatch, nvda_commands):
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
 			monkeypatch.delitem(sys.modules, name)
-	package = types.ModuleType(package_name)
-	package.__path__ = [str(WORLDVOICE)]
-	monkeypatch.setitem(sys.modules, package_name, package)
+	alias_package(monkeypatch, package_name, WORLDVOICE)
 	monkeypatch.setitem(
 		sys.modules,
 		"languageHandler",

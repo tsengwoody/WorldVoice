@@ -7,6 +7,7 @@ from concurrent.futures import CancelledError
 from pathlib import Path
 
 import pytest
+from addon_loader import alias_package
 from waiting import stays_unset
 
 
@@ -72,9 +73,7 @@ def task_module(monkeypatch, buses):
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
 			monkeypatch.delitem(sys.modules, name)
-	package = types.ModuleType(package_name)
-	package.__path__ = [str(root)]
-	monkeypatch.setitem(sys.modules, package_name, package)
+	alias_package(monkeypatch, package_name, root)
 	module = importlib.import_module(package_name + ".runtime.scheduler")
 	bridge_module = importlib.import_module(package_name + ".nvdaEventBridge")
 	module.test_bridge_class = bridge_module.NvdaEventBridge

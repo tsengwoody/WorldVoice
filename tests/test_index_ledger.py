@@ -5,18 +5,17 @@ import importlib
 import sys
 import weakref
 from dataclasses import FrozenInstanceError
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
+from addon_loader import alias_package
 from runtime_harness import RUNTIME, forbid_legacy_runtime_imports
 
 
 @pytest.fixture
 def env(monkeypatch, rt):
 	name = "worldvoice_ledger_test"
-	package = ModuleType(name)
-	package.__path__ = [str(RUNTIME.parent)]
-	monkeypatch.setitem(sys.modules, name, package)
+	alias_package(monkeypatch, name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, name + ".runtime", rt.package)
 	monkeypatch.setitem(sys.modules, name + ".runtime.models", rt.models)
 	monkeypatch.delitem(sys.modules, name + ".indexLedger", raising=False)

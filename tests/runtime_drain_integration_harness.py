@@ -9,6 +9,7 @@ import sys
 from threading import Condition, Event
 from types import ModuleType, SimpleNamespace
 
+from addon_loader import alias_package
 from onecore_drain_harness import ROOT, in_thread, load_onecore
 from runtime_harness import MemoryRepository, load_runtime, load_scheduler
 from worldvoice_cancel_wrapper_harness import emit, load_real_driver_with_native_stubs
@@ -183,12 +184,8 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
 	for name in tuple(sys.modules):
 		if name.startswith(PACKAGE + "."):
 			monkeypatch.delitem(sys.modules, name)
-	synth_drivers = ModuleType("synthDrivers")
-	synth_drivers.__path__ = [str(ROOT / "addon/synthDrivers")]
-	monkeypatch.setitem(sys.modules, "synthDrivers", synth_drivers)
-	package = ModuleType(PACKAGE)
-	package.__path__ = [str(ROOT / "addon/synthDrivers/WorldVoice")]
-	monkeypatch.setitem(sys.modules, PACKAGE, package)
+	alias_package(monkeypatch, "synthDrivers", ROOT / "addon/synthDrivers")
+	alias_package(monkeypatch, PACKAGE, ROOT / "addon/synthDrivers/WorldVoice")
 	language = ModuleType("languageHandler")
 	language.getLanguageDescription = lambda value: value
 	monkeypatch.setitem(sys.modules, "languageHandler", language)
