@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from addon_loader import ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
 class Player:
@@ -40,7 +41,7 @@ class Player:
 		self.feed_entered.set()
 		if self.feed_calls == 2:
 			self.second_feed_entered.set()
-		assert self.feed_release.wait(3), "test did not release feed"
+		assert self.feed_release.wait(HOLD_TIMEOUT), "test did not release feed"
 		if self.error == "feed":
 			raise OSError("feed failed")
 		self.fed.append(data)
@@ -56,7 +57,7 @@ class Player:
 		if self.idle_count == 3:
 			self.third_idle_entered.set()
 		if self.idle_count == self.block_idle_number:
-			assert self.idle_release.wait(3), "test did not release idle"
+			assert self.idle_release.wait(HOLD_TIMEOUT), "test did not release idle"
 		if self.error == "idle":
 			raise OSError("idle failed")
 		callbacks, self.callbacks = self.callbacks, []
@@ -178,14 +179,14 @@ class Native:
 				call.done.set()
 			if script.get("auto_return"):
 				call.return_release.set()
-			assert call.return_release.wait(3), "test did not release native return"
+			assert call.return_release.wait(HOLD_TIMEOUT), "test did not release native return"
 			return script.get("result", 1)
 		finally:
 			call.returned.set()
 
 	def wait_call(self, number=1):
 		with self.condition:
-			assert self.condition.wait_for(lambda: len(self.calls) >= number, 3), "no native call"
+			assert self.condition.wait_for(lambda: len(self.calls) >= number, WAIT_TIMEOUT), "no native call"
 			return self.calls[number - 1]
 
 	def release(self):
@@ -205,7 +206,7 @@ class Events(list):
 
 	def wait_one(self):
 		with self.condition:
-			assert self.condition.wait_for(lambda: bool(self), 3), "no segment event"
+			assert self.condition.wait_for(lambda: bool(self), WAIT_TIMEOUT), "no segment event"
 			assert len(self) == 1
 			return self[0]
 

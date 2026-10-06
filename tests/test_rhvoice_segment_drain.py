@@ -8,7 +8,7 @@ from threading import Event, Thread, current_thread, get_ident
 
 import pytest
 from rhvoice_drain_harness import finish, load_rhvoice, speak
-from waiting import eventually, quiet_period
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, quiet_period
 
 
 @pytest.fixture
@@ -29,14 +29,14 @@ def test_done_before_native_return_waits_for_final_idle_and_retirement(env):
 	env.native.scripts.append({})
 	_token, context, events = speak(env)
 	call = env.native.wait_call()
-	assert call.done.wait(3)
+	assert call.done.wait(WAIT_TIMEOUT)
 	assert events == []
 	player = env.players[0]
 	player.block_idle_number = 2
 	player.idle_release.clear()
 	call.return_release.set()
-	assert call.returned.wait(3)
-	assert player.second_idle_entered.wait(3)
+	assert call.returned.wait(WAIT_TIMEOUT)
+	assert player.second_idle_entered.wait(WAIT_TIMEOUT)
 	assert player.idle_count == 2
 	assert events == []
 	player.idle_release.set()
@@ -53,7 +53,7 @@ def test_missing_done_does_not_drain_after_native_return(env):
 	env.native.scripts.append({"missing_done": True, "auto_return": True})
 	_, _, events = speak(env)
 	call = env.native.wait_call()
-	assert call.returned.wait(3)
+	assert call.returned.wait(WAIT_TIMEOUT)
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 
 
@@ -65,7 +65,7 @@ def test_message_delete_failure_fails_closed_for_contextual_and_legacy_successor
 	env.native.scripts.append({"auto_return": True})
 	_, _, old_events = speak(env, text="old")
 	old_call = env.native.wait_call()
-	assert old_call.returned.wait(3)
+	assert old_call.returned.wait(WAIT_TIMEOUT)
 	event = old_events.wait_one()
 	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
 	assert isinstance(event.error, OSError)
@@ -93,7 +93,7 @@ def test_terminal_sink_can_terminate_outside_native_and_worker_stacks(env):
 	env.native.scripts.append({"auto_return": True})
 	speak(env, sink=sink)
 	call = env.native.wait_call()
-	assert delivered.wait(3)
+	assert delivered.wait(WAIT_TIMEOUT)
 	assert threads[0] is not call.thread
 	assert threads[0] is not env.driver._SynthDriver__tts_thread
 
@@ -123,11 +123,11 @@ def test_swallowed_native_and_audio_failures_never_publish_success(env, fault):
 def test_cancelled_old_callbacks_do_not_complete_or_index_successor(env):
 	_, _old_context, old_events = speak(env, segment=1, text="old")
 	old_call = env.native.wait_call()
-	assert old_call.done.wait(3)
+	assert old_call.done.wait(WAIT_TIMEOUT)
 	cancel_thread = Thread(target=env.driver.cancel)
 	cancel_thread.start()
 	old_call.return_release.set()
-	cancel_thread.join(3)
+	cancel_thread.join(WAIT_TIMEOUT)
 	assert not cancel_thread.is_alive()
 	env.native.scripts.append({"auto_return": True})
 	_, new_context, new_events = speak(env, segment=2, text="new")
@@ -144,11 +144,17 @@ def test_cancelled_old_callbacks_do_not_complete_or_index_successor(env):
 def test_stop_failure_fails_closed_for_later_work(env):
 	_, _, old_events = speak(env, text="old")
 	call = env.native.wait_call()
-	assert call.done.wait(3)
-	env.players[0].stop_error = OSError("stop failed")
+	assert call.done.wait(WAIT_TIMEOUT)
+	player = env.players[0]
+	player.stop_error = OSError("stop failed")
+	# cancel() waits for the native call to settle; the real engine returns once cancel has
+	# stopped the player, so release the fake then instead of letting its hold run out.
+	Thread(
+		target=lambda: player.stop_entered.wait(WAIT_TIMEOUT) and call.return_release.set(),
+		daemon=True,
+	).start()
 	with pytest.raises(OSError, match="stop failed"):
 		env.driver.cancel()
-	call.return_release.set()
 	env.native.scripts.append({"auto_return": True})
 	_, _, next_events = speak(env, text="new")
 	assert next_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
@@ -165,12 +171,12 @@ def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeyp
 	def held_accept(*args, **kwargs):
 		operation = real_accept(*args, **kwargs)
 		accepted.set()
-		assert release_accept.wait(3)
+		assert release_accept.wait(HOLD_TIMEOUT)
 		return operation
 
 	def held_run(*args):
 		run_entered.set()
-		assert release_run.wait(3)
+		assert release_run.wait(HOLD_TIMEOUT)
 		try:
 			return real_run(*args)
 		finally:
@@ -192,7 +198,7 @@ def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeyp
 	)
 	speaking.start()
 	try:
-		assert accepted.wait(1)
+		assert accepted.wait(WAIT_TIMEOUT)
 		# The speaking thread must hold the admission lock through wrapper
 		# registration. A nonblocking probe from this thread detects the gap.
 		admission = env.driver._segmentHost._admission
@@ -203,12 +209,12 @@ def test_cancel_sees_operation_accepted_before_wrapper_registration(env, monkeyp
 		cancelling = Thread(target=env.driver.cancel, daemon=True)
 		cancelling.start()
 		release_accept.set()
-		speaking.join(3)
-		cancelling.join(3)
+		speaking.join(WAIT_TIMEOUT)
+		cancelling.join(WAIT_TIMEOUT)
 		assert not speaking.is_alive() and not cancelling.is_alive()
-		assert run_entered.wait(3)
+		assert run_entered.wait(WAIT_TIMEOUT)
 		release_run.set()
-		assert run_finished.wait(3)
+		assert run_finished.wait(WAIT_TIMEOUT)
 		assert env.native.calls == []
 		assert events == []
 	finally:
@@ -224,7 +230,7 @@ def test_cancel_releases_queued_work_without_running_its_native_message(env):
 	stopper = Thread(target=env.driver.cancel)
 	stopper.start()
 	call.return_release.set()
-	stopper.join(3)
+	stopper.join(WAIT_TIMEOUT)
 	assert not stopper.is_alive()
 	del events
 
@@ -239,14 +245,14 @@ def test_cancel_releases_queued_work_without_running_its_native_message(env):
 def test_delayed_old_index_callback_cannot_index_successor(env):
 	speak(env, text="old")
 	call = env.native.wait_call()
-	assert call.done.wait(3)
+	assert call.done.wait(WAIT_TIMEOUT)
 	old_index = env.players[0].retained_callbacks[0] if env.players[0].retained_callbacks else None
 	# The real WavePlayer may retain an onDone closure even after stop.
 	assert old_index is not None
 	stopper = Thread(target=env.driver.cancel)
 	stopper.start()
 	call.return_release.set()
-	stopper.join(3)
+	stopper.join(WAIT_TIMEOUT)
 	env.native.scripts.append({"auto_return": True})
 	_, _, events = speak(env, text="new")
 	env.native.wait_call(2)
@@ -274,8 +280,8 @@ def test_legacy_done_callback_can_cancel_without_deadlocking_worker(env):
 	env.native.scripts.append({"auto_return": True})
 	_, _, events = speak(env)
 	call = env.native.wait_call()
-	assert cancelled.wait(1)
-	assert call.returned.wait(1)
+	assert cancelled.wait(WAIT_TIMEOUT)
+	assert call.returned.wait(WAIT_TIMEOUT)
 	assert events == []
 
 
@@ -292,16 +298,16 @@ def test_cancel_waits_for_admitted_feed_and_stops_late_audio_before_successor(en
 	env.inner.nvwave.WavePlayer = blocked_player
 	_, _, old_events = speak(env, text="old")
 	old_call = env.native.wait_call()
-	assert created.wait(3)
+	assert created.wait(WAIT_TIMEOUT)
 	player = env.players[0]
-	assert player.feed_entered.wait(3)
+	assert player.feed_entered.wait(WAIT_TIMEOUT)
 	stopper = Thread(target=env.driver.cancel)
 	stopper.start()
-	assert player.stop_entered.wait(3)
+	assert player.stop_entered.wait(WAIT_TIMEOUT)
 	assert stopper.is_alive()
 	player.feed_release.set()
 	old_call.return_release.set()
-	stopper.join(3)
+	stopper.join(WAIT_TIMEOUT)
 	assert not stopper.is_alive()
 	assert player.stops >= 2
 	env.native.scripts.append({"auto_return": True})
@@ -331,19 +337,19 @@ def test_message_cleanup_waits_for_admitted_native_callback(env):
 		calls += 1
 		if calls == 2:
 			callback_entered.set()
-			assert release_callback.wait(3)
+			assert release_callback.wait(HOLD_TIMEOUT)
 		return real_set_sample_rate(rate)
 
 	env.driver._SynthDriver__player.set_sample_rate = held_set_sample_rate
 
 	def async_callback(callbacks, user_data):
 		Thread(target=lambda: callbacks.set_sample_rate(22050, user_data), daemon=True).start()
-		assert callback_entered.wait(3)
+		assert callback_entered.wait(WAIT_TIMEOUT)
 
 	env.native.scripts.append({"auto_return": True, "async_callback": async_callback})
 	_, _, events = speak(env)
 	call = env.native.wait_call()
-	assert call.returned.wait(3)
+	assert call.returned.wait(WAIT_TIMEOUT)
 	assert env.native.deleted == []
 	assert events == []
 	release_callback.set()
@@ -359,7 +365,7 @@ def test_legacy_speak_keeps_inner_settings_snapshot_and_queue(env):
 	env.native.scripts.append({"auto_return": True})
 	env.driver.speak(("legacy", env.commands.IndexCommand(7)))
 	call = env.native.wait_call()
-	assert call.returned.wait(3)
+	assert call.returned.wait(WAIT_TIMEOUT)
 	assert call.text == b"<speak>legacy</speak>"
 	assert call.options.voice_profile == b"Alice"
 	assert (call.options.rate, call.options.pitch, call.options.volume) == pytest.approx((0.4, -0.4, 0.6))
@@ -379,7 +385,7 @@ def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
 		calls += 1
 		if calls == 2:
 			callback_entered.set()
-			assert release_callback.wait(3)
+			assert release_callback.wait(HOLD_TIMEOUT)
 			env.driver._SynthDriver__player.do_play(b"nested")
 		return original_rate(rate)
 
@@ -387,21 +393,21 @@ def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
 
 	def callback(callbacks, user_data):
 		Thread(target=lambda: callbacks.set_sample_rate(22050, user_data), daemon=True).start()
-		assert callback_entered.wait(3)
+		assert callback_entered.wait(WAIT_TIMEOUT)
 		env.players[0].block_idle_number = 3
 		env.players[0].idle_release.clear()
 
 	env.native.scripts.append({"auto_return": True, "async_callback": callback})
 	_, _, old_events = speak(env, text="old")
 	old_call = env.native.wait_call()
-	assert old_call.returned.wait(3)
+	assert old_call.returned.wait(WAIT_TIMEOUT)
 	player = env.players[0]
 	env.native.scripts.append({"auto_return": True})
 	_, _, new_events = speak(env, segment=2, text="new")
 	assert_no_successor_native_call(env)
 	assert old_events == []
 	release_callback.set()
-	assert player.third_idle_entered.wait(3)
+	assert player.third_idle_entered.wait(WAIT_TIMEOUT)
 	assert_no_successor_native_call(env)
 	assert old_events == []
 	player.idle_release.set()
@@ -424,20 +430,20 @@ def test_rhvoice_shared_cancel_keeps_old_identity_until_retirement(env):
 	env.inner.nvwave.WavePlayer = blocked_player
 	_, _, old_events = speak(env, text="old")
 	old_call = env.native.wait_call()
-	assert created.wait(3)
+	assert created.wait(WAIT_TIMEOUT)
 	player = env.players[0]
-	assert player.feed_entered.wait(3)
+	assert player.feed_entered.wait(WAIT_TIMEOUT)
 	original_id = old_call.user_data
 	stopper = Thread(target=env.driver.cancel)
 	stopper.start()
-	assert player.stop_entered.wait(3)
+	assert player.stop_entered.wait(WAIT_TIMEOUT)
 	env.native.scripts.append({"auto_return": True})
 	_, _, new_events = speak(env, segment=2, text="new")
 	assert_no_successor_native_call(env)
 	assert original_id in env.driver._segmentById
 	player.feed_release.set()
 	old_call.return_release.set()
-	stopper.join(3)
+	stopper.join(WAIT_TIMEOUT)
 	assert not stopper.is_alive()
 	env.native.wait_call(2)
 	assert new_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
@@ -448,10 +454,10 @@ def test_rhvoice_shared_cancel_keeps_old_identity_until_retirement(env):
 def test_rhvoice_shared_token_cancel_clears_native_flag_before_successor(env):
 	token, _, old_events = speak(env, text="old")
 	old_call = env.native.wait_call()
-	assert old_call.done.wait(3)
+	assert old_call.done.wait(WAIT_TIMEOUT)
 	token.cancel()
 	old_call.return_release.set()
-	assert old_call.returned.wait(3)
+	assert old_call.returned.wait(WAIT_TIMEOUT)
 	env.native.scripts.append({"auto_return": True})
 	_, _, next_events = speak(env, segment=2, text="new")
 	env.native.wait_call(2)
@@ -474,7 +480,7 @@ def test_rhvoice_shared_sink_reenters_terminate(env):
 	env.native.scripts.append({"auto_return": True})
 	speak(env, sink=sink)
 	call = env.native.wait_call()
-	assert delivered.wait(3)
+	assert delivered.wait(WAIT_TIMEOUT)
 	assert call.returned.is_set()
 	assert errors == []
 	assert env.native.engine_deleted
@@ -488,7 +494,7 @@ def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
 		if done_entered.is_set():
 			return
 		done_entered.set()
-		assert env.players[0].stop_entered.wait(3)
+		assert env.players[0].stop_entered.wait(WAIT_TIMEOUT)
 		successor_events.append(speak(env, segment=2, text="successor")[2])
 		successor_queued.set()
 
@@ -496,11 +502,11 @@ def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
 	env.native.scripts.extend(({"auto_return": True}, {"auto_return": True}))
 	speak(env, segment=1, text="old")
 	env.native.wait_call()
-	assert done_entered.wait(3)
+	assert done_entered.wait(WAIT_TIMEOUT)
 	stopper = Thread(target=env.driver.cancel)
 	stopper.start()
-	assert successor_queued.wait(1)
-	stopper.join(3)
+	assert successor_queued.wait(WAIT_TIMEOUT)
+	stopper.join(WAIT_TIMEOUT)
 	assert not stopper.is_alive()
 	env.native.wait_call(2)
 	assert successor_events[0].wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
@@ -513,20 +519,20 @@ def test_cancel_invalidates_completion_waiting_for_async_delivery(env, monkeypat
 
 	def delayed_delivery(operation):
 		delivery_waiting.set()
-		assert release_delivery.wait(3)
+		assert release_delivery.wait(HOLD_TIMEOUT)
 		queue_delivery(operation)
 
 	monkeypatch.setattr(lifecycle, "_queue_delivery_locked", delayed_delivery)
 	env.native.scripts.append({"auto_return": True})
 	_, _, events = speak(env)
-	assert delivery_waiting.wait(3)
+	assert delivery_waiting.wait(WAIT_TIMEOUT)
 	stopper = Thread(target=env.driver.cancel)
 	stopper.start()
 	try:
 		eventually(lambda: any(env.driver._segmentHost._accepted.values()))
 	finally:
 		release_delivery.set()
-	stopper.join(3)
+	stopper.join(WAIT_TIMEOUT)
 	assert not stopper.is_alive()
 	assert events == []
 
@@ -553,9 +559,9 @@ def test_audio_index_listener_can_cancel_from_its_own_callback_thread(env):
 	env.native.scripts.append({"auto_return": True})
 	_, _, events = speak(env)
 	call = env.native.wait_call()
-	assert created.wait(3)
-	assert cancelled.wait(3)
-	assert call.returned.wait(3)
+	assert created.wait(WAIT_TIMEOUT)
+	assert cancelled.wait(WAIT_TIMEOUT)
+	assert call.returned.wait(WAIT_TIMEOUT)
 	assert index_thread[0] is not call.thread
 	assert events == []
 
@@ -567,13 +573,13 @@ def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypa
 
 	def delayed_delivery(operation):
 		delivery_waiting.set()
-		assert release_delivery.wait(3)
+		assert release_delivery.wait(HOLD_TIMEOUT)
 		queue_delivery(operation)
 
 	monkeypatch.setattr(lifecycle, "_queue_delivery_locked", delayed_delivery)
 	env.native.scripts.append({"auto_return": True})
 	_, _, events = speak(env)
-	assert delivery_waiting.wait(3)
+	assert delivery_waiting.wait(WAIT_TIMEOUT)
 	env.players[0].stop_error = OSError("stop failed")
 	stop_errors = []
 
@@ -589,7 +595,7 @@ def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypa
 		eventually(lambda: env.driver._segmentHost.control_error is not None)
 	finally:
 		release_delivery.set()
-	stopper.join(3)
+	stopper.join(WAIT_TIMEOUT)
 	assert len(stop_errors) == 1
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 
@@ -611,7 +617,7 @@ def test_callback_cancel_does_not_wait_for_delivery_cancel_awaiting_that_callbac
 		if not delivery_started.is_set():
 			return
 		index_entered.set()
-		assert delivery_stopped.wait(3)
+		assert delivery_stopped.wait(WAIT_TIMEOUT)
 		env.driver.cancel()
 		index_cancelled.set()
 
@@ -621,22 +627,22 @@ def test_callback_cancel_does_not_wait_for_delivery_cancel_awaiting_that_callbac
 		delivery_thread.append(current_thread())
 		env.players[0].threaded_callbacks = True
 		delivery_started.set()
-		assert index_entered.wait(3)
+		assert index_entered.wait(WAIT_TIMEOUT)
 		env.driver.cancel()
 		delivery_cancelled.set()
 
 	env.native.scripts.extend(
 		(
 			{"auto_return": True},
-			{"auto_return": True, "before_callbacks": lambda: delivery_started.wait(3)},
+			{"auto_return": True, "before_callbacks": lambda: delivery_started.wait(WAIT_TIMEOUT)},
 		),
 	)
 	speak(env, segment=1, text="first", sink=on_first_event)
 	speak(env, segment=2, text="second")
 	assert env.native.wait_call(2)
-	assert index_entered.wait(3)
-	assert delivery_cancelled.wait(2)
-	assert index_cancelled.wait(2)
+	assert index_entered.wait(WAIT_TIMEOUT)
+	assert delivery_cancelled.wait(WAIT_TIMEOUT)
+	assert index_cancelled.wait(WAIT_TIMEOUT)
 
 
 def test_admitted_late_feed_gets_final_idle_and_index_before_drain(env):
@@ -654,26 +660,26 @@ def test_admitted_late_feed_gets_final_idle_and_index_before_drain(env):
 		thread = Thread(target=emit_late, daemon=True)
 		late_callbacks.append(thread)
 		thread.start()
-		assert player.second_feed_entered.wait(3)
+		assert player.second_feed_entered.wait(WAIT_TIMEOUT)
 
 	env.native.scripts.append({"auto_return": True, "async_callback": late_pcm_and_mark})
 	_, _, events = speak(env)
 	call = env.native.wait_call()
 	speech = env.driver._segmentById[call.user_data]
-	assert call.done.wait(3)
+	assert call.done.wait(WAIT_TIMEOUT)
 	player = env.players[0]
-	assert call.returned.wait(3)
-	assert player.second_idle_completed.wait(3)
+	assert call.returned.wait(WAIT_TIMEOUT)
+	assert player.second_idle_completed.wait(WAIT_TIMEOUT)
 	eventually(lambda: not speech.admitting)
 	assert events == []
 	assert player.fed == [b"\x01\x00\x02\x00"]
 	player.block_idle_number = 3
 	player.idle_release.clear()
 	player.feed_release.set()
-	late_callbacks[0].join(3)
+	late_callbacks[0].join(WAIT_TIMEOUT)
 	assert not late_callbacks[0].is_alive()
 	try:
-		assert player.third_idle_entered.wait(3)
+		assert player.third_idle_entered.wait(WAIT_TIMEOUT)
 		assert events == []
 	finally:
 		player.idle_release.set()
@@ -694,7 +700,7 @@ def test_admitted_native_mark_can_enter_nested_feed_after_callback_gate_closes(e
 		player = real_get_player()
 		if mark_threads and current_thread() is mark_threads[0]:
 			mark_entered.set()
-			assert release_mark.wait(3)
+			assert release_mark.wait(HOLD_TIMEOUT)
 		return player
 
 	audio.get_player = held_get_player
@@ -708,16 +714,16 @@ def test_admitted_native_mark_can_enter_nested_feed_after_callback_gate_closes(e
 		thread = Thread(target=emit, daemon=True)
 		mark_threads.append(thread)
 		thread.start()
-		assert mark_entered.wait(3)
+		assert mark_entered.wait(WAIT_TIMEOUT)
 
 	env.native.scripts.append({"auto_return": True, "async_callback": late_mark})
 	_, _, events = speak(env)
 	call = env.native.wait_call()
 	speech = env.driver._segmentById[call.user_data]
-	assert call.done.wait(3)
-	assert call.returned.wait(3)
+	assert call.done.wait(WAIT_TIMEOUT)
+	assert call.returned.wait(WAIT_TIMEOUT)
 	player = env.players[0]
-	assert player.second_idle_completed.wait(3)
+	assert player.second_idle_completed.wait(WAIT_TIMEOUT)
 	eventually(lambda: not speech.admitting)
 	assert speech.consumers == 1  # The admitted mark still owns its native lease.
 	assert env.native.callbacks.process_mark(b"100", call.user_data) == 0
@@ -728,9 +734,9 @@ def test_admitted_native_mark_can_enter_nested_feed_after_callback_gate_closes(e
 	player.idle_release.clear()
 	try:
 		release_mark.set()
-		mark_threads[0].join(3)
+		mark_threads[0].join(WAIT_TIMEOUT)
 		assert not mark_threads[0].is_alive()
-		assert player.third_idle_entered.wait(3)
+		assert player.third_idle_entered.wait(WAIT_TIMEOUT)
 		assert events == []
 	finally:
 		player.idle_release.set()
@@ -746,12 +752,12 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env):
 	env.native.scripts.append({})
 	_, context, events = speak(env)
 	call = env.native.wait_call()
-	assert call.done.wait(3)
+	assert call.done.wait(WAIT_TIMEOUT)
 	player = env.players[0]
 	player.block_idle_number = 2
 	player.idle_release.clear()
 	call.return_release.set()
-	assert player.second_idle_entered.wait(3)
+	assert player.second_idle_entered.wait(WAIT_TIMEOUT)
 	entries, dones_before = [], len(env.dones)
 	env.native.scripts.append(
 		{
@@ -765,7 +771,7 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env):
 	player.idle_release.set()
 	event = events.wait_one()
 	ordinary = env.native.wait_call(2)
-	assert ordinary.returned.wait(3)
+	assert ordinary.returned.wait(WAIT_TIMEOUT)
 	assert entries == [True]
 	eventually(lambda: len(env.dones) != dones_before)
 	assert env.dones[dones_before:] == [env.driver]
@@ -813,7 +819,7 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
 		context=context,
 		on_event=sink,
 	)
-	assert received.wait(1), "terminated driver dropped the segment silently"
+	assert received.wait(WAIT_TIMEOUT), "terminated driver dropped the segment silently"
 	# Give a duplicate failure time to arrive before counting.
 	quiet_period()
 	assert len(events) == 1
