@@ -2,9 +2,8 @@
 
 import ast
 import types
-from pathlib import Path
 
-WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
+from addon_loader import WORLDVOICE, load_source
 
 
 def _driver_methods(*names, trust_voice_language=True):
@@ -58,14 +57,9 @@ def test_number_modes_are_a_plain_dict_in_order():
 
 
 def _context_module(stub_modules, synth):
-	import importlib.util
-
 	stub_modules.module("synthDriverHandler", getSynth=lambda: synth)
 	path = WORLDVOICE / "pipeline/context.py"
-	spec = importlib.util.spec_from_file_location("pipeline_context_under_test", path)
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(None, "pipeline_context_under_test", path, register=False)
 
 
 def test_worldvoice_synth_returns_only_worldvoice(stub_modules):

@@ -1,21 +1,17 @@
 """One source for the WorldVoice-workspace directory."""
 
-import importlib.util
 import os
-from pathlib import Path
 from types import SimpleNamespace
 
+from addon_loader import WORLDVOICE, load_source
 from test_core_archive import INSTALL, load
 
-ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = ROOT / "addon/synthDrivers/WorldVoice/workspace.py"
+WORKSPACE = WORLDVOICE / "workspace.py"
 
 
 def test_workspace_lives_in_nvdas_config_directory(stub_modules, tmp_path):
 	stub_modules.module("globalVars", appArgs=SimpleNamespace(configPath=str(tmp_path)))
-	spec = importlib.util.spec_from_file_location("workspace_under_test", WORKSPACE)
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
+	module = load_source(None, "workspace_under_test", WORKSPACE, register=False)
 	assert module.workspace_path() == os.path.join(str(tmp_path), "WorldVoice-workspace")
 
 

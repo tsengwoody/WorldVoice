@@ -1,29 +1,21 @@
 """PipelineScope registers the stages exactly while an owner wants them."""
 
-import importlib.util
 import sys
 from types import ModuleType, SimpleNamespace
 
+from addon_loader import WORLDVOICE, alias_package, load_source
+
 
 def load_scope_module(monkeypatch):
-	package = ModuleType("scope_pkg")
-	package.__path__ = []
+	package = alias_package(monkeypatch, "scope_pkg")
 	package.register_stages = lambda: None
 	package.unregister_stages = lambda: None
-	monkeypatch.setitem(sys.modules, "scope_pkg", package)
 	settings = ModuleType("scope_pkg.settings")
 	settings.pipeline_settings = SimpleNamespace(subscribe=lambda listener: None)
 	settings.PipelineSettings = object
 	settings.PipelineSettingsService = object
 	monkeypatch.setitem(sys.modules, "scope_pkg.settings", settings)
-	spec = importlib.util.spec_from_file_location(
-		"scope_pkg.scope",
-		"addon/synthDrivers/WorldVoice/pipeline/scope.py",
-	)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, "scope_pkg.scope", WORLDVOICE / "pipeline/scope.py")
 
 
 class FakeSettings:

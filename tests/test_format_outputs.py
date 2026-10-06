@@ -1,15 +1,13 @@
 """The exact text produced by code whose format strings were rewritten."""
 
 import importlib
-import importlib.util
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import ADDON, load_source
 from detector_harness import load_language_detection
 
-ROOT = Path(__file__).resolve().parents[1]
-MODELS = ROOT / "addon/generics/speechSymbols/models.py"
+MODELS = ADDON / "generics/speechSymbols/models.py"
 
 
 def test_speech_command_reprs(env):
@@ -36,9 +34,7 @@ def models(stub_modules, tmp_path):
 		),
 	)
 	stub_modules.translation()
-	spec = importlib.util.spec_from_file_location("speech_symbol_models_under_test", MODELS)
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
+	module = load_source(None, "speech_symbol_models_under_test", MODELS, register=False)
 	module.warnings = warnings
 	return module
 

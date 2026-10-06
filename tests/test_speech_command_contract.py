@@ -1,13 +1,9 @@
 """WorldVoice's language command must survive NVDA's language-switching filters."""
 
-import importlib.util
-import sys
-from pathlib import Path
-
 import pytest
+from addon_loader import ADDON, load_source
 from nvda_stubs import StubModules
 
-ADDON = Path(__file__).resolve().parents[1] / "addon"
 SPEECH_COMMAND = ADDON / "synthDrivers/WorldVoice/_speechcommand.py"
 
 
@@ -39,11 +35,7 @@ def command(monkeypatch):
 		LangChangeCommand=LangChangeCommand,
 		IndexCommand=IndexCommand,
 	)
-	spec = importlib.util.spec_from_file_location("speech_command_contract_under_test", SPEECH_COMMAND)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
-	return module.WVLangChangeCommand
+	return load_source(monkeypatch, "speech_command_contract_under_test", SPEECH_COMMAND).WVLangChangeCommand
 
 
 def test_language_command_is_a_parameter_command_but_not_nvdas_language_change(command):

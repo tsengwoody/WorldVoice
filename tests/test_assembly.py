@@ -1,20 +1,14 @@
 """Teardown, step timing and attribute patches used to assemble the driver."""
 
-import importlib.util
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-WORLDVOICE = Path(__file__).resolve().parents[1] / "addon" / "synthDrivers" / "WorldVoice"
+from addon_loader import WORLDVOICE, load_source
 
 
 @pytest.fixture
 def assembly():
-	spec = importlib.util.spec_from_file_location("assembly_under_test", WORLDVOICE / "assembly.py")
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(None, "assembly_under_test", WORLDVOICE / "assembly.py", register=False)
 
 
 class Log:

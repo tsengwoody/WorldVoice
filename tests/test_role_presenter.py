@@ -1,18 +1,18 @@
 """The role panel's state and transaction, without wx."""
 
-import importlib.util
 import sys
 import threading
 import types
 
 import pytest
+from addon_loader import ADDON, load_source
 from nvda_stubs import StubModules
 from test_f4_voice_state import RecordingCore, _create_voices, _load_voice_manager
 from test_worldvoice_lifecycle import init_policies
 from voice_binding_harness import bind_core
 from waiting import stays_unset
 
-PRESENTER = "addon/globalPlugins/WorldVoice/rolePresenter.py"
+PRESENTER = ADDON / "globalPlugins/WorldVoice/rolePresenter.py"
 
 
 def load_presenter(monkeypatch, runtime_settings):
@@ -23,11 +23,7 @@ def load_presenter(monkeypatch, runtime_settings):
 	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.runtime.settings", runtime_settings)
 	package = runtime_settings.__name__.rsplit(".", 2)[0]
 	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.roles", sys.modules[f"{package}.roles"])
-	spec = importlib.util.spec_from_file_location("role_presenter_under_test", PRESENTER)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
-	return module.RolePanelPresenter
+	return load_source(monkeypatch, "role_presenter_under_test", PRESENTER).RolePanelPresenter
 
 
 @pytest.fixture

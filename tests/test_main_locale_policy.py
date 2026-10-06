@@ -1,22 +1,13 @@
 """The three KeepMainLocale* policies."""
 
-import importlib.util
-import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
+
+from addon_loader import WORLDVOICE, alias_package, load_source
 
 
 def load_policy(monkeypatch):
-	package = ModuleType("policy_pkg")
-	package.__path__ = ["addon/synthDrivers/WorldVoice"]
-	monkeypatch.setitem(sys.modules, "policy_pkg", package)
-	spec = importlib.util.spec_from_file_location(
-		"policy_pkg.mainLocalePolicy",
-		"addon/synthDrivers/WorldVoice/mainLocalePolicy.py",
-	)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
-	return module
+	alias_package(monkeypatch, "policy_pkg", WORLDVOICE)
+	return load_source(monkeypatch, "policy_pkg.mainLocalePolicy", WORLDVOICE / "mainLocalePolicy.py")
 
 
 def flags(**values):

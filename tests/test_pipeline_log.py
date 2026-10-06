@@ -1,18 +1,17 @@
 """Pipeline log switching is shared by the plugin scripts and the log panel."""
 
 import ast
-import importlib.util
 import sys
 import types
 from pathlib import Path
 
 import pytest
+from addon_loader import ADDON, WORLDVOICE, load_source
 from nvda_stubs import StubModules
 
-ROOT = Path(__file__).resolve().parents[1]
-LOG = ROOT / "addon/synthDrivers/WorldVoice/log.py"
-SERVICE = ROOT / "addon/globalPlugins/WorldVoice/pipelineLog.py"
-PANEL = ROOT / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
+LOG = WORLDVOICE / "log.py"
+SERVICE = ADDON / "globalPlugins/WorldVoice/pipelineLog.py"
+PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 
 
 def load_service(monkeypatch, answers=None):
@@ -39,10 +38,7 @@ def load_service(monkeypatch, answers=None):
 	for name, namespace in stubs.items():
 		modules.module(name, **vars(namespace))
 	modules.translation()
-	spec = importlib.util.spec_from_file_location("pipeline_log_under_test", SERVICE)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
+	module = load_source(monkeypatch, "pipeline_log_under_test", SERVICE)
 	return module, sys.modules["config"].conf, asked
 
 
@@ -100,10 +96,7 @@ def test_log_panel_no_unticks_enable(monkeypatch):
 
 @pytest.fixture
 def log_module(monkeypatch, tmp_path):
-	spec = importlib.util.spec_from_file_location("worldvoice_log_under_test", LOG)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
+	module = load_source(monkeypatch, "worldvoice_log_under_test", LOG)
 	monkeypatch.setattr(module, "log_dir", tmp_path / "missing" / "log")
 	return module
 

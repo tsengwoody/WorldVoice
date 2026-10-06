@@ -1,19 +1,16 @@
 """One extraction routine serves installation and the Import menu."""
 
 import ast
-import importlib.util
-import sys
 import types
-from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
 import pytest
+from addon_loader import ADDON, load_source
 from nvda_stubs import StubModules
 
-ROOT = Path(__file__).resolve().parents[1]
-ARCHIVE = ROOT / "addon/generics/coreArchive.py"
-INSTALL = ROOT / "addon/installTasks.py"
-PLUGIN = ROOT / "addon/globalPlugins/WorldVoice/__init__.py"
+ARCHIVE = ADDON / "generics/coreArchive.py"
+INSTALL = ADDON / "installTasks.py"
+PLUGIN = ADDON / "globalPlugins/WorldVoice/__init__.py"
 
 
 def load(path, name, monkeypatch, logged):
@@ -26,11 +23,7 @@ def load(path, name, monkeypatch, logged):
 			exception=lambda *a: logged.append(("exception",) + a),
 		),
 	)
-	spec = importlib.util.spec_from_file_location(name, path)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, name, path)
 
 
 def make_zip(path, **members):
@@ -83,7 +76,7 @@ def test_install_always_removes_the_archive(tmp_path, monkeypatch, corrupt):
 	assert any(entry[0] == "error" for entry in logged) is corrupt
 
 
-def test_menu_import_reports_a_corrupt_archive(tmp_path):
+def test_menu_import_reports_a_corrupt_archive(monkeypatch, tmp_path):
 	tree = ast.parse(PLUGIN.read_text(encoding="utf-8"))
 	plugin = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "GlobalPlugin")
 	method = next(n for n in plugin.body if isinstance(n, ast.FunctionDef) and n.name == "onFileImport")
@@ -121,7 +114,7 @@ def test_menu_import_reports_a_corrupt_archive(tmp_path):
 		"extract_core_archive": load(
 			ARCHIVE,
 			"core_archive_for_plugin",
-			pytest.MonkeyPatch(),
+			monkeypatch,
 			[],
 		).extract_core_archive,
 	}

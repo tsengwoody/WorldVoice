@@ -1,14 +1,12 @@
 """The language detection settings service: the only reader and writer of its five keys."""
 
-import importlib.util
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import WORLDVOICE, load_source
 from nvda_stubs import StubModules
 
-SETTINGS = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/languageDetection/settings.py"
+SETTINGS = WORLDVOICE / "languageDetection/settings.py"
 
 
 class RecordingSection(dict):
@@ -30,11 +28,7 @@ def load_settings_module(monkeypatch, conf=None, errors=None):
 			error=lambda *args, **kwargs: (errors if errors is not None else []).append(args),
 		),
 	)
-	spec = importlib.util.spec_from_file_location("detection_settings_under_test", SETTINGS)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, "detection_settings_under_test", SETTINGS)
 
 
 @pytest.fixture

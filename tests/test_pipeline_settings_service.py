@@ -1,11 +1,10 @@
 """The pipeline settings table, repository and service."""
 
-import importlib.util
-import sys
 from dataclasses import fields
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import WORLDVOICE, load_source
 from nvda_stubs import StubModules
 
 
@@ -22,14 +21,7 @@ def load_settings_module(monkeypatch, conf, errors=None):
 	synth_driver_handler = stubs.module("synthDriverHandler")
 	synth_driver_handler.getSynth = lambda: None
 	stubs.translation()
-	spec = importlib.util.spec_from_file_location(
-		"pipeline_settings_under_test",
-		"addon/synthDrivers/WorldVoice/pipeline/settings.py",
-	)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, "pipeline_settings_under_test", WORLDVOICE / "pipeline/settings.py")
 
 
 OLD_DEFAULTS = {

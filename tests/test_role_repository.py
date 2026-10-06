@@ -1,20 +1,11 @@
 """Role assignments live behind one repository."""
 
-import importlib.util
-import sys
-
 import pytest
+from addon_loader import WORLDVOICE, load_source
 
 
 def load_roles(monkeypatch):
-	spec = importlib.util.spec_from_file_location(
-		"roles_under_test",
-		"addon/synthDrivers/WorldVoice/roles.py",
-	)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, "roles_under_test", WORLDVOICE / "roles.py")
 
 
 class Section(dict):
