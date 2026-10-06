@@ -6,18 +6,16 @@ substituted. The native fake retains the constructor-installed fixed callback.
 
 import builtins
 import ctypes
-import importlib.util
 import io
 import sys
 import wave
-from pathlib import Path
 from threading import Condition, Event, Thread
 from types import SimpleNamespace
 
+from addon_loader import ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
 
-ROOT = Path(__file__).resolve().parents[1]
 NVDA = ROOT / "ref/nvda"
 VERSION = "source-DETACHED-9ef645d"
 
@@ -156,11 +154,7 @@ def load_onecore(monkeypatch, *, rt=None, scheduler=None, voice_base=object, com
 	module, package = stubs.module, stubs.package
 
 	def load(name, path):
-		spec = importlib.util.spec_from_file_location(name, path)
-		result = importlib.util.module_from_spec(spec)
-		monkeypatch.setitem(sys.modules, name, result)
-		spec.loader.exec_module(result)
-		return result
+		return load_source(monkeypatch, name, path)
 
 	class Base:
 		def __init__(self):

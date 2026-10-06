@@ -2,17 +2,14 @@
 
 import builtins
 import ctypes
-import importlib.util
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from threading import Condition, Event, current_thread
 from types import SimpleNamespace
 
+from addon_loader import ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class Player:
@@ -169,11 +166,7 @@ def load_espeak(monkeypatch, tmp_path, *, rt=None, scheduler=None, voice_base=ob
 	module, package = stubs.module, stubs.package
 
 	def load(name, path):
-		spec = importlib.util.spec_from_file_location(name, path)
-		result = importlib.util.module_from_spec(spec)
-		monkeypatch.setitem(sys.modules, name, result)
-		spec.loader.exec_module(result)
-		return result
+		return load_source(monkeypatch, name, path)
 
 	class BaseMeta(type):
 		def __new__(meta, name, bases, attrs):

@@ -1,17 +1,13 @@
 """Load the installed RHVoice wrapper with real inner code and fake external edges."""
 
 import ctypes
-import importlib.util
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 from threading import Condition, Event, Thread, current_thread
 from types import SimpleNamespace
 
+from addon_loader import ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class Player:
@@ -219,11 +215,7 @@ def load_rhvoice(monkeypatch, tmp_path):
 	module, package = stubs.module, stubs.package
 
 	def load(name, path):
-		spec = importlib.util.spec_from_file_location(name, path)
-		item = importlib.util.module_from_spec(spec)
-		monkeypatch.setitem(sys.modules, name, item)
-		spec.loader.exec_module(item)
-		return item
+		return load_source(monkeypatch, name, path)
 
 	class BaseMeta(type):
 		def __new__(meta, name, bases, attrs):

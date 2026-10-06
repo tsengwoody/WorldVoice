@@ -1,11 +1,10 @@
 import builtins
 import ctypes
-import importlib.util
 import sys
 import threading
 import types
-from pathlib import Path
 
+from addon_loader import WORLDVOICE, load_source
 from nvda_stubs import StubModules
 
 
@@ -45,7 +44,7 @@ def load_real_driver_with_native_stubs(
 	commands=None,
 	property_setters=False,
 ):
-	root = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
+	root = WORLDVOICE / "driver"
 	engine_path = root / engine
 	native_name = "ve2" if engine == "VE" else "ttsapi"
 	stubs = StubModules(monkeypatch)
@@ -154,23 +153,17 @@ def load_real_driver_with_native_stubs(
 	module("synthDrivers.WorldVoice.text.chunker", split_speech_text_pieces=lambda text: [text])
 	monkeypatch.setattr(builtins, "_", lambda value: value, raising=False)
 
-	def load(name, path, is_package=False):
-		spec = importlib.util.spec_from_file_location(
-			name,
-			path,
-			submodule_search_locations=[str(path.parent)] if is_package else None,
-		)
-		loaded = importlib.util.module_from_spec(spec)
-		monkeypatch.setitem(sys.modules, name, loaded)
-		spec.loader.exec_module(loaded)
-		return loaded
-
-	original = load(
+	# Both files are package __init__ modules, so each loads as a package.
+	original = load_source(
+		monkeypatch,
 		f"synthDrivers.WorldVoice.driver.{engine}.driver",
 		engine_path / "driver/__init__.py",
-		True,
 	)
-	wrapped = load(f"synthDrivers.WorldVoice.driver.{engine}", engine_path / "__init__.py", True)
+	wrapped = load_source(
+		monkeypatch,
+		f"synthDrivers.WorldVoice.driver.{engine}",
+		engine_path / "__init__.py",
+	)
 
 	native = getattr(original, native_name)
 	opened = []
