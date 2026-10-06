@@ -1,5 +1,7 @@
 """Hygiene rules that ruff alone does not express."""
 
+import ast
+import functools
 import re
 import shutil
 import subprocess
@@ -72,8 +74,6 @@ def test_pre_commit_hooks_cover_the_addon_and_the_tests():
 def test_generics_is_imported_only_after_the_package_that_adds_its_path():
 	# `generics` lives at the add-on root, which only the WorldVoice synth
 	# package adds to sys.path; import sorting must not move it first.
-	import ast
-
 	for path in _addon_sources():
 		tree = ast.parse(path.read_text(encoding="utf-8"))
 		imports = [
@@ -112,7 +112,6 @@ _REASONS = (
 
 def _own_body(handler):
 	"""The handler's statements, without the bodies of handlers nested inside it."""
-	import ast
 	import copy
 
 	body = copy.deepcopy(handler.body)
@@ -124,8 +123,6 @@ def _own_body(handler):
 
 
 def test_blind_except_reasons_match_their_handlers():
-	import ast
-
 	wrong = []
 	for path in _addon_sources():
 		source = path.read_text(encoding="utf-8")
@@ -143,15 +140,21 @@ def test_blind_except_reasons_match_their_handlers():
 	assert wrong == []
 
 
+@functools.cache
+def _test_sources():
+	# Both scans below walk every test file; parse each once per run.
+	return tuple(
+		(path, ast.parse(path.read_text(encoding="utf-8"))) for path in (ROOT / "tests").glob("*.py")
+	)
+
+
 def test_only_the_addon_loader_loads_modules_from_files():
 	# Tests load add-on files through tests/addon_loader.py, so the loading steps have one copy.
-	import ast
-
 	loaders = []
-	for path in (ROOT / "tests").glob("*.py"):
+	for path, tree in _test_sources():
 		if path.name == "addon_loader.py":
 			continue
-		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+		for node in ast.walk(tree):
 			name = getattr(node, "attr", None) or (node.name if isinstance(node, ast.alias) else None)
 			if name == "spec_from_file_location":
 				loaders.append(f"{path.name}:{node.lineno}")
@@ -161,11 +164,9 @@ def test_only_the_addon_loader_loads_modules_from_files():
 def test_no_test_module_imports_another():
 	# Shared helpers live in harness modules and fixtures in conftest.py; pytest collects test
 	# modules, so a helper kept in one is hard to find and is loaded under two names.
-	import ast
-
 	imports = []
-	for path in (ROOT / "tests").glob("*.py"):
-		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+	for path, tree in _test_sources():
+		for node in ast.walk(tree):
 			if isinstance(node, ast.ImportFrom):
 				names = [node.module or ""]
 			elif isinstance(node, ast.Import):
