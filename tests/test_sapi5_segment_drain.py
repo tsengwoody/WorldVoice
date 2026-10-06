@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from sapi5_drain_harness import load_sapi5
-from waiting import eventually, stays_false, stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ def speak(env, segment=17, commands=None, sink=None):
 
 def wait_event(events):
 	with events.condition:
-		assert events.condition.wait_for(lambda: bool(events), 2), "No terminal event delivered"
+		assert events.condition.wait_for(lambda: bool(events), WAIT_TIMEOUT), "No terminal event delivered"
 		assert len(events) == 1
 		return events[0]
 
@@ -66,13 +66,13 @@ def test_sapi5_wasapi_shared_lifecycle_waits_for_endstream_pcm_and_idle(env):
 		daemon=True,
 	)
 	pcm.start()
-	assert env.player.feed_entered.wait(1)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	env.native.end()
 	assert events == [] and not env.player.idle_entered.is_set()
 	env.player.feed_release.set()
-	pcm.join(2)
+	pcm.join(WAIT_TIMEOUT)
 	assert not pcm.is_alive()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	assert events == []
 	env.player.idle_release.set()
 	event = wait_event(events)
@@ -90,13 +90,13 @@ def test_sapi5_shared_cancel_blocks_request_handoff(env):
 		daemon=True,
 	)
 	pcm.start()
-	assert env.player.feed_entered.wait(1)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	_, context, next_events = speak(env, segment=18, commands=("next", env.commands.IndexCommand(9)))
 	env.native.end(1)
 	assert len(env.native.calls) == 1 and next_events == []
 	env.player.feed_release.set()
-	pcm.join(2)
+	pcm.join(WAIT_TIMEOUT)
 	assert not pcm.is_alive()
 	env.native.wait_calls(2)
 	env.native.end(1)
@@ -112,7 +112,7 @@ def test_end_stream_waits_for_actual_idle_and_preserves_tail_indexes(env):
 	_, context, events = speak(env)
 	env.native.wait_calls(1)
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	assert events == []
 	assert env.indexes == [7]
 	assert env.player.fed == [6]
@@ -162,7 +162,7 @@ def test_empty_audio_still_requires_idle(env):
 	_, _, events = speak(env, commands=("",))
 	env.native.wait_calls(1)
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	assert events == []
 	env.player.idle_release.set()
 	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
@@ -173,7 +173,7 @@ def test_cancel_during_idle_cannot_publish_success(env, token_only):
 	token, _, events = speak(env)
 	env.native.wait_calls(1)
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	if token_only:
 		token.cancel()
 		env.player.idle_release.set()
@@ -213,7 +213,7 @@ def test_queued_segments_each_idle_before_exact_completion(env):
 	_, second, second_events = speak(env, segment=18)
 	env.native.wait_calls(1)
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	assert len(env.native.calls) == 1 and first_events == []
 	env.player.idle_release.set()
 	first_event = wait_event(first_events)
@@ -243,7 +243,7 @@ def test_completion_sink_can_terminate_without_joining_worker_itself(env):
 	worker = env.native.calls[0][2]
 	env.player.idle_release.set()
 	env.native.end()
-	assert done.wait(2), "Termination deadlocked completion delivery"
+	assert done.wait(WAIT_TIMEOUT), "Termination deadlocked completion delivery"
 	assert errors == []
 	assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert delivery_threads[0] is not worker
@@ -289,7 +289,7 @@ def test_ordinary_speech_keeps_legacy_notifications_and_indexes(env):
 	env.native.wait_calls(1)
 	env.player.idle_release.set()
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	assert env.indexes == [7, 9]
 	assert env.dones == [env.driver]
 
@@ -354,7 +354,7 @@ def test_token_cancel_context_queued_behind_ordinary_speech_retires(env, monkeyp
 
 	monkeypatch.setattr(env.driver._segmentHost, "submit_native", observed_submit)
 	token, _, old_events = speak(env)
-	assert admitted.wait(1)
+	assert admitted.wait(WAIT_TIMEOUT)
 	token.cancel()
 	env.player.idle_release.set()
 	env.native.end(1)
@@ -384,12 +384,12 @@ def test_cancel_stops_player_while_final_idle_is_blocked(env, monkeypatch):
 	_, _, events = speak(env)
 	env.native.wait_calls(1)
 	env.native.end()
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	finished = Event()
 	cancellation = Thread(target=lambda: (env.driver.cancel(), finished.set()), daemon=True)
 	cancellation.start()
 	try:
-		assert stop_called.wait(1), "Cancel could not stop the player during idle"
+		assert stop_called.wait(WAIT_TIMEOUT), "Cancel could not stop the player during idle"
 	finally:
 		env.player.idle_release.set()
 		cancellation.join(2)
@@ -410,12 +410,12 @@ def test_old_endstream_before_new_speak_returns_cannot_bind_successor(env, monke
 		if text is not None and stream == 2:
 			env.native.end(1)
 			injected.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		return stream
 
 	monkeypatch.setattr(env.native, "Speak", delayed_speak)
 	_, context, successor = speak(env, segment=18)
-	assert injected.wait(1)
+	assert injected.wait(WAIT_TIMEOUT)
 	try:
 		assert successor == []
 	finally:
@@ -432,7 +432,7 @@ def test_cancel_during_terminal_commit_allows_successor_after_commit(env, monkey
 
 	def blocked_complete(work):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		return complete(work)
 
 	monkeypatch.setattr(env.rt.playback_work.PlaybackWork, "complete_drained", blocked_complete)
@@ -440,13 +440,13 @@ def test_cancel_during_terminal_commit_allows_successor_after_commit(env, monkey
 	env.native.wait_calls(1)
 	env.player.idle_release.set()
 	env.native.end()
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	cancelled = Event()
 	cancel_thread = Thread(target=lambda: (env.driver.cancel(), cancelled.set()), daemon=True)
 	cancel_thread.start()
 	stays_unset(cancelled)
 	release.set()
-	cancel_thread.join(2)
+	cancel_thread.join(WAIT_TIMEOUT)
 	assert cancelled.is_set()
 	env.native.wait_purge()
 	_, _, successor = speak(env, segment=18)
@@ -470,13 +470,13 @@ def test_cancel_waits_for_admitted_feed_final_stop_before_successor(env):
 
 	callback = Thread(target=write, daemon=True)
 	callback.start()
-	assert env.player.feed_entered.wait(1)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	_, _, events = speak(env, segment=18)
 	assert len(env.native.calls) == 1
 	stops = env.player.stops
 	env.player.feed_release.set()
-	callback.join(2)
+	callback.join(WAIT_TIMEOUT)
 	assert not callback.is_alive() and failures == []
 	env.native.wait_calls(2)
 	assert env.player.stops > stops
@@ -568,7 +568,7 @@ def test_tail_bookmarks_keep_order_when_player_callbacks_are_delayed(env):
 	env.native.wait_calls(1)
 	env.native.sink.Bookmark(1, 0, "7", 7)
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	assert env.indexes == [7, 9]
 	env.player.idle_release.set()
 	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
@@ -596,14 +596,14 @@ def test_termination_waits_for_admitted_feed_final_stop(env):
 		daemon=True,
 	)
 	callback.start()
-	assert env.player.feed_entered.wait(1)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	stopped = Event()
 	termination = Thread(target=lambda: (env.driver.terminate(), stopped.set()), daemon=True)
 	termination.start()
 	stays_unset(stopped)
 	env.player.feed_release.set()
-	callback.join(2)
-	termination.join(2)
+	callback.join(WAIT_TIMEOUT)
+	termination.join(WAIT_TIMEOUT)
 	assert not callback.is_alive() and not termination.is_alive()
 	assert stopped.is_set() and env.player.closed
 	assert events == []
@@ -620,19 +620,19 @@ def test_tail_indexes_do_not_overtake_an_admitted_bookmark_notification(env, mon
 	def blocked_notify(**kwargs):
 		if kwargs["index"] == 7:
 			entered.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		notify(**kwargs)
 
 	monkeypatch.setattr(notification, "notify", blocked_notify)
 	callback = Thread(target=env.player.callbacks[0], daemon=True)
 	callback.start()
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	env.player.idle_release.set()
 	env.native.end()
 	# Tail notification must await the already admitted ordinary bookmark.
 	stays_unset(env.player.idle_entered)
 	release.set()
-	callback.join(2)
+	callback.join(WAIT_TIMEOUT)
 	assert not callback.is_alive()
 	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert env.indexes == [7, 9]
@@ -679,7 +679,7 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
 	def held_pcm_feed(data, size=None, onDone=None):
 		if current_thread() is callback_thread:
 			admitted.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 			if feed_fails:
 				raise OSError("admitted PCM feed failed")
 		return feed(data, size, onDone)
@@ -694,7 +694,7 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
 
 	callback_thread = Thread(target=write, daemon=True)
 	callback_thread.start()
-	assert admitted.wait(1)
+	assert admitted.wait(WAIT_TIMEOUT)
 	env.player.idle_release.set()
 	env.native.end()
 	try:
@@ -719,7 +719,7 @@ def test_pcm_arriving_after_final_idle_cannot_feed_the_completed_segment(env):
 	_, _, events = speak(env)
 	env.native.wait_calls(1)
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	before = tuple(env.player.fed)
 	env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
 	assert tuple(env.player.fed) == before
@@ -755,7 +755,7 @@ def test_admitted_com_sonic_operation_retires_before_final_tail_and_idle(env, mo
 
 	def blocked_write(*args):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		return write(*args)
 
 	monkeypatch.setattr(env.driver.sonicStream, "writeShort", blocked_write)
@@ -769,7 +769,7 @@ def test_admitted_com_sonic_operation_retires_before_final_tail_and_idle(env, mo
 
 	callback = Thread(target=write_pcm, daemon=True)
 	callback.start()
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	env.native.end()
 	env.player.idle_release.set()
 	try:
@@ -819,7 +819,7 @@ def test_token_cancel_retires_sonic_tail_and_bookmarks_before_successors(env):
 
 	notification.notify = observed_done
 	env.native.end(3)
-	assert done.wait(1)
+	assert done.wait(WAIT_TIMEOUT)
 	assert env.indexes == [9, 11]
 	assert env.player.fed == [2, 0]
 	assert old_events == []
@@ -862,7 +862,7 @@ def test_admitted_old_end_callback_cannot_complete_reloaded_successor(env, monke
 	def blocked_lookup(stream):
 		result = lookup(stream)
 		admitted.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		return result
 
 	monkeypatch.setattr(old_sink, "_native", blocked_lookup)
@@ -876,13 +876,13 @@ def test_admitted_old_end_callback_cannot_complete_reloaded_successor(env, monke
 
 	callback = Thread(target=old_end, daemon=True)
 	callback.start()
-	assert admitted.wait(1)
+	assert admitted.wait(WAIT_TIMEOUT)
 	env.driver.voice = "voice"
 	native, player = env.natives[-1], env.players[-1]
 	_, _, events = speak(env, segment=18)
 	native.wait_calls(1)
 	release.set()
-	callback.join(2)
+	callback.join(WAIT_TIMEOUT)
 	assert not callback.is_alive() and errors == []
 	stays_false(events.condition, lambda: bool(events), message="Old end completed replacement work")
 	assert old_events == []
@@ -901,7 +901,7 @@ def test_voice_reload_retires_ordinary_pcm_callback_before_replacing_audio(env, 
 	def blocked_write(audio, *args):
 		if audio is old_audio:
 			admitted.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		return original_write(audio, *args)
 
 	monkeypatch.setattr(env.base.SynthDriverAudioStream, "ISequentialStream_RemoteWrite", blocked_write)
@@ -915,7 +915,7 @@ def test_voice_reload_retires_ordinary_pcm_callback_before_replacing_audio(env, 
 
 	callback = Thread(target=write_pcm, daemon=True)
 	callback.start()
-	assert admitted.wait(1)
+	assert admitted.wait(WAIT_TIMEOUT)
 	reloaded = Event()
 
 	def reload():
@@ -957,7 +957,7 @@ def test_cancelled_ordinary_pcm_feed_stops_again_before_successor_admission(env,
 	def blocked_feed(data, size=None, onDone=None):
 		if current_thread() is callback:
 			admitted.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		return feed(data, size, onDone)
 
 	monkeypatch.setattr(env.player, "feed", blocked_feed)
@@ -970,7 +970,7 @@ def test_cancelled_ordinary_pcm_feed_stops_again_before_successor_admission(env,
 
 	callback = Thread(target=write_pcm, daemon=True)
 	callback.start()
-	assert admitted.wait(1)
+	assert admitted.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	stops_after_cancel = env.player.stops
 	_, _, events = speak(env, segment=18, commands=("next", env.commands.IndexCommand(9)))
@@ -1019,7 +1019,7 @@ def test_ordinary_speak_fails_fast_after_cancel_purge_fault_even_if_purge_recove
 	env.native.wait_calls(1)
 	env.native.purge_error = True
 	env.driver.cancel()
-	env.driver._thread.join(2)
+	env.driver._thread.join(WAIT_TIMEOUT)
 	assert not env.driver._thread.is_alive()
 	env.native.purge_error = None
 	with pytest.raises(OSError, match="purge failed"):
@@ -1044,7 +1044,7 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env, monkeypatch):
 	_, context, events = speak(env)
 	env.native.wait_calls(1)
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
 	assert len(env.native.calls) == 1, "Ordinary speech entered native during the final idle"
 	assert len(env.driver._speakRequests) == 1
@@ -1068,7 +1068,7 @@ def test_completed_ordinary_speech_does_not_stop_the_player(env):
 	env.driver.speak(("first", env.commands.IndexCommand(7)))
 	env.native.wait_calls(1)
 	env.native.end()
-	assert env.player.idle_entered.wait(1)
+	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	env.driver.speak(("second", env.commands.IndexCommand(9)))
 	env.native.wait_calls(2)
 	env.native.end(2)
@@ -1123,12 +1123,12 @@ def test_hook_fault_after_binding_does_not_strand_the_worker(monkeypatch):
 		ordinary = Thread(target=lambda: env.driver.speak(("ordinary",)), daemon=True)
 		ordinary.start()
 		with env.native.condition:
-			reached = env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 1)
+			reached = env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, WAIT_TIMEOUT)
 		assert reached, "ordinary speech never reached native after the hook fault"
 		env.native.end(2)
 		terminated = Thread(target=env.driver.terminate, daemon=True)
 		terminated.start()
-		terminated.join(2)
+		terminated.join(WAIT_TIMEOUT)
 		assert not terminated.is_alive(), "terminate() hung on the stranded worker"
 	finally:
 		for player in env.players:
@@ -1178,12 +1178,12 @@ def test_stop_failure_after_an_invalidated_feed_latches(env):
 	callback = Thread(target=write_pcm, daemon=True)
 	env.player.feed_entered.clear()
 	callback.start()
-	assert env.player.feed_entered.wait(2)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	# The admitted feed now returns into an invalid record; its final stop fails.
 	env.player.stop_error = True
 	env.player.feed_release.set()
-	callback.join(2)
+	callback.join(WAIT_TIMEOUT)
 	env.player.stop_error = None
 	assert not callback.is_alive()
 	assert [str(error) for error in failures] == ["stop failed"]
