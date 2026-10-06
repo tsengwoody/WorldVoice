@@ -86,6 +86,13 @@ class _CerencePort:
 	INNER_OVERRIDES = frozenset({"_speak", "_onIndexReached"})
 
 
+class _ThreadState(threading.local):
+	"""Per-thread re-entry state; every thread starts outside callbacks, players and cleanup."""
+
+	depth = 0
+	cleaning = False
+
+
 class _SilenceGate(threading.Event):
 	def __init__(self):
 		super().__init__()
@@ -391,9 +398,9 @@ class SynthDriver(BaseSynthDriver):
 		self._pauseRevision = 0
 		self._pauses = 0
 		self._terminated = False
-		self._callbackLocal = threading.local()
-		self._playerLocal = threading.local()
-		self._terminationLocal = threading.local()
+		self._callbackLocal = _ThreadState()
+		self._playerLocal = _ThreadState()
+		self._terminationLocal = _ThreadState()
 		self._playerClosing = False
 		self._terminationRequested = False
 		self._terminationCleaning = False
@@ -677,7 +684,7 @@ class SynthDriver(BaseSynthDriver):
 			if admitted is None or not self._record_valid(record):
 				yield None, call
 				return
-			self._callbackLocal.depth = getattr(self._callbackLocal, "depth", 0) + 1
+			self._callbackLocal.depth += 1
 			try:
 				with host.bound_callback(record):
 					yield record, call
@@ -706,7 +713,7 @@ class SynthDriver(BaseSynthDriver):
 
 	@contextmanager
 	def _player_operation(self):
-		self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
+		self._playerLocal.depth += 1
 		try:
 			yield
 		finally:
@@ -745,7 +752,7 @@ class SynthDriver(BaseSynthDriver):
 						call.admitting = False
 					self._stopGate.enter()
 					entered = True
-					self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
+					self._playerLocal.depth += 1
 					self._speechStateLock.notify_all()
 				for record in dropped:
 					host.abandon(record)
@@ -828,7 +835,7 @@ class SynthDriver(BaseSynthDriver):
 			self._paused = switch
 			self._pauseRevision += 1
 			self._pauses += 1
-			self._playerLocal.depth = getattr(self._playerLocal, "depth", 0) + 1
+			self._playerLocal.depth += 1
 			self._speechStateLock.notify_all()
 		try:
 			while True:
@@ -876,9 +883,9 @@ class SynthDriver(BaseSynthDriver):
 
 	def _is_reentrant_termination(self):
 		return bool(
-			getattr(self._callbackLocal, "depth", 0)
-			or getattr(self._playerLocal, "depth", 0)
-			or getattr(self._terminationLocal, "cleaning", False)
+			self._callbackLocal.depth
+			or self._playerLocal.depth
+			or self._terminationLocal.cleaning
 			or threading.current_thread() is self._bgThread,
 		)
 
