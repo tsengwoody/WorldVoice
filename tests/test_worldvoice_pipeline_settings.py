@@ -1,13 +1,11 @@
 """The WorldVoice synth exposes pipeline settings stored only in the pipeline config."""
 
 import ast
-from pathlib import Path
 import types
+from pathlib import Path
 
 import pytest
-
 from test_pipeline_settings_service import load_settings_module
-
 
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
 
@@ -173,12 +171,11 @@ def test_load_settings_reapplies_waitfactor_without_writing_pipeline(monkeypatch
 	synth_class, _ = load_synth(monkeypatch, conf)
 	synth = object.__new__(synth_class)
 	writes = []
+	recorded = []
 
 	class Manager:
-		recorded = []
-
 		def reload(self):
-			self.recorded.append(("reload", list(writes)))
+			recorded.append(("reload", list(writes)))
 
 		@property
 		def waitfactor(self):
@@ -192,7 +189,7 @@ def test_load_settings_reapplies_waitfactor_without_writing_pipeline(monkeypatch
 	synth.loadSettings(onlyChanged=True)
 	# Re-applied even though the value did not change, and before voices reload.
 	assert writes == [0]
-	assert synth._voiceManager.recorded == [("reload", [0])]
+	assert recorded == [("reload", [0])]
 
 
 def test_global_wait_change_reaches_the_voice_manager(monkeypatch):

@@ -1,7 +1,6 @@
 from types import SimpleNamespace
 
 import pytest
-
 from runtime_harness import MemoryRepository, make_spec
 
 

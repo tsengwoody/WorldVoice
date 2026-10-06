@@ -5,7 +5,6 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
-
 from runtime_harness import RUNTIME
 
 

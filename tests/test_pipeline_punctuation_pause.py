@@ -1,8 +1,8 @@
+import importlib.util
+import sys
 from types import SimpleNamespace
 
 from nvda_stubs import StubModules
-import importlib.util
-import sys
 
 
 class FakeSpeechSequenceFilter:

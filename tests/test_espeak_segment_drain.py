@@ -1,11 +1,10 @@
 """eSpeak drain requires callback idle and FIFO native retirement."""
 
-from threading import Event, current_thread, get_ident
 import importlib
 import sys
+from threading import Event, current_thread, get_ident
 
 import pytest
-
 from espeak_drain_harness import finish, load_espeak, speak, wait_event
 from waiting import quiet_period
 

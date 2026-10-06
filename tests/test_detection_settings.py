@@ -1,12 +1,11 @@
 """The language detection settings service: the only reader and writer of its five keys."""
 
 import importlib.util
-from pathlib import Path
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from nvda_stubs import StubModules
 
 SETTINGS = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/languageDetection/settings.py"

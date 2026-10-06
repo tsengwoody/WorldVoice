@@ -1,7 +1,7 @@
 import ast
-from pathlib import Path
-from dataclasses import replace
 import types
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
@@ -58,7 +58,7 @@ def test_variant_default_is_recaptured_for_rebuilt_core(monkeypatch, engine, sna
 			availableVariants={"plain": object(), "warm": object()},
 			_bgQueue=types.SimpleNamespace(put=lambda task: task()),
 			getVoiceInstance=lambda voice_id: f"native:{voice_id}",
-			getParameter=lambda instance, parameter, type_: native_default,
+			getParameter=lambda instance, parameter, type_, default=native_default: default,
 		)
 		adapter.applyEngineSettings(core, snap("a", 0))
 	assert writes == [("native:a", "plain"), ("native:a", "warm")]

@@ -15,7 +15,6 @@ from test_vocalizer_segment_drain import emit
 from test_worldvoice_request_builder import EventStub
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
-
 PACKAGE = "synthDrivers.WorldVoice"
 ENGINES = ("OneCore", "VE", "Cerence")
 

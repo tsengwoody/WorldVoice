@@ -5,7 +5,6 @@ from concurrent.futures import CancelledError
 from threading import Event, Lock, Thread
 
 import pytest
-
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
 from waiting import stays_unset
 
@@ -93,7 +92,7 @@ def test_synchronous_done_advances_only_after_speak_returns(manager, port, outpu
 
 
 def test_wrong_source_event_cannot_release_current_segment(manager, port, output, rt):
-	request, future = speech(manager, port)
+	_request, future = speech(manager, port)
 	wrong = FakePlayback()
 	event(manager, rt, wrong)
 	event(manager, rt, wrong, "INDEX", 7)
@@ -285,10 +284,10 @@ def test_shutdown_rejects_new_request(manager, scheduler, port):
 
 
 def test_old_epoch_events_are_discarded(manager, port, output, rt):
-	old, old_future = speech(manager, port)
+	_old, old_future = speech(manager, port)
 	manager.cancel([port])
 	other = FakePlayback()
-	new, new_future = speech(manager, other)
+	_new, new_future = speech(manager, other)
 	event(manager, rt, port)
 	event(manager, rt, port, "INDEX", 9)
 	assert not new_future.done()
@@ -420,7 +419,7 @@ def test_cancel_during_speak_stops_again_and_discards_synchronous_done(manager, 
 
 	port.on_speak = speak_done
 	try:
-		request, future = speech(manager, port)
+		_request, future = speech(manager, port)
 		assert entered.wait(1)
 		manager.cancel([port])
 	finally:
@@ -448,7 +447,7 @@ def test_pending_speech_is_cancelled_but_new_request_runs(manager, port, rt):
 
 
 def test_cancel_current_preserves_queued_request_and_gates_stop(manager, port, rt, output):
-	request, future = speech(manager, port)
+	_request, future = speech(manager, port)
 	entered, release = Event(), Event()
 	other = FakePlayback()
 	new = manager.new_request()
@@ -546,7 +545,7 @@ def test_abort_and_cancel_building_callbacks_run_outside_state_lock(manager, por
 		future = manager.append_speech(request, port, "Fake:a", ())
 		completed = Event()
 
-		def callback(_):
+		def callback(_, completed=completed):
 			thread = Thread(target=lambda: (manager.new_request(), completed.set()))
 			thread.start()
 			thread.join(1)

@@ -45,7 +45,7 @@ def test_primary_locale(monkeypatch):
 
 
 def test_voice_for_prefers_exact_then_primary_locale(roles):
-	module, conf, repository = roles
+	_module, conf, repository = roles
 	conf["WorldVoice"]["role"]["zh_TW"] = Section(voice="C:tw")
 	assert repository.voice_for("zh_TW") == "C:tw"
 	assert repository.voice_for("zh_CN") == "B:zh"
@@ -65,7 +65,7 @@ def test_save_rewrites_sections_and_keeps_scalars(roles):
 
 
 def test_assign_adds_or_replaces_one_locale(roles):
-	_, conf, repository = roles
+	_, _conf, repository = roles
 	repository.assign("zh", "C:zh")
 	assert repository.assignments() == {"en": "A:en", "zh": "C:zh"}
 

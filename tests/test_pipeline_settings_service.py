@@ -1,12 +1,11 @@
 """The pipeline settings table, repository and service."""
 
-from dataclasses import fields
 import importlib.util
 import sys
+from dataclasses import fields
 from types import SimpleNamespace
 
 import pytest
-
 from nvda_stubs import StubModules
 
 
@@ -92,11 +91,11 @@ def test_get_reads_defaults_and_current_profile(monkeypatch):
 
 
 def test_update_converts_normalizes_and_writes_only_changes(monkeypatch):
-	class Section(dict):
-		writes = []
+	writes = []
 
+	class Section(dict):
 		def __setitem__(self, key, value):
-			Section.writes.append((key, value))
+			writes.append((key, value))
 			super().__setitem__(key, value)
 
 	conf = {"WorldVoice": {"pipeline": Section()}}
@@ -109,7 +108,7 @@ def test_update_converts_normalizes_and_writes_only_changes(monkeypatch):
 		punctuation_pause_characters="  .,  ",
 	)
 
-	assert Section.writes == [("global_wait_factor", 50), ("punctuation_pause_characters", ".,")]
+	assert writes == [("global_wait_factor", 50), ("punctuation_pause_characters", ".,")]
 	assert result.global_wait_factor == 50
 	assert result.punctuation_pause_characters == ".,"
 

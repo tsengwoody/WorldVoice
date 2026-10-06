@@ -3,10 +3,8 @@
 import importlib.util
 import sys
 from threading import Condition, Event, Thread
-from types import SimpleNamespace
 
 import pytest
-
 from runtime_harness import RUNTIME, load_runtime
 from waiting import stays_unset
 
@@ -29,10 +27,9 @@ def test_stop_gate_blocks_until_every_stop_returns(control):
 	entered, release, woke = Event(), Event(), Event()
 
 	def stopper():
-		with gate.hold():
-			with gate.hold():
-				entered.set()
-				release.wait(2)
+		with gate.hold(), gate.hold():
+			entered.set()
+			release.wait(2)
 
 	def worker():
 		with condition:
@@ -51,9 +48,8 @@ def test_stop_gate_blocks_until_every_stop_returns(control):
 
 def test_stop_gate_releases_after_an_error(control):
 	gate = control.StopGate(Condition())
-	with pytest.raises(OSError):
-		with gate.hold():
-			raise OSError("stop failed")
+	with pytest.raises(OSError), gate.hold():
+		raise OSError("stop failed")
 	assert gate.clear
 
 

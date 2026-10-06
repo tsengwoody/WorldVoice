@@ -1,7 +1,7 @@
 """Engines declare what they can do; nothing proves it by reflection or shares state on classes."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 ADDON = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 

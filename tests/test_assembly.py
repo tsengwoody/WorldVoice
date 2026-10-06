@@ -90,9 +90,8 @@ def test_timed_logs_label_and_seconds(assembly, monkeypatch):
 
 def test_timed_logs_and_reraises_on_failure(assembly):
 	log = Log()
-	with pytest.raises(ZeroDivisionError):
-		with assembly.timed(log, "step"):
-			1 / 0
+	with pytest.raises(ZeroDivisionError), assembly.timed(log, "step"):
+		raise ZeroDivisionError
 	assert [entry[1] for entry in log.debugs] == ["step"]
 
 

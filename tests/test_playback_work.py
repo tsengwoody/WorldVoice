@@ -3,7 +3,6 @@
 from threading import Barrier, Event, Thread
 
 import pytest
-
 from runtime_harness import load_scheduler
 from waiting import stays_unset
 
@@ -31,7 +30,7 @@ class ThreadCall:
 			self.started.set()
 			try:
 				self.result = function()
-			except BaseException as error:
+			except BaseException as error:  # noqa: BLE001 - kept and re-raised in the test thread
 				self.error = error
 			finally:
 				self.done.set()

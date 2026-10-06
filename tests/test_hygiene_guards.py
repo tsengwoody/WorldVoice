@@ -1,9 +1,9 @@
 """Hygiene rules that ruff alone does not express."""
 
-from pathlib import Path
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -50,6 +50,7 @@ def test_ruff_reports_nothing():
 		cwd=ROOT,
 		capture_output=True,
 		text=True,
+		check=False,
 	)
 	assert result.returncode == 0, result.stdout + result.stderr
 

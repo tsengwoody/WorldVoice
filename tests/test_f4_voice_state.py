@@ -4,8 +4,7 @@ import types
 from pathlib import Path
 
 from test_worldvoice_lifecycle import init_policies
-from voice_binding_harness import install_binding, bind_core
-
+from voice_binding_harness import bind_core, install_binding
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 

@@ -4,7 +4,6 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
-
 from runtime_harness import load_index_support
 
 

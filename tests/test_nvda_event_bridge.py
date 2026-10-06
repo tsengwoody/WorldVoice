@@ -2,12 +2,11 @@ import gc
 import importlib
 import importlib.util
 import sys
+import weakref
 from threading import Event, Thread
 from types import ModuleType, SimpleNamespace
-import weakref
 
 import pytest
-
 from runtime_harness import RUNTIME
 
 

@@ -1,11 +1,11 @@
 """Load the pure runtime without executing the WorldVoice/NVDA entry point."""
 
-import importlib.util
 import builtins
+import importlib.util
+import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-import sys
 from threading import Condition, Event
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING

@@ -1,11 +1,10 @@
 """WorldVoice's language command must survive NVDA's language-switching filters."""
 
 import importlib.util
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
-
 from nvda_stubs import StubModules
 
 ADDON = Path(__file__).resolve().parents[1] / "addon"

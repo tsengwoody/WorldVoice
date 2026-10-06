@@ -1,16 +1,15 @@
 """Production manager, facade, adapter, session and bridge composition."""
 
-from concurrent.futures import CancelledError
 import importlib
 import sys
 import threading
+from concurrent.futures import CancelledError
 from types import SimpleNamespace
 
 import pytest
-
-from runtime_harness import MemoryRepository
 from nvda_stubs import StubModules
-from test_worldvoice_lifecycle import _load_voice_manager, _load_synth_class, WORLDVOICE
+from runtime_harness import MemoryRepository
+from test_worldvoice_lifecycle import WORLDVOICE, _load_synth_class, _load_voice_manager
 from test_worldvoice_request_builder import EventStub
 
 
@@ -212,7 +211,7 @@ def test_each_opened_engine_is_one_engine_resource(composition):
 @pytest.mark.parametrize("failure", ["empty", "bind"])
 def test_initialization_failure_closes_without_commit(composition, failure):
 	c = composition
-	cls = c.engine("bad", empty=failure == "empty")
+	c.engine("bad", empty=failure == "empty")
 	if failure == "bind":
 		original = c.bridge.bind
 
@@ -609,7 +608,7 @@ def test_resource_bound_before_first_encoded_speech(composition, nvda_commands):
 
 def test_partial_bind_failure_releases_resources_without_commit(composition):
 	c = composition
-	cls = c.engine("marker")
+	c.engine("marker")
 	original = c.bridge.bind
 	source_ids = []
 
@@ -654,7 +653,7 @@ def test_shutdown_disables_late_index_before_engine_close(composition):
 
 def test_completion_selection_failure_closes_opened_core(composition):
 	c = composition
-	cls = c.engine("marker")
+	c.engine("marker")
 
 	def fail(cls, core):
 		raise RuntimeError("policy failure")

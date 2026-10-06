@@ -7,7 +7,6 @@ from concurrent.futures import CancelledError
 from pathlib import Path
 
 import pytest
-
 from waiting import stays_unset
 
 

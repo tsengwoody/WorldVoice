@@ -4,7 +4,6 @@ from concurrent.futures import CancelledError
 from threading import Event, Thread
 
 import pytest
-
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
 
 
@@ -412,7 +411,7 @@ def test_boundary_errors_do_not_leave_waits_or_kill_worker(manager, rt, output, 
 
 def test_marker_pause_cancel_current_and_future_callback(manager, rt, output):
 	port, other = marker(rt), marker(rt)
-	request, first = start(manager, port)
+	_request, first = start(manager, port)
 	next_request = manager.new_request()
 	next_future = manager.append_speech(next_request, other, "Fake:b", ())
 	manager.submit_request(next_request)

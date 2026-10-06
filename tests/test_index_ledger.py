@@ -1,14 +1,13 @@
 """Source-scoped wire indexes cannot be reused or complete the wrong segment."""
 
-from dataclasses import FrozenInstanceError
 import gc
 import importlib
 import sys
-from types import ModuleType, SimpleNamespace
 import weakref
+from dataclasses import FrozenInstanceError
+from types import ModuleType, SimpleNamespace
 
 import pytest
-
 from runtime_harness import RUNTIME, forbid_legacy_runtime_imports
 
 

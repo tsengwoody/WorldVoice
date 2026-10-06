@@ -56,7 +56,7 @@ def make_scope(monkeypatch, scope):
 
 
 def test_global_scope_all_registers_once_across_worldvoice_start_and_end(monkeypatch):
-	pipeline, settings, calls = make_scope(monkeypatch, "all")
+	pipeline, _settings, calls = make_scope(monkeypatch, "all")
 	pipeline.attach_global()
 	pipeline.worldvoice_started()
 	pipeline.worldvoice_ended()
@@ -67,7 +67,7 @@ def test_global_scope_all_registers_once_across_worldvoice_start_and_end(monkeyp
 
 
 def test_worldvoice_scope_registers_only_while_worldvoice_runs(monkeypatch):
-	pipeline, settings, calls = make_scope(monkeypatch, "WorldVoice")
+	pipeline, _settings, calls = make_scope(monkeypatch, "WorldVoice")
 	pipeline.attach_global()
 	assert calls == []
 	pipeline.worldvoice_started()
@@ -88,7 +88,7 @@ def test_scope_changes_apply_through_the_subscription(monkeypatch):
 
 
 def test_plugin_detach_keeps_running_worldvoice_registered(monkeypatch):
-	pipeline, settings, calls = make_scope(monkeypatch, "all")
+	pipeline, _settings, calls = make_scope(monkeypatch, "all")
 	pipeline.attach_global()
 	pipeline.worldvoice_started()
 	pipeline.detach_global()

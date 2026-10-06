@@ -1,12 +1,11 @@
 import ast
-from collections import OrderedDict
 import importlib.util
 import sys
 import types
+from collections import OrderedDict
 
 import pytest
-
-from test_worldvoice_lifecycle import _load_voice_manager, init_policies, WORLDVOICE
+from test_worldvoice_lifecycle import WORLDVOICE, _load_voice_manager, init_policies
 
 
 def _create_voices(monkeypatch, config):
@@ -79,7 +78,7 @@ def _synth_settings_class(config):
 
 
 def test_main_synth_settings_use_manager_capabilities_and_variants(monkeypatch):
-	manager, a, _, config = _editing_manager(monkeypatch)
+	manager, _a, _, config = _editing_manager(monkeypatch)
 	manager.getVoiceCapabilities = lambda key: types.SimpleNamespace(settings={"rateBoost", "inflection"})
 	manager.getVoiceVariants = lambda key: ({"id": "bright", "name": "Bright"},)
 	synth = _synth_settings_class(config)()

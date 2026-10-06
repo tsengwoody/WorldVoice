@@ -4,7 +4,6 @@ from concurrent.futures import CancelledError
 from contextlib import nullcontext
 
 import pytest
-
 from runtime_harness import assemble_adapter_contract, forbid_legacy_runtime_imports, submit_contract_request
 
 

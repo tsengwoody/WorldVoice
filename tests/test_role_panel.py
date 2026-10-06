@@ -1,11 +1,10 @@
 """The role panel turns a failed apply into NVDA's save-abort signal."""
 
 import ast
-from pathlib import Path
 import types
+from pathlib import Path
 
 import pytest
-
 
 PANEL = Path(__file__).resolve().parents[1] / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
 

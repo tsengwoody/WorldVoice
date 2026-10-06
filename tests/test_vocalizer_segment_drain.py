@@ -5,10 +5,9 @@ from threading import Event, Thread, current_thread
 from types import SimpleNamespace
 
 import pytest
-
-from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 from test_worldvoice_cancel_wrappers import Token, native_message
 from waiting import WAIT_TIMEOUT, eventually, stays_unset
+from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 
 @pytest.fixture(params=["VE", "Cerence"])
@@ -46,7 +45,7 @@ def run_thread(action):
 	def run():
 		try:
 			action()
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			errors.append(error)
 		finally:
 			done.set()
@@ -1051,7 +1050,7 @@ def test_callback_lease_holds_bookmark_handler_before_next_call(env, monkeypatch
 @pytest.mark.parametrize("kind", ["empty", "index", "break"])
 def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 	prove_fake_quiescence(env, monkeypatch)
-	import speech.commands as commands
+	from speech import commands
 
 	sequence = ()
 	if kind == "index":
@@ -1772,7 +1771,7 @@ def test_stop_player_failure_rejects_successor(env, monkeypatch):
 	with pytest.raises(OSError):
 		env.core._stop_player()
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
-	_, context, call = speak(env)
+	_, _context, call = speak(env)
 	finish(call)
 	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
 

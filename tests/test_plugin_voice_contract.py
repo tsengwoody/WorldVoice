@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from test_runtime_composition import composition  # noqa: F401 - pytest fixture
 
 ROOT = Path(__file__).resolve().parents[1]

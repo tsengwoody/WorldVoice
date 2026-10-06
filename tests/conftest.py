@@ -5,7 +5,6 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
-
 from nvda_stubs import StubModules
 from runtime_harness import RUNTIME, load_runtime
 
@@ -70,7 +69,7 @@ def nvda_commands(monkeypatch):
 	class IndexCommand(SynthCommand):
 		def __init__(self, index):
 			if not isinstance(index, int):
-				raise ValueError("index must be an integer")
+				raise ValueError("index must be an integer")  # noqa: TRY004 - NVDA's IndexCommand raises ValueError
 			self.index = index
 
 	class BreakCommand(SynthCommand):

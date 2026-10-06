@@ -3,16 +3,15 @@
 import builtins
 import ctypes
 import ctypes.wintypes
-from dataclasses import dataclass
 import importlib.util
-from pathlib import Path
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from threading import Condition, Event, Thread, current_thread
-from types import ModuleType, SimpleNamespace
-from nvda_stubs import StubModules
+from types import SimpleNamespace
 
 import pytest
-
+from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
 from waiting import eventually, stays_false, stays_unset
 
@@ -573,7 +572,7 @@ def test_completion_sink_can_terminate_without_joining_worker_itself(env):
 			delivery_threads.append(current_thread())
 			env.driver.terminate()
 			events.append(event)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			errors.append(error)
 		finally:
 			done.set()
@@ -805,7 +804,7 @@ def test_cancel_waits_for_admitted_feed_final_stop_before_successor(env):
 	def write():
 		try:
 			env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			failures.append(error)
 
 	callback = Thread(target=write, daemon=True)
@@ -848,7 +847,7 @@ def test_accepted_successor_receives_failure_after_playback_fault(env, monkeypat
 		raise RuntimeError("SAPI5 playback barrier failed")
 
 	monkeypatch.setattr(env.driver._segmentHost, "wait_playback_drained", failed_barrier)
-	_, first, old_events = speak(env)
+	_, _first, old_events = speak(env)
 	env.native.wait_calls(1)
 	_, successor, next_events = speak(env, segment=18)
 	env.player.idle_release.set()
@@ -1029,7 +1028,7 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
 	def write():
 		try:
 			env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			failures.append(error)
 
 	callback_thread = Thread(target=write, daemon=True)
@@ -1104,7 +1103,7 @@ def test_admitted_com_sonic_operation_retires_before_final_tail_and_idle(env, mo
 	def write_pcm():
 		try:
 			env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			failures.append(error)
 
 	callback = Thread(target=write_pcm, daemon=True)
@@ -1211,7 +1210,7 @@ def test_admitted_old_end_callback_cannot_complete_reloaded_successor(env, monke
 	def old_end():
 		try:
 			old_sink.EndStream(1, 0)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			errors.append(error)
 
 	callback = Thread(target=old_end, daemon=True)
@@ -1250,7 +1249,7 @@ def test_voice_reload_retires_ordinary_pcm_callback_before_replacing_audio(env, 
 	def write_pcm():
 		try:
 			old_audio.ISequentialStream_RemoteWrite(None, None, 8, None)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			errors.append(error)
 
 	callback = Thread(target=write_pcm, daemon=True)
@@ -1261,7 +1260,7 @@ def test_voice_reload_retires_ordinary_pcm_callback_before_replacing_audio(env, 
 	def reload():
 		try:
 			env.driver.voice = "voice"
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			errors.append(error)
 		finally:
 			reloaded.set()
@@ -1305,7 +1304,7 @@ def test_cancelled_ordinary_pcm_feed_stops_again_before_successor_admission(env,
 	def write_pcm():
 		try:
 			env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			failures.append(error)
 
 	callback = Thread(target=write_pcm, daemon=True)
@@ -1504,7 +1503,7 @@ def test_worker_stop_failure_latches_until_a_voice_reload(env):
 
 
 def test_stop_failure_after_an_invalidated_feed_latches(env):
-	_, _, first = speak(env)
+	_, _, _first = speak(env)
 	env.native.wait_calls(1)
 	env.player.feed_release.clear()
 	failures = []
@@ -1512,7 +1511,7 @@ def test_stop_failure_after_an_invalidated_feed_latches(env):
 	def write_pcm():
 		try:
 			env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			failures.append(error)
 
 	callback = Thread(target=write_pcm, daemon=True)
@@ -1526,6 +1525,7 @@ def test_stop_failure_after_an_invalidated_feed_latches(env):
 	callback.join(2)
 	env.player.stop_error = None
 	assert not callback.is_alive()
+	assert [str(error) for error in failures] == ["stop failed"]
 	assert str(env.driver._segmentHost.control_error) == "stop failed"
 	_, _, successor = speak(env, segment=18)
 	assert wait_event(successor).kind is env.rt.models.EventKind.SEGMENT_FAILED

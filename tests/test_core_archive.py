@@ -2,13 +2,12 @@
 
 import ast
 import importlib.util
-from pathlib import Path
 import sys
 import types
+from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
 import pytest
-
 from nvda_stubs import StubModules
 
 ROOT = Path(__file__).resolve().parents[1]

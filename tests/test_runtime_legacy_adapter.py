@@ -2,8 +2,7 @@ import ast
 from types import SimpleNamespace
 
 import pytest
-
-from runtime_harness import MemoryRepository, RUNTIME, load_index_support, make_spec
+from runtime_harness import RUNTIME, MemoryRepository, load_index_support, make_spec
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 
@@ -51,15 +50,15 @@ def legacy_class(core):
 		def voices(cls, target):
 			assert target is core
 			return [
-				dict(
-					id="a",
-					name="Fake:a",
-					description="A",
-					language="en",
-					engine="Fake",
-					locale="en",
-					langDescription="English",
-				),
+				{
+					"id": "a",
+					"name": "Fake:a",
+					"description": "A",
+					"language": "en",
+					"engine": "Fake",
+					"locale": "en",
+					"langDescription": "English",
+				},
 			]
 
 		def active(self):
@@ -126,7 +125,14 @@ def test_voice_metadata_defaults_and_canonical_key(compat, rt, extra):
 
 def test_malformed_voice_metadata_does_not_hide_valid_voices(compat, rt):
 	cls = legacy_class(Core())
-	valid = dict(engine="Fake", id="a", language="en", name="Fake:a", description="A", locale="en")
+	valid = {
+		"engine": "Fake",
+		"id": "a",
+		"language": "en",
+		"name": "Fake:a",
+		"description": "A",
+		"locale": "en",
+	}
 	malformed = dict(valid, id="broken")
 	del malformed["language"]
 	cls.voices = classmethod(lambda cls, core: [malformed, valid])

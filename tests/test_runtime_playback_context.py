@@ -3,7 +3,6 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
-
 from runtime_harness import forbid_legacy_runtime_imports, load_runtime
 
 

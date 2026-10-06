@@ -1,11 +1,10 @@
 """STAGES is the single order and log-key source, and stages read settings from their arguments."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 from test_pipeline_punctuation_pause import load_pipeline_module, punctuation_settings
-
 
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
 
@@ -103,7 +102,7 @@ def test_zero_number_wait_keeps_spaces(monkeypatch):
 def test_positive_number_wait_breaks_between_numbers(monkeypatch):
 	settings = punctuation_settings(0)
 	settings.scaled_number_wait = lambda: 40
-	module, BreakCommand = load_pipeline_module(monkeypatch, settings)
+	module, _BreakCommand = load_pipeline_module(monkeypatch, settings)
 	result = list(module.number_wait_factor([" 1 ", "  ", "2"], settings, module.GENERIC_CONTEXT))
 	assert result[0] == "1" and result[2] == "2" and result[1].time == 40
 

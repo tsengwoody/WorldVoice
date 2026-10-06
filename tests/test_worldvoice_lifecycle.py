@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 
 

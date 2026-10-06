@@ -1,8 +1,8 @@
 """Every engine strategy is a NativeStrategy, and the host never probes for hooks."""
 
 import ast
-from pathlib import Path
 import re
+from pathlib import Path
 
 import pytest
 

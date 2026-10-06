@@ -3,7 +3,6 @@
 from concurrent.futures import TimeoutError
 
 import pytest
-
 from runtime_drain_integration_harness import ENGINES, assemble
 from waiting import stays_unset
 

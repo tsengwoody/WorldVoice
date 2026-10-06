@@ -1,12 +1,10 @@
 """Pipeline UI panels save through the pipeline settings service."""
 
 import ast
-from collections import OrderedDict
-from pathlib import Path
 import types
+from pathlib import Path
 
 from test_pipeline_stages import ORDER
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PANELS = ROOT / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"

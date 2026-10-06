@@ -5,6 +5,7 @@ import sys
 import threading
 import types
 from pathlib import Path
+
 from nvda_stubs import StubModules
 
 
@@ -105,7 +106,7 @@ def load_real_driver_with_native_stubs(
 	module("config", conf={"audio": {"outputDevice": "fake"}})
 	module("nvwave", WavePlayer=FakePlayer)
 	module("languageHandler", getLanguageDescription=lambda language: language)
-	module("addonHandler", initTranslation=lambda: None, getRunningAddons=lambda: [])
+	module("addonHandler", initTranslation=lambda: None, getRunningAddons=list)
 	package("speech", root, commands=None, CHUNK_SEPARATOR=" ")
 	commands = commands or module(
 		"speech.commands",
@@ -183,7 +184,7 @@ def load_real_driver_with_native_stubs(
 			text = ctypes.string_at(data.szInText, data.cntTextLength).decode("utf-8")
 			result = native.processText2Speech(instance, text)
 			return result if isinstance(result, int) else native.veTypes.NUAN_OK
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - re-raised at the caller's errcheck boundary
 			# ctypes Python callbacks cannot raise through C. Re-raise at
 			# the caller's errcheck boundary, using thread-local ownership.
 			callback_errors.error = error

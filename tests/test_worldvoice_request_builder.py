@@ -5,9 +5,7 @@ import types
 from pathlib import Path
 
 import pytest
-
 from runtime_harness import MemoryRepository
-
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 

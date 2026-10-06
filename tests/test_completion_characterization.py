@@ -7,7 +7,6 @@ row here records the behavior that refactor had to keep.
 from types import SimpleNamespace
 
 import pytest
-
 from runtime_harness import FakePlayback, RecordingOutput, load_index_support, load_scheduler
 from test_runtime_legacy_adapter import Core, legacy_class
 

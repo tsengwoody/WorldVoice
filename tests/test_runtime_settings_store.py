@@ -3,7 +3,6 @@ from dataclasses import replace
 from threading import Event
 
 import pytest
-
 from runtime_harness import MemoryRepository, make_spec
 
 

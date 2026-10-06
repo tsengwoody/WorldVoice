@@ -3,7 +3,6 @@
 import re
 from pathlib import Path
 
-
 ADDON = Path(__file__).resolve().parents[1] / "addon"
 # Same exclusions as pyproject.toml and .pre-commit-config.yaml.
 EXCLUDED = re.compile(r"^synthDrivers/WorldVoice/(driver/[^/]+/driver/|languageDetection/script_data\.py$)")

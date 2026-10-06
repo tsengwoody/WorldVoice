@@ -5,7 +5,6 @@ import importlib.util
 import sys
 
 import pytest
-
 from runtime_harness import RUNTIME
 
 

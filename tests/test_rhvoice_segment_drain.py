@@ -1,13 +1,12 @@
 """Correlated RHVoice completion at the real installed outer wrapper."""
 
-import gc
 import ctypes
+import gc
 import sys
-from threading import Event, Thread, current_thread, get_ident
 import weakref
+from threading import Event, Thread, current_thread, get_ident
 
 import pytest
-
 from rhvoice_drain_harness import finish, load_rhvoice, speak
 from waiting import eventually, quiet_period
 
@@ -28,7 +27,7 @@ def assert_no_successor_native_call(env, timeout=0.1):
 
 def test_done_before_native_return_waits_for_final_idle_and_retirement(env):
 	env.native.scripts.append({})
-	token, context, events = speak(env)
+	_token, context, events = speak(env)
 	call = env.native.wait_call()
 	assert call.done.wait(3)
 	assert events == []
@@ -122,7 +121,7 @@ def test_swallowed_native_and_audio_failures_never_publish_success(env, fault):
 
 
 def test_cancelled_old_callbacks_do_not_complete_or_index_successor(env):
-	_, old_context, old_events = speak(env, segment=1, text="old")
+	_, _old_context, old_events = speak(env, segment=1, text="old")
 	old_call = env.native.wait_call()
 	assert old_call.done.wait(3)
 	cancel_thread = Thread(target=env.driver.cancel)
@@ -132,7 +131,7 @@ def test_cancelled_old_callbacks_do_not_complete_or_index_successor(env):
 	assert not cancel_thread.is_alive()
 	env.native.scripts.append({"auto_return": True})
 	_, new_context, new_events = speak(env, segment=2, text="new")
-	new_call = env.native.wait_call(2)
+	env.native.wait_call(2)
 	env.native.callbacks.process_mark(b"99", old_call.user_data)
 	env.native.callbacks.done(old_call.user_data)
 	event = new_events.wait_one()
@@ -468,7 +467,7 @@ def test_rhvoice_shared_sink_reenters_terminate(env):
 	def sink(event):
 		try:
 			env.driver.terminate()
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			errors.append(error)
 		delivered.set()
 
@@ -496,7 +495,7 @@ def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
 	env.inner.synthDoneSpeaking.notify = enqueue_from_done
 	env.native.scripts.extend(({"auto_return": True}, {"auto_return": True}))
 	speak(env, segment=1, text="old")
-	old_call = env.native.wait_call()
+	env.native.wait_call()
 	assert done_entered.wait(3)
 	stopper = Thread(target=env.driver.cancel)
 	stopper.start()

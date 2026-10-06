@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from detector_harness import load_language_detection
 
 ROOT = Path(__file__).resolve().parents[1]

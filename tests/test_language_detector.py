@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 
 import pytest
-
 from detector_harness import LangChangeCommand, load_language_detection
 
 

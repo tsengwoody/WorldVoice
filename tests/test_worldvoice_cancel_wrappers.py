@@ -1,9 +1,8 @@
 import ctypes
-from io import BytesIO
 import threading
+from io import BytesIO
 
 import pytest
-
 from waiting import eventually
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 

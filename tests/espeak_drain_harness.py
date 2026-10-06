@@ -2,14 +2,14 @@
 
 import builtins
 import ctypes
-from dataclasses import dataclass
 import importlib.util
-from pathlib import Path
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from threading import Condition, Event, current_thread
-from types import ModuleType, SimpleNamespace
-from nvda_stubs import StubModules
+from types import SimpleNamespace
 
+from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,7 +184,7 @@ def load_espeak(monkeypatch, tmp_path, *, rt=None, scheduler=None, voice_base=ob
 			return result
 
 	class Base(metaclass=BaseMeta):
-		availableLanguages = {"en-gb", "fr-fr"}
+		availableLanguages = frozenset({"en-gb", "fr-fr"})
 
 		@staticmethod
 		def _paramToPercent(value, low, high):

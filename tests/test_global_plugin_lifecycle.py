@@ -1,11 +1,8 @@
 """GlobalPlugin terminate always runs its later cleanup steps."""
 
 import ast
-from pathlib import Path
 import types
-
-import pytest
-
+from pathlib import Path
 
 PLUGIN_PATH = Path(__file__).resolve().parents[1] / "addon/globalPlugins/WorldVoice/__init__.py"
 

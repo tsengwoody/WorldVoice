@@ -1,16 +1,15 @@
 """Load the installed RHVoice wrapper with real inner code and fake external edges."""
 
 import ctypes
-from dataclasses import dataclass
 import importlib.util
-from pathlib import Path
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from threading import Condition, Event, Thread, current_thread
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
+
 from nvda_stubs import StubModules
-
 from runtime_harness import load_runtime, load_scheduler
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -286,14 +285,14 @@ def load_rhvoice(monkeypatch, tmp_path):
 			pass
 
 		def convertToXml(self, sequence):
-			return "<speak>%s</speak>" % sequence[0]
+			return f"<speak>{sequence[0]}</speak>"
 
 	module("speechXml", SsmlConverter=SsmlConverter)
 	module("config", conf={"audio": {"outputDevice": "default"}})
 	module("globalVars", appArgs=SimpleNamespace(configPath=str(tmp_path)))
 	module("buildVersion", version_year=2026)
 	module("addonAPIVersion", CURRENT=1)
-	module("addonHandler", getRunningAddons=lambda: [])
+	module("addonHandler", getRunningAddons=list)
 	module("languageHandler", getLanguage=lambda: "en_US")
 	logs, indexes, dones, players = [], [], [], []
 	module(

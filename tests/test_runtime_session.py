@@ -3,7 +3,6 @@ from threading import Event
 from types import SimpleNamespace
 
 import pytest
-
 from runtime_harness import FakeAdapter, MemoryRepository, make_spec
 
 

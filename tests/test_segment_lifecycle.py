@@ -4,11 +4,10 @@ import gc
 import importlib.util
 import logging
 import sys
-from threading import Condition, Event, Thread, current_thread
 import weakref
+from threading import Condition, Event, Thread, current_thread
 
 import pytest
-
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
 from waiting import WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
@@ -21,7 +20,7 @@ class Call:
 		def invoke():
 			try:
 				function()
-			except BaseException as error:
+			except BaseException as error:  # noqa: BLE001 - kept and re-raised in the test thread
 				self.error = error
 			finally:
 				self.done.set()
@@ -653,7 +652,7 @@ def test_terminate_invalidates_queued_and_active_before_worker_shutdown(env, mon
 
 
 def test_terminate_blocks_new_acceptance(env):
-	lifecycle, _, events, accept = env
+	lifecycle, _, _events, accept = env
 	lifecycle.terminate()
 	with pytest.raises(RuntimeError, match="terminated"):
 		accept(1)
@@ -685,7 +684,7 @@ def test_retirement_callback_runs_when_cancel_suppresses_delivery(env):
 
 
 def test_idle_delivery_thread_releases_a_retired_operation(env):
-	lifecycle, hooks, events, accept = env
+	lifecycle, _hooks, events, accept = env
 	retired = Event()
 
 	class Sink:
@@ -741,7 +740,7 @@ def test_terminate_cancels_previously_accepted_pending_rejection(env):
 
 
 def _hold_resource(env):
-	lifecycle, hooks, events, accept = env
+	lifecycle, hooks, _events, accept = env
 	owner, _ = accept(1)
 	call = Call(lambda: lifecycle.run(owner, ("owner",)))
 	assert hooks.boundary_entered.wait(1)
@@ -771,7 +770,7 @@ class CountingToken:
 
 
 def _accept_counting(env, owner, segment, start_delay=0):
-	lifecycle, hooks, events, accept = env
+	lifecycle, _hooks, events, _accept = env
 	token = CountingToken(type(owner.work.token)(), start_delay)
 	context = type(owner.work.context)(object(), segment)
 	return lifecycle.accept(context, token, events.append), token
@@ -825,7 +824,7 @@ def _assert_not_polled(read_count, window=0.2):
 
 @pytest.mark.parametrize("start_delay", [0, 0.06])
 def test_queued_run_does_not_poll_its_token(env, start_delay):
-	lifecycle, hooks, events, accept = env
+	lifecycle, hooks, _events, _accept = env
 	owner, owner_call = _hold_resource(env)
 	queued, token = _accept_counting(env, owner, 2, start_delay)
 	observer = _observe_waits(lifecycle)
@@ -840,7 +839,7 @@ def test_queued_run_does_not_poll_its_token(env, start_delay):
 
 @pytest.mark.parametrize("cancel", ["token", "work", "fail"])
 def test_queued_run_wakes_when_cancelled(env, cancel):
-	lifecycle, hooks, events, accept = env
+	lifecycle, hooks, _events, accept = env
 	_, owner_call = _hold_resource(env)
 	queued, _ = accept(2)
 	waiting = Call(lambda: lifecycle.run(queued, ("queued",)))
@@ -859,7 +858,7 @@ def test_queued_run_wakes_when_cancelled(env, cancel):
 
 
 def test_delivery_thread_identity_and_join(env):
-	lifecycle, hooks, events, accept = env
+	lifecycle, hooks, _events, accept = env
 	seen, joined = [], Event()
 
 	def sink(event):
@@ -879,7 +878,7 @@ def test_delivery_thread_identity_and_join(env):
 
 
 def test_wait_idle_returns_true_when_resource_is_released(env):
-	lifecycle, hooks, events, accept = env
+	lifecycle, hooks, _events, _accept = env
 	assert lifecycle.wait_idle() is True
 	_, owner_call = _hold_resource(env)
 	assert lifecycle._resource_busy
@@ -894,7 +893,7 @@ def test_wait_idle_returns_true_when_resource_is_released(env):
 
 
 def test_wait_idle_wakes_on_token_cancel_without_polling(env):
-	lifecycle, hooks, events, accept = env
+	lifecycle, hooks, _events, _accept = env
 	owner, owner_call = _hold_resource(env)
 	token = CountingToken(type(owner.work.token)())
 	results = []
@@ -915,7 +914,7 @@ def test_wait_idle_wakes_on_token_cancel_without_polling(env):
 
 
 def test_wait_idle_rechecks_still_wanted_on_wake_waiters(env):
-	lifecycle, hooks, events, accept = env
+	lifecycle, hooks, _events, _accept = env
 	_, owner_call = _hold_resource(env)
 	wanted, checks, results = [True], [0], []
 
@@ -937,7 +936,7 @@ def test_wait_idle_rechecks_still_wanted_on_wake_waiters(env):
 
 
 def test_idle_delivery_thread_releases_a_delivered_error(env):
-	lifecycle, hooks, events, accept = env
+	lifecycle, _hooks, _events, accept = env
 	delivered = Event()
 
 	class Sink:
@@ -963,7 +962,7 @@ def test_idle_delivery_thread_releases_a_delivered_error(env):
 
 
 def test_failed_waiter_never_takes_a_resource_freed_at_the_same_time(env, monkeypatch):
-	lifecycle, hooks, events, accept = env
+	lifecycle, hooks, _events, accept = env
 	old, _ = accept(1)
 	queued, _ = accept(2)
 	first = Call(lambda: lifecycle.run(old, ("old",)))

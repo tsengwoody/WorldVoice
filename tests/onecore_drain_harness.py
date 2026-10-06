@@ -8,15 +8,14 @@ import builtins
 import ctypes
 import importlib.util
 import io
-from pathlib import Path
 import sys
-from threading import Condition, Event, Thread
-from types import ModuleType, SimpleNamespace
 import wave
+from pathlib import Path
+from threading import Condition, Event, Thread
+from types import SimpleNamespace
+
 from nvda_stubs import StubModules
-
 from runtime_harness import load_runtime, load_scheduler
-
 
 ROOT = Path(__file__).resolve().parents[1]
 NVDA = ROOT / "ref/nvda"
@@ -142,7 +141,7 @@ def in_thread(function):
 	def run():
 		try:
 			function()
-		except BaseException as error:
+		except BaseException as error:  # noqa: BLE001 - collected for the calling test to assert
 			errors.append(error)
 		finally:
 			done.set()

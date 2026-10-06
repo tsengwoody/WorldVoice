@@ -7,7 +7,6 @@ from threading import Event
 from types import SimpleNamespace
 
 import pytest
-
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
 
 

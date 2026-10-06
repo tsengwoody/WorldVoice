@@ -6,13 +6,11 @@ import threading
 import types
 
 import pytest
-
-from test_f4_voice_state import _load_voice_manager, _create_voices, RecordingCore
-from test_worldvoice_lifecycle import init_policies
 from nvda_stubs import StubModules
+from test_f4_voice_state import RecordingCore, _create_voices, _load_voice_manager
+from test_worldvoice_lifecycle import init_policies
 from voice_binding_harness import bind_core
 from waiting import stays_unset
-
 
 PRESENTER = "addon/globalPlugins/WorldVoice/rolePresenter.py"
 
@@ -260,7 +258,7 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 	def activate_b():
 		try:
 			env.b._binding.session.activate(env.b.name)
-		except Exception as error:
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
 			errors.append(error)
 		finally:
 			worker_done.set()

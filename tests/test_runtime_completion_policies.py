@@ -5,8 +5,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-
-from test_worldvoice_lifecycle import _load_voice_manager, _load_synth_class
+from test_worldvoice_lifecycle import _load_voice_manager
 
 
 @pytest.fixture
@@ -370,13 +369,13 @@ def load_installed_engine(monkeypatch, tmp_path, engine):
 		outer, core, close, mode = installed.outer, installed.driver, installed.driver.terminate, "wasapi"
 		rt = installed.rt
 	elif engine == "Espeak":
-		from espeak_drain_harness import load_espeak, finish
+		from espeak_drain_harness import finish, load_espeak
 
 		installed = load_espeak(monkeypatch, tmp_path)
 		outer, core, close, mode = installed.outer, installed.driver, lambda: finish(installed), "default"
 		rt = installed.rt
 	else:
-		from rhvoice_drain_harness import load_rhvoice, finish
+		from rhvoice_drain_harness import finish, load_rhvoice
 
 		installed = load_rhvoice(monkeypatch, tmp_path)
 		outer, core, close, mode = installed.outer, installed.driver, lambda: finish(installed), "default"

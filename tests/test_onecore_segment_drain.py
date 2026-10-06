@@ -1,10 +1,9 @@
 import gc
 import sys
-from threading import Event, current_thread, get_ident
 import weakref
+from threading import Event, current_thread, get_ident
 
 import pytest
-
 from onecore_drain_harness import VERSION, in_thread, load_onecore
 from waiting import WAIT_TIMEOUT, eventually, holds_within, quiet_period, stays_false, stays_unset
 
@@ -199,7 +198,7 @@ def test_onecore_successor_player_open_waits_for_old_feed_and_stop(env):
 
 
 def test_onecore_waits_for_tail_sync_before_drain(env):
-	token, context, events = speak(env)
+	_token, context, events = speak(env)
 	env.native.wait_calls(1)
 	call = in_thread(env.native.respond)
 	assert env.player.sync_entered.wait(1)

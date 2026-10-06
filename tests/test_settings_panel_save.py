@@ -1,12 +1,11 @@
 """Saving the WorldVoice settings panels writes config before persisting it."""
 
 import ast
+import types
 from collections import OrderedDict
 from pathlib import Path
-import types
 
 import pytest
-
 
 PANEL_PATH = Path(__file__).resolve().parents[1] / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
 
@@ -86,7 +85,7 @@ def test_engine_change_writes_flags_before_saving_and_restarting():
 
 def test_engine_change_without_restart_writes_flags_only():
 	calls, logged = [], []
-	environment, section = _load_panels(calls, logged)
+	environment, _section = _load_panels(calls, logged)
 	panel = _engine_panel(environment, active={"VE"}, previous={"OneCore"}, confirm=environment["wx"].NO)
 
 	panel.onSave()
@@ -96,7 +95,7 @@ def test_engine_change_without_restart_writes_flags_only():
 
 def test_unchanged_engines_write_nothing():
 	calls, logged = [], []
-	environment, section = _load_panels(calls, logged)
+	environment, _section = _load_panels(calls, logged)
 	panel = _engine_panel(environment, active={"OneCore"}, previous={"OneCore"}, confirm=None)
 
 	panel.onSave()
@@ -157,7 +156,7 @@ def test_failed_choice_save_changes_no_settings():
 
 def test_failed_save_does_not_swallow_keyboard_interrupt():
 	calls, logged = [], []
-	environment, section = _load_panels(calls, logged)
+	environment, _section = _load_panels(calls, logged)
 	panel = environment["BaseSettingsPanel"]()
 	panel.field = "engine"
 	panel.settings = OrderedDict((name, {"label": name}) for name in ("VE", "OneCore"))

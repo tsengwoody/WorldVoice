@@ -1,8 +1,8 @@
 """The settings dialog's error callback finds its dialog without a class registry."""
 
 import ast
-from pathlib import Path
 import types
+from pathlib import Path
 
 ADDON = Path(__file__).resolve().parents[1] / "addon"
 PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
