@@ -54,3 +54,19 @@
 
 - 全套通過、逐檔單獨執行通過、`ruff check/format addon tests` 乾淨。
 - 覆蓋率（同上設定）≥ 92%，並列出前後逐檔數字；8 個未 import 檔案中，除 `speechSymbols/views.py` 外都要被量到。
+
+## 實作備註
+
+- 測試數 1495 → 1682（A 組 +115、B 組 +72）。覆蓋率 88% → **95%**（7792 行／278 未覆蓋；2228 分支／201 部分）。8 個原本未 import 的檔案中，除 `speechSymbols/views.py`（不在範圍）與兩個空 `__init__.py` 外都已量到。
+- 90% 以下只剩：`speechSymbols/models.py` 82%（同一個可能移除的功能）、`Espeak` 88%、`SAPI5` 87%（wrapper 的防禦分支）、`languageDetection/scripts.py` 86%（負碼位分支，`ord()` 不可能產生）。
+- spec 列的 `installTasks.onUninstall` 不存在；「`log.py` 寫檔失敗」沒有處理分支，改測 log rotation（後果見下方發現 3）。
+- 刻意未測：一行委派的 getter／`check()`、已停用的 `with_order_log`（使用者決定保留）、呼叫端已先檢查而到不了的分支、照抄 NVDA 的 `gui._isDebug()` debug log。
+- 驗證：全套通過、每個測試檔單獨執行通過、ruff 乾淨；合併後第一次開 coverage 跑全套出現 1 個失敗、未取得名稱，之後兩輪壓力測試（各 4 個 worker × 6 輪，含與不含 `--cov-branch`，共 48 輪）全部通過，未能重現。
+
+### 測試過程發現的產品程式問題（只記錄，未修，待使用者決定）
+
+1. `GlobalPlugin.disable_log_record`：`ui.message("turn off …")` 縮排在 `if ask_export():` 內，使用者拒絕匯出時聽不到「已關閉記錄」。
+2. `text/chunker.py`：escape 序列的長度被算進 piece 上限，與 docstring「escape 可能讓 piece 變長」不符，可能切出只有 escape 的 piece；沒有空白的長字串會把組合符號與它的字母切開。
+3. `PipelineLog.write` 的 `OSError`（磁碟滿、檔案被鎖）會從 `_run_logged` 拋出；NVDA 的 `Filter.apply` 記錄例外後沿用未過濾的值，所以開啟 log 時寫檔失敗會讓該 stage 的轉換無聲失效。
+4. `SpeechRoleSettingsPanel.voiceInstance` property 沒有使用者（死碼）。
+5. `createDriverSettings` 在已有控制項、沒有 changedSetting 時，第二段迴圈會把剛隱藏的不支援控制項又顯示出來；目前因 NVDA 隨後的 `updateDriverSettings` 再隱藏而沒有實際影響。
