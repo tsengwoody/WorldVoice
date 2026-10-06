@@ -251,12 +251,14 @@ def test_choosing_the_current_voice_records_it_without_stopping_speech(monkeypat
 	assert synth._get_voice() == "A:en"
 
 
-def test_pause_reaches_the_task_manager_and_a_terminated_synth_ignores_cancel(monkeypatch):
+def test_pause_and_cancel_reach_the_runtime_until_the_synth_terminates(monkeypatch):
 	synth, _ = _synth(monkeypatch)
 	synth.pause(True)
+	synth.cancel()
 	assert synth.taskManager.calls == [("pause", True)]
+	assert synth._voiceManager.cancels == 1
 	synth._terminated = True
 	synth.cancel()
 	synth.pause(False)
-	assert synth._voiceManager.cancels == 0
+	assert synth._voiceManager.cancels == 1
 	assert synth.taskManager.calls == [("pause", True)]

@@ -1,8 +1,8 @@
 """Installing core archives: corrupt archives, files in use and failures around them.
 
 onInstall finds the core folder next to installTasks.py and loads coreArchive.py and
-workspace.py by path from there, so these tests copy those three files into a temporary
-add-on folder and run installTasks from the copy.
+workspace.py by path from there. These tests copy those two files into a temporary add-on
+folder and point the real installTasks module's __file__ into it.
 """
 
 import shutil
@@ -11,7 +11,7 @@ from zipfile import ZIP_STORED, BadZipFile, ZipFile
 
 import pytest
 from addon_loader import ADDON
-from core_archive_harness import load
+from core_archive_harness import INSTALL, load
 from nvda_stubs import StubModules
 
 ARCHIVE = ADDON / "generics/coreArchive.py"
@@ -71,9 +71,9 @@ def test_any_extraction_error_skips_only_that_file(archive_module, tmp_path, mon
 
 @pytest.fixture
 def install(monkeypatch, tmp_path):
-	"""installTasks run from a copy of the add-on folder, with NVDA's config in tmp_path/config."""
+	"""installTasks placed in a temporary add-on folder, with NVDA's config in tmp_path/config."""
 	addon = tmp_path / "addon"
-	for relative in ("installTasks.py", "generics/coreArchive.py", "synthDrivers/WorldVoice/workspace.py"):
+	for relative in ("generics/coreArchive.py", "synthDrivers/WorldVoice/workspace.py"):
 		(addon / relative).parent.mkdir(parents=True, exist_ok=True)
 		shutil.copy(ADDON / relative, addon / relative)
 	config_path = tmp_path / "config"
@@ -84,7 +84,8 @@ def install(monkeypatch, tmp_path):
 	stubs.module("globalVars", appArgs=SimpleNamespace(configPath=str(config_path)))
 	logged = []
 	# The copied coreArchive.py imports this logHandler too.
-	module = load(addon / "installTasks.py", "install_tasks_copy_under_test", monkeypatch, logged)
+	module = load(INSTALL, "install_tasks_in_folder_under_test", monkeypatch, logged)
+	monkeypatch.setattr(module, "__file__", str(addon / "installTasks.py"))
 	return SimpleNamespace(
 		module=module,
 		conf=conf,

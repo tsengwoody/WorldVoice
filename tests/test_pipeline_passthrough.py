@@ -79,15 +79,18 @@ def test_number_wait_drops_blank_text_but_not_commands(env):
 def test_number_language_follows_each_language_change_in_the_sequence(env):
 	module = env.module
 	ctx = voices_context(module, number_language="zh")
-	sequence = ["x 1", module.LangChangeCommand("fr"), "y 2", module.LangChangeCommand(None), "3"]
+	marker = Marker()
+	sequence = ["x 1", module.LangChangeCommand("fr"), marker, "y 2", module.LangChangeCommand(None), "3"]
 	result = list(module.inject_number_language(sequence, env.settings, ctx))
-	# Each number switches to the number language and back to the language in force there.
+	# Each number switches to the number language and back to the language in force there;
+	# other commands leave that language alone.
 	assert kinds(result, env.BreakCommand) == [
 		"x ",
 		("lang", "zh"),
 		"1",
 		("lang", "en"),
 		("lang", "fr"),
+		marker,
 		"y ",
 		("lang", "zh"),
 		"2",
@@ -104,6 +107,22 @@ def test_default_number_language_leaves_numbers_alone(env):
 	sequence = ["x 1", marker, "2"]
 	ctx = voices_context(env.module, number_language="default")
 	assert list(env.module.inject_number_language(sequence, env.settings, ctx)) == sequence
+
+
+def test_digit_symbols_translate_only_in_the_number_language_or_windows(env):
+	symbols = {
+		"1": SimpleNamespace(language="zh", replacement="一"),
+		"2": SimpleNamespace(language="Windows", replacement=""),
+		"3": SimpleNamespace(language="fr", replacement="trois"),
+	}
+	ctx = env.module.SpeechContext(
+		supports_roles=True,
+		language="en",
+		number_language="zh",
+		speech_symbols=SimpleNamespace(symbols=symbols),
+	)
+	# An empty replacement keeps the digit; another language's symbol is not used.
+	assert env.module.get_translate_table(ctx) == {ord("1"): "一", ord("2"): "2"}
 
 
 def test_number_mode_passes_commands_and_merges_text_around_them(env):
