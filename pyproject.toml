@@ -10,6 +10,23 @@ test = [
 	"mutmut==3.8.0",
 ]
 
+[tool.coverage.run]
+# coverage's default core on Python 3.12+ is sys.monitoring; with tests that reload the add-on's
+# modules for every test it peaked near 1.9 GB for one full run, against about 330 MB with the
+# C tracer at the same speed and the same results (measured 2026-10-06, coverage 7.16.2).
+core = "ctrace"
+branch = true
+source = ["addon"]
+omit = [
+	# The same vendored code ruff leaves alone.
+	"addon/synthDrivers/WorldVoice/driver/*/driver/*",
+	"addon/synthDrivers/WorldVoice/driver/sonic/*",
+	"addon/synthDrivers/WorldVoice/languageDetection/script_data.py",
+]
+
+[tool.coverage.report]
+skip_empty = true
+
 [tool.ruff]
 # Matches the ruff-pre-commit rev in .pre-commit-config.yaml and NVDA's lint group (ref/nvda/pyproject.toml).
 # The lint rules are ruff's defaults minus the ignores below, so another ruff version could check other rules.
