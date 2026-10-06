@@ -250,6 +250,8 @@ def test_terminal_sink_can_terminate_after_native_retirement(env):
 def test_cancel_or_terminate_before_deferred_delivery_keeps_event_silent(env, monkeypatch, terminate):
 	entered, release, delivered = Event(), Event(), Event()
 	original = env.driver._segmentHost._deliver
+	# terminate() gives up on the held delivery after its join bound; keep that bound short here.
+	monkeypatch.setattr(sys.modules[type(env.driver._segmentHost).__module__], "DELIVERY_JOIN_TIMEOUT", 0.05)
 
 	def delayed(*args):
 		entered.set()

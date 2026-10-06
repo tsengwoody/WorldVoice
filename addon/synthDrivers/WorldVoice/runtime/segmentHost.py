@@ -27,6 +27,10 @@ from .session import CancellationView
 
 log = logging.getLogger(__name__)
 
+# How long terminate() and reset() wait for the delivery thread; a sink that never returns
+# must not hang NVDA.
+DELIVERY_JOIN_TIMEOUT = 1.0
+
 
 @dataclass(eq=False)
 class NativeRecord:
@@ -276,7 +280,7 @@ class SegmentHost:
 				self._accepted.clear()
 			self._lifecycle = SegmentLifecycle(self)
 			old.terminate()
-		old.join_delivery(1)
+		old.join_delivery(DELIVERY_JOIN_TIMEOUT)
 
 	def terminate(self) -> bool:
 		"""Stop all work; return False when already terminated."""
@@ -286,7 +290,7 @@ class SegmentHost:
 			self._terminated = True
 			self._invalidate()
 			self._lifecycle.terminate()
-		self._lifecycle.join_delivery(1)
+		self._lifecycle.join_delivery(DELIVERY_JOIN_TIMEOUT)
 		return True
 
 	# Records and consumers ------------------------------------------------

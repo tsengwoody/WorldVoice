@@ -1,5 +1,6 @@
 """SegmentHost and LeasedPlayer against a fake engine strategy."""
 
+import sys
 from threading import Condition, Event, Thread, get_ident
 from types import SimpleNamespace
 
@@ -242,7 +243,8 @@ def test_sink_can_terminate_without_self_join(env):
 	assert terminated.wait(WAIT_TIMEOUT), "terminate() from the delivery thread deadlocked"
 
 
-def test_terminate_does_not_hang_on_a_blocked_sink(env):
+def test_terminate_does_not_hang_on_a_blocked_sink(env, monkeypatch):
+	monkeypatch.setattr(sys.modules[type(env.host).__module__], "DELIVERY_JOIN_TIMEOUT", 0.05)
 	entered, release = Event(), Event()
 
 	def sink(event):
@@ -255,7 +257,7 @@ def test_terminate_does_not_hang_on_a_blocked_sink(env):
 	finished = Event()
 	Thread(target=lambda: (env.host.terminate(), finished.set()), daemon=True).start()
 	try:
-		# The delivery join is bounded to one second.
+		# The delivery join is bounded (DELIVERY_JOIN_TIMEOUT).
 		assert finished.wait(WAIT_TIMEOUT), "terminate() waited on a blocked sink"
 	finally:
 		release.set()
