@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import alias_package, load_source
 from runtime_harness import RUNTIME
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
 class EventStub:
@@ -226,7 +227,7 @@ def test_owner_change_suppresses_output(env):
 def assert_other_thread_can_unbind(bridge, source_id):
 	worker = Thread(target=bridge.unbind, args=(source_id,), daemon=True)
 	worker.start()
-	worker.join(2)
+	worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive(), "bridge state lock held during external call"
 
 
@@ -469,14 +470,14 @@ def test_supplier_cannot_decode_replacement_binding_after_validation(marker_env,
 
 	def paused_receive(source_id, index, **kwargs):
 		entered_decode.set()
-		assert resume_decode.wait(2), "replacement binding was not published"
+		assert resume_decode.wait(HOLD_TIMEOUT), "replacement binding was not published"
 		return receive_index(source_id, index, **kwargs)
 
 	monkeypatch.setattr(env.ledger, "receive_index", paused_receive)
 	worker = Thread(target=lambda: batches.append(env.suppliers[0]()), daemon=True)
 	worker.start()
 	try:
-		assert entered_decode.wait(2), "supplier did not reach ledger decode"
+		assert entered_decode.wait(WAIT_TIMEOUT), "supplier did not reach ledger decode"
 		env.bridge.unbind(env.source_id)
 		replacement = object()
 		env.bridge.bind(replacement, env.source_id, completion=env.contract)

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from addon_loader import alias_package
-from waiting import stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
 
 
 class EventStub:
@@ -56,8 +56,8 @@ class Buses:
 			self.outer_indexes.append(index)
 			self.index_seen.set()
 
-	def wait_for_outer_done(self, timeout):
-		assert self.done_seen.wait(timeout)
+	def wait_for_outer_done(self):
+		assert self.done_seen.wait(WAIT_TIMEOUT)
 		return self.outer_done
 
 
@@ -202,10 +202,10 @@ def test_synchronous_done_and_duplicate_notification_complete_once(manager, buse
 	append_speech(manager, request, first, lambda: first.speak_and_notify(buses.done))
 	append_speech(manager, request, second, second.start_async)
 	assert manager.submit_request(request)
-	assert second.entered.wait(1)
+	assert second.entered.wait(WAIT_TIMEOUT)
 	assert buses.outer_done == []
 	second.finish_and_notify_twice(buses.done)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.wait_for_outer_done() == [manager.owner]
 
 
 def test_wrong_core_event_cannot_release_current_segment(manager, buses, two_voices):
@@ -213,14 +213,14 @@ def test_wrong_core_event_cannot_release_current_segment(manager, buses, two_voi
 	request = manager.new_request()
 	append_speech(manager, request, voice, voice.start_async)
 	manager.submit_request(request)
-	assert voice.entered.wait(1)
+	assert voice.entered.wait(WAIT_TIMEOUT)
 	buses.done.notify(synth=object())
 	buses.index.notify(synth=object(), index=7)
 	assert buses.outer_done == []
 	assert buses.outer_indexes == []
 	assert not request.tasks[0].future.done()
 	buses.done.notify(synth=voice.core)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.wait_for_outer_done() == [manager.owner]
 
 
 def test_old_epoch_events_are_discarded(manager, buses, two_voices):
@@ -228,19 +228,19 @@ def test_old_epoch_events_are_discarded(manager, buses, two_voices):
 	old = manager.new_request()
 	append_speech(manager, old, old_voice, old_voice.start_async)
 	assert manager.submit_request(old)
-	assert old_voice.entered.wait(1)
+	assert old_voice.entered.wait(WAIT_TIMEOUT)
 	cancel(manager, [old_voice])
 	new = manager.new_request()
 	append_speech(manager, new, new_voice, new_voice.start_async)
 	assert manager.submit_request(new)
-	assert new_voice.entered.wait(1)
+	assert new_voice.entered.wait(WAIT_TIMEOUT)
 	buses.done.notify(synth=old_voice.core)
 	buses.index.notify(synth=old_voice.core, index=9)
 	assert buses.outer_done == []
 	assert buses.outer_indexes == []
 	assert not new.tasks[0].future.done()
 	buses.done.notify(synth=new_voice.core)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.wait_for_outer_done() == [manager.owner]
 
 
 def test_valid_index_is_forwarded_once_and_owner_event_is_ignored(manager, buses, two_voices):
@@ -248,16 +248,16 @@ def test_valid_index_is_forwarded_once_and_owner_event_is_ignored(manager, buses
 	request = manager.new_request()
 	append_speech(manager, request, voice, voice.start_async)
 	assert manager.submit_request(request)
-	assert voice.entered.wait(1)
+	assert voice.entered.wait(WAIT_TIMEOUT)
 	buses.index.notify(synth=voice.core, index=7)
-	assert buses.index_seen.wait(1)
+	assert buses.index_seen.wait(WAIT_TIMEOUT)
 	assert buses.outer_indexes == [7]
 	buses.index.notify(synth=voice.core, index=7)
 	buses.done.notify(synth=buses.owner)
 	assert buses.outer_indexes == [7]
 	assert not request.tasks[0].future.done()
 	buses.done.notify(synth=voice.core)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.wait_for_outer_done() == [manager.owner]
 
 
 def test_index_after_core_done_is_not_forwarded(manager, buses, two_voices):
@@ -270,7 +270,7 @@ def test_index_after_core_done_is_not_forwarded(manager, buses, two_voices):
 	request = manager.new_request()
 	append_speech(manager, request, voice, speak)
 	assert manager.submit_request(request)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.wait_for_outer_done() == [manager.owner]
 	assert buses.outer_indexes == []
 
 
@@ -281,12 +281,12 @@ def test_trailing_break_delays_completion(manager, buses, two_voices):
 	break_entered = threading.Event()
 	break_release = threading.Event()
 	append_break(manager, request, voice, 60)
-	request.token.wait = lambda seconds: (break_entered.set(), break_release.wait(1))
+	request.token.wait = lambda seconds: (break_entered.set(), break_release.wait(HOLD_TIMEOUT))
 	assert manager.submit_request(request)
-	assert break_entered.wait(1)
+	assert break_entered.wait(WAIT_TIMEOUT)
 	assert buses.outer_done == []
 	break_release.set()
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.wait_for_outer_done() == [manager.owner]
 
 
 def test_cancelled_request_does_not_emit_done(manager, buses, two_voices):
@@ -294,7 +294,7 @@ def test_cancelled_request_does_not_emit_done(manager, buses, two_voices):
 	request = manager.new_request()
 	append_speech(manager, request, voice, voice.start_async)
 	assert manager.submit_request(request)
-	assert voice.entered.wait(1)
+	assert voice.entered.wait(WAIT_TIMEOUT)
 	cancel(manager, [voice])
 	buses.done.notify(synth=voice.core)
 	assert request.tasks[0].future.cancelled() or request.token.is_cancelled()
@@ -308,17 +308,17 @@ def test_cancel_after_completion_acceptance_suppresses_old_done(manager, buses, 
 	request = manager.new_request()
 	append_speech(manager, request, voice, voice.start_async)
 	assert manager.submit_request(request)
-	assert voice.entered.wait(1)
+	assert voice.entered.wait(WAIT_TIMEOUT)
 
 	def block_delivery():
 		accepted.set()
-		assert release_delivery.wait(2)
+		assert release_delivery.wait(HOLD_TIMEOUT)
 
 	original_delivery = manager._deliver_done
 	manager._deliver_done = lambda request: (block_delivery(), original_delivery(request))
 	try:
 		buses.done.notify(synth=voice.core)
-		assert accepted.wait(1)
+		assert accepted.wait(WAIT_TIMEOUT)
 		assert request.done_sent
 		old_epoch = request.epoch
 		cancel(manager, [voice])
@@ -337,18 +337,18 @@ def test_cancel_after_index_acceptance_suppresses_old_index(manager, buses, two_
 	request = manager.new_request()
 	append_speech(manager, request, voice, voice.start_async)
 	assert manager.submit_request(request)
-	assert voice.entered.wait(1)
+	assert voice.entered.wait(WAIT_TIMEOUT)
 
 	def block_delivery():
 		accepted.set()
-		assert release_delivery.wait(2)
+		assert release_delivery.wait(HOLD_TIMEOUT)
 
 	original_delivery = manager._deliver_index
 	manager._deliver_index = lambda *args: (block_delivery(), original_delivery(*args))
 	index_thread = threading.Thread(target=buses.index.notify, kwargs={"synth": voice.core, "index": 23})
 	index_thread.start()
 	try:
-		assert accepted.wait(1)
+		assert accepted.wait(WAIT_TIMEOUT)
 		with manager._state_cond:
 			assert 23 in manager._current_indexes
 		old_epoch = request.epoch
@@ -384,12 +384,12 @@ def test_failure_stops_core_and_completes_once(manager, buses, two_voices, failu
 	append_speech(manager, request, other, other.start_async)
 	assert manager.submit_request(request)
 	with pytest.raises(ValueError, match=failure_at):
-		request.tasks[0].future.result(timeout=1)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+		request.tasks[0].future.result(timeout=WAIT_TIMEOUT)
+	assert buses.wait_for_outer_done() == [manager.owner]
 	assert request.state.value == "failed"
 	assert stops == ["stopped"]
 	with pytest.raises(CancelledError):
-		request.tasks[1].future.result(timeout=1)
+		request.tasks[1].future.result(timeout=WAIT_TIMEOUT)
 	assert request.tasks[1].future.cancelled()
 	assert not other.entered.is_set()
 
@@ -402,7 +402,7 @@ def test_pause_current_uses_valid_voice_snapshot(manager, buses, two_voices):
 	request = manager.new_request()
 	append_speech(manager, request, voice, voice.start_async)
 	assert manager.submit_request(request)
-	assert voice.entered.wait(1)
+	assert voice.entered.wait(WAIT_TIMEOUT)
 	manager.pause_current(True)
 	manager.pause_current(False)
 	assert calls == ["pause", "resume"]
@@ -435,14 +435,14 @@ def test_cancel_during_first_active_rejects_stale_ve_events_before_neural_and_ve
 	new_ve_core = Core()
 	old_voice = types.SimpleNamespace(
 		core=stale_ve_core,
-		active=lambda: (active_entered.set(), release_active.wait(1)),
+		active=lambda: (active_entered.set(), release_active.wait(HOLD_TIMEOUT)),
 	)
 	neural_voice = types.SimpleNamespace(core=neural_core, active=lambda: None)
 	new_ve_voice = types.SimpleNamespace(core=new_ve_core, active=lambda: None)
 	old_request = manager.new_request()
 	append_speech(manager, old_request, old_voice, lambda: stale_ve_core.speak("old VE"))
 	assert manager.submit_request(old_request)
-	assert active_entered.wait(1)
+	assert active_entered.wait(WAIT_TIMEOUT)
 	cancel(manager, [old_voice])
 	assert old_request.token.is_cancelled()
 	release_active.set()
@@ -450,7 +450,7 @@ def test_cancel_during_first_active_rejects_stale_ve_events_before_neural_and_ve
 	append_speech(manager, new_request, neural_voice, neural_entered.set)
 	append_speech(manager, new_request, new_ve_voice, ve_entered.set)
 	assert manager.submit_request(new_request)
-	assert neural_entered.wait(1)
+	assert neural_entered.wait(WAIT_TIMEOUT)
 	with manager._state_cond:
 		neural_done_event = manager._current_done_event
 	assert neural_done_event is not None
@@ -468,10 +468,10 @@ def test_cancel_during_first_active_rejects_stale_ve_events_before_neural_and_ve
 	assert buses.outer_done == []
 	buses.index.notify(synth=neural_core, index=12)
 	buses.done.notify(synth=neural_core)
-	assert ve_entered.wait(1)
+	assert ve_entered.wait(WAIT_TIMEOUT)
 	buses.index.notify(synth=new_ve_core, index=13)
 	buses.done.notify(synth=new_ve_core)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.wait_for_outer_done() == [manager.owner]
 	assert raw_events == [("index", stale_ve_core, 9), ("done", stale_ve_core, None)]
 	assert stale_ve_core.spoken_after_cancel == []
 	assert stale_ve_core.spoken == []
@@ -488,19 +488,19 @@ def test_cancel_before_synchronous_core_done_discards_old_completion(manager, bu
 
 	def speak_then_done():
 		native_entered.set()
-		assert release_native.wait(1)
+		assert release_native.wait(HOLD_TIMEOUT)
 		raw_done.append(old_core)
 		buses.done.notify(synth=old_core)
 
 	old_request = manager.new_request()
 	append_speech(manager, old_request, old_voice, speak_then_done)
 	assert manager.submit_request(old_request)
-	assert native_entered.wait(1)
+	assert native_entered.wait(WAIT_TIMEOUT)
 	cancel(manager, [old_voice])
 	assert old_request.token.is_cancelled()
 	release_native.set()
 	with pytest.raises(CancelledError):
-		old_request.tasks[0].future.result(timeout=1)
+		old_request.tasks[0].future.result(timeout=WAIT_TIMEOUT)
 	# The future can settle before cleanup and external event emission finish.
 	manager._q.join()
 	assert raw_done == [old_core]
@@ -526,7 +526,7 @@ def test_two_concurrent_cancels_must_both_finish_before_new_speech(manager, voic
 	old = manager.new_request()
 	append_speech(manager, old, voice, old_entered.set)
 	assert manager.submit_request(old)
-	assert old_entered.wait(1)
+	assert old_entered.wait(WAIT_TIMEOUT)
 
 	def cancel_core():
 		nonlocal count
@@ -534,28 +534,28 @@ def test_two_concurrent_cancels_must_both_finish_before_new_speech(manager, voic
 			index = count
 			count += 1
 		entered[index].set()
-		assert release[index].wait(1)
+		assert release[index].wait(HOLD_TIMEOUT)
 
 	voice.core.cancel = cancel_core
 	stoppers = [threading.Thread(target=cancel, args=(manager, [voice])) for _ in range(2)]
 	for stopper in stoppers:
 		stopper.start()
-	assert all(event.wait(1) for event in entered)
+	assert all(event.wait(WAIT_TIMEOUT) for event in entered)
 	assert old.token.is_cancelled()
 	request = manager.new_request()
 	append_speech(manager, request, voice, new_entered.set)
 	assert manager.submit_request(request)
 	release[0].set()
-	stoppers[0].join(1)
+	stoppers[0].join(WAIT_TIMEOUT)
 	assert not stoppers[0].is_alive()
 	stays_unset(new_entered)
 	release[1].set()
-	stoppers[1].join(1)
+	stoppers[1].join(WAIT_TIMEOUT)
 	assert not stoppers[1].is_alive()
-	assert new_entered.wait(1)
+	assert new_entered.wait(WAIT_TIMEOUT)
 	assert buses.outer_done == []
 	buses.done.notify(synth=voice.core)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert buses.wait_for_outer_done() == [manager.owner]
 
 
 def test_cancel_wakes_break_token_and_allows_new_request(manager, voice):
@@ -570,13 +570,13 @@ def test_cancel_wakes_break_token_and_allows_new_request(manager, voice):
 	old.token.wait = observed_wait
 	append_break(manager, old, voice, 60)
 	assert manager.submit_request(old)
-	assert waiting.wait(1)
+	assert waiting.wait(WAIT_TIMEOUT)
 	cancel(manager, [voice])
 	new_entered = threading.Event()
 	new = manager.new_request()
 	append_speech(manager, new, voice, new_entered.set)
 	assert manager.submit_request(new)
-	assert new_entered.wait(1)
+	assert new_entered.wait(WAIT_TIMEOUT)
 
 
 def test_cancel_stops_shared_core_only_once(manager, voice):
@@ -594,7 +594,7 @@ def test_cancel_stops_current_core_before_other_cores(manager, voice):
 	request = manager.new_request()
 	append_speech(manager, request, voice, entered.set)
 	assert manager.submit_request(request)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	cancel(manager, [other_voice, voice])
 	assert stopped == ["current", "other"]
 
@@ -603,15 +603,15 @@ def test_cancel_during_active_skips_core_speak(manager, voice):
 	active_entered = threading.Event()
 	release_active = threading.Event()
 	completed = threading.Event()
-	voice.active = lambda: (active_entered.set(), release_active.wait(1))
+	voice.active = lambda: (active_entered.set(), release_active.wait(HOLD_TIMEOUT))
 	request = manager.new_request()
 	append_speech(manager, request, voice, lambda: voice.core.speak(["late"]))
 	request.tasks[0].future.add_done_callback(lambda _: completed.set())
 	assert manager.submit_request(request)
-	assert active_entered.wait(1)
+	assert active_entered.wait(WAIT_TIMEOUT)
 	cancel(manager, [voice])
 	release_active.set()
-	assert completed.wait(1)
+	assert completed.wait(WAIT_TIMEOUT)
 	assert request.tasks[0].future.cancelled()
 	assert voice.core.spoken == []
 
@@ -622,7 +622,7 @@ def test_cancel_during_speak_stops_core_again_after_speak_returns(manager, voice
 
 	def blocking_speak(text):
 		entered.set()
-		assert release_speak.wait(1)
+		assert release_speak.wait(HOLD_TIMEOUT)
 		voice.core.spoken.append(text)
 
 	voice.core.speak = blocking_speak
@@ -631,10 +631,10 @@ def test_cancel_during_speak_stops_core_again_after_speak_returns(manager, voice
 	completed = threading.Event()
 	request.tasks[0].future.add_done_callback(lambda _: completed.set())
 	assert manager.submit_request(request)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	cancel(manager, [voice])
 	release_speak.set()
-	assert completed.wait(1)
+	assert completed.wait(WAIT_TIMEOUT)
 	assert request.tasks[0].future.cancelled()
 	assert voice.core.cancel_count == 2
 
@@ -646,7 +646,7 @@ def test_pending_speech_is_cancelled_but_new_request_runs(manager, voice, buses)
 	first = manager.new_request()
 	append_speech(manager, first, voice, first_entered.set)
 	assert manager.submit_request(first)
-	assert first_entered.wait(1)
+	assert first_entered.wait(WAIT_TIMEOUT)
 	old = manager.new_request()
 	append_speech(manager, old, voice, old_entered.set)
 	assert manager.submit_request(old)
@@ -658,13 +658,13 @@ def test_pending_speech_is_cancelled_but_new_request_runs(manager, voice, buses)
 	append_speech(manager, new, voice, new_entered.set)
 	assert manager.submit_request(new)
 	new_future = new.tasks[0].future
-	assert old_done.wait(1)
+	assert old_done.wait(WAIT_TIMEOUT)
 	assert old_future.cancelled()
-	assert new_entered.wait(1)
+	assert new_entered.wait(WAIT_TIMEOUT)
 	assert not old_entered.is_set()
 	assert not new_future.cancelled()
 	buses.done.notify(synth=voice.core)
-	assert new_future.result(timeout=1) is True
+	assert new_future.result(timeout=WAIT_TIMEOUT) is True
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
@@ -700,6 +700,6 @@ def test_direct_wrapper_stop_mid_speech_lets_next_segment_run(manager, buses, mo
 			lambda text=text: core.speak([text], cancellationToken=request.token),
 		)
 	assert manager.submit_request(request)
-	assert second_spoken.wait(1)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
+	assert second_spoken.wait(WAIT_TIMEOUT)
+	assert buses.wait_for_outer_done() == [manager.owner]
 	assert spoken == ["first", "second"]

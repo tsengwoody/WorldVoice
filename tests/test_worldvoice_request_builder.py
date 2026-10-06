@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from addon_loader import alias_package
 from runtime_harness import MemoryRepository
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 from worldvoice_harness import EventStub
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
@@ -145,7 +146,7 @@ def test_builder_submits_complete_multivoice_request_once(modules, assembly):
 
 	a.manager.submit_request = submit
 	assert a.queue(["中", modules.models.SelectVoice(en.name), "English", modules.BreakCommand(0)], zh)
-	assert a.done_seen.wait(1)
+	assert a.done_seen.wait(WAIT_TIMEOUT)
 	assert len(submitted) == 1
 	assert [(task.voice_key, task.commands, task.seconds) for task in submitted[0].tasks] == [
 		("VE:zh", ("中",), None),
@@ -176,7 +177,7 @@ def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_brea
 
 	def submit(request):
 		requests.append(request)
-		request.token.wait = lambda seconds: (entered.set(), release.wait(2))
+		request.token.wait = lambda seconds: (entered.set(), release.wait(HOLD_TIMEOUT))
 		return original(request)
 
 	a.manager.submit_request = submit
@@ -203,7 +204,7 @@ def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_brea
 	sequence.append(modules.BreakCommand(200))
 	try:
 		assert a.queue(sequence, voices[0])
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		assert [call[1] for call in calls] == [(text,) for text in texts]
 		assert [event[0] for event in raw_events] == ["index", "done"] * len(voices)
 		assert a.indexes == list(indexes)
@@ -216,7 +217,7 @@ def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_brea
 			)
 	finally:
 		release.set()
-	assert a.done_seen.wait(1)
+	assert a.done_seen.wait(WAIT_TIMEOUT)
 	assert a.done_calls == [a.owner]
 
 

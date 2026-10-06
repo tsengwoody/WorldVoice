@@ -8,7 +8,7 @@ import pytest
 from addon_loader import ADDON, load_source
 from nvda_stubs import StubModules
 from voice_binding_harness import bind_core
-from waiting import stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
 from worldvoice_harness import RecordingCore, create_f4_voices, init_policies, load_f4_voice_manager
 
 PRESENTER = ADDON / "globalPlugins/WorldVoice/rolePresenter.py"
@@ -245,7 +245,7 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 			original_update(**values)
 			if values.get("rate") == 72 and not rate_written.is_set():
 				rate_written.set()
-				release_copy.wait(2)
+				release_copy.wait(HOLD_TIMEOUT)
 
 	env.b.rate = 10
 	monkeypatch.setattr(env.b._state, "update", gated_update)
@@ -262,7 +262,7 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 	worker_thread = threading.Thread(target=activate_b)
 	ui_thread.start()
 	try:
-		assert rate_written.wait(1)
+		assert rate_written.wait(WAIT_TIMEOUT)
 		worker_thread.start()
 		stays_unset(worker_done, message="worker observed settings during the UI copy")
 	finally:
@@ -285,14 +285,14 @@ def test_preview_b_while_a_is_playing_then_discard_restores_next_segment(env):
 		def speak(self, text):
 			super().speak(text)
 			self.entered.set()
-			self.release.wait(2)
+			self.release.wait(HOLD_TIMEOUT)
 
 	core = BlockingCore()
 	bind_core(core, a, b)
 	a._binding.session.activate(a.name)
 	playback = threading.Thread(target=core.speak, args=("A is speaking",))
 	playback.start()
-	assert core.entered.wait(1)
+	assert core.entered.wait(WAIT_TIMEOUT)
 	current_writes = list(core.writes)
 	try:
 		env.presenter.set_parameter_consistency(True)

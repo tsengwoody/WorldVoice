@@ -3,7 +3,7 @@ import threading
 from io import BytesIO
 
 import pytest
-from waiting import eventually
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually
 from worldvoice_cancel_wrapper_harness import Token, load_real_driver_with_native_stubs, native_message
 
 
@@ -215,7 +215,7 @@ def test_cancel_between_token_check_and_clear_stays_stopped(engine_harness, monk
 
 	def paused_begin(received):
 		entry_paused.set()
-		assert release_entry.wait(1)
+		assert release_entry.wait(HOLD_TIMEOUT)
 		return begin(received)
 
 	monkeypatch.setattr(core._isSilence, "begin", paused_begin)
@@ -231,13 +231,13 @@ def test_cancel_between_token_check_and_clear_stays_stopped(engine_harness, monk
 		kwargs={"cancellationToken": token},
 	)
 	worker.start()
-	assert entry_paused.wait(1)
+	assert entry_paused.wait(WAIT_TIMEOUT)
 	token.cancel()
 	stopper = threading.Thread(target=core.cancel)
 	stopper.start()
 	release_entry.set()
-	worker.join(1)
-	stopper.join(1)
+	worker.join(WAIT_TIMEOUT)
+	stopper.join(WAIT_TIMEOUT)
 	assert not worker.is_alive() and not stopper.is_alive()
 	assert core._isSilence.cancelled()
 	assert called == []
@@ -267,7 +267,7 @@ def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harn
 
 	def native(instance, text):
 		native_entered.set()
-		assert release_native.wait(1)
+		assert release_native.wait(HOLD_TIMEOUT)
 		out_data = engine_harness.types.VE_OUTDATA()
 		for message_type in (
 			engine_harness.types.VE_MSG_OUTBUFREQ,
@@ -288,10 +288,10 @@ def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harn
 		kwargs={"cancellationToken": token},
 	)
 	worker.start()
-	assert native_entered.wait(1)
+	assert native_entered.wait(WAIT_TIMEOUT)
 	token.cancel()
 	release_native.set()
-	worker.join(1)
+	worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive()
 	assert results == [engine_harness.types.NUAN_E_TTS_USERSTOP] * 2
 	assert core._real_player.fed == []
@@ -315,7 +315,7 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 		if token.is_cancelled():
 			spoken_after_cancel.append(text)
 		native_entered.set()
-		assert release_native.wait(1)
+		assert release_native.wait(HOLD_TIMEOUT)
 		out_data = engine_harness.types.VE_OUTDATA()
 		callback_results.append(
 			core._veCallbackHandler(
@@ -336,10 +336,10 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 		kwargs={"cancellationToken": token},
 	)
 	worker.start()
-	assert native_entered.wait(1)
+	assert native_entered.wait(WAIT_TIMEOUT)
 	token.cancel()
 	release_native.set()
-	worker.join(1)
+	worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive()
 	assert callback_results == [engine_harness.types.NUAN_E_TTS_USERSTOP]
 	assert spoken_after_cancel == []
@@ -353,7 +353,7 @@ def test_cancel_during_real_callback_feed_stops_after_feed(engine_harness, monke
 
 	def slow_feed(data):
 		feed_entered.set()
-		assert release_feed.wait(1)
+		assert release_feed.wait(HOLD_TIMEOUT)
 		core._real_player.fed.append(data)
 
 	core._real_player.feed = slow_feed
@@ -374,11 +374,11 @@ def test_cancel_during_real_callback_feed_stops_after_feed(engine_harness, monke
 		kwargs={"cancellationToken": token},
 	)
 	worker.start()
-	assert feed_entered.wait(1)
+	assert feed_entered.wait(WAIT_TIMEOUT)
 	token.cancel()
 	assert core._real_player.stops == 0
 	release_feed.set()
-	worker.join(1)
+	worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive()
 	assert core._real_player.fed == [b"sound"]
 	assert core._real_player.stops == 1

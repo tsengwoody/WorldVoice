@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import WORLDVOICE, load_source
 from nvda_stubs import StubModules
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 from worldvoice_harness import EventStub, load_synth_class
 
 
@@ -300,13 +301,13 @@ def test_worker_stops_before_bridge_and_sessions_close(composition, bridge_error
 
 	def speak(commands):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	core.speak = speak
 	request = c.tasks.new_request()
 	c.tasks.append_speech(request, manager.resolve_playback("ok:a"), "ok:a", ("hello",))
 	assert c.tasks.submit_request(request)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	closed = []
 	original_shutdown, original_close, original_terminate = c.tasks.shutdown, c.bridge.close, core.terminate
 
@@ -334,7 +335,7 @@ def test_worker_stops_before_bridge_and_sessions_close(composition, bridge_error
 	thread = threading.Thread(target=synth.terminate)
 	try:
 		thread.start()
-		assert stopping.wait(1)
+		assert stopping.wait(WAIT_TIMEOUT)
 		assert c.tasks._thread.is_alive()
 		assert not c.bridge._closed
 		assert core.closes == 0
@@ -393,13 +394,13 @@ def test_termination_closes_admission_before_blocking_cancel(composition, submis
 	def cancel():
 		c.cores[0].cancels += 1
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	c.cores[0].cancel = cancel
 	thread = threading.Thread(target=synth.terminate)
 	try:
 		thread.start()
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		assert synth._terminated
 		if submission == "new":
 			scheduler = importlib.import_module(c.module.__package__ + ".runtime.scheduler")
@@ -455,7 +456,7 @@ def test_resource_bound_before_first_encoded_speech(composition, nvda_commands):
 	original = nvda_commands.IndexCommand(42)
 	c.tasks.append_speech(request, port, "marker:a", ("hello", original))
 	assert c.tasks.submit_request(request)
-	assert finished.wait(1)
+	assert finished.wait(WAIT_TIMEOUT)
 	assert [item.index for item in spoken if isinstance(item, nvda_commands.IndexCommand)] == [501, 502]
 	assert original.index == 42
 	assert selected == [cls.opened]
@@ -711,7 +712,7 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 	c.index.register(lambda synth, index: indexes.append(index) if synth is c.owner else None)
 	request = c.tasks.new_request()
 	c.tasks.append_speech(request, port, engine + ":a", ("hello", nvda_commands.IndexCommand(42)))
-	assert c.tasks.submit_request(request) and done.wait(1)
+	assert c.tasks.submit_request(request) and done.wait(WAIT_TIMEOUT)
 	commands, context = installed.spoken[0]
 	assert context.source_id is port.source_id
 	assert [command.index for command in commands if isinstance(command, nvda_commands.IndexCommand)] == [1]
@@ -746,7 +747,7 @@ def test_new_installed_wrapper_retains_request_identity_on_failure_or_cancel(
 	installed.driver.speak_segment = hold
 	request = c.tasks.new_request()
 	future = c.tasks.append_speech(request, port, "SAPI5:a", ("first",))
-	assert c.tasks.submit_request(request) and entered.wait(1)
+	assert c.tasks.submit_request(request) and entered.wait(WAIT_TIMEOUT)
 	context, sink = calls[0]
 	if outcome == "failure":
 		error = RuntimeError("native playback failed")
@@ -759,7 +760,7 @@ def test_new_installed_wrapper_retains_request_identity_on_failure_or_cancel(
 			),
 		)
 		with pytest.raises(RuntimeError, match="native playback failed"):
-			future.result(1)
+			future.result(WAIT_TIMEOUT)
 		assert request.state.name == "FAILED"
 	else:
 		c.tasks.cancel((port,))
@@ -771,7 +772,7 @@ def test_new_installed_wrapper_retains_request_identity_on_failure_or_cancel(
 			),
 		)
 		with pytest.raises(CancelledError):
-			future.result(1)
+			future.result(WAIT_TIMEOUT)
 		assert future.cancelled()
 		assert request.state.name == "CANCELLED"
 
@@ -949,7 +950,7 @@ def test_drain_request_integrates_encoded_indexes_and_native_events(composition,
 		),
 	)
 	assert c.tasks.submit_request(request)
-	assert completed.wait(1)
+	assert completed.wait(WAIT_TIMEOUT)
 	assert indexes == [42, 7] and len(sinks) == 1
 
 
@@ -994,7 +995,7 @@ def test_index_handler_revokes_remainder_of_drain_batch(composition, nvda_comman
 		(nvda_commands.IndexCommand(42), nvda_commands.IndexCommand(7)),
 	)
 	assert c.tasks.submit_request(request)
-	assert entered.wait(1) and returned.wait(1)
+	assert entered.wait(WAIT_TIMEOUT) and returned.wait(WAIT_TIMEOUT)
 	assert indexes == [42] and completed == []
 	if action == "cancel":
 		assert future.cancelled()
@@ -1044,7 +1045,7 @@ def test_each_drain_factory_captures_its_own_resource(composition, nvda_commands
 	request = c.tasks.new_request()
 	for key in ("first:a", "second:a"):
 		c.tasks.append_speech(request, manager.resolve_playback(key), key, ("hello",))
-	assert c.tasks.submit_request(request) and completed.wait(1)
+	assert c.tasks.submit_request(request) and completed.wait(WAIT_TIMEOUT)
 	assert calls == [first.opened, second.opened]
 
 
@@ -1093,7 +1094,7 @@ def test_reentrant_drain_supplier_waits_until_current_index_batch_finishes(compo
 			nvda_commands.IndexCommand(7),
 		),
 	)
-	assert c.tasks.submit_request(request) and completed.wait(1)
+	assert c.tasks.submit_request(request) and completed.wait(WAIT_TIMEOUT)
 	assert delivery == ["decode", 42, 7, "decode"]
 
 
@@ -1114,14 +1115,14 @@ def test_old_drain_sink_cannot_complete_request_after_core_rebind(composition, n
 	cls.opened.speak_segment = speak
 	first = c.tasks.new_request()
 	c.tasks.append_speech(first, port, "drain:a", ("old",))
-	assert c.tasks.submit_request(first) and entered.wait(1)
+	assert c.tasks.submit_request(first) and entered.wait(WAIT_TIMEOUT)
 	c.tasks.cancel((port,))
 	c.bridge.unbind(port.source_id)
 	c.bridge.bind(cls.opened, port.source_id, completion=port.completion)
 	entered.clear()
 	second = c.tasks.new_request()
 	future = c.tasks.append_speech(second, port, "drain:a", ("new", nvda_commands.IndexCommand(42)))
-	assert c.tasks.submit_request(second) and entered.wait(1)
+	assert c.tasks.submit_request(second) and entered.wait(WAIT_TIMEOUT)
 	old_context, old_sink = calls[0]
 	old_sink(
 		c.models.PlaybackEvent(
@@ -1139,7 +1140,7 @@ def test_old_drain_sink_cannot_complete_request_after_core_rebind(composition, n
 			segment_id=new_context.segment_id,
 		),
 	)
-	assert future.result(1) is True and indexes == [42]
+	assert future.result(WAIT_TIMEOUT) is True and indexes == [42]
 
 
 def test_an_unavailable_main_voice_raises_and_keeps_the_current_one(composition):
