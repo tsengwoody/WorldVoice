@@ -1,13 +1,12 @@
 """Saving the WorldVoice settings panels writes config before persisting it."""
 
-import ast
 import types
 from collections import OrderedDict
-from pathlib import Path
 
 import pytest
+from addon_loader import ADDON, load_definitions
 
-PANEL_PATH = Path(__file__).resolve().parents[1] / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
+PANEL_PATH = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 
 
 class RecordingSection(dict):
@@ -21,9 +20,6 @@ class RecordingSection(dict):
 
 
 def _load_panels(calls, logged):
-	tree = ast.parse(PANEL_PATH.read_text(encoding="utf-8"))
-	wanted = {"BaseSettingsPanel", "SpeechEngineSettingsPanel"}
-	classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name in wanted]
 	section = RecordingSection(calls, {"VE": False, "OneCore": True, "SAPI5": False})
 	environment = {
 		"SettingsPanel": object,
@@ -42,7 +38,7 @@ def _load_panels(calls, logged):
 		),
 		"core": types.SimpleNamespace(restart=lambda: None),
 	}
-	exec(compile(ast.Module(body=classes, type_ignores=[]), str(PANEL_PATH), "exec"), environment)
+	load_definitions(PANEL_PATH, ["BaseSettingsPanel", "SpeechEngineSettingsPanel"], environment)
 	return environment, section
 
 

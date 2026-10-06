@@ -1,19 +1,15 @@
 """The role panel turns a failed apply into NVDA's save-abort signal."""
 
-import ast
 import types
-from pathlib import Path
 
 import pytest
+from addon_loader import ADDON, load_definitions
 
-PANEL = Path(__file__).resolve().parents[1] / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
+PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 
 
 def load_panel(environment):
-	tree = ast.parse(PANEL.read_text(encoding="utf-8"))
-	node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SpeechRoleSettingsPanel")
-	exec(compile(ast.Module(body=[node], type_ignores=[]), str(PANEL), "exec"), environment)
-	return environment["SpeechRoleSettingsPanel"]
+	return load_definitions(PANEL, ["SpeechRoleSettingsPanel"], environment)["SpeechRoleSettingsPanel"]
 
 
 def checkbox(value):

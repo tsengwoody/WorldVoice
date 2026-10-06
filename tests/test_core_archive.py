@@ -1,11 +1,10 @@
 """One extraction routine serves installation and the Import menu."""
 
-import ast
 import types
 from zipfile import BadZipFile, ZipFile
 
 import pytest
-from addon_loader import ADDON, load_source
+from addon_loader import ADDON, load_definitions, load_source
 from nvda_stubs import StubModules
 
 ARCHIVE = ADDON / "generics/coreArchive.py"
@@ -77,9 +76,6 @@ def test_install_always_removes_the_archive(tmp_path, monkeypatch, corrupt):
 
 
 def test_menu_import_reports_a_corrupt_archive(monkeypatch, tmp_path):
-	tree = ast.parse(PLUGIN.read_text(encoding="utf-8"))
-	plugin = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "GlobalPlugin")
-	method = next(n for n in plugin.body if isinstance(n, ast.FunctionDef) and n.name == "onFileImport")
 	broken = tmp_path / "broken.zip"
 	broken.write_bytes(b"not a zip")
 	shown = []
@@ -118,6 +114,6 @@ def test_menu_import_reports_a_corrupt_archive(monkeypatch, tmp_path):
 			[],
 		).extract_core_archive,
 	}
-	exec(compile(ast.Module(body=[method], type_ignores=[]), str(PLUGIN), "exec"), environment)
+	load_definitions(PLUGIN, ["GlobalPlugin.onFileImport"], environment)
 	environment["onFileImport"](None, None)
 	assert shown and shown[0][0] == "Import fail"

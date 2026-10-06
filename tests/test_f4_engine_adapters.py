@@ -1,12 +1,11 @@
-import ast
 import types
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
+from addon_loader import WORLDVOICE, load_definitions
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
-DRIVERS = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
+DRIVERS = WORLDVOICE / "driver"
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
@@ -84,8 +83,6 @@ def test_variant_metadata_read_preserves_playback_state(monkeypatch, engine):
 
 def test_onecore_language_is_applied_only_on_activation():
 	path = DRIVERS / "OneCore/__init__.py"
-	tree = ast.parse(path.read_text(encoding="utf-8"))
-	voice_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Voice")
 
 	class BaseVoice:
 		def __init__(self, id, name, taskManager, language=None):
@@ -93,7 +90,7 @@ def test_onecore_language_is_applied_only_on_activation():
 
 	core = types.SimpleNamespace(language="original")
 	environment = {"Voice": BaseVoice, "SynthDriver": object, "DrainProfile": lambda **kwargs: None}
-	exec(compile(ast.Module(body=[voice_class], type_ignores=[]), str(path), "exec"), environment)
+	load_definitions(path, ["Voice"], environment)
 	environment["Voice"].core = core
 	adapter = environment["Voice"]("a", "OneCore:a", None, language="en")
 	assert core.language == "original"

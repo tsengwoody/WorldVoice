@@ -1,12 +1,11 @@
 """Pipeline log switching is shared by the plugin scripts and the log panel."""
 
-import ast
 import sys
 import types
 from pathlib import Path
 
 import pytest
-from addon_loader import ADDON, WORLDVOICE, load_source
+from addon_loader import ADDON, WORLDVOICE, load_definitions, load_source
 from nvda_stubs import StubModules
 
 LOG = WORLDVOICE / "log.py"
@@ -66,21 +65,13 @@ def test_prompts_map_answers(monkeypatch):
 
 
 def test_log_panel_no_unticks_enable(monkeypatch):
-	tree = ast.parse(PANEL.read_text(encoding="utf-8"))
-	node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "LogSettingsPanel")
-	node.body = [
-		n
-		for n in node.body
-		if isinstance(n, ast.FunctionDef) and n.name in {"isValid", "onEnableCheckboxChange"}
-	]
-	node.bases = []
 	enabled = []
 	environment = {
 		"wx": types.SimpleNamespace(YES=2, NO=8, CANCEL=16),
 		"pipeline_log": types.SimpleNamespace(enabled=False),
 		"confirm_enable": lambda *, allow_cancel: 8,
 	}
-	exec(compile(ast.Module(body=[node], type_ignores=[]), str(PANEL), "exec"), environment)
+	load_definitions(PANEL, ["LogSettingsPanel"], environment, members={"isValid", "onEnableCheckboxChange"})
 	panel = environment["LogSettingsPanel"]()
 	state = {"value": True}
 	panel._enable_checkbox = types.SimpleNamespace(

@@ -1,25 +1,17 @@
 """Behavior of code rewritten for lint, pinned before the rewrite."""
 
-import ast
 import types
 
-from addon_loader import WORLDVOICE, load_source
+from addon_loader import WORLDVOICE, load_definitions, load_source
 
 
 def _driver_methods(*names, trust_voice_language=True):
-	path = WORLDVOICE / "__init__.py"
-	tree = ast.parse(path.read_text(encoding="utf-8"))
-	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
-	driver.body = [node for node in driver.body if isinstance(node, ast.FunctionDef) and node.name in names]
-	driver.bases = []
-	driver.decorator_list = []
 	env = {
 		"_": lambda text: text,
 		"config": types.SimpleNamespace(conf={"speech": {"trustVoiceLanguage": trust_voice_language}}),
 		"StringParameterInfo": lambda id, name: types.SimpleNamespace(id=id, name=name),
 	}
-	exec(compile(ast.Module(body=[driver], type_ignores=[]), str(path), "exec"), env)
-	return env["SynthDriver"]
+	return load_definitions(WORLDVOICE / "__init__.py", ["SynthDriver"], env, members=names)["SynthDriver"]
 
 
 def _spelling_synth(uwv, trust_voice_language):

@@ -1,10 +1,10 @@
 """The settings UI shares one path for each concern and uses only public driver hooks."""
 
 import ast
-from pathlib import Path
 from types import SimpleNamespace
 
-ADDON = Path(__file__).resolve().parents[1] / "addon"
+from addon_loader import ADDON, load_definitions
+
 DIALOG = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 
 
@@ -29,9 +29,7 @@ def test_ui_uses_only_public_driver_hooks():
 
 def _role_panel_on_save(synth, log):
 	env = {"worldvoice_synth": lambda: synth, "log": log}
-	module = ast.Module(body=[method(DIALOG, "SpeechRoleSettingsPanel", "onSave")], type_ignores=[])
-	exec(compile(module, str(DIALOG), "exec"), env)
-	return env["onSave"]
+	return load_definitions(DIALOG, ["SpeechRoleSettingsPanel.onSave"], env)["onSave"]
 
 
 def test_role_panel_does_not_save_to_a_voice_manager_the_synth_replaced():

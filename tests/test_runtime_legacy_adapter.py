@@ -1,7 +1,7 @@
-import ast
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import load_definitions
 from runtime_harness import RUNTIME, MemoryRepository, load_index_support, make_spec
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
@@ -223,11 +223,9 @@ def test_each_adapter_owns_its_own_core(compat):
 
 def test_onecore_cached_a_b_a_restores_language(compat, rt):
 	path = RUNTIME.parent / "driver/OneCore/__init__.py"
-	tree = ast.parse(path.read_text(encoding="utf-8"))
-	node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
 	core = Core()
 	env = {"Voice": legacy_class(core), "SynthDriver": object, "DrainProfile": rt.playback_work.DrainProfile}
-	exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), "exec"), env)
+	load_definitions(path, ["Voice"], env)
 	cls = env["Voice"]
 	store = rt.settings.VoiceSettingsStore(MemoryRepository())
 	store.ensure(make_spec("OneCore:a", "en")).update(rate=72)

@@ -1,13 +1,12 @@
 """The Unicode detection panel's script choices and what it saves."""
 
-import ast
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import ADDON, load_definitions
 from detector_harness import load_language_detection
 
-PANEL = Path(__file__).resolve().parents[1] / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
+PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 
 
 class Control:
@@ -100,11 +99,7 @@ def build(env, languages, stored):
 		"languageDetection": env.module,
 		"detection_settings": service,
 	}
-	tree = ast.parse(PANEL.read_text(encoding="utf-8"))
-	node = next(
-		n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "UnicodeDetectionSettingsPanel"
-	)
-	exec(compile(ast.Module(body=[node], type_ignores=[]), str(PANEL), "exec"), environment)
+	load_definitions(PANEL, ["UnicodeDetectionSettingsPanel"], environment)
 	panel = object.__new__(environment["UnicodeDetectionSettingsPanel"])
 	panel.makeSettings(SimpleNamespace())
 	return SimpleNamespace(panel=panel, added=added, switching=switching, synth=synth, notified=notified)

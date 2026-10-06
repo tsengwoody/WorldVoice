@@ -1,17 +1,14 @@
 """GlobalPlugin terminate always runs its later cleanup steps."""
 
-import ast
 import types
-from pathlib import Path
 
-PLUGIN_PATH = Path(__file__).resolve().parents[1] / "addon/globalPlugins/WorldVoice/__init__.py"
+from addon_loader import ADDON, load_definitions
+
+PLUGIN_PATH = ADDON / "globalPlugins/WorldVoice/__init__.py"
 
 
 def load_plugin_class(environment):
-	tree = ast.parse(PLUGIN_PATH.read_text(encoding="utf-8"))
-	node = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "GlobalPlugin")
-	exec(compile(ast.Module(body=[node], type_ignores=[]), str(PLUGIN_PATH), "exec"), environment)
-	return environment["GlobalPlugin"]
+	return load_definitions(PLUGIN_PATH, ["GlobalPlugin"], environment)["GlobalPlugin"]
 
 
 def plugin_environment(calls, *, secure, menu_error=None):

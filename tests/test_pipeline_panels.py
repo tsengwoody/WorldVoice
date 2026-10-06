@@ -2,28 +2,13 @@
 
 import ast
 import types
-from pathlib import Path
 
+from addon_loader import ADDON, WORLDVOICE, load_definitions
 from test_pipeline_stages import ORDER
 
-ROOT = Path(__file__).resolve().parents[1]
-PANELS = ROOT / "addon/globalPlugins/WorldVoice/speechSettingsDialog.py"
-VOICE_PANEL = ROOT / "addon/synthDrivers/WorldVoice/VoiceSettingsDialogs.py"
-SYNTH = ROOT / "addon/synthDrivers/WorldVoice/__init__.py"
-
-
-def load(path, names, environment):
-	tree = ast.parse(path.read_text(encoding="utf-8"))
-	nodes = [
-		node
-		for node in tree.body
-		if isinstance(node, ast.ClassDef)
-		and node.name in names
-		or isinstance(node, ast.Assign)
-		and any(getattr(t, "id", None) in names for t in node.targets)
-	]
-	exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), "exec"), environment)
-	return environment
+PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
+VOICE_PANEL = WORLDVOICE / "VoiceSettingsDialogs.py"
+SYNTH = WORLDVOICE / "__init__.py"
 
 
 class Widget:
@@ -38,7 +23,7 @@ class Widget:
 
 
 def test_log_labels_match_stages_and_confspec():
-	environment = load(PANELS, {"_LOG_LABELS"}, {"_": lambda text: text})
+	environment = load_definitions(PANELS, {"_LOG_LABELS"}, {"_": lambda text: text})
 	assert list(environment["_LOG_LABELS"]) == ORDER
 	tree = ast.parse(SYNTH.read_text(encoding="utf-8"))
 	source = ast.unparse(tree)
@@ -47,7 +32,7 @@ def test_log_labels_match_stages_and_confspec():
 
 def test_pipeline_panel_saves_once_through_the_service():
 	updates = []
-	environment = load(
+	environment = load_definitions(
 		PANELS,
 		{"SpeechPipelinePanel"},
 		{
@@ -104,7 +89,7 @@ def test_voice_panel_discard_restores_live_pipeline_changes():
 		def onDiscard(self):
 			updates.append("nvda discard")
 
-	environment = load(
+	environment = load_definitions(
 		VOICE_PANEL,
 		{"WorldVoiceVoiceSettingsPanel"},
 		{
@@ -140,7 +125,7 @@ def test_voice_panel_discard_after_apply_keeps_applied_pipeline_values():
 		def onDiscard(self):
 			pass
 
-	environment = load(
+	environment = load_definitions(
 		VOICE_PANEL,
 		{"WorldVoiceVoiceSettingsPanel"},
 		{
