@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from addon_loader import ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 NVDA = ROOT / "ref/nvda"
 VERSION = "source-DETACHED-9ef645d"
@@ -69,7 +70,7 @@ class Native:
 
 	def wait_calls(self, count):
 		with self.condition:
-			assert self.condition.wait_for(lambda: len(self.calls) >= count, 2)
+			assert self.condition.wait_for(lambda: len(self.calls) >= count, WAIT_TIMEOUT)
 
 	def terminate(self, token):
 		self.terminated = True
@@ -108,7 +109,7 @@ class Player:
 
 	def feed(self, data, size=None, onDone=None):
 		self.feed_entered.set()
-		assert self.feed_release.wait(2), "Test did not release feed"
+		assert self.feed_release.wait(HOLD_TIMEOUT), "Test did not release feed"
 		if self.error == "feed":
 			raise OSError("feed failed")
 		self.fed.append(ctypes.string_at(data, size))
@@ -117,7 +118,7 @@ class Player:
 
 	def sync(self):
 		self.sync_entered.set()
-		assert self.sync_release.wait(2), "Test did not release sync"
+		assert self.sync_release.wait(HOLD_TIMEOUT), "Test did not release sync"
 		if self.error == "sync":
 			raise OSError("sync failed")
 

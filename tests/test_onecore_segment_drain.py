@@ -5,7 +5,15 @@ from threading import Event, current_thread, get_ident
 
 import pytest
 from onecore_drain_harness import VERSION, in_thread, load_onecore
-from waiting import WAIT_TIMEOUT, eventually, holds_within, quiet_period, stays_false, stays_unset
+from waiting import (
+	HOLD_TIMEOUT,
+	WAIT_TIMEOUT,
+	eventually,
+	holds_within,
+	quiet_period,
+	stays_false,
+	stays_unset,
+)
 
 
 @pytest.fixture
@@ -29,7 +37,7 @@ def speak(env, segment=17, commands=("hello",), events=None):
 
 
 def finish(call):
-	assert call.done.wait(2), "Callback did not exit"
+	assert call.done.wait(WAIT_TIMEOUT), "Callback did not exit"
 	call.thread.join(1)
 	assert call.errors == []
 
@@ -50,7 +58,7 @@ def test_onecore_uses_shared_lifecycle_for_an_empty_segment(env):
 	assert native.operation.work.context is context
 	response = in_thread(lambda: env.native.respond(frames=0, markers=""))
 	finish(response)
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	assert events == []
 	env.player.sync_release.set()
 	wait_events(events)
@@ -70,14 +78,14 @@ def test_onecore_shared_handoff_waits_for_callback_feed_and_stop(env):
 
 	def blocked_stop():
 		stop_entered.set()
-		assert release_stop.wait(2), "Test did not release the old stop"
+		assert release_stop.wait(HOLD_TIMEOUT), "Test did not release the old stop"
 		original_stop()
 
 	env.player.stop = blocked_stop
 	response = in_thread(env.native.respond)
-	assert env.player.feed_entered.wait(1)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	cancel = in_thread(env.driver.cancel)
-	assert stop_entered.wait(1)
+	assert stop_entered.wait(WAIT_TIMEOUT)
 	_, new_context, new_events = speak(env, segment=18)
 	assert len(env.native.calls) == 1
 	assert old_events == [] and new_events == []
@@ -108,12 +116,12 @@ def test_onecore_callback_return_precedes_drain_and_successor_native_call(env):
 	def held_callback(*args):
 		original_callback(*args)
 		callback_body_returned.set()
-		assert release_callback.wait(2)
+		assert release_callback.wait(HOLD_TIMEOUT)
 
 	env.driver._callback = held_callback
 	env.player.sync_release.set()
 	response = in_thread(lambda: env.native.respond(markers=""))
-	assert callback_body_returned.wait(1)
+	assert callback_body_returned.wait(WAIT_TIMEOUT)
 	advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 2)
 	assert not advanced, "Successor native call began before callback returned"
 	assert first_events == [] and second_events == []
@@ -139,12 +147,12 @@ def test_onecore_retirement_return_precedes_drain_and_successor_native_call(env)
 		original_retire(native)
 		if native.operation is not None:
 			retired.set()
-			assert release_retirement.wait(2)
+			assert release_retirement.wait(HOLD_TIMEOUT)
 
 	env.driver._retireSegmentNative = held_retirement
 	env.player.sync_release.set()
 	response = in_thread(lambda: env.native.respond(markers=""))
-	assert retired.wait(1)
+	assert retired.wait(WAIT_TIMEOUT)
 	advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 2)
 	assert not advanced, "Successor native call began before retirement returned"
 	assert first_events == [] and second_events == []
@@ -175,14 +183,14 @@ def test_onecore_successor_player_open_waits_for_old_feed_and_stop(env):
 
 	def blocked_stop():
 		stop_entered.set()
-		assert release_stop.wait(2)
+		assert release_stop.wait(HOLD_TIMEOUT)
 		original_stop()
 
 	env.player.stop = blocked_stop
 	response = in_thread(env.native.respond)
-	assert env.player.feed_entered.wait(1)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	cancel = in_thread(env.driver.cancel)
-	assert stop_entered.wait(1)
+	assert stop_entered.wait(WAIT_TIMEOUT)
 	speak(env, segment=18)
 	assert opened == []
 	assert len(env.native.calls) == 1
@@ -201,7 +209,7 @@ def test_onecore_waits_for_tail_sync_before_drain(env):
 	_token, context, events = speak(env)
 	env.native.wait_calls(1)
 	call = in_thread(env.native.respond)
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	assert env.indexes == [1]
 	assert sum(map(len, env.player.fed)) == 16
 	assert events == []
@@ -323,7 +331,7 @@ def test_cancel_sees_accepted_work_while_xml_conversion_is_held(env, monkeypatch
 
 	def held_convert(self, commands):
 		converting.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		return original(self, commands)
 
 	monkeypatch.setattr(converter, "convertToXml", held_convert)
@@ -339,7 +347,7 @@ def test_cancel_sees_accepted_work_while_xml_conversion_is_held(env, monkeypatch
 		),
 	)
 	try:
-		assert converting.wait(1)
+		assert converting.wait(WAIT_TIMEOUT)
 		cancelling = in_thread(env.driver.cancel)
 		finish(cancelling)
 		release.set()
@@ -359,12 +367,12 @@ def test_cancel_after_control_fault_capture_suppresses_pending_failure(env, monk
 
 	def held_convert(self, commands):
 		converting.set()
-		assert release_conversion.wait(2)
+		assert release_conversion.wait(HOLD_TIMEOUT)
 		return original_convert(self, commands)
 
 	def held_delivery(failure):
 		captured.set()
-		assert release_delivery.wait(2)
+		assert release_delivery.wait(HOLD_TIMEOUT)
 		return original_delivery(failure)
 
 	monkeypatch.setattr(converter, "convertToXml", held_convert)
@@ -381,10 +389,10 @@ def test_cancel_after_control_fault_capture_suppresses_pending_failure(env, monk
 		),
 	)
 	try:
-		assert converting.wait(1)
+		assert converting.wait(WAIT_TIMEOUT)
 		operation = next(iter(env.driver._segmentHost._lifecycle._operations))
 		faulting = in_thread(lambda: env.driver._failSegmentControl(OSError("player failed")))
-		assert captured.wait(1)
+		assert captured.wait(WAIT_TIMEOUT)
 		cancelling = in_thread(env.driver.cancel)
 		finish(cancelling)
 		release_delivery.set()
@@ -394,7 +402,7 @@ def test_cancel_after_control_fault_capture_suppresses_pending_failure(env, monk
 		with env.driver._segmentHost._lifecycle._condition:
 			assert env.driver._segmentHost._lifecycle._condition.wait_for(
 				lambda: operation not in env.driver._segmentHost._lifecycle._operations,
-				1,
+				WAIT_TIMEOUT,
 			)
 		assert events == []
 		assert env.native.calls == []
@@ -410,7 +418,7 @@ def test_suppressed_conversion_failure_retires_accepted_membership(env, monkeypa
 
 	def broken_conversion(self, commands):
 		converting.set()
-		assert release_conversion.wait(2)
+		assert release_conversion.wait(HOLD_TIMEOUT)
 		raise ValueError("conversion failed")
 
 	monkeypatch.setattr(converter, "convertToXml", broken_conversion)
@@ -426,19 +434,19 @@ def test_suppressed_conversion_failure_retires_accepted_membership(env, monkeypa
 		),
 	)
 	try:
-		assert converting.wait(1)
+		assert converting.wait(WAIT_TIMEOUT)
 		operation = next(iter(env.driver._segmentHost._lifecycle._operations))
 		real_fail = operation.work.fail
 
 		def held_fail(error):
 			failing.set()
-			assert release_failure.wait(2)
+			assert release_failure.wait(HOLD_TIMEOUT)
 			return real_fail(error)
 
 		monkeypatch.setattr(operation.work, "fail", held_fail)
 		release_conversion.set()
 		finish(speaking)
-		assert failing.wait(1)
+		assert failing.wait(WAIT_TIMEOUT)
 		with env.driver._segmentCondition:
 			assert operation in env.driver._segmentHost._accepted
 		token.cancel()
@@ -446,12 +454,12 @@ def test_suppressed_conversion_failure_retires_accepted_membership(env, monkeypa
 		with env.driver._segmentHost._lifecycle._condition:
 			assert env.driver._segmentHost._lifecycle._condition.wait_for(
 				lambda: operation not in env.driver._segmentHost._lifecycle._operations,
-				1,
+				WAIT_TIMEOUT,
 			)
 		with env.driver._segmentCondition:
 			assert env.driver._segmentCondition.wait_for(
 				lambda: operation not in env.driver._segmentHost._accepted,
-				1,
+				WAIT_TIMEOUT,
 			)
 		assert events == []
 		assert env.native.calls == []
@@ -467,7 +475,7 @@ def test_cancel_sees_work_between_queue_pop_and_lifecycle_run(env, monkeypatch):
 
 	def held_run(operation, commands):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		try:
 			return real_run(operation, commands)
 		finally:
@@ -476,10 +484,10 @@ def test_cancel_sees_work_between_queue_pop_and_lifecycle_run(env, monkeypatch):
 	monkeypatch.setattr(lifecycle, "run", held_run)
 	_, _, events = speak(env)
 	try:
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		env.driver.cancel()
 		release.set()
-		assert finished.wait(1)
+		assert finished.wait(WAIT_TIMEOUT)
 		assert env.native.calls == []
 		assert events == []
 	finally:
@@ -584,7 +592,7 @@ def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env, terminated)
 		with env.driver._segmentCondition:
 			assert env.driver._segmentCondition.wait_for(
 				lambda: env.driver._segmentHost.control_error is not None,
-				1,
+				WAIT_TIMEOUT,
 			)
 	caller = get_ident()
 	received, events, threads = Event(), [], []
@@ -597,7 +605,7 @@ def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env, terminated)
 		received.set()
 
 	env.driver.speak_segment(("rejected",), token, context=context, on_event=sink)
-	assert received.wait(1)
+	assert received.wait(WAIT_TIMEOUT)
 	# Give a duplicate failure time to arrive before counting.
 	quiet_period()
 	assert len(events) == 1
@@ -615,13 +623,13 @@ def test_onecore_acceptance_is_atomic_with_terminate(env):
 
 	def blocked_accept(*args, **kwargs):
 		entered.set()
-		assert release_accept.wait(2)
+		assert release_accept.wait(HOLD_TIMEOUT)
 		return original_accept(*args, **kwargs)
 
 	env.driver._segmentHost._lifecycle.accept = blocked_accept
 	events = []
 	speaking = in_thread(lambda: speak(env, events=events))
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	terminating = in_thread(env.driver.terminate)
 	stays_unset(terminating.done)
 	release_accept.set()
@@ -638,7 +646,7 @@ def test_segment_accepted_before_terminate_stays_silent(env, monkeypatch):
 
 	def submit_after_terminate_flag(operation, commands):
 		with env.driver._segmentCondition:
-			assert env.driver._segmentCondition.wait_for(lambda: env.driver._segmentTerminated, 2)
+			assert env.driver._segmentCondition.wait_for(lambda: env.driver._segmentTerminated, WAIT_TIMEOUT)
 		return original_submit(operation, commands)
 
 	monkeypatch.setattr(host, "submit_native", submit_after_terminate_flag)
@@ -647,14 +655,14 @@ def test_segment_accepted_before_terminate_stays_silent(env, monkeypatch):
 
 	def blocked_cancel():
 		cancel_entered.set()
-		assert release_cancel.wait(2)
+		assert release_cancel.wait(HOLD_TIMEOUT)
 		original_cancel()
 
 	env.driver.cancel = blocked_cancel
 	_, _, events = speak(env)
 	terminating = in_thread(env.driver.terminate)
 	try:
-		assert cancel_entered.wait(1)
+		assert cancel_entered.wait(WAIT_TIMEOUT)
 		quiet_period()
 		assert events == [], "terminate published a failure for work it had accepted"
 	finally:
@@ -671,27 +679,27 @@ def test_onecore_terminate_overlap_preserves_rejected_failure_event(env):
 	lifecycle.reject_new(
 		blocker_context,
 		env.scheduler.CancellationToken(),
-		lambda event: (delivery_entered.set(), release_delivery.wait(2)),
+		lambda event: (delivery_entered.set(), release_delivery.wait(HOLD_TIMEOUT)),
 		RuntimeError("block delivery"),
 	)
-	assert delivery_entered.wait(1)
+	assert delivery_entered.wait(WAIT_TIMEOUT)
 	cancel_entered, release_cancel = Event(), Event()
 	original_cancel = env.driver.cancel
 
 	def blocked_cancel():
 		cancel_entered.set()
-		assert release_cancel.wait(2)
+		assert release_cancel.wait(HOLD_TIMEOUT)
 		original_cancel()
 
 	env.driver.cancel = blocked_cancel
 	terminating = in_thread(env.driver.terminate)
 	try:
-		assert cancel_entered.wait(1)
+		assert cancel_entered.wait(WAIT_TIMEOUT)
 		_, context, events = speak(env, segment=21)
 		assert events == []
 		release_cancel.set()
 		with lifecycle._condition:
-			assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, 1)
+			assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, WAIT_TIMEOUT)
 		assert events == []
 	finally:
 		release_cancel.set()
@@ -712,10 +720,10 @@ def test_onecore_accepted_then_terminated_suppresses_pending_failure(env, monkey
 	lifecycle.reject_new(
 		blocker_context,
 		env.scheduler.CancellationToken(),
-		lambda event: (delivery_entered.set(), release_delivery.wait(2)),
+		lambda event: (delivery_entered.set(), release_delivery.wait(HOLD_TIMEOUT)),
 		RuntimeError("block delivery"),
 	)
-	assert delivery_entered.wait(1)
+	assert delivery_entered.wait(WAIT_TIMEOUT)
 
 	convert_entered, release_convert = Event(), Event()
 	converter = env.base._OcSsmlConverter
@@ -723,7 +731,7 @@ def test_onecore_accepted_then_terminated_suppresses_pending_failure(env, monkey
 
 	def blocked_convert(self, commands):
 		convert_entered.set()
-		assert release_convert.wait(2)
+		assert release_convert.wait(HOLD_TIMEOUT)
 		return original_convert(self, commands)
 
 	monkeypatch.setattr(converter, "convertToXml", blocked_convert)
@@ -738,26 +746,26 @@ def test_onecore_accepted_then_terminated_suppresses_pending_failure(env, monkey
 			on_event=events.append,
 		),
 	)
-	assert convert_entered.wait(1)
+	assert convert_entered.wait(WAIT_TIMEOUT)
 
 	cancel_entered, release_cancel = Event(), Event()
 	original_cancel = env.driver.cancel
 
 	def blocked_cancel():
 		cancel_entered.set()
-		assert release_cancel.wait(2)
+		assert release_cancel.wait(HOLD_TIMEOUT)
 		original_cancel()
 
 	env.driver.cancel = blocked_cancel
 	terminating = in_thread(env.driver.terminate)
 	try:
-		assert cancel_entered.wait(1)
+		assert cancel_entered.wait(WAIT_TIMEOUT)
 		release_convert.set()
 		finish(speaking)
 		assert events == []
 		release_cancel.set()
 		with lifecycle._condition:
-			assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, 1)
+			assert lifecycle._condition.wait_for(lambda: lifecycle._terminated, WAIT_TIMEOUT)
 	finally:
 		release_convert.set()
 		release_cancel.set()
@@ -766,7 +774,7 @@ def test_onecore_accepted_then_terminated_suppresses_pending_failure(env, monkey
 	with lifecycle._condition:
 		assert lifecycle._condition.wait_for(
 			lambda: all(operation.work.context is not context for operation in lifecycle._operations),
-			1,
+			WAIT_TIMEOUT,
 		)
 	assert events == []
 	assert env.native.calls == []
@@ -803,7 +811,7 @@ def test_pause_holds_completion_until_resume(env):
 	env.driver.pause(True)
 	env.player.sync_release.set()
 	call = in_thread(lambda: env.native.respond(frames=8, markers=""))
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	assert events == []
 	env.driver.pause(False)
 	finish(call)
@@ -817,7 +825,7 @@ def test_pause_before_first_wav_also_pauses_new_player(env):
 	env.native.wait_calls(1)
 	env.driver.pause(True)
 	call = in_thread(lambda: env.native.respond(markers=""))
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	paused = env.player.pause_switch
 	env.driver.pause(False)
 	env.player.sync_release.set()
@@ -829,7 +837,7 @@ def test_cancel_stop_returning_from_sync_never_reports_drain(env):
 	_, _, events = speak(env)
 	env.native.wait_calls(1)
 	call = in_thread(env.native.respond)
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	finish(call)
 	assert events == []
@@ -845,12 +853,12 @@ def test_cancel_stop_must_exit_before_a_retired_callback_allows_new_work(env):
 
 	def blocked_stop():
 		stopped.set()
-		assert release_stop.wait(1)
+		assert release_stop.wait(HOLD_TIMEOUT)
 		original_stop()
 
 	env.player.stop = blocked_stop
 	cancel = in_thread(env.driver.cancel)
-	assert stopped.wait(1)
+	assert stopped.wait(WAIT_TIMEOUT)
 	speak(env, segment=18)
 	env.native.respond(failure=True)
 	advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 2)
@@ -865,7 +873,7 @@ def test_terminate_unblocks_sync_and_retains_late_callback(env):
 	env.native.wait_calls(1)
 	callback = env.native.callback
 	call = in_thread(env.native.respond)
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	env.driver.terminate()
 	finish(call)
 	# A timeout in the actual helper's terminate may leave the pointer callable.
@@ -886,7 +894,7 @@ def test_native_submission_exception_fails_and_allows_following_work(env):
 		context=context,
 		on_event=lambda event: (events.append(event), failed.set()),
 	)
-	assert failed.wait(1)
+	assert failed.wait(WAIT_TIMEOUT)
 	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_FAILED]
 	env.native.submit_error = None
 	speak(env, segment=18)
@@ -929,7 +937,7 @@ def test_pause_resume_reaches_real_player_before_success_event(env):
 	env.driver.pause(True)
 	env.player.sync_release.set()
 	call = in_thread(lambda: env.native.respond(frames=0, markers=""))
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	resumed = Event()
 	release = Event()
 	original_pause = env.player.pause
@@ -937,12 +945,12 @@ def test_pause_resume_reaches_real_player_before_success_event(env):
 	def blocking_resume(switch):
 		if not switch:
 			resumed.set()
-			assert release.wait(1)
+			assert release.wait(HOLD_TIMEOUT)
 		original_pause(switch)
 
 	env.player.pause = blocking_resume
 	resume = in_thread(lambda: env.driver.pause(False))
-	assert resumed.wait(1)
+	assert resumed.wait(WAIT_TIMEOUT)
 	assert events == []
 	release.set()
 	finish(resume)
@@ -962,7 +970,7 @@ def start_controlled_playback(env, mode):
 		with env.driver._segmentCondition:
 			assert env.driver._segmentCondition.wait_for(
 				lambda: env.driver._segmentNative is None,
-				1,
+				WAIT_TIMEOUT,
 			)
 		env.player.sync_release.clear()
 		env.player.sync_entered.clear()
@@ -985,7 +993,7 @@ def test_late_pause_retires_before_cancel_handoff_or_native_close(env, mode, ter
 	def blocked_pause(switch):
 		if switch:
 			pause_entered.set()
-			assert release_pause.wait(2), "Test did not release pause"
+			assert release_pause.wait(HOLD_TIMEOUT), "Test did not release pause"
 		original_pause(switch)
 
 	def observed_stop():
@@ -994,10 +1002,10 @@ def test_late_pause_retires_before_cancel_handoff_or_native_close(env, mode, ter
 
 	env.player.pause, env.player.stop = blocked_pause, observed_stop
 	pause = in_thread(lambda: env.driver.pause(True))
-	assert pause_entered.wait(1)
+	assert pause_entered.wait(WAIT_TIMEOUT)
 	closing = in_thread(env.driver.terminate if terminate else env.driver.cancel)
 	try:
-		assert stopped.wait(1), "Cancel must stop playback before waiting for pause"
+		assert stopped.wait(WAIT_TIMEOUT), "Cancel must stop playback before waiting for pause"
 		stays_unset(closing.done, message="Close/cancel retired while pause could still affect the player")
 		if terminate:
 			assert not env.native.terminated
@@ -1030,7 +1038,7 @@ def test_pause_or_resume_error_resolves_work_and_blocks_new_admission(env, mode,
 	if not switch:
 		env.driver.pause(True)
 	call = in_thread(lambda: env.native.respond(markers=""))
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	error = OSError("player control failed")
 
 	def failed_control(switch):
@@ -1103,11 +1111,11 @@ def test_control_error_fails_queued_contexts_and_allows_reentrant_cancel(env):
 
 	env.player.pause = failed_pause
 	pause = in_thread(lambda: env.driver.pause(True))
-	assert pause.done.wait(1), "Failure sink deadlocked while cancelling"
+	assert pause.done.wait(WAIT_TIMEOUT), "Failure sink deadlocked while cancelling"
 	pause.thread.join(1)
 	assert pause.errors == [error]
 	env.native.respond(failure=True)
-	assert failed.wait(1)
+	assert failed.wait(WAIT_TIMEOUT)
 	assert len(events) == 1 and events[0].error is error
 	wait_events(queued_events)
 	assert len(queued_events) == 1 and queued_events[0].error is error
@@ -1125,7 +1133,7 @@ def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):
 	env.player.feed_entered.clear()
 	env.player.feed_release.clear()
 	call = in_thread(lambda: env.native.respond(markers=""))
-	assert env.player.feed_entered.wait(1)
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	speak(env, segment=18)
 	assert len(env.native.calls) == 2
@@ -1135,7 +1143,7 @@ def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):
 
 	def blocked_final_stop():
 		final_stop.set()
-		assert release_stop.wait(1)
+		assert release_stop.wait(HOLD_TIMEOUT)
 		original_stop()
 
 	env.player.stop = blocked_final_stop
@@ -1160,7 +1168,7 @@ def test_cancelled_legacy_sync_does_not_emit_done(env):
 	env.player.sync_entered.clear()
 	env.player.sync_release.clear()
 	call = in_thread(lambda: env.native.respond(markers=""))
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	finish(call)
 	assert env.dones == []
@@ -1180,7 +1188,7 @@ def test_terminated_driver_is_collected_while_late_native_callback_stays_callabl
 	env.driver.terminate()
 	worker = env.driver._segmentWorker
 	if worker is not None:
-		worker.join(1)
+		worker.join(WAIT_TIMEOUT)
 		assert not worker.is_alive()
 	callback(None, 0, None)
 	assert touched == []
@@ -1199,7 +1207,7 @@ def queue_segment_behind_ordinary_speech(env):
 	with env.driver._segmentCondition:
 		assert env.driver._segmentCondition.wait_for(
 			lambda: any(isinstance(item, env.outer._SpeechJob) for item in env.driver._queuedSpeech),
-			1,
+			WAIT_TIMEOUT,
 		)
 	return queued
 
@@ -1256,7 +1264,7 @@ def test_ordinary_speech_waits_for_contextual_final_sync(env):
 	_, context, events = speak(env)
 	env.native.wait_calls(1)
 	response = in_thread(lambda: env.native.respond(markers=""))
-	assert env.player.sync_entered.wait(1)
+	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
 	finish(response)
 	env.driver.speak(("ordinary",))
 	assert len(env.native.calls) == 1, "Ordinary text entered native during the final sync"
@@ -1279,10 +1287,10 @@ def _hold_admission(env):
 	def hold():
 		with env.driver._segmentHost.admission():
 			held.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 
 	holder = in_thread(hold)
-	assert held.wait(1)
+	assert held.wait(WAIT_TIMEOUT)
 	return holder, release
 
 
@@ -1300,7 +1308,7 @@ def test_pause_between_fault_capture_and_delivery_does_not_reach_the_player(env,
 
 	def held_delivery(failure):
 		captured.set()
-		assert release_delivery.wait(2)
+		assert release_delivery.wait(HOLD_TIMEOUT)
 		return original_delivery(failure)
 
 	monkeypatch.setattr(env.driver, "_deliverSegmentControlFailure", held_delivery)
@@ -1310,15 +1318,15 @@ def test_pause_between_fault_capture_and_delivery_does_not_reach_the_player(env,
 	original_pause = env.player.pause
 	env.player.pause = lambda switch: (pauses.append(switch), original_pause(switch))
 	faulting = in_thread(lambda: env.driver._failSegmentControl(OSError("player failed")))
-	assert captured.wait(1)
+	assert captured.wait(WAIT_TIMEOUT)
 	try:
 		pausing = in_thread(lambda: env.driver.pause(True))
-		assert pausing.done.wait(2) and pausing.errors == []
+		assert pausing.done.wait(WAIT_TIMEOUT) and pausing.errors == []
 		assert pauses == []
 		assert env.driver._segmentPaused is False
 	finally:
 		release_delivery.set()
-	assert faulting.done.wait(2)
+	assert faulting.done.wait(WAIT_TIMEOUT)
 	with env.driver._segmentCondition:
 		assert env.driver._stopGate.clear
 
@@ -1360,7 +1368,9 @@ def test_player_created_during_an_inflight_stop_is_not_paused(env):
 	finally:
 		release.set()
 		env.player.sync_release.set()
-	assert holder.done.wait(2) and cancelling.done.wait(2) and call.done.wait(2)
+	assert (
+		holder.done.wait(WAIT_TIMEOUT) and cancelling.done.wait(WAIT_TIMEOUT) and call.done.wait(WAIT_TIMEOUT)
+	)
 	with env.driver._segmentCondition:
 		assert env.driver._stopGate.clear
 
@@ -1389,7 +1399,7 @@ def test_ordinary_player_open_failure_fails_only_its_sentence(env):
 	env.outer.synthDoneSpeaking.notify = completed
 	env.driver.speak(("first",))
 	# The skipped sentence still completes, or the scheduler waits for it until a cancel.
-	assert first_done.wait(1), "a sentence that could not open the player never completed"
+	assert first_done.wait(WAIT_TIMEOUT), "a sentence that could not open the player never completed"
 	quiet_period()
 	assert dones == [env.driver]
 	assert env.driver._segmentHost.control_error is None
@@ -1424,7 +1434,7 @@ def test_ordinary_native_speak_failure_fails_only_its_sentence(env):
 	env.outer.synthDoneSpeaking.notify = completed
 	env.native.submit_error = OSError("speech engine busy")
 	env.driver.speak(("first",))
-	assert done.wait(1), "a sentence the engine rejected never completed"
+	assert done.wait(WAIT_TIMEOUT), "a sentence the engine rejected never completed"
 	quiet_period()
 	assert dones == [env.driver]
 	assert env.driver._segmentHost.control_error is None
