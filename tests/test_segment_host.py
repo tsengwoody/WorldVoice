@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
+from waiting import eventually, stays_unset
 
 
 class FakeStrategy:
@@ -197,10 +198,7 @@ def test_cancel_keeps_accepted_segment_silent_and_stops_active_native(env):
 		events.condition.wait_for(lambda: bool(events), 0.2)
 	assert list(events) == []
 	# The discarded operation's bookkeeping is released (on the delivery thread).
-	for _ in range(100):
-		if not env.host._accepted:
-			break
-		Event().wait(0.01)
+	eventually(lambda: not env.host._accepted)
 	assert env.host._accepted == {}
 
 
@@ -280,7 +278,7 @@ def test_retire_waits_for_admitted_consumers(env, start_delay):
 	consumer.start()
 	assert entered.wait(1), "consumer was never admitted"
 	Thread(target=lambda: (env.host.retire(record), retired.set()), daemon=True).start()
-	assert not retired.wait(0.1), "retire() did not wait for the admitted consumer"
+	stays_unset(retired, message="retire() did not wait for the admitted consumer")
 	release.set()
 	assert retired.wait(1)
 	with env.host.consumer(record) as late:
@@ -653,15 +651,6 @@ def test_engine_admission_error_rejects_before_acceptance(env):
 	assert env.host._accepted == {}
 
 
-def wait_until(predicate, timeout=1):
-	deadline = Event()
-	for _ in range(int(timeout / 0.005)):
-		if predicate():
-			return True
-		deadline.wait(0.005)
-	return predicate()
-
-
 def test_audio_consumer_is_admitted_after_close(env):
 	env.speak()
 	record = env.strategy.wait_submitted()
@@ -692,7 +681,7 @@ def test_retire_seals_the_record_against_audio_consumers(env):
 	for barrier in ("returned", "idle"):
 		env.host.reach(record, barrier)
 	Thread(target=env.host.retire, args=(record,), daemon=True).start()
-	assert wait_until(lambda: record.closed)
+	eventually(lambda: record.closed)
 	with env.host.consumer(record, audio=True) as late:
 		assert late is None
 	assert env.host.current() is record
@@ -752,7 +741,7 @@ def test_wait_settled_waits_for_the_record_to_leave_the_worker(env):
 	env.host.begin(record)
 	settled = Event()
 	Thread(target=lambda: (env.host.wait_settled(record), settled.set()), daemon=True).start()
-	assert not settled.wait(0.1)
+	stays_unset(settled)
 	env.run_native(record)
 	assert settled.wait(1)
 
@@ -785,7 +774,7 @@ def test_wait_settled_waits_for_a_running_sink(env):
 	assert entered.wait(2)
 	settled = Event()
 	Thread(target=lambda: (env.host.wait_settled(None), settled.set()), daemon=True).start()
-	assert not settled.wait(0.1)
+	stays_unset(settled)
 	release.set()
 	assert settled.wait(1)
 
@@ -874,7 +863,7 @@ def test_control_error_stops_the_active_segment(env):
 	record = env.strategy.wait_submitted()
 	env.host.begin(record)
 	env.host.latch_control_error(OSError("stop failed"))
-	assert wait_until(lambda: record in env.strategy.native_stops)
+	eventually(lambda: record in env.strategy.native_stops)
 	env.run_native(record)
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 
@@ -958,7 +947,7 @@ def test_wait_idle_returns_once_the_last_segment_retires(env):
 	record = env.strategy.wait_submitted()
 	waited = Event()
 	Thread(target=lambda: (env.host.wait_idle(), waited.set()), daemon=True).start()
-	assert not waited.wait(0.1)
+	stays_unset(waited)
 	env.run_native(record)
 	assert waited.wait(1)
 
@@ -1085,7 +1074,7 @@ def test_abandoning_the_current_record_wakes_settle_waiters(env):
 	settled = Event()
 	waiter = Thread(target=lambda: (env.host.wait_settled(record), settled.set()), daemon=True)
 	waiter.start()
-	assert not settled.wait(0.05)
+	stays_unset(settled)
 	env.host.abandon(record)
 	assert settled.wait(1), "wait_settled missed the abandon"
 

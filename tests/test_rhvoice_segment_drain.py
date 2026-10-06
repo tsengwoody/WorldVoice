@@ -4,12 +4,12 @@ import gc
 import ctypes
 import sys
 from threading import Event, Thread, current_thread, get_ident
-import time
 import weakref
 
 import pytest
 
 from rhvoice_drain_harness import finish, load_rhvoice, speak
+from waiting import eventually, quiet_period
 
 
 @pytest.fixture
@@ -214,11 +214,12 @@ def test_cancel_releases_queued_work_without_running_its_native_message(env):
     stopper.join(3)
     assert not stopper.is_alive()
     del events
-    deadline = time.monotonic() + 3
-    while reference() is not None and time.monotonic() < deadline:
+
+    def collected():
         gc.collect()
-        time.sleep(0.01)
-    assert reference() is None
+        return reference() is None
+
+    eventually(collected)
     assert len(env.native.calls) == 1
 
 
@@ -489,10 +490,7 @@ def test_cancel_invalidates_completion_waiting_for_async_delivery(env, monkeypat
     stopper = Thread(target=env.driver.cancel)
     stopper.start()
     try:
-        deadline = time.monotonic() + 3
-        while not any(env.driver._segmentHost._accepted.values()) and time.monotonic() < deadline:
-            time.sleep(0.001)
-        assert any(env.driver._segmentHost._accepted.values())
+        eventually(lambda: any(env.driver._segmentHost._accepted.values()))
     finally:
         release_delivery.set()
     stopper.join(3)
@@ -547,10 +545,7 @@ def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypa
     stopper = Thread(target=stop_player)
     stopper.start()
     try:
-        deadline = time.monotonic() + 3
-        while env.driver._segmentHost.control_error is None and time.monotonic() < deadline:
-            time.sleep(0.001)
-        assert env.driver._segmentHost.control_error is not None
+        eventually(lambda: env.driver._segmentHost.control_error is not None)
     finally:
         release_delivery.set()
     stopper.join(3)
@@ -616,10 +611,7 @@ def test_admitted_late_feed_gets_final_idle_and_index_before_drain(env):
     player = env.players[0]
     assert call.returned.wait(3)
     assert player.second_idle_completed.wait(3)
-    deadline = time.monotonic() + 3
-    while speech.admitting and time.monotonic() < deadline:
-        time.sleep(0.001)
-    assert not speech.admitting
+    eventually(lambda: not speech.admitting)
     assert events == []
     assert player.fed == [b"\x01\x00\x02\x00"]
     player.block_idle_number = 3
@@ -668,10 +660,7 @@ def test_admitted_native_mark_can_enter_nested_feed_after_callback_gate_closes(e
     assert call.returned.wait(3)
     player = env.players[0]
     assert player.second_idle_completed.wait(3)
-    deadline = time.monotonic() + 3
-    while speech.admitting and time.monotonic() < deadline:
-        time.sleep(0.001)
-    assert not speech.admitting
+    eventually(lambda: not speech.admitting)
     assert speech.consumers == 1  # The admitted mark still owns its native lease.
     assert env.native.callbacks.process_mark(b"100", call.user_data) == 0
     assert player.fed == [b"\x01\x00\x02\x00"]
@@ -716,9 +705,7 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env):
     ordinary = env.native.wait_call(2)
     assert ordinary.returned.wait(3)
     assert entries == [True]
-    deadline = time.monotonic() + 3
-    while len(env.dones) == dones_before and time.monotonic() < deadline:
-        time.sleep(0.005)
+    eventually(lambda: len(env.dones) != dones_before)
     assert env.dones[dones_before:] == [env.driver]
     assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
     assert (event.source_id, event.segment_id) == (context.source_id, context.segment_id)
@@ -762,7 +749,7 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
         context=context, on_event=sink)
     assert received.wait(1), "terminated driver dropped the segment silently"
     # Give a duplicate failure time to arrive before counting.
-    Event().wait(0.1)
+    quiet_period()
     assert len(events) == 1
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert events[0].source_id is context.source_id

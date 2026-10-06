@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from waiting import stays_unset
+
 
 class EventStub:
 	def __init__(self, on_notify=None):
@@ -544,7 +546,7 @@ def test_two_concurrent_cancels_must_both_finish_before_new_speech(manager, voic
 	release[0].set()
 	stoppers[0].join(1)
 	assert not stoppers[0].is_alive()
-	assert not new_entered.wait(0.05)
+	stays_unset(new_entered)
 	release[1].set()
 	stoppers[1].join(1)
 	assert not stoppers[1].is_alive()

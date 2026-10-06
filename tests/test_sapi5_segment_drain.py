@@ -14,6 +14,7 @@ from nvda_stubs import StubModules
 import pytest
 
 from runtime_harness import load_runtime, load_scheduler
+from waiting import eventually, stays_unset
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -661,7 +662,7 @@ def test_cancel_during_terminal_commit_allows_successor_after_commit(env, monkey
     cancelled = Event()
     cancel_thread = Thread(target=lambda: (env.driver.cancel(), cancelled.set()), daemon=True)
     cancel_thread.start()
-    assert not cancelled.wait(.02)
+    stays_unset(cancelled)
     release.set()
     cancel_thread.join(2)
     assert cancelled.is_set()
@@ -807,7 +808,7 @@ def test_termination_waits_for_admitted_feed_final_stop(env):
     stopped = Event()
     termination = Thread(target=lambda: (env.driver.terminate(), stopped.set()), daemon=True)
     termination.start()
-    assert not stopped.wait(.02)
+    stays_unset(stopped)
     env.player.feed_release.set()
     callback.join(2)
     termination.join(2)
@@ -835,7 +836,7 @@ def test_tail_indexes_do_not_overtake_an_admitted_bookmark_notification(env, mon
     env.player.idle_release.set()
     env.native.end()
     # Tail notification must await the already admitted ordinary bookmark.
-    assert not env.player.idle_entered.wait(.02)
+    stays_unset(env.player.idle_entered)
     release.set()
     callback.join(2)
     assert not callback.is_alive()
@@ -899,7 +900,7 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
     env.player.idle_release.set()
     env.native.end()
     try:
-        assert not env.player.idle_entered.wait(.02), "Idle overtook an admitted PCM feed"
+        stays_unset(env.player.idle_entered, message="Idle overtook an admitted PCM feed")
         assert events == []
     finally:
         release.set()
@@ -968,7 +969,7 @@ def test_admitted_com_sonic_operation_retires_before_final_tail_and_idle(env, mo
     env.native.end()
     env.player.idle_release.set()
     try:
-        assert not env.player.idle_entered.wait(.02), "Idle overtook Sonic processing"
+        stays_unset(env.player.idle_entered, message="Idle overtook Sonic processing")
     finally:
         release.set()
         callback.join(2)
@@ -1108,7 +1109,7 @@ def test_voice_reload_retires_ordinary_pcm_callback_before_replacing_audio(env, 
     reload_thread = Thread(target=reload, daemon=True)
     reload_thread.start()
     try:
-        assert not reloaded.wait(.02), "Reload replaced audio before ordinary PCM callback retired"
+        stays_unset(reloaded, message="Reload replaced audio before ordinary PCM callback retired")
         assert env.driver.sonicStream is old_sonic
     finally:
         release.set()
@@ -1227,10 +1228,7 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env, monkeypatch):
     env.native.wait_calls(2)
     assert entries == [False, True]
     env.native.end(2)
-    for _ in range(400):
-        if env.dones:
-            break
-        Event().wait(0.005)
+    eventually(lambda: env.dones)
     assert env.dones == [env.driver]
     assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
     assert (event.source_id, event.segment_id) == (context.source_id, context.segment_id)
@@ -1248,10 +1246,7 @@ def test_completed_ordinary_speech_does_not_stop_the_player(env):
     env.driver.speak(("second", env.commands.IndexCommand(9)))
     env.native.wait_calls(2)
     env.native.end(2)
-    for _ in range(400):
-        if len(env.dones) == 2:
-            break
-        Event().wait(0.005)
+    eventually(lambda: len(env.dones) == 2)
     assert env.dones == [env.driver, env.driver]
     assert env.indexes == [7, 9]
     assert env.player.stops == 0

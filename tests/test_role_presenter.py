@@ -11,6 +11,7 @@ from test_f4_voice_state import _load_voice_manager, _create_voices, RecordingCo
 from test_worldvoice_lifecycle import init_policies
 from nvda_stubs import StubModules
 from voice_binding_harness import bind_core
+from waiting import stays_unset
 
 
 PRESENTER = "addon/globalPlugins/WorldVoice/rolePresenter.py"
@@ -257,7 +258,7 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 	try:
 		assert rate_written.wait(1)
 		worker_thread.start()
-		assert not worker_done.wait(0.05), "worker observed settings during the UI copy"
+		stays_unset(worker_done, message="worker observed settings during the UI copy")
 	finally:
 		release_copy.set()
 		ui_thread.join(1)

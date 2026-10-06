@@ -6,6 +6,7 @@ import weakref
 import pytest
 
 from onecore_drain_harness import VERSION, in_thread, load_onecore
+from waiting import WAIT_TIMEOUT, eventually, quiet_period, stays_unset
 
 
 @pytest.fixture
@@ -35,12 +36,7 @@ def finish(call):
 
 
 def wait_events(events, count=1):
-    waiting = Event()
-    for _ in range(200):
-        if len(events) >= count:
-            return
-        waiting.wait(0.005)
-    assert len(events) >= count, "Segment event was not delivered"
+    eventually(lambda: len(events) >= count, message="Segment event was not delivered")
 
 
 def test_onecore_uses_shared_lifecycle_for_an_empty_segment(env):
@@ -570,7 +566,7 @@ def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env, terminated)
     env.driver.speak_segment(("rejected",), token, context=context, on_event=sink)
     assert received.wait(1)
     # Give a duplicate failure time to arrive before counting.
-    Event().wait(0.1)
+    quiet_period()
     assert len(events) == 1
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert events[0].source_id is context.source_id
@@ -594,7 +590,7 @@ def test_onecore_acceptance_is_atomic_with_terminate(env):
     speaking = in_thread(lambda: speak(env, events=events))
     assert entered.wait(1)
     terminating = in_thread(env.driver.terminate)
-    assert not terminating.done.wait(0.05)
+    stays_unset(terminating.done)
     release_accept.set()
     finish(speaking)
     finish(terminating)
@@ -626,11 +622,7 @@ def test_segment_accepted_before_terminate_stays_silent(env, monkeypatch):
     terminating = in_thread(env.driver.terminate)
     try:
         assert cancel_entered.wait(1)
-        waiting = Event()
-        for _ in range(40):
-            if events:
-                break
-            waiting.wait(0.005)
+        quiet_period()
         assert events == [], "terminate published a failure for work it had accepted"
     finally:
         release_cancel.set()
@@ -949,7 +941,7 @@ def test_late_pause_retires_before_cancel_handoff_or_native_close(env, mode, ter
     closing = in_thread(env.driver.terminate if terminate else env.driver.cancel)
     try:
         assert stopped.wait(1), "Cancel must stop playback before waiting for pause"
-        assert not closing.done.wait(0.05), "Close/cancel retired while pause could still affect the player"
+        stays_unset(closing.done, message="Close/cancel retired while pause could still affect the player")
         if terminate:
             assert not env.native.terminated
         else:
@@ -1091,7 +1083,7 @@ def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):
 
     env.player.stop = blocked_final_stop
     env.player.feed_release.set()
-    stopped = final_stop.wait(0.5)
+    stopped = final_stop.wait(WAIT_TIMEOUT)
     with env.native.condition:
         advanced = env.native.condition.wait_for(lambda: len(env.native.calls) >= 3, 0.05)
     release_stop.set()
@@ -1237,12 +1229,11 @@ def _hold_admission(env):
 
 
 def _wait_gate_held(env):
-    for _ in range(200):
+    def gate_held():
         with env.driver._segmentCondition:
-            if not env.driver._stopGate.clear:
-                return
-        Event().wait(0.005)
-    raise AssertionError("cancel never raised the stop gate")
+            return not env.driver._stopGate.clear
+
+    eventually(gate_held, message="cancel never raised the stop gate")
 
 
 def test_pause_between_fault_capture_and_delivery_does_not_reach_the_player(env, monkeypatch):
@@ -1306,11 +1297,7 @@ def test_player_created_during_an_inflight_stop_is_not_paused(env):
         _wait_gate_held(env)
         assert env.driver._segmentPaused is True
         call = in_thread(lambda: env.native.respond(markers=""))
-        for _ in range(200):
-            if env.driver._player is not None:
-                break
-            Event().wait(0.005)
-        assert env.driver._player is not None
+        eventually(lambda: env.driver._player is not None)
         assert True not in pauses
     finally:
         release.set()
@@ -1345,7 +1332,7 @@ def test_ordinary_player_open_failure_fails_only_its_sentence(env):
     env.driver.speak(("first",))
     # The skipped sentence still completes, or the scheduler waits for it until a cancel.
     assert first_done.wait(1), "a sentence that could not open the player never completed"
-    Event().wait(0.05)
+    quiet_period()
     assert dones == [env.driver]
     assert env.driver._segmentHost.control_error is None
     env.driver.speak(("second",))
@@ -1380,7 +1367,7 @@ def test_ordinary_native_speak_failure_fails_only_its_sentence(env):
     env.native.submit_error = OSError("speech engine busy")
     env.driver.speak(("first",))
     assert done.wait(1), "a sentence the engine rejected never completed"
-    Event().wait(0.05)
+    quiet_period()
     assert dones == [env.driver]
     assert env.driver._segmentHost.control_error is None
     env.native.submit_error = None

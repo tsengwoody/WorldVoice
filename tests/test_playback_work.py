@@ -5,6 +5,7 @@ from threading import Barrier, Event, Thread
 import pytest
 
 from runtime_harness import load_scheduler, rt
+from waiting import stays_unset
 
 
 @pytest.fixture
@@ -40,7 +41,7 @@ class ThreadCall:
         assert self.started.wait(1)
 
     def assert_blocked(self):
-        assert not self.done.wait(0.05), self.error
+        stays_unset(self.done, message=self.error)
 
     def finish(self):
         assert self.done.wait(1), "Lifecycle operation did not retire"

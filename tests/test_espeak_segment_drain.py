@@ -7,6 +7,7 @@ import sys
 import pytest
 
 from espeak_drain_harness import finish, load_espeak, speak, wait_event
+from waiting import quiet_period
 
 
 @pytest.fixture
@@ -428,7 +429,7 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
         context=context, on_event=sink)
     assert received.wait(1), "terminated driver dropped the segment silently"
     # Give a duplicate failure time to arrive before counting.
-    Event().wait(0.1)
+    quiet_period()
     assert len(events) == 1
     assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
     assert events[0].source_id is context.source_id

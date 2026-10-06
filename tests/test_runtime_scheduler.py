@@ -7,6 +7,7 @@ from threading import Event, Lock, Thread
 import pytest
 
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler, rt
+from waiting import stays_unset
 
 
 @pytest.fixture
@@ -313,7 +314,7 @@ def test_all_concurrent_stops_finish_before_new_speech(manager, port, rt, output
         manager.append_speech(new, other, "Fake:b", ())
         assert manager.submit_request(new)
         for index in range(stop_count):
-            assert not other.entered.wait(0.03)
+            stays_unset(other.entered)
             release[index].set()
             assert exited[index].wait(1)
         assert other.entered.wait(1)
@@ -443,7 +444,7 @@ def test_cancel_current_preserves_queued_request_and_gates_stop(manager, port, r
     try:
         thread.start()
         assert entered.wait(1)
-        assert not other.entered.wait(0.03)
+        stays_unset(other.entered)
     finally:
         release.set()
         thread.join(1)

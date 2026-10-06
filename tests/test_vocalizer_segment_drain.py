@@ -2,13 +2,13 @@ import ctypes
 import sys
 from io import BytesIO
 from threading import Event, Thread, current_thread
-from time import monotonic, sleep
 from types import SimpleNamespace
 
 import pytest
 
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 from test_worldvoice_cancel_wrappers import Token, native_message
+from waiting import WAIT_TIMEOUT, eventually, stays_unset
 
 
 @pytest.fixture(params=["VE", "Cerence"])
@@ -54,10 +54,7 @@ def finish(call):
 
 
 def wait_for(predicate):
-    deadline = monotonic() + 2
-    while not predicate() and monotonic() < deadline:
-        sleep(.005)
-    assert predicate()
+    eventually(predicate)
 
 
 def lifecycle_of(env):
@@ -224,7 +221,7 @@ def test_speak_returns_before_native_synthesis(env, monkeypatch):
     call = run_thread(lambda: env.core.speak(("ordinary",)))
     try:
         assert entered.wait(1)
-        assert call[1].wait(.5), "speak() waited for native synthesis"
+        assert call[1].wait(WAIT_TIMEOUT), "speak() waited for native synthesis"
         assert env.dones == []
     finally:
         release.set()
@@ -406,7 +403,7 @@ def test_terminate_waits_for_coordinator_stop(env, monkeypatch):
     assert idle_entered.wait(1)
     terminating = run_thread(env.core.terminate)
     assert hook_entered.wait(1)
-    assert not closed.wait(.05)
+    stays_unset(closed)
     hook_release.set()
     finish(speech)
     finish(terminating)
@@ -430,7 +427,7 @@ def test_speak_segment_returns_while_a_previous_sink_runs(env, monkeypatch, canc
     second = run_thread(lambda: env.core.speak_segment(("second",), token,
         context=context, on_event=env.events.append))
     try:
-        assert second[1].wait(.5), "speak_segment waited for an earlier delivery"
+        assert second[1].wait(WAIT_TIMEOUT), "speak_segment waited for an earlier delivery"
         if cancel_kind == "token":
             token.cancel()
         else:
@@ -600,7 +597,8 @@ def test_cancel_during_contextual_final_idle_releases_waiting_ordinary(env, monk
     # Like the original add-on: cancel drops queued speech, keeps its DONE.
     assert held.native_calls == [("hello", False)]
     assert len(env.dones) == 1
-    assert env.core._segmentHost._pending == []
+    # The discarded segment's record is forgotten on the lifecycle's delivery thread.
+    eventually(lambda: env.core._segmentHost._pending == [], message="the discarded segment's record stayed pending")
     with held.condition:
         assert held.condition.wait_for(
             lambda: not lifecycle_of(env)._operations, 1)
@@ -772,7 +770,7 @@ def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
     native_entered = Event()
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: native_entered.set())
     _, _, call = speak(env)
-    assert not native_entered.wait(.05)
+    stays_unset(native_entered)
     release.set()
     finish(cancelling)
     finish(call)
@@ -963,7 +961,7 @@ def test_pause_holds_completion_after_real_idle(env, monkeypatch):
     monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
     _, _, call = speak(env)
     assert entered.wait(1)
-    assert not call[1].wait(.05)
+    stays_unset(call[1])
     env.core.pause(False)
     finish(call)
     assert len(env.events) == 1
@@ -1030,6 +1028,8 @@ def test_done_listener_can_terminate_without_deadlocking_speech(env, monkeypatch
     call = run_thread(lambda: speak_ordinary(env, ()))
     try:
         finish(call)
+        # Terminate from the BgThread is reentrant: a closer thread closes the player.
+        eventually(lambda: env.core._real_player.closes == 1, message="the closer thread never closed the player")
         assert env.core._real_player.closes == 1
     finally:
         if not call[1].is_set():
@@ -1164,7 +1164,7 @@ def test_cancel_retires_inflight_pause_before_fresh_speech(env, apply_before_bar
         assert not player.isPaused
         if fresh_during_pause:
             fresh = run_thread(lambda: speak_ordinary(env, ()))
-            assert not idle_entered.wait(.05)
+            stays_unset(idle_entered)
         release.set()
         finish(pausing)
         if fresh is None:
@@ -1198,7 +1198,7 @@ def test_pause_requested_during_cancel_waits_for_player_stop(env):
     try:
         assert stop_entered.wait(1)
         pausing = run_thread(lambda: env.core.pause(True))
-        assert not pause_entered.wait(.05)
+        stays_unset(pause_entered)
         stop_release.set()
         finish(cancelling)
         finish(pausing)
@@ -1236,7 +1236,7 @@ def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
         assert idle_entered.wait(1)
         resuming = run_thread(lambda: env.core.pause(False))
         assert resume_entered.wait(1)
-        assert not speech[1].wait(.05)
+        stays_unset(speech[1])
         assert env.events == []
         resume_release.set()
         finish(resuming)
@@ -1288,7 +1288,7 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(env, monkeypa
         assert not player.isPaused
         if fresh_during_pause:
             fresh = fresh_speech()
-            assert not fresh[1].wait(.05)
+            stays_unset(fresh[1])
         release.set()
         assert_operation_failed(pausing, error)
         # Corrective resume failed before changing the paused player.
@@ -1407,7 +1407,7 @@ def test_terminate_waits_for_pause_fault_stop_without_active_speech(env, monkeyp
         assert stop_entered.wait(1)
         shutting_down = [run_thread(env.core.terminate) for _ in range(terminators)]
         assert shutdown_stop.wait(1)
-        assert not closed.wait(.05)
+        stays_unset(closed)
         assert native_closes == []
         assert native_terminations == []
         assert all(not call[1].is_set() for call in shutting_down)
@@ -1539,13 +1539,10 @@ def test_ordinary_waiting_behind_contextual_does_not_poll(env, monkeypatch):
     finish(held.contextual)
     # Once the segment lets go, the cancelled ordinary request is dropped promptly
     # and never reaches native.
-    woken = Event()
-    for _ in range(100):
-        if queued_ordinary(env) == 0 and env.core._bgQueue.unfinished_tasks == 0:
-            woken.set()
-            break
-        Event().wait(0.005)
-    assert woken.is_set(), "the cancelled ordinary request was not dropped within 0.5 s"
+    eventually(
+        lambda: queued_ordinary(env) == 0 and env.core._bgQueue.unfinished_tasks == 0,
+        message="the cancelled ordinary request was not dropped",
+    )
     assert [text for text, _ in held.native_calls] == ["hello"]
 
 
@@ -1565,7 +1562,7 @@ def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):
         assert entered.wait(1)
         assert_not_polled(lambda: token.checks)
         token.cancel()
-        assert call[1].wait(0.5), "speak_segment was not woken by token cancellation"
+        assert call[1].wait(WAIT_TIMEOUT), "speak_segment was not woken by token cancellation"
     finally:
         release.set()
     finish(call)

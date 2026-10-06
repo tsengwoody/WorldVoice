@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from runtime_harness import RUNTIME, load_runtime
+from waiting import stays_unset
 
 
 @pytest.fixture
@@ -43,7 +44,7 @@ def test_stop_gate_blocks_until_every_stop_returns(control):
 	with condition:
 		assert not gate.clear
 	Thread(target=worker, daemon=True).start()
-	assert not woke.wait(0.05)
+	stays_unset(woke)
 	release.set()
 	assert woke.wait(2)
 
@@ -119,7 +120,7 @@ def test_stop_gate_two_phase_enter_and_leave(control):
 		woke.set()
 
 	Thread(target=worker, daemon=True).start()
-	assert not woke.wait(0.05)
+	stays_unset(woke)
 	with condition:
 		gate.leave()
 	assert woke.wait(2)

@@ -5,6 +5,7 @@ from threading import Event
 import pytest
 
 from runtime_harness import make_spec, rt
+from waiting import stays_unset
 
 
 def test_pending_state_is_atomic_and_snapshot_is_immutable(rt):
@@ -104,7 +105,7 @@ def test_snapshot_never_observes_half_a_batch(rt):
             assert comparing_pitch.wait(2)
             snapshot = executor.submit(read)
             assert reading.wait(2)
-            assert not read_done.wait(0.05)
+            stays_unset(read_done)
         finally:
             finish_update.set()
         update.result(timeout=2)

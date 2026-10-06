@@ -10,6 +10,7 @@ import weakref
 import pytest
 
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
+from waiting import WAIT_TIMEOUT, eventually, stays_unset
 
 
 class Call:
@@ -29,7 +30,7 @@ class Call:
         self.thread.start()
 
     def blocked(self):
-        assert not self.done.wait(0.05), self.error
+        stays_unset(self.done, message=self.error)
 
     def finish(self):
         assert self.done.wait(1), "lifecycle call did not finish"
@@ -55,12 +56,17 @@ class RecordedEvents(list):
 
 def wait_until_waiting(lifecycle, operation):
     """Block until ``operation`` is waiting for the resource inside run()."""
-    for _ in range(200):
+
+    def waiting():
         with lifecycle._condition:
-            if operation._waiting:
-                return
-        Event().wait(0.005)
-    raise AssertionError("operation never started waiting for the resource")
+            return operation._waiting
+
+    eventually(waiting, message="operation never started waiting for the resource")
+
+
+def collected(reference):
+    gc.collect()
+    return reference() is None
 
 
 class Hooks:
@@ -334,7 +340,7 @@ def test_late_cancel_cannot_stop_successor_resource(env):
     second = Call(lambda: lifecycle.run(new, ("new",)))
     assert hooks.second_submitted.wait(1)
     lifecycle.cancel(old)
-    assert not hooks.stop_entered.wait(0.05)
+    stays_unset(hooks.stop_entered)
     hooks.release_second_boundary.set()
     second.finish()
     events.wait_for_count(2)
@@ -681,12 +687,7 @@ def test_idle_delivery_thread_releases_a_retired_operation(env):
     lifecycle.fail(operation, RuntimeError("never submitted"))
     assert retired.wait(1)
     del operation, sink
-    for _ in range(100):
-        gc.collect()
-        if reference() is None:
-            break
-        Event().wait(0.01)
-    assert reference() is None, "the idle delivery thread still holds the retired operation"
+    eventually(lambda: collected(reference), message="the idle delivery thread still holds the retired operation")
 
 
 def test_reject_new_delivers_after_lifecycle_termination(env):
@@ -792,12 +793,7 @@ def _observe_waits(lifecycle):
 def _wait_until_waiting(observer, call):
     # Measure only once the waiter has actually blocked; its reads before
     # blocking are legitimate and must not count as polling.
-    deadline = Event()
-    for _ in range(200):
-        if call.thread in observer.waiting:
-            return
-        deadline.wait(0.005)
-    raise AssertionError("waiter never blocked on the lifecycle condition")
+    eventually(lambda: call.thread in observer.waiting, message="waiter never blocked on the lifecycle condition")
 
 
 def _assert_not_polled(read_count, window=0.2):
@@ -835,7 +831,7 @@ def test_queued_run_wakes_when_cancelled(env, cancel):
         queued.work.cancel()
     else:
         queued.work.fail(RuntimeError("failed while queued"))
-    assert waiting.done.wait(0.5), "queued run was not woken by cancellation"
+    assert waiting.done.wait(WAIT_TIMEOUT), "queued run was not woken by cancellation"
     waiting.finish()
     assert len(hooks.submitted) == 1
     hooks.release_boundary.set()
@@ -887,7 +883,7 @@ def test_wait_idle_wakes_on_token_cancel_without_polling(env):
     _wait_until_waiting(observer, waiting)
     _assert_not_polled(lambda: token.checks)
     token.cancel()
-    assert waiting.done.wait(0.5), "wait_idle was not woken by token cancellation"
+    assert waiting.done.wait(WAIT_TIMEOUT), "wait_idle was not woken by token cancellation"
     waiting.finish()
     assert results == [False]
     hooks.release_boundary.set()
@@ -909,7 +905,7 @@ def test_wait_idle_rechecks_still_wanted_on_wake_waiters(env):
     _assert_not_polled(lambda: checks[0])
     wanted[0] = False
     lifecycle.wake_waiters()
-    assert waiting.done.wait(0.5), "wait_idle was not woken by wake_waiters"
+    assert waiting.done.wait(WAIT_TIMEOUT), "wait_idle was not woken by wake_waiters"
     waiting.finish()
     assert results == [False]
     hooks.release_boundary.set()
@@ -936,12 +932,7 @@ def test_idle_delivery_thread_releases_a_delivered_error(env):
     lifecycle.fail(operation, raised_with(sink))
     assert delivered.wait(1)
     del operation, sink
-    for _ in range(100):
-        gc.collect()
-        if reference() is None:
-            break
-        Event().wait(0.01)
-    assert reference() is None, "the idle delivery thread still holds the delivered error"
+    eventually(lambda: collected(reference), message="the idle delivery thread still holds the delivered error")
 
 
 def test_failed_waiter_never_takes_a_resource_freed_at_the_same_time(env, monkeypatch):

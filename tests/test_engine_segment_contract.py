@@ -7,7 +7,6 @@ until the mark is removed.
 
 from contextlib import suppress
 from threading import Condition, Thread, get_ident
-from time import monotonic, sleep
 
 import pytest
 from engine_contract_harness import (
@@ -18,6 +17,7 @@ from engine_contract_harness import (
 	SAPI5Adapter,
 	VEAdapter,
 )
+from waiting import eventually
 
 ADAPTERS = {
 	"VE": VEAdapter,
@@ -217,10 +217,10 @@ def test_segment_after_ordinary_speech_follows_the_engine_mode_rule(engine):
 	events = Events(engine)
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
 	if expected is engine.EventKind.SEGMENT_DRAINED:
-		deadline = monotonic() + 2
-		while engine.native_call_count() <= ordinary_calls and monotonic() < deadline:
-			sleep(0.005)
-		assert engine.native_call_count() > ordinary_calls, "the segment never reached native synthesis"
+		eventually(
+			lambda: engine.native_call_count() > ordinary_calls,
+			message="the segment never reached native synthesis",
+		)
 		engine.complete()
 	event = events.wait_one()
 	caller.join(2)

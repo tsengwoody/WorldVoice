@@ -1,10 +1,10 @@
 import ctypes
 from io import BytesIO
 import threading
-import time
 
 import pytest
 
+from waiting import eventually
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 
@@ -24,10 +24,7 @@ def speak_now(core, *args, **kwargs):
 	# VE queues ordinary speech to the inner BgThread (phase 3d-1); wait until it ran.
 	result = core.speak(*args, **kwargs)
 	if hasattr(core, "_segmentHost"):
-		deadline = time.monotonic() + 2
-		while core._bgQueue.unfinished_tasks and core._bgThread.is_alive() and time.monotonic() < deadline:
-			time.sleep(0.002)
-		assert core._bgQueue.unfinished_tasks == 0 or not core._bgThread.is_alive()
+		eventually(lambda: core._bgQueue.unfinished_tasks == 0 or not core._bgThread.is_alive())
 	return result
 
 

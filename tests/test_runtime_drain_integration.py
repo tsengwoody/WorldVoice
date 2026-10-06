@@ -5,6 +5,7 @@ from concurrent.futures import TimeoutError
 import pytest
 
 from runtime_drain_integration_harness import ENGINES, assemble
+from waiting import stays_unset
 
 
 @pytest.fixture
@@ -40,7 +41,7 @@ def test_next_engine_starts_only_after_segment_drain(composition, engines):
         c.rt.models.SelectVoice(c.key(a)), "third"), a)
     first, second = c.controls[a], c.controls[b]
     barrier = first.tail()
-    assert second.started.wait(0.03) is False
+    stays_unset(second.started)
     assert second.calls == []
     assert c.output.dones == []
     barrier.release.set()
@@ -71,7 +72,7 @@ def test_switch_waits_for_original_correlated_drain(composition, first, successo
     host = original.core._segmentHost
     assert host._lifecycle._hooks is host
     assert c.output.drains == []
-    assert following.started.wait(0.03) is False
+    stays_unset(following.started)
     assert following.calls == []
     assert not request.tasks[0].future.done()
     barrier.release.set()
