@@ -76,12 +76,10 @@ def test_astral_characters_count_once_and_stay_whole(chunker):
 	text = "\U00020000" * 25
 	pieces = chunker.split_speech_text_pieces(text, 10)
 	assert [len(piece) for piece in pieces] == [10, 10, 5]
-	# Each piece encodes on its own: no surrogate half is left at a cut.
-	assert "".join(piece.encode("utf-8").decode("utf-8") for piece in pieces) == text
 
 
 def test_combining_marks_stay_with_their_letter_at_a_space(chunker):
-	word = "é" * 3
+	word = "e\u0301" * 3
 	pieces = chunker.split_speech_text_pieces(f"{word} {word}", 8)
 	assert pieces == [f"{word} ", word]
 
@@ -95,7 +93,7 @@ def test_combining_marks_stay_with_their_letter_at_a_space(chunker):
 		(AIN * 7, f"{AIN * 3} {AIN * 3} {AIN}"),
 		# Different letters, or letters with a mark between them, are no run.
 		(AIN + BEH + AIN + BEH + AIN, AIN + BEH + AIN + BEH + AIN),
-		((AIN + "ّ") * 4, (AIN + "ّ") * 4),
+		((AIN + "\u0651") * 4, (AIN + "\u0651") * 4),
 		# Only Arabic script is broken.
 		("aaaaaa", "aaaaaa"),
 		# Presentation forms count as Arabic letters.

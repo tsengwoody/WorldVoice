@@ -3,7 +3,8 @@
 The fakes keep only what WorldVoice's panels, dialogs and global plugin touch: controls hold a
 value, a selection and an enabled state, sizers keep their items in order and know which are
 shown, and ``Bind`` records handlers so ``fire`` can deliver an event the way wx does (the
-handler bound last runs first and ``Skip`` passes the event on). The loaders run the real add-on
+handler bound last runs first, ``Skip`` passes the event on, and a command event reaches the
+panel's handlers after the control's own). The loaders run the real add-on
 modules against these fakes, so module-level code and the real ``guard_errors`` take part.
 """
 
@@ -244,14 +245,14 @@ class Event:
 def fire(control, event_type, *, panel=None):
 	"""Deliver event_type from control as wx would and return the event.
 
-	Handlers bound on the panel for this control run first, then those bound on the control;
-	within each, the one bound last runs first and the event goes on only after Skip().
+	Handlers bound on the control run first, then the event propagates to those the panel bound
+	for this control; within each, the one bound last runs first and the event goes on only after
+	Skip().
 	"""
 	event = Event(control)
-	handlers = []
+	handlers = [h for e, h in reversed(control.bindings) if e == event_type]
 	if panel is not None:
 		handlers += [h for e, h, source in reversed(panel.bindings) if e == event_type and source is control]
-	handlers += [h for e, h in reversed(control.bindings) if e == event_type]
 	if not handlers:
 		raise LookupError(f"nothing handles {event_type} from {control!r}")
 	for handler in handlers:

@@ -67,6 +67,14 @@
 
 1. `GlobalPlugin.disable_log_record`：`ui.message("turn off …")` 縮排在 `if ask_export():` 內，使用者拒絕匯出時聽不到「已關閉記錄」。
 2. `text/chunker.py`：escape 序列的長度被算進 piece 上限，與 docstring「escape 可能讓 piece 變長」不符，可能切出只有 escape 的 piece；沒有空白的長字串會把組合符號與它的字母切開。
-3. `PipelineLog.write` 的 `OSError`（磁碟滿、檔案被鎖）會從 `_run_logged` 拋出；NVDA 的 `Filter.apply` 記錄例外後沿用未過濾的值，所以開啟 log 時寫檔失敗會讓該 stage 的轉換無聲失效。
+3. `PipelineLog.write` 的 `OSError`（磁碟滿、檔案被鎖）會從 `_run_logged` 拋出。`_run_logged`（`pipeline/__init__.py:645`）已先以 `list()` 讀完輸入 generator，NVDA 的 `Filter.apply`（`ref/nvda/source/extensionPoints/__init__.py:112-117`）記錄例外後沿用的是那個已讀空的 generator，所以後面所有 stage 與 synth 都拿到空序列：**整句不發聲**（審查以 NVDA `Filter.apply` 語意串起全部 STAGES 重現，輸出 `[]`）。觸發條件：開啟任一 stage 的 log，且寫檔失敗。
 4. `SpeechRoleSettingsPanel.voiceInstance` property 沒有使用者（死碼）。
 5. `createDriverSettings` 在已有控制項、沒有 changedSetting 時，第二段迴圈會把剛隱藏的不支援控制項又顯示出來；目前因 NVDA 隨後的 `updateDriverSettings` 再隱藏而沒有實際影響。
+6. `pipeline/__init__.py:218-243` 的 `_insert_WVLangChangeCommand_between_number` 對每段文字呼叫 `deduplicate_language_command(..., ctx)`，從 `ctx.language`／預設語音重新判斷，而不是從目前所在的語言。number_language 等於主語言、數字又出現在其他語言區段內時，切到數字語言的命令被丟掉：主語言 zh、number_language zh，`[LangChangeCommand("en"), "Hello 123"]` 經 `speak()` 後 `123` 以 A:en 唸（主語言 en、number_language zh 時正常）。只在序列含 NVDA 自己的 `LangChangeCommand`（使用者開了 NVDA 的自動語言切換或 reportLanguage）時觸發；WorldVoice 自己的偵測會把數字放回主語言，預設設定不受影響。測試未釘住此行為（`test_pipeline_passthrough.py` 用的是 zh≠en 的情況）。
+
+### 審查（Opus 5.5）後的修正
+
+- `tests/ui_harness.fire` 改為 wx 的順序：先跑控制項自己的 handler，`Skip` 後才傳到面板為該控制項綁定的 handler（原本相反；目前沒有測試同時用到兩種綁定，結論不變）。
+- 新增 `test_scaled_waits_follow_their_units_and_caps`：`scaled_*_wait` 的換算單位（global factor 取整十、標點與配對停頓每步 5 ms）與 500 ms 上限。
+- `test_text_preprocessing.py`：看不見的組合字元改寫成 `\u0301`／`\u0651`；刪除恆真的 surrogate 斷言。
+- 審查在 8 個行程、記憶體吃緊的極端負載下重現到的失敗都在舊的執行緒測試（vocalizer／onecore drain、request manager），它們寫死大量 `Event.wait(1)`／`wait(2)` 而沒有用 `waiting.WAIT_TIMEOUT`；合併後那一次未取得名稱的失敗最可能出自這裡。已排入階段 26。

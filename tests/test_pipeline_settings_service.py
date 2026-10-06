@@ -177,3 +177,25 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		.ignore_comma_between_number
 		is True
 	)
+
+
+@pytest.mark.parametrize(
+	("changes", "method", "expected"),
+	[
+		# The global factor scales in whole tens; what is left over is dropped.
+		({"global_wait_factor": 25, "number_wait_factor": 7}, "scaled_number_wait", 14),
+		({"global_wait_factor": 30, "item_wait_factor": 4}, "scaled_item_wait", 12),
+		({"global_wait_factor": 9, "sayall_wait_factor": 50}, "scaled_sayall_wait", 0),
+		({"global_wait_factor": 10, "chinesespace_wait_factor": 6}, "scaled_chinesespace_wait", 6),
+		# Punctuation and pair pauses ignore the global factor: 5 ms a step, at most 500 ms.
+		({"global_wait_factor": 0, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 150),
+		({"punctuation_wait_factor": 100}, "scaled_punctuation_wait", 500),
+		({"punctuation_wait_factor": 101}, "scaled_punctuation_wait", 500),
+		({"pair_wait_factor": 20}, "scaled_pair_wait", 100),
+		({"pair_wait_factor": 200}, "scaled_pair_wait", 500),
+	],
+)
+def test_scaled_waits_follow_their_units_and_caps(monkeypatch, changes, method, expected):
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	settings = module.PipelineSettings(**{**OLD_DEFAULTS, **changes})
+	assert getattr(settings, method)() == expected
