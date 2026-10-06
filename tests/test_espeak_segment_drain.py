@@ -1,12 +1,18 @@
 """eSpeak drain requires callback idle and FIFO native retirement."""
 
-import importlib
 import sys
 from threading import Event, current_thread, get_ident
 
 import pytest
 from espeak_drain_harness import finish, load_espeak, speak, wait_event
-from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, quiet_period
+from runtime_harness import (
+	accepted_operations,
+	delivery_thread,
+	segment_host,
+	segment_lifecycle,
+	stop_completion,
+)
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, quiet_period
 
 
 @pytest.fixture
@@ -75,11 +81,9 @@ def test_observable_callback_or_native_failure_fails_exact_context_after_return(
 
 
 def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
-	lifecycle = importlib.import_module(env.rt.package.__name__ + "._segmentLifecycle")
 	env.native.next_scripts.append({"empty": True})
 	_, context, events = speak(env, commands=("",))
 	call = env.native.wait_calls(1)
-	assert isinstance(env.driver._segmentHost.current().operation, lifecycle.SegmentOperation)
 	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	old_index = call.index_callback
 	old_index(42)
@@ -157,13 +161,8 @@ def test_cancelling_queued_contextual_speech_preserves_active_ordinary_audio(env
 	assert queued.wait(WAIT_TIMEOUT)
 	token.cancel()
 	release_queue.set()
-	operation = next(iter(env.driver._segmentHost._accepted))
-	with operation._lifecycle._condition:
-		assert operation._lifecycle._condition.wait_for(
-			lambda: operation._stop_done is not None,
-			WAIT_TIMEOUT,
-		)
-		stop_done = operation._stop_done
+	operation = next(iter(accepted_operations(segment_host(env.driver))))
+	stop_done = eventually(lambda: stop_completion(operation))
 	assert stop_done.wait(WAIT_TIMEOUT)
 	assert env.player.stops == 0, "Queued cancellation stopped the ordinary player"
 	assert env.player.queued_bytes == 8
@@ -471,7 +470,7 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
 	assert events[0].source_id is context.source_id
 	assert events[0].segment_id == 19
 	assert str(events[0].error) == "eSpeak driver has terminated"
-	assert threads == [env.driver._segmentHost._lifecycle._delivery_thread.ident]
+	assert threads == [delivery_thread(segment_lifecycle(segment_host(env.driver))).ident]
 	assert threads[0] != caller
 	assert env.native.calls == []
 

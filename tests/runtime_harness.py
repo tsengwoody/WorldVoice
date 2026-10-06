@@ -687,3 +687,9 @@ def native_record(host, operation):
 	"""The NativeRecord the host created for an accepted segment operation."""
 	with host._condition:
 		return host._records[operation]
+
+
+def stop_completion(operation):
+	"""The event a cancelled operation sets once its native stop finished, or None before it."""
+	with operation._lifecycle._condition:
+		return operation._stop_done
