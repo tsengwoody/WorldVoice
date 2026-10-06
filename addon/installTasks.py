@@ -6,21 +6,22 @@ import config
 from logHandler import log
 
 
-def _load_core_archive():
-	# Load by path: during installation an older `generics` may already be imported.
-	path = os.path.join(os.path.dirname(__file__), "generics", "coreArchive.py")
-	spec = importlib.util.spec_from_file_location("_worldvoice_install_core_archive", path)
+def _load_by_path(name, *parts):
+	path = os.path.join(os.path.dirname(__file__), *parts)
+	spec = importlib.util.spec_from_file_location(name, path)
 	module = importlib.util.module_from_spec(spec)
 	spec.loader.exec_module(module)
 	return module
 
 
+def _load_core_archive():
+	# Load by path: during installation an older `generics` may already be imported.
+	return _load_by_path("_worldvoice_install_core_archive", "generics", "coreArchive.py")
+
+
 def _workspace_path():
 	# Load by path too: the add-on being installed is not importable yet.
-	path = os.path.join(os.path.dirname(__file__), "synthDrivers", "WorldVoice", "workspace.py")
-	spec = importlib.util.spec_from_file_location("_worldvoice_install_workspace", path)
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
+	module = _load_by_path("_worldvoice_install_workspace", "synthDrivers", "WorldVoice", "workspace.py")
 	return module.workspace_path()
 
 

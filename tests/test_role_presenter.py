@@ -22,6 +22,8 @@ def load_presenter(monkeypatch, runtime_settings):
 	for package in ("synthDrivers", "synthDrivers.WorldVoice", "synthDrivers.WorldVoice.runtime"):
 		stub.module(package, __path__=[])
 	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.runtime.settings", runtime_settings)
+	package = runtime_settings.__name__.rsplit(".", 2)[0]
+	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.roles", sys.modules[f"{package}.roles"])
 	spec = importlib.util.spec_from_file_location("role_presenter_under_test", PRESENTER)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, spec.name, module)
