@@ -14,7 +14,7 @@ from nvda_stubs import StubModules
 import pytest
 
 from runtime_harness import load_runtime, load_scheduler
-from waiting import eventually, stays_unset
+from waiting import eventually, stays_false, stays_unset
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -1069,8 +1069,7 @@ def test_admitted_old_end_callback_cannot_complete_reloaded_successor(env, monke
     release.set()
     callback.join(2)
     assert not callback.is_alive() and errors == []
-    with events.condition:
-        assert not events.condition.wait_for(lambda: bool(events), .02), "Old end completed replacement work"
+    stays_false(events.condition, lambda: bool(events), message="Old end completed replacement work")
     assert old_events == []
     player.idle_release.set()
     native.end()

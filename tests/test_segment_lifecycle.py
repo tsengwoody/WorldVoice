@@ -10,7 +10,7 @@ import weakref
 import pytest
 
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
-from waiting import WAIT_TIMEOUT, eventually, stays_unset
+from waiting import WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
 
 class Call:
@@ -261,7 +261,8 @@ def test_stop_failure_blocks_successor(env):
     events.wait_for_count(1)
     assert [(event.segment_id, event.kind.value, event.error) for event in events] == [
         (2, "segment_failed", hooks.stop_error)]
-    assert new not in lifecycle._operations
+    # The delivery thread forgets the operation after its sink returns.
+    eventually(lambda: new not in lifecycle._operations)
 
 
 def test_hook_failure_after_the_native_boundary_latches_core_fault(env):
@@ -312,8 +313,7 @@ def test_failed_waiting_operation_is_published_before_the_resource_frees(env):
     hooks.release_boundary.set()
     first.finish()
     events.wait_for_count(2)
-    with events._condition:
-        assert not events._condition.wait_for(lambda: len(events) > 2, 0.1), events
+    stays_false(events._condition, lambda: len(events) > 2, message=lambda: repr(events))
 
 
 def test_failed_operation_that_never_ran_is_published_and_its_run_is_a_no_op(env):
@@ -326,8 +326,7 @@ def test_failed_operation_that_never_ran_is_published_and_its_run_is_a_no_op(env
         (context.source_id, "segment_failed")]
     Call(lambda: lifecycle.run(operation, ("never",))).finish()
     assert hooks.submitted == []
-    with events._condition:
-        assert not events._condition.wait_for(lambda: len(events) > 1, 0.1), events
+    stays_false(events._condition, lambda: len(events) > 1, message=lambda: repr(events))
 
 
 def test_late_cancel_cannot_stop_successor_resource(env):

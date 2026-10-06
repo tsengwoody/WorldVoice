@@ -17,7 +17,7 @@ from engine_contract_harness import (
 	SAPI5Adapter,
 	VEAdapter,
 )
-from waiting import eventually
+from waiting import eventually, stays_false
 
 ADAPTERS = {
 	"VE": VEAdapter,
@@ -63,13 +63,14 @@ class Events(list):
 			self.condition.notify_all()
 
 	def wait_one(self, timeout=2):
-		with self.condition:
-			assert self.condition.wait_for(lambda: bool(self), timeout), "no terminal event delivered"
+		eventually(lambda: bool(self), timeout, message="no terminal event delivered")
 		# A duplicate delivered shortly after the first event must still be caught.
-		with self.condition:
-			self.condition.wait_for(lambda: len(self) > 1, 0.1)
-			assert len(self) == 1, f"expected one terminal event, got {list(self)}"
-			return self[0]
+		stays_false(
+			self.condition,
+			lambda: len(self) > 1,
+			message=lambda: f"expected one terminal event, got {list(self)}",
+		)
+		return self[0]
 
 
 @pytest.fixture
@@ -137,12 +138,9 @@ def test_cancelled_token_never_reaches_native_or_sink(engine):
 	caller, errors = _start_speak(engine, token, engine.PlaybackContext(object(), 21), events)
 
 	caller.join(2)
-	with events.condition:
-		events.condition.wait_for(lambda: bool(events), 0.2)
-
+	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
 	assert not caller.is_alive() and errors == []
 	assert engine.native_call_count() == 0
-	assert list(events) == []
 
 
 @pytest.mark.parametrize("engine", _engines(), indirect=True)

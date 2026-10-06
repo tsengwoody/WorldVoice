@@ -598,7 +598,10 @@ def test_cancel_during_contextual_final_idle_releases_waiting_ordinary(env, monk
     assert held.native_calls == [("hello", False)]
     assert len(env.dones) == 1
     # The discarded segment's record is forgotten on the lifecycle's delivery thread.
-    eventually(lambda: env.core._segmentHost._pending == [], message="the discarded segment's record stayed pending")
+    host = env.core._segmentHost
+    eventually(
+        lambda: not host._pending,
+        message=lambda: f"the discarded segment's record stayed pending: {host._pending}")
     with held.condition:
         assert held.condition.wait_for(
             lambda: not lifecycle_of(env)._operations, 1)
@@ -1029,8 +1032,10 @@ def test_done_listener_can_terminate_without_deadlocking_speech(env, monkeypatch
     try:
         finish(call)
         # Terminate from the BgThread is reentrant: a closer thread closes the player.
-        eventually(lambda: env.core._real_player.closes == 1, message="the closer thread never closed the player")
-        assert env.core._real_player.closes == 1
+        # A reentrant terminate closes the player on its own closer thread.
+        closes = eventually(
+            lambda: env.core._real_player.closes, message="the closer thread never closed the player")
+        assert closes == 1
     finally:
         if not call[1].is_set():
             # Rescue the pre-fix non-reentrant lock so this RED cannot leave

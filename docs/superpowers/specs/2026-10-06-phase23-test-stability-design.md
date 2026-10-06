@@ -48,3 +48,11 @@ def stays_unset(event, period=QUIET_PERIOD, message=None):
 - 全套通過；收集清單不變（1491）。
 - 壓力測試：開 coverage，4 個 worker 平行，各跑 8 輪全套。修改前先跑一次作為基準，記錄所有偶發失敗；修改後再跑一次，0 失敗。
 - `tests/` 內的固定等待只剩：`waiting.py` 本身、參數化的慢執行緒模擬、各自註明理由的少數例外。
+
+## 實作備註（審查後）
+
+- `waiting.py` 實際提供：`eventually`、`stays_unset`、`quiet_period`、`holds_within(condition, predicate)`、`stays_false(condition, predicate)`；`message` 可傳 callable，失敗時才組字串，用來帶出當下的狀態。
+- 原本以 `Condition.wait_for(..., 0.02~0.3)` 寫的 16 處負向檢查改用 `stays_false`；需要先釋放卡住的執行緒再斷言的（onecore 4 處）用 `holds_within` 取得布林、維持「先釋放、後斷言」。觀察時間統一為 `QUIET_PERIOD`。
+- 仍保留的固定等待：參數化的慢執行緒模擬（`Event().wait(start_delay)`）、刻意在固定時間窗內計算輪詢次數的 `_assert_not_polled`／`assert_not_polled`。
+- `test_segment_lifecycle.py::test_stop_failure_blocks_successor` 的 `new not in lifecycle._operations` 改為 `eventually`（delivery 執行緒在 sink 之後才移除 operation）。
+- 驗證：修改前壓力測試 32 輪 1 失敗；修改後 32 輪、審查修正後 20 輪，皆 0 失敗。

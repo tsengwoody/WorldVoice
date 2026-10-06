@@ -12,8 +12,16 @@ QUIET_PERIOD = 0.05
 _POLL = 0.002
 
 
+def _text(message):
+	# A callable message is built on failure, so it can show the state then.
+	return message() if callable(message) else message
+
+
 def eventually(predicate, timeout=WAIT_TIMEOUT, message=None):
-	"""Poll until ``predicate()`` is truthy and return its value; fail after ``timeout``."""
+	"""Poll until ``predicate()`` is truthy and return its value; fail after ``timeout``.
+
+	An exception from ``predicate`` propagates at once.
+	"""
 	deadline = monotonic() + timeout
 	pause = Event()
 	while True:
@@ -23,12 +31,27 @@ def eventually(predicate, timeout=WAIT_TIMEOUT, message=None):
 		if monotonic() >= deadline:
 			break
 		pause.wait(_POLL)
-	raise AssertionError(message or f"condition still false after {timeout} s (last value: {value!r})")
+	raise AssertionError(_text(message) or f"condition still false after {timeout} s (last value: {value!r})")
 
 
 def stays_unset(event, period=QUIET_PERIOD, message=None):
 	"""Negative check: ``event`` is not set within ``period``. It can miss, never fail spuriously."""
-	assert not event.wait(period), message or f"event was set within {period} s"
+	assert not event.wait(period), _text(message) or f"event was set within {period} s"
+
+
+def holds_within(condition, predicate, period=QUIET_PERIOD):
+	"""Whether ``predicate()`` became true within ``period``, waiting on ``condition``.
+
+	For negative checks that must release blocked threads before they assert.
+	"""
+	with condition:
+		return condition.wait_for(predicate, period)
+
+
+def stays_false(condition, predicate, period=QUIET_PERIOD, message=None):
+	"""Negative check on a condition variable: ``predicate()`` stays false for ``period``."""
+	became_true = holds_within(condition, predicate, period)
+	assert not became_true, _text(message) or f"condition became true within {period} s"
 
 
 def quiet_period(period=QUIET_PERIOD):

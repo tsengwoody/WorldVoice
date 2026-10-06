@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
-from waiting import eventually, stays_unset
+from waiting import eventually, stays_false, stays_unset
 
 
 class FakeStrategy:
@@ -58,11 +58,14 @@ class Events(list):
 			self.condition.notify_all()
 
 	def wait_one(self):
-		with self.condition:
-			assert self.condition.wait_for(lambda: bool(self), 2), "no terminal event delivered"
-			self.condition.wait_for(lambda: len(self) > 1, 0.1)
-			assert len(self) == 1, list(self)
-			return self[0]
+		eventually(lambda: bool(self), message="no terminal event delivered")
+		# A duplicate delivered shortly after the first event must still be caught.
+		stays_false(
+			self.condition,
+			lambda: len(self) > 1,
+			message=lambda: f"expected one terminal event, got {list(self)}",
+		)
+		return self[0]
 
 
 def native(module, strategy_type):
@@ -194,9 +197,7 @@ def test_cancel_keeps_accepted_segment_silent_and_stops_active_native(env):
 		assert env.strategy.condition.wait_for(lambda: env.strategy.native_stops == [record], 1)
 	native, _ = env.run_native(record)
 	native.join(2)
-	with events.condition:
-		events.condition.wait_for(lambda: bool(events), 0.2)
-	assert list(events) == []
+	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
 	# The discarded operation's bookkeeping is released (on the delivery thread).
 	eventually(lambda: not env.host._accepted)
 	assert env.host._accepted == {}
@@ -225,9 +226,7 @@ def test_cancel_after_commit_keeps_the_event_silent(env, monkeypatch):
 
 	monkeypatch.setattr(env.host, "_deliver", cancel_before_publication)
 	env.run_native(record)
-	with events.condition:
-		events.condition.wait_for(lambda: bool(events), 0.3)
-	assert list(events) == []
+	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
 
 
 def test_sink_can_terminate_without_self_join(env):
@@ -520,9 +519,7 @@ def test_abandon_retires_a_dropped_record_without_handoff(env):
 	assert finished.wait(1), "abandon() waited for a handoff that never comes"
 	assert record.retired.is_set()
 	env.host.abandon(record)  # idempotent
-	with events.condition:
-		events.condition.wait_for(lambda: bool(events), 0.2)
-	assert list(events) == []
+	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
 
 
 def test_reset_recovers_from_a_control_error(env):
@@ -916,8 +913,7 @@ def test_cancel_does_not_wait_for_prepare(prepare_env):
 		assert cancelled.wait(1), "cancel() waited for prepare()"
 	finally:
 		env.strategy.prepare_release.set()
-	with events.condition:
-		assert not events.condition.wait_for(lambda: bool(events), 0.2)
+	stays_false(events.condition, lambda: bool(events), message=lambda: f"unexpected events {list(events)}")
 	assert env.strategy.submitted == []
 
 

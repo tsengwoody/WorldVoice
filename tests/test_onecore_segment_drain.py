@@ -6,7 +6,7 @@ import weakref
 import pytest
 
 from onecore_drain_harness import VERSION, in_thread, load_onecore
-from waiting import WAIT_TIMEOUT, eventually, quiet_period, stays_unset
+from waiting import WAIT_TIMEOUT, eventually, holds_within, quiet_period, stays_false, stays_unset
 
 
 @pytest.fixture
@@ -84,8 +84,7 @@ def test_onecore_shared_handoff_waits_for_callback_feed_and_stop(env):
     assert old_events == [] and new_events == []
     assert old_operation.work.context is old_context
     env.player.feed_release.set()
-    with env.native.condition:
-        assert not env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.05)
+    stays_false(env.native.condition, lambda: len(env.native.calls) >= 2)
     release_stop.set()
     finish(response)
     finish(cancel)
@@ -116,8 +115,7 @@ def test_onecore_callback_return_precedes_drain_and_successor_native_call(env):
     env.player.sync_release.set()
     response = in_thread(lambda: env.native.respond(markers=""))
     assert callback_body_returned.wait(1)
-    with env.native.condition:
-        advanced = env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.1)
+    advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 2)
     assert not advanced, "Successor native call began before callback returned"
     assert first_events == [] and second_events == []
     assert len(env.native.calls) == 1
@@ -148,8 +146,7 @@ def test_onecore_retirement_return_precedes_drain_and_successor_native_call(env)
     env.player.sync_release.set()
     response = in_thread(lambda: env.native.respond(markers=""))
     assert retired.wait(1)
-    with env.native.condition:
-        advanced = env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.05)
+    advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 2)
     assert not advanced, "Successor native call began before retirement returned"
     assert first_events == [] and second_events == []
     release_retirement.set()
@@ -191,8 +188,7 @@ def test_onecore_successor_player_open_waits_for_old_feed_and_stop(env):
     assert opened == []
     assert len(env.native.calls) == 1
     env.player.feed_release.set()
-    with env.native.condition:
-        assert not env.native.condition.wait_for(lambda: bool(opened), 0.05)
+    stays_false(env.native.condition, lambda: bool(opened))
     release_stop.set()
     finish(response)
     finish(cancel)
@@ -801,8 +797,7 @@ def test_cancel_stop_must_exit_before_a_retired_callback_allows_new_work(env):
     assert stopped.wait(1)
     speak(env, segment=18)
     env.native.respond(failure=True)
-    with env.native.condition:
-        advanced = env.native.condition.wait_for(lambda: len(env.native.calls) >= 2, 0.05)
+    advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 2)
     release_stop.set()
     finish(cancel)
     assert not advanced, "New native work started before the old cancel stop exited"
@@ -1084,8 +1079,7 @@ def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):
     env.player.stop = blocked_final_stop
     env.player.feed_release.set()
     stopped = final_stop.wait(WAIT_TIMEOUT)
-    with env.native.condition:
-        advanced = env.native.condition.wait_for(lambda: len(env.native.calls) >= 3, 0.05)
+    advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 3)
     release_stop.set()
     finish(call)
     assert stopped, "The legacy feed queued audio after cancel without a final stop"
