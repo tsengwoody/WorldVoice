@@ -23,6 +23,7 @@ def checkbox(value):
 
 def test_failed_apply_shows_error_and_raises_value_error():
 	messages, logged = [], []
+	manager = object()
 	panel_type = load_panel({
 		"SettingsPanel": object,
 		"_": lambda text: text,
@@ -31,10 +32,11 @@ def test_failed_apply_shows_error_and_raises_value_error():
 		"wx": types.SimpleNamespace(OK=1, ICON_ERROR=2),
 		"gui": types.SimpleNamespace(messageBox=lambda *args: messages.append(args)),
 		"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
-		"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice"),
+		"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice", voice_manager=manager),
 	})
 	panel = object.__new__(panel_type)
 	panel.disable = False
+	panel._manager = manager
 	calls = []
 	def apply():
 		raise OSError("save failed")

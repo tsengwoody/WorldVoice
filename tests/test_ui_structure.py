@@ -2,6 +2,7 @@
 
 import ast
 from pathlib import Path
+from types import SimpleNamespace
 
 ADDON = Path(__file__).resolve().parents[1] / "addon"
 DIALOG = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
@@ -54,3 +55,27 @@ def test_global_plugin_has_no_shadowed_workspace_constant():
 
 def test_role_panel_names_the_speech_section_by_the_synth_name():
 	assert '["speech"]["WorldVoice"]' not in DIALOG.read_text(encoding="utf-8")
+
+
+def _role_panel_on_save(synth, log):
+	env = {"worldvoice_synth": lambda: synth, "log": log}
+	module = ast.Module(body=[method(DIALOG, "SpeechRoleSettingsPanel", "onSave")], type_ignores=[])
+	exec(compile(module, str(DIALOG), "exec"), env)
+	return env["onSave"]
+
+
+def test_role_panel_does_not_save_to_a_voice_manager_the_synth_replaced():
+	# The dialog is not modal: NVDA may rebuild WorldVoice (an audio device change) while it is open.
+	applied, warnings = [], []
+	log = SimpleNamespace(warning=warnings.append)
+	opened_with = object()
+	panel = SimpleNamespace(
+		disable=False,
+		_manager=opened_with,
+		_presenter=SimpleNamespace(apply=lambda: applied.append(True)),
+	)
+	_role_panel_on_save(SimpleNamespace(voice_manager=object()), log)(panel)
+	assert applied == []
+	assert len(warnings) == 1
+	_role_panel_on_save(SimpleNamespace(voice_manager=opened_with), log)(panel)
+	assert applied == [True]

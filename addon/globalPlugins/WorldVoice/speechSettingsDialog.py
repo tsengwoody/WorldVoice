@@ -580,7 +580,12 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	def onSave(self):
 		# The dialog is not modal: the synth may have changed since it opened.
-		if self.disable or worldvoice_synth() is None:
+		current = worldvoice_synth()
+		if self.disable or current is None:
+			return
+		if current.voice_manager is not self._manager:
+			# NVDA rebuilt WorldVoice (e.g. after an audio device change); the panel edits the old one.
+			log.warning("WorldVoice restarted while the voice settings were open; role settings not saved")
 			return
 		try:
 			self._presenter.apply()
