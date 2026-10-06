@@ -589,13 +589,14 @@ def load_index_support(monkeypatch, rt, package_name):
 
 # Named views of runtime internals. Tests check these where no public API shows the fact
 # (a leaked request, an operation never retired, a worker thread that died); each private
-# name is read here only, so renaming it touches this module alone.
+# name is read here only, so renaming it touches this module alone. Most return the live
+# object and read without a lock, as the tests did; a test may hold the system mid-way with
+# a lock taken. Those that replaced a wait under the owner's condition read under it.
 
 
 def tracked_requests(manager):
 	"""The requests the scheduler still tracks; finished, failed and cancelled ones must leave."""
-	with manager._state_cond:
-		return dict(manager._requests)
+	return manager._requests
 
 
 def worker_queue_empty(manager):
@@ -631,38 +632,37 @@ def segment_lifecycle(host):
 
 def accepted_operations(host):
 	"""Accepted operations the host still tracks, mapped to whether it cancelled them."""
-	with host._condition:
-		return dict(host._accepted)
+	return host._accepted
 
 
 def pending_records(host):
 	"""Native records queued behind the current one."""
-	with host._condition:
-		return tuple(host._pending)
+	return host._pending
+
+
+def native_record(host, operation):
+	"""The NativeRecord the host created for an accepted segment operation."""
+	return host._records[operation]
 
 
 def live_operations(lifecycle):
 	"""Operations the lifecycle has not retired yet."""
-	with lifecycle._condition:
-		return tuple(lifecycle._operations)
+	return lifecycle._operations
 
 
 def queued_deliveries(lifecycle):
 	"""Operations whose event still waits for the delivery thread."""
-	with lifecycle._condition:
-		return tuple(lifecycle._delivery_queue)
+	return lifecycle._delivery_queue
 
 
 def delivery_thread(lifecycle):
 	"""The thread that runs the lifecycle's sinks."""
-	with lifecycle._condition:
-		return lifecycle._delivery_thread
+	return lifecycle._delivery_thread
 
 
 def resource_busy(lifecycle):
 	"""Whether an operation owns the native resource."""
-	with lifecycle._condition:
-		return lifecycle._resource_busy
+	return lifecycle._resource_busy
 
 
 def lifecycle_terminated(lifecycle):
@@ -681,12 +681,6 @@ def waiting_for_resource(lifecycle, operation):
 	"""Whether ``operation`` waits for the resource inside run()."""
 	with lifecycle._condition:
 		return operation._waiting
-
-
-def native_record(host, operation):
-	"""The NativeRecord the host created for an accepted segment operation."""
-	with host._condition:
-		return host._records[operation]
 
 
 def stop_completion(operation):
