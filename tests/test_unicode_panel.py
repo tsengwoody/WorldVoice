@@ -5,32 +5,9 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import ADDON, load_definitions
 from detector_harness import load_language_detection
+from ui_harness import BoxSizerHelper, CheckBox, Choice, Sizer
 
 PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
-
-
-class Control:
-	def __init__(self, label=None, choices=None):
-		self.label, self.choices = label, list(choices or [])
-		self.selection, self.enabled, self.value = None, True, None
-
-	def Select(self, index):
-		self.selection = index
-
-	def GetCurrentSelection(self):
-		return self.selection
-
-	def IsEnabled(self):
-		return self.enabled
-
-	def Disable(self):
-		self.enabled = False
-
-	def SetValue(self, value):
-		self.value = value
-
-	def GetValue(self):
-		return self.value
 
 
 class Synth:
@@ -68,21 +45,6 @@ def build(env, languages, stored):
 	service = env.settings_module.DetectionSettingsService(lambda: conf)
 	notified = []
 	service.subscribe(lambda settings, changed: notified.append(changed))
-	added = []
-
-	class Helper:
-		def __init__(self, *args, **kwargs):
-			pass
-
-		def addLabeledControl(self, label, cls, choices=None):
-			control = Control(label, choices)
-			added.append(control)
-			return control
-
-		def addItem(self, item):
-			added.append(item)
-			return item
-
 	manager = SimpleNamespace(
 		languages=languages,
 		localesToNamesMap={locale: f"<{locale}>" for locale in languages},
@@ -91,8 +53,8 @@ def build(env, languages, stored):
 	environment = {
 		"SettingsPanel": object,
 		"_": lambda text: text,
-		"wx": SimpleNamespace(Choice=object, CheckBox=lambda parent, label: Control(label)),
-		"guiHelper": SimpleNamespace(BoxSizerHelper=Helper),
+		"wx": SimpleNamespace(Choice=Choice, CheckBox=CheckBox),
+		"guiHelper": SimpleNamespace(BoxSizerHelper=BoxSizerHelper),
 		"config": SimpleNamespace(conf=NoConfig()),
 		"getSynth": lambda: synth,
 		"worldvoice_synth": lambda: synth,
@@ -101,8 +63,15 @@ def build(env, languages, stored):
 	}
 	load_definitions(PANEL, ["UnicodeDetectionSettingsPanel"], environment)
 	panel = object.__new__(environment["UnicodeDetectionSettingsPanel"])
-	panel.makeSettings(SimpleNamespace())
-	return SimpleNamespace(panel=panel, added=added, switching=switching, synth=synth, notified=notified)
+	sizer = Sizer()
+	panel.makeSettings(sizer)
+	return SimpleNamespace(
+		panel=panel,
+		added=sizer.controls(),
+		switching=switching,
+		synth=synth,
+		notified=notified,
+	)
 
 
 LANGUAGES = ["en", "fr", "zh", "ja", "ar", "en_US"]
