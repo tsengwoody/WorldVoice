@@ -5,7 +5,7 @@ from threading import Event, Thread, current_thread
 from types import SimpleNamespace
 
 import pytest
-from waiting import WAIT_TIMEOUT, eventually, stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_unset
 from worldvoice_cancel_wrapper_harness import Token, emit, load_real_driver_with_native_stubs, native_message
 
 
@@ -55,7 +55,7 @@ def run_thread(action):
 
 
 def finish(call):
-	assert call[1].wait(2)
+	assert call[1].wait(WAIT_TIMEOUT)
 	assert call[2] == []
 
 
@@ -109,22 +109,22 @@ def test_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
 	assert isinstance(env.core._segmentHost, env.module.SegmentHost)
 	feed_entered, feed_release, idle_entered, idle_release = Event(), Event(), Event(), Event()
 	callbacks = []
-	env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
-	env.core._real_player.idle = lambda: (idle_entered.set(), idle_release.wait(2))
+	env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(HOLD_TIMEOUT))
+	env.core._real_player.idle = lambda: (idle_entered.set(), idle_release.wait(HOLD_TIMEOUT))
 
 	def native(instance, text):
 		callbacks.append(run_thread(lambda: emit(env, instance, index=31)))
-		assert feed_entered.wait(1)
+		assert feed_entered.wait(WAIT_TIMEOUT)
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	_, context, call = speak(env)
-	assert feed_entered.wait(1)
+	assert feed_entered.wait(WAIT_TIMEOUT)
 	assert env.events == []
 	assert not idle_entered.is_set()
 	feed_release.set()
 	wait_for(lambda: bool(callbacks))
 	finish(callbacks[0])
-	assert idle_entered.wait(1)
+	assert idle_entered.wait(WAIT_TIMEOUT)
 	assert env.events == []
 	idle_release.set()
 	finish(call)
@@ -141,11 +141,11 @@ def test_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
 	assert isinstance(env.core._segmentHost, env.module.SegmentHost)
 	feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
 	calls, callbacks = [], []
-	env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
+	env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(HOLD_TIMEOUT))
 
 	def stop():
 		stop_entered.set()
-		assert stop_release.wait(2)
+		assert stop_release.wait(HOLD_TIMEOUT)
 
 	env.core._real_player.stop = stop
 
@@ -153,17 +153,17 @@ def test_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
 		calls.append(text)
 		if len(calls) == 1:
 			callbacks.append(run_thread(lambda: emit(env, instance, index=41)))
-			assert feed_entered.wait(1)
+			assert feed_entered.wait(WAIT_TIMEOUT)
 		else:
 			emit(env, instance, index=42)
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	token, _, first = speak(env)
-	assert feed_entered.wait(1)
+	assert feed_entered.wait(WAIT_TIMEOUT)
 	token.cancel()
 	_, context, second = speak(env, segment=18)
 	feed_release.set()
-	assert stop_entered.wait(1)
+	assert stop_entered.wait(WAIT_TIMEOUT)
 	assert calls == ["hello"]
 	stop_release.set()
 	# The callback thread can feed before native() records its handle.
@@ -215,12 +215,12 @@ def test_speak_returns_before_native_synthesis(env, monkeypatch):
 
 	def native(instance, text):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	call = run_thread(lambda: env.core.speak(("ordinary",)))
 	try:
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		assert call[1].wait(WAIT_TIMEOUT), "speak() waited for native synthesis"
 		assert env.dones == []
 	finally:
@@ -238,13 +238,13 @@ def test_settings_apply_in_call_order_with_speech(env, monkeypatch):
 	def native(instance, text):
 		if text == "first":
 			entered.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		order.append(("spoken", text))
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	monkeypatch.setattr(env.native, "setParamList", lambda instance, *values: order.append(("set", values)))
 	first = run_thread(lambda: env.core.speak(("first",)))
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	env.core._set_volume(40)
 	release.set()
 	finish(first)
@@ -266,13 +266,13 @@ def test_cancel_drops_a_segment_queued_behind_the_worker(env, monkeypatch):
 		result = retire(record, **kwargs)
 		if not held.is_set():
 			held.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		return result
 
 	monkeypatch.setattr(host, "retire", held_retire)
 	_, _, first = speak(env)
 	try:
-		assert held.wait(1)
+		assert held.wait(WAIT_TIMEOUT)
 		context = env.rt.models.PlaybackContext(object(), 18)
 		env.core.speak_segment(("second",), Token(), context=context, on_event=env.events.append)
 		wait_for(lambda: any(isinstance(task, env.module._Begin) for task in list(env.core._bgQueue.queue)))
@@ -306,14 +306,14 @@ def test_engine_settings_variant_waits_for_running_speech(env, monkeypatch):
 
 	def native(instance, text):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		order.append(("spoken", text))
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	monkeypatch.setattr(env.native, "setParamList", lambda instance, *values: order.append(("set", values)))
 	monkeypatch.setattr(env.native, "getParamList", lambda instance, *ids: ["plain"] * len(ids))
 	first = run_thread(lambda: env.core.speak(("first",)))
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	voice = object.__new__(env.module.Voice)
 	voice.applyEngineSettings(
 		env.core,
@@ -338,7 +338,7 @@ def test_parameter_read_never_reorders_queued_speech(env, monkeypatch):
 	monkeypatch.setattr(env.native, "getParamList", lambda instance, *ids: [50] * len(ids))
 	core, bg = env.core, env.core._bgQueue
 	hold = Event()
-	bg.put(lambda: hold.wait(5))
+	bg.put(lambda: hold.wait(HOLD_TIMEOUT))
 	reading, read_done, retired = Event(), Event(), Event()
 	original_get, original_put, original_speak = bg.get_nowait, bg.put, core._speak
 
@@ -348,7 +348,7 @@ def test_parameter_read_never_reorders_queued_speech(env, monkeypatch):
 
 	def put(task):
 		if not retired.is_set() and getattr(current_thread(), "name", "") == "parameter read":
-			assert retired.wait(2)
+			assert retired.wait(WAIT_TIMEOUT)
 		original_put(task)
 		if isinstance(task, env.module._Retire):
 			retired.set()
@@ -369,7 +369,7 @@ def test_parameter_read_never_reorders_queued_speech(env, monkeypatch):
 	wait_for(lambda: retired.is_set())
 	hold.set()
 	finish(call)
-	assert read_done.wait(2)
+	assert read_done.wait(WAIT_TIMEOUT)
 	settle_worker(env)
 	assert spoken == ["hello"]
 	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
@@ -400,21 +400,21 @@ def test_terminate_waits_for_coordinator_stop(env, monkeypatch):
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
 	monkeypatch.setattr(env.native, "close", lambda instance: None)
 	monkeypatch.setattr(env.native, "terminate", lambda: None)
-	env.core._real_player.idle = lambda: (idle_entered.set(), idle_release.wait(2))
+	env.core._real_player.idle = lambda: (idle_entered.set(), idle_release.wait(HOLD_TIMEOUT))
 	env.core._real_player.stop = idle_release.set
 	env.core._real_player.close = closed.set
 	request_stop = env.core._segmentHost.request_stop
 
 	def delayed_stop(operation):
 		hook_entered.set()
-		assert hook_release.wait(2)
+		assert hook_release.wait(HOLD_TIMEOUT)
 		request_stop(operation)
 
 	monkeypatch.setattr(env.core._segmentHost, "request_stop", delayed_stop)
 	_, _, speech = speak(env)
-	assert idle_entered.wait(1)
+	assert idle_entered.wait(WAIT_TIMEOUT)
 	terminating = run_thread(env.core.terminate)
-	assert hook_entered.wait(1)
+	assert hook_entered.wait(WAIT_TIMEOUT)
 	stays_unset(closed)
 	hook_release.set()
 	finish(speech)
@@ -432,10 +432,10 @@ def test_speak_segment_returns_while_a_previous_sink_runs(env, monkeypatch, canc
 
 	def first_sink(event):
 		sink_entered.set()
-		assert sink_release.wait(2)
+		assert sink_release.wait(HOLD_TIMEOUT)
 
 	env.core.speak_segment(("first",), Token(), context=first_context, on_event=first_sink)
-	assert sink_entered.wait(1)
+	assert sink_entered.wait(WAIT_TIMEOUT)
 	token = Token()
 	context = env.rt.models.PlaybackContext(object(), 18)
 	second = run_thread(
@@ -477,9 +477,9 @@ def test_player_hook_can_reenter_terminate(env, monkeypatch, hook):
 
 	setattr(env.core._real_player, hook, reenter)
 	_, _, call = speak(env, token=token)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	finish(call)
-	assert env.core._terminationDone.wait(1)
+	assert env.core._terminationDone.wait(WAIT_TIMEOUT)
 	assert env.core._real_player.closes == 1
 
 
@@ -511,7 +511,7 @@ def test_vocalizer_endprocess_is_not_segment_drain(env, monkeypatch):
 
 	def idle():
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	env.core._real_player.idle = idle
 	monkeypatch.setattr(
@@ -520,7 +520,7 @@ def test_vocalizer_endprocess_is_not_segment_drain(env, monkeypatch):
 		lambda instance, text: emit(env, instance, index=23),
 	)
 	_, context, call = speak(env)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	assert env.events == []
 	assert env.core._real_player.fed == [b"pcm"]
 	assert env.indexes == [23]
@@ -571,7 +571,7 @@ def hold_contextual_final_idle(env, monkeypatch):
 
 	def idle():
 		held.entered.set()
-		assert held.release.wait(2), "Test did not release the final idle"
+		assert held.release.wait(HOLD_TIMEOUT), "Test did not release the final idle"
 		held.finished.set()
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
@@ -579,7 +579,7 @@ def hold_contextual_final_idle(env, monkeypatch):
 	# A stop releases a real blocked idle.
 	env.core._real_player.stop = held.release.set
 	held.token, held.context, held.contextual = speak(env)
-	assert held.entered.wait(1)
+	assert held.entered.wait(WAIT_TIMEOUT)
 	assert env.events == []
 	held.condition = WaitObservingCondition(lifecycle_of(env)._condition)
 	lifecycle_of(env)._condition = held.condition
@@ -640,7 +640,7 @@ def test_cancel_during_contextual_final_idle_releases_waiting_ordinary(env, monk
 	with held.condition:
 		assert held.condition.wait_for(
 			lambda: not lifecycle_of(env)._operations,
-			1,
+			WAIT_TIMEOUT,
 		)
 	assert env.events == []
 
@@ -688,7 +688,7 @@ def test_terminate_during_contextual_final_idle_with_waiting_ordinary(
 		def late_cancel():
 			# The inner terminate on the ordinary thread also cancels.
 			if current_thread() is not calls[0][0]:
-				assert calls[0][1].wait(2), "Ordinary request did not finish first"
+				assert calls[0][1].wait(WAIT_TIMEOUT), "Ordinary request did not finish first"
 			original_cancel()
 
 		monkeypatch.setattr(env.core, "cancel", late_cancel)
@@ -701,7 +701,7 @@ def test_terminate_during_contextual_final_idle_with_waiting_ordinary(
 	finally:
 		held.release.set()
 	finish(held.contextual)
-	assert ordinary[1].wait(2)
+	assert ordinary[1].wait(WAIT_TIMEOUT)
 	# The queued request returned at once; terminate's cancel dropped it.
 	assert ordinary[2] == []
 	assert held.native_calls == [("hello", False)]
@@ -739,11 +739,11 @@ def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
 def test_cancelled_idle_cannot_complete_segment(env, monkeypatch, cancel_kind):
 	prove_fake_quiescence(env, monkeypatch)
 	entered, release = Event(), Event()
-	env.core._real_player.idle = lambda: (entered.set(), release.wait(2))
+	env.core._real_player.idle = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
 	env.core._real_player.stop = release.set
 	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance))
 	token, _, call = speak(env)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	if cancel_kind == "token":
 		token.cancel()
 	else:
@@ -827,9 +827,9 @@ def test_explicit_activation_override_allows_successor_after_idle(env, monkeypat
 def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
 	prove_fake_quiescence(env, monkeypatch)
 	entered, release = Event(), Event()
-	env.core._real_player.stop = lambda: (entered.set(), release.wait(2))
+	env.core._real_player.stop = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
 	cancelling = run_thread(env.core.cancel)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	native_entered = Event()
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: native_entered.set())
 	_, _, call = speak(env)
@@ -894,12 +894,12 @@ def test_direct_cancel_after_idle_return_still_invalidates_original_work(env, mo
 
 	def after_native(record, **kwargs):
 		returned.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		return retire(record, **kwargs)
 
 	monkeypatch.setattr(env.core._segmentHost, "retire", after_native)
 	_, _, call = speak(env)
-	assert returned.wait(1)
+	assert returned.wait(WAIT_TIMEOUT)
 	env.core.cancel()
 	release.set()
 	finish(call)
@@ -996,7 +996,7 @@ def test_callback_lease_holds_bookmark_handler_before_next_call(env, monkeypatch
 
 	def index(**kwargs):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	monkeypatch.setattr(env.original_driver.synthIndexReached, "notify", index)
 	calls, callbacks = [], []
@@ -1006,12 +1006,12 @@ def test_callback_lease_holds_bookmark_handler_before_next_call(env, monkeypatch
 		if len(calls) == 1:
 			callbacks.append(run_thread(lambda: emit(env, instance, index=7)))
 			callback_ready.set()
-			assert entered.wait(1)
+			assert entered.wait(WAIT_TIMEOUT)
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	_, _, first = speak(env)
-	assert entered.wait(1)
-	assert callback_ready.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
+	assert callback_ready.wait(WAIT_TIMEOUT)
 	env.core.cancel()
 	_, _, second = speak(env, segment=18)
 	assert calls == ["hello"]
@@ -1037,10 +1037,10 @@ def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 		pause.time = 20
 		sequence = (pause,)
 	entered, release = Event(), Event()
-	env.core._real_player.idle = lambda: (entered.set(), release.wait(2))
+	env.core._real_player.idle = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
 	_, _, call = speak(env, sequence)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	assert env.events == []
 	release.set()
 	finish(call)
@@ -1054,7 +1054,7 @@ def test_pause_holds_completion_after_real_idle(env, monkeypatch):
 	env.core._real_player.idle = entered.set
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
 	_, _, call = speak(env)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	stays_unset(call[1])
 	env.core.pause(False)
 	finish(call)
@@ -1083,7 +1083,7 @@ def test_raw_status_call_does_not_mutate_shared_errcheck_concurrently(env, monke
 	def process(instance, text):
 		if text == "outer":
 			entered.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		return env.types.NUAN_OK
 
 	monkeypatch.setattr(env.native, "processText2Speech", process)
@@ -1092,7 +1092,7 @@ def test_raw_status_call_does_not_mutate_shared_errcheck_concurrently(env, monke
 		lambda: results.append(env.module.ProcessText2Speech(env.core.voiceInstance, "outer")()),
 	)
 	try:
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		data = env.types.VE_INTEXT()
 		text = b"original"
 		data.eTextFormat = env.types.VE_NORM_TEXT
@@ -1173,9 +1173,9 @@ def test_index_listener_can_terminate_and_retire_native_before_close(env, monkey
 	monkeypatch.setattr(env.native, "processText2Speech", process)
 	_, _, call = speak(env)
 	try:
-		assert listener_returned.wait(1)
+		assert listener_returned.wait(WAIT_TIMEOUT)
 		finish(call)
-		assert closed.wait(1)
+		assert closed.wait(WAIT_TIMEOUT)
 		assert env.events == []
 	finally:
 		if not call[1].is_set():
@@ -1267,17 +1267,17 @@ def test_cancel_retires_inflight_pause_before_fresh_speech(env, apply_before_bar
 	def pause(switch):
 		if switch and not apply_before_barrier:
 			entered.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		pause_player(switch)
 		if switch and apply_before_barrier:
 			entered.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 
 	player.pause = pause
 	player.idle = idle_entered.set
 	pausing, fresh = run_thread(lambda: env.core.pause(True)), None
 	try:
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		# Cancellation must still stop the player while pause is in flight.
 		cancelling = run_thread(env.core.cancel)
 		finish(cancelling)
@@ -1308,7 +1308,7 @@ def test_pause_requested_during_cancel_waits_for_player_stop(env):
 
 	def stop():
 		stop_entered.set()
-		assert stop_release.wait(2)
+		assert stop_release.wait(HOLD_TIMEOUT)
 		stop_player()
 
 	def pause(switch):
@@ -1318,7 +1318,7 @@ def test_pause_requested_during_cancel_waits_for_player_stop(env):
 	player.stop, player.pause = stop, pause
 	cancelling, pausing = run_thread(env.core.cancel), None
 	try:
-		assert stop_entered.wait(1)
+		assert stop_entered.wait(WAIT_TIMEOUT)
 		pausing = run_thread(lambda: env.core.pause(True))
 		stays_unset(pause_entered)
 		stop_release.set()
@@ -1347,7 +1347,7 @@ def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
 	def pause(switch):
 		if not switch:
 			resume_entered.set()
-			assert resume_release.wait(2)
+			assert resume_release.wait(HOLD_TIMEOUT)
 		pause_player(switch)
 
 	player.pause = pause
@@ -1356,9 +1356,9 @@ def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
 	_, _, speech = speak(env)
 	resuming = None
 	try:
-		assert idle_entered.wait(1)
+		assert idle_entered.wait(WAIT_TIMEOUT)
 		resuming = run_thread(lambda: env.core.pause(False))
-		assert resume_entered.wait(1)
+		assert resume_entered.wait(WAIT_TIMEOUT)
 		stays_unset(speech[1])
 		assert env.events == []
 		resume_release.set()
@@ -1375,7 +1375,7 @@ def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
 
 
 def assert_operation_failed(call, error):
-	assert call[1].wait(2)
+	assert call[1].wait(WAIT_TIMEOUT)
 	assert call[2] == [error]
 
 
@@ -1397,7 +1397,7 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(
 	def pause(switch):
 		if switch:
 			entered.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 			pause_player(True)
 		else:
 			failed_resume_states.append(player.isPaused)
@@ -1414,7 +1414,7 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(
 
 	pausing, fresh = run_thread(lambda: env.core.pause(True)), None
 	try:
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		finish(run_thread(env.core.cancel))
 		assert not player.isPaused
 		if fresh_during_pause:
@@ -1469,7 +1469,7 @@ def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch
 
 	def idle():
 		idle_entered.set()
-		assert idle_release.wait(5)
+		assert idle_release.wait(HOLD_TIMEOUT)
 
 	def stop():
 		stop_player()
@@ -1490,7 +1490,7 @@ def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch
 	else:
 		_, context, speech = speak(env, ())
 	try:
-		assert idle_entered.wait(1)
+		assert idle_entered.wait(WAIT_TIMEOUT)
 		with pytest.raises(OSError, match="active resume failed"):
 			env.core.pause(False)
 		assert failed_resume_states == [True]
@@ -1527,7 +1527,7 @@ def test_terminate_waits_for_pause_fault_stop_without_active_speech(env, monkeyp
 		stops.append(True)
 		if len(stops) == 1:
 			stop_entered.set()
-			assert stop_release.wait(5)
+			assert stop_release.wait(HOLD_TIMEOUT)
 		else:
 			shutdown_stop.set()
 		stop_player()
@@ -1542,9 +1542,9 @@ def test_terminate_waits_for_pause_fault_stop_without_active_speech(env, monkeyp
 	monkeypatch.setattr(env.native, "terminate", lambda: native_terminations.append(True))
 	pausing, shutting_down = run_thread(lambda: env.core.pause(True)), []
 	try:
-		assert stop_entered.wait(1)
+		assert stop_entered.wait(WAIT_TIMEOUT)
 		shutting_down = [run_thread(env.core.terminate) for _ in range(terminators)]
-		assert shutdown_stop.wait(1)
+		assert shutdown_stop.wait(WAIT_TIMEOUT)
 		stays_unset(closed)
 		assert native_closes == []
 		assert native_terminations == []
@@ -1697,7 +1697,7 @@ def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):
 
 	def blocking_sink(event):
 		entered.set()
-		assert release.wait(2), "Test did not release the sink"
+		assert release.wait(HOLD_TIMEOUT), "Test did not release the sink"
 
 	token = CountingToken()
 	context = env.rt.models.PlaybackContext(object(), 17)
@@ -1705,7 +1705,7 @@ def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):
 		lambda: env.core.speak_segment(("hello",), token, context=context, on_event=blocking_sink),
 	)
 	try:
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		assert_not_polled(lambda: token.checks)
 		token.cancel()
 		assert call[1].wait(WAIT_TIMEOUT), "speak_segment was not woken by token cancellation"
@@ -1762,14 +1762,14 @@ def test_cancel_releases_the_stop_gate_when_abandon_fails(env, monkeypatch):
 		result = retire(record, **kwargs)
 		if not held.is_set():
 			held.set()
-			assert release.wait(2)
+			assert release.wait(HOLD_TIMEOUT)
 		return result
 
 	monkeypatch.setattr(host, "retire", held_retire)
 	_, _, first = speak(env)
 	abandon = host.abandon
 	try:
-		assert held.wait(1)
+		assert held.wait(WAIT_TIMEOUT)
 		context = env.rt.models.PlaybackContext(object(), 18)
 		env.core.speak_segment(("second",), Token(), context=context, on_event=env.events.append)
 		wait_for(lambda: any(isinstance(task, env.module._Begin) for task in list(env.core._bgQueue.queue)))
