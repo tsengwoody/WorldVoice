@@ -683,6 +683,23 @@ def test_settle_future_lets_a_racing_public_cancel_win(scheduler, monkeypatch, c
     assert not caplog.records
 
 
+def test_request_tokens_log_callback_errors_to_the_manager_logger(scheduler, output):
+    logged = []
+
+    class Logger:
+        def error(self, message, *args, exc_info=False):
+            logged.append((message, exc_info))
+
+    manager = scheduler.TaskManager(output, logger=Logger())
+    try:
+        request = manager.new_request()
+        request.token.add_callback(lambda: 1 / 0)
+        request.token.cancel()
+    finally:
+        manager.shutdown()
+    assert logged == [("cancellation callback failed", True)]
+
+
 def test_cancellation_token_callbacks_run_once_in_registration_order(scheduler):
     token = scheduler.CancellationToken()
     calls = []

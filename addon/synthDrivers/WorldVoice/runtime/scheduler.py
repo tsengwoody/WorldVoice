@@ -45,7 +45,8 @@ class CancellationToken:
 	notify a condition): the scheduler cancels while holding its state lock.
 	"""
 
-	def __init__(self):
+	def __init__(self, logger=None):
+		self._logger = logger if logger is not None else log
 		self._event = threading.Event()
 		self._lock = threading.Lock()
 		self._callbacks: dict[int, Callable[[], None]] = {}
@@ -82,12 +83,11 @@ class CancellationToken:
 		self._run_callback(callback)
 		return lambda: None
 
-	@staticmethod
-	def _run_callback(callback):
+	def _run_callback(self, callback):
 		try:
 			callback()
 		except Exception:
-			log.exception("cancellation callback failed")
+			self._logger.error("cancellation callback failed", exc_info=True)
 
 	def wait(self, timeout=None):
 		return self._event.wait(timeout)
@@ -191,7 +191,7 @@ class TaskManager:
 		with self._state_cond:
 			if self._closed:
 				raise InvalidRequestState("Scheduler is shut down")
-			request = SpeechRequest(self._next_request_id, self._epoch, CancellationToken())
+			request = SpeechRequest(self._next_request_id, self._epoch, CancellationToken(self._logger))
 			self._next_request_id += 1
 			self._requests[request.request_id] = request
 			return request
