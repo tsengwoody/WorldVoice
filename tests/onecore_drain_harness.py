@@ -271,3 +271,51 @@ def load_onecore(monkeypatch, *, rt=None, scheduler=None, voice_base=object, com
 		logs=logs,
 		commands=commands,
 	)
+
+
+# Named views of wrapper internals that tests check but no public API exposes; each private
+# name is read here only. They read without a lock, as the tests did, except where they
+# replaced a wait under the wrapper's condition.
+
+
+def native_call(driver):
+	"""The native call record the wrapper's worker has in flight, or None."""
+	return driver._segmentNative
+
+
+def segment_terminated(driver):
+	"""Whether terminate() has set the wrapper's terminated flag."""
+	with driver._segmentCondition:
+		return driver._segmentTerminated
+
+
+def segment_paused(driver):
+	"""Whether the wrapper holds segment playback paused."""
+	return driver._segmentPaused
+
+
+def stop_gate_clear(driver):
+	"""Whether no cancel or stop holds the wrapper's stop gate."""
+	with driver._segmentCondition:
+		return driver._stopGate.clear
+
+
+def has_player(driver):
+	"""Whether the inner driver has opened its WavePlayer."""
+	return driver._player is not None
+
+
+def queued_speech(driver):
+	"""The inner driver's speech queue: ordinary speech and queued segment jobs."""
+	return tuple(driver._queuedSpeech)
+
+
+def queued_segment_jobs(driver):
+	"""The segment jobs waiting in the inner driver's speech queue."""
+	job = sys.modules[type(driver).__module__]._SpeechJob
+	return [item for item in queued_speech(driver) if isinstance(item, job)]
+
+
+def segment_worker(driver):
+	"""The wrapper's worker thread that feeds the native queue, or None before it started."""
+	return driver._segmentWorker

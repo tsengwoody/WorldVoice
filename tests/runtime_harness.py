@@ -589,14 +589,15 @@ def load_index_support(monkeypatch, rt, package_name):
 
 # Named views of runtime internals. Tests check these where no public API shows the fact
 # (a leaked request, an operation never retired, a worker thread that died); each private
-# name is read here only, so renaming it touches this module alone. Most return the live
-# object and read without a lock, as the tests did; a test may hold the system mid-way with
-# a lock taken. Those that replaced a wait under the owner's condition read under it.
+# name is read here only, so renaming it touches this module alone. Most read without a
+# lock, as the tests did, because a test may hold the system mid-way with that lock taken;
+# collections come back as copies, which the GIL makes atomic. Those that replaced a wait
+# under the owner's condition read under it.
 
 
 def tracked_requests(manager):
 	"""The requests the scheduler still tracks; finished, failed and cancelled ones must leave."""
-	return manager._requests
+	return dict(manager._requests)
 
 
 def worker_queue_empty(manager):
@@ -632,12 +633,12 @@ def segment_lifecycle(host):
 
 def accepted_operations(host):
 	"""Accepted operations the host still tracks, mapped to whether it cancelled them."""
-	return host._accepted
+	return dict(host._accepted)
 
 
 def pending_records(host):
 	"""Native records queued behind the current one."""
-	return host._pending
+	return tuple(host._pending)
 
 
 def native_record(host, operation):
@@ -647,12 +648,12 @@ def native_record(host, operation):
 
 def live_operations(lifecycle):
 	"""Operations the lifecycle has not retired yet."""
-	return lifecycle._operations
+	return tuple(lifecycle._operations)
 
 
 def queued_deliveries(lifecycle):
 	"""Operations whose event still waits for the delivery thread."""
-	return lifecycle._delivery_queue
+	return tuple(lifecycle._delivery_queue)
 
 
 def delivery_thread(lifecycle):

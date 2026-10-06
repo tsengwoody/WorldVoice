@@ -356,12 +356,12 @@ def finish(env):
 
 
 # Named views of wrapper internals that tests check but no public API exposes; each private
-# name is read here only. They return the live object and take no lock, as the tests did.
+# name is read here only. They take no lock, as the tests did.
 
 
 def tracked_segments(driver):
 	"""Native identities the wrapper still maps to their segment records."""
-	return driver._segmentById
+	return dict(driver._segmentById)
 
 
 def tts_thread(driver):
