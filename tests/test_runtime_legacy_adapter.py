@@ -1,31 +1,10 @@
 import ast
-import importlib
-import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
 
-from runtime_harness import MemoryRepository, RUNTIME, load_index_support, make_spec, rt
-from test_worldvoice_index_command import nvda_commands
+from runtime_harness import MemoryRepository, RUNTIME, load_index_support, make_spec
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
-
-
-@pytest.fixture
-def compat(monkeypatch, rt):
-    name = "worldvoice_compat_test"
-    package = ModuleType(name)
-    package.__path__ = [str(RUNTIME.parent)]
-    monkeypatch.setitem(sys.modules, name, package)
-    for suffix, module in (("", rt.package), (".models", rt.models),
-                           (".settings", rt.settings), (".session", rt.session)):
-        monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
-    # Remove cached compatibility imports between isolated runtime fixtures.
-    for suffix in ("compat", "compat.engineAdapter", "compat.voiceFacade"):
-        monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
-    return SimpleNamespace(
-        adapter=importlib.import_module(name + ".compat.engineAdapter"),
-        facade=importlib.import_module(name + ".compat.voiceFacade"),
-    )
 
 
 class Core:

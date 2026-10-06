@@ -4,7 +4,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from runtime_harness import forbid_legacy_runtime_imports, load_runtime, rt
+from runtime_harness import forbid_legacy_runtime_imports, load_runtime
 
 
 def test_models_load_without_nvda_or_compat(monkeypatch):

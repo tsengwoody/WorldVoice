@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from runtime_harness import MemoryRepository
-from test_worldvoice_index_command import nvda_commands
 
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"

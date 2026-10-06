@@ -2,7 +2,7 @@ import builtins
 
 import pytest
 
-from runtime_harness import load_config_repository, make_spec, rt
+from runtime_harness import load_config_repository, make_spec
 
 
 DEFAULTS = {

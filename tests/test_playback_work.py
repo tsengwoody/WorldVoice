@@ -4,7 +4,7 @@ from threading import Barrier, Event, Thread
 
 import pytest
 
-from runtime_harness import load_scheduler, rt
+from runtime_harness import load_scheduler
 from waiting import stays_unset
 
 

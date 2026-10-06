@@ -12,7 +12,6 @@ from runtime_harness import MemoryRepository
 from nvda_stubs import StubModules
 from test_worldvoice_lifecycle import _load_voice_manager, _load_synth_class, WORLDVOICE
 from test_worldvoice_request_builder import EventStub
-from test_worldvoice_index_command import nvda_commands
 
 
 def _idle_token():

@@ -6,7 +6,7 @@ from threading import Event, Lock, Thread
 
 import pytest
 
-from runtime_harness import FakePlayback, RecordingOutput, load_scheduler, rt
+from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
 from waiting import stays_unset
 
 

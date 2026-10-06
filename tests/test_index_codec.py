@@ -5,8 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime_harness import load_index_support, rt
-from test_worldvoice_index_command import nvda_commands
+from runtime_harness import load_index_support
 
 
 @pytest.fixture

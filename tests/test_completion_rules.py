@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from runtime_harness import RUNTIME, rt
+from runtime_harness import RUNTIME
 
 
 @pytest.fixture

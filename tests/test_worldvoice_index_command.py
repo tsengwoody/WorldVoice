@@ -2,39 +2,10 @@
 
 import importlib.util
 import sys
-from types import ModuleType
 
 import pytest
 
 from runtime_harness import RUNTIME
-
-
-@pytest.fixture
-def nvda_commands(monkeypatch):
-    class SynthCommand:
-        pass
-
-    class SynthParamCommand(SynthCommand):
-        pass
-
-    class IndexCommand(SynthCommand):
-        def __init__(self, index):
-            if not isinstance(index, int):
-                raise ValueError("index must be an integer")
-            self.index = index
-
-    class BreakCommand(SynthCommand):
-        def __init__(self, time):
-            self.time = time
-
-    commands = ModuleType("speech.commands")
-    commands.SynthCommand = SynthCommand
-    commands.SynthParamCommand = SynthParamCommand
-    commands.IndexCommand = IndexCommand
-    commands.BreakCommand = BreakCommand
-    monkeypatch.setitem(sys.modules, "speech", ModuleType("speech"))
-    monkeypatch.setitem(sys.modules, "speech.commands", commands)
-    return commands
 
 
 @pytest.fixture

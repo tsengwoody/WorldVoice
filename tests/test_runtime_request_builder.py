@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime_harness import FakePlayback, RecordingOutput, load_scheduler, rt
+from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
 
 
 @pytest.fixture

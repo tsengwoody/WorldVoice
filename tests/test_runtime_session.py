@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime_harness import FakeAdapter, MemoryRepository, make_spec, rt
+from runtime_harness import FakeAdapter, MemoryRepository, make_spec
 
 
 @pytest.fixture

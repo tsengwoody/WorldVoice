@@ -6,8 +6,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from runtime_harness import RUNTIME, rt
-from test_worldvoice_index_command import nvda_commands
+from runtime_harness import RUNTIME
 
 
 @pytest.fixture

@@ -4,8 +4,6 @@ from dataclasses import replace
 import types
 
 import pytest
-
-from test_f4_engine_session import module, snap, rt
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 DRIVERS = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"

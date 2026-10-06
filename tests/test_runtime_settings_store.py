@@ -4,7 +4,7 @@ from threading import Event
 
 import pytest
 
-from runtime_harness import MemoryRepository, make_spec, rt
+from runtime_harness import MemoryRepository, make_spec
 
 
 @pytest.fixture

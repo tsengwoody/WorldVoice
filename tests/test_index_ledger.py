@@ -9,7 +9,7 @@ import weakref
 
 import pytest
 
-from runtime_harness import RUNTIME, forbid_legacy_runtime_imports, rt
+from runtime_harness import RUNTIME, forbid_legacy_runtime_imports
 
 
 @pytest.fixture

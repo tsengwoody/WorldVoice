@@ -6,7 +6,6 @@ from contextlib import nullcontext
 import pytest
 
 from runtime_harness import assemble_adapter_contract, forbid_legacy_runtime_imports, submit_contract_request
-from test_worldvoice_index_command import nvda_commands
 
 
 @pytest.fixture(params=["native", "legacy"])

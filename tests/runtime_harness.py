@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from addon.synthDrivers.WorldVoice.runtime.scheduler import SpeechRequest
 
-import pytest
 
 
 RUNTIME = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/runtime"
@@ -66,11 +65,6 @@ class RecordingOutput:
         with self.condition:
             self.condition.wait_for(lambda: self.done_count >= count, timeout)
             return self.done_count
-
-
-@pytest.fixture
-def rt(monkeypatch):
-    return load_runtime(monkeypatch)
 
 
 def make_spec(key="Fake:a", language="en"):

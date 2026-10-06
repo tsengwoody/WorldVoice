@@ -8,9 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime_harness import FakePlayback, RecordingOutput, load_index_support, load_scheduler, rt
-from test_runtime_legacy_adapter import Core, compat, legacy_class
-from test_worldvoice_index_command import nvda_commands
+from runtime_harness import FakePlayback, RecordingOutput, load_index_support, load_scheduler
+from test_runtime_legacy_adapter import Core, legacy_class
 
 CONTRACTS = ("plain", "END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN")
 

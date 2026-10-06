@@ -2,21 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime_harness import MemoryRepository, make_spec, rt
-from test_runtime_legacy_adapter import compat
-
-
-@pytest.fixture
-def module(rt):
-    return SimpleNamespace(EngineSession=rt.session.EngineSession, VoiceSnapshot=rt.models.VoiceSnapshot)
-
-
-@pytest.fixture
-def snap(module):
-    return lambda id, rev: module.VoiceSnapshot(
-        voice_id=id, revision=rev, language="en", rate=50, pitch=50,
-        volume=50, variant="default", inflection=50, rateBoost=False, waitfactor=0,
-    )
+from runtime_harness import MemoryRepository, make_spec
 
 
 class FakeCore:
@@ -37,7 +23,7 @@ class FakeCore:
 
 
 @pytest.fixture
-def engine(module, compat, rt):
+def engine(session_module, compat, rt):
     store = rt.settings.VoiceSettingsStore(MemoryRepository())
     for key in ("Fake:a", "Fake:b"):
         store.ensure(make_spec(key))
@@ -61,7 +47,7 @@ def engine(module, compat, rt):
             applyEngineSettings=lambda core, snapshot: result.hook(core, snapshot)))
 
     result.adapter = adapter
-    result.session = module.EngineSession(adapter(result.core), store)
+    result.session = session_module.EngineSession(adapter(result.core), store)
     result.session.open()
     yield result
     result.session.close()

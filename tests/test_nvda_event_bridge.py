@@ -8,7 +8,7 @@ import weakref
 
 import pytest
 
-from runtime_harness import RUNTIME, rt
+from runtime_harness import RUNTIME
 
 
 class EventStub:
