@@ -527,10 +527,6 @@ class SegmentHost:
 		if record.error is not None:
 			self._lifecycle_of(operation).fail(operation, record.error)
 
-	def wait_native_retired(self, operation: SegmentOperation) -> None:
-		# retire() already waited for every admitted consumer.
-		return
-
 	def wait_playback_drained(self, operation: SegmentOperation) -> None:
 		with self._condition:
 			record = self._records.get(operation)

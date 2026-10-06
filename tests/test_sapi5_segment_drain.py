@@ -1295,13 +1295,13 @@ def test_hook_fault_after_binding_does_not_strand_the_worker(monkeypatch):
     """C2: a lifecycle hook that fails after the native request is bound."""
     env = load_sapi5(monkeypatch)
     hooks = env.driver._segmentHost
-    real_retired = hooks.wait_native_retired
+    real_boundary = hooks.wait_native_boundary
 
-    def failing_retired(operation):
-        real_retired(operation)
+    def failing_boundary(operation):
+        real_boundary(operation)
         raise RuntimeError("hook failed after binding")
 
-    monkeypatch.setattr(hooks, "wait_native_retired", failing_retired)
+    monkeypatch.setattr(hooks, "wait_native_boundary", failing_boundary)
     try:
         _, _, events = speak(env)
         env.native.wait_calls(1)

@@ -75,14 +75,13 @@ class Hooks:
         self.boundary_entered = Event()
         self.release_boundary = Event()
         self.release_second_boundary = Event()
-        self.retirement_entered = Event()
         self.stop_entered = Event()
         self.stop_exited = Event()
         self.release_stop = Event()
         self.stop_error = None
         self.stop_calls = 0
         self.stop_completions = 0
-        self.retired_error = None
+        self.boundary_error = None
         self.playback_entered = Event()
         self.playback_calls = 0
         self.release_playback = Event()
@@ -113,11 +112,8 @@ class Hooks:
             assert self.release_boundary.wait(1)
         else:
             assert self.release_second_boundary.wait(1)
-
-    def wait_native_retired(self, operation):
-        self.retirement_entered.set()
-        if self.retired_error:
-            raise self.retired_error
+        if self.boundary_error:
+            raise self.boundary_error
 
     def wait_playback_drained(self, operation):
         self.playback_calls += 1
@@ -195,7 +191,8 @@ def test_nested_lease_retires_before_successor(env):
     parent = lifecycle.admit_producer(old)
     assert parent is not None
     hooks.release_boundary.set()
-    assert hooks.retirement_entered.wait(1)
+    with lifecycle._condition:
+        assert lifecycle._condition.wait_for(lambda: not old._admitting, 1)
     assert lifecycle.admit_producer(old) is None
     child = lifecycle.admit_producer(old, parent=parent)
     assert child is not None
@@ -261,11 +258,11 @@ def test_stop_failure_blocks_successor(env):
     assert new not in lifecycle._operations
 
 
-def test_retirement_failure_latches_core_fault(env):
+def test_hook_failure_after_the_native_boundary_latches_core_fault(env):
     lifecycle, hooks, events, accept = env
     old, context = accept(1)
     new, _ = accept(2)
-    hooks.retired_error = RuntimeError("retirement unproven")
+    hooks.boundary_error = RuntimeError("retirement unproven")
     hooks.release_boundary.set()
     lifecycle.run(old, ("old",))
     events.wait_for_count(1)
@@ -276,7 +273,7 @@ def test_retirement_failure_latches_core_fault(env):
     events.wait_for_count(2)
     assert events[1].kind.value == "segment_failed"
     assert events[1].segment_id == 2
-    assert events[1].error is hooks.retired_error
+    assert events[1].error is hooks.boundary_error
     assert len(hooks.submitted) == 1
 
 

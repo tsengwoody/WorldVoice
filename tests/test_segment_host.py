@@ -533,10 +533,13 @@ def test_reset_recovers_from_a_control_error(env):
 
 
 def test_reset_recovers_from_a_lifecycle_fault(env, monkeypatch):
+	boundary = env.host.wait_native_boundary
+
 	def broken(operation):
+		boundary(operation)
 		raise RuntimeError("hook failed")
 
-	monkeypatch.setattr(env.host, "wait_native_retired", broken)
+	monkeypatch.setattr(env.host, "wait_native_boundary", broken)
 	_, _, failed = env.speak()
 	env.run_native(env.strategy.wait_submitted())
 	assert failed.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
@@ -551,10 +554,13 @@ def test_reset_recovers_from_a_lifecycle_fault(env, monkeypatch):
 
 
 def test_hook_fault_stops_the_player_and_releases_the_worker(env, monkeypatch):
+	boundary = env.host.wait_native_boundary
+
 	def broken(operation):
+		boundary(operation)
 		raise RuntimeError("hook failed")
 
-	monkeypatch.setattr(env.host, "wait_native_retired", broken)
+	monkeypatch.setattr(env.host, "wait_native_boundary", broken)
 	_, _, events = env.speak()
 	native, _ = env.run_native(env.strategy.wait_submitted())
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
