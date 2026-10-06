@@ -24,7 +24,11 @@ def method(path, cls, name):
 
 def without_docstring(function):
 	first = function.body[0]
-	if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+	if (
+		isinstance(first, ast.Expr)
+		and isinstance(first.value, ast.Constant)
+		and isinstance(first.value.value, str)
+	):
 		return function.body[1:]
 	return function.body
 
@@ -40,7 +44,9 @@ class AllSettings(ast.NodeTransformer):
 
 
 def is_settings_source(statement):
-	return isinstance(statement, ast.Assign) and [ast.unparse(t) for t in statement.targets] == ["supportedSettings"]
+	return isinstance(statement, ast.Assign) and [ast.unparse(t) for t in statement.targets] == [
+		"supportedSettings",
+	]
 
 
 @pytest.fixture
@@ -51,14 +57,23 @@ def nvda():
 
 
 def test_create_driver_settings_is_nvdas_update_driver_settings_over_all_settings(nvda):
-	theirs = [AllSettings().visit(s) for s in without_docstring(method(nvda, "AutoSettingsMixin", "updateDriverSettings"))]
-	ours = [s for s in without_docstring(method(COPY, "WorldVoiceVoiceSettingsPanel", "createDriverSettings"))
-		if not is_settings_source(s)]
+	theirs = [
+		AllSettings().visit(s)
+		for s in without_docstring(method(nvda, "AutoSettingsMixin", "updateDriverSettings"))
+	]
+	ours = [
+		s
+		for s in without_docstring(method(COPY, "WorldVoiceVoiceSettingsPanel", "createDriverSettings"))
+		if not is_settings_source(s)
+	]
 	assert [ast.unparse(s) for s in ours] == [ast.unparse(s) for s in theirs]
 	assert [ast.dump(s) for s in ours] == [ast.dump(s) for s in theirs]
 	# The one intended difference: the copy lists every setting, not only the supported ones.
-	(source,) = [s for s in without_docstring(method(COPY, "WorldVoiceVoiceSettingsPanel", "createDriverSettings"))
-		if is_settings_source(s)]
+	(source,) = [
+		s
+		for s in without_docstring(method(COPY, "WorldVoiceVoiceSettingsPanel", "createDriverSettings"))
+		if is_settings_source(s)
+	]
 	assert ast.unparse(source.value) == (
 		"settingsInst.allSupportedSettings if hasattr(settingsInst, 'allSupportedSettings') "
 		"else settingsInst.supportedSettings"

@@ -7,7 +7,10 @@ import pytest
 
 
 def load_roles(monkeypatch):
-	spec = importlib.util.spec_from_file_location("roles_under_test", "addon/synthDrivers/WorldVoice/roles.py")
+	spec = importlib.util.spec_from_file_location(
+		"roles_under_test",
+		"addon/synthDrivers/WorldVoice/roles.py",
+	)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, spec.name, module)
 	spec.loader.exec_module(module)
@@ -21,12 +24,16 @@ class Section(dict):
 @pytest.fixture
 def roles(monkeypatch):
 	module = load_roles(monkeypatch)
-	conf = {"WorldVoice": {"role": {
-		"en": Section(voice="A:en"),
-		"zh": Section(voice="B:zh"),
-		"ja": Section(),
-		"legacy": "kept",
-	}}}
+	conf = {
+		"WorldVoice": {
+			"role": {
+				"en": Section(voice="A:en"),
+				"zh": Section(voice="B:zh"),
+				"ja": Section(),
+				"legacy": "kept",
+			},
+		},
+	}
 	return module, conf, module.ConfigRoleRepository(lambda: conf)
 
 

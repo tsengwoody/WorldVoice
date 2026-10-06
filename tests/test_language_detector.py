@@ -7,7 +7,6 @@ import pytest
 from detector_harness import LangChangeCommand, load_language_detection
 
 
-
 @pytest.fixture
 def env(stub_modules, monkeypatch):
 	return load_language_detection(stub_modules, monkeypatch)
@@ -16,12 +15,17 @@ def env(stub_modules, monkeypatch):
 def make_detector(env, languages=("en_US", "zh_TW", "ja"), symbols=None):
 	"""The one place the detector is built; its dependencies come from env."""
 	return env.module.LanguageDetector(
-		list(languages), symbols, settings=env.settings, language=lambda: env.state.language,
+		list(languages),
+		symbols,
+		settings=env.settings,
+		language=lambda: env.state.language,
 	)
 
 
 def shape(env, sequence):
-	return [("lang", item.lang) if isinstance(item, (env.WV, LangChangeCommand)) else item for item in sequence]
+	return [
+		("lang", item.lang) if isinstance(item, (env.WV, LangChangeCommand)) else item for item in sequence
+	]
 
 
 def switching(env):
@@ -33,10 +37,13 @@ def test_mixed_scripts_switch_at_script_boundaries(env):
 	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en"), "ok"]
 
 
-@pytest.mark.parametrize("ignore,expected", [
-	(False, [("lang", "zh"), "中", ("lang", "en_US"), "1"]),
-	(True, [("lang", "zh"), "中1"]),
-])
+@pytest.mark.parametrize(
+	"ignore,expected",
+	[
+		(False, [("lang", "zh"), "中", ("lang", "en_US"), "1"]),
+		(True, [("lang", "zh"), "中1"]),
+	],
+)
 def test_digits_follow_the_ignore_numbers_setting(env, ignore, expected):
 	switching(env)["ignoreNumbersInLanguageDetection"] = ignore
 	assert shape(env, make_detector(env).add_detected_language_commands(["中1"])) == expected
@@ -100,7 +107,10 @@ def test_one_settings_read_per_sequence(env):
 	switching(env)["ignoreNumbersInLanguageDetection"] = True
 	counting = CountingSettings(env.settings)
 	detector = env.module.LanguageDetector(
-		["en_US", "zh_TW", "ar"], None, settings=counting, language=lambda: env.state.language,
+		["en_US", "zh_TW", "ar"],
+		None,
+		settings=counting,
+		language=lambda: env.state.language,
 	)
 	result = detector.add_detected_language_commands(["中1中1 abc عربي 2"])
 	assert shape(env, result) == [("lang", "zh"), "中1中1 ", ("lang", "en"), "abc ", ("lang", "ar"), "عربي 2"]
@@ -110,7 +120,15 @@ def test_one_settings_read_per_sequence(env):
 def test_one_settings_read_per_spelling(env):
 	counting = CountingSettings(env.settings)
 	detector = env.module.LanguageDetector(
-		["en_US", "zh_TW", "ar"], None, settings=counting, language=lambda: env.state.language,
+		["en_US", "zh_TW", "ar"],
+		None,
+		settings=counting,
+		language=lambda: env.state.language,
 	)
-	assert list(detector.process_for_spelling("中a中a")) == [("中", "zh"), ("a", "en_US"), ("中", "zh"), ("a", "en_US")]
+	assert list(detector.process_for_spelling("中a中a")) == [
+		("中", "zh"),
+		("a", "en_US"),
+		("中", "zh"),
+		("a", "en_US"),
+	]
 	assert counting.reads == 1

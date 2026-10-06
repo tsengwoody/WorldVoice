@@ -18,10 +18,15 @@ PLUGIN = ROOT / "addon/globalPlugins/WorldVoice/__init__.py"
 
 
 def load(path, name, monkeypatch, logged):
-	StubModules(monkeypatch).module("logHandler", log=types.SimpleNamespace(
-		info=lambda *a: logged.append(("info",) + a), warning=lambda *a: logged.append(("warning",) + a),
-		error=lambda *a: logged.append(("error",) + a), exception=lambda *a: logged.append(("exception",) + a),
-	))
+	StubModules(monkeypatch).module(
+		"logHandler",
+		log=types.SimpleNamespace(
+			info=lambda *a: logged.append(("info",) + a),
+			warning=lambda *a: logged.append(("warning",) + a),
+			error=lambda *a: logged.append(("error",) + a),
+			exception=lambda *a: logged.append(("exception",) + a),
+		),
+	)
 	spec = importlib.util.spec_from_file_location(name, path)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, name, module)
@@ -44,10 +49,12 @@ def test_extracts_members_and_reports_skipped(tmp_path, monkeypatch):
 	assert module.extract_core_archive(archive, str(workspace)) == []
 	assert (workspace / "Engine/a.txt").read_text() == "a"
 	original = ZipFile.extract
+
 	def locked(self, member, path=None, pwd=None):
 		if member.filename.endswith("b.txt"):
 			raise PermissionError("in use")
 		return original(self, member, path, pwd)
+
 	monkeypatch.setattr(ZipFile, "extract", locked)
 	assert module.extract_core_archive(archive, str(workspace)) == ["Engine/b.txt"]
 
@@ -88,12 +95,16 @@ def test_menu_import_reports_a_corrupt_archive(tmp_path):
 	class FileDialog:
 		def __init__(self, *args, **kwargs):
 			pass
+
 		def __enter__(self):
 			return self
+
 		def __exit__(self, *args):
 			return False
+
 		def ShowModal(self):
 			return 1
+
 		def GetPath(self):
 			return str(broken)
 
@@ -103,8 +114,17 @@ def test_menu_import_reports_a_corrupt_archive(tmp_path):
 		"_": lambda text: text,
 		"os": __import__("os"),
 		"workspace_path": lambda: str(tmp_path / "workspace"),
-		"log": types.SimpleNamespace(exception=lambda *a: None, info=lambda *a: None, warning=lambda *a: None),
-		"extract_core_archive": load(ARCHIVE, "core_archive_for_plugin", pytest.MonkeyPatch(), []).extract_core_archive,
+		"log": types.SimpleNamespace(
+			exception=lambda *a: None,
+			info=lambda *a: None,
+			warning=lambda *a: None,
+		),
+		"extract_core_archive": load(
+			ARCHIVE,
+			"core_archive_for_plugin",
+			pytest.MonkeyPatch(),
+			[],
+		).extract_core_archive,
 	}
 	exec(compile(ast.Module(body=[method], type_ignores=[]), str(PLUGIN), "exec"), environment)
 	environment["onFileImport"](None, None)

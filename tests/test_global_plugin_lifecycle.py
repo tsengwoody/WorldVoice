@@ -33,7 +33,7 @@ def plugin_environment(calls, *, secure, menu_error=None):
 	tray = types.SimpleNamespace(menu=Menu(), Bind=lambda *args: None)
 	return {
 		"globalPluginHandler": types.SimpleNamespace(GlobalPlugin=Base),
-		"script": lambda **kwargs: (lambda function: function),
+		"script": lambda **kwargs: lambda function: function,
 		"_": lambda text: text,
 		"ADDON_SUMMARY": "WorldVoice",
 		"globalVars": types.SimpleNamespace(appArgs=types.SimpleNamespace(secure=secure)),
@@ -61,7 +61,11 @@ def test_secure_mode_terminate_runs_every_cleanup_step():
 
 def test_dead_menu_runtime_error_does_not_stop_cleanup():
 	calls = []
-	environment = plugin_environment(calls, secure=True, menu_error=RuntimeError("wrapped C/C++ object deleted"))
+	environment = plugin_environment(
+		calls,
+		secure=True,
+		menu_error=RuntimeError("wrapped C/C++ object deleted"),
+	)
 	plugin = load_plugin_class(environment)()
 	plugin.submenu_item = types.SimpleNamespace(Destroy=lambda: calls.append("destroy"))
 

@@ -20,7 +20,10 @@ def test_error_callback_finds_its_dialog_without_a_class_registry():
 
 	dialog = Dialog()
 	environment = {
-		"wx": types.SimpleNamespace(GetTopLevelParent=lambda window: dialog, CallAfter=lambda *args: calls.append(args)),
+		"wx": types.SimpleNamespace(
+			GetTopLevelParent=lambda window: dialog,
+			CallAfter=lambda *args: calls.append(args),
+		),
 		"gui": types.SimpleNamespace(mainFrame=types.SimpleNamespace(popupSettingsDialog="popup")),
 	}
 	exec(compile(ast.Module(body=[node], type_ignores=[]), str(PANELS), "exec"), environment)

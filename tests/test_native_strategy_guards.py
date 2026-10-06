@@ -24,9 +24,12 @@ def test_espeak_touches_nvda_privates_only_through_its_port():
 	port = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_EspeakPort")
 	inside = {id(node) for node in ast.walk(port)}
 	outside = [
-		node.lineno for node in ast.walk(tree)
-		if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
-		and node.value.id == "_espeak" and id(node) not in inside
+		node.lineno
+		for node in ast.walk(tree)
+		if isinstance(node, ast.Attribute)
+		and isinstance(node.value, ast.Name)
+		and node.value.id == "_espeak"
+		and id(node) not in inside
 	]
 	assert outside == []
 
@@ -51,7 +54,8 @@ def _sapi5_tree():
 def _class_constant(tree, class_name, constant):
 	node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name)
 	assign = next(
-		n for n in node.body
+		n
+		for n in node.body
 		if isinstance(n, ast.Assign) and any(getattr(t, "id", None) == constant for t in n.targets)
 	)
 	return set(ast.literal_eval(assign.value.args[0]))
@@ -69,23 +73,33 @@ def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 					own.add(item.name)
 					if item.name == "__init__":
 						own |= {
-							n.attr for n in ast.walk(item)
-							if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store)
-							and isinstance(n.value, ast.Name) and n.value.id == "self"
+							n.attr
+							for n in ast.walk(item)
+							if isinstance(n, ast.Attribute)
+							and isinstance(n.ctx, ast.Store)
+							and isinstance(n.value, ast.Name)
+							and n.value.id == "self"
 						}
 	# Attributes set up by our own runtime base classes are not NVDA's.
 	host_tree = ast.parse((ROOT / "runtime/segmentHost.py").read_text(encoding="utf-8"))
 	leased = next(n for n in host_tree.body if isinstance(n, ast.ClassDef) and n.name == "LeasedPlayer")
 	own |= {item.name for item in leased.body if isinstance(item, ast.FunctionDef)}
 	own |= {
-		n.attr for n in ast.walk(leased)
-		if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store)
-		and isinstance(n.value, ast.Name) and n.value.id == "self"
+		n.attr
+		for n in ast.walk(leased)
+		if isinstance(n, ast.Attribute)
+		and isinstance(n.ctx, ast.Store)
+		and isinstance(n.value, ast.Name)
+		and n.value.id == "self"
 	}
 	accessed = {
-		n.attr for n in ast.walk(tree)
-		if isinstance(n, ast.Attribute) and n.attr.startswith("_") and not n.attr.startswith("__")
-		and isinstance(n.value, ast.Name) and n.value.id in {"self", "driver", "sapi5", "synth"}
+		n.attr
+		for n in ast.walk(tree)
+		if isinstance(n, ast.Attribute)
+		and n.attr.startswith("_")
+		and not n.attr.startswith("__")
+		and isinstance(n.value, ast.Name)
+		and n.value.id in {"self", "driver", "sapi5", "synth"}
 	}
 	assert accessed - own <= privates
 	nvda = NVDA_SAPI5.read_text(encoding="utf-8")
@@ -93,8 +107,11 @@ def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 	assert [name for name in privates if not re.search(rf"\b{re.escape(name)}\b", nvda)] == []
 	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
 	overridden = {
-		n.name for n in synth.body
-		if isinstance(n, ast.FunctionDef) and n.name.startswith("_") and not n.name.startswith("__")
+		n.name
+		for n in synth.body
+		if isinstance(n, ast.FunctionDef)
+		and n.name.startswith("_")
+		and not n.name.startswith("__")
 		and f"def {n.name}(" in nvda
 	}
 	assert overridden == overrides
@@ -145,9 +162,12 @@ def _own_names(tree):
 					own.add(item.name)
 					if item.name == "__init__":
 						own |= {
-							n.attr for n in ast.walk(item)
-							if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store)
-							and isinstance(n.value, ast.Name) and n.value.id == "self"
+							n.attr
+							for n in ast.walk(item)
+							if isinstance(n, ast.Attribute)
+							and isinstance(n.ctx, ast.Store)
+							and isinstance(n.value, ast.Name)
+							and n.value.id == "self"
 						}
 	return own
 
@@ -157,17 +177,24 @@ def test_onecore_parent_privates_are_listed_and_exist():
 	privates = _class_constant(tree, "_OneCorePort", "NVDA_PRIVATES")
 	overrides = _class_constant(tree, "_OneCorePort", "NVDA_OVERRIDES")
 	accessed = {
-		n.attr for n in ast.walk(tree)
-		if isinstance(n, ast.Attribute) and n.attr.startswith("_") and not n.attr.startswith("__")
-		and isinstance(n.value, ast.Name) and n.value.id in {"self", "driver", "oneCore"}
+		n.attr
+		for n in ast.walk(tree)
+		if isinstance(n, ast.Attribute)
+		and n.attr.startswith("_")
+		and not n.attr.startswith("__")
+		and isinstance(n.value, ast.Name)
+		and n.value.id in {"self", "driver", "oneCore"}
 	}
 	assert accessed - _own_names(tree) <= privates
 	parents = INNER_ONECORE.read_text(encoding="utf-8") + NVDA_ONECORE.read_text(encoding="utf-8")
 	assert all(re.search(rf"\b{re.escape(name)}\b", parents) for name in privates)
 	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
 	overridden = {
-		n.name for n in synth.body
-		if isinstance(n, ast.FunctionDef) and n.name.startswith("_") and not n.name.startswith("__")
+		n.name
+		for n in synth.body
+		if isinstance(n, ast.FunctionDef)
+		and n.name.startswith("_")
+		and not n.name.startswith("__")
 		and re.search(rf"def {n.name}\(", parents)
 	}
 	assert overridden == overrides
@@ -179,7 +206,8 @@ def test_onecore_uses_the_stop_gate_and_declares_voice_last():
 	names = [n.name for n in tree.body if isinstance(n, ast.ClassDef)]
 	assert names.count("Voice") == 1 and names.index("Voice") > names.index("SynthDriver")
 	assert not any(
-		isinstance(n, ast.Assign) and any(ast.unparse(t) in {"SynthDriver", "Voice.synth_driver_class"} for t in n.targets)
+		isinstance(n, ast.Assign)
+		and any(ast.unparse(t) in {"SynthDriver", "Voice.synth_driver_class"} for t in n.targets)
 		for n in tree.body
 	)
 
@@ -193,9 +221,12 @@ def _vocalizer_own_names(tree):
 					own |= {t.id for t in item.targets if isinstance(t, ast.Name)}
 				if isinstance(item, ast.FunctionDef) and item.name == "_install_guard":
 					own |= {
-						n.attr for n in ast.walk(item)
-						if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store)
-						and isinstance(n.value, ast.Name) and n.value.id == "self"
+						n.attr
+						for n in ast.walk(item)
+						if isinstance(n, ast.Attribute)
+						and isinstance(n.ctx, ast.Store)
+						and isinstance(n.value, ast.Name)
+						and n.value.id == "self"
 					}
 	return own
 
@@ -207,17 +238,25 @@ def test_vocalizer_inner_privates_are_listed_and_exist(engine):
 	privates = _class_constant(tree, port, "INNER_PRIVATES")
 	overrides = _class_constant(tree, port, "INNER_OVERRIDES")
 	accessed = {
-		n.attr for n in ast.walk(tree)
-		if isinstance(n, ast.Attribute) and n.attr.startswith("_") and not n.attr.startswith("__")
+		n.attr
+		for n in ast.walk(tree)
+		if isinstance(n, ast.Attribute)
+		and n.attr.startswith("_")
+		and not n.attr.startswith("__")
 		and isinstance(n.value, ast.Name)
 	}
 	assert accessed - _vocalizer_own_names(tree) <= privates
-	inner = "".join(p.read_text(encoding="utf-8") for p in (ROOT / "driver" / engine / "driver").rglob("*.py"))
+	inner = "".join(
+		p.read_text(encoding="utf-8") for p in (ROOT / "driver" / engine / "driver").rglob("*.py")
+	)
 	assert all(re.search(rf"\b{re.escape(name)}\b", inner) for name in privates)
 	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
 	overridden = {
-		n.name for n in synth.body
-		if isinstance(n, ast.FunctionDef) and n.name.startswith("_") and not n.name.startswith("__")
+		n.name
+		for n in synth.body
+		if isinstance(n, ast.FunctionDef)
+		and n.name.startswith("_")
+		and not n.name.startswith("__")
 		and re.search(rf"def {n.name}\(", inner)
 	}
 	assert overridden == overrides

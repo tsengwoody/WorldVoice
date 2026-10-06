@@ -70,7 +70,14 @@ def env(monkeypatch):
 		set_main_voice=set_main_voice,
 	)
 	return types.SimpleNamespace(
-		presenter=presenter, manager=manager, conf=conf, a=a, b=b, c=c, switched=switched, config=config,
+		presenter=presenter,
+		manager=manager,
+		conf=conf,
+		a=a,
+		b=b,
+		c=c,
+		switched=switched,
+		config=config,
 	)
 
 
@@ -136,7 +143,9 @@ def test_discard_after_apply_rereads_saved_flags(env):
 
 
 def test_late_voice_is_restored_on_discard(env):
-	late = env.manager.settings.ensure(type(env.a._state.spec)("late", "Fake:late", "Fake:late", "en", "Fake", "en"))
+	late = env.manager.settings.ensure(
+		type(env.a._state.spec)("late", "Fake:late", "Fake:late", "en", "Fake", "en"),
+	)
 	late.update(rate=81)
 	env.b.rate = 72
 	env.presenter.discard()
@@ -189,8 +198,10 @@ def test_save_failure_writes_nothing_else_and_keeps_pending(env, monkeypatch):
 	env.presenter.select_voice("fr", env.b.name)
 	env.presenter.set_engine_consistency(True)
 	env.a.rate = 72
+
 	def fail_save(*args):
 		raise OSError("save failed")
+
 	monkeypatch.setattr(env.manager.settings._repository, "save", fail_save)
 	speech_before = dict(env.conf["speech"]["WorldVoice"])
 	with pytest.raises(OSError, match="save failed"):
@@ -235,12 +246,14 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 	rate_written, release_copy, worker_done = threading.Event(), threading.Event(), threading.Event()
 	errors = []
 	original_update = env.b._state.update
+
 	def gated_update(**values):
 		with env.b._state._lock:
 			original_update(**values)
 			if values.get("rate") == 72 and not rate_written.is_set():
 				rate_written.set()
 				release_copy.wait(2)
+
 	env.b.rate = 10
 	monkeypatch.setattr(env.b._state, "update", gated_update)
 
@@ -269,6 +282,7 @@ def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 
 def test_preview_b_while_a_is_playing_then_discard_restores_next_segment(env):
 	a, b = env.a, env.b
+
 	class BlockingCore(RecordingCore):
 		def __init__(self):
 			super().__init__()

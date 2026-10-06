@@ -47,7 +47,9 @@ def test_ruff_reports_nothing():
 	# required-version makes any other ruff fail here instead of checking other rules.
 	result = subprocess.run(
 		["ruff", "check", "addon", "--output-format", "concise"],
-		cwd=ROOT, capture_output=True, text=True,
+		cwd=ROOT,
+		capture_output=True,
+		text=True,
 	)
 	assert result.returncode == 0, result.stdout + result.stderr
 
@@ -55,7 +57,7 @@ def test_ruff_reports_nothing():
 def test_pre_commit_runs_the_ruff_lint_hook():
 	config = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
 	lint = config.index("- id: ruff\n")
-	assert "args: [ --fix ]" in config[lint:config.index("- id: ruff-format")]
+	assert "args: [ --fix ]" in config[lint : config.index("- id: ruff-format")]
 	assert "omits the lint hook" not in config
 
 
@@ -67,8 +69,7 @@ def test_generics_is_imported_only_after_the_package_that_adds_its_path():
 	for path in _addon_sources():
 		tree = ast.parse(path.read_text(encoding="utf-8"))
 		imports = [
-			node for node in tree.body
-			if isinstance(node, ast.ImportFrom) and node.module and node.level == 0
+			node for node in tree.body if isinstance(node, ast.ImportFrom) and node.module and node.level == 0
 		]
 		generics = [node.lineno for node in imports if node.module.split(".")[0] == "generics"]
 		if not generics or path.relative_to(ADDON).parts[:2] == ("synthDrivers", "WorldVoice"):
@@ -82,8 +83,10 @@ def test_generics_is_imported_only_after_the_package_that_adds_its_path():
 # that both records and latches says both.
 _LATCHED = "recorded on the record and latched: later speech is rejected"
 _REASONS = (
-	(("record_error", "operation is not None", "_failSegmentControl"),
-		"recorded on the record; a segment's failure also latches"),
+	(
+		("record_error", "operation is not None", "_failSegmentControl"),
+		"recorded on the record; a segment's failure also latches",
+	),
 	(("record_error", "latch_control_error"), _LATCHED),
 	(("record_error", "_failSegmentControl"), _LATCHED),
 	(("latch_control_error", "error = exc"), "latched, and kept to raise after the remaining cleanup"),

@@ -23,19 +23,32 @@ def setting_factory(kind):
 
 class Base:
 	@classmethod
-	def VoiceSetting(cls): return Setting("voice", "voice")
+	def VoiceSetting(cls):
+		return Setting("voice", "voice")
+
 	@classmethod
-	def VariantSetting(cls): return Setting("variant", "variant")
+	def VariantSetting(cls):
+		return Setting("variant", "variant")
+
 	@classmethod
-	def RateSetting(cls): return Setting("rate", "rate")
+	def RateSetting(cls):
+		return Setting("rate", "rate")
+
 	@classmethod
-	def RateBoostSetting(cls): return Setting("rateBoost", "rateBoost")
+	def RateBoostSetting(cls):
+		return Setting("rateBoost", "rateBoost")
+
 	@classmethod
-	def PitchSetting(cls): return Setting("pitch", "pitch")
+	def PitchSetting(cls):
+		return Setting("pitch", "pitch")
+
 	@classmethod
-	def InflectionSetting(cls): return Setting("inflection", "inflection")
+	def InflectionSetting(cls):
+		return Setting("inflection", "inflection")
+
 	@classmethod
-	def VolumeSetting(cls): return Setting("volume", "volume")
+	def VolumeSetting(cls):
+		return Setting("volume", "volume")
 
 	def loadSettings(self, *args, **kwargs):
 		self.loaded = True
@@ -45,9 +58,12 @@ def load_synth(monkeypatch, conf):
 	settings_module = load_settings_module(monkeypatch, conf)
 	tree = ast.parse(SYNTH.read_text(encoding="utf-8"))
 	wanted = [
-		node for node in tree.body
-		if isinstance(node, ast.ClassDef) and node.name in {"_PipelineSetting", "SynthDriver"}
-		or isinstance(node, ast.For) and ast.unparse(node.iter) == "PIPELINE_SETTINGS"
+		node
+		for node in tree.body
+		if isinstance(node, ast.ClassDef)
+		and node.name in {"_PipelineSetting", "SynthDriver"}
+		or isinstance(node, ast.For)
+		and ast.unparse(node.iter) == "PIPELINE_SETTINGS"
 	]
 	environment = {
 		"SynthDriver": Base,
@@ -58,9 +74,18 @@ def load_synth(monkeypatch, conf):
 		"DriverSetting": setting_factory("str"),
 		"_": lambda text: text,
 		"config": types.SimpleNamespace(conf=conf),
-		**{name: type(name, (), {}) for name in (
-			"IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
-			"PitchCommand", "RateCommand", "VolumeCommand")},
+		**{
+			name: type(name, (), {})
+			for name in (
+				"IndexCommand",
+				"CharacterModeCommand",
+				"LangChangeCommand",
+				"BreakCommand",
+				"PitchCommand",
+				"RateCommand",
+				"VolumeCommand",
+			)
+		},
 		"synthIndexReached": object(),
 		"synthDoneSpeaking": object(),
 	}
@@ -79,10 +104,26 @@ def manager(capabilities=frozenset()):
 
 
 EXPECTED_IDS = [
-	"voice", "variant", "rate", "rateBoost", "pitch", "inflection", "volume", "uwv",
-	"cni", "numlan", "nummod", "globalwaitfactor", "numberwaitfactor", "pairwaitfactor",
-	"itemwaitfactor", "sayallwaitfactor", "chinesespacewaitfactor", "punctuationpauseenabled",
-	"removepunctuationcharacters", "punctuationwaitfactor",
+	"voice",
+	"variant",
+	"rate",
+	"rateBoost",
+	"pitch",
+	"inflection",
+	"volume",
+	"uwv",
+	"cni",
+	"numlan",
+	"nummod",
+	"globalwaitfactor",
+	"numberwaitfactor",
+	"pairwaitfactor",
+	"itemwaitfactor",
+	"sayallwaitfactor",
+	"chinesespacewaitfactor",
+	"punctuationpauseenabled",
+	"removepunctuationcharacters",
+	"punctuationwaitfactor",
 ]
 
 
@@ -92,7 +133,9 @@ def test_settings_lists_keep_their_order_and_store_pipeline_values_outside_speec
 	synth = object.__new__(synth_class)
 	synth._voiceManager = manager()
 	assert [s.id for s in synth.allSupportedSettings] == EXPECTED_IDS
-	assert [s.id for s in synth.supportedSettings] == [i for i in EXPECTED_IDS if i not in {"rateBoost", "inflection"}]
+	assert [s.id for s in synth.supportedSettings] == [
+		i for i in EXPECTED_IDS if i not in {"rateBoost", "inflection"}
+	]
 	synth._voiceManager = manager(frozenset({"rateBoost", "inflection"}))
 	assert [s.id for s in synth.supportedSettings] == EXPECTED_IDS
 	pipeline_ids = set(EXPECTED_IDS[8:]) - {"numlan"}
@@ -112,7 +155,11 @@ def test_descriptors_read_and_write_through_the_service(monkeypatch):
 	synth.itemwaitfactor = 30
 	synth.globalwaitfactor = 57
 	synth.nummod = "pair"
-	assert conf["WorldVoice"]["pipeline"] == {"item_wait_factor": 30, "global_wait_factor": 50, "number_mode": "pair"}
+	assert conf["WorldVoice"]["pipeline"] == {
+		"item_wait_factor": 30,
+		"global_wait_factor": 50,
+		"number_mode": "pair",
+	}
 	assert (synth.itemwaitfactor, synth.globalwaitfactor, synth.nummod) == (30, 50, "pair")
 	assert "speech" not in conf
 
@@ -121,20 +168,26 @@ def test_load_settings_reapplies_waitfactor_without_writing_pipeline(monkeypatch
 	class Section(dict):
 		def __setitem__(self, key, value):
 			raise AssertionError(f"loadSettings wrote {key}")
+
 	conf = {"WorldVoice": {"pipeline": Section(global_wait_factor=0)}}
 	synth_class, _ = load_synth(monkeypatch, conf)
 	synth = object.__new__(synth_class)
 	writes = []
+
 	class Manager:
 		recorded = []
+
 		def reload(self):
 			self.recorded.append(("reload", list(writes)))
+
 		@property
 		def waitfactor(self):
 			return 0
+
 		@waitfactor.setter
 		def waitfactor(self, value):
 			writes.append(value)
+
 	synth._voiceManager = Manager()
 	synth.loadSettings(onlyChanged=True)
 	# Re-applied even though the value did not change, and before voices reload.
@@ -157,7 +210,12 @@ def test_global_wait_change_reaches_the_voice_manager(monkeypatch):
 @pytest.mark.parametrize("name", ["volume", "rate", "pitch", "inflection", "variant", "rateBoost"])
 @pytest.mark.parametrize("consistent", [False, True])
 def test_voice_parameters_commit_and_follow_the_consistency_policy(monkeypatch, name, consistent):
-	conf = {"WorldVoice": {"pipeline": {}, "autoLanguageSwitching": {"KeepMainLocaleParameterConsistent": consistent}}}
+	conf = {
+		"WorldVoice": {
+			"pipeline": {},
+			"autoLanguageSwitching": {"KeepMainLocaleParameterConsistent": consistent},
+		},
+	}
 	synth_class, _ = load_synth(monkeypatch, conf)
 	synth = object.__new__(synth_class)
 	calls = []
@@ -185,7 +243,14 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	synth._voiceManager = None
 	assert synth.speech_context() is generic
 	voice = object()
-	synth._voiceManager = types.SimpleNamespace(defaultVoiceInstance=voice, getVoiceNameForLanguage=lambda lang: None)
+	synth._voiceManager = types.SimpleNamespace(
+		defaultVoiceInstance=voice,
+		getVoiceNameForLanguage=lambda lang: None,
+	)
 	synth.language = "en"
 	context = synth.speech_context()
-	assert (context["number_language"], context["speech_symbols"], context["default_voice"]) == ("default", None, voice)
+	assert (context["number_language"], context["speech_symbols"], context["default_voice"]) == (
+		"default",
+		None,
+		voice,
+	)

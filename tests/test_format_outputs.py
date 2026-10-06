@@ -28,9 +28,14 @@ def models(stub_modules, tmp_path):
 	stub_modules.module("globalVars", appArgs=SimpleNamespace(configPath=str(tmp_path)))
 	stub_modules.module("languageHandler", getAvailableLanguages=lambda: [("en", "English")])
 	warnings = []
-	stub_modules.module("logHandler", log=SimpleNamespace(
-		error=lambda *a, **k: None, debugWarning=lambda *a, **k: None, warning=lambda *a, **k: warnings.append(a),
-	))
+	stub_modules.module(
+		"logHandler",
+		log=SimpleNamespace(
+			error=lambda *a, **k: None,
+			debugWarning=lambda *a, **k: None,
+			warning=lambda *a, **k: warnings.append(a),
+		),
+	)
 	stub_modules.translation()
 	spec = importlib.util.spec_from_file_location("speech_symbol_models_under_test", MODELS)
 	module = importlib.util.module_from_spec(spec)
@@ -46,7 +51,13 @@ def test_speech_symbol_repr(models):
 
 def test_saved_symbol_lines(models, tmp_path):
 	symbols = models.SpeechSymbols()
-	escaped = models.SpeechSymbol("\tx", replacement="tab", language="en", mode=models.SYMMOD_FORCE, displayName="Tab")
+	escaped = models.SpeechSymbol(
+		"\tx",
+		replacement="tab",
+		language="en",
+		mode=models.SYMMOD_FORCE,
+		displayName="Tab",
+	)
 	plain = models.SpeechSymbol("b", replacement="bravo")
 	assert symbols._saveSymbol(escaped) == EXPECTED_ESCAPED
 	assert symbols._saveSymbol(plain) == EXPECTED_PLAIN
@@ -64,7 +75,9 @@ def test_invalid_symbol_line_warning(models, tmp_path):
 	assert models.warnings == [(f"Invalid line in file {path}: x\ty\ten\tbogus",)]
 
 
-EXPECTED_REPR = "SpeechSymbol(identifier='a', replacement='alpha', language=None, mode=None, displayName=None)"
+EXPECTED_REPR = (
+	"SpeechSymbol(identifier='a', replacement='alpha', language=None, mode=None, displayName=None)"
+)
 EXPECTED_ESCAPED = "\\tx\ttab\ten\tforce\t# Tab"
 EXPECTED_PLAIN = "b\tbravo"
 EXPECTED_FILE = b"\xef\xbb\xbf\\tx\ttab\ten\tforce\t# Tab\r\nb\tbravo\r\n"

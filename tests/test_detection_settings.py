@@ -25,9 +25,12 @@ class RecordingSection(dict):
 def load_settings_module(monkeypatch, conf=None, errors=None):
 	stubs = StubModules(monkeypatch)
 	stubs.module("config", conf=conf if conf is not None else {})
-	stubs.module("logHandler", log=SimpleNamespace(
-		error=lambda *args, **kwargs: (errors if errors is not None else []).append(args),
-	))
+	stubs.module(
+		"logHandler",
+		log=SimpleNamespace(
+			error=lambda *args, **kwargs: (errors if errors is not None else []).append(args),
+		),
+	)
 	spec = importlib.util.spec_from_file_location("detection_settings_under_test", SETTINGS)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, spec.name, module)
@@ -80,7 +83,9 @@ def test_update_with_stored_values_writes_and_notifies_nothing(env):
 	seen = []
 	env.service.subscribe(lambda settings, changed: seen.append(changed))
 	settings = env.service.update(
-		ignore_numbers=False, script_language={"Latin": "en", "Han": "ja", "Arabic": "ar"}, timing="after",
+		ignore_numbers=False,
+		script_language={"Latin": "en", "Han": "ja", "Arabic": "ar"},
+		timing="after",
 	)
 	assert env.section.writes == [] and seen == []
 	assert settings == env.service.get()
@@ -139,12 +144,16 @@ def test_confspec_and_script_keys_keep_the_stored_names_and_defaults(env):
 
 
 def test_the_shared_service_reads_nvda_config(monkeypatch):
-	conf = {"WorldVoice": {"autoLanguageSwitching": {
-		"ignoreNumbersInLanguageDetection": True,
-		"latinCharactersLanguage": "fr",
-		"CJKCharactersLanguage": "zh",
-		"arabicCharactersLanguage": "fa",
-		"DetectLanguageTiming": "before",
-	}}}
+	conf = {
+		"WorldVoice": {
+			"autoLanguageSwitching": {
+				"ignoreNumbersInLanguageDetection": True,
+				"latinCharactersLanguage": "fr",
+				"CJKCharactersLanguage": "zh",
+				"arabicCharactersLanguage": "fa",
+				"DetectLanguageTiming": "before",
+			},
+		},
+	}
 	module = load_settings_module(monkeypatch, conf)
 	assert module.detection_settings.get().script_language["Arabic"] == "fa"

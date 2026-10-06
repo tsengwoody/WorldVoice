@@ -18,24 +18,44 @@ def _load_voice_manager(monkeypatch):
 	package = types.ModuleType(package_name)
 	package.__path__ = [str(WORLDVOICE)]
 	monkeypatch.setitem(sys.modules, package_name, package)
-	config = types.SimpleNamespace(conf={"WorldVoice": {
-		"voices": {},
-		"autoLanguageSwitching": {
-			"KeepMainLocaleEngineConsistent": False,
-			"KeepMainLocaleParameterConsistent": False,
+	config = types.SimpleNamespace(
+		conf={
+			"WorldVoice": {
+				"voices": {},
+				"autoLanguageSwitching": {
+					"KeepMainLocaleEngineConsistent": False,
+					"KeepMainLocaleParameterConsistent": False,
+				},
+				"engine": {},
+			},
 		},
-		"engine": {},
-	}})
+	)
 	monkeypatch.setitem(sys.modules, "config", config)
-	monkeypatch.setitem(sys.modules, "languageHandler", types.SimpleNamespace(
-		getLanguage=lambda: "en", getLanguageDescription=lambda language: language))
+	monkeypatch.setitem(
+		sys.modules,
+		"languageHandler",
+		types.SimpleNamespace(
+			getLanguage=lambda: "en",
+			getLanguageDescription=lambda language: language,
+		),
+	)
 	log = types.SimpleNamespace(
 		debug=lambda *args: None,
 		error=lambda *args, **kwargs: None,
 	)
 	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=log))
-	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
-		VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(id=id, displayName=displayName, language=language), getSynth=lambda: types.SimpleNamespace(name="WorldVoice")))
+	monkeypatch.setitem(
+		sys.modules,
+		"synthDriverHandler",
+		types.SimpleNamespace(
+			VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(
+				id=id,
+				displayName=displayName,
+				language=language,
+			),
+			getSynth=lambda: types.SimpleNamespace(name="WorldVoice"),
+		),
+	)
 	name = f"{package_name}.voiceManager"
 	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "voiceManager.py")
 	module = importlib.util.module_from_spec(spec)
@@ -68,8 +88,9 @@ class RecordingCore:
 	def __init__(self):
 		self.writes = []
 		self.spoken = []
-		self.supportedSettings = [types.SimpleNamespace(id=name) for name in
-			("rate", "pitch", "volume", "inflection", "rateBoost")]
+		self.supportedSettings = [
+			types.SimpleNamespace(id=name) for name in ("rate", "pitch", "volume", "inflection", "rateBoost")
+		]
 
 	def __setattr__(self, name, value):
 		if name in ("voice", "rate", "pitch", "volume", "inflection", "rateBoost"):
@@ -95,9 +116,11 @@ def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 	a.rate = 72
 	# Activation reads one immutable snapshot; an edit during apply is deferred.
 	original_apply = a.applyEngineSettings
+
 	def edit_during_apply(core, snapshot):
 		a.rate = 81
 		original_apply(core, snapshot)
+
 	a.applyEngineSettings = edit_during_apply
 	activate(a)
 	assert core.rate == 72
@@ -115,14 +138,21 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	manager_instance.settings = a._binding.settings
 	updates = []
 	original_update = b._state.update
+
 	def record_update(**values):
 		updates.append(values)
 		original_update(**values)
+
 	b._state.update = record_update
 	a.update_settings(rate=72, pitch=60, volume=70, inflection=55, rateBoost=True)
 	manager_instance.previewVoiceParameterConsistent(a)
-	assert updates == [{"rate": 72, "pitch": 60, "volume": 70,
-		"inflection": 55, "rateBoost": True}]
+	assert updates == [
+		{
+			"rate": 72,
+			"pitch": 60,
+			"volume": 70,
+			"inflection": 55,
+			"rateBoost": True,
+		},
+	]
 	assert (b.rate, b.pitch, b.volume) == (72, 60, 70)
-
-

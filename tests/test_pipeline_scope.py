@@ -16,7 +16,10 @@ def load_scope_module(monkeypatch):
 	settings.PipelineSettings = object
 	settings.PipelineSettingsService = object
 	monkeypatch.setitem(sys.modules, "scope_pkg.settings", settings)
-	spec = importlib.util.spec_from_file_location("scope_pkg.scope", "addon/synthDrivers/WorldVoice/pipeline/scope.py")
+	spec = importlib.util.spec_from_file_location(
+		"scope_pkg.scope",
+		"addon/synthDrivers/WorldVoice/pipeline/scope.py",
+	)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, spec.name, module)
 	spec.loader.exec_module(module)
@@ -44,7 +47,11 @@ def make_scope(monkeypatch, scope):
 	module = load_scope_module(monkeypatch)
 	calls = []
 	settings = FakeSettings(scope)
-	pipeline = module.PipelineScope(settings, lambda: calls.append("register"), lambda: calls.append("unregister"))
+	pipeline = module.PipelineScope(
+		settings,
+		lambda: calls.append("register"),
+		lambda: calls.append("unregister"),
+	)
 	return pipeline, settings, calls
 
 

@@ -83,8 +83,12 @@ def task_module(monkeypatch, buses):
 
 
 def make_manager(task_module, buses):
-	bridge = task_module.test_bridge_class(buses.owner, done_event=buses.done,
-		index_event=buses.index, get_synth=buses.get_synth)
+	bridge = task_module.test_bridge_class(
+		buses.owner,
+		done_event=buses.done,
+		index_event=buses.index,
+		get_synth=buses.get_synth,
+	)
 	instance = task_module.TaskManager(output=bridge)
 	bridge.start(instance.on_event, batch_handler=instance.on_events)
 	# Test composition owns the event subscriptions and test port registry.
@@ -691,8 +695,12 @@ def test_direct_wrapper_stop_mid_speech_lets_next_segment_run(manager, buses, mo
 	voice = types.SimpleNamespace(core=core, active=lambda: None)
 	request = manager.new_request()
 	for text in ("first", "second"):
-		append_speech(manager, request, voice,
-			lambda text=text: core.speak([text], cancellationToken=request.token))
+		append_speech(
+			manager,
+			request,
+			voice,
+			lambda text=text: core.speak([text], cancellationToken=request.token),
+		)
 	assert manager.submit_request(request)
 	assert second_spoken.wait(1)
 	assert buses.wait_for_outer_done(1) == [manager.owner]

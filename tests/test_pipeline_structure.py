@@ -18,4 +18,7 @@ def imported_modules(path):
 
 
 def test_language_detection_reaches_for_no_nvda_globals():
-	assert not imported_modules(WORLDVOICE / "languageDetection" / "__init__.py") & {"config", "synthDriverHandler"}
+	assert not imported_modules(WORLDVOICE / "languageDetection" / "__init__.py") & {
+		"config",
+		"synthDriverHandler",
+	}

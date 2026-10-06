@@ -131,7 +131,9 @@ def punctuation_settings(wait_factor, remove_characters=False):
 
 
 def run_punctuation_filters(module, speech_sequence):
-	return list(module.inject_punctuation_pause(speech_sequence, module._test_settings, module.GENERIC_CONTEXT))
+	return list(
+		module.inject_punctuation_pause(speech_sequence, module._test_settings, module.GENERIC_CONTEXT),
+	)
 
 
 def test_zero_punctuation_wait_factor_preserves_existing_text_and_breaks(monkeypatch):
@@ -156,7 +158,10 @@ def test_positive_punctuation_wait_factor_inserts_a_punctuation_break(monkeypatc
 
 
 def test_removing_configured_punctuation_preserves_existing_breaks(monkeypatch):
-	module, BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250, remove_characters=True))
+	module, BreakCommand = load_pipeline_module(
+		monkeypatch,
+		punctuation_settings(250, remove_characters=True),
+	)
 	existing_break = BreakCommand(30)
 
 	result = run_punctuation_filters(module, ["Hello.", existing_break, "World"])
@@ -175,7 +180,10 @@ def test_removal_uses_pause_points_even_with_zero_wait_or_disabled_pause_control
 
 
 def test_removal_applies_at_pause_points_with_or_without_new_breaks(monkeypatch):
-	module, BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250, remove_characters=True))
+	module, BreakCommand = load_pipeline_module(
+		monkeypatch,
+		punctuation_settings(250, remove_characters=True),
+	)
 	existing_break = BreakCommand(30)
 
 	result = run_punctuation_filters(module, ["Hello. World.", existing_break, "."])
@@ -190,7 +198,10 @@ def test_removal_applies_at_pause_points_with_or_without_new_breaks(monkeypatch)
 
 
 def test_removal_preserves_numeric_punctuation_without_a_pause(monkeypatch):
-	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250, remove_characters=True))
+	module, _BreakCommand = load_pipeline_module(
+		monkeypatch,
+		punctuation_settings(250, remove_characters=True),
+	)
 
 	result = run_punctuation_filters(module, ["Value 3.5 and 12,500. Next"])
 
@@ -200,7 +211,10 @@ def test_removal_preserves_numeric_punctuation_without_a_pause(monkeypatch):
 
 
 def test_removal_applies_to_pause_between_text_items(monkeypatch):
-	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250, remove_characters=True))
+	module, _BreakCommand = load_pipeline_module(
+		monkeypatch,
+		punctuation_settings(250, remove_characters=True),
+	)
 
 	result = run_punctuation_filters(module, ["Hello.", "World"])
 

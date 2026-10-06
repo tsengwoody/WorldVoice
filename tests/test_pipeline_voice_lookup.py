@@ -13,8 +13,11 @@ def voice(name, language):
 
 def context(module, names, default):
 	return module.SpeechContext(
-		supports_roles=True, language=default.language, number_language="default",
-		default_voice=default, voice_name_for_language=names.get,
+		supports_roles=True,
+		language=default.language,
+		number_language="default",
+		default_voice=default,
+		voice_name_for_language=names.get,
 	)
 
 
@@ -34,7 +37,10 @@ def test_lang_cmd_to_voice_selects_names_and_falls_back(monkeypatch):
 	result = list(module.lang_cmd_to_voice([L("de"), "a", L("xx"), L(None)], ctx))
 	# A None language looks up the default voice's language, which may be a role voice.
 	assert result == [
-		module.SelectVoice("A:de"), "a", module.SelectVoice("A:en"), module.SelectVoice("R:en-role"),
+		module.SelectVoice("A:de"),
+		"a",
+		module.SelectVoice("A:en"),
+		module.SelectVoice("R:en-role"),
 	]
 
 
@@ -46,8 +52,11 @@ def test_filters_do_not_create_voice_instances(composition, monkeypatch):  # noq
 	before = dict(manager._instanceCache)
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	ctx = module.SpeechContext(
-		supports_roles=True, language="en", number_language="default",
-		default_voice=manager.defaultVoiceInstance, voice_name_for_language=manager.getVoiceNameForLanguage,
+		supports_roles=True,
+		language="en",
+		number_language="default",
+		default_voice=manager.defaultVoiceInstance,
+		voice_name_for_language=manager.getVoiceNameForLanguage,
 	)
 	L = module.LangChangeCommand
 	list(module.deduplicate_language_command(["a", L("zh"), "b", L("en"), "c"], ctx))

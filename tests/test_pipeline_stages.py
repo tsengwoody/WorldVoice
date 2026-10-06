@@ -10,8 +10,14 @@ from test_pipeline_punctuation_pause import load_pipeline_module, punctuation_se
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
 
 ORDER = [
-	"apply_speech_dictionaries", "ignore_comma_between_number", "number_language", "number_mode",
-	"chinesespace_wait_factor", "item_wait_factor", "punctuation_wait_factor", "number_wait_factor",
+	"apply_speech_dictionaries",
+	"ignore_comma_between_number",
+	"number_language",
+	"number_mode",
+	"chinesespace_wait_factor",
+	"item_wait_factor",
+	"punctuation_wait_factor",
+	"number_wait_factor",
 	"speech_viewer",
 ]
 
@@ -87,7 +93,11 @@ def test_handler_logs_before_and_after_when_enabled(monkeypatch):
 def test_zero_number_wait_keeps_spaces(monkeypatch):
 	settings = punctuation_settings(0)
 	module, _ = load_pipeline_module(monkeypatch, settings)
-	assert list(module.number_wait_factor([" 1 ", "  ", "2"], settings, module.GENERIC_CONTEXT)) == [" 1 ", "  ", "2"]
+	assert list(module.number_wait_factor([" 1 ", "  ", "2"], settings, module.GENERIC_CONTEXT)) == [
+		" 1 ",
+		"  ",
+		"2",
+	]
 
 
 def test_positive_number_wait_breaks_between_numbers(monkeypatch):
@@ -103,7 +113,12 @@ def test_number_mode_reads_symbols_from_context(monkeypatch):
 	settings.number_mode = "number"
 	module, _ = load_pipeline_module(monkeypatch, settings)
 	symbols = SimpleNamespace(symbols={"1": SimpleNamespace(language="zh", replacement="一")})
-	ctx = module.SpeechContext(supports_roles=True, language="zh", number_language="zh", speech_symbols=symbols)
+	ctx = module.SpeechContext(
+		supports_roles=True,
+		language="zh",
+		number_language="zh",
+		speech_symbols=symbols,
+	)
 	assert list(module.inject_number_mode(["11"], settings, ctx)) == ["一 一"]
 	assert list(module.inject_number_mode(["11"], settings, module.GENERIC_CONTEXT)) == ["1 1"]
 
@@ -113,7 +128,10 @@ def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, settings)
 	english = SimpleNamespace(name="A:en", language="en")
 	ctx = module.SpeechContext(
-		supports_roles=True, language="en", number_language="de", default_voice=english,
+		supports_roles=True,
+		language="en",
+		number_language="de",
+		default_voice=english,
 		voice_name_for_language={"en": "A:en", "de": "A:de"}.get,
 	)
 	result = list(module.inject_number_language(["a 1 b"], settings, ctx))
@@ -126,6 +144,7 @@ def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):
 	# NVDA's Filter.apply calls callWithSupportedKwargs, which binds the value
 	# against inspect.signature(handler); that follows __wrapped__.
 	import inspect
+
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	for stage in module.STAGES:
 		inspect.signature(stage.handler).bind(["text"])

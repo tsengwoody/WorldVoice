@@ -44,10 +44,17 @@ def spec(discovery, name, module_name, tmp_path, enabled=True):
 def test_ready_engines_load_in_spec_order_with_timing(discovery, monkeypatch, tmp_path):
 	ready = type("Voice", (), {"engine": "B", "ready": classmethod(lambda cls: True)})
 	engine_module(monkeypatch, "fake_b", ready)
-	engine_module(monkeypatch, "fake_a", type("Voice", (), {"engine": "A", "ready": classmethod(lambda cls: True)}))
+	engine_module(
+		monkeypatch,
+		"fake_a",
+		type("Voice", (), {"engine": "A", "ready": classmethod(lambda cls: True)}),
+	)
 	log = Log()
-	specs = [spec(discovery, "B", "fake_b", tmp_path), spec(discovery, "A", "fake_a", tmp_path),
-		spec(discovery, "C", "fake_c", tmp_path, enabled=False)]
+	specs = [
+		spec(discovery, "B", "fake_b", tmp_path),
+		spec(discovery, "A", "fake_a", tmp_path),
+		spec(discovery, "C", "fake_c", tmp_path, enabled=False),
+	]
 	loaded = discovery.load_enabled_engine_classes(specs, {}, logger=log)
 	assert list(loaded) == ["B", "A"] and loaded["B"] is ready
 	timings = [message.rsplit(" ", 1)[0] for level, message in log.lines if level == "debug"]
@@ -65,9 +72,16 @@ def test_failures_are_logged_and_timed(discovery, monkeypatch, tmp_path):
 	def broken(cls):
 		raise RuntimeError("boom")
 
-	engine_module(monkeypatch, "fake_broken", type("Voice", (), {"engine": "Broken", "ready": classmethod(broken)}))
+	engine_module(
+		monkeypatch,
+		"fake_broken",
+		type("Voice", (), {"engine": "Broken", "ready": classmethod(broken)}),
+	)
 	log = Log()
-	specs = [spec(discovery, "Missing", "fake_missing", tmp_path), spec(discovery, "Broken", "fake_broken", tmp_path)]
+	specs = [
+		spec(discovery, "Missing", "fake_missing", tmp_path),
+		spec(discovery, "Broken", "fake_broken", tmp_path),
+	]
 	assert discovery.load_enabled_engine_classes(specs, {}, logger=log) == {}
 	assert ("warning", "Skipping Missing engine candidate: Voice export missing") in log.lines
 	assert ("error", "Failed to load ready state for Broken: boom") in log.lines

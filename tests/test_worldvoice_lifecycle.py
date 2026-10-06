@@ -14,7 +14,10 @@ def _load_synth_class(environment):
 	"""Execute the real driver class with NVDA's unavailable services replaced."""
 	tree = ast.parse((WORLDVOICE / "__init__.py").read_text(encoding="utf-8"))
 	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
-	exec(compile(ast.Module(body=[driver], type_ignores=[]), str(WORLDVOICE / "__init__.py"), "exec"), environment)
+	exec(
+		compile(ast.Module(body=[driver], type_ignores=[]), str(WORLDVOICE / "__init__.py"), "exec"),
+		environment,
+	)
 	return environment["SynthDriver"]
 
 
@@ -51,8 +54,18 @@ def _construction_environment(failure, changes, close_error=None):
 		allLanguages = ("en",)
 		waitfactor = 0
 
-		def __init__(self, taskManager, settings=None, bridge=None, *, index_ledger, completion_for, engine_classes,
-				conf_provider, get_language):
+		def __init__(
+			self,
+			taskManager,
+			settings=None,
+			bridge=None,
+			*,
+			index_ledger,
+			completion_for,
+			engine_classes,
+			conf_provider,
+			get_language,
+		):
 			assert index_ledger is bridge.ledger
 			assert callable(completion_for)
 			assert engine_classes == {"A": object}
@@ -107,10 +120,19 @@ def _construction_environment(failure, changes, close_error=None):
 		def notify(self):
 			changes.append(self.label)
 
-	commands = {name: type(name, (), {}) for name in (
-		"IndexCommand", "CharacterModeCommand", "LangChangeCommand", "BreakCommand",
-		"PitchCommand", "RateCommand", "VolumeCommand",
-	)}
+	commands = {
+		name: type(name, (), {})
+		for name in (
+			"IndexCommand",
+			"CharacterModeCommand",
+			"LangChangeCommand",
+			"BreakCommand",
+			"PitchCommand",
+			"RateCommand",
+			"VolumeCommand",
+		)
+	}
+
 	def apply_pipeline():
 		if failure == "pipeline":
 			raise RuntimeError("pipeline failure")
@@ -137,8 +159,14 @@ def _construction_environment(failure, changes, close_error=None):
 		"WVStart": Action("start"),
 		"WVEnd": Action("end"),
 		"time": types.SimpleNamespace(perf_counter=lambda: 0),
-		"nvdaLog": types.SimpleNamespace(debug=lambda *args: None, error=lambda *args, **kwargs: logged.append(args)),
-		"pipeline_scope": types.SimpleNamespace(worldvoice_started=apply_pipeline, worldvoice_ended=clear_pipeline),
+		"nvdaLog": types.SimpleNamespace(
+			debug=lambda *args: None,
+			error=lambda *args, **kwargs: logged.append(args),
+		),
+		"pipeline_scope": types.SimpleNamespace(
+			worldvoice_started=apply_pipeline,
+			worldvoice_ended=clear_pipeline,
+		),
 		"pipeline_settings": types.SimpleNamespace(
 			get=lambda: types.SimpleNamespace(global_wait_factor=10),
 			subscribe=lambda listener: changes.append("settings subscribed"),
@@ -153,14 +181,18 @@ def _construction_environment(failure, changes, close_error=None):
 		"ready_engine_classes": lambda engine_config: {"A": object},
 		"IndexLedger": Ledger,
 		"NvdaEventBridge": Bridge,
-		"ConfigVoiceSettingsRepository": lambda *args, **kwargs: repositories.append((args, kwargs)) or object(),
+		"ConfigVoiceSettingsRepository": lambda *args, **kwargs: (
+			repositories.append((args, kwargs)) or object()
+		),
 		"VoiceSettingsStore": lambda repository: object(),
 		"config": types.SimpleNamespace(conf={"WorldVoice": {"engine": {}}}),
 		"getSynth": unavailable_synth,
 		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "en"),
 		"speech": speech,
 		"SpeechSymbols": SpeechSymbols,
-		"filter_speechSequence": types.SimpleNamespace(unregister=lambda handler: changes.append("filter unregistered")),
+		"filter_speechSequence": types.SimpleNamespace(
+			unregister=lambda handler: changes.append("filter unregistered"),
+		),
 		"languageDetection": types.SimpleNamespace(LanguageDetector=LanguageDetector),
 		"detection_settings": types.SimpleNamespace(
 			subscribe=lambda listener: changes.append("detection subscribed"),
@@ -170,8 +202,15 @@ def _construction_environment(failure, changes, close_error=None):
 		**_assembly(),
 		**commands,
 	}
-	return types.SimpleNamespace(environment=environment, settings_dialogs=settings_dialogs, panel=panel,
-		speech_api=speech_api, spelling=spelling, repositories=repositories, logged=logged)
+	return types.SimpleNamespace(
+		environment=environment,
+		settings_dialogs=settings_dialogs,
+		panel=panel,
+		speech_api=speech_api,
+		spelling=spelling,
+		repositories=repositories,
+		logged=logged,
+	)
 
 
 @pytest.mark.parametrize("failure", ["manager", "symbols", "bridge"])
@@ -240,17 +279,40 @@ def _load_voice_manager(monkeypatch):
 	package = types.ModuleType(package_name)
 	package.__path__ = [str(WORLDVOICE)]
 	monkeypatch.setitem(sys.modules, package_name, package)
-	config = types.SimpleNamespace(conf={"WorldVoice": {
-		"autoLanguageSwitching": {"KeepMainLocaleEngineConsistent": False, "KeepMainLocaleParameterConsistent": False},
-		"engine": {},
-	}})
+	config = types.SimpleNamespace(
+		conf={
+			"WorldVoice": {
+				"autoLanguageSwitching": {
+					"KeepMainLocaleEngineConsistent": False,
+					"KeepMainLocaleParameterConsistent": False,
+				},
+				"engine": {},
+			},
+		},
+	)
 	monkeypatch.setitem(sys.modules, "config", config)
 	monkeypatch.setitem(sys.modules, "languageHandler", types.SimpleNamespace(getLanguage=lambda: "en"))
-	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=types.SimpleNamespace(
-		debug=lambda *args: None, error=lambda *args, **kwargs: None,
-	)))
-	monkeypatch.setitem(sys.modules, "synthDriverHandler", types.SimpleNamespace(
-		VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(id=id, displayName=displayName, language=language)))
+	monkeypatch.setitem(
+		sys.modules,
+		"logHandler",
+		types.SimpleNamespace(
+			log=types.SimpleNamespace(
+				debug=lambda *args: None,
+				error=lambda *args, **kwargs: None,
+			),
+		),
+	)
+	monkeypatch.setitem(
+		sys.modules,
+		"synthDriverHandler",
+		types.SimpleNamespace(
+			VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(
+				id=id,
+				displayName=displayName,
+				language=language,
+			),
+		),
+	)
 	name = f"{package_name}.voiceManager"
 	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "voiceManager.py")
 	module = importlib.util.module_from_spec(spec)
@@ -279,8 +341,13 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 
 	module = _load_voice_manager(monkeypatch)
 	errors = []
-	monkeypatch.setattr(module, "log", types.SimpleNamespace(
-		error=lambda message, *args, **kwargs: errors.append(message % args)))
+	monkeypatch.setattr(
+		module,
+		"log",
+		types.SimpleNamespace(
+			error=lambda message, *args, **kwargs: errors.append(message % args),
+		),
+	)
 	manager = object.__new__(module.VoiceManager)
 	init_policies(manager)
 	manager.taskManager = object()
@@ -290,7 +357,12 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	manager._bridge = types.SimpleNamespace(unbind=fail)
 	manager._resources = {
 		"published": module.EngineResource(
-			"published", Engine, None, types.SimpleNamespace(close=fail, source_id=object()), None),
+			"published",
+			Engine,
+			None,
+			types.SimpleNamespace(close=fail, source_id=object()),
+			None,
+		),
 	}
 	manager.terminate()
 	assert errors == ["Failed to unbind engine published", "Failed to close engine published"]
@@ -298,6 +370,7 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 
 def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkeypatch):
 	closed, bound = [], {}
+
 	class Engine:
 		@classmethod
 		def create_core(cls):
@@ -305,33 +378,52 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 			if cls.engine == "first":
 				core.speak_segment = lambda *args, **kwargs: None
 			return core
+
 		@classmethod
 		def destroy_core(cls, core):
 			closed.append(cls.engine)
+
 		@classmethod
 		def supportedSettings(cls):
 			return []
+
 		@classmethod
 		def voices(cls, core):
 			return []
+
 	class First(Engine):
 		engine = "first"
+
 	class Broken(Engine):
 		engine = "broken"
+
 	module = _load_voice_manager(monkeypatch)
 	models = importlib.import_module(module.__package__ + ".runtime.models")
 	from runtime_harness import MemoryRepository
+
 	store = module.VoiceSettingsStore(MemoryRepository())
+
 	def bind(source, source_id, **kwargs):
 		bound[source_id] = source
-	bridge = types.SimpleNamespace(bind=bind, unbind=lambda source_id: bound.pop(source_id, None),
-		segment_sink=lambda source, context: lambda event: None)
+
+	bridge = types.SimpleNamespace(
+		bind=bind,
+		unbind=lambda source_id: bound.pop(source_id, None),
+		segment_sink=lambda source, context: lambda event: None,
+	)
 	with pytest.raises(ValueError, match="speak_segment"):
-		module.VoiceManager(object(), store, bridge,
+		module.VoiceManager(
+			object(),
+			store,
+			bridge,
 			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
 			completion_for=lambda cls, core: models.CompletionContract(
-				models.CompletionMode.DRAIN, models.IndexRange(1, 9999)),
-			engine_classes={"first": First, "broken": Broken}, **manager_providers())
+				models.CompletionMode.DRAIN,
+				models.IndexRange(1, 9999),
+			),
+			engine_classes={"first": First, "broken": Broken},
+			**manager_providers(),
+		)
 	assert closed == ["broken", "first"] and bound == {}
 
 

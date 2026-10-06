@@ -21,13 +21,20 @@ def load_service(monkeypatch, answers=None):
 	asked = []
 	stubs = {
 		"config": types.SimpleNamespace(conf={"WorldVoice": {"log": {"enable": False}}}),
-		"gui": types.SimpleNamespace(mainFrame=None, messageBox=lambda *args: asked.append(args) or answers.pop(0)),
+		"gui": types.SimpleNamespace(
+			mainFrame=None,
+			messageBox=lambda *args: asked.append(args) or answers.pop(0),
+		),
 		"wx": types.SimpleNamespace(YES=2, NO=8, CANCEL=16),
-		"logHandler": types.SimpleNamespace(log=types.SimpleNamespace(error=lambda *a, **k: asked.append("logged"))),
+		"logHandler": types.SimpleNamespace(
+			log=types.SimpleNamespace(error=lambda *a, **k: asked.append("logged")),
+		),
 		"addonHandler": types.SimpleNamespace(initTranslation=lambda: None),
 		"synthDrivers": types.SimpleNamespace(__path__=[]),
 		"synthDrivers.WorldVoice": types.SimpleNamespace(__path__=[]),
-		"synthDrivers.WorldVoice.pipeline": types.SimpleNamespace(pl=types.SimpleNamespace(move_to=lambda dst: asked.append(("moved", dst)))),
+		"synthDrivers.WorldVoice.pipeline": types.SimpleNamespace(
+			pl=types.SimpleNamespace(move_to=lambda dst: asked.append(("moved", dst))),
+		),
 	}
 	modules = StubModules(monkeypatch)
 	for name, namespace in stubs.items():
@@ -42,8 +49,10 @@ def load_service(monkeypatch, answers=None):
 
 def test_service_switches_config_and_swallows_export_errors(monkeypatch):
 	module, conf, asked = load_service(monkeypatch)
+
 	def broken():
 		raise OSError("disk")
+
 	service = module.PipelineLogService(lambda: conf, broken)
 	service.enable()
 	assert service.enabled and conf["WorldVoice"]["log"]["enable"] is True
@@ -64,7 +73,11 @@ def test_prompts_map_answers(monkeypatch):
 def test_log_panel_no_unticks_enable(monkeypatch):
 	tree = ast.parse(PANEL.read_text(encoding="utf-8"))
 	node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "LogSettingsPanel")
-	node.body = [n for n in node.body if isinstance(n, ast.FunctionDef) and n.name in {"isValid", "onEnableCheckboxChange"}]
+	node.body = [
+		n
+		for n in node.body
+		if isinstance(n, ast.FunctionDef) and n.name in {"isValid", "onEnableCheckboxChange"}
+	]
 	node.bases = []
 	enabled = []
 	environment = {
@@ -75,7 +88,10 @@ def test_log_panel_no_unticks_enable(monkeypatch):
 	exec(compile(ast.Module(body=[node], type_ignores=[]), str(PANEL), "exec"), environment)
 	panel = environment["LogSettingsPanel"]()
 	state = {"value": True}
-	panel._enable_checkbox = types.SimpleNamespace(GetValue=lambda: state["value"], SetValue=lambda v: state.update(value=v))
+	panel._enable_checkbox = types.SimpleNamespace(
+		GetValue=lambda: state["value"],
+		SetValue=lambda v: state.update(value=v),
+	)
 	panel.sliderEnable = lambda: enabled.append(True)
 	panel.sliderDisable = lambda: enabled.append(False)
 	assert panel.isValid() is True
@@ -108,7 +124,9 @@ def test_move_to_hands_over_the_log_and_starts_a_new_one(log_module, tmp_path):
 	dst = tmp_path / "exported" / "out.csv"
 	pipeline.move_to(dst)
 	assert len(dst.read_text(encoding="utf-8").splitlines()) == 2
-	assert pipeline.log_file.read_text(encoding="utf-8").splitlines() == [",".join(log_module.PipelineLog.FIELDNAMES)]
+	assert pipeline.log_file.read_text(encoding="utf-8").splitlines() == [
+		",".join(log_module.PipelineLog.FIELDNAMES),
+	]
 
 
 class Dialog:
@@ -136,12 +154,20 @@ def test_export_with_dialog(monkeypatch, tmp_path, outcome):
 	module, _, _ = load_service(monkeypatch)
 	shown = []
 	path = str(tmp_path / "out.csv")
-	monkeypatch.setattr(module, "wx", types.SimpleNamespace(
-		FileDialog=Dialog(5100 if outcome != "cancel" else 5101, path), ID_OK=5100,
-		FD_SAVE=1, FD_OVERWRITE_PROMPT=2, OK=4, ICON_INFORMATION=8,
-		MessageBox=lambda *args, **kwargs: shown.append("message"),
-		LogError=lambda message: shown.append("error"),
-	))
+	monkeypatch.setattr(
+		module,
+		"wx",
+		types.SimpleNamespace(
+			FileDialog=Dialog(5100 if outcome != "cancel" else 5101, path),
+			ID_OK=5100,
+			FD_SAVE=1,
+			FD_OVERWRITE_PROMPT=2,
+			OK=4,
+			ICON_INFORMATION=8,
+			MessageBox=lambda *args, **kwargs: shown.append("message"),
+			LogError=lambda message: shown.append("error"),
+		),
+	)
 	moved = []
 
 	def move_to(dst):
@@ -159,4 +185,6 @@ def test_move_to_exports_a_log_that_was_never_written(log_module, tmp_path):
 	dst = tmp_path / "exported" / "out.csv"
 	pipeline.move_to(dst)
 	assert dst.read_text(encoding="utf-8").splitlines() == [",".join(log_module.PipelineLog.FIELDNAMES)]
-	assert pipeline.log_file.read_text(encoding="utf-8").splitlines() == [",".join(log_module.PipelineLog.FIELDNAMES)]
+	assert pipeline.log_file.read_text(encoding="utf-8").splitlines() == [
+		",".join(log_module.PipelineLog.FIELDNAMES),
+	]

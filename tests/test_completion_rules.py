@@ -76,9 +76,11 @@ def test_rule_queries_read_only_the_rule_fields(completion, rt, key):
 	for end_seen in (False, True):
 		for drain_seen in (False, True):
 			assert rule.is_complete(end_seen, drain_seen) is (
-				(end_seen or not rule.requires_end) and (drain_seen or not rule.requires_drain))
+				(end_seen or not rule.requires_end) and (drain_seen or not rule.requires_drain)
+			)
 			assert rule.indexes_finished(end_seen, drain_seen) is (
-				end_seen if rule.requires_end else drain_seen)
+				end_seen if rule.requires_end else drain_seen
+			)
 
 
 ADDON = RUNTIME.parent

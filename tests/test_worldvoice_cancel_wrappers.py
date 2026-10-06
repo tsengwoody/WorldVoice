@@ -85,13 +85,25 @@ def test_installs_gate_on_core_and_existing_callback(engine_harness):
 	assert engine_harness.module.Voice.synth_driver_class is engine_harness.module.SynthDriver
 
 
-@pytest.mark.parametrize("missing", ["_isSilence", "_player", "callback._isSilence",
-	"callback._player", "_feedBuf"])
+@pytest.mark.parametrize(
+	"missing",
+	[
+		"_isSilence",
+		"_player",
+		"callback._isSilence",
+		"callback._player",
+		"_feedBuf",
+	],
+)
 def test_missing_private_field_falls_back_without_partial_install(engine_harness, missing):
 	core = engine_harness.new_core(missing=missing)
 	assert core.supportsCancellationToken is False
-	for owner, field in ((core, "_isSilence"), (core, "_player"),
-		(core._veCallbackHandler, "_isSilence"), (core._veCallbackHandler, "_player")):
+	for owner, field in (
+		(core, "_isSilence"),
+		(core, "_player"),
+		(core._veCallbackHandler, "_isSilence"),
+		(core._veCallbackHandler, "_player"),
+	):
 		missing_here = (owner is core and field == missing) or (
 			owner is core._veCallbackHandler and missing == f"callback.{field}"
 		)
@@ -109,14 +121,22 @@ def test_missing_callback_falls_back_without_partial_install(engine_harness):
 	assert core._player is not None
 
 
-@pytest.mark.parametrize("method,args", [
-	("speak", (["text"],)), ("_speak", ("voice", ["text"])),
-	("cancel", ()), ("_onIndexReached", (7,)),
-])
+@pytest.mark.parametrize(
+	"method,args",
+	[
+		("speak", (["text"],)),
+		("_speak", ("voice", ["text"])),
+		("cancel", ()),
+		("_onIndexReached", (7,)),
+	],
+)
 def test_fallback_delegates_each_original_method(engine_harness, monkeypatch, method, args):
 	calls = []
-	monkeypatch.setattr(engine_harness.original_driver.SynthDriver, method,
-		lambda self, *received: calls.append(received) or "parent result")
+	monkeypatch.setattr(
+		engine_harness.original_driver.SynthDriver,
+		method,
+		lambda self, *received: calls.append(received) or "parent result",
+	)
 	core = engine_harness.new_core(missing="_feedBuf")
 	assert getattr(core, method)(*args) == "parent result"
 	assert calls == [args]
@@ -232,10 +252,16 @@ def test_cancel_between_token_check_and_clear_stays_stopped(engine_harness, monk
 
 	monkeypatch.setattr(core._isSilence, "begin", paused_begin)
 	called = []
-	monkeypatch.setattr(engine_harness.native, "processText2Speech",
-		lambda instance, text: called.append(text))
-	worker = threading.Thread(target=speak_now, args=(core, ["old"]),
-		kwargs={"cancellationToken": token})
+	monkeypatch.setattr(
+		engine_harness.native,
+		"processText2Speech",
+		lambda instance, text: called.append(text),
+	)
+	worker = threading.Thread(
+		target=speak_now,
+		args=(core, ["old"]),
+		kwargs={"cancellationToken": token},
+	)
 	worker.start()
 	assert entry_paused.wait(1)
 	token.cancel()
@@ -252,8 +278,10 @@ def test_cancel_between_token_check_and_clear_stays_stopped(engine_harness, monk
 
 def test_native_call_marker_clears_after_exception(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
+
 	def fail(instance, text):
 		raise RuntimeError("native failed")
+
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", fail)
 	if hasattr(core, "_segmentHost"):
 		# Asynchronous speech: the native error stays with the worker's record.
@@ -268,17 +296,29 @@ def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harn
 	core, token = ready_core(engine_harness), Token()
 	results = []
 	native_entered, release_native = threading.Event(), threading.Event()
+
 	def native(instance, text):
 		native_entered.set()
 		assert release_native.wait(1)
 		out_data = engine_harness.types.VE_OUTDATA()
-		for message_type in (engine_harness.types.VE_MSG_OUTBUFREQ,
-			engine_harness.types.VE_MSG_OUTBUFDONE):
-			results.append(core._veCallbackHandler(instance if engine_harness.engine == "VE" else None, None,
-				native_message(engine_harness.types, message_type, out_data)))
+		for message_type in (
+			engine_harness.types.VE_MSG_OUTBUFREQ,
+			engine_harness.types.VE_MSG_OUTBUFDONE,
+		):
+			results.append(
+				core._veCallbackHandler(
+					instance if engine_harness.engine == "VE" else None,
+					None,
+					native_message(engine_harness.types, message_type, out_data),
+				),
+			)
+
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	worker = threading.Thread(target=speak_now, args=(core, ["old"]),
-		kwargs={"cancellationToken": token})
+	worker = threading.Thread(
+		target=speak_now,
+		args=(core, ["old"]),
+		kwargs={"cancellationToken": token},
+	)
 	worker.start()
 	assert native_entered.wait(1)
 	token.cancel()
@@ -296,8 +336,12 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 	release_native = threading.Event()
 	spoken_after_cancel = []
 	callback_results = []
-	monkeypatch.setattr(engine_harness.module, "split_speech_text_pieces",
-		lambda text: ["first", "second"], raising=False)
+	monkeypatch.setattr(
+		engine_harness.module,
+		"split_speech_text_pieces",
+		lambda text: ["first", "second"],
+		raising=False,
+	)
 
 	def native(instance, text):
 		if token.is_cancelled():
@@ -305,13 +349,24 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 		native_entered.set()
 		assert release_native.wait(1)
 		out_data = engine_harness.types.VE_OUTDATA()
-		callback_results.append(core._veCallbackHandler(instance if engine_harness.engine == "VE" else None, None, native_message(
-			engine_harness.types, engine_harness.types.VE_MSG_OUTBUFREQ, out_data,
-		)))
+		callback_results.append(
+			core._veCallbackHandler(
+				instance if engine_harness.engine == "VE" else None,
+				None,
+				native_message(
+					engine_harness.types,
+					engine_harness.types.VE_MSG_OUTBUFREQ,
+					out_data,
+				),
+			),
+		)
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	worker = threading.Thread(target=speak_now, args=(core, ["old"]),
-		kwargs={"cancellationToken": token})
+	worker = threading.Thread(
+		target=speak_now,
+		args=(core, ["old"]),
+		kwargs={"cancellationToken": token},
+	)
 	worker.start()
 	assert native_entered.wait(1)
 	token.cancel()
@@ -327,17 +382,29 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 def test_cancel_during_real_callback_feed_stops_after_feed(engine_harness, monkeypatch):
 	core, token = ready_core(engine_harness), Token()
 	feed_entered, release_feed = threading.Event(), threading.Event()
+
 	def slow_feed(data):
 		feed_entered.set()
 		assert release_feed.wait(1)
 		core._real_player.fed.append(data)
+
 	core._real_player.feed = slow_feed
 	core._veCallbackHandler._ensureSonicStream = lambda: False
-	monkeypatch.setattr(engine_harness.native, "processText2Speech",
-		lambda instance, text: emit_audio(core, engine_harness.types, b"sound",
-			engine_harness.types.NUAN_E_TTS_USERSTOP))
-	worker = threading.Thread(target=speak_now, args=(core, ["old"]),
-		kwargs={"cancellationToken": token})
+	monkeypatch.setattr(
+		engine_harness.native,
+		"processText2Speech",
+		lambda instance, text: emit_audio(
+			core,
+			engine_harness.types,
+			b"sound",
+			engine_harness.types.NUAN_E_TTS_USERSTOP,
+		),
+	)
+	worker = threading.Thread(
+		target=speak_now,
+		args=(core, ["old"]),
+		kwargs={"cancellationToken": token},
+	)
 	worker.start()
 	assert feed_entered.wait(1)
 	token.cancel()
@@ -353,11 +420,17 @@ def test_cancel_during_real_callback_feed_stops_after_feed(engine_harness, monke
 def test_cancellation_does_not_restart_at_next_piece(engine_harness, monkeypatch):
 	core, token = ready_core(engine_harness), Token()
 	called = []
-	monkeypatch.setattr(engine_harness.module, "split_speech_text_pieces",
-		lambda text: ["first", "second"], raising=False)
+	monkeypatch.setattr(
+		engine_harness.module,
+		"split_speech_text_pieces",
+		lambda text: ["first", "second"],
+		raising=False,
+	)
+
 	def native(instance, text):
 		called.append(text)
 		core.cancel()
+
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
 	speak_now(core, ["old"], cancellationToken=token)
 	assert called == ["first"]
@@ -369,10 +442,16 @@ def test_cancellation_does_not_restart_at_next_piece(engine_harness, monkeypatch
 def test_cancelled_request_drops_index_and_done_notifications(engine_harness, monkeypatch):
 	core, token = ready_core(engine_harness), Token()
 	indexes, dones = [], []
-	monkeypatch.setattr(engine_harness.original_driver.synthIndexReached, "notify",
-		lambda **kwargs: indexes.append(kwargs))
-	monkeypatch.setattr(engine_harness.original_driver.synthDoneSpeaking, "notify",
-		lambda **kwargs: dones.append(kwargs))
+	monkeypatch.setattr(
+		engine_harness.original_driver.synthIndexReached,
+		"notify",
+		lambda **kwargs: indexes.append(kwargs),
+	)
+	monkeypatch.setattr(
+		engine_harness.original_driver.synthDoneSpeaking,
+		"notify",
+		lambda **kwargs: dones.append(kwargs),
+	)
 	core._isSilence.begin(token)
 	core._onIndexReached(6)
 	core._onIndexReached(None)
@@ -388,10 +467,16 @@ def test_direct_core_cancel_still_reports_done(engine_harness, monkeypatch, use_
 	core = ready_core(engine_harness)
 	token = Token() if use_token else None
 	indexes, dones = [], []
-	monkeypatch.setattr(engine_harness.original_driver.synthIndexReached, "notify",
-		lambda **kwargs: indexes.append(kwargs))
-	monkeypatch.setattr(engine_harness.original_driver.synthDoneSpeaking, "notify",
-		lambda **kwargs: dones.append(kwargs))
+	monkeypatch.setattr(
+		engine_harness.original_driver.synthIndexReached,
+		"notify",
+		lambda **kwargs: indexes.append(kwargs),
+	)
+	monkeypatch.setattr(
+		engine_harness.original_driver.synthDoneSpeaking,
+		"notify",
+		lambda **kwargs: dones.append(kwargs),
+	)
 
 	def native(instance, text):
 		core.cancel()
@@ -407,10 +492,16 @@ def test_direct_core_cancel_still_reports_done(engine_harness, monkeypatch, use_
 def test_cancelled_token_before_core_cancel_reports_nothing(engine_harness, monkeypatch):
 	core, token = ready_core(engine_harness), Token()
 	indexes, dones = [], []
-	monkeypatch.setattr(engine_harness.original_driver.synthIndexReached, "notify",
-		lambda **kwargs: indexes.append(kwargs))
-	monkeypatch.setattr(engine_harness.original_driver.synthDoneSpeaking, "notify",
-		lambda **kwargs: dones.append(kwargs))
+	monkeypatch.setattr(
+		engine_harness.original_driver.synthIndexReached,
+		"notify",
+		lambda **kwargs: indexes.append(kwargs),
+	)
+	monkeypatch.setattr(
+		engine_harness.original_driver.synthDoneSpeaking,
+		"notify",
+		lambda **kwargs: dones.append(kwargs),
+	)
 
 	def native(instance, text):
 		token.cancel()
@@ -431,10 +522,13 @@ def test_new_request_drops_old_callback_buffer_and_sonic_tail(engine_harness, mo
 	callback._sonicSpeed = 1.4
 	callback._sonicEnabled = True
 	callback._sonicInitTried = True
+
 	class OldSonic:
 		def flush(self):
 			pytest.fail("old Sonic tail was flushed")
+
 	callback.sonicStream = OldSonic()
+
 	def native(instance, text):
 		assert callback._feedBuf.getvalue() == b""
 		assert callback.sonicStream is None
@@ -442,6 +536,7 @@ def test_new_request_drops_old_callback_buffer_and_sonic_tail(engine_harness, mo
 		assert callback._sonicInitTried is False
 		callback._ensureSonicStream = lambda: False
 		emit_audio(core, engine_harness.types, b"new")
+
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
 	speak_now(core, ["fresh"], cancellationToken=Token())
 	assert callback._sonicSpeed == 1.4
@@ -470,8 +565,11 @@ def test_failed_sonic_init_is_not_retried_on_next_speak(engine_harness, monkeypa
 def test_untokened_speech_and_cancel_remain_usable(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	core._veCallbackHandler._ensureSonicStream = lambda: False
-	monkeypatch.setattr(engine_harness.native, "processText2Speech",
-		lambda instance, text: emit_audio(core, engine_harness.types, text.encode()))
+	monkeypatch.setattr(
+		engine_harness.native,
+		"processText2Speech",
+		lambda instance, text: emit_audio(core, engine_harness.types, text.encode()),
+	)
 	speak_now(core, ["first"])
 	core.cancel()
 	speak_now(core, ["second"])
@@ -487,8 +585,11 @@ def test_guard_keeps_original_normalization_and_rate_settings(engine_harness, mo
 	assert core._normalization == "NFC"
 	core._rateBoost = True
 	parameters = []
-	monkeypatch.setattr(engine_harness.native, "setParamList",
-		lambda instance, *values: parameters.append((instance, values)))
+	monkeypatch.setattr(
+		engine_harness.native,
+		"setParamList",
+		lambda instance, *values: parameters.append((instance, values)),
+	)
 	core._set_rate(50)
 	if hasattr(core, "_segmentHost"):
 		# VE applies settings in order on the inner BgThread queue.

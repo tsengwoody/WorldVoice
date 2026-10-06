@@ -85,7 +85,10 @@ def build(env, languages, stored):
 			added.append(item)
 			return item
 
-	manager = SimpleNamespace(languages=languages, localesToNamesMap={locale: f"<{locale}>" for locale in languages})
+	manager = SimpleNamespace(
+		languages=languages,
+		localesToNamesMap={locale: f"<{locale}>" for locale in languages},
+	)
 	synth = Synth(manager)
 	environment = {
 		"SettingsPanel": object,
@@ -99,7 +102,9 @@ def build(env, languages, stored):
 		"detection_settings": service,
 	}
 	tree = ast.parse(PANEL.read_text(encoding="utf-8"))
-	node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "UnicodeDetectionSettingsPanel")
+	node = next(
+		n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "UnicodeDetectionSettingsPanel"
+	)
 	exec(compile(ast.Module(body=[node], type_ignores=[]), str(PANEL), "exec"), environment)
 	panel = object.__new__(environment["UnicodeDetectionSettingsPanel"])
 	panel.makeSettings(SimpleNamespace())
@@ -132,9 +137,17 @@ def test_save_writes_each_enabled_choice(env):
 	built.added[2].Select(1)
 	built.added[0].SetValue(False)
 	built.panel.onSave()
-	assert (built.switching["latinCharactersLanguage"], built.switching["CJKCharactersLanguage"],
-		built.switching["arabicCharactersLanguage"], built.switching["ignoreNumbersInLanguageDetection"]) == (
-		"en", "zh", "ar", False)
+	assert (
+		built.switching["latinCharactersLanguage"],
+		built.switching["CJKCharactersLanguage"],
+		built.switching["arabicCharactersLanguage"],
+		built.switching["ignoreNumbersInLanguageDetection"],
+	) == (
+		"en",
+		"zh",
+		"ar",
+		False,
+	)
 
 
 def test_stored_language_not_offered_selects_the_first(env):

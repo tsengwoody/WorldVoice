@@ -1027,7 +1027,12 @@ def test_leased_player_hooks_can_be_overridden(env):
 		player.feed(b"pcm", onDone=lambda: None)
 	with pytest.raises(OSError, match="stop failed"):
 		player.stop()
-	assert calls == ["callback", ("feed", b"pcm", True), ("record_error", "feed failed"), ("stop_failed", "stop failed")]
+	assert calls == [
+		"callback",
+		("feed", b"pcm", True),
+		("record_error", "feed failed"),
+		("stop_failed", "stop failed"),
+	]
 	assert env.host.control_error is None
 	env.run_native(record)
 	events.wait_one()

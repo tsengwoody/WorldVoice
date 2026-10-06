@@ -16,7 +16,9 @@ def _definitions(source):
 				if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
 					result[f"{node.name}.{item.name}"] = ast.dump(item)
 				elif isinstance(item, (ast.Assign, ast.AnnAssign)):
-					result[f"{node.name}.{ast.unparse(item.targets[0] if isinstance(item, ast.Assign) else item.target)}"] = ast.dump(item)
+					result[
+						f"{node.name}.{ast.unparse(item.targets[0] if isinstance(item, ast.Assign) else item.target)}"
+					] = ast.dump(item)
 			result[node.name + ".<bases>"] = ast.dump(ast.Tuple(elts=node.bases, ctx=ast.Load()))
 		elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
 			result[node.name] = ast.dump(node)

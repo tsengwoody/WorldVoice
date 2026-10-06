@@ -18,7 +18,9 @@ class FakeCore:
 	supportedSettings = tuple(SimpleNamespace(id=name) for name in ("rate", "pitch", "volume"))
 
 	def __init__(self):
-		self.availableVoices = {"v1": SimpleNamespace(id="v1", displayName="Neural One - English", language="en")}
+		self.availableVoices = {
+			"v1": SimpleNamespace(id="v1", displayName="Neural One - English", language="en"),
+		}
 		self.terminated = False
 
 	def speak(self, commands):

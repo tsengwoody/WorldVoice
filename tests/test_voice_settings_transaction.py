@@ -9,8 +9,6 @@ import pytest
 from test_worldvoice_lifecycle import _load_voice_manager, init_policies, WORLDVOICE
 
 
-
-
 def _create_voices(monkeypatch, config):
 	package_name = "lifecycle_test_worldvoice"
 	name = f"{package_name}.driver"
@@ -21,12 +19,9 @@ def _create_voices(monkeypatch, config):
 	config.conf["WorldVoice"]["voices"] = {}
 	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = False
 	from voice_binding_harness import install_binding
+
 	voice = install_binding(module, config)
 	return voice("a", "A:a", "en"), voice("b", "B:b", "fr")
-
-
-
-
 
 
 def _editing_manager(monkeypatch):
@@ -48,33 +43,34 @@ def _editing_manager(monkeypatch):
 	return manager, a, b, config
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def _synth_settings_class(config):
 	path = WORLDVOICE / "__init__.py"
 	tree = ast.parse(path.read_text(encoding="utf-8"))
 	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
-	names = {"supportedSettings", "_driver_settings", "_pipeline_driver_setting", "_get_availableVariants",
-		"_set_rate", "_set_voice_parameter", "_get_voice", "_set_voice"}
+	names = {
+		"supportedSettings",
+		"_driver_settings",
+		"_pipeline_driver_setting",
+		"_get_availableVariants",
+		"_set_rate",
+		"_set_voice_parameter",
+		"_get_voice",
+		"_set_voice",
+	}
 	driver.body = [node for node in driver.body if isinstance(node, ast.FunctionDef) and node.name in names]
 	driver.bases = []
 	setting = lambda name, *args, **kwargs: name
-	env = {"_": lambda text: text, "OrderedDict": OrderedDict, "config": config, "PIPELINE_SETTINGS": (),
+	env = {
+		"_": lambda text: text,
+		"OrderedDict": OrderedDict,
+		"config": config,
+		"PIPELINE_SETTINGS": (),
 		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "fr"),
-		"BooleanDriverSetting": setting, "NumericDriverSetting": setting, "DriverSetting": setting,
-		"StringParameterInfo": lambda id, name: types.SimpleNamespace(id=id, name=name)}
+		"BooleanDriverSetting": setting,
+		"NumericDriverSetting": setting,
+		"DriverSetting": setting,
+		"StringParameterInfo": lambda id, name: types.SimpleNamespace(id=id, name=name),
+	}
 	exec(compile(ast.Module(body=[driver], type_ignores=[]), str(path), "exec"), env)
 	cls = env["SynthDriver"]
 	for name in ("Voice", "Variant", "Rate", "RateBoost", "Pitch", "Inflection", "Volume"):
@@ -114,8 +110,6 @@ def test_main_synth_explicit_commit_updates_resolver_only_states(monkeypatch):
 	b.rate = 81
 	b._binding.settings.rollback(b.name)
 	assert b.rate == 72
-
-
 
 
 def test_main_synth_records_a_chosen_voice_only_once_it_is_set(monkeypatch):

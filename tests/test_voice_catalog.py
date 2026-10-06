@@ -34,7 +34,14 @@ def spec():
 	models = importlib.import_module(PACKAGE + ".runtime.models")
 
 	def make(id, name, engine, language):
-		return models.VoiceSpec(id=id, name=name, description=name, language=language, engine=engine, locale=language)
+		return models.VoiceSpec(
+			id=id,
+			name=name,
+			description=name,
+			language=language,
+			engine=engine,
+			locale=language,
+		)
 
 	return make
 
@@ -62,7 +69,12 @@ def test_catalog_is_immutable(catalog_module, spec):
 
 def test_empty_catalog_has_no_voices(catalog_module):
 	empty = catalog_module.EMPTY_CATALOG
-	assert (empty.table, dict(empty.by_name), list(empty.voice_infos), empty.all_languages) == ((), {}, [], ())
+	assert (empty.table, dict(empty.by_name), list(empty.voice_infos), empty.all_languages) == (
+		(),
+		{},
+		[],
+		(),
+	)
 
 
 def test_group_by_primary_locale(catalog_module, spec):

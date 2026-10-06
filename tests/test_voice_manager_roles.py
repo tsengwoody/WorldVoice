@@ -11,13 +11,20 @@ def make_manager(monkeypatch, *, engine=True, voice=True):
 	module = _load_voice_manager(monkeypatch)
 	conf = sys.modules["config"].conf
 	conf["WorldVoice"]["autoLanguageSwitching"].update(
-		KeepMainLocaleEngineConsistent=engine, KeepMainLocaleVoiceConsistent=voice)
+		KeepMainLocaleEngineConsistent=engine,
+		KeepMainLocaleVoiceConsistent=voice,
+	)
 	conf["WorldVoice"]["role"] = {"fr": {"voice": "B:b"}, "en": {"voice": "X:gone"}}
 	manager = object.__new__(module.VoiceManager)
 	init_policies(manager)
 	spec = module.VoiceSpec
-	manager.catalog = module.VoiceCatalog.from_specs([spec("a", "A:a", "A", "en_US", "A", "en_US"),
-		spec("b", "B:b", "B", "fr", "B", "fr"), spec("c", "A:c", "C", "fr", "A", "fr")])
+	manager.catalog = module.VoiceCatalog.from_specs(
+		[
+			spec("a", "A:a", "A", "en_US", "A", "en_US"),
+			spec("b", "B:b", "B", "fr", "B", "fr"),
+			spec("c", "A:c", "C", "fr", "A", "fr"),
+		],
+	)
 	manager._defaultVoiceInstance = types.SimpleNamespace(name="A:a", engine="A", language="en_US")
 	return module, conf, manager
 

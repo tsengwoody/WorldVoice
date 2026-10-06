@@ -15,13 +15,21 @@ def synth(monkeypatch):
 	calls = []
 	globals_ = synth_class.refresh_language_detection.__globals__
 	detection = types.SimpleNamespace(timing="before")
-	monkeypatch.setitem(globals_, "detection_settings", types.SimpleNamespace(
-		get=lambda: types.SimpleNamespace(timing=detection.timing),
-	))
-	monkeypatch.setitem(globals_, "filter_speechSequence", types.SimpleNamespace(
-		register=lambda handler: calls.append(("register", handler)),
-		unregister=lambda handler: calls.append(("unregister", handler)),
-	))
+	monkeypatch.setitem(
+		globals_,
+		"detection_settings",
+		types.SimpleNamespace(
+			get=lambda: types.SimpleNamespace(timing=detection.timing),
+		),
+	)
+	monkeypatch.setitem(
+		globals_,
+		"filter_speechSequence",
+		types.SimpleNamespace(
+			register=lambda handler: calls.append(("register", handler)),
+			unregister=lambda handler: calls.append(("unregister", handler)),
+		),
+	)
 	monkeypatch.setitem(globals_, "order_move_to_start_register", lambda: calls.append(("reorder",)))
 	instance = object.__new__(synth_class)
 	instance.add_detected_language_commands = handler = object()
@@ -42,10 +50,13 @@ def test_refresh_without_detection_only_unregisters(synth):
 	assert synth.calls == [("unregister", synth.handler)]
 
 
-@pytest.mark.parametrize("timing,expected", [
-	("before", ["register", "reorder"]),
-	("after", ["unregister"]),
-])
+@pytest.mark.parametrize(
+	"timing,expected",
+	[
+		("before", ["register", "reorder"]),
+		("after", ["unregister"]),
+	],
+)
 def test_refresh_registers_only_for_detection_before_nvda(synth, timing, expected):
 	synth.detection.timing = timing
 	synth.synth.uwv = True

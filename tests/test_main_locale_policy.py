@@ -10,7 +10,8 @@ def load_policy(monkeypatch):
 	package.__path__ = ["addon/synthDrivers/WorldVoice"]
 	monkeypatch.setitem(sys.modules, "policy_pkg", package)
 	spec = importlib.util.spec_from_file_location(
-		"policy_pkg.mainLocalePolicy", "addon/synthDrivers/WorldVoice/mainLocalePolicy.py",
+		"policy_pkg.mainLocalePolicy",
+		"addon/synthDrivers/WorldVoice/mainLocalePolicy.py",
 	)
 	module = importlib.util.module_from_spec(spec)
 	monkeypatch.setitem(sys.modules, spec.name, module)
@@ -19,11 +20,16 @@ def load_policy(monkeypatch):
 
 
 def flags(**values):
-	return {"WorldVoice": {"autoLanguageSwitching": {
-		"KeepMainLocaleEngineConsistent": values.get("engine", True),
-		"KeepMainLocaleVoiceConsistent": values.get("voice", True),
-		"KeepMainLocaleParameterConsistent": values.get("parameter", False),
-	}}, "speech": {"WorldVoice": {"rate": 70}}}
+	return {
+		"WorldVoice": {
+			"autoLanguageSwitching": {
+				"KeepMainLocaleEngineConsistent": values.get("engine", True),
+				"KeepMainLocaleVoiceConsistent": values.get("voice", True),
+				"KeepMainLocaleParameterConsistent": values.get("parameter", False),
+			},
+		},
+		"speech": {"WorldVoice": {"rate": 70}},
+	}
 
 
 def test_engine_consistency_reads_config_and_previews_without_saving(monkeypatch):
@@ -70,14 +76,19 @@ def test_voice_consistency_follows_the_main_voice_only_when_enabled(monkeypatch)
 def test_parameter_copy_updates_each_voice_once(monkeypatch):
 	module = load_policy(monkeypatch)
 	updates = {}
+
 	class State:
 		def __init__(self, key):
 			self.key = key
+
 		def update(self, **values):
 			updates.setdefault(self.key, []).append(values)
+
 	base = SimpleNamespace(rate=72, pitch=60, volume=70, inflection=55, rateBoost=True, variant="x")
 	store = SimpleNamespace(
-		snapshot=lambda key: base, names=lambda: ("a", "b"), state=State,
+		snapshot=lambda key: base,
+		names=lambda: ("a", "b"),
+		state=State,
 	)
 	module.ParameterConsistency(lambda: flags()).copy_from(store, "a")
 	expected = [{"rate": 72, "pitch": 60, "volume": 70, "inflection": 55, "rateBoost": True}]
@@ -92,4 +103,10 @@ def test_inherited_parameters_follow_the_main_voice_only_when_enabled(monkeypatc
 	store = SimpleNamespace(snapshot=lambda key: base if key == "a" else None)
 	assert policy.inherited(store, "a") == {}
 	policy.enabled = True
-	assert policy.inherited(store, "a") == {"rate": 72, "pitch": 60, "volume": 70, "inflection": 55, "rateBoost": True}
+	assert policy.inherited(store, "a") == {
+		"rate": 72,
+		"pitch": 60,
+		"volume": 70,
+		"inflection": 55,
+		"rateBoost": True,
+	}

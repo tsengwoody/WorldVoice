@@ -35,19 +35,29 @@ class FakePlayer:
 		self.closes += 1
 
 
-def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_base=object,
-                                      commands=None, property_setters=False):
+def load_real_driver_with_native_stubs(
+	monkeypatch,
+	engine,
+	*,
+	rt=None,
+	voice_base=object,
+	commands=None,
+	property_setters=False,
+):
 	root = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
 	engine_path = root / engine
 	native_name = "ve2" if engine == "VE" else "ttsapi"
 	stubs = StubModules(monkeypatch)
 	module, package = stubs.module, stubs.package
+
 	class Setting:
 		def __init__(self, *args, **kwargs):
 			self.id = args[0] if args else ""
 
 	class BaseSynthDriver:
-		VoiceSetting = VariantSetting = RateSetting = RateBoostSetting = PitchSetting = VolumeSetting = Setting
+		VoiceSetting = VariantSetting = RateSetting = RateBoostSetting = PitchSetting = VolumeSetting = (
+			Setting
+		)
 
 		def __getattr__(self, name):
 			for method in ("_get_" + name, "_get" + name[0].upper() + name[1:]):
@@ -57,7 +67,11 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 			raise AttributeError(name)
 
 		def __setattr__(self, name, value):
-			setter = getattr(type(self), "_set_" + name, None) if property_setters and not name.startswith("_") else None
+			setter = (
+				getattr(type(self), "_set_" + name, None)
+				if property_setters and not name.startswith("_")
+				else None
+			)
 			if setter is not None:
 				setter(self, value)
 			else:
@@ -93,14 +107,32 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 	module("languageHandler", getLanguageDescription=lambda language: language)
 	module("addonHandler", initTranslation=lambda: None, getRunningAddons=lambda: [])
 	package("speech", root, commands=None, CHUNK_SEPARATOR=" ")
-	commands = commands or module("speech.commands", **{name: type(name, (Command,), {}) for name in (
-		"IndexCommand", "CharacterModeCommand", "LangChangeCommand", "PitchCommand",
-		"BreakCommand", "SpeechCommand", "RateCommand", "VolumeCommand",
-	)})
+	commands = commands or module(
+		"speech.commands",
+		**{
+			name: type(name, (Command,), {})
+			for name in (
+				"IndexCommand",
+				"CharacterModeCommand",
+				"LangChangeCommand",
+				"PitchCommand",
+				"BreakCommand",
+				"SpeechCommand",
+				"RateCommand",
+				"VolumeCommand",
+			)
+		},
+	)
 	monkeypatch.setitem(sys.modules, "speech.commands", commands)
 	sys.modules["speech"].commands = commands
-	module("synthDriverHandler", SynthDriver=BaseSynthDriver, LanguageInfo=LanguageInfo,
-		VoiceInfo=VoiceInfo, synthIndexReached=Notification(), synthDoneSpeaking=Notification())
+	module(
+		"synthDriverHandler",
+		SynthDriver=BaseSynthDriver,
+		LanguageInfo=LanguageInfo,
+		VoiceInfo=VoiceInfo,
+		synthIndexReached=Notification(),
+		synthDoneSpeaking=Notification(),
+	)
 	package("autoSettingsUtils", root)
 	module("autoSettingsUtils.driverSetting", DriverSetting=Setting)
 	module("autoSettingsUtils.utils", StringParameterInfo=Setting)
@@ -108,9 +140,14 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 	package("synthDrivers", root.parents[1])
 	package("synthDrivers.WorldVoice", root.parent)
 	from runtime_harness import load_runtime
+
 	rt = rt or load_runtime(monkeypatch, "synthDrivers.WorldVoice.runtime")
-	package("synthDrivers.WorldVoice.driver", root, Voice=voice_base,
-		getVoiceKey=lambda engine, name: f"{engine}:{name}")
+	package(
+		"synthDrivers.WorldVoice.driver",
+		root,
+		Voice=voice_base,
+		getVoiceKey=lambda engine, name: f"{engine}:{name}",
+	)
 	package("synthDrivers.WorldVoice.text", root.parent / "text")
 	module("synthDrivers.WorldVoice.text.arabic", break_repeated_runs=lambda text: text)
 	module("synthDrivers.WorldVoice.text.chunker", split_speech_text_pieces=lambda text: [text])
@@ -118,15 +155,20 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 
 	def load(name, path, is_package=False):
 		spec = importlib.util.spec_from_file_location(
-			name, path, submodule_search_locations=[str(path.parent)] if is_package else None,
+			name,
+			path,
+			submodule_search_locations=[str(path.parent)] if is_package else None,
 		)
 		loaded = importlib.util.module_from_spec(spec)
 		monkeypatch.setitem(sys.modules, name, loaded)
 		spec.loader.exec_module(loaded)
 		return loaded
 
-	original = load(f"synthDrivers.WorldVoice.driver.{engine}.driver",
-		engine_path / "driver/__init__.py", True)
+	original = load(
+		f"synthDrivers.WorldVoice.driver.{engine}.driver",
+		engine_path / "driver/__init__.py",
+		True,
+	)
 	wrapped = load(f"synthDrivers.WorldVoice.driver.{engine}", engine_path / "__init__.py", True)
 
 	native = getattr(original, native_name)
@@ -134,6 +176,7 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 	monkeypatch.setattr(native, "initialize", lambda resources: None)
 	monkeypatch.setattr(native, "processText2Speech", lambda instance, text: None)
 	callback_errors = threading.local()
+
 	def process_native(instance, pointer):
 		try:
 			data = pointer.contents
@@ -144,10 +187,15 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 			# ctypes Python callbacks cannot raise through C. Re-raise at
 			# the caller's errcheck boundary, using thread-local ownership.
 			callback_errors.error = error
-			return 0xffffffff
-	process_function = ctypes.CFUNCTYPE(ctypes.c_uint,
-		native.veTypes.VE_HSAFE, ctypes.POINTER(native.veTypes.VE_INTEXT))(process_native)
+			return 0xFFFFFFFF
+
+	process_function = ctypes.CFUNCTYPE(
+		ctypes.c_uint,
+		native.veTypes.VE_HSAFE,
+		ctypes.POINTER(native.veTypes.VE_INTEXT),
+	)(process_native)
 	process_function.__name__ = "ve_ttsProcessText2Speech"
+
 	def check_native_result(result, function, args):
 		error = getattr(callback_errors, "error", None)
 		if error is not None:
@@ -156,33 +204,59 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 		# Match the supplied binding: accepted statuses are mapped to
 		# None by its real checker, rather than returned as integers.
 		return native.veCheckForError(result, function, args)
+
 	process_function.errcheck = check_native_result
-	monkeypatch.setattr(native, "veDll", types.SimpleNamespace(ve_ttsProcessText2Speech=process_function,
-		ve_ttsGetErrorString=lambda result: b"native error"))
-	monkeypatch.setattr(native, "getLanguageList", lambda: [types.SimpleNamespace(
-		szLanguageTLW=b"en", szLanguage=b"English")])
+	monkeypatch.setattr(
+		native,
+		"veDll",
+		types.SimpleNamespace(
+			ve_ttsProcessText2Speech=process_function,
+			ve_ttsGetErrorString=lambda result: b"native error",
+		),
+	)
+	monkeypatch.setattr(
+		native,
+		"getLanguageList",
+		lambda: [
+			types.SimpleNamespace(
+				szLanguageTLW=b"en",
+				szLanguage=b"English",
+			),
+		],
+	)
 	monkeypatch.setattr(native, "getLocaleNameFromTLW", lambda value: "en")
 	monkeypatch.setattr(native, "getVoiceList", lambda language: [types.SimpleNamespace(szVoiceName=b"fake")])
+
 	def open_voice(voice, callback):
 		instance = native.veTypes.VE_HSAFE()
 		instance.pHandleData = len(opened) + 1
 		opened.append((voice, instance, callback))
 		return instance, voice
+
 	monkeypatch.setattr(native, "open", open_voice)
 
 	def new_core(missing=None, callback_proxy=None):
 		if missing is None and callback_proxy is None:
 			return wrapped.SynthDriver()
+
 		def custom_init(self):
 			initialize_native(self)
 			if callback_proxy:
 				self._veCallbackHandler = callback_proxy(self._veCallbackHandler)
 			if missing:
-				owner = self._veCallbackHandler if missing.startswith("callback.") or missing == "_feedBuf" else self
+				owner = (
+					self._veCallbackHandler
+					if missing.startswith("callback.") or missing == "_feedBuf"
+					else self
+				)
 				field = missing.removeprefix("callback.")
 				delattr(owner, field)
-		initialize_native = getattr(wrapped.SynthDriver, "_initialize_native",
-			original.SynthDriver.__init__)
+
+		initialize_native = getattr(
+			wrapped.SynthDriver,
+			"_initialize_native",
+			original.SynthDriver.__init__,
+		)
 		with monkeypatch.context() as patch:
 			if hasattr(wrapped.SynthDriver, "_initialize_native"):
 				patch.setattr(wrapped.SynthDriver, "_initialize_native", custom_init)
@@ -190,6 +264,13 @@ def load_real_driver_with_native_stubs(monkeypatch, engine, *, rt=None, voice_ba
 				patch.setattr(original.SynthDriver, "__init__", custom_init)
 			return wrapped.SynthDriver()
 
-	return types.SimpleNamespace(engine=engine, module=wrapped, original_driver=original,
-		native=native, types=native.veTypes, rt=rt, opened=opened,
-		new_core=new_core)
+	return types.SimpleNamespace(
+		engine=engine,
+		module=wrapped,
+		original_driver=original,
+		native=native,
+		types=native.veTypes,
+		rt=rt,
+		opened=opened,
+		new_core=new_core,
+	)

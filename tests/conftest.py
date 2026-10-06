@@ -41,8 +41,12 @@ def compat(monkeypatch, rt):
 	package = ModuleType(name)
 	package.__path__ = [str(RUNTIME.parent)]
 	monkeypatch.setitem(sys.modules, name, package)
-	for suffix, module in (("", rt.package), (".models", rt.models),
-	                       (".settings", rt.settings), (".session", rt.session)):
+	for suffix, module in (
+		("", rt.package),
+		(".models", rt.models),
+		(".settings", rt.settings),
+		(".session", rt.session),
+	):
 		monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
 	# Remove cached compatibility imports between isolated runtime fixtures.
 	for suffix in ("compat", "compat.engineAdapter", "compat.voiceFacade"):
@@ -56,6 +60,7 @@ def compat(monkeypatch, rt):
 @pytest.fixture
 def nvda_commands(monkeypatch):
 	"""Stub NVDA speech.commands with the command classes WorldVoice uses."""
+
 	class SynthCommand:
 		pass
 
@@ -92,6 +97,14 @@ def session_module(rt):
 def snap(session_module):
 	"""Build a VoiceSnapshot from a voice id and revision."""
 	return lambda id, rev: session_module.VoiceSnapshot(
-		voice_id=id, revision=rev, language="en", rate=50, pitch=50,
-		volume=50, variant="default", inflection=50, rateBoost=False, waitfactor=0,
+		voice_id=id,
+		revision=rev,
+		language="en",
+		rate=50,
+		pitch=50,
+		volume=50,
+		variant="default",
+		inflection=50,
+		rateBoost=False,
+		waitfactor=0,
 	)

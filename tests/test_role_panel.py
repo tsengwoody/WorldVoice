@@ -24,22 +24,26 @@ def checkbox(value):
 def test_failed_apply_shows_error_and_raises_value_error():
 	messages, logged = [], []
 	manager = object()
-	panel_type = load_panel({
-		"SettingsPanel": object,
-		"_": lambda text: text,
-		"guard_errors": lambda **kwargs: (lambda method: method),
-		"got_error_callback": None,
-		"wx": types.SimpleNamespace(OK=1, ICON_ERROR=2),
-		"gui": types.SimpleNamespace(messageBox=lambda *args: messages.append(args)),
-		"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
-		"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice", voice_manager=manager),
-	})
+	panel_type = load_panel(
+		{
+			"SettingsPanel": object,
+			"_": lambda text: text,
+			"guard_errors": lambda **kwargs: lambda method: method,
+			"got_error_callback": None,
+			"wx": types.SimpleNamespace(OK=1, ICON_ERROR=2),
+			"gui": types.SimpleNamespace(messageBox=lambda *args: messages.append(args)),
+			"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
+			"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice", voice_manager=manager),
+		},
+	)
 	panel = object.__new__(panel_type)
 	panel.disable = False
 	panel._manager = manager
 	calls = []
+
 	def apply():
 		raise OSError("save failed")
+
 	panel._presenter = types.SimpleNamespace(
 		set_engine_consistency=lambda value: calls.append(("engine", value)),
 		set_voice_consistency=lambda value: calls.append(("voice", value)),
@@ -60,12 +64,20 @@ def test_failed_apply_shows_error_and_raises_value_error():
 
 
 def test_destroy_closes_the_presenter_only_for_the_panel_itself():
-	panel_type = load_panel({"SettingsPanel": object, "_": lambda text: text,
-		"guard_errors": lambda **kwargs: (lambda method: method), "got_error_callback": None})
+	panel_type = load_panel(
+		{
+			"SettingsPanel": object,
+			"_": lambda text: text,
+			"guard_errors": lambda **kwargs: lambda method: method,
+			"got_error_callback": None,
+		},
+	)
 	panel = object.__new__(panel_type)
 	closed, skipped = [], []
 	panel._presenter = types.SimpleNamespace(close=lambda: closed.append(True))
-	panel._onDestroy(types.SimpleNamespace(GetEventObject=lambda: object(), Skip=lambda: skipped.append(True)))
+	panel._onDestroy(
+		types.SimpleNamespace(GetEventObject=lambda: object(), Skip=lambda: skipped.append(True)),
+	)
 	assert closed == []
 	panel._onDestroy(types.SimpleNamespace(GetEventObject=lambda: panel, Skip=lambda: skipped.append(True)))
 	assert closed == [True]
@@ -75,6 +87,7 @@ def test_destroy_closes_the_presenter_only_for_the_panel_itself():
 class Control:
 	def __init__(self, *args, **kwargs):
 		self.items = kwargs.get("choices")
+
 	def __getattr__(self, name):
 		return lambda *args, **kwargs: None
 
@@ -92,24 +105,45 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 			created.append((manager, sorted(kwargs)))
 			hooks.update(kwargs)
 			self.keep_engine = self.keep_voice = self.keep_parameters = False
+
 		def locales(self):
 			return [("en", "English")]
 
-	wx = types.SimpleNamespace(**{name: Control for name in ("TextCtrl", "StaticText", "Choice", "Slider", "CheckBox")})
-	for name in ("EVT_WINDOW_DESTROY", "EVT_CHOICE", "EVT_SLIDER", "EVT_CHECKBOX",
-			"TE_READONLY", "TE_MULTILINE", "TE_WORDWRAP", "BORDER_NONE", "EXPAND", "SL_HORIZONTAL"):
+	wx = types.SimpleNamespace(
+		**{name: Control for name in ("TextCtrl", "StaticText", "Choice", "Slider", "CheckBox")},
+	)
+	for name in (
+		"EVT_WINDOW_DESTROY",
+		"EVT_CHOICE",
+		"EVT_SLIDER",
+		"EVT_CHECKBOX",
+		"TE_READONLY",
+		"TE_MULTILINE",
+		"TE_WORDWRAP",
+		"BORDER_NONE",
+		"EXPAND",
+		"SL_HORIZONTAL",
+	):
 		setattr(wx, name, 1)
-	panel_type = load_panel({
-		"SettingsPanel": object, "_": lambda text: text,
-		"guard_errors": lambda **kwargs: (lambda method: method), "got_error_callback": None,
-		"wx": wx,
-		"getSynth": lambda: synth,
-		"worldvoice_synth": lambda: current[0],
-		"config": types.SimpleNamespace(conf={"speech": speech}),
-		"guiHelper": types.SimpleNamespace(BoxSizerHelper=lambda *args, **kwargs: types.SimpleNamespace(
-			addLabeledControl=lambda *args, **kwargs: Control(**kwargs), addItem=lambda *args: None)),
-		"RolePanelPresenter": Presenter,
-	})
+	panel_type = load_panel(
+		{
+			"SettingsPanel": object,
+			"_": lambda text: text,
+			"guard_errors": lambda **kwargs: lambda method: method,
+			"got_error_callback": None,
+			"wx": wx,
+			"getSynth": lambda: synth,
+			"worldvoice_synth": lambda: current[0],
+			"config": types.SimpleNamespace(conf={"speech": speech}),
+			"guiHelper": types.SimpleNamespace(
+				BoxSizerHelper=lambda *args, **kwargs: types.SimpleNamespace(
+					addLabeledControl=lambda *args, **kwargs: Control(**kwargs),
+					addItem=lambda *args: None,
+				),
+			),
+			"RolePanelPresenter": Presenter,
+		},
+	)
 	panel = object.__new__(panel_type)
 	bindings = []
 	panel.Bind = lambda event, handler, *args: bindings.append(handler)
@@ -130,11 +164,15 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 
 def test_save_does_nothing_after_the_synth_was_switched_away():
 	applied = []
-	panel_type = load_panel({
-		"SettingsPanel": object, "_": lambda text: text,
-		"guard_errors": lambda **kwargs: (lambda method: method), "got_error_callback": None,
-		"worldvoice_synth": lambda: None,
-	})
+	panel_type = load_panel(
+		{
+			"SettingsPanel": object,
+			"_": lambda text: text,
+			"guard_errors": lambda **kwargs: lambda method: method,
+			"got_error_callback": None,
+			"worldvoice_synth": lambda: None,
+		},
+	)
 	panel = object.__new__(panel_type)
 	panel.disable = False
 	panel._presenter = types.SimpleNamespace(apply=lambda: applied.append(True))

@@ -110,9 +110,14 @@ def test_scheduler_outcome_per_contract(manager, rt, name, scenario):
 	task = request.tasks[0]
 	error = OSError("segment failed")
 	for kind, where in SCENARIOS[scenario]:
-		manager.on_event(rt.models.PlaybackEvent(
-			getattr(rt.models.EventKind, kind), port.source_id,
-			segment_id=_segment_id(task, where), error=error))
+		manager.on_event(
+			rt.models.PlaybackEvent(
+				getattr(rt.models.EventKind, kind),
+				port.source_id,
+				segment_id=_segment_id(task, where),
+				error=error,
+			),
+		)
 	expected = OUTCOMES[name][scenario]
 	if expected == "complete":
 		assert future.result(1) is True
@@ -178,14 +183,23 @@ def adapter_env(monkeypatch, compat, rt, nvda_commands):
 		else:
 			ledgers.append((adapter, None))
 		sinks = SimpleNamespace(segment=lambda event: None)
-		if segment_events and chosen.mode in (rt.models.CompletionMode.DRAIN,
-				rt.models.CompletionMode.END_INDEX_AND_DRAIN):
+		if segment_events and chosen.mode in (
+			rt.models.CompletionMode.DRAIN,
+			rt.models.CompletionMode.END_INDEX_AND_DRAIN,
+		):
 			adapter.configure_segment_events(lambda context: sinks.segment)
-		return SimpleNamespace(adapter=adapter, core=core, sinks=sinks,
-			context=rt.models.PlaybackContext(source_id, 1))
+		return SimpleNamespace(
+			adapter=adapter,
+			core=core,
+			sinks=sinks,
+			context=rt.models.PlaybackContext(source_id, 1),
+		)
 
-	yield SimpleNamespace(make=make, commands=nvda_commands,
-		token=SimpleNamespace(is_cancelled=lambda: False))
+	yield SimpleNamespace(
+		make=make,
+		commands=nvda_commands,
+		token=SimpleNamespace(is_cancelled=lambda: False),
+	)
 	for adapter, ledger in ledgers:
 		adapter.close()
 		if ledger is not None:
@@ -219,13 +233,21 @@ def test_adapter_entry_per_contract(adapter_env, name):
 		assert extra == ()
 
 
-@pytest.mark.parametrize("name,missing,error,message", [
-	("END_INDEX", "context", ValueError, "Correlated completion requires a playback context"),
-	("DRAIN", "context", ValueError, "Correlated completion requires a playback context"),
-	("END_INDEX", "ledger", ValueError, "Marker completion requires an index ledger"),
-	("DRAIN", "segment_events", RuntimeError, "Drain completion requires a segment event factory"),
-	("END_INDEX_AND_DRAIN", "segment_events", RuntimeError, "Drain completion requires a segment event factory"),
-])
+@pytest.mark.parametrize(
+	"name,missing,error,message",
+	[
+		("END_INDEX", "context", ValueError, "Correlated completion requires a playback context"),
+		("DRAIN", "context", ValueError, "Correlated completion requires a playback context"),
+		("END_INDEX", "ledger", ValueError, "Marker completion requires an index ledger"),
+		("DRAIN", "segment_events", RuntimeError, "Drain completion requires a segment event factory"),
+		(
+			"END_INDEX_AND_DRAIN",
+			"segment_events",
+			RuntimeError,
+			"Drain completion requires a segment event factory",
+		),
+	],
+)
 def test_adapter_precondition_errors_per_contract(adapter_env, name, missing, error, message):
 	env = adapter_env.make(name, ledger=missing != "ledger", segment_events=missing != "segment_events")
 	context = None if missing == "context" else env.context

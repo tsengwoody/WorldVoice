@@ -20,8 +20,11 @@ def test_wrapper_settings_are_pending_until_activation(monkeypatch, engine, snap
 	core.getParameter = lambda instance, parameter, type_: "plain"
 	core.availableVariants = {"plain": object(), "bright": object()}
 	adapter.core = core  # the harness Voice base is a plain object
-	monkeypatch.setattr(harness.module, "TtsSetParamList",
-		lambda instance, pair: lambda: writes.append((instance, pair[1])))
+	monkeypatch.setattr(
+		harness.module,
+		"TtsSetParamList",
+		lambda instance, pair: lambda: writes.append((instance, pair[1])),
+	)
 	adapter.id = "a"
 	adapter.variant = "bright"
 	adapter.waitfactor = 4
@@ -44,11 +47,15 @@ def test_variant_default_is_recaptured_for_rebuilt_core(monkeypatch, engine, sna
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 	adapter = object.__new__(harness.module.Voice)
 	writes = []
-	monkeypatch.setattr(harness.module, "TtsSetParamList",
-		lambda instance, pair: lambda: writes.append((instance, pair[1])))
+	monkeypatch.setattr(
+		harness.module,
+		"TtsSetParamList",
+		lambda instance, pair: lambda: writes.append((instance, pair[1])),
+	)
 	for native_default in ("plain", "warm"):
 		core = types.SimpleNamespace(
-			waitfactor=0, availableVariants={"plain": object(), "warm": object()},
+			waitfactor=0,
+			availableVariants={"plain": object(), "warm": object()},
 			_bgQueue=types.SimpleNamespace(put=lambda task: task()),
 			getVoiceInstance=lambda voice_id: f"native:{voice_id}",
 			getParameter=lambda instance, parameter, type_: native_default,
@@ -65,8 +72,11 @@ def test_variant_metadata_read_preserves_playback_state(monkeypatch, engine):
 	core.getVoiceInstance = lambda voice_id: f"native:{voice_id}"
 	core.getParameter = lambda instance, parameter, type_: "en"
 	adapter.core = core  # the harness Voice base is a plain object
-	monkeypatch.setattr(harness.module.ve2 if engine == "VE" else harness.module.ttsapi,
-		"getSpeechDBList", lambda language, voice_id: ["plain", "bright"])
+	monkeypatch.setattr(
+		harness.module.ve2 if engine == "VE" else harness.module.ttsapi,
+		"getSpeechDBList",
+		lambda language, voice_id: ["plain", "bright"],
+	)
 	adapter.id = "b"
 	assert [variant["id"] for variant in adapter.variants] == ["plain", "bright"]
 	assert (core.voice, core.rate, core.pitch, core.waitfactor) == ("a", 71, 63, 2)
@@ -76,9 +86,11 @@ def test_onecore_language_is_applied_only_on_activation():
 	path = DRIVERS / "OneCore/__init__.py"
 	tree = ast.parse(path.read_text(encoding="utf-8"))
 	voice_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Voice")
+
 	class BaseVoice:
 		def __init__(self, id, name, taskManager, language=None):
 			self.language = language
+
 	core = types.SimpleNamespace(language="original")
 	environment = {"Voice": BaseVoice, "SynthDriver": object, "DrainProfile": lambda **kwargs: None}
 	exec(compile(ast.Module(body=[voice_class], type_ignores=[]), str(path), "exec"), environment)
@@ -95,8 +107,11 @@ def test_voice_metadata_names_the_declaring_engine(monkeypatch, engine):
 	voice_class = harness.module.Voice
 	monkeypatch.setattr(voice_class, "ready", classmethod(lambda cls: True), raising=False)
 	monkeypatch.setattr(voice_class, "engine", "Renamed")
-	monkeypatch.setattr(harness.module, "languageHandler",
-		types.SimpleNamespace(getLanguageDescription=lambda locale: "English"))
+	monkeypatch.setattr(
+		harness.module,
+		"languageHandler",
+		types.SimpleNamespace(getLanguageDescription=lambda locale: "English"),
+	)
 	# The harness Voice base is a plain object; the base voices() just maps this hook.
 	metadata = voice_class.voiceInfoToMetadata(types.SimpleNamespace(id="x", language="en", displayName="x"))
 	assert metadata["engine"] == "Renamed"
@@ -118,9 +133,16 @@ def test_voice_metadata_keeps_vocalizer_quirks(monkeypatch, engine):
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
-@pytest.mark.parametrize("raw,expected", [
-	("b'bengali'", "bengali"), ("b'Arabic'", "Arabic"), ("b'b'", "b"), ("plain", "plain"), ("b'", "b'"),
-])
+@pytest.mark.parametrize(
+	"raw,expected",
+	[
+		("b'bengali'", "bengali"),
+		("b'Arabic'", "Arabic"),
+		("b'b'", "b"),
+		("plain", "plain"),
+		("b'", "b'"),
+	],
+)
 def test_bytes_repr_loses_only_its_wrapper(monkeypatch, engine, raw, expected):
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 	assert harness.module._strip_bytes_repr(raw) == expected
