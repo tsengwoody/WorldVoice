@@ -70,3 +70,9 @@
 ## 驗證
 
 全套 pytest、`ruff check addon`、`ruff format --check addon`、prek hook。
+
+## 實作備註
+
+- `VoiceSettingsStore.reload` 也在 store 鎖下載入並疊上繼承值（`ensure` 原本就在鎖下載入），provider 的執行條件因此只有一種。
+- 主語音載入繼承之後，每次語音載入都會讀 `KeepMainLocaleParameterConsistent`。正式環境由 confspec 提供預設值；兩個測試用的 config stub（`tests/runtime_drain_integration_harness.py`、`tests/test_worldvoice_lifecycle.py`）補上這個旗標。
+- 主驅動的組裝測試改為：repository 只收到 `config.conf`，主驅動不覆寫 `initSettings`。
