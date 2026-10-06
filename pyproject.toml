@@ -1,3 +1,15 @@
+[dependency-groups]
+# Development only; the add-on itself is packaged by scons. Install with
+# `pip install --group test` (pip 25.1 or later) or `uv sync --group test`.
+test = [
+	"pytest==9.1.1",
+	"coverage==7.16.2",
+	"pytest-cov==7.1.0",
+	"hypothesis==6.168.5",
+	# mutmut 3 does not run on native Windows; use WSL or Linux.
+	"mutmut==3.8.0",
+]
+
 [tool.ruff]
 # Matches the ruff-pre-commit rev in .pre-commit-config.yaml and NVDA's lint group (ref/nvda/pyproject.toml).
 # The lint rules are ruff's defaults minus the ignores below, so another ruff version could check other rules.

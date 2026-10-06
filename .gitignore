@@ -21,3 +21,10 @@ storage
 
 # Neural driver is distributed separately; copy it in manually for local development.
 addon/synthDrivers/WorldVoice/driver/Neural/
+
+# Test tool output.
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+mutants/
