@@ -4,19 +4,12 @@ from io import BytesIO
 
 import pytest
 from waiting import eventually
-from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
+from worldvoice_cancel_wrapper_harness import Token, load_real_driver_with_native_stubs, native_message
 
 
 @pytest.fixture(params=["VE", "Cerence"])
 def engine_harness(request, monkeypatch):
 	return load_real_driver_with_native_stubs(monkeypatch, request.param)
-
-
-def native_message(types, message_type, out_data):
-	message = types.VE_CALLBACKMSG()
-	message.eMessage = message_type
-	message.pParam = ctypes.cast(ctypes.pointer(out_data), ctypes.c_void_p)
-	return ctypes.pointer(message)
 
 
 def speak_now(core, *args, **kwargs):
@@ -33,30 +26,6 @@ def ready_core(engine_harness):
 	core.language = "en"
 	core._normalization = "OFF"
 	return core
-
-
-class Token:
-	def __init__(self):
-		self._cancelled = False
-		self._callbacks = []
-
-	def cancel(self):
-		if self._cancelled:
-			return
-		self._cancelled = True
-		callbacks, self._callbacks = self._callbacks, []
-		for callback in callbacks:
-			callback()
-
-	def is_cancelled(self):
-		return self._cancelled
-
-	def add_callback(self, callback):
-		if self._cancelled:
-			callback()
-			return lambda: None
-		self._callbacks.append(callback)
-		return lambda: callback in self._callbacks and self._callbacks.remove(callback)
 
 
 def emit_audio(core, types, payload=b"new", done_result=None):

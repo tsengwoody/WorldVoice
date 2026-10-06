@@ -7,8 +7,8 @@ row here records the behavior that refactor had to keep.
 from types import SimpleNamespace
 
 import pytest
+from legacy_adapter_harness import Core, legacy_class
 from runtime_harness import FakePlayback, RecordingOutput, load_index_support, load_scheduler
-from test_runtime_legacy_adapter import Core, legacy_class
 
 CONTRACTS = ("plain", "END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN")
 

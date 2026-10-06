@@ -3,7 +3,7 @@
 import types
 
 import pytest
-from test_worldvoice_pipeline_settings import load_synth
+from pipeline_harness import load_synth
 
 
 @pytest.fixture

@@ -3,12 +3,11 @@
 import sys
 import types
 
-from test_f4_voice_state import _load_voice_manager
-from test_worldvoice_lifecycle import init_policies
+from worldvoice_harness import init_policies, load_f4_voice_manager
 
 
 def make_manager(monkeypatch, *, engine=True, voice=True):
-	module = _load_voice_manager(monkeypatch)
+	module = load_f4_voice_manager(monkeypatch)
 	conf = sys.modules["config"].conf
 	conf["WorldVoice"]["autoLanguageSwitching"].update(
 		KeepMainLocaleEngineConsistent=engine,

@@ -1,96 +1,9 @@
 """The WorldVoice synth exposes pipeline settings stored only in the pipeline config."""
 
-import ast
 import types
-from pathlib import Path
 
 import pytest
-from test_pipeline_settings_service import load_settings_module
-
-SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
-
-
-class Setting:
-	def __init__(self, kind, id, label=None, **options):
-		self.kind, self.id, self.label, self.options = kind, id, label, options
-
-
-def setting_factory(kind):
-	return lambda id, label=None, **options: Setting(kind, id, label, **options)
-
-
-class Base:
-	@classmethod
-	def VoiceSetting(cls):
-		return Setting("voice", "voice")
-
-	@classmethod
-	def VariantSetting(cls):
-		return Setting("variant", "variant")
-
-	@classmethod
-	def RateSetting(cls):
-		return Setting("rate", "rate")
-
-	@classmethod
-	def RateBoostSetting(cls):
-		return Setting("rateBoost", "rateBoost")
-
-	@classmethod
-	def PitchSetting(cls):
-		return Setting("pitch", "pitch")
-
-	@classmethod
-	def InflectionSetting(cls):
-		return Setting("inflection", "inflection")
-
-	@classmethod
-	def VolumeSetting(cls):
-		return Setting("volume", "volume")
-
-	def loadSettings(self, *args, **kwargs):
-		self.loaded = True
-
-
-def load_synth(monkeypatch, conf):
-	settings_module = load_settings_module(monkeypatch, conf)
-	tree = ast.parse(SYNTH.read_text(encoding="utf-8"))
-	wanted = [
-		node
-		for node in tree.body
-		if isinstance(node, ast.ClassDef)
-		and node.name in {"_PipelineSetting", "SynthDriver"}
-		or isinstance(node, ast.For)
-		and ast.unparse(node.iter) == "PIPELINE_SETTINGS"
-	]
-	environment = {
-		"SynthDriver": Base,
-		"PIPELINE_SETTINGS": settings_module.PIPELINE_SETTINGS,
-		"pipeline_settings": settings_module.pipeline_settings,
-		"BooleanDriverSetting": setting_factory("bool"),
-		"NumericDriverSetting": setting_factory("int"),
-		"DriverSetting": setting_factory("str"),
-		"_": lambda text: text,
-		"config": types.SimpleNamespace(conf=conf),
-		**{
-			name: type(name, (), {})
-			for name in (
-				"IndexCommand",
-				"CharacterModeCommand",
-				"LangChangeCommand",
-				"BreakCommand",
-				"PitchCommand",
-				"RateCommand",
-				"VolumeCommand",
-			)
-		},
-		"synthIndexReached": object(),
-		"synthDoneSpeaking": object(),
-	}
-	# Not load_definitions: the module-level loop that adds the pipeline settings to SynthDriver
-	# is a statement with no name, so the selection is by hand.
-	exec(compile(ast.Module(body=wanted, type_ignores=[]), str(SYNTH), "exec"), environment)
-	return environment["SynthDriver"], settings_module
+from pipeline_harness import load_synth
 
 
 def manager(capabilities=frozenset()):

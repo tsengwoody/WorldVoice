@@ -4,7 +4,7 @@ import ast
 import types
 
 from addon_loader import ADDON, WORLDVOICE, load_definitions
-from test_pipeline_stages import ORDER
+from pipeline_harness import ORDER
 
 PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 VOICE_PANEL = WORLDVOICE / "VoiceSettingsDialogs.py"

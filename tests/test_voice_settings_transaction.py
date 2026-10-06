@@ -3,8 +3,8 @@ import types
 from collections import OrderedDict
 
 import pytest
-from addon_loader import load_definitions, load_source
-from test_worldvoice_lifecycle import WORLDVOICE, _load_voice_manager, init_policies
+from addon_loader import WORLDVOICE, load_definitions, load_source
+from worldvoice_harness import init_policies, load_voice_manager
 
 
 def _create_voices(monkeypatch, config):
@@ -19,7 +19,7 @@ def _create_voices(monkeypatch, config):
 
 
 def _editing_manager(monkeypatch):
-	module = _load_voice_manager(monkeypatch)
+	module = load_voice_manager(monkeypatch)
 	config = sys.modules["config"]
 	config.AggregatedSection = dict
 	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] = False

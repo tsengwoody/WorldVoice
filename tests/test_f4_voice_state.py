@@ -1,62 +1,7 @@
 import sys
-import types
 
-from addon_loader import WORLDVOICE, alias_package, load_source
-from test_worldvoice_lifecycle import init_policies
-from voice_binding_harness import bind_core, install_binding
-
-
-def _load_voice_manager(monkeypatch):
-	package_name = "f4_test_worldvoice"
-	for name in tuple(sys.modules):
-		if name.startswith(package_name + "."):
-			monkeypatch.delitem(sys.modules, name)
-	alias_package(monkeypatch, package_name, WORLDVOICE)
-	config = types.SimpleNamespace(
-		conf={
-			"WorldVoice": {
-				"voices": {},
-				"autoLanguageSwitching": {
-					"KeepMainLocaleEngineConsistent": False,
-					"KeepMainLocaleParameterConsistent": False,
-				},
-				"engine": {},
-			},
-		},
-	)
-	monkeypatch.setitem(sys.modules, "config", config)
-	monkeypatch.setitem(
-		sys.modules,
-		"languageHandler",
-		types.SimpleNamespace(
-			getLanguage=lambda: "en",
-			getLanguageDescription=lambda language: language,
-		),
-	)
-	log = types.SimpleNamespace(
-		debug=lambda *args: None,
-		error=lambda *args, **kwargs: None,
-	)
-	monkeypatch.setitem(sys.modules, "logHandler", types.SimpleNamespace(log=log))
-	monkeypatch.setitem(
-		sys.modules,
-		"synthDriverHandler",
-		types.SimpleNamespace(
-			VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(
-				id=id,
-				displayName=displayName,
-				language=language,
-			),
-			getSynth=lambda: types.SimpleNamespace(name="WorldVoice"),
-		),
-	)
-	return load_source(monkeypatch, f"{package_name}.voiceManager", WORLDVOICE / "voiceManager.py")
-
-
-def _create_voices(monkeypatch, config):
-	module = load_source(monkeypatch, "f4_test_worldvoice.driver", WORLDVOICE / "driver/__init__.py")
-	voice = install_binding(module, config)
-	return voice("a", "A:a", "en"), voice("b", "B:b", "fr")
+from voice_binding_harness import bind_core
+from worldvoice_harness import RecordingCore, create_f4_voices, init_policies, load_f4_voice_manager
 
 
 def activate(voice):
@@ -64,29 +9,9 @@ def activate(voice):
 
 
 def _voices(monkeypatch):
-	_load_voice_manager(monkeypatch)
+	load_f4_voice_manager(monkeypatch)
 	config = sys.modules["config"]
-	return _create_voices(monkeypatch, config), config
-
-
-class RecordingCore:
-	def __init__(self):
-		self.writes = []
-		self.spoken = []
-		self.supportedSettings = [
-			types.SimpleNamespace(id=name) for name in ("rate", "pitch", "volume", "inflection", "rateBoost")
-		]
-
-	def __setattr__(self, name, value):
-		if name in ("voice", "rate", "pitch", "volume", "inflection", "rateBoost"):
-			self.writes.append((name, value))
-		object.__setattr__(self, name, value)
-
-	def speak(self, text):
-		self.spoken.append(text)
-
-	def cancel(self):
-		pass
+	return create_f4_voices(monkeypatch, config), config
 
 
 def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):

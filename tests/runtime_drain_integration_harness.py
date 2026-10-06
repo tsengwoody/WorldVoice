@@ -11,9 +11,8 @@ from types import ModuleType, SimpleNamespace
 
 from onecore_drain_harness import ROOT, in_thread, load_onecore
 from runtime_harness import MemoryRepository, load_runtime, load_scheduler
-from test_vocalizer_segment_drain import emit
-from test_worldvoice_request_builder import EventStub
-from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
+from worldvoice_cancel_wrapper_harness import emit, load_real_driver_with_native_stubs
+from worldvoice_harness import EventStub
 
 PACKAGE = "synthDrivers.WorldVoice"
 ENGINES = ("OneCore", "VE", "Cerence")

@@ -4,7 +4,7 @@ import os
 from types import SimpleNamespace
 
 from addon_loader import WORLDVOICE, load_source
-from test_core_archive import INSTALL, load
+from core_archive_harness import INSTALL, load
 
 WORKSPACE = WORLDVOICE / "workspace.py"
 

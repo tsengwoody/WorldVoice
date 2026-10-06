@@ -319,7 +319,7 @@ def test_language_change_active_native_call_cannot_escape_cancel(composition, mo
 	assert len(control.calls) == 3
 	assert control.calls[2].instance.pHandleData == first_id
 	fed_before = list(control.player.fed)
-	from test_vocalizer_segment_drain import emit
+	from worldvoice_cancel_wrapper_harness import emit
 
 	assert emit(control.env, second.instance, payload=b"stale", index=9999) == [
 		control.env.types.NUAN_E_TTS_USERSTOP,

@@ -7,10 +7,9 @@ import types
 import pytest
 from addon_loader import ADDON, load_source
 from nvda_stubs import StubModules
-from test_f4_voice_state import RecordingCore, _create_voices, _load_voice_manager
-from test_worldvoice_lifecycle import init_policies
 from voice_binding_harness import bind_core
 from waiting import stays_unset
+from worldvoice_harness import RecordingCore, create_f4_voices, init_policies, load_f4_voice_manager
 
 PRESENTER = ADDON / "globalPlugins/WorldVoice/rolePresenter.py"
 
@@ -28,7 +27,7 @@ def load_presenter(monkeypatch, runtime_settings):
 
 @pytest.fixture
 def env(monkeypatch):
-	module = _load_voice_manager(monkeypatch)
+	module = load_f4_voice_manager(monkeypatch)
 	config = sys.modules["config"]
 	conf = config.conf
 	conf["WorldVoice"]["autoLanguageSwitching"].update(
@@ -37,7 +36,7 @@ def env(monkeypatch):
 		KeepMainLocaleParameterConsistent=False,
 	)
 	conf["WorldVoice"]["role"] = {"en": {"voice": "A:a"}}
-	a, b = _create_voices(monkeypatch, config)
+	a, b = create_f4_voices(monkeypatch, config)
 	# Real engine classes declare their engine; the harness base class does not.
 	monkeypatch.setattr(type(a), "engine", "A")
 	c = type(a)(type(a._state.spec)("c", "A:c", "A:c", "en", "A", "en"), a._binding)

@@ -4,21 +4,9 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from test_pipeline_punctuation_pause import load_pipeline_module, punctuation_settings
+from pipeline_harness import ORDER, load_pipeline_module, punctuation_settings
 
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
-
-ORDER = [
-	"apply_speech_dictionaries",
-	"ignore_comma_between_number",
-	"number_language",
-	"number_mode",
-	"chinesespace_wait_factor",
-	"item_wait_factor",
-	"punctuation_wait_factor",
-	"number_wait_factor",
-	"speech_viewer",
-]
 
 
 class OrderedFilter:

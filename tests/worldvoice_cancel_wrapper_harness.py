@@ -268,3 +268,58 @@ def load_real_driver_with_native_stubs(
 		opened=opened,
 		new_core=new_core,
 	)
+
+
+def native_message(types, message_type, out_data):
+	message = types.VE_CALLBACKMSG()
+	message.eMessage = message_type
+	message.pParam = ctypes.cast(ctypes.pointer(out_data), ctypes.c_void_p)
+	return ctypes.pointer(message)
+
+
+class Token:
+	def __init__(self):
+		self._cancelled = False
+		self._callbacks = []
+
+	def cancel(self):
+		if self._cancelled:
+			return
+		self._cancelled = True
+		callbacks, self._callbacks = self._callbacks, []
+		for callback in callbacks:
+			callback()
+
+	def is_cancelled(self):
+		return self._cancelled
+
+	def add_callback(self, callback):
+		if self._cancelled:
+			callback()
+			return lambda: None
+		self._callbacks.append(callback)
+		return lambda: callback in self._callbacks and self._callbacks.remove(callback)
+
+
+_NO_BOOKMARK = object()
+
+
+def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
+	callback, types = env.core._veCallbackHandler, env.types
+	data = types.VE_OUTDATA()
+	results = [callback(instance, None, native_message(types, types.VE_MSG_OUTBUFREQ, data))]
+	if results[0] != types.NUAN_OK:
+		return results
+	ctypes.memmove(data.pOutPcmBuf, payload, len(payload))
+	data.cntPcmBufLen = len(payload)
+	data.cntMrkListLen = 0 if index is _NO_BOOKMARK else 1
+	if index is not _NO_BOOKMARK:
+		data.pMrkList[0].eMrkType = types.VE_MRK_BOOKMARK
+		if env.engine == "VE":
+			data.pMrkList[0].ulMrkId = index
+		else:
+			data.pMrkList[0].szValue = str(index).encode("ascii") if isinstance(index, int) else index
+	results.append(callback(instance, None, native_message(types, types.VE_MSG_OUTBUFDONE, data)))
+	if end:
+		results.append(callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, data)))
+	return results

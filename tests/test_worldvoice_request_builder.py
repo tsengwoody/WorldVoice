@@ -6,26 +6,9 @@ from pathlib import Path
 
 import pytest
 from runtime_harness import MemoryRepository
+from worldvoice_harness import EventStub
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
-
-
-class EventStub:
-	def __init__(self, callback=None):
-		self.handlers = []
-		self.callback = callback
-
-	def register(self, handler):
-		self.handlers.append(handler)
-
-	def unregister(self, handler):
-		self.handlers.remove(handler)
-
-	def notify(self, **kwargs):
-		if self.callback:
-			self.callback(**kwargs)
-		for handler in tuple(self.handlers):
-			handler(**kwargs)
 
 
 @pytest.fixture

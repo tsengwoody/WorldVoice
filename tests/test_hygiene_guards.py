@@ -156,3 +156,23 @@ def test_only_the_addon_loader_loads_modules_from_files():
 			if name == "spec_from_file_location":
 				loaders.append(f"{path.name}:{node.lineno}")
 	assert loaders == []
+
+
+def test_no_test_module_imports_another():
+	# Shared helpers live in harness modules and fixtures in conftest.py; pytest collects test
+	# modules, so a helper kept in one is hard to find and is loaded under two names.
+	import ast
+
+	imports = []
+	for path in (ROOT / "tests").glob("*.py"):
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+			if isinstance(node, ast.ImportFrom):
+				names = [node.module or ""]
+			elif isinstance(node, ast.Import):
+				names = [alias.name for alias in node.names]
+			else:
+				continue
+			imports.extend(
+				f"{path.name}:{node.lineno}" for name in names if name.split(".")[0].startswith("test_")
+			)
+	assert imports == []

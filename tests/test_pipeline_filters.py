@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 
 import pytest
-from test_pipeline_punctuation_pause import load_pipeline_module, punctuation_settings
+from pipeline_harness import load_pipeline_module, punctuation_settings
 
 
 @pytest.fixture

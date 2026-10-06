@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from test_runtime_composition import composition  # noqa: F401 - pytest fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 # The class attributes the base Voice offers plugins.
@@ -44,7 +43,7 @@ def neural_voice(base):
 	return Voice
 
 
-def test_neural_style_plugin_runs_through_the_manager(composition):  # noqa: F811
+def test_neural_style_plugin_runs_through_the_manager(composition):
 	Voice = neural_voice(composition.driver.Voice)
 	manager = composition.create(engine_classes={"Neural": Voice})
 	assert [spec.name for spec in manager.table] == ["Neural:v1"]
@@ -60,7 +59,7 @@ def test_neural_style_plugin_runs_through_the_manager(composition):  # noqa: F81
 	assert core.terminated
 
 
-def test_plugin_attributes_exist_on_the_base_voice(composition):  # noqa: F811
+def test_plugin_attributes_exist_on_the_base_voice(composition):
 	base = composition.driver.Voice
 	for name in PLUGIN_VOICE_ATTRIBUTES - {"core"}:
 		assert hasattr(base, name), name
@@ -89,14 +88,14 @@ def test_reference_neural_plugin_uses_only_plugin_attributes():
 	assert assigned <= PLUGIN_VOICE_ATTRIBUTES
 
 
-def test_base_voice_lists_the_core_voices(composition):  # noqa: F811
+def test_base_voice_lists_the_core_voices(composition):
 	Voice = neural_voice(composition.driver.Voice)
 	assert Voice.voices(None) == []
 	assert Voice.voices(SimpleNamespace()) == []
 	assert [(meta["name"], meta["language"]) for meta in Voice.voices(FakeCore())] == [("Neural:v1", "en")]
 
 
-def test_listing_voices_trusts_the_ready_check_discovery_made(composition):  # noqa: F811
+def test_listing_voices_trusts_the_ready_check_discovery_made(composition):
 	class Voice(neural_voice(composition.driver.Voice)):
 		@classmethod
 		def ready(cls):

@@ -3,12 +3,8 @@ import sys
 import types
 
 import pytest
-from addon_loader import WORLDVOICE, alias_package, load_definitions, load_source
-
-
-def _load_synth_class(environment):
-	"""Execute the real driver class with NVDA's unavailable services replaced."""
-	return load_definitions(WORLDVOICE / "__init__.py", ["SynthDriver"], environment)["SynthDriver"]
+from addon_loader import WORLDVOICE, load_source
+from worldvoice_harness import init_policies, load_synth_class, load_voice_manager
 
 
 def _assembly():
@@ -208,7 +204,7 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 	environment, settings_dialogs, panel = built.environment, built.settings_dialogs, built.panel
 	speech_api, spelling = built.speech_api, built.spelling
 	with pytest.raises(RuntimeError, match="no voices|dictionary failure|bridge failure"):
-		_load_synth_class(environment)()
+		load_synth_class(environment)()
 
 	assert settings_dialogs.VoiceSettingsPanel is panel
 	assert speech_api.speakSpelling is spelling
@@ -229,7 +225,7 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 
 def test_detection_settings_unsubscribe_before_the_filter_unregisters():
 	changes = []
-	_load_synth_class(_construction_environment(None, changes).environment)().terminate()
+	load_synth_class(_construction_environment(None, changes).environment)().terminate()
 	assert changes.count("detection subscribed") == changes.count("detection unsubscribed") == 1
 	assert changes.index("detection unsubscribed") < changes.index("filter unregistered")
 
@@ -237,7 +233,7 @@ def test_detection_settings_unsubscribe_before_the_filter_unregisters():
 def test_construction_failing_after_detection_subscribed_unsubscribes():
 	changes = []
 	with pytest.raises(RuntimeError, match="pipeline failure"):
-		_load_synth_class(_construction_environment("pipeline", changes).environment)()
+		load_synth_class(_construction_environment("pipeline", changes).environment)()
 	assert changes.count("detection subscribed") == changes.count("detection unsubscribed") == 1
 	assert changes.index("detection unsubscribed") < changes.index("filter unregistered")
 
@@ -245,7 +241,7 @@ def test_construction_failing_after_detection_subscribed_unsubscribes():
 def test_entry_points_are_silent_after_terminate():
 	# NVDA may cancel speech from any thread while it is switching synths.
 	changes = []
-	driver = _load_synth_class(_construction_environment(None, changes).environment)()
+	driver = load_synth_class(_construction_environment(None, changes).environment)()
 	driver.terminate()
 	driver.speak([])
 	driver.cancel()
@@ -254,58 +250,9 @@ def test_entry_points_are_silent_after_terminate():
 
 def test_stages_register_after_symbols_and_detector():
 	changes = []
-	_load_synth_class(_construction_environment(None, changes).environment)()
+	load_synth_class(_construction_environment(None, changes).environment)()
 	assert changes.index("symbols loaded") < changes.index("pipeline started")
 	assert changes.index("detector built") < changes.index("pipeline started")
-
-
-def _load_voice_manager(monkeypatch):
-	package_name = "lifecycle_test_worldvoice"
-	for name in tuple(sys.modules):
-		if name.startswith(package_name + "."):
-			monkeypatch.delitem(sys.modules, name)
-	alias_package(monkeypatch, package_name, WORLDVOICE)
-	config = types.SimpleNamespace(
-		conf={
-			"WorldVoice": {
-				"autoLanguageSwitching": {
-					"KeepMainLocaleEngineConsistent": False,
-					"KeepMainLocaleParameterConsistent": False,
-				},
-				"engine": {},
-			},
-		},
-	)
-	monkeypatch.setitem(sys.modules, "config", config)
-	monkeypatch.setitem(sys.modules, "languageHandler", types.SimpleNamespace(getLanguage=lambda: "en"))
-	monkeypatch.setitem(
-		sys.modules,
-		"logHandler",
-		types.SimpleNamespace(
-			log=types.SimpleNamespace(
-				debug=lambda *args: None,
-				error=lambda *args, **kwargs: None,
-			),
-		),
-	)
-	monkeypatch.setitem(
-		sys.modules,
-		"synthDriverHandler",
-		types.SimpleNamespace(
-			VoiceInfo=lambda id, displayName, language: types.SimpleNamespace(
-				id=id,
-				displayName=displayName,
-				language=language,
-			),
-		),
-	)
-	return load_source(monkeypatch, f"{package_name}.voiceManager", WORLDVOICE / "voiceManager.py")
-
-
-def init_policies(manager):
-	"""Give a bare manager the policies the composition root would inject."""
-	config = sys.modules["config"]
-	manager._init_policies(lambda: config.conf, lambda: "en")
 
 
 def manager_providers():
@@ -320,7 +267,7 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	def fail(*args):
 		raise RuntimeError("close failed")
 
-	module = _load_voice_manager(monkeypatch)
+	module = load_voice_manager(monkeypatch)
 	errors = []
 	monkeypatch.setattr(
 		module,
@@ -378,7 +325,7 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 	class Broken(Engine):
 		engine = "broken"
 
-	module = _load_voice_manager(monkeypatch)
+	module = load_voice_manager(monkeypatch)
 	models = importlib.import_module(module.__package__ + ".runtime.models")
 	from runtime_harness import MemoryRepository
 
@@ -412,7 +359,7 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 def test_terminate_cleanup_logs_errors_but_lets_interrupts_through(error):
 	changes = []
 	built = _construction_environment(None, changes, close_error=error)
-	driver = _load_synth_class(built.environment)()
+	driver = load_synth_class(built.environment)()
 
 	if isinstance(error, KeyboardInterrupt):
 		with pytest.raises(KeyboardInterrupt):

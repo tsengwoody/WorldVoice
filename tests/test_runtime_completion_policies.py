@@ -5,12 +5,13 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from test_worldvoice_lifecycle import _load_voice_manager
+from sapi5_drain_harness import load_sapi5
+from worldvoice_harness import load_voice_manager
 
 
 @pytest.fixture
 def env(monkeypatch):
-	module = _load_voice_manager(monkeypatch)
+	module = load_voice_manager(monkeypatch)
 	models = importlib.import_module(module.__package__ + ".runtime.models")
 	adapter = importlib.import_module(module.__package__ + ".compat.engineAdapter")
 	return SimpleNamespace(module=module, models=models, adapter=adapter)
@@ -279,8 +280,6 @@ def test_actual_outer_voice_and_core_select_enabled_drain_profiles(
 	audio_modes,
 ):
 	if engine == "SAPI5":
-		from test_sapi5_segment_drain import load_sapi5
-
 		installed = load_sapi5(monkeypatch)
 	elif engine == "Espeak":
 		from espeak_drain_harness import load_espeak
@@ -326,8 +325,6 @@ def test_actual_outer_voice_and_core_select_enabled_drain_profiles(
 
 
 def test_sapi5_legacy_first_segment_remains_legacy_done(monkeypatch):
-	from test_sapi5_segment_drain import load_sapi5
-
 	installed = load_sapi5(monkeypatch)
 	try:
 		installed.driver.useWasapi = False
@@ -363,8 +360,6 @@ def load_installed_engine(monkeypatch, tmp_path, engine):
 		core, close = control.core, composition.close
 		mode, rt = ("wasapi" if engine == "OneCore" else "default"), composition.rt
 	elif engine == "SAPI5":
-		from test_sapi5_segment_drain import load_sapi5
-
 		installed = load_sapi5(monkeypatch)
 		outer, core, close, mode = installed.outer, installed.driver, installed.driver.terminate, "wasapi"
 		rt = installed.rt
@@ -447,8 +442,6 @@ def test_disabled_force_switch_restores_legacy_done(monkeypatch, tmp_path, engin
 
 
 def test_disabled_force_switch_keeps_structural_fallback_reason(monkeypatch):
-	from test_sapi5_segment_drain import load_sapi5
-
 	installed = load_sapi5(monkeypatch)
 	try:
 		installed.driver.useWasapi = False

@@ -3,8 +3,7 @@
 import sys
 from types import SimpleNamespace
 
-from test_pipeline_punctuation_pause import load_pipeline_module, punctuation_settings
-from test_runtime_composition import composition  # noqa: F401 - pytest fixture
+from pipeline_harness import load_pipeline_module, punctuation_settings
 
 
 def voice(name, language):
@@ -44,7 +43,7 @@ def test_lang_cmd_to_voice_selects_names_and_falls_back(monkeypatch):
 	]
 
 
-def test_filters_do_not_create_voice_instances(composition, monkeypatch):  # noqa: F811
+def test_filters_do_not_create_voice_instances(composition, monkeypatch):
 	composition.engine("ok")
 	manager = composition.create()
 	sys.modules["config"].conf["WorldVoice"]["role"] = {"zh": {"voice": "ok:b"}}

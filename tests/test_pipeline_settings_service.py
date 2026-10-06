@@ -1,28 +1,9 @@
 """The pipeline settings table, repository and service."""
 
 from dataclasses import fields
-from types import SimpleNamespace
 
 import pytest
-from addon_loader import WORLDVOICE, load_source
-from nvda_stubs import StubModules
-
-
-def load_settings_module(monkeypatch, conf, errors=None):
-	stubs = StubModules(monkeypatch)
-	config = stubs.module("config")
-	config.conf = conf
-	addon_handler = stubs.module("addonHandler")
-	addon_handler.initTranslation = lambda: None
-	log_handler = stubs.module("logHandler")
-	log_handler.log = SimpleNamespace(
-		error=lambda *args, **kwargs: (errors if errors is not None else []).append(args),
-	)
-	synth_driver_handler = stubs.module("synthDriverHandler")
-	synth_driver_handler.getSynth = lambda: None
-	stubs.translation()
-	return load_source(monkeypatch, "pipeline_settings_under_test", WORLDVOICE / "pipeline/settings.py")
-
+from pipeline_harness import load_settings_module
 
 OLD_DEFAULTS = {
 	"scope": "WorldVoice",

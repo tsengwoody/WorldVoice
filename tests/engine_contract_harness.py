@@ -12,10 +12,8 @@ from threading import Event
 from espeak_drain_harness import finish as finish_espeak, load_espeak
 from onecore_drain_harness import in_thread, load_onecore
 from rhvoice_drain_harness import finish as finish_rhvoice, load_rhvoice
-from test_sapi5_segment_drain import load_sapi5
-from test_vocalizer_segment_drain import emit
-from test_worldvoice_cancel_wrappers import Token
-from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
+from sapi5_drain_harness import load_sapi5
+from worldvoice_cancel_wrapper_harness import Token, emit, load_real_driver_with_native_stubs
 
 
 def _fresh_lifecycle_module(monkeypatch):

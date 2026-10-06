@@ -7,159 +7,14 @@ from concurrent.futures import CancelledError
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import load_source
+from addon_loader import WORLDVOICE, load_source
 from nvda_stubs import StubModules
-from runtime_harness import MemoryRepository
-from test_worldvoice_lifecycle import WORLDVOICE, _load_synth_class, _load_voice_manager
-from test_worldvoice_request_builder import EventStub
+from worldvoice_harness import EventStub, load_synth_class
 
 
 def _idle_token():
 	"""A never-cancelled token that honours the CancellationView contract."""
 	return SimpleNamespace(is_cancelled=lambda: False, add_callback=lambda callback: lambda: None)
-
-
-@pytest.fixture
-def composition(monkeypatch):
-	manager_module = _load_voice_manager(monkeypatch)
-	package = manager_module.__package__
-	monkeypatch.setattr(
-		importlib.import_module(package + ".voiceCatalog"),
-		"VoiceInfo",
-		lambda key, description, language: SimpleNamespace(
-			id=key,
-			description=description,
-			language=language,
-		),
-	)
-	monkeypatch.setattr(
-		sys.modules["languageHandler"],
-		"getLanguageDescription",
-		lambda value: value,
-		raising=False,
-	)
-	monkeypatch.setattr(sys.modules["synthDriverHandler"], "getSynth", lambda: None, raising=False)
-	driver = importlib.import_module(package + ".driver")
-	settings = importlib.import_module(package + ".runtime.settings")
-	scheduler = importlib.import_module(package + ".runtime.scheduler")
-	bridge_module = importlib.import_module(package + ".nvdaEventBridge")
-	models = importlib.import_module(package + ".runtime.models")
-	ledger = importlib.import_module(package + ".indexLedger").IndexLedger()
-	repo = MemoryRepository()
-	store = settings.VoiceSettingsStore(repo)
-	done, index = EventStub(), EventStub()
-	owner = object()
-	bridge = bridge_module.NvdaEventBridge(
-		owner,
-		done_event=done,
-		index_event=index,
-		get_synth=lambda: owner,
-		index_ledger=ledger,
-	)
-	tasks = scheduler.TaskManager(bridge)
-	bridge.start(tasks.on_event, batch_handler=tasks.on_events)
-	cores = []
-
-	class Core:
-		def __init__(self):
-			self.closes = 0
-			self.cancels = 0
-			self.availableVoices = {
-				key: SimpleNamespace(id=key, language=language, displayName=key)
-				for key, language in (("a", "en"), ("b", "zh"))
-			}
-			cores.append(self)
-
-		def terminate(self):
-			self.closes += 1
-
-		def cancel(self):
-			self.cancels += 1
-
-	def engine(name, *, fail=False, empty=False):
-		class Voice(driver.Voice):
-			synth_driver_class = Core
-			opened = None  # Test bookkeeping: the core this engine has open.
-
-			@classmethod
-			def create_core(cls):
-				if fail:
-					raise RuntimeError("partial open")
-				cls.opened = cls.synth_driver_class()
-				return cls.opened
-
-			@classmethod
-			def destroy_core(cls, core):
-				if cls.opened is core:
-					cls.opened = None
-				super().destroy_core(core)
-
-			@classmethod
-			def supportedSettings(cls):
-				return ["rate", "pitch", "volume"]
-
-			@classmethod
-			def voices(cls, core):
-				return [] if empty else super().voices(core)
-
-			def applyEngineSettings(self, core, snapshot):
-				core.language = snapshot.language
-
-		Voice.engine = name
-		engines[name] = Voice
-		return Voice
-
-	engines = {}
-	managers = []
-
-	config = sys.modules["config"]
-
-	def create(
-		completion_for=lambda cls, core: models.CompletionContract(),
-		engine_classes=None,
-		get_language=lambda: "en",
-		parameter_consistency=None,
-		roles=None,
-	):
-		manager = manager_module.VoiceManager(
-			tasks,
-			store,
-			bridge,
-			index_ledger=ledger,
-			completion_for=completion_for,
-			engine_classes=engines if engine_classes is None else engine_classes,
-			conf_provider=lambda: config.conf,
-			get_language=get_language,
-			parameter_consistency=parameter_consistency,
-			roles=roles,
-		)
-		managers.append(manager)
-		return manager
-
-	yield SimpleNamespace(
-		engine=engine,
-		engines=engines,
-		create=create,
-		store=store,
-		repo=repo,
-		bridge=bridge,
-		tasks=tasks,
-		cores=cores,
-		Core=Core,
-		module=manager_module,
-		driver=driver,
-		ledger=ledger,
-		models=models,
-		done=done,
-		index=index,
-		owner=owner,
-		config=config,
-	)
-	tasks.shutdown()
-	bridge.close()
-	for manager in managers:
-		manager.terminate(commit=False)
-	ledger.close()
 
 
 def test_only_started_sessions_are_resolvable(composition):
@@ -411,7 +266,7 @@ def make_synth(c, manager):
 	}
 	errors = []
 	log = SimpleNamespace(error=lambda *args, **kwargs: errors.append(args))
-	root = _load_synth_class(
+	root = load_synth_class(
 		{
 			"SynthDriver": object,
 			"synthIndexReached": object(),

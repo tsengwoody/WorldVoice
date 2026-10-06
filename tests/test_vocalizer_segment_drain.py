@@ -5,9 +5,8 @@ from threading import Event, Thread, current_thread
 from types import SimpleNamespace
 
 import pytest
-from test_worldvoice_cancel_wrappers import Token, native_message
 from waiting import WAIT_TIMEOUT, eventually, stays_unset
-from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
+from worldvoice_cancel_wrapper_harness import Token, emit, load_real_driver_with_native_stubs, native_message
 
 
 @pytest.fixture(params=["VE", "Cerence"])
@@ -103,30 +102,6 @@ def speak(env, commands=("hello",), *, token=None, segment=17):
 		settle_segment(env, context)
 
 	return token, context, run_thread(run)
-
-
-_NO_BOOKMARK = object()
-
-
-def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
-	callback, types = env.core._veCallbackHandler, env.types
-	data = types.VE_OUTDATA()
-	results = [callback(instance, None, native_message(types, types.VE_MSG_OUTBUFREQ, data))]
-	if results[0] != types.NUAN_OK:
-		return results
-	ctypes.memmove(data.pOutPcmBuf, payload, len(payload))
-	data.cntPcmBufLen = len(payload)
-	data.cntMrkListLen = 0 if index is _NO_BOOKMARK else 1
-	if index is not _NO_BOOKMARK:
-		data.pMrkList[0].eMrkType = types.VE_MRK_BOOKMARK
-		if env.engine == "VE":
-			data.pMrkList[0].ulMrkId = index
-		else:
-			data.pMrkList[0].szValue = str(index).encode("ascii") if isinstance(index, int) else index
-	results.append(callback(instance, None, native_message(types, types.VE_MSG_OUTBUFDONE, data)))
-	if end:
-		results.append(callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, data)))
-	return results
 
 
 def test_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):

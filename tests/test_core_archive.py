@@ -4,25 +4,12 @@ import types
 from zipfile import BadZipFile, ZipFile
 
 import pytest
-from addon_loader import ADDON, load_definitions, load_source
+from addon_loader import ADDON, load_definitions
+from core_archive_harness import INSTALL, load
 from nvda_stubs import StubModules
 
 ARCHIVE = ADDON / "generics/coreArchive.py"
-INSTALL = ADDON / "installTasks.py"
 PLUGIN = ADDON / "globalPlugins/WorldVoice/__init__.py"
-
-
-def load(path, name, monkeypatch, logged):
-	StubModules(monkeypatch).module(
-		"logHandler",
-		log=types.SimpleNamespace(
-			info=lambda *a: logged.append(("info",) + a),
-			warning=lambda *a: logged.append(("warning",) + a),
-			error=lambda *a: logged.append(("error",) + a),
-			exception=lambda *a: logged.append(("exception",) + a),
-		),
-	)
-	return load_source(monkeypatch, name, path)
 
 
 def make_zip(path, **members):
