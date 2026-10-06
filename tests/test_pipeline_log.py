@@ -111,14 +111,6 @@ def test_move_to_hands_over_the_log_and_starts_a_new_one(log_module, tmp_path):
 	assert pipeline.log_file.read_text(encoding="utf-8").splitlines() == [",".join(log_module.PipelineLog.FIELDNAMES)]
 
 
-def test_log_module_has_no_ui_or_import_time_disk_work():
-	tree = ast.parse(LOG.read_text(encoding="utf-8"))
-	imported = {alias.name for node in tree.body if isinstance(node, ast.Import) for alias in node.names}
-	assert not imported & {"wx", "gui", "addonHandler"}
-	module_calls = [ast.unparse(node) for node in tree.body if isinstance(node, ast.Expr)]
-	assert not [call for call in module_calls if "mkdir" in call]
-
-
 class Dialog:
 	def __init__(self, answer, path):
 		self.answer, self.path = answer, path

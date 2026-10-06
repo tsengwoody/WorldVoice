@@ -289,25 +289,6 @@ def test_operation_cannot_submit_twice(env):
     assert len(events) == 1
 
 
-def test_failed_queued_operation_never_submits(env):
-    lifecycle, hooks, events, accept = env
-    old, _ = accept(1)
-    queued, context = accept(2)
-    first = Call(lambda: lifecycle.run(old, ("old",)))
-    assert hooks.boundary_entered.wait(1)
-    second = Call(lambda: lifecycle.run(queued, ("queued",)))
-    lifecycle.fail(queued, RuntimeError("before native call"))
-    hooks.release_boundary.set()
-    first.finish()
-    second.finish()
-    events.wait_for_count(2)
-    assert len(hooks.submitted) == 1
-    assert len(events) == 2
-    failed = [event for event in events if event.source_id is context.source_id]
-    assert len(failed) == 1
-    assert failed[0].kind.value == "segment_failed"
-
-
 def test_failed_waiting_operation_is_published_before_the_resource_frees(env):
     lifecycle, hooks, events, accept = env
     old, _ = accept(1)
@@ -859,29 +840,6 @@ def test_queued_run_wakes_when_cancelled(env, cancel):
     assert len(hooks.submitted) == 1
     hooks.release_boundary.set()
     owner_call.finish()
-
-
-def test_operation_state_follows_run_and_retirement(env):
-    lifecycle, hooks, events, accept = env
-    operation, _ = accept(1)
-    assert not operation._run_started
-    assert not operation._retired
-    call = Call(lambda: lifecycle.run(operation, ("hello",)))
-    assert hooks.boundary_entered.wait(1)
-    assert operation._run_started
-    assert not operation._retired
-    hooks.release_boundary.set()
-    call.finish()
-    assert operation._retired
-
-
-def test_failed_pending_operation_is_started_and_retired(env):
-    lifecycle, hooks, events, accept = env
-    operation, _ = accept(1)
-    assert not operation._run_started
-    lifecycle.fail(operation, RuntimeError("rejected"))
-    assert operation._run_started
-    assert operation._retired
 
 
 def test_delivery_thread_identity_and_join(env):

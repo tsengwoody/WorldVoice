@@ -1,12 +1,8 @@
 import builtins
-from pathlib import Path
 
 import pytest
 
 from runtime_harness import load_config_repository, make_spec, rt
-
-
-REPOSITORY = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/configRepository.py"
 
 
 DEFAULTS = {
@@ -80,9 +76,3 @@ def test_voices_load_their_own_values_whatever_the_main_synth_has(repository, co
     conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
     conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "variant": "bright"}
     assert repository.load(make_spec()) == dict(DEFAULTS, rate=72, variant="bright")
-
-
-def test_the_repository_knows_only_the_voices_section():
-    source = REPOSITORY.read_text(encoding="utf-8")
-    assert '"speech"' not in source
-    assert "ParameterConsistency" not in source

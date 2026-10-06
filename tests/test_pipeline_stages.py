@@ -1,6 +1,5 @@
 """STAGES is the single order and log-key source, and stages read settings from their arguments."""
 
-import ast
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -8,7 +7,6 @@ from types import SimpleNamespace
 from test_pipeline_punctuation_pause import load_pipeline_module, punctuation_settings
 
 
-PIPELINE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/pipeline/__init__.py"
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
 
 ORDER = [
@@ -122,16 +120,6 @@ def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 	assert [getattr(item, "lang", item) for item in result] == ["a ", "de", "1", "en", " b"]
 	command = module.WVLangChangeCommand("de")
 	assert list(module.inject_number_language([command, "x"], settings, module.GENERIC_CONTEXT)) == ["x"]
-
-
-def test_only_the_order_log_debug_tool_asks_for_the_synth():
-	tree = ast.parse(PIPELINE.read_text(encoding="utf-8"))
-	users = {
-		node.name for node in tree.body
-		if isinstance(node, ast.FunctionDef)
-		and any(isinstance(inner, ast.Name) and inner.id == "getSynth" for inner in ast.walk(node))
-	}
-	assert users == {"with_order_log"}
 
 
 def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):

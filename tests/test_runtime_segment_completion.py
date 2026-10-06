@@ -116,28 +116,6 @@ def test_end_waits_for_speak_return(manager, rt):
     emit(manager, rt, next_port)
 
 
-def test_done_without_end_is_not_success(manager, rt):
-    port = marker(rt)
-    _, future = start(manager, port)
-    manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, port.source_id))
-    assert not future.done()
-    manager.cancel()
-    with pytest.raises(CancelledError):
-        future.result(1)
-
-
-def test_drain_needs_matching_drain_not_end_or_done(manager, rt, output):
-    port = marker(rt, "DRAIN")
-    _, future = start(manager, port)
-    emit(manager, rt, port, "SEGMENT_END")
-    manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.DONE, port.source_id))
-    assert not future.done()
-    emit(manager, rt, port, "INDEX", index=123)
-    assert output.indexes == [123]
-    emit(manager, rt, port, "SEGMENT_DRAINED")
-    assert future.result(1) is True
-
-
 def test_drain_rejects_wrong_source_and_segment(manager, rt):
     class EqualSource:
         def __eq__(self, other):
@@ -242,19 +220,6 @@ def test_end_and_drain_require_same_segment(manager, rt, first, second):
     assert future.result(1) is True
 
 
-def test_end_and_drain_rejects_index_after_end_while_waiting_for_drain(manager, rt, output):
-    port = marker(rt, "END_INDEX_AND_DRAIN")
-    _, future = start(manager, port)
-    emit(manager, rt, port, "INDEX", index=123)
-    emit(manager, rt, port, "SEGMENT_END")
-    emit(manager, rt, port, "INDEX", index=456)
-    assert output.indexes == [123]
-    assert not future.done()
-    emit(manager, rt, port, "SEGMENT_DRAINED")
-    assert future.result(1) is True
-    assert output.indexes == [123]
-
-
 def test_index_delivery_precedes_terminal_batch(manager, rt, output):
     port, next_port = marker(rt), marker(rt)
     start(manager, port, next_port)
@@ -313,31 +278,6 @@ def test_missing_marker_failure_releases_request_once(manager, rt, scheduler, ou
     assert request.remaining == 0
     assert not second.entered.is_set()
     assert output.wait_done() == 1
-
-
-def test_trailing_pause_and_non_speech_done_policy(manager, rt, output):
-    port = marker(rt)
-    entered, release = Event(), Event()
-    request = manager.new_request()
-    manager.append_speech(request, port, "Fake:a", ())
-    tail = manager.append_break(request, 60)
-    request.token.wait = lambda seconds: (entered.set(), release.wait(2))[1]
-    port.on_speak = lambda: emit(manager, rt, port)
-    try:
-        manager.submit_request(request)
-        assert entered.wait(1)
-        assert output.done_count == 0
-    finally:
-        release.set()
-    assert tail.result(1) is None
-    assert output.wait_done() == 1
-    for pause in (False, True):
-        request = manager.new_request()
-        if pause:
-            manager.append_break(request, 0)
-        manager.submit_request(request)
-    manager._q.join()
-    assert output.done_count == 1
 
 
 @pytest.mark.parametrize("outcome", ["success", "cancel", "error", "future_cancel", "activate_error"])

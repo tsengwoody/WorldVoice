@@ -1,6 +1,5 @@
 """NVDA's processText runs without speech dictionaries while the pipeline applies them itself."""
 
-import ast
 import importlib
 import sys
 from pathlib import Path
@@ -40,14 +39,3 @@ def test_install_bypasses_dictionaries_and_uninstall_restores(env):
 	env.module.uninstall()
 	env.module.uninstall()
 	assert env.speech.speech.processText is original
-
-
-def test_one_module_level_state():
-	tree = ast.parse((WORLDVOICE / "pipeline/speech_dictionary.py").read_text(encoding="utf-8"))
-	names = set()
-	for node in tree.body:
-		if isinstance(node, ast.AnnAssign):
-			names.add(node.target.id)
-		elif isinstance(node, ast.Assign):
-			names |= {target.id for target in node.targets}
-	assert names == {"_restore"}

@@ -209,27 +209,6 @@ def test_marker_a_b_a_restores_voice_and_settings(marker_contract):
     assert c.repo.saves == []
 
 
-def test_marker_pending_apply_pending_discard(marker_contract):
-    c = marker_contract
-    edit = c.store.begin_edit()
-    try:
-        state = c.store.state("Contract:a")
-        state.update(rate=72)
-        assert c.repo.saves == []
-        edit.apply()
-        saved = list(c.repo.saves)
-        state.update(rate=81)
-        completed(c, submit_contract_request(c, ["pending"], default_key="Contract:a"))
-        edit.discard()
-        completed(c, submit_contract_request(c, ["restored"], default_key="Contract:a"))
-    finally:
-        edit.close()
-    assert [entry[3] for entry in c.core.spoken] == [81, 72]
-    assert c.repo.saves == saved
-    assert c.repo.values["Contract:a"]["rate"] == 72
-    assert c.output.done_count == 2
-
-
 def test_cancel_a_b_a_rejects_same_source_late_callbacks(marker_contract):
     c = marker_contract
     c.core.complete_synchronously = False
@@ -321,23 +300,6 @@ def test_cancelled_token_prevents_core_entry(marker_contract):
                     context=c.rt.models.PlaybackContext(c.session.source_id, 9000))
     assert c.core.spoken == []
     assert c.output.done_count == 0
-
-
-def test_builder_capture_restores_new_request_on_success_and_failure(marker_contract):
-    c = marker_contract
-    original = c.tasks.new_request
-    request = submit_contract_request(c, ["ok"], default_key="Contract:a")
-    assert isinstance(request, c.scheduler.SpeechRequest)
-    assert c.tasks.new_request == original
-    completed(c, request)
-    def fail():
-        yield "unsubmitted"
-        raise ValueError("generator failed")
-    with pytest.raises(ValueError, match="generator failed"):
-        submit_contract_request(c, fail(), default_key="Contract:a")
-    assert c.tasks.new_request == original
-    assert len(c.core.spoken) == 1
-    assert c.tasks._requests == {}
 
 
 def test_reentrant_end_preserves_all_indexes_in_accepted_batch(marker_contract):

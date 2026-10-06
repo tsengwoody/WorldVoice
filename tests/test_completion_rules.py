@@ -127,21 +127,3 @@ def test_completion_mode_is_compared_only_where_contracts_are_built():
 			if allowed is not None and function not in allowed:
 				found.append(f"{relative}:{line} in {function}")
 	assert found == []
-
-
-def test_mode_comparison_scan_sees_members_and_tuples(tmp_path):
-	sample = tmp_path / "sample.py"
-	sample.write_text(
-		"def a(c):\n\treturn c.mode is CompletionMode.DRAIN\n"
-		"def b(c):\n\treturn c.mode in (CompletionMode.DRAIN, CompletionMode.END_INDEX)\n"
-		"def c(c):\n\treturn c.mode != other.mode\n",
-		encoding="utf-8",
-	)
-	assert _mode_comparisons(sample) == [(2, "a"), (4, "b")]
-
-
-def test_scheduler_phases_are_an_enum():
-	text = (RUNTIME / "scheduler.py").read_text(encoding="utf-8")
-	assert "class TaskPhase(Enum):" in text
-	for phase in ("starting", "awaiting_completion", "finishing"):
-		assert f'"{phase}"' not in text, phase

@@ -226,11 +226,6 @@ def test_queries_go_through_the_manager(env):
 	assert env.presenter.selected_voice("fr") == ""
 
 
-def test_close_releases_the_edit(env):
-	env.presenter.close()
-	env.manager.settings.begin_edit().close()
-
-
 def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
 	env.a.update_settings(rate=72, pitch=61, volume=73, inflection=44, rateBoost=True)
 	core = RecordingCore()

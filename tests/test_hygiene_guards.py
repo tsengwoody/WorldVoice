@@ -77,17 +77,6 @@ def test_generics_is_imported_only_after_the_package_that_adds_its_path():
 		assert worldvoice and min(worldvoice) < min(generics), path
 
 
-def test_tests_share_one_module_stub_helper():
-	local = []
-	for path in (ROOT / "tests").glob("*.py"):
-		if path.name == "nvda_stubs.py":
-			continue
-		for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-			if re.match(r"\s*def (module|package|stub)\(name", line):
-				local.append(f"{path.name}:{number}")
-	assert local == []
-
-
 # The spec's reason table: the first entry whose calls all appear in a handler's
 # own body names where its error goes. Combined entries come first, so a handler
 # that both records and latches says both.
@@ -141,52 +130,3 @@ def test_blind_except_reasons_match_their_handlers():
 			if expected is not None and match.group(1) != expected:
 				wrong.append(f"{path.relative_to(ROOT)}:{node.lineno}: {match.group(1)!r} != {expected!r}")
 	assert wrong == []
-
-
-def test_g201_ignore_keeps_its_documented_nvda_reason():
-	# Checks the recorded decision in pyproject.toml; with the ignore, ruff never reports G201 here.
-	config = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-	assert '"G201",' in config and "log.exception lowers expected Windows/COM errors" in config
-
-
-def test_lint_ignores_keep_their_documented_reasons():
-	import tomllib
-
-	text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-	lint = tomllib.loads(text)["tool"]["ruff"]["lint"]
-	assert "S110" in lint["ignore"]
-	assert "S110 only reports handlers that BLE001 or E722 already report" in text
-	compat = "addon/synthDrivers/WorldVoice/compat/"
-	assert {path: rules for path, rules in lint["per-file-ignores"].items() if "TRY004" in rules} == {
-		compat + "commands.py": ["TRY004"],
-		compat + "engineAdapter.py": ["TRY004"],
-		compat + "indexCodec.py": ["TRY004"],
-	}
-	assert "ValueError is the runtime boundary's contract" in text
-	assert "./addon/synthDrivers/WorldVoice/driver/sonic" in tomllib.loads(text)["tool"]["ruff"]["exclude"]
-	assert "driver/sonic/" in (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
-
-
-def test_last_dead_code_and_stale_details_stay_gone():
-	worldvoice = ADDON / "synthDrivers/WorldVoice"
-	assert [p.name for p in _addon_sources() if "CancellableSynthDriver" in p.read_text(encoding="utf-8")] == []
-	assert "localesToNames" not in (ADDON / "generics/speechSymbols/models.py").read_text(encoding="utf-8")
-	assert "base_path" not in (ADDON / "generics/speechSymbols/views.py").read_text(encoding="utf-8")
-	for engine in ("VE", "Cerence"):
-		assert "captured once per core" not in (worldvoice / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
-	sapi5 = (worldvoice / "driver/SAPI5/__init__.py").read_text(encoding="utf-8")
-	stop_player = sapi5[sapi5.index("	def stop_player(self, host):"):sapi5.index("	def drain(self, host, record):")]
-	assert "driver is not None" not in stop_player
-
-
-def test_small_tidy_ups_stay():
-	import ast
-
-	worldvoice = ADDON / "synthDrivers/WorldVoice"
-	assert "idle_barrier" not in (worldvoice / "driver/RHVoice/__init__.py").read_text(encoding="utf-8")
-	plugin_log = ast.parse((ADDON / "globalPlugins/WorldVoice/pipelineLog.py").read_text(encoding="utf-8"))
-	(export,) = [n for n in plugin_log.body if isinstance(n, ast.FunctionDef) and n.name == "export_with_dialog"]
-	assert "log" not in [argument.arg for argument in export.args.args]
-	pipeline = ast.parse((worldvoice / "pipeline/__init__.py").read_text(encoding="utf-8"))
-	(split_by,) = [n for n in pipeline.body if isinstance(n, ast.FunctionDef) and n.name == "_split_by"]
-	assert "Literal" in ast.unparse(split_by.returns)

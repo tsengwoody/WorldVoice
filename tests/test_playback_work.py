@@ -1,11 +1,10 @@
 """Pure work identity and explicit native/callback handoff barriers."""
 
-from dataclasses import FrozenInstanceError
 from threading import Barrier, Event, Thread
 
 import pytest
 
-from runtime_harness import forbid_legacy_runtime_imports, load_runtime, load_scheduler, rt
+from runtime_harness import load_scheduler, rt
 
 
 @pytest.fixture
@@ -55,21 +54,6 @@ def new_work(rt, previous, segment_id=18):
     token = type(previous.token)()
     return rt.playback_work.PlaybackWork(
         rt.models.PlaybackContext(object(), segment_id), token, lambda event: None)
-
-
-def test_playback_helper_loads_without_nvda_or_native_driver(monkeypatch):
-    with forbid_legacy_runtime_imports(monkeypatch):
-        loaded = load_runtime(monkeypatch, "worldvoice_playback_work_pure_test")
-    assert loaded.playback_work.PlaybackWork is not None
-
-
-def test_drain_support_is_immutable(work_env):
-    rt, *_ = work_env
-    support = rt.playback_work.DrainSupport(True, "native-profile", "confirmed callback contract")
-    assert (support.supported, support.profile, support.reason) == (
-        True, "native-profile", "confirmed callback contract")
-    with pytest.raises(FrozenInstanceError):
-        support.supported = False
 
 
 def test_unverified_drain_support_helpers(work_env):

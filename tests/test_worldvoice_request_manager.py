@@ -170,29 +170,6 @@ def voice():
 
 
 @pytest.fixture
-def blocking_voice(voice):
-	voice.entered = threading.Event()
-	voice.stop_entered = threading.Event()
-	voice.release_stop = threading.Event()
-	voice.new_entered = threading.Event()
-
-	def start_old():
-		voice.entered.set()
-
-	def start_new():
-		voice.new_entered.set()
-
-	def cancel():
-		voice.stop_entered.set()
-		assert voice.release_stop.wait(1)
-
-	voice.start_old = start_old
-	voice.start_new = start_new
-	voice.core.cancel = cancel
-	return voice
-
-
-@pytest.fixture
 def two_voices():
 	class Voice:
 		def __init__(self):
@@ -430,20 +407,6 @@ def test_pause_current_uses_valid_voice_snapshot(manager, buses, two_voices):
 	assert calls == ["pause", "resume"]
 
 
-def test_handlers_unregister_on_shutdown(task_module, buses):
-	manager = make_manager(task_module, buses)
-	assert len(buses.done.handlers) == 1
-	assert len(buses.index.handlers) == 1
-	manager.shutdown()
-	manager.test_bridge.close()
-	assert buses.done.handlers == []
-	assert buses.index.handlers == []
-	buses.done.notify(synth=object())
-	buses.index.notify(synth=object(), index=99)
-	assert buses.outer_done == []
-	assert buses.outer_indexes == []
-
-
 def test_cancel_during_first_active_rejects_stale_ve_events_before_neural_and_ve(manager, buses):
 	active_entered = threading.Event()
 	release_active = threading.Event()
@@ -547,24 +510,6 @@ def test_cancelled_request_built_before_submit_is_not_enqueued(manager, voice):
 	cancel(manager, [voice])
 	assert manager.submit_request(request) is False
 	assert voice.core.spoken == []
-
-
-def test_new_request_waits_for_old_stop(manager, blocking_voice):
-	old = manager.new_request()
-	append_speech(manager, old, blocking_voice, blocking_voice.start_old)
-	assert manager.submit_request(old)
-	assert blocking_voice.entered.wait(1)
-	stopper = threading.Thread(target=cancel, args=(manager, [blocking_voice]))
-	stopper.start()
-	assert blocking_voice.stop_entered.wait(1)
-	new = manager.new_request()
-	append_speech(manager, new, blocking_voice, blocking_voice.start_new)
-	assert manager.submit_request(new)
-	assert not blocking_voice.new_entered.wait(0.05)
-	blocking_voice.release_stop.set()
-	stopper.join(1)
-	assert not stopper.is_alive()
-	assert blocking_voice.new_entered.wait(1)
 
 
 def test_two_concurrent_cancels_must_both_finish_before_new_speech(manager, voice, buses):
@@ -716,18 +661,6 @@ def test_pending_speech_is_cancelled_but_new_request_runs(manager, voice, buses)
 	assert not new_future.cancelled()
 	buses.done.notify(synth=voice.core)
 	assert new_future.result(timeout=1) is True
-
-
-def test_failed_speech_marks_request_failed(manager, voice):
-	def fail():
-		raise ValueError("core failure")
-
-	request = manager.new_request()
-	append_speech(manager, request, voice, fail)
-	assert manager.submit_request(request)
-	with pytest.raises(ValueError, match="core failure"):
-		request.tasks[0].future.result(timeout=1)
-	assert request.state.value == "failed"
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])

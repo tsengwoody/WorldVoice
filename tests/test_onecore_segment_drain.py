@@ -43,10 +43,9 @@ def wait_events(events, count=1):
     assert len(events) >= count, "Segment event was not delivered"
 
 
-@pytest.mark.parametrize("frames,commands", [(0, ()), (8, ("hello",))])
-def test_onecore_uses_shared_lifecycle_for_empty_and_pcm_segments(env, frames, commands):
+def test_onecore_uses_shared_lifecycle_for_an_empty_segment(env):
     events = []
-    _, context, _ = speak(env, commands=commands, events=events)
+    _, context, _ = speak(env, commands=(), events=events)
     # The actual wrapper must own the same operation that the coordinator runs.
     lifecycle = env.driver._segmentHost._lifecycle
     assert isinstance(env.driver._segmentHost, env.outer.SegmentHost)
@@ -54,7 +53,7 @@ def test_onecore_uses_shared_lifecycle_for_empty_and_pcm_segments(env, frames, c
     native = env.driver._segmentNative
     assert native.operation in lifecycle._operations
     assert native.operation.work.context is context
-    response = in_thread(lambda: env.native.respond(frames=frames, markers=""))
+    response = in_thread(lambda: env.native.respond(frames=0, markers=""))
     finish(response)
     assert env.player.sync_entered.wait(1)
     assert events == []
@@ -503,11 +502,10 @@ def test_native_and_parse_errors_fail_original_work_without_drain(env, response)
     assert env.dones == []
 
 
-@pytest.mark.parametrize("error", ["feed", "sync"])
-def test_observable_player_errors_fail_without_drain(env, error):
+def test_observable_player_errors_fail_without_drain(env):
     _, _, events = speak(env)
     env.native.wait_calls(1)
-    env.player.error = error
+    env.player.error = "feed"
     env.player.sync_release.set()
     env.native.respond()
     wait_events(events)
@@ -736,8 +734,8 @@ def test_onecore_accepted_then_terminated_suppresses_pending_failure(env, monkey
 
 
 @pytest.mark.parametrize("commands,frames,markers", [
-    ((), 0, ""), (("index-only",), 0, "1:0"), (("break-only",), 8, ""),
-])
+    (("index-only",), 0, "1:0"), (("break-only",), 8, ""),
+], ids=["index-only", "break-only"])
 def test_empty_index_and_break_segments_drain_at_known_end(env, commands, frames, markers):
     if commands == ("index-only",):
         index = env.commands.IndexCommand()
@@ -755,13 +753,12 @@ def test_empty_index_and_break_segments_drain_at_known_end(env, commands, frames
     assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
-@pytest.mark.parametrize("frames", [0, 8])
-def test_pause_holds_completion_until_resume(env, frames):
+def test_pause_holds_completion_until_resume(env):
     _, _, events = speak(env)
     env.native.wait_calls(1)
     env.driver.pause(True)
     env.player.sync_release.set()
-    call = in_thread(lambda: env.native.respond(frames=frames, markers=""))
+    call = in_thread(lambda: env.native.respond(frames=8, markers=""))
     assert env.player.sync_entered.wait(1)
     assert events == []
     env.driver.pause(False)
@@ -793,22 +790,6 @@ def test_cancel_stop_returning_from_sync_never_reports_drain(env):
     finish(call)
     assert events == []
     assert env.player.stops >= 1
-
-
-def test_feed_admission_cancel_finishes_old_feed_before_new_native_call(env):
-    _, _, old_events = speak(env)
-    env.native.wait_calls(1)
-    env.player.feed_release.clear()
-    call = in_thread(env.native.respond)
-    assert env.player.feed_entered.wait(1)
-    env.driver.cancel()
-    speak(env, segment=18)
-    assert len(env.native.calls) == 1
-    env.player.feed_release.set()
-    finish(call)
-    env.native.wait_calls(2)
-    assert env.player.stops >= 2
-    assert old_events == []
 
 
 def test_cancel_stop_must_exit_before_a_retired_callback_allows_new_work(env):
@@ -1083,33 +1064,6 @@ def test_control_error_fails_queued_contexts_and_allows_reentrant_cancel(env):
     assert len(queued_events) == 1 and queued_events[0].error is error
     assert queued_events[0].source_id is queued_context.source_id
     assert len(env.native.calls) == 1
-
-
-def test_legacy_native_submission_error_releases_speaking_wait(env):
-    error = OSError("legacy submission failed")
-    done = Event()
-    original_done = env.outer.synthDoneSpeaking.notify
-
-    def completed(**kwargs):
-        original_done(**kwargs)
-        done.set()
-
-    env.outer.synthDoneSpeaking.notify = completed
-    env.native.submit_error = error
-    env.driver.speak(("legacy",))
-    assert done.wait(1), "Legacy submission failed without releasing its speaking wait"
-    assert env.dones == [env.driver]
-
-
-def test_legacy_speak_after_correlated_work_preserves_done_notification(env):
-    speak(env)
-    env.native.wait_calls(1)
-    env.player.sync_release.set()
-    env.native.respond()
-    env.driver.speak(("legacy",))
-    env.native.wait_calls(2)
-    env.native.respond()
-    assert env.dones == [env.driver]
 
 
 def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):

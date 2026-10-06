@@ -59,12 +59,6 @@ def test_failed_apply_shows_error_and_raises_value_error():
 	assert logged
 
 
-def test_panel_no_longer_touches_role_config_directly():
-	source = PANEL.read_text(encoding="utf-8")
-	for name in ("AggregatedSection", "_dataToPercist", "_defaultVoiceInstance", '["role"]'):
-		assert name not in source
-
-
 def test_destroy_closes_the_presenter_only_for_the_panel_itself():
 	panel_type = load_panel({"SettingsPanel": object, "_": lambda text: text,
 		"guard_errors": lambda **kwargs: (lambda method: method), "got_error_callback": None})

@@ -19,13 +19,6 @@ def test_every_strategy_subclasses_native_strategy():
 			assert [ast.unparse(base) for base in node.bases] == ["NativeStrategy"], (engine, node.name)
 
 
-def test_host_has_no_optional_hook_probing_or_failure_switch():
-	host = (ROOT / "runtime/segmentHost.py").read_text(encoding="utf-8")
-	assert "getattr(self._strategy" not in host
-	for path in ROOT.rglob("*.py"):
-		assert "fail_accepted_on_control_error" not in path.read_text(encoding="utf-8"), path
-
-
 def test_espeak_touches_nvda_privates_only_through_its_port():
 	tree = ast.parse((ROOT / "driver/Espeak/__init__.py").read_text(encoding="utf-8"))
 	port = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_EspeakPort")
@@ -108,9 +101,6 @@ def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 
 
 def test_sapi5_uses_the_shared_engine_controls():
-	source = (ROOT / "driver/SAPI5/__init__.py").read_text(encoding="utf-8")
-	for retired in ("_segmentStops", "_segmentRecords", "_dropQueuedRecords"):
-		assert retired not in source
 	tree = _sapi5_tree()
 	player = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_SegmentPlayer")
 	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]
@@ -137,7 +127,6 @@ def test_rhvoice_reaches_inner_privates_only_through_its_port():
 
 def test_rhvoice_uses_shared_player_and_stop_gate():
 	source = (ROOT / "driver/RHVoice/__init__.py").read_text(encoding="utf-8")
-	assert "_segmentCancelling" not in source
 	tree = ast.parse(source)
 	player = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_WavePlayer")
 	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]
@@ -186,7 +175,6 @@ def test_onecore_parent_privates_are_listed_and_exist():
 
 def test_onecore_uses_the_stop_gate_and_declares_voice_last():
 	source = (ROOT / "driver/OneCore/__init__.py").read_text(encoding="utf-8")
-	assert "_segmentStops" not in source
 	tree = ast.parse(source)
 	names = [n.name for n in tree.body if isinstance(n, ast.ClassDef)]
 	assert names.count("Voice") == 1 and names.index("Voice") > names.index("SynthDriver")
@@ -233,11 +221,3 @@ def test_vocalizer_inner_privates_are_listed_and_exist(engine):
 		and re.search(rf"def {n.name}\(", inner)
 	}
 	assert overridden == overrides
-
-
-@pytest.mark.parametrize("engine", ["VE", "Cerence"])
-def test_vocalizer_retired_names_are_gone(engine):
-	source = (ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
-	assert "_stops" not in source.replace("_stopGate", "")
-	assert "_DONE" not in source
-	assert "def voices(" not in source

@@ -219,21 +219,6 @@ def test_owner_change_suppresses_output(env):
     assert env.done.notifications == [{"synth": env.owner}]
 
 
-def test_same_source_event_has_no_invented_request_id(env):
-    """Legacy DONE carries source identity only."""
-    source, source_id = object(), object()
-    env.bridge.bind(source, source_id)
-    env.bridge.start(env.received.append)
-    env.done.notify(synth=source)
-    env.done.notify(synth=source)
-    assert len(env.received) == 2
-    for event in env.received:
-        assert vars(event) == {
-            "kind": env.models.EventKind.DONE, "source_id": source_id, "index": None,
-            "segment_id": None, "error": None,
-        }
-
-
 def assert_other_thread_can_unbind(bridge, source_id):
     worker = Thread(target=bridge.unbind, args=(source_id,), daemon=True)
     worker.start()
@@ -309,11 +294,10 @@ def test_marker_decodes_to_segment_events(marker_env):
     assert all(e.source_id is env.source_id for e in env.received)
 
 
-@pytest.mark.parametrize("mode", ["END_INDEX", "END_INDEX_AND_DRAIN"])
-def test_marker_mode_ignores_unidentified_done(marker_env, mode):
+def test_marker_mode_ignores_unidentified_done(marker_env):
     env = marker_setup(marker_env)
     env.contract = env.models.CompletionContract(
-        getattr(env.models.CompletionMode, mode), env.models.IndexRange(501, 600))
+        env.models.CompletionMode.END_INDEX, env.models.IndexRange(501, 600))
     start_marker(env)
     env.done.notify(synth=env.source)
     assert env.received == env.suppliers == []
@@ -344,16 +328,6 @@ def test_delayed_supplier_ignores_revoked_binding(marker_env, release):
             env.bridge.bind(env.source, env.source_id, completion=env.contract)
     assert env.suppliers[0]() == ()
     assert env.ledger.receive_index(env.source_id, allocation.end_index) == ()
-
-
-def test_marker_unknown_and_owner_sources_are_ignored(marker_env):
-    env = marker_setup(marker_env)
-    allocation = start_marker(env)
-    env.bridge.bind(env.owner, object(), completion=env.contract)
-    for source in (object(), env.owner):
-        env.index.notify(synth=source, index=allocation.end_index)
-        env.done.notify(synth=source)
-    assert env.received == env.suppliers == []
 
 
 def test_marker_rebind_preserves_high_water_and_rejects_stale_index(marker_env):

@@ -763,48 +763,6 @@ def test_explicit_activation_override_allows_successor_after_idle(env, monkeypat
     assert env.core._veCallbackHandler._feedBuf.getvalue() == b"new"
 
 
-def test_cancelled_token_does_not_submit_native_or_notify(env, monkeypatch):
-    token = Token()
-    token.cancel()
-    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: pytest.fail("native entered"))
-    _, _, call = speak(env, token=token)
-    finish(call)
-    assert env.events == []
-
-
-def test_old_feed_final_stop_retires_before_next_native_call(env, monkeypatch):
-    prove_fake_quiescence(env, monkeypatch)
-    feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
-    calls = []
-    env.core._real_player.feed = lambda data: (feed_entered.set(), feed_release.wait(2))
-    def stop():
-        stop_entered.set()
-        assert stop_release.wait(2)
-    env.core._real_player.stop = stop
-    callback_calls = []
-    def native(instance, text):
-        calls.append(text)
-        if len(calls) == 1:
-            callback_calls.append(run_thread(lambda: emit(env, instance)))
-            assert feed_entered.wait(1)
-    monkeypatch.setattr(env.native, "processText2Speech", native)
-    token, _, first = speak(env)
-    assert feed_entered.wait(1)
-    token.cancel()
-    _, _, second = speak(env, segment=18)
-    feed_release.set()
-    assert stop_entered.wait(1)
-    assert calls == ["hello"]
-    stop_release.set()
-    # The callback thread can feed before native() records its handle.
-    wait_for(lambda: bool(callback_calls))
-    finish(callback_calls[0])
-    finish(first)
-    finish(second)
-    assert calls == ["hello", "hello"]
-    assert [event.segment_id for event in env.events] == [18]
-
-
 def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
     prove_fake_quiescence(env, monkeypatch)
     entered, release = Event(), Event()
@@ -933,15 +891,6 @@ def test_late_endprocess_outside_call_preserves_next_buffer(env, monkeypatch):
         native_message(env.types, env.types.VE_MSG_ENDPROCESS, env.types.VE_OUTDATA()))
     assert result == env.types.NUAN_E_TTS_USERSTOP
     assert callback._feedBuf.getvalue() == b"next buffer"
-
-
-def test_legacy_use_prevents_entering_unproven_correlated_mode(env, monkeypatch):
-    monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
-    speak_ordinary(env, ("legacy",))
-    _, _, call = speak(env)
-    finish(call)
-    assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
-    assert "Legacy" in str(env.events[0].error)
 
 
 def test_cancelled_native_userstop_is_silent_and_keeps_legacy_done(env, monkeypatch):

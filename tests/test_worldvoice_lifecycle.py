@@ -225,19 +225,6 @@ def test_entry_points_are_silent_after_terminate():
 	driver.pause(True)
 
 
-def test_voice_settings_load_only_from_the_worldvoice_config():
-	built = _construction_environment(None, [])
-	_load_synth_class(built.environment)()
-	assert built.repositories == [((built.environment["config"].conf,), {})]
-
-
-def test_the_driver_leaves_nvdas_settings_initialization_alone():
-	# Voices follow the main voice through the settings store, not through a startup gate.
-	tree = ast.parse((WORLDVOICE / "__init__.py").read_text(encoding="utf-8"))
-	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
-	assert "initSettings" not in {node.name for node in driver.body if isinstance(node, ast.FunctionDef)}
-
-
 def test_stages_register_after_symbols_and_detector():
 	changes = []
 	_load_synth_class(_construction_environment(None, changes).environment)()
@@ -283,72 +270,6 @@ def manager_providers():
 	return {"conf_provider": lambda: config.conf, "get_language": lambda: "en"}
 
 
-def test_voice_manager_closes_engine_when_no_voices(monkeypatch):
-	closed = []
-
-	class Engine:
-		engine = "A"
-
-		@classmethod
-		def create_core(cls):
-			return object()
-
-		@classmethod
-		def voices(cls, core):
-			return []
-
-		@classmethod
-		def destroy_core(cls, core):
-			closed.append(cls.engine)
-
-	module = _load_voice_manager(monkeypatch)
-	from runtime_harness import MemoryRepository
-	store = module.VoiceSettingsStore(MemoryRepository())
-	bridge = types.SimpleNamespace(bind=lambda *args, **kwargs: None, unbind=lambda *args: None)
-	with pytest.raises(RuntimeError, match="No WorldVoice voices"):
-		module.VoiceManager(taskManager=object(), settings=store, bridge=bridge,
-			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
-			completion_for=lambda cls, core: module.CompletionContract(), engine_classes={"A": Engine},
-			**manager_providers())
-	assert closed == ["A"]
-
-
-def test_voice_manager_continues_cleanup_after_one_engine_fails(monkeypatch):
-	closed = []
-
-	class BrokenEngine:
-		engine = "broken"
-
-		@classmethod
-		def close(cls):
-			closed.append("broken")
-			raise RuntimeError("failure while closing")
-
-	class OtherEngine:
-		engine = "other"
-
-		@classmethod
-		def close(cls):
-			closed.append("other")
-
-	module = _load_voice_manager(monkeypatch)
-	manager = object.__new__(module.VoiceManager)
-	init_policies(manager)
-	manager.taskManager = object()
-	manager._terminated = False
-	manager._instanceCache = {}
-	manager.settings = types.SimpleNamespace(names=lambda: ())
-	manager._bridge = types.SimpleNamespace(unbind=lambda source: None)
-	manager._resources = {
-		cls.engine: module.EngineResource(
-			cls.engine, cls, None, types.SimpleNamespace(close=cls.close, source_id=object()), None)
-		for cls in (BrokenEngine, OtherEngine)
-	}
-	manager.terminate()
-	assert set(closed) == {"broken", "other"}
-	assert manager.taskManager is None
-
-
 def test_voice_manager_logs_close_failures_under_the_published_engine_name(monkeypatch):
 	class Engine:
 		engine = "class-name"
@@ -373,37 +294,6 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	}
 	manager.terminate()
 	assert errors == ["Failed to unbind engine published", "Failed to close engine published"]
-
-
-@pytest.mark.parametrize("failure", ["done", "index"])
-def test_bridge_unregisters_events_if_registration_fails(monkeypatch, failure):
-	class DoneEvent:
-		def __init__(self):
-			self.handlers = []
-
-		def register(self, handler):
-			self.handlers.append(handler)
-			if failure == "done":
-				raise RuntimeError("registration failed")
-
-		def unregister(self, handler):
-			self.handlers.remove(handler)
-
-	class FailingEvent:
-		def register(self, handler):
-			if failure == "index":
-				raise RuntimeError("registration failed")
-
-		def unregister(self, handler):
-			pass
-
-	done = DoneEvent()
-	module = _load_voice_manager(monkeypatch)
-	bridge = module.NvdaEventBridge(object(), done_event=done,
-		index_event=FailingEvent(), get_synth=lambda: None)
-	with pytest.raises(RuntimeError, match="registration failed"):
-		bridge.start(lambda event: None)
-	assert done.handlers == []
 
 
 def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkeypatch):

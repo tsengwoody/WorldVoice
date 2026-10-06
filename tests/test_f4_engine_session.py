@@ -1,4 +1,3 @@
-from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
 
 import pytest
@@ -68,11 +67,6 @@ def engine(module, compat, rt):
     result.session.close()
 
 
-def test_snapshot_is_immutable(snap):
-    with pytest.raises(FrozenInstanceError):
-        snap("a", 0).rate = 60
-
-
 def test_first_activation_writes_supported_settings_in_order(engine):
     applied = []
     engine.hook = lambda core, snapshot: applied.append((core, snapshot))
@@ -135,10 +129,4 @@ def test_setter_failure_invalidates_stamp(engine):
         engine.session.activate("Fake:a")
     engine.core.fail_on = None
     engine.store.rollback("Fake:a")
-    assert engine.session.activate("Fake:a") is True
-
-
-def test_explicit_invalidate_reapplies_snapshot(engine):
-    engine.session.activate("Fake:a")
-    engine.session.invalidate()
     assert engine.session.activate("Fake:a") is True

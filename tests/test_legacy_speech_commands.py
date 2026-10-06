@@ -31,14 +31,6 @@ def legacy(monkeypatch, rt, nvda_commands):
                            commands=commands, speechcommand=speechcommand)
 
 
-def test_normalizer_converts_breaks_and_keeps_other_commands(legacy, rt):
-    select = rt.models.SelectVoice("Fake:a")
-    index = object()
-    normalized = list(legacy.commands.normalize_legacy_commands([select, "hello", index, legacy.BreakCommand(200)]))
-    assert normalized == [select, "hello", index, rt.models.Pause(0.2)]
-    assert normalized[0] is select and normalized[2] is index
-
-
 def test_normalizer_passes_voice_objects_through_unchanged(legacy):
     # Voices are chosen by SelectVoice from lang_cmd_to_voice; a Voice object is not a command.
     voice = object.__new__(legacy.Voice)

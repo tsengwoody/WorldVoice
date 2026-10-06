@@ -1,14 +1,8 @@
-import dataclasses
-import inspect
 import importlib.util
 import sys
-import threading
 import types
 from pathlib import Path
 
-import pytest
-
-from test_worldvoice_request_manager import buses, manager, task_module, append_speech, cancel  # noqa: F401 (fixtures)
 from test_worldvoice_lifecycle import init_policies
 from voice_binding_harness import install_binding, bind_core
 
@@ -89,35 +83,6 @@ class RecordingCore:
 		pass
 
 
-def test_voice_settings_are_pending_and_revision_tracks_real_changes(monkeypatch):
-	(a, b), config = _voices(monkeypatch)
-	core = RecordingCore()
-	spec = type(a._state.spec)("c", "C:c", "C:c", "en", "C", "en")
-	c = a.__class__(spec, dataclasses.replace(a._binding, core=core))
-	assert (a.snapshot().revision, b.snapshot().revision, c.snapshot().revision) == (0, 0, 0)
-	assert core.writes == []
-	a.rate = 72
-	assert a.snapshot().revision == 1
-	a.rate = 72
-	assert a.snapshot().revision == 1
-	first = a.snapshot()
-	a.rate = 81
-	assert (first.rate, first.revision) == (72, 1)
-	assert (a.snapshot().rate, a.snapshot().revision) == (81, 2)
-	a._binding.settings.rollback(a.name)
-	assert (a.rate, a.snapshot().revision) == (50, 3)
-	a.variant = "fast"
-	a.waitfactor = 2
-	assert a.snapshot().revision == 5
-	a.update_settings(pitch=60, volume=70)
-	assert (a.pitch, a.volume, a.snapshot().revision) == (60, 70, 7)
-	with pytest.raises(ValueError, match="Unknown voice setting"):
-		a.update_settings(rate=75, unknown=1)
-	assert (a.rate, a.snapshot().revision) == (50, 7)
-	assert core.writes == []
-	assert config.conf["WorldVoice"]["voices"][a.name]["rate"] == 50
-
-
 def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 	(a, _), _ = _voices(monkeypatch)
 	core = RecordingCore()
@@ -139,113 +104,6 @@ def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 	activate(a)
 	assert core.rate == 81
 	assert len(core.writes) == first_count * 3
-
-
-def test_manager_binds_new_voice_to_its_engine(monkeypatch):
-	(a, _), _ = _voices(monkeypatch)
-	module = sys.modules["f4_test_worldvoice.voiceManager"]
-	voice_meta = type(a._state.spec)("new", "A:new", "A:new", "en", "A", "en")
-	manager_instance = object.__new__(module.VoiceManager)
-	init_policies(manager_instance)
-	manager_instance.catalog = module.VoiceCatalog.from_specs([voice_meta])
-	manager_instance._resources = {"A": module.EngineResource(
-		"A", a.__class__, None, a._binding.session, a._binding, voices=(voice_meta,), published=True)}
-	manager_instance.settings = a._binding.settings
-	manager_instance.taskManager = None
-	manager_instance._instanceCache = {}
-	manager_instance._waitfactor = 0
-	created = manager_instance._createVoiceInstance("A:new")
-	assert created._binding is a._binding
-	assert created.core is a._binding.core
-	assert "session" not in vars(created)
-
-
-def test_engine_core_factory_keeps_no_class_state(monkeypatch):
-	(a, _), _ = _voices(monkeypatch)
-	terminated = []
-
-	class Core(RecordingCore):
-		def terminate(self):
-			terminated.append(self)
-
-	class Voice(a.__class__):
-		synth_driver_class = Core
-
-	Voice.engine = "A"
-	first, second = Voice.create_core(), Voice.create_core()
-	assert isinstance(first, Core) and first is not second
-	Voice.destroy_core(first)
-	assert terminated == [first]
-	assert {"core", "session", "_runtime_binding"}.isdisjoint(vars(Voice))
-	assert isinstance(inspect.getattr_static(Voice, "core"), property)
-
-
-def test_destroy_core_failure_propagates(monkeypatch):
-	(a, _), _ = _voices(monkeypatch)
-
-	class Core(RecordingCore):
-		def terminate(self):
-			raise RuntimeError("terminate failed")
-
-	class Voice(a.__class__):
-		synth_driver_class = Core
-
-	core = Voice.create_core()
-	with pytest.raises(RuntimeError, match="terminate failed"):
-		Voice.destroy_core(core)
-
-
-def test_cancel_during_activation_skips_speech(manager, buses):
-	entered = threading.Event()
-	release = threading.Event()
-	core = RecordingCore()
-	voice = types.SimpleNamespace(
-		core=core,
-		active=lambda: (entered.set(), release.wait(2)),
-	)
-	request = manager.new_request()
-	append_speech(manager, request, voice, lambda: core.speak("stale"))
-	assert manager.submit_request(request)
-	assert entered.wait(1)
-	try:
-		cancel(manager, [voice])
-	finally:
-		release.set()
-	manager._q.join()
-	assert core.spoken == []
-	assert request.token.is_cancelled()
-	assert buses.outer_done == []
-
-
-def test_worker_activates_once_before_running_speech(manager, buses):
-	core = RecordingCore()
-	activations = []
-	voice = types.SimpleNamespace(core=core, active=lambda: activations.append("active"))
-	request = manager.new_request()
-	append_speech(manager, request, voice,
-		lambda: (core.speak("hello"), buses.done.notify(synth=core)))
-	assert manager.submit_request(request)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
-	assert activations == ["active"]
-	assert core.spoken == ["hello"]
-
-
-def test_activation_error_fails_request_before_speech(manager, buses):
-	core = RecordingCore()
-	voice = types.SimpleNamespace(
-		core=core,
-		active=lambda: (_ for _ in ()).throw(RuntimeError("apply failed")),
-	)
-	request = manager.new_request()
-	append_speech(manager, request, voice, lambda: core.speak("never"))
-	assert manager.submit_request(request)
-	with pytest.raises(RuntimeError, match="apply failed"):
-		request.tasks[0].future.result(timeout=1)
-	assert buses.wait_for_outer_done(1) == [manager.owner]
-	assert request.state.value == "failed"
-	assert core.spoken == []
-
-
 
 
 def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):

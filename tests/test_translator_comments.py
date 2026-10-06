@@ -28,24 +28,6 @@ def _misplaced_lines(lines):
 	return misplaced
 
 
-def test_scanner_accepts_nvda_multiline_comment_and_rejects_separated_comment():
-	nvda_example = [
-		"self.copySettingsButton = wx.Button(",
-		"	self,",
-		"	label=_(",
-		"		# Translators: The label for a button in general settings to copy",
-		"		# current user settings to system settings.",
-		'		"Use currently saved settings during sign-in and on secure screens"',
-		"	)",
-		")",
-		"# Translators: The name of a category of NVDA commands.",
-		'SCRCAT_TEXTREVIEW = _("Text review")',
-	]
-	assert _misplaced_lines(nvda_example) == []
-	assert _misplaced_lines(["# Translators: Title.", "gui.mainFrame,", 'message=_("Export")']) == [1]
-	assert _misplaced_lines(["# Translators: Dangling at end of file."]) == [1]
-
-
 def test_translator_comments_precede_gettext_calls():
 	misplaced = []
 	for path in sorted(ADDON.rglob("*.py")):

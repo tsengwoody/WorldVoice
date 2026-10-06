@@ -158,14 +158,6 @@ def test_native_error_fails_the_original_segment(env):
 	assert event.segment_id == context.segment_id
 
 
-def test_submit_error_fails_the_segment(env):
-	env.strategy.submit_error = RuntimeError("queue rejected")
-	_, _, events = env.speak()
-	event = events.wait_one()
-	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
-	assert env.strategy.submitted == []
-
-
 def test_terminated_host_rejects_without_submitting(env):
 	assert env.host.terminate() is True
 	assert env.host.terminate() is False

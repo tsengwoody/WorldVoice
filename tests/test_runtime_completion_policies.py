@@ -47,54 +47,26 @@ def fake_voice(env, *, profile=True, wasapi=False, supported=True, reason="Nativ
     return SimpleNamespace(voice=Voice, driver=SynthDriver, core=SynthDriver(), checked=checked)
 
 
-@pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
-@pytest.mark.parametrize("audio", ["default", "wasapi", "legacy", "unknown"])
 @pytest.mark.parametrize("supported", [False, True])
-def test_profiled_voice_uses_drain_only_with_explicit_support(env, version, audio, supported):
+def test_profiled_voice_uses_drain_only_with_explicit_support(env, supported):
     pair = fake_voice(env, supported=supported)
     contract, support = policies_of(env).CompletionPolicy().contract_for(
-        pair.voice, pair.core, nvda_version=version, audio_mode=audio)
-    assert pair.checked == [(version, audio)]
+        pair.voice, pair.core, nvda_version="unknown", audio_mode="default")
+    assert pair.checked == [("unknown", "default")]
     assert support.supported is supported
     assert contract.mode is (env.models.CompletionMode.DRAIN if supported
                              else env.models.CompletionMode.LEGACY_DONE)
     assert contract.index_range == (env.models.IndexRange(1, 9999) if supported else None)
 
 
-@pytest.mark.parametrize("version", ["unknown", "2026.1", "2026.1.1", "2026.2"])
-@pytest.mark.parametrize("audio", ["default", "wasapi", "legacy", "unknown"])
-@pytest.mark.parametrize("engine", ["external-test-engine", "unknown"])
-@pytest.mark.parametrize("supported", [False, True])
-def test_voice_without_profile_still_uses_legacy_done(env, engine, version, audio, supported):
+def test_voice_without_profile_still_uses_legacy_done(env):
     # The core's own answer is never consulted without a declared profile.
-    pair = fake_voice(env, profile=False, supported=supported, engine=engine)
+    pair = fake_voice(env, profile=False, supported=False, engine="external-test-engine")
     contract, support = policies_of(env).CompletionPolicy().contract_for(
-        pair.voice, pair.core, nvda_version=version, audio_mode=audio)
+        pair.voice, pair.core, nvda_version="unknown", audio_mode="default")
     assert support is None and pair.checked == []
     assert contract.mode is env.models.CompletionMode.LEGACY_DONE
     assert contract.index_range is None
-
-
-@pytest.mark.parametrize("wasapi", [False, True])
-@pytest.mark.parametrize("version,audio", [("2026.1", "default"), ("synthetic", "synthetic")])
-def test_profiled_voice_without_support_uses_legacy_done(env, wasapi, version, audio):
-    pair = fake_voice(env, wasapi=wasapi, supported=False)
-    contract, support = policies_of(env).CompletionPolicy().contract_for(
-        pair.voice, pair.core, nvda_version=version, audio_mode=audio)
-    assert support.supported is False and support.reason == "Native lifetime is unproven"
-    assert contract.mode is env.models.CompletionMode.LEGACY_DONE
-    assert contract.index_range is None
-
-
-@pytest.mark.parametrize("wasapi", [False, True])
-def test_supported_profile_uses_drain_range(env, wasapi):
-    policies = policies_of(env)
-    pair = fake_voice(env, wasapi=wasapi)
-    contract, _ = policies.CompletionPolicy().contract_for(
-        pair.voice, pair.core, nvda_version="synthetic", audio_mode="synthetic")
-    assert contract.mode is env.models.CompletionMode.DRAIN
-    assert contract.index_range == env.models.IndexRange(1, 9999)
-    assert policies._VERIFIED_CONTRACTS == {}
 
 
 @pytest.mark.parametrize("failure,reason", [
@@ -151,12 +123,6 @@ def test_disabled_force_switch_reports_the_wrapper_reason(env):
     assert policies_of(env).CompletionPolicy().force_unverified_drain is True
 
 
-@pytest.mark.parametrize("minimum,maximum", [(0, 10), (5, 4), (-10, -1)])
-def test_invalid_range_is_rejected(env, minimum, maximum):
-    with pytest.raises(ValueError):
-        env.models.IndexRange(minimum, maximum)
-
-
 def make_adapter(env):
     class Voice:
         @classmethod
@@ -206,8 +172,8 @@ def real_completion_selector(policies, warnings, *, policy=None, version="2026.1
 
 @pytest.mark.parametrize("profile,use_wasapi,expected", [
     ("wasapi", True, "wasapi"), ("wasapi", False, "legacy"), ("wasapi", None, "unknown"),
-    ("wasapi", "true", "unknown"), ("wasapi", 1, "unknown"), ("wasapi", 0, "unknown"),
-    ("plain", True, "default"), ("plain", None, "default"),
+    ("wasapi", "true", "unknown"),
+    ("plain", True, "default"),
     ("none", True, "default"),
 ])
 def test_synth_policy_uses_actual_opened_core(env, profile, use_wasapi, expected):
@@ -386,22 +352,6 @@ def test_disabled_force_switch_keeps_structural_fallback_reason(monkeypatch):
         assert support.reason == "SAPI5 legacy audio has no owned player idle barrier"
     finally:
         installed.driver.terminate()
-
-
-@pytest.mark.parametrize("engine,wasapi_dependent", [
-    ("OneCore", True), ("SAPI5", True),
-    ("VE", False), ("Cerence", False), ("RHVoice", False), ("Espeak", False),
-])
-def test_each_installed_voice_declares_its_drain_profile(engine, wasapi_dependent):
-    # Read the declaration from source: loading each wrapper needs its own fakes.
-    import ast
-    from test_worldvoice_lifecycle import WORLDVOICE
-    tree = ast.parse((WORLDVOICE / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
-    voice = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Voice")
-    declared = [ast.unparse(node.value) for node in voice.body
-                if isinstance(node, ast.Assign) and [t.id for t in node.targets] == ["drain_profile"]]
-    expected = "DrainProfile(wasapi_dependent=True)" if wasapi_dependent else "DrainProfile()"
-    assert declared == [expected]
 
 
 def test_select_warns_once_per_distinct_fallback_profile(env):

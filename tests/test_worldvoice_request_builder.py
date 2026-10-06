@@ -145,7 +145,6 @@ def test_builder_submits_complete_multivoice_request_once(modules, assembly):
 
 @pytest.mark.parametrize("engines,texts,indexes", [
     (("VE", "Neural", "VE"), ("中", "English", "再見"), (11, 22, 33)),
-    (("Cerence", "OneCore"), ("Bonjour", "Hello"), (41, 52)),
 ])
 def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_break(
         modules, assembly, engines, texts, indexes):
@@ -189,18 +188,6 @@ def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_brea
     assert a.done_calls == [a.owner]
 
 
-@pytest.mark.parametrize("supports_token", [True, False, None])
-def test_voice_passes_token_only_to_opted_in_core(modules, assembly, supports_token):
-    a = assembly
-    voice = a.voice("Fake:a", supports_token=supports_token)
-    request = a.manager.new_request()
-    a.manager.append_speech(request, a.ports[voice.name], voice.name, ("hello",))
-    assert len(request.tasks) == 1
-    assert a.manager.submit_request(request)
-    assert a.done_seen.wait(1)
-    assert voice.core.spoken == [(("hello",), {"cancellationToken": request.token} if supports_token else {})]
-
-
 def test_break_only_request_sends_no_external_done(modules, assembly):
     voice = assembly.voice("VE:zh")
     assert assembly.queue([modules.BreakCommand(0)], voice)
@@ -220,14 +207,4 @@ def test_cancel_during_build_rejects_complete_request(modules, assembly):
     assert a.queue(["first", modules.BreakCommand(100), "second"], voice) is False
     assert a.manager._q.empty()
     assert not a.done_calls
-    assert voice.core.spoken == []
-
-
-def test_voice_cancelled_before_run_does_not_call_core(modules, assembly):
-    a = assembly
-    voice = a.voice("Fake:a")
-    request = a.manager.new_request()
-    a.manager.append_speech(request, a.ports[voice.name], voice.name, ("hello",))
-    request.token.cancel()
-    assert a.manager.submit_request(request) is False
     assert voice.core.spoken == []

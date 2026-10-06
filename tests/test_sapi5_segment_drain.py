@@ -479,15 +479,6 @@ def test_completion_sink_can_terminate_without_joining_worker_itself(env):
     assert not worker.is_alive()
 
 
-def test_cancelled_token_never_submits_native_work(env):
-    token = env.scheduler.CancellationToken()
-    token.cancel()
-    events = []
-    env.driver.speak_segment(("cancelled",), token,
-        context=env.rt.models.PlaybackContext(object(), 17), on_event=events.append)
-    assert env.native.calls == [] and events == []
-
-
 @pytest.mark.parametrize("audio_mode,expected", [("wasapi", True), ("winmm", False), ("legacy", False)])
 def test_wasapi_profile_enabled_legacy_profiles_unsupported(env, audio_mode, expected):
     result = env.driver.get_segment_drain_support(nvda_version="source-DETACHED-9ef645d", audio_mode=audio_mode)

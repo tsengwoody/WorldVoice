@@ -207,21 +207,3 @@ def test_removal_applies_to_pause_between_text_items(monkeypatch):
 	assert result[0] == "Hello"
 	assert type(result[1]).__name__ == "PunctuationBreakCommand"
 	assert result[2] == "World"
-
-
-def test_zero_wait_removes_pause_point_before_an_existing_break(monkeypatch):
-	module, BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0, remove_characters=True))
-	existing_break = BreakCommand(30)
-
-	result = run_punctuation_filters(module, ["Hello.", existing_break, "World"])
-
-	assert result == ["Hello", existing_break, "World"]
-
-
-def test_pause_filter_is_registered_when_wait_is_zero(monkeypatch):
-	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0, remove_characters=True))
-	monkeypatch.setattr(module.speech_dictionary, "install", lambda: None)
-	module.register_stages()
-
-	handler = next(stage.handler for stage in module.STAGES if stage.log_key == "punctuation_wait_factor")
-	assert handler in sys.modules["speech.extensions"].filter_speechSequence.registered

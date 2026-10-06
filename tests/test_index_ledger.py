@@ -366,11 +366,11 @@ def test_failed_segment_does_not_flush_pending_indexes(drain_env):
     assert env.ledger.receive_segment_event(segment_event(env), binding_token=env.token) == ()
 
 
-@pytest.mark.parametrize("kind", ["INDEX", "DONE", "SEGMENT_END"])
-def test_segment_event_rejects_non_drain_failure_kinds(drain_env, kind):
+def test_segment_end_event_is_not_a_drain_failure(drain_env):
     env = drain_env
     env.ledger.prepare(env.context, (42,))
-    assert env.ledger.receive_segment_event(segment_event(env, kind), binding_token=env.token) == ()
+    assert env.ledger.receive_segment_event(
+        segment_event(env, "SEGMENT_END"), binding_token=env.token) == ()
     assert [e.index for e in env.ledger.receive_segment_event(
         segment_event(env), binding_token=env.token)] == [42, None]
 

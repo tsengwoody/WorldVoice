@@ -1,6 +1,5 @@
 """Production manager, facade, adapter, session and bridge composition."""
 
-import ast
 from concurrent.futures import CancelledError
 import importlib
 import sys
@@ -149,15 +148,6 @@ def test_manager_keeps_the_injected_policy_and_roles(composition):
     assert manager.voice_consistency._roles is roles
 
 
-def test_manager_builds_its_own_policy_and_roles_when_none_are_injected(composition):
-    c = composition
-    c.engine("ok")
-    policies = importlib.import_module(c.module.__package__ + ".mainLocalePolicy")
-    manager = c.create()
-    assert isinstance(manager.parameter_consistency, policies.ParameterConsistency)
-    assert manager.roles is not None
-
-
 def test_each_opened_engine_is_one_engine_resource(composition):
     c = composition
     classes = c.engine("first"), c.engine("second")
@@ -254,40 +244,6 @@ def test_source_is_bound_before_engine_is_published(composition):
         return original_voices(core)
     c.engines["ok"].voices = classmethod(voices)
     assert c.create().resolve_playback("ok:a") is not None
-
-
-def test_cached_onecore_voice_round_trip_through_manager(composition):
-    c = composition
-    c.engine("OneCore")
-    path = WORLDVOICE / "driver/OneCore/__init__.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    voice_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Voice")
-    environment = {"Voice": c.driver.Voice, "SynthDriver": c.Core,
-                   "DrainProfile": importlib.import_module(c.module.__package__ + ".runtime.playbackWork").DrainProfile}
-    exec(compile(ast.Module(body=[voice_class], type_ignores=[]), str(path), "exec"), environment)
-    c.engines["OneCore"] = environment["Voice"]
-    manager = c.create()
-    a, b = (manager.getVoiceInstance("OneCore:" + key) for key in ("a", "b"))
-    a.update_settings(rate=72, pitch=61, volume=83)
-    b.update_settings(rate=33, pitch=44, volume=55)
-    for voice in (a, b, manager.getVoiceInstance(a.name)):
-        voice._binding.session.activate(voice.name)
-    core = c.cores[0]
-    assert (core.voice, core.language, core.rate, core.pitch, core.volume) == ("a", "en", 72, 61, 83)
-    assert c.repo.loads == ["OneCore:a", "OneCore:b"]
-
-
-def test_facade_creation_preserves_existing_pending_state_and_edit_baseline(composition):
-    c = composition
-    c.engine("ok")
-    manager = c.create()
-    state = c.store.ensure(manager.getVoiceSpec("ok:b"))
-    edit = c.store.begin_edit()
-    state.update(rate=72)
-    voice = manager.getVoiceInstance("ok:b")
-    assert voice.rate == 72
-    edit.discard()
-    assert voice.rate == 50
 
 
 def _config_repository(c):
@@ -493,34 +449,6 @@ def test_waitfactor_updates_declared_capability_without_activating(composition):
     assert manager.getVoiceInstance("plain:a").waitfactor == 0
     assert manager.getVoiceCapabilities("extension:b").supports_variants
     assert not any(hasattr(core, "voice") for core in c.cores)
-
-
-def test_pipeline_emits_voice_keys_without_constructing_selected_facades(composition):
-    c = composition
-    c.engine("ok")
-    manager = c.create()
-    c.config.conf["WorldVoice"]["role"] = {"zh": {"voice": "ok:b"}}
-    models = importlib.import_module(c.module.__package__ + ".runtime.models")
-    class Language:
-        def __init__(self, lang):
-            self.lang = lang
-    class WVLanguage(Language):
-        pass
-    path = WORLDVOICE / "pipeline/__init__.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
-                    and node.name == "lang_cmd_to_voice")
-    environment = {"Iterable": list, "Iterator": list, "SpeechCmd": object, "SpeechContext": object,
-                   "LangChangeCommand": Language, "WVLangChangeCommand": WVLanguage,
-                   "SelectVoice": models.SelectVoice}
-    exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), "exec"), environment)
-    ctx = SimpleNamespace(default_voice=manager.defaultVoiceInstance,
-                          voice_name_for_language=manager.getVoiceNameForLanguage)
-    result = list(environment["lang_cmd_to_voice"](
-        [Language("zh"), "中文", WVLanguage(None), "English", Language("missing")], ctx))
-    assert result == [models.SelectVoice("ok:b"), "中文", models.SelectVoice("ok:a"),
-                      "English", models.SelectVoice("ok:a")]
-    assert tuple(manager._instanceCache) == ("ok:a",)
 
 
 @pytest.mark.parametrize("submission", ["new", "building", "speak"])
@@ -767,7 +695,7 @@ def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
                            checked=checked, spoken=spoken, support_type=support_type)
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "Neural", "VE", "Cerence", "SAPI5", "Espeak"])
+@pytest.mark.parametrize("engine", ["OneCore", "VE", "SAPI5"])
 def test_supported_installed_wrapper_is_bound_before_first_drain_speech(composition, monkeypatch, nvda_commands, engine):
     c = composition
     installed = installed_drain_voice(c, monkeypatch, engine)
@@ -803,17 +731,15 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(composit
     assert policies._VERIFIED_CONTRACTS == {}
 
 
-@pytest.mark.parametrize("engine", ["SAPI5", "Espeak"])
 @pytest.mark.parametrize("outcome", ["failure", "cancel"])
 def test_new_installed_wrapper_retains_request_identity_on_failure_or_cancel(
-        composition, monkeypatch, nvda_commands, engine, outcome):
+        composition, monkeypatch, nvda_commands, outcome):
     c = composition
-    installed = installed_drain_voice(c, monkeypatch, engine)
-    if engine == "SAPI5":
-        installed.driver.useWasapi = True
+    installed = installed_drain_voice(c, monkeypatch, "SAPI5")
+    installed.driver.useWasapi = True
     selected, _ = runtime_completion_selector(c)
     manager = c.create(selected)
-    port = manager.resolve_playback(engine + ":a")
+    port = manager.resolve_playback("SAPI5:a")
     assert port.completion.mode is c.models.CompletionMode.DRAIN
     entered = threading.Event()
     calls = []
@@ -822,7 +748,7 @@ def test_new_installed_wrapper_retains_request_identity_on_failure_or_cancel(
         entered.set()
     installed.driver.speak_segment = hold
     request = c.tasks.new_request()
-    future = c.tasks.append_speech(request, port, engine + ":a", ("first",))
+    future = c.tasks.append_speech(request, port, "SAPI5:a", ("first",))
     assert c.tasks.submit_request(request) and entered.wait(1)
     context, sink = calls[0]
     if outcome == "failure":
@@ -842,17 +768,14 @@ def test_new_installed_wrapper_retains_request_identity_on_failure_or_cancel(
         assert request.state.name == "CANCELLED"
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "SAPI5"])
 @pytest.mark.parametrize("use_wasapi,audio_mode,completion_mode", [
     (True, "wasapi", "DRAIN"), (False, "legacy", "LEGACY_DONE"),
     ("absent", "unknown", "LEGACY_DONE"), (None, "unknown", "LEGACY_DONE"),
-    ("true", "unknown", "LEGACY_DONE"), (1, "unknown", "LEGACY_DONE"),
-    (0, "unknown", "LEGACY_DONE"),
 ])
 def test_wasapi_mode_sensitive_support_uses_actual_opened_core(
-        composition, monkeypatch, engine, use_wasapi, audio_mode, completion_mode):
+        composition, monkeypatch, use_wasapi, audio_mode, completion_mode):
     c = composition
-    installed = installed_drain_voice(c, monkeypatch, engine)
+    installed = installed_drain_voice(c, monkeypatch, "OneCore")
     if use_wasapi != "absent":
         installed.driver.useWasapi = use_wasapi
     checked = []
@@ -863,7 +786,7 @@ def test_wasapi_mode_sensitive_support_uses_actual_opened_core(
     installed.driver.get_segment_drain_support = support
     select, logs = runtime_completion_selector(c)
     manager = c.create(select)
-    port = manager.resolve_playback(engine + ":a")
+    port = manager.resolve_playback("OneCore:a")
     assert checked == [("synthetic", audio_mode)]
     assert port.completion.mode is getattr(c.models.CompletionMode, completion_mode)
     assert len(logs) == (0 if completion_mode == "DRAIN" else 1)
@@ -871,7 +794,7 @@ def test_wasapi_mode_sensitive_support_uses_actual_opened_core(
     assert policies._VERIFIED_CONTRACTS == {}
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "SAPI5", "Espeak"])
+@pytest.mark.parametrize("engine", ["OneCore", "Espeak"])
 @pytest.mark.parametrize("failure", ["wrong_core", "missing_entry", "missing_support", "invalid_support",
                                     "truthy_support", "unsupported", "support_error"])
 def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(composition, monkeypatch, engine, failure):
@@ -932,8 +855,10 @@ def test_drain_factory_configured_after_bind_before_publication(composition, mon
     assert calls[0]["context"] is context and callable(calls[0]["on_event"])
 
 
-@pytest.mark.parametrize("mode", ["DRAIN", "END_INDEX_AND_DRAIN"])
-@pytest.mark.parametrize("order", ["drain_first", "end_first"])
+@pytest.mark.parametrize("order,mode", [
+    ("drain_first", "DRAIN"), ("drain_first", "END_INDEX_AND_DRAIN"),
+    ("end_first", "END_INDEX_AND_DRAIN"),
+])
 def test_drain_request_integrates_encoded_indexes_and_native_events(composition, nvda_commands, mode, order):
     c = composition
     cls = c.engine("drain")

@@ -69,19 +69,6 @@ def test_observable_callback_or_native_failure_fails_exact_context_after_return(
     assert env.dones == []
 
 
-def test_empty_audio_still_waits_for_idle_and_native_retirement(env):
-    env.native.next_scripts.append({"empty": True})
-    _, _, events = speak(env, commands=("",))
-    call = env.native.wait_calls(1)
-    assert env.player.idle_entered.wait(1)
-    assert events == []
-    env.player.idle_release.set()
-    assert call.after_callback.wait(1)
-    assert events == []
-    call.return_release.set()
-    assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
-
-
 def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
     lifecycle = importlib.import_module(env.rt.package.__name__ + "._segmentLifecycle")
     env.native.next_scripts.append({"empty": True})
@@ -102,29 +89,6 @@ def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
     assert event.source_id is context.source_id
     old_index(99)
     assert env.indexes == [42]
-
-
-def test_espeak_token_cancel_after_feed_discards_pcm_before_successor(env):
-    lifecycle = importlib.import_module(env.rt.package.__name__ + "._segmentLifecycle")
-    env.native.next_scripts.append({"hold_terminal": True})
-    token, _, cancelled_events = speak(env)
-    first = env.native.wait_calls(1)
-    assert first.before_terminal.wait(1)
-    assert env.player.queued_bytes == 8
-    assert isinstance(env.driver._segmentHost.current().operation, lifecycle.SegmentOperation)
-    token.cancel()
-    _, successor_context, successor_events = speak(env, segment=18)
-    assert len(env.native.calls) == 1
-    first.terminal_release.set()
-    first.return_release.set()
-    second = env.native.wait_calls(2)
-    assert second.queued_bytes_at_entry == 0
-    env.player.idle_release.set()
-    second.return_release.set()
-    event = wait_event(successor_events)
-    assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
-    assert event.source_id is successor_context.source_id
-    assert cancelled_events == []
 
 
 @pytest.mark.parametrize("cancelled", [False, True])

@@ -1,11 +1,10 @@
-import builtins
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import FrozenInstanceError
 from threading import Event
 
 import pytest
 
-from runtime_harness import load_runtime, make_spec, rt
+from runtime_harness import make_spec, rt
 
 
 def test_pending_state_is_atomic_and_snapshot_is_immutable(rt):
@@ -147,18 +146,3 @@ def test_runtime_values_are_immutable_and_preserve_event_source(rt):
     assert not capabilities.supports_waitfactor
     assert not capabilities.supports_variants
     assert not capabilities.supports_cancellation_token
-
-
-def test_runtime_import_does_not_load_legacy_or_nvda(monkeypatch):
-    original_import = builtins.__import__
-
-    def guarded_import(name, *args, **kwargs):
-        parts = name.split(".")
-        if parts[0] in {"config", "synthDriverHandler", "logHandler", "languageHandler"} or "driver" in parts:
-            raise AssertionError(f"Runtime imported forbidden dependency: {name}")
-        return original_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", guarded_import)
-    isolated = load_runtime(monkeypatch, "isolated_worldvoice_runtime")
-    spec = isolated.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en")
-    assert isolated.settings.VoiceState(spec, {}).snapshot().rate == 50

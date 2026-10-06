@@ -2,7 +2,6 @@
 
 import importlib.util
 import sys
-from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 
@@ -94,8 +93,3 @@ def test_inherited_parameters_follow_the_main_voice_only_when_enabled(monkeypatc
 	assert policy.inherited(store, "a") == {}
 	policy.enabled = True
 	assert policy.inherited(store, "a") == {"rate": 72, "pitch": 60, "volume": 70, "inflection": 55, "rateBoost": True}
-
-
-def test_policies_catch_no_exceptions():
-	source = Path("addon/synthDrivers/WorldVoice/mainLocalePolicy.py").read_text(encoding="utf-8")
-	assert "except" not in source

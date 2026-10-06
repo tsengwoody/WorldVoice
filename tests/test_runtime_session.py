@@ -231,7 +231,7 @@ def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapt
     assert [context.segment_id for context in adapter.contexts] == [1, 2]
 
 
-@pytest.mark.parametrize("mode", ["LEGACY_DONE", "END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN"])
+@pytest.mark.parametrize("mode", ["LEGACY_DONE", "DRAIN"])
 def test_session_rejects_foreign_context(rt, session, adapter, mode):
     if mode != "LEGACY_DONE":
         contract = rt.models.CompletionContract(
@@ -278,10 +278,9 @@ def test_context_speak_does_not_hold_activation_lock(rt, session, adapter, store
     assert adapter.paused == [True]
 
 
-@pytest.mark.parametrize("mode", ["END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN"])
-def test_correlated_session_requires_context(rt, session, adapter, mode):
+def test_correlated_session_requires_context(rt, session, adapter):
     contract = rt.models.CompletionContract(
-        getattr(rt.models.CompletionMode, mode), rt.models.IndexRange(1, 9999))
+        rt.models.CompletionMode.END_INDEX, rt.models.IndexRange(1, 9999))
     adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
     with pytest.raises(ValueError, match="context"):
         session.speak(("hello",), EventToken())

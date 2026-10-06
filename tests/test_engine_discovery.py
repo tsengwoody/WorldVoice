@@ -76,11 +76,6 @@ def test_failures_are_logged_and_timed(discovery, monkeypatch, tmp_path):
 	assert timings[-1] == "WorldVoice init timing: ready check Broken total"
 
 
-def test_discovery_times_through_the_assembly_helper():
-	source = (WORLDVOICE / "engine/discovery.py").read_text(encoding="utf-8")
-	assert "perf_counter" not in source and "timed(" in source
-
-
 def test_discovery_without_a_logger_reports_through_stdlib_logging(discovery, tmp_path, caplog):
 	root = tmp_path / "internal"
 	(root / "Broken").mkdir(parents=True)
@@ -90,7 +85,3 @@ def test_discovery_without_a_logger_reports_through_stdlib_logging(discovery, tm
 		assert discovery.discover_engine_specs(root, "pkg.driver", tmp_path / "external") == []
 	assert [record.name for record in caplog.records] == [discovery.__name__]
 	assert "Skipping Broken engine candidate: invalid manifest" in caplog.records[0].getMessage()
-
-
-def test_discovery_has_no_null_logger_helper():
-	assert "def _log(" not in (WORLDVOICE / "engine/discovery.py").read_text(encoding="utf-8")
