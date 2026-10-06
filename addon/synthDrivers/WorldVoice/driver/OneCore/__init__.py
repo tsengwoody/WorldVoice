@@ -290,7 +290,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					func(self._ocSpeechToken, ctypes.c_double(value))
 				except Exception:
 					# As on master: a failed setting is logged; speech continues.
-					log.exception("OneCore setting change failed")
+					log.error("OneCore setting change failed", exc_info=True)
 				continue
 			self._speakRecord(record)
 
@@ -322,7 +322,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					try:
 						self._dll.ocSpeech_speak(self._ocSpeechToken, record.native.text)
 					except Exception as error:
-						log.exception("OneCore queued operation failed")
+						log.error("OneCore queued operation failed", exc_info=True)
 						host.record_error(record, error)
 						# Like a failed player open: ordinary speech skips only this
 						# sentence and still completes; a segment fails with its error.
@@ -355,7 +355,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 			try:
 				synthDoneSpeaking.notify(synth=self)
 			except Exception:
-				log.exception("OneCore completion of a skipped sentence failed")
+				log.error("OneCore completion of a skipped sentence failed", exc_info=True)
 
 	def _retireSegmentNative(self, record):
 		# The callback has returned: no further native callback enters this record.
@@ -420,7 +420,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				return
 			host.reach(record, "callback")
 		except Exception as error:
-			log.exception("OneCore segment playback failed")
+			log.error("OneCore segment playback failed", exc_info=True)
 			host.record_error(record, error)
 			if self._player:
 				self._player.stop()
@@ -452,7 +452,7 @@ class SynthDriver(BaseOneCoreSynthDriver):
 					if not self._wasCancelled and not self._segmentTerminated:
 						synthDoneSpeaking.notify(synth=self)
 		except Exception as error:
-			log.exception("OneCore legacy playback failed")
+			log.error("OneCore legacy playback failed", exc_info=True)
 			self._failSegmentControl(error)
 		finally:
 			# The parent can return from an admitted feed after cancel's stop has
@@ -506,13 +506,13 @@ class SynthDriver(BaseOneCoreSynthDriver):
 				try:
 					self._player.stop()
 				except Exception:
-					log.exception("OneCore failed player could not be stopped")
+					log.error("OneCore failed player could not be stopped", exc_info=True)
 			if legacy and not self._segmentTerminated:
 				# Legacy has no failure event; release its speaking wait once.
 				try:
 					synthDoneSpeaking.notify(synth=self)
 				except Exception:
-					log.exception("OneCore legacy failure delivery failed")
+					log.error("OneCore legacy failure delivery failed", exc_info=True)
 		finally:
 			with self._segmentCondition:
 				self._segmentPaused = False
