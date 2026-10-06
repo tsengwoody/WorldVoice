@@ -7,7 +7,13 @@ from threading import Event
 from types import SimpleNamespace
 
 import pytest
-from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
+from runtime_harness import (
+	FakePlayback,
+	RecordingOutput,
+	load_scheduler,
+	tracked_requests,
+	worker_queue_empty,
+)
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
@@ -164,7 +170,7 @@ def test_requests_without_speech_do_not_notify_done(builder, runtime, rt, kind):
 	runtime.manager._q.join()
 	request = runtime.requests[0]
 	assert request.state is runtime.scheduler.RequestState.COMPLETED
-	assert runtime.manager._requests == {}
+	assert tracked_requests(runtime.manager) == {}
 	assert runtime.output.done_count == 0
 	assert runtime.port.spoken == []
 
@@ -200,7 +206,7 @@ def test_whole_request_waits_for_generator_and_trailing_break(builder, runtime, 
 		yield "A"
 		yield 11
 		yield rt.models.SelectVoice("missing:x")
-		assert manager._q.empty()
+		assert worker_queue_empty(manager)
 		assert port.spoken == []
 		yield 999
 		yield rt.models.Pause(1)
@@ -244,11 +250,11 @@ def test_generator_failure_aborts_unsubmitted_request(builder, runtime, rt, flus
 	assert caught.value is error
 	request = runtime.requests[0]
 	assert request.state is runtime.scheduler.RequestState.FAILED
-	assert runtime.manager._requests == {}
+	assert tracked_requests(runtime.manager) == {}
 	assert all(task.future.exception() is error for task in request.tasks)
 	assert bool(request.tasks) is flush_first
 	assert runtime.port.spoken == []
-	assert runtime.manager._q.empty()
+	assert worker_queue_empty(runtime.manager)
 	assert runtime.output.done_count == 0
 
 
@@ -271,7 +277,7 @@ def test_resolver_failure_aborts_request(builder, runtime, rt, initial):
 	assert caught.value is error
 	request = runtime.requests[0]
 	assert request.state is runtime.scheduler.RequestState.FAILED
-	assert runtime.manager._requests == {}
+	assert tracked_requests(runtime.manager) == {}
 	assert all(task.future.exception() is error for task in request.tasks)
 	assert bool(request.tasks) is not initial
 	assert runtime.port.spoken == []
@@ -303,7 +309,7 @@ def test_cancel_during_build_returns_false(builder, runtime, rt, stop, next_comm
 	)
 	request = runtime.requests[0]
 	assert request.state is runtime.scheduler.RequestState.CANCELLED
-	assert runtime.manager._requests == {}
+	assert tracked_requests(runtime.manager) == {}
 	assert all(task.future.cancelled() for task in request.tasks)
 	assert runtime.port.spoken == []
 	assert runtime.output.done_count == 0
@@ -359,7 +365,7 @@ def test_cancellation_between_error_check_and_abort_returns_false(
 	assert builder.queue_speech_sequence(runtime.manager, sequence(), "Fake:a", resolve) is False
 	request = runtime.requests[0]
 	assert request.state is runtime.scheduler.RequestState.CANCELLED
-	assert runtime.manager._requests == {}
+	assert tracked_requests(runtime.manager) == {}
 	assert len(request.tasks) == 2
 	assert all(task.future.cancelled() for task in request.tasks)
 	assert runtime.port.spoken == []

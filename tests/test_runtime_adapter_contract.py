@@ -4,7 +4,12 @@ from concurrent.futures import CancelledError
 from contextlib import nullcontext
 
 import pytest
-from runtime_harness import assemble_adapter_contract, forbid_legacy_runtime_imports, submit_contract_request
+from runtime_harness import (
+	assemble_adapter_contract,
+	forbid_legacy_runtime_imports,
+	submit_contract_request,
+	tracked_requests,
+)
 from waiting import WAIT_TIMEOUT
 
 
@@ -299,7 +304,7 @@ def test_errors_before_core_entry_never_speak(marker_contract, failure):
 		assert request.state is c.scheduler.RequestState.FAILED
 		assert c.output.done_count == 1
 	assert c.core.spoken == []
-	assert c.tasks._requests == {}
+	assert tracked_requests(c.tasks) == {}
 
 
 def test_synchronous_terminal_marker_output_cancel_wins(marker_contract):

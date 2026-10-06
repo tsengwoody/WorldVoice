@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from addon_loader import alias_package
-from runtime_harness import MemoryRepository
+from runtime_harness import MemoryRepository, worker_queue_empty
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 from worldvoice_harness import EventStub
 
@@ -240,6 +240,6 @@ def test_cancel_during_build_rejects_complete_request(modules, assembly):
 
 	a.manager.append_speech = append
 	assert a.queue(["first", modules.BreakCommand(100), "second"], voice) is False
-	assert a.manager._q.empty()
+	assert worker_queue_empty(a.manager)
 	assert not a.done_calls
 	assert voice.core.spoken == []

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from addon_loader import alias_package
+from runtime_harness import accepted_indexes
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
 
 
@@ -322,7 +323,8 @@ def test_cancel_after_completion_acceptance_suppresses_old_done(manager, buses, 
 		assert request.done_sent
 		old_epoch = request.epoch
 		cancel(manager, [voice])
-		assert manager._epoch == old_epoch + 1
+		# Cancel starts a new epoch: requests made after it belong to that epoch.
+		assert manager.new_request().epoch == old_epoch + 1
 	finally:
 		release_delivery.set()
 		buses.before_get_synth = None
@@ -349,8 +351,7 @@ def test_cancel_after_index_acceptance_suppresses_old_index(manager, buses, two_
 	index_thread.start()
 	try:
 		assert accepted.wait(WAIT_TIMEOUT)
-		with manager._state_cond:
-			assert 23 in manager._current_indexes
+		assert 23 in accepted_indexes(manager)
 		old_epoch = request.epoch
 		# Event batches serialize cancellation; direct token cancellation
 		# still exercises the output validity check before delivery.
@@ -360,7 +361,7 @@ def test_cancel_after_index_acceptance_suppresses_old_index(manager, buses, two_
 		buses.before_get_synth = None
 		index_thread.join(1)
 	cancel(manager, [voice])
-	assert manager._epoch == old_epoch + 1
+	assert manager.new_request().epoch == old_epoch + 1
 	assert not index_thread.is_alive()
 	assert buses.outer_indexes == []
 

@@ -4,7 +4,7 @@ from concurrent.futures import CancelledError
 from threading import Event, Thread
 
 import pytest
-from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
+from runtime_harness import FakePlayback, RecordingOutput, load_scheduler, worker_alive
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
@@ -407,7 +407,7 @@ def test_boundary_errors_do_not_leave_waits_or_kill_worker(manager, rt, output, 
 	_, following = start(manager, other)
 	emit(manager, rt, other)
 	assert following.result(WAIT_TIMEOUT) is True
-	assert manager._thread.is_alive()
+	assert worker_alive(manager)
 
 
 def test_marker_pause_cancel_current_and_future_callback(manager, rt, output):

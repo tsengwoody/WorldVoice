@@ -5,7 +5,7 @@ from concurrent.futures import CancelledError
 from threading import Event, Lock, Thread
 
 import pytest
-from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
+from runtime_harness import FakePlayback, RecordingOutput, load_scheduler, tracked_requests, worker_alive
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
 
 
@@ -149,7 +149,7 @@ def test_non_speech_request_completes_without_output(manager, output, scheduler,
 	assert manager.submit_request(request)
 	manager._q.join()
 	assert request.state is scheduler.RequestState.COMPLETED
-	assert request.request_id not in manager._requests
+	assert request.request_id not in tracked_requests(manager)
 	assert output.done_count == 0
 
 
@@ -206,7 +206,7 @@ def test_abort_building_releases_tracking_and_futures(manager, port, scheduler, 
 	error = ValueError("build failed")
 	manager.abort_request(request, error)
 	assert request.state is scheduler.RequestState.FAILED
-	assert request.request_id not in manager._requests
+	assert request.request_id not in tracked_requests(manager)
 	assert request.token.is_cancelled()
 	assert all(future.exception(WAIT_TIMEOUT) is error for future in futures)
 	manager.abort_request(request, RuntimeError())
@@ -602,7 +602,7 @@ def test_submit_token_cancelled_building_request_releases_tracking_and_futures(
 	request.token.cancel()
 	assert manager.submit_request(request) is False
 	assert request.state is scheduler.RequestState.CANCELLED
-	assert request.request_id not in manager._requests
+	assert request.request_id not in tracked_requests(manager)
 	assert request.remaining == 0
 	assert all(future.cancelled() for future in futures)
 	if with_tasks:
@@ -690,7 +690,7 @@ def test_public_cancel_racing_settlement_keeps_worker_alive(
 		assert manager.submit_request(following)
 		release.set()
 		assert next_future.result(WAIT_TIMEOUT) is True
-		assert manager._thread.is_alive()
+		assert worker_alive(manager)
 		assert first.cancelled()
 		assert tail.done()
 		assert request.remaining == following.remaining == 0
@@ -714,7 +714,7 @@ def test_public_cancel_racing_abort_settles_remaining_futures(manager, monkeypat
 	assert first.cancelled()
 	with pytest.raises(ValueError, match="build failed"):
 		second.result(WAIT_TIMEOUT)
-	assert request.request_id not in manager._requests
+	assert request.request_id not in tracked_requests(manager)
 
 
 @pytest.mark.parametrize("outcome", ["result", "error"])

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from legacy_adapter_harness import Core, legacy_class
-from runtime_harness import FakePlayback, RecordingOutput, load_index_support, load_scheduler
+from runtime_harness import FakePlayback, RecordingOutput, done_signalled, load_index_support, load_scheduler
 from waiting import WAIT_TIMEOUT
 
 CONTRACTS = ("plain", "END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN")
@@ -125,7 +125,7 @@ def test_scheduler_outcome_per_contract(manager, rt, name, scenario):
 		assert future.exception(WAIT_TIMEOUT) is error
 	else:
 		# on_event signals the worker synchronously when the task is ready.
-		assert not manager._current_done_event.is_set()
+		assert not done_signalled(manager)
 		assert not future.done()
 		manager.cancel()
 

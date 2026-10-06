@@ -585,3 +585,35 @@ def load_index_support(monkeypatch, rt, package_name):
 		ledger=importlib.import_module(package_name + ".indexLedger"),
 		commands=importlib.import_module(package_name + "._speechcommand"),
 	)
+
+
+# Named views of runtime internals. Tests check these where no public API shows the fact
+# (a leaked request, an operation never retired, a worker thread that died); each private
+# name is read here only, so renaming it touches this module alone.
+
+
+def tracked_requests(manager):
+	"""The requests the scheduler still tracks; finished, failed and cancelled ones must leave."""
+	with manager._state_cond:
+		return dict(manager._requests)
+
+
+def worker_queue_empty(manager):
+	"""Whether no task waits for the scheduler's worker thread."""
+	return manager._q.empty()
+
+
+def worker_alive(manager):
+	"""Whether the scheduler's worker thread still runs."""
+	return manager._thread.is_alive()
+
+
+def done_signalled(manager):
+	"""Whether the worker was told that its current task finished."""
+	return manager._current_done_event.is_set()
+
+
+def accepted_indexes(manager):
+	"""The indexes the scheduler accepted for its current request."""
+	with manager._state_cond:
+		return set(manager._current_indexes)
