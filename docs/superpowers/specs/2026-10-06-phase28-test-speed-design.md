@@ -39,7 +39,14 @@
 
 ## 實作備註
 
-- `pytest tests --cov`：TOTAL 95%（7792 行／274 未覆蓋；2228 分支／202 部分），峰值 **329 MB**（原 1898 MB），時間不變。
-- 兩個 1 秒的測試降到 0.2 秒以下；兩個掃描守門合計 0.82 → 0.65 秒。全套 45.0 → 42.9 秒（不開 coverage）。
-- 壓力測試 3 個 worker × 3 輪（9 輪全套，開 coverage）全部通過，期間最低可用記憶體 11.7 GB。
+- `pytest tests --cov`：TOTAL 95%（7793 行／276 未覆蓋；2228 分支／203 部分），峰值 **333 MB**（原 1898 MB），時間不變。
+- 全套（不開 coverage）45.0 → **41.0 秒**，峰值 297 MB。兩個 1 秒的測試降到 0.2 秒以下。
+- 壓力測試 3 個 worker × 3 輪（9 輪全套，開 coverage）全部通過，期間最低可用記憶體 11.7 GB；審查另以每個相關測試 400 次（最多 3 個 pytest 行程）驗證 `DELIVERY_JOIN_TIMEOUT` 的兩個測試。
 - setup（約 21 秒，模組重載）依設計保留；`pytest-xdist` 依使用者決定不加。
+
+### 審查（Opus 5.5）後的修正
+
+- 兩個掃描守門原本以模組層 `functools.cache` 共用 parse 結果，116 個檔案的 AST（約 53 MB、約 20 萬個受 GC 追蹤的節點）留到 session 結束，全套反而慢約 1.3 秒、多約 55 MB。改為 module 範圍的 fixture，該測試檔跑完即釋放。
+- pyproject 註解的版本更正為「Python 3.14+」（coverage 7.16.2 `SYSMON_DEFAULT` 只在 3.14 以上）。
+- `[tool.coverage.report] include_namespace_packages = true`：`addon/` 與其頂層資料夾沒有 `__init__.py`，原本沒被任何測試 import 的模組會從報表消失而不是顯示 0%；`generics/speechSymbols/views.py`（wx 符號編輯器，功能可能移除）改為明列在 omit。
+- `test_segment_host.py` 改用 fixture 既有的 `env.module` 設定常數。

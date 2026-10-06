@@ -1,7 +1,6 @@
 """Hygiene rules that ruff alone does not express."""
 
 import ast
-import functools
 import re
 import shutil
 import subprocess
@@ -140,18 +139,18 @@ def test_blind_except_reasons_match_their_handlers():
 	assert wrong == []
 
 
-@functools.cache
-def _test_sources():
-	# Both scans below walk every test file; parse each once per run.
+@pytest.fixture(scope="module")
+def test_sources():
+	# Both scans below walk every test file: parse them once, and let the trees go with this module.
 	return tuple(
 		(path, ast.parse(path.read_text(encoding="utf-8"))) for path in (ROOT / "tests").glob("*.py")
 	)
 
 
-def test_only_the_addon_loader_loads_modules_from_files():
+def test_only_the_addon_loader_loads_modules_from_files(test_sources):
 	# Tests load add-on files through tests/addon_loader.py, so the loading steps have one copy.
 	loaders = []
-	for path, tree in _test_sources():
+	for path, tree in test_sources:
 		if path.name == "addon_loader.py":
 			continue
 		for node in ast.walk(tree):
@@ -161,11 +160,11 @@ def test_only_the_addon_loader_loads_modules_from_files():
 	assert loaders == []
 
 
-def test_no_test_module_imports_another():
+def test_no_test_module_imports_another(test_sources):
 	# Shared helpers live in harness modules and fixtures in conftest.py; pytest collects test
 	# modules, so a helper kept in one is hard to find and is loaded under two names.
 	imports = []
-	for path, tree in _test_sources():
+	for path, tree in test_sources:
 		for node in ast.walk(tree):
 			if isinstance(node, ast.ImportFrom):
 				names = [node.module or ""]

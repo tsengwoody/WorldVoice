@@ -1,6 +1,5 @@
 """SegmentHost and LeasedPlayer against a fake engine strategy."""
 
-import sys
 from threading import Condition, Event, Thread, get_ident
 from types import SimpleNamespace
 
@@ -244,7 +243,7 @@ def test_sink_can_terminate_without_self_join(env):
 
 
 def test_terminate_does_not_hang_on_a_blocked_sink(env, monkeypatch):
-	monkeypatch.setattr(sys.modules[type(env.host).__module__], "DELIVERY_JOIN_TIMEOUT", 0.05)
+	monkeypatch.setattr(env.module, "DELIVERY_JOIN_TIMEOUT", 0.05)
 	entered, release = Event(), Event()
 
 	def sink(event):

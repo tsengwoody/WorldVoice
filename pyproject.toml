@@ -11,7 +11,7 @@ test = [
 ]
 
 [tool.coverage.run]
-# coverage's default core on Python 3.12+ is sys.monitoring; with tests that reload the add-on's
+# coverage's default core on Python 3.14+ is sys.monitoring; with tests that reload the add-on's
 # modules for every test it peaked near 1.9 GB for one full run, against about 330 MB with the
 # C tracer at the same speed and the same results (measured 2026-10-06, coverage 7.16.2).
 core = "ctrace"
@@ -22,10 +22,15 @@ omit = [
 	"addon/synthDrivers/WorldVoice/driver/*/driver/*",
 	"addon/synthDrivers/WorldVoice/driver/sonic/*",
 	"addon/synthDrivers/WorldVoice/languageDetection/script_data.py",
+	# The wx speech-symbol editor, untested on purpose: the feature may be removed.
+	"addon/generics/speechSymbols/views.py",
 ]
 
 [tool.coverage.report]
 skip_empty = true
+# addon/ and its top-level folders have no __init__.py; without this a module no test imports
+# would be left out of the report instead of showing 0%.
+include_namespace_packages = true
 
 [tool.ruff]
 # Matches the ruff-pre-commit rev in .pre-commit-config.yaml and NVDA's lint group (ref/nvda/pyproject.toml).
