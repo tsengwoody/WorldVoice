@@ -4,7 +4,7 @@ from threading import Barrier, Event, Thread
 
 import pytest
 from runtime_harness import load_scheduler
-from waiting import stays_unset
+from waiting import WAIT_TIMEOUT, stays_unset
 
 
 @pytest.fixture
@@ -37,13 +37,13 @@ class ThreadCall:
 
 		self.thread = Thread(target=run, daemon=True)
 		self.thread.start()
-		assert self.started.wait(1)
+		assert self.started.wait(WAIT_TIMEOUT)
 
 	def assert_blocked(self):
 		stays_unset(self.done, message=self.error)
 
 	def finish(self):
-		assert self.done.wait(1), "Lifecycle operation did not retire"
+		assert self.done.wait(WAIT_TIMEOUT), "Lifecycle operation did not retire"
 		self.thread.join(1)
 		if self.error is not None:
 			raise self.error
@@ -153,12 +153,12 @@ def test_concurrent_terminal_calls_notify_only_once(work_env):
 	start = Barrier(3)
 
 	def terminate(operation):
-		start.wait(1)
+		start.wait(WAIT_TIMEOUT)
 		return operation()
 
 	first = ThreadCall(lambda: terminate(work.complete_drained))
 	second = ThreadCall(lambda: terminate(lambda: work.fail(RuntimeError("fault"))))
-	start.wait(1)
+	start.wait(WAIT_TIMEOUT)
 	assert sorted((first.finish(), second.finish())) == [False, True]
 	assert len(events) == 1
 
@@ -174,7 +174,7 @@ def test_direct_cancel_notifies_owner_after_releasing_the_work_lock(work_env):
 	)
 	finished = Event()
 	Thread(target=lambda: (work.cancel(), finished.set()), daemon=True).start()
-	assert finished.wait(1), "on_cancel ran while the work lock was held"
+	assert finished.wait(WAIT_TIMEOUT), "on_cancel ran while the work lock was held"
 	assert seen == [False]
 	assert events == []
 
@@ -192,6 +192,6 @@ def test_terminal_event_notifies_owner_after_releasing_the_work_lock(work_env, f
 	finished = Event()
 	action = (lambda: work.fail(RuntimeError("failed"))) if finish == "fail" else work.complete_drained
 	Thread(target=lambda: (action(), finished.set()), daemon=True).start()
-	assert finished.wait(1), "on_cancel ran while the work lock was held"
+	assert finished.wait(WAIT_TIMEOUT), "on_cancel ran while the work lock was held"
 	assert seen == [False]
 	assert len(events) == 1

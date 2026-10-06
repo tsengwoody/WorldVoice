@@ -4,6 +4,7 @@ from threading import Event
 
 import pytest
 from runtime_harness import MemoryRepository, make_spec
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
 @pytest.fixture
@@ -88,7 +89,7 @@ def test_edit_during_save_preserves_new_pending_value(store, repo):
 
 	def before_save(spec, values):
 		saving.set()
-		assert finish_save.wait(2)
+		assert finish_save.wait(HOLD_TIMEOUT)
 
 	def edit_while_saving():
 		state.update(rate=81)
@@ -100,11 +101,11 @@ def test_edit_during_save_preserves_new_pending_value(store, repo):
 	with ThreadPoolExecutor(max_workers=2) as executor:
 		apply = executor.submit(edit.apply)
 		try:
-			assert saving.wait(2)
-			executor.submit(edit_while_saving).result(timeout=2)
+			assert saving.wait(WAIT_TIMEOUT)
+			executor.submit(edit_while_saving).result(timeout=WAIT_TIMEOUT)
 		finally:
 			finish_save.set()
-		apply.result(timeout=2)
+		apply.result(timeout=WAIT_TIMEOUT)
 	assert state.get("rate") == 81
 	assert state.baseline("rate") == 72
 	assert repo.values["Fake:a"]["rate"] == 72
@@ -220,16 +221,16 @@ def test_no_thread_sees_a_state_before_it_inherits(store, repo):
 
 	def inherit(spec):
 		entered.set()
-		assert release.wait(1)
+		assert release.wait(HOLD_TIMEOUT)
 		return {"rate": 83}
 
 	store.set_inheritance(inherit)
 	with ThreadPoolExecutor(max_workers=2) as executor:
 		first = executor.submit(store.ensure, make_spec())
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		second = executor.submit(store.ensure, make_spec())
 		assert not second.done()
 		release.set()
-		assert first.result(1) is second.result(1)
+		assert first.result(WAIT_TIMEOUT) is second.result(WAIT_TIMEOUT)
 	assert second.result().get("rate") == 83
 	assert repo.loads == ["Fake:a"]

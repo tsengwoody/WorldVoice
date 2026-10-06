@@ -4,7 +4,7 @@ from concurrent.futures import TimeoutError
 
 import pytest
 from runtime_drain_integration_harness import ENGINES, assemble
-from waiting import stays_unset
+from waiting import WAIT_TIMEOUT, stays_unset
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def test_wrapper_index_precedes_audio_drain_and_request_done(composition, engine
 	assert control.player.fed
 	barrier.release.set()
 	c.wait_done()
-	assert request.tasks[0].future.result(timeout=1) is True
+	assert request.tasks[0].future.result(timeout=WAIT_TIMEOUT) is True
 	assert [kind for kind, _ in c.output.timeline] == ["index", "drain", "done"]
 
 
@@ -133,14 +133,14 @@ def test_pause_resume_holds_request_after_actual_idle_returns(composition, engin
 	barrier = control.tail()
 	c.tasks.pause_current(True)
 	barrier.release.set()
-	assert barrier.returned.wait(1)
+	assert barrier.returned.wait(WAIT_TIMEOUT)
 	with pytest.raises(TimeoutError):
 		request.tasks[0].future.result(timeout=0.03)
 	assert c.output.dones == []
 	assert c.output.drains == []
 	c.tasks.pause_current(False)
 	c.wait_done()
-	assert request.tasks[0].future.result(timeout=1) is True
+	assert request.tasks[0].future.result(timeout=WAIT_TIMEOUT) is True
 	assert len(c.output.dones) == 1
 
 
@@ -152,7 +152,7 @@ def test_cancel_and_stale_sink_cannot_release_new_same_source_segment(compositio
 	control.wait_call()
 	control.feed_release.clear()
 	control.complete_native()
-	assert control.feed_entered.wait(1)
+	assert control.feed_entered.wait(WAIT_TIMEOUT)
 	old_context, old_sink = control.contexts[0], control.sinks[0]
 	c.tasks.cancel(c.manager.playback_ports)
 	fresh = c.submit(("fresh", c.commands.IndexCommand(22)), engine)
@@ -235,7 +235,7 @@ def test_old_sink_is_revoked_across_unbind_rebind(composition):
 	barrier = control.tail(2, idle_number=2)
 	assert not fresh.tasks[0].future.done()
 	barrier.release.set()
-	assert barrier.returned.wait(1)
+	assert barrier.returned.wait(WAIT_TIMEOUT)
 	live(
 		c.rt.models.PlaybackEvent(
 			c.rt.models.EventKind.SEGMENT_DRAINED,
@@ -360,7 +360,7 @@ def test_blank_index_only_and_break_only_finish_via_drain(composition, engine, c
 	barrier.release.set()
 	c.wait_done()
 	assert len(c.output.drains) == 1
-	assert request.tasks[0].future.result(timeout=1) is True
+	assert request.tasks[0].future.result(timeout=WAIT_TIMEOUT) is True
 
 
 @pytest.mark.parametrize("engine", ENGINES)

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import alias_package
 from runtime_harness import RUNTIME, forbid_legacy_runtime_imports
+from waiting import WAIT_TIMEOUT
 
 
 @pytest.fixture
@@ -255,7 +256,7 @@ def test_close_releases_sources_after_unlocking(env):
 			thread = Thread(target=callback, daemon=True)
 			threads.append(thread)
 			thread.start()
-			callback_blocked.append(not callback_finished.wait(1))
+			callback_blocked.append(not callback_finished.wait(WAIT_TIMEOUT))
 
 	source = Source()
 	source_id = object()

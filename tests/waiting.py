@@ -6,6 +6,10 @@ from time import monotonic
 # Positive waits return as soon as their condition holds, so a generous limit costs nothing
 # and keeps a slow machine (coverage, parallel runs) from failing them.
 WAIT_TIMEOUT = 3.0
+# A fake that holds a worker until the test releases it waits longer than any positive wait,
+# so a test asserting that work finishes while the hold is in place cannot pass because the
+# hold expired first.
+HOLD_TIMEOUT = 2 * WAIT_TIMEOUT
 # Negative checks watch this long for something that must not happen; they can only miss.
 QUIET_PERIOD = 0.05
 

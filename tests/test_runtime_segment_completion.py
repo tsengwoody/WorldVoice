@@ -5,6 +5,7 @@ from threading import Event, Thread
 
 import pytest
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
 @pytest.fixture
@@ -39,7 +40,7 @@ def start(manager, port, next_port=None):
 	if next_port is not None:
 		manager.append_speech(request, next_port, "Fake:b", ("next",))
 	assert manager.submit_request(request)
-	assert port.entered.wait(1)
+	assert port.entered.wait(WAIT_TIMEOUT)
 	assert port.contexts[-1] is not None
 	return request, future
 
@@ -74,7 +75,7 @@ def test_same_source_late_events_do_not_finish_next_segment(manager, rt, output)
 	assert not future_b.done()
 	assert output.indexes == []
 	emit(manager, rt, port)
-	assert future_b.result(1) is True
+	assert future_b.result(WAIT_TIMEOUT) is True
 
 
 def test_duplicate_end_cannot_advance_next_task(manager, rt):
@@ -83,11 +84,11 @@ def test_duplicate_end_cannot_advance_next_task(manager, rt):
 	request, _ = start(manager, port, second)
 	old = make_event(rt, port)
 	manager.on_event(old)
-	assert second.entered.wait(1)
+	assert second.entered.wait(WAIT_TIMEOUT)
 	manager.on_event(old)
 	assert not request.tasks[1].future.done()
 	emit(manager, rt, second)
-	assert request.tasks[1].future.result(1) is True
+	assert request.tasks[1].future.result(WAIT_TIMEOUT) is True
 
 
 def test_end_then_speak_error_is_failure(manager, rt, scheduler, output):
@@ -102,7 +103,7 @@ def test_end_then_speak_error_is_failure(manager, rt, scheduler, output):
 	request, first = start(manager, port, second)
 	assert first.exception(1) is error
 	with pytest.raises(CancelledError):
-		request.tasks[1].future.result(1)
+		request.tasks[1].future.result(WAIT_TIMEOUT)
 	assert request.state is scheduler.RequestState.FAILED
 	assert not second.entered.is_set()
 	assert output.wait_done() == 1
@@ -115,17 +116,17 @@ def test_end_waits_for_speak_return(manager, rt):
 	def speak():
 		emit(manager, rt, port)
 		ended.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	port.on_speak = speak
 	try:
 		_, first = start(manager, port, next_port)
-		assert ended.wait(1)
+		assert ended.wait(WAIT_TIMEOUT)
 		assert not first.done()
 		assert not next_port.entered.is_set()
 	finally:
 		release.set()
-	assert next_port.entered.wait(1)
+	assert next_port.entered.wait(WAIT_TIMEOUT)
 	emit(manager, rt, next_port)
 
 
@@ -150,7 +151,7 @@ def test_drain_rejects_wrong_source_and_segment(manager, rt):
 	manager.on_event(rt.models.PlaybackEvent(rt.models.EventKind.SEGMENT_DRAINED, port.source_id))
 	assert not future.done()
 	emit(manager, rt, port, "SEGMENT_DRAINED")
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 
 
 def test_duplicate_drain_cannot_advance_next_segment(manager, rt, output):
@@ -166,13 +167,13 @@ def test_duplicate_drain_cannot_advance_next_segment(manager, rt, output):
 			make_event(rt, port, "INDEX", index=456),
 		),
 	)
-	assert first.result(1) is True
-	assert second.entered.wait(1)
+	assert first.result(WAIT_TIMEOUT) is True
+	assert second.entered.wait(WAIT_TIMEOUT)
 	manager.on_events(lambda: (old, make_event(rt, port, "INDEX", index=789)))
 	assert not request.tasks[1].future.done()
 	assert output.indexes == [123]
 	emit(manager, rt, second, "SEGMENT_DRAINED")
-	assert request.tasks[1].future.result(1) is True
+	assert request.tasks[1].future.result(WAIT_TIMEOUT) is True
 
 
 def test_drain_waits_for_speak_return_and_rejects_late_index(manager, rt, output):
@@ -182,20 +183,20 @@ def test_drain_waits_for_speak_return_and_rejects_late_index(manager, rt, output
 	def speak():
 		emit(manager, rt, port, "SEGMENT_DRAINED")
 		drained.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	port.on_speak = speak
 	try:
 		_, future = start(manager, port, second)
-		assert drained.wait(1)
+		assert drained.wait(WAIT_TIMEOUT)
 		emit(manager, rt, port, "INDEX", index=123)
 		assert output.indexes == []
 		assert not future.done()
 		assert not second.entered.is_set()
 	finally:
 		release.set()
-	assert future.result(1) is True
-	assert second.entered.wait(1)
+	assert future.result(WAIT_TIMEOUT) is True
+	assert second.entered.wait(WAIT_TIMEOUT)
 	emit(manager, rt, second, "SEGMENT_DRAINED")
 
 
@@ -217,7 +218,7 @@ def test_drain_does_not_override_failure_or_cancellation(manager, rt, scheduler,
 	request, future = start(manager, port, second)
 	if outcome == "cancel":
 		with pytest.raises(CancelledError):
-			future.result(1)
+			future.result(WAIT_TIMEOUT)
 		assert request.state is scheduler.RequestState.CANCELLED
 		assert output.done_count == 0
 	else:
@@ -225,7 +226,7 @@ def test_drain_does_not_override_failure_or_cancellation(manager, rt, scheduler,
 		assert request.state is scheduler.RequestState.FAILED
 		assert output.wait_done() == 1
 	with pytest.raises(CancelledError):
-		request.tasks[1].future.result(1)
+		request.tasks[1].future.result(WAIT_TIMEOUT)
 	assert not second.entered.is_set()
 
 
@@ -246,7 +247,7 @@ def test_end_and_drain_require_same_segment(manager, rt, first, second):
 	emit(manager, rt, port, second, context=wrong)
 	assert not future.done()
 	emit(manager, rt, port, second)
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 
 
 def test_index_delivery_precedes_terminal_batch(manager, rt, output):
@@ -257,7 +258,7 @@ def test_index_delivery_precedes_terminal_batch(manager, rt, output):
 
 	def output_index(index):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		original(index)
 
 	output.index_reached = output_index
@@ -270,16 +271,16 @@ def test_index_delivery_precedes_terminal_batch(manager, rt, output):
 	end_thread = Thread(target=terminal)
 	try:
 		index_thread.start()
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		end_thread.start()
-		assert attempted.wait(1)
+		assert attempted.wait(WAIT_TIMEOUT)
 		assert not loaded.is_set()
 		assert not next_port.entered.is_set()
 	finally:
 		release.set()
 		index_thread.join(1)
 		end_thread.join(1)
-	assert next_port.entered.wait(1)
+	assert next_port.entered.wait(WAIT_TIMEOUT)
 	assert loaded.is_set()
 	assert output.indexes == [123]
 	emit(manager, rt, next_port)
@@ -298,7 +299,7 @@ def test_index_callback_cancels_remaining_batch(manager, rt, output):
 		),
 	)
 	with pytest.raises(CancelledError):
-		future.result(1)
+		future.result(WAIT_TIMEOUT)
 	assert output.indexes == [123]
 	assert output.done_count == 0
 
@@ -311,7 +312,7 @@ def test_missing_marker_failure_releases_request_once(manager, rt, scheduler, ou
 	manager.on_events(lambda: (failure, failure))
 	assert future.exception(1) is error
 	with pytest.raises(CancelledError):
-		request.tasks[1].future.result(1)
+		request.tasks[1].future.result(WAIT_TIMEOUT)
 	assert request.state is scheduler.RequestState.FAILED
 	assert request.remaining == 0
 	assert not second.entered.is_set()
@@ -336,7 +337,7 @@ def test_finish_segment_runs_on_all_terminal_paths(manager, rt, outcome):
 		_, future = start(manager, port)
 		if outcome == "success":
 			emit(manager, rt, port)
-			assert future.result(1) is True
+			assert future.result(WAIT_TIMEOUT) is True
 		elif outcome == "cancel":
 			manager.cancel()
 		elif outcome == "future_cancel":
@@ -364,7 +365,7 @@ def test_supplier_output_and_cleanup_are_outside_state_lock(manager, rt, output)
 
 		thread = Thread(target=enter)
 		thread.start()
-		assert acquired.wait(1)
+		assert acquired.wait(WAIT_TIMEOUT)
 		thread.join(1)
 
 	original_finish = port.finish_segment
@@ -377,7 +378,7 @@ def test_supplier_output_and_cleanup_are_outside_state_lock(manager, rt, output)
 		return (make_event(rt, port, "INDEX", index=123), make_event(rt, port))
 
 	manager.on_events(supplier)
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 	assert output.indexes == [123]
 
 
@@ -399,13 +400,13 @@ def test_boundary_errors_do_not_leave_waits_or_kill_worker(manager, rt, output, 
 		port.finish_segment = fail
 		emit(manager, rt, port)
 	if failure_at == "cleanup":
-		assert future.result(1) is True
+		assert future.result(WAIT_TIMEOUT) is True
 	else:
 		assert future.exception(1) is error
 	other = marker(rt)
 	_, following = start(manager, other)
 	emit(manager, rt, other)
-	assert following.result(1) is True
+	assert following.result(WAIT_TIMEOUT) is True
 	assert manager._thread.is_alive()
 
 
@@ -422,16 +423,16 @@ def test_marker_pause_cancel_current_and_future_callback(manager, rt, output):
 	def completed(_):
 		thread = Thread(target=lambda: (manager.new_request(), callback.set()))
 		thread.start()
-		thread.join(1)
+		thread.join(WAIT_TIMEOUT)
 
 	first.add_done_callback(completed)
 	manager.cancel_current()
-	assert other.entered.wait(1)
+	assert other.entered.wait(WAIT_TIMEOUT)
 	assert first.cancelled()
-	assert callback.wait(1)
+	assert callback.wait(WAIT_TIMEOUT)
 	assert port.paused == [True, False]
 	emit(manager, rt, other)
-	assert next_future.result(1) is True
+	assert next_future.result(WAIT_TIMEOUT) is True
 	assert output.wait_done() == 1
 
 
@@ -446,15 +447,15 @@ def test_done_output_error_does_not_kill_worker(manager, rt, output):
 
 	output.done_speaking = fail
 	emit(manager, rt, port)
-	assert first.result(1) is True
-	assert called.wait(1)
+	assert first.result(WAIT_TIMEOUT) is True
+	assert called.wait(WAIT_TIMEOUT)
 	other = marker(rt)
 	request = manager.new_request()
 	future = manager.append_speech(request, other, "Fake:b", ())
 	manager.submit_request(request)
-	assert other.entered.wait(1)
+	assert other.entered.wait(WAIT_TIMEOUT)
 	emit(manager, rt, other)
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 
 
 def test_completion_contract_is_read_once_per_segment(manager, rt):
@@ -464,25 +465,25 @@ def test_completion_contract_is_read_once_per_segment(manager, rt):
 	emit(manager, rt, port)
 	assert not future.done()
 	emit(manager, rt, port, "SEGMENT_DRAINED")
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 
 
 def test_wrong_source_and_starting_phase_reject_segment_events(manager, rt, output):
 	port = marker(rt)
 	active, release = Event(), Event()
-	port.on_activate = lambda: (active.set(), release.wait(2))
+	port.on_activate = lambda: (active.set(), release.wait(HOLD_TIMEOUT))
 	request = manager.new_request()
 	future = manager.append_speech(request, port, "Fake:a", ())
 	try:
 		manager.submit_request(request)
-		assert active.wait(1)
+		assert active.wait(WAIT_TIMEOUT)
 		context = request.tasks[0].context
 		emit(manager, rt, port, context=context)
 		emit(manager, rt, port, "INDEX", context=context, index=1)
 		assert not future.done()
 	finally:
 		release.set()
-	assert port.entered.wait(1)
+	assert port.entered.wait(WAIT_TIMEOUT)
 	wrong_source = rt.models.PlaybackEvent(
 		rt.models.EventKind.SEGMENT_END,
 		object(),
@@ -492,7 +493,7 @@ def test_wrong_source_and_starting_phase_reject_segment_events(manager, rt, outp
 	assert not future.done()
 	assert output.indexes == []
 	emit(manager, rt, port)
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 
 
 def test_reentrant_supplier_is_deferred_until_current_batch_finishes(manager, rt, output):
@@ -521,7 +522,7 @@ def test_reentrant_supplier_is_deferred_until_current_batch_finishes(manager, rt
 			make_event(rt, port, "INDEX", index=124),
 		),
 	)
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 	assert output.indexes == [123, 124]
 	assert sequence == [123, "nested call returned", 124, "decode END"]
 
@@ -551,7 +552,7 @@ def test_reentrant_terminal_supplier_preserves_cancel_and_failure(manager, rt, o
 	)
 	if outcome == "cancel":
 		with pytest.raises(CancelledError):
-			future.result(1)
+			future.result(WAIT_TIMEOUT)
 		assert output.indexes == [123]
 		assert output.done_count == 0
 	else:

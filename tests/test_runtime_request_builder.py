@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
 @pytest.fixture
@@ -188,7 +189,7 @@ def test_whole_request_waits_for_generator_and_trailing_break(builder, runtime, 
 		def wait(seconds):
 			assert seconds == 0.2
 			break_entered.set()
-			assert release_break.wait(2)
+			assert release_break.wait(HOLD_TIMEOUT)
 
 		monkeypatch.setattr(request.token, "wait", wait)
 		return original_submit(request)
@@ -216,7 +217,7 @@ def test_whole_request_waits_for_generator_and_trailing_break(builder, runtime, 
 			"Fake:a",
 			lambda key: None if key == "missing:x" else port,
 		)
-		assert break_entered.wait(1)
+		assert break_entered.wait(WAIT_TIMEOUT)
 		assert runtime.output.indexes == [11, 22]
 		assert runtime.output.done_count == 0
 		assert port.activated == ["Fake:a", "Fake:b"]

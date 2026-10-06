@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from runtime_harness import FakeAdapter, MemoryRepository, make_spec
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 
 @pytest.fixture
@@ -46,17 +47,17 @@ def test_next_activation_reads_latest_state(session, adapter, store):
 
 	def block_apply(spec, snapshot):
 		applying.set()
-		assert finish_apply.wait(2)
+		assert finish_apply.wait(HOLD_TIMEOUT)
 
 	adapter.before_apply = block_apply
 	with ThreadPoolExecutor(max_workers=1) as executor:
 		activation = executor.submit(session.activate, "Fake:a")
 		try:
-			assert applying.wait(2)
+			assert applying.wait(WAIT_TIMEOUT)
 			state.update(rate=72, pitch=63)
 		finally:
 			finish_apply.set()
-		assert activation.result(timeout=2) is True
+		assert activation.result(timeout=WAIT_TIMEOUT) is True
 	adapter.before_apply = None
 	assert session.activate("Fake:a") is True
 	assert [(snap.rate, snap.pitch, snap.revision) for _, snap in adapter.applied] == [
@@ -98,21 +99,21 @@ def test_cancel_can_enter_while_speak_blocks(session, adapter):
 
 	def block_speak(commands, token):
 		speaking.set()
-		assert finish_speak.wait(2)
+		assert finish_speak.wait(HOLD_TIMEOUT)
 
 	adapter.before_speak = block_speak
 	with ThreadPoolExecutor(max_workers=2) as executor:
 		speech = executor.submit(session.speak, commands, token)
 		try:
-			assert speaking.wait(2)
+			assert speaking.wait(WAIT_TIMEOUT)
 			cancellation = executor.submit(session.cancel)
-			assert adapter.cancel_entered.wait(1)
-			cancellation.result(timeout=1)
+			assert adapter.cancel_entered.wait(WAIT_TIMEOUT)
+			cancellation.result(timeout=WAIT_TIMEOUT)
 			assert not speech.done()
 			assert not finish_speak.is_set()
 		finally:
 			finish_speak.set()
-		speech.result(timeout=2)
+		speech.result(timeout=WAIT_TIMEOUT)
 	assert adapter.cancel_count == 1
 	assert adapter.spoken[0][0] is commands
 	assert adapter.spoken[0][1] is token
@@ -124,20 +125,20 @@ def test_pause_can_enter_while_speak_blocks(session, adapter):
 
 	def block_speak(commands, token):
 		speaking.set()
-		assert finish_speak.wait(2)
+		assert finish_speak.wait(HOLD_TIMEOUT)
 
 	adapter.before_speak = block_speak
 	with ThreadPoolExecutor(max_workers=2) as executor:
 		speech = executor.submit(session.speak, ("Hello",), EventToken())
 		try:
-			assert speaking.wait(2)
-			executor.submit(session.pause, True).result(timeout=1)
-			executor.submit(session.pause, False).result(timeout=1)
+			assert speaking.wait(WAIT_TIMEOUT)
+			executor.submit(session.pause, True).result(timeout=WAIT_TIMEOUT)
+			executor.submit(session.pause, False).result(timeout=WAIT_TIMEOUT)
 			assert adapter.paused == [True, False]
 			assert not speech.done()
 		finally:
 			finish_speak.set()
-		speech.result(timeout=2)
+		speech.result(timeout=WAIT_TIMEOUT)
 
 
 @pytest.mark.parametrize("cleanup_fails", [False, True])
@@ -266,21 +267,21 @@ def test_context_speak_does_not_hold_activation_lock(rt, session, adapter, store
 
 	def block(commands, token):
 		speaking.set()
-		assert finish.wait(2)
+		assert finish.wait(HOLD_TIMEOUT)
 
 	adapter.before_speak = block
 	context = rt.models.PlaybackContext(session.source_id, 1)
 	with ThreadPoolExecutor(max_workers=2) as executor:
 		speech = executor.submit(session.speak, ("hello",), EventToken(), context=context)
 		try:
-			assert speaking.wait(1)
-			assert executor.submit(session.activate, "Fake:a").result(timeout=1) is True
-			executor.submit(session.cancel).result(timeout=1)
-			executor.submit(session.pause, True).result(timeout=1)
+			assert speaking.wait(WAIT_TIMEOUT)
+			assert executor.submit(session.activate, "Fake:a").result(timeout=WAIT_TIMEOUT) is True
+			executor.submit(session.cancel).result(timeout=WAIT_TIMEOUT)
+			executor.submit(session.pause, True).result(timeout=WAIT_TIMEOUT)
 			assert not speech.done()
 		finally:
 			finish.set()
-		speech.result(timeout=2)
+		speech.result(timeout=WAIT_TIMEOUT)
 	assert adapter.contexts == [context]
 	assert adapter.cancel_count == 1
 	assert adapter.paused == [True]

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 from legacy_adapter_harness import Core, legacy_class
 from runtime_harness import FakePlayback, RecordingOutput, load_index_support, load_scheduler
+from waiting import WAIT_TIMEOUT
 
 CONTRACTS = ("plain", "END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN")
 
@@ -105,7 +106,7 @@ def test_scheduler_outcome_per_contract(manager, rt, name, scenario):
 	request = manager.new_request()
 	future = manager.append_speech(request, port, "Fake:a", ("hello",))
 	assert manager.submit_request(request)
-	assert port.entered.wait(1)
+	assert port.entered.wait(WAIT_TIMEOUT)
 	task = request.tasks[0]
 	error = OSError("segment failed")
 	for kind, where in SCENARIOS[scenario]:
@@ -119,7 +120,7 @@ def test_scheduler_outcome_per_contract(manager, rt, name, scenario):
 		)
 	expected = OUTCOMES[name][scenario]
 	if expected == "complete":
-		assert future.result(1) is True
+		assert future.result(WAIT_TIMEOUT) is True
 	elif expected == "failed":
 		assert future.exception(1) is error
 	else:
@@ -137,14 +138,14 @@ def test_scheduler_index_after_end_per_contract(manager, rt, name):
 	request = manager.new_request()
 	future = manager.append_speech(request, port, "Fake:a", ("hello",))
 	assert manager.submit_request(request)
-	assert port.entered.wait(1)
+	assert port.entered.wait(WAIT_TIMEOUT)
 	segment = request.tasks[0].segment_id
 	events = rt.models.EventKind
 	manager.on_event(rt.models.PlaybackEvent(events.SEGMENT_END, port.source_id, segment_id=segment))
 	manager.on_event(rt.models.PlaybackEvent(events.INDEX, port.source_id, 7, segment))
 	assert output.indexes == ([] if name == "END_INDEX_AND_DRAIN" else [7])
 	manager.on_event(rt.models.PlaybackEvent(events.SEGMENT_DRAINED, port.source_id, segment_id=segment))
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 
 
 class EntryCore(Core):

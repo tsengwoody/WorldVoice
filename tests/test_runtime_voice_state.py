@@ -4,7 +4,7 @@ from threading import Event
 
 import pytest
 from runtime_harness import make_spec
-from waiting import stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
 
 
 def test_pending_state_is_atomic_and_snapshot_is_immutable(rt):
@@ -87,7 +87,7 @@ def test_snapshot_never_observes_half_a_batch(rt):
 	class BlockingPitch(int):
 		def __ne__(self, other):
 			comparing_pitch.set()
-			assert finish_update.wait(2)
+			assert finish_update.wait(HOLD_TIMEOUT)
 			return super().__ne__(other)
 
 	state = rt.settings.VoiceState(make_spec(), {"pitch": BlockingPitch(50)})
@@ -101,14 +101,14 @@ def test_snapshot_never_observes_half_a_batch(rt):
 	with ThreadPoolExecutor(max_workers=2) as executor:
 		update = executor.submit(state.update, rate=72, pitch=63)
 		try:
-			assert comparing_pitch.wait(2)
+			assert comparing_pitch.wait(WAIT_TIMEOUT)
 			snapshot = executor.submit(read)
-			assert reading.wait(2)
+			assert reading.wait(WAIT_TIMEOUT)
 			stays_unset(read_done)
 		finally:
 			finish_update.set()
-		update.result(timeout=2)
-		result = snapshot.result(timeout=2)
+		update.result(timeout=WAIT_TIMEOUT)
+		result = snapshot.result(timeout=WAIT_TIMEOUT)
 	assert (result.rate, result.pitch, result.revision) == (72, 63, 2)
 
 

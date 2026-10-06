@@ -6,7 +6,7 @@ from threading import Event, Lock, Thread
 
 import pytest
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler
-from waiting import stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
 
 
 @pytest.fixture
@@ -47,14 +47,14 @@ def speech(manager, port):
 	request = manager.new_request()
 	future = manager.append_speech(request, port, "Fake:a", ("hello",))
 	assert manager.submit_request(request)
-	assert port.entered.wait(1)
+	assert port.entered.wait(WAIT_TIMEOUT)
 	return request, future
 
 
 def test_synchronous_done_finishes_once(manager, port, output, rt, scheduler):
 	port.on_speak = lambda: (event(manager, rt, port), event(manager, rt, port))
 	request, future = speech(manager, port)
-	assert future.result(1) is True
+	assert future.result(WAIT_TIMEOUT) is True
 	assert output.wait_done() == 1
 	assert request.state is scheduler.RequestState.COMPLETED
 	assert request.remaining == 0
@@ -71,7 +71,7 @@ def test_synchronous_done_advances_only_after_speak_returns(manager, port, outpu
 	def speak_done():
 		event(manager, rt, port)
 		accepted.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	port.on_speak = speak_done
 	request = manager.new_request()
@@ -79,12 +79,12 @@ def test_synchronous_done_advances_only_after_speak_returns(manager, port, outpu
 	manager.append_speech(request, second, "Fake:b", ("two",))
 	try:
 		assert manager.submit_request(request)
-		assert accepted.wait(1)
+		assert accepted.wait(WAIT_TIMEOUT)
 		assert not first.done()
 		assert not second.entered.is_set()
 	finally:
 		release.set()
-	assert second.entered.wait(1)
+	assert second.entered.wait(WAIT_TIMEOUT)
 	assert output.done_count == 0
 	event(manager, rt, second)
 	event(manager, rt, second)
@@ -127,17 +127,17 @@ def test_trailing_break_delays_completion(manager, port, output, rt):
 	def wait(seconds):
 		assert seconds == 60
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		return False
 
 	request.token.wait = wait
 	try:
 		assert manager.submit_request(request)
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		assert output.done_count == 0
 	finally:
 		release.set()
-	assert future.result(1) is None
+	assert future.result(WAIT_TIMEOUT) is None
 	assert output.wait_done() == 1
 
 
@@ -166,10 +166,10 @@ def test_failure_stops_playback_and_completes_once(manager, port, output, schedu
 	second = manager.append_speech(request, other, "Fake:b", ("two",))
 	assert manager.submit_request(request)
 	with pytest.raises(ValueError, match=failure_at):
-		first.result(1)
+		first.result(WAIT_TIMEOUT)
 	assert output.wait_done() == 1
 	with pytest.raises(CancelledError):
-		second.result(1)
+		second.result(WAIT_TIMEOUT)
 	manager._q.join()
 	assert request.state is scheduler.RequestState.FAILED
 	assert request.token.is_cancelled()
@@ -223,14 +223,14 @@ def test_cancel_between_acceptance_and_output_suppresses_index_and_done(manager,
 
 	def blocked(*args):
 		accepted.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		original(*args)
 
 	setattr(manager, "_deliver_index" if kind == "INDEX" else "_deliver_done", blocked)
 	thread = Thread(target=event, args=(manager, rt, port, kind, 23))
 	try:
 		thread.start()
-		assert accepted.wait(1)
+		assert accepted.wait(WAIT_TIMEOUT)
 		if kind == "INDEX":
 			# Delivery now serializes cancel with the entire event batch.
 			# Direct token cancellation still races the output validity check.
@@ -258,7 +258,7 @@ def test_future_callback_can_cancel_and_submit(manager, port, rt, output):
 		# A second thread must acquire state: an RLock alone cannot hide violations.
 		thread = Thread(target=manager.cancel)
 		thread.start()
-		thread.join(1)
+		thread.join(WAIT_TIMEOUT)
 		assert not thread.is_alive()
 		new = manager.new_request()
 		manager.append_speech(new, other, "Fake:b", ("new",))
@@ -267,9 +267,9 @@ def test_future_callback_can_cancel_and_submit(manager, port, rt, output):
 
 	future.add_done_callback(callback)
 	assert manager.submit_request(request)
-	assert port.entered.wait(1)
+	assert port.entered.wait(WAIT_TIMEOUT)
 	event(manager, rt, port)
-	assert callback_done.wait(1)
+	assert callback_done.wait(WAIT_TIMEOUT)
 	assert output.wait_done() == 1
 
 
@@ -311,7 +311,7 @@ def test_all_concurrent_stops_finish_before_new_speech(manager, port, rt, output
 			index = len(counter)
 			counter.append(index)
 		entered[index].set()
-		assert release[index].wait(2)
+		assert release[index].wait(HOLD_TIMEOUT)
 		exited[index].set()
 
 	port.on_cancel = stop
@@ -320,15 +320,15 @@ def test_all_concurrent_stops_finish_before_new_speech(manager, port, rt, output
 	try:
 		for thread in threads:
 			thread.start()
-		assert all(e.wait(1) for e in entered)
+		assert all(e.wait(WAIT_TIMEOUT) for e in entered)
 		new = manager.new_request()
 		manager.append_speech(new, other, "Fake:b", ())
 		assert manager.submit_request(new)
 		for index in range(stop_count):
 			stays_unset(other.entered)
 			release[index].set()
-			assert exited[index].wait(1)
-		assert other.entered.wait(1)
+			assert exited[index].wait(WAIT_TIMEOUT)
+		assert other.entered.wait(WAIT_TIMEOUT)
 		event(manager, rt, other)
 		assert output.wait_done() == 1
 	finally:
@@ -351,7 +351,7 @@ def test_cancel_wakes_break_token_and_allows_new_request(manager, port):
 	request.token.wait = wait
 	future = manager.append_break(request, 60)
 	assert manager.submit_request(request)
-	assert entered.wait(1)
+	assert entered.wait(WAIT_TIMEOUT)
 	manager.pause_current(True)
 	manager.cancel()
 	speech(manager, port)
@@ -376,33 +376,33 @@ def test_cancel_during_activate_skips_speak_and_stale_events(manager, port, rt, 
 
 	def activate():
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	port.on_activate = activate
 	request = manager.new_request()
 	future = manager.append_speech(request, port, "Fake:a", ("old",))
 	try:
 		assert manager.submit_request(request)
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		manager.cancel([port])
 	finally:
 		release.set()
 	with pytest.raises(CancelledError):
-		future.result(1)
+		future.result(WAIT_TIMEOUT)
 	assert port.spoken == []
 	first, second = FakePlayback(), FakePlayback()
 	new = manager.new_request()
 	manager.append_speech(new, first, "Fake:b", ())
 	manager.append_speech(new, second, "Fake:c", ())
 	assert manager.submit_request(new)
-	assert first.entered.wait(1)
+	assert first.entered.wait(WAIT_TIMEOUT)
 	event(manager, rt, port)
 	event(manager, rt, port, "INDEX", 9)
 	assert not second.entered.is_set()
 	assert not new.tasks[0].future.done()
 	event(manager, rt, first, "INDEX", 12)
 	event(manager, rt, first)
-	assert second.entered.wait(1)
+	assert second.entered.wait(WAIT_TIMEOUT)
 	event(manager, rt, second, "INDEX", 13)
 	event(manager, rt, second)
 	assert output.wait_done() == 1
@@ -414,18 +414,18 @@ def test_cancel_during_speak_stops_again_and_discards_synchronous_done(manager, 
 
 	def speak_done():
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		event(manager, rt, port)
 
 	port.on_speak = speak_done
 	try:
 		_request, future = speech(manager, port)
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		manager.cancel([port])
 	finally:
 		release.set()
 	with pytest.raises(CancelledError):
-		future.result(1)
+		future.result(WAIT_TIMEOUT)
 	manager._q.join()
 	assert port.cancel_count == 2
 	assert output.done_count == 0
@@ -443,7 +443,7 @@ def test_pending_speech_is_cancelled_but_new_request_runs(manager, port, rt):
 	assert old_future.cancelled()
 	assert not queued.entered.is_set()
 	event(manager, rt, new_port)
-	assert new_future.result(1) is True
+	assert new_future.result(WAIT_TIMEOUT) is True
 
 
 def test_cancel_current_preserves_queued_request_and_gates_stop(manager, port, rt, output):
@@ -456,19 +456,19 @@ def test_cancel_current_preserves_queued_request_and_gates_stop(manager, port, r
 
 	def stop():
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 
 	port.on_cancel = stop
 	thread = Thread(target=manager.cancel_current)
 	try:
 		thread.start()
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		stays_unset(other.entered)
 	finally:
 		release.set()
 		thread.join(1)
 		port.on_cancel = None
-	assert other.entered.wait(1)
+	assert other.entered.wait(WAIT_TIMEOUT)
 	assert future.cancelled()
 	event(manager, rt, other)
 	assert output.wait_done() == 1
@@ -495,7 +495,7 @@ def test_direct_playback_stop_does_not_cancel_request(manager, port, rt, output)
 	assert manager.submit_request(request)
 	assert output.wait_done() == 1
 	assert [commands for commands, _ in port.spoken] == [("first",), ("second",)]
-	assert all(future.result(1) is True for future in futures)
+	assert all(future.result(WAIT_TIMEOUT) is True for future in futures)
 	assert not request.token.is_cancelled()
 
 
@@ -505,7 +505,7 @@ def test_token_cancellation_inside_speak_suppresses_done(manager, port, output, 
 	port.on_speak = request.token.cancel
 	assert manager.submit_request(request)
 	with pytest.raises(CancelledError):
-		future.result(1)
+		future.result(WAIT_TIMEOUT)
 	manager._q.join()
 	assert request.state is scheduler.RequestState.CANCELLED
 	assert output.done_count == 0
@@ -524,7 +524,7 @@ def test_engine_calls_and_output_run_outside_state_lock(manager, port, rt, outpu
 		thread = Thread(target=enter)
 		thread.start()
 		try:
-			assert done.wait(1)
+			assert done.wait(WAIT_TIMEOUT)
 			acquired.append(True)
 		finally:
 			thread.join(1)
@@ -548,7 +548,7 @@ def test_abort_and_cancel_building_callbacks_run_outside_state_lock(manager, por
 		def callback(_, completed=completed):
 			thread = Thread(target=lambda: (manager.new_request(), completed.set()))
 			thread.start()
-			thread.join(1)
+			thread.join(WAIT_TIMEOUT)
 
 		future.add_done_callback(callback)
 		operation(request)
@@ -595,7 +595,7 @@ def test_submit_token_cancelled_building_request_releases_tracking_and_futures(
 
 			thread = Thread(target=acquire_state)
 			thread.start()
-			callback_unlocked.append(callback_completed.wait(1))
+			callback_unlocked.append(callback_completed.wait(WAIT_TIMEOUT))
 			thread.join(1)
 
 		futures[0].add_done_callback(callback)
@@ -639,11 +639,11 @@ def test_cancelled_speech_future_does_not_stall_following_tasks(manager, port, r
 	try:
 		assert manager.submit_request(request)
 		if cancel_at == "awaiting_done":
-			assert waiting.wait(1)
+			assert waiting.wait(WAIT_TIMEOUT)
 			assert first.cancel()
 			event(manager, rt, port)
-		assert next_port.entered.wait(1)
-		assert second.result(1) is True
+		assert next_port.entered.wait(WAIT_TIMEOUT)
+		assert second.result(WAIT_TIMEOUT) is True
 		assert output.wait_done() == 1
 		assert first.cancelled()
 		assert request.remaining == 0
@@ -668,7 +668,7 @@ def test_public_cancel_racing_settlement_keeps_worker_alive(
 
 	def settle(value):
 		entered.set()
-		assert release.wait(2)
+		assert release.wait(HOLD_TIMEOUT)
 		setter(value)
 
 	monkeypatch.setattr(first, "set_" + outcome, settle)
@@ -685,11 +685,11 @@ def test_public_cancel_racing_settlement_keeps_worker_alive(
 	next_future = manager.append_speech(following, next_port, "Fake:b", ("next",))
 	try:
 		assert manager.submit_request(request)
-		assert entered.wait(1)
+		assert entered.wait(WAIT_TIMEOUT)
 		assert first.cancel()
 		assert manager.submit_request(following)
 		release.set()
-		assert next_future.result(1) is True
+		assert next_future.result(WAIT_TIMEOUT) is True
 		assert manager._thread.is_alive()
 		assert first.cancelled()
 		assert tail.done()
@@ -713,7 +713,7 @@ def test_public_cancel_racing_abort_settles_remaining_futures(manager, monkeypat
 	manager.abort_request(request, ValueError("build failed"))
 	assert first.cancelled()
 	with pytest.raises(ValueError, match="build failed"):
-		second.result(1)
+		second.result(WAIT_TIMEOUT)
 	assert request.request_id not in manager._requests
 
 
@@ -812,7 +812,7 @@ def test_cancellation_callback_runs_outside_the_token_lock(scheduler):
 	token.add_callback(reentrant)
 	finished = Event()
 	Thread(target=lambda: (token.cancel(), finished.set()), daemon=True).start()
-	assert finished.wait(1), "cancel() deadlocked inside a callback"
+	assert finished.wait(WAIT_TIMEOUT), "cancel() deadlocked inside a callback"
 	assert seen == [True, "nested"]
 
 

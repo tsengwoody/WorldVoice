@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from addon_loader import WORLDVOICE, alias_package, load_source
+from waiting import WAIT_TIMEOUT
 
 if TYPE_CHECKING:
 	from addon.synthDrivers.WorldVoice.runtime.scheduler import SpeechRequest
@@ -57,7 +58,7 @@ class RecordingOutput:
 			self.done_count += 1
 			self.condition.notify_all()
 
-	def wait_done(self, timeout=1, count=1):
+	def wait_done(self, timeout=WAIT_TIMEOUT, count=1):
 		with self.condition:
 			self.condition.wait_for(lambda: self.done_count >= count, timeout)
 			return self.done_count

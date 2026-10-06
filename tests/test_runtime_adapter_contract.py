@@ -5,6 +5,7 @@ from contextlib import nullcontext
 
 import pytest
 from runtime_harness import assemble_adapter_contract, forbid_legacy_runtime_imports, submit_contract_request
+from waiting import WAIT_TIMEOUT
 
 
 @pytest.fixture(params=["native", "legacy"])
@@ -33,7 +34,7 @@ def test_cached_a_b_a_restores_voice_language_and_parameters(contract):
 	c.store.state("Contract:b").update(rate=33, pitch=44, volume=55)
 	# Equal revisions catch a cache incorrectly keyed by revision alone.
 	_, futures = submit(c, "Contract:a", "Contract:b", "Contract:a")
-	assert [future.result(1) for future in futures] == [True, True, True]
+	assert [future.result(WAIT_TIMEOUT) for future in futures] == [True, True, True]
 	assert c.output.wait_done() == 1
 	assert c.core.spoken == [
 		(("Contract:a",), "a", "en", 72, 61, 83),
@@ -56,12 +57,12 @@ def test_apply_rebases_discard_and_next_segment_uses_restored_settings(contract)
 		saved = list(c.repo.saves)
 		state.update(rate=81)
 		_, futures = submit(c, "Contract:a")
-		assert futures[0].result(1) is True
+		assert futures[0].result(WAIT_TIMEOUT) is True
 		assert c.output.wait_done() == 1
 		edit.discard()
 		assert state.get("rate") == 72
 		_, futures = submit(c, "Contract:a")
-		assert futures[0].result(1) is True
+		assert futures[0].result(WAIT_TIMEOUT) is True
 		assert c.output.wait_done(count=2) == 2
 		assert [entry[3] for entry in c.core.spoken] == [81, 72]
 		assert c.repo.saves == saved
@@ -72,7 +73,7 @@ def test_apply_rebases_discard_and_next_segment_uses_restored_settings(contract)
 def test_synchronous_done_completes_once_and_filters_indexes(contract):
 	c = contract
 	request, futures = submit(c, "Contract:a")
-	assert futures[0].result(1) is True
+	assert futures[0].result(WAIT_TIMEOUT) is True
 	assert c.output.wait_done() == 1
 	assert c.output.indexes == [7]
 	assert request.state is c.scheduler.RequestState.COMPLETED
@@ -84,17 +85,17 @@ def test_cancel_suppresses_completion_and_allows_following_request(contract):
 	c = contract
 	c.core.complete_synchronously = False
 	request, futures = submit(c, "Contract:a")
-	assert c.core.entered.wait(1)
+	assert c.core.entered.wait(WAIT_TIMEOUT)
 	c.tasks.cancel([c.session])
 	with pytest.raises(CancelledError):
-		futures[0].result(1)
+		futures[0].result(WAIT_TIMEOUT)
 	assert request.state is c.scheduler.RequestState.CANCELLED
 	assert c.output.done_count == 0
 	assert c.core.cancel_count >= 1
 	assert c.core.tokens[0].is_cancelled()
 	c.core.complete_synchronously = True
 	following, futures = submit(c, "Contract:b")
-	assert futures[0].result(1) is True
+	assert futures[0].result(WAIT_TIMEOUT) is True
 	assert c.output.wait_done() == 1
 	assert following.state is c.scheduler.RequestState.COMPLETED
 	assert [entry[1] for entry in c.core.spoken] == ["a", "b"]
@@ -104,7 +105,7 @@ def test_cancel_suppresses_completion_and_allows_following_request(contract):
 def test_repeated_shutdown_closes_engine_once(contract):
 	c = contract
 	_, futures = submit(c, "Contract:a")
-	assert futures[0].result(1) is True
+	assert futures[0].result(WAIT_TIMEOUT) is True
 	assert c.output.wait_done() == 1
 	c.tasks.shutdown()
 	c.tasks.shutdown()
@@ -137,7 +138,7 @@ def marker_contract(monkeypatch, request):
 
 
 def completed(c, request):
-	assert [task.future.result(1) for task in request.tasks] == [
+	assert [task.future.result(WAIT_TIMEOUT) for task in request.tasks] == [
 		None if task.playback is None else True for task in request.tasks
 	]
 	c.tasks._q.join()
@@ -239,18 +240,18 @@ def test_cancel_a_b_a_rejects_same_source_late_callbacks(marker_contract):
 	c = marker_contract
 	c.core.complete_synchronously = False
 	old = submit_contract_request(c, ["old", c.index_command(123)], default_key="Contract:a")
-	assert c.core.entered.wait(1)
+	assert c.core.entered.wait(WAIT_TIMEOUT)
 	old_marker = c.core.internal_wire_indexes[-1]
 	old_wires = c.core.wire_indexes[:]
 	c.tasks.cancel([c.session])
 	with pytest.raises(CancelledError):
-		old.tasks[0].future.result(1)
+		old.tasks[0].future.result(WAIT_TIMEOUT)
 	assert old.token.is_cancelled()
 	assert c.output.done_count == 0
 	for key in ("Contract:b", "Contract:a"):
 		c.core.entered.clear()
 		current = submit_contract_request(c, ["new"], default_key=key)
-		assert c.core.entered.wait(1)
+		assert c.core.entered.wait(WAIT_TIMEOUT)
 		for wire in [*old_wires, old_marker]:
 			c.core.emit("INDEX", wire)
 		c.core.emit("DONE")
@@ -353,7 +354,7 @@ def test_reentrant_end_preserves_all_indexes_in_accepted_batch(marker_contract):
 		[c.index_command(123), c.index_command(124)],
 		default_key="Contract:a",
 	)
-	assert c.core.entered.wait(1)
+	assert c.core.entered.wait(WAIT_TIMEOUT)
 	original = c.output.index_reached
 	pending_at_output = []
 

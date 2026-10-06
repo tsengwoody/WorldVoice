@@ -12,6 +12,7 @@ from types import ModuleType, SimpleNamespace
 from addon_loader import alias_package
 from onecore_drain_harness import ROOT, in_thread, load_onecore
 from runtime_harness import MemoryRepository, load_runtime, load_scheduler
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 from worldvoice_cancel_wrapper_harness import emit, load_real_driver_with_native_stubs
 from worldvoice_harness import EventStub
 
@@ -51,7 +52,7 @@ class EngineControl:
 
 		def feed(*args, **kwargs):
 			self.feed_entered.set()
-			assert self.feed_release.wait(4), "Audio feed was never released"
+			assert self.feed_release.wait(HOLD_TIMEOUT), "Audio feed was never released"
 			return original_feed(*args, **kwargs)
 
 		def idle():
@@ -61,7 +62,7 @@ class EngineControl:
 				if self.closing:
 					barrier.release.set()
 				self.condition.notify_all()
-			assert barrier.release.wait(4), "Audio idle was never released"
+			assert barrier.release.wait(HOLD_TIMEOUT), "Audio idle was never released"
 			barrier.returned.set()
 
 		original_stop = self.player.stop
@@ -99,7 +100,7 @@ class EngineControl:
 
 			def speak(instance, text):
 				call = self._start(instance, text)
-				assert call.release.wait(4), "Vocalizer native result was never released"
+				assert call.release.wait(HOLD_TIMEOUT), "Vocalizer native result was never released"
 				indexes = [
 					command.index
 					for command in call.commands
@@ -130,14 +131,14 @@ class EngineControl:
 
 	def wait_call(self, number=1):
 		with self.condition:
-			assert self.condition.wait_for(lambda: len(self.calls) >= number, 2), (
+			assert self.condition.wait_for(lambda: len(self.calls) >= number, WAIT_TIMEOUT), (
 				f"{self.engine} native call {number} did not start"
 			)
 			return self.calls[number - 1]
 
 	def wait_idle(self, number=1):
 		with self.condition:
-			assert self.condition.wait_for(lambda: len(self.idles) >= number, 2), (
+			assert self.condition.wait_for(lambda: len(self.idles) >= number, WAIT_TIMEOUT), (
 				f"{self.engine} player idle {number} did not start"
 			)
 			return self.idles[number - 1]
@@ -166,7 +167,7 @@ class EngineControl:
 
 	def wait_contexts(self, count):
 		with self.condition:
-			assert self.condition.wait_for(lambda: len(self.contexts) >= count, 2)
+			assert self.condition.wait_for(lambda: len(self.contexts) >= count, WAIT_TIMEOUT)
 
 	def release_all(self):
 		self.closing = True
@@ -451,7 +452,7 @@ class DrainComposition:
 
 	def wait_done(self, count=1):
 		with self.output.condition:
-			assert self.output.condition.wait_for(lambda: len(self.output.dones) >= count, 2)
+			assert self.output.condition.wait_for(lambda: len(self.output.dones) >= count, WAIT_TIMEOUT)
 
 	def close(self):
 		for control in self.controls.values():
@@ -466,5 +467,5 @@ class DrainComposition:
 		self.ledger.close()
 		for control in self.controls.values():
 			for callback in control.callbacks:
-				assert callback.done.wait(2)
+				assert callback.done.wait(WAIT_TIMEOUT)
 				assert callback.errors == []
