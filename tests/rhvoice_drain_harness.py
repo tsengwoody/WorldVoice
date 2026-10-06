@@ -353,3 +353,17 @@ def finish(env):
 		player.idle_release.set()
 		player.stop_error = None
 	env.driver.terminate()
+
+
+# Named views of wrapper internals that tests check but no public API exposes; each private
+# name is read here only. They return the live object and take no lock, as the tests did.
+
+
+def tracked_segments(driver):
+	"""Native identities the wrapper still maps to their segment records."""
+	return driver._segmentById
+
+
+def tts_thread(driver):
+	"""The inner driver's thread that runs RHVoice_speak."""
+	return driver._SynthDriver__tts_thread

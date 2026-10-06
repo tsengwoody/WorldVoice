@@ -7,7 +7,8 @@ import weakref
 from threading import Event, Thread, current_thread, get_ident
 
 import pytest
-from rhvoice_drain_harness import finish, load_rhvoice, speak
+from rhvoice_drain_harness import finish, load_rhvoice, speak, tracked_segments, tts_thread
+from runtime_harness import accepted_operations, delivery_thread, segment_host, segment_lifecycle
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, quiet_period
 
 
@@ -95,7 +96,7 @@ def test_terminal_sink_can_terminate_outside_native_and_worker_stacks(env):
 	call = env.native.wait_call()
 	assert delivered.wait(WAIT_TIMEOUT)
 	assert threads[0] is not call.thread
-	assert threads[0] is not env.driver._SynthDriver__tts_thread
+	assert threads[0] is not tts_thread(env.driver)
 
 
 @pytest.mark.parametrize("fault", ["native", "result", "feed", "idle"])
@@ -375,7 +376,6 @@ def test_legacy_speak_keeps_inner_settings_snapshot_and_queue(env):
 
 
 def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
-	assert env.driver._segmentHost._lifecycle is not None
 	callback_entered, release_callback = Event(), Event()
 	original_rate = env.driver._SynthDriver__player.set_sample_rate
 	calls = 0
@@ -417,7 +417,6 @@ def test_rhvoice_shared_lifecycle_waits_for_nested_feed_and_final_idle(env):
 
 
 def test_rhvoice_shared_cancel_keeps_old_identity_until_retirement(env):
-	assert env.driver._segmentHost._lifecycle is not None
 	created = Event()
 	original = env.inner.nvwave.WavePlayer
 
@@ -440,7 +439,7 @@ def test_rhvoice_shared_cancel_keeps_old_identity_until_retirement(env):
 	env.native.scripts.append({"auto_return": True})
 	_, _, new_events = speak(env, segment=2, text="new")
 	assert_no_successor_native_call(env)
-	assert original_id in env.driver._segmentById
+	assert original_id in tracked_segments(env.driver)
 	player.feed_release.set()
 	old_call.return_release.set()
 	stopper.join(WAIT_TIMEOUT)
@@ -448,7 +447,7 @@ def test_rhvoice_shared_cancel_keeps_old_identity_until_retirement(env):
 	env.native.wait_call(2)
 	assert new_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert old_events == []
-	assert original_id not in env.driver._segmentById
+	assert original_id not in tracked_segments(env.driver)
 
 
 def test_rhvoice_shared_token_cancel_clears_native_flag_before_successor(env):
@@ -466,7 +465,6 @@ def test_rhvoice_shared_token_cancel_clears_native_flag_before_successor(env):
 
 
 def test_rhvoice_shared_sink_reenters_terminate(env):
-	assert env.driver._segmentHost._lifecycle is not None
 	delivered = Event()
 	errors = []
 
@@ -529,7 +527,7 @@ def test_cancel_invalidates_completion_waiting_for_async_delivery(env, monkeypat
 	stopper = Thread(target=env.driver.cancel)
 	stopper.start()
 	try:
-		eventually(lambda: any(env.driver._segmentHost._accepted.values()))
+		eventually(lambda: any(accepted_operations(segment_host(env.driver)).values()))
 	finally:
 		release_delivery.set()
 	stopper.join(WAIT_TIMEOUT)
@@ -592,7 +590,7 @@ def test_stop_fault_before_deferred_terminal_delivery_fails_closed(env, monkeypa
 	stopper = Thread(target=stop_player)
 	stopper.start()
 	try:
-		eventually(lambda: env.driver._segmentHost.control_error is not None)
+		eventually(lambda: segment_host(env.driver).control_error is not None)
 	finally:
 		release_delivery.set()
 	stopper.join(WAIT_TIMEOUT)
@@ -665,7 +663,7 @@ def test_admitted_late_feed_gets_final_idle_and_index_before_drain(env):
 	env.native.scripts.append({"auto_return": True, "async_callback": late_pcm_and_mark})
 	_, _, events = speak(env)
 	call = env.native.wait_call()
-	speech = env.driver._segmentById[call.user_data]
+	speech = tracked_segments(env.driver)[call.user_data]
 	assert call.done.wait(WAIT_TIMEOUT)
 	player = env.players[0]
 	assert call.returned.wait(WAIT_TIMEOUT)
@@ -719,7 +717,7 @@ def test_admitted_native_mark_can_enter_nested_feed_after_callback_gate_closes(e
 	env.native.scripts.append({"auto_return": True, "async_callback": late_mark})
 	_, _, events = speak(env)
 	call = env.native.wait_call()
-	speech = env.driver._segmentById[call.user_data]
+	speech = tracked_segments(env.driver)[call.user_data]
 	assert call.done.wait(WAIT_TIMEOUT)
 	assert call.returned.wait(WAIT_TIMEOUT)
 	player = env.players[0]
@@ -827,7 +825,7 @@ def test_speak_after_terminate_fails_through_lifecycle_delivery(env):
 	assert events[0].source_id is context.source_id
 	assert events[0].segment_id == 19
 	assert str(events[0].error) == "RHVoice driver has terminated"
-	assert threads == [env.driver._segmentHost._lifecycle._delivery_thread.ident]
+	assert threads == [delivery_thread(segment_lifecycle(segment_host(env.driver))).ident]
 	assert threads[0] != caller
 	assert env.native.calls == []
 
