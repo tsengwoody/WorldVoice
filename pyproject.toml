@@ -89,9 +89,11 @@ combine-as-imports = true
 "addon/synthDrivers/WorldVoice/compat/commands.py" = ["TRY004"]
 "addon/synthDrivers/WorldVoice/compat/engineAdapter.py" = ["TRY004"]
 "addon/synthDrivers/WorldVoice/compat/indexCodec.py" = ["TRY004"]
-# Tests load parts of the add-on that need NVDA by extracting their source with ast and running it
-# through exec against stub namespaces. Phase 24 turns the ones that can be imported into imports.
-"tests/**" = ["S102"]
+# Tests run parts of the add-on that need wx or NVDA by extracting their source with ast and
+# running it through exec against stub namespaces. tests/addon_loader.py (load_definitions) does
+# that for every test but one, which also runs the module-level loop after the driver class.
+"tests/addon_loader.py" = ["S102"]
+"tests/test_worldvoice_pipeline_settings.py" = ["S102"]
 
 [tool.pyright]
 pythonPlatform = "Windows"

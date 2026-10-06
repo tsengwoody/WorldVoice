@@ -141,3 +141,18 @@ def test_blind_except_reasons_match_their_handlers():
 			if expected is not None and match.group(1) != expected:
 				wrong.append(f"{path.relative_to(ROOT)}:{node.lineno}: {match.group(1)!r} != {expected!r}")
 	assert wrong == []
+
+
+def test_only_the_addon_loader_loads_modules_from_files():
+	# Tests load add-on files through tests/addon_loader.py, so the loading steps have one copy.
+	import ast
+
+	loaders = []
+	for path in (ROOT / "tests").glob("*.py"):
+		if path.name == "addon_loader.py":
+			continue
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+			name = getattr(node, "attr", None) or (node.name if isinstance(node, ast.alias) else None)
+			if name == "spec_from_file_location":
+				loaders.append(f"{path.name}:{node.lineno}")
+	assert loaders == []

@@ -87,6 +87,8 @@ def load_synth(monkeypatch, conf):
 		"synthIndexReached": object(),
 		"synthDoneSpeaking": object(),
 	}
+	# Not load_definitions: the module-level loop that adds the pipeline settings to SynthDriver
+	# is a statement with no name, so the selection is by hand.
 	exec(compile(ast.Module(body=wanted, type_ignores=[]), str(SYNTH), "exec"), environment)
 	return environment["SynthDriver"], settings_module
 

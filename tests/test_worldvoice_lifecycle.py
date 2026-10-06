@@ -1,29 +1,18 @@
-import ast
-import importlib.util
+import importlib
 import sys
 import types
-from pathlib import Path
 
 import pytest
-
-WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
+from addon_loader import WORLDVOICE, alias_package, load_definitions, load_source
 
 
 def _load_synth_class(environment):
 	"""Execute the real driver class with NVDA's unavailable services replaced."""
-	tree = ast.parse((WORLDVOICE / "__init__.py").read_text(encoding="utf-8"))
-	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
-	exec(
-		compile(ast.Module(body=[driver], type_ignores=[]), str(WORLDVOICE / "__init__.py"), "exec"),
-		environment,
-	)
-	return environment["SynthDriver"]
+	return load_definitions(WORLDVOICE / "__init__.py", ["SynthDriver"], environment)["SynthDriver"]
 
 
 def _assembly():
-	spec = importlib.util.spec_from_file_location("lifecycle_assembly", WORLDVOICE / "assembly.py")
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
+	module = load_source(None, "lifecycle_assembly", WORLDVOICE / "assembly.py", register=False)
 	return {name: getattr(module, name) for name in ("Teardown", "timed", "patch_attribute")}
 
 
@@ -275,9 +264,7 @@ def _load_voice_manager(monkeypatch):
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
 			monkeypatch.delitem(sys.modules, name)
-	package = types.ModuleType(package_name)
-	package.__path__ = [str(WORLDVOICE)]
-	monkeypatch.setitem(sys.modules, package_name, package)
+	alias_package(monkeypatch, package_name, WORLDVOICE)
 	config = types.SimpleNamespace(
 		conf={
 			"WorldVoice": {
@@ -312,12 +299,7 @@ def _load_voice_manager(monkeypatch):
 			),
 		),
 	)
-	name = f"{package_name}.voiceManager"
-	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "voiceManager.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, f"{package_name}.voiceManager", WORLDVOICE / "voiceManager.py")
 
 
 def init_policies(manager):

@@ -1,20 +1,15 @@
-import ast
-import importlib.util
 import sys
 import types
 from collections import OrderedDict
 
 import pytest
+from addon_loader import load_definitions, load_source
 from test_worldvoice_lifecycle import WORLDVOICE, _load_voice_manager, init_policies
 
 
 def _create_voices(monkeypatch, config):
 	package_name = "lifecycle_test_worldvoice"
-	name = f"{package_name}.driver"
-	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "driver/__init__.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
+	module = load_source(monkeypatch, f"{package_name}.driver", WORLDVOICE / "driver/__init__.py")
 	config.conf["WorldVoice"]["voices"] = {}
 	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = False
 	from voice_binding_harness import install_binding
@@ -43,9 +38,6 @@ def _editing_manager(monkeypatch):
 
 
 def _synth_settings_class(config):
-	path = WORLDVOICE / "__init__.py"
-	tree = ast.parse(path.read_text(encoding="utf-8"))
-	driver = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "SynthDriver")
 	names = {
 		"supportedSettings",
 		"_driver_settings",
@@ -56,8 +48,6 @@ def _synth_settings_class(config):
 		"_get_voice",
 		"_set_voice",
 	}
-	driver.body = [node for node in driver.body if isinstance(node, ast.FunctionDef) and node.name in names]
-	driver.bases = []
 	setting = lambda name, *args, **kwargs: name
 	env = {
 		"_": lambda text: text,
@@ -70,8 +60,7 @@ def _synth_settings_class(config):
 		"DriverSetting": setting,
 		"StringParameterInfo": lambda id, name: types.SimpleNamespace(id=id, name=name),
 	}
-	exec(compile(ast.Module(body=[driver], type_ignores=[]), str(path), "exec"), env)
-	cls = env["SynthDriver"]
+	cls = load_definitions(WORLDVOICE / "__init__.py", ["SynthDriver"], env, members=names)["SynthDriver"]
 	for name in ("Voice", "Variant", "Rate", "RateBoost", "Pitch", "Inflection", "Volume"):
 		setattr(cls, name + "Setting", staticmethod(lambda name=name: name.lower()))
 	return cls

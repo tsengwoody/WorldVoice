@@ -1,12 +1,9 @@
-import importlib.util
 import sys
 import types
-from pathlib import Path
 
+from addon_loader import WORLDVOICE, alias_package, load_source
 from test_worldvoice_lifecycle import init_policies
 from voice_binding_harness import bind_core, install_binding
-
-WORLDVOICE = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 
 
 def _load_voice_manager(monkeypatch):
@@ -14,9 +11,7 @@ def _load_voice_manager(monkeypatch):
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
 			monkeypatch.delitem(sys.modules, name)
-	package = types.ModuleType(package_name)
-	package.__path__ = [str(WORLDVOICE)]
-	monkeypatch.setitem(sys.modules, package_name, package)
+	alias_package(monkeypatch, package_name, WORLDVOICE)
 	config = types.SimpleNamespace(
 		conf={
 			"WorldVoice": {
@@ -55,20 +50,11 @@ def _load_voice_manager(monkeypatch):
 			getSynth=lambda: types.SimpleNamespace(name="WorldVoice"),
 		),
 	)
-	name = f"{package_name}.voiceManager"
-	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "voiceManager.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, f"{package_name}.voiceManager", WORLDVOICE / "voiceManager.py")
 
 
 def _create_voices(monkeypatch, config):
-	name = "f4_test_worldvoice.driver"
-	spec = importlib.util.spec_from_file_location(name, WORLDVOICE / "driver/__init__.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
+	module = load_source(monkeypatch, "f4_test_worldvoice.driver", WORLDVOICE / "driver/__init__.py")
 	voice = install_binding(module, config)
 	return voice("a", "A:a", "en"), voice("b", "B:b", "fr")
 

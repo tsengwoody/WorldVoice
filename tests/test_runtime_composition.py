@@ -7,6 +7,7 @@ from concurrent.futures import CancelledError
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import load_source
 from nvda_stubs import StubModules
 from runtime_harness import MemoryRepository
 from test_worldvoice_lifecycle import WORLDVOICE, _load_synth_class, _load_voice_manager
@@ -751,15 +752,9 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 	stub(package + ".engine", ready_engine_classes=lambda engine_config: {})
 	stub(package + ".VoiceSettingsDialogs", WorldVoiceVoiceSettingsPanel=object)
 	monkeypatch.setattr(sys, "path", list(sys.path))
-	spec = importlib.util.spec_from_file_location(
-		package,
-		WORLDVOICE / "__init__.py",
-		submodule_search_locations=[str(WORLDVOICE)],
-	)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, package, module)
 	try:
-		spec.loader.exec_module(module)
+		# __init__.py loads as a package, so its relative imports resolve inside the alias.
+		module = load_source(monkeypatch, package, WORLDVOICE / "__init__.py")
 		ledger = importlib.import_module(package + ".indexLedger")
 		policies = importlib.import_module(package + ".compat.completionPolicies")
 		models = importlib.import_module(package + ".runtime.models")
