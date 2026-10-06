@@ -112,10 +112,11 @@ def test_global_wait_change_reaches_the_voice_manager(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}}
 	synth_class, settings_module = load_synth(monkeypatch, conf)
 	synth = object.__new__(synth_class)
-	synth._voiceManager = types.SimpleNamespace(waitfactor=None)
+	manager = types.SimpleNamespace(waitfactor=None)
+	synth._voiceManager = manager
 	settings_module.pipeline_settings.subscribe(synth._apply_pipeline_settings)
 	synth.globalwaitfactor = 100
-	assert synth._voiceManager.waitfactor == 9
+	assert manager.waitfactor == 9
 	synth._voiceManager = None
 	synth.globalwaitfactor = 30
 

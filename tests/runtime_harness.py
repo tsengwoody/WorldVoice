@@ -688,3 +688,8 @@ def stop_completion(operation):
 	"""The event a cancelled operation sets once its native stop finished, or None before it."""
 	with operation._lifecycle._condition:
 		return operation._stop_done
+
+
+def lifecycle_hooks(lifecycle):
+	"""The engine hooks the lifecycle calls (the SegmentHost that owns it)."""
+	return lifecycle._hooks

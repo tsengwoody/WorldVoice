@@ -15,6 +15,7 @@ from ui_harness import (
 	Sizer,
 	fire,
 	load_voice_settings_dialogs,
+	pipeline_snapshot,
 )
 
 SETTINGS = (
@@ -220,7 +221,7 @@ def test_a_synth_without_pause_settings_gets_the_characters_edit_at_the_end(monk
 	env = open_panel(monkeypatch, driver)
 	panel = env.panel
 
-	assert panel._pipelineSnapshot is None
+	assert pipeline_snapshot(panel) is None
 	assert not hasattr(panel, "punctuationpauseenabledCheckbox")
 	assert order(panel) == [
 		"voice",
@@ -256,4 +257,4 @@ def test_another_synth_saves_the_characters_and_cancel_leaves_pipeline_settings_
 	pipeline = env.conf["WorldVoice"]["pipeline"]
 	assert pipeline["punctuation_pause_characters"] == "!?"
 	assert pipeline["item_wait_factor"] == 90
-	assert panel._pipelineSnapshot is None
+	assert pipeline_snapshot(panel) is None

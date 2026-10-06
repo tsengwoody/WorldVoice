@@ -9,7 +9,13 @@ from addon_loader import ADDON, load_source
 from nvda_stubs import StubModules
 from voice_binding_harness import bind_core
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
-from worldvoice_harness import RecordingCore, create_f4_voices, init_policies, load_f4_voice_manager
+from worldvoice_harness import (
+	RecordingCore,
+	create_f4_voices,
+	init_policies,
+	load_f4_voice_manager,
+	settings_baseline,
+)
 
 PRESENTER = ADDON / "globalPlugins/WorldVoice/rolePresenter.py"
 
@@ -200,7 +206,7 @@ def test_save_failure_writes_nothing_else_and_keeps_pending(env, monkeypatch):
 	with pytest.raises(OSError, match="save failed"):
 		env.presenter.apply()
 	assert env.a.rate == 72
-	assert env.a._state.baseline("rate") == 50
+	assert settings_baseline(env.a, "rate") == 50
 	assert env.conf["WorldVoice"]["role"] == {"en": {"voice": env.a.name}}
 	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is False
 	assert env.conf["speech"]["WorldVoice"] == speech_before

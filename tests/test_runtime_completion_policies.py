@@ -5,6 +5,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from runtime_harness import lifecycle_hooks, segment_host, segment_lifecycle
 from sapi5_drain_harness import load_sapi5
 from worldvoice_harness import load_voice_manager
 
@@ -340,7 +341,7 @@ def test_sapi5_legacy_first_segment_remains_legacy_done(monkeypatch):
 		assert contract.mode is installed.rt.models.CompletionMode.LEGACY_DONE
 		assert contract.index_range is None
 		assert installed.native.calls == []
-		assert installed.driver._segmentHost.current() is None
+		assert segment_host(installed.driver).current() is None
 	finally:
 		installed.driver.terminate()
 
@@ -393,9 +394,9 @@ def test_six_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine
 		assert outer.Voice.synth_driver_class is type(core)
 		assert outer.Voice.drain_profile is not None
 		# The host owns the lifecycle and implements its hooks.
-		host = core._segmentHost
+		host = segment_host(core)
 		assert isinstance(host, outer.SegmentHost)
-		assert host._lifecycle._hooks is host
+		assert lifecycle_hooks(segment_lifecycle(host)) is host
 		policy = policies.CompletionPolicy()
 		contract, support = policy.contract_for(
 			outer.Voice,

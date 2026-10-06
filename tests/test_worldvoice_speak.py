@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import WORLDVOICE, alias_package
 from nvda_stubs import StubModules, worldvoice_conf
-from worldvoice_harness import load_synth_class
+from worldvoice_harness import chosen_voice, load_synth_class, voice_manager
 
 PACKAGE = "speak_test_worldvoice"
 VOICES = {"en": "A:en", "zh": "B:zh"}
@@ -247,7 +247,7 @@ def test_choosing_the_current_voice_records_it_without_stopping_speech(monkeypat
 	synth._voiceManager.defaultVoiceInstance = SimpleNamespace(stop=lambda: stops.append(True))
 	synth._set_voice("A:en")
 	assert stops == []
-	assert synth._voice == "A:en"
+	assert chosen_voice(synth) == "A:en"
 	assert synth._get_voice() == "A:en"
 
 
@@ -256,9 +256,9 @@ def test_pause_and_cancel_reach_the_runtime_until_the_synth_terminates(monkeypat
 	synth.pause(True)
 	synth.cancel()
 	assert synth.taskManager.calls == [("pause", True)]
-	assert synth._voiceManager.cancels == 1
+	assert voice_manager(synth).cancels == 1
 	synth._terminated = True
 	synth.cancel()
 	synth.pause(False)
-	assert synth._voiceManager.cancels == 1
+	assert voice_manager(synth).cancels == 1
 	assert synth.taskManager.calls == [("pause", True)]

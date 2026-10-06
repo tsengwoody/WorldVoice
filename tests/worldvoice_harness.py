@@ -151,3 +151,73 @@ class RecordingCore:
 
 	def cancel(self):
 		pass
+
+
+# Named views of WorldVoice internals that tests check but no public API exposes (which
+# engines the manager holds, what the event bridge still binds, shutdown order); each
+# private name is read here only. They read without a lock, as the tests did.
+
+
+def engine_resources(manager):
+	"""The engine resources the voice manager opened, by engine name, in open order."""
+	return dict(manager._resources)
+
+
+def voice_binding(voice):
+	"""The binding a voice instance plays through."""
+	return voice._binding
+
+
+def consistency_roles(voice_consistency):
+	"""The role repository the voice consistency policy reads."""
+	return voice_consistency._roles
+
+
+def bridge_bindings(bridge):
+	"""The sources the NVDA event bridge still binds, by id."""
+	return dict(bridge._sources)
+
+
+def bridge_binding(bridge, source):
+	"""The event bridge's binding for ``source``, or None."""
+	return bridge._sources.get(id(source))
+
+
+def bridge_closed(bridge):
+	"""Whether the NVDA event bridge has been closed."""
+	return bridge._closed
+
+
+def ledger_closed(ledger):
+	"""Whether the index ledger has been closed."""
+	return ledger._closed
+
+
+def synth_terminated(synth):
+	"""Whether the WorldVoice synth driver has started terminating."""
+	return synth._terminated
+
+
+def port_adapter(port):
+	"""The engine adapter behind a playback port."""
+	return port._adapter
+
+
+def voice_manager(synth):
+	"""The voice manager the WorldVoice synth driver speaks through."""
+	return synth._voiceManager
+
+
+def chosen_voice(synth):
+	"""The voice the WorldVoice synth driver recorded as chosen, or None."""
+	return synth._voice
+
+
+def voice_instances(manager):
+	"""The voice instances the voice manager has created, by voice name."""
+	return dict(manager._instanceCache)
+
+
+def settings_baseline(voice, setting):
+	"""The saved (baseline) value of a voice setting, which rollback restores."""
+	return voice._state.baseline(setting)

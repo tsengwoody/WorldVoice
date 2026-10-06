@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 import pytest
 from addon_loader import WORLDVOICE, load_definitions, load_source
-from worldvoice_harness import init_policies, load_voice_manager
+from worldvoice_harness import chosen_voice, init_policies, load_voice_manager
 
 
 def _create_voices(monkeypatch, config):
@@ -107,8 +107,8 @@ def test_main_synth_records_a_chosen_voice_only_once_it_is_set(monkeypatch):
 	synth._voice = None
 	with pytest.raises(LookupError):
 		synth._set_voice("Missing:x")
-	assert synth._voice is None
+	assert chosen_voice(synth) is None
 	assert manager.defaultVoiceName == a.name
 	synth._set_voice(b.name)
-	assert synth._voice == b.name
+	assert chosen_voice(synth) == b.name
 	assert manager.defaultVoiceName == b.name

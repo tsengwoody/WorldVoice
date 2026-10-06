@@ -9,8 +9,21 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import WORLDVOICE, load_source
 from nvda_stubs import StubModules
+from runtime_harness import worker_alive
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
-from worldvoice_harness import EventStub, load_synth_class
+from worldvoice_harness import (
+	EventStub,
+	bridge_binding,
+	bridge_bindings,
+	bridge_closed,
+	consistency_roles,
+	engine_resources,
+	ledger_closed,
+	load_synth_class,
+	port_adapter,
+	synth_terminated,
+	voice_binding,
+)
 
 
 def _idle_token():
@@ -46,7 +59,7 @@ def test_manager_keeps_the_injected_policy_and_roles(composition):
 	manager = c.create(parameter_consistency=parameters, roles=roles)
 	assert manager.parameter_consistency is parameters
 	assert manager.roles is roles
-	assert manager.voice_consistency._roles is roles
+	assert consistency_roles(manager.voice_consistency) is roles
 
 
 def test_each_opened_engine_is_one_engine_resource(composition):
@@ -54,15 +67,15 @@ def test_each_opened_engine_is_one_engine_resource(composition):
 	classes = c.engine("first"), c.engine("second")
 	c.engine("failed", fail=True)
 	manager = c.create()
-	assert [resource.engine for resource in manager._resources.values()] == ["first", "second"]
-	for resource, cls in zip(manager._resources.values(), classes):
+	assert [resource.engine for resource in engine_resources(manager).values()] == ["first", "second"]
+	for resource, cls in zip(engine_resources(manager).values(), classes):
 		assert resource.voice_class is cls
 		assert resource.adapter.core is cls.opened is resource.binding.core
 		assert resource.session is resource.binding.session is manager.resolve_playback(cls.engine + ":a")
-		assert manager.getVoiceInstance(cls.engine + ":a")._binding is resource.binding
+		assert voice_binding(manager.getVoiceInstance(cls.engine + ":a")) is resource.binding
 	assert not hasattr(manager, "installEngine")
 	manager.terminate(commit=False)
-	assert manager._resources == {} and [cls.opened for cls in classes] == [None, None]
+	assert engine_resources(manager) == {} and [cls.opened for cls in classes] == [None, None]
 
 
 @pytest.mark.parametrize("failure", ["empty", "bind"])
@@ -80,7 +93,7 @@ def test_initialization_failure_closes_without_commit(composition, failure):
 	with pytest.raises(RuntimeError, match="No WorldVoice voices|bind failed"):
 		c.create()
 	assert c.cores[0].closes == 1
-	assert c.bridge._sources == {}
+	assert bridge_bindings(c.bridge) == {}
 	assert c.repo.saves == []
 
 
@@ -88,7 +101,7 @@ def test_an_unpublished_engine_is_never_visible(composition):
 	c = composition
 	c.engine("first"), c.engine("second")
 	manager = c.create()
-	first, second = manager._resources["first"], manager._resources["second"]
+	first, second = engine_resources(manager)["first"], engine_resources(manager)["second"]
 	second.published = False
 	manager._setVoiceDatas()
 	assert "second:a" not in manager.voiceInfos and "first:a" in manager.voiceInfos
@@ -115,9 +128,9 @@ def test_engines_open_in_engine_classes_order(composition):
 	c = composition
 	first, second = c.engine("first"), c.engine("second")
 	manager = c.create(engine_classes={"second": second, "first": first})
-	assert list(manager._resources) == ["second", "first"]
+	assert list(engine_resources(manager)) == ["second", "first"]
 	assert [port.source_id for port in manager.playback_ports] == [
-		manager._resources[name].session.source_id for name in ("second", "first")
+		engine_resources(manager)[name].session.source_id for name in ("second", "first")
 	]
 
 
@@ -129,7 +142,7 @@ def test_engine_voices_are_listed_once_when_published(composition):
 	cls.voices = classmethod(lambda cls_, core: calls.append(core) or original(core))
 	manager = c.create()
 	assert len(calls) == 1
-	assert [spec.name for spec in manager._resources["ok"].voices] == ["ok:a", "ok:b"]
+	assert [spec.name for spec in engine_resources(manager)["ok"].voices] == ["ok:a", "ok:b"]
 	assert [spec.name for spec in manager.table] == ["ok:a", "ok:b"]
 
 
@@ -147,7 +160,7 @@ def test_source_is_bound_before_engine_is_published(composition):
 	original_voices = c.engines["ok"].voices
 
 	def voices(cls, core):
-		assert id(core) in c.bridge._sources
+		assert bridge_binding(c.bridge, core) is not None
 		return original_voices(core)
 
 	c.engines["ok"].voices = classmethod(voices)
@@ -317,16 +330,16 @@ def test_worker_stops_before_bridge_and_sessions_close(composition, bridge_error
 		closed.append("worker")
 
 	def close_bridge():
-		assert not c.tasks._thread.is_alive()
-		was_closed = c.bridge._closed
+		assert not worker_alive(c.tasks)
+		was_closed = bridge_closed(c.bridge)
 		original_close()
 		closed.append("bridge")
 		if bridge_error and not was_closed:
 			raise RuntimeError("bridge cleanup failure")
 
 	def close_core():
-		assert not c.tasks._thread.is_alive()
-		assert c.bridge._closed
+		assert not worker_alive(c.tasks)
+		assert bridge_closed(c.bridge)
 		original_terminate()
 		closed.append("session")
 
@@ -336,8 +349,8 @@ def test_worker_stops_before_bridge_and_sessions_close(composition, bridge_error
 	try:
 		thread.start()
 		assert stopping.wait(WAIT_TIMEOUT)
-		assert c.tasks._thread.is_alive()
-		assert not c.bridge._closed
+		assert worker_alive(c.tasks)
+		assert not bridge_closed(c.bridge)
 		assert core.closes == 0
 	finally:
 		release.set()
@@ -364,7 +377,7 @@ def test_save_or_engine_close_failure_does_not_abandon_other_resources(compositi
 	manager.terminate()
 	assert [core.closes for core in c.cores] == [1, 1]
 	assert {name for name, values in c.repo.saves} == {"one:a", "two:a"}
-	assert c.bridge._sources == {}
+	assert bridge_bindings(c.bridge) == {}
 
 
 def test_waitfactor_updates_declared_capability_without_activating(composition):
@@ -401,7 +414,7 @@ def test_termination_closes_admission_before_blocking_cancel(composition, submis
 	try:
 		thread.start()
 		assert entered.wait(WAIT_TIMEOUT)
-		assert synth._terminated
+		assert synth_terminated(synth)
 		if submission == "new":
 			scheduler = importlib.import_module(c.module.__package__ + ".runtime.scheduler")
 			with pytest.raises(scheduler.InvalidRequestState):
@@ -413,8 +426,8 @@ def test_termination_closes_admission_before_blocking_cancel(composition, submis
 			# Terminated entry points must return before touching pipeline or
 			# facade dependencies, which may already be unavailable.
 			assert synth.speak(["ignored"]) is None
-		assert c.tasks._thread.is_alive()
-		assert not c.bridge._closed
+		assert worker_alive(c.tasks)
+		assert not bridge_closed(c.bridge)
 		assert [core.closes for core in c.cores] == [0, 0]
 	finally:
 		release.set()
@@ -423,7 +436,7 @@ def test_termination_closes_admission_before_blocking_cancel(composition, submis
 	assert errors == []
 	assert [core.cancels for core in c.cores] == [1, 1]
 	assert [core.closes for core in c.cores] == [1, 1]
-	assert not c.tasks._thread.is_alive()
+	assert not worker_alive(c.tasks)
 
 
 def marker_contract(c):
@@ -478,7 +491,7 @@ def test_partial_bind_failure_releases_resources_without_commit(composition):
 	with pytest.raises(RuntimeError, match="partial marker bind"):
 		c.create(lambda cls, core: marker_contract(c))
 	assert c.cores[0].closes == 1
-	assert c.bridge._sources == {}
+	assert bridge_bindings(c.bridge) == {}
 	with pytest.raises(importlib.import_module(c.module.__package__ + ".indexLedger").InvalidIndexContext):
 		c.ledger.prepare(c.models.PlaybackContext(source_ids[0], 1), ())
 	assert c.repo.saves == []
@@ -495,8 +508,8 @@ def test_shutdown_disables_late_index_before_engine_close(composition):
 	original_close = cls.opened.terminate
 
 	def close():
-		assert c.bridge._closed
-		assert not c.ledger._closed
+		assert bridge_closed(c.bridge)
+		assert not ledger_closed(c.ledger)
 		c.index.notify(synth=cls.opened, index=marker)
 		original_close()
 
@@ -505,7 +518,7 @@ def test_shutdown_disables_late_index_before_engine_close(composition):
 	synth.terminate()
 	assert received == []
 	assert errors == []
-	assert c.ledger._closed
+	assert ledger_closed(c.ledger)
 
 
 def test_completion_selection_failure_closes_opened_core(composition):
@@ -695,7 +708,7 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 	configure = c.module.LegacyEngineAdapter.configure_segment_events
 
 	def configure_after_bind(adapter, factory):
-		assert c.bridge._sources[id(installed.voice.opened)].source is installed.voice.opened
+		assert bridge_binding(c.bridge, installed.voice.opened).source is installed.voice.opened
 		configure(adapter, factory)
 		configured.append(adapter)
 
@@ -704,7 +717,7 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 	manager = c.create(select)
 	port = manager.resolve_playback(engine + ":a")
 	assert port.completion.mode is c.models.CompletionMode.DRAIN
-	assert configured == [port._adapter]
+	assert configured == [port_adapter(port)]
 	assert installed.checked == [("synthetic", "wasapi" if engine in ("OneCore", "SAPI5") else "default")]
 	assert logs == []
 	done, indexes = threading.Event(), []
@@ -893,7 +906,7 @@ def test_drain_factory_configured_after_bind_before_publication(composition, mon
 	configure = c.module.LegacyEngineAdapter.configure_segment_events
 
 	def configure_after_bind(adapter, factory):
-		assert c.bridge._sources[id(cls.opened)].source is cls.opened
+		assert bridge_binding(c.bridge, cls.opened).source is cls.opened
 		configure(adapter, factory)
 		setup.append(adapter)
 
@@ -1016,7 +1029,7 @@ def test_partial_event_configuration_rolls_back_binding_and_owner(composition, m
 	monkeypatch.setattr(c.module.LegacyEngineAdapter, "configure_segment_events", fail_after_configure)
 	with pytest.raises(RuntimeError, match="partial event setup"):
 		c.create(lambda cls, core: drain_contract(c))
-	assert c.bridge._sources == {}
+	assert bridge_bindings(c.bridge) == {}
 	assert cls.opened is None and c.cores[0].closes == 1
 	assert c.repo.saves == []
 
@@ -1030,7 +1043,7 @@ def test_each_drain_factory_captures_its_own_resource(composition, nvda_commands
 	for cls in (first, second):
 
 		def speak(commands, token, *, context, on_event, source=cls.opened):
-			assert c.bridge._sources[id(source)].source_id is context.source_id
+			assert bridge_binding(c.bridge, source).source_id is context.source_id
 			calls.append(source)
 			on_event(
 				c.models.PlaybackEvent(

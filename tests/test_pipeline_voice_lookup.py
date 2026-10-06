@@ -4,6 +4,7 @@ import sys
 from types import SimpleNamespace
 
 from pipeline_harness import load_pipeline_module, punctuation_settings
+from worldvoice_harness import voice_instances
 
 
 def voice(name, language):
@@ -47,8 +48,8 @@ def test_filters_do_not_create_voice_instances(composition, monkeypatch):
 	composition.engine("ok")
 	manager = composition.create()
 	sys.modules["config"].conf["WorldVoice"]["role"] = {"zh": {"voice": "ok:b"}}
-	assert "ok:b" not in manager._instanceCache
-	before = dict(manager._instanceCache)
+	assert "ok:b" not in voice_instances(manager)
+	before = voice_instances(manager)
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	ctx = module.SpeechContext(
 		supports_roles=True,
@@ -60,4 +61,4 @@ def test_filters_do_not_create_voice_instances(composition, monkeypatch):
 	L = module.LangChangeCommand
 	list(module.deduplicate_language_command(["a", L("zh"), "b", L("en"), "c"], ctx))
 	assert list(module.lang_cmd_to_voice([L("zh"), "a"], ctx)) == [module.SelectVoice("ok:b"), "a"]
-	assert manager._instanceCache == before
+	assert voice_instances(manager) == before

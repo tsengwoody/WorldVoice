@@ -727,3 +727,8 @@ def load_global_plugin(monkeypatch, *, secure=False, log_enabled=False):
 	stubs.module(package + ".speechSettingsDialog", WorldVoiceSettingsDialog=env.settings_dialog)
 	env.module = load_source(monkeypatch, package, PLUGIN_DIR / "__init__.py")
 	return env
+
+
+def pipeline_snapshot(panel):
+	"""The pipeline settings a voice settings panel saved to restore on discard, or None."""
+	return panel._pipelineSnapshot
