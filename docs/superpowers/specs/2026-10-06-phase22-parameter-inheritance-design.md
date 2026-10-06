@@ -76,3 +76,5 @@
 - `VoiceSettingsStore.reload` 也在 store 鎖下載入並疊上繼承值（`ensure` 原本就在鎖下載入），provider 的執行條件因此只有一種。
 - 主語音載入繼承之後，每次語音載入都會讀 `KeepMainLocaleParameterConsistent`。正式環境由 confspec 提供預設值；兩個測試用的 config stub（`tests/runtime_drain_integration_harness.py`、`tests/test_worldvoice_lifecycle.py`）補上這個旗標。
 - 主驅動的組裝測試改為：repository 只收到 `config.conf`，主驅動不覆寫 `initSettings`。
+- 主語音 `reload` 時繼承自己：參數一致開啟時，provider 回傳主語音目前 state 的 `PARAMETER_NAMES`，所以 `reload` 只從 `voices.<主語音>` 回復 `variant`，不回復這五個參數。這與舊實作（讀 speech 區段、不讀 `voices`）等價；`reload` 只在 NVDA `super().loadSettings()` 之後呼叫，此時主語音 state 已對齊 speech 區段。`tests/test_runtime_composition.py::test_reload_takes_the_main_voice_parameters_while_they_are_kept_consistent` 固定這個語意，請勿改成讀主語音的存檔值。
+- 第四個差異（審查補充）：非首次載入時，NVDA `loadSettings` 先 `changeVoice` 到設定檔指定的主語音；若它不是建構期選出的預設語音，新設計會讓它先繼承建構期預設語音的 `PARAMETER_NAMES`（舊實作閘門關閉、讀自己的值）。之後的 `setattr` 迴圈只覆蓋主 synth 支援的設定，所以只有主引擎不支援的參數（例如 VE/Cerence 沒有 `inflection`）會保留建構期預設語音的存檔值，並經 `copy_from` 寫到所有語音。該參數本來就不被主引擎使用，功能上無影響。
