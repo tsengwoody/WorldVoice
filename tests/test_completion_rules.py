@@ -1,21 +1,15 @@
 """The completion rule table is the one place that interprets a completion contract."""
 
 import ast
-import importlib.util
-import sys
 
 import pytest
+from addon_loader import load_source
 from runtime_harness import RUNTIME
 
 
 @pytest.fixture
 def completion(monkeypatch, rt):
-	name = f"{rt.package.__name__}.completion"
-	spec = importlib.util.spec_from_file_location(name, RUNTIME / "completion.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, f"{rt.package.__name__}.completion", RUNTIME / "completion.py")
 
 
 def _contract(rt, mode):

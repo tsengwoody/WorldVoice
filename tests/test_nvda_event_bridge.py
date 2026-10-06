@@ -1,12 +1,12 @@
 import gc
 import importlib
-import importlib.util
 import sys
 import weakref
 from threading import Event, Thread
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
+from addon_loader import alias_package, load_source
 from runtime_harness import RUNTIME
 
 
@@ -39,20 +39,12 @@ class EventStub:
 @pytest.fixture
 def env(monkeypatch, rt):
 	name = "worldvoice_bridge_test"
-	package = ModuleType(name)
-	package.__path__ = [str(RUNTIME.parent)]
-	monkeypatch.setitem(sys.modules, name, package)
+	alias_package(monkeypatch, name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, f"{name}.runtime", rt.package)
 	monkeypatch.setitem(sys.modules, f"{name}.runtime.models", rt.models)
 	monkeypatch.delitem(sys.modules, f"{name}.indexLedger", raising=False)
 	ledger_module = importlib.import_module(f"{name}.indexLedger")
-	spec = importlib.util.spec_from_file_location(
-		f"{name}.nvdaEventBridge",
-		RUNTIME.parent / "nvdaEventBridge.py",
-	)
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, spec.name, module)
-	spec.loader.exec_module(module)
+	module = load_source(monkeypatch, f"{name}.nvdaEventBridge", RUNTIME.parent / "nvdaEventBridge.py")
 	owner = object()
 	env = SimpleNamespace(
 		owner=owner,

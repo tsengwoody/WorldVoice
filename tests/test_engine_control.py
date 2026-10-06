@@ -1,10 +1,9 @@
 """Shared engine control parts: stop gate, queued records, control-fault policy."""
 
-import importlib.util
-import sys
 from threading import Condition, Event, Thread
 
 import pytest
+from addon_loader import load_source
 from runtime_harness import RUNTIME, load_runtime
 from waiting import stays_unset
 
@@ -12,12 +11,7 @@ from waiting import stays_unset
 @pytest.fixture
 def control(monkeypatch):
 	rt = load_runtime(monkeypatch)
-	name = f"{rt.package.__name__}.engineControl"
-	spec = importlib.util.spec_from_file_location(name, RUNTIME / "engineControl.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, f"{rt.package.__name__}.engineControl", RUNTIME / "engineControl.py")
 
 
 def test_stop_gate_blocks_until_every_stop_returns(control):

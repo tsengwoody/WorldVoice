@@ -1,11 +1,10 @@
 """SegmentHost and LeasedPlayer against a fake engine strategy."""
 
-import importlib.util
-import sys
 from threading import Condition, Event, Thread, get_ident
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import load_source
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
 from waiting import eventually, stays_false, stays_unset
 
@@ -74,12 +73,7 @@ def native(module, strategy_type):
 
 
 def _load(monkeypatch, rt, name):
-	full = f"{rt.package.__name__}.{name}"
-	spec = importlib.util.spec_from_file_location(full, RUNTIME / f"{name}.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, full, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, f"{rt.package.__name__}.{name}", RUNTIME / f"{name}.py")
 
 
 @pytest.fixture

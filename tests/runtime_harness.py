@@ -1,30 +1,27 @@
 """Load the pure runtime without executing the WorldVoice/NVDA entry point."""
 
 import builtins
-import importlib.util
+import importlib
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
 from threading import Condition, Event
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
+
+from addon_loader import WORLDVOICE, alias_package, load_source
 
 if TYPE_CHECKING:
 	from addon.synthDrivers.WorldVoice.runtime.scheduler import SpeechRequest
 
 
-RUNTIME = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/runtime"
+RUNTIME = WORLDVOICE / "runtime"
 PACKAGE = "worldvoice_runtime_test"
 
 
 def load_runtime(monkeypatch, package_name=PACKAGE):
 	def load(name, path):
-		spec = importlib.util.spec_from_file_location(name, path)
-		module = importlib.util.module_from_spec(spec)
-		monkeypatch.setitem(sys.modules, name, module)
-		spec.loader.exec_module(module)
-		return module
+		return load_source(monkeypatch, name, path)
 
 	package = load(package_name, RUNTIME / "__init__.py")
 	models = load(f"{package_name}.models", RUNTIME / "models.py")
@@ -41,12 +38,7 @@ def load_runtime(monkeypatch, package_name=PACKAGE):
 
 
 def load_scheduler(monkeypatch, rt):
-	name = f"{rt.package.__name__}.scheduler"
-	spec = importlib.util.spec_from_file_location(name, RUNTIME / "scheduler.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(monkeypatch, f"{rt.package.__name__}.scheduler", RUNTIME / "scheduler.py")
 
 
 class RecordingOutput:
@@ -198,21 +190,16 @@ class FakePlayback(FakeAdapter):
 
 def load_config_repository(monkeypatch, rt):
 	# Supply only the package namespace: never execute the NVDA entry point.
-	from types import ModuleType
-
 	package_name = "worldvoice_repository_test"
-	package = ModuleType(package_name)
-	package.__path__ = [str(RUNTIME.parent)]
-	monkeypatch.setitem(sys.modules, package_name, package)
+	alias_package(monkeypatch, package_name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, f"{package_name}.runtime", rt.package)
 	monkeypatch.setitem(sys.modules, f"{package_name}.runtime.models", rt.models)
 	monkeypatch.setitem(sys.modules, f"{package_name}.runtime.settings", rt.settings)
-	name = f"{package_name}.configRepository"
-	spec = importlib.util.spec_from_file_location(name, RUNTIME.parent / "configRepository.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
-	return module
+	return load_source(
+		monkeypatch,
+		f"{package_name}.configRepository",
+		RUNTIME.parent / "configRepository.py",
+	)
 
 
 @contextmanager
@@ -352,9 +339,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 	)
 	# Ledger is pure Python; native may use it without importing any legacy boundary.
 	name = "worldvoice_contract_boundary"
-	package = ModuleType(name)
-	package.__path__ = [str(RUNTIME.parent)]
-	monkeypatch.setitem(sys.modules, name, package)
+	alias_package(monkeypatch, name, RUNTIME.parent)
 	for suffix, module in (
 		("", rt.package),
 		(".models", rt.models),
@@ -588,11 +573,8 @@ def submit_contract_request(c, sequence, *, default_key: str) -> "SpeechRequest"
 
 def load_index_support(monkeypatch, rt, package_name):
 	"""Load real ledger/commands into an isolated addon namespace."""
-	package = sys.modules.get(package_name)
-	if package is None:
-		package = ModuleType(package_name)
-		package.__path__ = [str(RUNTIME.parent)]
-		monkeypatch.setitem(sys.modules, package_name, package)
+	if package_name not in sys.modules:
+		alias_package(monkeypatch, package_name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, package_name + ".runtime", rt.package)
 	monkeypatch.setitem(sys.modules, package_name + ".runtime.models", rt.models)
 	for suffix in ("indexLedger", "_speechcommand", "compat.indexCodec"):

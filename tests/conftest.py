@@ -5,6 +5,7 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
+from addon_loader import alias_package
 from nvda_stubs import StubModules
 from runtime_harness import RUNTIME, load_runtime
 
@@ -37,9 +38,7 @@ def rt(monkeypatch):
 def compat(monkeypatch, rt):
 	"""The compat engine adapter and voice facade, bound to this test's runtime."""
 	name = "worldvoice_compat_test"
-	package = ModuleType(name)
-	package.__path__ = [str(RUNTIME.parent)]
-	monkeypatch.setitem(sys.modules, name, package)
+	alias_package(monkeypatch, name, RUNTIME.parent)
 	for suffix, module in (
 		("", rt.package),
 		(".models", rt.models),

@@ -1,13 +1,13 @@
 """Resource ownership and producer retirement for the shared lifecycle."""
 
 import gc
-import importlib.util
 import logging
 import sys
 import weakref
 from threading import Condition, Event, Thread, current_thread
 
 import pytest
+from addon_loader import load_source
 from runtime_harness import RUNTIME, load_runtime, load_scheduler
 from waiting import WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
@@ -130,11 +130,11 @@ class Hooks:
 def env(monkeypatch):
 	rt = load_runtime(monkeypatch)
 	scheduler = load_scheduler(monkeypatch, rt)
-	name = f"{rt.package.__name__}._segmentLifecycle"
-	spec = importlib.util.spec_from_file_location(name, RUNTIME / "_segmentLifecycle.py")
-	module = importlib.util.module_from_spec(spec)
-	monkeypatch.setitem(sys.modules, name, module)
-	spec.loader.exec_module(module)
+	module = load_source(
+		monkeypatch,
+		f"{rt.package.__name__}._segmentLifecycle",
+		RUNTIME / "_segmentLifecycle.py",
+	)
 	hooks = Hooks()
 	lifecycle = module.SegmentLifecycle(hooks)
 	events = RecordedEvents()
