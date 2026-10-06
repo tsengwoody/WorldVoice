@@ -323,3 +323,99 @@ def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
 	if end:
 		results.append(callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, data)))
 	return results
+
+
+# Named views of VE/Cerence wrapper and inner driver state that tests check but no public
+# API exposes; each private name is read here only. They read without a lock, as the tests
+# did, except where they replaced a check made under the wrapper's lock.
+
+
+def real_player(core):
+	"""The fake WavePlayer behind the wrapper's guarded player."""
+	return core._real_player
+
+
+def callback_handler(core):
+	"""The inner driver's native callback handler (VECallback)."""
+	return core._veCallbackHandler
+
+
+def native_callback(core):
+	"""The ctypes callback the inner driver hands to every voice it opens."""
+	return core._veCallback
+
+
+def silence_gate(owner):
+	"""The silence gate the core or its callback handler checks before audio."""
+	return owner._isSilence
+
+
+def player_of(owner):
+	"""The player the core or its callback handler feeds."""
+	return owner._player
+
+
+def guarded_real_player(player):
+	"""The real player a guarded player forwards to."""
+	return player._real
+
+
+def inside_native_call(core):
+	"""Whether the wrapper's silence gate marks a native call in progress."""
+	return core._isSilence._inside_native_call
+
+
+def buffered_audio(handler):
+	"""The PCM the callback handler holds before it feeds the player."""
+	return handler._feedBuf.getvalue()
+
+
+def sonic_state(handler):
+	"""The callback handler's Sonic settings: whether init was tried, is enabled, and the speed."""
+	return types.SimpleNamespace(
+		init_tried=handler._sonicInitTried,
+		enabled=handler._sonicEnabled,
+		speed=handler._sonicSpeed,
+	)
+
+
+def cached_instances(core):
+	"""The voice instances the inner driver keeps open."""
+	return dict(core._instanceCache)
+
+
+def has_segment_host(core):
+	"""Whether the wrapper speaks through a SegmentHost (VE does, the legacy path does not)."""
+	return hasattr(core, "_segmentHost")
+
+
+def unfinished_background_tasks(core):
+	"""How many tasks queued for the inner BgThread have not finished."""
+	return core._bgQueue.unfinished_tasks
+
+
+def background_idle(core):
+	"""Whether the inner BgThread has run every queued task (or has stopped)."""
+	return unfinished_background_tasks(core) == 0 or not core._bgThread.is_alive()
+
+
+def queued_begins(core):
+	"""The wrapper's begin tasks still queued for the inner BgThread, in order."""
+	begin = sys.modules[type(core).__module__]._Begin
+	return [task for task in tuple(core._bgQueue.queue) if isinstance(task, begin)]
+
+
+def termination_done(core):
+	"""The event the wrapper sets once terminate() has finished."""
+	return core._terminationDone
+
+
+def stop_gate_clear(core):
+	"""Whether no cancel or stop holds the wrapper's stop gate."""
+	with core._speechStateLock:
+		return core._stopGate.clear
+
+
+def native_call(core):
+	"""The native call the wrapper has in flight, or None."""
+	return getattr(core, "_nativeCall", None)

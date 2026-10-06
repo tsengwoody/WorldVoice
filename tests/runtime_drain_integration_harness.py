@@ -13,7 +13,7 @@ from addon_loader import alias_package
 from onecore_drain_harness import ROOT, in_thread, load_onecore
 from runtime_harness import MemoryRepository, load_runtime, load_scheduler
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
-from worldvoice_cancel_wrapper_harness import emit, load_real_driver_with_native_stubs
+from worldvoice_cancel_wrapper_harness import emit, load_real_driver_with_native_stubs, real_player
 from worldvoice_harness import EventStub
 
 PACKAGE = "synthDrivers.WorldVoice"
@@ -40,7 +40,7 @@ class EngineControl:
 	def __init__(self, env, engine, monkeypatch):
 		self.env, self.engine = env, engine
 		self.core = env.driver if engine == "OneCore" else env.core
-		self.player = env.player if engine == "OneCore" else self.core._real_player
+		self.player = env.player if engine == "OneCore" else real_player(self.core)
 		self.condition = Condition()
 		self.started = Event()
 		self.calls, self.contexts, self.commands, self.sinks, self.applied = [], [], [], [], []
