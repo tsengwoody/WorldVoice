@@ -479,18 +479,10 @@ class SynthDriver(SynthDriver):
 			filter_speechSequence.unregister(self.add_detected_language_commands)
 
 	def _get_availableNumlans(self):
-		return dict(
-			{
-				"default": StringParameterInfo("default", _("default")),
-			},
-			**{
-				locale: StringParameterInfo(locale, name)
-				for locale, name in zip(
-					self._voiceManager.languages,
-					list(map(self._numlanDisplayName, self._voiceManager.languages)),
-				)
-			},
-		)
+		values = {"default": StringParameterInfo("default", _("default"))}
+		for locale in self._voiceManager.languages:
+			values[locale] = StringParameterInfo(locale, self._numlanDisplayName(locale))
+		return values
 
 	def _get_numlan(self):
 		return self._numlan
