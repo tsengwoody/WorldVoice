@@ -428,11 +428,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._updateVoicesSelection()
 		self._localesChoice.SetFocus()
 
-	@property
-	def voiceInstance(self):
-		voiceName = self._getSelectedVoiceName()
-		return self._presenter.voice(voiceName) if voiceName else None
-
 	def _getSelectedVoiceName(self):
 		index = self._voicesChoice.GetCurrentSelection()
 		if index == wx.NOT_FOUND:
