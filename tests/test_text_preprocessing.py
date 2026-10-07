@@ -102,6 +102,21 @@ def test_escapes_do_not_count_toward_the_limit(chunker, text, pieces):
 
 
 @pytest.mark.parametrize(
+	("text", "max_length", "pieces"),
+	[
+		# A full piece takes the escape after it; the next text starts a new piece.
+		("a" * 10 + ESCAPE + "b", 10, ["a" * 10 + ESCAPE, "b"]),
+		# A letter and its marks that do not fit the rest of a piece start the next one.
+		("aa" + ESCAPE + "e\u0301\u0301", 3, ["aa" + ESCAPE, "e\u0301\u0301"]),
+		# An escape after a letter kept whole past the limit joins that letter's piece.
+		("x" + "\u0301" * 7 + ESCAPE, 5, ["x" + "\u0301" * 7 + ESCAPE]),
+	],
+)
+def test_pieces_break_around_escapes_and_whole_letters(chunker, text, max_length, pieces):
+	assert chunker.split_speech_text_pieces(text, max_length) == pieces
+
+
+@pytest.mark.parametrize(
 	("text", "pieces"),
 	[
 		# No space to split at: the cut moves back before the letter its mark belongs to.
