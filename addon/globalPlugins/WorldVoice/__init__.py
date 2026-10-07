@@ -167,4 +167,4 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		pipeline_log.disable()
 		if ask_export():
 			pipeline_log.export()
-			ui.message(_("turn off WorldVoice`s log record"))
+		ui.message(_("turn off WorldVoice`s log record"))

@@ -125,8 +125,8 @@ def test_declined_log_prompts_change_nothing_more(monkeypatch):
 	env.answers_for["export"] = False
 	env.calls.clear()
 	env.plugin.disable_log_record()
-	assert env.calls[:2] == ["disable", ("ask", "export")]
-	assert "export" not in env.calls
+	# Recording stops either way, so the user hears that it did even without an export.
+	assert env.calls == ["disable", ("ask", "export"), ("message", "turn off WorldVoice`s log record")]
 
 
 @pytest.mark.parametrize(
