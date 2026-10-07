@@ -239,6 +239,7 @@ def _insert_WVLangChangeCommand_between_number(
 			deduplicate_language_command(
 				iter_number_speech_segments_language(item, current_lang, number_language),
 				ctx,
+				start_language=current_lang,
 			),
 		)
 
@@ -535,7 +536,7 @@ def inject_punctuation_pause(
 	yield from pending_breaks
 
 
-def deduplicate_language_command(speechSequence, ctx: SpeechContext):
+def deduplicate_language_command(speechSequence, ctx: SpeechContext, start_language=None):
 	"""
 	Stream *speech_sequence* and emit only the language-change commands
 	that actually switch to a different voice.
@@ -549,11 +550,16 @@ def deduplicate_language_command(speechSequence, ctx: SpeechContext):
 	3. Forward all non-language-change commands unchanged.
 
 	Voices are compared by name, so filtering creates no voice instances.
+	*start_language* is the language already in force where the sequence
+	begins, when that is not the context's language.
 	"""
 	# Initial voice / language; a context without a default voice compares None.
 	default_voice = ctx.default_voice
 	voice_name = default_name = default_voice.name if default_voice is not None else None
 	current_language = default_language = ctx.language
+	if start_language is not None and start_language != default_language:
+		current_language = start_language
+		voice_name = ctx.voice_name_for_language(start_language) or default_name
 
 	for command in speechSequence:
 		# Handle language-change commands

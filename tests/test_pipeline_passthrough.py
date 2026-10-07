@@ -102,6 +102,16 @@ def test_number_language_follows_each_language_change_in_the_sequence(env):
 	]
 
 
+def test_a_number_language_equal_to_the_main_language_still_applies_in_another_language(env):
+	# NVDA's own language switching puts the number inside a French stretch: the switch to the
+	# number language (the main one, English) must not be mistaken for "already English".
+	module = env.module
+	ctx = voices_context(module, number_language="en")
+	sequence = [module.LangChangeCommand("fr"), "y 2"]
+	result = list(module.inject_number_language(sequence, env.settings, ctx))
+	assert kinds(result, env.BreakCommand) == [("lang", "fr"), "y ", ("lang", "en"), "2", ("lang", "fr")]
+
+
 def test_default_number_language_leaves_numbers_alone(env):
 	marker = Marker()
 	sequence = ["x 1", marker, "2"]
