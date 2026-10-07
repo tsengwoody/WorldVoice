@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from threading import Condition, Event, current_thread
 from types import SimpleNamespace
 
-from addon_loader import ROOT, load_source
+from addon_loader import REF, ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
@@ -318,7 +318,7 @@ def load_sapi5(monkeypatch, *, rt=None, scheduler=None, voice_base=object, comma
 	)
 	sys.modules["synthDriverHandler"].synthDoneSpeaking = Notification(lambda **kw: dones.append(kw["synth"]))
 	monkeypatch.setattr(builtins, "_", lambda text: text, raising=False)
-	base = load("synthDrivers.sapi5", ROOT / "ref/nvda/source/synthDrivers/sapi5.py")
+	base = load("synthDrivers.sapi5", REF / "nvda/source/synthDrivers/sapi5.py")
 	outer = load(
 		"synthDrivers.WorldVoice.driver.SAPI5",
 		ROOT / "addon/synthDrivers/WorldVoice/driver/SAPI5/__init__.py",

@@ -12,12 +12,12 @@ import wave
 from threading import Condition, Event, Thread
 from types import SimpleNamespace
 
-from addon_loader import ROOT, load_source
+from addon_loader import REF, ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
-NVDA = ROOT / "ref/nvda"
+NVDA = REF / "nvda"
 VERSION = "source-DETACHED-9ef645d"
 
 

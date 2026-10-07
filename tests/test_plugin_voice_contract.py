@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import REF
 
 ROOT = Path(__file__).resolve().parents[1]
 # The class attributes the base Voice offers plugins.
@@ -67,7 +68,7 @@ def test_plugin_attributes_exist_on_the_base_voice(composition):
 
 
 def test_reference_neural_plugin_uses_only_plugin_attributes():
-	path = ROOT / "ref/Neural/Neural/__init__.py"
+	path = REF / "Neural/Neural/__init__.py"
 	if not path.is_file():
 		pytest.skip("ref/Neural is not checked out")
 	tree = ast.parse(path.read_text(encoding="utf-8"))

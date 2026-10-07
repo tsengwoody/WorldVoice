@@ -5,9 +5,10 @@ import hashlib
 from pathlib import Path
 
 import pytest
+from addon_loader import REF
 
 ROOT = Path(__file__).resolve().parents[1]
-NVDA = ROOT / "ref/nvda/source/gui/settingsDialogs.py"
+NVDA = REF / "nvda/source/gui/settingsDialogs.py"
 COPY = ROOT / "addon/synthDrivers/WorldVoice/VoiceSettingsDialogs.py"
 # ref/nvda 1406f9f8a: AutoSettingsMixin._updateValueForControl. WorldVoice's override reloads
 # string options on purpose, so only a change on NVDA's side is detected; when this fails,

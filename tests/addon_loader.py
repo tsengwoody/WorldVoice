@@ -16,6 +16,9 @@ from types import ModuleType
 ROOT = Path(__file__).resolve().parents[1]
 ADDON = ROOT / "addon"
 WORLDVOICE = ADDON / "synthDrivers/WorldVoice"
+# The NVDA and Neural sources some tests compare against. mutmut runs the tests from a copy of
+# the project in mutants/, which does not copy this large tree, so look beside the copy too.
+REF = ROOT / "ref" if (ROOT / "ref").exists() or ROOT.name != "mutants" else ROOT.parent / "ref"
 
 
 def load_source(monkeypatch, name, path, *, register=True):

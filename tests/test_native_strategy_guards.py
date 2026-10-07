@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 import pytest
+from addon_loader import REF
 
 ROOT = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 ENGINES = ("Espeak", "SAPI5", "RHVoice", "OneCore", "VE", "Cerence")
@@ -44,7 +45,7 @@ def test_drain_support_requires_keywords(engine):
 	assert method.args.kw_defaults == [None, None]
 
 
-NVDA_SAPI5 = Path(__file__).resolve().parents[1] / "ref/nvda/source/synthDrivers/sapi5.py"
+NVDA_SAPI5 = REF / "nvda/source/synthDrivers/sapi5.py"
 
 
 def _sapi5_tree():
@@ -149,7 +150,7 @@ def test_rhvoice_uses_shared_player_and_stop_gate():
 	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]
 
 
-NVDA_ONECORE = Path(__file__).resolve().parents[1] / "ref/nvda/source/synthDrivers/oneCore.py"
+NVDA_ONECORE = REF / "nvda/source/synthDrivers/oneCore.py"
 INNER_ONECORE = ROOT / "driver/OneCore/driver/__init__.py"
 
 

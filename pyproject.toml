@@ -32,6 +32,22 @@ skip_empty = true
 # would be left out of the report instead of showing 0%.
 include_namespace_packages = true
 
+[tool.mutmut]
+# Run with `mutmut run` (Linux or WSL), then `mutmut results` / `mutmut show <name>`.
+# Covered lines of the core decision logic only; widen the list as needed.
+source_paths = [
+	"addon/synthDrivers/WorldVoice/runtime/completion.py",
+	"addon/synthDrivers/WorldVoice/indexLedger.py",
+	"addon/synthDrivers/WorldVoice/configRepository.py",
+	"addon/synthDrivers/WorldVoice/mainLocalePolicy.py",
+]
+mutate_only_covered_lines = true
+also_copy = ["addon/", ".pre-commit-config.yaml", "buildVars.py"]
+pytest_add_cli_args_test_selection = ["tests/"]
+# The hygiene guards lint and scan the source; on mutmut's rewritten copy they judge the
+# rewrite, not behaviour. tests/mutation_support.py matches the alias-loaded modules.
+pytest_add_cli_args = ["--ignore=tests/test_hygiene_guards.py"]
+
 [tool.ruff]
 # Matches the ruff-pre-commit rev in .pre-commit-config.yaml and NVDA's lint group (ref/nvda/pyproject.toml).
 # The lint rules are ruff's defaults minus the ignores below, so another ruff version could check other rules.

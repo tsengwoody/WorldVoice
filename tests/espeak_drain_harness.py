@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from threading import Condition, Event, current_thread
 from types import SimpleNamespace
 
-from addon_loader import ROOT, load_source
+from addon_loader import REF, ROOT, load_source
 from nvda_stubs import StubModules
 from runtime_harness import load_runtime, load_scheduler
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
@@ -298,10 +298,10 @@ def load_espeak(monkeypatch, tmp_path, *, rt=None, scheduler=None, voice_base=ob
 	monkeypatch.setattr(builtins, "pgettext", lambda context, text: text, raising=False)
 	native = Native()
 	monkeypatch.setattr(ctypes.cdll, "LoadLibrary", lambda path: native)
-	inner = load("synthDrivers._espeak", ROOT / "ref/nvda/source/synthDrivers/_espeak.py")
+	inner = load("synthDrivers._espeak", REF / "nvda/source/synthDrivers/_espeak.py")
 	native.inner = inner
 	native.voice = inner.espeak_VOICE(name=b"English", languages=b"\x02en-gb", identifier=b"en-gb")
-	base = load("synthDrivers.espeak", ROOT / "ref/nvda/source/synthDrivers/espeak.py")
+	base = load("synthDrivers.espeak", REF / "nvda/source/synthDrivers/espeak.py")
 	outer = load(
 		"synthDrivers.WorldVoice.driver.Espeak",
 		ROOT / "addon/synthDrivers/WorldVoice/driver/Espeak/__init__.py",
