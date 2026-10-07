@@ -635,6 +635,31 @@ def inject_langchange_reorder(
 		yield from buffer
 
 
+class _LogWriter:
+	"""Write pipeline log rows without letting a failed write reach NVDA's filter.
+
+	NVDA's Filter.apply keeps the input after an exception, and a logged stage has read that
+	generator already, so a raised write would leave the rest of the pipeline nothing to speak.
+	The first failure of an outage is logged; the next successful write ends the outage.
+	"""
+
+	def __init__(self):
+		self._failing = False
+
+	def write(self, *row):
+		try:
+			pl.write(*row)
+		except OSError:
+			if not self._failing:
+				log.error("WorldVoice could not write its pipeline log", exc_info=True)
+			self._failing = True
+		else:
+			self._failing = False
+
+
+_log_writer = _LogWriter()
+
+
 def _run_logged(label, fn, speechSequence, settings, ctx):
 	debug = config.conf["general"]["loggingLevel"] == "DEBUG"
 	section = config.conf["WorldVoice"]["log"]
@@ -646,12 +671,12 @@ def _run_logged(label, fn, speechSequence, settings, ctx):
 	if debug:
 		log.debug(f"speech sequence before {label} pipeline: {speechSequence}")
 	if recording:
-		pl.write(_id, label, "before", speechSequence)
+		_log_writer.write(_id, label, "before", speechSequence)
 	speechSequence = list(fn(speechSequence, settings, ctx))
 	if debug:
 		log.debug(f"speech sequence after {label} pipeline: {speechSequence}")
 	if recording:
-		pl.write(_id, label, "after", speechSequence)
+		_log_writer.write(_id, label, "after", speechSequence)
 	return speechSequence
 
 

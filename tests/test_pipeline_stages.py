@@ -77,6 +77,32 @@ def test_handler_logs_before_and_after_when_enabled(monkeypatch):
 	assert writes == [("speech_viewer", "before"), ("speech_viewer", "after")]
 
 
+def test_a_failing_log_write_neither_silences_the_stage_nor_floods_the_log(monkeypatch):
+	# NVDA's Filter.apply keeps the input after an exception; the stage has read that generator
+	# already, so a raised write would leave every later stage and the synth with nothing.
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	sys.modules["config"].conf["WorldVoice"]["log"] = {"enable": True, "speech_viewer": True}
+	failing = [True]
+
+	def write(*args):
+		if failing[0]:
+			raise OSError("disk full")
+
+	errors = []
+	monkeypatch.setattr(module, "pl", SimpleNamespace(write=write))
+	monkeypatch.setattr(module, "log", SimpleNamespace(error=lambda *a, **k: errors.append(a), debug=print))
+	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	stage = module.Stage("speech_viewer", lambda sequence, s, ctx: [item.upper() for item in sequence])
+	assert stage.handler(iter(["a"])) == ["A"]
+	assert stage.handler(iter(["b"])) == ["B"]
+	assert len(errors) == 1, "every failed write of one outage was logged"
+	failing[0] = False
+	assert stage.handler(iter(["c"])) == ["C"]
+	failing[0] = True
+	assert stage.handler(iter(["d"])) == ["D"]
+	assert len(errors) == 2, "a new outage after a successful write was not logged"
+
+
 def test_zero_number_wait_keeps_spaces(monkeypatch):
 	settings = punctuation_settings(0)
 	module, _ = load_pipeline_module(monkeypatch, settings)
