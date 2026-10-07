@@ -113,7 +113,7 @@ def test_log_script_switches_the_pipeline_log(monkeypatch, enabled):
 	assert env.pipeline_log.enabled is not enabled
 
 
-def test_declined_log_prompts_change_nothing_more(monkeypatch):
+def test_declined_log_prompts_go_no_further(monkeypatch):
 	env = plugin(monkeypatch)
 	env.calls.clear()
 	env.answers_for["confirm"] = env.wx.NO

@@ -21,15 +21,15 @@
 
 修法：
 
-- 以純文字長度計算上限（另記 `plain` 計數；開頭的快速路徑以去掉 escape 後的長度判斷）。escape 永遠附在下一段文字所在的 piece（或結尾時附在最後一個 piece），不會單獨成為一個 piece。
-- 硬切點若落在組合符號（`unicodedata.combining(ch) != 0`）之前，往前退到該字母之前；若退到 0（整段都是同一個字母加組合符號），則往後延伸到組合序列結束，寧可略超過上限也不拆開。在空白處切的路徑不變。
+- 以純文字長度計算上限（另記 `plain` 計數；開頭的快速路徑以去掉 escape 後的長度判斷）。文字在 escape 之後斷開時，該處的 escape 移到下一個 piece 的開頭（`\rate`、`\tn=spell` 這類 inline 設定才會作用到它前面標示的文字）；文字結尾的 escape 附在最後一個 piece。escape 不會單獨成為一個 piece。
+- 切點（硬切與空白切都一樣）若落在「附屬於前一個字元」的字元之前，往前退到該字母之前；若退到 0（整段都是同一個字母加附屬字元），則往後延伸到序列結束，寧可略超過上限也不拆開。附屬字元：Unicode 類別 M（含泰文母音、天城文母音符號、variation selector 這些 combining class 為 0 的符號）、emoji 膚色修飾字元（U+1F3FB–1F3FF）、零寬連接字（ZWJ）本身與它後面的字元。已知限制：韓文 conjoining Jamo（類別 Lo）不認得；夾在字母與符號之間的 escape 視為邊界。
 - 不變式：所有 piece 串接等於原文；每個 piece 的純文字長度不超過上限（唯一例外：單一字母的組合序列本身超過上限）；escape 不被切開；沒有只含 escape 的 piece。
 
 ## 3. pipeline log 寫檔失敗讓整句無聲
 
 `addon/synthDrivers/WorldVoice/pipeline/__init__.py` 的 `_run_logged`：開啟某 stage 的 log 時，先以 `list()` 讀完輸入 generator，再 `pl.write(...)`；寫檔的 `OSError`（磁碟滿、檔案被鎖）往外拋。NVDA 的 `Filter.apply`（`ref/nvda/source/extensionPoints/__init__.py:112-117`）記錄例外後沿用原本那個已讀空的 generator，後面所有 stage 與 synth 都拿到空序列，整句不發聲。
 
-修法：記錄寫入改走一個 helper，攔下 `OSError`：
+修法：記錄寫入改走一個 helper，攔下所有例外（磁碟滿是 `OSError`；序列中某個命令的 repr 無法編碼是 `UnicodeEncodeError`，屬 `ValueError`）：
 
 - 第一次失敗以 `log.error(..., exc_info=True)` 記錄；之後連續失敗不再重複記錄（避免每句話都寫 NVDA log），直到某次寫入成功才重設。
 - 不論寫入成功與否，stage 照常執行並回傳轉換後的序列。
@@ -58,3 +58,12 @@
 ## 驗證
 
 全套、逐檔、`ruff check/format addon tests`、`pytest tests --cov`（覆蓋率不降）、壓力測試（最多 3 個 worker、有記憶體看門狗）。
+
+## 實作備註（審查後）
+
+- Opus 5.5 審查結論可合併；三個建議修都已處理：
+  - chunker 原本只以 `unicodedata.combining` 判斷，漏掉 combining class 為 0 的符號（泰文 `กิ` 會被切成 `กิกิก`／`ิกิ`）。改為上述「附屬字元」規則。
+  - escape 原本在斷開處留在前一個 piece；改為移到下一個 piece。實作時臨時 fuzz 找到一個新 bug：尋找尾端 escape 的正規式用 `.*?`，`.` 會跨過反斜線，把「escape＋文字＋escape」整串當成一個 escape，產生空 piece；改為 `[^\\]*` 並加回歸測試。之後 Hypothesis 臨時 fuzz 三萬例（含泰文、天城文、emoji、ZWJ、膚色、兩種 escape）全部成立。
+  - `_LogWriter` 由只攔 `OSError` 改為攔所有例外（handler 以 `exc_info=True` 記錄，ruff 不視為 blind except）。
+- `test_declined_log_prompts_change_nothing_more` 改名為 `test_declined_log_prompts_go_no_further`。
+- 第 5 項依使用者決定不修。

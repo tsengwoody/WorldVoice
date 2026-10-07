@@ -655,7 +655,8 @@ class _LogWriter:
 	def write(self, *row):
 		try:
 			pl.write(*row)
-		except OSError:
+		except Exception:
+			# A full disk raises OSError; a command whose repr cannot be encoded, ValueError.
 			if not self._failing:
 				log.error("WorldVoice could not write its pipeline log", exc_info=True)
 			self._failing = True

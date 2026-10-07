@@ -104,10 +104,12 @@ def test_escapes_do_not_count_toward_the_limit(chunker, text, pieces):
 @pytest.mark.parametrize(
 	("text", "max_length", "pieces"),
 	[
-		# A full piece takes the escape after it; the next text starts a new piece.
-		("a" * 10 + ESCAPE + "b", 10, ["a" * 10 + ESCAPE, "b"]),
+		# Escapes before a break go with the text after it: an inline setting must reach it.
+		("a" * 10 + ESCAPE + "b", 10, ["a" * 10, ESCAPE + "b"]),
 		# A letter and its marks that do not fit the rest of a piece start the next one.
-		("aa" + ESCAPE + "e\u0301\u0301", 3, ["aa" + ESCAPE, "e\u0301\u0301"]),
+		("aa" + ESCAPE + "e\u0301\u0301", 3, ["aa", ESCAPE + "e\u0301\u0301"]),
+		# Only the escapes at the very end move: text between two escapes stays put.
+		("aaa" + ESCAPE + "e\u0301aa" + ESCAPE + "a", 4, ["aaa", ESCAPE + "e\u0301aa", ESCAPE + "a"]),
 		# An escape after a letter kept whole past the limit joins that letter's piece.
 		("x" + "\u0301" * 7 + ESCAPE, 5, ["x" + "\u0301" * 7 + ESCAPE]),
 	],
@@ -126,11 +128,24 @@ def test_pieces_break_around_escapes_and_whole_letters(chunker, text, max_length
 		("x" + "\u0301" * 7 + "yy", ["x" + "\u0301" * 7, "yy"]),
 		# A cut at a space also stays off a mark that space carries.
 		("aaaa \u0301", ["aaaa", " \u0301"]),
+		# Marks with no combining class: Thai vowels, Devanagari vowel signs, variation selectors.
+		("\u0e01\u0e34" * 4, ["\u0e01\u0e34" * 2, "\u0e01\u0e34" * 2]),
+		("\u0915\u093e" * 4, ["\u0915\u093e" * 2, "\u0915\u093e" * 2]),
+		("\u2764\ufe0f" * 4, ["\u2764\ufe0f" * 2, "\u2764\ufe0f" * 2]),
+		# A zero-width joiner holds both its neighbours; a skin tone stays with its emoji.
+		(
+			"aaa\U0001f468\u200d\U0001f469\u200d\U0001f467",
+			["aaa", "\U0001f468\u200d\U0001f469\u200d\U0001f467"],
+		),
+		("\U0001f44d\U0001f3fd" * 3, ["\U0001f44d\U0001f3fd" * 2, "\U0001f44d\U0001f3fd"]),
+		# The text may end in a letter kept whole past the limit.
+		("ab" + "x" + "\u0301" * 7, ["ab", "x" + "\u0301" * 7]),
 	],
 )
 def test_a_hard_cut_keeps_combining_marks_with_their_letter(chunker, text, pieces):
-	assert chunker.split_speech_text_pieces(text, 5) == pieces
-	assert "".join(pieces) == text
+	result = chunker.split_speech_text_pieces(text, 5)
+	assert result == pieces
+	assert "".join(result) == text
 
 
 @pytest.mark.parametrize(

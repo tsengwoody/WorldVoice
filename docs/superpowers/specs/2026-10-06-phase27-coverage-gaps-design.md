@@ -63,7 +63,7 @@
 - 刻意未測：一行委派的 getter／`check()`、已停用的 `with_order_log`（使用者決定保留）、呼叫端已先檢查而到不了的分支、照抄 NVDA 的 `gui._isDebug()` debug log。
 - 驗證：全套通過、每個測試檔單獨執行通過、ruff 乾淨；合併後第一次開 coverage 跑全套出現 1 個失敗、未取得名稱，之後兩輪壓力測試（各 4 個 worker × 6 輪，含與不含 `--cov-branch`，共 48 輪）全部通過，未能重現。
 
-### 測試過程發現的產品程式問題（只記錄，未修，待使用者決定）
+### 測試過程發現的產品程式問題（第 1、2、3、4、6 項已在階段 30 修正；第 5 項依使用者決定不修）
 
 1. `GlobalPlugin.disable_log_record`：`ui.message("turn off …")` 縮排在 `if ask_export():` 內，使用者拒絕匯出時聽不到「已關閉記錄」。
 2. `text/chunker.py`：escape 序列的長度被算進 piece 上限，與 docstring「escape 可能讓 piece 變長」不符，可能切出只有 escape 的 piece；沒有空白的長字串會把組合符號與它的字母切開。

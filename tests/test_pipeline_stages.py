@@ -82,11 +82,12 @@ def test_a_failing_log_write_neither_silences_the_stage_nor_floods_the_log(monke
 	# already, so a raised write would leave every later stage and the synth with nothing.
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	sys.modules["config"].conf["WorldVoice"]["log"] = {"enable": True, "speech_viewer": True}
-	failing = [True]
+	failing = [OSError("disk full")]
 
 	def write(*args):
 		if failing[0]:
-			raise OSError("disk full")
+			# A full disk, or a command whose repr cannot be encoded.
+			raise failing[0]
 
 	errors = []
 	monkeypatch.setattr(module, "pl", SimpleNamespace(write=write))
@@ -96,9 +97,9 @@ def test_a_failing_log_write_neither_silences_the_stage_nor_floods_the_log(monke
 	assert stage.handler(iter(["a"])) == ["A"]
 	assert stage.handler(iter(["b"])) == ["B"]
 	assert len(errors) == 1, "every failed write of one outage was logged"
-	failing[0] = False
+	failing[0] = None
 	assert stage.handler(iter(["c"])) == ["C"]
-	failing[0] = True
+	failing[0] = UnicodeEncodeError("utf-8", "\ud800", 0, 1, "surrogates not allowed")
 	assert stage.handler(iter(["d"])) == ["D"]
 	assert len(errors) == 2, "a new outage after a successful write was not logged"
 
