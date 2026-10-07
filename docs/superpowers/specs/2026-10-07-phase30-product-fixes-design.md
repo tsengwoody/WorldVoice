@@ -67,3 +67,7 @@
   - `_LogWriter` 由只攔 `OSError` 改為攔所有例外（handler 以 `exc_info=True` 記錄，ruff 不視為 blind except）。
 - `test_declined_log_prompts_change_nothing_more` 改名為 `test_declined_log_prompts_go_no_further`。
 - 第 5 項依使用者決定不修。
+- 第二次聚焦審查（Opus 5.5）後：
+  - 尾端 escape 改為記錄「current 中文字結束的位置」（`_break(pieces, current, end)`），不再用正規式從左重新解析；token 改以 `(is_escape, text)` 分類，不再以 `startswith("\x1b")` 判斷。這同時修掉：escape 內容含換行時的空段或切錯、連續數千個 escape 時的平方成長（2 萬個由 9.6 秒降到 15 ms）、以及 master 就有的「以 ESC 開頭的純文字被當成 escape、不計長度」。
+  - 附屬字元加入泰文 SARA AM（U+0E33）、寮文 AM（U+0EB3）與 ZWNJ（U+200C）。已知限制補充：國旗 regional indicator 成對、emoji tag 序列、經 virama 組成的連字仍可能被切開；段落中間的 inline 設定（例如 `\tn=spell`）不會延續到下一段，取決於 Vocalizer 是否跨 `ProcessText2Speech` 保留 inline 狀態。
+  - 審查者的 fuzz（一般輸入與含換行 escape、單獨 ESC 的極端輸入各三萬例）全部 0 違規。

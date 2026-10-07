@@ -108,6 +108,10 @@ def test_escapes_do_not_count_toward_the_limit(chunker, text, pieces):
 		("a" * 10 + ESCAPE + "b", 10, ["a" * 10, ESCAPE + "b"]),
 		# A letter and its marks that do not fit the rest of a piece start the next one.
 		("aa" + ESCAPE + "e\u0301\u0301", 3, ["aa", ESCAPE + "e\u0301\u0301"]),
+		# A lone ESC is text: it counts and does not shield what follows.
+		("\x1b" + "a" * 30, 10, ["\x1b" + "a" * 9, "a" * 10, "a" * 10, "a"]),
+		# A would-be escape spanning a line break is text too; no piece comes out empty.
+		("a" * 6 + "\x1b\\a\nb\\" + ESCAPE + "c", 6, ["a" * 6, "\x1b\\a\nb\\", ESCAPE + "c"]),
 		# Only the escapes at the very end move: text between two escapes stays put.
 		("aaa" + ESCAPE + "e\u0301aa" + ESCAPE + "a", 4, ["aaa", ESCAPE + "e\u0301aa", ESCAPE + "a"]),
 		# An escape after a letter kept whole past the limit joins that letter's piece.
@@ -132,6 +136,8 @@ def test_pieces_break_around_escapes_and_whole_letters(chunker, text, max_length
 		("\u0e01\u0e34" * 4, ["\u0e01\u0e34" * 2, "\u0e01\u0e34" * 2]),
 		("\u0915\u093e" * 4, ["\u0915\u093e" * 2, "\u0915\u093e" * 2]),
 		("\u2764\ufe0f" * 4, ["\u2764\ufe0f" * 2, "\u2764\ufe0f" * 2]),
+		# Thai AM is a letter by category but follows its consonant.
+		("\u0e17\u0e33" * 3, ["\u0e17\u0e33" * 2, "\u0e17\u0e33"]),
 		# A zero-width joiner holds both its neighbours; a skin tone stays with its emoji.
 		(
 			"aaa\U0001f468\u200d\U0001f469\u200d\U0001f467",

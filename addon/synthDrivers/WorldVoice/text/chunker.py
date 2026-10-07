@@ -13,23 +13,26 @@ MAX_TEXT_LENGTH = 100
 _ESCAPE_RE = re.compile(r"\x1b\\.*?\\")
 
 
-# Escapes at the end of a piece, moved to the next piece when the text breaks there.
-_TRAILING_ESCAPES_RE = re.compile(r"(?:\x1b\\[^\\]*\\)+\Z")
 _ZWJ = "\u200d"
+# Spacing vowels written after their consonant whose category is Lo, not M: Thai and Lao AM.
+_SPACING_VOWELS = frozenset("\u0e33\u0eb3")
 
 
 def _attached(token, index):
 	"""Whether token[index] belongs to the character before it.
 
 	Combining marks of any combining class (Thai vowels, Devanagari vowel signs and
-	variation selectors have class 0), emoji skin tones, and both sides of a zero-width
-	joiner. Conjoining Hangul jamo are not recognized.
+	variation selectors have class 0), Thai and Lao AM, emoji skin tones, a zero-width
+	non-joiner, and both sides of a zero-width joiner. Not recognized: conjoining Hangul
+	jamo, regional-indicator flag pairs, emoji tag sequences and conjuncts formed with a
+	virama.
 	"""
 	char = token[index]
 	return (
 		unicodedata.category(char).startswith("M")
+		or char in _SPACING_VOWELS
 		or "\U0001f3fb" <= char <= "\U0001f3ff"
-		or char == _ZWJ
+		or char in ("\u200c", _ZWJ)
 		or token[index - 1] == _ZWJ
 	)
 
@@ -51,13 +54,12 @@ def _end_of_marks(token, start):
 	return end
 
 
-def _break(pieces, current):
-	"""End the piece in current and return what starts the next one: its trailing escapes.
+def _break(pieces, current, end):
+	"""End the piece at end, where its last text stops, and return what starts the next one.
 
-	An inline setting such as a rate change then reaches the text it was placed before.
+	The escapes after that text go with the next piece, so an inline setting such as a
+	rate change reaches the text it was placed before.
 	"""
-	escapes = _TRAILING_ESCAPES_RE.search(current)
-	end = escapes.start() if escapes else len(current)
 	pieces.append(current[:end])
 	return current[end:]
 
@@ -84,23 +86,26 @@ def split_speech_text_pieces(text, max_length=MAX_TEXT_LENGTH):
 	tokens = []
 	for match in _ESCAPE_RE.finditer(text):
 		if match.start() > pos:
-			tokens.append(text[pos : match.start()])
-		tokens.append(match.group())
+			tokens.append((False, text[pos : match.start()]))
+		tokens.append((True, match.group()))
 		pos = match.end()
 	if pos < len(text):
-		tokens.append(text[pos:])
-	for token in tokens:
-		if token.startswith("\x1b"):
+		tokens.append((False, text[pos:]))
+	# Where the text in current ends; only escapes follow it.
+	end = 0
+	for is_escape, token in tokens:
+		if is_escape:
 			current += token
 			continue
 		while token:
 			remaining = max_length - plain
 			if remaining <= 0:
-				current, plain = _break(pieces, current), 0
+				current, plain = _break(pieces, current, end), 0
 				remaining = max_length
 			if len(token) <= remaining:
 				current += token
 				plain += len(token)
+				end = len(current)
 				token = ""
 				continue
 			head = token[:remaining]
@@ -109,7 +114,7 @@ def split_speech_text_pieces(text, max_length=MAX_TEXT_LENGTH):
 			if cut == 0:
 				if plain:
 					# The letter fits after a break; try again on a new piece.
-					current, plain = _break(pieces, current), 0
+					current, plain = _break(pieces, current, end), 0
 					continue
 				cut = _end_of_marks(token, 0)
 			current += token[:cut]
