@@ -85,6 +85,40 @@ def test_combining_marks_stay_with_their_letter_at_a_space(chunker):
 
 
 @pytest.mark.parametrize(
+	("text", "pieces"),
+	[
+		# The limit counts plain characters: an escape never makes a piece of its own.
+		(ESCAPE + "a" * 20, [ESCAPE + "a" * 10, "a" * 10]),
+		("aaa" + ESCAPE + "b" * 20, ["aaa" + ESCAPE + "b" * 7, "b" * 10, "b" * 3]),
+		# Within the limit once the escapes are left out: one piece.
+		(ESCAPE + "a" * 10 + ESCAPE, [ESCAPE + "a" * 10 + ESCAPE]),
+		# A trailing escape stays with the last piece, also right after a cut.
+		("a" * 15 + ESCAPE, ["a" * 10, "a" * 5 + ESCAPE]),
+		("a" * 20 + ESCAPE, ["a" * 10, "a" * 10 + ESCAPE]),
+	],
+)
+def test_escapes_do_not_count_toward_the_limit(chunker, text, pieces):
+	assert chunker.split_speech_text_pieces(text, 10) == pieces
+
+
+@pytest.mark.parametrize(
+	("text", "pieces"),
+	[
+		# No space to split at: the cut moves back before the letter its mark belongs to.
+		("e\u0301" * 8, ["e\u0301" * 2, "e\u0301" * 2, "e\u0301" * 2, "e\u0301" * 2]),
+		("ab" + "c\u0301\u0327" * 3, ["abc\u0301\u0327", "c\u0301\u0327", "c\u0301\u0327"]),
+		# One letter whose marks alone pass the limit stays whole rather than split.
+		("x" + "\u0301" * 7 + "yy", ["x" + "\u0301" * 7, "yy"]),
+		# A cut at a space also stays off a mark that space carries.
+		("aaaa \u0301", ["aaaa", " \u0301"]),
+	],
+)
+def test_a_hard_cut_keeps_combining_marks_with_their_letter(chunker, text, pieces):
+	assert chunker.split_speech_text_pieces(text, 5) == pieces
+	assert "".join(pieces) == text
+
+
+@pytest.mark.parametrize(
 	("text", "expected"),
 	[
 		("", ""),
