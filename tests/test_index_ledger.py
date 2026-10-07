@@ -592,3 +592,24 @@ def test_end_index_contract_rejects_drain_but_accepts_failure(env):
 	failure = segment_event(env, "SEGMENT_FAILED", error=RuntimeError("failure"))
 	assert env.ledger.receive_segment_event(failure, binding_token=token) == (failure,)
 	assert env.ledger.receive_index(env.source_id, allocation.end_index) == ()
+
+
+def test_a_failure_after_the_end_index_is_ignored(env):
+	# An END_INDEX segment is finished at its terminal marker; a late failure must not reopen it.
+	token = env.ledger.bind(env.source, env.source_id, env.contract)
+	allocation = env.ledger.prepare(env.context, (5,))
+	assert [e.kind for e in env.ledger.receive_index(env.source_id, allocation.end_index)] == [
+		env.models.EventKind.INDEX,
+		env.models.EventKind.SEGMENT_END,
+	]
+	assert env.ledger.receive_segment_event(segment_event(env, "SEGMENT_FAILED"), binding_token=token) == ()
+
+
+def test_a_failure_after_drain_and_end_is_ignored(and_env):
+	env = and_env
+	allocation = env.ledger.prepare(env.context, (42,))
+	env.ledger.receive_segment_event(segment_event(env), binding_token=env.token)
+	env.ledger.receive_index(env.source_id, allocation.end_index)
+	assert (
+		env.ledger.receive_segment_event(segment_event(env, "SEGMENT_FAILED"), binding_token=env.token) == ()
+	)
