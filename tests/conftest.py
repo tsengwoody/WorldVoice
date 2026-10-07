@@ -17,10 +17,14 @@ from worldvoice_harness import EventStub, load_voice_manager
 # HYPOTHESIS_PROFILE=deep python3 -m pytest tests -k property
 settings.register_profile("default", max_examples=200, deadline=None)
 settings.register_profile("deep", max_examples=20000, deadline=None)
-settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
+# Under mutmut every mutant must meet the same examples, and none may carry over to the next.
+settings.register_profile("mutmut", max_examples=200, deadline=None, derandomize=True, database=None)
 
 if running_under_mutmut():
 	name_trampolines_by_file()
+	settings.load_profile("mutmut")
+else:
+	settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 
 @pytest.fixture(autouse=True)

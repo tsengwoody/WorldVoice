@@ -146,6 +146,7 @@ SCRIPT_SAMPLES = st.sampled_from(
 		st.one_of(
 			st.lists(st.one_of(SCRIPT_SAMPLES, st.characters()), max_size=12).map("".join),
 			st.sampled_from(["zh_TW", "ar", None, "fr"]).map(LangChangeCommand),
+			st.builds(object),
 		),
 		max_size=8,
 	),
@@ -156,12 +157,21 @@ def test_property_detection_only_inserts_language_changes(env, items, ignore_num
 	result = list(
 		make_detector(env, languages=("en_US", "zh_TW", "ja", "ar")).add_detected_language_commands(items),
 	)
-	texts = [item for item in result if isinstance(item, str)]
-	assert "".join(texts) == "".join(item for item in items if isinstance(item, str))
-	assert all(texts), "an empty text was yielded"
-	given_commands = [item for item in items if not isinstance(item, str)]
-	assert [item for item in result if any(item is command for command in given_commands)] == given_commands
-	added = [
-		item for item in result if not isinstance(item, str) and all(item is not c for c in given_commands)
-	]
+	assert all(item != "" for item in result), "an empty text was yielded"
+	given = [item for item in items if not isinstance(item, str)]
+	added = [item for item in result if not isinstance(item, str) and all(item is not c for c in given)]
 	assert all(isinstance(item, env.WV) for item in added)
+	# Without what detection added, the sequence is the input: same text, commands in place.
+	kept = [item for item in result if isinstance(item, str) or any(item is c for c in given)]
+	assert merge_texts(kept) == merge_texts(items)
+
+
+def merge_texts(sequence):
+	"""Join adjacent texts and drop empty ones, keeping commands where they are."""
+	merged = []
+	for item in sequence:
+		if isinstance(item, str) and merged and isinstance(merged[-1], str):
+			merged[-1] += item
+		else:
+			merged.append(item)
+	return [item for item in merged if item != ""]

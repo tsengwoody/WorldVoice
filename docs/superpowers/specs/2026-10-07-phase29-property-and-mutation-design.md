@@ -40,7 +40,21 @@
 | 類別 | 數量 | 處理 |
 | --- | --- | --- |
 | 例外訊息字串（`None`、大小寫、加字） | 28 | 不補：測試檢查例外型別，訊息只給開發者看 |
-| 等價變異：`_closed = None`（同為 falsy）、`.get(name, )`（預設即 None）、`cursor = None`（`delivered` 集合去重，結果相同）、`close` 中 `binding = ""`（close 後 bind 先因 closed 拋出）、`bind` 的 `or`→`and`（`CompletionContract` 已禁止可區分的組合）、`_Binding(None, …)` | 6 | 不補。`_Binding.source_id` 欄位從未被讀取，是死欄位，記錄於此 |
+| 等價變異：`_closed = None`（同為 falsy）、`.get(name, )`（預設即 None）、`cursor = None`（`delivered` 集合去重，結果相同）、`close` 中 `binding = ""`（`_sources` 已清空，再也讀不到）、`bind` 的 `or`→`and`（`CompletionContract` 已禁止可區分的組合） | 5 | 不補 |
+| ~~等價~~ **真正缺口**：`_Binding(None, …)`（初稿誤判為等價、並把 `source_id` 寫成死欄位） | 1 | `_bindings` 以 `id(source_id)` 為 key，這個強參考讓綁定中的 `source_id` 不被回收，否則新物件可能取得相同 `id()` 而收到別的來源的事件（審查在 mutants 中重現）。補 `test_a_bound_source_id_stays_alive_until_unbound`（weakref，綁定期間存活、unbind 後釋放），並在 `_Binding.source_id` 加註說明，避免被當成死欄位刪除 |
 | **真正缺口**：`receive_index` 在結尾 marker 設定的 `segment.finished`（4 個變異） | 4 | 補 `test_a_failure_after_the_end_index_is_ignored`、`test_a_failure_after_drain_and_end_is_ignored`：segment 完成後遲到的 `SEGMENT_FAILED` 必須被忽略，否則已念完的語音可能被回報為失敗。兩個測試殺死全部 4 個變異 |
 
 `runtime/completion.py` 與 `mainLocalePolicy.py` 的變異全部被殺死。
+
+### 審查（Opus 5.5）後
+
+- 必須修：上表 `_Binding(None, …)` 的更正。
+- 建議修（全部採用）：
+  - mutmut 下 Hypothesis 改用 `mutmut` profile（`derandomize=True`、`database=None`），每個變異遇到相同的例子，反例不會帶到下一個變異。
+  - `tests/mutation_support.py` 註明依賴 mutmut 3.8.0 的內部 API，版本不符時直接報錯（不符時的症狀只是存活變多，容易被忽略）。
+  - 偵測器性質改為「移除新增的命令、合併相鄰文字後等於輸入」，能抓到命令被搬位置；strategy 加入任意命令物件。
+  - Arabic 性質加上「新增空白數等於各段連續 `(len-1)//3` 的總和」（最少插入）。實作時 deep profile 找到測試自己的錯：產品把整個阿拉伯文區塊（含 shadda）都算作「相同字母的連續」，與 docstring 一致，測試已依此修正。
+  - chunker 性質刪除多餘的豁免條件；`blacklist_characters` 改為 `exclude_characters`。
+  - codec 性質涵蓋 END_INDEX、END_INDEX_AND_DRAIN、DRAIN 三種模式，檢查 marker 範圍，wire index 以任意順序與重複抵達。
+  - `bind`、`prepare` 的多個同型例外加上 `match=`，確定測試是被預期的 guard 攔下。
+- 重跑 mutmut：369 個變異，**351 殺死／18 存活**（5 個等價，13 個訊息字串變異：加字變異仍包含被比對的子字串，`IndexSpaceExhausted` 只有一個拋出點、刻意不比對訊息）。`deep` profile 全部通過。

@@ -176,6 +176,7 @@ def test_drain_codec_rejects_exhausted_segment_before_output(drain_codec_env):
 # Fresh ledgers per example come from the support modules the function-scoped env loaded once.
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
+	mode=st.sampled_from(["END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN"]),
 	layout=st.lists(
 		st.one_of(st.integers(-(2**31), 2**31), st.sampled_from(["text", "other"])),
 		max_size=14,
@@ -184,33 +185,32 @@ def test_drain_codec_rejects_exhausted_segment_before_output(drain_codec_env):
 	),
 	data=st.data(),
 )
-def test_property_encoding_keeps_commands_and_reports_each_index_once_in_order(codec_env, layout, data):
+def test_property_encoding_keeps_commands_and_reports_each_index_once_in_order(codec_env, mode, layout, data):
 	env = codec_env
+	models = env.models
+	mode = getattr(models.CompletionMode, mode)
 	ledger = env.support.ledger.IndexLedger()
 	source_id = object()
-	ledger.bind(
-		object(),
-		source_id,
-		env.models.CompletionContract(env.models.CompletionMode.END_INDEX, env.models.IndexRange(501, 510)),
-	)
-	others = {}
-	commands = []
-	for item in layout:
-		if isinstance(item, int):
-			commands.append(env.commands.IndexCommand(item))
-		else:
-			commands.append(others.setdefault(len(commands), object() if item == "other" else item))
+	token = ledger.bind(object(), source_id, models.CompletionContract(mode, models.IndexRange(501, 510)))
+	commands = [
+		env.commands.IndexCommand(item) if isinstance(item, int) else (object() if item == "other" else item)
+		for item in layout
+	]
 	snapshot = list(commands)
+	originals = [command.index for command in commands if isinstance(command, env.commands.IndexCommand)]
 	encoded = importlib.import_module(env.support.package + ".compat.indexCodec").encode_segment(
 		commands,
-		env.models.PlaybackContext(source_id, 1),
+		models.PlaybackContext(source_id, 1),
 		ledger,
 	)
 	assert commands == snapshot
-	*body, marker = encoded
-	assert isinstance(marker, env.support.commands.WorldVoiceIndexCommand)
+	# DRAIN completes on the drain event; the other modes send a terminal marker last.
+	body, marker = list(encoded), None
+	if mode is not models.CompletionMode.DRAIN:
+		*body, marker = encoded
+		assert isinstance(marker, env.support.commands.WorldVoiceIndexCommand)
+		assert 501 <= marker.index <= 510
 	assert len(body) == len(commands)
-	originals = [command.index for command in commands if isinstance(command, env.commands.IndexCommand)]
 	wires = []
 	for given_command, sent in zip(commands, body, strict=True):
 		if isinstance(given_command, env.commands.IndexCommand):
@@ -219,13 +219,18 @@ def test_property_encoding_keeps_commands_and_reports_each_index_once_in_order(c
 		else:
 			assert sent is given_command
 	assert wires == sorted(wires) and len(set(wires)) == len(wires)
-	assert all(501 <= wire < marker.index <= 510 for wire in wires)
-	# A wire index reports the originals up to it, the marker the rest and then the end; a caller
-	# index repeated within one segment is reported once, where it first appears.
+	assert all(501 <= wire <= 510 and (marker is None or wire < marker.index) for wire in wires)
+	# Wire indexes may arrive in any order and more than once: what is reported is always the
+	# originals in order, each once (a caller index repeated in a segment counts where it first
+	# appears); the end reports the rest.
+	expected = list(dict.fromkeys(originals))
 	reported = []
-	if wires:
-		upto = data.draw(st.integers(0, len(wires) - 1))
-		reported += [event.index for event in ledger.receive_index(source_id, wires[upto])]
-		assert reported == list(dict.fromkeys(originals[: upto + 1]))
-	reported += [event.index for event in ledger.receive_index(source_id, marker.index)]
-	assert reported == [*dict.fromkeys(originals), None]
+	for wire in data.draw(st.lists(st.sampled_from(wires), max_size=12)) if wires else ():
+		reported += [event.index for event in ledger.receive_index(source_id, wire)]
+		assert reported == expected[: len(reported)]
+	if marker is not None:
+		reported += [event.index for event in ledger.receive_index(source_id, marker.index)]
+	else:
+		drained = models.PlaybackEvent(models.EventKind.SEGMENT_DRAINED, source_id, segment_id=1)
+		reported += [event.index for event in ledger.receive_segment_event(drained, binding_token=token)]
+	assert reported == [*expected, None]

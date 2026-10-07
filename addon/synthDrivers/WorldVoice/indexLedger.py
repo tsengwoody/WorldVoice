@@ -60,6 +60,8 @@ class _Source:
 
 @dataclass
 class _Binding:
+	# Never read, but needed: bindings are keyed by id(source_id), and this strong reference keeps
+	# that id from being reused by another object while the binding exists.
 	source_id: object
 	state: _Source
 	token: object = field(default_factory=object)

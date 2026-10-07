@@ -152,21 +152,22 @@ def test_exhaustion_is_atomic(env):
 
 def test_duplicate_prepare_rejected_until_retired_even_after_end(env):
 	env.ledger.prepare(env.context, ())
-	with pytest.raises(env.module.InvalidIndexContext):
+	with pytest.raises(env.module.InvalidIndexContext, match="already prepared"):
 		env.ledger.prepare(env.context, ())
 	env.ledger.receive_index(env.source_id, 501)
-	with pytest.raises(env.module.InvalidIndexContext):
+	with pytest.raises(env.module.InvalidIndexContext, match="already prepared"):
 		env.ledger.prepare(env.context, ())
 	env.ledger.retire_segment(env.context)
 	assert env.ledger.prepare(env.context, ()).end_index == 502
 
 
 def test_invalid_bindings_do_not_replace_valid_binding(env):
-	with pytest.raises(env.module.InvalidIndexContext):
+	# Each guard of bind and prepare raises the same type; match says which one stopped the call.
+	with pytest.raises(env.module.InvalidIndexContext, match="Source is already bound to another source ID"):
 		env.ledger.bind(env.source, object(), env.contract)
-	with pytest.raises(env.module.InvalidIndexContext):
+	with pytest.raises(env.module.InvalidIndexContext, match="Source ID is already bound to another source"):
 		env.ledger.bind(object(), env.source_id, env.contract)
-	with pytest.raises(env.module.InvalidIndexContext):
+	with pytest.raises(env.module.InvalidIndexContext, match="not bound to this ledger"):
 		env.ledger.prepare(env.models.PlaybackContext(object(), 1), ())
 	assert env.ledger.prepare(env.context, ()).end_index == 501
 
@@ -178,7 +179,7 @@ def test_rebind_rejects_changed_contract(env, mode, bounds):
 		getattr(env.models.CompletionMode, mode),
 		env.models.IndexRange(*bounds),
 	)
-	with pytest.raises(env.module.InvalidIndexContext):
+	with pytest.raises(env.module.InvalidIndexContext, match="cannot change its completion contract"):
 		env.ledger.bind(env.source, env.source_id, changed)
 	env.ledger.bind(env.source, env.source_id, env.contract)
 	assert env.ledger.prepare(env.context, ()).end_index == 501
@@ -211,9 +212,9 @@ def test_close_releases_source_retained_through_unbind_and_rejects_work(env):
 	env.ledger.close()
 	gc.collect()
 	assert source_ref() is None
-	with pytest.raises(env.module.InvalidIndexContext):
+	with pytest.raises(env.module.InvalidIndexContext, match="Ledger is closed"):
 		env.ledger.bind(object(), object(), env.contract)
-	with pytest.raises(env.module.InvalidIndexContext):
+	with pytest.raises(env.module.InvalidIndexContext, match="not bound to this ledger"):
 		env.ledger.prepare(env.context, ())
 	assert env.ledger.receive_index(env.source_id, 501) == ()
 	env.ledger.retire_segment(env.context)
@@ -613,3 +614,20 @@ def test_a_failure_after_drain_and_end_is_ignored(and_env):
 	assert (
 		env.ledger.receive_segment_event(segment_event(env, "SEGMENT_FAILED"), binding_token=env.token) == ()
 	)
+
+
+def test_a_bound_source_id_stays_alive_until_unbound(env):
+	# Bindings are keyed by id(source_id); were a bound ID freed, a new object could take its
+	# id() and receive another source's events.
+	class SourceId:
+		pass
+
+	source_id = SourceId()
+	reference = weakref.ref(source_id)
+	env.ledger.bind(object(), source_id, env.contract)
+	del source_id
+	gc.collect()
+	assert reference() is not None
+	env.ledger.unbind(reference())
+	gc.collect()
+	assert reference() is None

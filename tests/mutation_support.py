@@ -4,6 +4,11 @@ mutmut keys each mutant by the module path of its file (addon.synthDrivers.World
 records which tests reach which function by the function's __module__. Tests load the add-on
 under alias packages, so without this the names disagree, mutmut selects no test for a mutant
 and reports it as surviving. Each trampolined function is named by its file instead.
+
+This leans on mutmut 3.8.0 internals: generated modules import wrap_in_trampoline when they load,
+the trampoline compares the active mutant's module with the wrapped function's __module__, and it
+calls record_trampoline_hit through the trampoline module's globals. pyproject.toml pins the
+version; check these again before changing it, since a mismatch only shows as extra survivors.
 """
 
 from pathlib import Path
@@ -24,9 +29,17 @@ def _module_name(path):
 	return ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
 
 
+MUTMUT_VERSION = "3.8.0"
+
+
 def name_trampolines_by_file():
 	"""Name what mutmut compares and records by the file, not by the alias it was loaded under."""
+	from importlib.metadata import version
+
 	from mutmut.mutation import trampoline
+
+	if version("mutmut") != MUTMUT_VERSION:
+		raise RuntimeError(f"tests/mutation_support.py is written for mutmut {MUTMUT_VERSION}")
 
 	wrap_in_trampoline = trampoline.wrap_in_trampoline
 	record_trampoline_hit = trampoline.record_trampoline_hit

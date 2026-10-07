@@ -216,7 +216,7 @@ TEXT_PARTS = st.sampled_from(
 	],
 )
 SPEECH_TEXT = st.lists(
-	st.one_of(TEXT_PARTS, ESCAPES, st.characters(blacklist_characters="\x1b")),
+	st.one_of(TEXT_PARTS, ESCAPES, st.characters(exclude_characters="\x1b")),
 	max_size=80,
 )
 
@@ -240,7 +240,7 @@ def test_property_chunk_pieces_rebuild_the_text_within_the_limit(chunker, parts,
 			break
 		position += len(piece)
 		assert not re.search(r"\x1b\\[^\\\n]*\\\Z", piece), "escapes before a break stayed behind"
-		if text[position - 1] != "\\" and text[position] != "\x1b":
+		if text[position] != "\x1b":
 			assert not chunker._attached(text, position), "a cut split a character"
 
 
@@ -250,6 +250,10 @@ def test_property_arabic_runs_only_gain_spaces(arabic, parts):
 	broken = arabic.break_repeated_runs(text)
 	assert TOKEN.findall(broken) == TOKEN.findall(text), "an escape changed"
 	assert broken.replace(" ", "") == text.replace(" ", "")
-	assert broken.count(" ") >= text.count(" ")
-	assert not re.search(rf"([{AIN}{BEH}])\1{{3}}", TOKEN.sub("|", broken)), "a run of four was left"
+	# One space for every three letters past the first three of a run; nothing else changes.
+	# Every code point of the Arabic blocks counts, the shadda mark included.
+	runs = re.finditer(rf"([{AIN}{BEH}\u0651])\1*", TOKEN.sub("|", text))
+	needed = sum((len(run.group()) - 1) // 3 for run in runs if len(run.group()) > 3)
+	assert broken.count(" ") - text.count(" ") == needed
+	assert not re.search(rf"([{AIN}{BEH}\u0651])\1{{3}}", TOKEN.sub("|", broken)), "a run of four was left"
 	assert arabic.break_repeated_runs(broken) == broken
