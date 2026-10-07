@@ -7,6 +7,7 @@ import re
 
 import pytest
 from addon_loader import WORLDVOICE, load_source
+from hypothesis import given, strategies as st
 
 ESCAPE = "\x1b\\pause=100\\"
 ESCAPE_RE = re.compile(r"\x1b\\.*?\\")
@@ -192,3 +193,63 @@ def test_escape_sequences_keep_their_runs_and_split_runs(arabic):
 )
 def test_max_run_sets_the_longest_run_kept(arabic, max_run, text, expected):
 	assert arabic.break_repeated_runs(text, max_run) == expected
+
+
+# Property tests over generated text. The pieces these strategies draw from are the cases the
+# hand-written tests above pin; Hypothesis combines them in ways a person would not.
+TOKEN = re.compile(r"\x1b\\[^\\\n]*\\")
+ESCAPES = st.sampled_from([ESCAPE, "\x1b\\rate=50\\", "\x1b\\mrk=7\\", "\x1b\\tn=spell\\"])
+TEXT_PARTS = st.sampled_from(
+	[
+		"a",
+		" ",
+		"é",
+		"กิ",
+		"ทำ",
+		"का",
+		"❤️",
+		"\U0001f468‍\U0001f469",
+		"\U0001f44d\U0001f3fd",
+		"世",
+		"\U00020000",
+		AIN,
+	],
+)
+SPEECH_TEXT = st.lists(
+	st.one_of(TEXT_PARTS, ESCAPES, st.characters(blacklist_characters="\x1b")),
+	max_size=80,
+)
+
+
+@given(parts=SPEECH_TEXT, max_length=st.integers(1, 12))
+def test_property_chunk_pieces_rebuild_the_text_within_the_limit(chunker, parts, max_length):
+	text = "".join(parts)
+	pieces = chunker.split_speech_text_pieces(text, max_length)
+	assert "".join(pieces) == text
+	assert all(pieces)
+	assert sum(len(TOKEN.findall(piece)) for piece in pieces) == len(TOKEN.findall(text)), "an escape was cut"
+	has_text = bool(TOKEN.sub("", text))
+	position = 0
+	for number, piece in enumerate(pieces):
+		words = TOKEN.sub("", piece)
+		assert words or not has_text, "a piece holds only escapes"
+		if len(words) > max_length:
+			# Only one character with everything attached to it may pass the limit.
+			assert all(chunker._attached(words, index) for index in range(1, len(words)))
+		if number == len(pieces) - 1:
+			break
+		position += len(piece)
+		assert not re.search(r"\x1b\\[^\\\n]*\\\Z", piece), "escapes before a break stayed behind"
+		if text[position - 1] != "\\" and text[position] != "\x1b":
+			assert not chunker._attached(text, position), "a cut split a character"
+
+
+@given(parts=st.lists(st.one_of(st.sampled_from([AIN, BEH, " ", "ّ"]), ESCAPES), max_size=60))
+def test_property_arabic_runs_only_gain_spaces(arabic, parts):
+	text = "".join(parts)
+	broken = arabic.break_repeated_runs(text)
+	assert TOKEN.findall(broken) == TOKEN.findall(text), "an escape changed"
+	assert broken.replace(" ", "") == text.replace(" ", "")
+	assert broken.count(" ") >= text.count(" ")
+	assert not re.search(rf"([{AIN}{BEH}])\1{{3}}", TOKEN.sub("|", broken)), "a run of four was left"
+	assert arabic.break_repeated_runs(broken) == broken

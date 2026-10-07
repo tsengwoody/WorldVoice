@@ -1,14 +1,22 @@
 """Shared fixtures for every test module."""
 
 import importlib
+import os
 import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
 from addon_loader import alias_package
+from hypothesis import settings
 from nvda_stubs import StubModules
 from runtime_harness import RUNTIME, MemoryRepository, load_runtime
 from worldvoice_harness import EventStub, load_voice_manager
+
+# Property tests: a quick default for every run, and a deep profile for hunting edge cases:
+# HYPOTHESIS_PROFILE=deep python3 -m pytest tests -k property
+settings.register_profile("default", max_examples=200, deadline=None)
+settings.register_profile("deep", max_examples=20000, deadline=None)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 
 @pytest.fixture(autouse=True)

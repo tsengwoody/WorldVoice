@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from detector_harness import LangChangeCommand, load_language_detection
+from hypothesis import HealthCheck, given, settings, strategies as st
 
 
 @pytest.fixture
@@ -131,3 +132,36 @@ def test_one_settings_read_per_spelling(env):
 		("a", "en_US"),
 	]
 	assert counting.reads == 1
+
+
+SCRIPT_SAMPLES = st.sampled_from(
+	["hello", " ", "中文", "日本語", "عربي", "123", ",", "é", "\U0001f600", "\n"],
+)
+
+
+# The detector is stateless between calls, so one function-scoped env serves every example.
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(
+	items=st.lists(
+		st.one_of(
+			st.lists(st.one_of(SCRIPT_SAMPLES, st.characters()), max_size=12).map("".join),
+			st.sampled_from(["zh_TW", "ar", None, "fr"]).map(LangChangeCommand),
+		),
+		max_size=8,
+	),
+	ignore_numbers=st.booleans(),
+)
+def test_property_detection_only_inserts_language_changes(env, items, ignore_numbers):
+	switching(env)["ignoreNumbersInLanguageDetection"] = ignore_numbers
+	result = list(
+		make_detector(env, languages=("en_US", "zh_TW", "ja", "ar")).add_detected_language_commands(items),
+	)
+	texts = [item for item in result if isinstance(item, str)]
+	assert "".join(texts) == "".join(item for item in items if isinstance(item, str))
+	assert all(texts), "an empty text was yielded"
+	given_commands = [item for item in items if not isinstance(item, str)]
+	assert [item for item in result if any(item is command for command in given_commands)] == given_commands
+	added = [
+		item for item in result if not isinstance(item, str) and all(item is not c for c in given_commands)
+	]
+	assert all(isinstance(item, env.WV) for item in added)
