@@ -313,7 +313,9 @@ Linux, mutmut 3.8.0, `mutmut run --max-children 3 "addon.synthDrivers.WorldVoice
 - Second run, on the final code: 378 mutants: 352 killed, 6 timeout, 20 survived. The updated ledger tests were then copied into `mutants/tests`, and each survivor was run against the full suite with `MUTANT_UNDER_TEST=<name>` (1730 tests, hygiene guards excluded as in `[tool.mutmut]`). `bind__mutmut_29`, `prepare__mutmut_14` and `prepare__mutmut_20` (case changes) now fail, so they are killed. The other 17 pass the whole suite, so they really survive.
 - Final: **378 mutants: 355 killed, 6 timeout, 17 survived**.
 
-Surviving mutants and why:
+- Fix round (after the review's Minor items; the only source change is a comment in `_find_start`): the same command gives the same result, **378 mutants: 355 killed, 6 timeout, 17 survived**, with the same survivors under the same names.
+
+Surviving mutants and why. The numbers are mutmut's names from these runs, which use `mutate_only_covered_lines = true` (`pyproject.toml`). Generating mutants without coverage, or after the covered lines change, numbers them differently, so the "Change" column is what identifies each mutant; check it with `mutmut show` before trusting a number.
 
 | Mutant | Change | Why it survives |
 | --- | --- | --- |
@@ -324,7 +326,7 @@ Surviving mutants and why:
 | `bind` 4 | `not rule.correlated and index_range is None` | Equivalent. `CompletionContract` already rejects a correlated mode without a range and LEGACY_DONE with one, so both conditions hold or neither does. (Existed before.) |
 | `close` 5 | `state.binding = ""` | Equivalent. After `close` every `bind` raises "Ledger is closed" before it reads `state.binding`, and the source states are dropped. (Existed before.) |
 | `_pending_indexes` 13 | `segment.cursor = None` | Equivalent. The cursor only skips work. `originals[None:stop]` starts at 0, and `delivered` already contains every original before the old cursor, so the same events come out. (Existed before.) |
-| `bind` 9, 22, 28, 34; `prepare` 13, 19, 42; `indexCodec` 5, 10 | `"XX" + message + "XX"` | The message stays the same between the padding, and tests match it with `re.search`. As in phase 29, messages are not pinned with anchors. |
+| Message padding, 9 mutants (`bind` 9, 22, 28, 34; `prepare` 13, 19, 42; `indexCodec` 5, 10) | `"XX" + message + "XX"` on each of these messages. `bind`: "Ledger is closed", "Source ID is already bound to another source", "A source cannot change its completion contract", "Source is already bound to another source ID". `prepare`: "Source is not bound to this ledger", "Segment is already prepared and has not been retired", "Source wire index range is exhausted". `encode_segment`: "Input already contains an internal segment marker", "Index command requires an integer" | The message stays the same between the padding, and tests match it with `re.search`. As in phase 29, messages are not pinned with anchors. |
 
 ## Final verification
 
