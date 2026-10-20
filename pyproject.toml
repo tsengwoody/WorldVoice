@@ -38,6 +38,7 @@ include_namespace_packages = true
 source_paths = [
 	"addon/synthDrivers/WorldVoice/runtime/completion.py",
 	"addon/synthDrivers/WorldVoice/indexLedger.py",
+	"addon/synthDrivers/WorldVoice/compat/indexCodec.py",
 	"addon/synthDrivers/WorldVoice/configRepository.py",
 	"addon/synthDrivers/WorldVoice/mainLocalePolicy.py",
 ]
