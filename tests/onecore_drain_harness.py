@@ -218,7 +218,13 @@ def load_onecore(monkeypatch, *, rt=None, scheduler=None, voice_base=object, com
 	)
 	monkeypatch.setitem(sys.modules, "speech.commands", commands)
 	module("speech.types", SpeechSequence=list, SequenceItemT=object)
-	module("speechXml", SsmlConverter=Converter, toNvdaLang=lambda text: text.replace("-", "_"))
+	module(
+		"speechXml",
+		SsmlConverter=Converter,
+		SetAttrCommand=object,
+		XmlBalancerCommand=object,
+		toNvdaLang=lambda text: text.replace("-", "_"),
+	)
 	module("comtypes", BSTR=str)
 	module("winreg")
 	module("config", conf={"audio": {"outputDevice": "default"}})

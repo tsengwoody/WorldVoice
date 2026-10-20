@@ -1,4 +1,5 @@
 import gc
+import inspect
 import sys
 import weakref
 from threading import Event, current_thread, get_ident
@@ -64,6 +65,28 @@ def finish(call):
 
 def wait_events(events, count=1):
 	eventually(lambda: len(events) >= count, message="Segment event was not delivered")
+
+
+def test_stubs_cover_names_that_onecore_annotations_use(env):
+	# Python 3.13 and older evaluate annotations when the def runs, so a stubbed
+	# module must also provide every name that NVDA's oneCore.py uses only in one.
+	base = env.base
+	annotated = []
+	for owner in vars(base).values():
+		if inspect.isclass(owner) and owner.__module__ == base.__name__:
+			annotated.append(owner)
+			for member in vars(owner).values():
+				member = getattr(member, "__func__", member)
+				if inspect.isfunction(member):
+					annotated.append(member)
+	assert annotated
+	missing = []
+	for item in annotated:
+		try:
+			inspect.get_annotations(item)  # evaluates them, like Python 3.13
+		except (NameError, AttributeError) as error:
+			missing.append(f"{item.__qualname__}: {error}")
+	assert missing == []
 
 
 def test_onecore_uses_shared_lifecycle_for_an_empty_segment(env):
