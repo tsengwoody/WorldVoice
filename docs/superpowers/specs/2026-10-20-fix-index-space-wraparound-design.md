@@ -113,7 +113,7 @@ Where `retire_segment`, `retire_source` and `unbind` are called:
 
 `prepare` keeps allocating one contiguous run `[start, start + count - 1]` per segment, in command order, with the terminal marker (when required) right after the ordinary indexes. Two things change: where `start` comes from, and what happens when no run fits.
 
-- `next_index` becomes a **cyclic cursor** in `[minimum, maximum]`. After a full allocation, `next_index = start + count`, and if that passes `maximum` it becomes `minimum`. An empty allocation (`count == 0`, DRAIN with no index) leaves the cursor where it is, as today.
+- `next_index` becomes a **cyclic cursor** over `[minimum, maximum]`. After a full allocation, `next_index = start + count`. A run that ends at `maximum` leaves it at `maximum + 1`; it is stored as is, and the next search wraps it to `minimum` (the tail case below), so every allocation still starts in `[minimum, maximum]` (`IndexLedger.prepare` stores `span.stop`; plan, "Deviations"). An empty allocation (`count == 0`, DRAIN with no index) leaves the cursor where it is, as today.
 - **Search**, starting at the cursor and moving forward cyclically:
   - If the candidate run would pass `maximum`, skip the tail and continue from `minimum`. Runs never wrap across `maximum`, so they stay contiguous. The skipped tail stays free and is a candidate again on the next cycle.
   - If the candidate run overlaps a **reserved** run (section 6.2), continue just past the end of the overlapping reserved run.
