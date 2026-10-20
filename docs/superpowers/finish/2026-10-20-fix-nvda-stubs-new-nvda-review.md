@@ -103,3 +103,30 @@ spec 第 6 節的四個開放問題都以推薦預設處理，使用者尚未確
 3. **同時支援 `732d1ce2f`（開放問題 1）。** stub 多一個名字、零成本，已驗證兩版都通過。
 4. **`_speechcommand.py:9-20` 的 `1406f9f8a` 行號引用不更新（開放問題 3）。** 引用明確釘在該 commit，內容仍正確。
 5. **設定面板的 `onDiscard`／`refreshGui` 新行為（spec 4.2）。** 不需改碼，但 Windows 手動項目 2（改 combo 後 Cancel、開著設定切換合成器再回語音面板，確認沒有例外與重複的「標點暫停字元」欄位）尚未執行。
+
+## 修正記錄
+
+修正者為 sub agent（Opus 5.5），只在 worktree `/workspace/WorldVoice-fix-nvda-stubs` 工作；沒有改產品程式碼，沒有動 `ref/`。
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| Minor 1：`speechXml` stub 缺 `SetAttrCommand`／`XmlBalancerCommand` | 已修。stub 補上兩個名字，值為 `object`，與 `SequenceItemT=object` 同一種做法。 | `0b8f21a` |
+| Minor 2：`RATE_BOOST_MULTIPLIER` | 不修。依指示維持 spec 的推薦，仍列為使用者尚未確認的使用者可見預設（上方第 2 項）。若要補，另開 `fix/` 分支。 | — |
+| Minor 3：spec 第 5 節的 `git diff --stat master` 描述 | 已修。改為列出 harness、spec 與計畫，並註明 review 紀錄與 Minor 1 的測試是 review 之後才加入的；第 4.6 節同時補一句，說明這個隱性前提已經處理。 | `36905db` |
+
+Minor 1 的會失敗的測試：環境裡只有 Python 3.14，沒有 3.13 直譯器，所以改用 `inspect.get_annotations`（3.14 預設 `Format.VALUE`）求值載入後 oneCore.py 裡每個類別與函式的註解，等同 3.13 在 `def` 時做的事。新測試 `tests/test_onecore_segment_drain.py::test_stubs_cover_names_that_onecore_annotations_use` 在 stub 補名字之前：
+
+- 新 NVDA `7d25bc76e`：失敗，列出 `_OcSsmlConverter.convertLangChangeCommand`（`SetAttrCommand`）與 `_OcSsmlConverter.generateBalancerCommands`（`XmlBalancerCommand`）兩項。
+- 舊 NVDA `732d1ce2f`：失敗，只列出 `SetAttrCommand` 一項。
+
+補上之後兩版都通過。這個測試不依賴直譯器版本，以後 NVDA 在註解裡用到新的名字而 stub 沒跟上時，在 3.14 上也會失敗。
+
+驗證（pytest 一律單一程序，附記憶體監控，MemAvailable 低於 3 GB 即中止，沒有觸發）：
+
+| 項目 | 結果 |
+| --- | --- |
+| worktree（新 NVDA `7d25bc76e`）全套 pytest | `1723 passed, 2 warnings`，0 skipped（基準 1722，多出的 1 個是新測試） |
+| scratchpad 樹複本（`git ls-files \| cp --parents`，`ref` 連到 `scratchpad/ref-prev`，舊 NVDA `732d1ce2f`）全套 pytest | `1723 passed, 2 warnings`，0 skipped |
+| `prek run --all-files` | 8 個 hook 全數 Passed |
+| `git diff --check` | 無輸出 |
+| 受保護路徑的兩個指令 | 皆無輸出 |
