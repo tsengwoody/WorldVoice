@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from addon_loader import alias_package
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, example, given, settings, strategies as st
 from runtime_harness import RUNTIME, forbid_legacy_runtime_imports
 from waiting import WAIT_TIMEOUT
 
@@ -850,6 +850,20 @@ def first_free_run(cursor, count, minimum, maximum, reserved):
 	return None
 
 
+class ScriptedDraws:
+	"""Stands in for st.data() in an @example: each draw returns the next scripted value."""
+
+	def __init__(self, *values):
+		self.values = values
+		self._next = iter(values)
+
+	def draw(self, strategy):
+		return next(self._next)
+
+	def __repr__(self):
+		return f"ScriptedDraws{self.values!r}"
+
+
 # Fresh ledgers per example come from the module the function-scoped env loaded once.
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
@@ -857,6 +871,16 @@ def first_free_run(cursor, count, minimum, maximum, reserved):
 	minimum=st.integers(1, 20),
 	size=st.integers(1, 12),
 	data=st.data(),
+)
+# Random operations seldom leave a live run ahead of the cursor after a wrap, so pin one: in 1..6
+# A holds 1..2 and B 3..4 is retired; a 3-index run misses the tail at 5, wraps, skips A and
+# must start at 3, the first free index after it. Draw order: operation count, then per
+# operation its name, a segment ID and, for prepare, the originals.
+@example(
+	mode="END_INDEX",
+	minimum=1,
+	size=6,
+	data=ScriptedDraws(4, "prepare", 1, [0], "prepare", 2, [0], "retire", 2, "prepare", 3, [0, 0]),
 )
 def test_property_allocation_keeps_runs_disjoint_and_reports_each_original_once(
 	env,
