@@ -118,3 +118,22 @@ spec §10 標為「Decided by orchestrator with the recommended default; user ma
 ## 工作區備註
 
 review 開始前就存在、與本分支無關、未動：主 checkout 的 `D docs/superpowers/finish_task.md`、`?? DEVELOPMENT_WORKFLOW.md`、`?? diff.md`。本 worktree 除本檔外乾淨。
+
+## 修正記錄
+
+日期：2026-10-20。修正者：Opus 5.5（依 `DEVELOPMENT_WORKFLOW.md` §3.4）。六個 Minor 全部修正，沒有改變產品行為。突變實驗都在 scratchpad 的複本上做，沒有動到 worktree。
+
+| # | commit | 處理方式與驗證 |
+| --- | --- | --- |
+| 1 | `ff2c16e`、`93cbc2c` | 在 `test_property_allocation_keeps_runs_disjoint_and_reports_each_original_once` 加一個 `@example`，用 `ScriptedDraws` 代替 `st.data()`，固定跑「wrap 之後游標前方有未 retire 的區段」：範圍 1..6，A 佔 1..2，B 佔 3..4 並 retire，3 個 index 的 run 在 5 放不下、包回後跳過 A，必須從 3 開始。修正前，突變 `start = blocker + 1` 在預設 profile 下 20 個 seed 只被抓到 13 個；修正後 seed 1..10 全部失敗（`assert (4, 5) == (3, 4)`，Failing explicit example），原碼通過。第一次跑 mutmut 時 clean test 失敗：`@example` 在同一個 process 裡只有一個物件，mutmut 在同一個 process 跑兩次 pytest，第二次 `StopIteration`。`93cbc2c` 改成每次執行都 `replay()` 一份新的；在同一個 process 連跑兩次 pytest，修正前第二次失敗、修正後兩次都通過；突變 a 仍在 seed 1..5 全部失敗。 |
+| 2 | `f5545ec` | spec §6.1 改寫：游標「over `[minimum, maximum]`」，run 結束在 `maximum` 時存的是 `maximum + 1`，下一次搜尋的尾段分支把它包回 `minimum`。引用 `IndexLedger.prepare` 而不是行號，因為 #3 會讓行號移動。行為不變。 |
+| 3 | `80c3794` | 在 `_find_start` 加兩行註解：嚴格的重疊判斷讓 `blocker > start`，所以每一輪都會前進；改成 `<=` 會在鎖內無限迴圈。沒有用 `assert`，因為這個 package 的產品程式碼沒有 runtime assert。 |
+| 4 | `226699b` | 新增 `test_a_degraded_index_only_segment_still_drains_and_reports_its_indexes`（OneCore／VE／Cerence），用 `index_range=(1, 1)` 送 `(IndexCommand(701), IndexCommand(702))`：wrapper 收到 `()`，VE／Cerence 不做 native 呼叫，等 player idle；request COMPLETED、一次 drain，NVDA 依序收到 701、702 再 done。harness 會在 drain 進 ledger 時先記一筆 `drain`，所以順序只比較 NVDA 看得到的事件。突變 n（codec 不略過降級段的 `IndexCommand`）與「drain 只回放 `len(wire_indexes)` 個 original」都讓三個案例失敗，原碼通過。 |
+| 5 | `ae5e629` | 新增 `test_an_index_is_reused_only_after_the_cursor_has_gone_round_the_range`（END_INDEX、DRAIN），範圍 1..10，長度不一的 run 依序 prepare 再 retire：used 與 skipped 的 index 依序重複 minimum..maximum；跳過的尾段比跳過它的 run 短；同一個 index 兩次使用之間至少隔一整圈，其他每個 index 都出現過。突變「從 minimum first-fit」、「`next_index = span.stop - 1`」、「retire 時把游標重設成 minimum」都讓兩個案例失敗，原碼通過。 |
+| 6 | `963d918` | 重新跑 mutmut 後，`bind` 9/22/28/34 的編號和計畫一致：計畫的編號來自 `mutate_only_covered_lines = true`，審閱者沒有套 coverage，所以編號不同。表格改成在「Change」欄寫出每個被加 padding 的訊息，並註明編號的來源，以及要先用 `mutmut show` 確認。 |
+
+mutmut（修正後，`mutmut run --max-children 3 "addon.synthDrivers.WorldVoice.indexLedger*" "addon.synthDrivers.WorldVoice.compat.indexCodec*"`，MemAvailable < 3 GB 就停掉的 guard，從未觸發）：**378 個 mutant：355 killed、6 timeout、17 survived**，存活的名稱與計畫表相同；`mutants/` 已刪除。
+
+驗證（最後一個 commit）：`python3 -m pytest -q tests` **1745 passed、0 skipped**（基準 1740；新增 1 個降級整合測試 ×3 引擎、1 個重用距離測試 ×2 模式）；`prek run --all-files` 全數 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令都沒有輸出。
+
+Linux 上沒有驗到的：Windows NVDA、實際音訊裝置、各引擎 SDK，以及 spec §8.5 的手動項目（包括各引擎對空序列的實際行為）。
