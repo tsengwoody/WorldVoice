@@ -2,7 +2,7 @@
 
 Date: 2026-10-20.
 Baseline: `master` `5e1137b` (`python3 -m pytest -q tests`: 1722 passed, 0 skipped, against `ref/nvda` `732d1ce2f`; `prek run --all-files`: all Passed). Branch: `fix/index-space-wraparound` (worktree `/workspace/WorldVoice-fix-index-space`).
-Status: spec. Normal flow (section 3 of `DEVELOPMENT_WORKFLOW.md`); see section 12 for the flow choice. Open question Q1 (section 11) is assumed answered with its recommended option.
+Status: spec. Normal flow (section 3 of `DEVELOPMENT_WORKFLOW.md`); see section 12 for the flow choice. Question Q1 (section 11): option A, decided by the user (2026-10-20).
 
 Line numbers refer to this branch's base (`5e1137b`) unless they say otherwise. NVDA references are to `ref/nvda` of the main checkout (`7d25bc76e`); every line cited from `source/speech/manager.py` is the same in `732d1ce2f`.
 
@@ -304,7 +304,7 @@ Each of these is marked: Decided by orchestrator with the recommended default; u
 6. One WARNING per source on degrade, then DEBUG, logged outside the lock (section 6.5).
 7. Add `compat/indexCodec.py` to mutmut `source_paths` (section 8.4).
 
-## 11. Open questions needing the user
+## 11. Questions for the user
 
 **Q1. Reversing the "never reuse a wire index" rule.** The segment-index design deliberately chose monotonic, never-wrapping allocation. It accepted the exhaustion error and made long-reading capacity an acceptance gate (`docs/superpowers/specs/2026-09-27-worldvoice-segment-index-design.md:154-162`). DRAIN then shipped through `force_unverified_drain` without that gate, and this bug is the result. Options:
 
@@ -312,7 +312,7 @@ Each of these is marked: Decided by orchestrator with the recommended default; u
 - B. Keep the no-reuse rule and widen the range (for example to 2³¹−1). That still runs out eventually in theory, and it needs per-engine proof that large integers survive SAPI5 bookmarks, OneCore SSML marks, VE/Cerence markers, eSpeak and RHVoice. The earlier spec forbids assuming it.
 - C. Keep the no-reuse rule and turn off forced DRAIN (`force_unverified_drain=False`), so every engine goes back to LEGACY_DONE. That is a large user-visible change: it removes correlated completion for all six engines, including waiting for the playback drain before the next segment starts.
 
-This spec is written with **A** assumed. It changes no user-visible behaviour apart from fixing the silence, so implementation need not wait for the answer.
+Decided by the user (2026-10-20): **A**. It changes no user-visible behaviour apart from fixing the silence.
 
 ## 12. Flow classification
 

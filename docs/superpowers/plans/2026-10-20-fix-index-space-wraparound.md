@@ -1,6 +1,6 @@
 # Plan: wire index space wraparound fix
 
-Spec: `docs/superpowers/specs/2026-10-20-fix-index-space-wraparound-design.md` (commit `b1d718a`), option A of Q1 assumed.
+Spec: `docs/superpowers/specs/2026-10-20-fix-index-space-wraparound-design.md` (commit `b1d718a`), Q1: option A, decided by the user (2026-10-20).
 Branch `fix/index-space-wraparound`, worktree `/workspace/WorldVoice-fix-index-space`, base `5e1137b`.
 Baseline: `python3 -m pytest -q tests` 1722 passed, 0 skipped (against `ref/nvda` `732d1ce2f`, through the worktree's git-ignored `ref` symlink); `prek run --all-files` all Passed.
 
