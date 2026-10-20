@@ -162,15 +162,35 @@ def test_drain_codec_rejects_external_internal_command_before_allocation(drain_c
 	assert env.ledger.prepare(env.context, (7,)).wire_indexes == (1,)
 
 
-def test_drain_codec_rejects_exhausted_segment_before_output(drain_codec_env):
+def test_drain_codec_leaves_out_the_indexes_of_a_degraded_segment(drain_codec_env):
 	env = drain_codec_env
+	# Another segment holds the whole range, so this one gets no wire index.
 	env.ledger.prepare(env.models.PlaybackContext(env.source_id, 2), tuple(range(9999)))
-	original = env.commands.IndexCommand(123)
-	commands = ["hello", original]
-	with pytest.raises(env.support.ledger.IndexSpaceExhausted):
-		encode(env, commands)
-	assert commands == ["hello", original] and original.index == 123
-	assert encode(env, ()) == ()
+	original, last, other = env.commands.IndexCommand(123), env.commands.IndexCommand(7), object()
+	commands = ["hello", original, other, last]
+	encoded = encode(env, commands)
+	assert isinstance(encoded, tuple) and len(encoded) == 2
+	assert encoded[0] is commands[0] and encoded[1] is other
+	assert commands == ["hello", original, other, last] and (original.index, last.index) == (123, 7)
+	event = env.models.PlaybackEvent(env.models.EventKind.SEGMENT_DRAINED, env.source_id, segment_id=1)
+	assert [e.index for e in env.ledger.receive_segment_event(event, binding_token=env.token)] == [
+		123,
+		7,
+		None,
+	]
+
+
+def test_codec_sends_only_the_marker_for_a_degraded_segment(codec_env):
+	env = codec_env
+	# Eleven indexes and a marker do not fit in 501..510.
+	other = object()
+	commands = ["hello", *(env.commands.IndexCommand(i) for i in range(11)), other]
+	snapshot = list(commands)
+	encoded = encode(env, commands)
+	assert commands == snapshot
+	assert len(encoded) == 3 and encoded[0] is commands[0] and encoded[1] is other
+	assert type(encoded[2]) is env.support.commands.WorldVoiceIndexCommand and encoded[2].index == 501
+	assert [e.index for e in env.ledger.receive_index(env.source_id, 501)] == [*range(11), None]
 
 
 # Fresh ledgers per example come from the support modules the function-scoped env loaded once.

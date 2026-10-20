@@ -2,6 +2,7 @@
 
 import gc
 import importlib
+import logging
 import sys
 import weakref
 from dataclasses import FrozenInstanceError
@@ -175,24 +176,87 @@ def test_unknown_large_index_does_not_advance(env):
 	assert env.ledger.prepare(env.models.PlaybackContext(env.source_id, 2), ()).end_index == 503
 
 
-def test_exhaustion_is_atomic(env):
-	ledger = env.module.IndexLedger()
-	ledger.bind(
-		env.source,
-		env.source_id,
-		env.models.CompletionContract(
-			env.models.CompletionMode.END_INDEX,
-			env.models.IndexRange(1, 3),
-		),
+def test_a_segment_that_misses_a_full_run_keeps_only_its_marker(make_ledger):
+	s = make_ledger("END_INDEX", 1, 3)
+	assert s.ledger.prepare(s.models.PlaybackContext(s.source_id, 1), (123,)) == s.module.IndexAllocation(
+		(1,),
+		2,
 	)
-	allocation = ledger.prepare(env.context, (123,))
-	assert (allocation.wire_indexes, allocation.end_index) == ((1,), 2)
-	second = env.models.PlaybackContext(env.source_id, 2)
-	with pytest.raises(env.module.IndexSpaceExhausted):
-		ledger.prepare(second, (124,))
-	assert ledger.receive_index(env.source_id, 3) == ()
-	assert ledger.prepare(second, ()).end_index == 3
-	ledger.close()
+	# Two indexes are needed but only 3 is free: the segment keeps only its terminal marker.
+	assert s.ledger.prepare(s.models.PlaybackContext(s.source_id, 2), (124,)) == s.module.IndexAllocation(
+		(),
+		3,
+	)
+	assert [(e.index, e.segment_id) for e in s.ledger.receive_index(s.source_id, 3)] == [(124, 2), (None, 2)]
+	assert [(e.index, e.segment_id) for e in s.ledger.receive_index(s.source_id, 1)] == [(123, 1)]
+
+
+def test_exhaustion_is_atomic(make_ledger):
+	s = make_ledger("END_INDEX", 1, 3)
+	first = s.models.PlaybackContext(s.source_id, 1)
+	assert s.ledger.prepare(first, (123, 124)) == s.module.IndexAllocation((1, 2), 3)
+	# Every index is reserved: not even a terminal marker fits.
+	second = s.models.PlaybackContext(s.source_id, 2)
+	for originals in ((125,), ()):
+		with pytest.raises(s.module.IndexSpaceExhausted, match="Source wire index range is exhausted"):
+			s.ledger.prepare(second, originals)
+	assert [(e.index, e.segment_id) for e in s.ledger.receive_index(s.source_id, 3)] == [
+		(123, 1),
+		(124, 1),
+		(None, 1),
+	]
+	# The failed calls registered nothing and moved nothing.
+	s.ledger.retire_segment(first)
+	assert s.ledger.prepare(second, ()) == s.module.IndexAllocation((), 1)
+
+
+def test_an_end_segment_without_a_free_run_keeps_only_its_marker(make_ledger):
+	s = make_ledger("END_INDEX", 1, 3)
+	assert s.ledger.prepare(s.models.PlaybackContext(s.source_id, 1), (1, 2, 3)) == s.module.IndexAllocation(
+		(),
+		1,
+	)
+	events = s.ledger.receive_index(s.source_id, 1)
+	assert [(e.kind.name, e.index) for e in events] == [
+		("INDEX", 1),
+		("INDEX", 2),
+		("INDEX", 3),
+		("SEGMENT_END", None),
+	]
+	# Only the marker moved the cursor.
+	assert s.ledger.prepare(s.models.PlaybackContext(s.source_id, 2), ()).end_index == 2
+
+
+def test_degrading_warns_once_per_source_with_the_lock_released(make_ledger, caplog):
+	s = make_ledger("DRAIN", 1, 3)
+	other_id = object()
+	s.ledger.bind(object(), other_id, s.contract)
+	records = []
+
+	class Recorder(logging.Handler):
+		def emit(self, record):
+			records.append((record.levelno, record.getMessage(), s.ledger._lock.locked()))
+
+	log = s.module.log
+	caplog.set_level(logging.DEBUG, logger=log.name)
+	handler = Recorder()
+	log.addHandler(handler)
+	try:
+		s.ledger.prepare(s.models.PlaybackContext(s.source_id, 1), (1, 2, 3, 4))
+		s.ledger.prepare(s.models.PlaybackContext(s.source_id, 2), (5, 6, 7, 8))
+		s.ledger.prepare(s.models.PlaybackContext(other_id, 1), tuple(range(5)))
+		s.ledger.prepare(s.models.PlaybackContext(s.source_id, 3), (9,))
+	finally:
+		log.removeHandler(handler)
+	message = (
+		"WorldVoice index range 1..3 has no room for a speech segment with {} indexes; "
+		"its indexes are reported when it completes"
+	)
+	assert records == [
+		(logging.WARNING, message.format(4), False),
+		(logging.DEBUG, message.format(4), False),
+		(logging.WARNING, message.format(5), False),
+	]
 
 
 def test_runs_wrap_to_the_minimum_without_crossing_the_maximum(make_ledger):
@@ -594,7 +658,7 @@ def test_old_segment_event_token_cannot_consume_replacement_segment(drain_env, s
 	] == [80, None]
 
 
-def test_drain_uses_both_range_endpoints_and_empty_works_after_exhaustion(drain_env):
+def test_drain_uses_both_range_endpoints_and_a_full_range_degrades(drain_env):
 	env = drain_env
 	allocation = env.ledger.prepare(env.context, tuple(range(9999)))
 	assert len(allocation.wire_indexes) == 9999
@@ -604,32 +668,47 @@ def test_drain_uses_both_range_endpoints_and_empty_works_after_exhaustion(drain_
 	empty = env.models.PlaybackContext(env.source_id, 2)
 	assert env.ledger.prepare(empty, ()).wire_indexes == ()
 	assert env.ledger.prepare(env.models.PlaybackContext(env.source_id, 3), ()).end_index is None
-	exhausted = env.models.PlaybackContext(env.source_id, 4)
-	with pytest.raises(env.module.IndexSpaceExhausted):
-		env.ledger.prepare(exhausted, (42,))
+	# Segment 1 holds the whole range: the next segment with an index is spoken without wire indexes.
+	degraded = env.models.PlaybackContext(env.source_id, 4)
+	assert env.ledger.prepare(degraded, (42,)) == env.module.IndexAllocation((), None)
 	event = env.models.PlaybackEvent(
 		env.models.EventKind.SEGMENT_DRAINED,
 		env.source_id,
 		segment_id=2,
 	)
 	assert env.ledger.receive_segment_event(event, binding_token=env.token) == (event,)
+	assert [(e.index, e.segment_id) for e in drained(env, 4)] == [(42, 4), (None, 4)]
 
 
-def test_drain_exhaustion_does_not_partially_publish_or_consume_indexes(drain_env):
+def test_drain_degrading_does_not_publish_or_consume_indexes(drain_env):
 	env = drain_env
 	env.ledger.prepare(env.context, tuple(range(9998)))
-	next_context = env.models.PlaybackContext(env.source_id, 2)
-	with pytest.raises(env.module.IndexSpaceExhausted):
-		env.ledger.prepare(next_context, (123, 124))
+	degraded = env.models.PlaybackContext(env.source_id, 2)
+	assert env.ledger.prepare(degraded, (123, 124)) == env.module.IndexAllocation((), None)
 	assert env.ledger.receive_index(env.source_id, 9999) == ()
-	event = env.models.PlaybackEvent(
-		env.models.EventKind.SEGMENT_DRAINED,
-		env.source_id,
-		segment_id=2,
+	assert env.ledger.prepare(env.models.PlaybackContext(env.source_id, 3), (125,)).wire_indexes == (9999,)
+	assert [e.index for e in drained(env, 2)] == [123, 124, None]
+
+
+def test_a_drain_segment_without_a_free_run_is_reported_when_it_drains(make_ledger):
+	s = make_ledger("DRAIN", 1, 3)
+	assert s.ledger.prepare(s.models.PlaybackContext(s.source_id, 1), (900, 3, 50, 900)) == (
+		s.module.IndexAllocation((), None)
 	)
-	assert env.ledger.receive_segment_event(event, binding_token=env.token) == ()
-	assert env.ledger.prepare(next_context, (123,)).wire_indexes == (9999,)
-	assert [e.index for e in env.ledger.receive_segment_event(event, binding_token=env.token)] == [123, None]
+	assert [s.ledger.receive_index(s.source_id, wire) for wire in (1, 2, 3)] == [(), (), ()]
+	# It reserves nothing and leaves the cursor: the next segment starts at the minimum.
+	assert s.ledger.prepare(s.models.PlaybackContext(s.source_id, 2), (7,)).wire_indexes == (1,)
+	assert [(e.kind.name, e.index, e.segment_id) for e in drained(s, 1)] == [
+		("INDEX", 900, 1),
+		("INDEX", 3, 1),
+		("INDEX", 50, 1),
+		("SEGMENT_DRAINED", None, 1),
+	]
+	# A failed degraded segment reports nothing, as any failed segment.
+	s.ledger.prepare(s.models.PlaybackContext(s.source_id, 3), (1, 2, 3, 4))
+	failure = s.models.PlaybackEvent(s.models.EventKind.SEGMENT_FAILED, s.source_id, segment_id=3)
+	assert s.ledger.receive_segment_event(failure, binding_token=s.token) == (failure,)
+	assert drained(s, 3) == ()
 
 
 def test_drain_source_keeps_allocating_after_the_range_is_used(make_ledger):

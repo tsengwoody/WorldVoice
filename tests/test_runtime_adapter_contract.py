@@ -279,7 +279,7 @@ def test_commands_without_text_still_get_one_marker(marker_contract):
 	assert c.output.done_count == 1
 
 
-@pytest.mark.parametrize("failure", ["generator", "exhaustion", "invalid_index"])
+@pytest.mark.parametrize("failure", ["generator", "invalid_index"])
 def test_errors_before_core_entry_never_speak(marker_contract, failure):
 	c = marker_contract
 	if failure == "generator":
@@ -293,11 +293,8 @@ def test_errors_before_core_entry_never_speak(marker_contract, failure):
 			submit_contract_request(c, sequence(), default_key="Contract:a")
 		assert c.output.done_count == 0
 	else:
-		commands = (
-			[c.index_command(i) for i in range(16)] if failure == "exhaustion" else [c.index_command(123)]
-		)
-		if failure == "invalid_index":
-			commands[0].index = "invalid"
+		commands = [c.index_command(123)]
+		commands[0].index = "invalid"
 		request = submit_contract_request(c, commands, default_key="Contract:a")
 		assert request.tasks[0].future.exception(WAIT_TIMEOUT) is not None
 		c.tasks._q.join()
@@ -305,6 +302,22 @@ def test_errors_before_core_entry_never_speak(marker_contract, failure):
 		assert c.output.done_count == 1
 	assert c.core.spoken == []
 	assert tracked_requests(c.tasks) == {}
+
+
+def test_a_segment_too_large_for_the_range_speaks_and_reports_indexes_at_its_marker(marker_contract):
+	c = marker_contract
+	# Sixteen originals and a marker need 17 of the 16 indexes 501..516.
+	originals = list(range(16))
+	request = submit_contract_request(
+		c,
+		["A", *(c.index_command(i) for i in originals)],
+		default_key="Contract:a",
+	)
+	completed(c, request)
+	assert len(c.core.spoken) == 1
+	assert c.core.wire_indexes == c.core.internal_wire_indexes == [501]
+	assert c.output.indexes == originals
+	assert c.output.done_count == 1
 
 
 def test_synchronous_terminal_marker_output_cancel_wins(marker_contract):

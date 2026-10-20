@@ -257,6 +257,8 @@ File: `addon/synthDrivers/WorldVoice/compat/indexCodec.py`
 
 Expected green: full suite 1732 - 1 (`[exhaustion]`) + 1 (split `test_exhaustion_is_atomic`) + 3 (new ledger) + 1 (new codec) + 2 (contract test, two params) = **1738 passed, 0 skipped**.
 
+> Note (implementation): the count was wrong. `[exhaustion]` runs under both `marker_contract` params, so dropping it removes 2 tests: actual **1737 passed, 0 skipped**.
+
 ## Step 3. Property tests (commit `test: check the cyclic allocation invariants with Hypothesis`)
 
 File: `tests/test_index_ledger.py`
@@ -272,7 +274,7 @@ File: `tests/test_index_codec.py`
 
 - The codec property test allows up to 24 layout items without the `<= 9` filter, so layouts may hold more indexes than 501..510; a degraded encode keeps exactly the non-index commands as the same objects, in order, and the end still reports every original once, in order.
 
-Expected: these pass on step 2 code (they check, they do not drive). Sanity red: with step 1 code only, the ledger property test and the codec property test fail (degraded cases raise). Full suite **1740 passed, 0 skipped**. Also run `HYPOTHESIS_PROFILE=deep python3 -m pytest -q tests/test_index_ledger.py tests/test_index_codec.py -k property` once.
+Expected: these pass on step 2 code (they check, they do not drive). Sanity red: with step 1 code only, the ledger property test and the codec property test fail (degraded cases raise). Full suite **1739 passed, 0 skipped** (corrected from 1740, see the step 2 note). Also run `HYPOTHESIS_PROFILE=deep python3 -m pytest -q tests/test_index_ledger.py tests/test_index_codec.py -k property` once.
 
 ## Step 4. mutmut (commit `build: run mutmut on the index codec` and, if needed, `test: ...` killing survivors)
 

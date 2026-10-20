@@ -1,4 +1,8 @@
-"""Encode caller indexes and any required terminal marker at the engine boundary."""
+"""Encode caller indexes and any required terminal marker at the engine boundary.
+
+A segment the ledger gave no wire indexes (no free run was left) goes out without
+its caller indexes; the ledger reports them when the segment completes.
+"""
 
 from speech.commands import IndexCommand
 
@@ -28,6 +32,7 @@ def encode_segment(
 		encoded = tuple(
 			IndexCommand(next(indexes)) if isinstance(command, IndexCommand) else command
 			for command in commands
+			if allocation.wire_indexes or not isinstance(command, IndexCommand)
 		)
 		if allocation.end_index is not None:
 			return (*encoded, WorldVoiceIndexCommand(allocation.end_index))

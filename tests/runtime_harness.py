@@ -406,9 +406,11 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 						raise ValueError("Index command requires an integer")
 					allocation = ledger.prepare(context, originals)
 					indexes = iter(allocation.wire_indexes)
+					# As compat/indexCodec.py: a segment without wire indexes is sent without its indexes.
 					commands = tuple(
 						NativeIndex(next(indexes)) if isinstance(command, NativeIndex) else command
 						for command in commands
+						if allocation.wire_indexes or not isinstance(command, NativeIndex)
 					) + (NativeMarker(allocation.end_index),)
 				if not token.is_cancelled():
 					core.speak(commands, cancellationToken=token)

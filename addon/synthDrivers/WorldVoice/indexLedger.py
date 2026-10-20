@@ -5,13 +5,16 @@ that goes round the contract range and never splits a run across its maximum, as
 NVDA's own index counter wraps (speech/manager.py, SpeechManager.MAX_INDEX). A run
 stays reserved until its segment is retired, so no wire index belongs to two
 unretired segments, and a retired index is handed out again only once the cursor
-has come round to it.
+has come round to it. A segment that cannot get a free run is still spoken: it
+keeps only its terminal marker (DRAIN: no wire index at all), and completion
+reports all of its original indexes in order.
 
 A live driver core must keep its ledger across runtime handoffs. Closing a
 ledger releases its identity history; the owner must close the old core before
 publishing it through a fresh ledger.
 """
 
+import logging
 from dataclasses import dataclass, field
 from threading import Lock
 
@@ -24,9 +27,11 @@ from .runtime.models import (
 	PlaybackEvent,
 )
 
+log = logging.getLogger(__name__)
+
 
 class IndexSpaceExhausted(RuntimeError):
-	"""The source cannot allocate a complete segment within its wire range."""
+	"""Unretired segments reserve every wire index a segment's terminal marker could use."""
 
 
 class InvalidIndexContext(RuntimeError):
@@ -63,6 +68,8 @@ class _Source:
 	maximum: int
 	next_index: int
 	binding: object = None
+	# Set by the first segment that gets no free run; later ones log at DEBUG.
+	warned: bool = False
 	segments: dict[int, _Segment] = field(default_factory=dict)
 	indexes: dict[int, _Segment] = field(default_factory=dict)
 
@@ -147,17 +154,35 @@ class IndexLedger:
 			if segment_id in state.segments:
 				raise InvalidIndexContext("Segment is already prepared and has not been retired")
 			marker = int(state.rule.requires_end)
-			start = _find_start(state, len(originals) + marker)
-			if start is None:
-				raise IndexSpaceExhausted("Source wire index range is exhausted")
-			span = range(start, start + len(originals) + marker)
-			allocation = IndexAllocation(tuple(span[: len(originals)]), span[-1] if marker else None)
+			ordinary = len(originals)
+			start = _find_start(state, ordinary + marker)
+			degraded = start is None
+			if degraded:
+				# Keep only the terminal marker; completion reports every original in order.
+				ordinary = 0
+				start = _find_start(state, marker)
+				if start is None:
+					raise IndexSpaceExhausted("Source wire index range is exhausted")
+				level = logging.DEBUG if state.warned else logging.WARNING
+				state.warned = True
+			span = range(start, start + ordinary + marker)
+			allocation = IndexAllocation(tuple(span[:ordinary]), span[-1] if marker else None)
 			segment = _Segment(segment_id, originals, allocation, span)
 			state.segments[segment_id] = segment
 			for index in span:
 				state.indexes[index] = segment
 			state.next_index = span.stop if span.stop <= state.maximum else state.minimum
-			return allocation
+		# Log after unlocking: handlers are external code.
+		if degraded:
+			log.log(
+				level,
+				"WorldVoice index range %d..%d has no room for a speech segment with %d indexes; "
+				"its indexes are reported when it completes",
+				state.minimum,
+				state.maximum,
+				len(originals),
+			)
+		return allocation
 
 	def receive_index(
 		self,
