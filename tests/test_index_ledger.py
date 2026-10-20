@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from addon_loader import alias_package
+from hypothesis import HealthCheck, given, settings, strategies as st
 from runtime_harness import RUNTIME, forbid_legacy_runtime_imports
 from waiting import WAIT_TIMEOUT
 
@@ -829,3 +830,195 @@ def test_a_bound_source_id_stays_alive_until_unbound(env):
 	env.ledger.unbind(reference())
 	gc.collect()
 	assert reference() is None
+
+
+PROPERTY_MODES = ("END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN")
+
+
+def first_free_run(cursor, count, minimum, maximum, reserved):
+	"""Brute force: the first start, cyclically from the cursor, of a free run that fits."""
+	if not count:
+		return cursor
+	size = maximum - minimum + 1
+	for step in range(size):
+		start = minimum + (cursor - minimum + step) % size
+		if start + count - 1 <= maximum and reserved.isdisjoint(range(start, start + count)):
+			return start
+	return None
+
+
+# Fresh ledgers per example come from the module the function-scoped env loaded once.
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(
+	mode=st.sampled_from(PROPERTY_MODES),
+	minimum=st.integers(1, 20),
+	size=st.integers(1, 12),
+	data=st.data(),
+)
+def test_property_allocation_keeps_runs_disjoint_and_reports_each_original_once(
+	env,
+	mode,
+	minimum,
+	size,
+	data,
+):
+	models, kinds = env.models, env.models.EventKind
+	maximum = minimum + size - 1
+	marker = int(mode != "DRAIN")
+	ledger = env.module.IndexLedger()
+	source, source_id = object(), object()
+	contract = models.CompletionContract(
+		getattr(models.CompletionMode, mode),
+		models.IndexRange(minimum, maximum),
+	)
+	token = ledger.bind(source, source_id, contract)
+	cursor, live, next_id = minimum, {}, 1
+
+	def finished(segment):
+		if segment.failed:
+			return True
+		return {
+			"END_INDEX": segment.end_seen,
+			"END_INDEX_AND_DRAIN": segment.end_seen and segment.drain_seen,
+			"DRAIN": segment.drain_seen,
+		}[mode]
+
+	def check_reported(segment, events):
+		assert all(event.segment_id == segment.id and event.source_id is source_id for event in events)
+		indexes = [event for event in events if event.kind is kinds.INDEX]
+		assert events[: len(indexes)] == tuple(indexes)
+		segment.reported += [event.index for event in indexes]
+		# Each original once, in order, up to the furthest position reached.
+		assert segment.reported == list(dict.fromkeys(segment.originals[: segment.position]))
+
+	def receive(wire):
+		events = ledger.receive_index(source_id, wire, binding_token=token)
+		owners = [segment for segment in live.values() if wire in segment.span]
+		assert len(owners) <= 1
+		if not owners:
+			assert events == ()
+			return
+		segment = owners[0]
+		if wire == segment.end and not (segment.end_seen or segment.failed):
+			assert events[-1].kind is kinds.SEGMENT_END
+			events = events[:-1]
+			segment.end_seen, segment.position = True, len(segment.originals)
+		elif wire in segment.wires and not (segment.end_seen or segment.drain_seen or segment.failed):
+			segment.position = max(segment.position, segment.wires.index(wire) + 1)
+		else:
+			assert events == ()
+		check_reported(segment, events)
+
+	def drain(segment_id):
+		event = models.PlaybackEvent(kinds.SEGMENT_DRAINED, source_id, segment_id=segment_id)
+		events = ledger.receive_segment_event(event, binding_token=token)
+		segment = live.get(segment_id)
+		if segment is None or finished(segment) or mode == "END_INDEX" or segment.drain_seen:
+			assert events == ()
+			return
+		assert events[-1] is event
+		segment.drain_seen, segment.position = True, len(segment.originals)
+		check_reported(segment, events[:-1])
+
+	for _ in range(data.draw(st.integers(1, 30))):
+		operation = data.draw(
+			st.sampled_from(
+				("prepare", "prepare", "index", "drain", "fail", "retire", "retire_source", "rebind"),
+			),
+		)
+		segment_id = data.draw(st.sampled_from((*live, next_id)))
+		if operation == "prepare":
+			originals = tuple(data.draw(st.lists(st.integers(0, 5), max_size=size + 2)))
+			reserved = {wire for segment in live.values() for wire in segment.span}
+			ordinary = len(originals)
+			start = first_free_run(cursor, ordinary + marker, minimum, maximum, reserved)
+			if start is None:
+				ordinary = 0
+				start = first_free_run(cursor, marker, minimum, maximum, reserved)
+			context = models.PlaybackContext(source_id, next_id)
+			if start is None:
+				# Only a marker can miss; DRAIN never raises. Nothing changes: the model stays valid.
+				assert marker
+				with pytest.raises(env.module.IndexSpaceExhausted):
+					ledger.prepare(context, originals)
+				continue
+			allocation = ledger.prepare(context, originals)
+			span = range(start, start + ordinary + marker)
+			assert allocation.wire_indexes == tuple(span[:ordinary])
+			assert allocation.end_index == (span[-1] if marker else None)
+			assert minimum <= span.start and span.stop - 1 <= maximum
+			assert reserved.isdisjoint(span)
+			cursor = span.stop if span.stop <= maximum else minimum
+			live[next_id] = SimpleNamespace(
+				id=next_id,
+				originals=originals,
+				wires=allocation.wire_indexes,
+				end=allocation.end_index,
+				span=span,
+				position=0,
+				reported=[],
+				end_seen=False,
+				drain_seen=False,
+				failed=False,
+			)
+			next_id += 1
+		elif operation == "index":
+			receive(data.draw(st.integers(minimum - 1, maximum + 1)))
+		elif operation == "drain":
+			drain(segment_id)
+		elif operation == "fail":
+			event = models.PlaybackEvent(kinds.SEGMENT_FAILED, source_id, segment_id=segment_id)
+			events = ledger.receive_segment_event(event, binding_token=token)
+			segment = live.get(segment_id)
+			if segment is None or finished(segment):
+				assert events == ()
+			else:
+				assert events == (event,)
+				segment.failed = True
+		elif operation == "retire":
+			ledger.retire_segment(models.PlaybackContext(source_id, segment_id))
+			live.pop(segment_id, None)
+		elif operation == "retire_source":
+			ledger.retire_source(source_id)
+			live.clear()
+		else:
+			ledger.unbind(source_id)
+			token = ledger.bind(source, source_id, contract)
+			live.clear()
+	# Completing every live segment reports all of its originals, degraded or not.
+	for segment in tuple(live.values()):
+		if segment.failed:
+			continue
+		if marker and not segment.end_seen:
+			receive(segment.end)
+		if mode != "END_INDEX" and not segment.drain_seen:
+			drain(segment.id)
+		assert segment.reported == list(dict.fromkeys(segment.originals))
+	ledger.close()
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(
+	mode=st.sampled_from(PROPERTY_MODES),
+	minimum=st.integers(1, 20),
+	size=st.integers(1, 12),
+	counts=st.lists(st.integers(0, 12), min_size=1, max_size=40),
+)
+def test_property_retired_segments_never_run_the_range_out(env, mode, minimum, size, counts):
+	models = env.models
+	marker = int(mode != "DRAIN")
+	ledger = env.module.IndexLedger()
+	source_id = object()
+	contract = models.CompletionContract(
+		getattr(models.CompletionMode, mode),
+		models.IndexRange(minimum, minimum + size - 1),
+	)
+	ledger.bind(object(), source_id, contract)
+	for segment_id, count in enumerate(counts, 1):
+		originals = tuple(range(min(count, size - marker)))
+		context = models.PlaybackContext(source_id, segment_id)
+		allocation = ledger.prepare(context, originals)
+		assert len(allocation.wire_indexes) == len(originals)
+		assert (allocation.end_index is not None) == bool(marker)
+		ledger.retire_segment(context)
+	ledger.close()

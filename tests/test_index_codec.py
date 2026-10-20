@@ -197,11 +197,10 @@ def test_codec_sends_only_the_marker_for_a_degraded_segment(codec_env):
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
 	mode=st.sampled_from(["END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN"]),
+	# Up to 24 items, so a layout may hold more indexes than 501..510 and degrade.
 	layout=st.lists(
 		st.one_of(st.integers(-(2**31), 2**31), st.sampled_from(["text", "other"])),
-		max_size=14,
-	).filter(
-		lambda items: sum(isinstance(item, int) for item in items) <= 9,
+		max_size=24,
 	),
 	data=st.data(),
 )
@@ -230,14 +229,21 @@ def test_property_encoding_keeps_commands_and_reports_each_index_once_in_order(c
 		*body, marker = encoded
 		assert isinstance(marker, env.support.commands.WorldVoiceIndexCommand)
 		assert 501 <= marker.index <= 510
-	assert len(body) == len(commands)
 	wires = []
-	for given_command, sent in zip(commands, body, strict=True):
-		if isinstance(given_command, env.commands.IndexCommand):
-			assert type(sent) is env.commands.IndexCommand and sent is not given_command
-			wires.append(sent.index)
-		else:
-			assert sent is given_command
+	if len(originals) + (marker is not None) > 10:
+		# No run fits: the segment goes out without its indexes, every other command kept.
+		kept = [command for command in commands if not isinstance(command, env.commands.IndexCommand)]
+		assert len(body) == len(kept) and all(
+			sent is given_command for sent, given_command in zip(body, kept)
+		)
+	else:
+		assert len(body) == len(commands)
+		for given_command, sent in zip(commands, body, strict=True):
+			if isinstance(given_command, env.commands.IndexCommand):
+				assert type(sent) is env.commands.IndexCommand and sent is not given_command
+				wires.append(sent.index)
+			else:
+				assert sent is given_command
 	assert wires == sorted(wires) and len(set(wires)) == len(wires)
 	assert all(501 <= wire <= 510 and (marker is None or wire < marker.index) for wire in wires)
 	# Wire indexes may arrive in any order and more than once: what is reported is always the
