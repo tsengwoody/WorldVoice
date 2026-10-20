@@ -895,6 +895,10 @@ class ScriptedDraws:
 	def draw(self, strategy):
 		return next(self._next)
 
+	def replay(self):
+		# @example keeps one object per process, and mutmut runs pytest more than once in it.
+		return ScriptedDraws(*self.values)
+
 	def __repr__(self):
 		return f"ScriptedDraws{self.values!r}"
 
@@ -925,6 +929,8 @@ def test_property_allocation_keeps_runs_disjoint_and_reports_each_original_once(
 	data,
 ):
 	models, kinds = env.models, env.models.EventKind
+	if isinstance(data, ScriptedDraws):
+		data = data.replay()
 	maximum = minimum + size - 1
 	marker = int(mode != "DRAIN")
 	ledger = env.module.IndexLedger()
