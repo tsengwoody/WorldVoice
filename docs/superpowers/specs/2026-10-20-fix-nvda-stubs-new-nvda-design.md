@@ -119,7 +119,7 @@ No change is needed; add a Windows manual check (section 5). `tests/test_nvda_se
 
 ### 4.6 Note: tests depend on Python 3.14 lazy annotations
 
-The fake `speechXml` module (`tests/onecore_drain_harness.py:221`) has no `SetAttrCommand` or `XmlBalancerCommand`, which oneCore.py names in annotations (`:95`, `:115`). The load works only because Python 3.14 does not evaluate annotations at definition time; on Python 3.13 it would fail with `AttributeError`. This was already true at `732d1ce2f` (`SetAttrCommand`). The tests already run on 3.14, so nothing changes here; noted for whoever runs the suite on another interpreter.
+The fake `speechXml` module (`tests/onecore_drain_harness.py:221`) has no `SetAttrCommand` or `XmlBalancerCommand`, which oneCore.py names in annotations (`:95`, `:115`). The load works only because Python 3.14 does not evaluate annotations at definition time; on Python 3.13 it would fail with `AttributeError`. This was already true at `732d1ce2f` (`SetAttrCommand`). The tests already run on 3.14, so nothing changes here; noted for whoever runs the suite on another interpreter. After review (Minor 1), the stub gained both names as `object`, and `tests/test_onecore_segment_drain.py` evaluates every annotation in the loaded oneCore.py, so a missing name fails on 3.14 too.
 
 ## 5. Test plan and verification
 
@@ -138,7 +138,7 @@ In the worktree (`ref` → new NVDA `7d25bc76e`), single process, with the memor
   git ls-files addon/synthDrivers/WorldVoice/driver/Neural
   ```
 
-- `git status` shows no `ref` entry staged; `git diff --stat master` lists only `tests/onecore_drain_harness.py` and this spec.
+- `git status` shows no `ref` entry staged; `git diff --stat master` lists only `tests/onecore_drain_harness.py`, this spec and the plan `docs/superpowers/plans/2026-10-20-fix-nvda-stubs-new-nvda.md`. The review then adds its record `docs/superpowers/finish/2026-10-20-fix-nvda-stubs-new-nvda-review.md`, and its Minor 1 fix adds `tests/test_onecore_segment_drain.py` (section 4.6).
 - mutmut: not needed (no core decision module is touched).
 
 Windows/NVDA manual items (not verifiable on Linux; for the user on NVDA built from `7d25bc76e` or later):
