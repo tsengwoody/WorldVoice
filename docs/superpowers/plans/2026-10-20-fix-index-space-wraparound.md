@@ -290,4 +290,42 @@ Full verification as above; record the counts below.
 
 ## Implementation notes
 
-(filled in during implementation)
+Commits on the branch (after the spec `b1d718a`): `d66d3bb` plan; `b3ac28a` step 1; `6b80c37` Q1 marked as decided by the user (2026-10-20, option A); `68a5fb6` step 2; `fe84b79` step 3; `e4cf064` step 4 config; then the commit adding these notes.
+
+Red/green as planned:
+
+- Step 1: 7 ledger tests red with `IndexSpaceExhausted: Source wire index range is exhausted`; 3 integration tests red with `<engine> native call 4 did not start`. Green: **1732 passed, 0 skipped**.
+- Step 2: 10 tests red (9 with `IndexSpaceExhausted`, the warning test with `AttributeError: ... has no attribute 'log'`). Green: **1737 passed, 0 skipped** (the plan said 1738; see the note under step 2).
+- Step 3: the ledger property tests fail on the step 1 ledger and on `5e1137b` (`IndexSpaceExhausted`); the codec property test fails on the `5e1137b` codec (`RuntimeError: generator raised StopIteration`). Green: **1739 passed, 0 skipped**. `HYPOTHESIS_PROFILE=deep` (20000 examples each): 3 passed in 303 s.
+
+Deviations:
+
+- Test count of step 2 (see above).
+- After the first mutmut run, `_find_start` no longer wraps a blocker that ends at the maximum itself (`start = blocker`), and `prepare` stores `state.next_index = span.stop` without wrapping it. Both conditions were redundant: the tail branch of `_find_start` already turns a start of `maximum + 1` into the minimum, and an empty DRAIN allocation at `maximum + 1` is an empty range. mutmut showed it (`start = blocker if (...) or True` and `next_index = span.stop if (...) or True` survived as equivalents; `blocker < maximum` survived because no test hit a free single index at the maximum behind a blocker, and that line is now gone). So the stored cursor may be `maximum + 1`, which spec section 6.1 describes as "becomes `minimum`". The behaviour is the same, because every reader of the cursor goes through `_find_start`.
+- Some tests now match the full message from its first word: three ledger messages and the codec's two `ValueError`s. This kills case-change mutants that a partial match let through. `test_codec_scans_original_indexes_before_prepare` now expects only `ValueError`, which is what the codec raises.
+- The contract harness (`tests/runtime_harness.py`) mirrors the codec in its native adapter. The spec did not list it, but without it the native contract test fails with `StopIteration`.
+
+### mutmut (step 4)
+
+Linux, mutmut 3.8.0, `mutmut run --max-children 3 "addon.synthDrivers.WorldVoice.indexLedger*" "addon.synthDrivers.WorldVoice.compat.indexCodec*"`, guarded by a scratchpad script that kills the run if MemAvailable < 3 GB. The guard never fired; MemAvailable stayed about 8 GB.
+
+- First run, on the step 3 code: 384 mutants: 349 killed, 6 timeout (infinite loops, which count as detected), 29 survived. Changes made after it: the simplification above, and the message `match=` strings.
+- Second run, on the final code: 378 mutants: 352 killed, 6 timeout, 20 survived. The updated ledger tests were then copied into `mutants/tests`, and each survivor was run against the full suite with `MUTANT_UNDER_TEST=<name>` (1730 tests, hygiene guards excluded as in `[tool.mutmut]`). `bind__mutmut_29`, `prepare__mutmut_14` and `prepare__mutmut_20` (case changes) now fail, so they are killed. The other 17 pass the whole suite, so they really survive.
+- Final: **378 mutants: 355 killed, 6 timeout, 17 survived**.
+
+Surviving mutants and why:
+
+| Mutant | Change | Why it survives |
+| --- | --- | --- |
+| `_find_start` 5, 6 | `size = maximum + minimum + 1` / `... + 2` | Equivalent. A larger loop bound only tries again start positions that were already rejected in the first full cycle, so the result is the same. It only costs time. |
+| `_find_start` 9 | `while scanned <= size` | Equivalent for the same reason: one more iteration repeats a start that was already rejected. |
+| `_find_start` 15 | `scanned = maximum + 1 - start` (reset instead of add at the tail) | Equivalent. After the reset the scan goes through the range from the minimum once more, in the same cyclic order, and ends at the same tail with `scanned == size`. The first fitting start is the same, and "no run" stays "no run". |
+| `__init__` 4 | `_closed = None` | Equivalent: it is only read as a truth value. (This mutant existed before this branch.) |
+| `bind` 4 | `not rule.correlated and index_range is None` | Equivalent. `CompletionContract` already rejects a correlated mode without a range and LEGACY_DONE with one, so both conditions hold or neither does. (Existed before.) |
+| `close` 5 | `state.binding = ""` | Equivalent. After `close` every `bind` raises "Ledger is closed" before it reads `state.binding`, and the source states are dropped. (Existed before.) |
+| `_pending_indexes` 13 | `segment.cursor = None` | Equivalent. The cursor only skips work. `originals[None:stop]` starts at 0, and `delivered` already contains every original before the old cursor, so the same events come out. (Existed before.) |
+| `bind` 9, 22, 28, 34; `prepare` 13, 19, 42; `indexCodec` 5, 10 | `"XX" + message + "XX"` | The message stays the same between the padding, and tests match it with `re.search`. As in phase 29, messages are not pinned with anchors. |
+
+## Final verification
+
+(Recorded in the closing commit; see the final report.)

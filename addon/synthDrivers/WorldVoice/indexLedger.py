@@ -94,6 +94,7 @@ def _find_start(state: _Source, count: int) -> int | None:
 		stop = start + count
 		if stop > state.maximum + 1:
 			# A run never crosses the maximum; the skipped tail is free again on the next cycle.
+			# This also wraps a start just past the maximum.
 			scanned += state.maximum + 1 - start
 			start = state.minimum
 			continue
@@ -101,7 +102,7 @@ def _find_start(state: _Source, count: int) -> int | None:
 		if blocker is None:
 			return start
 		scanned += blocker - start
-		start = blocker if blocker <= state.maximum else state.minimum
+		start = blocker
 	return None
 
 
@@ -171,7 +172,8 @@ class IndexLedger:
 			state.segments[segment_id] = segment
 			for index in span:
 				state.indexes[index] = segment
-			state.next_index = span.stop if span.stop <= state.maximum else state.minimum
+			# Just past the maximum after a run that ends there; _find_start wraps it.
+			state.next_index = span.stop
 		# Log after unlocking: handlers are external code.
 		if degraded:
 			log.log(

@@ -59,7 +59,7 @@ def test_codec_appends_one_marker_without_mutating_input(codec_env):
 def test_codec_rejects_preexisting_internal_marker(codec_env):
 	env = codec_env
 	marker = env.support.commands.WorldVoiceIndexCommand(123)
-	with pytest.raises(ValueError):
+	with pytest.raises(ValueError, match="Input already contains an internal segment marker"):
 		encode(env, ("hello", marker))
 	assert env.ledger.prepare(env.context, ()).end_index == 501
 
@@ -68,7 +68,7 @@ def test_codec_scans_original_indexes_before_prepare(codec_env):
 	env = codec_env
 	original = env.commands.IndexCommand(123)
 	original.index = "invalid"
-	with pytest.raises((TypeError, ValueError)):
+	with pytest.raises(ValueError, match="Index command requires an integer"):
 		encode(env, (original,))
 	assert env.ledger.prepare(env.context, ()).end_index == 501
 
@@ -157,7 +157,7 @@ def test_drain_codec_empty_input_does_not_construct_internal_marker(drain_codec_
 def test_drain_codec_rejects_external_internal_command_before_allocation(drain_codec_env):
 	env = drain_codec_env
 	marker = env.support.commands.WorldVoiceIndexCommand(123)
-	with pytest.raises(ValueError):
+	with pytest.raises(ValueError, match="Input already contains an internal segment marker"):
 		encode(env, (env.commands.IndexCommand(7), marker))
 	assert env.ledger.prepare(env.context, (7,)).wire_indexes == (1,)
 

@@ -324,10 +324,10 @@ def test_a_retired_index_decodes_to_nothing_until_it_is_handed_out_again(make_le
 
 def test_duplicate_prepare_rejected_until_retired_even_after_end(env):
 	env.ledger.prepare(env.context, ())
-	with pytest.raises(env.module.InvalidIndexContext, match="already prepared"):
+	with pytest.raises(env.module.InvalidIndexContext, match="Segment is already prepared"):
 		env.ledger.prepare(env.context, ())
 	env.ledger.receive_index(env.source_id, 501)
-	with pytest.raises(env.module.InvalidIndexContext, match="already prepared"):
+	with pytest.raises(env.module.InvalidIndexContext, match="Segment is already prepared"):
 		env.ledger.prepare(env.context, ())
 	env.ledger.retire_segment(env.context)
 	assert env.ledger.prepare(env.context, ()).end_index == 502
@@ -339,7 +339,7 @@ def test_invalid_bindings_do_not_replace_valid_binding(env):
 		env.ledger.bind(env.source, object(), env.contract)
 	with pytest.raises(env.module.InvalidIndexContext, match="Source ID is already bound to another source"):
 		env.ledger.bind(object(), env.source_id, env.contract)
-	with pytest.raises(env.module.InvalidIndexContext, match="not bound to this ledger"):
+	with pytest.raises(env.module.InvalidIndexContext, match="Source is not bound to this ledger"):
 		env.ledger.prepare(env.models.PlaybackContext(object(), 1), ())
 	assert env.ledger.prepare(env.context, ()).end_index == 501
 
@@ -351,7 +351,10 @@ def test_rebind_rejects_changed_contract(env, mode, bounds):
 		getattr(env.models.CompletionMode, mode),
 		env.models.IndexRange(*bounds),
 	)
-	with pytest.raises(env.module.InvalidIndexContext, match="cannot change its completion contract"):
+	with pytest.raises(
+		env.module.InvalidIndexContext,
+		match="A source cannot change its completion contract",
+	):
 		env.ledger.bind(env.source, env.source_id, changed)
 	env.ledger.bind(env.source, env.source_id, env.contract)
 	assert env.ledger.prepare(env.context, ()).end_index == 501
@@ -386,7 +389,7 @@ def test_close_releases_source_retained_through_unbind_and_rejects_work(env):
 	assert source_ref() is None
 	with pytest.raises(env.module.InvalidIndexContext, match="Ledger is closed"):
 		env.ledger.bind(object(), object(), env.contract)
-	with pytest.raises(env.module.InvalidIndexContext, match="not bound to this ledger"):
+	with pytest.raises(env.module.InvalidIndexContext, match="Source is not bound to this ledger"):
 		env.ledger.prepare(env.context, ())
 	assert env.ledger.receive_index(env.source_id, 501) == ()
 	env.ledger.retire_segment(env.context)
