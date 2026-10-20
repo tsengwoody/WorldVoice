@@ -6,6 +6,7 @@ import logging
 import sys
 import weakref
 from dataclasses import FrozenInstanceError
+from itertools import pairwise
 from types import SimpleNamespace
 
 import pytest
@@ -320,6 +321,40 @@ def test_a_retired_index_decodes_to_nothing_until_it_is_handed_out_again(make_le
 	assert s.ledger.prepare(s.models.PlaybackContext(s.source_id, 4), (40,)).wire_indexes == (1,)
 	assert [(e.index, e.segment_id) for e in s.ledger.receive_index(s.source_id, 1)] == [(40, 4)]
 	assert s.ledger.receive_index(s.source_id, 2) == ()
+
+
+@pytest.mark.parametrize("mode", ["END_INDEX", "DRAIN"])
+def test_an_index_is_reused_only_after_the_cursor_has_gone_round_the_range(make_ledger, mode):
+	# Spec 6.1, reuse distance: with segments retired in turn, every other index of the range is
+	# handed out, or skipped as a tail at a wrap, before an index comes back.
+	minimum, maximum = 1, 10
+	s = make_ledger(mode, minimum, maximum)
+	cycle = range(minimum, maximum + 1)
+	stream, cursor = [], minimum
+	for number, count in enumerate((1, 3, 2, 4, 1, 5, 2, 3, 4, 1) * 4, start=1):
+		wires, end = use(s, s.source_id, number, (0,) * count)
+		run = (*wires, *(() if end is None else (end,)))
+		if run[0] != cursor:
+			# Only a run that does not fit before the maximum leaves a tail; it starts again at the minimum.
+			tail = range(cursor, maximum + 1)
+			assert run[0] == minimum and 0 < len(tail) < len(run)
+			stream += [(index, "skipped") for index in tail]
+		stream += [(index, "used") for index in run]
+		cursor = run[-1] + 1 if run[-1] < maximum else minimum
+	# The cursor goes round the range in order, so the stream repeats minimum..maximum.
+	assert [index for index, _ in stream] == [cycle[i % len(cycle)] for i in range(len(stream))]
+	assert any(kind == "skipped" for _, kind in stream)
+	used = [position for position, (_, kind) in enumerate(stream) if kind == "used"]
+	reuses = 0
+	for index in cycle:
+		positions = [position for position in used if stream[position][0] == index]
+		for first, second in pairwise(positions):
+			# At least one full turn in between: every other index was used or skipped (an index
+			# skipped in a tail waits more than one turn).
+			assert second - first >= len(cycle)
+			assert {other for other, _ in stream[first + 1 : second]} >= set(cycle) - {index}
+			reuses += 1
+	assert reuses > 2 * len(cycle)
 
 
 def test_duplicate_prepare_rejected_until_retired_even_after_end(env):
