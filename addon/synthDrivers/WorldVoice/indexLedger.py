@@ -101,6 +101,8 @@ def _find_start(state: _Source, count: int) -> int | None:
 		blocker = max((span.stop for span in spans if span.start < stop and start < span.stop), default=None)
 		if blocker is None:
 			return start
+		# The strict overlap test makes blocker > start, so each pass moves on. With <=, a span
+		# ending at start would block it again and loop for ever under the lock.
 		scanned += blocker - start
 		start = blocker
 	return None
