@@ -1,4 +1,11 @@
-"""Correlate source-local, never-reused wire indexes with speech segments.
+"""Correlate source-local wire indexes with speech segments, reusing them cyclically.
+
+Each source gives every segment one contiguous run of wire indexes, from a cursor
+that goes round the contract range and never splits a run across its maximum, as
+NVDA's own index counter wraps (speech/manager.py, SpeechManager.MAX_INDEX). A run
+stays reserved until its segment is retired, so no wire index belongs to two
+unretired segments, and a retired index is handed out again only once the cursor
+has come round to it.
 
 A live driver core must keep its ledger across runtime handoffs. Closing a
 ledger releases its identity history; the owner must close the old core before
@@ -37,6 +44,8 @@ class _Segment:
 	segment_id: int
 	originals: tuple[int, ...]
 	allocation: IndexAllocation
+	# Every wire index the segment holds, reserved until it is retired.
+	span: range
 	cursor: int = 0
 	delivered: set[int] = field(default_factory=set)
 	end_seen: bool = False
@@ -65,6 +74,28 @@ class _Binding:
 	source_id: object
 	state: _Source
 	token: object = field(default_factory=object)
+
+
+def _find_start(state: _Source, count: int) -> int | None:
+	"""Return the start of the first free run of count indexes, cyclically from the cursor."""
+	if not count:
+		return state.next_index
+	spans = [segment.span for segment in state.segments.values() if segment.span]
+	size = state.maximum - state.minimum + 1
+	start, scanned = state.next_index, 0
+	while scanned < size:
+		stop = start + count
+		if stop > state.maximum + 1:
+			# A run never crosses the maximum; the skipped tail is free again on the next cycle.
+			scanned += state.maximum + 1 - start
+			start = state.minimum
+			continue
+		blocker = max((span.stop for span in spans if span.start < stop and start < span.stop), default=None)
+		if blocker is None:
+			return start
+		scanned += blocker - start
+		start = blocker if blocker <= state.maximum else state.minimum
+	return None
 
 
 class IndexLedger:
@@ -115,22 +146,17 @@ class IndexLedger:
 			state = binding.state
 			if segment_id in state.segments:
 				raise InvalidIndexContext("Segment is already prepared and has not been retired")
-			marker = state.rule.requires_end
-			count = len(originals) + int(marker)
-			if state.next_index + count - 1 > state.maximum:
+			marker = int(state.rule.requires_end)
+			start = _find_start(state, len(originals) + marker)
+			if start is None:
 				raise IndexSpaceExhausted("Source wire index range is exhausted")
-			ordinary_end = state.next_index + len(originals)
-			allocation = IndexAllocation(
-				tuple(range(state.next_index, ordinary_end)),
-				ordinary_end if marker else None,
-			)
-			segment = _Segment(segment_id, originals, allocation)
+			span = range(start, start + len(originals) + marker)
+			allocation = IndexAllocation(tuple(span[: len(originals)]), span[-1] if marker else None)
+			segment = _Segment(segment_id, originals, allocation, span)
 			state.segments[segment_id] = segment
-			for index in allocation.wire_indexes:
+			for index in span:
 				state.indexes[index] = segment
-			if allocation.end_index is not None:
-				state.indexes[allocation.end_index] = segment
-			state.next_index += count
+			state.next_index = span.stop if span.stop <= state.maximum else state.minimum
 			return allocation
 
 	def receive_index(

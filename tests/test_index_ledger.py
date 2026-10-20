@@ -1,4 +1,4 @@
-"""Source-scoped wire indexes cannot be reused or complete the wrong segment."""
+"""Source-scoped wire indexes are reused only cyclically and never complete the wrong segment."""
 
 import gc
 import importlib
@@ -39,6 +39,51 @@ def env(monkeypatch, rt):
 		context=rt.models.PlaybackContext(source_id, 1),
 	)
 	ledger.close()
+
+
+@pytest.fixture
+def make_ledger(env):
+	ledgers = []
+
+	def make(mode, minimum, maximum):
+		ledger = env.module.IndexLedger()
+		ledgers.append(ledger)
+		source, source_id = object(), object()
+		contract = env.models.CompletionContract(
+			getattr(env.models.CompletionMode, mode),
+			env.models.IndexRange(minimum, maximum),
+		)
+		token = ledger.bind(source, source_id, contract)
+		return SimpleNamespace(
+			ledger=ledger,
+			source=source,
+			source_id=source_id,
+			contract=contract,
+			token=token,
+			module=env.module,
+			models=env.models,
+		)
+
+	yield make
+	for ledger in ledgers:
+		ledger.close()
+
+
+def use(s, source_id, segment_id, originals):
+	"""Prepare and retire one segment; return its allocation as plain tuples."""
+	context = s.models.PlaybackContext(source_id, segment_id)
+	allocation = s.ledger.prepare(context, originals)
+	s.ledger.retire_segment(context)
+	return allocation.wire_indexes, allocation.end_index
+
+
+def drained(s, segment_id, source_id=None):
+	event = s.models.PlaybackEvent(
+		s.models.EventKind.SEGMENT_DRAINED,
+		s.source_id if source_id is None else source_id,
+		segment_id=segment_id,
+	)
+	return s.ledger.receive_segment_event(event, binding_token=s.token)
 
 
 def test_terminal_marker_replays_missing_originals_before_end(env):
@@ -148,6 +193,68 @@ def test_exhaustion_is_atomic(env):
 	assert ledger.receive_index(env.source_id, 3) == ()
 	assert ledger.prepare(second, ()).end_index == 3
 	ledger.close()
+
+
+def test_runs_wrap_to_the_minimum_without_crossing_the_maximum(make_ledger):
+	s = make_ledger("END_INDEX", 501, 510)
+	assert use(s, s.source_id, 1, (1, 2, 3)) == ((501, 502, 503), 504)
+	assert use(s, s.source_id, 2, (4, 5, 6, 7)) == ((505, 506, 507, 508), 509)
+	# Two indexes do not fit in 510..510: the run starts again at the minimum.
+	assert use(s, s.source_id, 3, (8,)) == ((501,), 502)
+	assert use(s, s.source_id, 4, (9,) * 6) == ((503, 504, 505, 506, 507, 508), 509)
+	# The tail skipped at the wrap is used on the next cycle.
+	assert use(s, s.source_id, 5, ()) == ((), 510)
+	assert use(s, s.source_id, 6, ()) == ((), 501)
+
+
+def test_rebinding_a_source_continues_its_cycle(make_ledger):
+	# Before the fix the cursor never came back, so a rebind could not recover a used-up range.
+	s = make_ledger("END_INDEX", 501, 510)
+	assert use(s, s.source_id, 1, (1, 2, 3)) == ((501, 502, 503), 504)
+	s.ledger.retire_source(s.source_id)
+	s.ledger.unbind(s.source_id)
+	source_id = object()
+	s.ledger.bind(s.source, source_id, s.contract)
+	assert use(s, source_id, 2, (4,)) == ((505,), 506)
+	assert use(s, source_id, 3, (5, 6, 7)) == ((507, 508, 509), 510)
+	s.ledger.unbind(source_id)
+	source_id = object()
+	s.ledger.bind(s.source, source_id, s.contract)
+	assert use(s, source_id, 4, (8,)) == ((501,), 502)
+
+
+@pytest.mark.parametrize("mode", ["END_INDEX", "END_INDEX_AND_DRAIN", "DRAIN"])
+def test_a_finished_segment_keeps_its_indexes_until_it_is_retired(make_ledger, mode):
+	s = make_ledger(mode, 1, 10)
+	marker = mode != "DRAIN"
+	first = s.models.PlaybackContext(s.source_id, 1)
+	allocation = s.ledger.prepare(first, (42,))
+	span = (1, 2) if marker else (1,)
+	assert (*allocation.wire_indexes, *((allocation.end_index,) if marker else ())) == span
+	if mode == "END_INDEX":
+		s.ledger.receive_index(s.source_id, 2)
+	else:
+		# AND still waits for its terminal marker after the drain.
+		drained(s, 1)
+	# A filler takes the rest of the range and is retired, so the cursor wraps to the minimum.
+	assert use(s, s.source_id, 2, (0,) * (10 - len(span) - marker))[0][0] == len(span) + 1
+	third = s.ledger.prepare(s.models.PlaybackContext(s.source_id, 3), (7,))
+	assert third.wire_indexes == (len(span) + 1,)
+	assert s.ledger.receive_index(s.source_id, 1) == ()
+	if marker:
+		events = s.ledger.receive_index(s.source_id, 2)
+		ended = [(s.models.EventKind.SEGMENT_END, 1)] if mode == "END_INDEX_AND_DRAIN" else []
+		assert [(e.kind, e.segment_id) for e in events] == ended
+
+
+def test_a_retired_index_decodes_to_nothing_until_it_is_handed_out_again(make_ledger):
+	s = make_ledger("DRAIN", 1, 3)
+	for number in (1, 2, 3):
+		assert use(s, s.source_id, number, (10 * number,)) == ((number,), None)
+	assert [s.ledger.receive_index(s.source_id, wire) for wire in (1, 2, 3)] == [(), (), ()]
+	assert s.ledger.prepare(s.models.PlaybackContext(s.source_id, 4), (40,)).wire_indexes == (1,)
+	assert [(e.index, e.segment_id) for e in s.ledger.receive_index(s.source_id, 1)] == [(40, 4)]
+	assert s.ledger.receive_index(s.source_id, 2) == ()
 
 
 def test_duplicate_prepare_rejected_until_retired_even_after_end(env):
@@ -523,6 +630,18 @@ def test_drain_exhaustion_does_not_partially_publish_or_consume_indexes(drain_en
 	assert env.ledger.receive_segment_event(event, binding_token=env.token) == ()
 	assert env.ledger.prepare(next_context, (123,)).wire_indexes == (9999,)
 	assert [e.index for e in env.ledger.receive_segment_event(event, binding_token=env.token)] == [123, None]
+
+
+def test_drain_source_keeps_allocating_after_the_range_is_used(make_ledger):
+	# The production DRAIN range; before the fix segment 10000 raised IndexSpaceExhausted.
+	s = make_ledger("DRAIN", 1, 9999)
+	for number in range(1, 3 * 9999 + 1):
+		context = s.models.PlaybackContext(s.source_id, number)
+		allocation = s.ledger.prepare(context, (number,))
+		assert allocation == s.module.IndexAllocation(((number - 1) % 9999 + 1,), None)
+		events = s.ledger.receive_index(s.source_id, allocation.wire_indexes[0])
+		assert [(e.index, e.segment_id) for e in events] == [(number, number)]
+		s.ledger.retire_segment(context)
 
 
 @pytest.fixture

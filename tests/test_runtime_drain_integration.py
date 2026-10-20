@@ -31,6 +31,30 @@ def test_wrapper_index_precedes_audio_drain_and_request_done(composition, engine
 	assert [kind for kind, _ in c.output.timeline] == ["index", "drain", "done"]
 
 
+@pytest.mark.parametrize("engine", ENGINES)
+def test_requests_keep_speaking_after_the_index_range_is_used(monkeypatch, tmp_path, engine):
+	# Before the fix the fourth request failed: three wire indexes had been used and never came back.
+	c = assemble(monkeypatch, tmp_path, index_range=(1, 3))
+	try:
+		control = c.controls[engine]
+		requests = []
+		for number in range(1, 9):
+			requests.append(c.submit(("hello", c.commands.IndexCommand(700 + number)), engine))
+			control.tail(number).release.set()
+			c.wait_done(number)
+		assert c.output.indexes == list(range(701, 709))
+		assert all(request.state is c.scheduler.RequestState.COMPLETED for request in requests)
+		wires = [
+			command.index
+			for commands in control.commands
+			for command in commands
+			if isinstance(command, c.commands.IndexCommand)
+		]
+		assert wires == [1, 2, 3, 1, 2, 3, 1, 2]
+	finally:
+		c.close()
+
+
 @pytest.mark.parametrize("engines", [("VE", "Cerence", "VE")])
 def test_next_engine_starts_only_after_segment_drain(composition, engines):
 	c = composition

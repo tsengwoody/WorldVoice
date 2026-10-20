@@ -180,7 +180,7 @@ class EngineControl:
 			self.env.player.sync_release.set()
 
 
-def assemble(monkeypatch, tmp_path, *, supported=True):
+def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 	# Clear cached Python boundaries so every test uses one models/commands graph.
 	for name in tuple(sys.modules):
 		if name.startswith(PACKAGE + "."):
@@ -364,7 +364,10 @@ def assemble(monkeypatch, tmp_path, *, supported=True):
 		if supported and cls.drain_profile is not None:
 			# Explicit fake-native callback exclusion evidence, not certification
 			# of any installed SDK or physical Windows playback profile.
-			return rt.models.CompletionContract(rt.models.CompletionMode.DRAIN, rt.models.IndexRange(1, 9999))
+			return rt.models.CompletionContract(
+				rt.models.CompletionMode.DRAIN,
+				rt.models.IndexRange(*index_range),
+			)
 		# Exercise the generic fallback independently of the wrappers' own
 		# drain support checks.
 		return rt.models.CompletionContract()
