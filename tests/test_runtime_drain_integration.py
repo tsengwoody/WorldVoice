@@ -91,6 +91,34 @@ def test_next_engine_starts_only_after_segment_drain(composition, engines):
 	assert len(c.output.drains) == 3
 
 
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_degraded_index_only_segment_still_drains_and_reports_its_indexes(monkeypatch, tmp_path, engine):
+	# Two indexes have no run in 1..1, so the segment degrades and the wrapper gets no command.
+	c = assemble(monkeypatch, tmp_path, index_range=(1, 1))
+	try:
+		control = c.controls[engine]
+		request = c.submit((c.commands.IndexCommand(701), c.commands.IndexCommand(702)), engine)
+		control.wait_contexts(1)
+		assert control.commands == [()]
+		# Vocalizer skips the native call for empty speech; its final player idle still drains.
+		if engine == "OneCore":
+			barrier = control.tail(frames=0)
+		else:
+			barrier = control.wait_idle()
+			assert control.calls == []
+		assert c.output.indexes == []
+		assert not request.tasks[0].future.done()
+		barrier.release.set()
+		c.wait_done()
+		assert request.state is c.scheduler.RequestState.COMPLETED
+		assert len(c.output.drains) == 1
+		# The harness logs the drain as it enters the ledger, which then replays both indexes.
+		nvda = [entry for entry in c.output.timeline if entry[0] != "drain"]
+		assert nvda == [("index", 701), ("index", 702), ("done", None)]
+	finally:
+		c.close()
+
+
 @pytest.mark.parametrize("first,successor", [("VE", "Cerence")])
 def test_switch_waits_for_original_correlated_drain(composition, first, successor):
 	c = composition
