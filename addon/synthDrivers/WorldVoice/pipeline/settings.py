@@ -47,18 +47,22 @@ class PipelineSettingSpec:
 	ring: bool = True
 	min_step: int = 1
 	normalize: Callable[[Any], Any] | None = None
+	# Bounds of an int setting: its confspec range, and the clamp convert applies.
+	min_value: int = 0
+	max_value: int = 100
 
 	def convert(self, value: Any) -> Any:
-		if self.normalize is not None:
-			return self.normalize(value)
-		return self.kind(value)
+		result = self.normalize(value) if self.normalize is not None else self.kind(value)
+		if self.kind is int:
+			return min(max(result, self.min_value), self.max_value)
+		return result
 
 	@property
 	def confspec(self) -> str:
 		if self.kind is bool:
 			return f"boolean(default={str(self.default).lower()})"
 		if self.kind is int:
-			return f"integer(default={self.default},min=0,max=100)"
+			return f"integer(default={self.default},min={self.min_value},max={self.max_value})"
 		return f'string(default="{self.default}")'
 
 

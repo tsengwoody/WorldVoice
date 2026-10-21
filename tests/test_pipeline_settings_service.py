@@ -50,6 +50,31 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert module.PIPELINE_SETTING_BY_KEY["ignore_comma_between_number"].ring is False
 
 
+def test_int_confspec_carries_the_spec_bounds(monkeypatch):
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	bounded = module.PipelineSettingSpec("x", int, 3, min_value=1, max_value=10)
+	assert bounded.confspec == "integer(default=3,min=1,max=10)"
+	for spec in module.PIPELINE_SETTINGS:
+		if spec.kind is int:
+			assert spec.confspec == f"integer(default={spec.default},min=0,max=100)"
+
+
+@pytest.mark.parametrize(
+	("key", "raw", "expected"),
+	[
+		("number_wait_factor", 150, 100),
+		("number_wait_factor", -3, 0),
+		# The global factor is floored to tens first, then clamped.
+		("global_wait_factor", "57", 50),
+		("global_wait_factor", 150, 100),
+		("global_wait_factor", -5, 0),
+	],
+)
+def test_convert_clamps_ints_to_their_bounds(monkeypatch, key, raw, expected):
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert module.PIPELINE_SETTING_BY_KEY[key].convert(raw) == expected
+
+
 def test_get_reads_defaults_and_current_profile(monkeypatch):
 	profiles = {
 		"normal": {"WorldVoice": {"pipeline": {}}},

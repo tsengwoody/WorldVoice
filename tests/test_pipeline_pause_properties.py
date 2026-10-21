@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
-from pipeline_harness import load_pipeline_module, punctuation_settings
+from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings
 
 SHARED_ENV = settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 
@@ -19,6 +19,11 @@ SHARED_ENV = settings(suppress_health_check=[HealthCheck.function_scoped_fixture
 def env(monkeypatch):
 	module, BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	return SimpleNamespace(module=module, BreakCommand=BreakCommand)
+
+
+@pytest.fixture
+def settings_module(monkeypatch):
+	return load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 
 
 def shape(sequence):
@@ -354,3 +359,17 @@ def test_property_leftover_text_is_never_a_number(env, text):
 	for index, item in enumerate(result):
 		if isinstance(item, str) and env.module._NUMBER_RE.fullmatch(item):
 			assert taken.get(index - 1) or taken.get(index + 1), (text, result)
+
+
+# Settings (S1)
+
+
+@SHARED_ENV
+@given(data=st.data())
+def test_property_int_convert_is_bounded_and_idempotent(settings_module, data):
+	spec = data.draw(
+		st.sampled_from([spec for spec in settings_module.PIPELINE_SETTINGS if spec.kind is int]),
+	)
+	result = spec.convert(data.draw(st.integers(-1000, 1000)))
+	assert spec.min_value <= result <= spec.max_value
+	assert spec.convert(result) == result
