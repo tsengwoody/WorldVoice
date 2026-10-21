@@ -444,6 +444,12 @@ def inject_punctuation_pause(
 	Insert pauses at eligible punctuation and optionally omit those marks
 	from the text sent to the synthesizer.
 
+	* The punctuation pause switch turns the whole stage on or off. With it
+	  off, or with no configured characters, the sequence passes through
+	  unchanged.
+	* With the switch on, every pause point gets a PunctuationBreakCommand,
+	  even when its duration is 0 ms; a 0 ms break still separates the text
+	  on either side of it.
 	* Works both between consecutive text items and *inside* a single text
 	  item, because a screen reader usually sends a whole sentence as one
 	  command.
@@ -456,21 +462,22 @@ def inject_punctuation_pause(
 	  high the configured factor is.
 	* An existing BreakCommand between two text items suppresses this pause,
 	  so the punctuation pause and item_wait_factor never stack.
-	* When removal is enabled, eligible punctuation is omitted even when the
-	  pause duration is zero or an existing BreakCommand supplies the pause.
+	* Removal only decides whether the mark at a pause point is dropped. A
+	  mark at the end of an item is dropped even when an existing
+	  BreakCommand, not this stage, supplies the pause.
 	"""
-	wait_factor = settings.scaled_punctuation_wait() if settings.punctuation_pause_enabled else 0
-	remove_punctuation = settings.remove_punctuation_characters
-	if wait_factor <= 0 and not remove_punctuation:
+	if not settings.punctuation_pause_enabled:
 		yield from speechSequence
 		return
 
 	chars = settings.punctuation_pause_characters.strip()
 	if not chars:
+		# An empty character class would not compile (see _get_punctuation_regex).
 		yield from speechSequence
 		return
 
-	pause_cmd = PunctuationBreakCommand(wait_factor) if wait_factor > 0 else None
+	remove_punctuation = settings.remove_punctuation_characters
+	pause_cmd = PunctuationBreakCommand(settings.scaled_punctuation_wait())
 	regex = _get_punctuation_regex(chars)
 
 	def is_non_blank_text(command: SpeechCmd) -> bool:
@@ -483,9 +490,7 @@ def inject_punctuation_pause(
 		parts = list(_split_punctuation_segments(item, regex))
 		stripped = item.rstrip()
 		boundary_eligible = bool(stripped and stripped[-1] in chars and removal_text_follows)
-		boundary_pause = bool(
-			pause_cmd is not None and stripped and stripped[-1] in chars and pause_text_follows,
-		)
+		boundary_pause = bool(stripped and stripped[-1] in chars and pause_text_follows)
 		last_punctuation_index = max(
 			(index for index, (kind, _) in enumerate(parts) if kind == "punct"),
 			default=-1,
@@ -510,11 +515,11 @@ def inject_punctuation_pause(
 				eligible_here or boundary_eligible and index == last_punctuation_index
 			):
 				yield value
-			if eligible_here and pause_cmd is not None:
+			if eligible_here:
 				yield pause_cmd
 		# The item ends with a punctuation mark (its last significant
 		# character is a configured one); pause before the next text item.
-		if boundary_pause and pause_cmd is not None:
+		if boundary_pause:
 			yield pause_cmd
 
 	it = iter(speechSequence)
