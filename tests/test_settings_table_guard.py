@@ -74,8 +74,13 @@ def check_labels_and_panels(specs):
 def check_choices(specs):
 	problems = []
 	for spec in specs:
-		if spec.control == "choice" and "pipeline" in spec.panels and spec.choices is None:
-			problems.append(f"{spec.key}: the Speech Pipeline panel needs its choices")
+		# NVDA lists a driver setting's options itself; every choice WorldVoice makes needs its own.
+		if (
+			spec.control == "choice"
+			and spec.choices is None
+			and ("pipeline" in spec.panels or spec.driver_id is None)
+		):
+			problems.append(f"{spec.key}: a choice WorldVoice makes needs its choices")
 		if spec.choices is None:
 			continue
 		values = [value for value, _label in spec.choices]
@@ -122,6 +127,9 @@ def check_scale(specs):
 			problems.append(f"{spec.key}: panel_scale {scale!r}")
 		elif scale != 1 and spec.control != "slider":
 			problems.append(f"{spec.key}: only a slider is scaled")
+		elif scale != 1 and spec.driver_id is None and "voice" in spec.panels:
+			# The scale is the Speech Pipeline panel's; WorldVoice's own Voice panel control would scale too.
+			problems.append(f"{spec.key}: a scaled slider in the Voice panel must be NVDA's driver control")
 		elif scale != 1 and any(value % scale for value in (spec.min_value, spec.max_value, spec.default)):
 			problems.append(f"{spec.key}: bounds and default are not multiples of {scale}")
 	return problems
@@ -261,6 +269,14 @@ BROKEN = {
 	"choice expects an unknown value": (
 		check_dependencies,
 		lambda m: _with(m, "group_size", depends_on=("number_mode", "pair")),
+	),
+	"voice-only choice without choices": (
+		check_choices,
+		lambda m: _with(m, "scope", panels=("voice",), choices=None),
+	),
+	"scaled WorldVoice control in the Voice panel": (
+		check_scale,
+		lambda m: _with(m, "global_wait_factor", driver_id=None),
 	),
 	"zero scale": (check_scale, lambda m: _with(m, "global_wait_factor", panel_scale=0)),
 	"scaled checkbox": (check_scale, lambda m: _with(m, "ignore_comma_between_number", panel_scale=10)),

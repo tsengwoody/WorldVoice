@@ -3,6 +3,8 @@
 The real pipelineControls.py runs against ui_harness's fake wx, with specs from the real table.
 """
 
+from dataclasses import replace
+
 import pytest
 from ui_harness import (
 	BoxSizerHelper,
@@ -18,20 +20,22 @@ from ui_harness import (
 )
 
 
-def build(monkeypatch, key, value):
+def build(monkeypatch, key, value, **changes):
 	env = load_pipeline_controls(monkeypatch)
-	spec = env.settings.PIPELINE_SETTING_BY_KEY[key]
+	spec = replace(env.settings.PIPELINE_SETTING_BY_KEY[key], **changes)
 	sizer = Sizer()
-	parent = make_panel(SettingsPanel)
+	env.parent = parent = make_panel(SettingsPanel)
 	control = env.controls.make_control(parent, BoxSizerHelper(parent, sizer=sizer), spec, value)
 	return env, spec, sizer, control
 
 
 def test_a_checkbox_is_added_as_itself_with_its_value(monkeypatch):
-	_env, _spec, sizer, control = build(monkeypatch, "ignore_comma_between_number", True)
+	env, _spec, sizer, control = build(monkeypatch, "ignore_comma_between_number", True)
 	assert type(control) is CheckBox
 	assert (control.label, control.value) == ("Ignore commas between numbers", True)
 	assert sizer.items[0].GetWindow() is control
+	# A checkbox is made by the builder itself, so it must be the panel's child like the others.
+	assert control.parent is env.parent
 
 
 @pytest.mark.parametrize(("stored", "selection"), [("all", 0), ("WorldVoice", 1), ("nowhere", 0)])
@@ -68,6 +72,11 @@ def test_a_text_edit_holds_the_value(monkeypatch):
 	_env, _spec, _sizer, control = build(monkeypatch, "punctuation_pause_characters", "。，")
 	assert type(control) is TextCtrl
 	assert (control.label, control.value) == ("Punctuation pause characters:", "。，")
+
+
+def test_an_unknown_control_kind_is_refused(monkeypatch):
+	with pytest.raises(ValueError, match="Unknown control for pipeline setting group_size: 'dial'"):
+		build(monkeypatch, "group_size", 3, control="dial")
 
 
 def _set_value(value):
