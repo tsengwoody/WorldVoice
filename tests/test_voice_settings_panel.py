@@ -26,6 +26,7 @@ SETTINGS = (
 	NumericDriverSetting("inflection"),
 	BooleanDriverSetting("_private"),
 	BooleanDriverSetting("punctuationpauseenabled"),
+	BooleanDriverSetting("removepunctuationcharacters"),
 	NumericDriverSetting("punctuationwaitfactor"),
 )
 
@@ -47,6 +48,7 @@ class Driver:
 			"inflection": 40,
 			"_private": False,
 			"punctuationpauseenabled": True,
+			"removepunctuationcharacters": False,
 			"punctuationwaitfactor": 20,
 		}
 		for key, value in {**defaults, **values}.items():
@@ -67,6 +69,7 @@ ALL = {
 	"rateBoost",
 	"inflection",
 	"punctuationpauseenabled",
+	"removepunctuationcharacters",
 	"punctuationwaitfactor",
 }
 
@@ -107,6 +110,7 @@ def test_every_setting_gets_a_control_in_standard_order_and_unsupported_ones_are
 		"rateBoost",
 		"inflection",
 		"punctuationpauseenabled",
+		"removepunctuationcharacters",
 		"punctuationwaitfactor",
 	]
 	assert shown_ids(panel) == [
@@ -114,6 +118,7 @@ def test_every_setting_gets_a_control_in_standard_order_and_unsupported_ones_are
 		"variant",
 		"rate",
 		"punctuationpauseenabled",
+		"removepunctuationcharacters",
 		"punctuationwaitfactor",
 	]
 	assert panel.base_calls == ["makeSettings"]
@@ -190,29 +195,47 @@ def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
 	assert edit.tab_after is panel.punctuationwaitfactorSlider
 
 
+def pause_controls_enabled(panel):
+	return (
+		panel.removepunctuationcharactersCheckbox.enabled,
+		panel.punctuationwaitfactorSlider.enabled,
+		panel.punctuationPauseCharactersEdit.enabled,
+	)
+
+
 @pytest.mark.parametrize("enabled", [True, False])
-def test_wait_factor_slider_shows_only_while_pauses_are_enabled(monkeypatch, enabled):
+def test_pause_controls_are_enabled_only_while_pauses_are_enabled(monkeypatch, enabled):
 	panel = open_panel(monkeypatch, Driver(ALL, punctuationpauseenabled=enabled)).panel
-	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationwaitfactor"]) is enabled
+	assert pause_controls_enabled(panel) == (enabled, enabled, enabled)
+	# Disabled, not hidden.
+	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationwaitfactor"])
 
 
-def test_toggling_pauses_shows_or_hides_the_slider_and_still_saves_the_setting(monkeypatch):
+def test_toggling_pauses_enables_or_disables_the_controls_and_still_saves_the_setting(monkeypatch):
 	driver = Driver(ALL, punctuationpauseenabled=True)
 	panel = open_panel(monkeypatch, driver).panel
-	checkbox, slider = panel.punctuationpauseenabledCheckbox, panel.sizerDict["punctuationwaitfactor"]
-	layouts = panel.settingsSizer.layouts
+	checkbox = panel.punctuationpauseenabledCheckbox
 
 	checkbox.SetValue(False)
 	fire(checkbox, "EVT_CHECKBOX")
-	assert not panel.settingsSizer.IsShown(slider)
+	assert pause_controls_enabled(panel) == (False, False, False)
+	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationwaitfactor"])
 	# WorldVoice's handler skips the event, so NVDA's own handler still writes the setting.
 	assert driver.punctuationpauseenabled is False
-	assert panel.settingsSizer.layouts > layouts
 
 	checkbox.SetValue(True)
 	fire(checkbox, "EVT_CHECKBOX")
-	assert panel.settingsSizer.IsShown(slider)
+	assert pause_controls_enabled(panel) == (True, True, True)
 	assert driver.punctuationpauseenabled is True
+
+
+def test_a_voice_switch_keeps_the_pause_controls_disabled(monkeypatch):
+	panel = open_panel(monkeypatch, Driver(ALL, punctuationpauseenabled=False)).panel
+
+	panel.updateDriverSettings(changedSetting="voice")  # shows every supported control again
+
+	assert pause_controls_enabled(panel) == (False, False, False)
+	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationwaitfactor"])
 
 
 def test_a_synth_without_pause_settings_gets_the_characters_edit_at_the_end(monkeypatch):
@@ -230,6 +253,7 @@ def test_a_synth_without_pause_settings_gets_the_characters_edit_at_the_end(monk
 		"Punctuation pause characters:",
 	]
 	assert panel.punctuationPauseCharactersEdit.tab_after is None
+	assert panel.punctuationPauseCharactersEdit.enabled is True
 
 
 def test_saving_writes_the_characters_and_keeps_them_after_a_later_cancel(monkeypatch):

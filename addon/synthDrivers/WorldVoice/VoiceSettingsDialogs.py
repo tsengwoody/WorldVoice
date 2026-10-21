@@ -21,32 +21,33 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 
 	def _bindPunctuationPauseEnabledToggle(self):
 		"""
-		Hook the "Enable punctuation pause control" checkbox so the
-		"Punctuation wait factor" slider is hidden while the feature is
-		disabled, mirroring the initial state on dialog open.
+		Hook the "Enable punctuation pause control" checkbox so the controls that
+		depend on it are enabled only while it is checked, starting with its state
+		when the dialog opens.
 		"""
 		checkbox = getattr(self, "punctuationpauseenabledCheckbox", None)
-		sliderSizer = self.sizerDict.get("punctuationwaitfactor")
-		if checkbox is None or sliderSizer is None:
+		if checkbox is None:
 			return
 		checkbox.Bind(wx.EVT_CHECKBOX, self._onPunctuationPauseEnabledToggle)
-		self._applyPunctuationWaitFactorVisibility()
+		self._applyPunctuationPauseControlsState()
 
 	def _onPunctuationPauseEnabledToggle(self, evt):
-		# NVDA's own checkbox handler writes the setting; this one only updates the slider.
+		# NVDA's own checkbox handler writes the setting; this one only updates the dependent controls.
 		evt.Skip()
-		self._applyPunctuationWaitFactorVisibility()
+		self._applyPunctuationPauseControlsState()
 
-	def _applyPunctuationWaitFactorVisibility(self):
-		checkbox = getattr(self, "punctuationpauseenabledCheckbox", None)
-		sliderSizer = self.sizerDict.get("punctuationwaitfactor")
-		if checkbox is None or sliderSizer is None:
-			return
-		if checkbox.GetValue():
-			self.settingsSizer.Show(sliderSizer)
-		else:
-			self.settingsSizer.Hide(sliderSizer)
-		self.settingsSizer.Layout()
+	def _applyPunctuationPauseControlsState(self):
+		# Disable rather than hide: NVDA's updateDriverSettings shows every supported
+		# control again after a voice change, but never enables or disables one.
+		enabled = self.punctuationpauseenabledCheckbox.GetValue()
+		for name in (
+			"removepunctuationcharactersCheckbox",
+			"punctuationwaitfactorSlider",
+			"punctuationPauseCharactersEdit",
+		):
+			control = getattr(self, name, None)
+			if control is not None:
+				control.Enable(enabled)
 
 	def _addPunctuationPauseCharactersControl(self, settingsSizer):
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
