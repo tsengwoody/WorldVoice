@@ -5,6 +5,7 @@ profile and the real pipeline settings service.
 """
 
 import sys
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -189,6 +190,23 @@ def test_pipeline_panel_keeps_the_stored_scope_when_nothing_is_selected(monkeypa
 
 	saved = env.conf["WorldVoice"]["pipeline"]
 	assert (saved["scope"], saved["number_wait_factor"]) == (stored, 33)
+
+
+def test_pipeline_panel_never_saves_an_entry_pipeline_config_does_not_store(monkeypatch):
+	# The guard keeps ordering-only entries out of this panel; onSave still skips one.
+	env = pipeline_env(monkeypatch, number_wait_factor=20, group_size=3)
+	env.module.PIPELINE_SETTINGS = tuple(
+		replace(spec, pipeline_config=False) if spec.key == "number_wait_factor" else spec
+		for spec in env.settings.PIPELINE_SETTINGS
+	)
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	panel._number_wait_factor_slider.SetValue(33)
+	panel._group_size_spin.SetValue(6)
+
+	panel.onSave()
+
+	saved = env.conf["WorldVoice"]["pipeline"]
+	assert (saved["number_wait_factor"], saved["group_size"]) == (20, 6)
 
 
 def test_pipeline_panel_global_wait_slider_shows_tens_and_saves_units(monkeypatch):

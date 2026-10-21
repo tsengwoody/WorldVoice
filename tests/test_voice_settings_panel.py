@@ -511,6 +511,42 @@ def test_another_synth_saves_and_cancels_without_touching_pipeline_settings(monk
 	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]
 
 
+def test_saving_skips_a_non_driver_choice_with_no_selection(monkeypatch):
+	# No such control today: a non-driver choice with no selection names no value, so the stored
+	# one is kept and the other controls are still saved.
+	settings = (DriverSetting("voice"), BooleanDriverSetting("cni"))
+	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf(pipeline={"number_mode": "group"}))
+	env.module.PIPELINE_SETTINGS = table_with(
+		env,
+		("ignore_comma_between_number", {}),
+		("number_mode", {"driver_id": None}),
+		("punctuation_pause_characters", {"depends_on": None}),
+	)
+	panel = env.module.WorldVoiceVoiceSettingsPanel(Driver({"voice", "cni"}, settings=settings, cni=False))
+	panel.makeSettings(panel.settingsSizer)
+	panel.numberModeList.Select(-1)
+	panel.punctuationPauseCharactersEdit.SetValue(";")
+
+	panel.onSave()
+
+	pipeline = env.conf["WorldVoice"]["pipeline"]
+	assert (pipeline["number_mode"], pipeline["punctuation_pause_characters"]) == ("group", ";")
+
+
+def test_cancel_after_the_synth_changed_restores_no_pipeline_setting(monkeypatch):
+	# Built for WorldVoice, then the synth changed and the dialog was cancelled before NVDA
+	# rebuilt the panel: the snapshot belongs to WorldVoice's panel, so nothing is restored.
+	env = open_panel(monkeypatch, Driver(ALL), group_size=3)
+	panel = env.panel
+	env.pipeline_settings.update(group_size=7)  # applied from the Speech Pipeline panel
+	panel._driver = other_synth()
+
+	panel.onDiscard()
+
+	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 7
+	assert panel.base_calls[-1] == "onDiscard"
+
+
 def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
 	settings = (DriverSetting("voice"), BooleanDriverSetting("cni"))
 	env = load_voice_settings_dialogs(

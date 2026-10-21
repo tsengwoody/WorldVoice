@@ -178,6 +178,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		self._applyDependencies()
 
 	def onSave(self):
+		# The table guard keeps ordering-only entries (NVDA stores them) out of this panel; skip one anyway.
 		values = {
 			spec.key: control_value(spec, self._control(spec))
 			for spec in self._specs()
