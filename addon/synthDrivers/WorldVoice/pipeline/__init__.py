@@ -508,8 +508,10 @@ def inject_punctuation_pause(
 	* The pause length is capped (see PipelineSettings.scaled_punctuation_wait),
 	  so the voice never stops for a long silence at punctuation no matter how
 	  high the configured factor is.
-	* An existing BreakCommand between two text items suppresses this pause,
-	  so the punctuation pause and item_wait_factor never stack.
+	* An existing BreakCommand between two text items suppresses only the
+	  boundary pause of the item before it. A mark that opens the next item
+	  is an internal pause point, so it still gets this pause after the
+	  existing break, as in ["a", existing, ". b"].
 	* Removal only decides whether the mark at a pause point is dropped. A
 	  mark at the end of an item is dropped even when an existing
 	  BreakCommand, not this stage, supplies the pause.
