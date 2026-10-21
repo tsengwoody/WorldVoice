@@ -434,7 +434,7 @@ A scratch prototype of sections 4.1, 4.2, 4.3 (Speech Pipeline panel only) and 4
 | --- | --- | --- |
 | `tests/test_pipeline_filters.py::test_number_mode[-1234-pair-0]` (`NUMBER_MODES`, `:96`) | `["-12 34"]` | `["-12", ("PairNumberBreakCommand", 0), "34"]` |
 | `tests/test_pipeline_punctuation_pause.py::test_zero_punctuation_wait_factor_preserves_existing_text_and_breaks` (`:10-16`) | unchanged sequence | `["Hello", ".", existing_break, "World"]`, with no new break because the existing one suppresses it. Rename to match. |
-| `tests/test_pipeline_punctuation_pause.py::test_removal_uses_pause_points_even_with_zero_wait_or_disabled_pause_control` (`:43-50`) | removal works at wait 0 without a break, and with the switch off | wait 0 with removal: `"Hello"`, `PunctuationBreakCommand(0)`, `" world."`; switch off: unchanged. Rename. |
+| `tests/test_pipeline_punctuation_pause.py::test_removal_uses_pause_points_even_with_zero_wait_or_disabled_pause_control` (`:43-50`) | removal works at wait 0 without a break, and with the switch off | wait 0 with removal: `"Hello"`, `PunctuationBreakCommand(0)`, `" world"`, `"."`; switch off: unchanged. Rename. |
 | `tests/test_pipeline_settings_service.py::test_table_drives_fields_defaults_keys_and_confspec` (`OLD_DEFAULTS`, `:20`; `:34`) | `"،؛,.;:!؟?…"` | `""` and `'string(default="")'` |
 | `tests/test_pipeline_settings_service.py::test_get_reads_defaults_and_current_profile` (uses `OLD_DEFAULTS`) | as above | as above |
 | `tests/test_settings_panels.py::test_pipeline_panel_enables_pause_controls_from_the_stored_switches[False-True-False-True]` (`:86-106`) | the edit is enabled when only removal is on | the edit is disabled; add the remove checkbox state to every case |
