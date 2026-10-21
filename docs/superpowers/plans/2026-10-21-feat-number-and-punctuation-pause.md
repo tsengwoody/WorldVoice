@@ -755,7 +755,7 @@ Linux, mutmut 3.8.0, on `c4f2410`: `mutmut run --max-children 3` with the six gl
 - Three survivors were real gaps and are killed by new tests: `number_wait_factor` 3 (`wait_factor <= 1`; `test_the_shortest_number_wait_still_breaks`), `inject_punctuation_pause` 19 (`item.rstrip()` -> `item.lstrip()`; rule-4 case `["Hi. ", "there"]`) and `inject_punctuation_pause` 52 (`and` -> `or` in the internal-point test; rule-3 case `["Bye. ."]`). Each was confirmed killed by running the suite in `mutants/` with the new tests and `MUTANT_UNDER_TEST=<name>` (hygiene guards excluded, as in `[tool.mutmut]`).
 - The other ten pass the whole suite (1809 tests) with the mutant applied, so they really survive. Final: **205 mutants: 195 killed, 10 survived**.
 
-The numbers are mutmut's names from this run (`mutate_only_covered_lines = true`); the "Change" column identifies each mutant.
+The numbers are mutmut's names from this run only (`mutate_only_covered_lines = true`): another run, or a change to the code, can number the same mutants differently, so `mutmut show <name>` may not match. The "Change" column identifies each mutant.
 
 | Mutant | Change | Why it survives |
 | --- | --- | --- |
