@@ -160,6 +160,9 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			getattr(self, f"{setting.id}Checkbox").SetValue(
 				getattr(settingsStorage, setting.id),
 			)
+			if setting.id == "punctuationpauseenabled":
+				# SetValue fires no EVT_CHECKBOX, so apply the switch to its dependent controls here.
+				self._applyPunctuationPauseControlsState()
 		else:
 			stringSettingAttribName = f"_{setting.id}s"
 			setattr(

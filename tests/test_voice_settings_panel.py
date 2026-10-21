@@ -238,6 +238,19 @@ def test_a_voice_switch_keeps_the_pause_controls_disabled(monkeypatch):
 	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationwaitfactor"])
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+def test_a_voice_switch_after_a_settings_ring_toggle_matches_the_controls_to_the_switch(monkeypatch, enabled):
+	driver = Driver(ALL, punctuationpauseenabled=not enabled)
+	panel = open_panel(monkeypatch, driver).panel
+	driver.punctuationpauseenabled = enabled  # toggled with the settings ring while the dialog is open
+
+	# SetValue on the switch fires no EVT_CHECKBOX, so the panel must apply the state itself.
+	panel.updateDriverSettings(changedSetting="voice")
+
+	assert panel.punctuationpauseenabledCheckbox.value is enabled
+	assert pause_controls_enabled(panel) == (enabled, enabled, enabled)
+
+
 def test_a_synth_without_pause_settings_gets_the_characters_edit_at_the_end(monkeypatch):
 	settings = (DriverSetting("voice"), NumericDriverSetting("rate"))
 	driver = Driver({"voice", "rate"}, name="espeak", settings=settings)
