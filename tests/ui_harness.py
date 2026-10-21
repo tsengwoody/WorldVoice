@@ -43,6 +43,17 @@ class Control:
 		# wxPython: a destroyed window is falsy, which NVDA's "if self.lastControl:" relies on.
 		return not self.destroyed
 
+	def __getattribute__(self, name):
+		# wxPython: any wx method or property of a destroyed window raises; Python attributes the
+		# test reads (label, value, destroyed, ...) stay readable, as on a real dead wrapper.
+		if (
+			not name.startswith("_")
+			and object.__getattribute__(self, "__dict__").get("destroyed")
+			and any(name in vars(cls) for cls in type(self).__mro__ if cls is not object)
+		):
+			raise RuntimeError(f"wrapped C/C++ object of type {type(self).__name__} has been deleted")
+		return object.__getattribute__(self, name)
+
 	# Choice
 	def Select(self, index):
 		self.selection = index
@@ -105,6 +116,8 @@ class Control:
 		return self.containing_sizer
 
 	def MoveAfterInTabOrder(self, other):
+		if isinstance(other, Control) and not other:
+			raise RuntimeError(f"wrapped C/C++ object of type {type(other).__name__} has been deleted")
 		self.tab_after = other
 		tab_order = getattr(self.parent, "tab_order", None)
 		if tab_order is not None and self in tab_order and other in tab_order:

@@ -414,6 +414,24 @@ def test_a_rebuild_for_worldvoice_places_the_controls_again(monkeypatch):
 	assert not panel.groupSizeSpin.destroyed
 
 
+def test_a_rebuild_for_worldvoice_from_worldvoice_places_the_controls_again(monkeypatch):
+	# OK in NVDA's synth dialog with WorldVoice kept: setSynth makes a new instance, so NVDA
+	# rebuilds the panel and destroys every window of the earlier build first.
+	panel = open_panel(monkeypatch, Driver(ALL, nummod="group")).panel
+	oldSpin, oldList = panel.groupSizeSpin, panel.nummodList
+	panel._driver = Driver(ALL, nummod="value")
+
+	panel.refreshGui()
+
+	names = order(panel)
+	assert names.index("Group size:") == names.index("nummod") + 1
+	assert names.index("Punctuation pause characters:") == names.index("punctuationwaitfactor") + 1
+	assert panel.groupSizeSpin is not oldSpin and panel.nummodList is not oldList
+	assert oldSpin.destroyed and not panel.groupSizeSpin.destroyed
+	assert group_controls_enabled(panel) == (False, False)
+	assert panel.groupSizeSpin.tab_after is panel.nummodList
+
+
 def test_a_rebuild_for_another_synth_drops_the_worldvoice_controls(monkeypatch):
 	env = open_panel(monkeypatch, Driver(ALL))
 	panel = env.panel

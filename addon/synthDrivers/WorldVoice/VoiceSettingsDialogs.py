@@ -91,9 +91,15 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		return panel_specs(PIPELINE_SETTINGS, VOICE_PANEL)
 
 	def _voiceControl(self, spec):
-		"""The control of a Voice panel entry: NVDA's for a driver setting, else WorldVoice's; or None."""
+		"""The control of a Voice panel entry: NVDA's for a driver setting, else WorldVoice's; or None.
+
+		Every use of a table control goes through here. NVDA's refreshGui destroys the windows of
+		the earlier build but keeps the attributes, and any call on a destroyed window raises; a
+		destroyed wx window is falsy (NVDA's "if self.lastControl:" relies on it), so it counts as none.
+		"""
 		name = driver_attribute(spec) if spec.driver_id is not None else voice_attribute(spec)
-		return getattr(self, name, None)
+		control = getattr(self, name, None)
+		return control if control else None
 
 	def _addPipelineControls(self, settingsSizer):
 		"""
@@ -103,7 +109,8 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		"""
 		specs = self._voiceSpecs()
 		added = [spec for spec in specs if spec.driver_id is None]
-		# NVDA rebuilds this panel on a synth change and destroys the old windows.
+		# Drop the windows of an earlier build, which NVDA's refreshGui destroyed; _voiceControl
+		# already counts them as none, this keeps the attributes from naming them.
 		for spec in added:
 			setattr(self, voice_attribute(spec), None)
 		if not self._isWorldVoice():
