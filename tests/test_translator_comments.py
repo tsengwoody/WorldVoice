@@ -38,7 +38,7 @@ def test_translator_comments_precede_gettext_calls():
 	assert misplaced == []
 
 
-GROUP_MODE_MSGIDS = ("group", "Group size:", "group wait factor:", "Group wait factor")
+GROUP_MODE_MSGIDS = ("group", "Group size", "Group wait factor")
 
 
 def test_group_strings_have_translator_comments():

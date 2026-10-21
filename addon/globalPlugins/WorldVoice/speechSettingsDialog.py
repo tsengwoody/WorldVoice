@@ -7,7 +7,7 @@ import gui
 import queueHandler
 import tones
 import wx
-from gui import guiHelper, nvdaControls
+from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 from logHandler import log
 from synthDriverHandler import getSynth
@@ -16,7 +16,18 @@ from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
 from synthDrivers.WorldVoice.pipeline import STAGES
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
-from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTING_BY_KEY, pipeline_settings
+from synthDrivers.WorldVoice.pipeline.panelLayout import (
+	ABSENT,
+	PIPELINE_PANEL,
+	choice_values,
+	controller_keys,
+	dependent_states,
+	panel_specs,
+	pipeline_attribute,
+	selected_value,
+)
+from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTINGS, pipeline_settings
+from synthDrivers.WorldVoice.pipelineControls import CHANGE_EVENTS, control_value, make_control
 
 from .pipelineLog import ask_export, confirm_enable, pipeline_log
 from .rolePresenter import RolePanelPresenter
@@ -114,199 +125,56 @@ class SpeechPipelinePanel(SettingsPanel):
 	title = _("Speech Pipeline")
 
 	def makeSettings(self, sizer):
+		# Every control comes from the pipeline settings table, in its order, under one helper
+		# so NVDA's spacing separates the rows.
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 		settings = pipeline_settings.get()
+		specs = self._specs()
+		for spec in specs:
+			control = make_control(self, settingsSizerHelper, spec, getattr(settings, spec.key))
+			setattr(self, pipeline_attribute(spec), control)
+		controllers = controller_keys(specs)
+		for spec in specs:
+			if spec.key in controllers:
+				self.Bind(CHANGE_EVENTS[spec.control], self._onControllerChange, self._control(spec))
+		self._applyDependencies()
 
-		scope_label = [
-			_("All Synthesizers (Global)"),
-			_("Only WorldVoice Synthesizer"),
-		]
-		self._scope_value = ["all", "WorldVoice"]
-		self._scope_choice = settingsSizerHelper.addLabeledControl(
-			_("Effect Scope:"),
-			wx.Choice,
-			choices=scope_label,
-		)
-		try:
-			self._scope_choice.Select(self._scope_value.index(settings.scope))
-		except ValueError:
-			self._scope_choice.Select(0)
+	@staticmethod
+	def _specs():
+		return panel_specs(PIPELINE_SETTINGS, PIPELINE_PANEL)
 
-		self._ignore_comma_between_number_checkbox = wx.CheckBox(
-			self,
-			label=_("Ignore comma between number"),
-		)
-		settingsSizerHelper.addItem(self._ignore_comma_between_number_checkbox)
-		self._ignore_comma_between_number_checkbox.SetValue(settings.ignore_comma_between_number)
+	def _control(self, spec):
+		return getattr(self, pipeline_attribute(spec), None)
 
-		number_mode_label = [
-			_("value"),
-			_("number"),
-			# Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
-			_("group"),
-		]
-		self.number_mode_value = ["value", "number", "group"]
+	def _readController(self, key):
+		(spec,) = [spec for spec in self._specs() if spec.key == key]
+		control = self._control(spec)
+		if control is None:
+			return ABSENT
+		if spec.control == "choice":
+			return selected_value(choice_values(spec), control.GetCurrentSelection())
+		return control.GetValue()
 
-		self._number_mode_choice = settingsSizerHelper.addLabeledControl(
-			_("Number mode:"),
-			wx.Choice,
-			choices=number_mode_label,
-		)
-
-		try:
-			self._number_mode_choice.Select(self.number_mode_value.index(settings.number_mode))
-		except ValueError:
-			self._number_mode_choice.Select(0)
-		self.Bind(wx.EVT_CHOICE, self.onNumberModeChange, self._number_mode_choice)
-
-		group_size_spec = PIPELINE_SETTING_BY_KEY["group_size"]
-		self._group_size_spin = settingsSizerHelper.addLabeledControl(
-			# Translators: Label for a spin control that sets how many digits each group has in the group number mode.
-			_("Group size:"),
-			nvdaControls.SelectOnFocusSpinCtrl,
-			min=group_size_spec.min_value,
-			max=group_size_spec.max_value,
-			initial=settings.group_size,
-		)
-
-		self._group_wait_factor_slider = settingsSizerHelper.addLabeledControl(
-			# Translators: Label for a slider that sets the pause between digit groups.
-			_("group wait factor:"),
-			wx.Slider,
-			value=50,
-			minValue=0,
-			maxValue=100,
-			style=wx.SL_HORIZONTAL,
-		)
-		self._group_wait_factor_slider.SetValue(settings.group_wait_factor)
-
-		self._global_wait_factor_slider = settingsSizerHelper.addLabeledControl(
-			_("global wait factor:"),
-			wx.Slider,
-			value=5,
-			minValue=0,
-			maxValue=10,
-			style=wx.SL_HORIZONTAL,
-		)
-		self._global_wait_factor_slider.SetValue(settings.global_wait_factor // 10)
-
-		self._number_wait_factor_slider = settingsSizerHelper.addLabeledControl(
-			_("number wait factor:"),
-			wx.Slider,
-			value=50,
-			minValue=0,
-			maxValue=100,
-			style=wx.SL_HORIZONTAL,
-		)
-		self._number_wait_factor_slider.SetValue(settings.number_wait_factor)
-
-		self._item_wait_factor_slider = settingsSizerHelper.addLabeledControl(
-			_("item wait factor:"),
-			wx.Slider,
-			value=50,
-			minValue=0,
-			maxValue=100,
-			style=wx.SL_HORIZONTAL,
-		)
-		self._item_wait_factor_slider.SetValue(settings.item_wait_factor)
-
-		self._sayall_wait_factor_slider = settingsSizerHelper.addLabeledControl(
-			_("sayall wait factor:"),
-			wx.Slider,
-			value=50,
-			minValue=0,
-			maxValue=100,
-			style=wx.SL_HORIZONTAL,
-		)
-		self._sayall_wait_factor_slider.SetValue(settings.sayall_wait_factor)
-
-		self._chinesespace_wait_factor_slider = settingsSizerHelper.addLabeledControl(
-			_("chinese space wait factor:"),
-			wx.Slider,
-			value=50,
-			minValue=0,
-			maxValue=100,
-			style=wx.SL_HORIZONTAL,
-		)
-		self._chinesespace_wait_factor_slider.SetValue(settings.chinesespace_wait_factor)
-
-		self._punctuation_pause_enabled_checkbox = wx.CheckBox(
-			self,
-			label=_("Enable punctuation pause control"),
-		)
-		settingsSizerHelper.addItem(self._punctuation_pause_enabled_checkbox)
-		self.Bind(
-			wx.EVT_CHECKBOX,
-			self.onPunctuationPauseEnabledChange,
-			self._punctuation_pause_enabled_checkbox,
-		)
-		self._punctuation_pause_enabled_checkbox.SetValue(settings.punctuation_pause_enabled)
-
-		self._remove_punctuation_characters_checkbox = wx.CheckBox(
-			self,
-			label=_("Remove configured punctuation at pause points"),
-		)
-		settingsSizerHelper.addItem(self._remove_punctuation_characters_checkbox)
-		self._remove_punctuation_characters_checkbox.SetValue(settings.remove_punctuation_characters)
-
-		self._punctuation_wait_factor_slider = settingsSizerHelper.addLabeledControl(
-			_("punctuation wait factor:"),
-			wx.Slider,
-			value=50,
-			minValue=0,
-			maxValue=100,
-			style=wx.SL_HORIZONTAL,
-		)
-		self._punctuation_wait_factor_slider.SetValue(settings.punctuation_wait_factor)
-
-		self._punctuation_pause_characters_edit = settingsSizerHelper.addLabeledControl(
-			_("Punctuation pause characters:"),
-			wx.TextCtrl,
-		)
-		self._punctuation_pause_characters_edit.SetValue(settings.punctuation_pause_characters)
-		self.onPunctuationPauseEnabledChange(None)
-		self.onNumberModeChange(None)
-
-	def _selected_number_mode(self):
-		# None when the choice has no selection (-1): number_mode_value[-1] would be "group".
-		selection = self._number_mode_choice.GetCurrentSelection()
-		if 0 <= selection < len(self.number_mode_value):
-			return self.number_mode_value[selection]
-		return None
-
-	def onNumberModeChange(self, event):
+	def _applyDependencies(self):
 		# Disabled controls keep their values, and onSave still stores them.
-		enabled = self._selected_number_mode() == "group"
-		self._group_size_spin.Enable(enabled)
-		self._group_wait_factor_slider.Enable(enabled)
+		specs = self._specs()
+		states = dependent_states(specs, self._readController)
+		for spec in specs:
+			control = self._control(spec)
+			if spec.key in states and control is not None:
+				control.Enable(states[spec.key])
 
-	def onPunctuationPauseEnabledChange(self, event):
-		# Disabled controls keep their values, and onSave still stores them.
-		enabled = self._punctuation_pause_enabled_checkbox.GetValue()
-		self._remove_punctuation_characters_checkbox.Enable(enabled)
-		self._punctuation_wait_factor_slider.Enable(enabled)
-		self._punctuation_pause_characters_edit.Enable(enabled)
+	def _onControllerChange(self, event):
+		self._applyDependencies()
 
 	def onSave(self):
-		number_mode = self._selected_number_mode()
-		# No selection names no mode, so the stored one is kept.
-		selected = {} if number_mode is None else {"number_mode": number_mode}
-		pipeline_settings.update(
-			scope=self._scope_value[self._scope_choice.GetCurrentSelection()],
-			ignore_comma_between_number=self._ignore_comma_between_number_checkbox.GetValue(),
-			**selected,
-			global_wait_factor=self._global_wait_factor_slider.GetValue() * 10,
-			number_wait_factor=self._number_wait_factor_slider.GetValue(),
-			item_wait_factor=self._item_wait_factor_slider.GetValue(),
-			sayall_wait_factor=self._sayall_wait_factor_slider.GetValue(),
-			chinesespace_wait_factor=self._chinesespace_wait_factor_slider.GetValue(),
-			punctuation_wait_factor=self._punctuation_wait_factor_slider.GetValue(),
-			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
-			remove_punctuation_characters=self._remove_punctuation_characters_checkbox.GetValue(),
-			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
-			group_wait_factor=self._group_wait_factor_slider.GetValue(),
-			group_size=self._group_size_spin.GetValue(),
-		)
+		values = {
+			spec.key: control_value(spec, self._control(spec))
+			for spec in self._specs()
+			if spec.pipeline_config
+		}
+		# A choice with no selection names no value, so the stored one is kept.
+		pipeline_settings.update(**{key: value for key, value in values.items() if value is not None})
 
 
 class SpeechRoleSettingsPanel(SettingsPanel):

@@ -5,6 +5,7 @@ import types
 
 from addon_loader import ADDON, WORLDVOICE, load_definitions
 from pipeline_harness import ORDER
+from ui_harness import load_settings_dialog
 
 PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 VOICE_PANEL = WORLDVOICE / "VoiceSettingsDialogs.py"
@@ -30,21 +31,12 @@ def test_log_labels_match_stages_and_confspec():
 	assert "stage.log_key: 'boolean(default=false)' for stage in STAGES" in source
 
 
-def test_pipeline_panel_saves_once_through_the_service():
+def test_pipeline_panel_saves_once_through_the_service(monkeypatch):
 	updates = []
-	environment = load_definitions(
-		PANELS,
-		{"SpeechPipelinePanel"},
-		{
-			"SettingsPanel": object,
-			"_": lambda text: text,
-			"pipeline_settings": types.SimpleNamespace(update=lambda **changes: updates.append(changes)),
-		},
-	)
-	panel = object.__new__(environment["SpeechPipelinePanel"])
-	panel._scope_value = ["all", "WorldVoice"]
+	module = load_settings_dialog(monkeypatch).module
+	module.pipeline_settings = types.SimpleNamespace(update=lambda **changes: updates.append(changes))
+	panel = object.__new__(module.SpeechPipelinePanel)
 	panel._scope_choice = Widget(selection=0)
-	panel.number_mode_value = ["value", "number", "group"]
 	panel._number_mode_choice = Widget(selection=2)
 	panel._ignore_comma_between_number_checkbox = Widget(True)
 	panel._global_wait_factor_slider = Widget(3)
@@ -75,7 +67,16 @@ def test_pipeline_panel_saves_once_through_the_service():
 			"group_size": 5,
 		},
 	]
-	for name in ("onGlobalWaitFactorSliderScroll", "sliderEnable", "onScopeSelectionChange"):
+	for name in (
+		"onGlobalWaitFactorSliderScroll",
+		"sliderEnable",
+		"onScopeSelectionChange",
+		"_scope_value",
+		"number_mode_value",
+		"_selected_number_mode",
+		"onNumberModeChange",
+		"onPunctuationPauseEnabledChange",
+	):
 		assert not hasattr(panel, name)
 
 
