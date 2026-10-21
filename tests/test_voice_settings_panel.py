@@ -491,3 +491,52 @@ def test_another_synth_saves_and_cancels_without_touching_pipeline_settings(monk
 	assert pipeline["item_wait_factor"] == 90
 	assert pipeline_snapshot(panel) is None
 	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]
+
+
+def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
+	settings = (DriverSetting("voice"), BooleanDriverSetting("cni"))
+	env = load_voice_settings_dialogs(
+		monkeypatch,
+		conf=worldvoice_conf(pipeline={"remove_punctuation_characters": False}),
+	)
+	env.module.PIPELINE_SETTINGS = table_with(
+		env,
+		("ignore_comma_between_number", {}),
+		("remove_punctuation_characters", {"driver_id": None, "depends_on": None}),
+		("punctuation_pause_characters", {"depends_on": ("remove_punctuation_characters", True)}),
+	)
+	panel = env.module.WorldVoiceVoiceSettingsPanel(Driver({"voice", "cni"}, settings=settings, cni=False))
+	panel.makeSettings(panel.settingsSizer)
+	checkbox, edit = panel.removePunctuationCharactersCheckbox, panel.punctuationPauseCharactersEdit
+	assert edit.enabled is False
+
+	checkbox.SetValue(True)
+	event = fire(checkbox, "EVT_CHECKBOX")
+
+	assert edit.enabled is True
+	assert event.skipped
+
+
+def test_the_named_rule_and_placement_helpers_are_gone(monkeypatch):
+	panel_class = load_voice_settings_dialogs(monkeypatch).module.WorldVoiceVoiceSettingsPanel
+	for name in (
+		"_bindNumberModeChoice",
+		"_onNumberModeChoice",
+		"_applyGroupControlsState",
+		"_bindPunctuationPauseEnabledToggle",
+		"_onPunctuationPauseEnabledToggle",
+		"_applyPunctuationPauseControlsState",
+		"_addGroupSizeControl",
+		"_addPunctuationPauseCharactersControl",
+	):
+		assert not hasattr(panel_class, name), name
+
+
+def test_saving_strips_unicode_whitespace_from_the_characters(monkeypatch):
+	# U+3000 (ideographic space) and U+00A0 (no-break space) are typed from CJK and other layouts.
+	env = open_panel(monkeypatch, Driver(ALL))
+	env.panel.punctuationPauseCharactersEdit.SetValue("　。 ！　")
+
+	env.panel.onSave()
+
+	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == "。 ！"

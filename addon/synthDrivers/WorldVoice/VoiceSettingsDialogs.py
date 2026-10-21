@@ -1,20 +1,24 @@
 import addonHandler
 import gui
-import wx
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
 from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
 from logHandler import log
 
 from .pipeline.panelLayout import (
+	ABSENT,
 	VOICE_PANEL,
+	choice_values,
+	controller_keys,
+	dependent_states,
 	driver_attribute,
 	panel_specs,
+	selected_value,
 	voice_attribute,
 	voice_placements,
 )
 from .pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTINGS, pipeline_settings
-from .pipelineControls import control_row, control_value, make_control
+from .pipelineControls import CHANGE_EVENTS, control_row, control_value, make_control
 
 addonHandler.initTranslation()
 
@@ -34,68 +38,52 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self.createDriverSettings()
 		super().makeSettings(settingsSizer)
 		self._addPipelineControls(settingsSizer)
-		self._bindPunctuationPauseEnabledToggle()
-		self._bindNumberModeChoice()
+		self._bindControllers()
+		self._applyDependencies()
 
-	def _bindNumberModeChoice(self):
-		"""
-		Hook the Number Mode list so the group size and group wait controls are enabled
-		only in group mode, starting with the mode when the dialog opens.
-		"""
-		numberModeList = getattr(self, "nummodList", None)
-		if numberModeList is None:
-			return
-		numberModeList.Bind(wx.EVT_CHOICE, self._onNumberModeChoice)
-		self._applyGroupControlsState()
+	def _bindControllers(self):
+		"""Hook every control other settings depend on (depends_on in the pipeline table)."""
+		controllers = controller_keys(self._voiceSpecs())
+		for spec in self._voiceSpecs():
+			control = self._voiceControl(spec)
+			if spec.key in controllers and control is not None:
+				control.Bind(CHANGE_EVENTS[spec.control], self._onControllerChange)
 
-	def _onNumberModeChoice(self, evt):
-		# NVDA's own choice handler writes the setting; this one only updates the group controls.
+	def _onControllerChange(self, evt):
+		# NVDA's own handler writes a driver setting; this one only updates the dependent controls.
 		evt.Skip()
-		self._applyGroupControlsState()
+		self._applyDependencies()
 
-	def _applyGroupControlsState(self):
-		# Read the list, not driver.nummod: this runs before NVDA's handler writes the setting.
-		numberModeList = getattr(self, "nummodList", None)
-		if numberModeList is None:
-			return
-		selection = numberModeList.GetSelection()
-		modes = getattr(self, "_nummods", [])
-		# No selection (-1) is not group mode, although _nummods[-1] is the group entry.
-		enabled = 0 <= selection < len(modes) and modes[selection].id == "group"
-		for name in ("groupwaitfactorSlider", "groupSizeSpin"):
-			control = getattr(self, name, None)
-			if control is not None:
-				control.Enable(enabled)
+	def _controllerDriverIds(self):
+		controllers = controller_keys(self._voiceSpecs())
+		return {spec.driver_id for spec in self._voiceSpecs() if spec.key in controllers and spec.driver_id}
 
-	def _bindPunctuationPauseEnabledToggle(self):
+	def _readController(self, key):
+		"""The controller's value as its control shows it, or ABSENT without the control (another synth).
+
+		Read the control, not the driver: this runs before NVDA's handler writes the setting.
 		"""
-		Hook the "Enable punctuation pause control" checkbox so the controls that
-		depend on it are enabled only while it is checked, starting with its state
-		when the dialog opens.
-		"""
-		checkbox = getattr(self, "punctuationpauseenabledCheckbox", None)
-		if checkbox is None:
-			return
-		checkbox.Bind(wx.EVT_CHECKBOX, self._onPunctuationPauseEnabledToggle)
-		self._applyPunctuationPauseControlsState()
+		(spec,) = [spec for spec in self._voiceSpecs() if spec.key == key]
+		control = self._voiceControl(spec)
+		if control is None:
+			return ABSENT
+		if spec.control != "choice":
+			return control.GetValue()
+		if spec.driver_id is not None:
+			# No selection (-1) names no option, although the list's last option is at -1.
+			options = [option.id for option in getattr(self, f"_{spec.driver_id}s", [])]
+			return selected_value(options, control.GetSelection())
+		return selected_value(choice_values(spec), control.GetCurrentSelection())
 
-	def _onPunctuationPauseEnabledToggle(self, evt):
-		# NVDA's own checkbox handler writes the setting; this one only updates the dependent controls.
-		evt.Skip()
-		self._applyPunctuationPauseControlsState()
-
-	def _applyPunctuationPauseControlsState(self):
+	def _applyDependencies(self):
 		# Disable rather than hide: NVDA's updateDriverSettings shows every supported
 		# control again after a voice change, but never enables or disables one.
-		enabled = self.punctuationpauseenabledCheckbox.GetValue()
-		for name in (
-			"removepunctuationcharactersCheckbox",
-			"punctuationwaitfactorSlider",
-			"punctuationPauseCharactersEdit",
-		):
-			control = getattr(self, name, None)
-			if control is not None:
-				control.Enable(enabled)
+		specs = self._voiceSpecs()
+		states = dependent_states(specs, self._readController)
+		for spec in specs:
+			control = self._voiceControl(spec)
+			if spec.key in states and control is not None:
+				control.Enable(states[spec.key])
 
 	@staticmethod
 	def _voiceSpecs():
@@ -251,9 +239,6 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			getattr(self, f"{setting.id}Checkbox").SetValue(
 				getattr(settingsStorage, setting.id),
 			)
-			if setting.id == "punctuationpauseenabled":
-				# SetValue fires no EVT_CHECKBOX, so apply the switch to its dependent controls here.
-				self._applyPunctuationPauseControlsState()
 		else:
 			stringSettingAttribName = f"_{setting.id}s"
 			setattr(
@@ -278,6 +263,6 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 				lCombo.SetSelection(indexOfItem)
 			except ValueError:
 				pass
-			if setting.id == "nummod":
-				# SetSelection fires no EVT_CHOICE, so apply the mode to the group controls here.
-				self._applyGroupControlsState()
+		if setting.id in self._controllerDriverIds():
+			# SetValue and SetSelection fire no event, so apply the controller to its dependents here.
+			self._applyDependencies()
