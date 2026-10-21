@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from pipeline_harness import ORDER, load_pipeline_module, punctuation_settings
 
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
@@ -168,3 +169,56 @@ def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):
 	for stage in module.STAGES:
 		inspect.signature(stage.handler).bind(["text"])
 		assert stage.handler.__name__ == stage.fn.__name__
+
+
+def pause_settings(number_mode):
+	settings = punctuation_settings(20)
+	settings.number_mode = number_mode
+	settings.scaled_number_wait = lambda: 10
+	settings.scaled_group_wait = lambda: 30
+	settings.group_size = 2
+	return settings
+
+
+def run_stages(module, sequence):
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	return list(sequence)
+
+
+def break_types(sequence):
+	return {(type(item).__name__, item.time) for item in sequence if not isinstance(item, str)}
+
+
+# Scope "all" with another synth: NVDA's speechXml (OneCore) finds a command's converter by
+# its class name, so a BreakCommand subclass would end the utterance there.
+@pytest.mark.parametrize(
+	("number_mode", "expected"),
+	[
+		("value", {("BreakCommand", 10), ("BreakCommand", 20)}),
+		("number", {("BreakCommand", 10), ("BreakCommand", 20)}),
+		("group", {("BreakCommand", 10), ("BreakCommand", 20), ("BreakCommand", 30)}),
+	],
+)
+def test_other_synths_get_only_plain_breaks_from_the_stages(monkeypatch, number_mode, expected):
+	module, _ = load_pipeline_module(monkeypatch, pause_settings(number_mode))
+	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	assert break_types(run_stages(module, ["共 12 34 個. 5678 and 3"])) == expected
+
+
+@pytest.mark.parametrize(
+	("number_mode", "expected"),
+	[
+		("value", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
+		("number", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
+		(
+			"group",
+			{("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20), ("GroupNumberBreakCommand", 30)},
+		),
+	],
+)
+def test_worldvoice_keeps_the_break_subclasses_from_the_stages(monkeypatch, number_mode, expected):
+	module, _ = load_pipeline_module(monkeypatch, pause_settings(number_mode))
+	ctx = module.SpeechContext(supports_roles=True, language="zh", number_language="default")
+	monkeypatch.setattr(module, "current_context", lambda: ctx)
+	assert break_types(run_stages(module, ["共 12 34 個. 5678 and 3"])) == expected

@@ -793,10 +793,22 @@ def _run_logged(label, fn, speechSequence, settings, ctx):
 	return speechSequence
 
 
+def _plain_breaks(speechSequence: Iterable[SpeechCmd]) -> list[SpeechCmd]:
+	"""The sequence with each BreakCommand subclass replaced by a plain BreakCommand.
+
+	NVDA's speechXml, which OneCore uses, finds a command's converter by its class name and
+	drops the rest of the utterance at a command it has none for.
+	"""
+	return [BreakCommand(item.time) if isinstance(item, BreakCommand) else item for item in speechSequence]
+
+
 def _stage_handler(log_key, fn):
 	def handler(speechSequence):
 		ctx = current_context()
-		return _run_logged(log_key, fn, speechSequence, pipeline_settings.effective(ctx.supports_roles), ctx)
+		settings = pipeline_settings.effective(ctx.supports_roles)
+		result = _run_logged(log_key, fn, speechSequence, settings, ctx)
+		# Only WorldVoice tells the pauses apart; another synth gets plain breaks.
+		return result if ctx.supports_roles else _plain_breaks(result)
 
 	# Not functools.wraps: NVDA binds filter values against inspect.signature,
 	# which would follow __wrapped__ to the three-argument stage function.

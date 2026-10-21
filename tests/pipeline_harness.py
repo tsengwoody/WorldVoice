@@ -57,14 +57,18 @@ def load_pipeline_module(monkeypatch, settings):
 
 	commands = stubs.module("speech.commands")
 
-	class BreakCommand:
+	class SpeechCommand:
+		"""NVDA's base of every speech command; NVDA's speechXml checks it."""
+
+	class BreakCommand(SpeechCommand):
 		def __init__(self, time):
 			self.time = time
 
-	class LangChangeCommand:
+	class LangChangeCommand(SpeechCommand):
 		def __init__(self, lang=None):
 			self.lang = lang
 
+	commands.SpeechCommand = SpeechCommand
 	commands.BreakCommand = BreakCommand
 	commands.LangChangeCommand = LangChangeCommand
 
