@@ -151,3 +151,29 @@ def test_voice_panel_discard_after_apply_keeps_applied_pipeline_values():
 	panel.onDiscard()  # then Cancel
 
 	assert state["item_wait_factor"] == 40
+
+
+def test_voice_panel_saves_the_characters_and_group_size_in_one_update():
+	calls = []
+
+	class Base:
+		def onSave(self):
+			calls.append("nvda save")
+
+	environment = load_definitions(
+		VOICE_PANEL,
+		{"WorldVoiceVoiceSettingsPanel"},
+		{
+			"VoiceSettingsPanel": Base,
+			"pipeline_settings": types.SimpleNamespace(update=lambda **changes: calls.append(changes)),
+		},
+	)
+	panel = object.__new__(environment["WorldVoiceVoiceSettingsPanel"])
+	type(panel).driver = property(lambda self: types.SimpleNamespace(name="espeak"))
+	panel.punctuationPauseCharactersEdit = Widget(" .,")
+	panel.groupSizeSpin = Widget(5)
+
+	panel.onSave()
+
+	# One update, so subscribers see both values together, before NVDA saves its own settings.
+	assert calls == [{"punctuation_pause_characters": " .,", "group_size": 5}, "nvda save"]
