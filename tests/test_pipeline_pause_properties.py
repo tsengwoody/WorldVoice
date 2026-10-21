@@ -121,9 +121,67 @@ def test_property_removal_changes_only_the_marks(env, data):
 	assert all(without_some_marks(short, long) for short, long in zip(removed_texts, kept_texts))
 
 
+def ends_with_a_mark(item):
+	return isinstance(item, str) and item.rstrip()[-1:] in tuple(MARKS)
+
+
+def is_non_blank(item):
+	return isinstance(item, str) and bool(item.strip())
+
+
+def with_suppressed_pauses_restored(env, sequence, result, wait):
+	"""
+	*result* with each run of existing breaks in *sequence* replaced by the boundary pause it
+	suppressed: one punctuation break when the item before the run ends with a mark and non-blank
+	text follows the run, else nothing.
+	"""
+	restored = {}
+	for index, item in enumerate(sequence):
+		if not is_existing_break(env, item) or (index and is_existing_break(env, sequence[index - 1])):
+			continue
+		end = index
+		while end < len(sequence) and is_existing_break(env, sequence[end]):
+			end += 1
+		before = sequence[index - 1] if index else None
+		after = sequence[end] if end < len(sequence) else None
+		suppressed = ends_with_a_mark(before) and is_non_blank(after)
+		restored[id(item)] = [("PunctuationBreakCommand", wait)] if suppressed else []
+	expected = []
+	for item in result:
+		if is_existing_break(env, item):
+			expected += restored.get(id(item), [])
+		else:
+			expected += shape([item])
+	return expected
+
+
 @SHARED_ENV
 @given(data=st.data())
-def test_property_a_punctuation_break_never_ends_or_stacks_onto_an_existing_one(env, data):
+def test_property_an_existing_break_suppresses_only_the_boundary_pause_before_it(env, data):
+	"""
+	Taking the existing breaks out of the input brings back exactly the boundary pauses they
+	suppressed and changes nothing else. A mark that opens the item after a break is an internal
+	pause point (spec item 2-7), so ["a", existing, ". b"] still gives "a", existing, ".", PuB, " b".
+	"""
+	sequence = data.draw(punctuation_sequences(env))
+	remove = data.draw(st.booleans())
+	wait = data.draw(st.integers(0, 500))
+	result = run_punctuation(env, sequence, remove=remove, wait=wait)
+	plain = [item for item in sequence if not is_existing_break(env, item)]
+	without_breaks = run_punctuation(env, plain, remove=remove, wait=wait)
+	assert shape(without_breaks) == with_suppressed_pauses_restored(env, sequence, result, wait)
+
+
+@SHARED_ENV
+@given(data=st.data())
+def test_property_a_punctuation_break_never_ends_the_output_or_sits_next_to_an_existing_one_when_marks_stay(
+	env,
+	data,
+):
+	"""
+	"Next to" means directly beside it in the output. Text that is only marks can still sit between
+	the two, as in ["a", existing, ". b"] or [".", ".", existing, "1"]; see the property above.
+	"""
 	sequence = data.draw(punctuation_sequences(env))
 	remove = data.draw(st.booleans())
 	result = run_punctuation(env, sequence, remove=remove, wait=data.draw(st.integers(0, 500)))

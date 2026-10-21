@@ -389,7 +389,8 @@ Punctuation. Input: lists of text over letters, digits, spaces and the configure
 - **P1.** Switch off gives the input unchanged for any list, removal and wait.
 - **P2.** Switch on with a non-empty list: the output for wait 0 and for a random wait v differ only in the `time` of the `PunctuationBreakCommand`s.
 - **P3.** Removal on and off produce the same number of `PunctuationBreakCommand`s, between the same text. With removal off, the joined text equals the joined input text.
-- **P4.** The output never ends with a `PunctuationBreakCommand`, and a `PunctuationBreakCommand` is never next to an existing `BreakCommand`.
+- **P4.** The output never ends with a `PunctuationBreakCommand`. With removal off, a `PunctuationBreakCommand` is never directly next to an existing `BreakCommand`; text that is only marks can still sit between them (`["a", existing, ". b"]`, `[".", ".", existing, "1"]`), because a mark that opens an item is an internal pause point (2-7).
+- **P4b.** An existing `BreakCommand` suppresses only the boundary pause before it: taking the existing breaks out of the input gives the same output with each run of them replaced by one `PunctuationBreakCommand` when the item before ends with a mark and non-blank text follows, else by nothing. Added in the review fixes (Minor 2).
 - **P5.** An empty or blank list gives the input unchanged.
 
 A scratch prototype of 1b passed N1 (in its user-rule form), N2 and N3 on 20,000 examples. Every empty-gap break it found was an F1 case (for example `"9-3　8"` and `"6+6\t0"`).
