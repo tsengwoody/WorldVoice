@@ -88,6 +88,23 @@ def test_number_wait_factor_drops_blanks_then_breaks_between_numbers(env):
 	assert result[1] is result[5]
 
 
+@pytest.mark.parametrize(
+	"sequence,expected",
+	[
+		(["12", "3"], ["12", ("BreakCommand", 40), "3"]),
+		(["-3.5", "4"], ["-3.5", ("BreakCommand", 40), "4"]),
+		(["12abc", "3"], ["12abc", "3"]),
+		(["1.", "2"], ["1.", "2"]),
+		(["3", "12abc"], ["3", "12abc"]),
+	],
+)
+def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
+	env.settings.scaled_number_wait = lambda: 40
+	assert (
+		shape(env.module.number_wait_factor(sequence, env.settings, env.module.GENERIC_CONTEXT)) == expected
+	)
+
+
 TEXTS = ["12.5", "-1234", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
 SHARED = {"v1.2": ["v1.2"], "a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "1.2.3": ["1.2 . 3"], "": []}
 NUMBER_MODES = {
