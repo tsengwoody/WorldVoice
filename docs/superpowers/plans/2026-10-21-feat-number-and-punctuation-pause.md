@@ -6,6 +6,8 @@ Baseline: `python3 -m pytest -q tests` **1745 passed, 0 skipped** (against `ref/
 
 F1 (spec section 11): the user's answer is pending while this plan is written. Every step except step 8 is independent of it. Step 8 is written for both options; the option that is implemented is recorded in "Implementation notes".
 
+> Update (2026-10-21, during step 4): the user chose **F1 option B** (decided by the user). Step 8 implements option B, and step 9 adds property **N7**: when the split changed a string, a text item that fullmatches `_NUMBER_RE` is always next to a break, so leftover text never fullmatches a number unless it was a separate input item. The spec records the decision.
+
 Each step: write the tests first and run them on the unchanged code (red), then change the code (green), then run the full verification of `DEVELOPMENT_WORKFLOW.md` section 7 and commit. pytest runs single-process, under a scratchpad memory guard that kills it when `MemAvailable` < 3 GB.
 
 Full verification before every commit:
@@ -695,9 +697,10 @@ File: `tests/test_pipeline_pause_properties.py`. Input: one `number_texts` strin
 - **N1** `test_property_the_split_keeps_the_text_and_replaces_only_whitespace`: walk the output against `text.strip()`: each `str` is the next verbatim slice; each `BreakCommand` consumes a run of whitespace; the walk ends at the end. Option B: the run is non-empty. Option A: the run may be empty only when both neighbours fullmatch `_NUMBER_RE`.
 - **N2** `test_property_no_text_item_keeps_two_numbers_apart_by_whitespace`: no output `str` contains two consecutive `_NUMBER_RE` matches with a non-empty all-whitespace gap between them. Option B: unless one of the two is glued (empty gap) to its other neighbouring match in that item, as in `"1 2-3 4"`, which stays unchanged.
 - **N3** `test_property_no_digits_are_glued_together`: no two consecutive `str` items have an ASCII digit at the end of the first and at the start of the second.
+- **N7** `test_property_leftover_text_is_never_a_number`: when the output differs from `[text.strip()]`, every output `str` that fullmatches `_NUMBER_RE` has a `BreakCommand` next to it.
 - **N4** `test_property_breaks_sit_exactly_between_whole_numbers`: every `BreakCommand` has a `str` on each side and both fullmatch; two consecutive `str` items never both fullmatch; all breaks are one instance.
 
-Sanity red: N1 to N4 checked against the step 7b code: N2 fails (`"1 2"` is not split). Expected: **1814 passed, 0 skipped**. Also run the deep profile once.
+Sanity red: N1 to N4 checked against the step 7b code: N2 fails (`"1 2"` is not split). Expected: **1815 passed, 0 skipped** (N1 to N4 and N7). Also run the deep profile once.
 
 ## Step 10. mutmut (commit `build: run mutmut on the speech pipeline`, then `test: ...` for killed survivors)
 

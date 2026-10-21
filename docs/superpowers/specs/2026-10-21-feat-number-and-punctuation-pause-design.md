@@ -120,16 +120,17 @@ Consequences: `["12abc", "3"]` and `["1.", "2"]` no longer get a number pause. `
 
 The number-split rule for one string `t`, where `m1 … mk` are the `_NUMBER_RE.finditer(t)` matches:
 
-- Two consecutive matches are **joined** when the gap `t[mi.end():mi+1.start()]` is non-empty and all whitespace (`str.isspace`). This is the meaning of "separated only by whitespace". An empty gap, as in `"1-2"`, does not join.
+- A match is **glued** to a neighbour when the gap `t[mi.end():mi+1.start()]` between them is the empty string. This only happens when the second match starts with `+` or `-` right after the first, as in `"2345-6789"` or `"3+4"`. A match glued to either neighbour is **unsplittable**. Decided by the user (2026-10-21): F1 option B.
+- Two consecutive matches are **joined** when the gap is non-empty and all whitespace (`str.isspace`) and both matches are splittable. This is the meaning of "separated only by whitespace". An empty gap, as in `"1-2"`, does not join.
 - A match is **standalone** when it is joined to at least one neighbour.
 - If no match is standalone, yield `t` unchanged.
 - Otherwise:
   - Yield each standalone match as its own item.
   - Drop the gap between two joined standalone matches.
-  - Yield every other piece of `t` verbatim, including its spaces. Never yield an empty piece.
+  - Yield every other piece of `t` verbatim, including its spaces and unsplittable numbers. Never yield an empty piece.
 - The step is a generator, like the other stages.
 
-Only regex matches become standalone items, and the two items of every dropped gap fullmatch `_NUMBER_RE`. So every dropped gap gets a break, and digits are never joined together. The examples come from the decision and were checked against a scratch prototype (wait 40):
+Only regex matches become standalone items, and the two items of every dropped gap fullmatch `_NUMBER_RE`. So every dropped gap gets a break, and digits are never joined together. Because glued matches are never split out, a break appears only where whitespace was removed, and leftover text never fullmatches a number unless it was a separate item in the input. The examples come from the decision and were checked against a scratch prototype (wait 40):
 
 | Input | Output |
 | --- | --- |
@@ -142,7 +143,9 @@ Only regex matches become standalone items, and the two items of every dropped g
 | `"abc1 2def"` (1d) | `"abc"`, `"1"`, Break, `"2"`, `"def"` |
 | `"2026 10 21"` | `"2026"`, Break, `"10"`, Break, `"21"` |
 | `"12　34"` (ideographic space) | `"12"`, Break, `"34"` |
-| `"02 2345-6789"` | `"02"`, Break, `"2345"`, Break, `"-6789"`. See F1 |
+| `"02 2345-6789"` | unchanged (F1, option B) |
+| `"3-1 2"` | unchanged (F1, option B) |
+| `"1 2 3-4"` | `"1"`, Break, `"2"`, `" 3-4"` (F1, option B) |
 
 "Whitespace" means Unicode whitespace (`str.isspace`). It includes the ideographic space U+3000 and the no-break space, and it matches what `_remove_space` strips with `str.strip()` (`:188`). Decided by orchestrator with the recommended default; user may override before merge.
 
@@ -370,7 +373,8 @@ Number split. Input: text over digits, `+-.`, ASCII letters, a CJK ideograph, sp
   - each `BreakCommand` must consume a whitespace run;
   - the walk must end exactly at the end.
 
-  This proves three things: text is kept verbatim, every dropped gap has a break, and nothing else is dropped. Under the user's rule a break may also consume an *empty* run, but only when both neighbours fullmatch `_NUMBER_RE` (F1). If the user picks F1 option B, the run must be non-empty.
+  This proves three things: text is kept verbatim, every dropped gap has a break, and nothing else is dropped. Under F1 option B (decided by the user, 2026-10-21) every run a break consumes is non-empty.
+- **N7, leftover text.** When the split changed a string, an output text item that fullmatches `_NUMBER_RE` is always next to a break: leftover text never fullmatches a number. Added with the F1 decision (2026-10-21).
 - **N2, no gap left.** No output text item contains two `_NUMBER_RE` matches separated only by non-empty whitespace.
 - **N3, no gluing.** No two consecutive `str` items have a digit at the end of the first and at the start of the second.
 - **N4, placement.** A `BreakCommand` is exactly between consecutive items that both fullmatch `_NUMBER_RE`, and all breaks are one instance.
@@ -456,7 +460,7 @@ Documents:
 
 ## 11. Findings needing the user
 
-**F1. A sign-attached number next to a split run gets a break where the input had no whitespace.** This affects decision 1b.
+**F1. A sign-attached number next to a split run gets a break where the input had no whitespace.** This affects decision 1b. **Decided by the user (2026-10-21): option B.** The text below is kept as the record of the question.
 
 - Example: `"02 2345-6789"` (a common Taiwanese phone format).
   - `"02"` and `"2345"` are joined, so both become standalone.
@@ -495,7 +499,7 @@ This spec describes A, because that is the decision. The implementer must not st
 
 ## 12. Open questions
 
-1. **F1 rule.** A (as decided) or B (recommended). This needs the user's answer before the number split is implemented. The rest of the work does not depend on it.
+1. **F1 rule.** Decided by the user (2026-10-21): option B. A number glued to another number with no gap is never split out (section 4.1).
 2. **Voice panel: disable instead of hide** (section 4.3). Decided by orchestrator with the recommended default; user may override before merge.
 3. **Settings ring unchanged** (section 4.3). Decided by orchestrator with the recommended default; user may override before merge.
 4. **Whitespace means `str.isspace`**, and an empty gap never joins two numbers (section 4.1). Decided by orchestrator with the recommended default; user may override before merge.
