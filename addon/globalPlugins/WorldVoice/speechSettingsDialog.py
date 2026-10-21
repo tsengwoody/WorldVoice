@@ -7,7 +7,7 @@ import gui
 import queueHandler
 import tones
 import wx
-from gui import guiHelper
+from gui import guiHelper, nvdaControls
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 from logHandler import log
 from synthDriverHandler import getSynth
@@ -16,7 +16,7 @@ from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
 from synthDrivers.WorldVoice.pipeline import STAGES
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
-from synthDrivers.WorldVoice.pipeline.settings import pipeline_settings
+from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTING_BY_KEY, pipeline_settings
 
 from .pipelineLog import ask_export, confirm_enable, pipeline_log
 from .rolePresenter import RolePanelPresenter
@@ -156,6 +156,26 @@ class SpeechPipelinePanel(SettingsPanel):
 			self._number_mode_choice.Select(self.number_mode_value.index(settings.number_mode))
 		except ValueError:
 			self._number_mode_choice.Select(0)
+		self.Bind(wx.EVT_CHOICE, self.onNumberModeChange, self._number_mode_choice)
+
+		group_size_spec = PIPELINE_SETTING_BY_KEY["group_size"]
+		self._group_size_spin = settingsSizerHelper.addLabeledControl(
+			_("Group size:"),
+			nvdaControls.SelectOnFocusSpinCtrl,
+			min=group_size_spec.min_value,
+			max=group_size_spec.max_value,
+			initial=settings.group_size,
+		)
+
+		self._group_wait_factor_slider = settingsSizerHelper.addLabeledControl(
+			_("group wait factor:"),
+			wx.Slider,
+			value=50,
+			minValue=0,
+			maxValue=100,
+			style=wx.SL_HORIZONTAL,
+		)
+		self._group_wait_factor_slider.SetValue(settings.group_wait_factor)
 
 		self._global_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("global wait factor:"),
@@ -176,16 +196,6 @@ class SpeechPipelinePanel(SettingsPanel):
 			style=wx.SL_HORIZONTAL,
 		)
 		self._number_wait_factor_slider.SetValue(settings.number_wait_factor)
-
-		self._group_wait_factor_slider = settingsSizerHelper.addLabeledControl(
-			_("pair wait factor:"),
-			wx.Slider,
-			value=50,
-			minValue=0,
-			maxValue=100,
-			style=wx.SL_HORIZONTAL,
-		)
-		self._group_wait_factor_slider.SetValue(settings.group_wait_factor)
 
 		self._item_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("item wait factor:"),
@@ -252,6 +262,17 @@ class SpeechPipelinePanel(SettingsPanel):
 		)
 		self._punctuation_pause_characters_edit.SetValue(settings.punctuation_pause_characters)
 		self.onPunctuationPauseEnabledChange(None)
+		self.onNumberModeChange(None)
+
+	def onNumberModeChange(self, event):
+		# Disabled controls keep their values, and onSave still stores them. A choice with no
+		# selection (-1) is not group mode, although number_mode_value[-1] is "group".
+		selection = self._number_mode_choice.GetCurrentSelection()
+		enabled = (
+			0 <= selection < len(self.number_mode_value) and self.number_mode_value[selection] == "group"
+		)
+		self._group_size_spin.Enable(enabled)
+		self._group_wait_factor_slider.Enable(enabled)
 
 	def onPunctuationPauseEnabledChange(self, event):
 		# Disabled controls keep their values, and onSave still stores them.
@@ -275,6 +296,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			remove_punctuation_characters=self._remove_punctuation_characters_checkbox.GetValue(),
 			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
 			group_wait_factor=self._group_wait_factor_slider.GetValue(),
+			group_size=self._group_size_spin.GetValue(),
 		)
 
 

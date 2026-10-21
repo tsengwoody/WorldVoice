@@ -53,6 +53,7 @@ def test_pipeline_panel_saves_once_through_the_service():
 	panel._punctuation_pause_enabled_checkbox = Widget(False)
 	panel._remove_punctuation_characters_checkbox = Widget(True)
 	panel._punctuation_pause_characters_edit = Widget(" .,")
+	panel._group_size_spin = Widget(5)
 
 	panel.onSave()
 
@@ -71,6 +72,7 @@ def test_pipeline_panel_saves_once_through_the_service():
 			"remove_punctuation_characters": True,
 			"punctuation_pause_characters": " .,",
 			"group_wait_factor": 7,
+			"group_size": 5,
 		},
 	]
 	for name in ("onGlobalWaitFactorSliderScroll", "sliderEnable", "onScopeSelectionChange"):

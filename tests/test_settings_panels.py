@@ -38,6 +38,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		global_wait_factor=30,
 		number_wait_factor=11,
 		group_wait_factor=12,
+		group_size=4,
 		item_wait_factor=13,
 		sayall_wait_factor=14,
 		chinesespace_wait_factor=15,
@@ -52,9 +53,10 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		"Effect Scope:",
 		"Ignore comma between number",
 		"Number mode:",
+		"Group size:",
+		"group wait factor:",
 		"global wait factor:",
 		"number wait factor:",
-		"pair wait factor:",
 		"item wait factor:",
 		"sayall wait factor:",
 		"chinese space wait factor:",
@@ -76,6 +78,8 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._punctuation_pause_enabled_checkbox.value is False
 	assert panel._remove_punctuation_characters_checkbox.value is True
 	assert panel._punctuation_pause_characters_edit.value == "。，"
+	spin = panel._group_size_spin
+	assert (spin.GetValue(), spin.GetMin(), spin.GetMax()) == (4, 1, 10)
 
 
 def test_pipeline_panel_selects_the_first_choice_for_an_unknown_stored_value(monkeypatch):
@@ -100,6 +104,62 @@ def test_number_modes_match_the_driver_and_the_panel(monkeypatch):
 		== list(driver()._get_availableNummods())
 		== panel.number_mode_value
 	)
+
+
+def group_controls_enabled(panel):
+	return (panel._group_size_spin.enabled, panel._group_wait_factor_slider.enabled)
+
+
+@pytest.mark.parametrize(
+	("mode", "enabled"),
+	[("value", False), ("number", False), ("group", True), ("pair", False)],
+)
+def test_pipeline_panel_enables_group_controls_for_the_stored_mode(monkeypatch, mode, enabled):
+	env = pipeline_env(monkeypatch, number_mode=mode)
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	assert group_controls_enabled(panel) == (enabled, enabled)
+
+
+def test_pipeline_panel_group_controls_follow_the_mode_choice(monkeypatch):
+	env = pipeline_env(monkeypatch, number_mode="value")
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	choice = panel._number_mode_choice
+
+	choice.Select(2)
+	fire(choice, "EVT_CHOICE", panel=panel)
+	assert group_controls_enabled(panel) == (True, True)
+
+	choice.Select(1)
+	fire(choice, "EVT_CHOICE", panel=panel)
+	assert group_controls_enabled(panel) == (False, False)
+
+
+def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
+	# number_mode_value[-1] is "group": a choice with no selection must not enable the group controls.
+	env = pipeline_env(monkeypatch, number_mode="group")
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	panel._number_mode_choice.Select(-1)
+	fire(panel._number_mode_choice, "EVT_CHOICE", panel=panel)
+	assert group_controls_enabled(panel) == (False, False)
+
+
+def test_pipeline_panel_saves_the_disabled_group_controls(monkeypatch):
+	env = pipeline_env(monkeypatch, number_mode="value")
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	panel._group_size_spin.SetValue(7)
+	panel._group_wait_factor_slider.SetValue(30)
+
+	panel.onSave()
+
+	stored = env.conf["WorldVoice"]["pipeline"]
+	assert (stored["group_size"], stored["group_wait_factor"]) == (7, 30)
+
+
+@pytest.mark.parametrize(("stored", "shown"), [(0, 1), (12, 10), ("4", 4)])
+def test_pipeline_panel_shows_an_out_of_range_stored_size_within_the_spin_range(monkeypatch, stored, shown):
+	env = pipeline_env(monkeypatch, group_size=stored)
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	assert panel._group_size_spin.GetValue() == shown
 
 
 def pause_controls_enabled(panel):
@@ -161,6 +221,7 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	panel._ignore_comma_between_number_checkbox.SetValue(True)
 	panel._global_wait_factor_slider.SetValue(7)
 	panel._group_wait_factor_slider.SetValue(40)
+	panel._group_size_spin.SetValue(6)
 	panel._punctuation_pause_enabled_checkbox.SetValue(False)
 	panel._punctuation_pause_characters_edit.SetValue(" ;: ")
 
@@ -172,6 +233,7 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	assert stored["ignore_comma_between_number"] is True
 	assert stored["global_wait_factor"] == 70
 	assert stored["group_wait_factor"] == 40
+	assert stored["group_size"] == 6
 	assert stored["punctuation_pause_enabled"] is False
 	assert stored["punctuation_pause_characters"] == ";:"
 
