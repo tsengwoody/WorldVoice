@@ -71,7 +71,7 @@ Linux 上沒驗到的：Windows NVDA、實際音訊、各引擎 SDK；spec §9.4
 **到達 runtime 與其他合成器**
 
 - WorldVoice：`normalize_legacy_commands` 用 `isinstance(command, BreakCommand)`，PB／PuB 子類別都變 `Pause`；每個 `Pause` 先 `flush()` 再 `append_break`，所以每個 break 都切段。
-- scope「all」：NVDA 不會依 `supportedCommands` 過濾指令（`ref/nvda/source/speech/manager.py` 沒有這種過濾；只有 `speech.py:572/618/640` 對 Pitch／CharacterMode 的查詢），eSpeak（`synthDrivers/espeak.py:204-205`）、SAPI5（`sapi5.py:928-929`）、OneCore（`speechXml.py:307-308`）都用 `isinstance(item, BreakCommand)`，所以子類別會變成 `<break time="0ms" />`／`<silence msec="0" />`。各引擎是否把 0 ms 的標記當成詞界，Linux 上無法驗證（F2、手動項目 7）。忽略 `BreakCommand` 的第三方合成器會把 `"12"`,PB(0),`"34"` 黏成 `1234`——這是 1e 在 scope「all」下的已知風險，spec F2 已記。
+- scope「all」：NVDA 不會依 `supportedCommands` 過濾指令（`ref/nvda/source/speech/manager.py` 沒有這種過濾；只有 `speech.py:572/618/640` 對 Pitch／CharacterMode 的查詢），~~eSpeak（`synthDrivers/espeak.py:204-205`）、SAPI5（`sapi5.py:928-929`）、OneCore（`speechXml.py:307-308`）都用 `isinstance(item, BreakCommand)`，所以子類別會變成 `<break time="0ms" />`／`<silence msec="0" />`。~~ Corrected by `feat/number-group-mode`：只有 eSpeak（`espeak.py:204-205`）與 SAPI5（`sapi5.py:928-929`）用 `isinstance`；OneCore 經由 `speechXml.SpeechXmlConverter.generateBalancerCommands`（`speechXml.py:250-262`）以類別名稱找轉換函式，`BreakCommand` 子類別找不到就記 `Unsupported command` 並結束，句子剩下的部分全部丟掉。該分支讓 scope「all」下的其他合成器只收到普通 `BreakCommand`。各引擎是否把 0 ms 的標記當成詞界，Linux 上無法驗證（F2、手動項目 7）。忽略 `BreakCommand` 的第三方合成器會把 `"12"`,PB(0),`"34"` 黏成 `1234`——這是 1e 在 scope「all」下的已知風險，spec F2 已記。
 
 **和 master 相比的回歸（預設設定）**
 

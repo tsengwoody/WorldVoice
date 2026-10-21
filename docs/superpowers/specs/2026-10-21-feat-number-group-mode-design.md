@@ -424,7 +424,7 @@ This applies to the Speech Pipeline panel and to the WorldVoice Voice panel. It 
 - **Driver package:** `synthDrivers/WorldVoice/__init__.py` (`availableNummods`) and `VoiceSettingsDialogs.py`.
 - **Global plugin:** `speechSettingsDialog.py`.
 - **Untouched:** no engine wrapper, inner driver, `compat/` or `runtime/` code. Engine drivers stay independently installable.
-- **Other synthesizers:** with scope "all" the pipeline also runs for them (`pipeline/scope.py:48-61`). They now get NB and GB instead of the `" "` digit separator; see F2.
+- **Other synthesizers:** with scope "all" the pipeline also runs for them (`pipeline/scope.py:48-61`). They now get a break instead of the `" "` digit separator; see F2. Since the I1 fix of the final review, every break they get is a plain `BreakCommand` (`_stage_handler`, `pipeline/__init__.py`).
 - **Config:** `pyproject.toml` (`[tool.mutmut] source_paths`, section 9.3).
 
 ## 8. Config, compatibility and errors
@@ -592,7 +592,8 @@ Linux tests reach only the controlled native and audio boundaries. These items n
    - Save, then Cancel, keeps the size; Cancel without Save restores it.
 6. **Scope "all"** with eSpeak NG, OneCore and SAPI5:
    - digit mode at number wait 0: `"12345"` must not be read as one number (F2);
-   - group mode at group wait 0: the groups must not merge.
+   - group mode at group wait 0: the groups must not merge;
+   - OneCore reads the whole sentence after a number, e.g. `"共 12 34 個"` (final review I1).
 
 ## 10. Existing tests and documents that need new expectations
 
@@ -667,7 +668,8 @@ Options:
 **F2. With scope "all", digit mode no longer puts a space between digits.** This affects U1 for synthesizers other than WorldVoice.
 
 - Before: `"12"` became `"1 2"`, which every synth reads as two digits.
-- After: `"1"`, `NumberBreakCommand(w)`, `"2"`, where w is the number wait and may be 0. NVDA's eSpeak, SAPI5 and OneCore drivers turn the break into markup (`ref/nvda/source/synthDrivers/espeak.py:204-205`, `sapi5.py:928-929`, `ref/nvda/source/speechXml.py:307-308`). Whether a 0 ms break separates two digits for each engine has not been verified.
+- After: `"1"`, `NumberBreakCommand(w)`, `"2"`, where w is the number wait and may be 0. ~~NVDA's eSpeak, SAPI5 and OneCore drivers turn the break into markup (`ref/nvda/source/synthDrivers/espeak.py:204-205`, `sapi5.py:928-929`, `ref/nvda/source/speechXml.py:307-308`).~~ Whether a 0 ms break separates two digits for each engine has not been verified.
+- **Correction (final review I1, corrected by `feat/number-group-mode`):** only eSpeak (`espeak.py:204-205`) and SAPI5 (`sapi5.py:928-929`) test `isinstance(item, BreakCommand)`. OneCore builds SSML with `speechXml.SpeechXmlConverter.generateBalancerCommands` (`ref/nvda/source/speechXml.py:250-262`), which looks up `convert<class name>`. A `BreakCommand` subclass has no converter, so NVDA logs "Unsupported command" and returns: the rest of the utterance is dropped (before the fix, `"共 12 34 個"` became `"共 12"` at the default number wait; `master` already had this for `PunctuationBreakCommand` and the pair break). The fix: when `ctx.supports_roles` is False, each stage handler replaces every `BreakCommand` subclass with a plain `BreakCommand(time)`, which restores `master`'s behaviour for other synthesizers; WorldVoice keeps the subclasses. `tests/test_pipeline_nvda_ssml.py` runs NVDA's real `SsmlConverter` over the scope-all output. The fix shape was Decided by orchestrator with the recommended default; user may override before merge.
 - A third-party synth that ignores `BreakCommand` and joins its text items would read `"12"` as twelve. Digit mode exists to avoid exactly that.
 - WorldVoice itself is safe, because every break splits the segment.
 - This is the previous spec's F2 (`2026-10-21-feat-number-and-punctuation-pause-design.md:492-498`), now applied to digit mode as well as to pairs.
@@ -703,7 +705,7 @@ All are new and adopted with the conservative default. Each is Decided by orches
 8. **Q8. Readme:** add a group-mode bullet to `readme.md` and `addon/doc/zh_TW/readme.md`; no changelog change.
 9. **Q9. mutmut:** add `pipeline/settings.py` to `source_paths`.
 10. **Q10. Names:** driver id `groupwaitfactor`, constant `GROUP_WAIT_UNIT_MS`, helper `scaled_group_wait`, `NUMBER_MODES`, control attributes `_group_size_spin` (Speech Pipeline panel) and `groupSizeSpin` (Voice panel).
-11. **Q11. F2:** keep U1 for every synthesizer; decide on a mitigation only after manual item 6.
+11. **Q11. F2:** ~~keep U1 for every synthesizer; decide on a mitigation only after manual item 6.~~ Corrected by `feat/number-group-mode` (final review I1): U1 is kept for every synthesizer, but other synthesizers always get a plain `BreakCommand`, never a subclass; manual item 6 still checks that the digits stay apart and the sentence is not cut. The I1 fix shape was Decided by orchestrator with the recommended default; user may override before merge.
 
 ## 13. Flow classification and size
 
