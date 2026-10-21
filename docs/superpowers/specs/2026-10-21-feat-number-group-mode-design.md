@@ -727,3 +727,45 @@ The normal flow is enough. None of the complex-flow criteria (`DEVELOPMENT_WORKF
 10. Strings: translator comments, zh_TW `nvda.po`, `msgfmt --check`, `scons pot`.
 11. Hypothesis properties G1, G2, D1, X1, S1, and the mutmut run.
 12. Readme bullets and full verification (section 7 of the workflow).
+
+## 14. Mutation results
+
+Linux, mutmut 3.8.0, on `8642cbf` (after the deferred-minor fixes): `mutmut run --max-children 3` with the globs below, under a scratchpad guard that kills the run if MemAvailable < 3 GB. The guard never fired.
+
+```
+addon.synthDrivers.WorldVoice.pipeline.x__translate_number*
+addon.synthDrivers.WorldVoice.pipeline.x_iter_number_speech_segments_mode*
+addon.synthDrivers.WorldVoice.pipeline.x_inject_number_mode*
+addon.synthDrivers.WorldVoice.pipeline.x_number_wait_factor*
+addon.synthDrivers.WorldVoice.pipeline.settings.*convert*
+addon.synthDrivers.WorldVoice.pipeline.settings.*confspec*
+addon.synthDrivers.WorldVoice.pipeline.settings.x__number_mode*
+addon.synthDrivers.WorldVoice.pipeline.settings.*scaled_group_wait*
+```
+
+**146 mutants: 141 killed, 5 survived.**
+
+| Function | Mutants | Killed | Survived |
+| --- | --- | --- | --- |
+| `_translate_number` | 46 | 44 | 2 |
+| `iter_number_speech_segments_mode` | 37 | 34 | 3 |
+| `inject_number_mode` | 27 | 27 | 0 |
+| `number_wait_factor` | 12 | 12 | 0 |
+| `PipelineSettingSpec.convert` | 15 | 15 | 0 |
+| `_number_mode` | 7 | 7 | 0 |
+| `PipelineSettings.scaled_group_wait` | 5 | 5 | 0 |
+| `PipelineSettingSpec.confspec` | 0 | — | — |
+
+`confspec` is a property; mutmut 3.8.0 does not mutate decorated functions. Its strings are pinned by `test_int_confspec_carries_the_spec_bounds`, `test_group_settings_replace_the_pair_wait_and_add_the_size` and `test_pipeline_defaults_match_the_confspec_the_add_on_registers`.
+
+Each survivor was confirmed by running the whole suite in `mutants/` with `MUTANT_UNDER_TEST=<name>` (hygiene guards excluded, as in `[tool.mutmut]`): 1917 passed every time. The numbers are this run's names only; the Change column identifies each mutant.
+
+| Mutant | Change | Why it survives |
+| --- | --- | --- |
+| `_translate_number` 15 | `digits[0] in "+-"` → `digits[0] in "XX+-XX"` | Equivalent: `digits[0]` is one character of a `_NUMBER_RE` match, so it is a sign or a digit and never `X`. |
+| `_translate_number` 41 | `previous_was_digit = False` → `None` | Equivalent: the value is only used as a truth value, and `None` is false. |
+| `iter_number_speech_segments_mode` 1 | `previous_was_number = False` → `None` | Equivalent, as above. |
+| `iter_number_speech_segments_mode` 4 | initial `preceding_text = ""` → `"XXXX"` | Equivalent: `preceding_text` is only read through `.endswith(".")`, which is false for both. |
+| `iter_number_speech_segments_mode` 37 | `preceding_text = ""` after a number → `"XXXX"` | Equivalent, as above. |
+
+Earlier survivors closed by tests on this branch: the group branch applying the digit table (`test_group_mode_does_not_translate_digits`, batch 1 review M1), the decimal branch applying it (B2-M5), a group wait scaled by the global factor (M2), and a write of an unchanged number mode (M3).
