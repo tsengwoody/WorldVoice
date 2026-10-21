@@ -211,6 +211,8 @@ def test_group_mode_does_not_translate_digits(env):
 	env.settings.group_size = 2
 	context = zh_context(env.module, {"1": "一"})
 	assert shape(env.module.inject_number_mode(["1234"], env.settings, context)) == ["12", GB0, "34"]
+	# A decimal is read whole, untranslated too.
+	assert shape(env.module.inject_number_mode(["12.5"], env.settings, context)) == ["12.5"]
 
 
 @pytest.mark.parametrize("wait", [0, 40])
