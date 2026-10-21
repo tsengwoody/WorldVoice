@@ -54,7 +54,18 @@
 | mutmut | 拆數字的相關函式：60 個突變全部抓到。整段 pipeline 存活的 10 個突變都是等價變化，原因記在 plan 裡 |
 | review 驗證 | 個別還原每個修正 commit，對應的測試都會失敗；N1、N7 可以分辨方案 A 和 B |
 
-**未打包。** Windows 上的 NVDA、實際音訊和各引擎 SDK 都還沒驗證。
+Windows 上的 NVDA、實際音訊和各引擎 SDK 都還沒驗證。
+
+## 2.1 測試版本
+
+| 項目 | 內容 |
+| --- | --- |
+| 檔案 | `/workspace/WorldVoice-pkg-pauses/WorldVoice-6.2-test-number-punctuation-pause-1-9999.nvda-addon` |
+| 來源 commit | `6c5022d`，在 detached worktree 裡執行 `scons version=6.2-test-number-punctuation-pause-1-9999 channel=dev`。`addon/` 的內容和 `a72e982` 相同 |
+| 大小 | 1,846,742 bytes |
+| SHA-256 | `8748e0a6e94b28c0daec02bdfbddd853e33ae0a1eb6add9714116a57aff982d0` |
+| 內容 | 共 121 個項目，ZIP CRC 檢查全部通過，不含 Neural；這次修改的檔案和 commit 逐位元組相同；manifest 的 version 是 `6.2-test-number-punctuation-pause-1-9999`，channel 是 `dev` |
+| 包含的修改 | 這次的數字停頓和標點停頓，以及 2026-10-20 的 index space 循環重用與 NVDA stub 修正 |
 
 ## 3. 尚未驗證
 
