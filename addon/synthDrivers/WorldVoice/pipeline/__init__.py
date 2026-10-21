@@ -304,8 +304,8 @@ def _translate_number(raw: str, mode: str, table: dict[int, str], pair_pause: in
 			sign = digits[0]
 			digits = digits[1:]
 		pairs = [digits[i : i + 2] for i in range(0, len(digits), 2)]
-		pause = pair_pause
-		separator: SpeechCmd = PairNumberBreakCommand(pause) if pause > 0 else " "
+		# A break even at pause 0: the pairs must reach the synth as separate items.
+		separator = PairNumberBreakCommand(pair_pause)
 		for index, pair in enumerate(pairs):
 			if index > 0:
 				yield separator
