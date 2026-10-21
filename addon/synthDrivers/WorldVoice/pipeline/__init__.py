@@ -42,6 +42,10 @@ class GroupNumberBreakCommand(BreakCommand):
 	"""Pause between digit groups in group number mode."""
 
 
+class NumberBreakCommand(BreakCommand):
+	"""Pause between numbers, and between the digits of a number in digit mode."""
+
+
 class PunctuationBreakCommand(BreakCommand):
 	"""Pause after a configured punctuation mark."""
 
@@ -264,7 +268,7 @@ def number_wait_factor(
 	yield from _insert_between(
 		_split_numbers(_remove_space(speechSequence)),
 		_both_numbers,
-		BreakCommand(wait_factor),
+		NumberBreakCommand(wait_factor),
 	)
 
 

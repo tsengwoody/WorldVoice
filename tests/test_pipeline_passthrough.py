@@ -73,7 +73,7 @@ def test_number_wait_drops_blank_text_but_not_commands(env):
 	marker = Marker()
 	result = list(env.module.number_wait_factor(["1", "  ", marker, "2", " 3 "], env.settings, env.generic))
 	# A command between two numbers keeps them apart; adjacent numbers get the pause.
-	assert kinds(result, env.BreakCommand) == ["1", marker, "2", ("BreakCommand", 40), "3"]
+	assert kinds(result, env.BreakCommand) == ["1", marker, "2", ("NumberBreakCommand", 40), "3"]
 
 
 def test_number_language_follows_each_language_change_in_the_sequence(env):

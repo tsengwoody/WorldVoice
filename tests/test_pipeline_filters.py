@@ -84,15 +84,15 @@ def test_number_wait_factor_drops_blanks_then_breaks_between_numbers(env):
 			env.module.GENERIC_CONTEXT,
 		),
 	)
-	assert shape(result) == ["1", ("BreakCommand", 40), "2", "a", "3", ("BreakCommand", 40), "4"]
+	assert shape(result) == ["1", ("NumberBreakCommand", 40), "2", "a", "3", ("NumberBreakCommand", 40), "4"]
 	assert result[1] is result[5]
 
 
 @pytest.mark.parametrize(
 	"sequence,expected",
 	[
-		(["12", "3"], ["12", ("BreakCommand", 40), "3"]),
-		(["-3.5", "4"], ["-3.5", ("BreakCommand", 40), "4"]),
+		(["12", "3"], ["12", ("NumberBreakCommand", 40), "3"]),
+		(["-3.5", "4"], ["-3.5", ("NumberBreakCommand", 40), "4"]),
 		(["12abc", "3"], ["12abc", "3"]),
 		(["1.", "2"], ["1.", "2"]),
 		(["3", "12abc"], ["3", "12abc"]),
@@ -105,7 +105,7 @@ def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
 	)
 
 
-B40 = ("BreakCommand", 40)
+B40 = ("NumberBreakCommand", 40)
 SPLITS = [
 	("1 2", ["1", B40, "2"]),
 	("共 12 34 個", ["共 ", "12", B40, "34", " 個"]),
@@ -146,9 +146,17 @@ def test_the_shortest_number_wait_still_breaks(env):
 	env.settings.scaled_number_wait = lambda: 1
 	assert shape(env.module.number_wait_factor(["1 2"], env.settings, env.module.GENERIC_CONTEXT)) == [
 		"1",
-		("BreakCommand", 1),
+		("NumberBreakCommand", 1),
 		"2",
 	]
+
+
+def test_number_wait_inserts_number_break_commands(env):
+	env.settings.scaled_number_wait = lambda: 40
+	result = list(env.module.number_wait_factor(["1 2"], env.settings, env.module.GENERIC_CONTEXT))
+	assert isinstance(result[1], env.module.NumberBreakCommand)
+	assert isinstance(result[1], env.module.BreakCommand)
+	assert result[1].time == 40
 
 
 def test_number_wait_splits_across_items_and_keeps_commands(env):
