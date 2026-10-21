@@ -441,3 +441,38 @@ def test_property_number_mode_normalisation_is_closed_and_idempotent(settings_mo
 	result = spec.convert(value)
 	assert result in settings_module.NUMBER_MODES
 	assert spec.convert(result) == result
+
+
+# No stacked breaks (X1)
+
+
+@SHARED_ENV
+@given(data=st.data())
+def test_property_number_and_group_breaks_never_touch_another_break(env, data):
+	"""After the pause stages, a digit or group break never has another break next to it.
+
+	Two item breaks around a blank item may still meet (spec F7), so only the new classes are checked.
+	"""
+	sequence = data.draw(st.lists(st.text(alphabet="0123456789 a.,-", max_size=12), max_size=6))
+	stage_settings = punctuation_settings(data.draw(st.integers(0, 300)))
+	stage_settings.number_mode = data.draw(st.sampled_from(["value", "number", "group"]))
+	stage_settings.group_size = data.draw(st.integers(1, 10))
+	number_wait, group_wait, item_wait = (data.draw(st.integers(0, 60)) for _ in range(3))
+	stage_settings.scaled_number_wait = lambda: number_wait
+	stage_settings.scaled_group_wait = lambda: group_wait
+	stage_settings.scaled_item_wait = lambda: item_wait
+	module, context = env.module, env.module.GENERIC_CONTEXT
+	result = sequence
+	for stage in (
+		module.inject_number_mode,
+		module.inject_chinese_space_pause,
+		module.item_wait_factor,
+		module.inject_punctuation_pause,
+		module.number_wait_factor,
+	):
+		result = list(stage(result, stage_settings, context))
+
+	new_breaks = (module.NumberBreakCommand, module.GroupNumberBreakCommand)
+	for before, after in pairwise(result):
+		if isinstance(before, new_breaks) or isinstance(after, new_breaks):
+			assert not (isinstance(before, env.BreakCommand) and isinstance(after, env.BreakCommand)), result
