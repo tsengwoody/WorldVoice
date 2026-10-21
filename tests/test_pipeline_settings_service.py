@@ -141,15 +141,23 @@ def test_update_converts_normalizes_and_writes_only_changes(monkeypatch):
 	],
 )
 def test_number_mode_reads_and_writes_only_known_modes(monkeypatch, raw, expected):
+	writes = []
+
+	class Section(dict):
+		def __setitem__(self, key, value):
+			writes.append((key, value))
+			super().__setitem__(key, value)
+
 	stored = {"WorldVoice": {"pipeline": {"number_mode": raw}}}
-	conf = {"WorldVoice": {"pipeline": {"number_mode": "number"}}}
+	conf = {"WorldVoice": {"pipeline": Section(number_mode="number")}}
 	module = load_settings_module(monkeypatch, conf)
 	assert module.PipelineSettingsService(
 		module.ConfigPipelineRepository(lambda: stored),
 	).get().number_mode == (expected)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	assert service.update(number_mode=raw).number_mode == expected
-	assert conf["WorldVoice"]["pipeline"]["number_mode"] == expected
+	# Only a change is written: "number" normalises to the stored value, so nothing is.
+	assert writes == ([] if expected == "number" else [("number_mode", expected)])
 
 
 def test_update_rejects_unknown_keys_before_writing(monkeypatch):
