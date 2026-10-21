@@ -84,6 +84,17 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert type(spin) is env.gui.nvdaControls.SelectOnFocusSpinCtrl is not env.wx.SpinCtrl
 
 
+def is_spacer(entry):
+	return entry.GetSizer() is None and entry.GetWindow() is None
+
+
+def test_pipeline_panel_rows_are_spaced_as_nvda_spaces_them(monkeypatch):
+	# One BoxSizerHelper for the panel: NVDA adds a spacer before every row but the first.
+	env = pipeline_env(monkeypatch)
+	_panel, sizer = build(env, "SpeechPipelinePanel")
+	assert [is_spacer(entry) for entry in sizer.items] == [False, *[True, False] * 13]
+
+
 def test_pipeline_panel_selects_the_first_choice_for_an_unknown_stored_value(monkeypatch):
 	env = pipeline_env(monkeypatch, scope="nowhere", number_mode="roman")
 	panel, _sizer = build(env, "SpeechPipelinePanel")

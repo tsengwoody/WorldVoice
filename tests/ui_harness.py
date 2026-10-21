@@ -145,6 +145,16 @@ class StaticBox(Control):
 	pass
 
 
+class Spacer:
+	"""The empty space a sizer adds with AddSpacer: neither a window nor a sizer."""
+
+	def __init__(self, size):
+		self.size = size
+
+	def __repr__(self):
+		return f"<Spacer {self.size}>"
+
+
 class SizerItem:
 	"""A wxSizerItem. wx deletes the item when it is detached, so reading a detached one raises."""
 
@@ -162,7 +172,7 @@ class SizerItem:
 		return self._alive().item if isinstance(self.item, Sizer) else None
 
 	def GetWindow(self):
-		return None if isinstance(self._alive().item, Sizer) else self.item
+		return None if isinstance(self._alive().item, Sizer | Spacer) else self.item
 
 	def GetProportion(self):
 		return self._alive().proportion
@@ -188,6 +198,9 @@ class Sizer:
 	def Add(self, item, proportion=0, flag=0, border=0):
 		self._place(item)
 		self.items.append(SizerItem(item, proportion, flag, border))
+
+	def AddSpacer(self, size):
+		self.items.append(SizerItem(Spacer(size)))
 
 	def Insert(self, index, item, proportion=0, flag=0, border=0):
 		self._place(item)
@@ -240,22 +253,32 @@ class StaticBoxSizer(Sizer):
 
 
 class BoxSizerHelper:
-	"""NVDA's guiHelper.BoxSizerHelper: each labelled control gets a row in the given sizer."""
+	"""NVDA's guiHelper.BoxSizerHelper: each labelled control gets a row in the given sizer.
+
+	As in NVDA (gui/guiHelper.py addItem), every item but the helper's first is preceded by a
+	spacer, so a test can see a spacer left behind when a row is moved.
+	"""
+
+	SPACE = 10
 
 	def __init__(self, parent, orientation=None, sizer=None):
 		self.parent = parent
 		self.sizer = sizer if sizer is not None else Sizer()
+		self.hasFirstItemBeenAdded = False
 
 	def addLabeledControl(self, label, cls, **kwargs):
 		control = cls(self.parent, **kwargs)
 		control.label = label
 		row = Sizer()
 		row.Add(control)
-		self.sizer.Add(row)
+		self.addItem(row)
 		return control
 
 	def addItem(self, item, **kwargs):
+		if self.hasFirstItemBeenAdded:
+			self.sizer.AddSpacer(self.SPACE)
 		self.sizer.Add(item)
+		self.hasFirstItemBeenAdded = True
 		return item
 
 
