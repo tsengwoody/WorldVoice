@@ -43,7 +43,7 @@ Non-goals:
 - No change to `onSave` or discard/snapshot behaviour, except that a choice with no selection keeps its stored value in every case (section 5.10, N2), and that the Voice panel saves no pipeline setting for another synth (Changed by the user (2026-10-21, N5); section 5.10).
 - No change to NVDA's own copy in `createDriverSettings` (`VoiceSettingsDialogs.py:177-218`), which `tests/test_nvda_settings_copy.py:60-81` pins to NVDA's `updateDriverSettings`.
 - No refresh of an open Voice panel after a ring change. NVDA refreshes only after a voice change (`ref/nvda/source/gui/settingsDialogs.py:1343-1350`). This is unchanged from master (section 12, F6).
-- No change to the pipeline log switch labels (`speechSettingsDialog.py:28-38`). See N1.
+- ~~No change to the pipeline log switch labels (`speechSettingsDialog.py:28-38`). See N1.~~ Changed by the user (2026-10-21, N1): the pipeline log switch labels follow the same sentence case and reuse a setting's label where one exists (section 7.1).
 - No change to the Speech Pipeline panel's slider class (`wx.Slider`), to the uwv setting (`__init__.py:130-138`) or to NVDA's own Voice panel controls.
 - No readme change. The readmes describe what each setting does, not where it sits (`readme.md:39-52`, `addon/doc/zh_TW/readme.md:35-51`). `buildVars.py` is not touched (the main checkout holds an uncommitted edit of it).
 - No other-language catalog edits (`DEVELOPMENT_WORKFLOW.md` section 6). See N6.
@@ -522,17 +522,33 @@ The existing driver-label comment "Label for a setting in voice settings dialog.
 - Ring names: "Punctuation pauses", "Remove punctuation at pause points".
 - Choices: "value", "number", "group", "default", "All Synthesizers (Global)", "Only WorldVoice Synthesizer". The case rule covers labels only, so the scope choices keep their capitals.
 - Not in the table, untouched: "Detect language based on Unicode characters".
-- Still used by the pipeline log switches only (N1): "Ignore comma between number" (`speechSettingsDialog.py:30`) and "item wait factor" (`:34`). "Number mode" and "Number language" are used by both the log switches and the ring.
+- ~~Still used by the pipeline log switches only (N1): "Ignore comma between number" (`speechSettingsDialog.py:30`) and "item wait factor" (`:34`).~~ "Number mode" and "Number language" are used by both the log switches and the ring.
 
-**Added:** none apart from the new msgids in the "Changed" table.
+**Pipeline log switches** (`_LOG_LABELS`, `speechSettingsDialog.py:27-37`; Changed by the user (2026-10-21, N1)). Each keeps a `# Translators:` comment and, where a setting has a label, reuses it:
+
+| Log switch | Old msgid | New msgid | zh_TW |
+| --- | --- | --- | --- |
+| apply_speech_dictionaries | "apply_speech_dictionaries" | "Apply speech dictionaries" (new) | 套用語音字典 |
+| ignore_comma_between_number | "Ignore comma between number" | "Ignore commas between numbers" (the setting's) | 忽略在數字間的逗號 |
+| number_language | "Number language" | unchanged | 數字語言 |
+| number_mode | "Number mode" | unchanged | 數字模式 |
+| chinesespace_wait_factor | "chinese space wait factor" | "Chinese space wait factor" (the setting's) | 中文空白停頓參數 |
+| item_wait_factor | "item wait factor" | "Item wait factor" (the setting's) | 項目停頓參數 |
+| punctuation_wait_factor | "punctuation wait factor" | "Punctuation wait factor" (the setting's) | 標點停頓參數 |
+| number_wait_factor | "number wait factor" | "Number wait factor" (the setting's) | 數字停頓參數 |
+| speech_viewer | "speech viewer" | "Speech viewer" (new) | 語音檢視器 |
+
+So the log switches no longer keep "Ignore comma between number", "item wait factor", "apply_speech_dictionaries", "chinese space wait factor", "punctuation wait factor", "number wait factor" or "speech viewer" alive; these are removed too.
+
+**Added:** ~~none apart from the new msgids in the "Changed" table.~~ the new msgids in the "Changed" table, plus "Apply speech dictionaries" and "Speech viewer" (N1).
 
 ### 7.2 `addon/locale/zh_TW/LC_MESSAGES/nvda.po`
 
-- Add the seven new msgids of the "Changed" table with the zh_TW wording shown.
+- Add the seven new msgids of the "Changed" table with the zh_TW wording shown, plus "Apply speech dictionaries" (套用語音字典) and "Speech viewer" (語音檢視器) for the log switches (N1).
 - Delete the entries of the 15 removed msgids, so the catalog holds no dead entries (N7):
   - "Effect Scope:" (`:152-153`), "Number mode:" (`:179-180`), "Group size:" (`:185-186`), "group wait factor:" (`:190-191`), "global wait factor:" (`:194-195`), "number wait factor:" (`:198-199`), "item wait factor:" (`:202-203`), "sayall wait factor:" (`:206-207`), "chinese space wait factor:" (`:210-211`), "punctuation wait factor:" (`:227-228`), "Punctuation pause characters:" (`:232-233`);
   - "Number &Language" (`:583-584`), "Number Language" (`:589-590`), "Number &Mode" (`:595-596`), "Number Mode" (`:601-602`).
-- Keep "Ignore comma between number" (`:159-160`) and "item wait factor" (`:389-390`): the log switches use them.
+- ~~Keep "Ignore comma between number" (`:159-160`) and "item wait factor" (`:389-390`): the log switches use them.~~ With N1 (Changed by the user (2026-10-21, N1)) delete them too, with "apply_speech_dictionaries", "chinese space wait factor", "number wait factor" and "speech viewer": 21 entries in all ("punctuation wait factor" had no zh_TW entry).
 - Check with `msgfmt --check`. Generate the `.pot` with `scons pot` and do not commit it (`DEVELOPMENT_WORKFLOW.md` section 6).
 
 ### 7.3 Other languages
@@ -695,8 +711,8 @@ These still pass unchanged:
 None of these endangers a decision. Each is informational or comes with a default in section 13.
 
 - **F1. The pipeline log switches share four label msgids.**
-  - "Ignore comma between number" and "item wait factor" stay in use by the log switches (`speechSettingsDialog.py:30`, `:34`), while the settings now say "Ignore commas between numbers" and "Item wait factor".
-  - The log panel therefore keeps the old wording; see N1.
+  - ~~"Ignore comma between number" and "item wait factor" stay in use by the log switches (`speechSettingsDialog.py:30`, `:34`), while the settings now say "Ignore commas between numbers" and "Item wait factor".~~
+  - ~~The log panel therefore keeps the old wording; see N1.~~ Changed by the user (2026-10-21, N1): the log switches now use the settings' labels, so the two panels never word one setting two ways.
   - The ring names "Number mode" and "Number language" reuse the log switches' existing msgids, so they keep every existing translation except ar.
 - **F2. The Speech Pipeline panel gains an accelerator.** "Number &mode:" gives Alt+M in that panel. NVDA reports it when the choice gets focus. This follows from Q2. There is no conflict in the panel (section 6.1).
 - **F3. Translations lost in other languages** (section 7.3). The biggest loss is ar, ru, uk, tr, zh_CN and zh_HK for "Number &mode", "Number &language" and "Ignore commas between numbers", which they translate today in both the Voice panel and the Speech Pipeline panel.
@@ -712,7 +728,7 @@ None of these endangers a decision. Each is informational or comes with a defaul
 
 All are new and adopted with the conservative default. Each is Decided by orchestrator with the recommended default; user may override before merge.
 
-1. **N1. Pipeline log switch labels:** unchanged. Aligning them with the new labels (for example "Ignore commas between numbers", sentence case) is a separate change.
+1. **N1. Pipeline log switch labels:** ~~unchanged. Aligning them with the new labels (for example "Ignore commas between numbers", sentence case) is a separate change.~~ Decided by the user (2026-10-21): the log switch labels follow the sentence-case rule and reuse the unified label msgids wherever one exists (section 7.1).
 2. **N2. Scope choice with no selection:** `onSave` keeps the stored scope, as it already does for the mode, instead of writing `"WorldVoice"`. The UI cannot reach this state.
 3. **N3. Modelling number language:** one `pipeline_config` flag on the single table, plus the derived `PIPELINE_STORED_SETTINGS`, rather than a second ordered list.
 4. **N4. Module placement and names:** pure rules in `pipeline/panelLayout.py` (added to mutmut), wx builders in `pipelineControls.py`. Attribute names `_<key>_<suffix>` (Speech Pipeline panel) and `<camelKey><Suffix>` (Voice panel), which reproduce today's names.
