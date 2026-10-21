@@ -43,6 +43,7 @@ source_paths = [
 	"addon/synthDrivers/WorldVoice/mainLocalePolicy.py",
 	"addon/synthDrivers/WorldVoice/pipeline/__init__.py",
 	"addon/synthDrivers/WorldVoice/pipeline/settings.py",
+	"addon/synthDrivers/WorldVoice/pipeline/panelLayout.py",
 ]
 mutate_only_covered_lines = true
 also_copy = ["addon/", ".pre-commit-config.yaml", "buildVars.py"]

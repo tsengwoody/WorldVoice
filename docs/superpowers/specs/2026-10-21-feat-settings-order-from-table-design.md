@@ -663,6 +663,16 @@ Each rule is one test over the real table. Each rule also gets a negative case: 
   - `selected_value` is `None` exactly outside `0..len-1`.
 - **mutmut:** add `pipeline/panelLayout.py` to `source_paths`. Run with at most 3 workers and the memory guard (stop below 3 GB MemAvailable). Record each surviving mutant with its reason, and confirm each one by running the suite with that mutant applied, as in phase 29.
 
+**mutmut result (2026-10-21, mutmut 3.8.0, `--max-children 3`, memory guard, only `panelLayout.*` selected):** 46 mutants, **46 killed, 0 survived**, 0 timeouts, 0 suspicious (`choice_index` 4, `choice_values` 1, `controller_keys` 3, `dependent_states` 12, `from_display` 1, `label_text` 5, `panel_specs` 2, `selected_value` 3, `to_display` 1, `voice_attribute` 7, `voice_placements` 7; mutmut made none for `pipeline_attribute` and `driver_attribute`). The batch 1 review's mutant on `voice_placements` (anchor on driver rows only) is killed by `test_a_control_may_follow_an_earlier_worldvoice_control` and the nearest-anchor property.
+
+Equivalent mutants found by hand in the batch 1 review. Each was applied in place and the full suite still passed (2070 passed), then the file was restored:
+
+| Id | File | Mutant | Why it is equivalent |
+| --- | --- | --- | --- |
+| M9 | `pipeline/panelLayout.py` `dependent_states` | `value is not None and value == expected` → `value == expected` | The guard (section 10.2 rule 7) only allows a `bool` or a choice value as `expected`, never `None`, so `None == expected` is already `False`. The explicit check states the -1 rule. |
+| B4 | `pipelineControls.py` `make_control` | slider `minValue=to_display(spec, spec.min_value)` → `minValue=spec.min_value` | Every slider's `min_value` is 0, and `0 // scale == 0`. A slider with a non-zero minimum and a scale would tell them apart; the table has none. |
+| B6 | `pipelineControls.py` `make_control` | `style=wx.SL_HORIZONTAL` removed | `wx.SL_HORIZONTAL` is the `wx.Slider` default style; master passed it too. |
+
 ### 10.6 Windows / NVDA manual items
 
 Linux tests reach only the fakes. These items need Windows with NVDA and a packaged test build:
