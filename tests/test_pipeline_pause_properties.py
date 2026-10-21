@@ -192,3 +192,97 @@ def test_property_pairs_are_separate_items_at_any_pause(env, sign, digits, pause
 	assert len(texts) == len(breaks) + 1
 	assert len(breaks) == math.ceil(len(digits) / 2) - 1
 	assert "".join(texts) == sign + digits
+
+
+# The number split (F1 option B: a number glued to another with no gap is never split out)
+
+DIGITS = "0123456789"
+
+
+def split_once(env, text):
+	"""number_wait_factor at 40 ms on one string, and the string as the stage sees it."""
+	return run_number_wait(env, [text], 40), text.strip()
+
+
+def walk(result, stripped):
+	"""Match the output against the stripped input: each text item is the next slice of it and
+	each break takes the whitespace run that follows. Returns how many characters each break took.
+	"""
+	taken = {}
+	position = 0
+	for index, item in enumerate(result):
+		if isinstance(item, str):
+			assert stripped.startswith(item, position), (stripped, result)
+			position += len(item)
+		else:
+			end = position
+			while end < len(stripped) and stripped[end].isspace():
+				end += 1
+			taken[index] = end - position
+			position = end
+	assert position == len(stripped), (stripped, result)
+	return taken
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_the_split_keeps_the_text_and_replaces_only_whitespace(env, text):
+	result, stripped = split_once(env, text)
+	assert all(walk(result, stripped).values()), "every break must replace whitespace"
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_no_text_item_keeps_two_numbers_apart_by_whitespace(env, text):
+	result, _stripped = split_once(env, text)
+	for item in result:
+		if not isinstance(item, str):
+			continue
+		matches = list(env.module._NUMBER_RE.finditer(item))
+		gaps = [item[left.end() : right.start()] for left, right in pairwise(matches)]
+		for index, gap in enumerate(gaps):
+			if not gap.isspace():
+				continue
+			# Either number is glued to its other neighbour, so neither is split out.
+			left_glued = index > 0 and not gaps[index - 1]
+			right_glued = index + 1 < len(gaps) and not gaps[index + 1]
+			assert left_glued or right_glued, (item, gap)
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_no_digits_are_glued_together(env, text):
+	result, _stripped = split_once(env, text)
+	for before, after in pairwise(result):
+		if isinstance(before, str) and isinstance(after, str):
+			assert not (before[-1] in DIGITS and after[0] in DIGITS)
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_breaks_sit_exactly_between_whole_numbers(env, text):
+	result, _stripped = split_once(env, text)
+	number = env.module._NUMBER_RE.fullmatch
+	breaks = [item for item in result if not isinstance(item, str)]
+	assert all(item is breaks[0] for item in breaks)
+	for index, item in enumerate(result):
+		if not isinstance(item, str):
+			assert 0 < index < len(result) - 1
+			assert number(result[index - 1]) and number(result[index + 1])
+	for before, after in pairwise(result):
+		if isinstance(before, str) and isinstance(after, str):
+			assert not (number(before) and number(after))
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_leftover_text_is_never_a_number(env, text):
+	# A text item that is a whole number was split out at whitespace: a break that took
+	# whitespace is next to it. The only other way is the input itself being that number.
+	result, stripped = split_once(env, text)
+	if result == ([stripped] if stripped else []):
+		return
+	taken = walk(result, stripped)
+	for index, item in enumerate(result):
+		if isinstance(item, str) and env.module._NUMBER_RE.fullmatch(item):
+			assert taken.get(index - 1) or taken.get(index + 1), (text, result)

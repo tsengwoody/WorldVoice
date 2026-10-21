@@ -728,7 +728,23 @@ Full verification as above; the counts are recorded below.
 
 ## Implementation notes
 
+F1: the user chose option B (2026-10-21), during step 4; the spec records it (commit `322a66e`). Step 8 implements option B.
+
+Red/green as planned:
+
+- Step 2: 3 red (the three non-number cases). Green **1750 passed, 0 skipped**.
+- Step 3: 2 red (`[-1234-pair-0]`, `[123-pair-0]`). Green **1758**.
+- Step 4: 9 red, as listed. Green **1780**.
+- Step 5: sanity red as planned: on `72ce60e` P1 and P2 fail; on `e6fd0fe` P1, P2 and N6 fail. Green **1787**.
+- Step 6: 3 red. Green **1789**.
+- Step 7a: 3 red. Green **1790**.
+- Step 7b: 2 red. Green **1790**.
+- Step 8 (option B): 13 red (10 `SPLITS` rows, across items, digit mode, pair mode). Green **1810**.
+- Step 9: on `e78e6ba` (no split) N2 fails; on an option-A variant of the split (scratch copy), N1 and N7 fail. Green **1815 passed, 0 skipped**. `HYPOTHESIS_PROFILE=deep` on N1-N4, N7 and P4 (20000 examples each): 6 passed in 150 s. (Step 5's deep run of all seven properties found the P4 case above.)
+
 Deviations:
 
+- Step 8: `_split_spaced_numbers` uses `itertools.pairwise(matches)` instead of `zip(matches, matches[1:])`, because ruff (RUF007) asks for it. NVDA 2024.1, the minimum version, runs Python 3.11, which has it.
+- Step 9, N7: checking only that a whole-number text item has a break next to it does not tell option A from option B (under A the leftover `"-6789"` also gets a break). N7 instead requires a break next to it that replaced whitespace in the input, using the same walk as N1. With that, the option-A variant fails N1 and N7.
 - Step 4: `test_zero_wait_removal_still_pauses_and_a_disabled_switch_changes_nothing` expects `"Hello"`, `PuB(0)`, `" world"`, `"."`, not `" world."` as spec section 10 says. An item with a pause point is split into text and mark pieces (spec section 4.2, last bullet), so the final mark is its own piece; spec table 5.2 already shows this (`" Bye"`, `"."`). The code follows the unchanged pause-point rules.
 - Step 5, P4: with removal on, a `PunctuationBreakCommand` can sit next to an existing `BreakCommand`. Hypothesis found `[".", ".", existing, "1"]` (the second item is only a mark at a pause point and disappears), and `["a", existing, ". b"]` gives `"a"`, existing, `PuB`, `" b"`. Both happen on `master` with wait > 0 too. They follow from the pause-point rules that spec item 2-7 keeps, so P4 checks adjacency only with removal off and checks "never last" always. Reported as a finding; not changed.
