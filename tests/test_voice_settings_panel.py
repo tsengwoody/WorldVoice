@@ -4,6 +4,7 @@ The real VoiceSettingsDialogs.py runs over ui_harness's stand-in for NVDA's Voic
 which makes and updates driver controls the way NVDA's AutoSettingsMixin does.
 """
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -13,6 +14,7 @@ from ui_harness import (
 	DriverSetting,
 	NumericDriverSetting,
 	Sizer,
+	Spacer,
 	fire,
 	load_voice_settings_dialogs,
 	pipeline_snapshot,
@@ -102,6 +104,8 @@ def order(panel):
 	for entry in panel.settingsSizer.items:
 		if id(entry.item) in names:
 			result.append(names[id(entry.item)])
+		elif isinstance(entry.item, Spacer):
+			result.append("<spacer>")
 		else:
 			(control,) = entry.item.controls() if isinstance(entry.item, Sizer) else [entry.item]
 			result.append(control.label)
@@ -207,6 +211,8 @@ def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
 	assert names[-1] == "Automatic language switching (when supported)"
 	assert edit.tab_after is panel.punctuationwaitfactorSlider
 	assert names.index("Group size:") == names.index("nummod") + 1
+	# Each added control has its own helper, so moving its row leaves no spacer behind.
+	assert "<spacer>" not in names
 
 
 def test_group_size_follows_the_number_mode_list(monkeypatch):
@@ -333,25 +339,110 @@ def test_a_mode_missing_from_the_list_counts_as_not_group(monkeypatch):
 	assert group_controls_enabled(panel) == (False, False)
 
 
-def test_a_synth_without_pipeline_settings_gets_the_group_size_and_characters_at_the_end(monkeypatch):
-	settings = (DriverSetting("voice"), NumericDriverSetting("rate"))
-	driver = Driver({"voice", "rate"}, name="espeak", settings=settings)
-	env = open_panel(monkeypatch, driver)
-	panel = env.panel
+OTHER_SETTINGS = (DriverSetting("voice"), NumericDriverSetting("rate"))
+
+
+def other_synth():
+	return Driver({"voice", "rate"}, name="espeak", settings=OTHER_SETTINGS)
+
+
+def test_another_synth_gets_no_worldvoice_controls(monkeypatch):
+	# Decided by the user (2026-10-21): the Speech Pipeline panel is where they are changed then.
+	panel = open_panel(monkeypatch, other_synth()).panel
 
 	assert pipeline_snapshot(panel) is None
 	assert not hasattr(panel, "punctuationpauseenabledCheckbox")
-	assert order(panel) == [
-		"voice",
-		"rate",
-		"Automatic language switching (when supported)",
-		"Group size:",
-		"Punctuation pause characters:",
-	]
-	assert panel.punctuationPauseCharactersEdit.tab_after is None
-	assert panel.punctuationPauseCharactersEdit.enabled is True
-	assert panel.groupSizeSpin.tab_after is None
-	assert panel.groupSizeSpin.enabled is True
+	assert order(panel) == ["voice", "rate", "Automatic language switching (when supported)"]
+	assert panel.groupSizeSpin is None
+	assert panel.punctuationPauseCharactersEdit is None
+
+
+def table_with(env, *entries):
+	"""A table of real entries, each (key, changes), so pipeline_settings.get() has every key."""
+	by_key = env.settings.PIPELINE_SETTING_BY_KEY
+	return tuple(replace(by_key[key], **changes) for key, changes in entries)
+
+
+def test_a_control_after_a_checkbox_row_lands_after_the_checkbox(monkeypatch):
+	settings = (DriverSetting("voice"), BooleanDriverSetting("cni"))
+	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
+	env.module.PIPELINE_SETTINGS = table_with(
+		env,
+		("ignore_comma_between_number", {}),
+		("punctuation_pause_characters", {"depends_on": None}),
+	)
+	panel = env.module.WorldVoiceVoiceSettingsPanel(Driver({"voice", "cni"}, settings=settings, cni=False))
+	panel.makeSettings(panel.settingsSizer)
+
+	names = order(panel)
+	# NVDA adds a checkbox row as the checkbox window itself, not in a sizer.
+	assert names.index("Punctuation pause characters:") == names.index("cni") + 1
+	assert panel.punctuationPauseCharactersEdit.tab_after is panel.cniCheckbox
+	assert "<spacer>" not in names
+
+
+def test_adjacent_non_driver_controls_keep_table_order(monkeypatch):
+	settings = (DriverSetting("voice"), DriverSetting("nummod"))
+	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
+	env.module.PIPELINE_SETTINGS = table_with(
+		env,
+		("number_mode", {}),
+		("group_size", {"depends_on": None}),
+		("punctuation_pause_characters", {"depends_on": None}),
+	)
+	panel = env.module.WorldVoiceVoiceSettingsPanel(Driver({"voice", "nummod"}, settings=settings))
+	panel.makeSettings(panel.settingsSizer)
+
+	names = order(panel)
+	start = names.index("nummod")
+	assert names[start : start + 3] == ["nummod", "Group size:", "Punctuation pause characters:"]
+	assert panel.groupSizeSpin.tab_after is panel.nummodList
+	assert panel.punctuationPauseCharactersEdit.tab_after is panel.groupSizeSpin
+	assert "<spacer>" not in names
+
+
+def test_a_rebuild_for_worldvoice_places_the_controls_again(monkeypatch):
+	panel = open_panel(monkeypatch, other_synth()).panel
+	panel._driver = Driver(ALL)  # the user chose WorldVoice; NVDA rebuilds the panel
+
+	panel.refreshGui()
+
+	names = order(panel)
+	assert names.index("Group size:") == names.index("nummod") + 1
+	assert names.index("Punctuation pause characters:") == names.index("punctuationwaitfactor") + 1
+	assert panel.groupSizeSpin in panel.settingsSizer.controls()
+	assert not panel.groupSizeSpin.destroyed
+
+
+def test_a_rebuild_for_another_synth_drops_the_worldvoice_controls(monkeypatch):
+	env = open_panel(monkeypatch, Driver(ALL))
+	panel = env.panel
+	spin, edit = panel.groupSizeSpin, panel.punctuationPauseCharactersEdit
+	spin.SetValue(7)
+	panel._driver = other_synth()
+
+	panel.refreshGui()
+	panel.onSave()
+
+	assert order(panel) == ["voice", "rate", "Automatic language switching (when supported)"]
+	assert (panel.groupSizeSpin, panel.punctuationPauseCharactersEdit) == (None, None)
+	assert spin.destroyed and edit.destroyed
+	pipeline = env.conf["WorldVoice"]["pipeline"]
+	assert (pipeline["group_size"], pipeline["punctuation_pause_characters"]) == (3, "")
+	assert panel.base_calls[-1] == "onSave"
+
+
+def test_saving_after_the_synth_changed_writes_no_pipeline_setting(monkeypatch):
+	# The panel may be saved before NVDA rebuilds it for the new synth.
+	env = open_panel(monkeypatch, Driver(ALL))
+	panel = env.panel
+	panel.groupSizeSpin.SetValue(7)
+	panel._driver = other_synth()
+
+	panel.onSave()
+
+	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 3
+	assert panel.base_calls[-1] == "onSave"
 
 
 def test_saving_writes_the_characters_and_keeps_them_after_a_later_cancel(monkeypatch):
@@ -387,17 +478,16 @@ def test_cancel_without_save_keeps_the_stored_group_size(monkeypatch):
 	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 4
 
 
-def test_another_synth_saves_the_characters_and_cancel_leaves_pipeline_settings_alone(monkeypatch):
-	settings = (DriverSetting("voice"), NumericDriverSetting("rate"))
-	env = open_panel(monkeypatch, Driver({"voice", "rate"}, name="espeak", settings=settings))
+def test_another_synth_saves_and_cancels_without_touching_pipeline_settings(monkeypatch):
+	env = open_panel(monkeypatch, other_synth())
 	panel = env.panel
-	panel.punctuationPauseCharactersEdit.SetValue("!?")
 
 	panel.onSave()
 	env.pipeline_settings.update(item_wait_factor=90)  # changed elsewhere while the panel is open
 	panel.onDiscard()
 
 	pipeline = env.conf["WorldVoice"]["pipeline"]
-	assert pipeline["punctuation_pause_characters"] == "!?"
+	assert (pipeline["punctuation_pause_characters"], pipeline["group_size"]) == ("", 3)
 	assert pipeline["item_wait_factor"] == 90
 	assert pipeline_snapshot(panel) is None
+	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]

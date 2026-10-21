@@ -134,12 +134,13 @@ def test_voice_placements_with_every_row(table):
 	]
 
 
-def test_voice_placements_with_no_driver_row(table):
-	# Another synth: only the added controls have rows, so nothing moves.
+def test_voice_placements_follow_any_earlier_row(table):
+	# The Voice panel adds no control for another synth (N5), so there is no "no driver row"
+	# case: an entry follows the nearest earlier row, whoever made it, or stays put without one.
 	has_row = {spec.key: spec.driver_id is None for spec in table}.__getitem__
 	assert layout.voice_placements(voice(table), has_row) == [
 		("group_size", None),
-		("punctuation_pause_characters", None),
+		("punctuation_pause_characters", "group_size"),
 	]
 
 
@@ -231,10 +232,13 @@ def test_property_every_anchor_precedes_its_entry_and_has_a_row(specs, data):
 			assert not rows.intersection(between)
 
 
-@given(specs=tables())
-def test_property_no_driver_row_moves_nothing(specs):
-	rows = {spec.key for spec in specs if spec.driver_id is None}
-	assert all(anchor is None for _key, anchor in layout.voice_placements(specs, rows.__contains__))
+@given(specs=tables(), data=st.data())
+def test_property_an_entry_stays_put_only_without_an_earlier_row(specs, data):
+	rows = data.draw(st.sets(st.sampled_from([spec.key for spec in specs])))
+	position = {spec.key: index for index, spec in enumerate(specs)}
+	for key, anchor in layout.voice_placements(specs, rows.__contains__):
+		earlier_rows = rows.intersection(spec.key for spec in specs[: position[key]])
+		assert (anchor is None) is (not earlier_rows)
 
 
 @given(specs=tables(), data=st.data())

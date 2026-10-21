@@ -96,18 +96,14 @@ def voice_placements(specs: Sequence[Any], has_row: Callable[[str], bool]) -> li
 	"""For each Voice panel entry without a driver setting, the entry whose row it follows.
 
 	specs are the Voice panel's entries in table order. The anchor is the nearest earlier entry
-	that has a row, or None for every entry when no driver entry has a row (another synth).
+	that has a row, or None when no earlier entry has one. The Voice panel adds these controls
+	for WorldVoice only, whose driver rows always exist.
 	"""
-	any_driver_row = any(spec.driver_id is not None and has_row(spec.key) for spec in specs)
-	placements = []
-	for index, spec in enumerate(specs):
-		if spec.driver_id is not None:
-			continue
-		anchor = None
-		if any_driver_row:
-			anchor = next((other.key for other in reversed(specs[:index]) if has_row(other.key)), None)
-		placements.append((spec.key, anchor))
-	return placements
+	return [
+		(spec.key, next((other.key for other in reversed(specs[:index]) if has_row(other.key)), None))
+		for index, spec in enumerate(specs)
+		if spec.driver_id is None
+	]
 
 
 def pipeline_attribute(spec: Any) -> str:

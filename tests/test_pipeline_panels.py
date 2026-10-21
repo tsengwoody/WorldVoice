@@ -5,7 +5,7 @@ import types
 
 from addon_loader import ADDON, WORLDVOICE, load_definitions
 from pipeline_harness import ORDER
-from ui_harness import load_settings_dialog
+from ui_harness import load_settings_dialog, load_voice_settings_dialogs
 
 PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 VOICE_PANEL = WORLDVOICE / "VoiceSettingsDialogs.py"
@@ -115,33 +115,27 @@ def test_voice_panel_discard_restores_live_pipeline_changes():
 	assert state["item_wait_factor"] == 10
 
 
-def test_voice_panel_discard_after_apply_keeps_applied_pipeline_values():
+def voice_panel(monkeypatch, pipeline_settings, driver_name="WorldVoice"):
+	"""The real Voice panel over ui_harness's NVDA panel, without makeSettings."""
+	module = load_voice_settings_dialogs(monkeypatch).module
+	module.pipeline_settings = pipeline_settings
+	panel = object.__new__(module.WorldVoiceVoiceSettingsPanel)
+	panel._driver = types.SimpleNamespace(name=driver_name)
+	panel.base_calls = []
+	return module, panel
+
+
+def test_voice_panel_discard_after_apply_keeps_applied_pipeline_values(monkeypatch):
 	state = {"item_wait_factor": 10, "punctuation_pause_characters": ".", "group_size": 3}
 
 	def update(**changes):
 		state.update(changes)
 
-	class Base:
-		def onSave(self):
-			pass
-
-		def onDiscard(self):
-			pass
-
-	environment = load_definitions(
-		VOICE_PANEL,
-		{"WorldVoiceVoiceSettingsPanel"},
-		{
-			"VoiceSettingsPanel": Base,
-			"pipeline_settings": types.SimpleNamespace(
-				get=lambda: types.SimpleNamespace(**state),
-				update=update,
-			),
-			"PIPELINE_CONFIG_KEYS": ("item_wait_factor", "punctuation_pause_characters", "group_size"),
-		},
+	module, panel = voice_panel(
+		monkeypatch,
+		types.SimpleNamespace(get=lambda: types.SimpleNamespace(**state), update=update),
 	)
-	panel = object.__new__(environment["WorldVoiceVoiceSettingsPanel"])
-	type(panel).driver = property(lambda self: types.SimpleNamespace(name="WorldVoice"))
+	module.PIPELINE_CONFIG_KEYS = ("item_wait_factor", "punctuation_pause_characters", "group_size")
 	panel._pipelineSnapshot = types.SimpleNamespace(**state)
 	panel.punctuationPauseCharactersEdit = Widget(".")
 	panel.groupSizeSpin = Widget(3)
@@ -154,27 +148,17 @@ def test_voice_panel_discard_after_apply_keeps_applied_pipeline_values():
 	assert state["item_wait_factor"] == 40
 
 
-def test_voice_panel_saves_the_characters_and_group_size_in_one_update():
+def test_voice_panel_saves_the_characters_and_group_size_in_one_update(monkeypatch):
 	calls = []
-
-	class Base:
-		def onSave(self):
-			calls.append("nvda save")
-
-	environment = load_definitions(
-		VOICE_PANEL,
-		{"WorldVoiceVoiceSettingsPanel"},
-		{
-			"VoiceSettingsPanel": Base,
-			"pipeline_settings": types.SimpleNamespace(update=lambda **changes: calls.append(changes)),
-		},
+	_module, panel = voice_panel(
+		monkeypatch,
+		types.SimpleNamespace(update=lambda **changes: calls.append(changes), get=lambda: None),
 	)
-	panel = object.__new__(environment["WorldVoiceVoiceSettingsPanel"])
-	type(panel).driver = property(lambda self: types.SimpleNamespace(name="espeak"))
+	panel.base_calls = calls
 	panel.punctuationPauseCharactersEdit = Widget(" .,")
 	panel.groupSizeSpin = Widget(5)
 
 	panel.onSave()
 
 	# One update, so subscribers see both values together, before NVDA saves its own settings.
-	assert calls == [{"punctuation_pause_characters": " .,", "group_size": 5}, "nvda save"]
+	assert calls == [{"punctuation_pause_characters": " .,", "group_size": 5}, "onSave"]

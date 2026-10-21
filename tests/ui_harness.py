@@ -30,6 +30,7 @@ class Control:
 		self.bindings = []
 		self.containing_sizer = None
 		self.tab_after = None
+		self.destroyed = False
 
 	def __repr__(self):
 		return f"<{type(self).__name__} {self.label!r}>"
@@ -234,6 +235,13 @@ class Sizer:
 
 	def Layout(self):
 		self.layouts += 1
+
+	def Clear(self, delete_windows=False):
+		"""Remove every item; with delete_windows, wx destroys the windows they hold."""
+		if delete_windows:
+			for control in self.controls():
+				control.destroyed = True
+		self.items = []
 
 	def contents(self):
 		"""Every item, with nested sizers expanded in place."""
@@ -442,6 +450,15 @@ class VoiceSettingsPanel(SettingsPanel):
 
 	def onDiscard(self):
 		self.base_calls.append("onDiscard")
+
+	def refreshGui(self):
+		# NVDA's AutoSettingsMixin.refreshGui once the settings instance changed (a synth change):
+		# every row and window goes, then makeSettings runs again on the same panel. NVDA leaves
+		# lastControl as it was, and so does this.
+		self.sizerDict.clear()
+		self.settingsSizer.Clear(delete_windows=True)
+		self.makeSettings(self.settingsSizer)
+		self.settingsSizer.Layout()
 
 
 EVT_CHECKBOX, EVT_CHOICE, EVT_SLIDER, EVT_MENU, EVT_WINDOW_DESTROY = (

@@ -2,11 +2,19 @@ import addonHandler
 import gui
 import wx
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
-from gui import guiHelper, nvdaControls
+from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
 from logHandler import log
 
-from .pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTING_BY_KEY, pipeline_settings
+from .pipeline.panelLayout import (
+	VOICE_PANEL,
+	driver_attribute,
+	panel_specs,
+	voice_attribute,
+	voice_placements,
+)
+from .pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTINGS, pipeline_settings
+from .pipelineControls import control_row, control_value, make_control
 
 addonHandler.initTranslation()
 
@@ -25,8 +33,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self._pipelineSnapshot = pipeline_settings.get() if self._isWorldVoice() else None
 		self.createDriverSettings()
 		super().makeSettings(settingsSizer)
-		self._addGroupSizeControl(settingsSizer)
-		self._addPunctuationPauseCharactersControl(settingsSizer)
+		self._addPipelineControls(settingsSizer)
 		self._bindPunctuationPauseEnabledToggle()
 		self._bindNumberModeChoice()
 
@@ -90,66 +97,83 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			if control is not None:
 				control.Enable(enabled)
 
-	def _addGroupSizeControl(self, settingsSizer):
+	@staticmethod
+	def _voiceSpecs():
+		# Read at call time, so the order follows the table the module holds.
+		return panel_specs(PIPELINE_SETTINGS, VOICE_PANEL)
+
+	def _voiceControl(self, spec):
+		"""The control of a Voice panel entry: NVDA's for a driver setting, else WorldVoice's; or None."""
+		name = driver_attribute(spec) if spec.driver_id is not None else voice_attribute(spec)
+		return getattr(self, name, None)
+
+	def _addPipelineControls(self, settingsSizer):
 		"""
-		Add the group size spin control right after the Number Mode list, in layout and tab order.
-		It is not a driver setting, so it is written on Save, like the punctuation characters.
+		Add the table's settings that are not driver settings, each right after the row of the entry
+		before it in the table, in layout and tab order. They are written on Save.
+		Another synth gets none of them; the Speech Pipeline panel is where they are changed then.
 		"""
-		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
-		groupSizeSpec = PIPELINE_SETTING_BY_KEY["group_size"]
-		self.groupSizeSpin = settingsSizerHelper.addLabeledControl(
-			# Translators: Label for a spin control that sets how many digits each group has in the group number mode.
-			_("Group size:"),
-			nvdaControls.SelectOnFocusSpinCtrl,
-			min=groupSizeSpec.min_value,
-			max=groupSizeSpec.max_value,
-			initial=pipeline_settings.get().group_size,
-		)
-		spinSizer = self.groupSizeSpin.GetContainingSizer()
-		numberModeSizer = self.sizerDict.get("nummod")
-		if spinSizer is None or numberModeSizer is None:
+		specs = self._voiceSpecs()
+		added = [spec for spec in specs if spec.driver_id is None]
+		# NVDA rebuilds this panel on a synth change and destroys the old windows.
+		for spec in added:
+			setattr(self, voice_attribute(spec), None)
+		if not self._isWorldVoice():
 			return
-		numberModeIndex = next(
+		settings = pipeline_settings.get()
+		for spec in added:
+			# A helper per control: its first item gets no spacer, so moving the row leaves none.
+			helper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+			setattr(
+				self,
+				voice_attribute(spec),
+				make_control(self, helper, spec, getattr(settings, spec.key)),
+			)
+		byKey = {spec.key: spec for spec in specs}
+
+		def hasRow(key):
+			spec = byKey[key]
+			if spec.driver_id is not None:
+				return spec.driver_id in self.sizerDict
+			return self._voiceControl(spec) is not None
+
+		for key, anchorKey in voice_placements(specs, hasRow):
+			if anchorKey is None:
+				continue
+			spec, anchor = byKey[key], byKey[anchorKey]
+			control, anchorControl = self._voiceControl(spec), self._voiceControl(anchor)
+			anchorRow = (
+				self.sizerDict[anchor.driver_id]
+				if anchor.driver_id is not None
+				else control_row(anchorControl, anchor)
+			)
+			index = self._rowIndex(settingsSizer, anchorRow)
+			if index is not None:
+				_moveSizer(settingsSizer, control_row(control, spec), index + 1)
+			control.MoveAfterInTabOrder(anchorControl)
+
+	@staticmethod
+	def _rowIndex(settingsSizer, row):
+		"""The index of row in settingsSizer: NVDA adds a checkbox as itself, other rows as sizers."""
+		return next(
 			(
 				index
 				for index, item in enumerate(settingsSizer.GetChildren())
-				if item.GetSizer() is numberModeSizer
+				if item.GetSizer() is row or item.GetWindow() is row
 			),
 			None,
 		)
-		if numberModeIndex is not None:
-			_moveSizer(settingsSizer, spinSizer, numberModeIndex + 1)
-		self.groupSizeSpin.MoveAfterInTabOrder(self.nummodList)
-
-	def _addPunctuationPauseCharactersControl(self, settingsSizer):
-		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
-		self.punctuationPauseCharactersEdit = settingsSizerHelper.addLabeledControl(
-			_("Punctuation pause characters:"),
-			wx.TextCtrl,
-		)
-		charactersSizer = self.punctuationPauseCharactersEdit.GetContainingSizer()
-		punctuationWaitSizer = self.sizerDict.get("punctuationwaitfactor")
-		if charactersSizer is not None and punctuationWaitSizer is not None:
-			punctuationWaitIndex = next(
-				(
-					index
-					for index, item in enumerate(settingsSizer.GetChildren())
-					if item.GetSizer() is punctuationWaitSizer
-				),
-				None,
-			)
-			if punctuationWaitIndex is not None:
-				_moveSizer(settingsSizer, charactersSizer, punctuationWaitIndex + 1)
-			self.punctuationPauseCharactersEdit.MoveAfterInTabOrder(
-				self.punctuationwaitfactorSlider,
-			)
-		self.punctuationPauseCharactersEdit.SetValue(pipeline_settings.get().punctuation_pause_characters)
 
 	def onSave(self):
-		pipeline_settings.update(
-			punctuation_pause_characters=self.punctuationPauseCharactersEdit.GetValue(),
-			group_size=self.groupSizeSpin.GetValue(),
-		)
+		# Read the synth at save time: the panel may be saved before NVDA rebuilds it for another synth.
+		if self._isWorldVoice():
+			values = {}
+			for spec in self._voiceSpecs():
+				control = self._voiceControl(spec)
+				if spec.driver_id is None and spec.pipeline_config and control is not None:
+					values[spec.key] = control_value(spec, control)
+			# One update, so subscribers see every value together, before NVDA saves its own settings.
+			pipeline_settings.update(**{key: value for key, value in values.items() if value is not None})
 		super().onSave()
 		if self._isWorldVoice():
 			# After Apply, a later Cancel keeps what was applied, like NVDA's own settings.
