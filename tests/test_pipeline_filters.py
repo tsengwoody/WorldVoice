@@ -105,6 +105,85 @@ def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
 	)
 
 
+B40 = ("BreakCommand", 40)
+SPLITS = [
+	("1 2", ["1", B40, "2"]),
+	("共 12 34 個", ["共 ", "12", B40, "34", " 個"]),
+	("5 -3", ["5", B40, "-3"]),
+	("5 - 3", ["5 - 3"]),
+	("1.2.3 4", ["1.2.", "3", B40, "4"]),
+	("12 apples", ["12 apples"]),
+	("abc1 2def", ["abc", "1", B40, "2", "def"]),
+	("2026 10 21", ["2026", B40, "10", B40, "21"]),
+	("12\u300034", ["12", B40, "34"]),
+	("1\t2", ["1", B40, "2"]),
+	("1\u00a02", ["1", B40, "2"]),
+	("1-2", ["1-2"]),
+	("12abc 3", ["12abc 3"]),
+	# F1 option B: a number glued to another number with no gap is never split out.
+	("02 2345-6789", ["02 2345-6789"]),
+	("3-1 2", ["3-1 2"]),
+	("1 2 3-4", ["1", B40, "2", " 3-4"]),
+]
+
+
+@pytest.mark.parametrize("text,expected", SPLITS)
+def test_number_wait_splits_numbers_separated_only_by_whitespace(env, text, expected):
+	env.settings.scaled_number_wait = lambda: 40
+	assert shape(env.module.number_wait_factor([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+
+
+def test_number_wait_splits_across_items_and_keeps_commands(env):
+	env.settings.scaled_number_wait = lambda: 40
+	marker = env.module.BreakCommand(5)
+	result = list(
+		env.module.number_wait_factor(["5", "1 2", marker, "3 4"], env.settings, env.module.GENERIC_CONTEXT),
+	)
+	assert shape(result) == ["5", B40, "1", B40, "2", ("BreakCommand", 5), "3", B40, "4"]
+	assert result[1] is result[3] is result[7]
+	assert result[5] is marker
+
+
+def test_digit_mode_then_number_wait_pauses_between_digits(env):
+	env.settings.number_mode = "number"
+	env.settings.scaled_number_wait = lambda: 40
+	digits = env.module.inject_number_mode(["12"], env.settings, env.module.GENERIC_CONTEXT)
+	assert shape(env.module.number_wait_factor(digits, env.settings, env.module.GENERIC_CONTEXT)) == [
+		"1",
+		B40,
+		"2",
+	]
+
+
+def test_translated_digits_are_not_split(env):
+	env.settings.number_mode = "number"
+	env.settings.scaled_number_wait = lambda: 40
+	symbols = SimpleNamespace(symbols={"1": SimpleNamespace(language="zh", replacement="一")})
+	context = env.module.SpeechContext(
+		supports_roles=True,
+		language="zh",
+		number_language="zh",
+		speech_symbols=symbols,
+	)
+	digits = env.module.inject_number_mode(["11"], env.settings, context)
+	assert list(env.module.number_wait_factor(digits, env.settings, context)) == ["一 一"]
+
+
+def test_pair_mode_then_number_wait_breaks_between_numbers_only(env):
+	env.settings.number_mode = "pair"
+	env.settings.scaled_number_wait = lambda: 40
+	pairs = env.module.inject_number_mode(["1234 5678"], env.settings, env.module.GENERIC_CONTEXT)
+	assert shape(env.module.number_wait_factor(pairs, env.settings, env.module.GENERIC_CONTEXT)) == [
+		"12",
+		("PairNumberBreakCommand", 0),
+		"34",
+		B40,
+		"56",
+		("PairNumberBreakCommand", 0),
+		"78",
+	]
+
+
 TEXTS = ["12.5", "-1234", "123", "12", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
 SHARED = {"v1.2": ["v1.2"], "a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "1.2.3": ["1.2 . 3"], "": []}
 NUMBER_MODES = {

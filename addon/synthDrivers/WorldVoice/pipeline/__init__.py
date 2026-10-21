@@ -3,6 +3,7 @@ import uuid
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from functools import wraps
+from itertools import pairwise
 from typing import TYPE_CHECKING, Literal, Union
 
 import config
@@ -195,17 +196,64 @@ def _remove_space(
 			yield cmd
 
 
+def _split_spaced_numbers(text: str) -> Iterator[str]:
+	"""
+	Yield *text* with every number that only whitespace separates from a
+	neighbouring number as an item of its own, without that whitespace.
+
+	Everything else is kept verbatim, spaces included, and no empty piece is
+	yielded. A number glued to another number with no gap, as in
+	"2345-6789", is never split out, so a pause can only replace whitespace.
+	"""
+	matches = list(_NUMBER_RE.finditer(text))
+	gaps = [text[left.end() : right.start()] for left, right in pairwise(matches)]
+	glued = {index + side for index, gap in enumerate(gaps) if not gap for side in (0, 1)}
+	# joined[i] is True when matches i - 1 and i are split apart; the ends are never joined.
+	joined = [
+		False,
+		*(gap.isspace() and index not in glued and index + 1 not in glued for index, gap in enumerate(gaps)),
+		False,
+	]
+	position = 0
+	for index, match in enumerate(matches):
+		if not (joined[index] or joined[index + 1]):
+			continue
+		if not joined[index] and match.start() > position:
+			yield text[position : match.start()]
+		yield match.group()
+		position = match.end()
+	if position < len(text):
+		yield text[position:]
+
+
+def _split_numbers(speechSequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
+	for item in speechSequence:
+		if isinstance(item, str):
+			yield from _split_spaced_numbers(item)
+		else:
+			yield item
+
+
 # @with_order_log("number_wait_factor")
 def number_wait_factor(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
+	"""
+	Pause between numbers: between two items that are each a whole number, and
+	between numbers that only whitespace separates inside one item, which become
+	items of their own. Blank text items are dropped and the others stripped.
+	"""
 	wait_factor = settings.scaled_number_wait()
 	if wait_factor <= 0:
 		yield from speechSequence
 		return
-	yield from _insert_between(_remove_space(speechSequence), _both_numbers, BreakCommand(wait_factor))
+	yield from _insert_between(
+		_split_numbers(_remove_space(speechSequence)),
+		_both_numbers,
+		BreakCommand(wait_factor),
+	)
 
 
 def remove_language_command(speechSequence):
