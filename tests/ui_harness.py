@@ -564,16 +564,40 @@ def load_utils(monkeypatch):
 	return env
 
 
-def _pipeline_settings(monkeypatch, stubs, conf):
+def _pipeline_ui(monkeypatch, stubs, conf):
+	"""The real pipeline settings, layout rules and control builder; return (settings, controls).
+
+	The alias packages have no submodules of their own, so every module the panels import from
+	the synth package is loaded here, after the GUI stubs it needs.
+	"""
 	stubs.module("config", conf=conf)
 	alias_package(monkeypatch, "synthDrivers")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice.pipeline")
-	return load_source(
+	settings = load_source(
 		monkeypatch,
 		"synthDrivers.WorldVoice.pipeline.settings",
 		WORLDVOICE / "pipeline/settings.py",
 	)
+	load_source(
+		monkeypatch,
+		"synthDrivers.WorldVoice.pipeline.panelLayout",
+		WORLDVOICE / "pipeline/panelLayout.py",
+	)
+	controls = load_source(
+		monkeypatch,
+		"synthDrivers.WorldVoice.pipelineControls",
+		WORLDVOICE / "pipelineControls.py",
+	)
+	return settings, controls
+
+
+def load_pipeline_controls(monkeypatch, *, conf=None):
+	"""The real pipelineControls.py and the pipeline settings it builds controls for."""
+	env = gui_stubs(monkeypatch)
+	env.conf = conf if conf is not None else worldvoice_conf()
+	env.settings, env.controls = _pipeline_ui(monkeypatch, env.stubs, env.conf)
+	return env
 
 
 class PipelineLog:
@@ -618,7 +642,8 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 		queueFunction=lambda queue, function: env.queued.append((queue, function)),
 	)
 	stubs.module("synthDriverHandler", getSynth=lambda: env.current[0])
-	env.pipeline_settings = _pipeline_settings(monkeypatch, stubs, env.conf).pipeline_settings
+	env.settings, env.controls = _pipeline_ui(monkeypatch, stubs, env.conf)
+	env.pipeline_settings = env.settings.pipeline_settings
 	stubs.module("synthDrivers.WorldVoice.languageDetection", SCRIPT_LANGUAGES={})
 	stubs.module("synthDrivers.WorldVoice.languageDetection.settings", detection_settings=None)
 	env.engine_specs = tuple(
@@ -684,7 +709,8 @@ def load_voice_settings_dialogs(monkeypatch, *, conf=None):
 	"""The real synthDrivers/WorldVoice/VoiceSettingsDialogs.py with real pipeline settings."""
 	env = gui_stubs(monkeypatch)
 	env.conf = conf if conf is not None else worldvoice_conf()
-	env.pipeline_settings = _pipeline_settings(monkeypatch, env.stubs, env.conf).pipeline_settings
+	env.settings, env.controls = _pipeline_ui(monkeypatch, env.stubs, env.conf)
+	env.pipeline_settings = env.settings.pipeline_settings
 	env.stubs.module("autoSettingsUtils").__path__ = []
 	env.stubs.module(
 		"autoSettingsUtils.driverSetting",
