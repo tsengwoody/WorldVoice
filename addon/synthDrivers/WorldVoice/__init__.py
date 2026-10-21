@@ -476,6 +476,7 @@ class SynthDriver(SynthDriver):
 		return {
 			"value": StringParameterInfo("value", _("value")),
 			"number": StringParameterInfo("number", _("number")),
+			# Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
 			"group": StringParameterInfo("group", _("group")),
 		}
 

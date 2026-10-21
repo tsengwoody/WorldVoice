@@ -142,6 +142,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		number_mode_label = [
 			_("value"),
 			_("number"),
+			# Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
 			_("group"),
 		]
 		self.number_mode_value = ["value", "number", "group"]
@@ -160,6 +161,7 @@ class SpeechPipelinePanel(SettingsPanel):
 
 		group_size_spec = PIPELINE_SETTING_BY_KEY["group_size"]
 		self._group_size_spin = settingsSizerHelper.addLabeledControl(
+			# Translators: Label for a spin control that sets how many digits each group has in the group number mode.
 			_("Group size:"),
 			nvdaControls.SelectOnFocusSpinCtrl,
 			min=group_size_spec.min_value,
@@ -168,6 +170,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		)
 
 		self._group_wait_factor_slider = settingsSizerHelper.addLabeledControl(
+			# Translators: Label for a slider that sets the pause between digit groups.
 			_("group wait factor:"),
 			wx.Slider,
 			value=50,

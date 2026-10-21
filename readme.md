@@ -44,6 +44,7 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
 * Number mode:
   * Numeric mode: Reads numbers as values. For example, "12345" is read as "twelve thousand three hundred forty-five."
   * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five."
+  * Group mode: Reads the digits of a number in groups counted from the left. The group size (1–10, default 3) and the pause between groups are set in the Speech Pipeline panel or the Voice settings panel. For example, with size 3, "12345" is read as "123", "45".
 * Speech pause adjustment: Sets the pause length between numbers, items, Chinese text, and say-all reading. Smaller values mean shorter pauses, and 0 means no pause.
 * Ignore commas between numbers: Ignores commas between digits when reading numbers to improve number-reading accuracy for specific speech roles.
 

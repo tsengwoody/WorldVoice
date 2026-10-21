@@ -98,6 +98,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
 		groupSizeSpec = PIPELINE_SETTING_BY_KEY["group_size"]
 		self.groupSizeSpin = settingsSizerHelper.addLabeledControl(
+			# Translators: Label for a spin control that sets how many digits each group has in the group number mode.
 			_("Group size:"),
 			nvdaControls.SelectOnFocusSpinCtrl,
 			min=groupSizeSpec.min_value,

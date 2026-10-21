@@ -169,14 +169,26 @@ msgstr "數值"
 msgid "number"
 msgstr "數字"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:126
-#: addon\synthDrivers\WorldVoice\__init__.py:632
-msgid "pair"
-msgstr "兩位一組"
+#. Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:146
+#: addon\synthDrivers\WorldVoice\__init__.py:480
+msgid "group"
+msgstr "群組"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:131
 msgid "Number mode:"
 msgstr "數字模式："
+
+#. Translators: Label for a spin control that sets how many digits each group has in the group number mode.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:165
+#: addon\synthDrivers\WorldVoice\VoiceSettingsDialogs.py:102
+msgid "Group size:"
+msgstr "每組位數："
+
+#. Translators: Label for a slider that sets the pause between digit groups.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:174
+msgid "group wait factor:"
+msgstr "群組停頓參數："
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:141
 msgid "global wait factor:"
@@ -185,10 +197,6 @@ msgstr "全域停頓參數："
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:145
 msgid "number wait factor:"
 msgstr "數字停頓參數："
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:149
-msgid "pair wait factor:"
-msgstr "兩位一組停頓參數："
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:153
 msgid "item wait factor:"
@@ -606,10 +614,9 @@ msgid "Number wait factor"
 msgstr "數字停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:192
-#: addon\synthDrivers\WorldVoice\__init__.py:307
-msgid "Pair wait factor"
-msgstr "兩位一組停頓參數"
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:123
+msgid "Group wait factor"
+msgstr "群組停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
 #: addon\synthDrivers\WorldVoice\__init__.py:208
