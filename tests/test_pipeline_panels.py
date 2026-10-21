@@ -31,6 +31,21 @@ def test_log_labels_match_stages_and_confspec():
 	assert "stage.log_key: 'boolean(default=false)' for stage in STAGES" in source
 
 
+def test_log_labels_follow_the_table_labels(monkeypatch):
+	# Decided by the user (2026-10-21): the log switches use the settings' sentence-case labels.
+	env = load_settings_dialog(monkeypatch)
+	labels = env.module._LOG_LABELS
+	table = {spec.key: spec for spec in env.module.PIPELINE_SETTINGS}
+	for key, label in labels.items():
+		first, *rest = label.split()
+		assert first[0].isupper() and not any(word[0].isupper() for word in rest if word != "Chinese"), label
+		if key in table:
+			spec = table[key]
+			assert label in {spec.display_name, spec.label.replace("&", "")}, (key, label)
+	assert labels["apply_speech_dictionaries"] == "Apply speech dictionaries"
+	assert labels["speech_viewer"] == "Speech viewer"
+
+
 def test_pipeline_panel_saves_once_through_the_service(monkeypatch):
 	updates = []
 	module = load_settings_dialog(monkeypatch).module

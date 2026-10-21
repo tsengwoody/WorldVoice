@@ -114,7 +114,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		control="choice",
 		choices=SCOPE_CHOICES,
 		panels=("pipeline",),
-		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		# Translators: Label for a pipeline setting in the Speech Pipeline panel.
 		label=_("Effect scope"),
 	),
 	PipelineSettingSpec(
@@ -145,7 +145,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		str,
 		"default",
 		driver_id="numlan",
-		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		# Translators: Label for a pipeline setting in the voice settings panel.
 		label=_("Number &language"),
 		# Translators: Label for a setting in synth settings ring.
 		display_name=_("Number language"),

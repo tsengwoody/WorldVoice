@@ -148,17 +148,6 @@ msgstr "所有合成器(全域)"
 msgid "Only WorldVoice Synthesizer"
 msgstr "僅 WorldVoice 合成器"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:105
-msgid "Effect Scope:"
-msgstr "作用範圍："
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:117
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:863
-#: addon\synthDrivers\WorldVoice\__init__.py:152
-#: addon\synthDrivers\WorldVoice\__init__.py:267
-msgid "Ignore comma between number"
-msgstr "忽略在數字間的逗號"
-
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:124
 #: addon\synthDrivers\WorldVoice\__init__.py:630
 msgid "value"
@@ -175,41 +164,6 @@ msgstr "數字"
 msgid "group"
 msgstr "群組"
 
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:131
-msgid "Number mode:"
-msgstr "數字模式："
-
-#. Translators: Label for a spin control that sets how many digits each group has in the group number mode.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:165
-#: addon\synthDrivers\WorldVoice\VoiceSettingsDialogs.py:102
-msgid "Group size:"
-msgstr "每組位數："
-
-#. Translators: Label for a slider that sets the pause between digit groups.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:174
-msgid "group wait factor:"
-msgstr "群組停頓參數："
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:141
-msgid "global wait factor:"
-msgstr "全域停頓參數："
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:145
-msgid "number wait factor:"
-msgstr "數字停頓參數："
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:153
-msgid "item wait factor:"
-msgstr "項目停頓參數："
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:157
-msgid "sayall wait factor:"
-msgstr "讀出全部停頓參數："
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:161
-msgid "chinese space wait factor:"
-msgstr "中文空白停頓參數："
-
 #. Translators: Label for a setting in voice settings dialog.
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:167
 #: addon\synthDrivers\WorldVoice\__init__.py:224
@@ -222,15 +176,6 @@ msgstr "啟用標點停頓控制"
 #: addon\synthDrivers\WorldVoice\__init__.py:347
 msgid "Remove configured punctuation at pause points"
 msgstr "移除停頓位置的指定標點符號"
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:181
-msgid "punctuation wait factor:"
-msgstr "標點停頓參數："
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:185
-#: addon\synthDrivers\WorldVoice\VoiceSettingsDialogs.py:55
-msgid "Punctuation pause characters:"
-msgstr "標點停頓字元："
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:303
 msgid "Speech Role"
@@ -377,29 +322,6 @@ msgstr "數字模式"
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:865
 msgid "Number language"
 msgstr "數字語言"
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:866
-msgid "number wait factor"
-msgstr "數字停頓參數"
-
-#. Translators: Label for a setting in voice settings dialog.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:867
-#: addon\synthDrivers\WorldVoice\__init__.py:200
-#: addon\synthDrivers\WorldVoice\__init__.py:315
-msgid "item wait factor"
-msgstr "項目停頓參數"
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:868
-msgid "chinese space wait factor"
-msgstr "中文空白停頓參數"
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:869
-msgid "speech viewer"
-msgstr "語音檢視器"
-
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:870
-msgid "apply_speech_dictionaries"
-msgstr "套用語音字典"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:876
 msgid "Enable logging of WorldVoice’s speech pipeline"
@@ -578,30 +500,6 @@ msgid "Detect language based on Unicode characters"
 msgstr "根據 Unicode 字元偵測語言"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:158
-#: addon\synthDrivers\WorldVoice\__init__.py:273
-msgid "Number &Language"
-msgstr "數字語言(&L)"
-
-#. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:162
-#: addon\synthDrivers\WorldVoice\__init__.py:277
-msgid "Number Language"
-msgstr "數字語言"
-
-#. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\__init__.py:167
-#: addon\synthDrivers\WorldVoice\__init__.py:282
-msgid "Number &Mode"
-msgstr "數字模式(&M)"
-
-#. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoice\__init__.py:171
-#: addon\synthDrivers\WorldVoice\__init__.py:286
-msgid "Number Mode"
-msgstr "數字模式"
-
-#. Translators: Label for a setting in voice settings dialog.
 #: addon\synthDrivers\WorldVoice\__init__.py:176
 #: addon\synthDrivers\WorldVoice\__init__.py:291
 msgid "Global wait factor"
@@ -667,6 +565,42 @@ msgstr ""
 #: buildVars.py:29
 msgid "Improved language detection, speech segmentation, and number parsing."
 msgstr "改善語言偵測、語音分段與數字解析。"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+msgid "Number &mode"
+msgstr "數字模式(&M)"
+
+#. Translators: Label for a pipeline setting in the voice settings panel.
+msgid "Number &language"
+msgstr "數字語言(&L)"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+msgid "Item wait factor"
+msgstr "項目停頓參數"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+msgid "Ignore commas between numbers"
+msgstr "忽略在數字間的逗號"
+
+#. Translators: Label for a pipeline setting in the Speech Pipeline panel.
+msgid "Effect scope"
+msgstr "作用範圍"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+msgid "Group size"
+msgstr "每組位數"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+msgid "Punctuation pause characters"
+msgstr "標點停頓字元"
+
+#. Translators: Label for the pipeline log switch of a speech pipeline stage.
+msgid "Apply speech dictionaries"
+msgstr "套用語音字典"
+
+#. Translators: Label for the pipeline log switch of a speech pipeline stage.
+msgid "Speech viewer"
+msgstr "語音檢視器"
 
 #~ msgid "Ignore common punctuation when detecting text language"
 #~ msgstr "偵測語言時忽略常見標點符號"

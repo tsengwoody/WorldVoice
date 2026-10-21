@@ -35,17 +35,27 @@ from .utils import guard_errors
 
 addonHandler.initTranslation()
 
-# Labels for the per-stage log switches; the switches themselves come from STAGES.
+# Labels for the per-stage log switches; the switches themselves come from STAGES. A stage named
+# after a setting uses that setting's label.
 _LOG_LABELS = {
-	"apply_speech_dictionaries": _("apply_speech_dictionaries"),
-	"ignore_comma_between_number": _("Ignore comma between number"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
+	"apply_speech_dictionaries": _("Apply speech dictionaries"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
+	"ignore_comma_between_number": _("Ignore commas between numbers"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
 	"number_language": _("Number language"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
 	"number_mode": _("Number mode"),
-	"chinesespace_wait_factor": _("chinese space wait factor"),
-	"item_wait_factor": _("item wait factor"),
-	"punctuation_wait_factor": _("punctuation wait factor"),
-	"number_wait_factor": _("number wait factor"),
-	"speech_viewer": _("speech viewer"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
+	"chinesespace_wait_factor": _("Chinese space wait factor"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
+	"item_wait_factor": _("Item wait factor"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
+	"punctuation_wait_factor": _("Punctuation wait factor"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
+	"number_wait_factor": _("Number wait factor"),
+	# Translators: Label for the pipeline log switch of a speech pipeline stage.
+	"speech_viewer": _("Speech viewer"),
 }
 
 
