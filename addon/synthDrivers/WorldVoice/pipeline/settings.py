@@ -159,7 +159,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		label=_("Punctuation wait factor"),
 	),
 	PipelineSettingSpec("scope", str, "WorldVoice"),
-	PipelineSettingSpec("punctuation_pause_characters", str, "،؛,.;:!؟?…", normalize=_strip),
+	PipelineSettingSpec("punctuation_pause_characters", str, "", normalize=_strip),
 )
 
 PIPELINE_SETTING_BY_KEY = {spec.key: spec for spec in PIPELINE_SETTINGS}

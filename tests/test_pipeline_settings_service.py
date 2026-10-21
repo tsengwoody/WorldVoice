@@ -17,7 +17,7 @@ OLD_DEFAULTS = {
 	"punctuation_wait_factor": 0,
 	"punctuation_pause_enabled": True,
 	"remove_punctuation_characters": False,
-	"punctuation_pause_characters": "،؛,.;:!؟?…",
+	"punctuation_pause_characters": "",
 	"pair_wait_factor": 0,
 }
 
@@ -31,7 +31,7 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert module.PIPELINE_CONFSPEC["global_wait_factor"] == "integer(default=10,min=0,max=100)"
 	assert module.PIPELINE_CONFSPEC["punctuation_pause_enabled"] == "boolean(default=true)"
 	assert module.PIPELINE_CONFSPEC["scope"] == 'string(default="WorldVoice")'
-	assert module.PIPELINE_CONFSPEC["punctuation_pause_characters"] == 'string(default="،؛,.;:!؟?…")'
+	assert module.PIPELINE_CONFSPEC["punctuation_pause_characters"] == 'string(default="")'
 	driver_ids = [spec.driver_id for spec in module.PIPELINE_SETTINGS if spec.driver_id]
 	assert driver_ids == [
 		"cni",
