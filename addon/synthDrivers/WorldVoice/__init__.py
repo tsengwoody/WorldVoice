@@ -108,7 +108,14 @@ class SynthDriver(SynthDriver):
 		if spec.kind is bool:
 			return BooleanDriverSetting(spec.driver_id, spec.label, **options)
 		if spec.kind is int:
-			return NumericDriverSetting(spec.driver_id, spec.label, minStep=spec.min_step, **options)
+			return NumericDriverSetting(
+				spec.driver_id,
+				spec.label,
+				minVal=spec.min_value,
+				maxVal=spec.max_value,
+				minStep=spec.min_step,
+				**options,
+			)
 		return DriverSetting(spec.driver_id, spec.label, **options)
 
 	def _driver_settings(self, capabilities):

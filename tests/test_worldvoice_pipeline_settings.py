@@ -63,6 +63,18 @@ def test_settings_lists_keep_their_order_and_store_pipeline_values_outside_speec
 	assert (wait.kind, wait.options["minStep"], wait.options["defaultVal"]) == ("int", 10, 10)
 
 
+def test_numeric_settings_carry_the_spec_bounds(monkeypatch):
+	conf = {"WorldVoice": {"pipeline": {}}}
+	synth_class, settings_module = load_synth(monkeypatch, conf)
+	synth = object.__new__(synth_class)
+	synth._voiceManager = manager()
+	numeric = [s for s in synth.allSupportedSettings if s.kind == "int"]
+	assert numeric
+	for setting in numeric:
+		spec = next(spec for spec in settings_module.PIPELINE_SETTINGS if spec.driver_id == setting.id)
+		assert (setting.options["minVal"], setting.options["maxVal"]) == (spec.min_value, spec.max_value)
+
+
 def test_descriptors_read_and_write_through_the_service(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}}
 	synth_class, _ = load_synth(monkeypatch, conf)
