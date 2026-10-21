@@ -83,49 +83,55 @@ def test_pipeline_panel_selects_the_first_choice_for_an_unknown_stored_value(mon
 	assert panel._number_mode_choice.selection == 0
 
 
-@pytest.mark.parametrize(
-	"pause,remove,slider_enabled,characters_enabled",
-	[
-		(True, False, True, True),
-		(False, True, False, True),
-		(False, False, False, False),
-	],
-)
-def test_pipeline_panel_enables_pause_controls_from_the_stored_switches(
-	monkeypatch,
-	pause,
-	remove,
-	slider_enabled,
-	characters_enabled,
-):
+def pause_controls_enabled(panel):
+	return (
+		panel._remove_punctuation_characters_checkbox.enabled,
+		panel._punctuation_wait_factor_slider.enabled,
+		panel._punctuation_pause_characters_edit.enabled,
+	)
+
+
+@pytest.mark.parametrize("remove", [False, True])
+@pytest.mark.parametrize("pause", [False, True])
+def test_pipeline_panel_enables_pause_controls_from_the_stored_switch(monkeypatch, pause, remove):
 	env = pipeline_env(monkeypatch, punctuation_pause_enabled=pause, remove_punctuation_characters=remove)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
-	assert panel._punctuation_wait_factor_slider.enabled is slider_enabled
-	assert panel._punctuation_pause_characters_edit.enabled is characters_enabled
+	assert pause_controls_enabled(panel) == (pause, pause, pause)
 
 
-def test_pipeline_panel_switches_follow_the_checkboxes(monkeypatch):
+def test_pipeline_panel_pause_controls_follow_the_switch_only(monkeypatch):
 	env = pipeline_env(monkeypatch, punctuation_pause_enabled=False, remove_punctuation_characters=False)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	pause = panel._punctuation_pause_enabled_checkbox
 	remove = panel._remove_punctuation_characters_checkbox
-	slider, characters = panel._punctuation_wait_factor_slider, panel._punctuation_pause_characters_edit
-
-	remove.SetValue(True)
-	fire(remove, "EVT_CHECKBOX", panel=panel)
-	assert (slider.enabled, characters.enabled) == (False, True)
 
 	pause.SetValue(True)
 	fire(pause, "EVT_CHECKBOX", panel=panel)
-	assert (slider.enabled, characters.enabled) == (True, True)
+	assert pause_controls_enabled(panel) == (True, True, True)
 
-	remove.SetValue(False)
-	fire(remove, "EVT_CHECKBOX", panel=panel)
-	assert characters.enabled is True  # pauses still use the characters
+	# Removal decides nothing about the other controls, so nothing listens to it.
+	remove.SetValue(True)
+	with pytest.raises(LookupError, match="nothing handles"):
+		fire(remove, "EVT_CHECKBOX", panel=panel)
+	assert pause_controls_enabled(panel) == (True, True, True)
 
 	pause.SetValue(False)
 	fire(pause, "EVT_CHECKBOX", panel=panel)
-	assert (slider.enabled, characters.enabled) == (False, False)
+	assert pause_controls_enabled(panel) == (False, False, False)
+
+
+def test_pipeline_panel_saves_the_disabled_pause_controls(monkeypatch):
+	env = pipeline_env(monkeypatch, punctuation_pause_enabled=False)
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	panel._remove_punctuation_characters_checkbox.SetValue(True)
+	panel._punctuation_wait_factor_slider.SetValue(30)
+	panel._punctuation_pause_characters_edit.SetValue("。")
+
+	panel.onSave()
+
+	stored = env.conf["WorldVoice"]["pipeline"]
+	assert (stored["remove_punctuation_characters"], stored["punctuation_wait_factor"]) == (True, 30)
+	assert stored["punctuation_pause_characters"] == "。"
 
 
 def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):

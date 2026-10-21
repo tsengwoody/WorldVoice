@@ -234,11 +234,6 @@ class SpeechPipelinePanel(SettingsPanel):
 			label=_("Remove configured punctuation at pause points"),
 		)
 		settingsSizerHelper.addItem(self._remove_punctuation_characters_checkbox)
-		self.Bind(
-			wx.EVT_CHECKBOX,
-			self.onRemovePunctuationCharactersChange,
-			self._remove_punctuation_characters_checkbox,
-		)
 		self._remove_punctuation_characters_checkbox.SetValue(settings.remove_punctuation_characters)
 
 		self._punctuation_wait_factor_slider = settingsSizerHelper.addLabeledControl(
@@ -259,17 +254,11 @@ class SpeechPipelinePanel(SettingsPanel):
 		self.onPunctuationPauseEnabledChange(None)
 
 	def onPunctuationPauseEnabledChange(self, event):
+		# Disabled controls keep their values, and onSave still stores them.
 		enabled = self._punctuation_pause_enabled_checkbox.GetValue()
+		self._remove_punctuation_characters_checkbox.Enable(enabled)
 		self._punctuation_wait_factor_slider.Enable(enabled)
-		self._punctuation_pause_characters_edit.Enable(
-			enabled or self._remove_punctuation_characters_checkbox.GetValue(),
-		)
-
-	def onRemovePunctuationCharactersChange(self, event):
-		self._punctuation_pause_characters_edit.Enable(
-			self._punctuation_pause_enabled_checkbox.GetValue()
-			or self._remove_punctuation_characters_checkbox.GetValue(),
-		)
+		self._punctuation_pause_characters_edit.Enable(enabled)
 
 	def onSave(self):
 		pipeline_settings.update(
