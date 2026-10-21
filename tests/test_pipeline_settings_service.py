@@ -261,6 +261,7 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		({"punctuation_wait_factor": 100}, "scaled_punctuation_wait", 500),
 		({"punctuation_wait_factor": 101}, "scaled_punctuation_wait", 500),
 		({"group_wait_factor": 20}, "scaled_group_wait", 100),
+		({"global_wait_factor": 0, "group_wait_factor": 20}, "scaled_group_wait", 100),
 		({"group_wait_factor": 200}, "scaled_group_wait", 500),
 	],
 )
