@@ -154,7 +154,7 @@ def test_pipeline_panel_group_controls_follow_the_mode_choice(monkeypatch):
 
 
 def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
-	# number_mode_value[-1] is "group": a choice with no selection must not enable the group controls.
+	# Index -1 would be the last choice, group: a choice with no selection must not enable the group controls.
 	env = pipeline_env(monkeypatch, number_mode="group")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._number_mode_choice.Select(-1)
@@ -164,8 +164,8 @@ def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
 
 @pytest.mark.parametrize("stored", ["value", "number", "group"])
 def test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected(monkeypatch, stored):
-	# A choice with no selection names no mode: neither number_mode_value[-1] ("group") nor
-	# "value" is saved, and the other settings still are.
+	# A choice with no selection names no mode: neither the last choice, group, nor "value" is
+	# saved, and the other settings still are.
 	env = pipeline_env(monkeypatch, number_mode=stored)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._number_mode_choice.Select(-1)
@@ -213,8 +213,9 @@ def test_pipeline_panel_binds_only_the_controllers(monkeypatch):
 	]
 
 
-def test_pipeline_panel_shows_an_off_grid_global_wait_on_the_grid(monkeypatch):
-	# A hand-edited nvda.ini value reads floored to tens, shows in units and saves on the grid.
+def test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid(monkeypatch):
+	# A hand-edited nvda.ini value reads floored to tens and shows in units. Saving the panel
+	# untouched changes no value, so the raw stored value is left as is.
 	env = pipeline_env(monkeypatch, global_wait_factor=57)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._global_wait_factor_slider.value == 5
@@ -222,6 +223,7 @@ def test_pipeline_panel_shows_an_off_grid_global_wait_on_the_grid(monkeypatch):
 	panel.onSave()
 
 	assert env.pipeline_settings.get().global_wait_factor == 50
+	assert env.conf["WorldVoice"]["pipeline"]["global_wait_factor"] == 57
 
 
 @pytest.mark.parametrize(("typed", "saved"), [(0, 1), (42, 10)])
