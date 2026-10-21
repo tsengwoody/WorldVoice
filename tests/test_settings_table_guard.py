@@ -10,8 +10,10 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import WORLDVOICE, load_definitions
+from addon_loader import WORLDVOICE, load_definitions, load_source
 from pipeline_harness import load_settings_module
+
+layout = load_source(None, "guard_panel_layout", WORLDVOICE / "pipeline/panelLayout.py", register=False)
 
 CONTROLS = {"checkbox", "slider", "choice", "spin", "text"}
 # The controls a setting of each kind may use; NVDA makes driver controls from the kind.
@@ -164,6 +166,17 @@ def check_ordering_only(specs):
 	return problems
 
 
+def check_attribute_names(specs):
+	# The Voice panel names its own controls <camelKey><Suffix>; NVDA names driver controls
+	# <driver_id>Checkbox|Slider|List on the same panel, so the two must never meet.
+	driver_names = {layout.driver_attribute(spec) for spec in specs if spec.driver_id is not None}
+	return [
+		f"{spec.key}: {layout.voice_attribute(spec)} is also an NVDA driver control"
+		for spec in specs
+		if spec.driver_id is None and "voice" in spec.panels and layout.voice_attribute(spec) in driver_names
+	]
+
+
 CHECKS = [
 	check_unique,
 	check_control_known,
@@ -176,6 +189,7 @@ CHECKS = [
 	check_voice_anchor,
 	check_sentence_case,
 	check_ordering_only,
+	check_attribute_names,
 ]
 
 
@@ -268,6 +282,13 @@ BROKEN = {
 	"ordering-only controller": (
 		check_ordering_only,
 		lambda m: _with(m, "group_size", depends_on=("number_language", "default")),
+	),
+	"voice attribute equals a driver control": (
+		check_attribute_names,
+		lambda m: (
+			*_with(m, "number_wait_factor", driver_id="x"),
+			m.PipelineSettingSpec("x", int, 0, label="X", control="slider"),
+		),
 	),
 }
 
