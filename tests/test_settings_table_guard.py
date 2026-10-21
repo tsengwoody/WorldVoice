@@ -64,6 +64,9 @@ def check_labels_and_panels(specs):
 	for spec in specs:
 		if not isinstance(spec.label, str) or not spec.label:
 			problems.append(f"{spec.key}: no label")
+		elif spec.label.endswith(":"):
+			# Both panels add the colon, so the label would show "::".
+			problems.append(f"{spec.key}: the label ends with a colon")
 		if not spec.panels or not set(spec.panels) <= PANELS:
 			problems.append(f"{spec.key}: panels {spec.panels!r}")
 		if spec.driver_id is not None and "voice" not in spec.panels:
@@ -132,6 +135,29 @@ def check_scale(specs):
 			problems.append(f"{spec.key}: a scaled slider in the Voice panel must be NVDA's driver control")
 		elif scale != 1 and any(value % scale for value in (spec.min_value, spec.max_value, spec.default)):
 			problems.append(f"{spec.key}: bounds and default are not multiples of {scale}")
+		if (
+			spec.control == "slider"
+			and spec.driver_id is not None
+			and "pipeline" in spec.panels
+			and spec.min_step != scale
+		):
+			# NVDA's Voice panel slider steps by min_step, the Speech Pipeline panel's by panel_scale.
+			problems.append(f"{spec.key}: min_step {spec.min_step!r} is not the panel_scale {scale!r}")
+	return problems
+
+
+def check_bounds(specs):
+	# confspec writes integer(default, min, max): configobj refuses a default outside the range.
+	problems = []
+	for spec in specs:
+		if spec.kind is not int:
+			continue
+		if spec.min_value >= spec.max_value:
+			problems.append(f"{spec.key}: min_value {spec.min_value} is not below max_value {spec.max_value}")
+		elif not spec.min_value <= spec.default <= spec.max_value:
+			problems.append(
+				f"{spec.key}: the default {spec.default} is outside {spec.min_value}..{spec.max_value}",
+			)
 	return problems
 
 
@@ -177,12 +203,24 @@ def check_ordering_only(specs):
 def check_attribute_names(specs):
 	# The Voice panel names its own controls <camelKey><Suffix>; NVDA names driver controls
 	# <driver_id>Checkbox|Slider|List on the same panel, so the two must never meet.
-	driver_names = {layout.driver_attribute(spec) for spec in specs if spec.driver_id is not None}
-	return [
-		f"{spec.key}: {layout.voice_attribute(spec)} is also an NVDA driver control"
-		for spec in specs
-		if spec.driver_id is None and "voice" in spec.panels and layout.voice_attribute(spec) in driver_names
-	]
+	# A control with no attribute name is reported here too (check_control_known and
+	# check_placement say why), rather than raising KeyError from the naming helpers.
+	problems = []
+	driver_names = set()
+	for spec in specs:
+		if spec.driver_id is not None:
+			if spec.control in DRIVER_CONTROLS:
+				driver_names.add(layout.driver_attribute(spec))
+			else:
+				problems.append(f"{spec.key}: NVDA names no {spec.control!r} driver control")
+	for spec in specs:
+		if spec.driver_id is not None or "voice" not in spec.panels:
+			continue
+		if spec.control not in CONTROLS:
+			problems.append(f"{spec.key}: a {spec.control!r} has no Voice panel attribute")
+		elif layout.voice_attribute(spec) in driver_names:
+			problems.append(f"{spec.key}: {layout.voice_attribute(spec)} is also an NVDA driver control")
+	return problems
 
 
 CHECKS = [
@@ -194,6 +232,7 @@ CHECKS = [
 	check_choices,
 	check_dependencies,
 	check_scale,
+	check_bounds,
 	check_voice_anchor,
 	check_sentence_case,
 	check_ordering_only,
@@ -234,6 +273,10 @@ BROKEN = {
 	"driver spin": (check_placement, lambda m: _with(m, "number_wait_factor", control="spin")),
 	"unstored voice control": (check_placement, lambda m: _with(m, "group_size", pipeline_config=False)),
 	"empty label": (check_labels_and_panels, lambda m: _with(m, "group_size", label="")),
+	"label ends with a colon": (
+		check_labels_and_panels,
+		lambda m: _with(m, "group_size", label="Group size:"),
+	),
 	"unknown panel": (check_labels_and_panels, lambda m: _with(m, "group_size", panels=("other",))),
 	"driver outside the Voice panel": (
 		check_labels_and_panels,
@@ -281,6 +324,12 @@ BROKEN = {
 	"zero scale": (check_scale, lambda m: _with(m, "global_wait_factor", panel_scale=0)),
 	"scaled checkbox": (check_scale, lambda m: _with(m, "ignore_comma_between_number", panel_scale=10)),
 	"bound off the scale": (check_scale, lambda m: _with(m, "global_wait_factor", max_value=95)),
+	"scaled slider steps by one": (check_scale, lambda m: _with(m, "global_wait_factor", min_step=1)),
+	"unscaled slider steps by ten": (check_scale, lambda m: _with(m, "number_wait_factor", min_step=10)),
+	"default above the bounds": (check_bounds, lambda m: _with(m, "group_size", default=500)),
+	"default below the bounds": (check_bounds, lambda m: _with(m, "group_size", default=0)),
+	"max below min": (check_bounds, lambda m: _with(m, "number_wait_factor", min_value=50, max_value=10)),
+	"empty range": (check_bounds, lambda m: _with(m, "group_size", min_value=3, max_value=3, default=3)),
 	"first voice entry without a row": (check_voice_anchor, lambda m: _first(m, "group_size")),
 	"capital inside a label": (check_sentence_case, lambda m: _with(m, "number_mode", label="Number &Mode")),
 	"lower-case ring name": (
@@ -306,6 +355,11 @@ BROKEN = {
 			m.PipelineSettingSpec("x", int, 0, label="X", control="slider"),
 		),
 	),
+	"driver control NVDA does not name": (
+		check_attribute_names,
+		lambda m: _with(m, "number_wait_factor", control="spin"),
+	),
+	"Voice panel control of no kind": (check_attribute_names, lambda m: _with(m, "group_size", control=None)),
 }
 
 
