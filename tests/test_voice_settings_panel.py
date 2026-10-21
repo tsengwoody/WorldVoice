@@ -25,6 +25,8 @@ SETTINGS = (
 	BooleanDriverSetting("rateBoost"),
 	NumericDriverSetting("inflection"),
 	BooleanDriverSetting("_private"),
+	DriverSetting("nummod"),
+	NumericDriverSetting("groupwaitfactor"),
 	BooleanDriverSetting("punctuationpauseenabled"),
 	BooleanDriverSetting("removepunctuationcharacters"),
 	NumericDriverSetting("punctuationwaitfactor"),
@@ -40,6 +42,9 @@ class Driver:
 		self.supported = set(supported)
 		self.availableVoices = {"eva": SimpleNamespace(id="eva", displayName="Eva")}
 		self.availableVariants = {"v1": SimpleNamespace(id="v1", displayName="Variant 1")}
+		self.availableNummods = {
+			mode: SimpleNamespace(id=mode, displayName=mode) for mode in ("value", "number", "group")
+		}
 		defaults = {
 			"voice": "eva",
 			"variant": "v1",
@@ -47,6 +52,8 @@ class Driver:
 			"rateBoost": False,
 			"inflection": 40,
 			"_private": False,
+			"nummod": "value",
+			"groupwaitfactor": 0,
 			"punctuationpauseenabled": True,
 			"removepunctuationcharacters": False,
 			"punctuationwaitfactor": 20,
@@ -68,6 +75,8 @@ ALL = {
 	"rate",
 	"rateBoost",
 	"inflection",
+	"nummod",
+	"groupwaitfactor",
 	"punctuationpauseenabled",
 	"removepunctuationcharacters",
 	"punctuationwaitfactor",
@@ -109,6 +118,8 @@ def test_every_setting_gets_a_control_in_standard_order_and_unsupported_ones_are
 		"rate",
 		"rateBoost",
 		"inflection",
+		"nummod",
+		"groupwaitfactor",
 		"punctuationpauseenabled",
 		"removepunctuationcharacters",
 		"punctuationwaitfactor",
@@ -117,6 +128,8 @@ def test_every_setting_gets_a_control_in_standard_order_and_unsupported_ones_are
 		"voice",
 		"variant",
 		"rate",
+		"nummod",
+		"groupwaitfactor",
 		"punctuationpauseenabled",
 		"removepunctuationcharacters",
 		"punctuationwaitfactor",
@@ -193,6 +206,17 @@ def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
 	# NVDA's own controls stay after the driver controls.
 	assert names[-1] == "Automatic language switching (when supported)"
 	assert edit.tab_after is panel.punctuationwaitfactorSlider
+	assert names.index("Group size:") == names.index("nummod") + 1
+
+
+def test_group_size_follows_the_number_mode_list(monkeypatch):
+	panel = open_panel(monkeypatch, Driver(ALL), group_size=5).panel
+
+	spin = panel.groupSizeSpin
+	names = order(panel)
+	assert names.index("Group size:") == names.index("nummod") + 1
+	assert spin.tab_after is panel.nummodList
+	assert (spin.label, spin.GetValue(), spin.GetMin(), spin.GetMax()) == ("Group size:", 5, 1, 10)
 
 
 def pause_controls_enabled(panel):
@@ -251,7 +275,7 @@ def test_a_voice_switch_after_a_settings_ring_toggle_matches_the_controls_to_the
 	assert pause_controls_enabled(panel) == (enabled, enabled, enabled)
 
 
-def test_a_synth_without_pause_settings_gets_the_characters_edit_at_the_end(monkeypatch):
+def test_a_synth_without_pipeline_settings_gets_the_group_size_and_characters_at_the_end(monkeypatch):
 	settings = (DriverSetting("voice"), NumericDriverSetting("rate"))
 	driver = Driver({"voice", "rate"}, name="espeak", settings=settings)
 	env = open_panel(monkeypatch, driver)
@@ -263,10 +287,13 @@ def test_a_synth_without_pause_settings_gets_the_characters_edit_at_the_end(monk
 		"voice",
 		"rate",
 		"Automatic language switching (when supported)",
+		"Group size:",
 		"Punctuation pause characters:",
 	]
 	assert panel.punctuationPauseCharactersEdit.tab_after is None
 	assert panel.punctuationPauseCharactersEdit.enabled is True
+	assert panel.groupSizeSpin.tab_after is None
+	assert panel.groupSizeSpin.enabled is True
 
 
 def test_saving_writes_the_characters_and_keeps_them_after_a_later_cancel(monkeypatch):
@@ -279,6 +306,27 @@ def test_saving_writes_the_characters_and_keeps_them_after_a_later_cancel(monkey
 
 	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == ",;"
 	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]
+
+
+def test_saving_writes_the_group_size_and_keeps_it_after_a_later_cancel(monkeypatch):
+	env = open_panel(monkeypatch, Driver(ALL), group_size=3)
+	panel = env.panel
+	panel.groupSizeSpin.SetValue(7)
+
+	panel.onSave()
+	panel.onDiscard()
+
+	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 7
+
+
+def test_cancel_without_save_keeps_the_stored_group_size(monkeypatch):
+	env = open_panel(monkeypatch, Driver(ALL), group_size=4)
+	panel = env.panel
+	panel.groupSizeSpin.SetValue(9)
+
+	panel.onDiscard()
+
+	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 4
 
 
 def test_another_synth_saves_the_characters_and_cancel_leaves_pipeline_settings_alone(monkeypatch):

@@ -2,11 +2,11 @@ import addonHandler
 import gui
 import wx
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
-from gui import guiHelper
+from gui import guiHelper, nvdaControls
 from gui.settingsDialogs import VoiceSettingsPanel
 from logHandler import log
 
-from .pipeline.settings import PIPELINE_CONFIG_KEYS, pipeline_settings
+from .pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTING_BY_KEY, pipeline_settings
 
 addonHandler.initTranslation()
 
@@ -16,6 +16,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self._pipelineSnapshot = pipeline_settings.get() if self._isWorldVoice() else None
 		self.createDriverSettings()
 		super().makeSettings(settingsSizer)
+		self._addGroupSizeControl(settingsSizer)
 		self._addPunctuationPauseCharactersControl(settingsSizer)
 		self._bindPunctuationPauseEnabledToggle()
 
@@ -48,6 +49,44 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			control = getattr(self, name, None)
 			if control is not None:
 				control.Enable(enabled)
+
+	def _addGroupSizeControl(self, settingsSizer):
+		"""
+		Add the group size spin control right after the Number Mode list, in layout and tab order.
+		It is not a driver setting, so it is written on Save, like the punctuation characters.
+		"""
+		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
+		groupSizeSpec = PIPELINE_SETTING_BY_KEY["group_size"]
+		self.groupSizeSpin = settingsSizerHelper.addLabeledControl(
+			_("Group size:"),
+			nvdaControls.SelectOnFocusSpinCtrl,
+			min=groupSizeSpec.min_value,
+			max=groupSizeSpec.max_value,
+			initial=pipeline_settings.get().group_size,
+		)
+		spinSizer = self.groupSizeSpin.GetContainingSizer()
+		numberModeSizer = self.sizerDict.get("nummod")
+		if spinSizer is None or numberModeSizer is None:
+			return
+		numberModeIndex = next(
+			(
+				index
+				for index, item in enumerate(settingsSizer.GetChildren())
+				if item.GetSizer() is numberModeSizer
+			),
+			None,
+		)
+		if numberModeIndex is not None:
+			spinItem = settingsSizer.GetItem(spinSizer)
+			settingsSizer.Detach(spinSizer)
+			settingsSizer.Insert(
+				numberModeIndex + 1,
+				spinSizer,
+				spinItem.GetProportion(),
+				spinItem.GetFlag(),
+				spinItem.GetBorder(),
+			)
+		self.groupSizeSpin.MoveAfterInTabOrder(self.nummodList)
 
 	def _addPunctuationPauseCharactersControl(self, settingsSizer):
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
@@ -82,7 +121,10 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self.punctuationPauseCharactersEdit.SetValue(pipeline_settings.get().punctuation_pause_characters)
 
 	def onSave(self):
-		pipeline_settings.update(punctuation_pause_characters=self.punctuationPauseCharactersEdit.GetValue())
+		pipeline_settings.update(
+			punctuation_pause_characters=self.punctuationPauseCharactersEdit.GetValue(),
+			group_size=self.groupSizeSpin.GetValue(),
+		)
 		super().onSave()
 		if self._isWorldVoice():
 			# After Apply, a later Cancel keeps what was applied, like NVDA's own settings.

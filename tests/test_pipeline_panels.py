@@ -115,7 +115,7 @@ def test_voice_panel_discard_restores_live_pipeline_changes():
 
 
 def test_voice_panel_discard_after_apply_keeps_applied_pipeline_values():
-	state = {"item_wait_factor": 10, "punctuation_pause_characters": "."}
+	state = {"item_wait_factor": 10, "punctuation_pause_characters": ".", "group_size": 3}
 
 	def update(**changes):
 		state.update(changes)
@@ -136,13 +136,14 @@ def test_voice_panel_discard_after_apply_keeps_applied_pipeline_values():
 				get=lambda: types.SimpleNamespace(**state),
 				update=update,
 			),
-			"PIPELINE_CONFIG_KEYS": ("item_wait_factor", "punctuation_pause_characters"),
+			"PIPELINE_CONFIG_KEYS": ("item_wait_factor", "punctuation_pause_characters", "group_size"),
 		},
 	)
 	panel = object.__new__(environment["WorldVoiceVoiceSettingsPanel"])
 	type(panel).driver = property(lambda self: types.SimpleNamespace(name="WorldVoice"))
 	panel._pipelineSnapshot = types.SimpleNamespace(**state)
 	panel.punctuationPauseCharactersEdit = Widget(".")
+	panel.groupSizeSpin = Widget(3)
 	state["item_wait_factor"] = 40
 
 	panel.onSave()  # NVDA Apply
