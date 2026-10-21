@@ -58,6 +58,8 @@ Windows 上的 NVDA、實際音訊和各引擎 SDK 都還沒驗證。
 
 ## 2.1 測試版本
 
+> **2026-10-21 補記：** 下表的檔案和它所在的 worktree 都已經刪除。需要時從 `6c5022d` 開一個 detached worktree，重新執行 `scons version=6.2-test-number-punctuation-pause-1-9999 channel=dev`。zip 裡的時間戳會不同，所以 sha256 可能和下表不一樣。
+
 | 項目 | 內容 |
 | --- | --- |
 | 檔案 | `/workspace/WorldVoice-pkg-pauses/WorldVoice-6.2-test-number-punctuation-pause-1-9999.nvda-addon` |

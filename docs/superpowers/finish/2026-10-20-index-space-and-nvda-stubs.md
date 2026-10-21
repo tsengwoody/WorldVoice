@@ -37,6 +37,8 @@
 
 ## 3. 測試版本
 
+> **2026-10-21 補記：** 下面這個測試版和它所在的 worktree 都已經刪除。新的測試版 `WorldVoice-6.2-test-number-punctuation-pause-1-9999.nvda-addon` 也包含這次的修正，第 4 節的項目請改用新版驗證，見 `2026-10-21-number-and-punctuation-pause.md` 第 2.1 節。新版的檔案也已經刪除，需要時從 `6c5022d` 重新打包。
+
 | 項目 | 內容 |
 | --- | --- |
 | 檔案 | `/workspace/WorldVoice-pkg-index-space/WorldVoice-6.2-test-index-space-1-9999.nvda-addon` |
