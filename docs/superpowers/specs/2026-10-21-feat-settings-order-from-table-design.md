@@ -40,7 +40,7 @@ Goals:
 Non-goals:
 
 - No change to stored config keys or values, nor to the confspec strings (section 8).
-- No change to `onSave` or discard/snapshot behaviour, except that a choice with no selection keeps its stored value in every case (section 5.10, N2).
+- No change to `onSave` or discard/snapshot behaviour, except that a choice with no selection keeps its stored value in every case (section 5.10, N2), and that the Voice panel saves no pipeline setting for another synth (Changed by the user (2026-10-21, N5); section 5.10).
 - No change to NVDA's own copy in `createDriverSettings` (`VoiceSettingsDialogs.py:177-218`), which `tests/test_nvda_settings_copy.py:60-81` pins to NVDA's `updateDriverSettings`.
 - No refresh of an open Voice panel after a ring change. NVDA refreshes only after a voice change (`ref/nvda/source/gui/settingsDialogs.py:1343-1350`). This is unchanged from master (section 12, F6).
 - No change to the pipeline log switch labels (`speechSettingsDialog.py:28-38`). See N1.
@@ -264,8 +264,8 @@ Rules:
   - `ABSENT`: the spec is left out of the result, so its control is not touched (another synth in the Voice panel; section 5.9);
   - anything else: the result maps `spec.key` to `value == expected`, where `None` (no selection) never equals an expected value.
 - `voice_placements(specs, has_row)`: for each Voice-panel entry without a `driver_id`, in table order, its anchor key or `None`:
-  - when no Voice-panel driver entry has a row (another synth), every anchor is `None`;
-  - otherwise the anchor is the nearest preceding Voice-panel entry for which `has_row(key)` is true.
+  - ~~when no Voice-panel driver entry has a row (another synth), every anchor is `None`;~~ Removed after the batch 1 review (B1-M9): with N5 the Voice panel calls this for WorldVoice only, so the rule has no use;
+  - ~~otherwise~~ the anchor is the nearest preceding Voice-panel entry for which `has_row(key)` is true, or `None` when no earlier entry has a row.
 
 ### 5.5 Shared control builder (`addon/synthDrivers/WorldVoice/pipelineControls.py`, new)
 
@@ -343,9 +343,9 @@ With the Q1 table the anchors are `number_mode` for the group size and `punctuat
 
 **After `updateDriverSettings`.** A voice change runs NVDA's `updateDriverSettings(changedSetting="voice")` (`settingsDialogs.py:1343-1350`). It hides, shows and updates rows (`:1553-1568`) and never moves one. For WorldVoice it never creates one either (section 3.4). So the placement made in `makeSettings` stays right, and nothing needs to run again. The non-driver rows are not in `sizerDict`, so they are never hidden.
 
-**Another synthesizer.** No table driver entry has a row, so every anchor is `None`. The added controls stay where the helper put them: after NVDA's own controls, in table order (group size, then characters), with no tab move. This is exactly master's layout (`tests/test_voice_settings_panel.py:336-355`). After a synth change NVDA's `refreshGui` rebuilds the panel through `makeSettings` (`settingsDialogs.py:1633-1646`), so the rule runs again for the new synth.
+**Another synthesizer.** ~~No table driver entry has a row, so every anchor is `None`. The added controls stay where the helper put them: after NVDA's own controls, in table order (group size, then characters), with no tab move. This is exactly master's layout (`tests/test_voice_settings_panel.py:336-355`).~~ Changed by the user (2026-10-21, N5): `_addPipelineControls` creates none of the non-driver controls when `_isWorldVoice()` is false, and sets their attributes to `None`, so nothing refers to windows of an earlier build. When the synthesizer changes while the dialog is open, NVDA calls the Voice panel's `onPanelActivated` (`settingsDialogs.py:1229-1245`), whose `refreshGui` runs `settingsSizer.Clear(delete_windows=True)` and then `makeSettings` again on the same panel (`:1633-1646`). The old windows are therefore destroyed by NVDA and the rule runs again for the new synth: neither hiding nor destroying is needed. The Speech Pipeline panel stays the place to change these settings for another synth.
 
-**`_createNewControl` index.** The moved rows shift the `len(sizerDict) - 1` index that `_createNewControl` uses (`settingsDialogs.py:1585-1590`). This is safe for the same reasons as on master: WorldVoice creates every row up front, and another synth has no moved rows.
+**`_createNewControl` index.** The moved rows shift the `len(sizerDict) - 1` index that `_createNewControl` uses (`settingsDialogs.py:1585-1590`). This is safe for the same reasons as on master: WorldVoice creates every row up front, and another synth has no ~~moved rows~~ added rows (N5).
 
 ### 5.9 Enable rules (both panels)
 
@@ -382,11 +382,11 @@ With the Q1 table the anchors are `number_mode` for the group size and `punctuat
 
 `_controllerDriverIds()` is the set of `driver_id`s of `controller_keys`. Only the end of `_updateValueForControl` changes; NVDA's own branches stay as they are.
 
-**Another synthesizer.** Neither controller control exists, so `read` returns `ABSENT` and the two added controls stay enabled, as on master (`tests/test_voice_settings_panel.py:351-354`).
+**Another synthesizer.** Neither controller control exists, so `read` returns `ABSENT`. ~~and the two added controls stay enabled, as on master (`tests/test_voice_settings_panel.py:351-354`).~~ With N5 (Changed by the user (2026-10-21, N5)) there are no added controls to enable.
 
 ### 5.10 Save, discard and snapshot
 
-- **Voice panel `onSave`:** one `pipeline_settings.update(**values)` over the Voice-panel non-driver entries with `pipeline_config` whose control exists, then NVDA's `onSave`, then the snapshot for WorldVoice. With the Q1 table these are `group_size` and `punctuation_pause_characters`, in one call, as today (`VoiceSettingsDialogs.py:148-156`). A choice reading `None` would be left out; there is none today.
+- **Voice panel `onSave`:** ~~one~~ when `_isWorldVoice()` is true at save time, one `pipeline_settings.update(**values)` over the Voice-panel non-driver entries with `pipeline_config` whose control exists, then NVDA's `onSave`, then the snapshot for WorldVoice. For another synth it writes no pipeline setting (Changed by the user (2026-10-21, N5)). The check runs at save time because a panel built for WorldVoice can be saved before NVDA rebuilds it for a new synth. With the Q1 table these are `group_size` and `punctuation_pause_characters`, in one call, as today (`VoiceSettingsDialogs.py:148-156`). A choice reading `None` would be left out; there is none today.
 - **Voice panel `onDiscard`:** unchanged (`:161-175`). It uses `PIPELINE_CONFIG_KEYS`, which now holds stored keys only. The key set is unchanged (section 8).
 - **Speech Pipeline panel `onSave`:** one `update` over every shown stored entry (section 5.6).
   - The global wait is saved `* 10` through `from_display`.
@@ -443,7 +443,7 @@ The rows before the table (Voice … Volume, Detect language based on Unicode ch
 - Global wait moves before Ignore commas; Group wait moves up, right after Group size (Q1).
 - Group size and the characters edit keep their master positions: after Number mode and after Punctuation wait factor.
 - The accelerators stay: Alt+L for Number language, Alt+M for Number mode.
-- **Another synthesizer:** unchanged from master. Group size and Punctuation pause characters sit after NVDA's own controls, enabled, and are saved on Save.
+- **Another synthesizer:** ~~unchanged from master. Group size and Punctuation pause characters sit after NVDA's own controls, enabled, and are saved on Save.~~ Changed by the user (2026-10-21, N5): the Voice panel shows neither Group size nor Punctuation pause characters, and Save writes no pipeline setting. They are changed in the Speech Pipeline panel.
 
 ### 6.3 Settings ring
 
@@ -580,7 +580,7 @@ The removed Speech Pipeline panel msgids lose nothing else. The shared label of 
   - `ABSENT` for both controllers → empty result.
 - `voice_placements` on the real table:
   - every row present → `[("group_size", "number_mode"), ("punctuation_pause_characters", "punctuation_wait_factor")]`;
-  - no driver row → both `None`;
+  - ~~no driver row → both `None`;~~ only the added controls have rows → the group size has no earlier row (`None`) and the characters follow the group size (B1-M9);
   - `number_mode` missing but `number_language` present → the group size anchors on `number_language`.
 
 ### 10.2 Guard tests for the table (new `tests/test_settings_table_guard.py`)
@@ -629,7 +629,7 @@ Each rule is one test over the real table. Each rule also gets a negative case: 
   - two adjacent non-driver entries keep table order, and the second has `tab_after` the first;
   - a non-driver controller (checkbox) enables a dependent through the generic rule.
 - The enable rules at all three points, for both controllers, including the ring-then-voice case and the -1 case (existing tests, kept).
-- Another synth: layout, tab and enabled state as on master (existing tests).
+- Another synth: ~~layout, tab and enabled state as on master (existing tests).~~ no WorldVoice control, built directly and after `refreshGui`; Save writes no pipeline setting, also when the synth changed without a rebuild; discard leaves pipeline settings alone (Changed by the user (2026-10-21, N5)).
 
 ### 10.4 Order tests (new, `tests/test_settings_order.py`)
 
@@ -642,7 +642,7 @@ Each rule is one test over the real table. Each rule also gets a negative case: 
 
 - Hypothesis (`tests/test_panel_layout.py`), over synthetic tables of up to 8 entries with random `driver_id`, `panels` and presence sets:
   - every anchor precedes its entry and has a row;
-  - with no driver row, every anchor is `None`;
+  - ~~with no driver row, every anchor is `None`;~~ the anchor is the nearest earlier row, and `None` exactly when no earlier entry has a row (B1-M9);
   - `dependent_states` never names a key whose controller read `ABSENT`;
   - `selected_value` is `None` exactly outside `0..len-1`.
 - **mutmut:** add `pipeline/panelLayout.py` to `source_paths`. Run with at most 3 workers and the memory guard (stop below 3 GB MemAvailable). Record each surviving mutant with its reason, and confirm each one by running the suite with that mutant applied, as in phase 29.
@@ -659,7 +659,7 @@ Linux tests reach only the fakes. These items need Windows with NVDA and a packa
    - Tab skips disabled controls, and object navigation reports them unavailable.
 4. **Voice change** in the Voice panel: every row keeps its place, and the enable states follow the voice's values. Then a ring change of the mode or the switch while the dialog is open, followed by a voice change: the states follow.
 5. **Settings ring:** the order of section 6.3, starting at rate. Global wait factor follows "Detect language…"; Group wait factor follows Number mode. A ring change persists, and numlan still persists across an NVDA restart.
-6. **Another synth** (eSpeak NG) with WorldVoice installed: in the Voice panel, Group size and Punctuation pause characters sit after NVDA's own controls, enabled, and Save stores them; no error in the log.
+6. **Another synth** (eSpeak NG) with WorldVoice installed: in the Voice panel, ~~Group size and Punctuation pause characters sit after NVDA's own controls, enabled, and Save stores them~~ neither Group size nor Punctuation pause characters is shown, and Save changes no pipeline setting (check in the Speech Pipeline panel). Also switch from WorldVoice to eSpeak NG while the settings dialog is open, then from eSpeak NG back to WorldVoice: each time the Voice panel shows the right controls. No error in the log.
 7. **zh_TW:** every label of section 7 is translated; record how the colon shows.
 
 ## 11. Existing tests that need new expectations
@@ -716,7 +716,7 @@ All are new and adopted with the conservative default. Each is Decided by orches
 2. **N2. Scope choice with no selection:** `onSave` keeps the stored scope, as it already does for the mode, instead of writing `"WorldVoice"`. The UI cannot reach this state.
 3. **N3. Modelling number language:** one `pipeline_config` flag on the single table, plus the derived `PIPELINE_STORED_SETTINGS`, rather than a second ordered list.
 4. **N4. Module placement and names:** pure rules in `pipeline/panelLayout.py` (added to mutmut), wx builders in `pipelineControls.py`. Attribute names `_<key>_<suffix>` (Speech Pipeline panel) and `<camelKey><Suffix>` (Voice panel), which reproduce today's names.
-5. **N5. Another synthesizer:** the Voice panel keeps master's layout. The non-driver controls stay at the end, enabled, and are saved.
+5. **N5. Another synthesizer:** ~~the Voice panel keeps master's layout. The non-driver controls stay at the end, enabled, and are saved.~~ Decided by the user (2026-10-21): when the Voice panel's driver is not WorldVoice, the panel shows none of the WorldVoice non-driver controls (group size, punctuation characters) and its Save writes no pipeline setting; the Speech Pipeline panel is the place to change them (section 5.8, 5.10).
 6. **N6. Other-language catalogs:** not edited (`DEVELOPMENT_WORKFLOW.md` section 6). Copying the old translations onto the new msgids would edit catalogs that belong to translators.
 7. **N7. zh_TW catalog:** the 15 entries of removed msgids are deleted, not left obsolete.
 8. **N8. Controllers:** only checkbox and choice may control others, and a controller may not depend on another setting. Both rules are enforced by the guard test.
