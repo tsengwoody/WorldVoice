@@ -267,13 +267,16 @@ class SpeechPipelinePanel(SettingsPanel):
 		self.onPunctuationPauseEnabledChange(None)
 		self.onNumberModeChange(None)
 
-	def onNumberModeChange(self, event):
-		# Disabled controls keep their values, and onSave still stores them. A choice with no
-		# selection (-1) is not group mode, although number_mode_value[-1] is "group".
+	def _selected_number_mode(self):
+		# A choice with no selection (-1) is "value": number_mode_value[-1] would be "group".
 		selection = self._number_mode_choice.GetCurrentSelection()
-		enabled = (
-			0 <= selection < len(self.number_mode_value) and self.number_mode_value[selection] == "group"
-		)
+		if 0 <= selection < len(self.number_mode_value):
+			return self.number_mode_value[selection]
+		return "value"
+
+	def onNumberModeChange(self, event):
+		# Disabled controls keep their values, and onSave still stores them.
+		enabled = self._selected_number_mode() == "group"
 		self._group_size_spin.Enable(enabled)
 		self._group_wait_factor_slider.Enable(enabled)
 
@@ -288,7 +291,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		pipeline_settings.update(
 			scope=self._scope_value[self._scope_choice.GetCurrentSelection()],
 			ignore_comma_between_number=self._ignore_comma_between_number_checkbox.GetValue(),
-			number_mode=self.number_mode_value[self._number_mode_choice.GetCurrentSelection()],
+			number_mode=self._selected_number_mode(),
 			global_wait_factor=self._global_wait_factor_slider.GetValue() * 10,
 			number_wait_factor=self._number_wait_factor_slider.GetValue(),
 			item_wait_factor=self._item_wait_factor_slider.GetValue(),

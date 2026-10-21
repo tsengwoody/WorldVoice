@@ -145,6 +145,17 @@ def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
 	assert group_controls_enabled(panel) == (False, False)
 
 
+def test_pipeline_panel_saves_no_selection_as_value(monkeypatch):
+	# number_mode_value[-1] is "group": a choice with no selection must not save group mode.
+	env = pipeline_env(monkeypatch, number_mode="group")
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	panel._number_mode_choice.Select(-1)
+
+	panel.onSave()
+
+	assert env.conf["WorldVoice"]["pipeline"]["number_mode"] == "value"
+
+
 def test_pipeline_panel_saves_the_disabled_group_controls(monkeypatch):
 	env = pipeline_env(monkeypatch, number_mode="value")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
