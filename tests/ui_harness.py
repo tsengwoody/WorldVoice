@@ -371,6 +371,13 @@ class VoiceSettingsPanel(SettingsPanel):
 				control = Choice(self, label=setting.displayName, choices=[x.displayName for x in options])
 				control.Select([x.id for x in options].index(value))
 				setattr(self, f"{setting.id}List", control)
+
+				def write(event, id=setting.id):
+					# NVDA's StringDriverSettingChanger: the option at the selection, from the list in use.
+					options = getattr(self, f"_{id}s")
+					setattr(settingsStorage, id, options[event.GetEventObject().GetSelection()].id)
+
+				control.Bind(EVT_CHOICE, write)
 			made.Add(control)
 		self.lastControl = control
 		self.sizerDict[setting.id] = made

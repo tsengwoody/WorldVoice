@@ -275,6 +275,61 @@ def test_a_voice_switch_after_a_settings_ring_toggle_matches_the_controls_to_the
 	assert pause_controls_enabled(panel) == (enabled, enabled, enabled)
 
 
+def group_controls_enabled(panel):
+	return (panel.groupSizeSpin.enabled, panel.groupwaitfactorSlider.enabled)
+
+
+@pytest.mark.parametrize(("mode", "enabled"), [("value", False), ("number", False), ("group", True)])
+def test_group_controls_follow_the_stored_mode_when_the_panel_opens(monkeypatch, mode, enabled):
+	panel = open_panel(monkeypatch, Driver(ALL, nummod=mode)).panel
+	assert group_controls_enabled(panel) == (enabled, enabled)
+	# Disabled, not hidden.
+	assert panel.settingsSizer.IsShown(panel.sizerDict["groupwaitfactor"])
+
+
+def test_choosing_a_mode_updates_the_group_controls_and_still_saves_the_setting(monkeypatch):
+	driver = Driver(ALL, nummod="value")
+	panel = open_panel(monkeypatch, driver).panel
+	choice = panel.nummodList
+
+	choice.Select(2)
+	fire(choice, "EVT_CHOICE")
+	assert group_controls_enabled(panel) == (True, True)
+	# WorldVoice's handler skips the event, so NVDA's own handler still writes the setting.
+	assert driver.nummod == "group"
+
+	choice.Select(0)
+	fire(choice, "EVT_CHOICE")
+	assert group_controls_enabled(panel) == (False, False)
+	assert driver.nummod == "value"
+
+
+@pytest.mark.parametrize("mode", ["group", "value"])
+def test_a_voice_switch_after_a_settings_ring_mode_change_matches_the_group_controls(monkeypatch, mode):
+	driver = Driver(ALL, nummod="value" if mode == "group" else "group")
+	panel = open_panel(monkeypatch, driver).panel
+	driver.nummod = mode  # changed with the settings ring while the dialog is open
+
+	# SetSelection on the list fires no EVT_CHOICE, so the panel must apply the state itself.
+	panel.updateDriverSettings(changedSetting="voice")
+
+	assert panel.nummodList.selection == ["value", "number", "group"].index(mode)
+	enabled = mode == "group"
+	assert group_controls_enabled(panel) == (enabled, enabled)
+
+
+def test_a_mode_missing_from_the_list_counts_as_not_group(monkeypatch):
+	# _nummods[-1] is the group entry: a list with no selection must not enable the group controls.
+	driver = Driver(ALL, nummod="group")
+	panel = open_panel(monkeypatch, driver).panel
+	driver.nummod = "gone"
+
+	panel.updateDriverSettings(changedSetting="voice")
+
+	assert panel.nummodList.selection == -1
+	assert group_controls_enabled(panel) == (False, False)
+
+
 def test_a_synth_without_pipeline_settings_gets_the_group_size_and_characters_at_the_end(monkeypatch):
 	settings = (DriverSetting("voice"), NumericDriverSetting("rate"))
 	driver = Driver({"voice", "rate"}, name="espeak", settings=settings)

@@ -28,6 +28,37 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self._addGroupSizeControl(settingsSizer)
 		self._addPunctuationPauseCharactersControl(settingsSizer)
 		self._bindPunctuationPauseEnabledToggle()
+		self._bindNumberModeChoice()
+
+	def _bindNumberModeChoice(self):
+		"""
+		Hook the Number Mode list so the group size and group wait controls are enabled
+		only in group mode, starting with the mode when the dialog opens.
+		"""
+		numberModeList = getattr(self, "nummodList", None)
+		if numberModeList is None:
+			return
+		numberModeList.Bind(wx.EVT_CHOICE, self._onNumberModeChoice)
+		self._applyGroupControlsState()
+
+	def _onNumberModeChoice(self, evt):
+		# NVDA's own choice handler writes the setting; this one only updates the group controls.
+		evt.Skip()
+		self._applyGroupControlsState()
+
+	def _applyGroupControlsState(self):
+		# Read the list, not driver.nummod: this runs before NVDA's handler writes the setting.
+		numberModeList = getattr(self, "nummodList", None)
+		if numberModeList is None:
+			return
+		selection = numberModeList.GetSelection()
+		modes = getattr(self, "_nummods", [])
+		# No selection (-1) is not group mode, although _nummods[-1] is the group entry.
+		enabled = 0 <= selection < len(modes) and modes[selection].id == "group"
+		for name in ("groupwaitfactorSlider", "groupSizeSpin"):
+			control = getattr(self, name, None)
+			if control is not None:
+				control.Enable(enabled)
 
 	def _bindPunctuationPauseEnabledToggle(self):
 		"""
@@ -222,3 +253,6 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 				lCombo.SetSelection(indexOfItem)
 			except ValueError:
 				pass
+			if setting.id == "nummod":
+				# SetSelection fires no EVT_CHOICE, so apply the mode to the group controls here.
+				self._applyGroupControlsState()
