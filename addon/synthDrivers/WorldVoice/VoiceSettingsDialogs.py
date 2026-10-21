@@ -11,6 +11,15 @@ from .pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTING_BY_KEY, pi
 addonHandler.initTranslation()
 
 
+def _moveSizer(settingsSizer, sizer, index):
+	"""Move sizer to index in settingsSizer, keeping its proportion, flag and border."""
+	# Read the layout first: wx deletes the sizer item on Detach.
+	item = settingsSizer.GetItem(sizer)
+	proportion, flag, border = item.GetProportion(), item.GetFlag(), item.GetBorder()
+	settingsSizer.Detach(sizer)
+	settingsSizer.Insert(index, sizer, proportion, flag, border)
+
+
 class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 	def makeSettings(self, settingsSizer):
 		self._pipelineSnapshot = pipeline_settings.get() if self._isWorldVoice() else None
@@ -77,15 +86,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			None,
 		)
 		if numberModeIndex is not None:
-			spinItem = settingsSizer.GetItem(spinSizer)
-			settingsSizer.Detach(spinSizer)
-			settingsSizer.Insert(
-				numberModeIndex + 1,
-				spinSizer,
-				spinItem.GetProportion(),
-				spinItem.GetFlag(),
-				spinItem.GetBorder(),
-			)
+			_moveSizer(settingsSizer, spinSizer, numberModeIndex + 1)
 		self.groupSizeSpin.MoveAfterInTabOrder(self.nummodList)
 
 	def _addPunctuationPauseCharactersControl(self, settingsSizer):
@@ -106,15 +107,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 				None,
 			)
 			if punctuationWaitIndex is not None:
-				charactersItem = settingsSizer.GetItem(charactersSizer)
-				settingsSizer.Detach(charactersSizer)
-				settingsSizer.Insert(
-					punctuationWaitIndex + 1,
-					charactersSizer,
-					charactersItem.GetProportion(),
-					charactersItem.GetFlag(),
-					charactersItem.GetBorder(),
-				)
+				_moveSizer(settingsSizer, charactersSizer, punctuationWaitIndex + 1)
 			self.punctuationPauseCharactersEdit.MoveAfterInTabOrder(
 				self.punctuationwaitfactorSlider,
 			)

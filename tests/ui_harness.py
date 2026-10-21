@@ -138,24 +138,32 @@ class StaticBox(Control):
 
 
 class SizerItem:
+	"""A wxSizerItem. wx deletes the item when it is detached, so reading a detached one raises."""
+
 	def __init__(self, item, proportion=0, flag=0, border=0):
 		self.item, self.proportion, self.flag, self.border = item, proportion, flag, border
 		self.shown = True
+		self.deleted = False
+
+	def _alive(self):
+		if self.deleted:
+			raise RuntimeError("wxSizerItem was deleted by Detach")
+		return self
 
 	def GetSizer(self):
-		return self.item if isinstance(self.item, Sizer) else None
+		return self._alive().item if isinstance(self.item, Sizer) else None
 
 	def GetWindow(self):
-		return None if isinstance(self.item, Sizer) else self.item
+		return None if isinstance(self._alive().item, Sizer) else self.item
 
 	def GetProportion(self):
-		return self.proportion
+		return self._alive().proportion
 
 	def GetFlag(self):
-		return self.flag
+		return self._alive().flag
 
 	def GetBorder(self):
-		return self.border
+		return self._alive().border
 
 
 class Sizer:
@@ -190,7 +198,9 @@ class Sizer:
 		return list(self.items)
 
 	def Detach(self, item):
-		self.items.remove(self._find(item))
+		entry = self._find(item)
+		self.items.remove(entry)
+		entry.deleted = True
 
 	def Show(self, item):
 		self._find(item).shown = True
