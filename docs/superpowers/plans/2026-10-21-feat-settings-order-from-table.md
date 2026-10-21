@@ -43,7 +43,7 @@
 
 ## Review Focus
 
-1. **Stored values off the panel's grid** (hand-edited `nvda.ini`, e.g. `global_wait_factor=57`): the Speech Pipeline slider shows 5 and Save stores 50, never 57 or 570. → Task 5, `test_pipeline_panel_shows_an_off_grid_global_wait_on_the_grid`.
+1. **Stored values off the panel's grid** (hand-edited `nvda.ini`, e.g. `global_wait_factor=57`): the Speech Pipeline slider shows 5, the setting reads as 50, and Save of the untouched panel leaves the raw 57 as is (never 570). → Task 5, `test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid` (renamed after the batch 1 review, B1-M8).
 2. **Group size typed past its bounds** (0 or 42; wx does not stop every typed value): Save stores the clamped 1 or 10. → Task 5, `test_pipeline_panel_saves_an_out_of_range_group_size_clamped`.
 3. **Panel rebuild after a synth change** (NVDA `refreshGui` calls `makeSettings` again on the same panel, eSpeak NG → WorldVoice): the new build places Group size after Number mode and the characters after Punctuation wait factor, and the controls named on the panel are the new ones, not windows NVDA destroyed. → Task 6, `test_a_rebuild_for_worldvoice_places_the_controls_again`.
 4. **Unicode whitespace in the punctuation characters** (U+3000 ideographic space, U+00A0) typed in the Voice panel: Save stores the characters without it. → Task 7, `test_saving_strips_unicode_whitespace_from_the_characters`.
