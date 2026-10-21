@@ -133,6 +133,15 @@ def test_number_wait_splits_numbers_separated_only_by_whitespace(env, text, expe
 	assert shape(env.module.number_wait_factor([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
 
 
+def test_the_shortest_number_wait_still_breaks(env):
+	env.settings.scaled_number_wait = lambda: 1
+	assert shape(env.module.number_wait_factor(["1 2"], env.settings, env.module.GENERIC_CONTEXT)) == [
+		"1",
+		("BreakCommand", 1),
+		"2",
+	]
+
+
 def test_number_wait_splits_across_items_and_keeps_commands(env):
 	env.settings.scaled_number_wait = lambda: 40
 	marker = env.module.BreakCommand(5)

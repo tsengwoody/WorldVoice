@@ -175,6 +175,10 @@ def test_an_empty_or_blank_list_changes_nothing(monkeypatch, remove, characters)
 		(False, ["Hi.,  there"], ["Hi", ".,", ("PunctuationBreakCommand", 0), "  there"]),
 		# Rule 5: never at the end.
 		(False, ["Bye."], ["Bye", "."]),
+		# Rule 3: an internal point needs non-blank text after it in the item.
+		(False, ["Bye. ."], ["Bye", ".", " ", "."]),
+		# Rule 4: trailing spaces after the last mark do not hide a boundary point.
+		(False, ["Hi. ", "there"], ["Hi", ".", " ", ("PunctuationBreakCommand", 0), "there"]),
 		# Rule 4: an existing break suppresses the boundary pause but not boundary removal.
 		(True, ["Hello.", "existing", "World"], ["Hello", ("BreakCommand", 30), "World"]),
 	],

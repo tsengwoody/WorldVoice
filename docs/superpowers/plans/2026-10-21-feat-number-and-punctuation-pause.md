@@ -740,7 +740,27 @@ Red/green as planned:
 - Step 7a: 3 red. Green **1790**.
 - Step 7b: 2 red. Green **1790**.
 - Step 8 (option B): 13 red (10 `SPLITS` rows, across items, digit mode, pair mode). Green **1810**.
-- Step 9: on `e78e6ba` (no split) N2 fails; on an option-A variant of the split (scratch copy), N1 and N7 fail. Green **1815 passed, 0 skipped**. `HYPOTHESIS_PROFILE=deep` on N1-N4, N7 and P4 (20000 examples each): 6 passed in 150 s. (Step 5's deep run of all seven properties found the P4 case above.)
+- Step 9: on `e78e6ba` (no split) N2 fails; on an option-A variant of the split (scratch copy), N1 and N7 fail. Green **1815 passed, 0 skipped**. `HYPOTHESIS_PROFILE=deep` on N1-N4, N7 and P4 (20000 examples each): 6 passed in 150 s. (Step 5's deep run of all seven properties found the P4 case described under Deviations.)
+- Step 10 (mutmut kills): 3 new test cases. **1818 passed, 0 skipped**.
+
+### mutmut (step 10)
+
+Linux, mutmut 3.8.0, on `c4f2410`: `mutmut run --max-children 3` with the six globs of step 10, guarded by a scratchpad script that kills the run if MemAvailable < 3 GB. The guard never fired.
+
+- First run: **205 mutants: 192 killed, 13 survived** (`_both_numbers` 10, `_split_spaced_numbers` 34, `_split_numbers` 1, `number_wait_factor` 12, `_translate_number` 48, `inject_punctuation_pause` 100). All mutants of the new split helpers and of `_both_numbers` are killed.
+- Three survivors were real gaps and are killed by new tests: `number_wait_factor` 3 (`wait_factor <= 1`; `test_the_shortest_number_wait_still_breaks`), `inject_punctuation_pause` 19 (`item.rstrip()` -> `item.lstrip()`; rule-4 case `["Hi. ", "there"]`) and `inject_punctuation_pause` 52 (`and` -> `or` in the internal-point test; rule-3 case `["Bye. ."]`). Each was confirmed killed by running the suite in `mutants/` with the new tests and `MUTANT_UNDER_TEST=<name>` (hygiene guards excluded, as in `[tool.mutmut]`).
+- The other ten pass the whole suite (1809 tests) with the mutant applied, so they really survive. Final: **205 mutants: 195 killed, 10 survived**.
+
+The numbers are mutmut's names from this run (`mutate_only_covered_lines = true`); the "Change" column identifies each mutant.
+
+| Mutant | Change | Why it survives |
+| --- | --- | --- |
+| `_translate_number` 1 | default `pair_pause = 1` | Equivalent: the only caller, `iter_number_speech_segments_mode`, always passes `pair_pause`. (Existed before.) |
+| `_translate_number` 16 | `digits[0] in "XX+-XX"` | Equivalent: `digits[0]` is the first character of a `_NUMBER_RE` match, a sign or a digit, never `X`. (Existed before.) |
+| `_translate_number` 42 | `previous_was_digit = None` | Equivalent: only read as a truth value. (Existed before.) |
+| `inject_punctuation_pause` 36, 43, 44 | `default=None` / `+1` / `-2` for `last_punctuation_index` | Equivalent: the default is used only when the item has no punctuation part, and the index is compared only inside the punctuation branch. (Existed before.) |
+| `inject_punctuation_pause` 64, 65 | `kind == "XXtextXX"` / `"TEXT"` in `emit`'s loop | Equivalent: a text part then takes the punctuation branch, where its index is never a pause point nor the last punctuation index, so it is yielded unchanged with no break. The `text` branch only skips that work. (Existed before.) |
+| `inject_punctuation_pause` 94, 95 | `emit(previous, None, False)` / `emit(previous, False, None)` | Equivalent: both flags are only read as truth values. (Existed before.) |
 
 Deviations:
 
