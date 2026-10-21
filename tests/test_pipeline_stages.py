@@ -133,8 +133,13 @@ def test_number_mode_reads_symbols_from_context(monkeypatch):
 		number_language="zh",
 		speech_symbols=symbols,
 	)
-	assert list(module.inject_number_mode(["11"], settings, ctx)) == ["一 一"]
-	assert list(module.inject_number_mode(["11"], settings, module.GENERIC_CONTEXT)) == ["1 1"]
+
+	def shape(sequence):
+		return [item if isinstance(item, str) else (type(item).__name__, item.time) for item in sequence]
+
+	no_wait = ("NumberBreakCommand", 0)
+	assert shape(module.inject_number_mode(["11"], settings, ctx)) == ["一", no_wait, "一"]
+	assert shape(module.inject_number_mode(["11"], settings, module.GENERIC_CONTEXT)) == ["1", no_wait, "1"]
 
 
 def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):

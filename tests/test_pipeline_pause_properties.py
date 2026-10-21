@@ -278,6 +278,38 @@ def test_property_decimals_are_unchanged_in_group_mode(env, text, size):
 	assert run_group_mode(env, text, size) == [text]
 
 
+@SHARED_ENV
+@given(
+	sign=st.sampled_from(["", "+", "-"]),
+	digits=st.text(alphabet="0123456789", min_size=1, max_size=30),
+	wait=st.integers(0, 500),
+	table=st.none()
+	| st.dictionaries(st.sampled_from("0123456789"), st.text(alphabet="abc一二", min_size=1, max_size=3)),
+)
+def test_property_digit_mode_separates_every_digit(env, sign, digits, wait, table):
+	stage_settings = punctuation_settings(0)
+	stage_settings.number_mode = "number"
+	stage_settings.scaled_number_wait = lambda: wait
+	if table is None:
+		context = env.module.GENERIC_CONTEXT
+	else:
+		symbols = {digit: SimpleNamespace(language="zh", replacement=word) for digit, word in table.items()}
+		context = env.module.SpeechContext(
+			supports_roles=True,
+			language="zh",
+			number_language="zh",
+			speech_symbols=SimpleNamespace(symbols=symbols),
+		)
+	result = list(env.module.inject_number_mode([sign + digits], stage_settings, context))
+
+	texts, breaks = result[0::2], result[1::2]
+	assert all(isinstance(item, str) for item in texts)
+	assert all(isinstance(item, env.module.NumberBreakCommand) and item.time == wait for item in breaks)
+	assert len(breaks) == len(digits) - 1
+	words = [(table or {}).get(digit, digit) for digit in digits]
+	assert texts == [sign + words[0], *words[1:]]
+
+
 # The number split (F1 option B: a number glued to another with no gap is never split out)
 
 DIGITS = "0123456789"

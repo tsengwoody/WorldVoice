@@ -106,6 +106,8 @@ def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
 
 
 B40 = ("NumberBreakCommand", 40)
+NB0 = ("NumberBreakCommand", 0)
+GB0 = ("GroupNumberBreakCommand", 0)
 SPLITS = [
 	("1 2", ["1", B40, "2"]),
 	("共 12 34 個", ["共 ", "12", B40, "34", " 個"]),
@@ -181,18 +183,70 @@ def test_digit_mode_then_number_wait_pauses_between_digits(env):
 	]
 
 
-def test_translated_digits_are_not_split(env):
-	env.settings.number_mode = "number"
-	env.settings.scaled_number_wait = lambda: 40
-	symbols = SimpleNamespace(symbols={"1": SimpleNamespace(language="zh", replacement="一")})
-	context = env.module.SpeechContext(
+def zh_context(module, replacements):
+	"""A WorldVoice zh context whose symbol table maps digits to the given words."""
+	symbols = SimpleNamespace(
+		symbols={
+			digit: SimpleNamespace(language="zh", replacement=word) for digit, word in replacements.items()
+		},
+	)
+	return module.SpeechContext(
 		supports_roles=True,
 		language="zh",
 		number_language="zh",
 		speech_symbols=symbols,
 	)
+
+
+def test_translated_digits_are_split_by_the_number_wait(env):
+	env.settings.number_mode = "number"
+	env.settings.scaled_number_wait = lambda: 40
+	context = zh_context(env.module, {"1": "一"})
 	digits = env.module.inject_number_mode(["11"], env.settings, context)
-	assert list(env.module.number_wait_factor(digits, env.settings, context)) == ["一 一"]
+	assert shape(env.module.number_wait_factor(digits, env.settings, context)) == ["一", B40, "一"]
+
+
+def test_group_mode_does_not_translate_digits(env):
+	env.settings.number_mode = "group"
+	env.settings.group_size = 2
+	context = zh_context(env.module, {"1": "一"})
+	assert shape(env.module.inject_number_mode(["1234"], env.settings, context)) == ["12", GB0, "34"]
+
+
+@pytest.mark.parametrize("wait", [0, 40])
+def test_digit_mode_separates_digits_with_the_number_wait(env, wait):
+	env.settings.number_mode = "number"
+	env.settings.scaled_number_wait = lambda: wait
+	generic = env.module.GENERIC_CONTEXT
+	assert shape(env.module.inject_number_mode(["12"], env.settings, generic)) == [
+		"1",
+		("NumberBreakCommand", wait),
+		"2",
+	]
+	result = list(env.module.inject_number_mode(["-1234"], env.settings, generic))
+	assert result[0::2] == ["-1", "2", "3", "4"]
+	first, *others = result[1::2]
+	assert all(other is first for other in others)
+
+
+@pytest.mark.parametrize(
+	("text", "expected"),
+	[
+		("A12B", ["A1", NB0, "2B"]),
+		("3.14", ["3.1", NB0, "4"]),
+		("1a2", ["1a2"]),
+		("v1.2", ["v1.2"]),
+	],
+)
+def test_digit_mode_breaks_only_between_adjacent_digits(env, text, expected):
+	env.settings.number_mode = "number"
+	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+
+
+def test_digit_words_are_kept_verbatim_one_per_item(env):
+	env.settings.number_mode = "number"
+	context = zh_context(env.module, {"1": "one ", "2": "two"})
+	assert shape(env.module.inject_number_mode(["12"], env.settings, context)) == ["one ", NB0, "two"]
 
 
 def test_group_mode_then_number_wait_breaks_between_numbers_only(env):
@@ -213,12 +267,17 @@ def test_group_mode_then_number_wait_breaks_between_numbers_only(env):
 
 TEXTS = ["12.5", "-1234", "123", "12", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
 SHARED = {"v1.2": ["v1.2"], "a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "1.2.3": ["1.2 . 3"], "": []}
-GB0 = ("GroupNumberBreakCommand", 0)
 GB50 = ("GroupNumberBreakCommand", 50)
 # Keyed by (mode, group size, group pause).
 NUMBER_MODES = {
 	("value", 3, 0): {"12.5": ["12.5"], "-1234": ["-1234"], "123": ["123"], "12": ["12"]},
-	("number", 3, 0): {"12.5": ["1 2.5"], "-1234": ["-1 2 3 4"], "123": ["1 2 3"], "12": ["1 2"]},
+	# Digit mode separates two adjacent digits with the number wait, even at 0.
+	("number", 3, 0): {
+		"12.5": ["1", NB0, "2.5"],
+		"-1234": ["-1", NB0, "2", NB0, "3", NB0, "4"],
+		"123": ["1", NB0, "2", NB0, "3"],
+		"12": ["1", NB0, "2"],
+	},
 	# Groups are cut from the left and are separate items even at pause 0; a number of at most
 	# the group size and a decimal have no separator.
 	("group", 1, 0): {

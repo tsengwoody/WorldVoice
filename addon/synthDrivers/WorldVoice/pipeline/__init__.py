@@ -357,6 +357,7 @@ def _translate_number(
 	table: dict[int, str],
 	group_size: int,
 	group_pause: int,
+	number_pause: int,
 ) -> Iterator[SpeechCmd]:
 	if mode == "value":
 		yield raw
@@ -382,11 +383,13 @@ def _translate_number(
 			yield (sign + group) if index == 0 else group
 		return
 
+	# A break even at pause 0: each digit must reach the synth as a separate item.
+	separator = NumberBreakCommand(number_pause)
 	previous_was_digit = False
 	for character in raw:
 		is_digit = character.isdigit()
 		if is_digit and previous_was_digit:
-			yield " "
+			yield separator
 		yield character.translate(table)
 		previous_was_digit = is_digit
 
@@ -401,11 +404,19 @@ def inject_number_mode(
 	translate_table = get_translate_table(ctx)
 	group_size = settings.group_size
 	group_pause = settings.scaled_group_wait()
+	number_pause = settings.scaled_number_wait()
 	for item in speechSequence:
 		if not isinstance(item, str):
 			yield item
 			continue
-		segments = iter_number_speech_segments_mode(item, mode, translate_table, group_size, group_pause)
+		segments = iter_number_speech_segments_mode(
+			item,
+			mode,
+			translate_table,
+			group_size,
+			group_pause,
+			number_pause,
+		)
 		if ctx.supports_roles:
 			segments = deduplicate_language_command(segments, ctx)
 		yield from merge_consecutive_strings(segments)
@@ -417,6 +428,7 @@ def iter_number_speech_segments_mode(
 	translate_table,
 	group_size,
 	group_pause,
+	number_pause,
 	number_re=_NUMBER_RE,
 ):
 	# A "." right after a number, or right before one, is spoken apart from it.
@@ -431,7 +443,14 @@ def iter_number_speech_segments_mode(
 			continue
 		if preceding_text.endswith("."):
 			yield " "
-		yield from _translate_number(value.group(), mode, translate_table, group_size, group_pause)
+		yield from _translate_number(
+			value.group(),
+			mode,
+			translate_table,
+			group_size,
+			group_pause,
+			number_pause,
+		)
 		previous_was_number = True
 		preceding_text = ""
 

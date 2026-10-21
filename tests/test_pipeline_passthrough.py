@@ -139,7 +139,7 @@ def test_number_mode_passes_commands_and_merges_text_around_them(env):
 	env.settings.number_mode = "number"
 	marker = Marker()
 	result = list(env.module.inject_number_mode([marker, "a 12", marker], env.settings, env.generic))
-	assert result == [marker, "a 1 2", marker]
+	assert kinds(result, env.BreakCommand) == [marker, "a 1", ("NumberBreakCommand", 0), "2", marker]
 
 
 def test_merge_starts_a_new_string_after_each_command(env):
