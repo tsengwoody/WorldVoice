@@ -724,9 +724,13 @@ The exact names are confirmed with `mutmut results` first. Each survivor is chec
 
 ## Step 11. Final verification
 
-Full verification as above; the counts are recorded below.
+Full verification as above, on `c6bbc48`: `python3 -m pytest -q tests` **1818 passed, 0 skipped** (single process, memory guard); `prek run --all-files` all Passed; `git diff --check master` clean; both protected-path commands print nothing.
+
+Not verified on Linux: everything in spec section 9.4 (Windows with NVDA, audio, the settings ring, other synthesizers with scope "all", upgrade of real profiles). No UI string changed, so no translation update; no package was built.
 
 ## Implementation notes
+
+Commits on the branch (after the spec `9970c40`): `5f1ddbf` plan; `e6fd0fe` step 2; `72ce60e` step 3; `1ad4297` step 4; `322a66e` F1 decision in the spec; `3b0622e` step 5; `de05af2` step 6; `31a17b1` step 7a; `e78e6ba` step 7b; `51becea` step 8; `be70fb1` step 9; `c4f2410` step 10 config; `c6bbc48` mutant kills; then the commit adding the final verification.
 
 F1: the user chose option B (2026-10-21), during step 4; the spec records it (commit `322a66e`). Step 8 implements option B.
 
