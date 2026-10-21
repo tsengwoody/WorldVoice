@@ -35,11 +35,11 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert module.PIPELINE_CONFSPEC["punctuation_pause_characters"] == 'string(default="")'
 	driver_ids = [spec.driver_id for spec in module.PIPELINE_SETTINGS if spec.driver_id]
 	assert driver_ids == [
+		"globalwaitfactor",
 		"cni",
 		"nummod",
-		"globalwaitfactor",
-		"numberwaitfactor",
 		"groupwaitfactor",
+		"numberwaitfactor",
 		"itemwaitfactor",
 		"sayallwaitfactor",
 		"chinesespacewaitfactor",
@@ -49,6 +49,28 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	]
 	assert [spec.ring for spec in module.PIPELINE_SETTINGS if spec.driver_id].count(False) == 1
 	assert module.PIPELINE_SETTING_BY_KEY["ignore_comma_between_number"].ring is False
+
+
+def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
+	# Every panel and the settings ring follow this order, decided by the user on 2026-10-21.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert [spec.key for spec in module.PIPELINE_SETTINGS] == [
+		"scope",
+		"global_wait_factor",
+		"ignore_comma_between_number",
+		"number_mode",
+		"group_size",
+		"group_wait_factor",
+		"number_wait_factor",
+		"item_wait_factor",
+		"sayall_wait_factor",
+		"chinesespace_wait_factor",
+		"punctuation_pause_enabled",
+		"remove_punctuation_characters",
+		"punctuation_wait_factor",
+		"punctuation_pause_characters",
+	]
+	assert module.NUMBER_MODES == ("value", "number", "group")
 
 
 def test_int_confspec_carries_the_spec_bounds(monkeypatch):
@@ -89,7 +111,7 @@ def test_group_settings_replace_the_pair_wait_and_add_the_size(monkeypatch):
 	assert "pair_wait_factor" not in module.PIPELINE_CONFSPEC
 	assert module.PIPELINE_SETTING_BY_KEY["group_size"].driver_id is None
 	assert module.PIPELINE_SETTING_BY_KEY["group_wait_factor"].label == "Group wait factor"
-	assert module.PIPELINE_CONFIG_KEYS[-1] == "group_size"
+	assert module.PIPELINE_CONFIG_KEYS[-1] == "punctuation_pause_characters"
 
 
 def test_get_reads_defaults_and_current_profile(monkeypatch):

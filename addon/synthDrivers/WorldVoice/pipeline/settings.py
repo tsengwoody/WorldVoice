@@ -34,8 +34,26 @@ def _strip(value: Any) -> str:
 	return str(value).strip()
 
 
+# The Speech Pipeline panel's scope choices: (stored value, label), in display order.
+SCOPE_CHOICES: tuple[tuple[str, str], ...] = (
+	# Translators: A choice of the Speech Pipeline panel's effect scope: every synthesizer.
+	("all", _("All Synthesizers (Global)")),
+	# Translators: A choice of the Speech Pipeline panel's effect scope: WorldVoice only.
+	("WorldVoice", _("Only WorldVoice Synthesizer")),
+)
+
+# The number modes: (stored value, label), in display order.
+NUMBER_MODE_CHOICES: tuple[tuple[str, str], ...] = (
+	# Translators: A number mode: a number is read as a value, for example "one hundred twenty-three".
+	("value", _("value")),
+	# Translators: A number mode: the digits of a number are read one by one.
+	("number", _("number")),
+	# Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
+	("group", _("group")),
+)
+
 # The number modes the pipeline knows; any other stored or written mode reads as "value".
-NUMBER_MODES: tuple[str, ...] = ("value", "number", "group")
+NUMBER_MODES: tuple[str, ...] = tuple(value for value, _label in NUMBER_MODE_CHOICES)
 
 
 def _number_mode(value: Any) -> str:
@@ -45,7 +63,7 @@ def _number_mode(value: Any) -> str:
 
 @dataclass(frozen=True)
 class PipelineSettingSpec:
-	"""One pipeline setting: its config key, type, default and synth-setting metadata."""
+	"""One pipeline setting: its config key, type, default, synth-setting metadata and panel control."""
 
 	key: str
 	kind: type
@@ -59,6 +77,18 @@ class PipelineSettingSpec:
 	# Bounds of an int setting: its confspec range, and the clamp convert applies.
 	min_value: int = 0
 	max_value: int = 100
+	# The panel control: "checkbox", "slider", "choice", "spin" or "text".
+	control: str | None = None
+	# (stored value, label) pairs of a choice, in display order; None when the driver supplies them.
+	choices: tuple[tuple[str, str], ...] | None = None
+	# (controller key, value): the control is enabled only while the controller shows that value.
+	depends_on: tuple[str, Any] | None = None
+	# Where the setting is shown: "voice" (NVDA's Voice panel and the ring) and "pipeline".
+	panels: tuple[str, ...] = ("voice", "pipeline")
+	# The Speech Pipeline panel's slider shows value // panel_scale and saves shown * panel_scale.
+	panel_scale: int = 1
+	# False: an ordering-only entry whose value NVDA stores as a driver setting.
+	pipeline_config: bool = True
 
 	def convert(self, value: Any) -> Any:
 		result = self.normalize(value) if self.normalize is not None else self.kind(value)
@@ -75,113 +105,162 @@ class PipelineSettingSpec:
 		return f'string(default="{self.default}")'
 
 
-# Synth settings appear in the voice settings dialog in this order.
+# Every panel and the settings ring show these settings in this order.
 PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 	PipelineSettingSpec(
-		"ignore_comma_between_number",
-		bool,
-		False,
-		driver_id="cni",
-		label=_("Ignore comma between number"),
-		ring=False,
-	),
-	PipelineSettingSpec(
-		"number_mode",
+		"scope",
 		str,
-		"value",
-		driver_id="nummod",
-		# Translators: Label for a setting in voice settings dialog.
-		label=_("Number &Mode"),
-		# Translators: Label for a setting in synth settings ring.
-		display_name=_("Number Mode"),
-		normalize=_number_mode,
+		"WorldVoice",
+		control="choice",
+		choices=SCOPE_CHOICES,
+		panels=("pipeline",),
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		label=_("Effect scope"),
 	),
 	PipelineSettingSpec(
 		"global_wait_factor",
 		int,
 		10,
 		driver_id="globalwaitfactor",
-		# Translators: Label for a setting in voice settings dialog.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Global wait factor"),
 		min_step=10,
 		normalize=_floor_to_ten,
+		control="slider",
+		panel_scale=10,
 	),
 	PipelineSettingSpec(
-		"number_wait_factor",
+		"ignore_comma_between_number",
+		bool,
+		False,
+		driver_id="cni",
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		label=_("Ignore commas between numbers"),
+		ring=False,
+		control="checkbox",
+	),
+	PipelineSettingSpec(
+		"number_mode",
+		str,
+		"value",
+		driver_id="nummod",
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		label=_("Number &mode"),
+		# Translators: Label for a setting in synth settings ring.
+		display_name=_("Number mode"),
+		normalize=_number_mode,
+		control="choice",
+		choices=NUMBER_MODE_CHOICES,
+	),
+	# Digits per group in group number mode; set in the panels only, so no synth setting.
+	PipelineSettingSpec(
+		"group_size",
 		int,
-		10,
-		driver_id="numberwaitfactor",
-		# Translators: Label for a setting in voice settings dialog.
-		label=_("Number wait factor"),
+		3,
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		label=_("Group size"),
+		min_value=1,
+		max_value=10,
+		control="spin",
+		depends_on=("number_mode", "group"),
 	),
 	PipelineSettingSpec(
 		"group_wait_factor",
 		int,
 		0,
 		driver_id="groupwaitfactor",
-		# Translators: Label for a setting in voice settings dialog.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Group wait factor"),
+		control="slider",
+		depends_on=("number_mode", "group"),
+	),
+	PipelineSettingSpec(
+		"number_wait_factor",
+		int,
+		10,
+		driver_id="numberwaitfactor",
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		label=_("Number wait factor"),
+		control="slider",
 	),
 	PipelineSettingSpec(
 		"item_wait_factor",
 		int,
 		10,
 		driver_id="itemwaitfactor",
-		# Translators: Label for a setting in voice settings dialog.
-		label=_("item wait factor"),
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		label=_("Item wait factor"),
+		control="slider",
 	),
 	PipelineSettingSpec(
 		"sayall_wait_factor",
 		int,
 		10,
 		driver_id="sayallwaitfactor",
-		# Translators: Label for a setting in voice settings dialog.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Say all wait factor"),
+		control="slider",
 	),
 	PipelineSettingSpec(
 		"chinesespace_wait_factor",
 		int,
 		10,
 		driver_id="chinesespacewaitfactor",
-		# Translators: Label for a setting in voice settings dialog.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Chinese space wait factor"),
+		control="slider",
 	),
 	PipelineSettingSpec(
 		"punctuation_pause_enabled",
 		bool,
 		True,
 		driver_id="punctuationpauseenabled",
-		# Translators: Label for a setting in voice settings dialog.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Enable punctuation pause control"),
 		# Translators: Label for a setting in synth settings ring.
 		display_name=_("Punctuation pauses"),
+		control="checkbox",
 	),
 	PipelineSettingSpec(
 		"remove_punctuation_characters",
 		bool,
 		False,
 		driver_id="removepunctuationcharacters",
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Remove configured punctuation at pause points"),
+		# Translators: Label for a setting in synth settings ring.
 		display_name=_("Remove punctuation at pause points"),
+		control="checkbox",
+		depends_on=("punctuation_pause_enabled", True),
 	),
 	PipelineSettingSpec(
 		"punctuation_wait_factor",
 		int,
 		0,
 		driver_id="punctuationwaitfactor",
-		# Translators: Label for a setting in voice settings dialog.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Punctuation wait factor"),
+		control="slider",
+		depends_on=("punctuation_pause_enabled", True),
 	),
-	PipelineSettingSpec("scope", str, "WorldVoice"),
-	PipelineSettingSpec("punctuation_pause_characters", str, "", normalize=_strip),
-	# Digits per group in group number mode; set in the panels only, so no synth setting.
-	PipelineSettingSpec("group_size", int, 3, min_value=1, max_value=10),
+	PipelineSettingSpec(
+		"punctuation_pause_characters",
+		str,
+		"",
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		label=_("Punctuation pause characters"),
+		normalize=_strip,
+		control="text",
+		depends_on=("punctuation_pause_enabled", True),
+	),
 )
 
-PIPELINE_SETTING_BY_KEY = {spec.key: spec for spec in PIPELINE_SETTINGS}
-DEFAULT_PIPELINE_SETTINGS = {spec.key: spec.default for spec in PIPELINE_SETTINGS}
-PIPELINE_CONFIG_KEYS = tuple(spec.key for spec in PIPELINE_SETTINGS)
-PIPELINE_CONFSPEC = {spec.key: spec.confspec for spec in PIPELINE_SETTINGS}
+# The entries stored in the pipeline config section; ordering-only entries are left out.
+PIPELINE_STORED_SETTINGS = tuple(spec for spec in PIPELINE_SETTINGS if spec.pipeline_config)
+PIPELINE_SETTING_BY_KEY = {spec.key: spec for spec in PIPELINE_STORED_SETTINGS}
+DEFAULT_PIPELINE_SETTINGS = {spec.key: spec.default for spec in PIPELINE_STORED_SETTINGS}
+PIPELINE_CONFIG_KEYS = tuple(spec.key for spec in PIPELINE_STORED_SETTINGS)
+PIPELINE_CONFSPEC = {spec.key: spec.confspec for spec in PIPELINE_STORED_SETTINGS}
 
 
 @dataclass(frozen=True)
@@ -278,7 +357,7 @@ class ConfigPipelineRepository:
 	def load(self) -> PipelineSettings:
 		section = self._section()
 		return PipelineSettings(
-			**{spec.key: spec.convert(_get_value(section, spec.key)) for spec in PIPELINE_SETTINGS},
+			**{spec.key: spec.convert(_get_value(section, spec.key)) for spec in PIPELINE_STORED_SETTINGS},
 		)
 
 	def save(self, changes: Mapping[str, Any]) -> None:
