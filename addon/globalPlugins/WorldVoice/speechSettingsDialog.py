@@ -142,9 +142,9 @@ class SpeechPipelinePanel(SettingsPanel):
 		number_mode_label = [
 			_("value"),
 			_("number"),
-			_("pair"),
+			_("group"),
 		]
-		self.number_mode_value = ["value", "number", "pair"]
+		self.number_mode_value = ["value", "number", "group"]
 
 		self._number_mode_choice = settingsSizerHelper.addLabeledControl(
 			_("Number mode:"),

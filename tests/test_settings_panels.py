@@ -32,7 +32,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		monkeypatch,
 		scope="all",
 		ignore_comma_between_number=True,
-		number_mode="pair",
+		number_mode="group",
 		global_wait_factor=30,
 		number_wait_factor=11,
 		group_wait_factor=12,

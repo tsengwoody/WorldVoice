@@ -476,7 +476,7 @@ class SynthDriver(SynthDriver):
 		return {
 			"value": StringParameterInfo("value", _("value")),
 			"number": StringParameterInfo("number", _("number")),
-			"pair": StringParameterInfo("pair", _("pair")),
+			"group": StringParameterInfo("group", _("group")),
 		}
 
 	def _numlanDisplayName(self, locale):

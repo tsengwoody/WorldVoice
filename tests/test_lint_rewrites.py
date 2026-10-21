@@ -44,7 +44,7 @@ def test_number_modes_are_a_plain_dict_in_order():
 	assert [(key, info.id, info.name) for key, info in modes.items()] == [
 		("value", "value", "value"),
 		("number", "number", "number"),
-		("pair", "pair", "pair"),
+		("group", "group", "group"),
 	]
 
 

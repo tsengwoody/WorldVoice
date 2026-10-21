@@ -44,7 +44,7 @@ def test_pipeline_panel_saves_once_through_the_service():
 	panel = object.__new__(environment["SpeechPipelinePanel"])
 	panel._scope_value = ["all", "WorldVoice"]
 	panel._scope_choice = Widget(selection=0)
-	panel.number_mode_value = ["value", "number", "pair"]
+	panel.number_mode_value = ["value", "number", "group"]
 	panel._number_mode_choice = Widget(selection=2)
 	panel._ignore_comma_between_number_checkbox = Widget(True)
 	panel._global_wait_factor_slider = Widget(3)
@@ -60,7 +60,7 @@ def test_pipeline_panel_saves_once_through_the_service():
 		{
 			"scope": "all",
 			"ignore_comma_between_number": True,
-			"number_mode": "pair",
+			"number_mode": "group",
 			"global_wait_factor": 30,
 			"number_wait_factor": 7,
 			"item_wait_factor": 7,

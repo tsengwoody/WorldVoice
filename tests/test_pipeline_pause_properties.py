@@ -238,24 +238,44 @@ def test_property_zero_number_wait_changes_nothing(env, data):
 	assert all(after is before for after, before in zip(result, sequence))
 
 
+def run_group_mode(env, text, size, pause=0):
+	stage_settings = punctuation_settings(0)
+	stage_settings.number_mode = "group"
+	stage_settings.group_size = size
+	stage_settings.scaled_group_wait = lambda: pause
+	return list(env.module.inject_number_mode([text], stage_settings, env.module.GENERIC_CONTEXT))
+
+
 @SHARED_ENV
 @given(
 	sign=st.sampled_from(["", "+", "-"]),
-	digits=st.text(alphabet="0123456789", min_size=3, max_size=20),
+	digits=st.text(alphabet="0123456789", min_size=1, max_size=30),
+	size=st.integers(1, 10),
 	pause=st.integers(0, 500),
 )
-def test_property_pairs_are_separate_items_at_any_pause(env, sign, digits, pause):
-	stage_settings = punctuation_settings(0)
-	stage_settings.number_mode = "pair"
-	stage_settings.scaled_group_wait = lambda: pause
-	result = list(env.module.inject_number_mode([sign + digits], stage_settings, env.module.GENERIC_CONTEXT))
+def test_property_groups_are_separate_items_of_the_chosen_size(env, sign, digits, size, pause):
+	result = run_group_mode(env, sign + digits, size, pause)
 
 	texts, breaks = result[0::2], result[1::2]
 	assert all(isinstance(item, str) for item in texts)
-	assert all(isinstance(item, env.module.PairNumberBreakCommand) and item.time == pause for item in breaks)
+	assert all(isinstance(item, env.module.GroupNumberBreakCommand) and item.time == pause for item in breaks)
 	assert len(texts) == len(breaks) + 1
-	assert len(breaks) == math.ceil(len(digits) / 2) - 1
+	assert len(breaks) == math.ceil(len(digits) / size) - 1
 	assert "".join(texts) == sign + digits
+	groups = [texts[0].removeprefix(sign), *texts[1:]]
+	assert all(len(group) == size for group in groups[:-1])
+	assert 1 <= len(groups[-1]) <= size
+	if len(digits) <= size:
+		assert result == [sign + digits]
+
+
+@SHARED_ENV
+@given(
+	text=st.from_regex(r"[+-]?[0-9]{1,8}\.[0-9]{1,8}", fullmatch=True),
+	size=st.integers(1, 10),
+)
+def test_property_decimals_are_unchanged_in_group_mode(env, text, size):
+	assert run_group_mode(env, text, size) == [text]
 
 
 # The number split (F1 option B: a number glued to another with no gap is never split out)

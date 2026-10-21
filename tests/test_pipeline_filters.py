@@ -187,49 +187,84 @@ def test_translated_digits_are_not_split(env):
 	assert list(env.module.number_wait_factor(digits, env.settings, context)) == ["一 一"]
 
 
-def test_pair_mode_then_number_wait_breaks_between_numbers_only(env):
-	env.settings.number_mode = "pair"
+def test_group_mode_then_number_wait_breaks_between_numbers_only(env):
+	env.settings.number_mode = "group"
+	env.settings.group_size = 2
 	env.settings.scaled_number_wait = lambda: 40
-	pairs = env.module.inject_number_mode(["1234 5678"], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(env.module.number_wait_factor(pairs, env.settings, env.module.GENERIC_CONTEXT)) == [
+	groups = env.module.inject_number_mode(["1234 5678"], env.settings, env.module.GENERIC_CONTEXT)
+	assert shape(env.module.number_wait_factor(groups, env.settings, env.module.GENERIC_CONTEXT)) == [
 		"12",
-		("PairNumberBreakCommand", 0),
+		("GroupNumberBreakCommand", 0),
 		"34",
 		B40,
 		"56",
-		("PairNumberBreakCommand", 0),
+		("GroupNumberBreakCommand", 0),
 		"78",
 	]
 
 
 TEXTS = ["12.5", "-1234", "123", "12", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
 SHARED = {"v1.2": ["v1.2"], "a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "1.2.3": ["1.2 . 3"], "": []}
+GB0 = ("GroupNumberBreakCommand", 0)
+GB50 = ("GroupNumberBreakCommand", 50)
+# Keyed by (mode, group size, group pause).
 NUMBER_MODES = {
-	("value", 0): {"12.5": ["12.5"], "-1234": ["-1234"], "123": ["123"], "12": ["12"]},
-	("number", 0): {"12.5": ["1 2.5"], "-1234": ["-1 2 3 4"], "123": ["1 2 3"], "12": ["1 2"]},
-	# Pairs are separate items even at pause 0; up to two digits and decimals have no separator.
-	("pair", 0): {
+	("value", 3, 0): {"12.5": ["12.5"], "-1234": ["-1234"], "123": ["123"], "12": ["12"]},
+	("number", 3, 0): {"12.5": ["1 2.5"], "-1234": ["-1 2 3 4"], "123": ["1 2 3"], "12": ["1 2"]},
+	# Groups are cut from the left and are separate items even at pause 0; a number of at most
+	# the group size and a decimal have no separator.
+	("group", 1, 0): {
 		"12.5": ["12.5"],
-		"-1234": ["-12", ("PairNumberBreakCommand", 0), "34"],
-		"123": ["12", ("PairNumberBreakCommand", 0), "3"],
+		"-1234": ["-1", GB0, "2", GB0, "3", GB0, "4"],
+		"123": ["1", GB0, "2", GB0, "3"],
+		"12": ["1", GB0, "2"],
+	},
+	("group", 2, 0): {"12.5": ["12.5"], "-1234": ["-12", GB0, "34"], "123": ["12", GB0, "3"], "12": ["12"]},
+	("group", 2, 50): {
+		"12.5": ["12.5"],
+		"-1234": ["-12", GB50, "34"],
+		"123": ["12", GB50, "3"],
 		"12": ["12"],
 	},
-	("pair", 50): {
-		"12.5": ["12.5"],
-		"-1234": ["-12", ("PairNumberBreakCommand", 50), "34"],
-		"123": ["12", ("PairNumberBreakCommand", 50), "3"],
-		"12": ["12"],
-	},
+	("group", 3, 0): {"12.5": ["12.5"], "-1234": ["-123", GB0, "4"], "123": ["123"], "12": ["12"]},
+	("group", 10, 0): {"12.5": ["12.5"], "-1234": ["-1234"], "123": ["123"], "12": ["12"]},
 }
 
 
-@pytest.mark.parametrize("mode,pause", sorted(NUMBER_MODES))
+@pytest.mark.parametrize("mode,size,pause", sorted(NUMBER_MODES))
 @pytest.mark.parametrize("text", TEXTS)
-def test_number_mode(env, mode, pause, text):
+def test_number_mode(env, mode, size, pause, text):
 	env.settings.number_mode = mode
+	env.settings.group_size = size
 	env.settings.scaled_group_wait = lambda: pause
-	expected = {**SHARED, **NUMBER_MODES[(mode, pause)]}[text]
+	expected = {**SHARED, **NUMBER_MODES[(mode, size, pause)]}[text]
 	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+
+
+@pytest.mark.parametrize(
+	("size", "text", "expected"),
+	[
+		(3, "0912345678", ["091", GB0, "234", GB0, "567", GB0, "8"]),
+		(2, "007", ["00", GB0, "7"]),
+		(3, "+0012", ["+001", GB0, "2"]),
+	],
+)
+def test_group_mode_keeps_leading_zeros_and_every_digit(env, size, text, expected):
+	env.settings.number_mode = "group"
+	env.settings.group_size = size
+	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+
+
+@pytest.mark.parametrize("pause", [0, 50])
+def test_group_separator_is_one_instance_per_number(env, pause):
+	env.settings.number_mode = "group"
+	env.settings.group_size = 2
+	env.settings.scaled_group_wait = lambda: pause
+	result = list(env.module.inject_number_mode(["123456"], env.settings, env.module.GENERIC_CONTEXT))
+	assert result[0::2] == ["12", "34", "56"]
+	first, second = result[1::2]
+	assert first is second
+	assert first.time == pause
 
 
 def test_number_language_wraps_each_number(env):

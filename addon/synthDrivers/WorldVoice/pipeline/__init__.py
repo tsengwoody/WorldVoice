@@ -38,8 +38,8 @@ _NO_BREAK_SPACES = frozenset("\u00a0\u202f\u2007")
 _SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
 
 
-class PairNumberBreakCommand(BreakCommand):
-	"""Pause between digit pairs in pair number mode."""
+class GroupNumberBreakCommand(BreakCommand):
+	"""Pause between digit groups in group number mode."""
 
 
 class PunctuationBreakCommand(BreakCommand):
@@ -347,14 +347,20 @@ def inject_number_language(
 	yield from remove_language_command(speechSequence)
 
 
-def _translate_number(raw: str, mode: str, table: dict[int, str], pair_pause: int = 0) -> Iterator[SpeechCmd]:
+def _translate_number(
+	raw: str,
+	mode: str,
+	table: dict[int, str],
+	group_size: int,
+	group_pause: int,
+) -> Iterator[SpeechCmd]:
 	if mode == "value":
 		yield raw
 		return
 
-	if mode == "pair":
+	if mode == "group":
 		# Decimal numbers are read as a single value; only pure digit runs
-		# are grouped into pairs read from the left.
+		# are cut into groups of group_size digits, counted from the left.
 		if "." in raw:
 			yield raw
 			return
@@ -363,13 +369,13 @@ def _translate_number(raw: str, mode: str, table: dict[int, str], pair_pause: in
 		if digits and digits[0] in "+-":
 			sign = digits[0]
 			digits = digits[1:]
-		pairs = [digits[i : i + 2] for i in range(0, len(digits), 2)]
-		# A break even at pause 0: the pairs must reach the synth as separate items.
-		separator = PairNumberBreakCommand(pair_pause)
-		for index, pair in enumerate(pairs):
+		groups = [digits[i : i + group_size] for i in range(0, len(digits), group_size)]
+		# A break even at pause 0: the groups must reach the synth as separate items.
+		separator = GroupNumberBreakCommand(group_pause)
+		for index, group in enumerate(groups):
 			if index > 0:
 				yield separator
-			yield (sign + pair) if index == 0 else pair
+			yield (sign + group) if index == 0 else group
 		return
 
 	previous_was_digit = False
@@ -389,18 +395,26 @@ def inject_number_mode(
 ) -> Iterator[SpeechCmd]:
 	mode = settings.number_mode
 	translate_table = get_translate_table(ctx)
-	pair_pause = settings.scaled_group_wait()
+	group_size = settings.group_size
+	group_pause = settings.scaled_group_wait()
 	for item in speechSequence:
 		if not isinstance(item, str):
 			yield item
 			continue
-		segments = iter_number_speech_segments_mode(item, mode, translate_table, pair_pause)
+		segments = iter_number_speech_segments_mode(item, mode, translate_table, group_size, group_pause)
 		if ctx.supports_roles:
 			segments = deduplicate_language_command(segments, ctx)
 		yield from merge_consecutive_strings(segments)
 
 
-def iter_number_speech_segments_mode(item, mode, translate_table, pair_pause=0, number_re=_NUMBER_RE):
+def iter_number_speech_segments_mode(
+	item,
+	mode,
+	translate_table,
+	group_size,
+	group_pause,
+	number_re=_NUMBER_RE,
+):
 	# A "." right after a number, or right before one, is spoken apart from it.
 	previous_was_number = False
 	preceding_text = ""
@@ -413,7 +427,7 @@ def iter_number_speech_segments_mode(item, mode, translate_table, pair_pause=0, 
 			continue
 		if preceding_text.endswith("."):
 			yield " "
-		yield from _translate_number(value.group(), mode, translate_table, pair_pause)
+		yield from _translate_number(value.group(), mode, translate_table, group_size, group_pause)
 		previous_was_number = True
 		preceding_text = ""
 

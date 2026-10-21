@@ -177,15 +177,15 @@ def test_punctuation_pause_passes_a_leading_command(env):
 	assert kinds(result, env.BreakCommand) == [marker, "a", ".", ("PunctuationBreakCommand", 250), " b"]
 
 
-def test_a_pair_number_break_counts_as_an_existing_pause_for_punctuation(env):
+def test_a_group_number_break_counts_as_an_existing_pause_for_punctuation(env):
 	module = env.module
-	pair_break = module.PairNumberBreakCommand(50)
-	assert isinstance(pair_break, env.BreakCommand)
+	group_break = module.GroupNumberBreakCommand(50)
+	assert isinstance(group_break, env.BreakCommand)
 	result = list(
-		module.inject_punctuation_pause(["a.", pair_break, "b"], punctuation_settings(250), env.generic),
+		module.inject_punctuation_pause(["a.", group_break, "b"], punctuation_settings(250), env.generic),
 	)
-	# The pair pause already separates the text, so no punctuation pause stacks on it.
-	assert result == ["a", ".", pair_break, "b"]
+	# The group pause already separates the text, so no punctuation pause stacks on it.
+	assert result == ["a", ".", group_break, "b"]
 
 
 def test_langchange_reorder_flushes_commands_left_after_the_last_text(env):

@@ -70,13 +70,13 @@ def test_descriptors_read_and_write_through_the_service(monkeypatch):
 	assert synth.itemwaitfactor == 10
 	synth.itemwaitfactor = 30
 	synth.globalwaitfactor = 57
-	synth.nummod = "pair"
+	synth.nummod = "group"
 	assert conf["WorldVoice"]["pipeline"] == {
 		"item_wait_factor": 30,
 		"global_wait_factor": 50,
-		"number_mode": "pair",
+		"number_mode": "group",
 	}
-	assert (synth.itemwaitfactor, synth.globalwaitfactor, synth.nummod) == (30, 50, "pair")
+	assert (synth.itemwaitfactor, synth.globalwaitfactor, synth.nummod) == (30, 50, "group")
 	assert "speech" not in conf
 
 
