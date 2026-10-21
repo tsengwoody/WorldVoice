@@ -567,38 +567,49 @@ msgid "Improved language detection, speech segmentation, and number parsing."
 msgstr "改善語言偵測、語音分段與數字解析。"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:162
 msgid "Number &mode"
 msgstr "數字模式(&M)"
 
 #. Translators: Label for a pipeline setting in the voice settings panel.
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:149
 msgid "Number &language"
 msgstr "數字語言(&L)"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:52
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:206
 msgid "Item wait factor"
 msgstr "項目停頓參數"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:44
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:138
 msgid "Ignore commas between numbers"
 msgstr "忽略在數字間的逗號"
 
 #. Translators: Label for a pipeline setting in the Speech Pipeline panel.
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:118
 msgid "Effect scope"
 msgstr "作用範圍"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:175
 msgid "Group size"
 msgstr "每組位數"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:265
 msgid "Punctuation pause characters"
 msgstr "標點停頓字元"
 
 #. Translators: Label for the pipeline log switch of a speech pipeline stage.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:42
 msgid "Apply speech dictionaries"
 msgstr "套用語音字典"
 
 #. Translators: Label for the pipeline log switch of a speech pipeline stage.
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:58
 msgid "Speech viewer"
 msgstr "語音檢視器"
 
