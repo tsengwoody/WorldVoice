@@ -268,11 +268,11 @@ class SpeechPipelinePanel(SettingsPanel):
 		self.onNumberModeChange(None)
 
 	def _selected_number_mode(self):
-		# A choice with no selection (-1) is "value": number_mode_value[-1] would be "group".
+		# None when the choice has no selection (-1): number_mode_value[-1] would be "group".
 		selection = self._number_mode_choice.GetCurrentSelection()
 		if 0 <= selection < len(self.number_mode_value):
 			return self.number_mode_value[selection]
-		return "value"
+		return None
 
 	def onNumberModeChange(self, event):
 		# Disabled controls keep their values, and onSave still stores them.
@@ -288,10 +288,13 @@ class SpeechPipelinePanel(SettingsPanel):
 		self._punctuation_pause_characters_edit.Enable(enabled)
 
 	def onSave(self):
+		number_mode = self._selected_number_mode()
+		# No selection names no mode, so the stored one is kept.
+		selected = {} if number_mode is None else {"number_mode": number_mode}
 		pipeline_settings.update(
 			scope=self._scope_value[self._scope_choice.GetCurrentSelection()],
 			ignore_comma_between_number=self._ignore_comma_between_number_checkbox.GetValue(),
-			number_mode=self._selected_number_mode(),
+			**selected,
 			global_wait_factor=self._global_wait_factor_slider.GetValue() * 10,
 			number_wait_factor=self._number_wait_factor_slider.GetValue(),
 			item_wait_factor=self._item_wait_factor_slider.GetValue(),

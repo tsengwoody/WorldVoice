@@ -145,15 +145,19 @@ def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
 	assert group_controls_enabled(panel) == (False, False)
 
 
-def test_pipeline_panel_saves_no_selection_as_value(monkeypatch):
-	# number_mode_value[-1] is "group": a choice with no selection must not save group mode.
-	env = pipeline_env(monkeypatch, number_mode="group")
+@pytest.mark.parametrize("stored", ["value", "number", "group"])
+def test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected(monkeypatch, stored):
+	# A choice with no selection names no mode: neither number_mode_value[-1] ("group") nor
+	# "value" is saved, and the other settings still are.
+	env = pipeline_env(monkeypatch, number_mode=stored)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._number_mode_choice.Select(-1)
+	panel._number_wait_factor_slider.SetValue(33)
 
 	panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["number_mode"] == "value"
+	saved = env.conf["WorldVoice"]["pipeline"]
+	assert (saved["number_mode"], saved["number_wait_factor"]) == (stored, 33)
 
 
 def test_pipeline_panel_saves_the_disabled_group_controls(monkeypatch):
