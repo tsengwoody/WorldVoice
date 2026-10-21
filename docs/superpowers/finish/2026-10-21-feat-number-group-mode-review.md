@@ -117,3 +117,19 @@ Windows／NVDA 手動項目（spec §9.5，未驗證）：
 4. 語音流程面板：Tab 順序、NVDA 讀出「每組位數：」與數值、非群組模式時兩個控制項被 Tab 跳過並報為無法使用、方向鍵切換模式即時更新。
 5. Voice 面板：spin 在 Number Mode 之後（版面與 Tab）、**NVDA 是否正確讀出它的標籤**（控制項用 `MoveAfterInTabOrder` 搬動，標籤留在原位，與標點字元編輯框同一做法，Windows 上從未驗證）、開啟與切換模式時的停用狀態、設定環改模式後再換語音、Save→Cancel 保留、Cancel 不存還原。
 6. scope「all」＋eSpeak NG／OneCore／SAPI5：修完 I1 之後再跑，確認數字不黏在一起、句子不被截斷。
+
+## 修正記錄
+
+修正者 Opus 5.5，worktree `/workspace/WorldVoice-feat-group`。每個 commit 前都跑過第 7 節的驗證（單一 pytest 行程加 3 GB 記憶體監控、`prek run --all-files`、`git diff --check master`、兩個受保護路徑指令）。
+
+| 項目 | commit | 內容 |
+| --- | --- | --- |
+| I1 | `e16089a` | `_stage_handler`（`pipeline/__init__.py`）在 `ctx.supports_roles` 為 False 時，把每個 stage 輸出中的 `BreakCommand`（含所有子類別）換成普通 `BreakCommand(time)`；WorldVoice 自己仍收到子類別。放在 handler 而不是新增最後一個 stage：每個 stage 都經過它，不論哪個 stage 產生子類別、NVDA 怎麼排 filter 都涵蓋，也不用新增 log key、confspec 與面板標籤。先紅後綠：stage 層測試 `test_other_synths_get_only_plain_breaks_from_the_stages`（3 個 id，修正前 3 failed）；守門測試 `tests/test_pipeline_nvda_ssml.py` 用 `ref/nvda` 真正的 `SsmlConverter` 轉 scope「all」的輸出，修正前得到 `共12`／`共1`，修正後整句 `共1234個.5678and3` 與每個 `<break time=…/>` 都在，且無 `Unsupported command`；`ref/` 不在時 skip。WorldVoice context 保留子類別由 `test_worldvoice_keeps_the_break_subclasses_from_the_stages` 鎖住。eSpeak、SAPI5 用 `isinstance`，不需改動。 |
+| I1（mutmut） | `1393696` | `x__plain_breaks*`、`x__stage_handler*`：22 個 mutant，20 個被殺；2 個存活都在既有的程式行（`effective(None)`、`__doc__ = None`），補測試殺掉（各自先紅後綠）。 |
+| M1 | `fd9f330` | spec §11 F2、Q11（另含同樣說法的 §7 與 §9.5 手動項目 6）與前一輪 review 第 74 行：錯誤文字以刪除線保留，旁邊加上「Corrected by `feat/number-group-mode`」的更正；spec 註明 I1 的修法是協調者採建議預設決定，使用者可以推翻。 |
+| M2 | `435e3a0` | 只更正新增群組條目中過時的 `#:`：`"group"` 的 `__init__.py:480` → `:487`；其餘新條目的參照已逐一對照原始碼，都正確。沒有重新產生整份 catalog，既有條目的過時參照留給下次 `scons pot`＋`msgmerge`。`msgfmt --check` 通過。 |
+| M3 | `318e176` | 沒有選取時 `_selected_number_mode` 回傳 `None`，`onSave` 不寫 `number_mode`（保留儲存值，其他設定照存）；啟用規則仍把 −1 當作非 group。`test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected`（3 個 id，修正前 2 failed）取代 `test_pipeline_panel_saves_no_selection_as_value`。 |
+
+最終驗證：完整測試 **1938 passed、0 skipped**（基準 1926：I1 +9、mutmut 補測 +1、M3 +2）；prek 全數 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令皆無輸出。
+
+仍未驗證：Windows 上的 NVDA、實際音訊與各引擎；spec §9.5 手動項目 6（scope「all」＋eSpeak NG／OneCore／SAPI5）要在 Windows 上確認數字不黏在一起、句子不被截斷。pipeline log 記錄的是各 stage 自己的輸出，scope「all」時仍會看到子類別名稱，實際送給合成器的是普通 `BreakCommand`。
