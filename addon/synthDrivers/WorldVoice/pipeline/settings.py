@@ -20,10 +20,10 @@ MAX_PUNCTUATION_WAIT_MS = 500
 # global wait factor is 0.
 PUNCTUATION_WAIT_UNIT_MS = 5
 
-# Pair pauses use the same unit scaling as punctuation pauses so that both
+# Group pauses use the same unit scaling as punctuation pauses so that both
 # pause families behave consistently and remain audible regardless of the
 # global wait factor.
-PAIR_WAIT_UNIT_MS = 5
+GROUP_WAIT_UNIT_MS = 5
 
 
 def _floor_to_ten(value: Any) -> int:
@@ -105,12 +105,12 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		label=_("Number wait factor"),
 	),
 	PipelineSettingSpec(
-		"pair_wait_factor",
+		"group_wait_factor",
 		int,
 		0,
-		driver_id="pairwaitfactor",
+		driver_id="groupwaitfactor",
 		# Translators: Label for a setting in voice settings dialog.
-		label=_("Pair wait factor"),
+		label=_("Group wait factor"),
 	),
 	PipelineSettingSpec(
 		"item_wait_factor",
@@ -164,6 +164,8 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 	),
 	PipelineSettingSpec("scope", str, "WorldVoice"),
 	PipelineSettingSpec("punctuation_pause_characters", str, "", normalize=_strip),
+	# Digits per group in group number mode; set in the panels only, so no synth setting.
+	PipelineSettingSpec("group_size", int, 3, min_value=1, max_value=10),
 )
 
 PIPELINE_SETTING_BY_KEY = {spec.key: spec for spec in PIPELINE_SETTINGS}
@@ -186,7 +188,8 @@ class PipelineSettings:
 	punctuation_pause_enabled: bool
 	remove_punctuation_characters: bool
 	punctuation_pause_characters: str
-	pair_wait_factor: int
+	group_wait_factor: int
+	group_size: int
 
 	@property
 	def global_factor_units(self) -> int:
@@ -210,9 +213,9 @@ class PipelineSettings:
 			MAX_PUNCTUATION_WAIT_MS,
 		)
 
-	def scaled_pair_wait(self) -> int:
+	def scaled_group_wait(self) -> int:
 		return min(
-			self.pair_wait_factor * PAIR_WAIT_UNIT_MS,
+			self.group_wait_factor * GROUP_WAIT_UNIT_MS,
 			MAX_PUNCTUATION_WAIT_MS,
 		)
 
@@ -235,7 +238,7 @@ class PipelineSettings:
 				punctuation_wait_factor=0,
 				punctuation_pause_enabled=False,
 				remove_punctuation_characters=False,
-				pair_wait_factor=0,
+				group_wait_factor=0,
 			)
 		return replace(
 			self,

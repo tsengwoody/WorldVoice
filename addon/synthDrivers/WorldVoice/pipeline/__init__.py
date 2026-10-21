@@ -389,7 +389,7 @@ def inject_number_mode(
 ) -> Iterator[SpeechCmd]:
 	mode = settings.number_mode
 	translate_table = get_translate_table(ctx)
-	pair_pause = settings.scaled_pair_wait()
+	pair_pause = settings.scaled_group_wait()
 	for item in speechSequence:
 		if not isinstance(item, str):
 			yield item

@@ -48,7 +48,7 @@ def test_pipeline_panel_saves_once_through_the_service():
 	panel._number_mode_choice = Widget(selection=2)
 	panel._ignore_comma_between_number_checkbox = Widget(True)
 	panel._global_wait_factor_slider = Widget(3)
-	for name in ("number", "item", "sayall", "chinesespace", "punctuation", "pair"):
+	for name in ("number", "item", "sayall", "chinesespace", "punctuation", "group"):
 		setattr(panel, f"_{name}_wait_factor_slider", Widget(7))
 	panel._punctuation_pause_enabled_checkbox = Widget(False)
 	panel._remove_punctuation_characters_checkbox = Widget(True)
@@ -70,7 +70,7 @@ def test_pipeline_panel_saves_once_through_the_service():
 			"punctuation_pause_enabled": False,
 			"remove_punctuation_characters": True,
 			"punctuation_pause_characters": " .,",
-			"pair_wait_factor": 7,
+			"group_wait_factor": 7,
 		},
 	]
 	for name in ("onGlobalWaitFactorSliderScroll", "sliderEnable", "onScopeSelectionChange"):

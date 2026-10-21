@@ -177,7 +177,7 @@ class SpeechPipelinePanel(SettingsPanel):
 		)
 		self._number_wait_factor_slider.SetValue(settings.number_wait_factor)
 
-		self._pair_wait_factor_slider = settingsSizerHelper.addLabeledControl(
+		self._group_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("pair wait factor:"),
 			wx.Slider,
 			value=50,
@@ -185,7 +185,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			maxValue=100,
 			style=wx.SL_HORIZONTAL,
 		)
-		self._pair_wait_factor_slider.SetValue(settings.pair_wait_factor)
+		self._group_wait_factor_slider.SetValue(settings.group_wait_factor)
 
 		self._item_wait_factor_slider = settingsSizerHelper.addLabeledControl(
 			_("item wait factor:"),
@@ -274,7 +274,7 @@ class SpeechPipelinePanel(SettingsPanel):
 			punctuation_pause_enabled=self._punctuation_pause_enabled_checkbox.GetValue(),
 			remove_punctuation_characters=self._remove_punctuation_characters_checkbox.GetValue(),
 			punctuation_pause_characters=self._punctuation_pause_characters_edit.GetValue(),
-			pair_wait_factor=self._pair_wait_factor_slider.GetValue(),
+			group_wait_factor=self._group_wait_factor_slider.GetValue(),
 		)
 
 

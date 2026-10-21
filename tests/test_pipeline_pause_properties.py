@@ -247,7 +247,7 @@ def test_property_zero_number_wait_changes_nothing(env, data):
 def test_property_pairs_are_separate_items_at_any_pause(env, sign, digits, pause):
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = "pair"
-	stage_settings.scaled_pair_wait = lambda: pause
+	stage_settings.scaled_group_wait = lambda: pause
 	result = list(env.module.inject_number_mode([sign + digits], stage_settings, env.module.GENERIC_CONTEXT))
 
 	texts, breaks = result[0::2], result[1::2]

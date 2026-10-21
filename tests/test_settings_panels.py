@@ -35,7 +35,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		number_mode="pair",
 		global_wait_factor=30,
 		number_wait_factor=11,
-		pair_wait_factor=12,
+		group_wait_factor=12,
 		item_wait_factor=13,
 		sayall_wait_factor=14,
 		chinesespace_wait_factor=15,
@@ -69,7 +69,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._global_wait_factor_slider.value == 3
 	assert [
 		getattr(panel, f"_{name}_wait_factor_slider").value
-		for name in ("number", "pair", "item", "sayall", "chinesespace", "punctuation")
+		for name in ("number", "group", "item", "sayall", "chinesespace", "punctuation")
 	] == [11, 12, 13, 14, 15, 16]
 	assert panel._punctuation_pause_enabled_checkbox.value is False
 	assert panel._remove_punctuation_characters_checkbox.value is True
@@ -141,7 +141,7 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	panel._number_mode_choice.Select(1)
 	panel._ignore_comma_between_number_checkbox.SetValue(True)
 	panel._global_wait_factor_slider.SetValue(7)
-	panel._pair_wait_factor_slider.SetValue(40)
+	panel._group_wait_factor_slider.SetValue(40)
 	panel._punctuation_pause_enabled_checkbox.SetValue(False)
 	panel._punctuation_pause_characters_edit.SetValue(" ;: ")
 
@@ -152,7 +152,7 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	assert stored["number_mode"] == "number"
 	assert stored["ignore_comma_between_number"] is True
 	assert stored["global_wait_factor"] == 70
-	assert stored["pair_wait_factor"] == 40
+	assert stored["group_wait_factor"] == 40
 	assert stored["punctuation_pause_enabled"] is False
 	assert stored["punctuation_pause_characters"] == ";:"
 

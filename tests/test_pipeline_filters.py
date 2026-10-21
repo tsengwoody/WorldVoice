@@ -227,7 +227,7 @@ NUMBER_MODES = {
 @pytest.mark.parametrize("text", TEXTS)
 def test_number_mode(env, mode, pause, text):
 	env.settings.number_mode = mode
-	env.settings.scaled_pair_wait = lambda: pause
+	env.settings.scaled_group_wait = lambda: pause
 	expected = {**SHARED, **NUMBER_MODES[(mode, pause)]}[text]
 	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
 
