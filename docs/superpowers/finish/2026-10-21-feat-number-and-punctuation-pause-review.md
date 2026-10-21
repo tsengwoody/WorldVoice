@@ -141,3 +141,22 @@ spec 標為「Decided by orchestrator with the recommended default; user may ove
 ## 工作區備註
 
 review 開始前就存在、與本分支無關、未動：主 checkout 的 `M buildVars.py`、`D docs/superpowers/finish_task.md`、`?? DEVELOPMENT_WORKFLOW.md`、`?? diff.md`。本 worktree 除本檔外乾淨。`docs/` 被 `.gitignore` 忽略，本檔以 `git add -f` 加入。
+
+## 修正記錄
+
+修正者：Opus 5.5，依 `DEVELOPMENT_WORKFLOW.md` §3.4，在本 worktree 進行。每項測試變更都先確認在缺口上會失敗，再確認修正後通過。
+
+| 項目 | commit | 內容 |
+| --- | --- | --- |
+| Important 1 | `ecd147a` | **使用者決定（2026-10-21）：選項 A。** 新增 `_is_splittable_gap`（`gap.isspace()` 且不含 U+00A0、U+202F、U+2007），取代 `pipeline/__init__.py:214` 的 `gap.isspace()`；空白、tab、換行與 U+3000 仍會切分。`tests/test_pipeline_filters.py` 的 `"1 2"` 列改為不切，並新增 `"10 000"`、`"1 234 567"`、`"1 2"`、`"1  2"`、`"10 000 5"`、`"2 10 000"`、`"1\n2"` 各列；修正前 6 列失敗。spec §4.1 規則、範例表、§9.1、§9.2（N2、新增 N8）與 §12 第 4 項已改寫並標記「Decided by the user (2026-10-21)」。注意：`"2 10 000"` 會得到 `"2"`、Break、`"10"`、`" 000"`，後兩段在 runtime 是同一段，引擎仍讀到 `10 000`。 |
+| Minor 1 | `0056680` | docstring 改為：既有 break 只壓掉前一項的 boundary pause；開啟下一項的標點是 internal pause point，例如 `["a", existing, ". b"]`。行為未改（2-7）。 |
+| Minor 2 | `7af1264` | 新增 property「an existing break suppresses only the boundary pause before it」：把輸入中的既有 break 拿掉後，輸出只多出被壓掉的 boundary pause，其他完全相同；remove 開或關、任何 wait 都成立（deep profile 20000 例通過）。原 P4 保留檢查內容，改名為「never ends the output or sits next to an existing one when marks stay」並在 docstring 寫明例外。缺口驗證：一個「連開頭標點的 pause 也一併壓掉」的變體（違反 2-7）讓新 property 失敗，而舊的 property 檔與 `test_pipeline_filters.py` 全數通過。spec §9.2 的 P4 已改寫並新增 P4b。 |
+| Minor 3 | `ecd147a` | `NUMBER_TEXT` 字母表加入 `\n`、`\r`、U+00A0、U+202F、U+2007；N2 的 gap 判斷改用新規則；新增 property「no break replaces a gap with a no-break space」（修正前失敗）。`punctuation_sequences` 未加 U+3000：標點階段不看數字間空白，與本項無關。 |
+| Minor 4 | `5244c8c` | `_updateValueForControl` 更新 `punctuationpauseenabled` 勾選框後呼叫 `_applyPunctuationPauseControlsState()`。新增測試（開／關兩種）：對話框開著時用設定環切換開關，再換語音，三個相依控制項跟著開關狀態；修正前 2 個 failed。 |
+| Minor 5 | `4fdc238` | spec §10 改為 `" world"`, `"."`。 |
+| Minor 6 | `c321cd4` | 計畫 mutmut 表前註明編號只屬於該次執行，之後的執行或程式變更可能改變編號，以「Change」欄辨識 mutant。 |
+| mutmut 複跑 | `d364318` | 在 `ecd147a` 後對 `_both_numbers`、`number_wait_factor`、`_is_splittable_gap`、`_split_spaced_numbers`、`_split_numbers` 跑 `mutmut run --max-children 3`（MemAvailable < 3 GB 即中止的 guard，未觸發）。第一次 60 個 mutant 中 1 個存活：`_split_spaced_numbers` 的 `for side in (0, 2)`（把空 gap 右邊第二個 match 標成 glued）。字母表變大後，derandomized 的 property 不再剛好碰到它；新增單元案例 `"1-2 3 4"` → `"1-2 "`, `"3"`, B, `"4"`，在 `mutants/` 以 `MUTANT_UNDER_TEST` 確認會殺掉。清掉 `mutants/` 重跑：**60 個 mutant 全數 killed**（`_both_numbers` 10、`number_wait_factor` 12、`_is_splittable_gap` 2、`_split_spaced_numbers` 35、`_split_numbers` 1）。`_NO_BREAK_SPACES` 是模組常數，mutmut 不突變；三個字元各有單元案例。 |
+
+最終驗證（`d364318` 之後）：`python3 -m pytest -q tests` 單程序 **1830 passed、0 skipped**（基準 1818；新增 12 個）；`prek run --all-files` 全數 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令皆無輸出。
+
+「使用者還沒確認的使用者可見預設」第 1 項已由使用者決定（選項 A）。其餘 2–8 項未變。Linux 無法驗證的項目（Windows NVDA、實際音訊、引擎 SDK、spec §9.4 的 8 個手動項目）仍未驗證。
