@@ -216,6 +216,7 @@ def load_synth(monkeypatch, conf):
 	environment = {
 		"SynthDriver": Base,
 		"PIPELINE_SETTINGS": settings_module.PIPELINE_SETTINGS,
+		"NUMBER_MODE_CHOICES": settings_module.NUMBER_MODE_CHOICES,
 		"pipeline_settings": settings_module.pipeline_settings,
 		"BooleanDriverSetting": setting_factory("bool"),
 		"NumericDriverSetting": setting_factory("int"),

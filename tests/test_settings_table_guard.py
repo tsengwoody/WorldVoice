@@ -7,8 +7,10 @@ check, and each check must report a table broken on purpose, so the guard itself
 """
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
+from addon_loader import WORLDVOICE, load_definitions
 from pipeline_harness import load_settings_module
 
 CONTROLS = {"checkbox", "slider", "choice", "spin", "text"}
@@ -147,6 +149,21 @@ def check_sentence_case(specs):
 	return problems
 
 
+def check_ordering_only(specs):
+	controllers = {spec.depends_on[0] for spec in specs if spec.depends_on is not None}
+	problems = []
+	for spec in specs:
+		if spec.pipeline_config:
+			continue
+		if spec.driver_id is None:
+			problems.append(f"{spec.key}: an ordering-only entry needs the driver setting NVDA stores")
+		if "pipeline" in spec.panels:
+			problems.append(f"{spec.key}: the Speech Pipeline panel has nothing to store it in")
+		if spec.key in controllers:
+			problems.append(f"{spec.key}: an ordering-only entry cannot control other settings")
+	return problems
+
+
 CHECKS = [
 	check_unique,
 	check_control_known,
@@ -158,6 +175,7 @@ CHECKS = [
 	check_scale,
 	check_voice_anchor,
 	check_sentence_case,
+	check_ordering_only,
 ]
 
 
@@ -239,9 +257,42 @@ BROKEN = {
 		check_sentence_case,
 		lambda m: _with(m, "number_mode", display_name="number mode"),
 	),
+	"ordering-only without a driver setting": (
+		check_ordering_only,
+		lambda m: _with(m, "number_language", driver_id=None),
+	),
+	"ordering-only in the Speech Pipeline panel": (
+		check_ordering_only,
+		lambda m: _with(m, "number_language", panels=("voice", "pipeline")),
+	),
+	"ordering-only controller": (
+		check_ordering_only,
+		lambda m: _with(m, "group_size", depends_on=("number_language", "default")),
+	),
 }
 
 
 @pytest.mark.parametrize(("check", "make_broken"), BROKEN.values(), ids=BROKEN.keys())
 def test_each_check_reports_a_broken_table(module, check, make_broken):
 	assert check(make_broken(module)) != []
+
+
+def test_driver_choices_match_the_driver_options(module):
+	# The Voice panel shows NVDA's list from available<Id>s; it must list the table's choices.
+	driver = load_definitions(
+		WORLDVOICE / "__init__.py",
+		["SynthDriver"],
+		{
+			"_": lambda text: text,
+			"NUMBER_MODE_CHOICES": module.NUMBER_MODE_CHOICES,
+			"StringParameterInfo": lambda id, name: SimpleNamespace(id=id, name=name),
+		},
+		members=("_get_availableNummods",),
+	)["SynthDriver"]()
+	driver_choices = [spec for spec in module.PIPELINE_SETTINGS if spec.driver_id and spec.choices]
+	assert [spec.driver_id for spec in driver_choices] == ["nummod"]
+	for spec in driver_choices:
+		options = getattr(driver, f"_get_available{spec.driver_id.capitalize()}s")()
+		assert [(key, info.id, info.name) for key, info in options.items()] == [
+			(value, value, label) for value, label in spec.choices
+		]

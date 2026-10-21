@@ -139,6 +139,20 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		ring=False,
 		control="checkbox",
 	),
+	# NVDA stores the number language as a driver setting; this entry only places its control.
+	PipelineSettingSpec(
+		"number_language",
+		str,
+		"default",
+		driver_id="numlan",
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		label=_("Number &language"),
+		# Translators: Label for a setting in synth settings ring.
+		display_name=_("Number language"),
+		control="choice",
+		panels=("voice",),
+		pipeline_config=False,
+	),
 	PipelineSettingSpec(
 		"number_mode",
 		str,

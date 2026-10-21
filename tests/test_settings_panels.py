@@ -98,7 +98,11 @@ def test_number_modes_match_the_driver_and_the_panel(monkeypatch):
 	driver = load_definitions(
 		WORLDVOICE / "__init__.py",
 		["SynthDriver"],
-		{"_": lambda text: text, "StringParameterInfo": lambda id, name: SimpleNamespace(id=id, name=name)},
+		{
+			"_": lambda text: text,
+			"NUMBER_MODE_CHOICES": settings_module.NUMBER_MODE_CHOICES,
+			"StringParameterInfo": lambda id, name: SimpleNamespace(id=id, name=name),
+		},
 		members=("_get_availableNummods",),
 	)["SynthDriver"]
 	assert (

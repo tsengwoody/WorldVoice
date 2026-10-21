@@ -10,6 +10,7 @@ def _driver_methods(*names, trust_voice_language=True):
 		"_": lambda text: text,
 		"config": types.SimpleNamespace(conf={"speech": {"trustVoiceLanguage": trust_voice_language}}),
 		"StringParameterInfo": lambda id, name: types.SimpleNamespace(id=id, name=name),
+		"NUMBER_MODE_CHOICES": (("value", "value"), ("number", "number"), ("group", "group")),
 	}
 	return load_definitions(WORLDVOICE / "__init__.py", ["SynthDriver"], env, members=names)["SynthDriver"]
 

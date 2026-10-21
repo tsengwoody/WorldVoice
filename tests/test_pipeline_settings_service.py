@@ -25,7 +25,7 @@ OLD_DEFAULTS = {
 
 def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	keys = [spec.key for spec in module.PIPELINE_SETTINGS]
+	keys = [spec.key for spec in module.PIPELINE_STORED_SETTINGS]
 	assert sorted(keys) == sorted(field.name for field in fields(module.PipelineSettings))
 	assert module.DEFAULT_PIPELINE_SETTINGS == OLD_DEFAULTS
 	assert module.PIPELINE_CONFIG_KEYS == tuple(keys)
@@ -37,6 +37,7 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert driver_ids == [
 		"globalwaitfactor",
 		"cni",
+		"numlan",
 		"nummod",
 		"groupwaitfactor",
 		"numberwaitfactor",
@@ -58,6 +59,7 @@ def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
 		"scope",
 		"global_wait_factor",
 		"ignore_comma_between_number",
+		"number_language",
 		"number_mode",
 		"group_size",
 		"group_wait_factor",
@@ -71,6 +73,22 @@ def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
 		"punctuation_pause_characters",
 	]
 	assert module.NUMBER_MODES == ("value", "number", "group")
+
+
+def test_number_language_is_ordering_only(monkeypatch):
+	# NVDA stores number language as a driver setting; the table only places it.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert [spec.key for spec in module.PIPELINE_SETTINGS if not spec.pipeline_config] == ["number_language"]
+	for keys in (
+		module.PIPELINE_SETTING_BY_KEY,
+		module.PIPELINE_CONFSPEC,
+		module.PIPELINE_CONFIG_KEYS,
+		module.DEFAULT_PIPELINE_SETTINGS,
+		[field.name for field in fields(module.PipelineSettings)],
+	):
+		assert "number_language" not in keys
+	with pytest.raises(KeyError, match="Unknown pipeline setting: number_language"):
+		module.pipeline_settings.update(number_language="en")
 
 
 def test_int_confspec_carries_the_spec_bounds(monkeypatch):

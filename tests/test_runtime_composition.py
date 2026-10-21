@@ -612,6 +612,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 	)
 	stub(
 		package + ".pipeline.settings",
+		NUMBER_MODE_CHOICES=(),
 		PIPELINE_CONFSPEC={},
 		PIPELINE_SETTINGS=(),
 		pipeline_settings=SimpleNamespace(),

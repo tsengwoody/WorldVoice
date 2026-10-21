@@ -63,6 +63,22 @@ def test_settings_lists_keep_their_order_and_store_pipeline_values_outside_speec
 	assert (wait.kind, wait.options["minStep"], wait.options["defaultVal"]) == ("int", 10, 10)
 
 
+def test_number_language_is_a_driver_setting_nvda_stores(monkeypatch):
+	conf = {"WorldVoice": {"pipeline": {}}}
+	synth_class, _ = load_synth(monkeypatch, conf)
+	synth = object.__new__(synth_class)
+	synth._voiceManager = manager()
+	(numlan,) = [setting for setting in synth.allSupportedSettings if setting.id == "numlan"]
+	assert (numlan.kind, numlan.label) == ("str", "Number &language")
+	assert numlan.options["displayName"] == "Number language"
+	assert numlan.options["defaultVal"] == "default"
+	assert numlan.options["availableInSettingsRing"] is True
+	# NVDA stores it in [speech][WorldVoice]: useConfig keeps its default, True.
+	assert numlan.options.get("useConfig", True) is True
+	# The driver's own numlan property stays; no pipeline descriptor replaces it.
+	assert "numlan" not in vars(synth_class)
+
+
 def test_numeric_settings_carry_the_spec_bounds(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}}
 	synth_class, settings_module = load_synth(monkeypatch, conf)

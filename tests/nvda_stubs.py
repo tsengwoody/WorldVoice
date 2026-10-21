@@ -89,9 +89,17 @@ def _spread_defaults(node):
 		spec = ast.literal_eval(_top_level_value(WORLDVOICE / "languageDetection/settings.py", source))
 		return {key: _confspec_default(validator) for key, validator in spec.items()}
 	if source == "PIPELINE_CONFSPEC":
-		# Built from the PipelineSettingSpec(key, kind, default, ...) table.
+		# Built from the PipelineSettingSpec(key, kind, default, ...) table, without the
+		# ordering-only entries (pipeline_config=False) that NVDA stores as driver settings.
 		table = _top_level_value(WORLDVOICE / "pipeline/settings.py", "PIPELINE_SETTINGS")
-		return {ast.literal_eval(spec.args[0]): ast.literal_eval(spec.args[2]) for spec in table.elts}
+		return {
+			ast.literal_eval(spec.args[0]): ast.literal_eval(spec.args[2])
+			for spec in table.elts
+			if not any(
+				keyword.arg == "pipeline_config" and ast.literal_eval(keyword.value) is False
+				for keyword in spec.keywords
+			)
+		}
 	if (
 		isinstance(node, ast.DictComp)
 		and ast.unparse(node.key) == "stage.log_key"

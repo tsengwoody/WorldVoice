@@ -44,7 +44,7 @@ from .pipeline import (
 )
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext
 from .pipeline.scope import pipeline_scope
-from .pipeline.settings import PIPELINE_CONFSPEC, PIPELINE_SETTINGS, pipeline_settings
+from .pipeline.settings import NUMBER_MODE_CHOICES, PIPELINE_CONFSPEC, PIPELINE_SETTINGS, pipeline_settings
 from .runtime.requestBuilder import queue_speech_sequence
 from .runtime.scheduler import TaskManager
 from .runtime.settings import VoiceSettingsStore
@@ -102,7 +102,12 @@ class SynthDriver(SynthDriver):
 
 	@staticmethod
 	def _pipeline_driver_setting(spec):
-		options = {"availableInSettingsRing": spec.ring, "defaultVal": spec.default, "useConfig": False}
+		# An ordering-only entry (number language) is stored by NVDA; the others in the pipeline section.
+		options = {
+			"availableInSettingsRing": spec.ring,
+			"defaultVal": spec.default,
+			"useConfig": not spec.pipeline_config,
+		}
 		if spec.display_name is not None:
 			options["displayName"] = spec.display_name
 		if spec.kind is bool:
@@ -140,18 +145,6 @@ class SynthDriver(SynthDriver):
 			if spec.driver_id is None:
 				continue
 			settings.append(self._pipeline_driver_setting(spec))
-			if spec.driver_id == "cni":
-				settings.append(
-					DriverSetting(
-						"numlan",
-						# Translators: Label for a setting in voice settings dialog.
-						_("Number &Language"),
-						availableInSettingsRing=True,
-						defaultVal="default",
-						# Translators: Label for a setting in synth settings ring.
-						displayName=_("Number Language"),
-					),
-				)
 		return settings
 
 	@property
@@ -480,12 +473,7 @@ class SynthDriver(SynthDriver):
 		self._numlan = value
 
 	def _get_availableNummods(self):
-		return {
-			"value": StringParameterInfo("value", _("value")),
-			"number": StringParameterInfo("number", _("number")),
-			# Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
-			"group": StringParameterInfo("group", _("group")),
-		}
+		return {value: StringParameterInfo(value, label) for value, label in NUMBER_MODE_CHOICES}
 
 	def _numlanDisplayName(self, locale):
 		# Settings-ring entries show the language description only.
@@ -509,5 +497,6 @@ class _PipelineSetting:
 
 
 for _spec in PIPELINE_SETTINGS:
-	if _spec.driver_id is not None:
+	# An ordering-only entry keeps the driver's own property (numlan).
+	if _spec.driver_id is not None and _spec.pipeline_config:
 		setattr(SynthDriver, _spec.driver_id, _PipelineSetting(_spec.key))
