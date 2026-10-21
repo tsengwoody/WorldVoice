@@ -171,7 +171,7 @@ msgstr "數字"
 
 #. Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:146
-#: addon\synthDrivers\WorldVoice\__init__.py:480
+#: addon\synthDrivers\WorldVoice\__init__.py:487
 msgid "group"
 msgstr "群組"
 
