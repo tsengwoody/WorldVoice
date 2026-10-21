@@ -214,7 +214,8 @@ def test_property_an_empty_or_blank_list_changes_nothing(env, data):
 
 # Numbers
 
-NUMBER_TEXT = st.text(alphabet="0123456789+-.aZ共 \t　", max_size=20)
+NO_BREAK_SPACES = "\u00a0\u202f\u2007"
+NUMBER_TEXT = st.text(alphabet="0123456789+-.aZ共 \t\n\r\u3000" + NO_BREAK_SPACES, max_size=20)
 
 
 def run_number_wait(env, sequence, wait):
@@ -264,7 +265,7 @@ def split_once(env, text):
 
 def walk(result, stripped):
 	"""Match the output against the stripped input: each text item is the next slice of it and
-	each break takes the whitespace run that follows. Returns how many characters each break took.
+	each break takes the whitespace run that follows. Returns the text each break took.
 	"""
 	taken = {}
 	position = 0
@@ -276,7 +277,7 @@ def walk(result, stripped):
 			end = position
 			while end < len(stripped) and stripped[end].isspace():
 				end += 1
-			taken[index] = end - position
+			taken[index] = stripped[position:end]
 			position = end
 	assert position == len(stripped), (stripped, result)
 	return taken
@@ -291,6 +292,15 @@ def test_property_the_split_keeps_the_text_and_replaces_only_whitespace(env, tex
 
 @SHARED_ENV
 @given(text=NUMBER_TEXT)
+def test_property_no_break_replaces_a_gap_with_a_no_break_space(env, text):
+	# A no-break space groups digits, as in "10 000", so it never joins two numbers (decided by the user).
+	result, stripped = split_once(env, text)
+	for gap in walk(result, stripped).values():
+		assert not any(space in gap for space in NO_BREAK_SPACES), (text, result)
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
 def test_property_no_text_item_keeps_two_numbers_apart_by_whitespace(env, text):
 	result, _stripped = split_once(env, text)
 	for item in result:
@@ -299,7 +309,7 @@ def test_property_no_text_item_keeps_two_numbers_apart_by_whitespace(env, text):
 		matches = list(env.module._NUMBER_RE.finditer(item))
 		gaps = [item[left.end() : right.start()] for left, right in pairwise(matches)]
 		for index, gap in enumerate(gaps):
-			if not gap.isspace():
+			if not gap.isspace() or any(space in gap for space in NO_BREAK_SPACES):
 				continue
 			# Either number is glued to its other neighbour, so neither is split out.
 			left_glued = index > 0 and not gaps[index - 1]

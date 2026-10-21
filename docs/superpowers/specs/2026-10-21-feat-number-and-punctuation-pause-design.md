@@ -121,7 +121,7 @@ Consequences: `["12abc", "3"]` and `["1.", "2"]` no longer get a number pause. `
 The number-split rule for one string `t`, where `m1 … mk` are the `_NUMBER_RE.finditer(t)` matches:
 
 - A match is **glued** to a neighbour when the gap `t[mi.end():mi+1.start()]` between them is the empty string. This only happens when the second match starts with `+` or `-` right after the first, as in `"2345-6789"` or `"3+4"`. A match glued to either neighbour is **unsplittable**. Decided by the user (2026-10-21): F1 option B.
-- Two consecutive matches are **joined** when the gap is non-empty and all whitespace (`str.isspace`) and both matches are splittable. This is the meaning of "separated only by whitespace". An empty gap, as in `"1-2"`, does not join.
+- Two consecutive matches are **joined** when the gap is non-empty and all whitespace (`str.isspace`), the gap holds no no-break space (U+00A0, U+202F, U+2007), and both matches are splittable. This is the meaning of "separated only by whitespace". An empty gap, as in `"1-2"`, does not join, and neither does a gap with a no-break space, as in `"10\u00a0000"`.
 - A match is **standalone** when it is joined to at least one neighbour.
 - If no match is standalone, yield `t` unchanged.
 - Otherwise:
@@ -146,8 +146,11 @@ Only regex matches become standalone items, and the two items of every dropped g
 | `"02 2345-6789"` | unchanged (F1, option B) |
 | `"3-1 2"` | unchanged (F1, option B) |
 | `"1 2 3-4"` | `"1"`, Break, `"2"`, `" 3-4"` (F1, option B) |
+| `"10\u00a0000"` (no-break space) | unchanged |
+| `"10\u00a0000 5"` | `"10\u00a0"`, `"000"`, Break, `"5"` (the two text pieces reach the engine as one segment) |
+| `"2 10\u00a0000"` | `"2"`, Break, `"10"`, `"\u00a0000"` (one segment after the break) |
 
-"Whitespace" means Unicode whitespace (`str.isspace`). It includes the ideographic space U+3000 and the no-break space, and it matches what `_remove_space` strips with `str.strip()` (`:188`). Decided by orchestrator with the recommended default; user may override before merge.
+"Whitespace" means Unicode whitespace (`str.isspace`): space, tab, newline, the ideographic space U+3000 and the rest, as `_remove_space` strips with `str.strip()`. The no-break spaces U+00A0, U+202F and U+2007 are the exception: they group the digits of one number in many locales (`10\u00a0000`, `1\u202f234\u202f567`), so a gap that holds any of them never joins two numbers. `_remove_space` still strips them at the ends of an item. Decided by the user (2026-10-21): option A of review Important 1.
 
 **1c. Digit mode pauses between digits.** Decided by the user (2026-10-21).
 No code change is needed: `"12"` becomes `"1 2"` in `number_mode`, and the split in 1b then puts a break between the digits. This applies only while digits are not translated. If the user defined replacements for digits in `unicode.dic`, the digits become words (for example `"一 二"`) and are not split (section 3.2; section 11, F5).
@@ -326,7 +329,7 @@ Number (`tests/test_pipeline_filters.py`, `tests/test_pipeline_stages.py`, `test
   - `["12abc", "3"]` and `["1.", "2"]` get no break;
   - `["12", "3"]` and `["-3.5", "4"]` get one;
   - a non-`str` neighbour gets none.
-- Every example in the table in section 4.1, plus `"1-2"`, `"12abc 3"`, a tab gap and a U+3000 gap.
+- Every example in the table in section 4.1, plus `"1-2"`, `"12abc 3"`, a tab gap, a newline gap, a U+3000 gap and no-break-space gaps (U+00A0, U+202F, U+2007, and a space next to U+00A0), which never split.
 - Across items: `["5", "1 2"]` gives `"5"`, B, `"1"`, B, `"2"`. Commands between items are kept and block the break, as today.
 - Wait ≤ 0 returns the input unchanged, including blank items. Keep `test_zero_number_wait_keeps_spaces`.
 - All inserted breaks are one instance. Keep the identity check at `tests/test_pipeline_filters.py:87`.
@@ -366,7 +369,7 @@ Settings and panels:
 
 Existing profiles: `tests/conftest.py:18-26` (`default` 200 examples, `deep` 20000, `mutmut` derandomized). Suggested file: `tests/test_pipeline_pause_properties.py`.
 
-Number split. Input: text over digits, `+-.`, ASCII letters, a CJK ideograph, space, tab and U+3000, run through `number_wait_factor` with a wait > 0.
+Number split. Input: text over digits, `+-.`, ASCII letters, a CJK ideograph, space, tab, `\n`, `\r`, U+3000 and the no-break spaces U+00A0, U+202F and U+2007, run through `number_wait_factor` with a wait > 0.
 
 - **N1, walk.** Walk the output against `input.strip()`:
   - each `str` item must be the next verbatim slice;
@@ -375,7 +378,8 @@ Number split. Input: text over digits, `+-.`, ASCII letters, a CJK ideograph, sp
 
   This proves three things: text is kept verbatim, every dropped gap has a break, and nothing else is dropped. Under F1 option B (decided by the user, 2026-10-21) every run a break consumes is non-empty.
 - **N7, leftover text.** When the split changed a string, an output text item that fullmatches `_NUMBER_RE` is always next to a break: leftover text never fullmatches a number. Added with the F1 decision (2026-10-21).
-- **N2, no gap left.** No output text item contains two `_NUMBER_RE` matches separated only by non-empty whitespace.
+- **N2, no gap left.** No output text item contains two `_NUMBER_RE` matches separated only by non-empty whitespace without a no-break space.
+- **N8, no-break spaces.** No `BreakCommand` consumes a whitespace run that holds U+00A0, U+202F or U+2007. Added with the no-break-space decision (2026-10-21).
 - **N3, no gluing.** No two consecutive `str` items have a digit at the end of the first and at the start of the second.
 - **N4, placement.** A `BreakCommand` is exactly between consecutive items that both fullmatch `_NUMBER_RE`, and all breaks are one instance.
 - **N5, zero wait.** Wait ≤ 0 returns a list equal to the input, item for item, for any mix of strings and commands.
@@ -503,7 +507,7 @@ This spec describes A, because that is the decision. The implementer must not st
 1. **F1 rule.** Decided by the user (2026-10-21): option B. A number glued to another number with no gap is never split out (section 4.1).
 2. **Voice panel: disable instead of hide** (section 4.3). Decided by orchestrator with the recommended default; user may override before merge.
 3. **Settings ring unchanged** (section 4.3). Decided by orchestrator with the recommended default; user may override before merge.
-4. **Whitespace means `str.isspace`**, and an empty gap never joins two numbers (section 4.1). Decided by orchestrator with the recommended default; user may override before merge.
+4. **Whitespace means `str.isspace` without the no-break spaces U+00A0, U+202F and U+2007**: a gap that holds one never joins two numbers, while space, tab, newline and U+3000 still do. An empty gap never joins two numbers either (section 4.1). Decided by the user (2026-10-21): option A of review Important 1.
 5. **Add `pipeline/__init__.py` to mutmut `source_paths`** (section 9.3). Decided by orchestrator with the recommended default; user may override before merge.
 
 ## 13. Flow classification
