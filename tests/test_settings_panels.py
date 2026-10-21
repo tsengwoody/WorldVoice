@@ -80,6 +80,8 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._punctuation_pause_characters_edit.value == "。，"
 	spin = panel._group_size_spin
 	assert (spin.GetValue(), spin.GetMin(), spin.GetMax()) == (4, 1, 10)
+	# NVDA's select-on-focus spin control, as its own Voice panel uses, not a plain wx.SpinCtrl.
+	assert type(spin) is env.gui.nvdaControls.SelectOnFocusSpinCtrl is not env.wx.SpinCtrl
 
 
 def test_pipeline_panel_selects_the_first_choice_for_an_unknown_stored_value(monkeypatch):

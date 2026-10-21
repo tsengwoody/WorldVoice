@@ -210,9 +210,12 @@ def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
 
 
 def test_group_size_follows_the_number_mode_list(monkeypatch):
-	panel = open_panel(monkeypatch, Driver(ALL), group_size=5).panel
+	env = open_panel(monkeypatch, Driver(ALL), group_size=5)
+	panel = env.panel
 
 	spin = panel.groupSizeSpin
+	# NVDA's select-on-focus spin control, as its own Voice panel uses, not a plain wx.SpinCtrl.
+	assert type(spin) is env.gui.nvdaControls.SelectOnFocusSpinCtrl is not env.wx.SpinCtrl
 	names = order(panel)
 	assert names.index("Group size:") == names.index("nummod") + 1
 	assert spin.tab_after is panel.nummodList

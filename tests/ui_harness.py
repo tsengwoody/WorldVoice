@@ -116,9 +116,13 @@ class TextCtrl(Control):
 
 
 class SpinCtrl(Control):
-	"""A wx.SpinCtrl. The initial value is kept as given, never clamped, so a test sees what the panel passed."""
+	"""A wx.SpinCtrl, made with keyword arguments only (min, max, initial), as the panels make it.
 
-	def __init__(self, parent=None, min=0, max=100, initial=0, **kwargs):
+	Neither the initial value nor SetValue is clamped to min..max, and GetValue returns what was
+	set, so a test sees the value the panel passed rather than one the fake corrected.
+	"""
+
+	def __init__(self, parent=None, *, min=0, max=100, initial=0, **kwargs):
 		super().__init__(parent, value=initial, **kwargs)
 		self.min, self.max = min, max
 
@@ -127,6 +131,10 @@ class SpinCtrl(Control):
 
 	def GetMax(self):
 		return self.max
+
+
+class SelectOnFocusSpinCtrl(SpinCtrl):
+	"""NVDA's gui.nvdaControls.SelectOnFocusSpinCtrl: a wx.SpinCtrl that selects its value on focus."""
 
 
 class StaticText(Control):
@@ -519,8 +527,7 @@ def gui_stubs(monkeypatch, *, answers=None):
 	gui = stubs.module("gui", messageBox=message_box, mainFrame=main_frame, _isDebug=lambda: False)
 	gui.__path__ = []
 	gui.guiHelper = stubs.module("gui.guiHelper", BoxSizerHelper=BoxSizerHelper)
-	# NVDA's SelectOnFocusSpinCtrl only adds select-on-focus to wx.SpinCtrl.
-	gui.nvdaControls = stubs.module("gui.nvdaControls", SelectOnFocusSpinCtrl=SpinCtrl)
+	gui.nvdaControls = stubs.module("gui.nvdaControls", SelectOnFocusSpinCtrl=SelectOnFocusSpinCtrl)
 	gui.settingsDialogs = stubs.module(
 		"gui.settingsDialogs",
 		SettingsPanel=SettingsPanel,
