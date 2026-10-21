@@ -150,6 +150,15 @@ def test_voice_placements_skip_a_missing_anchor(table):
 	]
 
 
+def test_a_control_may_follow_an_earlier_worldvoice_control():
+	specs = [
+		SimpleNamespace(key="d", driver_id="d"),
+		SimpleNamespace(key="a", driver_id=None),
+		SimpleNamespace(key="b", driver_id=None),
+	]
+	assert layout.voice_placements(specs, lambda key: True) == [("a", "d"), ("b", "a")]
+
+
 @pytest.mark.parametrize(
 	("key", "pipeline", "voice_name", "driver"),
 	[
@@ -217,6 +226,9 @@ def test_property_every_anchor_precedes_its_entry_and_has_a_row(specs, data):
 		if anchor is not None:
 			assert anchor in rows
 			assert position[anchor] < position[key]
+			# The nearest: no entry between the anchor and this one has a row.
+			between = [spec.key for spec in specs[position[anchor] + 1 : position[key]]]
+			assert not rows.intersection(between)
 
 
 @given(specs=tables())
