@@ -128,6 +128,30 @@ def test_update_converts_normalizes_and_writes_only_changes(monkeypatch):
 	assert result.punctuation_pause_characters == ".,"
 
 
+@pytest.mark.parametrize(
+	("raw", "expected"),
+	[
+		("pair", "value"),
+		("roman", "value"),
+		("", "value"),
+		(None, "value"),
+		("value", "value"),
+		("number", "number"),
+		("group", "group"),
+	],
+)
+def test_number_mode_reads_and_writes_only_known_modes(monkeypatch, raw, expected):
+	stored = {"WorldVoice": {"pipeline": {"number_mode": raw}}}
+	conf = {"WorldVoice": {"pipeline": {"number_mode": "number"}}}
+	module = load_settings_module(monkeypatch, conf)
+	assert module.PipelineSettingsService(
+		module.ConfigPipelineRepository(lambda: stored),
+	).get().number_mode == (expected)
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+	assert service.update(number_mode=raw).number_mode == expected
+	assert conf["WorldVoice"]["pipeline"]["number_mode"] == expected
+
+
 def test_update_rejects_unknown_keys_before_writing(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}}
 	module = load_settings_module(monkeypatch, conf)

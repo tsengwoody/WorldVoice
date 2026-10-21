@@ -80,6 +80,15 @@ def test_descriptors_read_and_write_through_the_service(monkeypatch):
 	assert "speech" not in conf
 
 
+def test_an_unknown_number_mode_is_stored_and_read_as_value(monkeypatch):
+	conf = {"WorldVoice": {"pipeline": {"number_mode": "group"}}}
+	synth_class, _ = load_synth(monkeypatch, conf)
+	synth = object.__new__(synth_class)
+	synth.nummod = "pair"
+	assert conf["WorldVoice"]["pipeline"]["number_mode"] == "value"
+	assert synth.nummod == "value"
+
+
 def test_load_settings_reapplies_waitfactor_without_writing_pipeline(monkeypatch):
 	class Section(dict):
 		def __setitem__(self, key, value):

@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 
 import pytest
-from pipeline_harness import load_pipeline_module, punctuation_settings
+from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings
 
 
 @pytest.fixture
@@ -265,6 +265,12 @@ def test_group_separator_is_one_instance_per_number(env, pause):
 	first, second = result[1::2]
 	assert first is second
 	assert first.time == pause
+
+
+def test_a_stored_pair_mode_reads_numbers_as_values(env, monkeypatch):
+	conf = {"WorldVoice": {"pipeline": {"number_mode": "pair", "group_size": 2}}}
+	stored = load_settings_module(monkeypatch, conf).pipeline_settings.get()
+	assert list(env.module.inject_number_mode(["1234"], stored, env.module.GENERIC_CONTEXT)) == ["1234"]
 
 
 def test_number_language_wraps_each_number(env):

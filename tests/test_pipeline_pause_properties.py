@@ -393,3 +393,19 @@ def test_property_int_convert_is_bounded_and_idempotent(settings_module, data):
 	result = spec.convert(data.draw(st.integers(-1000, 1000)))
 	assert spec.min_value <= result <= spec.max_value
 	assert spec.convert(result) == result
+
+
+@SHARED_ENV
+@given(
+	value=st.one_of(
+		st.text(max_size=8),
+		st.sampled_from(["value", "number", "group", "pair"]),
+		st.none(),
+		st.integers(),
+	),
+)
+def test_property_number_mode_normalisation_is_closed_and_idempotent(settings_module, value):
+	spec = settings_module.PIPELINE_SETTING_BY_KEY["number_mode"]
+	result = spec.convert(value)
+	assert result in settings_module.NUMBER_MODES
+	assert spec.convert(result) == result

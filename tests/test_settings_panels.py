@@ -4,9 +4,11 @@ Each panel's real makeSettings runs against the fake wx in ui_harness, over a fr
 profile and the real pipeline settings service.
 """
 
+import sys
 from types import SimpleNamespace
 
 import pytest
+from addon_loader import WORLDVOICE, load_definitions
 from nvda_stubs import worldvoice_conf
 from pipeline_harness import ORDER
 from ui_harness import Sizer, TextCtrl, fire, load_settings_dialog, make_panel
@@ -81,6 +83,23 @@ def test_pipeline_panel_selects_the_first_choice_for_an_unknown_stored_value(mon
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._scope_choice.selection == 0
 	assert panel._number_mode_choice.selection == 0
+
+
+def test_number_modes_match_the_driver_and_the_panel(monkeypatch):
+	env = pipeline_env(monkeypatch)
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	settings_module = sys.modules[type(env.pipeline_settings).__module__]
+	driver = load_definitions(
+		WORLDVOICE / "__init__.py",
+		["SynthDriver"],
+		{"_": lambda text: text, "StringParameterInfo": lambda id, name: SimpleNamespace(id=id, name=name)},
+		members=("_get_availableNummods",),
+	)["SynthDriver"]
+	assert (
+		list(settings_module.NUMBER_MODES)
+		== list(driver()._get_availableNummods())
+		== panel.number_mode_value
+	)
 
 
 def pause_controls_enabled(panel):

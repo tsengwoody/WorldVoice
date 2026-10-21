@@ -34,6 +34,15 @@ def _strip(value: Any) -> str:
 	return str(value).strip()
 
 
+# The number modes the pipeline knows; any other stored or written mode reads as "value".
+NUMBER_MODES: tuple[str, ...] = ("value", "number", "group")
+
+
+def _number_mode(value: Any) -> str:
+	mode = str(value)
+	return mode if mode in NUMBER_MODES else "value"
+
+
 @dataclass(frozen=True)
 class PipelineSettingSpec:
 	"""One pipeline setting: its config key, type, default and synth-setting metadata."""
@@ -85,6 +94,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		label=_("Number &Mode"),
 		# Translators: Label for a setting in synth settings ring.
 		display_name=_("Number Mode"),
+		normalize=_number_mode,
 	),
 	PipelineSettingSpec(
 		"global_wait_factor",
