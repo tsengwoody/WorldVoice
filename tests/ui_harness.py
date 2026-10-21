@@ -31,9 +31,17 @@ class Control:
 		self.containing_sizer = None
 		self.tab_after = None
 		self.destroyed = False
+		# wx keeps a window's children in creation order, which is the Tab order.
+		tab_order = getattr(parent, "tab_order", None)
+		if tab_order is not None:
+			tab_order.append(self)
 
 	def __repr__(self):
 		return f"<{type(self).__name__} {self.label!r}>"
+
+	def __bool__(self):
+		# wxPython: a destroyed window is falsy, which NVDA's "if self.lastControl:" relies on.
+		return not self.destroyed
 
 	# Choice
 	def Select(self, index):
@@ -98,6 +106,10 @@ class Control:
 
 	def MoveAfterInTabOrder(self, other):
 		self.tab_after = other
+		tab_order = getattr(self.parent, "tab_order", None)
+		if tab_order is not None and self in tab_order and other in tab_order:
+			tab_order.remove(self)
+			tab_order.insert(tab_order.index(other) + 1, self)
 
 
 class CheckBox(Control):
@@ -241,6 +253,9 @@ class Sizer:
 		if delete_windows:
 			for control in self.controls():
 				control.destroyed = True
+				tab_order = getattr(control.parent, "tab_order", None)
+				if tab_order is not None and control in tab_order:
+					tab_order.remove(control)
 		self.items = []
 
 	def contents(self):
@@ -331,6 +346,7 @@ class SettingsPanel:
 
 	def __init__(self):
 		self.bindings = []
+		self.tab_order = []
 
 	def Bind(self, event, handler, source=None):
 		self.bindings.append((event, handler, source))
@@ -418,6 +434,9 @@ class VoiceSettingsPanel(SettingsPanel):
 
 				control.Bind(EVT_CHOICE, write)
 			made.Add(control)
+		# NVDA moves each new driver control after the previous one (settingsDialogs.py:1457-1459).
+		if self.lastControl:
+			control.MoveAfterInTabOrder(self.lastControl)
 		self.lastControl = control
 		self.sizerDict[setting.id] = made
 		self.settingsSizer.Insert(len(self.sizerDict) - 1, made)

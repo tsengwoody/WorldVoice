@@ -3,6 +3,15 @@
 import types
 
 from pipeline_harness import load_synth
+from ui_harness import (
+	BooleanDriverSetting,
+	DriverSetting,
+	NumericDriverSetting,
+	Sizer,
+	load_settings_dialog,
+	load_voice_settings_dialogs,
+	make_panel,
+)
 
 STANDARD = ["voice", "variant", "rate", "rateBoost", "pitch", "inflection", "volume", "uwv"]
 TABLE_DRIVER_IDS = [
@@ -71,3 +80,123 @@ def test_ring_names_follow_the_label_rule(monkeypatch):
 		"removepunctuationcharacters": "Remove punctuation at pause points",
 		"punctuationwaitfactor": "Punctuation wait factor",
 	}
+
+
+# NVDA's driver setting class for each control a driver entry uses.
+NVDA_SETTINGS = {"checkbox": BooleanDriverSetting, "slider": NumericDriverSetting, "choice": DriverSetting}
+
+
+class TableDriver:
+	"""WorldVoice as the Voice panel sees it: the voice plus every driver setting of the table."""
+
+	name = "WorldVoice"
+
+	def __init__(self, table):
+		entries = [spec for spec in table if spec.driver_id is not None and "voice" in spec.panels]
+		self.allSupportedSettings = [DriverSetting("voice")] + [
+			NVDA_SETTINGS[spec.control](spec.driver_id) for spec in entries
+		]
+		self.supportedSettings = list(self.allSupportedSettings)
+		self.availableVoices = {"eva": types.SimpleNamespace(id="eva", displayName="Eva")}
+		self.voice = "eva"
+		for spec in entries:
+			if spec.control == "choice":
+				options = spec.choices or (("default", "default"),)
+				setattr(
+					self,
+					f"available{spec.driver_id.capitalize()}s",
+					{value: types.SimpleNamespace(id=value, displayName=label) for value, label in options},
+				)
+			setattr(self, spec.driver_id, spec.default)
+
+	def isSupported(self, name):
+		return True
+
+
+def voice_panel(monkeypatch):
+	env = load_voice_settings_dialogs(monkeypatch)
+	panel = env.module.WorldVoiceVoiceSettingsPanel(TableDriver(env.module.PIPELINE_SETTINGS))
+	panel.makeSettings(panel.settingsSizer)
+	specs = env.module.panel_specs(env.module.PIPELINE_SETTINGS, "voice")
+	return env, panel, specs
+
+
+def voice_controls(env, panel, specs):
+	"""Each Voice panel table entry's control, by key."""
+	module = env.module
+	return {
+		spec.key: getattr(
+			panel,
+			module.driver_attribute(spec) if spec.driver_id is not None else module.voice_attribute(spec),
+		)
+		for spec in specs
+	}
+
+
+def voice_rows(env, panel, specs):
+	"""The table entries in the panel's layout order."""
+	controls = voice_controls(env, panel, specs)
+	rows = {}
+	for spec in specs:
+		row = (
+			panel.sizerDict[spec.driver_id]
+			if spec.driver_id is not None
+			else env.controls.control_row(controls[spec.key], spec)
+		)
+		rows[id(row)] = spec.key
+	return [rows[id(entry.item)] for entry in panel.settingsSizer.items if id(entry.item) in rows]
+
+
+def tab_keys(panel, controls):
+	keys = {id(control): key for key, control in controls.items()}
+	return [keys[id(control)] for control in panel.tab_order if id(control) in keys]
+
+
+VOICE_KEYS = [
+	"global_wait_factor",
+	"ignore_comma_between_number",
+	"number_language",
+	"number_mode",
+	"group_size",
+	"group_wait_factor",
+	"number_wait_factor",
+	"item_wait_factor",
+	"sayall_wait_factor",
+	"chinesespace_wait_factor",
+	"punctuation_pause_enabled",
+	"remove_punctuation_characters",
+	"punctuation_wait_factor",
+	"punctuation_pause_characters",
+]
+
+
+def test_voice_panel_rows_follow_the_table(monkeypatch):
+	env, panel, specs = voice_panel(monkeypatch)
+	assert voice_rows(env, panel, specs) == [spec.key for spec in specs] == VOICE_KEYS
+
+
+def test_voice_panel_tab_order_follows_the_table(monkeypatch):
+	env, panel, specs = voice_panel(monkeypatch)
+	assert tab_keys(panel, voice_controls(env, panel, specs)) == VOICE_KEYS
+
+
+def test_voice_panel_rows_and_tab_order_survive_a_voice_change(monkeypatch):
+	env, panel, specs = voice_panel(monkeypatch)
+
+	panel.updateDriverSettings(changedSetting="voice")  # what NVDA runs after the voice changed
+
+	assert voice_rows(env, panel, specs) == VOICE_KEYS
+	assert tab_keys(panel, voice_controls(env, panel, specs)) == VOICE_KEYS
+
+
+def test_pipeline_panel_controls_follow_the_table(monkeypatch):
+	env = load_settings_dialog(monkeypatch)
+	panel = make_panel(env.module.SpeechPipelinePanel)
+	sizer = Sizer()
+	panel.makeSettings(sizer)
+	specs = env.module.panel_specs(env.module.PIPELINE_SETTINGS, "pipeline")
+	controls = {spec.key: getattr(panel, env.module.pipeline_attribute(spec)) for spec in specs}
+	keys = [spec.key for spec in specs]
+	assert keys == ["scope", *(key for key in VOICE_KEYS if key != "number_language")]
+	assert tab_keys(types.SimpleNamespace(tab_order=sizer.controls()), controls) == keys
+	assert tab_keys(panel, controls) == keys
