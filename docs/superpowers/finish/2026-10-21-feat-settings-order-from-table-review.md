@@ -142,3 +142,18 @@ Windows／NVDA 手動項目（spec §10.6，未驗證），並補上一項：
 5. 設定環順序（§6.3），從 rate 開始；環裡改值會保存，numlan 重啟 NVDA 後仍在。
 6. 其他合成器（eSpeak NG）：Voice 面板沒有 Group size／Punctuation pause characters，Save 不改 pipeline 設定；**開著對話框** WorldVoice → eSpeak NG → WorldVoice，以及 **WorldVoice → WorldVoice（按 OK 不換）**，每次 Voice 面板都正確顯示、log 無錯誤（修 I1 前預期會出現 RuntimeError）。
 7. zh_TW：§7 的每個標籤都有翻譯，記錄冒號的顯示方式。
+
+## 修正記錄
+
+修正者：Opus 5.5（2026-10-21），worktree `/workspace/WorldVoice-feat-order`，從 `ce70684` 開始。每項都先寫測試、確認紅燈再修；`Ruling:` 記在進度帳本。
+
+| 項目 | commit | 處理 |
+| --- | --- | --- |
+| I1 | `d511d9d` | `_voiceControl` 改成 `return control if control else None`：已銷毀（falsy）的 wx 視窗當作不存在。Voice 面板對表格控制項的每一種使用（Bind、讀值、Enable、放置、Save）本來就都經過 `_voiceControl`，所以選擇「集中在這個 helper」而不是在 `makeSettings` 開頭重設所有屬性（驅動控制項的屬性是 NVDA 的，不該由 WorldVoice 改寫）；`_addPipelineControls` 仍把非驅動屬性設為 `None`。紅燈：既有的 `test_a_rebuild_for_another_synth_drops_the_worldvoice_controls`（`_bindControllers`）與新的 `test_a_rebuild_for_worldvoice_from_worldvoice_places_the_controls_again`（`_applyDependencies`）。 |
+| M1 | `d511d9d`（與 I1 同一個 commit） | `tests/ui_harness.py` 的 `Control` 銷毀後，任何 wx 方法或 property 都丟 `RuntimeError`（Python 屬性如 `label`、`destroyed` 仍可讀，和真的 dead wrapper 一樣），`MoveAfterInTabOrder` 拒絕已銷毀的目標；銷毀後仍為 falsy。和 I1 同一個 commit，因為單獨改假物件會讓測試紅燈。 |
+| M2 | `b666eb3` | 守門測試新增：標籤結尾「:」、int 的 `default` 超出 `min_value..max_value`、`min_value >= max_value`（含相等）、在兩個面板都出現的驅動 slider 其 `min_step` 不等於 `panel_scale`；`check_attribute_names` 對無法命名的驅動或 Voice 面板控制項回報訊息，不再丟 `KeyError`。9 個新的壞 entry 在檢查寫好前都紅燈（7 個 `[] != []`、2 個 `KeyError`）。 |
+| M3 | `7f2e234` | 三個測試，各自在套用 review 的種子突變後失敗：`test_saving_skips_a_non_driver_choice_with_no_selection`（Voice `onSave` 不過濾 `None`）、`test_cancel_after_the_synth_changed_restores_no_pipeline_setting`（`onDiscard` 不檢查合成器）、`test_pipeline_panel_never_saves_an_entry_pipeline_config_does_not_store`（Speech Pipeline `onSave` 改成 `if True`）；後者另在 `onSave` 加一行註解說明守門測試讓這條分支在真實表格下用不到。 |
+| M4 | `3aa5ecd` | zh_TW `nvda.po` 的 9 個新條目加上 `#:` 行，指向每個 `_()` 呼叫的實際行號（沿用目錄既有的 Windows 路徑格式）；舊條目過時的參照行不動。`msgfmt --check` 通過。沒有留下常駐測試：釘住行號的測試會在每次修改這些檔案時失敗，而專案只在打包時用 `scons pot` + `msgmerge` 更新參照；改用一次性的 scratch 測試確認（舊目錄紅、新目錄綠）後移除。 |
+| M5 | `8c2f718` | spec §5.8 新增「Rebuild (final review I1)」段落，寫出兩條重建路徑與 `_voiceControl` 的規則；修法形式列為 §13 的 N9，標記「Decided by orchestrator with the recommended default; user may override before merge」；§10.3 補上嚴格假物件與兩個重建測試；§10.6 手動項目 6 補上經由合成器對話框的 WorldVoice → WorldVoice（按 OK 不換）。 |
+
+修正後驗證（`8c2f718`）：完整測試 2084 passed、0 skipped（基準 2070 + I1 1 + M2 10 + M3 3）；`prek run --all-files` 8 個 hook 全數 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令皆無輸出。`panelLayout.py` 沒有修改，所以沒有重跑 mutmut。Windows 上的 NVDA、實際 wx 與引擎 SDK 仍未驗證；spec §10.6 的手動項目（含新的 WorldVoice → WorldVoice）待 Windows 測試。
