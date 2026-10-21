@@ -67,6 +67,23 @@ def test_handler_passes_effective_settings_and_context(monkeypatch):
 	assert seen == [(settings, module.GENERIC_CONTEXT)]
 
 
+def test_handler_asks_for_the_settings_of_the_contexts_synth(monkeypatch):
+	settings = punctuation_settings(0)
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	asked = []
+	monkeypatch.setattr(
+		module,
+		"pipeline_settings",
+		SimpleNamespace(effective=lambda roles: asked.append(roles) or settings),
+	)
+	stage = module.Stage("speech_viewer", lambda sequence, s, ctx: list(sequence))
+	roles = module.SpeechContext(supports_roles=True, language="en", number_language="default")
+	for ctx in [module.GENERIC_CONTEXT, roles]:
+		monkeypatch.setattr(module, "current_context", lambda ctx=ctx: ctx)
+		stage.handler(["a"])
+	assert asked == [False, True]
+
+
 def test_handler_logs_before_and_after_when_enabled(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	sys.modules["config"].conf["WorldVoice"]["log"] = {"enable": True, "speech_viewer": True}
@@ -169,6 +186,7 @@ def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):
 	for stage in module.STAGES:
 		inspect.signature(stage.handler).bind(["text"])
 		assert stage.handler.__name__ == stage.fn.__name__
+		assert stage.handler.__doc__ == stage.fn.__doc__
 
 
 def pause_settings(number_mode):
