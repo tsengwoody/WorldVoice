@@ -3,10 +3,19 @@
 import ast
 import sys
 import types
+import unicodedata
 from types import SimpleNamespace
 
 from addon_loader import WORLDVOICE, alias_package, load_source
 from nvda_stubs import StubModules, worldvoice_conf
+
+
+def symbol_name(locale, symbol):
+	"""The stub of NVDA's characterProcessing.processSpeechSymbol: a letters-only name, unique per locale.
+
+	symbol_name("en", ".") == "full stop en"; symbol_name("zh_TW", "×") == "multiplication sign zh tw".
+	"""
+	return " ".join([*unicodedata.name(symbol).lower().replace("-", " ").split(), *locale.lower().split("_")])
 
 
 class FakeSpeechSequenceFilter:
@@ -32,6 +41,7 @@ def load_pipeline_module(monkeypatch, settings):
 		"speech",
 		"speech.commands",
 		"speech.extensions",
+		"characterProcessing",
 		"speechDictHandler",
 		"synthDriverHandler",
 		"synthDrivers",
@@ -74,6 +84,10 @@ def load_pipeline_module(monkeypatch, settings):
 
 	speech = stubs.module("speech")
 	speech.speech = SimpleNamespace(processText=lambda *args, **kwargs: args[1])
+	speech.getCurrentLanguage = lambda: "en"
+
+	characterProcessing = stubs.module("characterProcessing")
+	characterProcessing.processSpeechSymbol = symbol_name
 
 	extensions = stubs.module("speech.extensions")
 	extensions.filter_speechSequence = FakeSpeechSequenceFilter()

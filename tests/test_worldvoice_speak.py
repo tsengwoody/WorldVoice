@@ -109,6 +109,7 @@ def _load_modules(monkeypatch, conf):
 	)
 	stubs.module("speech.extensions", filter_speechSequence=SimpleNamespace())
 	stubs.module("speechDictHandler", processText=lambda text: text)
+	stubs.module("characterProcessing", processSpeechSymbol=lambda locale, symbol: symbol)
 	stubs.module("globalVars", speechDictionaryProcessing=True)
 	stubs.module("synthDriverHandler", getSynth=lambda: None)
 	stubs.module("config", conf=conf)

@@ -6,7 +6,9 @@ from functools import wraps
 from itertools import pairwise
 from typing import TYPE_CHECKING, Literal, Union
 
+import characterProcessing
 import config
+import speech
 import speechDictHandler
 from logHandler import log
 from speech.commands import BreakCommand, LangChangeCommand
@@ -79,6 +81,32 @@ def listable(func):
 		return speechSequence
 
 	return wrapper
+
+
+def _symbol_locale(language: str | None) -> str:
+	"""The locale to look a symbol name up in, for text spoken in *language*.
+
+	No language (another synth's context) is NVDA's current language, where NVDA's own symbol
+	processing starts. NVDA only drops a country after "_", so a "-" becomes "_"; and a bare
+	language, as WorldVoice stores number languages, takes the country of NVDA's current
+	language when the two agree ("zh" -> "zh_TW"), as NVDA's spelling does.
+	"""
+	current = speech.getCurrentLanguage()
+	if not language:
+		return current
+	locale = language.replace("-", "_")
+	if "_" not in locale and locale.lower() == current.split("_")[0].lower():
+		return current
+	return locale
+
+
+def _symbol_name(locale: str, symbol: str) -> str | None:
+	"""NVDA's name of *symbol* in *locale*, as when NVDA reads that one character; None without one."""
+	try:
+		name = characterProcessing.processSpeechSymbol(locale, symbol)
+	except LookupError:
+		return None
+	return name if name and name != symbol else None
 
 
 def get_translate_table(ctx: SpeechContext) -> dict[int, str]:
