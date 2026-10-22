@@ -206,6 +206,19 @@ def test_rebuilding_the_driver_controls_updates_values_except_the_changed_settin
 	assert panel.rateBoostCheckbox.value == "untouched"
 
 
+def test_the_pre_pass_leaves_the_changed_setting_to_nvda(monkeypatch):
+	# Like NVDA's updateDriverSettings, the pre-pass makes no control for changedSetting, even one
+	# newly listed and without a row; in practice changedSetting is always voice, which has one.
+	driver = Driver(ALL, settings=tuple(setting for setting in SETTINGS if setting.id != "rateBoost"))
+	panel = open_panel(monkeypatch, driver).panel
+	driver.allSupportedSettings = list(SETTINGS)
+
+	panel.updateDriverSettings(changedSetting="rateBoost")
+
+	assert "rateBoost" not in panel.sizerDict
+	assert getattr(panel, "rateBoostCheckbox", None) is None
+
+
 def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
 	env = open_panel(monkeypatch, Driver(ALL), punctuation_pause_characters="。！")
 	panel = env.panel

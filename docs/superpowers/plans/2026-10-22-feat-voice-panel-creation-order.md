@@ -194,6 +194,9 @@ Expected: all pass. Full suite: 2106 passed, 0 skipped. That is 2100, minus the 
 **Files:** none, unless a surviving mutant needs a test (`tests/test_panel_layout.py`).
 
 - [ ] **Step 1: mutmut on `creation_followers`.** Run in a scratch copy, with `--max-children 3` and the memory guard: `mutmut run "*creation_followers*"`. Expected: every mutant killed, or each survivor recorded as equivalent, with the reason, in the ledger.
+- **Mutation notes (final review M3, seeded on `VoiceSettingsDialogs.py`):**
+  - `setting.id != changedSetting` in the pre-pass: killed by `test_the_pre_pass_leaves_the_changed_setting_to_nvda`, which lists a setting that has no row and passes it as `changedSetting`. In practice `changedSetting` is always `voice`, which already has a row.
+  - `absent and` in `values = pipeline_settings.get() if absent and self._isWorldVoice() else None`: equivalent. `_makePipelineControls` makes only controls that `_voiceControl` counts as absent, so when nothing is absent the loaded values are never read; `absent` only saves one `pipeline_settings.get()`.
 - [ ] **Step 2: §7 verification**
   - `python3 -m pytest -q tests` under the guard. Expected: 2106 passed, 0 skipped (plus any survivor-killing tests).
   - `prek run --all-files`. Expected: all Passed.
