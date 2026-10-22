@@ -1,6 +1,6 @@
 """The one definition of a number, and the rules for cutting one into spoken pieces.
 
-This module imports only the standard library, so tests and mutmut can load it alone.
+This module imports only the standard library, so it needs no NVDA module or stub to load.
 """
 
 import re
