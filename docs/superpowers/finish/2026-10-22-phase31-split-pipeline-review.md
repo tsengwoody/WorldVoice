@@ -155,3 +155,16 @@ Ready to merge：**是。** Critical 0、Important 0、Minor 4。
 ## Windows 無法在 Linux 驗證的部分
 
 真實 NVDA 中 `globalVars.appDir` 下的 `locale/<locale>/symbols.dic` 探測、`speech.getCurrentLanguage()` 的實際回傳，與 OneCore／SAPI5 等引擎收到的 break 命令，Linux 上都是以 stub 或 `ref/nvda` 的原始碼驗證；但本階段對這些路徑的呼叫次數以外沒有任何改動（等價探針 61,776 個案例相同），所以沒有新增的 Windows 風險。
+
+## 修正記錄
+
+修正者 Opus 5.5，worktree `/workspace/WorldVoice-phase31`，從 `5fe102d` 開始。四項 Minor 全部修正，每項的 `Ruling:` 記在進度帳本。
+
+| # | commit | 修正內容 |
+| --- | --- | --- |
+| M1 | `c6c6b0d` | `imported_modules` 改用 `ast.walk`，新增 `packages()` 取 `split(".")[0]`；Guard B 先扣掉 `speech.commands`、`speech.extensions`（`__init__.py` 實際用到的 `speech` 子模組只有這兩個，含 `TYPE_CHECKING` 下的 `speech.commands`）再比對頂層套件；languageDetection 的守門也改比頂層套件。先在 scratch 複本的 `with_order_log` 函式內種入 `from os.path import isfile`：新守門 1 failed（`'os'`）、舊守門 3 passed；`import os.path`、`from speech import getCurrentLanguage` 也都 1 failed；真實程式碼 3 passed。仍放行的寫法：`import speech.commands`（會綁定 `speech` 這個名稱），因為允許是依模組名稱而非 import 形式；目前程式碼只用 `from` 形式，記為帳本中的已知代價。 |
+| M2 | `2ddf286` | 只把 `appDir` 底下的探測（`Path.is_relative_to`）拿來比對。先在 scratch 複本的 `symbol_locale` 種入 `os.path.isfile('/elsewhere/probe')`：舊測試丟 `ValueError`，新測試通過；拿掉快取（`has_symbol_table = _symbol_table_on_disk`）時新測試仍然失敗，守門效果不變。 |
+| M3 | `9ffac2b` | 只改文件：計畫的 mutmut 表上方加「**Baseline:**」段落，說明後測欄自此取代 `e81b278` 作為 pipeline 的基準，並記下 `e81b278` 漏記 `iter_number_speech_segments_mode` 的 4 個存活（`_1`、`_4`、`_34`、`_35`）與 `iter_number_speech_segments_language` 的 3 個存活（`_11`、`_13`、`_14`），全部等價。另確認該函式自 `844d8d2` 起只有預設值 `NUMBER_RE` 的 D3 更名，本體未變。 |
+| M4 | `8aacd92` | `pipeline/numbers.py:3` 改為「This module imports only the standard library, so it needs no NVDA module or stub to load.」。進度帳本 Task 1／Task 2 的順序依審閱建議不改。 |
+
+每個 commit 前與修正結束時都跑了 §7 的驗證：`python3 -m pytest -q -p no:cacheprovider tests` 單一行程、3 GB MemAvailable 記憶體監控（最低約 6.0 GB）→ **2346 passed, 0 skipped**；`prek run --all-files` 8 個 hook 全 Passed；`git diff --check master` 乾淨；兩個受保護路徑指令都沒有輸出。沒有 push、沒有 stash、沒有動主 checkout 與 `scratchpad/p31`。
