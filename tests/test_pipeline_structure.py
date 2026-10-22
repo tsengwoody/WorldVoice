@@ -4,6 +4,9 @@ import ast
 import sys
 from pathlib import Path
 
+import pytest
+from mutation_support import running_under_mutmut
+
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon" / "synthDrivers" / "WorldVoice"
 
 
@@ -25,6 +28,9 @@ def test_language_detection_reaches_for_no_nvda_globals():
 	}
 
 
+# mutmut's rewritten copy imports its own trampoline into every mutated module; the guard judges
+# the source, as the hygiene guards do, so it stands aside on that copy.
+@pytest.mark.skipif(running_under_mutmut(), reason="mutmut's copy imports mutmut")
 def test_number_lexing_imports_only_the_standard_library():
 	# The one definition of a number loads without NVDA: every import, even one inside a function,
 	# is of the standard library, and none reaches back into the package.
