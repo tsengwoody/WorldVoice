@@ -66,7 +66,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	]
 	assert panel._scope_choice.choices == ["All Synthesizers (Global)", "Only WorldVoice Synthesizer"]
 	assert panel._scope_choice.selection == 0
-	assert panel._number_mode_choice.selection == 2
+	assert panel._number_mode_choice.selection == 3
 	# The global factor is stored in tens and shown in units.
 	assert panel._global_wait_factor_slider.value == 3
 	assert [
@@ -93,11 +93,12 @@ def test_pipeline_panel_rows_are_spaced_as_nvda_spaces_them(monkeypatch):
 	assert [is_spacer(entry) for entry in sizer.items] == [False, *[True, False] * 12]
 
 
-def test_pipeline_panel_selects_the_first_choice_for_an_unknown_stored_value(monkeypatch):
+def test_pipeline_panel_shows_an_unknown_stored_value_as_its_normal_form(monkeypatch):
+	# An unknown scope selects the first choice; an unknown mode reads as "value", not "off".
 	env = pipeline_env(monkeypatch, scope="nowhere", number_mode="roman")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._scope_choice.selection == 0
-	assert panel._number_mode_choice.selection == 0
+	assert panel._number_mode_choice.selection == 1
 
 
 def test_number_modes_match_the_driver_and_the_panel(monkeypatch):
@@ -142,7 +143,7 @@ def test_pipeline_panel_group_controls_follow_the_mode_choice(monkeypatch):
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	choice = panel._number_mode_choice
 
-	choice.Select(2)
+	choice.Select(3)
 	fire(choice, "EVT_CHOICE", panel=panel)
 	assert group_controls_enabled(panel) == (True, True)
 
@@ -160,7 +161,7 @@ def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
 	assert group_controls_enabled(panel) == (False, False)
 
 
-@pytest.mark.parametrize("stored", ["value", "number", "group"])
+@pytest.mark.parametrize("stored", ["none", "value", "number", "group"])
 def test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected(monkeypatch, stored):
 	# A choice with no selection names no mode: neither the last choice, group, nor "value" is
 	# saved, and the other settings still are.
@@ -326,7 +327,7 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	env = pipeline_env(monkeypatch)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._scope_choice.Select(0)
-	panel._number_mode_choice.Select(1)
+	panel._number_mode_choice.Select(2)
 	panel._global_wait_factor_slider.SetValue(7)
 	panel._group_wait_factor_slider.SetValue(40)
 	panel._group_size_spin.SetValue(6)

@@ -49,6 +49,18 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert all(spec.ring for spec in module.PIPELINE_SETTINGS if spec.driver_id)
 
 
+def test_number_mode_choices_put_off_first(monkeypatch):
+	# Decided by the user (2026-10-22): "off" leaves numbers alone; the default stays "value".
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert module.NUMBER_MODE_CHOICES == (
+		("none", "off"),
+		("value", "value"),
+		("number", "number"),
+		("group", "group"),
+	)
+	assert module.PIPELINE_SETTING_BY_KEY["number_mode"].default == "value"
+
+
 def test_ignore_comma_option_is_gone(monkeypatch):
 	# Decided by the user (2026-10-22): value mode removes thousands separators instead; no migration.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
@@ -76,7 +88,7 @@ def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
 		"punctuation_wait_factor",
 		"punctuation_pause_characters",
 	]
-	assert module.NUMBER_MODES == ("value", "number", "group")
+	assert module.NUMBER_MODES == ("none", "value", "number", "group")
 
 
 def test_number_language_is_ordering_only(monkeypatch):
@@ -182,6 +194,7 @@ def test_update_converts_normalizes_and_writes_only_changes(monkeypatch):
 		("value", "value"),
 		("number", "number"),
 		("group", "group"),
+		("none", "none"),
 	],
 )
 def test_number_mode_reads_and_writes_only_known_modes(monkeypatch, raw, expected):

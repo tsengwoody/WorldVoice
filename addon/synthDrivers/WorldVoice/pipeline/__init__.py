@@ -469,6 +469,10 @@ def inject_number_mode(
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	mode = settings.number_mode
+	if mode == "none":
+		# "off" leaves numbers as they are, without even the dot rule.
+		yield from speechSequence
+		return
 	translate_table = get_translate_table(ctx)
 	group_size = settings.group_size
 	group_pause = settings.scaled_group_wait()

@@ -39,8 +39,10 @@ def test_translator_comments_precede_gettext_calls():
 
 
 GROUP_MODE_MSGIDS = ("group", "Group size", "Group wait factor")
-# Labels that are new or changed with the shared, sentence-case labels (2026-10-21).
+# Labels that are new or changed with the shared, sentence-case labels (2026-10-21), and the
+# "off" number mode (2026-10-22).
 CHANGED_LABEL_MSGIDS = (
+	"off",
 	"Number &mode",
 	"Number mode",
 	"Number &language",

@@ -52,7 +52,7 @@ def test_pipeline_panel_saves_once_through_the_service(monkeypatch):
 	module.pipeline_settings = types.SimpleNamespace(update=lambda **changes: updates.append(changes))
 	panel = object.__new__(module.SpeechPipelinePanel)
 	panel._scope_choice = Widget(selection=0)
-	panel._number_mode_choice = Widget(selection=2)
+	panel._number_mode_choice = Widget(selection=3)
 	panel._global_wait_factor_slider = Widget(3)
 	for name in ("number", "item", "sayall", "chinesespace", "punctuation", "group"):
 		setattr(panel, f"_{name}_wait_factor_slider", Widget(7))

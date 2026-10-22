@@ -46,7 +46,7 @@ class Driver:
 		self.availableVoices = {"eva": SimpleNamespace(id="eva", displayName="Eva")}
 		self.availableVariants = {"v1": SimpleNamespace(id="v1", displayName="Variant 1")}
 		self.availableNummods = {
-			mode: SimpleNamespace(id=mode, displayName=mode) for mode in ("value", "number", "group")
+			mode: SimpleNamespace(id=mode, displayName=mode) for mode in ("none", "value", "number", "group")
 		}
 		defaults = {
 			"voice": "eva",
@@ -309,7 +309,10 @@ def group_controls_enabled(panel):
 	return (panel.groupSizeSpin.enabled, panel.groupwaitfactorSlider.enabled)
 
 
-@pytest.mark.parametrize(("mode", "enabled"), [("value", False), ("number", False), ("group", True)])
+@pytest.mark.parametrize(
+	("mode", "enabled"),
+	[("none", False), ("value", False), ("number", False), ("group", True)],
+)
 def test_group_controls_follow_the_stored_mode_when_the_panel_opens(monkeypatch, mode, enabled):
 	panel = open_panel(monkeypatch, Driver(ALL, nummod=mode)).panel
 	assert group_controls_enabled(panel) == (enabled, enabled)
@@ -322,13 +325,13 @@ def test_choosing_a_mode_updates_the_group_controls_and_still_saves_the_setting(
 	panel = open_panel(monkeypatch, driver).panel
 	choice = panel.nummodList
 
-	choice.Select(2)
+	choice.Select(3)
 	fire(choice, "EVT_CHOICE")
 	assert group_controls_enabled(panel) == (True, True)
 	# WorldVoice's handler skips the event, so NVDA's own handler still writes the setting.
 	assert driver.nummod == "group"
 
-	choice.Select(0)
+	choice.Select(1)
 	fire(choice, "EVT_CHOICE")
 	assert group_controls_enabled(panel) == (False, False)
 	assert driver.nummod == "value"
@@ -343,7 +346,7 @@ def test_a_voice_switch_after_a_settings_ring_mode_change_matches_the_group_cont
 	# SetSelection on the list fires no EVT_CHOICE, so the panel must apply the state itself.
 	panel.updateDriverSettings(changedSetting="voice")
 
-	assert panel.nummodList.selection == ["value", "number", "group"].index(mode)
+	assert panel.nummodList.selection == ["none", "value", "number", "group"].index(mode)
 	enabled = mode == "group"
 	assert group_controls_enabled(panel) == (enabled, enabled)
 

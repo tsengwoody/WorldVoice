@@ -371,6 +371,22 @@ def test_property_matches_are_never_glued(env, text):
 	assert all(left.end() < right.start() for left, right in pairwise(matches)), text
 
 
+# The "off" number mode (V3)
+
+
+@SHARED_ENV
+@given(data=st.data())
+def test_property_off_mode_is_the_identity_for_both_number_stages(env, data):
+	sequence = data.draw(st.lists(st.one_of(NUMBER_TEXT, st.builds(lambda: env.BreakCommand(5))), max_size=6))
+	stage_settings = punctuation_settings(0)
+	stage_settings.number_mode = "none"
+	stage_settings.group_size = data.draw(st.integers(2, 10))
+	for stage in (env.module.remove_thousands_separators, env.module.inject_number_mode):
+		result = list(stage(sequence, stage_settings, env.module.GENERIC_CONTEXT))
+		assert len(result) == len(sequence)
+		assert all(after is before for after, before in zip(result, sequence))
+
+
 # Value-mode thousands separators (spec 6.3, V1)
 
 WHOLE_THOUSANDS_RUN = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})+")

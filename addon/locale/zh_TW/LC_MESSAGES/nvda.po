@@ -148,6 +148,11 @@ msgstr "所有合成器(全域)"
 msgid "Only WorldVoice Synthesizer"
 msgstr "僅 WorldVoice 合成器"
 
+#. Translators: A number mode: numbers are left as they are.
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:48
+msgid "off"
+msgstr "不處理"
+
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:124
 #: addon\synthDrivers\WorldVoice\__init__.py:630
 msgid "value"

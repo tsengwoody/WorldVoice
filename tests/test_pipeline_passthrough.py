@@ -71,7 +71,7 @@ def test_value_mode_removes_only_valid_thousands_separators(env, text, expected)
 	assert list(env.module.remove_thousands_separators([text], env.settings, env.generic)) == [expected]
 
 
-@pytest.mark.parametrize("mode", ["number", "group"])
+@pytest.mark.parametrize("mode", ["none", "number", "group"])
 def test_thousands_step_passes_through_other_modes(env, mode):
 	env.settings.number_mode = mode
 	assert list(env.module.remove_thousands_separators(["12,345"], env.settings, env.generic)) == ["12,345"]
@@ -81,6 +81,15 @@ def test_thousands_step_passes_commands_and_split_items(env):
 	# Browse mode may split one number at a formatting change: nothing is joined across items.
 	sequence = ["12", Marker(), ",345"]
 	result = list(env.module.remove_thousands_separators(sequence, env.settings, env.generic))
+	assert result == sequence
+	assert result[1] is sequence[1]
+
+
+def test_off_mode_leaves_the_sequence_unchanged(env):
+	# "off" skips number-mode processing entirely, the dot rule included (V3).
+	env.settings.number_mode = "none"
+	sequence = ["12.5 a. 3", Marker(), "3."]
+	result = list(env.module.inject_number_mode(sequence, env.settings, env.generic))
 	assert result == sequence
 	assert result[1] is sequence[1]
 

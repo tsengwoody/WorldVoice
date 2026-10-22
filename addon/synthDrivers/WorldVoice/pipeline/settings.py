@@ -44,6 +44,8 @@ SCOPE_CHOICES: tuple[tuple[str, str], ...] = (
 
 # The number modes: (stored value, label), in display order.
 NUMBER_MODE_CHOICES: tuple[tuple[str, str], ...] = (
+	# Translators: A number mode: numbers are left as they are.
+	("none", _("off")),
 	# Translators: A number mode: a number is read as a value, for example "one hundred twenty-three".
 	("value", _("value")),
 	# Translators: A number mode: the digits of a number are read one by one.

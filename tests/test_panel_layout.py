@@ -100,7 +100,7 @@ def test_controller_keys_of_the_table(table):
 	assert layout.controller_keys(table) == frozenset({"number_mode", "punctuation_pause_enabled"})
 
 
-@pytest.mark.parametrize("mode", ["value", "number", "group", None])
+@pytest.mark.parametrize("mode", ["none", "value", "number", "group", None])
 def test_dependent_states_follow_the_number_mode(table, mode):
 	read = {"number_mode": mode, "punctuation_pause_enabled": True}.__getitem__
 	group = mode == "group"
