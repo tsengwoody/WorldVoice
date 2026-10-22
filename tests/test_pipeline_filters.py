@@ -5,7 +5,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
-from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings
+from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings, symbol_name
 
 
 @pytest.fixture
@@ -151,7 +151,6 @@ def test_number_re_fullmatch_fails_fast(env, text):
 
 B40 = ("NumberBreakCommand", 40)
 NB0 = ("NumberBreakCommand", 0)
-GB0 = ("GroupNumberBreakCommand", 0)
 SPLITS = [
 	("1 2", ["1", B40, "2"]),
 	("共 12 34 個", ["共 ", "12", B40, "34", " 個"]),
@@ -287,36 +286,24 @@ def test_digit_mode_then_number_wait_pauses_between_digits(env):
 	]
 
 
-def zh_context(module, replacements):
-	"""A WorldVoice zh context whose symbol table maps digits to the given words."""
-	symbols = SimpleNamespace(
-		symbols={
-			digit: SimpleNamespace(language="zh", replacement=word) for digit, word in replacements.items()
-		},
-	)
-	return module.SpeechContext(
-		supports_roles=True,
-		language="zh",
-		number_language="zh",
-		speech_symbols=symbols,
-	)
+def N(symbol, locale="en"):
+	"""The harness's name of a symbol: GENERIC_CONTEXT looks names up in NVDA's current language, "en"."""
+	return symbol_name(locale, symbol)
 
 
-def test_translated_digits_are_split_by_the_number_wait(env):
-	env.settings.number_mode = "number"
-	env.settings.scaled_number_wait = lambda: 40
-	context = zh_context(env.module, {"1": "一"})
-	digits = env.module.inject_number_mode(["11"], env.settings, context)
-	assert shape(env.module.number_wait_factor(digits, env.settings, context)) == ["一", B40, "一"]
+def broken(pause, *items):
+	"""*items* with a number break of *pause* between each two."""
+	result = []
+	for item in items:
+		if result:
+			result.append(("NumberBreakCommand", pause))
+		result.append(item)
+	return result
 
 
-def test_group_mode_does_not_translate_digits(env):
-	env.settings.number_mode = "group"
-	env.settings.group_size = 2
-	context = zh_context(env.module, {"1": "一"})
-	assert shape(env.module.inject_number_mode(["1234"], env.settings, context)) == ["12", GB0, "34"]
-	# A decimal is read whole, untranslated too.
-	assert shape(env.module.inject_number_mode(["12.5"], env.settings, context)) == ["12.5"]
+def spoken(pieces, pause=0):
+	"""Space-separated pieces, where "<x>" stands for the name of the symbol x."""
+	return broken(pause, *(N(piece[1:-1]) if piece.startswith("<") else piece for piece in pieces.split()))
 
 
 @pytest.mark.parametrize("wait", [0, 40])
@@ -336,71 +323,89 @@ def test_digit_mode_separates_digits_with_the_number_wait(env, wait):
 
 
 @pytest.mark.parametrize(
-	("text", "expected"),
+	("text", "pieces"),
 	[
-		("A12B", ["A1", NB0, "2B"]),
-		("3.14", ["3.1", NB0, "4"]),
-		("1a2", ["1a2"]),
-		("v1.2", ["v1.2"]),
+		("A12B", "A1 2B"),
+		("3.14", "3 <.> 1 4"),
+		("1a2", "1a2"),
+		("v1.2", "v1 <.> 2"),
 	],
 )
-def test_digit_mode_breaks_only_between_adjacent_digits(env, text, expected):
+def test_digit_mode_breaks_between_digits_and_around_symbols(env, text, pieces):
 	env.settings.number_mode = "number"
-	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+	result = env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)
+	assert shape(result) == spoken(pieces)
 
 
-def test_digit_words_are_kept_verbatim_one_per_item(env):
-	env.settings.number_mode = "number"
-	context = zh_context(env.module, {"1": "one ", "2": "two"})
-	assert shape(env.module.inject_number_mode(["12"], env.settings, context)) == ["one ", NB0, "two"]
-
-
-def test_group_mode_then_number_wait_breaks_between_numbers_only(env):
+def test_group_mode_then_number_wait_breaks_with_the_number_wait(env):
 	env.settings.number_mode = "group"
 	env.settings.group_size = 2
 	env.settings.scaled_number_wait = lambda: 40
 	groups = env.module.inject_number_mode(["1234 5678"], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(env.module.number_wait_factor(groups, env.settings, env.module.GENERIC_CONTEXT)) == [
+	assert shape(env.module.number_wait_factor(groups, env.settings, env.module.GENERIC_CONTEXT)) == broken(
+		40,
 		"12",
-		("GroupNumberBreakCommand", 0),
 		"34",
-		B40,
 		"56",
-		("GroupNumberBreakCommand", 0),
 		"78",
-	]
+	)
 
 
 TEXTS = ["12.5", "-1234", "123", "12", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
-SHARED = {"v1.2": ["v1.2"], "a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "1.2.3": ["1.2.3"], "": []}
-GB50 = ("GroupNumberBreakCommand", 50)
-# Keyed by (mode, group size, group pause).
+# The dot rule: a "." outside a number is spoken apart from it, in every mode but "off".
+SHARED = {"a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "": []}
+# Keyed by (mode, group size, number pause).
 NUMBER_MODES = {
-	("value", 3, 0): {"12.5": ["12.5"], "-1234": ["-1234"], "123": ["123"], "12": ["12"]},
-	# Digit mode separates two adjacent digits with the number wait, even at 0.
-	("number", 3, 0): {
-		"12.5": ["1", NB0, "2.5"],
-		"-1234": ["-1", NB0, "2", NB0, "3", NB0, "4"],
-		"123": ["1", NB0, "2", NB0, "3"],
-		"12": ["1", NB0, "2"],
-	},
-	# Groups are cut from the left and are separate items even at pause 0; a number of at most
-	# the group size and a decimal have no separator.
-	("group", 1, 0): {
+	("value", 3, 0): {
 		"12.5": ["12.5"],
-		"-1234": ["-1", GB0, "2", GB0, "3", GB0, "4"],
-		"123": ["1", GB0, "2", GB0, "3"],
-		"12": ["1", GB0, "2"],
-	},
-	("group", 2, 0): {"12.5": ["12.5"], "-1234": ["-12", GB0, "34"], "123": ["12", GB0, "3"], "12": ["12"]},
-	("group", 2, 50): {
-		"12.5": ["12.5"],
-		"-1234": ["-12", GB50, "34"],
-		"123": ["12", GB50, "3"],
+		"-1234": ["-1234"],
+		"123": ["123"],
 		"12": ["12"],
+		"v1.2": ["v1.2"],
+		"1.2.3": ["1.2.3"],
 	},
-	("group", 3, 0): {"12.5": ["12.5"], "-1234": ["-123", GB0, "4"], "123": ["123"], "12": ["12"]},
-	("group", 10, 0): {"12.5": ["12.5"], "-1234": ["-1234"], "123": ["123"], "12": ["12"]},
+	# Digit mode: every digit and every symbol is an item of its own, even at pause 0.
+	("number", 3, 0): {
+		"12.5": spoken("1 2 <.> 5"),
+		"-1234": spoken("-1 2 3 4"),
+		"123": spoken("1 2 3"),
+		"12": spoken("1 2"),
+		"v1.2": spoken("v1 <.> 2"),
+		"1.2.3": spoken("1 <.> 2 <.> 3"),
+	},
+	# Groups are cut from the left, the sign joins the first, and a symbol is named apart.
+	("group", 2, 0): {
+		"12.5": spoken("12 <.> 5"),
+		"-1234": spoken("-12 34"),
+		"123": spoken("12 3"),
+		"12": ["12"],
+		"v1.2": spoken("v1 <.> 2"),
+		"1.2.3": spoken("1 <.> 2 <.> 3"),
+	},
+	("group", 2, 50): {
+		"12.5": spoken("12 <.> 5", 50),
+		"-1234": spoken("-12 34", 50),
+		"123": spoken("12 3", 50),
+		"12": ["12"],
+		"v1.2": spoken("v1 <.> 2", 50),
+		"1.2.3": spoken("1 <.> 2 <.> 3", 50),
+	},
+	("group", 3, 0): {
+		"12.5": spoken("12 <.> 5"),
+		"-1234": spoken("-123 4"),
+		"123": ["123"],
+		"12": ["12"],
+		"v1.2": spoken("v1 <.> 2"),
+		"1.2.3": spoken("1 <.> 2 <.> 3"),
+	},
+	("group", 10, 0): {
+		"12.5": spoken("12 <.> 5"),
+		"-1234": ["-1234"],
+		"123": ["123"],
+		"12": ["12"],
+		"v1.2": spoken("v1 <.> 2"),
+		"1.2.3": spoken("1 <.> 2 <.> 3"),
+	},
 }
 
 
@@ -409,17 +414,170 @@ NUMBER_MODES = {
 def test_number_mode(env, mode, size, pause, text):
 	env.settings.number_mode = mode
 	env.settings.group_size = size
-	env.settings.scaled_group_wait = lambda: pause
+	env.settings.scaled_number_wait = lambda: pause
 	expected = {**SHARED, **NUMBER_MODES[(mode, size, pause)]}[text]
 	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+
+
+# Spec 7.1: (input, number, group 3, group 2), each as space-separated pieces.
+SPEC_TABLE = [
+	("12,345,678", "1 2 <,> 3 4 5 <,> 6 7 8", "12 <,> 345 <,> 678", "12 <,> 34 5 <,> 67 8"),
+	("1,234.56", "1 <,> 2 3 4 <.> 5 6", "1 <,> 234 <.> 56", "1 <,> 23 4 <.> 56"),
+	("123.456", "1 2 3 <.> 4 5 6", "123 <.> 456", "12 3 <.> 45 6"),
+	("12.5", "1 2 <.> 5", "12 <.> 5", "12 <.> 5"),
+	("-1234", "-1 2 3 4", "-123 4", "-12 34"),
+	("5-3", "5 <-> 3", "5 <-> 3", "5 <-> 3"),
+	("2026-10-22", "2 0 2 6 <-> 1 0 <-> 2 2", "202 6 <-> 10 <-> 22", "20 26 <-> 10 <-> 22"),
+	(
+		"192.168.0.1",
+		"1 9 2 <.> 1 6 8 <.> 0 <.> 1",
+		"192 <.> 168 <.> 0 <.> 1",
+		"19 2 <.> 16 8 <.> 0 <.> 1",
+	),
+	("3,14", "3 <,> 1 4", "3 <,> 14", "3 <,> 14"),
+	("2×3", "2 <×> 3", "2 <×> 3", "2 <×> 3"),
+	("6÷2", "6 <÷> 2", "6 <÷> 2", "6 <÷> 2"),
+	("45°30", "4 5 <°> 3 0", "45 <°> 30", "45 <°> 30"),
+]
+
+
+@pytest.mark.parametrize(("mode", "size", "column"), [("number", 1, 1), ("group", 3, 2), ("group", 2, 3)])
+@pytest.mark.parametrize("row", SPEC_TABLE, ids=[row[0] for row in SPEC_TABLE])
+def test_number_and_group_modes_name_each_symbol(env, mode, size, column, row):
+	env.settings.number_mode = mode
+	env.settings.group_size = size
+	result = env.module.inject_number_mode([row[0]], env.settings, env.module.GENERIC_CONTEXT)
+	assert shape(result) == spoken(row[column])
+
+
+@pytest.mark.parametrize("pause", [0, 25])
+def test_number_breaks_use_the_number_pause(env, pause):
+	env.settings.number_mode = "group"
+	env.settings.scaled_number_wait = lambda: pause
+	result = list(env.module.inject_number_mode(["1,234.5"], env.settings, env.module.GENERIC_CONTEXT))
+	breaks = [item for item in result if not isinstance(item, str)]
+	assert breaks
+	assert all(type(item) is env.module.NumberBreakCommand and item.time == pause for item in breaks)
+	assert not hasattr(env.module, "GroupNumberBreakCommand")
+
+
+def test_adjacent_symbols_get_a_name_each(env):
+	env.settings.number_mode = "number"
+	result = env.module.inject_number_mode(["1--2"], env.settings, env.module.GENERIC_CONTEXT)
+	assert shape(result) == spoken("1 <-> <-> 2")
+
+
+def roles_context(module, language, number_language):
+	return module.SpeechContext(
+		supports_roles=True,
+		language=language,
+		number_language=number_language,
+		default_voice=SimpleNamespace(name="Z", language=language),
+		voice_name_for_language={"zh_TW": "Z", "en": "E", "de": "D"}.get,
+	)
+
+
+def names_in(result):
+	return [item for item in result if isinstance(item, str) and item.startswith("multiplication sign")]
+
+
+def test_symbol_names_follow_the_number_language(env):
+	env.settings.number_mode = "number"
+	command = env.module.WVLangChangeCommand
+	ctx = roles_context(env.module, "zh_TW", "en")
+	result = list(env.module.inject_number_mode([command("en"), "2×3", command("zh_TW")], env.settings, ctx))
+	assert names_in(result) == [N("×", "en")]
+
+
+def test_symbol_names_follow_language_commands_with_default_number_language(env):
+	env.settings.number_mode = "number"
+	wv, nvda = env.module.WVLangChangeCommand, sys.modules["speech.commands"].LangChangeCommand
+	ctx = roles_context(env.module, "zh_TW", "default")
+	sequence = ["2×3", wv("de"), "2×3", nvda(None), "2×3"]
+	result = list(env.module.inject_number_mode(sequence, env.settings, ctx))
+	assert names_in(result) == [N("×", "zh_TW"), N("×", "de"), N("×", "zh_TW")]
+
+
+def test_symbol_names_without_roles_ignore_the_number_language(env):
+	env.settings.number_mode = "number"
+	ctx = env.module.SpeechContext(supports_roles=False, language="fr", number_language="en")
+	assert names_in(env.module.inject_number_mode(["2×3"], env.settings, ctx)) == [N("×", "fr")]
+
+
+def test_symbol_names_without_a_language_use_nvdas_current_language(env, monkeypatch):
+	env.settings.number_mode = "number"
+	monkeypatch.setattr(env.module.speech, "getCurrentLanguage", lambda: "de")
+	result = env.module.inject_number_mode(["2×3"], env.settings, env.module.GENERIC_CONTEXT)
+	assert names_in(result) == [N("×", "de")]
+
+
+def counting_lookup(env, monkeypatch, unnamed=""):
+	"""Record each symbol looked up; the symbols in *unnamed* have no name."""
+	calls = []
+
+	def lookup(locale, symbol):
+		calls.append(symbol)
+		return symbol if symbol in unnamed else symbol_name(locale, symbol)
+
+	monkeypatch.setattr(env.module.characterProcessing, "processSpeechSymbol", lookup)
+	return calls
+
+
+@pytest.mark.parametrize("mode", ["value", "none"])
+def test_value_and_off_leave_symbols_alone(env, monkeypatch, mode):
+	calls = counting_lookup(env, monkeypatch)
+	env.settings.number_mode = mode
+	assert list(env.module.inject_number_mode(["2×3"], env.settings, env.module.GENERIC_CONTEXT)) == [
+		"2×3",
+	]
+	assert calls == []
+
+
+def test_a_symbol_without_a_name_stays_attached_to_its_digits(env, monkeypatch):
+	counting_lookup(env, monkeypatch, unnamed=".")
+	generic = env.module.GENERIC_CONTEXT
+	env.settings.number_mode = "group"
+	assert shape(env.module.inject_number_mode(["123.456"], env.settings, generic)) == ["123.456"]
+	env.settings.number_mode = "number"
+	assert shape(env.module.inject_number_mode(["12.5"], env.settings, generic)) == spoken("1 2.5")
+	assert shape(env.module.inject_number_mode(["1-.2"], env.settings, generic)) == spoken("1 <-> .2")
+
+
+def test_an_unnamed_symbol_between_digits_survives_punctuation_removal(env, monkeypatch):
+	# Review Focus 4: with no name, "." stays between its digits, where it is never a pause point.
+	counting_lookup(env, monkeypatch, unnamed=".")
+	env.settings.number_mode = "group"
+	env.settings.punctuation_pause_enabled = True
+	env.settings.punctuation_pause_characters = "."
+	env.settings.remove_punctuation_characters = True
+	monkeypatch.setattr(env.module, "current_context", lambda: env.module.GENERIC_CONTEXT)
+	sequence = ["12.5"]
+	for stage in env.module.STAGES:
+		sequence = stage.handler(sequence)
+	assert "12.5" in "".join(item for item in sequence if isinstance(item, str))
+
+
+def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
+	# Review Focus 3: an IP list or a version string must not cost one NVDA lookup per symbol.
+	calls = counting_lookup(env, monkeypatch)
+	languages = []
+	monkeypatch.setattr(env.module.speech, "getCurrentLanguage", lambda: languages.append("en") or "en")
+	env.settings.number_mode = "number"
+	start = time.perf_counter()
+	result = list(
+		env.module.inject_number_mode(["1." * 3000 + "1"], env.settings, env.module.GENERIC_CONTEXT),
+	)
+	assert time.perf_counter() - start < 2
+	assert (calls, len(languages)) == (["."], 1)
+	assert result.count(N(".")) == 3000
 
 
 @pytest.mark.parametrize(
 	("size", "text", "expected"),
 	[
-		(3, "0912345678", ["091", GB0, "234", GB0, "567", GB0, "8"]),
-		(2, "007", ["00", GB0, "7"]),
-		(3, "+0012", ["+001", GB0, "2"]),
+		(3, "0912345678", spoken("091 234 567 8")),
+		(2, "007", spoken("00 7")),
+		(3, "+0012", spoken("+001 2")),
 	],
 )
 def test_group_mode_keeps_leading_zeros_and_every_digit(env, size, text, expected):
@@ -432,7 +590,7 @@ def test_group_mode_keeps_leading_zeros_and_every_digit(env, size, text, expecte
 def test_group_separator_is_one_instance_per_number(env, pause):
 	env.settings.number_mode = "group"
 	env.settings.group_size = 2
-	env.settings.scaled_group_wait = lambda: pause
+	env.settings.scaled_number_wait = lambda: pause
 	result = list(env.module.inject_number_mode(["123456"], env.settings, env.module.GENERIC_CONTEXT))
 	assert result[0::2] == ["12", "34", "56"]
 	first, second = result[1::2]

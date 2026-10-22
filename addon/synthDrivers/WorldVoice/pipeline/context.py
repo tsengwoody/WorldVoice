@@ -12,7 +12,6 @@ class SpeechContext:
 	supports_roles: bool
 	language: str | None
 	number_language: str
-	speech_symbols: Any = None
 	default_voice: Any = None
 	voice_name_for_language: Callable[[str], str | None] = lambda language: None
 

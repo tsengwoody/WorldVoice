@@ -362,7 +362,6 @@ class SynthDriver(SynthDriver):
 			supports_roles=True,
 			language=self.language,
 			number_language=self._numlan,
-			speech_symbols=self.speechSymbols,
 			default_voice=manager.defaultVoiceInstance,
 			voice_name_for_language=manager.getVoiceNameForLanguage,
 		)

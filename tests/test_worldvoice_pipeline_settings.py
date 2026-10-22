@@ -195,8 +195,5 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	)
 	synth.language = "en"
 	context = synth.speech_context()
-	assert (context["number_language"], context["speech_symbols"], context["default_voice"]) == (
-		"default",
-		None,
-		voice,
-	)
+	assert (context["number_language"], context["default_voice"]) == ("default", voice)
+	assert "speech_symbols" not in context

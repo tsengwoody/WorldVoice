@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
-from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings
+from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings, symbol_name
 
 SHARED_ENV = settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 
@@ -247,7 +247,7 @@ def run_group_mode(env, text, size, pause=0):
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = "group"
 	stage_settings.group_size = size
-	stage_settings.scaled_group_wait = lambda: pause
+	stage_settings.scaled_number_wait = lambda: pause
 	return list(env.module.inject_number_mode([text], stage_settings, env.module.GENERIC_CONTEXT))
 
 
@@ -263,7 +263,7 @@ def test_property_groups_are_separate_items_of_the_chosen_size(env, sign, digits
 
 	texts, breaks = result[0::2], result[1::2]
 	assert all(isinstance(item, str) for item in texts)
-	assert all(isinstance(item, env.module.GroupNumberBreakCommand) and item.time == pause for item in breaks)
+	assert all(isinstance(item, env.module.NumberBreakCommand) and item.time == pause for item in breaks)
 	assert len(texts) == len(breaks) + 1
 	assert len(breaks) == math.ceil(len(digits) / size) - 1
 	assert "".join(texts) == sign + digits
@@ -276,43 +276,84 @@ def test_property_groups_are_separate_items_of_the_chosen_size(env, sign, digits
 
 @SHARED_ENV
 @given(
-	text=st.from_regex(r"[+-]?[0-9]{1,8}\.[0-9]{1,8}", fullmatch=True),
-	size=st.integers(1, 10),
-)
-def test_property_decimals_are_unchanged_in_group_mode(env, text, size):
-	assert run_group_mode(env, text, size) == [text]
-
-
-@SHARED_ENV
-@given(
 	sign=st.sampled_from(["", "+", "-"]),
 	digits=st.text(alphabet="0123456789", min_size=1, max_size=30),
 	wait=st.integers(0, 500),
-	table=st.none()
-	| st.dictionaries(st.sampled_from("0123456789"), st.text(alphabet="abc一二", min_size=1, max_size=3)),
 )
-def test_property_digit_mode_separates_every_digit(env, sign, digits, wait, table):
+def test_property_digit_mode_separates_every_digit(env, sign, digits, wait):
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = "number"
 	stage_settings.scaled_number_wait = lambda: wait
-	if table is None:
-		context = env.module.GENERIC_CONTEXT
-	else:
-		symbols = {digit: SimpleNamespace(language="zh", replacement=word) for digit, word in table.items()}
-		context = env.module.SpeechContext(
-			supports_roles=True,
-			language="zh",
-			number_language="zh",
-			speech_symbols=SimpleNamespace(symbols=symbols),
-		)
-	result = list(env.module.inject_number_mode([sign + digits], stage_settings, context))
+	result = list(env.module.inject_number_mode([sign + digits], stage_settings, env.module.GENERIC_CONTEXT))
 
 	texts, breaks = result[0::2], result[1::2]
 	assert all(isinstance(item, str) for item in texts)
 	assert all(isinstance(item, env.module.NumberBreakCommand) and item.time == wait for item in breaks)
 	assert len(breaks) == len(digits) - 1
-	words = [(table or {}).get(digit, digit) for digit in digits]
-	assert texts == [sign + words[0], *words[1:]]
+	assert texts == [sign + digits[0], *digits[1:]]
+
+
+# Number and group modes name each symbol (spec 6.4, P5-P7)
+
+MODE_SIZES = st.sampled_from([("number", 1), *(("group", size) for size in range(2, 11))])
+
+
+def run_number_mode(env, text, mode, size):
+	stage_settings = punctuation_settings(0)
+	stage_settings.number_mode = mode
+	stage_settings.group_size = size
+	return list(env.module.inject_number_mode([text], stage_settings, env.module.GENERIC_CONTEXT))
+
+
+def symbol_of_name(env):
+	"""The harness's name of each number symbol, in GENERIC_CONTEXT's locale, back to the symbol."""
+	return {symbol_name("en", symbol): symbol for symbol in env.module._SYMBOLS}
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT, mode_size=MODE_SIZES)
+def test_property_number_modes_keep_the_text(env, text, mode_size):
+	# P5: with each name read back as its symbol, the text is the input; only the dot rule adds spaces.
+	symbols = symbol_of_name(env)
+	result = run_number_mode(env, text, *mode_size)
+	texts = [symbols.get(item, item) for item in result if isinstance(item, str)]
+	assert "".join(texts).replace(" ", "") == text.replace(" ", "")
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT, mode_size=MODE_SIZES)
+def test_property_no_digit_run_is_longer_than_the_size(env, text, mode_size):
+	# P6
+	size = mode_size[1]
+	for item in run_number_mode(env, text, *mode_size):
+		if isinstance(item, str):
+			assert all(len(run) <= size for run in re.findall(r"[0-9]+", item)), (text, item)
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT, mode_size=MODE_SIZES)
+def test_property_breaks_and_names_stay_inside_numbers(env, text, mode_size):
+	# P7: a break sits between two pieces of one number; a name has a break on each side; every
+	# symbol inside a number, and only those, is named.
+	symbols = symbol_of_name(env)
+	result = run_number_mode(env, text, *mode_size)
+	is_break = lambda item: isinstance(item, env.module.NumberBreakCommand)
+	for index, item in enumerate(result):
+		if is_break(item):
+			assert 0 < index < len(result) - 1, (text, result)
+			before, after = result[index - 1], result[index + 1]
+			assert before in symbols or before[-1] in DIGITS, (text, result)
+			assert after in symbols or after[0] in DIGITS, (text, result)
+		elif item in symbols:
+			assert is_break(result[index - 1]) and is_break(result[index + 1]), (text, result)
+	# A leading sign belongs to the first piece, so it is not named.
+	inside = [
+		c
+		for match in env.module._NUMBER_RE.finditer(text)
+		for c in match.group().removeprefix("+").removeprefix("-")
+		if is_number_symbol(c)
+	]
+	assert sorted(symbols[item] for item in result if item in symbols) == sorted(inside), (text, result)
 
 
 # One number definition (spec 6.1)
@@ -574,7 +615,7 @@ def test_property_number_and_group_breaks_never_touch_another_break(env, data):
 	):
 		result = list(stage(result, stage_settings, context))
 
-	new_breaks = (module.NumberBreakCommand, module.GroupNumberBreakCommand)
+	new_breaks = (module.NumberBreakCommand,)
 	for before, after in pairwise(result):
 		if isinstance(before, new_breaks) or isinstance(after, new_breaks):
 			assert not (isinstance(before, env.BreakCommand) and isinstance(after, env.BreakCommand)), result

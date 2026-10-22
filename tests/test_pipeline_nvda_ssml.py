@@ -22,7 +22,6 @@ def pause_settings(number_mode):
 	settings = punctuation_settings(20)
 	settings.number_mode = number_mode
 	settings.scaled_number_wait = lambda: 10
-	settings.scaled_group_wait = lambda: 30
 	settings.group_size = 2
 	return settings
 
@@ -45,7 +44,7 @@ def load_speech_xml(monkeypatch, warnings):
 
 @pytest.mark.parametrize(
 	("number_mode", "pauses"),
-	[("value", [10, 20]), ("number", [10, 20]), ("group", [10, 20, 30])],
+	[("value", [10, 20]), ("number", [10, 20]), ("group", [10, 20])],
 )
 def test_nvda_ssml_keeps_every_word_and_pause_of_the_scope_all_output(monkeypatch, number_mode, pauses):
 	if not SPEECH_XML.is_file():

@@ -161,26 +161,6 @@ def test_positive_number_wait_breaks_between_numbers(monkeypatch):
 	assert result[0] == "1" and result[2] == "2" and result[1].time == 40
 
 
-def test_number_mode_reads_symbols_from_context(monkeypatch):
-	settings = punctuation_settings(0)
-	settings.number_mode = "number"
-	module, _ = load_pipeline_module(monkeypatch, settings)
-	symbols = SimpleNamespace(symbols={"1": SimpleNamespace(language="zh", replacement="一")})
-	ctx = module.SpeechContext(
-		supports_roles=True,
-		language="zh",
-		number_language="zh",
-		speech_symbols=symbols,
-	)
-
-	def shape(sequence):
-		return [item if isinstance(item, str) else (type(item).__name__, item.time) for item in sequence]
-
-	no_wait = ("NumberBreakCommand", 0)
-	assert shape(module.inject_number_mode(["11"], settings, ctx)) == ["一", no_wait, "一"]
-	assert shape(module.inject_number_mode(["11"], settings, module.GENERIC_CONTEXT)) == ["1", no_wait, "1"]
-
-
 def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 	settings = punctuation_settings(0)
 	module, _ = load_pipeline_module(monkeypatch, settings)
@@ -297,7 +277,7 @@ def break_types(sequence):
 	[
 		("value", {("BreakCommand", 10), ("BreakCommand", 20)}),
 		("number", {("BreakCommand", 10), ("BreakCommand", 20)}),
-		("group", {("BreakCommand", 10), ("BreakCommand", 20), ("BreakCommand", 30)}),
+		("group", {("BreakCommand", 10), ("BreakCommand", 20)}),
 	],
 )
 def test_other_synths_get_only_plain_breaks_from_the_stages(monkeypatch, number_mode, expected):
@@ -311,10 +291,7 @@ def test_other_synths_get_only_plain_breaks_from_the_stages(monkeypatch, number_
 	[
 		("value", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
 		("number", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
-		(
-			"group",
-			{("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20), ("GroupNumberBreakCommand", 30)},
-		),
+		("group", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
 	],
 )
 def test_worldvoice_keeps_the_break_subclasses_from_the_stages(monkeypatch, number_mode, expected):

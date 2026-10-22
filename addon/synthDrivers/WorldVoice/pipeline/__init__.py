@@ -40,6 +40,9 @@ _SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.category(c)[
 # digit"); under left-to-right scanning it is equivalent to a bare "[+-]?", because a digit before
 # the sign would already belong to the previous match, so mutation testing reports it as equivalent.
 _NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(_SYMBOLS)}]+[0-9]+)*")
+# The tokens of one number: its leading signed digit run, further digit runs, and single symbols.
+_NUMBER_TOKEN_RE = re.compile(rf"^[+-]?[0-9]+|[0-9]+|[{re.escape(_SYMBOLS)}]")
+_DIGITS = frozenset("0123456789")
 # A run of digits and commas that is a whole, valid thousands-separated number: one to three
 # digits, then groups of three. The lookarounds keep a longer comma/digit run, as in "1,234,,5" or
 # "a,1,234", from losing the commas of a valid part.
@@ -49,12 +52,8 @@ _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 _SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
 
 
-class GroupNumberBreakCommand(BreakCommand):
-	"""Pause between digit groups in group number mode."""
-
-
 class NumberBreakCommand(BreakCommand):
-	"""Pause between numbers, and between the digits of a number in digit mode."""
+	"""Pause between numbers, and between the pieces and symbol names of a number in number and group modes."""
 
 
 class PunctuationBreakCommand(BreakCommand):
@@ -116,18 +115,6 @@ def _symbol_name(locale: str, symbol: str) -> str | None:
 	except LookupError:
 		return None
 	return name if name and name != symbol else None
-
-
-def get_translate_table(ctx: SpeechContext) -> dict[int, str]:
-	# Build translation table for single digits
-	translate_table: dict[int, str] = {}
-	if ctx.speech_symbols:
-		for d in "0123456789":
-			if d in ctx.speech_symbols.symbols:
-				sym = ctx.speech_symbols.symbols[d]
-				if sym.language in (ctx.number_language, "Windows"):
-					translate_table[ord(d)] = sym.replacement or d
-	return translate_table
 
 
 # @with_order_log("speech_view")
@@ -408,44 +395,71 @@ def inject_number_language(
 def _translate_number(
 	raw: str,
 	mode: str,
-	table: dict[int, str],
 	group_size: int,
-	group_pause: int,
 	number_pause: int,
+	name_of: Callable[[str], str | None],
 ) -> Iterator[SpeechCmd]:
+	"""Speak one number match in *mode*.
+
+	Value mode keeps it whole. Number and group modes cut each digit run from the left into
+	pieces of 1 or *group_size* digits (a leading sign joins the first piece) and replace each
+	symbol by its name; a number break goes between every two pieces and names, even at pause 0,
+	so each reaches the synth as an item of its own. A symbol without a name stays attached to
+	its digits, so NVDA and the punctuation pause treat it as they would without this mode.
+	"""
 	if mode == "value":
 		yield raw
 		return
-
-	if mode == "group":
-		# Decimal numbers are read as a single value; only pure digit runs
-		# are cut into groups of group_size digits, counted from the left.
-		if "." in raw:
-			yield raw
-			return
-		sign = ""
-		digits = raw
-		if digits and digits[0] in "+-":
-			sign = digits[0]
-			digits = digits[1:]
-		groups = [digits[i : i + group_size] for i in range(0, len(digits), group_size)]
-		# A break even at pause 0: the groups must reach the synth as separate items.
-		separator = GroupNumberBreakCommand(group_pause)
-		for index, group in enumerate(groups):
-			if index > 0:
-				yield separator
-			yield (sign + group) if index == 0 else group
-		return
-
-	# A break even at pause 0: each digit must reach the synth as a separate item.
+	size = 1 if mode == "number" else group_size
+	pieces: list[str] = []
+	last_is_name = False
+	glue = False
+	for token in _NUMBER_TOKEN_RE.findall(raw):
+		if token[-1] in _DIGITS:
+			sign = token[0] if token[0] in "+-" else ""
+			digits = token[len(sign) :]
+			groups = [digits[index : index + size] for index in range(0, len(digits), size)]
+			groups[0] = sign + groups[0]
+			if glue:
+				pieces[-1] += groups.pop(0)
+			pieces.extend(groups)
+			last_is_name = glue = False
+			continue
+		name = name_of(token)
+		if name is not None:
+			pieces.append(name)
+			last_is_name = True
+		elif last_is_name:
+			pieces.append(token)
+			last_is_name, glue = False, True
+		else:
+			pieces[-1] += token
+			glue = True
+	# One break instance per number, as the synth only reads its time.
 	separator = NumberBreakCommand(number_pause)
-	previous_was_digit = False
-	for character in raw:
-		is_digit = character.isdigit()
-		if is_digit and previous_was_digit:
+	for index, piece in enumerate(pieces):
+		if index:
 			yield separator
-		yield character.translate(table)
-		previous_was_digit = is_digit
+		yield piece
+
+
+def _symbol_namer() -> Callable[[str | None], Callable[[str], str | None]]:
+	"""Name lookups for one stage run: one locale per language and one NVDA lookup per symbol."""
+	locales: dict[str | None, str] = {}
+	names: dict[tuple[str | None, str], str | None] = {}
+
+	def for_language(language: str | None) -> Callable[[str], str | None]:
+		def name_of(symbol: str) -> str | None:
+			key = (language, symbol)
+			if key not in names:
+				if language not in locales:
+					locales[language] = _symbol_locale(language)
+				names[key] = _symbol_name(locales[language], symbol)
+			return names[key]
+
+		return name_of
+
+	return for_language
 
 
 # @with_order_log("number_mode")
@@ -459,21 +473,25 @@ def inject_number_mode(
 		# "off" leaves numbers as they are, without even the dot rule.
 		yield from speechSequence
 		return
-	translate_table = get_translate_table(ctx)
 	group_size = settings.group_size
-	group_pause = settings.scaled_group_wait()
 	number_pause = settings.scaled_number_wait()
+	namer = _symbol_namer()
+	# Symbols are named in the number language, the language of the wrapper around every number;
+	# with no number language, in the language in force at that point of the sequence.
+	number_language = ctx.number_language if ctx.supports_roles and ctx.number_language != "default" else None
+	language = ctx.language
 	for item in speechSequence:
 		if not isinstance(item, str):
+			if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
+				language = item.lang or ctx.language
 			yield item
 			continue
 		segments = iter_number_speech_segments_mode(
 			item,
 			mode,
-			translate_table,
 			group_size,
-			group_pause,
 			number_pause,
+			namer(number_language or language),
 		)
 		if ctx.supports_roles:
 			segments = deduplicate_language_command(segments, ctx)
@@ -481,14 +499,13 @@ def inject_number_mode(
 
 
 def iter_number_speech_segments_mode(
-	item,
-	mode,
-	translate_table,
-	group_size,
-	group_pause,
-	number_pause,
-	number_re=_NUMBER_RE,
-):
+	item: str,
+	mode: str,
+	group_size: int,
+	number_pause: int,
+	name_of: Callable[[str], str | None],
+	number_re: re.Pattern = _NUMBER_RE,
+) -> Iterator[SpeechCmd]:
 	# A "." right after a number, or right before one, is spoken apart from it.
 	previous_was_number = False
 	preceding_text = ""
@@ -501,14 +518,7 @@ def iter_number_speech_segments_mode(
 			continue
 		if preceding_text.endswith("."):
 			yield " "
-		yield from _translate_number(
-			value.group(),
-			mode,
-			translate_table,
-			group_size,
-			group_pause,
-			number_pause,
-		)
+		yield from _translate_number(value.group(), mode, group_size, number_pause, name_of)
 		previous_was_number = True
 		preceding_text = ""
 

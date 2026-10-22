@@ -157,22 +157,6 @@ def test_default_number_language_leaves_numbers_alone(env):
 	assert list(env.module.inject_number_language(sequence, env.settings, ctx)) == sequence
 
 
-def test_digit_symbols_translate_only_in_the_number_language_or_windows(env):
-	symbols = {
-		"1": SimpleNamespace(language="zh", replacement="一"),
-		"2": SimpleNamespace(language="Windows", replacement=""),
-		"3": SimpleNamespace(language="fr", replacement="trois"),
-	}
-	ctx = env.module.SpeechContext(
-		supports_roles=True,
-		language="en",
-		number_language="zh",
-		speech_symbols=SimpleNamespace(symbols=symbols),
-	)
-	# An empty replacement keeps the digit; another language's symbol is not used.
-	assert env.module.get_translate_table(ctx) == {ord("1"): "一", ord("2"): "2"}
-
-
 def test_number_mode_passes_commands_and_merges_text_around_them(env):
 	env.settings.number_mode = "number"
 	marker = Marker()
@@ -215,15 +199,15 @@ def test_punctuation_pause_passes_a_leading_command(env):
 	assert kinds(result, env.BreakCommand) == [marker, "a", ".", ("PunctuationBreakCommand", 250), " b"]
 
 
-def test_a_group_number_break_counts_as_an_existing_pause_for_punctuation(env):
+def test_a_number_break_counts_as_an_existing_pause_for_punctuation(env):
 	module = env.module
-	group_break = module.GroupNumberBreakCommand(50)
-	assert isinstance(group_break, env.BreakCommand)
+	number_break = module.NumberBreakCommand(50)
+	assert isinstance(number_break, env.BreakCommand)
 	result = list(
-		module.inject_punctuation_pause(["a.", group_break, "b"], punctuation_settings(250), env.generic),
+		module.inject_punctuation_pause(["a.", number_break, "b"], punctuation_settings(250), env.generic),
 	)
-	# The group pause already separates the text, so no punctuation pause stacks on it.
-	assert result == ["a", ".", group_break, "b"]
+	# The number pause already separates the text, so no punctuation pause stacks on it.
+	assert result == ["a", ".", number_break, "b"]
 
 
 def test_langchange_reorder_flushes_commands_left_after_the_last_text(env):
