@@ -72,7 +72,7 @@ Non-goals:
   - `PipelineSettingsService.update` writes a key in `fallen_back` even when its value equals what `get` returned. The panel shows the default and saves every value it shows, so its save writes the default over the refused value.
   - NVDA accepts the write: `AggregatedSection.__setitem__` validates the new value and compares it with the old one unvalidated (`checkValidity=False`, `config/__init__.py:1354-1368`).
   - A save that does not name the key leaves it. The slider ring, for example, saves only the key it changes.
-  - The log and engine panels write every checkbox, so their save rewrites a refused switch the same way. The log enable flag is written only when logging is turned on or off, so a refused enable flag stays until then.
+  - The log and engine panels write every checkbox, so their save rewrites a refused switch the same way. ~~The log enable flag is written only when logging is turned on or off, so a refused enable flag stays until then.~~ Fixed by `fix/log-enable-repair` (2026-10-22): the Log Record panel's save calls `PipelineLogService.repair`, which writes the effective flag over a refused one and leaves a valid one alone.
 - **`_get_value`** delegates to `read_stored` with the key's default. Its `AttributeError` branch goes: NVDA's `AggregatedSection` and configobj sections both have `get`. `load` therefore falls back key by key; one bad key leaves the others as stored. This is decision A: every pipeline key.
 - **Other readers that bypass the repository:**
   - the log stage switches, `_run_logged` (`pipeline/__init__.py:852-855`);
@@ -107,7 +107,7 @@ The examples assume number mode, `2×3`, and NVDA's tables at `7d25bc76e`.
 | stored `number_wait_factor` 150 or `"x"` | NVDA raises, so WorldVoice fails to load | reads 10, one debug warning; the other keys keep their stored values |
 | stored log switch `"maybe"` | every logged stage raises, and the Log Record panel fails to open | reads off |
 
-The next panel save writes the shown (default) value into the file. The log enable flag is the exception: it is written only when logging is turned on or off.
+The next panel save writes the shown (default) value into the file. ~~The log enable flag is the exception: it is written only when logging is turned on or off.~~ Fixed by `fix/log-enable-repair` (2026-10-22): the Log Record panel's save calls `PipelineLogService.repair`, which writes the effective flag over a refused one and leaves a valid one alone.
 
 ## 5. Strings
 

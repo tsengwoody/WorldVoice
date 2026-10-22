@@ -714,6 +714,8 @@ class LogSettingsPanel(BaseSettingsPanel):
 		return True
 
 	def onSave(self):
+		# A refused stored flag reads as off; write that first so nvda.ini holds a valid boolean (Q3).
+		pipeline_log.repair()
 		enabled_before = pipeline_log.enabled
 		enabled_after = self._enable_checkbox.GetValue()
 		if enabled_after and not enabled_before:

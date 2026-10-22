@@ -9,10 +9,10 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import WORLDVOICE, load_definitions
+from addon_loader import WORLDVOICE, load_definitions, load_source
 from nvda_stubs import RefusingSection, worldvoice_conf
 from pipeline_harness import LOG_SWITCH_ORDER
-from ui_harness import Sizer, TextCtrl, fire, load_settings_dialog, make_panel
+from ui_harness import PLUGIN_DIR, Sizer, TextCtrl, fire, load_settings_dialog, make_panel
 
 
 def build(env, name):
@@ -551,6 +551,75 @@ def test_log_panel_unchanged_logging_saves_only_the_switches(monkeypatch):
 
 	assert env.log_calls == []
 	assert env.conf["WorldVoice"]["log"]["speech_viewer"] is True
+
+
+class RecordingSection(RefusingSection):
+	"""A refusing section that also records the keys written to it."""
+
+	def __init__(self, values=(), refused=None):
+		super().__init__(values, refused)
+		self.written = []
+
+	def __setitem__(self, key, value):
+		self.written.append(key)
+		super().__setitem__(key, value)
+
+
+def real_log_env(monkeypatch, refused=(), **stored):
+	"""The Log Record panel over the real pipeline log service and a section NVDA may refuse."""
+	env = log_env(monkeypatch, enabled=False, **stored)
+	error = sys.modules["configobj.validate"].VdtTypeError
+	section = RecordingSection(env.conf["WorldVoice"]["log"], {key: error(stored[key]) for key in refused})
+	env.conf["WorldVoice"]["log"] = section
+	monkeypatch.setattr(sys.modules["synthDrivers.WorldVoice.pipeline"], "pl", None, raising=False)
+	service_module = load_source(
+		monkeypatch,
+		"worldvoice_ui_test.pipelineLogService",
+		PLUGIN_DIR / "pipelineLog.py",
+	)
+	monkeypatch.setattr(env.module, "pipeline_log", service_module.PipelineLogService(lambda: env.conf))
+	return env, section
+
+
+@pytest.mark.parametrize("ticked", [False, True])
+def test_log_panel_save_fixes_an_invalid_enable_flag(monkeypatch, ticked):
+	# NVDA refuses a stored "maybe" on every read, so it reads as off and warns at each start
+	# until a save writes a valid boolean over it (Q3): the effective value, or the user's choice.
+	env, section = real_log_env(monkeypatch, refused=["enable"], enable="maybe")
+	panel, _sizer = build(env, "LogSettingsPanel")
+	assert panel._enable_checkbox.value is False
+	panel._enable_checkbox.SetValue(ticked)
+
+	assert panel.isValid() is True
+	panel.onSave()
+
+	assert "enable" not in section.refused
+	assert dict(section)["enable"] is ticked
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_log_panel_save_leaves_a_valid_enable_flag_alone(monkeypatch, enabled):
+	env, section = real_log_env(monkeypatch, enable=enabled)
+	panel, _sizer = build(env, "LogSettingsPanel")
+
+	assert panel.isValid() is True
+	panel.onSave()
+
+	assert "enable" not in section.written
+	assert dict(section)["enable"] is enabled
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_log_panel_switching_logging_still_writes_the_flag(monkeypatch, enabled):
+	env, section = real_log_env(monkeypatch, enable=enabled)
+	panel, _sizer = build(env, "LogSettingsPanel")
+	panel._enable_checkbox.SetValue(not enabled)
+
+	assert panel.isValid() is True
+	panel.onSave()
+
+	assert section.written.count("enable") == 1
+	assert dict(section)["enable"] is (not enabled)
 
 
 # BaseSettingsPanel choices
