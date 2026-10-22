@@ -29,7 +29,7 @@ Non-goals:
   - `-` becomes `_`;
   - the language is lower-cased and the country upper-cased;
   - `x-…` gives `None`.
-- **Validation on read.** `AggregatedSection.__getitem__` validates every leaf with a spec: `self.manager.validator.check(spec, val)` (`ref/nvda/source/config/__init__.py:1269-1274`). `get` catches only `KeyError` (`:1246-1250`), so the validation error reaches the caller.
+- **Validation on read.** `AggregatedSection.__getitem__` validates every leaf with a spec in `_cacheLeaf`: `self.manager.validator.check(spec, val)` (`ref/nvda/source/config/__init__.py:1269-1273`). A refused value is not cached, so every read raises again. `get` catches only `KeyError` (`:1250-1254`), so the validation error reaches the caller.
 - **The validator** is configobj's `Validator` (`config/__init__.py:28`). Its errors subclass `configobj.validate.ValidateError`. NVDA itself imports the class from there (`argsParsing.py:47`, `config/featureFlag.py:18-19`). configobj ships a top-level `validate` shim for older imports. The messages quote the stored value: `the value "11" is too big.`, `the value "abc" is of the wrong type.`
 - **Voices.** `VoiceManager.getVoiceNameForLanguage` (`voiceManager.py:295-299`) returns the assigned voice when it exists, otherwise the default voice. The locale comes from the engine as `voice.get("locale", language)` (`compat/engineAdapter.py:133`), so it may be a bare code, `zh-TW` or `zh_TW`.
 
@@ -40,6 +40,7 @@ Non-goals:
 - **`SpeechContext.voice_locale_for_language: Callable[[str], str | None]`** (`pipeline/context.py`). The default is `lambda language: None`, as for `voice_name_for_language`. `GENERIC_CONTEXT` (other synths) keeps the default.
 - **`VoiceManager.getVoiceLocaleForLanguage(language) -> str | None`** returns the `VoiceSpec.locale` of `getVoiceNameForLanguage(language)`, or `None` when that name has no spec. A language with no usable voice therefore gives the default voice's locale (Q1 A, point 2).
 - **`SynthDriver.speech_context`** (`__init__.py:357-367`) passes `voice_locale_for_language=manager.getVoiceLocaleForLanguage`.
+- **Thread.** The stages are `speech.extensions.filter_speechSequence` handlers (`pipeline/__init__.py:19`), so they run on NVDA's main thread, not on a pipeline thread of their own. The callback is called there, as `getVoiceNameForLanguage` already is, and needs no lock.
 
 ### 3.2 Symbol locale (`pipeline/__init__.py`)
 
@@ -69,7 +70,7 @@ Non-goals:
 - **The next panel save rewrites the key (Q3 A).**
   - `ConfigPipelineRepository.load` collects the keys that fell back as `fallen_back`. Every load replaces the set, and `save` drops a key once it has written it.
   - `PipelineSettingsService.update` writes a key in `fallen_back` even when its value equals what `get` returned. The panel shows the default and saves every value it shows, so its save writes the default over the refused value.
-  - NVDA accepts the write: `AggregatedSection.__setitem__` validates the new value and compares it with the old one unvalidated (`checkValidity=False`, `config/__init__.py:1355-1365`).
+  - NVDA accepts the write: `AggregatedSection.__setitem__` validates the new value and compares it with the old one unvalidated (`checkValidity=False`, `config/__init__.py:1354-1368`).
   - A save that does not name the key leaves it. The slider ring, for example, saves only the key it changes.
   - The log and engine panels write every checkbox, so their save rewrites a refused switch the same way. The log enable flag is written only when logging is turned on or off, so a refused enable flag stays until then.
 - **`_get_value`** delegates to `read_stored` with the key's default. Its `AttributeError` branch goes: NVDA's `AggregatedSection` and configobj sections both have `get`. `load` therefore falls back key by key; one bad key leaves the others as stored. This is decision A: every pipeline key.

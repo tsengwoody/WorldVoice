@@ -185,7 +185,7 @@ class RefusingSection(dict):
 	refused maps a key to the error reading it raises. NVDA validates a stored value on every
 	read (config/__init__.py:1269-1273) and its get only catches KeyError, so both get and []
 	raise it. A write replaces the refused value: NVDA's __setitem__ validates the new value and
-	compares it with the old one unvalidated (checkValidity=False, :1355-1365), so it stores it.
+	compares it with the old one unvalidated (checkValidity=False, :1354-1368), so it stores it.
 	"""
 
 	def __init__(self, values=(), refused=None):
