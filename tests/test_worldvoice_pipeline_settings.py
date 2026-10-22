@@ -1,9 +1,10 @@
 """The WorldVoice synth exposes pipeline settings stored only in the pipeline config."""
 
+import sys
 import types
 
 import pytest
-from nvda_stubs import worldvoice_conf
+from nvda_stubs import RefusingSection, worldvoice_conf
 from pipeline_harness import load_synth
 
 
@@ -103,6 +104,19 @@ def test_descriptors_read_and_write_through_the_service(monkeypatch):
 	}
 	assert (synth.itemwaitfactor, synth.globalwaitfactor, synth.nummod) == (30, 50, "group")
 	assert "speech" not in conf
+
+
+def test_a_ring_change_writes_only_its_own_key(monkeypatch):
+	# The settings ring and NVDA's Voice panel set one synth attribute at a time; that writes its
+	# key and nothing else, even beside a stored value NVDA refuses.
+	section = RefusingSection({"group_size": 11, "number_wait_factor": 40})
+	conf = {"WorldVoice": {"pipeline": section}}
+	synth_class, _ = load_synth(monkeypatch, conf)
+	section.refused["group_size"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
+	synth = object.__new__(synth_class)
+	synth.itemwaitfactor = 30
+	assert section.written == ["item_wait_factor"]
+	assert dict(section) == {"group_size": 11, "number_wait_factor": 40, "item_wait_factor": 30}
 
 
 def test_an_unknown_number_mode_is_stored_and_read_as_value(monkeypatch):

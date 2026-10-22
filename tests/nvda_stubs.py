@@ -179,18 +179,25 @@ def configobj_stub(stubs):
 	return validate
 
 
+_MISSING = object()
+
+
 class RefusingSection(dict):
-	"""A config section that refuses some stored values on read, as NVDA's validation does.
+	"""A config section that refuses some stored values on read and skips unchanged writes, as NVDA does.
 
 	refused maps a key to the error reading it raises. NVDA validates a stored value on every
 	read (config/__init__.py:1269-1273) and its get only catches KeyError, so both get and []
-	raise it. A write replaces the refused value: NVDA's __setitem__ validates the new value and
-	compares it with the old one unvalidated (checkValidity=False, :1354-1368), so it stores it.
+	raise it. NVDA's __setitem__ (:1354-1372) compares the new value's str with the current one,
+	read unvalidated (checkValidity=False): the stored value, else the confspec default (here
+	defaults). An equal one is not written; any other replaces the stored value, a refused one
+	too, and its key is recorded in written.
 	"""
 
-	def __init__(self, values=(), refused=None):
+	def __init__(self, values=(), refused=None, defaults=None):
 		super().__init__(values)
 		self.refused = dict(refused or {})
+		self.defaults = dict(defaults or {})
+		self.written = []
 
 	def __getitem__(self, key):
 		if key in self.refused:
@@ -203,5 +210,10 @@ class RefusingSection(dict):
 		return super().get(key, default)
 
 	def __setitem__(self, key, value):
+		# dict.get reads the raw value, refused or not, as checkValidity=False does.
+		current = dict.get(self, key, self.defaults.get(key, _MISSING))
+		if current is not _MISSING and str(current) == str(value):
+			return
 		self.refused.pop(key, None)
+		self.written.append(key)
 		super().__setitem__(key, value)

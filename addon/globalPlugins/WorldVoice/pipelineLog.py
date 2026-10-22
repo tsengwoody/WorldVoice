@@ -23,22 +23,7 @@ class PipelineLogService:
 
 	@property
 	def enabled(self) -> bool:
-		return self._read()
-
-	def _read(self, on_fallback=None) -> bool:
-		return bool(read_stored(self._section(), "enable", False, on_fallback))
-
-	def repair(self) -> None:
-		"""Write the effective flag over a stored value NVDA refuses; leave a valid one alone.
-
-		Reading never writes, and the flag is otherwise written only when logging is switched, so
-		a refused value would stay in nvda.ini and be warned about at every start. The Log Record
-		panel's save calls this so the file holds a valid boolean (decided by the user, 2026-10-22, Q3).
-		"""
-		refused = []
-		enabled = self._read(refused.append)
-		if refused:
-			self._section()["enable"] = enabled
+		return bool(read_stored(self._section(), "enable", False))
 
 	def enable(self) -> None:
 		self._section()["enable"] = True

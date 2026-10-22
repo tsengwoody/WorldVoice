@@ -714,16 +714,17 @@ class LogSettingsPanel(BaseSettingsPanel):
 		return True
 
 	def onSave(self):
-		# A refused stored flag reads as off; write that first so nvda.ini holds a valid boolean (Q3).
-		pipeline_log.repair()
 		enabled_before = pipeline_log.enabled
 		enabled_after = self._enable_checkbox.GetValue()
-		if enabled_after and not enabled_before:
+		# Written on every save, like the stage switches (decided by the user, 2026-10-22,
+		# fix/uniform-settings-save): NVDA skips an unchanged value and replaces a refused one.
+		# isValid already confirmed turning logging on, or unticked the box when it was declined.
+		if enabled_after:
 			pipeline_log.enable()
-		elif enabled_before and not enabled_after:
+		else:
 			pipeline_log.disable()
-			if ask_export():
-				wx.CallAfter(pipeline_log.export)
+		if enabled_before and not enabled_after and ask_export():
+			wx.CallAfter(pipeline_log.export)
 		self._write_settings()
 
 

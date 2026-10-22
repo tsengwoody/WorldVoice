@@ -35,8 +35,7 @@ def load_service(monkeypatch, answers=None, read_stored=None):
 			pl=types.SimpleNamespace(move_to=lambda dst: asked.append(("moved", dst))),
 		),
 		"synthDrivers.WorldVoice.pipeline.settings": types.SimpleNamespace(
-			read_stored=read_stored
-			or (lambda section, key, default, on_fallback=None: section.get(key, default)),
+			read_stored=read_stored or (lambda section, key, default: section.get(key, default)),
 		),
 	}
 	modules = StubModules(monkeypatch)
@@ -72,38 +71,11 @@ def test_service_reads_an_invalid_enable_flag_as_off(monkeypatch):
 	assert module.PipelineLogService(lambda: {"WorldVoice": {"log": refused}}).enabled is False
 
 
-def test_repair_writes_the_effective_flag_over_a_refused_one(monkeypatch):
-	# Decided by the user (2026-10-22, Q3): reading writes nothing; the Log Record panel's save
-	# repairs the flag, so nvda.ini holds a valid boolean and the warning stops.
-	settings = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	section = RefusingSection(
-		{"enable": "maybe"},
-		{"enable": sys.modules["configobj.validate"].VdtTypeError("maybe")},
-	)
-	module, _conf, _asked = load_service(monkeypatch, read_stored=settings.read_stored)
-	service = module.PipelineLogService(lambda: {"WorldVoice": {"log": section}})
-	assert service.enabled is False
-	assert section.refused
-	service.repair()
-	assert section.refused == {}
-	assert dict(section) == {"enable": False}
-
-
-@pytest.mark.parametrize("stored", [True, False])
-def test_repair_leaves_a_valid_flag_alone(monkeypatch, stored):
-	settings = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	module, _conf, _asked = load_service(monkeypatch, read_stored=settings.read_stored)
-	written = []
-
-	class Section(dict):
-		def __setitem__(self, key, value):
-			written.append(key)
-			super().__setitem__(key, value)
-
-	section = Section(enable=stored)
-	module.PipelineLogService(lambda: {"WorldVoice": {"log": section}}).repair()
-	assert written == []
-	assert section == {"enable": stored}
+def test_the_repair_step_is_gone(monkeypatch):
+	# Decided by the user (2026-10-22, fix/uniform-settings-save): the Log Record panel's save
+	# writes the checkbox to the flag, so no separate repair of a refused flag is needed.
+	module, _conf, _asked = load_service(monkeypatch)
+	assert not hasattr(module.PipelineLogService, "repair")
 
 
 def test_prompts_map_answers(monkeypatch):

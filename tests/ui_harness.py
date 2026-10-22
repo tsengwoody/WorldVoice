@@ -725,9 +725,6 @@ class PipelineLog:
 	def export(self):
 		self.calls.append("export")
 
-	def repair(self):
-		"""The real service rewrites a refused stored flag; the fake stores nothing to refuse."""
-
 
 def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answers=None):
 	"""The real speechSettingsDialog.py, its real utils, pipeline settings and pipeline context.

@@ -229,7 +229,8 @@ def test_pipeline_panel_binds_only_the_controllers(monkeypatch):
 
 def test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid(monkeypatch):
 	# A hand-edited nvda.ini value reads floored to tens and shows in units. Saving the panel
-	# untouched changes no value, so the raw stored value is left as is.
+	# untouched writes the value it shows, 50 (never 570); the setting read back is unchanged.
+	# Changed by fix/uniform-settings-save (user, 2026-10-22): the raw 57 was left as is.
 	env = pipeline_env(monkeypatch, global_wait_factor=57)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._global_wait_factor_slider.value == 5
@@ -237,7 +238,7 @@ def test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid(monk
 	panel.onSave()
 
 	assert env.pipeline_settings.get().global_wait_factor == 50
-	assert env.conf["WorldVoice"]["pipeline"]["global_wait_factor"] == 57
+	assert env.conf["WorldVoice"]["pipeline"]["global_wait_factor"] == 50
 
 
 @pytest.mark.parametrize(("typed", "saved"), [(0, 3), (42, 3)])
@@ -268,20 +269,44 @@ def test_pipeline_panel_shows_an_out_of_range_stored_size_as_the_default(monkeyp
 	assert panel._group_size_spin.GetValue() == shown
 
 
+def nvda_pipeline_section(env, refused=None):
+	"""Replace the stored pipeline section with one that refuses and skips like NVDA's."""
+	defaults = env.settings.DEFAULT_PIPELINE_SETTINGS
+	section = RefusingSection(env.conf["WorldVoice"]["pipeline"], refused, defaults=defaults)
+	env.conf["WorldVoice"]["pipeline"] = section
+	return section
+
+
 def test_pipeline_panel_save_fixes_a_refused_stored_size(monkeypatch):
-	# Decided by the user (2026-10-22, Q3): NVDA refuses a stored 11, the panel shows 3, and
-	# saving the panel untouched writes 3 into the file.
+	# Decided by the user (2026-10-22, Q3 and fix/uniform-settings-save): NVDA refuses a stored
+	# 11, the panel shows 3, and saving the panel untouched writes every shown value; NVDA writes
+	# only the 3, the one value that differs from what is stored.
 	env = pipeline_env(monkeypatch, group_size=11, number_wait_factor=40)
 	error = sys.modules["configobj.validate"].VdtValueTooBigError(11)
-	section = RefusingSection(env.conf["WorldVoice"]["pipeline"], {"group_size": error})
-	env.conf["WorldVoice"]["pipeline"] = section
+	section = nvda_pipeline_section(env, {"group_size": error})
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._group_size_spin.GetValue() == 3
 
 	panel.onSave()
 
+	assert section.written == ["group_size"]
 	assert (dict(section)["group_size"], dict(section)["number_wait_factor"]) == (3, 40)
 	assert env.pipeline_settings.get().group_size == 3
+
+
+def test_pipeline_panel_save_passes_every_value_it_shows(monkeypatch):
+	env = pipeline_env(monkeypatch, number_wait_factor=33)
+	passed = []
+	update = env.pipeline_settings.update
+	monkeypatch.setattr(
+		env.pipeline_settings,
+		"update",
+		lambda **values: passed.append(values) or update(**values),
+	)
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	panel.onSave()
+	(values,) = passed
+	assert sorted(values) == sorted(env.settings.PIPELINE_CONFIG_KEYS)
 
 
 def pause_controls_enabled(panel):
@@ -358,10 +383,12 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 
 def test_pipeline_panel_saved_unchanged_keeps_the_stored_settings(monkeypatch):
 	env = pipeline_env(monkeypatch, number_wait_factor=33)
-	before = dict(env.conf["WorldVoice"]["pipeline"])
+	section = nvda_pipeline_section(env)
+	before = dict(section)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel.onSave()
-	assert env.conf["WorldVoice"]["pipeline"] == before
+	assert section.written == []
+	assert dict(section) == before
 
 
 # SpeechEngineSettingsPanel
@@ -541,35 +568,40 @@ def test_log_panel_disabling_offers_to_export_the_log(monkeypatch, export):
 	assert env.wx.called_after == ([(env.pipeline_log.export, ())] if export else [])
 
 
-def test_log_panel_unchanged_logging_saves_only_the_switches(monkeypatch):
-	env = log_env(monkeypatch, enabled=True)
+@pytest.mark.parametrize(("enabled", "write"), [(True, "enable"), (False, "disable")])
+def test_log_panel_unchanged_logging_writes_the_flag_without_prompts(monkeypatch, enabled, write):
+	# Decided by the user (2026-10-22, fix/uniform-settings-save): every save writes the checkbox,
+	# like the stage switches; NVDA skips an unchanged value. Nothing is confirmed or exported.
+	env = log_env(monkeypatch, enabled=enabled)
 	panel, _sizer = build(env, "LogSettingsPanel")
 	panel.speech_viewerCheckBox.SetValue(True)
 
 	assert panel.isValid() is True
 	panel.onSave()
 
-	assert env.log_calls == []
+	assert env.log_calls == [write]
+	assert env.wx.called_after == []
 	assert env.conf["WorldVoice"]["log"]["speech_viewer"] is True
 
 
-class RecordingSection(RefusingSection):
-	"""A refusing section that also records the keys written to it."""
+def test_log_panel_declined_enable_writes_logging_off(monkeypatch):
+	env = log_env(monkeypatch, enabled=False)
+	env.confirm_answer[0] = env.wx.NO
+	panel, _sizer = build(env, "LogSettingsPanel")
+	panel._enable_checkbox.SetValue(True)
 
-	def __init__(self, values=(), refused=None):
-		super().__init__(values, refused)
-		self.written = []
+	assert panel.isValid() is True
+	panel.onSave()
 
-	def __setitem__(self, key, value):
-		self.written.append(key)
-		super().__setitem__(key, value)
+	assert env.log_calls == [("confirm", True), "disable"]
+	assert env.pipeline_log.enabled is False
 
 
 def real_log_env(monkeypatch, refused=(), **stored):
 	"""The Log Record panel over the real pipeline log service and a section NVDA may refuse."""
 	env = log_env(monkeypatch, enabled=False, **stored)
 	error = sys.modules["configobj.validate"].VdtTypeError
-	section = RecordingSection(env.conf["WorldVoice"]["log"], {key: error(stored[key]) for key in refused})
+	section = RefusingSection(env.conf["WorldVoice"]["log"], {key: error(stored[key]) for key in refused})
 	env.conf["WorldVoice"]["log"] = section
 	monkeypatch.setattr(sys.modules["synthDrivers.WorldVoice.pipeline"], "pl", None, raising=False)
 	service_module = load_source(
@@ -584,7 +616,8 @@ def real_log_env(monkeypatch, refused=(), **stored):
 @pytest.mark.parametrize("ticked", [False, True])
 def test_log_panel_save_fixes_an_invalid_enable_flag(monkeypatch, ticked):
 	# NVDA refuses a stored "maybe" on every read, so it reads as off and warns at each start
-	# until a save writes a valid boolean over it (Q3): the effective value, or the user's choice.
+	# until a save writes a valid boolean over it: the save writes the checkbox, and NVDA compares
+	# it with the stored value unvalidated (fix/uniform-settings-save).
 	env, section = real_log_env(monkeypatch, refused=["enable"], enable="maybe")
 	panel, _sizer = build(env, "LogSettingsPanel")
 	assert panel._enable_checkbox.value is False
@@ -594,11 +627,28 @@ def test_log_panel_save_fixes_an_invalid_enable_flag(monkeypatch, ticked):
 	panel.onSave()
 
 	assert "enable" not in section.refused
+	assert section.written.count("enable") == 1
 	assert dict(section)["enable"] is ticked
 
 
+@pytest.mark.parametrize("stored", [False, "maybe"])
+def test_log_panel_declined_enable_never_stores_logging_on(monkeypatch, stored):
+	refused = ["enable"] if stored == "maybe" else []
+	env, section = real_log_env(monkeypatch, refused=refused, enable=stored)
+	env.confirm_answer[0] = env.wx.NO
+	panel, _sizer = build(env, "LogSettingsPanel")
+	panel._enable_checkbox.SetValue(True)
+
+	assert panel.isValid() is True
+	panel.onSave()
+
+	assert dict(section)["enable"] is False
+	assert env.log_calls == [("confirm", True)]
+
+
 @pytest.mark.parametrize("enabled", [False, True])
-def test_log_panel_save_leaves_a_valid_enable_flag_alone(monkeypatch, enabled):
+def test_log_panel_save_of_an_unchanged_enable_flag_writes_nothing(monkeypatch, enabled):
+	# The panel writes the flag, and NVDA skips it because it equals the stored value.
 	env, section = real_log_env(monkeypatch, enable=enabled)
 	panel, _sizer = build(env, "LogSettingsPanel")
 

@@ -2,7 +2,10 @@
 
 The stored-value fallback (pipeline/settings.py read_stored) assumes NVDA validates each stored
 value when it is read, lets the validation error through get, and raises configobj's
-ValidateError. A new NVDA that changes any of these fails here first.
+ValidateError. The settings saves (PipelineSettingsService.update, the Log Record and other
+checkbox panels) write every value they hold and assume NVDA's __setitem__ skips one whose str
+equals the current value read unvalidated, so an unchanged value marks no profile dirty and a
+refused one is replaced. A new NVDA that changes any of these fails here first.
 """
 
 import ast
@@ -46,3 +49,18 @@ def test_nvda_imports_validate_error_from_configobj_validate():
 		if isinstance(node, ast.ImportFrom) and node.module == "configobj.validate"
 	]
 	assert any("ValidateError" in {alias.name for alias in node.names} for node in imports)
+
+
+def test_nvda_setitem_skips_a_value_equal_to_the_unvalidated_current_one():
+	tree = ast.parse(_source("config/__init__.py"))
+	setitem = _method(tree, "AggregatedSection", "__setitem__")
+	source = ast.unparse(setitem)
+	assert "curVal = self.__getitem__(key, checkValidity=False)" in source
+	(skip,) = [
+		node
+		for node in ast.walk(setitem)
+		if isinstance(node, ast.If) and ast.unparse(node.test) == "str(val) == str(curVal)"
+	]
+	assert [type(statement) for statement in skip.body] == [ast.Return]
+	# A leaf's write and dirty mark come only after that check (the earlier ones are for sections).
+	assert source.index("str(val) == str(curVal)") < source.rindex("self.manager._markWriteProfileDirty()")

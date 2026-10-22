@@ -1,5 +1,6 @@
 """The pipeline settings table, repository and service."""
 
+import inspect
 import sys
 from dataclasses import asdict, fields
 
@@ -184,7 +185,9 @@ def test_get_reads_defaults_and_current_profile(monkeypatch):
 	assert service.get().item_wait_factor == 40
 
 
-def test_update_converts_normalizes_and_writes_only_changes(monkeypatch):
+def test_update_converts_normalizes_and_writes_every_passed_key(monkeypatch):
+	# Decided by the user (2026-10-22, fix/uniform-settings-save): a save writes every value it is
+	# given, and NVDA's __setitem__ skips one equal to the current value.
 	writes = []
 
 	class Section(dict):
@@ -202,7 +205,11 @@ def test_update_converts_normalizes_and_writes_only_changes(monkeypatch):
 		punctuation_pause_characters="  .,  ",
 	)
 
-	assert writes == [("global_wait_factor", 50), ("punctuation_pause_characters", ".,")]
+	assert writes == [
+		("global_wait_factor", 50),
+		("item_wait_factor", 10),
+		("punctuation_pause_characters", ".,"),
+	]
 	assert result.global_wait_factor == 50
 	assert result.punctuation_pause_characters == ".,"
 
@@ -236,8 +243,8 @@ def test_number_mode_reads_and_writes_only_known_modes(monkeypatch, raw, expecte
 	).get().number_mode == (expected)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	assert service.update(number_mode=raw).number_mode == expected
-	# Only a change is written: "number" normalises to the stored value, so nothing is.
-	assert writes == ([] if expected == "number" else [("number_mode", expected)])
+	# Every passed key is written, normalised; NVDA skips the one equal to the stored value.
+	assert writes == [("number_mode", expected)]
 
 
 def test_update_rejects_unknown_keys_before_writing(monkeypatch):
@@ -380,60 +387,104 @@ def test_a_new_invalid_value_warns_again(monkeypatch):
 	assert [('"11"' in args[0], '"12"' in args[0]) for args in warnings] == [(True, False), (False, True)]
 
 
+def nvda_conf(values=(), refused=None):
+	"""A pipeline section that refuses and skips like NVDA's, with the pipeline defaults."""
+	section = RefusingSection(values, refused, defaults=OLD_DEFAULTS)
+	return {"WorldVoice": {"pipeline": section}}, section
+
+
 @pytest.mark.parametrize("key", list(OLD_DEFAULTS))
 def test_a_panel_save_writes_the_default_over_a_refused_value(monkeypatch, key):
-	# Decided by the user (2026-10-22, Q3): the next panel save fixes the file. The panel saves
-	# every value it shows, and it shows the default the refused value reads as.
+	# Decided by the user (2026-10-22, fix/uniform-settings-save): a save writes every value the
+	# panel shows, and a refused value shows as the default; NVDA writes only what differs.
 	other = "number_wait_factor" if key == "item_wait_factor" else "item_wait_factor"
-	conf = refusing_conf({key: "abc", other: 40})
+	conf, section = nvda_conf({key: "abc", other: 40})
 	module = load_settings_module(monkeypatch, conf)
-	section = conf["WorldVoice"]["pipeline"]
 	section.refused[key] = sys.modules["configobj.validate"].VdtTypeError("abc")
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	seen = []
 	service.subscribe(seen.append)
 	shown = asdict(service.get())
 	service.update(**shown)
+	assert section.written == [key]
 	assert dict(section) == {key: shown[key], other: 40}
-	assert len(seen) == 1
+	# The effective settings did not change, so no subscriber is told.
+	assert seen == []
 	# Repaired: the same save again writes nothing.
 	service.update(**shown)
-	assert len(seen) == 1
+	assert section.written == [key]
 
 
-def test_a_save_clears_a_refused_key_only_once_written(monkeypatch):
-	conf = refusing_conf({"group_size": 11, "item_wait_factor": 99})
+@pytest.mark.parametrize(
+	("key", "stored", "shown"),
+	[
+		("global_wait_factor", 57, 50),
+		("number_mode", "pair", "value"),
+		("punctuation_pause_characters", " ., ", ".,"),
+	],
+)
+def test_a_panel_save_rewrites_a_valid_stored_value_in_its_shown_form(monkeypatch, key, stored, shown):
+	# NVDA accepts the stored value, but it reads as another; the save writes what the panel shows.
+	conf, section = nvda_conf({key: stored})
 	module = load_settings_module(monkeypatch, conf)
-	errors = sys.modules["configobj.validate"]
-	section = conf["WorldVoice"]["pipeline"]
-	section.refused.update(
-		group_size=errors.VdtValueTooBigError(11),
-		item_wait_factor=errors.VdtValueTooBigError(99),
-	)
-	repository = module.ConfigPipelineRepository(lambda: conf)
-	assert repository.fallen_back == frozenset()
-	repository.load()
-	assert repository.fallen_back == {"group_size", "item_wait_factor"}
-	repository.save({"group_size": 3})
-	assert repository.fallen_back == {"item_wait_factor"}
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+	seen = []
+	service.subscribe(seen.append)
+	values = asdict(service.get())
+	assert values[key] == shown
+	service.update(**values)
+	assert section.written == [key]
+	assert dict(section) == {key: shown}
+	assert seen == []
 
-	def refuse_write(self, key, value):
-		raise RuntimeError("write refused")
 
-	monkeypatch.setattr(type(section), "__setitem__", refuse_write)
-	with pytest.raises(RuntimeError):
-		repository.save({"item_wait_factor": 10})
-	assert repository.fallen_back == {"item_wait_factor"}
+def test_subscribers_hear_only_a_real_change(monkeypatch):
+	conf, section = nvda_conf({"item_wait_factor": 40})
+	module = load_settings_module(monkeypatch, conf)
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+	seen = []
+	service.subscribe(seen.append)
+	values = asdict(service.get())
+	assert service.update(**values) == service.get()
+	assert seen == []
+	service.update(**{**values, "scope": "all"})
+	assert [settings.scope for settings in seen] == ["all"]
+	assert section.written == ["scope"]
+
+
+def test_a_save_writes_every_passed_key_even_unchanged(monkeypatch):
+	writes = []
+
+	class Section(dict):
+		def __setitem__(self, key, value):
+			writes.append((key, value))
+			super().__setitem__(key, value)
+
+	conf = {"WorldVoice": {"pipeline": Section(item_wait_factor=40)}}
+	module = load_settings_module(monkeypatch, conf)
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+	seen = []
+	service.subscribe(seen.append)
+	service.update(**asdict(service.get()))
+	assert sorted(key for key, _value in writes) == sorted(module.PIPELINE_CONFIG_KEYS)
+	assert seen == []
+
+
+def test_the_refused_key_bookkeeping_is_gone(monkeypatch):
+	# The save writes every key, so the repository no longer tracks which keys NVDA refused.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert not hasattr(module.ConfigPipelineRepository, "fallen_back")
+	assert "on_fallback" not in inspect.signature(module.read_stored).parameters
 
 
 def test_a_save_leaves_a_refused_key_it_does_not_name(monkeypatch):
-	# The slider ring saves one key; only a save that names the refused key rewrites it.
-	conf = refusing_conf({"group_size": 11})
+	# The settings ring saves one key; only a save that names the refused key rewrites it.
+	conf, section = nvda_conf({"group_size": 11})
 	module = load_settings_module(monkeypatch, conf)
-	section = conf["WorldVoice"]["pipeline"]
 	section.refused["group_size"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	assert service.update(item_wait_factor=30).group_size == 3
+	assert section.written == ["item_wait_factor"]
 	assert dict(section) == {"group_size": 11, "item_wait_factor": 30}
 
 

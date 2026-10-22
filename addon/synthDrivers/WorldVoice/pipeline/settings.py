@@ -340,26 +340,20 @@ class PipelineSettings:
 _reported: set[tuple[str, str]] = set()
 
 
-def read_stored(
-	section: Any,
-	key: str,
-	default: Any,
-	on_fallback: Callable[[str], None] | None = None,
-) -> Any:
+def read_stored(section: Any, key: str, default: Any) -> Any:
 	"""The value stored for *key* in *section*; *default* when none is stored or NVDA refuses it.
 
 	NVDA validates a stored value against the confspec on every read and raises configobj's
 	ValidateError for one outside it (config/__init__.py:1269-1273); its get only catches KeyError.
 	Nothing is written back here: the refused value stays in the file until the next save of the
-	panel replaces it (decided by the user, 2026-10-22, Q3), and *on_fallback* is told the key so
-	that save can. Each key and stored value is reported once, as a debug warning whose message
-	(configobj's) quotes the stored value (D3).
+	panel replaces it (decided by the user, 2026-10-22, Q3). A save writes every value the panel
+	shows, and NVDA compares it with the stored value unvalidated, so it writes the default over a
+	refused one (fix/uniform-settings-save). Each key and stored value is reported once, as a debug
+	warning whose message (configobj's) quotes the stored value (D3).
 	"""
 	try:
 		return section.get(key, default)
 	except ValidateError as error:
-		if on_fallback is not None:
-			on_fallback(key)
 		message = str(error)
 		if (key, message) not in _reported:
 			_reported.add((key, message))
@@ -369,8 +363,8 @@ def read_stored(
 		return default
 
 
-def _get_value(section: Any, key: str, on_fallback: Callable[[str], None] | None = None) -> Any:
-	return read_stored(section, key, DEFAULT_PIPELINE_SETTINGS[key], on_fallback)
+def _get_value(section: Any, key: str) -> Any:
+	return read_stored(section, key, DEFAULT_PIPELINE_SETTINGS[key])
 
 
 class ConfigPipelineRepository:
@@ -378,36 +372,20 @@ class ConfigPipelineRepository:
 
 	def __init__(self, conf_provider: Callable[[], Any] = lambda: config.conf):
 		self._conf_provider = conf_provider
-		self._fallen_back: set[str] = set()
 
 	def _section(self) -> Any:
 		return self._conf_provider()["WorldVoice"]["pipeline"]
 
-	@property
-	def fallen_back(self) -> frozenset[str]:
-		"""The keys whose stored value NVDA refused on the last load and that are not written since.
-
-		They read as their default, so a save of the shown value must still write it (Q3).
-		"""
-		return frozenset(self._fallen_back)
-
 	def load(self) -> PipelineSettings:
 		section = self._section()
-		fallen_back: set[str] = set()
-		settings = PipelineSettings(
-			**{
-				spec.key: spec.convert(_get_value(section, spec.key, fallen_back.add))
-				for spec in PIPELINE_STORED_SETTINGS
-			},
+		return PipelineSettings(
+			**{spec.key: spec.convert(_get_value(section, spec.key)) for spec in PIPELINE_STORED_SETTINGS},
 		)
-		self._fallen_back = fallen_back
-		return settings
 
-	def save(self, changes: Mapping[str, Any]) -> None:
+	def save(self, values: Mapping[str, Any]) -> None:
 		section = self._section()
-		for key, value in changes.items():
+		for key, value in values.items():
 			section[key] = value
-			self._fallen_back.discard(key)
 
 
 class PipelineSettingsService:
@@ -432,15 +410,14 @@ class PipelineSettingsService:
 				raise KeyError(f"Unknown pipeline setting: {key}") from None
 			converted[key] = spec.convert(value)
 		current = self.get()
-		# A key NVDA refused reads as its default, so the panel shows and saves the default: write
-		# it even though it equals what get returned, or the file is never fixed (Q3).
-		refused = self._repository.fallen_back
-		changed = {
-			key: value for key, value in converted.items() if key in refused or getattr(current, key) != value
-		}
-		if not changed:
+		# Every value passed is written, changed or not (decided by the user, 2026-10-22,
+		# fix/uniform-settings-save). NVDA's __setitem__ skips one whose str equals the stored value,
+		# read unvalidated (config/__init__.py:1354-1372), so an unchanged value writes nothing and
+		# marks no profile dirty, while a refused or non-canonical one is replaced by the value shown.
+		self._repository.save(converted)
+		# Subscribers hear only a change in the settings read back.
+		if all(getattr(current, key) == value for key, value in converted.items()):
 			return current
-		self._repository.save(changed)
 		settings = self.get()
 		for listener in tuple(self._listeners):
 			try:
