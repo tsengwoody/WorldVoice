@@ -228,7 +228,8 @@ def test_pipeline_names_symbols_with_nvdas_real_lookup(module, monkeypatch, tmp_
 	assert module._symbol_name(module._symbol_locale("zh"), "×") == "乘以"
 
 
-@pytest.mark.parametrize(("voice", "name"), [("zh-TW", "乘以"), ("zh_SG", "times")])
+# ASCII ids: an id pytest escaped from "乘以" could not be selected on the command line, which mutmut does.
+@pytest.mark.parametrize(("voice", "name"), [("zh-TW", "乘以"), ("zh_SG", "times")], ids=["zh-TW", "zh_SG"])
 @NVDA_WARNINGS
 def test_pipeline_names_symbols_from_the_voice_locale_with_nvdas_real_lookup(
 	module,

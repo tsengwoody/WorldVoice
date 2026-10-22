@@ -443,8 +443,13 @@ SPEC_TABLE = [
 ]
 
 
+# ASCII ids without backslashes: pytest escapes a non-ASCII id in place, so a second collection in
+# one process (mutmut's clean run) escapes it again and can no longer select it.
+SPEC_IDS = ["".join(c if c.isascii() else f"U+{ord(c):04X}" for c in row[0]) for row in SPEC_TABLE]
+
+
 @pytest.mark.parametrize(("mode", "size", "column"), [("number", 1, 1), ("group", 3, 2), ("group", 2, 3)])
-@pytest.mark.parametrize("row", SPEC_TABLE, ids=[row[0] for row in SPEC_TABLE])
+@pytest.mark.parametrize("row", SPEC_TABLE, ids=SPEC_IDS)
 def test_number_and_group_modes_name_each_symbol(env, mode, size, column, row):
 	env.settings.number_mode = mode
 	env.settings.group_size = size
