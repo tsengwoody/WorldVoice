@@ -402,39 +402,26 @@ def _translate_number(
 	"""Speak one number match in *mode*.
 
 	Value mode keeps it whole. Number and group modes cut each digit run from the left into
-	pieces of 1 or *group_size* digits (a leading sign joins the first piece) and replace each
-	symbol by its name; a number break goes between every two pieces and names, even at pause 0,
-	so each reaches the synth as an item of its own. A symbol without a name stays attached to
-	its digits, so NVDA and the punctuation pause treat it as they would without this mode.
+	pieces of 1 or *group_size* digits (a leading sign joins the first piece) and make each symbol
+	a piece of its own: its name, or the symbol itself when NVDA has no name for it, so NVDA's
+	symbol processing decides how it sounds (decided by the user, 2026-10-22). A number break goes
+	between every two pieces, even at pause 0, so each reaches the synth as an item of its own.
 	"""
 	if mode == "value":
 		yield raw
 		return
 	size = 1 if mode == "number" else group_size
 	pieces: list[str] = []
-	last_is_name = False
-	glue = False
 	for token in _NUMBER_TOKEN_RE.findall(raw):
 		if token[-1] in _DIGITS:
 			sign = token[0] if token[0] in "+-" else ""
 			digits = token[len(sign) :]
 			groups = [digits[index : index + size] for index in range(0, len(digits), size)]
 			groups[0] = sign + groups[0]
-			if glue:
-				pieces[-1] += groups.pop(0)
 			pieces.extend(groups)
-			last_is_name = glue = False
-			continue
-		name = name_of(token)
-		if name is not None:
-			pieces.append(name)
-			last_is_name, glue = True, False
-		elif last_is_name:
-			pieces.append(token)
-			last_is_name, glue = False, True
 		else:
-			pieces[-1] += token
-			glue = True
+			name = name_of(token)
+			pieces.append(token if name is None else name)
 	# One break instance per number, as the synth only reads its time.
 	separator = NumberBreakCommand(number_pause)
 	for index, piece in enumerate(pieces):

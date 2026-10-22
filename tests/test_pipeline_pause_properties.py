@@ -432,15 +432,12 @@ def test_property_off_mode_is_the_identity_for_both_number_stages(env, data):
 
 
 @SHARED_ENV
-@given(
-	data=st.data(),
-	text=st.one_of(NUMBER_TEXT, NUMBER_SHAPED),
-	mode_size=MODE_SIZES,
-)
-def test_property_names_stay_whole_when_some_symbols_have_none(env, data, text, mode_size):
-	# A user can clear any symbol's replacement in NVDA: a name never gains a digit or a symbol, and
-	# the text, names read back, is still the input.
-	unnamed = data.draw(st.sets(st.sampled_from(SHAPED_SYMBOLS)))
+@given(data=st.data(), text=NUMBER_SHAPED, mode_size=MODE_SIZES)
+def test_property_every_symbol_is_its_own_item_when_some_have_no_name(env, data, text, mode_size):
+	# Decided by the user (2026-10-22): a symbol with no name is sent as itself, between number
+	# breaks like a name. No item mixes digits with a symbol or a name; only the first piece may
+	# start with the number's sign.
+	unnamed = data.draw(st.sets(st.sampled_from(env.module._SYMBOLS)))
 	symbols = symbol_of_name(env)
 	lookup = env.module.characterProcessing.processSpeechSymbol
 	env.module.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
@@ -450,11 +447,17 @@ def test_property_names_stay_whole_when_some_symbols_have_none(env, data, text, 
 		result = run_number_mode(env, text, *mode_size)
 	finally:
 		env.module.characterProcessing.processSpeechSymbol = lookup
-	for item in result:
-		if isinstance(item, str) and any(item.startswith(name) for name in symbols):
-			assert item in symbols, (text, unnamed, result)
+	is_break = lambda item: isinstance(item, env.module.NumberBreakCommand)
+	for index, item in enumerate(result):
+		if is_break(item):
+			continue
+		if item in symbols or (len(item) == 1 and is_number_symbol(item) and index > 0):
+			assert is_break(result[index - 1]) and is_break(result[index + 1]), (text, unnamed, result)
+		else:
+			digits = item.removeprefix("+").removeprefix("-") if index == 0 else item
+			assert digits.isdigit() and digits.isascii(), (text, unnamed, result)
 	texts = [symbols.get(item, item) for item in result if isinstance(item, str)]
-	assert "".join(texts).replace(" ", "") == text.replace(" ", ""), (text, unnamed, result)
+	assert "".join(texts) == text, (text, unnamed, result)
 
 
 # Value-mode thousands separators (spec 6.3, V1)

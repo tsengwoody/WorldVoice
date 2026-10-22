@@ -533,26 +533,29 @@ def test_value_and_off_leave_symbols_alone(env, monkeypatch, mode):
 	assert calls == []
 
 
-def test_a_symbol_without_a_name_stays_attached_to_its_digits(env, monkeypatch):
+def test_a_symbol_without_a_name_is_its_own_item(env, monkeypatch):
+	# Decided by the user (2026-10-22): a symbol NVDA has no name for (a user can clear its
+	# replacement) is sent as itself, between number breaks like a name; NVDA then decides its sound.
 	counting_lookup(env, monkeypatch, unnamed=".")
 	generic = env.module.GENERIC_CONTEXT
 	env.settings.number_mode = "group"
-	assert shape(env.module.inject_number_mode(["123.456"], env.settings, generic)) == ["123.456"]
+	assert shape(env.module.inject_number_mode(["123.456"], env.settings, generic)) == spoken("123 . 456")
 	env.settings.number_mode = "number"
-	assert shape(env.module.inject_number_mode(["12.5"], env.settings, generic)) == spoken("1 2.5")
-	assert shape(env.module.inject_number_mode(["1-.2"], env.settings, generic)) == spoken("1 <-> .2")
+	assert shape(env.module.inject_number_mode(["12.5"], env.settings, generic)) == spoken("1 2 . 5")
+	assert shape(env.module.inject_number_mode(["1-.2"], env.settings, generic)) == spoken("1 <-> . 2")
 
 
-def test_a_name_after_an_unnamed_symbol_never_takes_the_next_digits(env, monkeypatch):
-	# A user can clear a symbol's replacement in NVDA's symbol pronunciation dialog.
+def test_an_unnamed_symbol_and_a_named_one_are_two_items(env, monkeypatch):
+	# The batch 2 review I1 input: no name ever takes the next digits.
 	counting_lookup(env, monkeypatch, unnamed=".")
 	env.settings.number_mode = "number"
 	result = env.module.inject_number_mode(["1.-2"], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(result) == spoken("1. <-> 2")
+	assert shape(result) == spoken("1 . <-> 2")
 
 
-def test_an_unnamed_symbol_between_digits_survives_punctuation_removal(env, monkeypatch):
-	# Review Focus 4: with no name, "." stays between its digits, where it is never a pause point.
+def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch):
+	# Accepted by the user (2026-10-22): an unnamed symbol is an item of its own, so the punctuation
+	# stage may pause at it and remove it; the digits around it still reach the synth apart.
 	counting_lookup(env, monkeypatch, unnamed=".")
 	env.settings.number_mode = "group"
 	env.settings.punctuation_pause_enabled = True
@@ -562,7 +565,10 @@ def test_an_unnamed_symbol_between_digits_survives_punctuation_removal(env, monk
 	sequence = ["12.5"]
 	for stage in env.module.STAGES:
 		sequence = stage.handler(sequence)
-	assert "12.5" in "".join(item for item in sequence if isinstance(item, str))
+	texts = [item for item in sequence if isinstance(item, str)]
+	assert texts[0] == "12"
+	assert texts[-1] == "5"
+	assert all(item in ("12", ".", "5") for item in texts), texts
 
 
 def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
