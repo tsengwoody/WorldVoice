@@ -191,3 +191,44 @@ def test_zero_wait_keeps_the_pause_point_rules(monkeypatch, remove, sequence, ex
 	sequence = [BreakCommand(30) if item == "existing" else item for item in sequence]
 
 	assert shape(run_punctuation_filters(module, sequence)) == expected
+
+
+@pytest.mark.parametrize(
+	"sequence,expected",
+	[
+		# Review M2: a mark removed between two number breaks leaves one pause, the earlier one.
+		(["12", "n1", ".", "n2", "5"], ["12", "n1", "5"]),
+		# Language commands make no sound, so the breaks around them still meet.
+		(["12", "n1", "lang", ".", "n2", "5"], ["12", "n1", "lang", "5"]),
+		# Blank text makes no sound either.
+		(["12", "n1", " ", ".", "n2", "5"], ["12", "n1", " ", "5"]),
+		# Spoken text between them: the breaks never meet.
+		(["12", "n1", "x", ".", "n2", "5"], ["12", "n1", "x", "n2", "5"]),
+		# No break before the mark: the break after it stays.
+		([".", "n2", "5"], ["n2", "5"]),
+		# Only the break the removal brought next to the earlier one is dropped.
+		(["12", "n1", ".", "n2", "n3", "5"], ["12", "n1", "n3", "5"]),
+		# Removal changes only marks around any other break (the earlier spec's rule).
+		(["12", "b1", ".", "b2", "5"], ["12", "b1", "b2", "5"]),
+		(["12", "n1", ".", "b2", "5"], ["12", "n1", "b2", "5"]),
+		(["12", "b1", ".", "n2", "5"], ["12", "b1", "n2", "5"]),
+		# A later break counts, not the first one sent.
+		(["12", "n1", "b1", ".", "n2", "5"], ["12", "n1", "b1", "n2", "5"]),
+	],
+)
+def test_removal_never_leaves_two_number_breaks_that_were_apart(monkeypatch, sequence, expected):
+	module, BreakCommand = load_pipeline_module(
+		monkeypatch,
+		punctuation_settings(250, remove_characters=True),
+	)
+	commands = {
+		"b1": BreakCommand(10),
+		"b2": BreakCommand(20),
+		"n1": module.NumberBreakCommand(10),
+		"n2": module.NumberBreakCommand(20),
+		"n3": module.NumberBreakCommand(30),
+		"lang": module.WVLangChangeCommand("en"),
+	}
+	result = run_punctuation_filters(module, [commands.get(item, item) for item in sequence])
+
+	assert result == [commands.get(item, item) for item in expected]

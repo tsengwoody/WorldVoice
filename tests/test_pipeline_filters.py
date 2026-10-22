@@ -553,22 +553,37 @@ def test_an_unnamed_symbol_and_a_named_one_are_two_items(env, monkeypatch):
 	assert shape(result) == spoken("1 . <-> 2")
 
 
-def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch):
+NB10, B10 = ("NumberBreakCommand", 10), ("BreakCommand", 10)
+
+
+@pytest.mark.parametrize(
+	("roles", "remove", "expected"),
+	[
+		# Pause only: the mark stays; the number breaks around it already pause, so no punctuation pause.
+		(True, False, ["12", NB10, ".", NB10, "5"]),
+		# Removal drops the mark and the number break after it (final review M2): one pause, not two.
+		(True, True, ["12", NB10, "5"]),
+		# Another synthesizer (scope "all") gets plain breaks from every stage, so the punctuation
+		# stage cannot tell the number breaks from any other break: a known limit (spec 6.4.1).
+		(False, False, ["12", B10, ".", B10, "5"]),
+		(False, True, ["12", B10, B10, "5"]),
+	],
+)
+def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch, roles, remove, expected):
 	# Accepted by the user (2026-10-22): an unnamed symbol is an item of its own, so the punctuation
 	# stage may pause at it and remove it; the digits around it still reach the synth apart.
 	counting_lookup(env, monkeypatch, unnamed=".")
 	env.settings.number_mode = "group"
+	env.settings.scaled_number_wait = lambda: 10
 	env.settings.punctuation_pause_enabled = True
 	env.settings.punctuation_pause_characters = "."
-	env.settings.remove_punctuation_characters = True
-	monkeypatch.setattr(env.module, "current_context", lambda: env.module.GENERIC_CONTEXT)
+	env.settings.remove_punctuation_characters = remove
+	context = roles_context(env.module, "zh_TW", "default") if roles else env.module.GENERIC_CONTEXT
+	monkeypatch.setattr(env.module, "current_context", lambda: context)
 	sequence = ["12.5"]
 	for stage in env.module.STAGES:
 		sequence = stage.handler(sequence)
-	texts = [item for item in sequence if isinstance(item, str)]
-	assert texts[0] == "12"
-	assert texts[-1] == "5"
-	assert all(item in ("12", ".", "5") for item in texts), texts
+	assert shape(sequence) == expected
 
 
 def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):

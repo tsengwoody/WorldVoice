@@ -627,25 +627,40 @@ def test_property_number_breaks_never_touch_another_break(env, data):
 	"""After the pause stages, a number break never has another break next to it.
 
 	Two item breaks around a blank item may still meet (spec F7), so only number breaks are checked.
+	"/" has no name here, so it reaches the punctuation stage as an item of its own between two
+	number breaks, and removal may drop it (review M2).
 	"""
-	sequence = data.draw(st.lists(st.text(alphabet="0123456789 a.,-:+\u00d7\uff0c", max_size=12), max_size=6))
-	stage_settings = punctuation_settings(data.draw(st.integers(0, 300)))
+	sequence = data.draw(
+		st.lists(st.text(alphabet="0123456789 a.,-:/+\u00d7\uff0c", max_size=12), max_size=6),
+	)
+	stage_settings = punctuation_settings(
+		data.draw(st.integers(0, 300)),
+		remove_characters=data.draw(st.booleans()),
+	)
+	stage_settings.punctuation_pause_characters = ".,/"
 	stage_settings.number_mode = data.draw(st.sampled_from(["none", "value", "number", "group"]))
 	stage_settings.group_size = data.draw(st.integers(2, 10))
 	number_wait, item_wait = (data.draw(st.integers(0, 60)) for _ in range(2))
 	stage_settings.scaled_number_wait = lambda: number_wait
 	stage_settings.scaled_item_wait = lambda: item_wait
 	module, context = env.module, env.module.GENERIC_CONTEXT
+	lookup = module.characterProcessing.processSpeechSymbol
+	module.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
+		symbol if symbol == "/" else symbol_name(locale, symbol)
+	)
 	result = sequence
-	for stage in (
-		module.remove_thousands_separators,
-		module.inject_number_mode,
-		module.inject_chinese_space_pause,
-		module.item_wait_factor,
-		module.inject_punctuation_pause,
-		module.number_wait_factor,
-	):
-		result = list(stage(result, stage_settings, context))
+	try:
+		for stage in (
+			module.remove_thousands_separators,
+			module.inject_number_mode,
+			module.inject_chinese_space_pause,
+			module.item_wait_factor,
+			module.inject_punctuation_pause,
+			module.number_wait_factor,
+		):
+			result = list(stage(result, stage_settings, context))
+	finally:
+		module.characterProcessing.processSpeechSymbol = lookup
 
 	for before, after in pairwise(result):
 		if isinstance(before, module.NumberBreakCommand) or isinstance(after, module.NumberBreakCommand):

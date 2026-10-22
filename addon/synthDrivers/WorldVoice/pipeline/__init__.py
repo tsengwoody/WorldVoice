@@ -619,6 +619,11 @@ def inject_punctuation_pause(
 	* Removal only decides whether the mark at a pause point is dropped. A
 	  mark at the end of an item is dropped even when an existing
 	  BreakCommand, not this stage, supplies the pause.
+	* Removal never brings two number breaks together. When it empties an
+	  item between two NumberBreakCommands (only commands and blank text
+	  otherwise), the one after it is dropped, so the earlier one is the only
+	  pause: ["12", NB, ".", NB, "5"] with an unnamed "." becomes
+	  ["12", NB, "5"]. Every other break stays, as removal changes only marks.
 	"""
 	if not settings.punctuation_pause_enabled:
 		yield from speechSequence
@@ -683,13 +688,29 @@ def inject_punctuation_pause(
 		return
 
 	pending_breaks = []
+	# The last break sent since the last non-blank text, if any.
+	last_break = None
 	for current in it:
 		if isinstance(current, BreakCommand):
 			pending_breaks.append(current)
 			continue
 		text_follows = is_non_blank_text(current)
-		yield from emit(previous, text_follows and not pending_breaks, text_follows)
-		yield from pending_breaks
+		emitted = list(emit(previous, text_follows and not pending_breaks, text_follows))
+		removed = is_non_blank_text(previous) and not any(map(is_non_blank_text, emitted))
+		if (
+			removed
+			and isinstance(last_break, NumberBreakCommand)
+			and pending_breaks
+			and isinstance(pending_breaks[0], NumberBreakCommand)
+		):
+			# Removal left the number breaks around the item next to each other: keep the earlier.
+			del pending_breaks[0]
+		for command in (*emitted, *pending_breaks):
+			if is_non_blank_text(command):
+				last_break = None
+			elif isinstance(command, BreakCommand):
+				last_break = command
+			yield command
 		pending_breaks.clear()
 		previous = current
 
