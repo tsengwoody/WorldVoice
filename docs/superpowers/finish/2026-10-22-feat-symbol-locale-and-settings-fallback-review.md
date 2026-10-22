@@ -131,3 +131,71 @@ Linux 上只驗證了 harness 與 `ref/nvda` 的純 Python 部分；Windows 上�
 ## 工作區備註
 
 主 checkout 在 review 開始前就有的未提交變更（`M buildVars.py`、`D docs/superpowers/finish_task.md`、`?? DEVELOPMENT_WORKFLOW.md`、`?? diff.md`）與本分支無關，未動。
+
+## 修正記錄
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4），2026-10-22。每一項先寫會失敗的測試，看它失敗，再改程式。Ruling 都寫在進度帳本。
+
+| 項目 | 結果 | Commit |
+| --- | --- | --- |
+| Important 1：回退後的面板存檔不修檔 | 已修 | `36a5f8f` |
+| Important 2：測試分不出 locale 與語言 | 已修（只動測試） | `9089dcc` |
+| Minor 1：路徑守門沒有被證明 | 已修（只動測試） | `a185839` |
+| Minor 2：`ValidateError = Exception` 保底 | 已修 | `4077816` |
+| Minor 3：`_reported` memo 不分 section、不清除 | 不改，接受 | — |
+| Minor 4：spec 行號與執行緒說法 | 已修（文件） | `636450d` |
+| Minor 5：只有 CLDR 的 locale 被拒 | 不改，接受 | — |
+
+### Important 1（`36a5f8f`）
+
+- `read_stored` 多收一個選用的 `on_fallback(key)`。`ConfigPipelineRepository.load` 用它收集這次讀取回退的鍵，存成 `fallen_back`（每次 `load` 重新計算；`save` 寫入某鍵成功後就移除它）。`PipelineSettingsService.update` 對 `fallen_back` 裡、而且呼叫端有給的鍵，即使值等於 `get()` 回傳的預設值也照樣寫入。
+- NVDA 端已核對 `ref/nvda/source/config/__init__.py:1354-1368`：`__setitem__` 先驗證新值，再用 `checkValidity=False` 讀舊值做字串比較，`"11" != "3"`，所以會寫入並更新快取。
+- 測試：`RefusingSection` 改成寫入時取代被拒的值（和 NVDA 一樣）。`test_a_panel_save_writes_the_default_over_a_refused_value` 對 12 個 pipeline 鍵逐一驗證面板式存檔會寫回預設值、listener 只被呼叫一次、再存一次不再寫；`test_a_save_clears_a_refused_key_only_once_written` 驗證寫入成功才清除、寫入失敗保留；`test_a_save_leaves_a_refused_key_it_does_not_name` 驗證只寫呼叫端給的鍵；`test_pipeline_panel_save_fixes_a_refused_stored_size` 走真正的 `SpeechPipelinePanel.onSave`。還原原始碼後這 14 個測試失敗。
+- log 階段開關與 engine 勾選框不走這條路：`BaseSettingsPanel._write_settings` 每個勾選框都寫，NVDA 比對舊值時不驗證，所以本來就會修檔；`test_log_panel_save_fixes_an_invalid_switch` 釘住這點。
+- **未修、列為未確認的預設：** log 的 `enable` 旗標只有在開啟或關閉記錄時才寫入。存成 `maybe` 時讀成關閉，面板不動直接存檔不會修檔，每次啟動 NVDA 都會再記一則 debug 警告，直到使用者切換一次記錄開關。spec 3.3 與 4 已照實寫明。
+- 只有呼叫端給的鍵會被強制寫入：設定環只存它改的那一個鍵，不會順便寫其他回退的鍵（Ruling）。
+- spec 3.3、4 已更新。
+
+### Important 2（`9089dcc`）
+
+composition fixture 的 `engine()` 多一個 `locales={voice id: locale}` 參數；`test_voice_locale_follows_the_voice_for_the_language` 讓語音 `b` 的 language 是 `zh`、locale 是 `zh-TW`，斷言 `getVoiceLocaleForLanguage("zh") == "zh-TW"`，也確認 `getVoiceNameForLanguage("zh")` 仍是 `ok:b`。把 `voiceManager.py:304` 改成 `return spec.language ...` 後，這個測試以 `'zh' != 'zh-TW'` 失敗。沒有加第三個 fixture 語音，因為其他 25 個 composition 測試看得到語音清單（Ruling）。
+
+### Minor 1（`a185839`）
+
+`test_has_symbol_table_matches_nvdas_locale_dir` 加一列 `"../locale/en"`：它解析成真正存在的 `locale/en/symbols.dic`。刪掉 `pipeline/__init__.py:105-106` 的守門後，這一列失敗。
+
+### Minor 2（`4077816`）
+
+沒有 configobj 時，`ValidateError` 改成私有的 `_NeverRaised(Exception)`，沒有任何地方會拋出它。`test_validate_error_comes_from_configobj` 保留兩個 configobj 來源；原本的 `[None]` 改成 `test_without_configobj_a_read_error_is_not_hidden`，驗證 `section.get` 拋出的 `TypeError` 會往外傳，不會被當成「值無效」。`test_nvda_config_guards.py` 的守門測試不變。spec 3.3 已更新。
+
+### Minor 3：不改，接受
+
+警告去重的 memo 以 `(key, message)` 為鍵、整個工作階段不清除。最壞的情況是不同 section 的同名鍵存了同樣的無效值時只警告一次，或修好後又壞成同樣的字串時不再警告。這只是 debug 等級的記錄，大小有界（只有改檔才會增加），不影響讀到的值。把 section 路徑放進鍵要改所有呼叫端的介面，換來的只是多幾行 debug 記錄，不值得。
+
+### Minor 4（`636450d`）
+
+spec 2 的行號改成 `_cacheLeaf` `:1269-1273`、`get` `:1250-1254`，`__setitem__` 的比對引用改成 `:1354-1368`（spec 3.3 與 `tests/nvda_stubs.py`）。spec 本身沒有寫「pipeline thread」（那是 review 交辦裡的說法），所以在 spec 3.1 加一條「Thread」：stage 是 `filter_speechSequence` 的 handler，在 NVDA 主執行緒跑，和 `getVoiceNameForLanguage` 相同，不需要鎖。
+
+### Minor 5：不改，接受
+
+只有 `cldr.dic` 而沒有 `symbols.dic` 的 locale（`af_ZA`、`th` 等）會被 `_has_symbol_table` 拒絕而走舊規則，但這些 locale 本來就沒有內建符號名，數字內的 `×`、`.` 在 CLDR 字典裡也查不到，兩條路唸出來一樣。依交辦不改程式碼，也不補 docstring。
+
+### mutmut
+
+mutmut 3.8.0，3 個 child，記憶體監控（MemAvailable 低於 3 GB 即終止），在 worktree 跑 `settings.py` 這次改到的函式：
+
+| 函式 | Killed | Survived |
+| --- | --- | --- |
+| `read_stored` | 11 | 0 |
+| `_get_value` | 8 | 0 |
+| `ConfigPipelineRepository.__init__` | 2 | 0 |
+| `ConfigPipelineRepository._section` | 5 | 0 |
+| `ConfigPipelineRepository.load` | 11 | 0 |
+| `ConfigPipelineRepository.save` | 3 | 0 |
+| `PipelineSettingsService.update` | 20 | 8 |
+
+8 個存活者（`update__mutmut_21`～`28`）都只改 listener 失敗時 `log.error` 的訊息文字或 `exc_info`。這一行和 master 相同，不是決策邏輯，記錄下來，不另外殺。`fallen_back` 是 property，mutmut 3 不突變，由 `test_a_save_clears_a_refused_key_only_once_written` 釘住。
+
+### 驗證
+
+每個 commit 前與最後都跑了 §7：`python3 -m pytest -q tests`（單一程序、記憶體監控）2324 passed、0 skipped（基準 2307，新增 17 個）；`prek run --all-files` 全數 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令皆無輸出。Windows 上的 NVDA 沒有驗證到，spec 7 的手動項目 4（存檔修檔）仍要在 Windows 上做。
