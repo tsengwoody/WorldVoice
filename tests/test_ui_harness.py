@@ -5,6 +5,7 @@ MoveAfterInTabOrder changes only where Tab goes. ui_harness models the first wit
 ``children`` and the second with its ``tab_order``.
 """
 
+import pytest
 from ui_harness import BoxSizerHelper, Label, SettingsPanel, Sizer, TextCtrl, make_panel
 
 
@@ -16,6 +17,36 @@ def test_move_after_in_tab_order_leaves_window_order():
 
 	assert panel.children == [a, b, c]
 	assert panel.tab_order == [b, c, a]
+
+
+def test_move_after_in_tab_order_needs_a_sibling():
+	# wx asserts when the window to follow has another parent; the fake must not ignore it.
+	panel, other = make_panel(SettingsPanel), make_panel(SettingsPanel)
+	a, b = TextCtrl(panel, label="a"), TextCtrl(other, label="b")
+
+	with pytest.raises(AssertionError):
+		a.MoveAfterInTabOrder(b)
+
+
+@pytest.mark.parametrize("index", [-1, 2])
+def test_insert_out_of_range_fails(index):
+	# wx release builds drop an item inserted past the end (wxCHECK_MSG in wxSizer::Insert) instead
+	# of appending it, and Python's list.insert would clamp it; the fake fails either way.
+	sizer = Sizer()
+	sizer.Add(Sizer())
+
+	with pytest.raises(AssertionError):
+		sizer.Insert(index, Sizer())
+
+
+def test_insert_at_the_end_appends():
+	sizer = Sizer()
+	first, last = Sizer(), Sizer()
+	sizer.Add(first)
+
+	sizer.Insert(1, last)
+
+	assert [entry.item for entry in sizer.items] == [first, last]
 
 
 def test_a_labeled_control_follows_its_label():

@@ -122,6 +122,8 @@ class Control:
 		"""Move this window after other in Tab order only; its place among the children stays."""
 		if isinstance(other, Control) and not other:
 			raise RuntimeError(f"wrapped C/C++ object of type {type(other).__name__} has been deleted")
+		# wx asserts when other is not a sibling; the fake must not silently leave the order alone.
+		assert getattr(other, "parent", None) is self.parent, f"{other!r} is not a sibling of {self!r}"
 		tab_order = getattr(self.parent, "tab_order", None)
 		if tab_order is not None and self in tab_order and other in tab_order:
 			tab_order.remove(self)
@@ -236,6 +238,9 @@ class Sizer:
 		self.items.append(SizerItem(Spacer(size)))
 
 	def Insert(self, index, item, proportion=0, flag=0, border=0):
+		# wx release builds drop an item inserted past the end (wxCHECK_MSG in wxSizer::Insert),
+		# where list.insert would clamp the index; fail instead of hiding the lost row.
+		assert 0 <= index <= len(self.items), f"index {index} out of range for {len(self.items)} items"
 		self._place(item)
 		self.items.insert(index, SizerItem(item, proportion, flag, border))
 
