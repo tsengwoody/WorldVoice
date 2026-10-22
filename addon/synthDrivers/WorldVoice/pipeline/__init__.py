@@ -31,8 +31,6 @@ pl = PipelineLog("pipeline.csv")
 
 _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
-_SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
-
 
 class NumberBreakCommand(BreakCommand):
 	"""Pause between numbers, and between the pieces and symbol names of a number in number and group modes."""
