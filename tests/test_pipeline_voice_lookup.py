@@ -26,9 +26,20 @@ def test_dedupe_keeps_only_real_voice_switches(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	ctx = context(module, {"en": "A:en", "de": "A:de", "fr": None}, voice("A:en", "en"))
 	L = module.LangChangeCommand
-	sequence = ["x", L("de"), "y", L("fr"), "z", L(None), "w", L("en")]
+	# The redundant L("en") is not the last command: what follows it must still be spoken.
+	sequence = ["x", L("de"), "y", L("fr"), "z", L(None), "w", L("en"), "v"]
 	result = list(module.deduplicate_language_command(sequence, ctx))
-	assert [getattr(command, "lang", command) for command in result] == ["x", "de", "y", "fr", "z", "w"]
+	assert [getattr(command, "lang", command) for command in result] == ["x", "de", "y", "fr", "z", "w", "v"]
+
+
+def test_dedupe_starts_on_the_default_voice_when_no_voice_speaks_the_start_language(monkeypatch):
+	# With no voice for start_language the default voice is already speaking, so reverting to the
+	# default language is no switch.
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	ctx = context(module, {"en": "A:en", "fr": None}, voice("A:en", "en"))
+	L = module.LangChangeCommand
+	result = list(module.deduplicate_language_command([L(None), "w"], ctx, start_language="fr"))
+	assert result == ["w"]
 
 
 def test_lang_cmd_to_voice_selects_names_and_falls_back(monkeypatch):
