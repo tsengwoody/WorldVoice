@@ -23,12 +23,26 @@ class Widget:
 		return self.selection
 
 
-def test_log_labels_match_stages_and_confspec():
-	environment = load_definitions(PANELS, {"_LOG_LABELS"}, {"_": lambda text: text})
-	assert list(environment["_LOG_LABELS"]) == LOG_SWITCH_ORDER
+def test_log_labels_match_stages_and_confspec(monkeypatch):
+	assert list(load_settings_dialog(monkeypatch).module._LOG_LABELS) == LOG_SWITCH_ORDER
 	tree = ast.parse(SYNTH.read_text(encoding="utf-8"))
 	source = ast.unparse(tree)
 	assert "key: 'boolean(default=false)' for key in LOG_SWITCHES" in source
+
+
+def test_log_switch_labels_are_unchanged(monkeypatch):
+	# The test _ is the identity, so these are the msgids the Log Record panel shows.
+	labels = load_settings_dialog(monkeypatch).module._LOG_LABELS
+	assert list(labels.items()) == [
+		("apply_speech_dictionaries", "Apply speech dictionaries"),
+		("number_language", "Number language"),
+		("number_mode", "Number mode"),
+		("chinesespace_wait_factor", "Chinese space wait factor"),
+		("item_wait_factor", "Item wait factor"),
+		("punctuation_wait_factor", "Punctuation wait factor"),
+		("number_wait_factor", "Number wait factor"),
+		("speech_viewer", "Speech viewer"),
+	]
 
 
 def test_log_labels_follow_the_table_labels(monkeypatch):
@@ -174,3 +188,35 @@ def test_voice_panel_saves_the_characters_and_group_size_in_one_update(monkeypat
 
 	# One update, so subscribers see both values together, before NVDA saves its own settings.
 	assert calls == [{"punctuation_pause_characters": " .,", "group_size": 5}, "onSave"]
+
+
+def dialog_msgids():
+	# The string constant of every _() call in the dialog.
+	tree = ast.parse(PANELS.read_text(encoding="utf-8"))
+	return {
+		node.args[0].value
+		for node in ast.walk(tree)
+		if isinstance(node, ast.Call)
+		and isinstance(node.func, ast.Name)
+		and node.func.id == "_"
+		and node.args
+		and isinstance(node.args[0], ast.Constant)
+		and isinstance(node.args[0].value, str)
+	}
+
+
+def test_log_labels_come_from_the_table(monkeypatch):
+	# A log switch named after a pipeline setting shows that setting's name, translated once in the
+	# table; only stages without a setting have a label of their own in the dialog.
+	module = load_settings_dialog(monkeypatch).module
+	table = {spec.key: spec for spec in module.PIPELINE_SETTINGS}
+	assert set(module._STAGE_LOG_LABELS) == {key for key in LOG_SWITCH_ORDER if key not in table}
+	for key in LOG_SWITCH_ORDER:
+		if key in table:
+			label = module._LOG_LABELS[key]
+			assert label == (table[key].display_name or table[key].label), key
+			assert "&" not in label, key
+	strings = {spec.label for spec in table.values()} | (
+		{spec.display_name for spec in table.values()} - {None}
+	)
+	assert dialog_msgids() & strings == set()

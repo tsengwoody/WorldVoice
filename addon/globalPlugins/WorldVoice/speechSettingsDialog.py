@@ -37,26 +37,17 @@ from .utils import guard_errors
 
 addonHandler.initTranslation()
 
-# Labels for the per-stage log switches; the switches themselves come from LOG_SWITCHES. A stage named
-# after a setting uses that setting's label.
-_LOG_LABELS = {
+# Labels of the log switches that have no pipeline setting of their own.
+_STAGE_LOG_LABELS = {
 	# Translators: Label for the pipeline log switch of a speech pipeline stage.
 	"apply_speech_dictionaries": _("Apply speech dictionaries"),
 	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"number_language": _("Number language"),
-	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"number_mode": _("Number mode"),
-	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"chinesespace_wait_factor": _("Chinese space wait factor"),
-	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"item_wait_factor": _("Item wait factor"),
-	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"punctuation_wait_factor": _("Punctuation wait factor"),
-	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"number_wait_factor": _("Number wait factor"),
-	# Translators: Label for the pipeline log switch of a speech pipeline stage.
 	"speech_viewer": _("Speech viewer"),
 }
+# One label per log switch, in LOG_SWITCHES order. A stage named after a pipeline setting uses that
+# setting's name: its settings-ring name, else its label (tests keep "&" out of these).
+_SETTING_NAMES = {spec.key: spec.display_name or spec.label for spec in PIPELINE_SETTINGS}
+_LOG_LABELS = {key: _SETTING_NAMES.get(key) or _STAGE_LOG_LABELS.get(key, key) for key in LOG_SWITCHES}
 
 
 def got_error_callback(panel):
@@ -657,7 +648,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 	title = _("Log Record")
 	field = "log"
 	settings = OrderedDict(  # noqa: RUF012
-		(key, {"label": _LOG_LABELS.get(key, key)}) for key in LOG_SWITCHES
+		(key, {"label": _LOG_LABELS[key]}) for key in LOG_SWITCHES
 	)
 
 	def makeSettings(self, sizer):
