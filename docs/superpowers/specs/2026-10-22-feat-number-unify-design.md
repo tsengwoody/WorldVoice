@@ -3,14 +3,14 @@
 Date: 2026-10-22.
 Base: `master` `967944e`. Branch: `feat/number-unify`. Worktree: `/workspace/WorldVoice-feat-number-unify`.
 Flow: normal flow (`DEVELOPMENT_WORKFLOW.md` section 3). Section 15 explains why the complex flow is not needed.
-Status: every rule in section 2 was decided by the user in the discussion of 2026-10-22 and is not reopened here. Section 13 lists facts found while writing this spec that the user should see before merge. Section 14 lists the new open questions, each adopted with a conservative default.
+Status: every rule in section 2 was decided by the user in the discussion of 2026-10-22 and is not reopened here. Section 13 lists facts found while writing this spec; the user decided F1 (option D, which replaces Q4), F2 and F3 on 2026-10-22, and this revision follows those answers. Section 14 lists the new open questions, each adopted with a conservative default.
 
-All `file:line` references are to `967944e`. NVDA references are to `ref/nvda` at `7d25bc76e`. Sections 5.2, 7 and 12 were checked against a scratch prototype (section 16).
+All `file:line` references are to `967944e`. NVDA references are to `ref/nvda` at `7d25bc76e`. Sections 5.2, 7 and 12 were checked against a scratch prototype (section 16). The prototype implemented the superseded Q4 (character mode); section 16 says how its tables carry over to F1 option D.
 
 Notation used throughout:
 
 - **NB** is `NumberBreakCommand(settings.scaled_number_wait())`.
-- **⟦x⟧** is `CharacterModeCommand(True)`, `"x"`, `CharacterModeCommand(False)`.
+- **⟨x⟩** is one plain text item: the name of the symbol `x`, `characterProcessing.processSpeechSymbol(L, "x")`, where L is the symbol locale of section 6.4.1. With L = zh_TW, ⟨.⟩ is `"dot"`, ⟨,⟩ `"comma"`, ⟨-⟩ `"dash"`, ⟨:⟩ `"colon"`, ⟨×⟩ `"乘以"`, ⟨÷⟩ `"除以"`, ⟨°⟩ `"度"`; with L = en, ⟨×⟩ is `"times"`, ⟨÷⟩ `"divide by"`, ⟨°⟩ `"degrees"` (section 5.4).
 - **‹en›** is `WVLangChangeCommand("en")`.
 - **SYM** is one character of Unicode category P* or S* with a code point in U+0000..U+00FF.
 
@@ -29,12 +29,12 @@ Notation used throughout:
 
 All are **Decided by the user (2026-10-22)** except V5.
 
-- **Q1.** A number is `\d+(?:[SYM]*\d+)*`. Each digit run is grouped from the LEFT by the group size. Symbols are spoken in character mode. Breaks go between groups and around symbols.
+- **Q1.** A number is `\d+(?:[SYM]*\d+)*`. Each digit run is grouped from the LEFT by the group size. Symbols are spoken by name (F1, option D; the original "character mode" is superseded). Breaks go between groups and around symbols.
 - **Q2.** SYM is Unicode category P* or S* with a code point in U+0000..U+00FF (option A). It never includes whitespace or letters. Full-width and CJK punctuation are not SYM.
 - **Q3 (option A).**
   - A `+` or `-` directly before a digit and not preceded by a digit is a sign. It is spoken with the first group: `"-12"` is "minus twelve".
   - A `+` or `-` after a digit is a symbol.
-- **Q4 (option A).** A symbol is sent as ⟦x⟧. The result depends on NVDA's symbol level and the engine, and is to be verified on Windows (section 13, F1).
+- ~~**Q4 (option A).** A symbol is sent in character mode. The result depends on NVDA's symbol level and the engine, and is to be verified on Windows.~~ **Superseded by F1 (option D), decided by the user (2026-10-22).**
 - **Q5.** Every break inside a match is NB, the same pause as between space-separated numbers.
 - **Q6.** The digit translate table (`get_translate_table`) is no longer applied in any mode.
 - **Q7.**
@@ -57,13 +57,21 @@ All are **Decided by the user (2026-10-22)** except V5.
   - The `STAGES` order stays: `number_language` before `number_mode`, and `number_wait_factor` last but one.
   - `number_wait_factor` treats `LangChangeCommand` and `WVLangChangeCommand` as transparent and puts the break between the language commands. This fixes the old F4.
 - **P.** Every batch review of this feature uses Fable 5.1, not Opus. The final whole-branch review is Fable 5.1 as usual.
+- **F1 (option D, replaces Q4). Decided by the user (2026-10-22).**
+  - No `CharacterModeCommand` anywhere.
+  - Inside a number match, in number and group modes only, the pipeline replaces each symbol with NVDA's own name for that single character, `characterProcessing.processSpeechSymbol(locale, symbol)`: the lookup NVDA uses when it reads one character (`ref/nvda/source/speech/speech.py:517-518`).
+  - The name is a plain text item with NB on both sides.
+  - It is always spoken, whatever the user's symbol level. Symbols outside a number match keep NVDA's normal symbol-level handling. Value and "off" modes leave symbols alone.
+  - When the lookup gives no name, the character itself is emitted, attached to its digits with no NB around it (section 6.4.1, Ruling).
+- **F2 (yes). Decided by the user (2026-10-22).** The name comes from the NUMBER LANGUAGE's symbol table, so the number-language voice speaks a word in its own language ("2 times 3" for number language en). When the number language is "default", or roles are not supported, the language in force at that point of the sequence is used. Locales without a table fall back as NVDA does: base language, then English (section 5.4).
+- **F3 (accepted). Decided by the user (2026-10-22).** The shared-regex side effects in value mode are accepted: `192.168.0.1` loses its dot spacing, a date followed by a time gets a number pause between them, and `5-3` is wrapped by the number language as one unit.
 
 ## 3. Goals and non-goals
 
 Goals:
 
 - **One number definition (`_NUMBER_RE`)** shared by `number_language`, `number_mode`, the number-pause split and `_both_numbers` (Q1–Q3, L1, N).
-- **Number and group modes** as one algorithm with a size: 1 for "number", 2..10 for "group". Every break is NB. Every symbol is ⟦x⟧ (Q1, Q4–Q7).
+- **Number and group modes** as one algorithm with a size: 1 for "number", 2..10 for "group". Every break is NB. Every symbol is spoken by its name in the number language, ⟨x⟩ (Q1, Q5–Q7, F1, F2).
 - **A new "off" mode** (V3, V5).
 - **Value mode:**
   - removes thousands separators from fully valid runs (V1, V2, V7);
@@ -126,7 +134,7 @@ Non-goals:
   - **A symbol alone in its own item** loses those neighbours and falls back to its simple entry.
 - **Default symbol level.** It is "some" (`config/configSpec.py:38`, `integer(default=100)`; `SymbolLevel.SOME = 100`, `characterProcessing.py:160`).
 
-### 5.2 An isolated symbol through NVDA's real `processText` (scratch run)
+### 5.2 An isolated symbol through NVDA's real `processText` (scratch run; background for F1)
 
 NVDA's own `characterProcessing.py` was loaded with stubs and run over `ref/nvda/source/locale/*/symbols.dic` and `cldr.dic` (section 16).
 
@@ -145,15 +153,15 @@ NVDA's own `characterProcessing.py` was loaded with stubs and run over `ref/nvda
 
 For comparison, whole strings at "some": `"-12"` gives `minus 12` (zh_TW `負 12`), `"12.5"` and `"192.168.0.1"` are unchanged (decimal point), `"5-3"` is unchanged, and `"2×3"` gives `2 times 3`.
 
-So within ⟦x⟧, at the default level:
+Under the superseded Q4, a symbol sent alone in character mode would therefore have reached the engine:
 
-- `,`, `-` and `:` reach the engine as the character itself;
-- most other symbols reach it as a **word**, and character mode then asks the engine to spell that word (section 5.3);
-- at level "none", `.` `+` `/` `×` `÷` `°` become an empty string and are silent.
+- as the character itself for `,`, `-` and `:` at the default level;
+- as a **word** for most other symbols, which character mode then asks the engine to spell (section 5.3);
+- as an empty string, so silent, for `.` `+` `/` `×` `÷` `°` at level "none".
 
-This is finding F1 (section 13).
+This was finding F1 (section 13). With option D the pipeline sends the last column instead: the name, which no symbol level changes (section 6.4.1).
 
-### 5.3 How NVDA itself uses character mode
+### 5.3 How NVDA itself uses character mode (background for the rejected Q4)
 
 - **Spelling.** NVDA first replaces a character by its symbol name (`speech.py:517-518`). It wraps an item in character mode only when the item is one character long (`_getSpellingSpeechAddCharMode`, `:367-386`). It does this only if the synth supports `CharacterModeCommand` and "Use spelling functionality" is on (`:638-642`).
 - **Key names** do the same (`speech/shortcutKeys.py:78-83`, `:95-106`). MathCAT wraps single characters (`mathPres/MathCAT/speech.py:89`).
@@ -161,7 +169,18 @@ This is finding F1 (section 13).
   - eSpeak: `<say-as interpret-as="characters">` (`synthDrivers/espeak.py:198-199`);
   - SAPI5: `<spell>` (`sapi5.py:919-925`);
   - SSML engines: `say-as characters` (`speechXml.py:296-300`).
-- **The speech manager passes character mode through.** `CharacterModeCommand` is a `SynthParamCommand` with `isDefault = not state` (`speech/commands.py:153-167`). The speech manager tracks it (`speech/manager.py:366-370`) and replays a non-default one after an utterance split (`:293-310`). The pipeline always closes ⟦ with ⟧ inside one match, with no `EndUtteranceCommand` between, so nothing is replayed.
+- **The speech manager passes character mode through.** `CharacterModeCommand` is a `SynthParamCommand` with `isDefault = not state` (`speech/commands.py:153-167`). The speech manager tracks it (`speech/manager.py:366-370`) and replays a non-default one after an utterance split (`:293-310`). The pipeline always closes ⟨ with ⟩ inside one match, with no `EndUtteranceCommand` between, so nothing is replayed.
+
+### 5.4 NVDA's single-symbol lookup (F1, F2)
+
+- **`processSpeechSymbol(locale, symbol)`** (`characterProcessing.py:728-746`):
+  - fetches the locale's `SpeechSymbolProcessor` with `fetchLocaleData(locale)` (`:46-73`), which tries the full locale, then the base language with the country dropped (`"de_CH"` → `"de"`, only for a `_` separator);
+  - on `LookupError`, retries with `"en"` unless the locale starts with `"en_"` (`:738-742`);
+  - returns `computedSymbols[symbol].replacement`, or the symbol itself when the table has no entry (`:743-746`).
+- **English is always merged in.** Every non-English processor appends the English built-in tables (`:452-457`), so a symbol missing from a locale's table gets its English name.
+- **No symbol level.** The lookup ignores the level; NVDA's spelling uses it the same way (`speech.py:517-518`).
+- **Probe (scratch, NVDA's real `characterProcessing.py` over `ref/nvda/source/locale`):** every SYM of section 6.1 has a name other than itself in every one of the 73 locale directories, including `"xx"` (English) and `"en-US"` (a `-` is not split, so English). Examples: zh_TW `.` `dot`, `,` `comma`, `-` `dash`, `×` `乘以`, `°` `度`, `@` `小老鼠`; de_CH `×` `Mal`, `.` `Punkt`.
+- **Locale of NVDA's own pass.** `speech.speak` computes `getCurrentLanguage()` (`speech.py:1177`, `:313-325`) after the filters run (`:1137`), and `processText` follows `LangChangeCommand`s only (`:1214-1221`).
 
 ## 6. Design
 
@@ -249,13 +268,29 @@ _THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
 - `number` uses size 1 and `group` uses `group_size`. Then:
   - **Tokens.** Split `raw` with `^[+-]?[0-9]+|[0-9]+|SYM`: a leading signed digit run, further digit runs, and single symbols.
   - **Digit runs.** Cut each digit run from the left into pieces of `size`. A sign joins the first piece of the first run: `"-1234"` at size 3 gives `"-123"`, NB, `"4"`.
-  - **Symbols.** Each symbol character becomes ⟦x⟧. Two adjacent symbols are two ⟦ ⟧ pairs (Q-B).
+  - **Symbols.** Each symbol character becomes ⟨x⟩, its name as one plain text item (6.4.1). Two adjacent symbols are two names with NB between them (Q-B).
   - **Breaks.** NB goes between every two consecutive tokens or pieces. It is inserted even when the pause is 0, so the pieces reach the synth as separate items. No NB goes at the start or end of a match.
 - **Decided examples (prototype):**
-  - size 2: `123.456` → `"12"` NB `"3"` NB ⟦.⟧ NB `"45"` NB `"6"`;
-  - `5-3` → `"5"` NB ⟦-⟧ NB `"3"`.
+  - size 2: `123.456` → `"12"` NB `"3"` NB ⟨.⟩ NB `"45"` NB `"6"`;
+  - `5-3` → `"5"` NB ⟨-⟩ NB `"3"`, that is `"5"` NB `"dash"` NB `"3"` with a zh_TW or en symbol locale.
 - **What is removed:** `GroupNumberBreakCommand`, `group_pause`, the decimal escape of group mode (`:369-371`), and `get_translate_table` with its parameter (Q6).
 - **What stays the same.** `inject_number_mode` keeps its `deduplicate_language_command` (when `ctx.supports_roles`) and `merge_consecutive_strings` (`:420-422`). Text from different matches can therefore share an item when non-whitespace separates them: `"12，34"` gives `"1"` NB `"2，3"` NB `"4"`. No two digits are adjacent in such an item, and no digit run inside it exceeds the size (property P6).
+
+#### 6.4.1 Symbol names (F1, F2)
+
+- **`_symbol_name(locale: str, symbol: str) -> str | None`** in `pipeline/__init__.py` returns `characterProcessing.processSpeechSymbol(locale, symbol)`, or `None` when there is no name. The pipeline imports NVDA's `characterProcessing` at module level.
+- **Fallback. Ruling:** there is no name when the lookup raises `LookupError` or returns `None`, `""` or the symbol itself. `_translate_number` then emits the symbol itself with **no NB on either side**, so it stays attached to its neighbouring digits (`"12.5"` in group 3 with no name for `.` gives `"12.5"`). NVDA's symbol processing and the punctuation stage then treat it exactly as on `master`: the decimal-point and negative-number rules still see their digits, and a configured mark between digits is never a pause point, so "remove punctuation" cannot drop it. Why: the pipeline must never drop text (P5) or raise inside an NVDA filter, and an isolated symbol item would lose both protections (5.2, section 8). Cost if wrong: a symbol without a name gets no pause around it. The probe (5.4) found no symbol that reaches the fallback with NVDA's own tables, so only a user symbols dictionary can trigger it.
+- **Symbol locale.** `inject_number_mode` chooses the locale for each match:
+  - with `ctx.supports_roles` and `ctx.number_language != "default"`: `ctx.number_language`. Every match sits inside the number-language wrapper (6.1, L1), so its voice speaks that language;
+  - otherwise the language in force at that item: it starts as `ctx.language` and follows every `LangChangeCommand` and `WVLangChangeCommand` the stage passes (`cmd.lang or ctx.language`), as `_insert_WVLangChangeCommand_between_number` already does (`:301-302`);
+  - `_symbol_locale(language: str | None) -> str` turns that language into the lookup locale:
+    - `None` (another synthesizer, `GENERIC_CONTEXT.language`, `context.py:20`) gives `speech.getCurrentLanguage()`, the locale NVDA's own `processText` starts from (5.4). **Ruling:** chosen over `languageHandler.getLanguage()` because it is what NVDA itself would use for the symbol. Cost if wrong: only another synthesizer with "trust voice's language" on differs.
+    - A `-` becomes `_` (`"zh-TW"` → `"zh_TW"`), because `fetchLocaleData` only drops a country after `_` (5.4) and voice catalogs and browse-mode `lang` attributes may use `-`.
+    - A bare language with the same base as `speech.getCurrentLanguage()` becomes that full locale (`"zh"` with NVDA in zh_TW → `"zh_TW"`). WorldVoice's number languages are bare primary subtags (`voiceCatalog.py:16-19`, `roles.py:8-12`), and NVDA has no `zh` table, so `"zh"` would otherwise fall back to English names for a Chinese voice. NVDA's spelling makes the same substitution (`speech.py:472-477`).
+    - **Ruling** for the last two rules: they extend "fall back as NVDA does" (F2) to the locale forms WorldVoice actually produces. Cost if wrong: a bare `"zh"` with NVDA in English still gets English names (NVDA's fallback), as the spec's plain rule would.
+    - Everything else is passed as is, and `processSpeechSymbol` does NVDA's fallback (5.4).
+- **Always spoken.** A name is letters. NVDA's later `processText` (`speech.py:1215-1232`) leaves letters alone at every symbol level, so the name is heard at level "none" too.
+- **Scope.** Only symbols inside a match, only in number and group modes. Value and "off" pass the match unchanged; text outside matches is never touched.
 
 ### 6.5 Number pause with language commands (O, N)
 
@@ -325,28 +360,28 @@ speech_viewer
 
 Defaults: global wait 10 and number wait 10, so NB is 10 ms; punctuation pause off. Main language zh_TW. "Number language en" means a voice is set for en.
 
-Tables 7.1–7.3 show the pipeline output. That is what Speech Viewer shows, and what reaches NVDA's `processText`. Section 5.2 says what each ⟦x⟧ becomes: at the default level, ⟦,⟧ ⟦-⟧ ⟦:⟧ are the characters themselves, and ⟦.⟧ ⟦×⟧ ⟦÷⟧ ⟦°⟧ are words that the engine spells (F1).
+Tables 7.1–7.3 show the pipeline output. That is what Speech Viewer shows, and what reaches NVDA's `processText`. Each ⟨x⟩ is the symbol's name in the symbol locale (6.4.1): in 7.1 the zh_TW names (Notation), in 7.2 the en names. The names are heard at every symbol level (F1).
 
 ### 7.1 Number language default
 
 | Input | off | value | number | group 3 | group 2 |
 | --- | --- | --- | --- | --- | --- |
-| `12,345,678` | `"12,345,678"` | `"12345678"` | `"1" NB "2" NB ⟦,⟧ NB "3" NB "4" NB "5" NB ⟦,⟧ NB "6" NB "7" NB "8"` | `"12" NB ⟦,⟧ NB "345" NB ⟦,⟧ NB "678"` | `"12" NB ⟦,⟧ NB "34" NB "5" NB ⟦,⟧ NB "67" NB "8"` |
-| `1,234.56` | `"1,234.56"` | `"1234.56"` | `"1" NB ⟦,⟧ NB "2" NB "3" NB "4" NB ⟦.⟧ NB "5" NB "6"` | `"1" NB ⟦,⟧ NB "234" NB ⟦.⟧ NB "56"` | `"1" NB ⟦,⟧ NB "23" NB "4" NB ⟦.⟧ NB "56"` |
-| `123.456` | `"123.456"` | `"123.456"` | `"1" NB "2" NB "3" NB ⟦.⟧ NB "4" NB "5" NB "6"` | `"123" NB ⟦.⟧ NB "456"` | `"12" NB "3" NB ⟦.⟧ NB "45" NB "6"` |
-| `12.5` | `"12.5"` | `"12.5"` | `"1" NB "2" NB ⟦.⟧ NB "5"` | `"12" NB ⟦.⟧ NB "5"` | `"12" NB ⟦.⟧ NB "5"` |
+| `12,345,678` | `"12,345,678"` | `"12345678"` | `"1" NB "2" NB ⟨,⟩ NB "3" NB "4" NB "5" NB ⟨,⟩ NB "6" NB "7" NB "8"` | `"12" NB ⟨,⟩ NB "345" NB ⟨,⟩ NB "678"` | `"12" NB ⟨,⟩ NB "34" NB "5" NB ⟨,⟩ NB "67" NB "8"` |
+| `1,234.56` | `"1,234.56"` | `"1234.56"` | `"1" NB ⟨,⟩ NB "2" NB "3" NB "4" NB ⟨.⟩ NB "5" NB "6"` | `"1" NB ⟨,⟩ NB "234" NB ⟨.⟩ NB "56"` | `"1" NB ⟨,⟩ NB "23" NB "4" NB ⟨.⟩ NB "56"` |
+| `123.456` | `"123.456"` | `"123.456"` | `"1" NB "2" NB "3" NB ⟨.⟩ NB "4" NB "5" NB "6"` | `"123" NB ⟨.⟩ NB "456"` | `"12" NB "3" NB ⟨.⟩ NB "45" NB "6"` |
+| `12.5` | `"12.5"` | `"12.5"` | `"1" NB "2" NB ⟨.⟩ NB "5"` | `"12" NB ⟨.⟩ NB "5"` | `"12" NB ⟨.⟩ NB "5"` |
 | `-1234` | `"-1234"` | `"-1234"` | `"-1" NB "2" NB "3" NB "4"` | `"-123" NB "4"` | `"-12" NB "34"` |
-| `5-3` | `"5-3"` | `"5-3"` | `"5" NB ⟦-⟧ NB "3"` | `"5" NB ⟦-⟧ NB "3"` | `"5" NB ⟦-⟧ NB "3"` |
+| `5-3` | `"5-3"` | `"5-3"` | `"5" NB ⟨-⟩ NB "3"` | `"5" NB ⟨-⟩ NB "3"` | `"5" NB ⟨-⟩ NB "3"` |
 | `5 -3` | `"5" NB "-3"` | `"5" NB "-3"` | `"5" NB "-3"` | `"5" NB "-3"` | `"5" NB "-3"` |
-| `2026-10-22 12:30` | `"2026-10-22" NB "12:30"` | `"2026-10-22" NB "12:30"` | `"2" NB "0" NB "2" NB "6" NB ⟦-⟧ NB "1" NB "0" NB ⟦-⟧ NB "2" NB "2" NB "1" NB "2" NB ⟦:⟧ NB "3" NB "0"` | `"202" NB "6" NB ⟦-⟧ NB "10" NB ⟦-⟧ NB "22" NB "12" NB ⟦:⟧ NB "30"` | `"20" NB "26" NB ⟦-⟧ NB "10" NB ⟦-⟧ NB "22" NB "12" NB ⟦:⟧ NB "30"` |
-| `192.168.0.1` | `"192.168.0.1"` | `"192.168.0.1"` | `"1" NB "9" NB "2" NB ⟦.⟧ NB "1" NB "6" NB "8" NB ⟦.⟧ NB "0" NB ⟦.⟧ NB "1"` | `"192" NB ⟦.⟧ NB "168" NB ⟦.⟧ NB "0" NB ⟦.⟧ NB "1"` | `"19" NB "2" NB ⟦.⟧ NB "16" NB "8" NB ⟦.⟧ NB "0" NB ⟦.⟧ NB "1"` |
+| `2026-10-22 12:30` | `"2026-10-22" NB "12:30"` | `"2026-10-22" NB "12:30"` | `"2" NB "0" NB "2" NB "6" NB ⟨-⟩ NB "1" NB "0" NB ⟨-⟩ NB "2" NB "2" NB "1" NB "2" NB ⟨:⟩ NB "3" NB "0"` | `"202" NB "6" NB ⟨-⟩ NB "10" NB ⟨-⟩ NB "22" NB "12" NB ⟨:⟩ NB "30"` | `"20" NB "26" NB ⟨-⟩ NB "10" NB ⟨-⟩ NB "22" NB "12" NB ⟨:⟩ NB "30"` |
+| `192.168.0.1` | `"192.168.0.1"` | `"192.168.0.1"` | `"1" NB "9" NB "2" NB ⟨.⟩ NB "1" NB "6" NB "8" NB ⟨.⟩ NB "0" NB ⟨.⟩ NB "1"` | `"192" NB ⟨.⟩ NB "168" NB ⟨.⟩ NB "0" NB ⟨.⟩ NB "1"` | `"19" NB "2" NB ⟨.⟩ NB "16" NB "8" NB ⟨.⟩ NB "0" NB ⟨.⟩ NB "1"` |
 | `1 2` | `"1" NB "2"` | `"1" NB "2"` | `"1" NB "2"` | `"1" NB "2"` | `"1" NB "2"` |
-| `3,14` | `"3,14"` | `"3,14"` | `"3" NB ⟦,⟧ NB "1" NB "4"` | `"3" NB ⟦,⟧ NB "14"` | `"3" NB ⟦,⟧ NB "14"` |
+| `3,14` | `"3,14"` | `"3,14"` | `"3" NB ⟨,⟩ NB "1" NB "4"` | `"3" NB ⟨,⟩ NB "14"` | `"3" NB ⟨,⟩ NB "14"` |
 | `12，34` | `"12，34"` | `"12，34"` | `"1" NB "2，3" NB "4"` | `"12，34"` | `"12，34"` |
 | `abc1 2def` | `"abc" "1" NB "2" "def"` | same | same | same | same |
-| `2×3` | `"2×3"` | `"2×3"` | `"2" NB ⟦×⟧ NB "3"` | `"2" NB ⟦×⟧ NB "3"` | `"2" NB ⟦×⟧ NB "3"` |
-| `6÷2` | `"6÷2"` | `"6÷2"` | `"6" NB ⟦÷⟧ NB "2"` | `"6" NB ⟦÷⟧ NB "2"` | `"6" NB ⟦÷⟧ NB "2"` |
-| `45°30` | `"45°30"` | `"45°30"` | `"4" NB "5" NB ⟦°⟧ NB "3" NB "0"` | `"45" NB ⟦°⟧ NB "30"` | `"45" NB ⟦°⟧ NB "30"` |
+| `2×3` | `"2×3"` | `"2×3"` | `"2" NB ⟨×⟩ NB "3"` | `"2" NB ⟨×⟩ NB "3"` | `"2" NB ⟨×⟩ NB "3"` |
+| `6÷2` | `"6÷2"` | `"6÷2"` | `"6" NB ⟨÷⟩ NB "2"` | `"6" NB ⟨÷⟩ NB "2"` | `"6" NB ⟨÷⟩ NB "2"` |
+| `45°30` | `"45°30"` | `"45°30"` | `"4" NB "5" NB ⟨°⟩ NB "3" NB "0"` | `"45" NB ⟨°⟩ NB "30"` | `"45" NB ⟨°⟩ NB "30"` |
 
 In `"2026-10-22 12:30"`, number mode: the NB between `"2"` and `"1"` replaces the space. The number pause split it out of `"2 1"` (section 8, number pause).
 
@@ -356,18 +391,18 @@ The ‹en›…‹zh› wrapper is around the whole match in every mode, includi
 
 | Input | off | value | number | group 3 |
 | --- | --- | --- | --- | --- |
-| `12,345,678` | `‹en› "12,345,678" ‹zh›` | `‹en› "12345678" ‹zh›` | `‹en› "1" NB "2" NB ⟦,⟧ … NB "8" ‹zh›` | `‹en› "12" NB ⟦,⟧ NB "345" NB ⟦,⟧ NB "678" ‹zh›` |
+| `12,345,678` | `‹en› "12,345,678" ‹zh›` | `‹en› "12345678" ‹zh›` | `‹en› "1" NB "2" NB ⟨,⟩ … NB "8" ‹zh›` | `‹en› "12" NB ⟨,⟩ NB "345" NB ⟨,⟩ NB "678" ‹zh›` |
 | `5 -3` | `‹en› "5" ‹zh› NB ‹en› "-3" ‹zh›` | same | same | same |
-| `2026-10-22 12:30` | `‹en› "2026-10-22" ‹zh› NB ‹en› "12:30" ‹zh›` | same as off | `‹en› "2" … NB "2" ‹zh› NB ‹en› "1" NB "2" NB ⟦:⟧ NB "3" NB "0" ‹zh›` | `‹en› "202" NB "6" NB ⟦-⟧ NB "10" NB ⟦-⟧ NB "22" ‹zh› NB ‹en› "12" NB ⟦:⟧ NB "30" ‹zh›` |
+| `2026-10-22 12:30` | `‹en› "2026-10-22" ‹zh› NB ‹en› "12:30" ‹zh›` | same as off | `‹en› "2" … NB "2" ‹zh› NB ‹en› "1" NB "2" NB ⟨:⟩ NB "3" NB "0" ‹zh›` | `‹en› "202" NB "6" NB ⟨-⟩ NB "10" NB ⟨-⟩ NB "22" ‹zh› NB ‹en› "12" NB ⟨:⟩ NB "30" ‹zh›` |
 | `1 2` | `‹en› "1" ‹zh› NB ‹en› "2" ‹zh›` | same | same | same |
 | `12，34` | `‹en› "12" ‹zh› "，" ‹en› "34" ‹zh›` | same as off | `‹en› "1" NB "2" ‹zh› "，" ‹en› "3" NB "4" ‹zh›` | same as off |
 | `abc1 2def` | `"abc" ‹en› "1" ‹zh› NB ‹en› "2" ‹zh› "def"` | same | same | same |
-| `-1,234` | `‹en› "-1,234" ‹zh›` | `‹en› "-1234" ‹zh›` | `‹en› "-1" NB ⟦,⟧ NB "2" NB "3" NB "4" ‹zh›` | `‹en› "-1" NB ⟦,⟧ NB "234" ‹zh›` |
-| `a,1,234` | `"a," ‹en› "1,234" ‹zh›` | `"a," ‹en› "1,234" ‹zh›` (unchanged, as without a number language) | `"a," ‹en› "1" NB ⟦,⟧ NB "2" NB "3" NB "4" ‹zh›` | `"a," ‹en› "1" NB ⟦,⟧ NB "234" ‹zh›` |
+| `-1,234` | `‹en› "-1,234" ‹zh›` | `‹en› "-1234" ‹zh›` | `‹en› "-1" NB ⟨,⟩ NB "2" NB "3" NB "4" ‹zh›` | `‹en› "-1" NB ⟨,⟩ NB "234" ‹zh›` |
+| `a,1,234` | `"a," ‹en› "1,234" ‹zh›` | `"a," ‹en› "1,234" ‹zh›` (unchanged, as without a number language) | `"a," ‹en› "1" NB ⟨,⟩ NB "2" NB "3" NB "4" ‹zh›` | `"a," ‹en› "1" NB ⟨,⟩ NB "234" ‹zh›` |
 
 Every other input in 7.1 is a single match: it gives ‹en› + the 7.1 cell + ‹zh›.
 
-Inside the wrapper, the number-language voice speaks the symbol words. The words come from NVDA's main-language table: for example `乘以` for `×` with a zh_TW main language (F2).
+Inside the wrapper, the number-language voice speaks the symbol names from the number language's table (F2): with number language en, `2×3` in number mode is `‹en› "2" NB "times" NB "3" ‹zh›`, and `45°30` in group 3 is `‹en› "45" NB "degrees" NB "30" ‹zh›`.
 
 ### 7.3 Changes from `master` (prototype on `967944e` versus the new code)
 
@@ -376,8 +411,9 @@ Inside the wrapper, the number-language voice speaks the symbol words. The words
 | `12,345,678`, value | `"12,345,678"` | `"12345678"` | V1 |
 | `192.168.0.1`, value | `"192.168 . 0.1"` | `"192.168.0.1"` | One match; the dot rule no longer fires inside it (F3) |
 | `2026-10-22 12:30`, value | `"2026-10-22 12:30"` | `"2026-10-22"` NB `"12:30"` | Earlier F1 "glued" case is now two whitespace-separated numbers |
-| `12,345,678`, number | `"1" NB "2,3" NB "4" NB "5,6" NB "7" NB "8"` | see 7.1 | Q1, Q4 |
-| `12.5`, group | `"12.5"` | `"12" NB ⟦.⟧ NB "5"` | Decimals are grouped too |
+| `12,345,678`, number | `"1" NB "2,3" NB "4" NB "5,6" NB "7" NB "8"` | see 7.1 | Q1, F1 |
+| `2×3`, number, number language en | `‹en› "2" ‹zh› "×" ‹en› "3" ‹zh›` | `‹en› "2" NB "times" NB "3" ‹zh›` | Q1, F1, F2: one match, the name in the number language |
+| `12.5`, group | `"12.5"` | `"12" NB ⟨.⟩ NB "5"` | Decimals are grouped too |
 | `-1234`, group | `"-123"` GB(group wait) `"4"` | `"-123" NB "4"` | Group wait removed |
 | `12,345,678`, value, number language en | `‹en› "12" ‹zh› "," ‹en› "345" ‹zh› "," ‹en› "678" ‹zh›` | `‹en› "12345678" ‹zh›` | One match, removal first |
 | `5-3`, value, number language en | `‹en› "5" ‹zh› ‹en› "-3" ‹zh›` | `‹en› "5-3" ‹zh›` | One match: "5-3" is no longer "5", "minus 3" |
@@ -401,13 +437,12 @@ Inside the wrapper, the number-language voice speaks the symbol words. The words
 
 - **Punctuation pause** (`_get_punctuation_regex`, `:502-513`; `inject_punctuation_pause`, `:535-642`):
   - **A mark directly before a digit** is not a pause point. This keeps `"12.5"` and `"1,234"` intact in value mode and "off".
-  - **In number and group mode** a symbol inside a match is its own item, followed by `CharacterModeCommand(False)`. A command is not "non-blank text" (`:582-583`, `:635`). So the item gets no boundary pause and is never removed, even with "remove punctuation" on.
-  - The prototype property ran 3,000 examples with `.,:-` configured and removal on, and every ⟦x⟧ survived.
+  - **In number and group mode** a symbol inside a match is replaced by its name, a word between two NBs, before the punctuation stage runs. The punctuation stage never sees the symbol, so it neither pauses at it nor removes it, even with "remove punctuation" on. A name holds no ASCII punctuation in any NVDA table probed (5.4); property P9 pins that every name item leaves the stage unchanged.
   - A mark after a match (`"12,"` before text) still pauses as today.
-- **Item wait** (`:166-177`) breaks only between two adjacent text items. Inside a match, items are always separated by NB or a `CharacterModeCommand`, so item wait adds nothing there. The X1 property ("a number break never has another break next to it") still holds for none/value/number/group with sizes 2..10. It was checked in the prototype with `0-9 a.,-:+×，`.
+- **Item wait** (`:166-177`) breaks only between two adjacent text items. Inside a match, items are always separated by NB, so item wait adds nothing there. The X1 property ("a number break never has another break next to it") still holds for none/value/number/group with sizes 2..10. It was checked in the prototype with `0-9 a.,-:+×，`.
 - **Chinese space** (`_CH_SPACE_RE`, `:34`) needs CJK ideographs on both sides. Matches contain none, and with the translate table gone digits are never turned into `一 二` (the earlier group-mode spec's F3 no longer applies).
 - **`merge_consecutive_strings` / `deduplicate_language_command`:**
-  - Merging never crosses a command, so ⟦x⟧ and NB keep the pieces apart.
+  - Merging never crosses a command, so NB keeps each name apart from its digits.
   - Inside `_insert_WVLangChangeCommand_between_number`, deduplication drops the wrapper when the number voice equals the current voice, and merging restores the item (`:304-310`).
   - `inject_number_mode`'s deduplication sees no language commands in its own output.
 - **The dot rule:** section 6.3.
@@ -415,20 +450,23 @@ Inside the wrapper, the number-language voice speaks the symbol words. The words
   - `_split_spaced_numbers` also splits strings that `number_mode` merged, for example `"2 1"` from `"…22"`, `" "`, `"12…"`. The NB then replaces whitespace.
   - At number wait 0 the stage passes through (`:265-267`). `"1 2"` stays one item, but NB(0) inside a match is still inserted by `number_mode`.
 - **Other synthesizers with scope "all":**
-  - `_plain_breaks` turns NB into `BreakCommand` (`:796-802`). `CharacterModeCommand` is not a `BreakCommand` and passes unchanged.
-  - NVDA's built-in eSpeak, OneCore, SAPI5 and SAPI4 (through the bridge, `_bridge/components/proxies/synthDriver.py:170-176`) all declare and convert it.
-  - NVDA does not filter commands against `supportedCommands` in `speak` (only spelling checks, `speech.py:638-642`). A third-party synthesizer that does not handle `CharacterModeCommand` gets it anyway (F8).
-- **NVDA spelling and other character-mode input.** NVDA puts only single characters in character mode (5.3). A single character can never contain a symbol between digits, so the pipeline never opens ⟦ inside an NVDA character-mode run.
+  - `_plain_breaks` turns NB into `BreakCommand` (`:796-802`).
+  - The names are plain text, so every synthesizer speaks them, including a third-party one. No new command type reaches another synthesizer (F8 is obsolete).
+  - The symbol locale is the language in force, or `speech.getCurrentLanguage()` when the context has none (6.4.1).
+- **NVDA spelling and character mode** are untouched: the pipeline emits no `CharacterModeCommand`. NVDA puts only single characters in character mode (5.3), and a single character never holds a symbol between digits.
+- **Language detection after the pipeline** (`WorldVoice/__init__.py:320-321`, timing "after") sees each name as an ordinary word, like any other text item.
 
 ## 9. Engines and layers
 
-How `CharacterModeCommand` reaches each engine:
+**With F1 option D the symbol names are plain text.** Every engine speaks them as words through the path it already uses for text. No engine-specific code and no inner driver change are needed.
+
+The rest of this section is background for the rejected Q4: how `CharacterModeCommand` would have reached each engine.
 
 - **WorldVoice synth:**
   - It declares `CharacterModeCommand` (`WorldVoice/__init__.py:88-96`).
   - `speak` (`:316-330`) runs `inject_langchange_reorder`, `deduplicate_language_command` and `lang_cmd_to_voice`, which forward it.
   - `normalize_legacy_commands` passes it (`compat/commands.py:11-18`).
-  - `queue_speech_sequence` adds it to the current chunk list. A `Pause` (from NB) flushes the chunks (`runtime/requestBuilder.py:35-55`). Because NB always surrounds a symbol, each ⟦x⟧ is one engine call, `[CharacterModeCommand(True), "x", CharacterModeCommand(False)]`.
+  - `queue_speech_sequence` adds it to the current chunk list. A `Pause` (from NB) flushes the chunks (`runtime/requestBuilder.py:35-55`). Because NB always surrounds a symbol, each ⟨x⟩ is one engine call, `[CharacterModeCommand(True), "x", CharacterModeCommand(False)]`.
   - Nothing in `runtime/` or `compat/` filters by command type.
 
 | Engine | Path in WorldVoice | Conversion | Handles it? |
@@ -440,7 +478,7 @@ How `CharacterModeCommand` reaches each engine:
 | VE | `_VEStrategy.submit` → `_enqueue` → inner `speak` (`driver/VE/__init__.py:352-356`, `:524-535`; `driver/VE/driver/__init__.py:375-378`, declared at `:252-254`) | inline `\x1b\tn=spell\` … `\x1b\tn=normal\`. The wrapper's `_speak` joins the chunks and runs them through the chunker (`driver/VE/__init__.py:592-599`); the symbol segment is far below any limit, so it stays one piece. | Yes |
 | Cerence | same as VE (`driver/Cerence/__init__.py:354`, `:526-533`, `:594-600`; `driver/Cerence/driver/__init__.py:375-378`) | same | Yes |
 
-- **No engine drops `CharacterModeCommand`.** Every engine spells whatever text sits inside it. That makes F1 apply to all of them.
+- **Under Q4, no engine would have dropped `CharacterModeCommand`.** Every engine spells whatever text sits inside it, which is why F1 applied to all of them and led to option D.
 - **Scope "all":** see section 8.
 - **No inner driver changes and no engine-specific code** are needed. Everything is in `pipeline/` and `pipeline/settings.py`.
 
@@ -458,7 +496,7 @@ How `CharacterModeCommand` reaches each engine:
   - **Group wait > 0.** Groups are now separated by the number wait.
   - **`group_size = 1`.** It reads as 2 (`convert`). "number" is the digit-by-digit mode. The stored 1 stays in the file until the user saves another value. `PipelineSettingsService.update` writes only changed values (`settings.py:404-408`).
   - **Number mode with a translated digit table** (`unicode.dic`). Digits are now spoken by the voice itself (Q6).
-- **Errors.** Nothing new can raise. The regexes are module constants. `_translate_number` works on a regex match. The clamp happens in `convert`.
+- **Errors.** Nothing new can raise. The regexes are module constants. `_translate_number` works on a regex match. The clamp happens in `convert`. `_symbol_name` catches NVDA's `LookupError` and falls back to the symbol (6.4.1).
 - **Strings** (`addon/locale/zh_TW/LC_MESSAGES/nvda.po`):
 
 | msgid | Change | zh_TW |
@@ -495,6 +533,9 @@ How `CharacterModeCommand` reaches each engine:
   - SYM edges: `"1\u00a02"` (U+00A0) and `"1\u00ad2"` (U+00AD) are two matches; `"1'000"`, `"1_000"` and `"1×2"` are one;
   - `"１２"` (full-width) gives no match (Q-A);
   - `fullmatch` on `"1"*5000+"a"` and `"1."*3000+"a"` within 50 ms.
+- **`_symbol_name`:** returns the lookup's name; returns `None` when the lookup raises `LookupError` or returns `None`, `""` or the symbol itself. A symbol without a name is emitted with no NB around it.
+- **`_symbol_locale`:** `None` → `getCurrentLanguage()`; `"zh-TW"` → `"zh_TW"`; `"zh"` with NVDA zh_TW → `"zh_TW"`; `"en"` with NVDA zh_TW → `"en"`; `"de_CH"` unchanged.
+- **NVDA's real lookup** (`tests/test_pipeline_nvda_symbols.py`, NVDA's `characterProcessing.py` loaded from `ref/nvda` with stubs, as in 5.4): en `×` → `"times"`, zh_TW `×` → `"乘以"`, de_CH `×` → `"Mal"` (base-language fallback), `"xx"` `×` → `"times"` (English fallback), and every SYM has a name other than itself in en and zh_TW.
 - **`remove_thousands_separators`:**
   - V1's examples, plus `1,234,,5`, `a,1,234`, `1,234,` (trailing comma kept) and `1.234,567`;
   - passes through in none, number and group;
@@ -502,8 +543,10 @@ How `CharacterModeCommand` reaches each engine:
 - **`_translate_number` / `inject_number_mode`:**
   - every number and group cell of 7.1, at sizes 2 and 3;
   - `NumberBreakCommand` instances with `time == pause` at pauses 0 and 25;
-  - `CharacterModeCommand` states `(True, False)` around each symbol;
-  - two adjacent symbols `1--2`;
+  - each symbol is one text item equal to the stub lookup's name, with NB on both sides; no `CharacterModeCommand` anywhere;
+  - two adjacent symbols `1--2` give two names with NB between;
+  - the symbol locale: number language en gives en names; number language "default" follows `LangChangeCommand` and `WVLangChangeCommand` (and `lang=None` returns to `ctx.language`); `ctx.supports_roles=False` ignores `ctx.number_language`; `ctx.language=None` asks `speech.getCurrentLanguage()`;
+  - value and "off" leave symbols unchanged;
   - "none" returns the input object sequence unchanged;
   - the dot rule `12.` / `a.5` in value, number and group.
 - **`number_wait_factor`:**
@@ -537,8 +580,8 @@ How `CharacterModeCommand` reaches each engine:
   - the Voice panel rows and tab order follow the new table.
 - **Scope all:**
   - other synthesizers get only plain breaks;
-  - `CharacterModeCommand` passes through;
-  - NVDA's real `SsmlConverter` keeps every word and turns ⟦x⟧ into `say-as characters` (`tests/test_pipeline_nvda_ssml.py`, with the harness's `CharacterModeCommand` used by both sides).
+  - the names reach them as plain text;
+  - NVDA's real `SsmlConverter` keeps every word, including the names, and every pause (`tests/test_pipeline_nvda_ssml.py`); it emits no `say-as`.
 
 ### 11.2 Properties (Hypothesis)
 
@@ -548,18 +591,18 @@ Alphabets include `0-9 , . - + : / × ÷ ° % a 共 ， ． \t \u00a0 \u3000`. E
 - **P2, no glued matches.** For any text, every gap between consecutive matches is non-empty.
 - **P3, thousands oracle.** `remove_thousands_separators` equals the whole-run oracle (6.3). Only commas are removed, and only from runs the oracle accepts.
 - **P4, "none" is the identity** for both number-mode stages.
-- **P5, text survives.**
-  - Concatenating the `str` items of `inject_number_mode` reproduces the input, except for spaces the dot rule inserts.
+- **P5, text survives.** The properties use a stub lookup whose name for `x` is a unique marker, so a name maps back to its symbol.
+  - Concatenating the `str` items of `inject_number_mode`, with each name mapped back to its symbol, reproduces the input, except for spaces the dot rule inserts.
   - Over the whole stage list, the input minus the commas P3 removed equals the output text, comparing without whitespace: whitespace is either kept or replaced by a break.
 - **P6, digits never glued.** In number and group mode, no `[0-9]+` run in any output item is longer than the size: 1 for number, `group_size` for group.
 - **P7, breaks and symbols only inside a match.**
-  - In number and group mode, every NB and every `CharacterModeCommand` that `number_mode` emits lies strictly inside one input match.
-  - Each `CharacterModeCommand(True)` is followed by exactly one SYM item and then `CharacterModeCommand(False)`.
+  - In number and group mode, every NB and every name item that `number_mode` emits lies strictly inside one input match.
+  - Each name item has NB on both sides and stands for exactly one SYM of the match. A symbol without a name (fallback) has no NB next to it.
   - After `number_wait_factor`, every other NB replaces whitespace between two whole numbers (the existing walk property, with the wider alphabet).
 - **P8, the number language changes no words or breaks.**
   - Without language commands, the items for number language en equal those for default, compared without whitespace. `_remove_space` strips the edges of the items that wrapping creates, as today.
   - NB positions are equal, relative to the numbers.
-- **P9, punctuation never touches a ⟦x⟧,** with any configured marks and removal on.
+- **P9, punctuation never touches a name,** with any configured marks and removal on.
 - **P10, no stacked breaks** (the X1 property updated): sizes 2..10, modes none/value/number/group, symbols in the alphabet.
 
 Existing properties to update:
@@ -592,12 +635,12 @@ Module-level regexes are not mutated by mutmut 3. P1 and P3 (oracles) cover them
 
 Build a test package (`DEVELOPMENT_WORKFLOW.md` section 6). Main language zh_TW.
 
-- **M1, symbols per engine.** For each engine: OneCore, SAPI5, eSpeak, RHVoice, VE, Cerence.
+- **M1, symbol names per engine.** For each engine: OneCore, SAPI5, eSpeak, RHVoice, VE, Cerence. Number language "default".
   - Use number mode and then group 3, at NVDA symbol levels none, some (default) and all.
   - Read `12.5`, `5-3`, `1,234`, `12:30`, `2×3`, `45°30`, `192.168.0.1`.
-  - Record for each symbol whether it is heard as its name, spelled letter by letter, or silent. This decides F1.
-- **M2, number language en** (with an English voice installed): repeat M1's inputs and record whether the English voice reads the zh_TW symbol words (`乘以`, `度`) (F2).
-- **M3, RHVoice:** does `say-as characters` spell `,` and `-`?
+  - Each symbol is heard as its zh_TW name (dot, dash, comma, colon, 乘以, 度) as a word, at every level: never spelled letter by letter, never silent.
+- **M2, names per number language** (F2). With an English voice installed and number language en, repeat M1's inputs on two engines: the English voice says "times", "degrees", "dot". Then with number language zh_TW and an English main language: the names are `乘以`, `度`. Then number language "default" in mixed text where NVDA switches to English (a web page with `lang="en"`): the names follow that language.
+- **M3, symbols outside numbers.** At level none and at level all, `a.b`, `x - y` and `12.` are read exactly as on `master`: only symbols between digits are named.
 - **M4, number pause:** in value mode with number language en, `1 2` and `共 12 34 個` now pause between the numbers (O). Raise the number wait to hear it clearly.
 - **M5, value mode:** `12,345,678`, `1,234.56`, `-1,234` are read as single values. `3,14` and `1,234,56` are unchanged. Repeat with a de or fr voice to confirm the accepted risk.
 - **M6, "off":** numbers are read exactly as the voice reads them. The number language and number pause still apply.
@@ -605,19 +648,19 @@ Build a test package (`DEVELOPMENT_WORKFLOW.md` section 6). Main language zh_TW.
   - Start from a profile with `group_size = 1`, `group_wait_factor = 40` and `ignore_comma_between_number = True`.
   - WorldVoice loads. The Speech Pipeline panel shows group size 2 and has no removed controls.
   - The Log Record panel has no ignore-comma switch.
-- **M8, scope "all"** with NVDA's own OneCore, eSpeak and SAPI5 selected: group 3 on `123.456` gives breaks and the `.` symbol, and nothing after it is dropped.
+- **M8, scope "all"** with NVDA's own OneCore, eSpeak and SAPI5 selected: group 3 on `123.456` gives "123", pause, "dot", pause, "456" in NVDA's language, and nothing after it is dropped.
 - **M9, settings ring:** "Number mode" cycles off/value/number/group, and "Group wait factor" is not in the ring.
 
 ## 12. Existing tests and documents that need new expectations
 
-Confirmed by a full run of `tests/` on the prototype, after adding `CharacterModeCommand` to the stubs: 129 failed, 1981 passed. The baseline was 2110 passed, 0 skipped. Every failure below is an expected consequence of a decision. None came from the prototype's shortcuts.
+Confirmed by a full run of `tests/` on the prototype (which implemented the superseded Q4), after adding `CharacterModeCommand` to the stubs: 129 failed, 1981 passed. The baseline was 2110 passed, 0 skipped. Every failure below is an expected consequence of a decision. None came from the prototype's shortcuts. With F1 option D the stub changes differ, as listed first.
 
 - **Test stubs (no expectation change, needed first):**
-  - `tests/pipeline_harness.py:58-73`: add `CharacterModeCommand(state)` to the `speech.commands` stub. `punctuation_settings` (`:113-127`) drops `ignore_comma_between_number` and `scaled_group_wait`. `ORDER` (`:130-140`) becomes the 6.8 list, plus a separate list of log switches.
-  - `tests/conftest.py:94-101` and `tests/test_worldvoice_speak.py:102-109`: add `CharacterModeCommand` to their `speech.commands` stubs. Without it, 8 tests in `test_worldvoice_speak.py` and several Voice-panel tests fail on import.
+  - No `CharacterModeCommand` stub is needed (F1 option D).
+  - The pipeline imports NVDA's `characterProcessing` (6.4.1): stub a `characterProcessing` module with `processSpeechSymbol` wherever the real `pipeline/__init__.py` is loaded: `tests/pipeline_harness.py` (`load_pipeline_module`), the `env` fixture of `tests/test_pipeline_passthrough.py`, and `_load_modules` in `tests/test_worldvoice_speak.py`. The `speech` stub gets `getCurrentLanguage`.
+  - `tests/pipeline_harness.py`: `punctuation_settings` (`:113-127`) drops `ignore_comma_between_number` and `scaled_group_wait`. `ORDER` (`:130-140`) becomes the 6.8 list, plus a separate list of log switches.
   - `tests/ui_harness.py:779-781`: the `STAGES` stub entries need `log_switch`. Better, stub `LOG_SWITCHES`.
   - `tests/nvda_stubs.py:103-110` parses the log confspec comprehension with `ast`. Update it for `LOG_SWITCHES`.
-  - `tests/test_pipeline_nvda_ssml.py:31-35`: use the harness's `CharacterModeCommand` for NVDA's `speechXml`. Otherwise the converter sees another class and logs "Unsupported command".
 - **`tests/test_pipeline_filters.py`:**
   - `test_number_mode` (27 cases);
   - `test_group_mode_keeps_leading_zeros_and_every_digit`;
@@ -641,7 +684,7 @@ Confirmed by a full run of `tests/` on the prototype, after adding `CharacterMod
   - `test_number_mode_reads_symbols_from_context`: remove;
   - `test_other_synths_get_only_plain_breaks_from_the_stages`;
   - `test_worldvoice_keeps_the_break_subclasses_from_the_stages`.
-- **`tests/test_pipeline_nvda_ssml.py`:** `test_nvda_ssml_keeps_every_word_and_pause_of_the_scope_all_output` drops the 30 ms group pause and expects `say-as`.
+- **`tests/test_pipeline_nvda_ssml.py`:** `test_nvda_ssml_keeps_every_word_and_pause_of_the_scope_all_output` drops the 30 ms group pause and expects the symbol names as words.
 - **`tests/test_pipeline_settings_service.py`:**
   - `test_table_drives_fields_defaults_keys_and_confspec`;
   - `test_table_lists_every_setting_in_the_canonical_order`;
@@ -671,6 +714,8 @@ Confirmed by a full run of `tests/` on the prototype, after adding `CharacterMod
 
 **F1. At NVDA's default symbol level, most symbols reach the engine as words, and character mode makes the engine spell them.** This affects Q4 and the symbol part of Q1.
 
+**Decided by the user (2026-10-22): option D, which replaces Q4.** No `CharacterModeCommand`. Inside a number match (number and group modes) each symbol becomes NVDA's name for that single character, `processSpeechSymbol(locale, symbol)`, as a plain text item between NBs, spoken at every symbol level. Symbols outside a number keep NVDA's normal handling. Sections 2, 6.4.1, 7, 8, 9, 11 and 15 follow D. The analysis below is kept as the record.
+
 - **The facts:**
   - NVDA's `processText` runs after the pipeline and also inside character mode (`speech.py:1215-1232`).
   - An isolated `.` becomes `dot` at levels some/most/all. `+` becomes `plus`, `/` `slash`, `×` `times` (zh_TW `乘以`), `÷` `divide by`, `°` `degrees` (zh_TW `度`) (5.2, real NVDA code). At "most"/"all", `-` becomes `dash-` and `:` becomes `colon`. At "all", `,` becomes `comma,`.
@@ -685,16 +730,17 @@ Confirmed by a full run of `tests/` on the prototype, after adding `CharacterMod
     - `.` is then always heard as "dot", independent of the symbol level, like NVDA's character navigation;
     - this needs the NVDA locale in the stage: `getCurrentLanguage()`, or the context's language.
   - **C. No character mode:** send the symbol as a plain item and let the user's symbol level decide. `,` and `-` may then be silent on some engines.
-- This spec implements A, as decided. B or C would change sections 6.4, 7 and 11.
+  - **D. (chosen)** Like B, but always the name and never character mode.
 
-**F2. Symbol words now come from the main language and are spoken by the number-language voice.**
+**F2. Symbol words would come from the main language and be spoken by the number-language voice.**
+
+**Decided by the user (2026-10-22): yes, use the number language's table.** With option D the pipeline looks the name up itself, in the number language, or in the language in force when the number language is "default" or roles are unsupported (6.4.1). Locales without a table fall back as NVDA does (5.4). Checked by M2. The analysis below is kept as the record.
 
 - With the shared regex (L1), the symbols between digits are inside the number-language wrapper.
-- NVDA picks symbol words by its own language, not the number language (5.1). The words are therefore in the main language and spoken by the number voice. For example, with main zh_TW and number language en, `2×3` is sent as `2 乘以 3` to the English voice.
+- NVDA picks symbol words by its own language, not the number language (5.1). Without option D the words would be in the main language and spoken by the number voice. For example, with main zh_TW and number language en, `2×3` would be sent as `2 乘以 3` to the English voice.
 - On `master`, `×` was outside the wrapper and spoken by the main voice.
-- For information. Check it in M2. A fix would be to put symbols outside the wrapper, which contradicts L1.
 
-**F3. The shared regex itself changes value mode in a few places.** For information; this follows from Q1 and N.
+**F3. The shared regex itself changes value mode in a few places.** For information; this follows from Q1 and N. **Accepted by the user (2026-10-22).**
 
 - `"192.168.0.1"` and `"1.2.3"` lose the dot-rule spaces. They are now one match, read by the engine with NVDA's decimal-point rule.
 - `"2026-10-22 12:30"` gains a number pause between date and time.
@@ -721,16 +767,16 @@ Confirmed by a full run of `tests/` on the prototype, after adding `CharacterMod
 - The run after the `.` is a valid thousands run under V1.
 - This is part of the accepted de/fr risk. Adding `.` to the lookbehind would avoid it but would differ from V1.
 
-**F8 (for information). A third-party synthesizer with scope "all" may ignore `CharacterModeCommand`.**
+**F8 (obsolete with F1 option D). A third-party synthesizer with scope "all" may ignore `CharacterModeCommand`.**
 
-- NVDA sends it whether or not the synth declares it (8). NVDA's built-in synthesizers handle it.
+- The pipeline no longer sends `CharacterModeCommand` (8).
 
 ## 14. Open questions (new)
 
 Each is adopted with the conservative default. **Decided by orchestrator with the recommended default; user may override before merge.**
 
 1. **Q-A, the meaning of "digit":** ASCII `0-9`, as `master` has (F4).
-2. **Q-B, adjacent symbols** (`"1--2"`, `"10:-5"`): each symbol is its own ⟦x⟧, with NB between them. "Every break inside a match" then holds for every boundary.
+2. **Q-B, adjacent symbols** (`"1--2"`, `"10:-5"`): each symbol is its own name item ⟨x⟩, with NB between them. "Every break inside a match" then holds for every boundary.
 3. **Q-C, where the NB goes among held language commands:** after the first held command, so between ‹zh› and ‹en› (6.5). The audio is the same for any position.
 4. **Q-D, logging the thousands step:** `Stage.log_switch` plus `LOG_SWITCHES` (6.3). The Log Record panel keeps its order.
 5. **Q-E, the thousands lookahead:** `(?!,*[0-9])` (F5).
@@ -743,19 +789,19 @@ Each is adopted with the conservative default. **Decided by orchestrator with th
   - one implementer runs the plan;
   - nothing must be byte-exact (no inner drivers, no packaging);
   - the changes are behavioural, not a mechanical rename across many files.
-- **Tasks (13):**
-  1. Test stubs: `CharacterModeCommand` in `pipeline_harness`, `conftest`, `test_worldvoice_speak` and the SSML test (no behaviour change).
+- **Tasks (13)**, revised for F1 option D. Each task that adds, changes or removes a msgid updates the zh_TW catalog in the same task:
+  1. Symbol names: `_symbol_name` with its fallback, the `characterProcessing` and `getCurrentLanguage` stubs, and the guard test on NVDA's real lookup (5.4, 6.4.1).
   2. Shared `_NUMBER_RE`: symbols, sign, `[SYM]+` form; `_PURE_NUMBER_RE` out; `_split_spaced_numbers` without `glued`; `_both_numbers`. P1 and P2.
   3. `number_wait_factor` with transparent language commands (O).
-  4. Remove "Ignore commas between numbers": setting, stage, log label, `effective` coupling (V6), tests.
+  4. Remove "Ignore commas between numbers": setting, stage, log label, `effective` coupling (V6), zh_TW entry, tests.
   5. Thousands step: `remove_thousands_separators`, `Stage.log_switch`, `LOG_SWITCHES`, and the confspec and Log Record consumers. P3.
-  6. "off" mode: choice, label, pass-through in both number-mode stages. P4.
-  7. Number and group modes rewritten (6.4); `GroupNumberBreakCommand`, `get_translate_table` and `SpeechContext.speech_symbols` out. P5–P7.
-  8. Remove the group wait setting: spec, scaled, constant, ring, panels.
+  6. "off" mode: choice, label, zh_TW entry, pass-through in both number-mode stages. P4.
+  7. Number and group modes rewritten (6.4) with symbol names and the symbol locale (6.4.1); `GroupNumberBreakCommand`, `get_translate_table` and `SpeechContext.speech_symbols` out. P5–P7.
+  8. Remove the group wait setting: spec, scaled, constant, ring, panels, zh_TW entry.
   9. Group size 2..10 with `stored_min_value`, plus the guard check.
   10. Properties P8–P10 and updates to the existing properties.
-  11. Scope "all": the plain-breaks test and the NVDA SSML test with `say-as`.
-  12. zh_TW `.po`, translator tests, `readme.md` and the zh_TW readme.
+  11. Scope "all": the plain-breaks test and the NVDA SSML test with the names as words.
+  12. `readme.md` and the zh_TW readme; final translator and `msgfmt --check` pass.
   13. Full verification (section 7 of the workflow) and mutmut on 11.3. Record the survivors.
 - **Batches** (section 3.2: 13 tasks give 5/4/4):
   - tasks 1–5, then a batch review;
@@ -767,6 +813,7 @@ Each is adopted with the conservative default. **Decided by orchestrator with th
 
 - **Scratch copy.** A copy of `967944e` was made in the scratchpad, without `.git`, with `ref` linked. A patch script then applied sections 6.1–6.8.
 - **Stubs.** `CharacterModeCommand` was added to the three stubs listed in section 12, and `log_switch` to the `ui_harness` stage stub.
+- **Option A only.** The prototype implemented the superseded Q4. F1 option D puts one name item exactly where Q4 put its three items (`CharacterModeCommand(True)`, the symbol, `CharacterModeCommand(False)`), between the same NBs. The tables of section 7 were converted by that substitution and by the zh_TW and en names of the 5.4 probe; they were not re-run.
 - **Baseline.** The unmodified copy gave 2110 passed.
 - **Full run on the prototype:** 129 failed, 1981 passed. Section 12 lists the failures.
 - **Tables.** Sections 7.1–7.3 were printed by a scratch test that runs every `Stage.handler` in order. `master`'s column in 7.3 came from the same script on an unmodified copy.
