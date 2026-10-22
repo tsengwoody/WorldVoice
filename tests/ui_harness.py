@@ -4,7 +4,9 @@ The fakes keep only what WorldVoice's panels, dialogs and global plugin touch: c
 value, a selection and an enabled state, sizers keep their items in order and know which are
 shown, and ``Bind`` records handlers so ``fire`` can deliver an event the way wx does (the
 handler bound last runs first, ``Skip`` passes the event on, and a command event reaches the
-panel's handlers after the control's own). The loaders run the real add-on
+panel's handlers after the control's own). A parent keeps its windows in creation order
+(``children``, the order NVDA's object navigation follows) apart from its Tab order
+(``tab_order``), and a labelled control's label is a window just before it. The loaders run the real add-on
 modules against these fakes, so module-level code and the real ``guard_errors`` take part.
 """
 
@@ -31,10 +33,12 @@ class Control:
 		self.containing_sizer = None
 		self.tab_after = None
 		self.destroyed = False
-		# wx keeps a window's children in creation order, which is the Tab order.
-		tab_order = getattr(parent, "tab_order", None)
-		if tab_order is not None:
-			tab_order.append(self)
+		# A parent's children stay in creation order: the HWND sibling order NVDA's object
+		# navigation follows. Tab order starts the same but is kept apart, since
+		# MoveAfterInTabOrder changes only the Tab order.
+		for order in (getattr(parent, "children", None), getattr(parent, "tab_order", None)):
+			if order is not None:
+				order.append(self)
 
 	def __repr__(self):
 		return f"<{type(self).__name__} {self.label!r}>"
@@ -116,6 +120,7 @@ class Control:
 		return self.containing_sizer
 
 	def MoveAfterInTabOrder(self, other):
+		"""Move this window after other in Tab order only; its place among the children stays."""
 		if isinstance(other, Control) and not other:
 			raise RuntimeError(f"wrapped C/C++ object of type {type(other).__name__} has been deleted")
 		self.tab_after = other
@@ -165,6 +170,10 @@ class SelectOnFocusSpinCtrl(SpinCtrl):
 
 class StaticText(Control):
 	pass
+
+
+class Label(StaticText):
+	"""The StaticText NVDA's LabeledControlHelper makes just before a labelled control, in its row."""
 
 
 class StaticBox(Control):
@@ -262,21 +271,29 @@ class Sizer:
 		self.layouts += 1
 
 	def Clear(self, delete_windows=False):
-		"""Remove every item; with delete_windows, wx destroys the windows they hold."""
+		"""Remove every item; with delete_windows, wx destroys the windows they hold, labels too."""
 		if delete_windows:
-			for control in self.controls():
-				control.destroyed = True
-				tab_order = getattr(control.parent, "tab_order", None)
-				if tab_order is not None and control in tab_order:
-					tab_order.remove(control)
+			for window in self.windows():
+				window.destroyed = True
+				for name in ("children", "tab_order"):
+					order = getattr(window.parent, name, None)
+					if order is not None and window in order:
+						order.remove(window)
 		self.items = []
 
-	def contents(self):
-		"""Every item, with nested sizers expanded in place."""
+	def _expanded(self):
 		result = []
 		for entry in self.items:
-			result.extend(entry.item.contents() if isinstance(entry.item, Sizer) else [entry.item])
+			result.extend(entry.item._expanded() if isinstance(entry.item, Sizer) else [entry.item])
 		return result
+
+	def windows(self):
+		"""Every window in this sizer and the sizers it holds, labels included."""
+		return [item for item in self._expanded() if isinstance(item, Control)]
+
+	def contents(self):
+		"""Every item but labels, with nested sizers expanded in place."""
+		return [item for item in self._expanded() if not isinstance(item, Label)]
 
 	def controls(self):
 		return [item for item in self.contents() if isinstance(item, Control)]
@@ -303,9 +320,11 @@ class BoxSizerHelper:
 		self.hasFirstItemBeenAdded = False
 
 	def addLabeledControl(self, label, cls, **kwargs):
+		# NVDA's LabeledControlHelper (gui/guiHelper.py:288-291): the label, then the control, in one row.
+		row = Sizer()
+		row.Add(Label(self.parent, label=label))
 		control = cls(self.parent, **kwargs)
 		control.label = label
-		row = Sizer()
 		row.Add(control)
 		self.addItem(row)
 		return control
@@ -359,6 +378,7 @@ class SettingsPanel:
 
 	def __init__(self):
 		self.bindings = []
+		self.children = []
 		self.tab_order = []
 
 	def Bind(self, event, handler, source=None):
@@ -430,6 +450,8 @@ class VoiceSettingsPanel(SettingsPanel):
 			control.Bind(EVT_CHECKBOX, lambda event: setattr(settingsStorage, setting.id, event.IsChecked()))
 		else:
 			made = Sizer()
+			# NVDA's LabeledControlHelper makes the label first, in the same row.
+			made.Add(Label(self, label=f"{setting.displayName}:"))
 			if isinstance(setting, NumericDriverSetting):
 				control = Slider(self, label=setting.displayName, value=value)
 				setattr(self, f"{setting.id}Slider", control)
