@@ -1,21 +1,19 @@
 import addonHandler
-import gui
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
 from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
-from logHandler import log
 
 from .pipeline.panelLayout import (
 	ABSENT,
 	VOICE_PANEL,
 	choice_values,
 	controller_keys,
+	creation_followers,
 	dependent_states,
 	driver_attribute,
 	panel_specs,
 	selected_value,
 	voice_attribute,
-	voice_placements,
 )
 from .pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTINGS, pipeline_settings
 from .pipelineControls import CHANGE_EVENTS, control_row, control_value, make_control
@@ -35,9 +33,8 @@ def _moveSizer(settingsSizer, sizer, index):
 class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 	def makeSettings(self, settingsSizer):
 		self._pipelineSnapshot = pipeline_settings.get() if self._isWorldVoice() else None
-		self.createDriverSettings()
+		# NVDA's makeSettings calls updateDriverSettings first, which makes every control below.
 		super().makeSettings(settingsSizer)
-		self._addPipelineControls(settingsSizer)
 		self._bindControllers()
 		self._applyDependencies()
 
@@ -101,51 +98,85 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		control = getattr(self, name, None)
 		return control if control else None
 
-	def _addPipelineControls(self, settingsSizer):
+	def updateDriverSettings(self, changedSetting=None):
+		"""Make every missing control in table order, then let NVDA hide, show and update them.
+
+		Every driver setting the synth may ever support gets its control up front, in its standard
+		order, so a voice switch that reveals RateBoost or Inflection shows them in place. Each
+		WorldVoice control that is not a driver setting is made right after the row of the table
+		entry before it, so window order (what object navigation follows), Tab order and layout
+		follow the table, and its label stays just before it. Another synth gets none of them; the
+		Speech Pipeline panel is where they are changed then.
 		"""
-		Add the table's settings that are not driver settings, each right after the row of the entry
-		before it in the table, in layout and tab order. They are written on Save.
-		Another synth gets none of them; the Speech Pipeline panel is where they are changed then.
-		"""
+		settingsInst = self.getSettings()
+		settingsStorage = self._getSettingsStorage()
+		allSettings = (
+			settingsInst.allSupportedSettings
+			if hasattr(settingsInst, "allSupportedSettings")
+			else settingsInst.supportedSettings
+		)
 		specs = self._voiceSpecs()
-		added = [spec for spec in specs if spec.driver_id is None]
-		# Drop the windows of an earlier build, which NVDA's refreshGui destroyed; _voiceControl
-		# already counts them as none, this keeps the attributes from naming them.
-		for spec in added:
-			setattr(self, voice_attribute(spec), None)
-		if not self._isWorldVoice():
-			return
-		settings = pipeline_settings.get()
-		for spec in added:
-			# A helper per control: its first item gets no spacer, so moving the row leaves none.
-			helper = guiHelper.BoxSizerHelper(self, sizer=settingsSizer)
-			setattr(
-				self,
-				voice_attribute(spec),
-				make_control(self, helper, spec, getattr(settings, spec.key)),
-			)
 		byKey = {spec.key: spec for spec in specs}
-
-		def hasRow(key):
-			spec = byKey[key]
-			if spec.driver_id is not None:
-				return spec.driver_id in self.sizerDict
-			return self._voiceControl(spec) is not None
-
-		for key, anchorKey in voice_placements(specs, hasRow):
-			if anchorKey is None:
-				continue
-			spec, anchor = byKey[key], byKey[anchorKey]
-			control, anchorControl = self._voiceControl(spec), self._voiceControl(anchor)
-			anchorRow = (
-				self.sizerDict[anchor.driver_id]
-				if anchor.driver_id is not None
-				else control_row(anchorControl, anchor)
+		absent = False
+		for spec in specs:
+			# Drop the windows of an earlier build, which NVDA's refreshGui destroyed; _voiceControl
+			# already counts them as none, this keeps the attributes from naming them.
+			if spec.driver_id is None and self._voiceControl(spec) is None:
+				setattr(self, voice_attribute(spec), None)
+				absent = True
+		values = pipeline_settings.get() if absent and self._isWorldVoice() else None
+		listed = {setting.id for setting in allSettings if not setting.id.startswith("_")}
+		followers = {
+			driverId: [byKey[key] for key in keys]
+			for driverId, keys in creation_followers(specs, listed.__contains__).items()
+		}
+		# Each row made here, with the row made just before it, which it is placed after.
+		placements = []
+		previousRow = None
+		for setting in allSettings:
+			if setting.id != changedSetting and setting.id not in self.sizerDict and setting.id in listed:
+				self._createNewControl(setting, settingsStorage)
+			previousRow = self.sizerDict.get(setting.id, previousRow)
+			previousRow = self._makePipelineControls(
+				followers.get(setting.id, ()),
+				values,
+				previousRow,
+				placements,
 			)
-			index = self._rowIndex(settingsSizer, anchorRow)
+		self._makePipelineControls(followers.get(None, ()), values, previousRow, placements)
+		self._placePipelineRows(placements)
+		super().updateDriverSettings(changedSetting)
+
+	def _makePipelineControls(self, specs, values, previousRow, placements):
+		"""Make the absent controls of specs, showing values (None: make none); return the last row.
+
+		Each made row is recorded in placements with the row before it.
+		"""
+		for spec in specs:
+			control = self._voiceControl(spec)
+			if control is None and values is not None:
+				# A helper per control: its first item gets no spacer, so moving the row leaves none.
+				helper = guiHelper.BoxSizerHelper(self, sizer=self.settingsSizer)
+				control = make_control(self, helper, spec, getattr(values, spec.key))
+				setattr(self, voice_attribute(spec), control)
+				# NVDA's next driver control moves after lastControl in Tab order (settingsDialogs.py
+				# :1457-1459), so it stays after this one, as it was made.
+				self.lastControl = control
+				placements.append((control_row(control, spec), previousRow))
+			if control is not None:
+				previousRow = control_row(control, spec)
+		return previousRow
+
+	def _placePipelineRows(self, placements):
+		"""Move each made row after the row made just before it: layout only, windows stay put.
+
+		NVDA inserts each driver row at len(self.sizerDict) - 1 (settingsDialogs.py:1585-1590),
+		counting driver rows only, so a row made among them ends up after them; this puts it back.
+		"""
+		for row, previousRow in placements:
+			index = None if previousRow is None else self._rowIndex(self.settingsSizer, previousRow)
 			if index is not None:
-				_moveSizer(settingsSizer, control_row(control, spec), index + 1)
-			control.MoveAfterInTabOrder(anchorControl)
+				_moveSizer(self.settingsSizer, row, index + 1)
 
 	@staticmethod
 	def _rowIndex(settingsSizer, row):
@@ -192,49 +223,6 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		}
 		if changes:
 			pipeline_settings.update(**changes)
-
-	def createDriverSettings(self, changedSetting=None):
-		"""
-		Creates, hides or updates existing GUI controls for all of supported settings.
-
-		Every control is created up front in its standard order, so a voice switch that
-		reveals RateBoost or Inflection shows them in place instead of at the end.
-		"""
-		# Copied from NVDA's AutoSettingsMixin.updateDriverSettings, listing allSupportedSettings
-		# so every control exists in its standard order; compare with NVDA's version on every
-		# NVDA upgrade (tests/test_nvda_settings_copy.py fails when they drift).
-		settingsInst = self.getSettings()
-		settingsStorage = self._getSettingsStorage()
-		# firstly check already created options
-		for name, sizer in self.sizerDict.items():
-			if name == changedSetting:
-				# Changing a setting shouldn't cause that setting itself to disappear.
-				continue
-			if not settingsInst.isSupported(name):
-				self.settingsSizer.Hide(sizer)
-		# Create new controls, update already existing
-		if gui._isDebug():
-			log.debug(f"Current sizerDict: {self.sizerDict!r}")
-			log.debug(f"Current supportedSettings: {self.getSettings().supportedSettings!r}")
-
-		supportedSettings = (
-			settingsInst.allSupportedSettings
-			if hasattr(settingsInst, "allSupportedSettings")
-			else settingsInst.supportedSettings
-		)
-		for setting in supportedSettings:
-			if setting.id == changedSetting:
-				# Changing a setting shouldn't cause that setting's own values to change.
-				continue
-			if setting.id in self.sizerDict:  # update a value
-				self._updateValueForControl(setting, settingsStorage)
-			elif setting.id.startswith("_"):
-				# Skip private settings.
-				continue
-			else:  # create a new control
-				self._createNewControl(setting, settingsStorage)
-		# Update graphical layout of the dialog
-		self.settingsSizer.Layout()
 
 	def _updateValueForControl(self, setting, settingsStorage):
 		self.settingsSizer.Show(self.sizerDict[setting.id])

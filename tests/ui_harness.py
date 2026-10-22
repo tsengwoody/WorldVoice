@@ -31,7 +31,6 @@ class Control:
 		self.focused = False
 		self.bindings = []
 		self.containing_sizer = None
-		self.tab_after = None
 		self.destroyed = False
 		# A parent's children stay in creation order: the HWND sibling order NVDA's object
 		# navigation follows. Tab order starts the same but is kept apart, since
@@ -123,7 +122,6 @@ class Control:
 		"""Move this window after other in Tab order only; its place among the children stays."""
 		if isinstance(other, Control) and not other:
 			raise RuntimeError(f"wrapped C/C++ object of type {type(other).__name__} has been deleted")
-		self.tab_after = other
 		tab_order = getattr(self.parent, "tab_order", None)
 		if tab_order is not None and self in tab_order and other in tab_order:
 			tab_order.remove(self)

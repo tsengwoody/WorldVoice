@@ -92,20 +92,6 @@ def dependent_states(specs: Iterable[Any], read: Callable[[str], Any]) -> dict[s
 	return states
 
 
-def voice_placements(specs: Sequence[Any], has_row: Callable[[str], bool]) -> list[tuple[str, str | None]]:
-	"""For each Voice panel entry without a driver setting, the entry whose row it follows.
-
-	specs are the Voice panel's entries in table order. The anchor is the nearest earlier entry
-	that has a row, or None when no earlier entry has one. The Voice panel adds these controls
-	for WorldVoice only, whose driver rows always exist.
-	"""
-	return [
-		(spec.key, next((other.key for other in reversed(specs[:index]) if has_row(other.key)), None))
-		for index, spec in enumerate(specs)
-		if spec.driver_id is None
-	]
-
-
 def creation_followers(
 	specs: Sequence[Any],
 	listed: Callable[[str], bool],

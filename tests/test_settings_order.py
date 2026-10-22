@@ -2,10 +2,12 @@
 
 import types
 
+import pytest
 from pipeline_harness import load_synth
 from ui_harness import (
 	BooleanDriverSetting,
 	DriverSetting,
+	Label,
 	NumericDriverSetting,
 	Sizer,
 	load_settings_dialog,
@@ -187,6 +189,74 @@ def test_voice_panel_rows_and_tab_order_survive_a_voice_change(monkeypatch):
 
 	assert voice_rows(env, panel, specs) == VOICE_KEYS
 	assert tab_keys(panel, voice_controls(env, panel, specs)) == VOICE_KEYS
+
+
+def window_keys(panel, controls):
+	"""The table entries in the panel's window order: what NVDA's object navigation follows."""
+	keys = {id(control): key for key, control in controls.items()}
+	return [keys[id(window)] for window in panel.children if id(window) in keys]
+
+
+def labels_out_of_place(panel, specs, controls):
+	"""The entries whose label is not the window just before their control, in the same row."""
+	misplaced = []
+	for spec in specs:
+		if spec.control == "checkbox":
+			continue
+		control = controls[spec.key]
+		index = panel.children.index(control)
+		label = panel.children[index - 1] if index else None
+		if not isinstance(label, Label) or label.GetContainingSizer() is not control.GetContainingSizer():
+			misplaced.append(spec.key)
+	return misplaced
+
+
+class OtherDriver:
+	"""Another synthesizer: no allSupportedSettings and none of WorldVoice's settings."""
+
+	name = "espeak"
+
+	def __init__(self):
+		self.supportedSettings = [DriverSetting("voice"), NumericDriverSetting("rate")]
+		self.availableVoices = {"eva": types.SimpleNamespace(id="eva", displayName="Eva")}
+		self.voice, self.rate = "eva", 50
+
+	def isSupported(self, name):
+		return name in {"voice", "rate"}
+
+
+def build_then(monkeypatch, scenario):
+	"""A WorldVoice Voice panel after the scenario; returns (env, panel, specs, windows before it)."""
+	env = load_voice_settings_dialogs(monkeypatch)
+	table_driver = TableDriver(env.module.PIPELINE_SETTINGS)
+	first = OtherDriver() if scenario == "other synth rebuild" else table_driver
+	panel = env.module.WorldVoiceVoiceSettingsPanel(first)
+	panel.makeSettings(panel.settingsSizer)
+	before = list(panel.children)
+	if scenario == "voice switch":
+		panel.updateDriverSettings(changedSetting="voice")  # what NVDA runs after the voice changed
+	elif scenario in ("worldvoice rebuild", "other synth rebuild"):
+		# NVDA's refreshGui on a new synth instance: every window goes, makeSettings runs again.
+		panel._driver = TableDriver(env.module.PIPELINE_SETTINGS)
+		panel.refreshGui()
+	specs = env.module.panel_specs(env.module.PIPELINE_SETTINGS, "voice")
+	return env, panel, specs, before
+
+
+@pytest.mark.parametrize(
+	"scenario",
+	["first build", "voice switch", "worldvoice rebuild", "other synth rebuild"],
+)
+def test_voice_panel_orders_follow_the_table(monkeypatch, scenario):
+	env, panel, specs, before = build_then(monkeypatch, scenario)
+	controls = voice_controls(env, panel, specs)
+
+	assert window_keys(panel, controls) == VOICE_KEYS
+	assert tab_keys(panel, controls) == VOICE_KEYS
+	assert voice_rows(env, panel, specs) == VOICE_KEYS
+	assert labels_out_of_place(panel, specs, controls) == []
+	if scenario == "voice switch":
+		assert panel.children == before
 
 
 def test_pipeline_panel_controls_follow_the_table(monkeypatch):

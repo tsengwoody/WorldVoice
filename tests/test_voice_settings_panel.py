@@ -15,6 +15,7 @@ from ui_harness import (
 	NumericDriverSetting,
 	Sizer,
 	Spacer,
+	StaticText,
 	fire,
 	load_voice_settings_dialogs,
 	pipeline_snapshot,
@@ -112,6 +113,13 @@ def order(panel):
 	return result
 
 
+def before(order, control):
+	"""The control just before control in a window or Tab order, skipping labels."""
+	focusable = [window for window in order if not isinstance(window, StaticText)]
+	index = focusable.index(control)
+	return focusable[index - 1] if index else None
+
+
 def test_every_setting_gets_a_control_in_standard_order_and_unsupported_ones_are_hidden(monkeypatch):
 	env = open_panel(monkeypatch, Driver(ALL - {"rateBoost", "inflection"}))
 	panel = env.panel
@@ -189,7 +197,7 @@ def test_rebuilding_the_driver_controls_updates_values_except_the_changed_settin
 	driver.rate, driver.punctuationpauseenabled = 80, False
 	panel.rateBoostCheckbox.SetValue("untouched")
 
-	panel.createDriverSettings(changedSetting="rateBoost")
+	panel.updateDriverSettings(changedSetting="rateBoost")
 
 	assert panel.rateSlider.value == 80
 	assert panel.punctuationpauseenabledCheckbox.value is False
@@ -209,7 +217,7 @@ def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
 	assert names.index("Punctuation pause characters:") == names.index("punctuationwaitfactor") + 1
 	# NVDA's own controls stay after the driver controls.
 	assert names[-1] == "Automatic language switching (when supported)"
-	assert edit.tab_after is panel.punctuationwaitfactorSlider
+	assert before(panel.children, edit) is before(panel.tab_order, edit) is panel.punctuationwaitfactorSlider
 	assert names.index("Group size:") == names.index("nummod") + 1
 	# Each added control has its own helper, so moving its row leaves no spacer behind.
 	assert "<spacer>" not in names
@@ -224,7 +232,7 @@ def test_group_size_follows_the_number_mode_list(monkeypatch):
 	assert type(spin) is env.gui.nvdaControls.SelectOnFocusSpinCtrl is not env.wx.SpinCtrl
 	names = order(panel)
 	assert names.index("Group size:") == names.index("nummod") + 1
-	assert spin.tab_after is panel.nummodList
+	assert before(panel.children, spin) is before(panel.tab_order, spin) is panel.nummodList
 	assert (spin.label, spin.GetValue(), spin.GetMin(), spin.GetMax()) == ("Group size:", 5, 1, 10)
 
 
@@ -377,7 +385,8 @@ def test_a_control_after_a_checkbox_row_lands_after_the_checkbox(monkeypatch):
 	names = order(panel)
 	# NVDA adds a checkbox row as the checkbox window itself, not in a sizer.
 	assert names.index("Punctuation pause characters:") == names.index("cni") + 1
-	assert panel.punctuationPauseCharactersEdit.tab_after is panel.cniCheckbox
+	edit = panel.punctuationPauseCharactersEdit
+	assert before(panel.children, edit) is before(panel.tab_order, edit) is panel.cniCheckbox
 	assert "<spacer>" not in names
 
 
@@ -396,8 +405,9 @@ def test_adjacent_non_driver_controls_keep_table_order(monkeypatch):
 	names = order(panel)
 	start = names.index("nummod")
 	assert names[start : start + 3] == ["nummod", "Group size:", "Punctuation pause characters:"]
-	assert panel.groupSizeSpin.tab_after is panel.nummodList
-	assert panel.punctuationPauseCharactersEdit.tab_after is panel.groupSizeSpin
+	spin, edit = panel.groupSizeSpin, panel.punctuationPauseCharactersEdit
+	assert before(panel.children, spin) is before(panel.tab_order, spin) is panel.nummodList
+	assert before(panel.children, edit) is before(panel.tab_order, edit) is spin
 	assert "<spacer>" not in names
 
 
@@ -429,7 +439,8 @@ def test_a_rebuild_for_worldvoice_from_worldvoice_places_the_controls_again(monk
 	assert panel.groupSizeSpin is not oldSpin and panel.nummodList is not oldList
 	assert oldSpin.destroyed and not panel.groupSizeSpin.destroyed
 	assert group_controls_enabled(panel) == (False, False)
-	assert panel.groupSizeSpin.tab_after is panel.nummodList
+	spin = panel.groupSizeSpin
+	assert before(panel.children, spin) is before(panel.tab_order, spin) is panel.nummodList
 
 
 def test_a_rebuild_for_another_synth_drops_the_worldvoice_controls(monkeypatch):
@@ -582,6 +593,9 @@ def test_the_named_rule_and_placement_helpers_are_gone(monkeypatch):
 		"_applyPunctuationPauseControlsState",
 		"_addGroupSizeControl",
 		"_addPunctuationPauseCharactersControl",
+		# Replaced by the updateDriverSettings override, which creates the controls in table order.
+		"createDriverSettings",
+		"_addPipelineControls",
 	):
 		assert not hasattr(panel_class, name), name
 
@@ -594,3 +608,63 @@ def test_saving_strips_unicode_whitespace_from_the_characters(monkeypatch):
 	env.panel.onSave()
 
 	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == "。 ！"
+
+
+def test_a_follower_of_a_failed_driver_control_follows_the_row_before(monkeypatch):
+	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
+
+	class Panel(env.module.WorldVoiceVoiceSettingsPanel):
+		def _createNewControl(self, setting, settingsStorage):
+			# NVDA logs an UnsupportedConfigParameterError and makes no row.
+			if setting.id != "nummod":
+				super()._createNewControl(setting, settingsStorage)
+
+	panel = Panel(Driver(ALL))
+	panel.makeSettings(panel.settingsSizer)
+
+	spin = panel.groupSizeSpin
+	assert "nummod" not in panel.sizerDict
+	assert before(panel.children, spin) is before(panel.tab_order, spin) is panel.inflectionSlider
+	names = order(panel)
+	assert names[names.index("inflection") + 1 : names.index("inflection") + 3] == [
+		"Group size:",
+		"groupwaitfactor",
+	]
+
+
+def test_a_first_entry_without_a_driver_setting_comes_after_the_driver_rows(monkeypatch):
+	settings = (DriverSetting("voice"), DriverSetting("nummod"))
+	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
+	env.module.PIPELINE_SETTINGS = table_with(
+		env,
+		("group_size", {"depends_on": None}),
+		("number_mode", {}),
+	)
+	panel = env.module.WorldVoiceVoiceSettingsPanel(Driver({"voice", "nummod"}, settings=settings))
+	panel.makeSettings(panel.settingsSizer)
+
+	expected = [panel.voiceList, panel.nummodList, panel.groupSizeSpin, panel.autoLanguageSwitchingCheckbox]
+	for windows in (panel.children, panel.tab_order):
+		assert [window for window in windows if not isinstance(window, StaticText)] == expected
+	assert order(panel) == ["voice", "nummod", "Group size:", "Automatic language switching (when supported)"]
+
+
+def test_another_synth_voice_switch_adds_no_control(monkeypatch):
+	# Most synths have no allSupportedSettings: the panel lists supportedSettings instead.
+	other = other_synth()
+	plain = SimpleNamespace(
+		name="espeak",
+		supportedSettings=list(OTHER_SETTINGS),
+		isSupported=other.isSupported,
+		availableVoices=other.availableVoices,
+		voice="eva",
+		rate=50,
+	)
+	panel = open_panel(monkeypatch, plain).panel
+	windows = list(panel.children)
+
+	panel.updateDriverSettings(changedSetting="voice")
+
+	assert panel.children == windows
+	assert list(panel.sizerDict) == ["voice", "rate"]
+	assert (panel.groupSizeSpin, panel.punctuationPauseCharactersEdit) == (None, None)

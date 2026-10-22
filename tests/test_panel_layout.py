@@ -127,39 +127,6 @@ def voice(table):
 	return layout.panel_specs(table, layout.VOICE_PANEL)
 
 
-def test_voice_placements_with_every_row(table):
-	assert layout.voice_placements(voice(table), lambda key: True) == [
-		("group_size", "number_mode"),
-		("punctuation_pause_characters", "punctuation_wait_factor"),
-	]
-
-
-def test_voice_placements_follow_any_earlier_row(table):
-	# The Voice panel adds no control for another synth (N5), so there is no "no driver row"
-	# case: an entry follows the nearest earlier row, whoever made it, or stays put without one.
-	has_row = {spec.key: spec.driver_id is None for spec in table}.__getitem__
-	assert layout.voice_placements(voice(table), has_row) == [
-		("group_size", None),
-		("punctuation_pause_characters", "group_size"),
-	]
-
-
-def test_voice_placements_skip_a_missing_anchor(table):
-	assert layout.voice_placements(voice(table), lambda key: key != "number_mode") == [
-		("group_size", "number_language"),
-		("punctuation_pause_characters", "punctuation_wait_factor"),
-	]
-
-
-def test_a_control_may_follow_an_earlier_worldvoice_control():
-	specs = [
-		SimpleNamespace(key="d", driver_id="d"),
-		SimpleNamespace(key="a", driver_id=None),
-		SimpleNamespace(key="b", driver_id=None),
-	]
-	assert layout.voice_placements(specs, lambda key: True) == [("a", "d"), ("b", "a")]
-
-
 def test_creation_followers_of_the_table(table):
 	assert layout.creation_followers(voice(table), lambda driver_id: True) == {
 		"nummod": ("group_size",),
@@ -253,30 +220,6 @@ def tables(draw):
 
 
 @given(specs=tables(), data=st.data())
-def test_property_every_anchor_precedes_its_entry_and_has_a_row(specs, data):
-	rows = data.draw(st.sets(st.sampled_from([spec.key for spec in specs])))
-	position = {spec.key: index for index, spec in enumerate(specs)}
-	placements = layout.voice_placements(specs, rows.__contains__)
-	assert [key for key, _anchor in placements] == [spec.key for spec in specs if spec.driver_id is None]
-	for key, anchor in placements:
-		if anchor is not None:
-			assert anchor in rows
-			assert position[anchor] < position[key]
-			# The nearest: no entry between the anchor and this one has a row.
-			between = [spec.key for spec in specs[position[anchor] + 1 : position[key]]]
-			assert not rows.intersection(between)
-
-
-@given(specs=tables(), data=st.data())
-def test_property_an_entry_stays_put_only_without_an_earlier_row(specs, data):
-	rows = data.draw(st.sets(st.sampled_from([spec.key for spec in specs])))
-	position = {spec.key: index for index, spec in enumerate(specs)}
-	for key, anchor in layout.voice_placements(specs, rows.__contains__):
-		earlier_rows = rows.intersection(spec.key for spec in specs[: position[key]])
-		assert (anchor is None) is (not earlier_rows)
-
-
-@given(specs=tables(), data=st.data())
 def test_property_absent_controllers_name_no_dependent(specs, data):
 	reads = {
 		spec.key: data.draw(st.sampled_from([layout.ABSENT, None, *CONTROLLER_VALUES])) for spec in specs
@@ -303,25 +246,17 @@ def test_property_selected_value_is_none_exactly_outside_the_list(size, selectio
 
 
 @given(specs=tables(), data=st.data())
-def test_property_creation_follows_the_placement_anchor(specs, data):
-	listed = data.draw(st.sets(st.sampled_from([spec.key for spec in specs])))
-	drivers = {spec.driver_id: spec.key for spec in specs if spec.driver_id is not None}
-	followers = layout.creation_followers(specs, lambda driver_id: drivers[driver_id] in listed)
-	# The panel's creation sequence: each listed driver row, then its followers; last the rest.
-	sequence = []
-	for spec in specs:
-		if spec.driver_id is not None and spec.key in listed:
-			sequence += [spec.key, *followers.get(spec.driver_id, ())]
-	sequence += followers.get(None, ())
+def test_property_each_entry_follows_the_nearest_earlier_listed_driver(specs, data):
+	driver_ids = [spec.driver_id for spec in specs if spec.driver_id is not None]
+	listed = data.draw(st.sets(st.sampled_from(driver_ids)) if driver_ids else st.just(set()))
+	position = {spec.key: index for index, spec in enumerate(specs)}
+	followers = layout.creation_followers(specs, listed.__contains__)
+	# Every entry without a driver setting appears once, in table order within its group.
 	assert sorted(key for keys in followers.values() for key in keys) == sorted(
 		spec.key for spec in specs if spec.driver_id is None
 	)
-	assert len(sequence) == len(set(sequence))
-
-	# A driver entry has a row when listed; WorldVoice makes every entry without a driver setting.
-	driver_keys = set(drivers.values())
-	for key, anchor in layout.voice_placements(specs, lambda key: key not in driver_keys or key in listed):
-		if anchor is None:
-			assert key in followers[None]
-		else:
-			assert sequence[sequence.index(key) - 1] == anchor
+	for driver_id, keys in followers.items():
+		assert list(keys) == sorted(keys, key=position.__getitem__)
+		for key in keys:
+			earlier = [spec.driver_id for spec in specs[: position[key]] if spec.driver_id in listed]
+			assert driver_id == (earlier[-1] if earlier else None)

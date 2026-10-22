@@ -79,10 +79,15 @@ Computing a "right" index for our row cannot prevent this. Only overriding `_cre
 
 After the pre-pass, each row made in this call is moved after its anchor row with the existing `_moveSizer`/`_rowIndex`/`voice_placements` code. This move is layout-only. It changes no window order and no Tab order.
 
+Changed during implementation (Ruling, 2026-10-22). The pre-pass records, for each row it makes, the row made or visited just before it: the last driver row in `sizerDict`, or the previous non-driver row. The layout pass moves each made row after that recorded row, so layout follows creation order by construction.
+
+`voice_placements` would differ in one case: an anchor driver setting that is listed but whose maker fails, so NVDA logs `UnsupportedConfigParameterError` and makes no row. The follower is then created after the previous row, possibly a non-table row such as Inflection, and the layout must follow it there. `voice_placements` is no longer used, so it and its tests are removed.
+
 ### 4.4 Removed
 
 - `createDriverSettings`.
-- `_addPipelineControls`. Its parts become `_makePipelineControl` and `_placePipelineRows`.
+- `_addPipelineControls`. Its parts become `_makePipelineControls` (makes the absent controls of a run and records each row with the row before it) and `_placePipelineRows`.
+- `panelLayout.voice_placements` (see section 4.3).
 - The `MoveAfterInTabOrder` call.
 
 ## 5. Guards (`tests/test_nvda_settings_copy.py`)
