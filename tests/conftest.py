@@ -182,7 +182,11 @@ def composition(monkeypatch):
 		def cancel(self):
 			self.cancels += 1
 
-	def engine(name, *, fail=False, empty=False):
+	def engine(name, *, fail=False, empty=False, locales=None):
+		# locales maps a voice id to the locale the engine reports for it; by default the
+		# locale is the voice's language, as driver.Voice.voiceInfoToMetadata reports it.
+		locales = dict(locales or {})
+
 		class Voice(driver.Voice):
 			synth_driver_class = Core
 			opened = None  # Test bookkeeping: the core this engine has open.
@@ -206,7 +210,12 @@ def composition(monkeypatch):
 
 			@classmethod
 			def voices(cls, core):
-				return [] if empty else super().voices(core)
+				if empty:
+					return []
+				return [
+					{**voice, "locale": locales.get(voice["id"], voice["locale"])}
+					for voice in super().voices(core)
+				]
 
 			def applyEngineSettings(self, core, snapshot):
 				core.language = snapshot.language

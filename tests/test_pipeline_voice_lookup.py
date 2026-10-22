@@ -67,10 +67,14 @@ def test_filters_do_not_create_voice_instances(composition, monkeypatch):
 def test_voice_locale_follows_the_voice_for_the_language(composition):
 	# Decided by the user (2026-10-22): the locale of the voice that speaks the language; with no
 	# usable voice for it, getVoiceNameForLanguage gives the default voice, so its locale.
-	composition.engine("ok")
+	# Voice b reports language "zh" with the full locale "zh-TW", as OneCore does: the locale is
+	# what the symbol names need, not the bare language.
+	composition.engine("ok", locales={"b": "zh-TW"})
 	manager = composition.create()
 	sys.modules["config"].conf["WorldVoice"]["role"] = {"zh": {"voice": "ok:b"}}
-	assert manager.getVoiceLocaleForLanguage("zh") == "zh"
+	assert manager.getVoiceSpec("ok:b").language == "zh"
+	assert manager.getVoiceNameForLanguage("zh") == "ok:b"
+	assert manager.getVoiceLocaleForLanguage("zh") == "zh-TW"
 	assert (
 		manager.getVoiceLocaleForLanguage("fr")
 		== manager.getVoiceSpec(manager.defaultVoiceName).locale
