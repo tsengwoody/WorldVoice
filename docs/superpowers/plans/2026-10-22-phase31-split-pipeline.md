@@ -235,3 +235,31 @@ Expected: `symbols.x__symbol_table_on_disk__mutmut_*` exists; verbatim moves hav
 
 - [ ] **Step 1: §7 checks on the branch head**: full suite **2346 passed, 0 skipped**; `prek run --all-files` all Passed; `git diff --check master` clean; both protected-path commands print nothing; `wc -l` of `pipeline/__init__.py` (≈855), `numbers.py` (≈90), `symbols.py` (≈85).
 - [ ] **Step 2: Report** to the orchestrator: commits, Rulings, counts, prek, protected-path output, mutmut comparison, line counts. The orchestrator dispatches the final Fable 5.1 review.
+
+## Implementation notes: mutmut
+
+mutmut 3.8.0 on 2026-10-22, scratch clones, `--max-children 3`, memory guard. Before: `41dc50d`. After: `abc92df`. Prefix `addon.synthDrivers.WorldVoice.pipeline.`. Neither run had a timeout or a "suspicious" result.
+
+| Before | Mutants (killed / survived) | After | Mutants (killed / survived) |
+| --- | --- | --- | --- |
+| `x__split_spaced_numbers` | 21 (21 / 0) | `numbers.x_split_spaced_numbers` | 21 (21 / 0) |
+| `x__translate_number` | 47 (46 / 1) | `numbers.x_number_pieces` + `x__translate_number` | 44 (43 / 1) + 12 (12 / 0) |
+| `x_remove_thousands_separators` | 14 (14 / 0) | `numbers.x_strip_thousands` + `x_remove_thousands_separators` | 11 (11 / 0) + 4 (4 / 0) |
+| `x__has_symbol_table` | 21 (20 / 1) | `symbols.x__symbol_table_on_disk` | 21 (20 / 1) |
+| `x__symbol_locale` | 22 (21 / 1) | `symbols.x_symbol_locale` | 22 (21 / 1) |
+| `x__symbol_name` | 9 (9 / 0) | `symbols.x_symbol_name` | 9 (9 / 0) |
+| `x__symbol_namer` | 19 (19 / 0) | `symbols.x_symbol_namer` | 19 (19 / 0) |
+| `x__both_numbers` | 10 (10 / 0) | same | 10 (10 / 0) |
+| `x_iter_number_speech_segments_mode` | 35 (31 / 4) | same | 35 (31 / 4) |
+| `x_inject_number_mode` | 39 (39 / 0) | same | 39 (39 / 0) |
+| `x_iter_number_speech_segments_language` | 16 (13 / 3) | same | 16 (13 / 3) |
+
+- **Verbatim moves:** same mutant count, same killed count, same survivors under their new names.
+- **Split functions:** `_translate_number`'s 47 were 44 on the piece computation and 3 on the break loop. After: the same 44 in `number_pieces` (same survivor), the same 3 on the loop, and 9 new glue mutants on the `number_pieces(raw, mode, group_size, name_of)` call (each argument `None` or dropped, and `pieces = None`). `remove_thousands_separators`'s 14 were 3 on the mode test and 11 on the `sub` call. After: the same 11 in `strip_thousands`, the same 3, and 1 glue mutant (`strip_thousands(None)`). All 10 glue mutants are killed.
+- **Survivors, all present on `41dc50d` and unchanged by the move:**
+  - `symbols.x__symbol_table_on_disk__mutmut_7` (`"_"` → `"XXXX"`) and `symbols.x_symbol_locale__mutmut_15` (`"XX_XX"`): equivalent, recorded in `7c67961`.
+  - `numbers.x_number_pieces__mutmut_22` (was `x__translate_number__mutmut_22`), `in "+-"` → `in "XX+-XX"`: equivalent. `token[0]` is one character of a number token, a digit or a sign, never `X`.
+  - `x_iter_number_speech_segments_mode__mutmut_1`, `_4`, `_34`, `_35`: the initial `previous_was_number = False` → `None`, and `preceding_text = ""` → `"XXXX"` or `None` after a number. Equivalent. `None` is as falsy as `False`. After a number the next segment is always text, because two matches never touch, and the text branch sets `preceding_text` before the number branch reads it. The initial `"XXXX"` does not end with `"."`.
+  - `x_iter_number_speech_segments_language__mutmut_11`, `_13`, `_14`: the `!= "default"` test is changed. Equivalent in context, because `inject_number_language` returns before calling it when the number language is `"default"`.
+  - These 7 were not listed in `e81b278`. The function bodies are unchanged by this phase, so they are outside its scope.
+- **Ruling (Task 6):** mutmut injects an import of its trampoline into `numbers.py`, which made Guard A fail mutmut's stats run. Guard A now skips only under mutmut (`abc92df`).
