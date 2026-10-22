@@ -66,13 +66,15 @@ Non-goals:
 - **The error class.** `ValidateError` is imported from `configobj.validate`, then from the top-level `validate` shim. If both imports fail, it is a private placeholder class that nothing raises. NVDA cannot run without configobj, so this is never reached there; if it is, an error reading a value raises instead of hiding a bug as the default.
 - **`read_stored(section, key, default) -> Any`** returns `section.get(key, default)`. On `ValidateError` it returns `default`.
   - It logs one `log.debugWarning` per key and stored value, with the key and configobj's message, which quotes the stored value (D3). The message is not repeated on every later read: stages read the settings for every utterance.
-  - It writes nothing back (Q3 A). It tells an optional `on_fallback(key)` callback which key fell back.
+  - It writes nothing back (Q3 A). ~~It tells an optional `on_fallback(key)` callback which key fell back.~~ Changed by `fix/uniform-settings-save` (user, 2026-10-22): `read_stored` takes no callback; nothing needs to know which key fell back.
 - **The next panel save rewrites the key (Q3 A).**
-  - `ConfigPipelineRepository.load` collects the keys that fell back as `fallen_back`. Every load replaces the set, and `save` drops a key once it has written it.
-  - `PipelineSettingsService.update` writes a key in `fallen_back` even when its value equals what `get` returned. The panel shows the default and saves every value it shows, so its save writes the default over the refused value.
-  - NVDA accepts the write: `AggregatedSection.__setitem__` validates the new value and compares it with the old one unvalidated (`checkValidity=False`, `config/__init__.py:1354-1368`).
+  - ~~`ConfigPipelineRepository.load` collects the keys that fell back as `fallen_back`. Every load replaces the set, and `save` drops a key once it has written it.~~
+  - ~~`PipelineSettingsService.update` writes a key in `fallen_back` even when its value equals what `get` returned. The panel shows the default and saves every value it shows, so its save writes the default over the refused value.~~
+  - Changed by `fix/uniform-settings-save` (user, 2026-10-22): `fallen_back` is removed. `PipelineSettingsService.update` writes every key the caller passes, changed or not, and NVDA's `__setitem__` skips a value whose `str` equals the current one (next point). The panel shows the default and saves every value it shows, so its save writes the default over the refused value. A valid stored value that reads as another (for example `global_wait_factor = 57`, which reads as 50) is rewritten in the form shown too. Subscribers are still told only when a value differs from what `get` returned, so a save that only repairs the file notifies no one.
+  - NVDA accepts the write: `AggregatedSection.__setitem__` validates the new value and compares it with the old one unvalidated (`checkValidity=False`, `config/__init__.py:1354-1368`). When the two `str` forms are equal it returns without writing and without marking the profile dirty (`:1364-1368`), so writing an unchanged value costs nothing.
   - A save that does not name the key leaves it. The slider ring, for example, saves only the key it changes.
-  - The log and engine panels write every checkbox, so their save rewrites a refused switch the same way. ~~The log enable flag is written only when logging is turned on or off, so a refused enable flag stays until then.~~ Fixed by `fix/log-enable-repair` (2026-10-22): the Log Record panel's save calls `PipelineLogService.repair`, which writes the effective flag over a refused one and leaves a valid one alone.
+  - The log and engine panels write every checkbox, so their save rewrites a refused switch the same way. ~~The log enable flag is written only when logging is turned on or off, so a refused enable flag stays until then.~~ ~~Fixed by `fix/log-enable-repair` (2026-10-22): the Log Record panel's save calls `PipelineLogService.repair`, which writes the effective flag over a refused one and leaves a valid one alone.~~ Changed by `fix/uniform-settings-save` (user, 2026-10-22): `PipelineLogService.repair` is removed. The Log Record panel's save writes the enable checkbox to the flag every time, like the stage switches, so a refused flag is replaced by a valid boolean. The confirmation (in `isValid`) and the export offer still come only when logging is turned on or off; a declined confirmation unticks the box, so the save writes off.
+    - Note from `fix/uniform-settings-save`: the engine panel writes its checkboxes only when the set of enabled engines changes (`SpeechEngineSettingsPanel.onSave`). NVDA does not validate the engine flags on read (the confspec uses `__many__`, which `AggregatedSection` does not look up), so none is refused; this branch leaves the engine panel unchanged.
 - **`_get_value`** delegates to `read_stored` with the key's default. Its `AttributeError` branch goes: NVDA's `AggregatedSection` and configobj sections both have `get`. `load` therefore falls back key by key; one bad key leaves the others as stored. This is decision A: every pipeline key.
 - **Other readers that bypass the repository:**
   - the log stage switches, `_run_logged` (`pipeline/__init__.py:852-855`);
@@ -107,7 +109,7 @@ The examples assume number mode, `2×3`, and NVDA's tables at `7d25bc76e`.
 | stored `number_wait_factor` 150 or `"x"` | NVDA raises, so WorldVoice fails to load | reads 10, one debug warning; the other keys keep their stored values |
 | stored log switch `"maybe"` | every logged stage raises, and the Log Record panel fails to open | reads off |
 
-The next panel save writes the shown (default) value into the file. ~~The log enable flag is the exception: it is written only when logging is turned on or off.~~ Fixed by `fix/log-enable-repair` (2026-10-22): the Log Record panel's save calls `PipelineLogService.repair`, which writes the effective flag over a refused one and leaves a valid one alone.
+The next panel save writes the shown (default) value into the file. ~~The log enable flag is the exception: it is written only when logging is turned on or off.~~ ~~Fixed by `fix/log-enable-repair` (2026-10-22): the Log Record panel's save calls `PipelineLogService.repair`, which writes the effective flag over a refused one and leaves a valid one alone.~~ Changed by `fix/uniform-settings-save` (user, 2026-10-22): every save writes every value the panel holds, the log enable flag included, and NVDA skips the values that have not changed.
 
 ## 5. Strings
 
@@ -128,7 +130,8 @@ None added or changed. The `.po` file is not touched.
   - the builtin dictionary path is `os.path.join(globalVars.appDir, "locale", "{locale}", "symbols.dic")`;
   - `normalizeLanguage` exists;
   - `config/__init__.py` validates in `_cacheLeaf` and `get` catches only `KeyError`;
-  - NVDA imports `ValidateError` from `configobj.validate`.
+  - NVDA imports `ValidateError` from `configobj.validate`;
+  - Changed by `fix/uniform-settings-save` (user, 2026-10-22): `AggregatedSection.__setitem__` compares the new value with the unvalidated current one by `str` and returns before writing when they are equal.
 - **Part 2:**
   - a validating section stub raises `ValidateError` subclasses, as NVDA does, for each stored key;
   - `load` falls back per key and warns once per key and value;

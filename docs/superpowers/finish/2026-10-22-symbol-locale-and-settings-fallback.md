@@ -29,8 +29,8 @@
 - **驗證失敗時：** 所有 pipeline 設定、log 開關、log 面板讀取的值，只要 NVDA 驗證失敗（configobj `ValidateError`），就改用預設值，WorldVoice 仍可正常載入。
   - 每個設定、每個值只記一次 debugWarning，不跳出提示。
   - 讀取時不寫回設定檔。
-- **存檔時修正設定檔（Important 1）：** 使用者下次在面板存檔時，會一併寫入之前退回成預設值的設定，把設定檔改回合法的值。
-  - log 開關和引擎旗標本來就會在存檔時全部寫入。
+- **存檔時修正設定檔（Important 1）：** ~~使用者下次在面板存檔時，會一併寫入之前退回成預設值的設定，把設定檔改回合法的值。~~ Changed by `fix/uniform-settings-save` (user, 2026-10-22)：拿掉 `fallen_back`。`PipelineSettingsService.update` 會寫入呼叫端給的每一個值，不管有沒有改；NVDA 的 `__setitem__` 發現新值和目前的值 `str` 相同時就不寫、也不把設定檔標成已修改。所以面板存檔時，退回成預設值的設定會被寫成預設值，設定檔改回合法的值；沒改的值不會真的寫入。只有值和 `get()` 讀到的不同時才通知 listener。
+  - log 開關和引擎旗標本來就會在存檔時全部寫入。（`fix/uniform-settings-save` 補註：引擎面板只有在啟用的引擎組合改變時才寫入旗標；NVDA 讀取時不驗證引擎旗標，所以不會有被拒絕的值。這次沒有改引擎面板。）
 - **找不到 configobj 時：** 改用一個永遠不會被丟出的佔位例外類別，避免把真正的錯誤吞掉。
 
 ## 2. 驗證（`master` `ed1f387`，Linux，`ref/nvda` = `7d25bc76e`）
@@ -64,7 +64,7 @@
 2. **D4、D5：** 只有數字裡的符號名稱會改變；NVDA 自己的語言切換指令也套用同一套規則。
 3. **警告的層級：** 只記 debugWarning，在 NVDA 預設的 log 層級下看不到。
 4. **舊的群組大小：** 設定檔裡存的 `group_size = 1`，現在讀成 3，不再是 2。
-5. ~~**log 的 `enable` 旗標：** 這個旗標只在開啟或關閉 log 時寫入。如果它存成不合法的值（例如 `maybe`），會一直留在設定檔裡，每次啟動 NVDA 記一筆 debug 警告，直到使用者切換一次 log 為止。這次沒有修。~~ Fixed by `fix/log-enable-repair` (2026-10-22)：Log Record 面板儲存時，會把目前生效的值寫回不合法的 `enable` 旗標；合法的值不會重寫。
+5. ~~**log 的 `enable` 旗標：** 這個旗標只在開啟或關閉 log 時寫入。如果它存成不合法的值（例如 `maybe`），會一直留在設定檔裡，每次啟動 NVDA 記一筆 debug 警告，直到使用者切換一次 log 為止。這次沒有修。~~ ~~Fixed by `fix/log-enable-repair` (2026-10-22)：Log Record 面板儲存時，會把目前生效的值寫回不合法的 `enable` 旗標；合法的值不會重寫。~~ Changed by `fix/uniform-settings-save` (user, 2026-10-22)：拿掉 `PipelineLogService.repair`。Log Record 面板每次儲存都把勾選框的值寫進 `enable` 旗標，和 log 開關一樣；NVDA 會略過沒改的值，不合法的值則被換成合法的布林值。開啟時的確認和關閉時的匯出詢問，仍然只在開關狀態真的改變時出現。
 6. **zh_CN 語音的符號名稱：** NVDA 是 zh_TW 時，zh_CN 語音會念簡體的名稱（例如「乘号」），這是「語音的語系優先」的結果。
 
 ## 5. Commit
