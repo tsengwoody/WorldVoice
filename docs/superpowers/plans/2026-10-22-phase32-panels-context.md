@@ -326,3 +326,24 @@ Run: the full suite under the guard; `prek run --all-files`; `git diff --check m
 Expected: **2370 passed, 0 skipped** (or Task 6's adjusted count); all hooks Passed; no diff-check output; both protected-path commands print nothing. `git diff --stat master -- addon/locale` prints nothing.
 
 - [ ] **Step 2: Report** to the orchestrator: commits, Rulings, counts, prek, protected-path output, msgid comparison, mutmut summary. State that Windows/NVDA was not verified (spec §13). The orchestrator dispatches the final Fable 5.1 review.
+
+## Implementation notes: mutmut
+
+mutmut 3.8.0 on 2026-10-22, scratch clones, `--max-children 3`, memory guard (lowest MemAvailable 5.8 GB). Before: `96d6c08`. After: `9affec8` plus this commit's `pyproject.toml`, and the slider assertion below for the re-run. Prefix `addon.synthDrivers.WorldVoice.`. Neither run had a timeout or a "suspicious" result.
+
+| Function | Before (mutants / killed / survived) | After |
+| --- | --- | --- |
+| `pipeline.x_deduplicate_language_command` | 25 / 20 / 5 | 21 / 16 / 5 |
+| `pipeline.x_lang_cmd_to_voice` | 5 / 5 / 0 | 5 / 5 / 0 |
+| `pipelineControls.x_read_control` (new) | — | 14 / 14 / 0 |
+| `pipelineControls.x_apply_dependencies` (new) | — | 11 / 11 / 0 |
+| `pipelineControls.x_make_control` | — | 80 / 80 / 0 (78 / 2 before the slider assertion) |
+| `pipelineControls.x_control_value` | — | 15 / 15 / 0 |
+| `pipelineControls.x_control_row` | — | 5 / 5 / 0 |
+
+**Baseline:** the `pipelineControls` rows are its first mutmut baseline.
+
+- **Speak passes.** `deduplicate_language_command` lost the 5 mutants of the removed `default_voice = ctx.default_voice` / `… if default_voice is not None else None` lines (`_1`–`_5` before, all killed) and gained 1 on `voice_name = default_name = ctx.default_voice_name` (`_1` after, `= None`, killed): 25 − 5 + 1 = 21. `lang_cmd_to_voice` keeps 5 mutants, all killed, with the attribute reads renamed.
+- **Speak-pass survivors, unchanged.** The same five survive before and after, renumbered by −4: `_6`→`_2` (`current_language = default_language = None`), `_10`→`_6` (`current_language = None` after a start language), `_11`→`_7` (`voice_name = None` after a start language), `_15`→`_11` (`continue` → `break` when a command's language is unchanged), `_18`→`_14` (`current_language = None` on a revert). They predate this phase and their lines are not touched by it; spec §11 asks only that every after-survivor match a before-survivor of the same kind, which all five do.
+- **`make_control` `_38` (`style=None`) and `_44` (the `style` keyword dropped)** survived because the fake wx `Slider` keeps but nobody read `kwargs["style"]`. One assertion in `test_a_slider_shows_the_scaled_value_and_range` (`control.kwargs["style"] == env.controls.wx.SL_HORIZONTAL`) kills both; re-run on the after clone: both killed.
+- **Guard C** carries `skipif(running_under_mutmut())` from Task 2, so mutmut's stats run (whose `pipelineControls.py` imports the trampoline) passed.

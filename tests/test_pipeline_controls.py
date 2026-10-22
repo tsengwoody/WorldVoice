@@ -56,10 +56,11 @@ def test_a_choice_lists_its_labels_and_selects_the_value(monkeypatch, stored, se
 	],
 )
 def test_a_slider_shows_the_scaled_value_and_range(monkeypatch, key, stored, shown, maximum, label):
-	_env, _spec, _sizer, control = build(monkeypatch, key, stored)
+	env, _spec, _sizer, control = build(monkeypatch, key, stored)
 	assert type(control) is Slider
 	assert (control.label, control.value) == (label, shown)
 	assert (control.kwargs["minValue"], control.kwargs["maxValue"]) == (0, maximum)
+	assert control.kwargs["style"] == env.controls.wx.SL_HORIZONTAL
 
 
 def test_a_spin_uses_nvdas_select_on_focus_control(monkeypatch):

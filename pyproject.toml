@@ -46,6 +46,7 @@ source_paths = [
 	"addon/synthDrivers/WorldVoice/pipeline/symbols.py",
 	"addon/synthDrivers/WorldVoice/pipeline/settings.py",
 	"addon/synthDrivers/WorldVoice/pipeline/panelLayout.py",
+	"addon/synthDrivers/WorldVoice/pipelineControls.py",
 ]
 mutate_only_covered_lines = true
 also_copy = ["addon/", ".pre-commit-config.yaml", "buildVars.py"]
