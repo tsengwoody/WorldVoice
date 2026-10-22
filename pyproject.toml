@@ -42,6 +42,8 @@ source_paths = [
 	"addon/synthDrivers/WorldVoice/configRepository.py",
 	"addon/synthDrivers/WorldVoice/mainLocalePolicy.py",
 	"addon/synthDrivers/WorldVoice/pipeline/__init__.py",
+	"addon/synthDrivers/WorldVoice/pipeline/numbers.py",
+	"addon/synthDrivers/WorldVoice/pipeline/symbols.py",
 	"addon/synthDrivers/WorldVoice/pipeline/settings.py",
 	"addon/synthDrivers/WorldVoice/pipeline/panelLayout.py",
 ]
