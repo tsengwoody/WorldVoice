@@ -616,6 +616,13 @@ def test_a_follower_of_a_failed_driver_control_follows_the_row_before(monkeypatc
 	class Panel(env.module.WorldVoiceVoiceSettingsPanel):
 		def _createNewControl(self, setting, settingsStorage):
 			# NVDA logs an UnsupportedConfigParameterError and makes no row.
+			# An idealised failure: NVDA's makers (settingsDialogs.py:1435-1456, :1489-1503,
+			# :1525-1539) read the setting only after making its windows (label and control), so
+			# a real failure also leaves them orphaned: in the window and Tab orders, in no sizer,
+			# never chained by lastControl. That is NVDA's own behaviour, the same on master, and
+			# no setting WorldVoice lists raises on read (its getters return the voice's
+			# attributes), so it has no product impact today; this test pins only where the next
+			# row goes.
 			if setting.id != "nummod":
 				super()._createNewControl(setting, settingsStorage)
 
