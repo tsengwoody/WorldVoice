@@ -11,6 +11,7 @@ import pytest
 from addon_loader import REF
 
 NVDA = REF / "nvda/source/gui/settingsDialogs.py"
+GUI_HELPER = REF / "nvda/source/gui/guiHelper.py"
 # ref/nvda 1406f9f8a: AutoSettingsMixin._updateValueForControl. WorldVoice's override reloads
 # string options on purpose, so only a change on NVDA's side is detected; when this fails,
 # review the override against NVDA's new version, then update the fingerprint.
@@ -46,6 +47,13 @@ def nvda():
 	if not NVDA.is_file():
 		pytest.skip("ref/nvda is not checked out")
 	return NVDA
+
+
+@pytest.fixture
+def gui_helper():
+	if not GUI_HELPER.is_file():
+		pytest.skip("ref/nvda is not checked out")
+	return GUI_HELPER
 
 
 def test_nvda_update_value_for_control_is_the_reviewed_version(nvda):
@@ -88,3 +96,23 @@ def test_nvda_voice_change_updates_the_driver_settings(nvda):
 	# A voice switch reaches the override, which then has nothing to create.
 	calls = [ast.unparse(node) for node in ast.walk(method(nvda, "StringDriverSettingChanger", "__call__"))]
 	assert "self.container.updateDriverSettings(changedSetting=self.setting.id)" in calls
+
+
+def test_nvda_box_sizer_helper_adds_no_spacer_before_its_first_item(gui_helper):
+	# The Voice panel gives each of its controls its own BoxSizerHelper, so a row gets no spacer and
+	# moving it leaves none behind (one helper per control, no orphan spacer). That holds only while
+	# addItem adds a spacer before every item but a helper's first.
+	init = [ast.unparse(node) for node in ast.walk(method(gui_helper, "BoxSizerHelper", "__init__"))]
+	assert "self.hasFirstItemBeenAdded = False" in init
+	add_item = method(gui_helper, "BoxSizerHelper", "addItem")
+	body = [ast.unparse(statement) for statement in add_item.body]
+	assert "shouldAddSpacer = self.hasFirstItemBeenAdded" in body
+	assert "if shouldAddSpacer:\n    self.sizer.AddSpacer(SPACE_BETWEEN_VERTICAL_DIALOG_ITEMS)" in body
+	assert body[-2:] == ["self.hasFirstItemBeenAdded = True", "return item"]
+	# No branch turns the spacer on for a first item.
+	values = {
+		ast.unparse(node.value)
+		for node in ast.walk(add_item)
+		if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "shouldAddSpacer"
+	}
+	assert values == {"self.hasFirstItemBeenAdded", "False"}
