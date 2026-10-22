@@ -155,3 +155,25 @@ Linux 上只驗證了 harness 的假 wx 與真實的面板、pipeline 程式碼�
 2. 下一份 `.pot` 裡六個表 msgid 失去「pipeline log switch」那條 Translators 註解（M4）；對既有翻譯沒有影響。
 3. spec §13 的 Windows 手動煙霧測試（Voice panel 與 Speech Pipeline 的兩條 enable 規則、Log Record 八個標籤的英文與 zh_TW、Speech Role／Unicode Detection 在另一個合成器下的提示、混合中英文朗讀後回到預設語音）尚未在 NVDA 上執行。
 4. M1 的兩個測試缺口（`_7`、`_11`）是否要在本階段順手補上。
+
+## 修正記錄
+
+修正者 Opus 5.5，2026-10-22，worktree `/workspace/WorldVoice-phase32`，從 `729912e` 開始。四個 Minor 全部修正，每項先證明測試或守門抓不到（RED），再修正。突變與種子違規都只在 scratchpad 的複本裡套用。每個 commit 前都跑了全套測試（單一行程，3 GB 記憶體監控）、`prek run --all-files`、`git diff --check master`、兩個受保護路徑指令與 zh_TW 的 `msgfmt --check`。各項的 `Ruling:` 記在進度帳本。
+
+| # | commit | 修正內容 | 驗證 |
+| --- | --- | --- | --- |
+| M1 | `facec75` | `test_dedupe_keeps_only_real_voice_switches` 的序列在多餘的 `L("en")` 後面加上 `"v"`。新增 `test_dedupe_starts_on_the_default_voice_when_no_voice_speaks_the_start_language`：`start_language="fr"`、沒有 fr 語音，`[L(None), "w"]` 應得到 `["w"]`。計畫的 mutmut 表同步更新。 | 在複本套用 `_11`（`continue` → `break`）：前一個測試失敗；套用 `_7`（`voice_name = None`）：新測試失敗。`729912e` 的舊測試在兩個突變下都通過。mutmut 重跑（`--max-children 3`，記憶體監控，最低 5.7 GiB）：`x_deduplicate_language_command` 21 個 mutant、18 killed、3 survived，0 timeout、0 suspicious。剩下的 `_2`、`_6`、`_14` 在主語系不變量下實務上等價，照原紀錄保留。 |
+| M2 | `8fa813c` | Guard B 的迴圈檢查改成 `(ast.For, ast.AsyncFor, ast.While, ast.comprehension)`。`ast.comprehension` 涵蓋 list、set、dict comprehension 與 generator expression。 | 舊守門讓 dialog 的 list comprehension、generator 與 `while` 三個種子通過，只擋住 `for`。新守門擋住這四個種子，也擋住 Voice panel 的 dict comprehension 種子；沒有種子時通過。 |
+| M3 | `7690c0c` | Guard D 改用 `rglob("*.py")`。同一檔案中寫法相同的 public-driver-hooks 守門（`:29`）也一起改。兩者的訊息改成相對於 `addon/` 的路徑，因為子套件的 `__init__.py` 只寫檔名會和外掛本身的 `__init__.py` 混淆。 | 在複本加入 `panels/` 子套件，放入 `getSynth` 與 `._voiceManager`：舊的 `glob` 兩個守門都通過，`rglob` 兩個都失敗；沒有種子時通過。 |
+| M4 | `d365dab` | `pipeline/settings.py` 六個表字串的 `# Translators:` 註解各加一行：「also the label of the setting's pipeline log switch in the Log Record panel.」新增 `test_table_labels_tell_translators_they_name_log_switches`。這個測試從 `LOG_SWITCH_ORDER`、設定表與 `_LOG_LABELS` 推導，以後新增以設定命名的 log 開關也會被檢查到。 | 新測試在改註解前對六個鍵失敗，改後通過。xgettext（67 個檔案，`--add-comments=Translators:`）前後各 109 個 msgid，集合相同（`diff` 無輸出）；六個 msgid 的 `#.` 區塊都有新的那一行。`msgfmt --check` zh_TW 通過，`test_translator_comments.py` 通過，`addon/locale` 沒有變動。 |
+
+最終驗證（`d365dab`）：
+
+- 全套測試 **2372 passed、0 skipped**（基準 2370，加上 M1 與 M4 各一個新測試）。
+- `prek run --all-files` 全部 Passed。
+- `git diff --check master` 乾淨。
+- 兩個受保護路徑指令都沒有輸出。
+
+另外，在複本以最終的測試跑 mutmut，stats 階段通過。這表示新加的讀原始碼測試在 mutmut 的複本上也能正常執行。
+
+Windows 上的 NVDA 仍然沒有驗證到（spec §13）。
