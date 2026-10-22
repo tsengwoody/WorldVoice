@@ -62,7 +62,7 @@ All are **Decided by the user (2026-10-22)** except V5.
   - Inside a number match, in number and group modes only, the pipeline replaces each symbol with NVDA's own name for that single character, `characterProcessing.processSpeechSymbol(locale, symbol)`: the lookup NVDA uses when it reads one character (`ref/nvda/source/speech/speech.py:517-518`).
   - The name is a plain text item with NB on both sides.
   - It is always spoken, whatever the user's symbol level. Symbols outside a number match keep NVDA's normal symbol-level handling. Value and "off" modes leave symbols alone.
-  - When the lookup gives no name, the character itself is emitted, attached to its digits with no NB around it (section 6.4.1, Ruling).
+  - When the lookup gives no name, the character itself is emitted, attached to its digits with no NB around it; right after a name it opens the next piece instead (section 6.4.1, Ruling).
 - **F2 (yes). Decided by the user (2026-10-22).** The name comes from the NUMBER LANGUAGE's symbol table, so the number-language voice speaks a word in its own language ("2 times 3" for number language en). When the number language is "default", or roles are not supported, the language in force at that point of the sequence is used. Locales without a table fall back as NVDA does: base language, then English (section 5.4).
 - **NB rule (reverses the 2026-10-21 decision, "Important 1 option A"). Decided by the user (2026-10-22).** A gap that holds U+00A0, U+202F or U+2007 is ordinary whitespace for the number split: `"10\u00a0000"` gives `"10"`, NB, `"000"`, with or without a number language. `_NO_BREAK_SPACES` and `_is_splittable_gap` go; every `str.isspace` gap pairs two numbers, U+3000 included. This replaces the batch 1 review's M3 proposal (keep such groups whole under a number language), which was implemented and then reverted.
 - **F3 (accepted). Decided by the user (2026-10-22).** The shared-regex side effects in value mode are accepted: `192.168.0.1` loses its dot spacing, a date followed by a time gets a number pause between them, and `5-3` is wrapped by the number language as one unit.
@@ -280,7 +280,7 @@ _THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
 #### 6.4.1 Symbol names (F1, F2)
 
 - **`_symbol_name(locale: str, symbol: str) -> str | None`** in `pipeline/__init__.py` returns `characterProcessing.processSpeechSymbol(locale, symbol)`, or `None` when there is no name. The pipeline imports NVDA's `characterProcessing` at module level.
-- **Fallback. Ruling:** there is no name when the lookup raises `LookupError` or returns `None`, `""` or the symbol itself. `_translate_number` then emits the symbol itself with **no NB on either side**, so it stays attached to its neighbouring digits (`"12.5"` in group 3 with no name for `.` gives `"12.5"`). NVDA's symbol processing and the punctuation stage then treat it exactly as on `master`: the decimal-point and negative-number rules still see their digits, and a configured mark between digits is never a pause point, so "remove punctuation" cannot drop it. Why: the pipeline must never drop text (P5) or raise inside an NVDA filter, and an isolated symbol item would lose both protections (5.2, section 8). Cost if wrong: a symbol without a name gets no pause around it. The probe (5.4) found no symbol that reaches the fallback with NVDA's own tables, so only a user symbols dictionary can trigger it.
+- **Fallback. Ruling:** there is no name when the lookup raises `LookupError` or returns `None`, `""` or the symbol itself. `_translate_number` then emits the symbol itself with **no NB on either side**, so it stays attached to its neighbouring digits (`"12.5"` in group 3 with no name for `.` gives `"12.5"`). Right after a name it is not attached to the name: it opens the next piece, glued to the digits that follow (`"1-.2"` with `-` named and `.` not gives `"1"`, NB, ⟨-⟩, NB, `".2"`), and a name after it starts a piece of its own (`"1.-2"` gives `"1."`, NB, ⟨-⟩, NB, `"2"`; batch 2 review I1). NVDA's symbol processing and the punctuation stage then treat it exactly as on `master`: the decimal-point and negative-number rules still see their digits, and a configured mark between digits is never a pause point, so "remove punctuation" cannot drop it. Why: the pipeline must never drop text (P5) or raise inside an NVDA filter, and an isolated symbol item would lose both protections (5.2, section 8). Cost if wrong: a symbol without a name gets no pause around it. The probe (5.4) found no symbol that reaches the fallback with NVDA's own tables, so only a user symbols dictionary can trigger it.
 - **Symbol locale.** `inject_number_mode` chooses the locale for each match:
   - with `ctx.supports_roles` and `ctx.number_language != "default"`: `ctx.number_language`. Every match sits inside the number-language wrapper (6.1, L1), so its voice speaks that language;
   - otherwise the language in force at that item: it starts as `ctx.language` and follows every `LangChangeCommand` and `WVLangChangeCommand` the stage passes (`cmd.lang or ctx.language`), as `_insert_WVLangChangeCommand_between_number` already does (`:301-302`);
@@ -535,7 +535,7 @@ The rest of this section is background for the rejected Q4: how `CharacterModeCo
   - SYM edges: `"1\u00a02"` (U+00A0) and `"1\u00ad2"` (U+00AD) are two matches; `"1'000"`, `"1_000"` and `"1×2"` are one;
   - `"１２"` (full-width) gives no match (Q-A);
   - `fullmatch` on `"1"*5000+"a"` and `"1."*3000+"a"` within 50 ms.
-- **`_symbol_name`:** returns the lookup's name; returns `None` when the lookup raises `LookupError` or returns `None`, `""` or the symbol itself. A symbol without a name is emitted with no NB around it.
+- **`_symbol_name`:** returns the lookup's name; returns `None` when the lookup raises `LookupError` or returns `None`, `""` or the symbol itself. A symbol without a name is emitted with no NB between it and its digits; after a name it opens the next piece, and a name never takes digits (`"1.-2"` → `"1."` NB ⟨-⟩ NB `"2"`).
 - **`_symbol_locale`:** `None` → `getCurrentLanguage()`; `"zh-TW"` → `"zh_TW"`; `"zh"` with NVDA zh_TW → `"zh_TW"`; `"en"` with NVDA zh_TW → `"en"`; `"de_CH"` unchanged.
 - **NVDA's real lookup** (`tests/test_pipeline_nvda_symbols.py`, NVDA's `characterProcessing.py` loaded from `ref/nvda` with stubs, as in 5.4): en `×` → `"times"`, zh_TW `×` → `"乘以"`, de_CH `×` → `"Mal"` (base-language fallback), `"xx"` `×` → `"times"` (English fallback), and every SYM has a name other than itself in en and zh_TW.
 - **`remove_thousands_separators`:**
@@ -557,7 +557,7 @@ The rest of this section is background for the rejected Q4: how `CharacterModeCo
   - an `IndexCommand` or `BreakCommand` between numbers blocks the pause;
   - held commands at the end are kept;
   - wait 0 passes through.
-- **`_split_spaced_numbers`:** the earlier F1 inputs now split (`"02 2345-6789"`, `"3-1 2"`, `"1 2 3-4"`). No-break-space gaps still never split.
+- **`_split_spaced_numbers`:** the earlier F1 inputs now split (`"02 2345-6789"`, `"3-1 2"`, `"1 2 3-4"`). ~~No-break-space gaps still never split.~~ No-break-space gaps split like any whitespace (NB rule, decided by the user 2026-10-22): `"10\u00a0000"` → `"10"`, NB, `"000"`.
 - **`STAGES` and log switches:**
   - the order (6.8);
   - `LOG_SWITCHES` has no duplicates and is in panel order;
@@ -652,6 +652,7 @@ Build a test package (`DEVELOPMENT_WORKFLOW.md` section 6). Main language zh_TW.
   - The Log Record panel has no ignore-comma switch.
 - **M8, scope "all"** with NVDA's own OneCore, eSpeak and SAPI5 selected: group 3 on `123.456` gives "123", pause, "dot", pause, "456" in NVDA's language, and nothing after it is dropped.
 - **M9, settings ring:** "Number mode" cycles off/value/number/group, and "Group wait factor" is not in the ring.
+- **M10, bare number language with English NVDA (known cost).** Number language "default", zh text read by a Chinese voice, NVDA's interface in English: a match in a WorldVoice language command `"zh"` looks names up in `"zh"`, which takes no country from NVDA's English locale, so NVDA falls back to English names ("times", "dot"). Record what is heard. This is the cost of the `_symbol_locale` Ruling (6.4.1), not a defect.
 
 ## 12. Existing tests and documents that need new expectations
 
