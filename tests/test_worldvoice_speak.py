@@ -85,6 +85,11 @@ class VoiceManager:
 	def getVoiceNameForLanguage(self, language):
 		return VOICES.get(language.replace("-", "_").split("_")[0])
 
+	def getVoiceLocaleForLanguage(self, language):
+		# An engine with no locale of its own reports the voice's language.
+		name = self.getVoiceNameForLanguage(language)
+		return name.split(":")[1] if name else None
+
 	def resolve_playback(self, voice_key):
 		return self.ports.get(voice_key)
 

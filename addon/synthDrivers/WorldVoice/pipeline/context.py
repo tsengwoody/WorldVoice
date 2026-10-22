@@ -14,6 +14,8 @@ class SpeechContext:
 	number_language: str
 	default_voice: Any = None
 	voice_name_for_language: Callable[[str], str | None] = lambda language: None
+	# The locale of the voice that speaks a language, as its engine reports it; None without one.
+	voice_locale_for_language: Callable[[str], str | None] = lambda language: None
 
 
 GENERIC_CONTEXT = SpeechContext(supports_roles=False, language=None, number_language="Windows")

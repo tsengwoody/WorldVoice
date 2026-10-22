@@ -62,3 +62,29 @@ def test_filters_do_not_create_voice_instances(composition, monkeypatch):
 	list(module.deduplicate_language_command(["a", L("zh"), "b", L("en"), "c"], ctx))
 	assert list(module.lang_cmd_to_voice([L("zh"), "a"], ctx)) == [module.SelectVoice("ok:b"), "a"]
 	assert voice_instances(manager) == before
+
+
+def test_voice_locale_follows_the_voice_for_the_language(composition):
+	# Decided by the user (2026-10-22): the locale of the voice that speaks the language; with no
+	# usable voice for it, getVoiceNameForLanguage gives the default voice, so its locale.
+	composition.engine("ok")
+	manager = composition.create()
+	sys.modules["config"].conf["WorldVoice"]["role"] = {"zh": {"voice": "ok:b"}}
+	assert manager.getVoiceLocaleForLanguage("zh") == "zh"
+	assert (
+		manager.getVoiceLocaleForLanguage("fr")
+		== manager.getVoiceSpec(manager.defaultVoiceName).locale
+		== "en"
+	)
+
+
+def test_voice_locale_is_none_for_a_voice_without_a_spec(composition, monkeypatch):
+	composition.engine("ok")
+	manager = composition.create()
+	monkeypatch.setattr(manager, "getVoiceNameForLanguage", lambda language: "gone:x")
+	assert manager.getVoiceLocaleForLanguage("zh") is None
+
+
+def test_generic_context_has_no_voice_locale(monkeypatch):
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	assert module.GENERIC_CONTEXT.voice_locale_for_language("zh") is None

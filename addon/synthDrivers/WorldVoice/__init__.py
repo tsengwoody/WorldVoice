@@ -364,6 +364,7 @@ class SynthDriver(SynthDriver):
 			number_language=self._numlan,
 			default_voice=manager.defaultVoiceInstance,
 			voice_name_for_language=manager.getVoiceNameForLanguage,
+			voice_locale_for_language=manager.getVoiceLocaleForLanguage,
 		)
 
 	def _set_voice_parameter(self, name, value):

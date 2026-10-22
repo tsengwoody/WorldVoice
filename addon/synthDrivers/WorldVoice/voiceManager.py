@@ -298,5 +298,10 @@ class VoiceManager:
 			return configured
 		return self.defaultVoiceName
 
+	def getVoiceLocaleForLanguage(self, language) -> str | None:
+		"""The locale of the voice getVoiceNameForLanguage picks; None when that voice has no spec."""
+		spec = self.catalog.by_name.get(self.getVoiceNameForLanguage(language))
+		return spec.locale if spec is not None else None
+
 	def _getConfiguredVoiceNameForLanguage(self, language):
 		return self.roles.voice_for(language)
