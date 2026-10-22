@@ -177,6 +177,27 @@ def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 	assert list(module.inject_number_language([command, "x"], settings, module.GENERIC_CONTEXT)) == ["x"]
 
 
+def test_number_language_and_number_wait_pause_between_numbers(monkeypatch):
+	settings = punctuation_settings(0)
+	settings.scaled_number_wait = lambda: 10
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	ctx = module.SpeechContext(
+		supports_roles=True,
+		language="zh",
+		number_language="en",
+		default_voice=SimpleNamespace(name="Z", language="zh"),
+		voice_name_for_language={"zh": "Z", "en": "E"}.get,
+	)
+	monkeypatch.setattr(module, "current_context", lambda: ctx)
+	sequence = ["1 2"]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	assert [
+		getattr(item, "lang", item) if not isinstance(item, module.NumberBreakCommand) else ("NB", item.time)
+		for item in sequence
+	] == ["en", "1", "zh", ("NB", 10), "en", "2", "zh"]
+
+
 def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):
 	# NVDA's Filter.apply calls callWithSupportedKwargs, which binds the value
 	# against inspect.signature(handler); that follows __wrapped__.

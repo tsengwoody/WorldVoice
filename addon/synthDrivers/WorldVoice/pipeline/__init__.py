@@ -283,19 +283,44 @@ def number_wait_factor(
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	"""
-	Pause between numbers: between two items that are each a whole number, and
-	between numbers that only whitespace separates inside one item, which become
-	items of their own. Blank text items are dropped and the others stripped.
+	Pause between numbers: between two items that are each a whole number, even
+	with language commands between them, and between numbers that only whitespace
+	separates inside one item, which become items of their own. Blank text items
+	are dropped and the others stripped.
 	"""
 	wait_factor = settings.scaled_number_wait()
 	if wait_factor <= 0:
 		yield from speechSequence
 		return
-	yield from _insert_between(
+	yield from _insert_number_breaks(
 		_split_numbers(_remove_space(speechSequence)),
-		_both_numbers,
 		NumberBreakCommand(wait_factor),
 	)
+
+
+def _insert_number_breaks(speechSequence: Iterable[SpeechCmd], break_cmd: SpeechCmd) -> Iterator[SpeechCmd]:
+	"""Yield *speechSequence* with *break_cmd* between two adjacent whole numbers.
+
+	Language commands are transparent: a number language wraps each number as
+	"en", "1", "zh", "en", "2", "zh", and the break goes after the first language
+	command between the two numbers. Any other command still keeps the numbers apart.
+	"""
+	previous = _MISSING
+	held: list[SpeechCmd] = []
+	for item in speechSequence:
+		if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
+			held.append(item)
+			continue
+		if previous is not _MISSING and _both_numbers(previous, item):
+			yield from held[:1]
+			yield break_cmd
+			yield from held[1:]
+		else:
+			yield from held
+		held.clear()
+		yield item
+		previous = item
+	yield from held
 
 
 def remove_language_command(speechSequence):

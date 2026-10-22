@@ -1,5 +1,6 @@
 """The pipeline filters' output, pinned before their loops were shared."""
 
+import sys
 import time
 from types import SimpleNamespace
 
@@ -181,6 +182,63 @@ SPLITS = [
 	("2026-10-22 12:30", ["2026-10-22", B40, "12:30"]),
 	("12,345 6", ["12,345", B40, "6"]),
 ]
+
+
+class Marker:
+	"""A speech command no stage knows, such as NVDA's IndexCommand."""
+
+
+def language_commands(module):
+	"""WorldVoice's WVLangChangeCommand and NVDA's LangChangeCommand: both are transparent."""
+	return [module.WVLangChangeCommand, sys.modules["speech.commands"].LangChangeCommand]
+
+
+def number_wait(env, sequence):
+	env.settings.scaled_number_wait = lambda: 40
+	return list(env.module.number_wait_factor(sequence, env.settings, env.module.GENERIC_CONTEXT))
+
+
+@pytest.mark.parametrize("kind", [0, 1], ids=["WVLangChangeCommand", "LangChangeCommand"])
+def test_number_wait_breaks_between_numbers_across_language_commands(env, kind):
+	command = language_commands(env.module)[kind]
+	sequence = [command("en"), "1", command("zh"), " ", command("en"), "2", command("zh")]
+	assert shape(number_wait(env, sequence)) == [
+		("lang", "en"),
+		"1",
+		("lang", "zh"),
+		B40,
+		("lang", "en"),
+		"2",
+		("lang", "zh"),
+	]
+
+
+@pytest.mark.parametrize(
+	"kind,lang",
+	[(0, "zh"), (1, None)],
+	ids=["WVLangChangeCommand", "LangChangeCommand"],
+)
+def test_number_wait_breaks_after_a_single_language_command(env, kind, lang):
+	command = language_commands(env.module)[kind](lang)
+	assert shape(number_wait(env, ["1", command, "2"])) == ["1", ("lang", lang), B40, "2"]
+
+
+@pytest.mark.parametrize("blocker", ["index", "break"])
+def test_number_wait_does_not_break_across_other_commands(env, blocker):
+	command = env.module.WVLangChangeCommand
+	blocker = Marker() if blocker == "index" else env.module.BreakCommand(5)
+	result = number_wait(env, ["1", command("zh"), blocker, command("en"), "2"])
+	assert not any(isinstance(item, env.module.NumberBreakCommand) for item in result)
+	assert result[2] is blocker
+
+
+def test_number_wait_keeps_held_language_commands_at_the_end(env):
+	assert shape(number_wait(env, ["1", env.module.WVLangChangeCommand("zh")])) == ["1", ("lang", "zh")]
+
+
+def test_number_wait_does_not_break_between_a_number_and_text_across_language_commands(env):
+	sequence = ["1", env.module.WVLangChangeCommand("zh"), "abc"]
+	assert shape(number_wait(env, sequence)) == ["1", ("lang", "zh"), "abc"]
 
 
 @pytest.mark.parametrize("text,expected", SPLITS)
