@@ -56,7 +56,6 @@ def build(env, languages, stored):
 		"wx": SimpleNamespace(Choice=Choice, CheckBox=CheckBox),
 		"guiHelper": SimpleNamespace(BoxSizerHelper=BoxSizerHelper),
 		"config": SimpleNamespace(conf=NoConfig()),
-		"getSynth": lambda: synth,
 		"worldvoice_synth": lambda: synth,
 		"languageDetection": env.module,
 		"detection_settings": service,

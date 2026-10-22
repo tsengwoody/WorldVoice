@@ -96,3 +96,18 @@ def test_pipeline_controls_imports_only_wx_and_the_layout_rules():
 		assert all(module.split(".")[0] in {"wx", "gui", "typing", "collections"} for module in modules), (
 			ast.unparse(node)
 		)
+
+
+def test_settings_ui_asks_for_worldvoice_not_for_the_synth():
+	# worldvoice_synth() already returns the synth; asking NVDA again could only disagree with it.
+	for path in (ADDON / "globalPlugins/WorldVoice").glob("*.py"):
+		tree = ast.parse(path.read_text(encoding="utf-8"))
+		names = set()
+		for node in ast.walk(tree):
+			if isinstance(node, ast.Name):
+				names.add(node.id)
+			elif isinstance(node, ast.Attribute):
+				names.add(node.attr)
+			elif isinstance(node, (ast.Import, ast.ImportFrom)):
+				names |= {alias.name for alias in node.names} | {alias.asname for alias in node.names}
+		assert "getSynth" not in names, path.name

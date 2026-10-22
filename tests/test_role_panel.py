@@ -127,7 +127,6 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 			"guard_errors": lambda **kwargs: lambda method: method,
 			"got_error_callback": None,
 			"wx": wx,
-			"getSynth": lambda: synth,
 			"worldvoice_synth": lambda: current[0],
 			"config": types.SimpleNamespace(conf={"speech": speech}),
 			"guiHelper": types.SimpleNamespace(

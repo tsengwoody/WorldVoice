@@ -10,7 +10,6 @@ import wx
 from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 from logHandler import log
-from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
@@ -175,7 +174,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 	def makeSettings(self, sizer):
 		self.disable = False
-		if worldvoice_synth() is None:
+		synth = worldvoice_synth()
+		if synth is None:
 			infoCtrl = wx.TextCtrl(
 				self,
 				value=_("Your current speech synthesizer is not WorldVoice."),
@@ -186,9 +186,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self.disable = True
 			return
 
-		self._manager = getSynth().voice_manager
-
-		synth = getSynth()
+		self._manager = synth.voice_manager
 
 		def set_main_voice(name):
 			current = worldvoice_synth()
@@ -484,7 +482,8 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 
 	def makeSettings(self, sizer):
 		self.disable = False
-		if worldvoice_synth() is None:
+		synth = worldvoice_synth()
+		if synth is None:
 			infoCtrl = wx.TextCtrl(
 				self,
 				value=_("Your current speech synthesizer is not WorldVoice."),
@@ -495,7 +494,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			self.disable = True
 			return
 
-		self._manager = getSynth().voice_manager
+		self._manager = synth.voice_manager
 
 		self.localesToNames = self._manager.localesToNamesMap
 		self._locales = self._manager.languages
