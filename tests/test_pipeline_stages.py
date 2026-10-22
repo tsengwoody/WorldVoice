@@ -239,9 +239,11 @@ def test_number_language_pauses_at_a_no_break_space(monkeypatch, space):
 	] == ["en", "10", "zh", ("NB", 10), "en", "000", "zh"]
 
 
-def test_symbol_names_follow_the_number_language_without_its_voice(monkeypatch):
-	# No voice for the number language: deduplication drops the wrapper, yet the name still comes
-	# from the number language's table (F2).
+def test_symbol_names_without_a_number_language_voice_use_the_default_voice_locale(monkeypatch):
+	# No voice for the number language: getVoiceNameForLanguage gives the default voice
+	# (voiceManager.py:295-299), so deduplication drops the wrapper and the name comes from the
+	# default voice's locale (decided by the user, 2026-10-22, Q1 A; replaces the number-unify F2
+	# expectation of the number language's table).
 	settings = punctuation_settings(0)
 	settings.number_mode = "number"
 	module, _ = load_pipeline_module(monkeypatch, settings)
@@ -250,13 +252,14 @@ def test_symbol_names_follow_the_number_language_without_its_voice(monkeypatch):
 		language="zh_TW",
 		number_language="en",
 		default_voice=SimpleNamespace(name="Z", language="zh_TW"),
-		voice_name_for_language={"zh_TW": "Z"}.get,
+		voice_name_for_language=lambda language: "Z",
+		voice_locale_for_language=lambda language: "zh_TW",
 	)
 	monkeypatch.setattr(module, "current_context", lambda: ctx)
 	sequence = ["2\u00d73"]
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)
-	assert [item for item in sequence if isinstance(item, str)] == ["2", "multiplication sign en", "3"]
+	assert [item for item in sequence if isinstance(item, str)] == ["2", "multiplication sign zh tw", "3"]
 	assert not any(hasattr(item, "lang") for item in sequence)
 
 
