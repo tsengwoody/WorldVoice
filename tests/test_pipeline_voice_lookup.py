@@ -16,7 +16,8 @@ def context(module, names, default):
 		supports_roles=True,
 		language=default.language,
 		number_language="default",
-		default_voice=default,
+		default_voice_name=default.name,
+		default_voice_language=default.language,
 		voice_name_for_language=names.get,
 	)
 
@@ -55,7 +56,8 @@ def test_filters_do_not_create_voice_instances(composition, monkeypatch):
 		supports_roles=True,
 		language="en",
 		number_language="default",
-		default_voice=manager.defaultVoiceInstance,
+		default_voice_name=manager.defaultVoiceInstance.name,
+		default_voice_language=manager.defaultVoiceInstance.language,
 		voice_name_for_language=manager.getVoiceNameForLanguage,
 	)
 	L = module.LangChangeCommand

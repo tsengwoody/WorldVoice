@@ -169,7 +169,8 @@ def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 		supports_roles=True,
 		language="en",
 		number_language="de",
-		default_voice=english,
+		default_voice_name=english.name,
+		default_voice_language=english.language,
 		voice_name_for_language={"en": "A:en", "de": "A:de"}.get,
 	)
 	result = list(module.inject_number_language(["a 1 b"], settings, ctx))
@@ -186,7 +187,8 @@ def test_number_language_and_number_wait_pause_between_numbers(monkeypatch):
 		supports_roles=True,
 		language="zh",
 		number_language="en",
-		default_voice=SimpleNamespace(name="Z", language="zh"),
+		default_voice_name="Z",
+		default_voice_language="zh",
 		voice_name_for_language={"zh": "Z", "en": "E"}.get,
 	)
 	monkeypatch.setattr(module, "current_context", lambda: ctx)
@@ -205,7 +207,8 @@ def test_thousands_removal_runs_before_number_language(monkeypatch):
 		supports_roles=True,
 		language="zh",
 		number_language="en",
-		default_voice=SimpleNamespace(name="Z", language="zh"),
+		default_voice_name="Z",
+		default_voice_language="zh",
 		voice_name_for_language={"zh": "Z", "en": "E"}.get,
 	)
 	monkeypatch.setattr(module, "current_context", lambda: ctx)
@@ -226,7 +229,8 @@ def test_number_language_pauses_at_a_no_break_space(monkeypatch, space):
 		supports_roles=True,
 		language="zh",
 		number_language="en",
-		default_voice=SimpleNamespace(name="Z", language="zh"),
+		default_voice_name="Z",
+		default_voice_language="zh",
 		voice_name_for_language={"zh": "Z", "en": "E"}.get,
 	)
 	monkeypatch.setattr(module, "current_context", lambda: ctx)
@@ -251,7 +255,8 @@ def test_symbol_names_without_a_number_language_voice_use_the_default_voice_loca
 		supports_roles=True,
 		language="zh_TW",
 		number_language="en",
-		default_voice=SimpleNamespace(name="Z", language="zh_TW"),
+		default_voice_name="Z",
+		default_voice_language="zh_TW",
 		voice_name_for_language=lambda language: "Z",
 		voice_locale_for_language=lambda language: "zh_TW",
 	)

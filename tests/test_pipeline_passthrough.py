@@ -27,7 +27,8 @@ def voices_context(module, number_language):
 		supports_roles=True,
 		language="en",
 		number_language=number_language,
-		default_voice=SimpleNamespace(name="A", language="en"),
+		default_voice_name="A",
+		default_voice_language="en",
 		voice_name_for_language={"en": "A", "fr": "F", "zh": "Z"}.get,
 	)
 

@@ -35,7 +35,8 @@ def ctx(module, names, default):
 		supports_roles=True,
 		language=default.language,
 		number_language="de",
-		default_voice=default,
+		default_voice_name=default.name,
+		default_voice_language=default.language,
 		voice_name_for_language=names.get,
 	)
 
@@ -479,7 +480,8 @@ def roles_context(module, language, number_language):
 		supports_roles=True,
 		language=language,
 		number_language=number_language,
-		default_voice=SimpleNamespace(name="Z", language=language),
+		default_voice_name="Z",
+		default_voice_language=language,
 		voice_name_for_language={"zh_TW": "Z", "en": "E", "de": "D"}.get,
 	)
 

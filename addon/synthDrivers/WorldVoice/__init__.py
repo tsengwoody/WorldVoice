@@ -358,11 +358,13 @@ class SynthDriver(SynthDriver):
 		manager = self._voiceManager
 		if manager is None:
 			return GENERIC_CONTEXT
+		voice = manager.defaultVoiceInstance
 		return SpeechContext(
 			supports_roles=True,
 			language=self.language,
 			number_language=self._numlan,
-			default_voice=manager.defaultVoiceInstance,
+			default_voice_name=voice.name,
+			default_voice_language=voice.language,
 			voice_name_for_language=manager.getVoiceNameForLanguage,
 			voice_locale_for_language=manager.getVoiceLocaleForLanguage,
 		)

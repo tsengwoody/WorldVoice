@@ -106,3 +106,31 @@ def test_pipeline_package_keeps_only_stages_logging_and_registry():
 	assert [
 		ast.unparse(node) for node in ast.walk(symbols) if isinstance(node, ast.ImportFrom) and node.level
 	] == []
+
+
+def test_speech_context_holds_only_plain_values():
+	# A stage gets the default voice's name and language, not the voice object behind them.
+	tree = ast.parse((WORLDVOICE / "pipeline" / "context.py").read_text(encoding="utf-8"))
+	(context,) = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SpeechContext"]
+	fields = [n for n in context.body if isinstance(n, ast.AnnAssign)]
+	assert [field.target.id for field in fields] == [
+		"supports_roles",
+		"language",
+		"number_language",
+		"default_voice_name",
+		"default_voice_language",
+		"voice_name_for_language",
+		"voice_locale_for_language",
+	]
+	for field in fields:
+		assert not any(
+			(isinstance(n, ast.Name) and n.id == "Any") or (isinstance(n, ast.Attribute) and n.attr == "Any")
+			for n in ast.walk(field.annotation)
+		), field.target.id
+	for path in WORLDVOICE.rglob("*.py"):
+		parts = path.relative_to(WORLDVOICE).parts
+		if len(parts) > 2 and parts[0] == "driver" and parts[2] == "driver":
+			continue
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+			assert not (isinstance(node, ast.Attribute) and node.attr == "default_voice"), path
+			assert not (isinstance(node, ast.keyword) and node.arg == "default_voice"), path

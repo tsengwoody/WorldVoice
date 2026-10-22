@@ -682,7 +682,8 @@ def roles_context(module, number_language):
 		supports_roles=True,
 		language="zh",
 		number_language=number_language,
-		default_voice=SimpleNamespace(name="Z", language="zh"),
+		default_voice_name="Z",
+		default_voice_language="zh",
 		voice_name_for_language={"zh": "Z", "en": "E"}.get,
 	)
 

@@ -625,8 +625,7 @@ def deduplicate_language_command(speechSequence, ctx: SpeechContext, start_langu
 	begins, when that is not the context's language.
 	"""
 	# Initial voice / language; a context without a default voice compares None.
-	default_voice = ctx.default_voice
-	voice_name = default_name = default_voice.name if default_voice is not None else None
+	voice_name = default_name = ctx.default_voice_name
 	current_language = default_language = ctx.language
 	if start_language is not None and start_language != default_language:
 		current_language = start_language
@@ -670,8 +669,8 @@ def lang_cmd_to_voice(
 	"""
 	for cmd in speechSequence:
 		if isinstance(cmd, (LangChangeCommand, WVLangChangeCommand)):
-			lang = cmd.lang or ctx.default_voice.language
-			yield SelectVoice(ctx.voice_name_for_language(lang) or ctx.default_voice.name)
+			lang = cmd.lang or ctx.default_voice_language
+			yield SelectVoice(ctx.voice_name_for_language(lang) or ctx.default_voice_name)
 		else:
 			yield cmd
 

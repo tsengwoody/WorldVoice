@@ -1,18 +1,19 @@
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 from synthDriverHandler import getSynth
 
 
 @dataclass(frozen=True)
 class SpeechContext:
-	"""What a pipeline stage may know about the synthesizer that speaks."""
+	"""What a pipeline stage may know about the synthesizer that speaks: plain values and lookups."""
 
 	supports_roles: bool
 	language: str | None
 	number_language: str
-	default_voice: Any = None
+	# The name and language of the default voice; None without one.
+	default_voice_name: str | None = None
+	default_voice_language: str | None = None
 	voice_name_for_language: Callable[[str], str | None] = lambda language: None
 	# The locale of the voice that speaks a language, as its engine reports it; None without one.
 	voice_locale_for_language: Callable[[str], str | None] = lambda language: None

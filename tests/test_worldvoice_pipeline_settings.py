@@ -201,7 +201,7 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	synth._numlan, synth.speechSymbols = "default", None
 	synth._voiceManager = None
 	assert synth.speech_context() is generic
-	voice = object()
+	voice = types.SimpleNamespace(name="A:en", language="en")
 	synth._voiceManager = manager = types.SimpleNamespace(
 		defaultVoiceInstance=voice,
 		getVoiceNameForLanguage=lambda lang: None,
@@ -209,6 +209,11 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	)
 	synth.language = "en"
 	context = synth.speech_context()
-	assert (context["number_language"], context["default_voice"]) == ("default", voice)
+	assert context["number_language"] == "default"
+	assert (context["default_voice_name"], context["default_voice_language"]) == ("A:en", "en")
 	assert context["voice_locale_for_language"] is manager.getVoiceLocaleForLanguage
 	assert "speech_symbols" not in context
+	# Each speak builds its own context, so a new default voice reaches the next one.
+	manager.defaultVoiceInstance = types.SimpleNamespace(name="B:zh", language="zh")
+	context = synth.speech_context()
+	assert (context["default_voice_name"], context["default_voice_language"]) == ("B:zh", "zh")
