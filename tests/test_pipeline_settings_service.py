@@ -61,15 +61,15 @@ def test_number_mode_choices_put_off_first(monkeypatch):
 	assert module.PIPELINE_SETTING_BY_KEY["number_mode"].default == "value"
 
 
-def test_group_size_confspec_keeps_the_stored_minimum(monkeypatch):
-	# NVDA validates a stored value against the confspec on read; a stored 1 must still load, then
-	# read as 2 (spec 6.7, F6).
+def test_group_size_confspec_is_its_range(monkeypatch):
+	# Decided by the user (2026-10-22): integer(default=3,min=2,max=10); NVDA refuses a stored
+	# value outside it, so it reads as 3 (read_stored), and convert resets it the same way.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	spec = module.PIPELINE_SETTING_BY_KEY["group_size"]
-	assert (spec.min_value, spec.max_value, spec.default, spec.stored_min_value) == (2, 10, 3, 1)
-	assert module.PIPELINE_CONFSPEC["group_size"] == "integer(default=3,min=1,max=10)"
-	stored = module.ConfigPipelineRepository(lambda: {"WorldVoice": {"pipeline": {"group_size": 1}}})
-	assert module.PipelineSettingsService(stored).get().group_size == 2
+	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (2, 10, 3, True)
+	assert module.PIPELINE_CONFSPEC["group_size"] == "integer(default=3,min=2,max=10)"
+	assert not hasattr(spec, "stored_min_value")
+	assert [other.key for other in module.PIPELINE_SETTINGS if other.reset_out_of_range] == ["group_size"]
 
 
 def test_group_wait_setting_is_gone(monkeypatch):
@@ -146,13 +146,6 @@ def test_int_confspec_carries_the_spec_bounds(monkeypatch):
 		("global_wait_factor", "57", 50),
 		("global_wait_factor", 150, 100),
 		("global_wait_factor", -5, 0),
-		# Group sizes start at 2: "number" is the digit-by-digit mode (Q7).
-		("group_size", 0, 2),
-		("group_size", -5, 2),
-		("group_size", 1, 2),
-		("group_size", 11, 10),
-		("group_size", 99, 10),
-		("group_size", "7", 7),
 	],
 )
 def test_convert_clamps_ints_to_their_bounds(monkeypatch, key, raw, expected):
@@ -160,9 +153,19 @@ def test_convert_clamps_ints_to_their_bounds(monkeypatch, key, raw, expected):
 	assert module.PIPELINE_SETTING_BY_KEY[key].convert(raw) == expected
 
 
+@pytest.mark.parametrize(
+	("raw", "expected"),
+	[(0, 3), (-5, 3), (1, 3), (11, 3), (99, 3), (2, 2), (10, 10), ("7", 7)],
+)
+def test_group_size_outside_its_range_reads_as_the_default(monkeypatch, raw, expected):
+	# Decided by the user (2026-10-22): outside 2..10 is 3, not clamped.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert module.PIPELINE_SETTING_BY_KEY["group_size"].convert(raw) == expected
+
+
 def test_group_settings_add_the_size_without_a_wait(monkeypatch):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	assert module.PIPELINE_CONFSPEC["group_size"] == "integer(default=3,min=1,max=10)"
+	assert module.PIPELINE_CONFSPEC["group_size"] == "integer(default=3,min=2,max=10)"
 	assert "pair_wait_factor" not in module.PIPELINE_CONFSPEC
 	assert module.PIPELINE_SETTING_BY_KEY["group_size"].driver_id is None
 	assert module.PIPELINE_CONFIG_KEYS[-1] == "punctuation_pause_characters"

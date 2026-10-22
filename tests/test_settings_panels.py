@@ -240,8 +240,8 @@ def test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid(monk
 	assert env.conf["WorldVoice"]["pipeline"]["global_wait_factor"] == 57
 
 
-@pytest.mark.parametrize(("typed", "saved"), [(0, 2), (42, 10)])
-def test_pipeline_panel_saves_an_out_of_range_group_size_clamped(monkeypatch, typed, saved):
+@pytest.mark.parametrize(("typed", "saved"), [(0, 3), (42, 3)])
+def test_pipeline_panel_saves_an_out_of_range_group_size_as_the_default(monkeypatch, typed, saved):
 	env = pipeline_env(monkeypatch)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._group_size_spin.SetValue(typed)
@@ -261,8 +261,8 @@ def test_pipeline_panel_saves_the_disabled_group_size(monkeypatch):
 	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 7
 
 
-@pytest.mark.parametrize(("stored", "shown"), [(0, 2), (1, 2), (12, 10), ("4", 4)])
-def test_pipeline_panel_shows_an_out_of_range_stored_size_within_the_spin_range(monkeypatch, stored, shown):
+@pytest.mark.parametrize(("stored", "shown"), [(0, 3), (1, 3), (12, 3), ("4", 4)])
+def test_pipeline_panel_shows_an_out_of_range_stored_size_as_the_default(monkeypatch, stored, shown):
 	env = pipeline_env(monkeypatch, group_size=stored)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._group_size_spin.GetValue() == shown

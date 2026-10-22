@@ -85,9 +85,8 @@ class PipelineSettingSpec:
 	# Bounds of an int setting: its confspec range, and the clamp convert applies.
 	min_value: int = 0
 	max_value: int = 100
-	# The confspec's lower bound when an older range stored smaller values; convert raises them.
-	# NVDA validates stored values against the confspec on read, so it must still accept them.
-	stored_min_value: int | None = None
+	# True: convert turns an int outside the bounds into the default instead of clamping it.
+	reset_out_of_range: bool = False
 	# The panel control: "checkbox", "slider", "choice", "spin" or "text".
 	control: str | None = None
 	# (stored value, label) pairs of a choice, in display order; None when the driver supplies them.
@@ -104,6 +103,8 @@ class PipelineSettingSpec:
 	def convert(self, value: Any) -> Any:
 		result = self.normalize(value) if self.normalize is not None else self.kind(value)
 		if self.kind is int:
+			if self.reset_out_of_range and not self.min_value <= result <= self.max_value:
+				return self.default
 			return min(max(result, self.min_value), self.max_value)
 		return result
 
@@ -112,8 +113,7 @@ class PipelineSettingSpec:
 		if self.kind is bool:
 			return f"boolean(default={str(self.default).lower()})"
 		if self.kind is int:
-			low = self.min_value if self.stored_min_value is None else self.stored_min_value
-			return f"integer(default={self.default},min={low},max={self.max_value})"
+			return f"integer(default={self.default},min={self.min_value},max={self.max_value})"
 		return f'string(default="{self.default}")'
 
 
@@ -175,10 +175,12 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		3,
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Group size"),
-		# "number" is the digit-by-digit mode; a size of 1 stored by an older version reads as 2.
+		# "number" is the digit-by-digit mode. NVDA refuses a stored size outside 2..10 on read, so it
+		# reads as 3 (read_stored); convert resets one written outside them the same way, where the
+		# wait factors clamp (decided by the user, 2026-10-22).
 		min_value=2,
 		max_value=10,
-		stored_min_value=1,
+		reset_out_of_range=True,
 		control="spin",
 		depends_on=("number_mode", "group"),
 	),

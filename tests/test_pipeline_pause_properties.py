@@ -603,6 +603,13 @@ def test_property_int_convert_is_bounded_and_idempotent(settings_module, data):
 
 
 @SHARED_ENV
+@given(value=st.integers())
+def test_property_group_size_convert_keeps_or_resets(settings_module, value):
+	spec = settings_module.PIPELINE_SETTING_BY_KEY["group_size"]
+	assert spec.convert(value) == (value if 2 <= value <= 10 else 3)
+
+
+@SHARED_ENV
 @given(
 	value=st.one_of(
 		st.text(max_size=8),
