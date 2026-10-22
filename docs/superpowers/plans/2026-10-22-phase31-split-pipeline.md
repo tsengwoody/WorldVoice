@@ -240,6 +240,8 @@ Expected: `symbols.x__symbol_table_on_disk__mutmut_*` exists; verbatim moves hav
 
 mutmut 3.8.0 on 2026-10-22, scratch clones, `--max-children 3`, memory guard. Before: `41dc50d`. After: `abc92df`. Prefix `addon.synthDrivers.WorldVoice.pipeline.`. Neither run had a timeout or a "suspicious" result.
 
+**Baseline:** the "After" columns are the pipeline's mutmut baseline for these functions from now on, replacing `e81b278`. That record was incomplete: it listed `iter_number_speech_segments_mode` with 0 survivors where it has 4 (`_1`, `_4`, `_34`, `_35`; the body is unchanged since `844d8d2`) and left out `iter_number_speech_segments_language` and its 3 survivors (`_11`, `_13`, `_14`); all 7 are equivalent, for the reasons below.
+
 | Before | Mutants (killed / survived) | After | Mutants (killed / survived) |
 | --- | --- | --- | --- |
 | `x__split_spaced_numbers` | 21 (21 / 0) | `numbers.x_split_spaced_numbers` | 21 (21 / 0) |
@@ -261,5 +263,5 @@ mutmut 3.8.0 on 2026-10-22, scratch clones, `--max-children 3`, memory guard. Be
   - `numbers.x_number_pieces__mutmut_22` (was `x__translate_number__mutmut_22`), `in "+-"` → `in "XX+-XX"`: equivalent. `token[0]` is one character of a number token, a digit or a sign, never `X`.
   - `x_iter_number_speech_segments_mode__mutmut_1`, `_4`, `_34`, `_35`: the initial `previous_was_number = False` → `None`, and `preceding_text = ""` → `"XXXX"` or `None` after a number. Equivalent. `None` is as falsy as `False`. After a number the next segment is always text, because two matches never touch, and the text branch sets `preceding_text` before the number branch reads it. The initial `"XXXX"` does not end with `"."`.
   - `x_iter_number_speech_segments_language__mutmut_11`, `_13`, `_14`: the `!= "default"` test is changed. Equivalent in context, because `inject_number_language` returns before calling it when the number language is `"default"`.
-  - These 7 were not listed in `e81b278`. The function bodies are unchanged by this phase, so they are outside its scope.
+  - These 7 were not listed in `e81b278` (see **Baseline** above). The function bodies are unchanged by this phase, so they are outside its scope.
 - **Ruling (Task 6):** mutmut injects an import of its trampoline into `numbers.py`, which made Guard A fail mutmut's stats run. Guard A now skips only under mutmut (`abc92df`).
