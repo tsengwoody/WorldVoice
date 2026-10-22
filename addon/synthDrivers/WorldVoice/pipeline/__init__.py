@@ -1,11 +1,9 @@
 import os
 import re
-import unicodedata
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from functools import wraps
-from itertools import pairwise
 from typing import TYPE_CHECKING, Literal, Union
 
 import characterProcessing
@@ -24,6 +22,7 @@ from ..log import PipelineLog
 from ..runtime.models import SelectVoice
 from . import speech_dictionary
 from .context import GENERIC_CONTEXT as GENERIC_CONTEXT, SpeechContext, current_context
+from .numbers import NUMBER_RE, number_pieces, split_spaced_numbers, strip_thousands
 from .settings import pipeline_settings, read_stored
 
 if TYPE_CHECKING:
@@ -34,22 +33,6 @@ if TYPE_CHECKING:
 SpeechCmd = Union[str, "SpeechCommand"]
 pl = PipelineLog("pipeline.csv")
 
-# The symbols a number may hold between its digits: punctuation and symbols of Latin-1, so
-# "12,345", "5-3", "12:30" and "2×3" are one number each. Full-width and CJK punctuation are not.
-_SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.category(c)[0] in "PS")
-# The one definition of a number: an optional sign that is not right after a digit, digits, then
-# any number of (symbols, digits). "[SYM]+" rather than "[SYM]*" keeps fullmatch from backtracking
-# exponentially; both match the same strings. The sign's lookbehind documents Q3 ("not right after a
-# digit"); under left-to-right scanning it is equivalent to a bare "[+-]?", because a digit before
-# the sign would already belong to the previous match, so mutation testing reports it as equivalent.
-_NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(_SYMBOLS)}]+[0-9]+)*")
-# The tokens of one number: its leading signed digit run, further digit runs, and single symbols.
-_NUMBER_TOKEN_RE = re.compile(rf"^[+-]?[0-9]+|[0-9]+|[{re.escape(_SYMBOLS)}]")
-_DIGITS = frozenset("0123456789")
-# A run of digits and commas that is a whole, valid thousands-separated number: one to three
-# digits, then groups of three. The lookarounds keep a longer comma/digit run, as in "1,234,,5" or
-# "a,1,234", from losing the commas of a valid part.
-_THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
 _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 _SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
@@ -155,7 +138,7 @@ def remove_thousands_separators(speechSequence, settings: "PipelineSettings", ct
 		return
 	for item in speechSequence:
 		if isinstance(item, str):
-			yield _THOUSANDS_RE.sub(lambda match: match.group().replace(",", ""), item)
+			yield strip_thousands(item)
 		else:
 			yield item
 
@@ -209,8 +192,8 @@ def _both_numbers(previous: SpeechCmd, current: SpeechCmd) -> bool:
 	# Whole items only: "12", "-3.5", "5-3" and "12:30" are numbers, "12abc" and "1." are not.
 	return (
 		_both_text(previous, current)
-		and bool(_NUMBER_RE.fullmatch(previous))
-		and bool(_NUMBER_RE.fullmatch(current))
+		and bool(NUMBER_RE.fullmatch(previous))
+		and bool(NUMBER_RE.fullmatch(current))
 	)
 
 
@@ -253,37 +236,10 @@ def _remove_space(
 			yield cmd
 
 
-def _split_spaced_numbers(text: str) -> Iterator[str]:
-	"""
-	Yield *text* with every number that only whitespace separates from a
-	neighbouring number as an item of its own, without that whitespace.
-
-	Everything else is kept verbatim, spaces included, and no empty piece is
-	yielded. Two matches never touch (a match ends with a digit and the next
-	one cannot start right after it), so a pause can only replace whitespace.
-	Any whitespace pairs two numbers, a no-break space included (decided by
-	the user, 2026-10-22), so "10 000" written with one is two numbers.
-	"""
-	matches = list(_NUMBER_RE.finditer(text))
-	gaps = [text[left.end() : right.start()] for left, right in pairwise(matches)]
-	# joined[i] is True when matches i - 1 and i are split apart; the ends are never joined.
-	joined = [False, *(gap.isspace() for gap in gaps), False]
-	position = 0
-	for index, match in enumerate(matches):
-		if not (joined[index] or joined[index + 1]):
-			continue
-		if not joined[index] and match.start() > position:
-			yield text[position : match.start()]
-		yield match.group()
-		position = match.end()
-	if position < len(text):
-		yield text[position:]
-
-
 def _split_numbers(speechSequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
 	for item in speechSequence:
 		if isinstance(item, str):
-			yield from _split_spaced_numbers(item)
+			yield from split_spaced_numbers(item)
 		else:
 			yield item
 
@@ -373,7 +329,7 @@ def _insert_WVLangChangeCommand_between_number(
 		)
 
 
-def iter_number_speech_segments_language(item, current_lang, number_language, number_re=_NUMBER_RE):
+def iter_number_speech_segments_language(item, current_lang, number_language, number_re=NUMBER_RE):
 	"""
 	Yield segments in the following order:
 	  - Plain text fragments (non-numeric parts of the original string)
@@ -421,29 +377,9 @@ def _translate_number(
 	number_pause: int,
 	name_of: Callable[[str], str | None],
 ) -> Iterator[SpeechCmd]:
-	"""Speak one number match in *mode*.
-
-	Value mode keeps it whole. Number and group modes cut each digit run from the left into
-	pieces of 1 or *group_size* digits (a leading sign joins the first piece) and make each symbol
-	a piece of its own: its name, or the symbol itself when NVDA has no name for it, so NVDA's
-	symbol processing decides how it sounds (decided by the user, 2026-10-22). A number break goes
-	between every two pieces, even at pause 0, so each reaches the synth as an item of its own.
-	"""
-	if mode == "value":
-		yield raw
-		return
-	size = 1 if mode == "number" else group_size
-	pieces: list[str] = []
-	for token in _NUMBER_TOKEN_RE.findall(raw):
-		if token[-1] in _DIGITS:
-			sign = token[0] if token[0] in "+-" else ""
-			digits = token[len(sign) :]
-			groups = [digits[index : index + size] for index in range(0, len(digits), size)]
-			groups[0] = sign + groups[0]
-			pieces.extend(groups)
-		else:
-			name = name_of(token)
-			pieces.append(token if name is None else name)
+	"""Speak one number match in *mode*: its pieces (numbers.number_pieces), with a number break
+	between every two, even at pause 0, so each reaches the synth as an item of its own."""
+	pieces = number_pieces(raw, mode, group_size, name_of)
 	# One break instance per number, as the synth only reads its time.
 	separator = NumberBreakCommand(number_pause)
 	for index, piece in enumerate(pieces):
@@ -521,7 +457,7 @@ def iter_number_speech_segments_mode(
 	group_size: int,
 	number_pause: int,
 	name_of: Callable[[str], str | None],
-	number_re: re.Pattern = _NUMBER_RE,
+	number_re: re.Pattern = NUMBER_RE,
 ) -> Iterator[SpeechCmd]:
 	# A "." right after a number, or right before one, is spoken apart from it.
 	previous_was_number = False

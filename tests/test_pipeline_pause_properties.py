@@ -310,7 +310,7 @@ def run_number_mode(env, text, mode, size):
 
 def symbol_of_name(env):
 	"""The harness's name of each number symbol, in GENERIC_CONTEXT's locale, back to the symbol."""
-	return {symbol_name("en", symbol): symbol for symbol in env.module._SYMBOLS}
+	return {symbol_name("en", symbol): symbol for symbol in env.module.numbers.SYMBOLS}
 
 
 @SHARED_ENV
@@ -352,7 +352,7 @@ def test_property_breaks_and_names_stay_inside_numbers(env, text, mode_size):
 	# A leading sign belongs to the first piece, so it is not named.
 	inside = [
 		c
-		for match in env.module._NUMBER_RE.finditer(text)
+		for match in env.module.numbers.NUMBER_RE.finditer(text)
 		for c in match.group().removeprefix("+").removeprefix("-")
 		if is_number_symbol(c)
 	]
@@ -405,13 +405,13 @@ def scanned_numbers(text):
 @SHARED_ENV
 @given(text=NUMBER_TEXT)
 def test_property_number_re_equals_the_scanner(env, text):
-	assert [match.span() for match in env.module._NUMBER_RE.finditer(text)] == scanned_numbers(text)
+	assert [match.span() for match in env.module.numbers.NUMBER_RE.finditer(text)] == scanned_numbers(text)
 
 
 @SHARED_ENV
 @given(text=NUMBER_TEXT)
 def test_property_matches_are_never_glued(env, text):
-	matches = list(env.module._NUMBER_RE.finditer(text))
+	matches = list(env.module.numbers.NUMBER_RE.finditer(text))
 	assert all(left.end() < right.start() for left, right in pairwise(matches)), text
 
 
@@ -437,7 +437,7 @@ def test_property_every_symbol_is_its_own_item_when_some_have_no_name(env, data,
 	# Decided by the user (2026-10-22): a symbol with no name is sent as itself, between number
 	# breaks like a name. No item mixes digits with a symbol or a name; only the first piece may
 	# start with the number's sign.
-	unnamed = data.draw(st.sets(st.sampled_from(env.module._SYMBOLS)))
+	unnamed = data.draw(st.sets(st.sampled_from(env.module.numbers.SYMBOLS)))
 	symbols = symbol_of_name(env)
 	lookup = env.module.characterProcessing.processSpeechSymbol
 	env.module.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
@@ -528,7 +528,7 @@ def test_property_the_split_keeps_the_text_and_replaces_only_whitespace(env, tex
 def test_property_every_whitespace_gap_between_numbers_gets_one_break(env, text):
 	# Decided by the user (2026-10-22): any whitespace, a no-break space included, pairs two numbers.
 	result, stripped = split_once(env, text)
-	matches = list(env.module._NUMBER_RE.finditer(stripped))
+	matches = list(env.module.numbers.NUMBER_RE.finditer(stripped))
 	gaps = [stripped[left.end() : right.start()] for left, right in pairwise(matches)]
 	assert sum(not isinstance(item, str) for item in result) == sum(gap.isspace() for gap in gaps), (
 		text,
@@ -543,7 +543,7 @@ def test_property_no_text_item_keeps_two_numbers_apart_by_whitespace(env, text):
 	for item in result:
 		if not isinstance(item, str):
 			continue
-		matches = list(env.module._NUMBER_RE.finditer(item))
+		matches = list(env.module.numbers.NUMBER_RE.finditer(item))
 		for left, right in pairwise(matches):
 			gap = item[left.end() : right.start()]
 			assert not gap.isspace(), (item, gap)
@@ -562,7 +562,7 @@ def test_property_no_digits_are_glued_together(env, text):
 @given(text=NUMBER_TEXT)
 def test_property_breaks_sit_exactly_between_whole_numbers(env, text):
 	result, _stripped = split_once(env, text)
-	number = env.module._NUMBER_RE.fullmatch
+	number = env.module.numbers.NUMBER_RE.fullmatch
 	breaks = [item for item in result if not isinstance(item, str)]
 	assert all(item is breaks[0] for item in breaks)
 	for index, item in enumerate(result):
@@ -584,7 +584,7 @@ def test_property_leftover_text_is_never_a_number(env, text):
 		return
 	taken = walk(result, stripped)
 	for index, item in enumerate(result):
-		if isinstance(item, str) and env.module._NUMBER_RE.fullmatch(item):
+		if isinstance(item, str) and env.module.numbers.NUMBER_RE.fullmatch(item):
 			assert taken.get(index - 1) or taken.get(index + 1), (text, result)
 
 
@@ -690,7 +690,9 @@ def roles_context(module, number_language):
 def spoken_between_number_breaks(env, sequence):
 	"""The text between number breaks, without whitespace and language commands, names read back."""
 	symbols = {
-		symbol_name(locale, symbol): symbol for symbol in env.module._SYMBOLS for locale in ("en", "zh")
+		symbol_name(locale, symbol): symbol
+		for symbol in env.module.numbers.SYMBOLS
+		for locale in ("en", "zh")
 	}
 	segments = [""]
 	for item in sequence:

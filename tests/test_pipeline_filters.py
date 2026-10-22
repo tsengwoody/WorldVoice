@@ -141,13 +141,13 @@ def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
 	],
 )
 def test_number_re_finds_whole_numbers(env, text, matches):
-	assert [match.group() for match in env.module._NUMBER_RE.finditer(text)] == matches
+	assert [match.group() for match in env.module.numbers.NUMBER_RE.finditer(text)] == matches
 
 
 @pytest.mark.parametrize("text", ["1" * 5000 + "a", "1." * 3000 + "a"])
 def test_number_re_fullmatch_fails_fast(env, text):
 	start = time.perf_counter()
-	assert env.module._NUMBER_RE.fullmatch(text) is None
+	assert env.module.numbers.NUMBER_RE.fullmatch(text) is None
 	assert time.perf_counter() - start < 0.5
 
 
