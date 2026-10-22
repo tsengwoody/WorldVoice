@@ -2,6 +2,7 @@
 
 import sys
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -497,6 +498,17 @@ def test_symbol_names_follow_language_commands_with_default_number_language(env)
 	sequence = ["2×3", wv("de"), "2×3", nvda(None), "2×3"]
 	result = list(env.module.inject_number_mode(sequence, env.settings, ctx))
 	assert names_in(result) == [N("×", "zh_TW"), N("×", "de"), N("×", "zh_TW")]
+
+
+def test_symbol_names_follow_the_voice_locale(env, monkeypatch):
+	# Decided by the user (2026-10-22): the locale of the voice for the number language, or for
+	# the language in force, wins over NVDA's interface language.
+	env.settings.number_mode = "number"
+	monkeypatch.setattr(env.module.speech, "getCurrentLanguage", lambda: "en")
+	ctx = replace(roles_context(env.module, "zh", "en"), voice_locale_for_language={"en": "zh-TW"}.get)
+	assert names_in(env.module.inject_number_mode(["2×3"], env.settings, ctx)) == [N("×", "zh_TW")]
+	ctx = replace(roles_context(env.module, "zh", "default"), voice_locale_for_language={"zh": "zh_CN"}.get)
+	assert names_in(env.module.inject_number_mode(["2×3"], env.settings, ctx)) == [N("×", "zh_CN")]
 
 
 def test_symbol_names_without_roles_ignore_the_number_language(env):

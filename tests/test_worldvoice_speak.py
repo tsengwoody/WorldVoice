@@ -11,8 +11,9 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import WORLDVOICE, alias_package
+from addon_loader import REF, WORLDVOICE, alias_package
 from nvda_stubs import StubModules, worldvoice_conf
+from pipeline_harness import nvda_normalize_language
 from worldvoice_harness import chosen_voice, load_synth_class, voice_manager
 
 PACKAGE = "speak_test_worldvoice"
@@ -115,7 +116,8 @@ def _load_modules(monkeypatch, conf):
 	stubs.module("speech.extensions", filter_speechSequence=SimpleNamespace())
 	stubs.module("speechDictHandler", processText=lambda text: text)
 	stubs.module("characterProcessing", processSpeechSymbol=lambda locale, symbol: symbol)
-	stubs.module("globalVars", speechDictionaryProcessing=True)
+	stubs.module("globalVars", speechDictionaryProcessing=True, appDir=str(REF / "nvda/source"))
+	stubs.module("languageHandler", normalizeLanguage=nvda_normalize_language())
 	stubs.module("synthDriverHandler", getSynth=lambda: None)
 	stubs.module("config", conf=conf)
 	stubs.module("addonHandler", initTranslation=lambda: None)

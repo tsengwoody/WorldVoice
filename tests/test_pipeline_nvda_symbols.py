@@ -4,6 +4,7 @@ The last tests load NVDA's real characterProcessing from ref/nvda, so they still
 changes its symbol tables or its locale fallback.
 """
 
+import ast
 import builtins
 import unicodedata
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import REF, load_source
 from nvda_stubs import StubModules
-from pipeline_harness import load_pipeline_module, punctuation_settings
+from pipeline_harness import load_pipeline_module, nvda_normalize_language, punctuation_settings
 
 CHARACTER_PROCESSING = REF / "nvda/source/characterProcessing.py"
 # NVDA's symbol loader still calls codecs.open, which Python 3.14 deprecates.
@@ -64,6 +65,103 @@ def test_symbol_name_is_none_without_a_name(module, monkeypatch, lookup):
 def test_symbol_locale(module, monkeypatch, current, language, expected):
 	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: current)
 	assert module._symbol_locale(language) == expected
+
+
+@pytest.mark.parametrize(
+	("locale", "expected"),
+	[
+		("zh_TW", True),
+		("en", True),
+		("de_CH", True),
+		# NVDA has tables only with a country for these, and none for a country it does not list.
+		("zh", False),
+		("en_US", False),
+		# Never a path outside NVDA's locale directory.
+		("", False),
+		("..", False),
+		("../en", False),
+	],
+)
+def test_has_symbol_table_matches_nvdas_locale_dir(module, locale, expected):
+	assert module._has_symbol_table(locale) is expected
+
+
+@pytest.mark.parametrize(
+	("current", "language", "voice", "expected"),
+	[
+		# Decided by the user (2026-10-22): the voice's locale wins over NVDA's interface country.
+		("en", "zh", "zh-TW", "zh_TW"),
+		("en", "zh", "zh_tw", "zh_TW"),
+		("zh_TW", "zh", "zh_CN", "zh_CN"),
+		("en", "de", "de-CH", "de_CH"),
+		# D1/D2: a voice locale without an NVDA table keeps the rule without a voice.
+		("zh_TW", "zh", "zh_SG", "zh_TW"),
+		("en", "zh", "zh_SG", "zh"),
+		("en", "zh", "zh", "zh"),
+		("zh_TW", "zh", "zh", "zh_TW"),
+		("en", "zh", "x-western", "zh"),
+		("en", "zh", "zh-Hant-TW", "zh"),
+		("zh_TW", "en", "en_US", "en"),
+		("en", "en", "", "en"),
+	],
+)
+def test_symbol_locale_prefers_the_voice_locale_with_a_table(
+	module,
+	monkeypatch,
+	current,
+	language,
+	voice,
+	expected,
+):
+	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: current)
+	assert module._symbol_locale(language, voice) == expected
+
+
+def test_namer_asks_each_language_once_per_run(module):
+	# One locale per language per stage run; the next run asks again, so a voice change counts.
+	asked = []
+
+	def voice_locale(language):
+		asked.append(language)
+		return "zh_TW"
+
+	namer = module._symbol_namer(voice_locale)
+	for language, symbol in [("zh", "×"), ("zh", "."), ("en", "×"), ("zh", "×")]:
+		namer(language)(symbol)
+	assert asked == ["zh", "en"]
+	namer(None)("×")
+	assert asked == ["zh", "en"]
+	module._symbol_namer(voice_locale)("zh")("×")
+	assert asked == ["zh", "en", "zh"]
+
+
+def test_nvda_builtin_symbols_live_in_appdir_locale():
+	# _has_symbol_table looks where NVDA's mandatory built-in dictionary is.
+	if not CHARACTER_PROCESSING.is_file():
+		pytest.skip("ref/nvda is not checked out")
+	tree = ast.parse(CHARACTER_PROCESSING.read_text(encoding="utf-8"))
+	definitions = [
+		{keyword.arg: ast.unparse(keyword.value) for keyword in node.keywords}
+		for node in ast.walk(tree)
+		if isinstance(node, ast.Call) and ast.unparse(node.func) == "SymbolDictionaryDefinition"
+	]
+	builtin = [definition for definition in definitions if definition.get("name") == "'builtin'"]
+	assert builtin == [
+		{
+			"name": "'builtin'",
+			"path": "os.path.join(globalVars.appDir, 'locale', '{locale}', 'symbols.dic')",
+			"source": "_SymbolDefinitionSource.BUILTIN",
+			"allowComplexSymbols": "True",
+			"mandatory": "True",
+		},
+	]
+
+
+def test_normalize_language_is_nvdas():
+	normalize = nvda_normalize_language()
+	assert normalize("zh-tw") == "zh_TW"
+	assert normalize("ZH") == "zh"
+	assert normalize("x-western") is None
 
 
 def load_nvda_character_processing(monkeypatch, tmp_path):
@@ -128,3 +226,19 @@ def test_pipeline_names_symbols_with_nvdas_real_lookup(module, monkeypatch, tmp_
 	monkeypatch.setattr(module, "characterProcessing", load_nvda_character_processing(monkeypatch, tmp_path))
 	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: "zh_TW")
 	assert module._symbol_name(module._symbol_locale("zh"), "×") == "乘以"
+
+
+@pytest.mark.parametrize(("voice", "name"), [("zh-TW", "乘以"), ("zh_SG", "times")])
+@NVDA_WARNINGS
+def test_pipeline_names_symbols_from_the_voice_locale_with_nvdas_real_lookup(
+	module,
+	monkeypatch,
+	tmp_path,
+	voice,
+	name,
+):
+	# NVDA's interface in English: a zh-TW voice gets its own table; zh_SG has none, so NVDA's
+	# fallback from "zh" ends in English.
+	monkeypatch.setattr(module, "characterProcessing", load_nvda_character_processing(monkeypatch, tmp_path))
+	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: "en")
+	assert module._symbol_name(module._symbol_locale("zh", voice), "×") == name

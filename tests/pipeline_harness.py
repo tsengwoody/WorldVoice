@@ -6,7 +6,7 @@ import types
 import unicodedata
 from types import SimpleNamespace
 
-from addon_loader import WORLDVOICE, alias_package, load_source
+from addon_loader import REF, WORLDVOICE, alias_package, load_definitions, load_source
 from nvda_stubs import StubModules, configobj_stub, worldvoice_conf
 
 
@@ -32,11 +32,18 @@ class FakeSpeechSequenceFilter:
 		pass
 
 
+def nvda_normalize_language():
+	"""NVDA's own languageHandler.normalizeLanguage, run from ref/nvda without the rest of the module."""
+	namespace = load_definitions(REF / "nvda/source/languageHandler.py", ["normalizeLanguage"], {})
+	return namespace["normalizeLanguage"]
+
+
 def load_pipeline_module(monkeypatch, settings):
 	stubs = StubModules(monkeypatch)
 	for name in [
 		"config",
 		"globalVars",
+		"languageHandler",
 		"logHandler",
 		"speech",
 		"speech.commands",
@@ -61,6 +68,10 @@ def load_pipeline_module(monkeypatch, settings):
 
 	globalVars = stubs.module("globalVars")
 	globalVars.speechDictionaryProcessing = True
+	# NVDA's own locale directory, so the pipeline sees which symbol tables NVDA really has.
+	globalVars.appDir = str(REF / "nvda/source")
+
+	stubs.module("languageHandler", normalizeLanguage=nvda_normalize_language())
 
 	logHandler = stubs.module("logHandler")
 	logHandler.log = SimpleNamespace(debug=lambda *args, **kwargs: None)
