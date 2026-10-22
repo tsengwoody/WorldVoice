@@ -13,7 +13,7 @@ modules against these fakes, so module-level code and the real ``guard_errors`` 
 from types import SimpleNamespace
 
 from addon_loader import ADDON, WORLDVOICE, alias_package, load_source
-from nvda_stubs import StubModules, worldvoice_conf
+from nvda_stubs import StubModules, configobj_stub, worldvoice_conf
 from pipeline_harness import LOG_SWITCH_ORDER
 
 PLUGIN_DIR = ADDON / "globalPlugins/WorldVoice"
@@ -677,6 +677,7 @@ def _pipeline_ui(monkeypatch, stubs, conf):
 	the synth package is loaded here, after the GUI stubs it needs.
 	"""
 	stubs.module("config", conf=conf)
+	configobj_stub(stubs)
 	alias_package(monkeypatch, "synthDrivers")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice.pipeline")

@@ -21,7 +21,7 @@ from ..log import PipelineLog
 from ..runtime.models import SelectVoice
 from . import speech_dictionary
 from .context import GENERIC_CONTEXT as GENERIC_CONTEXT, SpeechContext, current_context
-from .settings import pipeline_settings
+from .settings import pipeline_settings, read_stored
 
 if TYPE_CHECKING:
 	from speech.commands import SpeechCommand
@@ -852,8 +852,9 @@ _log_writer = _LogWriter()
 def _run_logged(label, fn, speechSequence, settings, ctx):
 	debug = config.conf["general"]["loggingLevel"] == "DEBUG"
 	section = config.conf["WorldVoice"]["log"]
-	recording = section["enable"]
-	if not ((debug or recording) and section[label]):
+	# A switch NVDA refuses on read is off, so a bad stored value never stops the stage.
+	recording = read_stored(section, "enable", False)
+	if not ((debug or recording) and read_stored(section, label, False)):
 		return fn(speechSequence, settings, ctx)
 	_id = uuid.uuid4().hex
 	speechSequence = list(speechSequence)

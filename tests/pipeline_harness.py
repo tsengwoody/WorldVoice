@@ -118,6 +118,7 @@ def load_pipeline_module(monkeypatch, settings):
 
 	settingsModule = stubs.module("synthDrivers.WorldVoice.pipeline.settings")
 	settingsModule.pipeline_settings = SimpleNamespace(effective=lambda supports_roles: settings)
+	settingsModule.read_stored = lambda section, key, default: section.get(key, default)
 
 	module = load_source(monkeypatch, "synthDrivers.WorldVoice.pipeline", WORLDVOICE / "pipeline/__init__.py")
 	module._test_settings = settings

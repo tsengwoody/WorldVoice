@@ -8,6 +8,7 @@ import gui
 import wx
 from logHandler import log
 from synthDrivers.WorldVoice.pipeline import pl
+from synthDrivers.WorldVoice.pipeline.settings import read_stored
 
 addonHandler.initTranslation()
 
@@ -22,7 +23,7 @@ class PipelineLogService:
 
 	@property
 	def enabled(self) -> bool:
-		return bool(self._section()["enable"])
+		return bool(read_stored(self._section(), "enable", False))
 
 	def enable(self) -> None:
 		self._section()["enable"] = True

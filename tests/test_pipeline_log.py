@@ -6,14 +6,16 @@ from pathlib import Path
 
 import pytest
 from addon_loader import ADDON, WORLDVOICE, load_definitions, load_source
-from nvda_stubs import StubModules, worldvoice_conf
+from nvda_stubs import RefusingSection, StubModules, worldvoice_conf
+from pipeline_harness import load_settings_module
 
 LOG = WORLDVOICE / "log.py"
 SERVICE = ADDON / "globalPlugins/WorldVoice/pipelineLog.py"
 PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 
 
-def load_service(monkeypatch, answers=None):
+def load_service(monkeypatch, answers=None, read_stored=None):
+	"""The real pipelineLog.py; read_stored replaces the pipeline settings' reader of a stored value."""
 	answers = answers or []
 	asked = []
 	stubs = {
@@ -31,6 +33,9 @@ def load_service(monkeypatch, answers=None):
 		"synthDrivers.WorldVoice": types.SimpleNamespace(__path__=[]),
 		"synthDrivers.WorldVoice.pipeline": types.SimpleNamespace(
 			pl=types.SimpleNamespace(move_to=lambda dst: asked.append(("moved", dst))),
+		),
+		"synthDrivers.WorldVoice.pipeline.settings": types.SimpleNamespace(
+			read_stored=read_stored or (lambda section, key, default: section.get(key, default)),
 		),
 	}
 	modules = StubModules(monkeypatch)
@@ -54,6 +59,16 @@ def test_service_switches_config_and_swallows_export_errors(monkeypatch):
 	assert conf["WorldVoice"]["log"]["enable"] is False
 	service.export()
 	assert asked == ["logged"]
+
+
+def test_service_reads_an_invalid_enable_flag_as_off(monkeypatch):
+	settings = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	refused = RefusingSection(
+		{"enable": "maybe"},
+		{"enable": sys.modules["configobj.validate"].VdtTypeError("maybe")},
+	)
+	module, _conf, _asked = load_service(monkeypatch, read_stored=settings.read_stored)
+	assert module.PipelineLogService(lambda: {"WorldVoice": {"log": refused}}).enabled is False
 
 
 def test_prompts_map_answers(monkeypatch):

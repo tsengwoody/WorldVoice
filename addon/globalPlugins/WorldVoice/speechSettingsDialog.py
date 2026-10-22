@@ -26,7 +26,7 @@ from synthDrivers.WorldVoice.pipeline.panelLayout import (
 	pipeline_attribute,
 	selected_value,
 )
-from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTINGS, pipeline_settings
+from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTINGS, pipeline_settings, read_stored
 from synthDrivers.WorldVoice.pipelineControls import CHANGE_EVENTS, control_value, make_control
 
 from .pipelineLog import ask_export, confirm_enable, pipeline_log
@@ -100,7 +100,8 @@ class BaseSettingsPanel(SettingsPanel):
 					k + "CheckBox",
 					settingsSizerHelper.addItem(wx.CheckBox(self, label=v["label"])),
 				)
-				value = config.conf["WorldVoice"][self.field].get(k, v.get("default", False))
+				# A value NVDA refuses on read shows the default, so the panel still opens.
+				value = read_stored(config.conf["WorldVoice"][self.field], k, v.get("default", False))
 				getattr(self, k + "CheckBox").SetValue(_as_bool(value))
 		return settingsSizerHelper
 

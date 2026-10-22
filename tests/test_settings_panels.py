@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from addon_loader import WORLDVOICE, load_definitions
-from nvda_stubs import worldvoice_conf
+from nvda_stubs import RefusingSection, worldvoice_conf
 from pipeline_harness import LOG_SWITCH_ORDER
 from ui_harness import Sizer, TextCtrl, fire, load_settings_dialog, make_panel
 
@@ -444,6 +444,18 @@ def test_log_panel_shows_one_switch_per_stage_from_config(monkeypatch):
 		"speech_viewer",
 	}
 	assert all(box.enabled for box in boxes)
+
+
+def test_log_panel_shows_an_invalid_switch_unticked(monkeypatch):
+	# NVDA refuses a stored "maybe" for a boolean on read; the panel still opens.
+	env = log_env(monkeypatch, enabled=True, number_mode="maybe", speech_viewer=True)
+	section = env.conf["WorldVoice"]["log"]
+	error = sys.modules["configobj.validate"].VdtTypeError("maybe")
+	env.conf["WorldVoice"]["log"] = RefusingSection(section, {"number_mode": error})
+	_panel, sizer = build(env, "LogSettingsPanel")
+	boxes = dict(zip(LOG_SWITCH_ORDER, sizer.items[1].item.controls(), strict=True))
+	assert boxes["number_mode"].value is False
+	assert boxes["speech_viewer"].value is True
 
 
 def test_log_panel_stage_switches_follow_the_enable_checkbox(monkeypatch):

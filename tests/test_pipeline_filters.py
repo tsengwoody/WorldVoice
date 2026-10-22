@@ -5,6 +5,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from nvda_stubs import RefusingSection
 from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings, symbol_name
 
 
@@ -708,3 +709,25 @@ def test_run_logged_records_only_when_switched_on(env, monkeypatch, level, enabl
 	assert list(result) == ["out"]
 	assert calls == [["in"]]
 	assert written == writes
+
+
+def test_an_invalid_log_switch_reads_off(env, monkeypatch):
+	# NVDA refuses a stored "maybe" for a boolean on every read; the stage still runs, unlogged.
+	settings_module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	monkeypatch.setattr(env.module, "read_stored", settings_module.read_stored)
+	error = sys.modules["configobj.validate"].VdtTypeError("maybe")
+	# The settings loader registered a config of its own; the pipeline keeps the one it imported.
+	conf = env.module.config.conf
+	conf["general"]["loggingLevel"] = "DEBUG"
+	conf["WorldVoice"]["log"] = RefusingSection({}, {"enable": error, "number_mode": error})
+	debugged = []
+	monkeypatch.setattr(env.module.log, "debug", lambda *args, **kwargs: debugged.append(args))
+	result = env.module._run_logged(
+		"number_mode",
+		lambda sequence, settings, ctx: iter(["out"]),
+		["in"],
+		None,
+		None,
+	)
+	assert list(result) == ["out"]
+	assert debugged == []
