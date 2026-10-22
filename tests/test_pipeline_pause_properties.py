@@ -443,6 +443,49 @@ def test_property_no_break_replaces_a_gap_with_a_no_break_space(env, text):
 		assert not any(space in gap for space in NO_BREAK_SPACES), (text, result)
 
 
+def number_language_context(module):
+	return module.SpeechContext(
+		supports_roles=True,
+		language="zh",
+		number_language="en",
+		default_voice=SimpleNamespace(name="Z", language="zh"),
+		voice_name_for_language={"zh": "Z", "en": "E"}.get,
+	)
+
+
+def gaps_taken_by_number_breaks(module, result, text):
+	"""Match the text items to *text* in order, skipping only whitespace and commands, and return
+	the whitespace run each number break stands in.
+	"""
+	gaps = []
+	position = 0
+	for item in result:
+		if isinstance(item, str):
+			start = text.index(item, position)
+			assert not text[position:start].strip(), (text, result)
+			position = start + len(item)
+		elif isinstance(item, module.NumberBreakCommand):
+			end = position
+			while end < len(text) and text[end].isspace():
+				end += 1
+			gaps.append(text[position:end])
+	return gaps
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_no_break_replaces_a_no_break_gap_with_a_number_language(env, text):
+	module = env.module
+	ctx = number_language_context(module)
+	stage_settings = punctuation_settings(0)
+	stage_settings.scaled_number_wait = lambda: 40
+	result = list(module.inject_number_language([text], stage_settings, ctx))
+	result = list(module.number_wait_factor(result, stage_settings, ctx))
+	for gap in gaps_taken_by_number_breaks(module, result, text):
+		assert gap, (text, result)
+		assert not any(space in gap for space in NO_BREAK_SPACES), (text, result)
+
+
 @SHARED_ENV
 @given(text=NUMBER_TEXT)
 def test_property_no_text_item_keeps_two_numbers_apart_by_whitespace(env, text):

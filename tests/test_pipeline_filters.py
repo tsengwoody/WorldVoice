@@ -149,6 +149,14 @@ def test_number_re_fullmatch_fails_fast(env, text):
 	assert time.perf_counter() - start < 0.5
 
 
+@pytest.mark.parametrize("text", ["1\u00a0" * 3000 + "a", "1 \u00a0 " * 2000 + "a"])
+def test_grouped_number_re_fails_fast(env, text):
+	start = time.perf_counter()
+	assert env.module._GROUPED_NUMBER_RE.fullmatch(text) is None
+	assert len(list(env.module._GROUPED_NUMBER_RE.finditer(text))) == 1
+	assert time.perf_counter() - start < 0.5
+
+
 B40 = ("NumberBreakCommand", 40)
 NB0 = ("NumberBreakCommand", 0)
 GB0 = ("GroupNumberBreakCommand", 0)

@@ -47,6 +47,12 @@ _THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
 _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 # No-break spaces group the digits of one number, as in "10 000", so they never join two numbers.
 _NO_BREAK_SPACES = frozenset("\u00a0\u202f\u2007")
+_NO_BREAK_CLASS = "".join(sorted(_NO_BREAK_SPACES))
+# Numbers whose whitespace gaps each hold a no-break space are one grouped number, as in "10 000":
+# the number language wraps it as one unit and the number pause never splits it.
+_GROUPED_NUMBER_RE = re.compile(
+	rf"{_NUMBER_RE.pattern}(?:[^\S{_NO_BREAK_CLASS}]*[{_NO_BREAK_CLASS}]\s*{_NUMBER_RE.pattern})*",
+)
 
 _SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
 
@@ -199,11 +205,12 @@ def _both_text(previous: SpeechCmd, current: SpeechCmd) -> bool:
 
 
 def _both_numbers(previous: SpeechCmd, current: SpeechCmd) -> bool:
-	# Whole items only: "12", "-3.5", "5-3" and "12:30" are numbers, "12abc" and "1." are not.
+	# Whole items only: "12", "-3.5", "5-3", "12:30" and "10 000" grouped by a no-break space are
+	# numbers, "12abc" and "1." are not.
 	return (
 		_both_text(previous, current)
-		and bool(_NUMBER_RE.fullmatch(previous))
-		and bool(_NUMBER_RE.fullmatch(current))
+		and bool(_GROUPED_NUMBER_RE.fullmatch(previous))
+		and bool(_GROUPED_NUMBER_RE.fullmatch(current))
 	)
 
 
@@ -371,7 +378,7 @@ def _insert_WVLangChangeCommand_between_number(
 		)
 
 
-def iter_number_speech_segments_language(item, current_lang, number_language, number_re=_NUMBER_RE):
+def iter_number_speech_segments_language(item, current_lang, number_language, number_re=_GROUPED_NUMBER_RE):
 	"""
 	Yield segments in the following order:
 	  - Plain text fragments (non-numeric parts of the original string)
