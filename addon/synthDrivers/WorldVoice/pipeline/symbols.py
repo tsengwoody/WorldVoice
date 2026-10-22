@@ -1,8 +1,16 @@
 """NVDA's name for a symbol in the locale of the voice that speaks it, and whether NVDA has a symbols
-table for a locale."""
+table for a locale.
+
+Whether a locale has a table is cached for the rest of the NVDA run, keyed by the locale: the table
+lives in NVDA's own program directory (globalVars.appDir, set once at startup), and a new built-in
+table arrives only with an NVDA update, which restarts NVDA. NVDA assumes the same when it globs
+these files once per run (SymbolDictionaryDefinition.availableLocales, a cached_property). NVDA's
+current language is not cached: it follows the voice, the synth and the configuration profile.
+"""
 
 import os
 from collections.abc import Callable
+from functools import lru_cache
 
 import characterProcessing
 import globalVars
@@ -16,14 +24,16 @@ def _symbol_table_on_disk(locale: str) -> bool:
 	NVDA's mandatory built-in dictionary is locale/<locale>/symbols.dic in its program directory
 	(characterProcessing.py:893-901). processSpeechSymbol falls back to the base language and then
 	to English without saying so, so only the file tells whether the locale has names of its own.
-	A locale that is not a plain name (empty, or with a path in it) has none.
+	A locale that is not a plain name (empty, or with a path in it) has none. Call it through
+	has_symbol_table, which asks once per locale.
 	"""
 	if not locale.replace("_", "").isalnum():
 		return False
 	return os.path.isfile(os.path.join(globalVars.appDir, "locale", locale, "symbols.dic"))
 
 
-has_symbol_table = _symbol_table_on_disk
+# A call, not a decorator: mutmut 3.8.0 does not mutate decorated functions.
+has_symbol_table = lru_cache(maxsize=None)(_symbol_table_on_disk)
 
 
 def symbol_locale(language: str | None, voice_locale: str | None = None) -> str:

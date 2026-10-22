@@ -7,6 +7,7 @@ changes its symbol tables or its locale fallback.
 import ast
 import builtins
 import unicodedata
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -135,6 +136,24 @@ def test_namer_asks_each_language_once_per_run(module):
 	assert asked == ["zh", "en"]
 	module.symbol_namer(voice_locale)("zh")("×")
 	assert asked == ["zh", "en", "zh"]
+
+
+def test_symbol_tables_are_probed_once_per_locale(module, monkeypatch):
+	# D2: NVDA's locale directory does not change while NVDA runs, so each locale's table is probed
+	# once; the current language can change with the voice, so it is still asked every run.
+	probes, current = [], []
+	isfile = module.os.path.isfile
+	monkeypatch.setattr(module.os.path, "isfile", lambda path: probes.append(path) or isfile(path))
+	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: current.append(1) or "en")
+	for _ in range(3):
+		namer = module.symbol_namer({"zh": "zh-TW", "en": "en-US"}.get)
+		assert (namer("zh")("×"), namer("en")("×")) == ("multiplication sign zh tw", "multiplication sign en")
+	app_dir = Path(module.globalVars.appDir)
+	assert sorted(Path(path).relative_to(app_dir).as_posix() for path in probes) == [
+		"locale/en_US/symbols.dic",
+		"locale/zh_TW/symbols.dic",
+	]
+	assert len(current) == 3
 
 
 def test_nvda_builtin_symbols_live_in_appdir_locale():
