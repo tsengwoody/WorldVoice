@@ -63,4 +63,24 @@ def test_nvda_ssml_keeps_every_word_and_pause_of_the_scope_all_output(monkeypatc
 	assert spoken == "共1234個.5678and3"
 	for pause in pauses:
 		assert f'<break time="{pause}ms"/>' in xml
+	assert "say-as" not in xml
+	assert warnings == []
+
+
+def test_nvda_ssml_speaks_a_symbol_name_as_words_between_breaks(monkeypatch):
+	# F1 option D: another synth gets the name as plain text, never in character mode.
+	if not SPEECH_XML.is_file():
+		pytest.skip("ref/nvda is not checked out")
+	module, _ = load_pipeline_module(monkeypatch, pause_settings("group"))
+	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	sequence = ["12.5"]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	warnings = []
+	speech_xml = load_speech_xml(monkeypatch, warnings)
+
+	xml = speech_xml.SsmlConverter("zh_TW").convertToXml(list(sequence))
+
+	assert re.search(r'12\s*<break time="10ms"/>\s*full stop en\s*<break time="10ms"/>\s*5', xml), xml
+	assert "say-as" not in xml
 	assert warnings == []
