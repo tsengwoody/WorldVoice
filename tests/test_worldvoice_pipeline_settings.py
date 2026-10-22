@@ -27,7 +27,6 @@ EXPECTED_IDS = [
 	"volume",
 	"uwv",
 	"globalwaitfactor",
-	"cni",
 	"numlan",
 	"nummod",
 	"groupwaitfactor",
@@ -55,8 +54,7 @@ def test_settings_lists_keep_their_order_and_store_pipeline_values_outside_speec
 	pipeline_ids = set(EXPECTED_IDS[8:]) - {"numlan"}
 	for setting in synth.allSupportedSettings:
 		assert setting.options.get("useConfig", True) is (setting.id not in pipeline_ids)
-	cni = next(s for s in synth.allSupportedSettings if s.id == "cni")
-	assert cni.options["availableInSettingsRing"] is False
+	assert all(setting.options["availableInSettingsRing"] for setting in synth.allSupportedSettings[8:])
 	# The group size is set in the panels only: no synth setting, no descriptor, not in the ring.
 	assert not hasattr(synth_class, "groupsize")
 	wait = next(s for s in synth.allSupportedSettings if s.id == "globalwaitfactor")

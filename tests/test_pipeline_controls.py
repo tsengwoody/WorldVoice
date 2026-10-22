@@ -30,9 +30,9 @@ def build(monkeypatch, key, value, **changes):
 
 
 def test_a_checkbox_is_added_as_itself_with_its_value(monkeypatch):
-	env, _spec, sizer, control = build(monkeypatch, "ignore_comma_between_number", True)
+	env, _spec, sizer, control = build(monkeypatch, "punctuation_pause_enabled", False)
 	assert type(control) is CheckBox
-	assert (control.label, control.value) == ("Ignore commas between numbers", True)
+	assert (control.label, control.value) == ("Enable punctuation pause control", False)
 	assert sizer.items[0].GetWindow() is control
 	# A checkbox is made by the builder itself, so it must be the panel's child like the others.
 	assert control.parent is env.parent
@@ -90,7 +90,7 @@ def _select(index):
 @pytest.mark.parametrize(
 	("key", "stored", "change", "saved"),
 	[
-		("ignore_comma_between_number", False, _set_value(True), True),
+		("punctuation_pause_enabled", True, _set_value(False), False),
 		("punctuation_pause_characters", "", _set_value(" 。 "), " 。 "),
 		("global_wait_factor", 10, _set_value(4), 40),
 		("group_size", 3, _set_value(7), 7),
@@ -107,7 +107,7 @@ def test_control_value_reads_what_is_saved(monkeypatch, key, stored, change, sav
 
 @pytest.mark.parametrize(
 	("key", "stored"),
-	[("ignore_comma_between_number", False), ("global_wait_factor", 10)],
+	[("punctuation_pause_enabled", True), ("global_wait_factor", 10)],
 )
 def test_control_row_is_the_checkbox_or_its_sizer(monkeypatch, key, stored):
 	env, spec, sizer, control = build(monkeypatch, key, stored)

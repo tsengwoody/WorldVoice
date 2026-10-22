@@ -126,7 +126,6 @@ def load_pipeline_module(monkeypatch, settings):
 
 def punctuation_settings(wait_factor, remove_characters=False):
 	return SimpleNamespace(
-		ignore_comma_between_number=False,
 		number_mode="value",
 		scope="WorldVoice",
 		punctuation_pause_characters=".,",
@@ -143,7 +142,6 @@ def punctuation_settings(wait_factor, remove_characters=False):
 
 ORDER = [
 	"apply_speech_dictionaries",
-	"ignore_comma_between_number",
 	"number_language",
 	"number_mode",
 	"chinesespace_wait_factor",

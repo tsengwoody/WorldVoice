@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 SpeechCmd = Union[str, "SpeechCommand"]
 pl = PipelineLog("pipeline.csv")
 
-_COMMA_NUMBER_RE = re.compile(r"(?<=[0-9]),(?=[0-9])")
 # The symbols a number may hold between its digits: punctuation and symbols of Latin-1, so
 # "12,345", "5-3", "12:30" and "2×3" are one number each. Full-width and CJK punctuation are not.
 _SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.category(c)[0] in "PS")
@@ -130,17 +129,6 @@ def get_translate_table(ctx: SpeechContext) -> dict[int, str]:
 # @with_order_log("speech_view")
 def speech_viewer(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
 	return list(speechSequence)
-
-
-# @with_order_log("ignore_comma_between_number")
-def ignore_comma_between_number(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
-	if settings.ignore_comma_between_number:
-		yield from (
-			_COMMA_NUMBER_RE.sub(lambda m: "", command) if isinstance(command, str) else command
-			for command in speechSequence
-		)
-	else:
-		yield from speechSequence
 
 
 # @with_order_log("apply_speech_dictionaries")
@@ -887,7 +875,6 @@ class Stage:
 # The order NVDA runs the filters in; register, reorder and the log switches derive from it.
 STAGES: tuple[Stage, ...] = (
 	Stage("apply_speech_dictionaries", apply_speech_dictionaries),
-	Stage("ignore_comma_between_number", ignore_comma_between_number),
 	Stage("number_language", inject_number_language),
 	Stage("number_mode", inject_number_mode),
 	Stage("chinesespace_wait_factor", inject_chinese_space_pause),

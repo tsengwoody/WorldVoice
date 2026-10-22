@@ -18,7 +18,6 @@ from ui_harness import (
 STANDARD = ["voice", "variant", "rate", "rateBoost", "pitch", "inflection", "volume", "uwv"]
 TABLE_DRIVER_IDS = [
 	"globalwaitfactor",
-	"cni",
 	"numlan",
 	"nummod",
 	"groupwaitfactor",
@@ -58,7 +57,7 @@ def test_ring_follows_the_table_after_the_standard_settings(monkeypatch):
 	ring = [
 		setting.id for setting in synth.supportedSettings if setting.options.get("availableInSettingsRing")
 	]
-	assert ring == ["uwv", *(id for id in TABLE_DRIVER_IDS if id != "cni")]
+	assert ring == ["uwv", *TABLE_DRIVER_IDS]
 
 
 def test_ring_names_follow_the_label_rule(monkeypatch):
@@ -161,7 +160,6 @@ def tab_keys(panel, controls):
 
 VOICE_KEYS = [
 	"global_wait_factor",
-	"ignore_comma_between_number",
 	"number_language",
 	"number_mode",
 	"group_size",

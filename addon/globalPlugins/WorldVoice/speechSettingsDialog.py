@@ -41,8 +41,6 @@ _LOG_LABELS = {
 	# Translators: Label for the pipeline log switch of a speech pipeline stage.
 	"apply_speech_dictionaries": _("Apply speech dictionaries"),
 	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"ignore_comma_between_number": _("Ignore commas between numbers"),
-	# Translators: Label for the pipeline log switch of a speech pipeline stage.
 	"number_language": _("Number language"),
 	# Translators: Label for the pipeline log switch of a speech pipeline stage.
 	"number_mode": _("Number mode"),

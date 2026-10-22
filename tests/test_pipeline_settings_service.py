@@ -7,7 +7,6 @@ from pipeline_harness import load_settings_module
 
 OLD_DEFAULTS = {
 	"scope": "WorldVoice",
-	"ignore_comma_between_number": False,
 	"number_mode": "value",
 	"global_wait_factor": 10,
 	"number_wait_factor": 10,
@@ -36,7 +35,6 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	driver_ids = [spec.driver_id for spec in module.PIPELINE_SETTINGS if spec.driver_id]
 	assert driver_ids == [
 		"globalwaitfactor",
-		"cni",
 		"numlan",
 		"nummod",
 		"groupwaitfactor",
@@ -48,8 +46,15 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 		"removepunctuationcharacters",
 		"punctuationwaitfactor",
 	]
-	assert [spec.ring for spec in module.PIPELINE_SETTINGS if spec.driver_id].count(False) == 1
-	assert module.PIPELINE_SETTING_BY_KEY["ignore_comma_between_number"].ring is False
+	assert all(spec.ring for spec in module.PIPELINE_SETTINGS if spec.driver_id)
+
+
+def test_ignore_comma_option_is_gone(monkeypatch):
+	# Decided by the user (2026-10-22): value mode removes thousands separators instead; no migration.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert "ignore_comma_between_number" not in module.PIPELINE_CONFIG_KEYS
+	assert "ignore_comma_between_number" not in {field.name for field in fields(module.PipelineSettings)}
+	assert "cni" not in {spec.driver_id for spec in module.PIPELINE_SETTINGS}
 
 
 def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
@@ -58,7 +63,6 @@ def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
 	assert [spec.key for spec in module.PIPELINE_SETTINGS] == [
 		"scope",
 		"global_wait_factor",
-		"ignore_comma_between_number",
 		"number_language",
 		"number_mode",
 		"group_size",
@@ -237,7 +241,6 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 	settings = module.PipelineSettings(
 		**{
 			**OLD_DEFAULTS,
-			"ignore_comma_between_number": True,
 			"remove_punctuation_characters": True,
 			"punctuation_wait_factor": 30,
 			"group_wait_factor": 20,
@@ -248,7 +251,6 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 	assert settings.effective(True) is settings
 	scoped = settings.effective(False)
 	assert (
-		scoped.ignore_comma_between_number,
 		scoped.number_wait_factor,
 		scoped.item_wait_factor,
 		scoped.sayall_wait_factor,
@@ -259,7 +261,6 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		scoped.group_wait_factor,
 		scoped.group_size,
 	) == (
-		False,
 		0,
 		0,
 		0,
@@ -270,30 +271,16 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		0,
 		5,
 	)
+	# Scope "all": other synthesizers get the settings as stored, whatever the global wait (V6).
 	global_scope = module.PipelineSettings(
 		**{
 			**OLD_DEFAULTS,
 			"scope": "all",
-			"ignore_comma_between_number": True,
 			"global_wait_factor": 0,
 			"remove_punctuation_characters": True,
 		},
-	).effective(False)
-	assert global_scope.ignore_comma_between_number is False
-	assert global_scope.remove_punctuation_characters is True
-	assert (
-		module.PipelineSettings(
-			**{
-				**OLD_DEFAULTS,
-				"scope": "all",
-				"ignore_comma_between_number": True,
-				"global_wait_factor": 10,
-			},
-		)
-		.effective(False)
-		.ignore_comma_between_number
-		is True
 	)
+	assert global_scope.effective(False) is global_scope
 
 
 @pytest.mark.parametrize(

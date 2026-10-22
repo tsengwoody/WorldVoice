@@ -46,16 +46,6 @@ def kinds(sequence, break_command):
 	return result
 
 
-@pytest.mark.parametrize(("enabled", "expected"), [(True, "12500 and 34"), (False, "12,500 and 3,4")])
-def test_comma_between_digits_is_dropped_only_when_enabled(env, enabled, expected):
-	env.settings.ignore_comma_between_number = enabled
-	marker = Marker()
-	result = list(
-		env.module.ignore_comma_between_number(["12,500 and 3,4", marker], env.settings, env.generic),
-	)
-	assert result == [expected, marker]
-
-
 def test_speech_dictionaries_process_text_only(env, monkeypatch):
 	monkeypatch.setattr(env.module.speechDictHandler, "processText", lambda text: text.upper())
 	marker = Marker()

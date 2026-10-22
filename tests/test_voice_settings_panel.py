@@ -385,21 +385,25 @@ def table_with(env, *entries):
 
 
 def test_a_control_after_a_checkbox_row_lands_after_the_checkbox(monkeypatch):
-	settings = (DriverSetting("voice"), BooleanDriverSetting("cni"))
+	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
 	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
-		("ignore_comma_between_number", {}),
+		("punctuation_pause_enabled", {}),
 		("punctuation_pause_characters", {"depends_on": None}),
 	)
-	panel = env.module.WorldVoiceVoiceSettingsPanel(Driver({"voice", "cni"}, settings=settings, cni=False))
+	panel = env.module.WorldVoiceVoiceSettingsPanel(
+		Driver({"voice", "punctuationpauseenabled"}, settings=settings, punctuationpauseenabled=False),
+	)
 	panel.makeSettings(panel.settingsSizer)
 
 	names = order(panel)
 	# NVDA adds a checkbox row as the checkbox window itself, not in a sizer.
-	assert names.index("Punctuation pause characters:") == names.index("cni") + 1
+	assert names.index("Punctuation pause characters:") == names.index("punctuationpauseenabled") + 1
 	edit = panel.punctuationPauseCharactersEdit
-	assert before(panel.children, edit) is before(panel.tab_order, edit) is panel.cniCheckbox
+	assert (
+		before(panel.children, edit) is before(panel.tab_order, edit) is panel.punctuationpauseenabledCheckbox
+	)
 	assert "<spacer>" not in names
 
 
@@ -538,15 +542,17 @@ def test_another_synth_saves_and_cancels_without_touching_pipeline_settings(monk
 def test_saving_skips_a_non_driver_choice_with_no_selection(monkeypatch):
 	# No such control today: a non-driver choice with no selection names no value, so the stored
 	# one is kept and the other controls are still saved.
-	settings = (DriverSetting("voice"), BooleanDriverSetting("cni"))
+	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
 	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf(pipeline={"number_mode": "group"}))
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
-		("ignore_comma_between_number", {}),
+		("punctuation_pause_enabled", {}),
 		("number_mode", {"driver_id": None}),
 		("punctuation_pause_characters", {"depends_on": None}),
 	)
-	panel = env.module.WorldVoiceVoiceSettingsPanel(Driver({"voice", "cni"}, settings=settings, cni=False))
+	panel = env.module.WorldVoiceVoiceSettingsPanel(
+		Driver({"voice", "punctuationpauseenabled"}, settings=settings, punctuationpauseenabled=False),
+	)
 	panel.makeSettings(panel.settingsSizer)
 	panel.numberModeList.Select(-1)
 	panel.punctuationPauseCharactersEdit.SetValue(";")
@@ -572,18 +578,20 @@ def test_cancel_after_the_synth_changed_restores_no_pipeline_setting(monkeypatch
 
 
 def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
-	settings = (DriverSetting("voice"), BooleanDriverSetting("cni"))
+	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
 	env = load_voice_settings_dialogs(
 		monkeypatch,
 		conf=worldvoice_conf(pipeline={"remove_punctuation_characters": False}),
 	)
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
-		("ignore_comma_between_number", {}),
+		("punctuation_pause_enabled", {}),
 		("remove_punctuation_characters", {"driver_id": None, "depends_on": None}),
 		("punctuation_pause_characters", {"depends_on": ("remove_punctuation_characters", True)}),
 	)
-	panel = env.module.WorldVoiceVoiceSettingsPanel(Driver({"voice", "cni"}, settings=settings, cni=False))
+	panel = env.module.WorldVoiceVoiceSettingsPanel(
+		Driver({"voice", "punctuationpauseenabled"}, settings=settings, punctuationpauseenabled=False),
+	)
 	panel.makeSettings(panel.settingsSizer)
 	checkbox, edit = panel.removePunctuationCharactersCheckbox, panel.punctuationPauseCharactersEdit
 	assert edit.enabled is False

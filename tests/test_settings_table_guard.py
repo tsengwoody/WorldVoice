@@ -268,7 +268,7 @@ BROKEN = {
 	"no control": (check_control_known, lambda m: _with(m, "group_size", control=None)),
 	"bool slider": (
 		check_control_matches_kind,
-		lambda m: _with(m, "ignore_comma_between_number", control="slider"),
+		lambda m: _with(m, "punctuation_pause_enabled", control="slider"),
 	),
 	"driver spin": (check_placement, lambda m: _with(m, "number_wait_factor", control="spin")),
 	"unstored voice control": (check_placement, lambda m: _with(m, "group_size", pipeline_config=False)),
@@ -291,7 +291,7 @@ BROKEN = {
 	),
 	"controller depends": (
 		check_dependencies,
-		lambda m: _with(m, "number_mode", depends_on=("ignore_comma_between_number", True)),
+		lambda m: _with(m, "punctuation_pause_enabled", depends_on=("number_mode", "group")),
 	),
 	"controller later": (
 		check_dependencies,
@@ -322,7 +322,7 @@ BROKEN = {
 		lambda m: _with(m, "global_wait_factor", driver_id=None),
 	),
 	"zero scale": (check_scale, lambda m: _with(m, "global_wait_factor", panel_scale=0)),
-	"scaled checkbox": (check_scale, lambda m: _with(m, "ignore_comma_between_number", panel_scale=10)),
+	"scaled checkbox": (check_scale, lambda m: _with(m, "punctuation_pause_enabled", panel_scale=10)),
 	"bound off the scale": (check_scale, lambda m: _with(m, "global_wait_factor", max_value=95)),
 	"scaled slider steps by one": (check_scale, lambda m: _with(m, "global_wait_factor", min_step=1)),
 	"unscaled slider steps by ten": (check_scale, lambda m: _with(m, "number_wait_factor", min_step=10)),

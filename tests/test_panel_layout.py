@@ -16,7 +16,6 @@ layout = load_source(None, "panel_layout_under_test", WORLDVOICE / "pipeline/pan
 Q1 = [
 	"scope",
 	"global_wait_factor",
-	"ignore_comma_between_number",
 	"number_language",
 	"number_mode",
 	"group_size",
@@ -59,7 +58,7 @@ def test_panel_specs_follow_the_table_per_panel(table):
 @pytest.mark.parametrize(
 	("key", "text"),
 	[
-		("ignore_comma_between_number", "Ignore commas between numbers"),
+		("punctuation_pause_enabled", "Enable punctuation pause control"),
 		("number_mode", "Number &mode:"),
 		("global_wait_factor", "Global wait factor:"),
 		("group_size", "Group size:"),
@@ -173,10 +172,10 @@ def test_creation_followers_without_an_earlier_listed_driver():
 			"globalwaitfactorSlider",
 		),
 		(
-			"ignore_comma_between_number",
-			"_ignore_comma_between_number_checkbox",
-			"ignoreCommaBetweenNumberCheckbox",
-			"cniCheckbox",
+			"punctuation_pause_enabled",
+			"_punctuation_pause_enabled_checkbox",
+			"punctuationPauseEnabledCheckbox",
+			"punctuationpauseenabledCheckbox",
 		),
 		("group_size", "_group_size_spin", "groupSizeSpin", None),
 		(

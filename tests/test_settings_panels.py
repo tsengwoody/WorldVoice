@@ -34,7 +34,6 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	env = pipeline_env(
 		monkeypatch,
 		scope="all",
-		ignore_comma_between_number=True,
 		number_mode="group",
 		global_wait_factor=30,
 		number_wait_factor=11,
@@ -53,7 +52,6 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert [control.label for control in sizer.controls()] == [
 		"Effect scope:",
 		"Global wait factor:",
-		"Ignore commas between numbers",
 		"Number &mode:",
 		"Group size:",
 		"Group wait factor:",
@@ -69,7 +67,6 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._scope_choice.choices == ["All Synthesizers (Global)", "Only WorldVoice Synthesizer"]
 	assert panel._scope_choice.selection == 0
 	assert panel._number_mode_choice.selection == 2
-	assert panel._ignore_comma_between_number_checkbox.value is True
 	# The global factor is stored in tens and shown in units.
 	assert panel._global_wait_factor_slider.value == 3
 	assert [
@@ -93,7 +90,7 @@ def test_pipeline_panel_rows_are_spaced_as_nvda_spaces_them(monkeypatch):
 	# One BoxSizerHelper for the panel: NVDA adds a spacer before every row but the first.
 	env = pipeline_env(monkeypatch)
 	_panel, sizer = build(env, "SpeechPipelinePanel")
-	assert [is_spacer(entry) for entry in sizer.items] == [False, *[True, False] * 13]
+	assert [is_spacer(entry) for entry in sizer.items] == [False, *[True, False] * 12]
 
 
 def test_pipeline_panel_selects_the_first_choice_for_an_unknown_stored_value(monkeypatch):
@@ -330,7 +327,6 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._scope_choice.Select(0)
 	panel._number_mode_choice.Select(1)
-	panel._ignore_comma_between_number_checkbox.SetValue(True)
 	panel._global_wait_factor_slider.SetValue(7)
 	panel._group_wait_factor_slider.SetValue(40)
 	panel._group_size_spin.SetValue(6)
@@ -342,7 +338,6 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	stored = env.conf["WorldVoice"]["pipeline"]
 	assert stored["scope"] == "all"
 	assert stored["number_mode"] == "number"
-	assert stored["ignore_comma_between_number"] is True
 	assert stored["global_wait_factor"] == 70
 	assert stored["group_wait_factor"] == 40
 	assert stored["group_size"] == 6

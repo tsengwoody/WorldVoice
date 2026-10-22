@@ -129,16 +129,6 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		control="slider",
 		panel_scale=10,
 	),
-	PipelineSettingSpec(
-		"ignore_comma_between_number",
-		bool,
-		False,
-		driver_id="cni",
-		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-		label=_("Ignore commas between numbers"),
-		ring=False,
-		control="checkbox",
-	),
 	# NVDA stores the number language as a driver setting; this entry only places its control.
 	PipelineSettingSpec(
 		"number_language",
@@ -280,7 +270,6 @@ PIPELINE_CONFSPEC = {spec.key: spec.confspec for spec in PIPELINE_STORED_SETTING
 @dataclass(frozen=True)
 class PipelineSettings:
 	scope: str
-	ignore_comma_between_number: bool
 	number_mode: str
 	global_wait_factor: int
 	number_wait_factor: int
@@ -333,7 +322,6 @@ class PipelineSettings:
 		if self.scope != "all":
 			return replace(
 				self,
-				ignore_comma_between_number=False,
 				number_wait_factor=0,
 				item_wait_factor=0,
 				sayall_wait_factor=0,
@@ -343,10 +331,7 @@ class PipelineSettings:
 				remove_punctuation_characters=False,
 				group_wait_factor=0,
 			)
-		return replace(
-			self,
-			ignore_comma_between_number=bool(self.global_factor_units * self.ignore_comma_between_number),
-		)
+		return self
 
 
 def _get_value(section: Any, key: str) -> Any:

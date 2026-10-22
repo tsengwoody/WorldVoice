@@ -582,12 +582,6 @@ msgstr "數字語言(&L)"
 msgid "Item wait factor"
 msgstr "項目停頓參數"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:44
-#: addon\synthDrivers\WorldVoice\pipeline\settings.py:138
-msgid "Ignore commas between numbers"
-msgstr "忽略在數字間的逗號"
-
 #. Translators: Label for a pipeline setting in the Speech Pipeline panel.
 #: addon\synthDrivers\WorldVoice\pipeline\settings.py:118
 msgid "Effect scope"
