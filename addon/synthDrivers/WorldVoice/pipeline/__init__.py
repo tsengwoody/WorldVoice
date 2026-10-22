@@ -36,7 +36,9 @@ pl = PipelineLog("pipeline.csv")
 _SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.category(c)[0] in "PS")
 # The one definition of a number: an optional sign that is not right after a digit, digits, then
 # any number of (symbols, digits). "[SYM]+" rather than "[SYM]*" keeps fullmatch from backtracking
-# exponentially; both match the same strings.
+# exponentially; both match the same strings. The sign's lookbehind documents Q3 ("not right after a
+# digit"); under left-to-right scanning it is equivalent to a bare "[+-]?", because a digit before
+# the sign would already belong to the previous match, so mutation testing reports it as equivalent.
 _NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(_SYMBOLS)}]+[0-9]+)*")
 # A run of digits and commas that is a whole, valid thousands-separated number: one to three
 # digits, then groups of three. The lookarounds keep a longer comma/digit run, as in "1,234,,5" or
