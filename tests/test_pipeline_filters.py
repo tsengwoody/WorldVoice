@@ -1,5 +1,6 @@
 """The pipeline filters' output, pinned before their loops were shared."""
 
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -96,6 +97,8 @@ def test_number_wait_factor_drops_blanks_then_breaks_between_numbers(env):
 		(["12abc", "3"], ["12abc", "3"]),
 		(["1.", "2"], ["1.", "2"]),
 		(["3", "12abc"], ["3", "12abc"]),
+		(["5-3", "4"], ["5-3", ("NumberBreakCommand", 40), "4"]),
+		(["12:30", "1"], ["12:30", ("NumberBreakCommand", 40), "1"]),
 	],
 )
 def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
@@ -103,6 +106,46 @@ def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
 	assert (
 		shape(env.module.number_wait_factor(sequence, env.settings, env.module.GENERIC_CONTEXT)) == expected
 	)
+
+
+@pytest.mark.parametrize(
+	("text", "matches"),
+	[
+		("12,345,678", ["12,345,678"]),
+		("1,234.56", ["1,234.56"]),
+		("-1234", ["-1234"]),
+		("5-3", ["5-3"]),
+		("5 -3", ["5", "-3"]),
+		("2026-10-22 12:30", ["2026-10-22", "12:30"]),
+		("192.168.0.1", ["192.168.0.1"]),
+		# Full-width punctuation is not a number symbol.
+		("12\uff0c34", ["12", "34"]),
+		("abc1 2def", ["1", "2"]),
+		# A sign is a + or - right before a digit and not right after one.
+		("a-3", ["-3"]),
+		("--3", ["-3"]),
+		("3.+4", ["3.+4"]),
+		("+3 a+4", ["+3", "+4"]),
+		# A no-break space is whitespace and a soft hyphen a format character: neither joins digits.
+		("1\u00a02", ["1", "2"]),
+		("1\u00ad2", ["1", "2"]),
+		("1'000", ["1'000"]),
+		("1_000", ["1_000"]),
+		("1\u00d72", ["1\u00d72"]),
+		# Digits are ASCII only.
+		("\uff11\uff12", []),
+		("12.", ["12"]),
+	],
+)
+def test_number_re_finds_whole_numbers(env, text, matches):
+	assert [match.group() for match in env.module._NUMBER_RE.finditer(text)] == matches
+
+
+@pytest.mark.parametrize("text", ["1" * 5000 + "a", "1." * 3000 + "a"])
+def test_number_re_fullmatch_fails_fast(env, text):
+	start = time.perf_counter()
+	assert env.module._NUMBER_RE.fullmatch(text) is None
+	assert time.perf_counter() - start < 0.05
 
 
 B40 = ("NumberBreakCommand", 40)
@@ -113,7 +156,7 @@ SPLITS = [
 	("共 12 34 個", ["共 ", "12", B40, "34", " 個"]),
 	("5 -3", ["5", B40, "-3"]),
 	("5 - 3", ["5 - 3"]),
-	("1.2.3 4", ["1.2.", "3", B40, "4"]),
+	("1.2.3 4", ["1.2.3", B40, "4"]),
 	("12 apples", ["12 apples"]),
 	("abc1 2def", ["abc", "1", B40, "2", "def"]),
 	("2026 10 21", ["2026", B40, "10", B40, "21"]),
@@ -130,11 +173,13 @@ SPLITS = [
 	("2 10\u00a0000", ["2", B40, "10", "\u00a0000"]),
 	("1-2", ["1-2"]),
 	("12abc 3", ["12abc 3"]),
-	# F1 option B: a number glued to another number with no gap is never split out.
-	("02 2345-6789", ["02 2345-6789"]),
-	("3-1 2", ["3-1 2"]),
-	("1 2 3-4", ["1", B40, "2", " 3-4"]),
-	("1-2 3 4", ["1-2 ", "3", B40, "4"]),
+	# One number definition: a match never touches another, so every whitespace gap splits.
+	("02 2345-6789", ["02", B40, "2345-6789"]),
+	("3-1 2", ["3-1", B40, "2"]),
+	("1 2 3-4", ["1", B40, "2", B40, "3-4"]),
+	("1-2 3 4", ["1-2", B40, "3", B40, "4"]),
+	("2026-10-22 12:30", ["2026-10-22", B40, "12:30"]),
+	("12,345 6", ["12,345", B40, "6"]),
 ]
 
 
@@ -268,7 +313,7 @@ def test_group_mode_then_number_wait_breaks_between_numbers_only(env):
 
 
 TEXTS = ["12.5", "-1234", "123", "12", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
-SHARED = {"v1.2": ["v1.2"], "a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "1.2.3": ["1.2 . 3"], "": []}
+SHARED = {"v1.2": ["v1.2"], "a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "1.2.3": ["1.2.3"], "": []}
 GB50 = ("GroupNumberBreakCommand", 50)
 # Keyed by (mode, group size, group pause).
 NUMBER_MODES = {

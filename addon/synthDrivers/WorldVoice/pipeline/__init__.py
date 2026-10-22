@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
@@ -31,8 +32,13 @@ SpeechCmd = Union[str, "SpeechCommand"]
 pl = PipelineLog("pipeline.csv")
 
 _COMMA_NUMBER_RE = re.compile(r"(?<=[0-9]),(?=[0-9])")
-_PURE_NUMBER_RE = re.compile(r"[0-9]+")
-_NUMBER_RE = re.compile(r"[+-]?[0-9]+(?:\.[0-9]+)?")
+# The symbols a number may hold between its digits: punctuation and symbols of Latin-1, so
+# "12,345", "5-3", "12:30" and "2×3" are one number each. Full-width and CJK punctuation are not.
+_SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.category(c)[0] in "PS")
+# The one definition of a number: an optional sign that is not right after a digit, digits, then
+# any number of (symbols, digits). "[SYM]+" rather than "[SYM]*" keeps fullmatch from backtracking
+# exponentially; both match the same strings.
+_NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(_SYMBOLS)}]+[0-9]+)*")
 _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 # No-break spaces group the digits of one number, as in "10 000", so they never join two numbers.
 _NO_BREAK_SPACES = frozenset("\u00a0\u202f\u2007")
@@ -183,7 +189,7 @@ def _both_text(previous: SpeechCmd, current: SpeechCmd) -> bool:
 
 
 def _both_numbers(previous: SpeechCmd, current: SpeechCmd) -> bool:
-	# Whole items only: "12" and "-3.5" are numbers, "12abc" and "1." are not.
+	# Whole items only: "12", "-3.5", "5-3" and "12:30" are numbers, "12abc" and "1." are not.
 	return (
 		_both_text(previous, current)
 		and bool(_NUMBER_RE.fullmatch(previous))
@@ -241,23 +247,15 @@ def _split_spaced_numbers(text: str) -> Iterator[str]:
 	neighbouring number as an item of its own, without that whitespace.
 
 	Everything else is kept verbatim, spaces included, and no empty piece is
-	yielded. A number glued to another number with no gap, as in
-	"2345-6789", is never split out, so a pause can only replace whitespace.
+	yielded. Two matches never touch (a match ends with a digit and the next
+	one cannot start right after it), so a pause can only replace whitespace.
 	A gap that holds a no-break space (U+00A0, U+202F, U+2007) never joins
 	two numbers, so "10 000" written with one stays whole.
 	"""
 	matches = list(_NUMBER_RE.finditer(text))
 	gaps = [text[left.end() : right.start()] for left, right in pairwise(matches)]
-	glued = {index + side for index, gap in enumerate(gaps) if not gap for side in (0, 1)}
 	# joined[i] is True when matches i - 1 and i are split apart; the ends are never joined.
-	joined = [
-		False,
-		*(
-			_is_splittable_gap(gap) and index not in glued and index + 1 not in glued
-			for index, gap in enumerate(gaps)
-		),
-		False,
-	]
+	joined = [False, *(_is_splittable_gap(gap) for gap in gaps), False]
 	position = 0
 	for index, match in enumerate(matches):
 		if not (joined[index] or joined[index + 1]):

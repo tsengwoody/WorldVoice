@@ -5,6 +5,7 @@ example: settings are fresh per example and no state carries over.
 """
 
 import math
+import unicodedata
 from itertools import pairwise
 from types import SimpleNamespace
 
@@ -220,7 +221,10 @@ def test_property_an_empty_or_blank_list_changes_nothing(env, data):
 # Numbers
 
 NO_BREAK_SPACES = "\u00a0\u202f\u2007"
-NUMBER_TEXT = st.text(alphabet="0123456789+-.aZ共 \t\n\r\u3000" + NO_BREAK_SPACES, max_size=20)
+NUMBER_TEXT = st.text(
+	alphabet="0123456789+-.,:/\u00d7\u00b0aZ共\uff0c\uff0e \t\n\r\u3000" + NO_BREAK_SPACES,
+	max_size=20,
+)
 
 
 def run_number_wait(env, sequence, wait):
@@ -310,9 +314,63 @@ def test_property_digit_mode_separates_every_digit(env, sign, digits, wait, tabl
 	assert texts == [sign + words[0], *words[1:]]
 
 
-# The number split (F1 option B: a number glued to another with no gap is never split out)
+# One number definition (spec 6.1)
 
 DIGITS = "0123456789"
+
+
+def is_number_symbol(character):
+	return ord(character) < 0x100 and unicodedata.category(character)[0] in "PS"
+
+
+def scanned_numbers(text):
+	"""The spans of spec Q1-Q3, scanned by hand: an optional sign that is right before a digit and
+	not right after one, digits, then any number of (one or more symbols, then digits).
+	"""
+	spans = []
+	position = 0
+	while position < len(text):
+		start = position
+		signed = (
+			text[position] in "+-"
+			and position + 1 < len(text)
+			and text[position + 1] in DIGITS
+			and (position == 0 or text[position - 1] not in DIGITS)
+		)
+		if not signed and text[position] not in DIGITS:
+			position += 1
+			continue
+		end = position + 1 if signed else position
+		while end < len(text) and text[end] in DIGITS:
+			end += 1
+		while True:
+			after_symbols = end
+			while after_symbols < len(text) and is_number_symbol(text[after_symbols]):
+				after_symbols += 1
+			if after_symbols == end or after_symbols == len(text) or text[after_symbols] not in DIGITS:
+				break
+			end = after_symbols
+			while end < len(text) and text[end] in DIGITS:
+				end += 1
+		spans.append((start, end))
+		position = end
+	return spans
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_number_re_equals_the_scanner(env, text):
+	assert [match.span() for match in env.module._NUMBER_RE.finditer(text)] == scanned_numbers(text)
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_matches_are_never_glued(env, text):
+	matches = list(env.module._NUMBER_RE.finditer(text))
+	assert all(left.end() < right.start() for left, right in pairwise(matches)), text
+
+
+# The number split
 
 
 def split_once(env, text):
@@ -364,14 +422,9 @@ def test_property_no_text_item_keeps_two_numbers_apart_by_whitespace(env, text):
 		if not isinstance(item, str):
 			continue
 		matches = list(env.module._NUMBER_RE.finditer(item))
-		gaps = [item[left.end() : right.start()] for left, right in pairwise(matches)]
-		for index, gap in enumerate(gaps):
-			if not gap.isspace() or any(space in gap for space in NO_BREAK_SPACES):
-				continue
-			# Either number is glued to its other neighbour, so neither is split out.
-			left_glued = index > 0 and not gaps[index - 1]
-			right_glued = index + 1 < len(gaps) and not gaps[index + 1]
-			assert left_glued or right_glued, (item, gap)
+		for left, right in pairwise(matches):
+			gap = item[left.end() : right.start()]
+			assert not gap.isspace() or any(space in gap for space in NO_BREAK_SPACES), (item, gap)
 
 
 @SHARED_ENV
