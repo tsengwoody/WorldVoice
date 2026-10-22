@@ -101,7 +101,7 @@ Counts for later tasks are computed from the tests each task lists; if the real 
 - Test: `tests/test_pipeline_filters.py`, `tests/test_pipeline_pause_properties.py`
 
 **Interfaces:**
-- Produces: `_SYMBOLS: str` (the 64 Latin-1 P*/S* characters, in code-point order) and `_NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(_SYMBOLS)}]+[0-9]+)*")`. `_PURE_NUMBER_RE` is gone. All users of `_NUMBER_RE` keep their signatures.
+- Produces: `_SYMBOLS: str` (the 55 Latin-1 P*/S* characters, in code-point order) and `_NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(_SYMBOLS)}]+[0-9]+)*")`. `_PURE_NUMBER_RE` is gone. All users of `_NUMBER_RE` keep their signatures.
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_pipeline_filters.py`:
   - `test_number_re_finds_whole_numbers`, parametrized `(text, matches)` (`[m.group() for m in module._NUMBER_RE.finditer(text)]`): `"12,345,678"`→`["12,345,678"]`; `"1,234.56"`→`["1,234.56"]`; `"-1234"`→`["-1234"]`; `"5-3"`→`["5-3"]`; `"5 -3"`→`["5","-3"]`; `"2026-10-22 12:30"`→`["2026-10-22","12:30"]`; `"192.168.0.1"`→`["192.168.0.1"]`; `"12，34"`→`["12","34"]`; `"abc1 2def"`→`["1","2"]`; `"a-3"`→`["-3"]`; `"--3"`→`["-3"]`; `"3.+4"`→`["3.+4"]`; `"1 2"`→`["1","2"]`; `"1­2"`→`["1","2"]`; `"1'000"`→`["1'000"]`; `"1_000"`→`["1_000"]`; `"1×2"`→`["1×2"]`; `"１２"`→`[]`; `"12."`→`["12"]`; `"+3 a+4"`→`["+3","+4"]`.
