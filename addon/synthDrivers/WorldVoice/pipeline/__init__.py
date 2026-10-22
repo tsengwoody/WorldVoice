@@ -428,7 +428,7 @@ def _translate_number(
 		name = name_of(token)
 		if name is not None:
 			pieces.append(name)
-			last_is_name = True
+			last_is_name, glue = True, False
 		elif last_is_name:
 			pieces.append(token)
 			last_is_name, glue = False, True

@@ -295,6 +295,9 @@ def test_property_digit_mode_separates_every_digit(env, sign, digits, wait):
 
 # Number and group modes name each symbol (spec 6.4, P5-P7)
 
+SHAPED_SYMBOLS = ".,:/-+\u00d7\u00b0"
+# Numbers with runs of symbols between digit runs, where named and unnamed symbols meet.
+NUMBER_SHAPED = st.from_regex(r"[+-]?[0-9]{1,3}(?:[.,:/+\u00d7\u00b0-]{1,3}[0-9]{1,3}){0,4}", fullmatch=True)
 MODE_SIZES = st.sampled_from([("number", 1), *(("group", size) for size in range(2, 11))])
 
 
@@ -426,6 +429,32 @@ def test_property_off_mode_is_the_identity_for_both_number_stages(env, data):
 		result = list(stage(sequence, stage_settings, env.module.GENERIC_CONTEXT))
 		assert len(result) == len(sequence)
 		assert all(after is before for after, before in zip(result, sequence))
+
+
+@SHARED_ENV
+@given(
+	data=st.data(),
+	text=st.one_of(NUMBER_TEXT, NUMBER_SHAPED),
+	mode_size=MODE_SIZES,
+)
+def test_property_names_stay_whole_when_some_symbols_have_none(env, data, text, mode_size):
+	# A user can clear any symbol's replacement in NVDA: a name never gains a digit or a symbol, and
+	# the text, names read back, is still the input.
+	unnamed = data.draw(st.sets(st.sampled_from(SHAPED_SYMBOLS)))
+	symbols = symbol_of_name(env)
+	lookup = env.module.characterProcessing.processSpeechSymbol
+	env.module.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
+		symbol if symbol in unnamed else symbol_name(locale, symbol)
+	)
+	try:
+		result = run_number_mode(env, text, *mode_size)
+	finally:
+		env.module.characterProcessing.processSpeechSymbol = lookup
+	for item in result:
+		if isinstance(item, str) and any(item.startswith(name) for name in symbols):
+			assert item in symbols, (text, unnamed, result)
+	texts = [symbols.get(item, item) for item in result if isinstance(item, str)]
+	assert "".join(texts).replace(" ", "") == text.replace(" ", ""), (text, unnamed, result)
 
 
 # Value-mode thousands separators (spec 6.3, V1)

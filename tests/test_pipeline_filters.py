@@ -543,6 +543,14 @@ def test_a_symbol_without_a_name_stays_attached_to_its_digits(env, monkeypatch):
 	assert shape(env.module.inject_number_mode(["1-.2"], env.settings, generic)) == spoken("1 <-> .2")
 
 
+def test_a_name_after_an_unnamed_symbol_never_takes_the_next_digits(env, monkeypatch):
+	# A user can clear a symbol's replacement in NVDA's symbol pronunciation dialog.
+	counting_lookup(env, monkeypatch, unnamed=".")
+	env.settings.number_mode = "number"
+	result = env.module.inject_number_mode(["1.-2"], env.settings, env.module.GENERIC_CONTEXT)
+	assert shape(result) == spoken("1. <-> 2")
+
+
 def test_an_unnamed_symbol_between_digits_survives_punctuation_removal(env, monkeypatch):
 	# Review Focus 4: with no name, "." stays between its digits, where it is never a pause point.
 	counting_lookup(env, monkeypatch, unnamed=".")
