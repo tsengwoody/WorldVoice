@@ -106,6 +106,27 @@ def voice_placements(specs: Sequence[Any], has_row: Callable[[str], bool]) -> li
 	]
 
 
+def creation_followers(
+	specs: Sequence[Any],
+	listed: Callable[[str], bool],
+) -> dict[str | None, tuple[str, ...]]:
+	"""The Voice panel entries without a driver setting, by the driver setting they are made right after.
+
+	specs are the Voice panel's entries in table order; listed(driver_id) tells whether the panel makes
+	a row for that driver setting. Each entry is made right after the row of the nearest earlier entry
+	that has one, so a run of these entries follows, in table order, the listed driver setting before
+	the run. Key None holds the entries no listed driver setting comes before.
+	"""
+	followers: dict[str | None, list[str]] = {}
+	anchor = None
+	for spec in specs:
+		if spec.driver_id is None:
+			followers.setdefault(anchor, []).append(spec.key)
+		elif listed(spec.driver_id):
+			anchor = spec.driver_id
+	return {driver_id: tuple(keys) for driver_id, keys in followers.items()}
+
+
 def pipeline_attribute(spec: Any) -> str:
 	"""The Speech Pipeline panel's attribute for the control: _<key>_<suffix>."""
 	return f"_{spec.key}_{_PIPELINE_SUFFIXES[spec.control]}"

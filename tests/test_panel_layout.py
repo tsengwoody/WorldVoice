@@ -160,6 +160,41 @@ def test_a_control_may_follow_an_earlier_worldvoice_control():
 	assert layout.voice_placements(specs, lambda key: True) == [("a", "d"), ("b", "a")]
 
 
+def test_creation_followers_of_the_table(table):
+	assert layout.creation_followers(voice(table), lambda driver_id: True) == {
+		"nummod": ("group_size",),
+		"punctuationwaitfactor": ("punctuation_pause_characters",),
+	}
+
+
+def test_creation_followers_skip_an_unlisted_driver(table):
+	unlisted = {"nummod", "punctuationwaitfactor"}
+	assert layout.creation_followers(voice(table), lambda driver_id: driver_id not in unlisted) == {
+		"numlan": ("group_size",),
+		"removepunctuationcharacters": ("punctuation_pause_characters",),
+	}
+
+
+def test_creation_followers_chain_in_table_order():
+	specs = [
+		SimpleNamespace(key="d", driver_id="d"),
+		SimpleNamespace(key="a", driver_id=None),
+		SimpleNamespace(key="b", driver_id=None),
+		SimpleNamespace(key="e", driver_id="e"),
+		SimpleNamespace(key="c", driver_id=None),
+	]
+	assert layout.creation_followers(specs, lambda driver_id: True) == {"d": ("a", "b"), "e": ("c",)}
+
+
+def test_creation_followers_without_an_earlier_listed_driver():
+	specs = [
+		SimpleNamespace(key="a", driver_id=None),
+		SimpleNamespace(key="d", driver_id="d"),
+		SimpleNamespace(key="b", driver_id=None),
+	]
+	assert layout.creation_followers(specs, lambda driver_id: False) == {None: ("a", "b")}
+
+
 @pytest.mark.parametrize(
 	("key", "pipeline", "voice_name", "driver"),
 	[
@@ -265,3 +300,28 @@ def test_property_selected_value_is_none_exactly_outside_the_list(size, selectio
 	assert (result is None) is not (0 <= selection < size)
 	if result is not None:
 		assert result == values[selection]
+
+
+@given(specs=tables(), data=st.data())
+def test_property_creation_follows_the_placement_anchor(specs, data):
+	listed = data.draw(st.sets(st.sampled_from([spec.key for spec in specs])))
+	drivers = {spec.driver_id: spec.key for spec in specs if spec.driver_id is not None}
+	followers = layout.creation_followers(specs, lambda driver_id: drivers[driver_id] in listed)
+	# The panel's creation sequence: each listed driver row, then its followers; last the rest.
+	sequence = []
+	for spec in specs:
+		if spec.driver_id is not None and spec.key in listed:
+			sequence += [spec.key, *followers.get(spec.driver_id, ())]
+	sequence += followers.get(None, ())
+	assert sorted(key for keys in followers.values() for key in keys) == sorted(
+		spec.key for spec in specs if spec.driver_id is None
+	)
+	assert len(sequence) == len(set(sequence))
+
+	# A driver entry has a row when listed; WorldVoice makes every entry without a driver setting.
+	driver_keys = set(drivers.values())
+	for key, anchor in layout.voice_placements(specs, lambda key: key not in driver_keys or key in listed):
+		if anchor is None:
+			assert key in followers[None]
+		else:
+			assert sequence[sequence.index(key) - 1] == anchor
