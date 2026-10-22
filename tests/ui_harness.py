@@ -18,6 +18,8 @@ from pipeline_harness import ORDER
 
 PLUGIN_DIR = ADDON / "globalPlugins/WorldVoice"
 NOT_FOUND = -1
+# wx.BOTTOM, the border flag NVDA gives each driver row (settingsDialogs.py:1585-1590).
+BOTTOM = 0x80
 
 
 class Control:
@@ -217,6 +219,12 @@ class SizerItem:
 
 	def GetBorder(self):
 		return self._alive().border
+
+	def SetFlag(self, flag):
+		self._alive().flag = flag
+
+	def SetBorder(self, border):
+		self._alive().border = border
 
 
 class Sizer:
@@ -477,7 +485,7 @@ class VoiceSettingsPanel(SettingsPanel):
 			control.MoveAfterInTabOrder(self.lastControl)
 		self.lastControl = control
 		self.sizerDict[setting.id] = made
-		self.settingsSizer.Insert(len(self.sizerDict) - 1, made)
+		self.settingsSizer.Insert(len(self.sizerDict) - 1, made, border=10, flag=BOTTOM)
 
 	def updateDriverSettings(self, changedSetting=None):
 		# NVDA's version: hide unsupported controls, then update or create the supported ones.
@@ -590,6 +598,7 @@ def fake_wx(stubs):
 		ICON_INFORMATION=0x800,
 		VERTICAL=0x8,
 		EXPAND=0x2000,
+		BOTTOM=BOTTOM,
 		SL_HORIZONTAL=0x4,
 		TE_READONLY=0x10,
 		TE_MULTILINE=0x20,

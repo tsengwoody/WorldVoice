@@ -83,6 +83,8 @@ Changed during implementation (Ruling, 2026-10-22). The pre-pass records, for ea
 
 `voice_placements` would differ in one case: an anchor driver setting that is listed but whose maker fails, so NVDA logs `UnsupportedConfigParameterError` and makes no row. The follower is then created after the previous row, possibly a non-table row such as Inflection, and the layout must follow it there. `voice_placements` is no longer used, so it and its tests are removed.
 
+Row spacing (final review M4, decided by the user 2026-10-22). Each row made here gets the sizer item NVDA gives a driver row: `border=10, flag=wx.BOTTOM` (`settingsDialogs.py:1585-1590`), set on the row's item right after it is made. Before this, a WorldVoice row had no border, so Punctuation pause characters, the last Voice entry, touched NVDA's Automatic language switching checkbox (the same on `master`). `_moveSizer` keeps the border and flag when it moves the row. The Speech Pipeline panel's spacing does not change: the shared `make_control` is untouched. The fake `_createNewControl` now inserts with the same border and flag, and `test_voice_panel_rows_are_spaced_like_nvdas_driver_rows` checks every Voice entry in the four scenarios of section 6.
+
 ### 4.4 Removed
 
 - `createDriverSettings`.

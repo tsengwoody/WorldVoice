@@ -1,4 +1,5 @@
 import addonHandler
+import wx
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
 from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
@@ -162,7 +163,13 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 				# NVDA's next driver control moves after lastControl in Tab order (settingsDialogs.py
 				# :1457-1459), so it stays after this one, as it was made.
 				self.lastControl = control
-				placements.append((control_row(control, spec), previousRow))
+				row = control_row(control, spec)
+				# The 10px bottom border NVDA gives each driver row (settingsDialogs.py:1585-1590), so
+				# the last row does not touch NVDA's own controls; _moveSizer keeps it.
+				item = self.settingsSizer.GetItem(row)
+				item.SetBorder(10)
+				item.SetFlag(wx.BOTTOM)
+				placements.append((row, previousRow))
 			if control is not None:
 				previousRow = control_row(control, spec)
 		return previousRow
