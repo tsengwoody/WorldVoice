@@ -697,6 +697,13 @@ def spoken_between_number_breaks(env, sequence):
 @SHARED_ENV
 @given(data=st.data(), text=NUMBER_TEXT)
 def test_property_the_number_language_changes_no_words_or_breaks(env, data, text):
+	"""P8: the text between number breaks is the same with number language en and default.
+
+	It ignores whitespace and runs with the punctuation pause off, so it does not cover
+	differences there. One predates this branch (master): in value mode the dot rule spaces
+	"There are 5. Next" as "5 . Next" without a number language, but with one the wrapper ends
+	the item at "5" and the dot rule never sees the period (final review M5).
+	"""
 	stage_settings = punctuation_settings(0)
 	stage_settings.punctuation_pause_enabled = False
 	stage_settings.number_mode = data.draw(st.sampled_from(["none", "value", "number", "group"]))
