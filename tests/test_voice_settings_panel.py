@@ -29,7 +29,6 @@ SETTINGS = (
 	NumericDriverSetting("inflection"),
 	BooleanDriverSetting("_private"),
 	DriverSetting("nummod"),
-	NumericDriverSetting("groupwaitfactor"),
 	BooleanDriverSetting("punctuationpauseenabled"),
 	BooleanDriverSetting("removepunctuationcharacters"),
 	NumericDriverSetting("punctuationwaitfactor"),
@@ -56,7 +55,6 @@ class Driver:
 			"inflection": 40,
 			"_private": False,
 			"nummod": "value",
-			"groupwaitfactor": 0,
 			"punctuationpauseenabled": True,
 			"removepunctuationcharacters": False,
 			"punctuationwaitfactor": 20,
@@ -79,7 +77,6 @@ ALL = {
 	"rateBoost",
 	"inflection",
 	"nummod",
-	"groupwaitfactor",
 	"punctuationpauseenabled",
 	"removepunctuationcharacters",
 	"punctuationwaitfactor",
@@ -131,7 +128,6 @@ def test_every_setting_gets_a_control_in_standard_order_and_unsupported_ones_are
 		"rateBoost",
 		"inflection",
 		"nummod",
-		"groupwaitfactor",
 		"punctuationpauseenabled",
 		"removepunctuationcharacters",
 		"punctuationwaitfactor",
@@ -141,7 +137,6 @@ def test_every_setting_gets_a_control_in_standard_order_and_unsupported_ones_are
 		"variant",
 		"rate",
 		"nummod",
-		"groupwaitfactor",
 		"punctuationpauseenabled",
 		"removepunctuationcharacters",
 		"punctuationwaitfactor",
@@ -305,8 +300,8 @@ def test_a_voice_switch_after_a_settings_ring_toggle_matches_the_controls_to_the
 	assert pause_controls_enabled(panel) == (enabled, enabled, enabled)
 
 
-def group_controls_enabled(panel):
-	return (panel.groupSizeSpin.enabled, panel.groupwaitfactorSlider.enabled)
+def group_size_enabled(panel):
+	return panel.groupSizeSpin.enabled
 
 
 @pytest.mark.parametrize(
@@ -315,9 +310,9 @@ def group_controls_enabled(panel):
 )
 def test_group_controls_follow_the_stored_mode_when_the_panel_opens(monkeypatch, mode, enabled):
 	panel = open_panel(monkeypatch, Driver(ALL, nummod=mode)).panel
-	assert group_controls_enabled(panel) == (enabled, enabled)
+	assert group_size_enabled(panel) is enabled
 	# Disabled, not hidden.
-	assert panel.settingsSizer.IsShown(panel.sizerDict["groupwaitfactor"])
+	assert panel.groupSizeSpin in panel.settingsSizer.controls()
 
 
 def test_choosing_a_mode_updates_the_group_controls_and_still_saves_the_setting(monkeypatch):
@@ -327,13 +322,13 @@ def test_choosing_a_mode_updates_the_group_controls_and_still_saves_the_setting(
 
 	choice.Select(3)
 	fire(choice, "EVT_CHOICE")
-	assert group_controls_enabled(panel) == (True, True)
+	assert group_size_enabled(panel) is True
 	# WorldVoice's handler skips the event, so NVDA's own handler still writes the setting.
 	assert driver.nummod == "group"
 
 	choice.Select(1)
 	fire(choice, "EVT_CHOICE")
-	assert group_controls_enabled(panel) == (False, False)
+	assert group_size_enabled(panel) is False
 	assert driver.nummod == "value"
 
 
@@ -348,7 +343,7 @@ def test_a_voice_switch_after_a_settings_ring_mode_change_matches_the_group_cont
 
 	assert panel.nummodList.selection == ["none", "value", "number", "group"].index(mode)
 	enabled = mode == "group"
-	assert group_controls_enabled(panel) == (enabled, enabled)
+	assert group_size_enabled(panel) is enabled
 
 
 def test_a_mode_missing_from_the_list_counts_as_not_group(monkeypatch):
@@ -360,7 +355,7 @@ def test_a_mode_missing_from_the_list_counts_as_not_group(monkeypatch):
 	panel.updateDriverSettings(changedSetting="voice")
 
 	assert panel.nummodList.selection == -1
-	assert group_controls_enabled(panel) == (False, False)
+	assert group_size_enabled(panel) is False
 
 
 OTHER_SETTINGS = (DriverSetting("voice"), NumericDriverSetting("rate"))
@@ -458,7 +453,7 @@ def test_a_rebuild_for_worldvoice_from_worldvoice_places_the_controls_again(monk
 	assert names.index("Punctuation pause characters:") == names.index("punctuationwaitfactor") + 1
 	assert panel.groupSizeSpin is not oldSpin and panel.nummodList is not oldList
 	assert oldSpin.destroyed and not panel.groupSizeSpin.destroyed
-	assert group_controls_enabled(panel) == (False, False)
+	assert group_size_enabled(panel) is False
 	spin = panel.groupSizeSpin
 	assert before(panel.children, spin) is before(panel.tab_order, spin) is panel.nummodList
 
@@ -659,7 +654,7 @@ def test_a_follower_of_a_failed_driver_control_follows_the_row_before(monkeypatc
 	names = order(panel)
 	assert names[names.index("inflection") + 1 : names.index("inflection") + 3] == [
 		"Group size:",
-		"groupwaitfactor",
+		"punctuationpauseenabled",
 	]
 
 

@@ -255,7 +255,6 @@ def pause_settings(number_mode):
 	settings = punctuation_settings(20)
 	settings.number_mode = number_mode
 	settings.scaled_number_wait = lambda: 10
-	settings.scaled_group_wait = lambda: 30
 	settings.group_size = 2
 	return settings
 

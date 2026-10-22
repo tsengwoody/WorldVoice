@@ -38,7 +38,7 @@ def test_translator_comments_precede_gettext_calls():
 	assert misplaced == []
 
 
-GROUP_MODE_MSGIDS = ("group", "Group size", "Group wait factor")
+GROUP_MODE_MSGIDS = ("group", "Group size")
 # Labels that are new or changed with the shared, sentence-case labels (2026-10-21), and the
 # "off" number mode (2026-10-22).
 CHANGED_LABEL_MSGIDS = (
@@ -73,6 +73,7 @@ DEAD_MSGIDS = (
 	"Number Mode",
 	"Ignore comma between number",
 	"Ignore commas between numbers",
+	"Group wait factor",
 	"item wait factor",
 	"apply_speech_dictionaries",
 	"chinese space wait factor",

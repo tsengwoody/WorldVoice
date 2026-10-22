@@ -19,7 +19,6 @@ Q1 = [
 	"number_language",
 	"number_mode",
 	"group_size",
-	"group_wait_factor",
 	"number_wait_factor",
 	"item_wait_factor",
 	"sayall_wait_factor",
@@ -106,7 +105,6 @@ def test_dependent_states_follow_the_number_mode(table, mode):
 	group = mode == "group"
 	assert layout.dependent_states(table, read) == {
 		"group_size": group,
-		"group_wait_factor": group,
 		**dict.fromkeys(PAUSE_DEPENDENTS, True),
 	}
 

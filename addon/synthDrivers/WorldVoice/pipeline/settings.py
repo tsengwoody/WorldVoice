@@ -20,11 +20,6 @@ MAX_PUNCTUATION_WAIT_MS = 500
 # global wait factor is 0.
 PUNCTUATION_WAIT_UNIT_MS = 5
 
-# Group pauses use the same unit scaling as punctuation pauses so that both
-# pause families behave consistently and remain audible regardless of the
-# global wait factor.
-GROUP_WAIT_UNIT_MS = 5
-
 
 def _floor_to_ten(value: Any) -> int:
 	return int(value) // 10 * 10
@@ -171,16 +166,6 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		depends_on=("number_mode", "group"),
 	),
 	PipelineSettingSpec(
-		"group_wait_factor",
-		int,
-		0,
-		driver_id="groupwaitfactor",
-		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-		label=_("Group wait factor"),
-		control="slider",
-		depends_on=("number_mode", "group"),
-	),
-	PipelineSettingSpec(
 		"number_wait_factor",
 		int,
 		10,
@@ -282,7 +267,6 @@ class PipelineSettings:
 	punctuation_pause_enabled: bool
 	remove_punctuation_characters: bool
 	punctuation_pause_characters: str
-	group_wait_factor: int
 	group_size: int
 
 	@property
@@ -307,12 +291,6 @@ class PipelineSettings:
 			MAX_PUNCTUATION_WAIT_MS,
 		)
 
-	def scaled_group_wait(self) -> int:
-		return min(
-			self.group_wait_factor * GROUP_WAIT_UNIT_MS,
-			MAX_PUNCTUATION_WAIT_MS,
-		)
-
 	def effective(self, supports_roles: bool) -> "PipelineSettings":
 		"""The settings a synthesizer actually speaks with.
 
@@ -331,7 +309,6 @@ class PipelineSettings:
 				punctuation_wait_factor=0,
 				punctuation_pause_enabled=False,
 				remove_punctuation_characters=False,
-				group_wait_factor=0,
 			)
 		return self
 

@@ -517,11 +517,6 @@ msgid "Number wait factor"
 msgstr "數字停頓參數"
 
 #. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoice\pipeline\settings.py:123
-msgid "Group wait factor"
-msgstr "群組停頓參數"
-
-#. Translators: Label for a setting in voice settings dialog.
 #: addon\synthDrivers\WorldVoice\__init__.py:208
 #: addon\synthDrivers\WorldVoice\__init__.py:323
 msgid "Say all wait factor"

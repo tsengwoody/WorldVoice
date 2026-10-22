@@ -37,7 +37,6 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		number_mode="group",
 		global_wait_factor=30,
 		number_wait_factor=11,
-		group_wait_factor=12,
 		group_size=4,
 		item_wait_factor=13,
 		sayall_wait_factor=14,
@@ -54,7 +53,6 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		"Global wait factor:",
 		"Number &mode:",
 		"Group size:",
-		"Group wait factor:",
 		"Number wait factor:",
 		"Item wait factor:",
 		"Say all wait factor:",
@@ -71,8 +69,8 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._global_wait_factor_slider.value == 3
 	assert [
 		getattr(panel, f"_{name}_wait_factor_slider").value
-		for name in ("number", "group", "item", "sayall", "chinesespace", "punctuation")
-	] == [11, 12, 13, 14, 15, 16]
+		for name in ("number", "item", "sayall", "chinesespace", "punctuation")
+	] == [11, 13, 14, 15, 16]
 	assert panel._punctuation_pause_enabled_checkbox.value is False
 	assert panel._remove_punctuation_characters_checkbox.value is True
 	assert panel._punctuation_pause_characters_edit.value == "。，"
@@ -90,7 +88,7 @@ def test_pipeline_panel_rows_are_spaced_as_nvda_spaces_them(monkeypatch):
 	# One BoxSizerHelper for the panel: NVDA adds a spacer before every row but the first.
 	env = pipeline_env(monkeypatch)
 	_panel, sizer = build(env, "SpeechPipelinePanel")
-	assert [is_spacer(entry) for entry in sizer.items] == [False, *[True, False] * 12]
+	assert [is_spacer(entry) for entry in sizer.items] == [False, *[True, False] * 11]
 
 
 def test_pipeline_panel_shows_an_unknown_stored_value_as_its_normal_form(monkeypatch):
@@ -124,8 +122,8 @@ def test_number_modes_match_the_driver_and_the_panel(monkeypatch):
 	assert panel._number_mode_choice.choices == [label for _value, label in spec.choices]
 
 
-def group_controls_enabled(panel):
-	return (panel._group_size_spin.enabled, panel._group_wait_factor_slider.enabled)
+def group_size_enabled(panel):
+	return panel._group_size_spin.enabled
 
 
 @pytest.mark.parametrize(
@@ -135,7 +133,7 @@ def group_controls_enabled(panel):
 def test_pipeline_panel_enables_group_controls_for_the_stored_mode(monkeypatch, mode, enabled):
 	env = pipeline_env(monkeypatch, number_mode=mode)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
-	assert group_controls_enabled(panel) == (enabled, enabled)
+	assert group_size_enabled(panel) is enabled
 
 
 def test_pipeline_panel_group_controls_follow_the_mode_choice(monkeypatch):
@@ -145,11 +143,11 @@ def test_pipeline_panel_group_controls_follow_the_mode_choice(monkeypatch):
 
 	choice.Select(3)
 	fire(choice, "EVT_CHOICE", panel=panel)
-	assert group_controls_enabled(panel) == (True, True)
+	assert group_size_enabled(panel) is True
 
 	choice.Select(1)
 	fire(choice, "EVT_CHOICE", panel=panel)
-	assert group_controls_enabled(panel) == (False, False)
+	assert group_size_enabled(panel) is False
 
 
 def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
@@ -158,7 +156,7 @@ def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._number_mode_choice.Select(-1)
 	fire(panel._number_mode_choice, "EVT_CHOICE", panel=panel)
-	assert group_controls_enabled(panel) == (False, False)
+	assert group_size_enabled(panel) is False
 
 
 @pytest.mark.parametrize("stored", ["none", "value", "number", "group"])
@@ -253,16 +251,14 @@ def test_pipeline_panel_saves_an_out_of_range_group_size_clamped(monkeypatch, ty
 	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == saved
 
 
-def test_pipeline_panel_saves_the_disabled_group_controls(monkeypatch):
+def test_pipeline_panel_saves_the_disabled_group_size(monkeypatch):
 	env = pipeline_env(monkeypatch, number_mode="value")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._group_size_spin.SetValue(7)
-	panel._group_wait_factor_slider.SetValue(30)
 
 	panel.onSave()
 
-	stored = env.conf["WorldVoice"]["pipeline"]
-	assert (stored["group_size"], stored["group_wait_factor"]) == (7, 30)
+	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 7
 
 
 @pytest.mark.parametrize(("stored", "shown"), [(0, 1), (12, 10), ("4", 4)])
@@ -329,7 +325,6 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	panel._scope_choice.Select(0)
 	panel._number_mode_choice.Select(2)
 	panel._global_wait_factor_slider.SetValue(7)
-	panel._group_wait_factor_slider.SetValue(40)
 	panel._group_size_spin.SetValue(6)
 	panel._punctuation_pause_enabled_checkbox.SetValue(False)
 	panel._punctuation_pause_characters_edit.SetValue(" ;: ")
@@ -340,7 +335,6 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	assert stored["scope"] == "all"
 	assert stored["number_mode"] == "number"
 	assert stored["global_wait_factor"] == 70
-	assert stored["group_wait_factor"] == 40
 	assert stored["group_size"] == 6
 	assert stored["punctuation_pause_enabled"] is False
 	assert stored["punctuation_pause_characters"] == ";:"

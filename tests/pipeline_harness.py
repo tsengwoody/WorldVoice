@@ -135,7 +135,6 @@ def punctuation_settings(wait_factor, remove_characters=False):
 		scaled_number_wait=lambda: 0,
 		scaled_chinesespace_wait=lambda: 0,
 		scaled_punctuation_wait=lambda: wait_factor,
-		scaled_group_wait=lambda: 0,
 		group_size=3,
 	)
 

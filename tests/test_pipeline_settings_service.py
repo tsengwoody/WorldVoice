@@ -17,7 +17,6 @@ OLD_DEFAULTS = {
 	"punctuation_pause_enabled": True,
 	"remove_punctuation_characters": False,
 	"punctuation_pause_characters": "",
-	"group_wait_factor": 0,
 	"group_size": 3,
 }
 
@@ -37,7 +36,6 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 		"globalwaitfactor",
 		"numlan",
 		"nummod",
-		"groupwaitfactor",
 		"numberwaitfactor",
 		"itemwaitfactor",
 		"sayallwaitfactor",
@@ -61,6 +59,16 @@ def test_number_mode_choices_put_off_first(monkeypatch):
 	assert module.PIPELINE_SETTING_BY_KEY["number_mode"].default == "value"
 
 
+def test_group_wait_setting_is_gone(monkeypatch):
+	# Decided by the user (2026-10-22): groups and symbols are separated by the number wait; no migration.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert "group_wait_factor" not in module.PIPELINE_CONFIG_KEYS
+	assert "group_wait_factor" not in {field.name for field in fields(module.PipelineSettings)}
+	assert "groupwaitfactor" not in {spec.driver_id for spec in module.PIPELINE_SETTINGS}
+	assert not hasattr(module.PipelineSettings, "scaled_group_wait")
+	assert not hasattr(module, "GROUP_WAIT_UNIT_MS")
+
+
 def test_ignore_comma_option_is_gone(monkeypatch):
 	# Decided by the user (2026-10-22): value mode removes thousands separators instead; no migration.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
@@ -78,7 +86,6 @@ def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
 		"number_language",
 		"number_mode",
 		"group_size",
-		"group_wait_factor",
 		"number_wait_factor",
 		"item_wait_factor",
 		"sayall_wait_factor",
@@ -138,13 +145,11 @@ def test_convert_clamps_ints_to_their_bounds(monkeypatch, key, raw, expected):
 	assert module.PIPELINE_SETTING_BY_KEY[key].convert(raw) == expected
 
 
-def test_group_settings_replace_the_pair_wait_and_add_the_size(monkeypatch):
+def test_group_settings_add_the_size_without_a_wait(monkeypatch):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	assert module.PIPELINE_CONFSPEC["group_size"] == "integer(default=3,min=1,max=10)"
-	assert module.PIPELINE_CONFSPEC["group_wait_factor"] == "integer(default=0,min=0,max=100)"
 	assert "pair_wait_factor" not in module.PIPELINE_CONFSPEC
 	assert module.PIPELINE_SETTING_BY_KEY["group_size"].driver_id is None
-	assert module.PIPELINE_SETTING_BY_KEY["group_wait_factor"].label == "Group wait factor"
 	assert module.PIPELINE_CONFIG_KEYS[-1] == "punctuation_pause_characters"
 
 
@@ -256,7 +261,6 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 			**OLD_DEFAULTS,
 			"remove_punctuation_characters": True,
 			"punctuation_wait_factor": 30,
-			"group_wait_factor": 20,
 			"group_size": 5,
 			"global_wait_factor": 0,
 		},
@@ -271,7 +275,6 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		scoped.punctuation_wait_factor,
 		scoped.punctuation_pause_enabled,
 		scoped.remove_punctuation_characters,
-		scoped.group_wait_factor,
 		scoped.group_size,
 	) == (
 		0,
@@ -281,7 +284,6 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		0,
 		False,
 		False,
-		0,
 		5,
 	)
 	# Scope "all": other synthesizers get the settings as stored, whatever the global wait (V6).
@@ -308,9 +310,6 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		({"global_wait_factor": 0, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 150),
 		({"punctuation_wait_factor": 100}, "scaled_punctuation_wait", 500),
 		({"punctuation_wait_factor": 101}, "scaled_punctuation_wait", 500),
-		({"group_wait_factor": 20}, "scaled_group_wait", 100),
-		({"global_wait_factor": 0, "group_wait_factor": 20}, "scaled_group_wait", 100),
-		({"group_wait_factor": 200}, "scaled_group_wait", 500),
 	],
 )
 def test_scaled_waits_follow_their_units_and_caps(monkeypatch, changes, method, expected):

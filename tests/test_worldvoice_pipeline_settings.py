@@ -29,7 +29,6 @@ EXPECTED_IDS = [
 	"globalwaitfactor",
 	"numlan",
 	"nummod",
-	"groupwaitfactor",
 	"numberwaitfactor",
 	"itemwaitfactor",
 	"sayallwaitfactor",
