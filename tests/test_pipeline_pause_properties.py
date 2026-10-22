@@ -452,11 +452,15 @@ def test_property_the_split_keeps_the_text_and_replaces_only_whitespace(env, tex
 
 @SHARED_ENV
 @given(text=NUMBER_TEXT)
-def test_property_no_break_replaces_a_gap_with_a_no_break_space(env, text):
-	# A no-break space groups digits, as in "10 000", so it never joins two numbers (decided by the user).
+def test_property_every_whitespace_gap_between_numbers_gets_one_break(env, text):
+	# Decided by the user (2026-10-22): any whitespace, a no-break space included, pairs two numbers.
 	result, stripped = split_once(env, text)
-	for gap in walk(result, stripped).values():
-		assert not any(space in gap for space in NO_BREAK_SPACES), (text, result)
+	matches = list(env.module._NUMBER_RE.finditer(stripped))
+	gaps = [stripped[left.end() : right.start()] for left, right in pairwise(matches)]
+	assert sum(not isinstance(item, str) for item in result) == sum(gap.isspace() for gap in gaps), (
+		text,
+		result,
+	)
 
 
 @SHARED_ENV
@@ -469,7 +473,7 @@ def test_property_no_text_item_keeps_two_numbers_apart_by_whitespace(env, text):
 		matches = list(env.module._NUMBER_RE.finditer(item))
 		for left, right in pairwise(matches):
 			gap = item[left.end() : right.start()]
-			assert not gap.isspace() or any(space in gap for space in NO_BREAK_SPACES), (item, gap)
+			assert not gap.isspace(), (item, gap)
 
 
 @SHARED_ENV

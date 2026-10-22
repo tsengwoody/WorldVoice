@@ -45,8 +45,6 @@ _NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(_SYMBOLS)}]+[
 # "a,1,234", from losing the commas of a valid part.
 _THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
 _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
-# No-break spaces group the digits of one number, as in "10 000", so they never join two numbers.
-_NO_BREAK_SPACES = frozenset("\u00a0\u202f\u2007")
 
 _SENTENCE_END_RE = re.compile(r"^[.:;,?!](?:\s|$)")
 
@@ -246,11 +244,6 @@ def _remove_space(
 			yield cmd
 
 
-def _is_splittable_gap(gap: str) -> bool:
-	"""Whitespace with no no-break space in it: space, tab, newline or U+3000, never U+00A0, U+202F or U+2007."""
-	return gap.isspace() and _NO_BREAK_SPACES.isdisjoint(gap)
-
-
 def _split_spaced_numbers(text: str) -> Iterator[str]:
 	"""
 	Yield *text* with every number that only whitespace separates from a
@@ -259,13 +252,13 @@ def _split_spaced_numbers(text: str) -> Iterator[str]:
 	Everything else is kept verbatim, spaces included, and no empty piece is
 	yielded. Two matches never touch (a match ends with a digit and the next
 	one cannot start right after it), so a pause can only replace whitespace.
-	A gap that holds a no-break space (U+00A0, U+202F, U+2007) never joins
-	two numbers, so "10 000" written with one stays whole.
+	Any whitespace pairs two numbers, a no-break space included (decided by
+	the user, 2026-10-22), so "10 000" written with one is two numbers.
 	"""
 	matches = list(_NUMBER_RE.finditer(text))
 	gaps = [text[left.end() : right.start()] for left, right in pairwise(matches)]
 	# joined[i] is True when matches i - 1 and i are split apart; the ends are never joined.
-	joined = [False, *(_is_splittable_gap(gap) for gap in gaps), False]
+	joined = [False, *(gap.isspace() for gap in gaps), False]
 	position = 0
 	for index, match in enumerate(matches):
 		if not (joined[index] or joined[index + 1]):

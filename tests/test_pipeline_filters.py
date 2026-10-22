@@ -164,14 +164,15 @@ SPLITS = [
 	("12\u300034", ["12", B40, "34"]),
 	("1\t2", ["1", B40, "2"]),
 	("1\n2", ["1", B40, "2"]),
-	# A no-break space never joins two numbers: it groups digits, as in "10 000" (decided by the user).
-	("1\u00a02", ["1\u00a02"]),
-	("10\u00a0000", ["10\u00a0000"]),
-	("1\u202f234\u202f567", ["1\u202f234\u202f567"]),
-	("1\u20072", ["1\u20072"]),
-	("1 \u00a02", ["1 \u00a02"]),
-	("10\u00a0000 5", ["10\u00a0", "000", B40, "5"]),
-	("2 10\u00a0000", ["2", B40, "10", "\u00a0000"]),
+	# Decided by the user (2026-10-22): a no-break space is ordinary whitespace for the split, so
+	# "10 000" written with one is two numbers with a pause between them.
+	("1\u00a02", ["1", B40, "2"]),
+	("10\u00a0000", ["10", B40, "000"]),
+	("1\u202f234\u202f567", ["1", B40, "234", B40, "567"]),
+	("1\u20072", ["1", B40, "2"]),
+	("1 \u00a02", ["1", B40, "2"]),
+	("10\u00a0000 5", ["10", B40, "000", B40, "5"]),
+	("2 10\u00a0000", ["2", B40, "10", B40, "000"]),
 	("1-2", ["1-2"]),
 	("12abc 3", ["12abc 3"]),
 	# One number definition: a match never touches another, so every whitespace gap splits.
