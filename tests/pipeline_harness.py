@@ -61,6 +61,7 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice.pipeline.context",
 		"synthDrivers.WorldVoice.pipeline.scope",
 		"synthDrivers.WorldVoice.pipeline.numbers",
+		"synthDrivers.WorldVoice.pipeline.symbols",
 	]:
 		sys.modules.pop(name, None)
 

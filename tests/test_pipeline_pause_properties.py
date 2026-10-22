@@ -439,14 +439,14 @@ def test_property_every_symbol_is_its_own_item_when_some_have_no_name(env, data,
 	# start with the number's sign.
 	unnamed = data.draw(st.sets(st.sampled_from(env.module.numbers.SYMBOLS)))
 	symbols = symbol_of_name(env)
-	lookup = env.module.characterProcessing.processSpeechSymbol
-	env.module.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
+	lookup = env.module.symbols.characterProcessing.processSpeechSymbol
+	env.module.symbols.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
 		symbol if symbol in unnamed else symbol_name(locale, symbol)
 	)
 	try:
 		result = run_number_mode(env, text, *mode_size)
 	finally:
-		env.module.characterProcessing.processSpeechSymbol = lookup
+		env.module.symbols.characterProcessing.processSpeechSymbol = lookup
 	is_break = lambda item: isinstance(item, env.module.NumberBreakCommand)
 	for index, item in enumerate(result):
 		if is_break(item):
@@ -651,8 +651,8 @@ def test_property_number_breaks_never_touch_another_break(env, data):
 	stage_settings.scaled_number_wait = lambda: number_wait
 	stage_settings.scaled_item_wait = lambda: item_wait
 	module, context = env.module, env.module.GENERIC_CONTEXT
-	lookup = module.characterProcessing.processSpeechSymbol
-	module.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
+	lookup = module.symbols.characterProcessing.processSpeechSymbol
+	module.symbols.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
 		symbol if symbol == "/" else symbol_name(locale, symbol)
 	)
 	result = sequence
@@ -667,7 +667,7 @@ def test_property_number_breaks_never_touch_another_break(env, data):
 		):
 			result = list(stage(result, stage_settings, context))
 	finally:
-		module.characterProcessing.processSpeechSymbol = lookup
+		module.symbols.characterProcessing.processSpeechSymbol = lookup
 
 	for before, after in pairwise(result):
 		if isinstance(before, module.NumberBreakCommand) or isinstance(after, module.NumberBreakCommand):

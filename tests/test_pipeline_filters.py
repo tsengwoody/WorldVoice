@@ -509,7 +509,7 @@ def test_symbol_names_follow_the_voice_locale(env, monkeypatch):
 	# Decided by the user (2026-10-22): the locale of the voice for the number language, or for
 	# the language in force, wins over NVDA's interface language.
 	env.settings.number_mode = "number"
-	monkeypatch.setattr(env.module.speech, "getCurrentLanguage", lambda: "en")
+	monkeypatch.setattr(env.module.symbols.speech, "getCurrentLanguage", lambda: "en")
 	ctx = replace(roles_context(env.module, "zh", "en"), voice_locale_for_language={"en": "zh-TW"}.get)
 	assert names_in(env.module.inject_number_mode(["2×3"], env.settings, ctx)) == [N("×", "zh_TW")]
 	ctx = replace(roles_context(env.module, "zh", "default"), voice_locale_for_language={"zh": "zh_CN"}.get)
@@ -524,7 +524,7 @@ def test_symbol_names_without_roles_ignore_the_number_language(env):
 
 def test_symbol_names_without_a_language_use_nvdas_current_language(env, monkeypatch):
 	env.settings.number_mode = "number"
-	monkeypatch.setattr(env.module.speech, "getCurrentLanguage", lambda: "de")
+	monkeypatch.setattr(env.module.symbols.speech, "getCurrentLanguage", lambda: "de")
 	result = env.module.inject_number_mode(["2×3"], env.settings, env.module.GENERIC_CONTEXT)
 	assert names_in(result) == [N("×", "de")]
 
@@ -537,7 +537,7 @@ def counting_lookup(env, monkeypatch, unnamed=""):
 		calls.append(symbol)
 		return symbol if symbol in unnamed else symbol_name(locale, symbol)
 
-	monkeypatch.setattr(env.module.characterProcessing, "processSpeechSymbol", lookup)
+	monkeypatch.setattr(env.module.symbols.characterProcessing, "processSpeechSymbol", lookup)
 	return calls
 
 
@@ -608,7 +608,11 @@ def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
 	# Review Focus 3: an IP list or a version string must not cost one NVDA lookup per symbol.
 	calls = counting_lookup(env, monkeypatch)
 	languages = []
-	monkeypatch.setattr(env.module.speech, "getCurrentLanguage", lambda: languages.append("en") or "en")
+	monkeypatch.setattr(
+		env.module.symbols.speech,
+		"getCurrentLanguage",
+		lambda: languages.append("en") or "en",
+	)
 	env.settings.number_mode = "number"
 	start = time.perf_counter()
 	result = list(

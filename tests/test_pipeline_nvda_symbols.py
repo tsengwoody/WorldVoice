@@ -23,11 +23,11 @@ NUMBER_SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.catego
 @pytest.fixture
 def module(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	return module
+	return module.symbols
 
 
 def test_symbol_name_is_the_lookups_name(module):
-	assert module._symbol_name("en", "×") == "multiplication sign en"
+	assert module.symbol_name("en", "×") == "multiplication sign en"
 
 
 def _raise_lookup_error(locale, symbol):
@@ -46,7 +46,7 @@ def _raise_lookup_error(locale, symbol):
 )
 def test_symbol_name_is_none_without_a_name(module, monkeypatch, lookup):
 	monkeypatch.setattr(module.characterProcessing, "processSpeechSymbol", lookup)
-	assert module._symbol_name("en", ".") is None
+	assert module.symbol_name("en", ".") is None
 
 
 @pytest.mark.parametrize(
@@ -64,7 +64,7 @@ def test_symbol_name_is_none_without_a_name(module, monkeypatch, lookup):
 )
 def test_symbol_locale(module, monkeypatch, current, language, expected):
 	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: current)
-	assert module._symbol_locale(language) == expected
+	assert module.symbol_locale(language) == expected
 
 
 @pytest.mark.parametrize(
@@ -85,7 +85,7 @@ def test_symbol_locale(module, monkeypatch, current, language, expected):
 	],
 )
 def test_has_symbol_table_matches_nvdas_locale_dir(module, locale, expected):
-	assert module._has_symbol_table(locale) is expected
+	assert module.has_symbol_table(locale) is expected
 
 
 @pytest.mark.parametrize(
@@ -116,7 +116,7 @@ def test_symbol_locale_prefers_the_voice_locale_with_a_table(
 	expected,
 ):
 	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: current)
-	assert module._symbol_locale(language, voice) == expected
+	assert module.symbol_locale(language, voice) == expected
 
 
 def test_namer_asks_each_language_once_per_run(module):
@@ -127,18 +127,18 @@ def test_namer_asks_each_language_once_per_run(module):
 		asked.append(language)
 		return "zh_TW"
 
-	namer = module._symbol_namer(voice_locale)
+	namer = module.symbol_namer(voice_locale)
 	for language, symbol in [("zh", "×"), ("zh", "."), ("en", "×"), ("zh", "×")]:
 		namer(language)(symbol)
 	assert asked == ["zh", "en"]
 	namer(None)("×")
 	assert asked == ["zh", "en"]
-	module._symbol_namer(voice_locale)("zh")("×")
+	module.symbol_namer(voice_locale)("zh")("×")
 	assert asked == ["zh", "en", "zh"]
 
 
 def test_nvda_builtin_symbols_live_in_appdir_locale():
-	# _has_symbol_table looks where NVDA's mandatory built-in dictionary is.
+	# has_symbol_table looks where NVDA's mandatory built-in dictionary is.
 	if not CHARACTER_PROCESSING.is_file():
 		pytest.skip("ref/nvda is not checked out")
 	tree = ast.parse(CHARACTER_PROCESSING.read_text(encoding="utf-8"))
@@ -227,7 +227,7 @@ def test_every_number_symbol_has_a_name(monkeypatch, tmp_path, locale):
 def test_pipeline_names_symbols_with_nvdas_real_lookup(module, monkeypatch, tmp_path):
 	monkeypatch.setattr(module, "characterProcessing", load_nvda_character_processing(monkeypatch, tmp_path))
 	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: "zh_TW")
-	assert module._symbol_name(module._symbol_locale("zh"), "×") == "乘以"
+	assert module.symbol_name(module.symbol_locale("zh"), "×") == "乘以"
 
 
 # ASCII ids: an id pytest escaped from "乘以" could not be selected on the command line, which mutmut does.
@@ -244,4 +244,4 @@ def test_pipeline_names_symbols_from_the_voice_locale_with_nvdas_real_lookup(
 	# fallback from "zh" ends in English.
 	monkeypatch.setattr(module, "characterProcessing", load_nvda_character_processing(monkeypatch, tmp_path))
 	monkeypatch.setattr(module.speech, "getCurrentLanguage", lambda: "en")
-	assert module._symbol_name(module._symbol_locale("zh", voice), "×") == name
+	assert module.symbol_name(module.symbol_locale("zh", voice), "×") == name
