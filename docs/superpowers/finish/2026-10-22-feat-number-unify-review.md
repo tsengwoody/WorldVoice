@@ -153,3 +153,18 @@ spec 11.5 的 M1–M10 全部仍待 Windows 驗證；Linux 上只驗證了 pipel
 - M1／M2：六個引擎對名稱（`dot`、`dash`、`乘以`、`度`）的實際發音，以及符號等級 none／some／all 下名稱是否都被唸出。
 - M7：舊設定檔（`group_size = 1`、`group_wait_factor = 40`、`ignore_comma_between_number = True`）載入後 WorldVoice 正常啟動、面板顯示 2、沒有已移除的控制項。
 - M10：NVDA 介面英文、數字語言 zh 時聽到的名稱語言（本審 M3）。
+
+## 修正記錄
+
+修正者：Opus 5.5，2026-10-22，分支 `feat/number-unify`（`dc003e8` 之後）。每個 commit 前都跑過完整驗證：`python3 -m pytest -q tests`（單一行程、記憶體監控）、`prek run --all-files`、`git diff --check master`、受保護路徑兩個指令、zh_TW `msgfmt --check`。
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| M1 | spec 8 改成「NVDA 的 en 與 zh_TW 表裡，沒有名稱含 SYM 字元」；`test_every_number_symbol_has_a_name` 用 NVDA 真正的表斷言 en、zh_TW 的名稱都不含 SYM 字元（暫時加入 fr 時確認會失敗）。fr 的撇號名稱、`'` 列為停頓字元且開啟移除時名稱可能被切開，記為已知限制，不改程式。 | `2c4f5c1` |
+| M2 | `inject_punctuation_pause`：移除讓一個非空白項目整個消失、而且自上一段非空白文字以來最後送出的 break 是 NB、下一個 break 也是 NB 時，丟掉後面那個 NB，保留前面的。語言命令與空白文字不算出聲。`"12.5"` 群組 3、`.` 無名稱、移除開啟 → `12` NB `5`。只處理 NB：先做的「所有 break 都適用」版本會違反前一功能 spec 的「移除只改標點」性質（`test_property_removal_changes_only_the_marks` 等兩個性質失敗），所以其他 break 維持原狀。已知限制：其他合成器（scope「all」）每個 stage 都把 NB 換成一般 break，標點階段分不出來，仍是 `12` break break `5`；已在測試與 spec 6.4.1 記錄。新增 10 個標點階段單元案例；mutmut 對 `inject_punctuation_pause`：119 個突變，110 killed，9 survived，全部等價（`default=-1` 的三種改法、`kind == "text"` 的兩種改法、`emit(previous, False, False)` 的 `None`、新程式的 `last_break = ""` 兩處）。 | `adc482b` |
+| M3 | 不修。這是 `_symbol_locale` Ruling 已記錄的代價，手動項目 M10 會在 Windows 上確認；便宜的改法要讓 `SpeechContext` 多帶一個回呼，屬於下一輪工作。 | 延後 |
+| M4 | zh_HK readme 比照 zh_TW，只處理已移除的選項：全域清單拿掉「忽略在數字間的逗號」，刪掉它的說明 bullet。zh_HK readme 本來就沒有群組模式與群組停頓的行；新功能留給譯者。 | `3f5d5c2` |
+| M5 | P8 加 docstring：忽略空白、標點停頓關閉，所以 master 既有的 dot rule 差異（有無數字語言時 `"There are 5. Next"` 的空白不同）不在範圍內。 | `f6829af` |
+| M6 | `test_an_unnamed_symbol_is_left_to_the_punctuation_stage` 改為斷言確切結果：WorldVoice 移除關 → `12` NB `.` NB `5`、移除開 → `12` NB `5`；其他合成器移除關 → `12` B `.` B `5`、移除開 → `12` B B `5`（已知限制）。P10 的字母表加入無名稱的 `/`，標點字元 `.,/`，移除開關隨機。 | `adc482b` |
+
+最終驗證：2254 passed、0 skipped（基準 2241，加 13 個新案例）、2 個既有 warning；prek 8 個 hook 全數 Passed；`git diff --check master` 無輸出；受保護路徑兩個指令都無輸出；`msgfmt --check` rc=0。Windows 上的 NVDA、實際音訊與引擎仍未驗證。
