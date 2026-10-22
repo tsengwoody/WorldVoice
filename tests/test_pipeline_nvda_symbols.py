@@ -148,8 +148,11 @@ def test_symbol_tables_are_probed_once_per_locale(module, monkeypatch):
 	for _ in range(3):
 		namer = module.symbol_namer({"zh": "zh-TW", "en": "en-US"}.get)
 		assert (namer("zh")("×"), namer("en")("×")) == ("multiplication sign zh tw", "multiplication sign en")
+	# isfile is os's own, so it is patched for everyone; only the probes of NVDA's locale directory
+	# count.
 	app_dir = Path(module.globalVars.appDir)
-	assert sorted(Path(path).relative_to(app_dir).as_posix() for path in probes) == [
+	tables = [Path(path) for path in probes if Path(path).is_relative_to(app_dir)]
+	assert sorted(path.relative_to(app_dir).as_posix() for path in tables) == [
 		"locale/en_US/symbols.dic",
 		"locale/zh_TW/symbols.dic",
 	]
