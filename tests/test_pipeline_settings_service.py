@@ -59,6 +59,17 @@ def test_number_mode_choices_put_off_first(monkeypatch):
 	assert module.PIPELINE_SETTING_BY_KEY["number_mode"].default == "value"
 
 
+def test_group_size_confspec_keeps_the_stored_minimum(monkeypatch):
+	# NVDA validates a stored value against the confspec on read; a stored 1 must still load, then
+	# read as 2 (spec 6.7, F6).
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	spec = module.PIPELINE_SETTING_BY_KEY["group_size"]
+	assert (spec.min_value, spec.max_value, spec.default, spec.stored_min_value) == (2, 10, 3, 1)
+	assert module.PIPELINE_CONFSPEC["group_size"] == "integer(default=3,min=1,max=10)"
+	stored = module.ConfigPipelineRepository(lambda: {"WorldVoice": {"pipeline": {"group_size": 1}}})
+	assert module.PipelineSettingsService(stored).get().group_size == 2
+
+
 def test_group_wait_setting_is_gone(monkeypatch):
 	# Decided by the user (2026-10-22): groups and symbols are separated by the number wait; no migration.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
@@ -133,8 +144,10 @@ def test_int_confspec_carries_the_spec_bounds(monkeypatch):
 		("global_wait_factor", "57", 50),
 		("global_wait_factor", 150, 100),
 		("global_wait_factor", -5, 0),
-		("group_size", 0, 1),
-		("group_size", -5, 1),
+		# Group sizes start at 2: "number" is the digit-by-digit mode (Q7).
+		("group_size", 0, 2),
+		("group_size", -5, 2),
+		("group_size", 1, 2),
 		("group_size", 11, 10),
 		("group_size", 99, 10),
 		("group_size", "7", 7),

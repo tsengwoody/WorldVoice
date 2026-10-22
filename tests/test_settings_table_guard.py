@@ -158,6 +158,13 @@ def check_bounds(specs):
 			problems.append(
 				f"{spec.key}: the default {spec.default} is outside {spec.min_value}..{spec.max_value}",
 			)
+		if spec.stored_min_value is not None and spec.stored_min_value >= spec.min_value:
+			problems.append(
+				f"{spec.key}: stored_min_value {spec.stored_min_value} is not below min_value {spec.min_value}",
+			)
+	for spec in specs:
+		if spec.kind is not int and spec.stored_min_value is not None:
+			problems.append(f"{spec.key}: stored_min_value is set on a {spec.kind.__name__} setting")
 	return problems
 
 
@@ -330,6 +337,11 @@ BROKEN = {
 	"default below the bounds": (check_bounds, lambda m: _with(m, "group_size", default=0)),
 	"max below min": (check_bounds, lambda m: _with(m, "number_wait_factor", min_value=50, max_value=10)),
 	"empty range": (check_bounds, lambda m: _with(m, "group_size", min_value=3, max_value=3, default=3)),
+	"stored minimum not below the minimum": (
+		check_bounds,
+		lambda m: _with(m, "group_size", stored_min_value=2),
+	),
+	"stored minimum on a non-int": (check_bounds, lambda m: _with(m, "scope", stored_min_value=0)),
 	"first voice entry without a row": (check_voice_anchor, lambda m: _first(m, "group_size")),
 	"capital inside a label": (check_sentence_case, lambda m: _with(m, "number_mode", label="Number &Mode")),
 	"lower-case ring name": (

@@ -241,7 +241,7 @@ def test_group_size_follows_the_number_mode_list(monkeypatch):
 	names = order(panel)
 	assert names.index("Group size:") == names.index("nummod") + 1
 	assert before(panel.children, spin) is before(panel.tab_order, spin) is panel.nummodList
-	assert (spin.label, spin.GetValue(), spin.GetMin(), spin.GetMax()) == ("Group size:", 5, 1, 10)
+	assert (spin.label, spin.GetValue(), spin.GetMin(), spin.GetMax()) == ("Group size:", 5, 2, 10)
 
 
 def pause_controls_enabled(panel):

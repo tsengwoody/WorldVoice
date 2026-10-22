@@ -75,7 +75,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._remove_punctuation_characters_checkbox.value is True
 	assert panel._punctuation_pause_characters_edit.value == "。，"
 	spin = panel._group_size_spin
-	assert (spin.GetValue(), spin.GetMin(), spin.GetMax()) == (4, 1, 10)
+	assert (spin.GetValue(), spin.GetMin(), spin.GetMax()) == (4, 2, 10)
 	# NVDA's select-on-focus spin control, as its own Voice panel uses, not a plain wx.SpinCtrl.
 	assert type(spin) is env.gui.nvdaControls.SelectOnFocusSpinCtrl is not env.wx.SpinCtrl
 
@@ -240,7 +240,7 @@ def test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid(monk
 	assert env.conf["WorldVoice"]["pipeline"]["global_wait_factor"] == 57
 
 
-@pytest.mark.parametrize(("typed", "saved"), [(0, 1), (42, 10)])
+@pytest.mark.parametrize(("typed", "saved"), [(0, 2), (42, 10)])
 def test_pipeline_panel_saves_an_out_of_range_group_size_clamped(monkeypatch, typed, saved):
 	env = pipeline_env(monkeypatch)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
@@ -261,7 +261,7 @@ def test_pipeline_panel_saves_the_disabled_group_size(monkeypatch):
 	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 7
 
 
-@pytest.mark.parametrize(("stored", "shown"), [(0, 1), (12, 10), ("4", 4)])
+@pytest.mark.parametrize(("stored", "shown"), [(0, 2), (1, 2), (12, 10), ("4", 4)])
 def test_pipeline_panel_shows_an_out_of_range_stored_size_within_the_spin_range(monkeypatch, stored, shown):
 	env = pipeline_env(monkeypatch, group_size=stored)
 	panel, _sizer = build(env, "SpeechPipelinePanel")

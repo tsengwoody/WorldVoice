@@ -74,6 +74,9 @@ class PipelineSettingSpec:
 	# Bounds of an int setting: its confspec range, and the clamp convert applies.
 	min_value: int = 0
 	max_value: int = 100
+	# The confspec's lower bound when an older range stored smaller values; convert raises them.
+	# NVDA validates stored values against the confspec on read, so it must still accept them.
+	stored_min_value: int | None = None
 	# The panel control: "checkbox", "slider", "choice", "spin" or "text".
 	control: str | None = None
 	# (stored value, label) pairs of a choice, in display order; None when the driver supplies them.
@@ -98,7 +101,8 @@ class PipelineSettingSpec:
 		if self.kind is bool:
 			return f"boolean(default={str(self.default).lower()})"
 		if self.kind is int:
-			return f"integer(default={self.default},min={self.min_value},max={self.max_value})"
+			low = self.min_value if self.stored_min_value is None else self.stored_min_value
+			return f"integer(default={self.default},min={low},max={self.max_value})"
 		return f'string(default="{self.default}")'
 
 
@@ -160,8 +164,10 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		3,
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Group size"),
-		min_value=1,
+		# "number" is the digit-by-digit mode; a size of 1 stored by an older version reads as 2.
+		min_value=2,
 		max_value=10,
+		stored_min_value=1,
 		control="spin",
 		depends_on=("number_mode", "group"),
 	),

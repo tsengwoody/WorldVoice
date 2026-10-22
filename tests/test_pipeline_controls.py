@@ -65,7 +65,7 @@ def test_a_spin_uses_nvdas_select_on_focus_control(monkeypatch):
 	_env, _spec, _sizer, control = build(monkeypatch, "group_size", 4)
 	assert type(control) is SelectOnFocusSpinCtrl
 	assert control.label == "Group size:"
-	assert (control.GetValue(), control.GetMin(), control.GetMax()) == (4, 1, 10)
+	assert (control.GetValue(), control.GetMin(), control.GetMax()) == (4, 2, 10)
 
 
 def test_a_text_edit_holds_the_value(monkeypatch):
