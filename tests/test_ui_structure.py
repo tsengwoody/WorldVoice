@@ -26,9 +26,10 @@ def method(path, cls, name):
 
 
 def test_ui_uses_only_public_driver_hooks():
-	for path in (ADDON / "globalPlugins/WorldVoice").glob("*.py"):
+	# rglob: a subpackage of the global plugin is settings UI too.
+	for path in (ADDON / "globalPlugins/WorldVoice").rglob("*.py"):
 		source = path.read_text(encoding="utf-8")
-		assert "._voiceManager" not in source and ".uwv =" not in source, path.name
+		assert "._voiceManager" not in source and ".uwv =" not in source, str(path.relative_to(ADDON))
 
 
 def _role_panel_on_save(synth, log):
@@ -102,7 +103,7 @@ def test_pipeline_controls_imports_only_wx_and_the_layout_rules():
 
 def test_settings_ui_asks_for_worldvoice_not_for_the_synth():
 	# worldvoice_synth() already returns the synth; asking NVDA again could only disagree with it.
-	for path in (ADDON / "globalPlugins/WorldVoice").glob("*.py"):
+	for path in (ADDON / "globalPlugins/WorldVoice").rglob("*.py"):
 		tree = ast.parse(path.read_text(encoding="utf-8"))
 		names = set()
 		for node in ast.walk(tree):
@@ -112,4 +113,4 @@ def test_settings_ui_asks_for_worldvoice_not_for_the_synth():
 				names.add(node.attr)
 			elif isinstance(node, (ast.Import, ast.ImportFrom)):
 				names |= {alias.name for alias in node.names} | {alias.asname for alias in node.names}
-		assert "getSynth" not in names, path.name
+		assert "getSynth" not in names, str(path.relative_to(ADDON))
