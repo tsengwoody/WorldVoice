@@ -17,17 +17,19 @@ from synthDrivers.WorldVoice.languageDetection.settings import detection_setting
 from synthDrivers.WorldVoice.pipeline import LOG_SWITCHES
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
 from synthDrivers.WorldVoice.pipeline.panelLayout import (
-	ABSENT,
 	PIPELINE_PANEL,
-	choice_values,
 	controller_keys,
-	dependent_states,
 	panel_specs,
 	pipeline_attribute,
-	selected_value,
 )
 from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTINGS, pipeline_settings, read_stored
-from synthDrivers.WorldVoice.pipelineControls import CHANGE_EVENTS, control_value, make_control
+from synthDrivers.WorldVoice.pipelineControls import (
+	CHANGE_EVENTS,
+	apply_dependencies,
+	control_value,
+	make_control,
+	read_control,
+)
 
 from .pipelineLog import ask_export, confirm_enable, pipeline_log
 from .rolePresenter import RolePanelPresenter
@@ -157,21 +159,10 @@ class SpeechPipelinePanel(SettingsPanel):
 
 	def _readController(self, key):
 		(spec,) = [spec for spec in self._specs() if spec.key == key]
-		control = self._control(spec)
-		if control is None:
-			return ABSENT
-		if spec.control == "choice":
-			return selected_value(choice_values(spec), control.GetCurrentSelection())
-		return control.GetValue()
+		return read_control(spec, self._control(spec))
 
 	def _applyDependencies(self):
-		# Disabled controls keep their values, and onSave still stores them.
-		specs = self._specs()
-		states = dependent_states(specs, self._readController)
-		for spec in specs:
-			control = self._control(spec)
-			if spec.key in states and control is not None:
-				control.Enable(states[spec.key])
+		apply_dependencies(self._specs(), self._readController, self._control)
 
 	def _onControllerChange(self, event):
 		self._applyDependencies()

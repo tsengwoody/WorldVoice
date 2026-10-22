@@ -5,19 +5,22 @@ from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
 
 from .pipeline.panelLayout import (
-	ABSENT,
 	VOICE_PANEL,
-	choice_values,
 	controller_keys,
 	creation_followers,
-	dependent_states,
 	driver_attribute,
 	panel_specs,
-	selected_value,
 	voice_attribute,
 )
 from .pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTINGS, pipeline_settings
-from .pipelineControls import CHANGE_EVENTS, control_row, control_value, make_control
+from .pipelineControls import (
+	CHANGE_EVENTS,
+	apply_dependencies,
+	control_row,
+	control_value,
+	make_control,
+	read_control,
+)
 
 addonHandler.initTranslation()
 
@@ -62,26 +65,16 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		Read the control, not the driver: this runs before NVDA's handler writes the setting.
 		"""
 		(spec,) = [spec for spec in self._voiceSpecs() if spec.key == key]
-		control = self._voiceControl(spec)
-		if control is None:
-			return ABSENT
-		if spec.control != "choice":
-			return control.GetValue()
+		# NVDA's list for a driver setting: the option ids it shows, in order.
+		options = None
 		if spec.driver_id is not None:
-			# No selection (-1) names no option, although the list's last option is at -1.
 			options = [option.id for option in getattr(self, f"_{spec.driver_id}s", [])]
-			return selected_value(options, control.GetSelection())
-		return selected_value(choice_values(spec), control.GetCurrentSelection())
+		return read_control(spec, self._voiceControl(spec), options)
 
 	def _applyDependencies(self):
 		# Disable rather than hide: NVDA's updateDriverSettings shows every supported
 		# control again after a voice change, but never enables or disables one.
-		specs = self._voiceSpecs()
-		states = dependent_states(specs, self._readController)
-		for spec in specs:
-			control = self._voiceControl(spec)
-			if spec.key in states and control is not None:
-				control.Enable(states[spec.key])
+		apply_dependencies(self._voiceSpecs(), self._readController, self._voiceControl)
 
 	@staticmethod
 	def _voiceSpecs():
