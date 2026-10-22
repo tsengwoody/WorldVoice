@@ -81,8 +81,8 @@ def test_thousands_step_passes_commands_and_split_items(env):
 	# Browse mode may split one number at a formatting change: nothing is joined across items.
 	sequence = ["12", Marker(), ",345"]
 	result = list(env.module.remove_thousands_separators(sequence, env.settings, env.generic))
-	assert len(result) == 3
-	assert all(after is before for after, before in zip(result, sequence))
+	assert result == sequence
+	assert result[1] is sequence[1]
 
 
 def test_speech_dictionaries_process_text_only(env, monkeypatch):
