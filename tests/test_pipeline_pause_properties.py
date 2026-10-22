@@ -615,19 +615,19 @@ def test_property_number_mode_normalisation_is_closed_and_idempotent(settings_mo
 	assert spec.convert(result) == result
 
 
-# No stacked breaks (X1)
+# No stacked breaks (P10, the X1 property updated)
 
 
 @SHARED_ENV
 @given(data=st.data())
-def test_property_number_and_group_breaks_never_touch_another_break(env, data):
-	"""After the pause stages, a digit or group break never has another break next to it.
+def test_property_number_breaks_never_touch_another_break(env, data):
+	"""After the pause stages, a number break never has another break next to it.
 
-	Two item breaks around a blank item may still meet (spec F7), so only the new classes are checked.
+	Two item breaks around a blank item may still meet (spec F7), so only number breaks are checked.
 	"""
-	sequence = data.draw(st.lists(st.text(alphabet="0123456789 a.,-", max_size=12), max_size=6))
+	sequence = data.draw(st.lists(st.text(alphabet="0123456789 a.,-:+\u00d7\uff0c", max_size=12), max_size=6))
 	stage_settings = punctuation_settings(data.draw(st.integers(0, 300)))
-	stage_settings.number_mode = data.draw(st.sampled_from(["value", "number", "group"]))
+	stage_settings.number_mode = data.draw(st.sampled_from(["none", "value", "number", "group"]))
 	stage_settings.group_size = data.draw(st.integers(2, 10))
 	number_wait, item_wait = (data.draw(st.integers(0, 60)) for _ in range(2))
 	stage_settings.scaled_number_wait = lambda: number_wait
@@ -635,6 +635,7 @@ def test_property_number_and_group_breaks_never_touch_another_break(env, data):
 	module, context = env.module, env.module.GENERIC_CONTEXT
 	result = sequence
 	for stage in (
+		module.remove_thousands_separators,
 		module.inject_number_mode,
 		module.inject_chinese_space_pause,
 		module.item_wait_factor,
@@ -643,7 +644,71 @@ def test_property_number_and_group_breaks_never_touch_another_break(env, data):
 	):
 		result = list(stage(result, stage_settings, context))
 
-	new_breaks = (module.NumberBreakCommand,)
 	for before, after in pairwise(result):
-		if isinstance(before, new_breaks) or isinstance(after, new_breaks):
+		if isinstance(before, module.NumberBreakCommand) or isinstance(after, module.NumberBreakCommand):
 			assert not (isinstance(before, env.BreakCommand) and isinstance(after, env.BreakCommand)), result
+
+
+# The number language changes no words or breaks (P8)
+
+
+def roles_context(module, number_language):
+	return module.SpeechContext(
+		supports_roles=True,
+		language="zh",
+		number_language=number_language,
+		default_voice=SimpleNamespace(name="Z", language="zh"),
+		voice_name_for_language={"zh": "Z", "en": "E"}.get,
+	)
+
+
+def spoken_between_number_breaks(env, sequence):
+	"""The text between number breaks, without whitespace and language commands, names read back."""
+	symbols = {
+		symbol_name(locale, symbol): symbol for symbol in env.module._SYMBOLS for locale in ("en", "zh")
+	}
+	segments = [""]
+	for item in sequence:
+		if isinstance(item, env.module.NumberBreakCommand):
+			segments.append("")
+		elif isinstance(item, str):
+			segments[-1] += "".join(symbols.get(item, item).split())
+	return segments
+
+
+@SHARED_ENV
+@given(data=st.data(), text=NUMBER_TEXT)
+def test_property_the_number_language_changes_no_words_or_breaks(env, data, text):
+	stage_settings = punctuation_settings(0)
+	stage_settings.punctuation_pause_enabled = False
+	stage_settings.number_mode = data.draw(st.sampled_from(["none", "value", "number", "group"]))
+	stage_settings.group_size = data.draw(st.integers(2, 10))
+	number_wait = data.draw(st.integers(0, 60))
+	stage_settings.scaled_number_wait = lambda: number_wait
+	outputs = []
+	for number_language in ("default", "en"):
+		sequence = [text]
+		for stage in env.module.STAGES:
+			sequence = list(stage.fn(sequence, stage_settings, roles_context(env.module, number_language)))
+		outputs.append(spoken_between_number_breaks(env, sequence))
+	assert outputs[0] == outputs[1], (text, outputs)
+
+
+# Punctuation never touches a symbol name (P9)
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT, mode_size=MODE_SIZES, wait=st.integers(0, 300))
+def test_property_punctuation_never_touches_a_name(env, text, mode_size, wait):
+	symbols = symbol_of_name(env)
+	named = [item for item in run_number_mode(env, text, *mode_size) if item in symbols]
+	stage_settings = punctuation_settings(wait, remove_characters=True)
+	stage_settings.punctuation_pause_characters = ".,:-"
+	result = list(
+		env.module.inject_punctuation_pause(
+			run_number_mode(env, text, *mode_size),
+			stage_settings,
+			env.module.GENERIC_CONTEXT,
+		),
+	)
+	assert [item for item in result if item in symbols] == named, (text, result)
