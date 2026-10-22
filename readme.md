@@ -36,17 +36,17 @@ The main speech role is configured through the NVDA voice settings panel, while 
 
 Speech pipeline settings control reading behavior related to numbers, pauses, and language processing. You can choose whether these settings apply to all supported synthesizers or only within WorldVoice.
 
-* Globally supported speech pipeline settings: ignore commas between numbers, number mode, item pause, number pause, Chinese pause, say-all pause
+* Globally supported speech pipeline settings: number mode, item pause, number pause, Chinese pause, say-all pause
 * WorldVoice-only speech pipeline settings: detect language based on Unicode characters, number language
 
 * Detect language based on Unicode characters: When enabled, WorldVoice automatically determines the language or region from the text's Unicode characters and switches speech roles accordingly. Note: This feature may conflict with NVDA's automatic language switching, so it is recommended not to enable both at the same time.
 * Number language: When reading numbers, use the regional role configured by this option.
 * Number mode:
-  * Numeric mode: Reads numbers as values. For example, "12345" is read as "twelve thousand three hundred forty-five."
-  * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five."
-  * Group mode: Reads the digits of a number in groups counted from the left. The group size (1–10, default 3) and the pause between groups are set in the Speech Pipeline panel or the Voice settings panel. For example, with size 3, "12345" is read as "123", "45".
+  * Off: Numbers are left as they are.
+  * Numeric mode: Reads numbers as values. For example, "12345" is read as "twelve thousand three hundred forty-five." Commas used as thousands separators, as in "12,345,678", are removed so the number is read as one value; other commas, as in "3,14", are kept.
+  * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five." Symbols between digits, as in "12.5" or "5-3", are read separately by their names, such as "dot" or "dash", in the number language.
+  * Group mode: Reads the digits of a number in groups counted from the left. The group size (2–10, default 3) is set in the Speech Pipeline panel or the Voice settings panel; groups and symbols are separated by the number pause. For example, with size 3, "12345" is read as "123", "45", and "123.456" as "123", "dot", "456".
 * Speech pause adjustment: Sets the pause length between numbers, items, Chinese text, and say-all reading. Smaller values mean shorter pauses, and 0 means no pause.
-* Ignore commas between numbers: Ignores commas between digits when reading numbers to improve number-reading accuracy for specific speech roles.
 
 Globally supported speech pipeline settings can be adjusted through the NVDA speech settings panel or the WorldVoice speech pipeline panel. Speech pipeline settings that are not globally supported can only be adjusted through the NVDA speech settings panel.
 
