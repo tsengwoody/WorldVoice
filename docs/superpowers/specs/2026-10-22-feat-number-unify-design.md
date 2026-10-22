@@ -64,6 +64,7 @@ All are **Decided by the user (2026-10-22)** except V5.
   - It is always spoken, whatever the user's symbol level. Symbols outside a number match keep NVDA's normal symbol-level handling. Value and "off" modes leave symbols alone.
   - When the lookup gives no name, the character itself is emitted, attached to its digits with no NB around it (section 6.4.1, Ruling).
 - **F2 (yes). Decided by the user (2026-10-22).** The name comes from the NUMBER LANGUAGE's symbol table, so the number-language voice speaks a word in its own language ("2 times 3" for number language en). When the number language is "default", or roles are not supported, the language in force at that point of the sequence is used. Locales without a table fall back as NVDA does: base language, then English (section 5.4).
+- **NB rule (reverses the 2026-10-21 decision, "Important 1 option A"). Decided by the user (2026-10-22).** A gap that holds U+00A0, U+202F or U+2007 is ordinary whitespace for the number split: `"10\u00a0000"` gives `"10"`, NB, `"000"`, with or without a number language. `_NO_BREAK_SPACES` and `_is_splittable_gap` go; every `str.isspace` gap pairs two numbers, U+3000 included. This replaces the batch 1 review's M3 proposal (keep such groups whole under a number language), which was implemented and then reverted.
 - **F3 (accepted). Decided by the user (2026-10-22).** The shared-regex side effects in value mode are accepted: `192.168.0.1` loses its dot spacing, a date followed by a time gets a number pause between them, and `5-3` is wrapped by the number language as one unit.
 
 ## 3. Goals and non-goals
@@ -209,7 +210,7 @@ _NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:{_SYMBOL_CLASS}+[0-9]+)*"
   - A match ends with a digit. The next match starts with a digit or a sign.
   - An empty gap would put a digit right after a digit, which the greedy `[0-9]+` forbids. It would also put a sign right after a digit, which the lookbehind forbids.
   - So every gap between matches is non-empty. `glued` (`:223`) is always empty and is removed.
-  - Matches i and i+1 are split apart exactly when their gap is whitespace without a no-break space (`_is_splittable_gap`, `:205-207`, unchanged).
+  - Matches i and i+1 are split apart exactly when their gap is whitespace (`str.isspace`). ~~The gap must hold no no-break space (`_is_splittable_gap`, `:205-207`, unchanged).~~ The no-break-space exception goes (NB rule in section 2).
   - What used to be "glued" is now one number: `"02 2345-6789"` gives `"02"`, NB, `"2345-6789"`; `"3-1 2"` gives `"3-1"`, NB, `"2"`.
 
 ### 6.2 Number modes (V3, V5, Q7)
@@ -418,6 +419,7 @@ Inside the wrapper, the number-language voice speaks the symbol names from the n
 | `12,345,678`, value, number language en | `‹en› "12" ‹zh› "," ‹en› "345" ‹zh› "," ‹en› "678" ‹zh›` | `‹en› "12345678" ‹zh›` | One match, removal first |
 | `5-3`, value, number language en | `‹en› "5" ‹zh› ‹en› "-3" ‹zh›` | `‹en› "5-3" ‹zh›` | One match: "5-3" is no longer "5", "minus 3" |
 | `1 2`, any, number language en | `‹en› "1" ‹zh› ‹en› "2" ‹zh›` | adds NB | O (old F4) |
+| `10\u00a0000` (no-break space), any | `"10\u00a0000"` (never split); with number language en `‹en› "10" ‹zh› ‹en› "000" ‹zh›` (no NB) | `"10"` NB `"000"`; with number language en `‹en› "10" ‹zh›` NB `‹en› "000" ‹zh›` | NB rule (section 2), decided by the user (2026-10-22), reversing the 2026-10-21 rule |
 
 ### 7.4 Settings UI
 
