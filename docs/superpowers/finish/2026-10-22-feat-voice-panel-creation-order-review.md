@@ -117,3 +117,17 @@ Linux 上無法驗證的只有一件事：真實 wx MSW 的 `MoveAfterInTabOrder
 ## Windows 手動項目（Linux 無法驗證）
 
 沿用 spec §7 的五項。其中第 1、2 項是本分支的核心主張（HWND 順序 = Tab 順序 = 表格順序、標籤緊接控制項）在真實 wx MSW 上唯一的驗證方式。
+
+## 修正記錄
+
+日期：2026-10-22。修正者 Opus 5.5，worktree `/workspace/WorldVoice-feat-create-order`，從 `3f51233` 開始。每個 commit 前都跑過單一行程的 `python3 -m pytest -q tests`（3 GB MemAvailable 記憶體監控，未觸發）、`prek run --all-files`、`git diff --check master` 與兩個受保護路徑指令。各項的 `Ruling:` 記在進度帳本。
+
+| 項目 | 結果 | commit |
+| --- | --- | --- |
+| M1 | 已修。在失敗 maker 的測試加註解：真實 NVDA 的 maker 在讀值之前就已建立標籤與控制項，所以真正失敗時會留下孤兒視窗（在視窗與 Tab 順序中、不在任何 sizer、沒有被 `lastControl` 串起）。這是 NVDA 自己的行為，master 相同；WorldVoice 列出的設定讀值時都不會丟例外，所以目前沒有產品影響。只是註解，沒有測試。 | `99c04be` |
+| M2 | 已修。假物件 `Sizer.Insert` 改成 assert `0 <= index <= len(items)`，不再讓 `list.insert` 夾住索引（wx release build 會丟掉該項目）；`MoveAfterInTabOrder` assert `other` 是同一個 parent 的子視窗。先寫 3 個失敗測試（`tests/test_ui_harness.py`），再改假物件；全部面板測試照常通過。 | `48b1672` |
+| M3 | 已修。新增 `test_the_pre_pass_leaves_the_changed_setting_to_nvda`：第一次建置後才讓 `allSupportedSettings` 列出 rateBoost，再以它當 `changedSetting` 呼叫 `updateDriverSettings`。測試在原程式通過，拿掉 `setting.id != changedSetting` 的突變會失敗（1 failed）。審閱建議的 `Driver(ALL - {"rateBoost"})` 在第一次建置時就會建出 rateBoost 的列，走不到這個分支，所以改用這個作法。`:127` 的 `absent and` 是等價突變，記在 plan Task 5 的 Mutation notes。 | `e7c84cc` |
+| M4 | 已修（原本不在本分支處理；使用者 2026-10-22 決定在本分支修）。Voice 面板建立的每個 WorldVoice 列，sizer 項目都設成 NVDA 驅動列的 `border=10, flag=wx.BOTTOM`；`_moveSizer` 移動時保留這兩個值。共用的 `make_control` 沒有改，所以 Speech Pipeline 面板的間距不變。假物件的 `_createNewControl` 也改成和 NVDA 一樣帶 border 與 flag。新測試 `test_voice_panel_rows_are_spaced_like_nvdas_driver_rows` 在四個情境檢查每個 Voice 項目；修正前 4 個情境都失敗，`_moveSizer` 不保留 flag/border 的突變也 4 個都失敗。spec §4.3 已補說明。使用者看得到的變化：Group size 與 Punctuation pause characters 下方多了 10px 間距。已經打包給使用者測試的版本不含這項修正，是否重新打包由協調者決定（§3.4）。 | `6cd1636` |
+| M5 | 已修。在 `tests/test_nvda_settings_copy.py` 新增結構檢查 `test_nvda_box_sizer_helper_adds_no_spacer_before_its_first_item`：`__init__` 把 `hasFirstItemBeenAdded` 設成 False、`addItem` 只在 `shouldAddSpacer = self.hasFirstItemBeenAdded` 時加 spacer、最後才設成 True，而且沒有任何分支把 `shouldAddSpacer` 設成其他值。用四個改過的 `guiHelper.py` scratch 複本驗證都會失敗；`ref` 不存在時乾淨地 skip。 | `ae943d5` |
+
+最後驗證（`6cd1636`）：pytest 2110 passed、0 skipped（基準 2100，加 M2 的 4 個、M3 的 1 個、M5 的 1 個、M4 的 4 個）；prek 8 個 hook 全數 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令皆無輸出。Linux 無法驗證真實 wx 的版面，M4 的間距請在 Windows 手動項目中一併確認。
