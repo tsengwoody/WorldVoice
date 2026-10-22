@@ -266,3 +266,21 @@
   - `git diff --check master`: clean.
   - Both protected-path commands: empty.
 - [ ] **Step 3: Commit** the plan update: `docs: record the symbol-locale mutation results`.
+
+## Mutation results
+
+The run used mutmut 3.8.0 on 2026-10-22 against `da29e37`, in the worktree, with 3 children and the memory guard. It made 96 mutants in the changed decision functions: 94 were killed and 2 survived.
+
+| Function | Killed | Survived |
+| --- | --- | --- |
+| `pipeline._has_symbol_table` | 20 | 1 |
+| `pipeline._symbol_locale` | 21 | 1 |
+| `pipeline._symbol_namer` | 19 | 0 |
+| `settings.read_stored` | 9 | 0 |
+| `settings._get_value` | 6 | 0 |
+| `settings.PipelineSettingSpec.convert` | 19 | 0 |
+
+- **Equivalent survivor:** `x__has_symbol_table__mutmut_7`, `locale.replace("_", "")` → `locale.replace("_", "XXXX")`. Replacing `_` with any alphanumeric text gives the same `isalnum()` answer, so no locale can tell the two apart.
+- **Equivalent survivor (number-unify line, unchanged here):** `x__symbol_locale__mutmut_15`, `"_" not in locale` → `"XX_XX" not in locale`. A locale that contains `_` can never equal `current.split("_")[0]`, which has none, so the `_` test only documents intent.
+- **Not mutated by mutmut 3:** `PipelineSettingSpec.confspec` is a property. It is pinned by `test_group_size_confspec_is_its_range`, `test_int_confspec_carries_the_spec_bounds` and the table guard.
+- **Tooling fix needed to run mutmut** (`da29e37`). pytest escapes explicit non-ASCII parametrize ids in place, so mutmut's second in-process collection could not select the spec-table tests. The ids are now ASCII.
