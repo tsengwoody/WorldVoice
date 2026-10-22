@@ -268,6 +268,22 @@ def test_pipeline_panel_shows_an_out_of_range_stored_size_as_the_default(monkeyp
 	assert panel._group_size_spin.GetValue() == shown
 
 
+def test_pipeline_panel_save_fixes_a_refused_stored_size(monkeypatch):
+	# Decided by the user (2026-10-22, Q3): NVDA refuses a stored 11, the panel shows 3, and
+	# saving the panel untouched writes 3 into the file.
+	env = pipeline_env(monkeypatch, group_size=11, number_wait_factor=40)
+	error = sys.modules["configobj.validate"].VdtValueTooBigError(11)
+	section = RefusingSection(env.conf["WorldVoice"]["pipeline"], {"group_size": error})
+	env.conf["WorldVoice"]["pipeline"] = section
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	assert panel._group_size_spin.GetValue() == 3
+
+	panel.onSave()
+
+	assert (dict(section)["group_size"], dict(section)["number_wait_factor"]) == (3, 40)
+	assert env.pipeline_settings.get().group_size == 3
+
+
 def pause_controls_enabled(panel):
 	return (
 		panel._remove_punctuation_characters_checkbox.enabled,
@@ -456,6 +472,20 @@ def test_log_panel_shows_an_invalid_switch_unticked(monkeypatch):
 	boxes = dict(zip(LOG_SWITCH_ORDER, sizer.items[1].item.controls(), strict=True))
 	assert boxes["number_mode"].value is False
 	assert boxes["speech_viewer"].value is True
+
+
+def test_log_panel_save_fixes_an_invalid_switch(monkeypatch):
+	# The panel writes every switch, and NVDA compares the old value unvalidated, so saving it
+	# untouched writes the shown False over the refused "maybe" (Q3).
+	env = log_env(monkeypatch, enabled=True, number_mode="maybe", speech_viewer=True)
+	error = sys.modules["configobj.validate"].VdtTypeError("maybe")
+	section = RefusingSection(env.conf["WorldVoice"]["log"], {"number_mode": error})
+	env.conf["WorldVoice"]["log"] = section
+	panel, _sizer = build(env, "LogSettingsPanel")
+
+	panel.onSave()
+
+	assert (dict(section)["number_mode"], dict(section)["speech_viewer"]) == (False, True)
 
 
 def test_log_panel_stage_switches_follow_the_enable_checkbox(monkeypatch):

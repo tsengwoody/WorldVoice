@@ -1,7 +1,7 @@
 """The pipeline settings table, repository and service."""
 
 import sys
-from dataclasses import fields
+from dataclasses import asdict, fields
 
 import pytest
 from nvda_stubs import RefusingSection
@@ -378,6 +378,63 @@ def test_a_new_invalid_value_warns_again(monkeypatch):
 		conf["WorldVoice"]["pipeline"].refused["group_size"] = too_big(value)
 		assert repository.load().group_size == 3
 	assert [('"11"' in args[0], '"12"' in args[0]) for args in warnings] == [(True, False), (False, True)]
+
+
+@pytest.mark.parametrize("key", list(OLD_DEFAULTS))
+def test_a_panel_save_writes_the_default_over_a_refused_value(monkeypatch, key):
+	# Decided by the user (2026-10-22, Q3): the next panel save fixes the file. The panel saves
+	# every value it shows, and it shows the default the refused value reads as.
+	other = "number_wait_factor" if key == "item_wait_factor" else "item_wait_factor"
+	conf = refusing_conf({key: "abc", other: 40})
+	module = load_settings_module(monkeypatch, conf)
+	section = conf["WorldVoice"]["pipeline"]
+	section.refused[key] = sys.modules["configobj.validate"].VdtTypeError("abc")
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+	seen = []
+	service.subscribe(seen.append)
+	shown = asdict(service.get())
+	service.update(**shown)
+	assert dict(section) == {key: shown[key], other: 40}
+	assert len(seen) == 1
+	# Repaired: the same save again writes nothing.
+	service.update(**shown)
+	assert len(seen) == 1
+
+
+def test_a_save_clears_a_refused_key_only_once_written(monkeypatch):
+	conf = refusing_conf({"group_size": 11, "item_wait_factor": 99})
+	module = load_settings_module(monkeypatch, conf)
+	errors = sys.modules["configobj.validate"]
+	section = conf["WorldVoice"]["pipeline"]
+	section.refused.update(
+		group_size=errors.VdtValueTooBigError(11),
+		item_wait_factor=errors.VdtValueTooBigError(99),
+	)
+	repository = module.ConfigPipelineRepository(lambda: conf)
+	assert repository.fallen_back == frozenset()
+	repository.load()
+	assert repository.fallen_back == {"group_size", "item_wait_factor"}
+	repository.save({"group_size": 3})
+	assert repository.fallen_back == {"item_wait_factor"}
+
+	def refuse_write(self, key, value):
+		raise RuntimeError("write refused")
+
+	monkeypatch.setattr(type(section), "__setitem__", refuse_write)
+	with pytest.raises(RuntimeError):
+		repository.save({"item_wait_factor": 10})
+	assert repository.fallen_back == {"item_wait_factor"}
+
+
+def test_a_save_leaves_a_refused_key_it_does_not_name(monkeypatch):
+	# The slider ring saves one key; only a save that names the refused key rewrites it.
+	conf = refusing_conf({"group_size": 11})
+	module = load_settings_module(monkeypatch, conf)
+	section = conf["WorldVoice"]["pipeline"]
+	section.refused["group_size"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+	assert service.update(item_wait_factor=30).group_size == 3
+	assert dict(section) == {"group_size": 11, "item_wait_factor": 30}
 
 
 @pytest.mark.parametrize("source", ["configobj.validate", "validate", None])
