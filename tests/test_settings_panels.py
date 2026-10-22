@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import WORLDVOICE, load_definitions
 from nvda_stubs import worldvoice_conf
-from pipeline_harness import ORDER
+from pipeline_harness import LOG_SWITCH_ORDER
 from ui_harness import Sizer, TextCtrl, fire, load_settings_dialog, make_panel
 
 
@@ -443,8 +443,8 @@ def test_log_panel_shows_one_switch_per_stage_from_config(monkeypatch):
 	group = sizer.items[1].item
 	boxes = group.controls()
 	labels = env.module._LOG_LABELS
-	assert [box.label for box in boxes] == [labels[key] for key in ORDER]
-	assert {key for key, box in zip(ORDER, boxes, strict=True) if box.value} == {
+	assert [box.label for box in boxes] == [labels[key] for key in LOG_SWITCH_ORDER]
+	assert {key for key, box in zip(LOG_SWITCH_ORDER, boxes, strict=True) if box.value} == {
 		"number_mode",
 		"speech_viewer",
 	}

@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from pipeline_harness import ORDER, load_pipeline_module, punctuation_settings
+from pipeline_harness import LOG_SWITCH_ORDER, ORDER, load_pipeline_module, punctuation_settings
 
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
 
@@ -36,6 +36,27 @@ class OrderedFilter:
 def test_stages_order_and_log_keys(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	assert [stage.log_key for stage in module.STAGES] == ORDER
+
+
+def test_log_switches_list_each_label_once_in_stage_order(monkeypatch):
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	assert module.LOG_SWITCHES == tuple(LOG_SWITCH_ORDER)
+
+
+def test_number_mode_switch_logs_both_number_mode_stages(monkeypatch):
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	sys.modules["config"].conf["WorldVoice"]["log"] = {
+		"enable": True,
+		**dict.fromkeys(LOG_SWITCH_ORDER, False),
+		"number_mode": True,
+	}
+	writes = []
+	monkeypatch.setattr(module, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
+	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	sequence = ["12,345"]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	assert writes == [("number_mode", "before"), ("number_mode", "after")] * 2
 
 
 def test_register_puts_stages_first_in_order_and_unregister_removes_them(monkeypatch):
@@ -196,6 +217,22 @@ def test_number_language_and_number_wait_pause_between_numbers(monkeypatch):
 		getattr(item, "lang", item) if not isinstance(item, module.NumberBreakCommand) else ("NB", item.time)
 		for item in sequence
 	] == ["en", "1", "zh", ("NB", 10), "en", "2", "zh"]
+
+
+def test_thousands_removal_runs_before_number_language(monkeypatch):
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	ctx = module.SpeechContext(
+		supports_roles=True,
+		language="zh",
+		number_language="en",
+		default_voice=SimpleNamespace(name="Z", language="zh"),
+		voice_name_for_language={"zh": "Z", "en": "E"}.get,
+	)
+	monkeypatch.setattr(module, "current_context", lambda: ctx)
+	sequence = ["12,345,678"]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	assert [getattr(item, "lang", item) for item in sequence] == ["en", "12345678", "zh"]
 
 
 def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):

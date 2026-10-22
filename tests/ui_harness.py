@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 from addon_loader import ADDON, WORLDVOICE, alias_package, load_source
 from nvda_stubs import StubModules, worldvoice_conf
-from pipeline_harness import ORDER
+from pipeline_harness import LOG_SWITCH_ORDER
 
 PLUGIN_DIR = ADDON / "globalPlugins/WorldVoice"
 NOT_FOUND = -1
@@ -775,9 +775,7 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 		ENGINE_SPECS=env.engine_specs,
 		get_engine_enabled=get_engine_enabled,
 	)
-	stubs.module("synthDrivers.WorldVoice.pipeline").STAGES = tuple(
-		SimpleNamespace(log_key=key) for key in ORDER
-	)
+	stubs.module("synthDrivers.WorldVoice.pipeline").LOG_SWITCHES = tuple(LOG_SWITCH_ORDER)
 	load_source(monkeypatch, "synthDrivers.WorldVoice.pipeline.context", WORLDVOICE / "pipeline/context.py")
 	env.log_calls = []
 	env.pipeline_log = PipelineLog(calls=env.log_calls)

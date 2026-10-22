@@ -38,6 +38,10 @@ _SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.category(c)[
 # any number of (symbols, digits). "[SYM]+" rather than "[SYM]*" keeps fullmatch from backtracking
 # exponentially; both match the same strings.
 _NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(_SYMBOLS)}]+[0-9]+)*")
+# A run of digits and commas that is a whole, valid thousands-separated number: one to three
+# digits, then groups of three. The lookarounds keep a longer comma/digit run, as in "1,234,,5" or
+# "a,1,234", from losing the commas of a valid part.
+_THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
 _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 # No-break spaces group the digits of one number, as in "10 000", so they never join two numbers.
 _NO_BREAK_SPACES = frozenset("\u00a0\u202f\u2007")
@@ -129,6 +133,22 @@ def get_translate_table(ctx: SpeechContext) -> dict[int, str]:
 # @with_order_log("speech_view")
 def speech_viewer(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
 	return list(speechSequence)
+
+
+def remove_thousands_separators(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
+	"""In value mode, drop the commas of each valid thousands run: "12,345,678" -> "12345678".
+
+	It runs before the number language, which would otherwise cut the run away from the text
+	before it ("a,1,234" must stay as it is), and is logged as part of the number mode.
+	"""
+	if settings.number_mode != "value":
+		yield from speechSequence
+		return
+	for item in speechSequence:
+		if isinstance(item, str):
+			yield _THOUSANDS_RE.sub(lambda match: match.group().replace(",", ""), item)
+		else:
+			yield item
 
 
 # @with_order_log("apply_speech_dictionaries")
@@ -862,6 +882,8 @@ class Stage:
 
 	log_key: str
 	fn: Callable[..., Iterable[SpeechCmd]]
+	# False: the stage logs under the switch of a later stage with the same log key.
+	log_switch: bool = True
 	handler: Callable[[Iterable[SpeechCmd]], Iterable[SpeechCmd]] = field(
 		init=False,
 		repr=False,
@@ -875,6 +897,7 @@ class Stage:
 # The order NVDA runs the filters in; register, reorder and the log switches derive from it.
 STAGES: tuple[Stage, ...] = (
 	Stage("apply_speech_dictionaries", apply_speech_dictionaries),
+	Stage("number_mode", remove_thousands_separators, log_switch=False),
 	Stage("number_language", inject_number_language),
 	Stage("number_mode", inject_number_mode),
 	Stage("chinesespace_wait_factor", inject_chinese_space_pause),
@@ -883,6 +906,10 @@ STAGES: tuple[Stage, ...] = (
 	Stage("number_wait_factor", number_wait_factor),
 	Stage("speech_viewer", speech_viewer),
 )
+
+
+# One log switch per log key, in the order of the stage that owns it.
+LOG_SWITCHES: tuple[str, ...] = tuple(stage.log_key for stage in STAGES if stage.log_switch)
 
 
 def order_move_to_start_register():

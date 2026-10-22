@@ -140,7 +140,20 @@ def punctuation_settings(wait_factor, remove_characters=False):
 	)
 
 
+# The log key of each stage in STAGES, in order: the thousands step logs as "number_mode".
 ORDER = [
+	"apply_speech_dictionaries",
+	"number_mode",
+	"number_language",
+	"number_mode",
+	"chinesespace_wait_factor",
+	"item_wait_factor",
+	"punctuation_wait_factor",
+	"number_wait_factor",
+	"speech_viewer",
+]
+# One log switch per label, in the order of the stage that owns it.
+LOG_SWITCH_ORDER = [
 	"apply_speech_dictionaries",
 	"number_language",
 	"number_mode",

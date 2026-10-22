@@ -4,7 +4,7 @@ import ast
 import types
 
 from addon_loader import ADDON, WORLDVOICE, load_definitions
-from pipeline_harness import ORDER
+from pipeline_harness import LOG_SWITCH_ORDER
 from ui_harness import load_settings_dialog, load_voice_settings_dialogs
 
 PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
@@ -25,10 +25,10 @@ class Widget:
 
 def test_log_labels_match_stages_and_confspec():
 	environment = load_definitions(PANELS, {"_LOG_LABELS"}, {"_": lambda text: text})
-	assert list(environment["_LOG_LABELS"]) == ORDER
+	assert list(environment["_LOG_LABELS"]) == LOG_SWITCH_ORDER
 	tree = ast.parse(SYNTH.read_text(encoding="utf-8"))
 	source = ast.unparse(tree)
-	assert "stage.log_key: 'boolean(default=false)' for stage in STAGES" in source
+	assert "key: 'boolean(default=false)' for key in LOG_SWITCHES" in source
 
 
 def test_log_labels_follow_the_table_labels(monkeypatch):

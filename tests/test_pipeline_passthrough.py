@@ -46,6 +46,45 @@ def kinds(sequence, break_command):
 	return result
 
 
+@pytest.mark.parametrize(
+	("text", "expected"),
+	[
+		("12,345,678", "12345678"),
+		("1,234.56", "1234.56"),
+		("-1,234", "-1234"),
+		("1,234,", "1234,"),
+		# German notation: the run after the dot is a valid thousands run (spec F7, accepted risk).
+		("1.234,567", "1.234567"),
+		("1,000,000,000", "1000000000"),
+		("12,345 and 3,4", "12345 and 3,4"),
+		# The whole comma/digit run must be valid, or it stays as it is (V1).
+		("1,2", "1,2"),
+		("1234,567", "1234,567"),
+		("1,234,56", "1,234,56"),
+		("1, 234", "1, 234"),
+		("3,14", "3,14"),
+		("a,1,234", "a,1,234"),
+		("1,234,,5", "1,234,,5"),
+	],
+)
+def test_value_mode_removes_only_valid_thousands_separators(env, text, expected):
+	assert list(env.module.remove_thousands_separators([text], env.settings, env.generic)) == [expected]
+
+
+@pytest.mark.parametrize("mode", ["number", "group"])
+def test_thousands_step_passes_through_other_modes(env, mode):
+	env.settings.number_mode = mode
+	assert list(env.module.remove_thousands_separators(["12,345"], env.settings, env.generic)) == ["12,345"]
+
+
+def test_thousands_step_passes_commands_and_split_items(env):
+	# Browse mode may split one number at a formatting change: nothing is joined across items.
+	sequence = ["12", Marker(), ",345"]
+	result = list(env.module.remove_thousands_separators(sequence, env.settings, env.generic))
+	assert len(result) == 3
+	assert all(after is before for after, before in zip(result, sequence))
+
+
 def test_speech_dictionaries_process_text_only(env, monkeypatch):
 	monkeypatch.setattr(env.module.speechDictHandler, "processText", lambda text: text.upper())
 	marker = Marker()

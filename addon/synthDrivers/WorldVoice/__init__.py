@@ -35,7 +35,7 @@ from .indexLedger import IndexLedger
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
 from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
-	STAGES,
+	LOG_SWITCHES,
 	deduplicate_language_command,
 	inject_langchange_reorder,
 	lang_cmd_to_voice,
@@ -73,7 +73,7 @@ config.conf.spec["WorldVoice"] = {
 	},
 	"log": {
 		"enable": "boolean(default=false)",
-		**{stage.log_key: "boolean(default=false)" for stage in STAGES},
+		**{key: "boolean(default=false)" for key in LOG_SWITCHES},
 	},
 	"voices": {"__many__": dict(VOICE_CONFSPEC)},
 }

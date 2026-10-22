@@ -14,7 +14,7 @@ from synthDriverHandler import getSynth
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
-from synthDrivers.WorldVoice.pipeline import STAGES
+from synthDrivers.WorldVoice.pipeline import LOG_SWITCHES
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
 from synthDrivers.WorldVoice.pipeline.panelLayout import (
 	ABSENT,
@@ -35,7 +35,7 @@ from .utils import guard_errors
 
 addonHandler.initTranslation()
 
-# Labels for the per-stage log switches; the switches themselves come from STAGES. A stage named
+# Labels for the per-stage log switches; the switches themselves come from LOG_SWITCHES. A stage named
 # after a setting uses that setting's label.
 _LOG_LABELS = {
 	# Translators: Label for the pipeline log switch of a speech pipeline stage.
@@ -665,7 +665,7 @@ class LogSettingsPanel(BaseSettingsPanel):
 	title = _("Log Record")
 	field = "log"
 	settings = OrderedDict(  # noqa: RUF012
-		(stage.log_key, {"label": _LOG_LABELS.get(stage.log_key, stage.log_key)}) for stage in STAGES
+		(key, {"label": _LOG_LABELS.get(key, key)}) for key in LOG_SWITCHES
 	)
 
 	def makeSettings(self, sizer):

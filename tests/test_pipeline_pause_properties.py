@@ -5,6 +5,7 @@ example: settings are fresh per example and no state carries over.
 """
 
 import math
+import re
 import unicodedata
 from itertools import pairwise
 from types import SimpleNamespace
@@ -368,6 +369,34 @@ def test_property_number_re_equals_the_scanner(env, text):
 def test_property_matches_are_never_glued(env, text):
 	matches = list(env.module._NUMBER_RE.finditer(text))
 	assert all(left.end() < right.start() for left, right in pairwise(matches)), text
+
+
+# Value-mode thousands separators (spec 6.3, V1)
+
+WHOLE_THOUSANDS_RUN = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})+")
+
+
+def without_valid_thousands_separators(text):
+	"""Spec 6.3's oracle: each maximal [0-9,] run, trailing commas aside, loses its commas only
+	when the whole of it is a valid thousands run.
+	"""
+
+	def replace(match):
+		run = match.group()
+		body = run.rstrip(",")
+		if WHOLE_THOUSANDS_RUN.fullmatch(body):
+			return body.replace(",", "") + run[len(body) :]
+		return run
+
+	return re.sub(r"[0-9,]+", replace, text)
+
+
+@SHARED_ENV
+@given(text=st.text(alphabet="0123456789,.a -", max_size=20))
+def test_property_thousands_removal_equals_the_whole_run_oracle(env, text):
+	stage_settings = punctuation_settings(0)
+	result = list(env.module.remove_thousands_separators([text], stage_settings, env.module.GENERIC_CONTEXT))
+	assert result == [without_valid_thousands_separators(text)]
 
 
 # The number split

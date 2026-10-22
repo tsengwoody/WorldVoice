@@ -102,13 +102,20 @@ def _spread_defaults(node):
 		}
 	if (
 		isinstance(node, ast.DictComp)
-		and ast.unparse(node.key) == "stage.log_key"
-		and ast.unparse(node.generators[0].iter) == "STAGES"
+		and ast.unparse(node.key) == "key"
+		and ast.unparse(node.generators[0].iter) == "LOG_SWITCHES"
 	):
-		# One log switch per Stage(log_key, fn) in pipeline STAGES.
+		# One log switch per Stage(log_key, fn) in pipeline STAGES, except log_switch=False ones.
 		stages = _top_level_value(WORLDVOICE / "pipeline/__init__.py", "STAGES")
 		value = _value_default(node.value)
-		return {ast.literal_eval(stage.args[0]): value for stage in stages.elts}
+		return {
+			ast.literal_eval(stage.args[0]): value
+			for stage in stages.elts
+			if not any(
+				keyword.arg == "log_switch" and ast.literal_eval(keyword.value) is False
+				for keyword in stage.keywords
+			)
+		}
 	raise ValueError(f"Unexpected confspec entries: {source}")
 
 

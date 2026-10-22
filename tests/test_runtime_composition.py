@@ -598,7 +598,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 	stub(package + ".languageDetection.settings", DETECTION_CONFSPEC={}, detection_settings=SimpleNamespace())
 	stub(
 		package + ".pipeline",
-		STAGES=(),
+		LOG_SWITCHES=(),
 		**{
 			name: lambda *args: None
 			for name in (
