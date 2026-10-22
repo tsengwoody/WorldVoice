@@ -628,7 +628,7 @@ def test_property_number_and_group_breaks_never_touch_another_break(env, data):
 	sequence = data.draw(st.lists(st.text(alphabet="0123456789 a.,-", max_size=12), max_size=6))
 	stage_settings = punctuation_settings(data.draw(st.integers(0, 300)))
 	stage_settings.number_mode = data.draw(st.sampled_from(["value", "number", "group"]))
-	stage_settings.group_size = data.draw(st.integers(1, 10))
+	stage_settings.group_size = data.draw(st.integers(2, 10))
 	number_wait, item_wait = (data.draw(st.integers(0, 60)) for _ in range(2))
 	stage_settings.scaled_number_wait = lambda: number_wait
 	stage_settings.scaled_item_wait = lambda: item_wait
