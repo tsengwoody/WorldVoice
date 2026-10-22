@@ -11,9 +11,10 @@ WORLDVOICE = Path(__file__).resolve().parents[1] / "addon" / "synthDrivers" / "W
 
 
 def imported_modules(path):
+	# Every absolute import, even one inside a function, by its full dotted name.
 	tree = ast.parse(path.read_text(encoding="utf-8"))
 	names = set()
-	for node in tree.body:
+	for node in ast.walk(tree):
 		if isinstance(node, ast.Import):
 			names |= {alias.name for alias in node.names}
 		elif isinstance(node, ast.ImportFrom) and node.level == 0:
@@ -21,8 +22,13 @@ def imported_modules(path):
 	return names
 
 
+def packages(modules):
+	# "import os.path" and "from os.path import isfile" reach os as surely as "import os" does.
+	return {module.split(".")[0] for module in modules}
+
+
 def test_language_detection_reaches_for_no_nvda_globals():
-	assert not imported_modules(WORLDVOICE / "languageDetection" / "__init__.py") & {
+	assert not packages(imported_modules(WORLDVOICE / "languageDetection" / "__init__.py")) & {
 		"config",
 		"synthDriverHandler",
 	}
@@ -81,9 +87,11 @@ def top_level_names(path):
 def test_pipeline_package_keeps_only_stages_logging_and_registry():
 	package = WORLDVOICE / "pipeline" / "__init__.py"
 	assert top_level_names(package) & {*MOVED, *(f"_{name}" for name in MOVED)} == set()
-	# Symbol lookup and file probing stay in symbols.py; speech.commands and speech.extensions are fine.
+	# Symbol lookup and file probing stay in symbols.py. The stages need only speech's commands and
+	# its filter extension point; any other part of speech, or os by any submodule, is a lookup or a
+	# probe coming back.
 	assert (
-		imported_modules(package)
+		packages(imported_modules(package) - {"speech.commands", "speech.extensions"})
 		& {
 			"os",
 			"unicodedata",
