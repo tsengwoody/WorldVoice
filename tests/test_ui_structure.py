@@ -72,7 +72,9 @@ def test_panels_apply_dependencies_through_one_path():
 		assert referred & {"dependent_states", "ABSENT", "selected_value"} == set(), path.name
 		apply = method(path, cls, "_applyDependencies")
 		assert "apply_dependencies" in called_names(apply), path.name
-		assert not any(isinstance(n, ast.For) for n in ast.walk(apply)), path.name
+		# ast.comprehension covers list, set and dict comprehensions and generator expressions.
+		loops = (ast.For, ast.AsyncFor, ast.While, ast.comprehension)
+		assert not any(isinstance(n, loops) for n in ast.walk(apply)), path.name
 		assert "read_control" in called_names(method(path, cls, "_readController")), path.name
 
 
