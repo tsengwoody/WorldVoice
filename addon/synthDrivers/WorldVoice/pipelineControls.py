@@ -2,17 +2,22 @@
 
 The NVDA Voice panel and the Speech Pipeline panel build the controls WorldVoice owns from the
 pipeline settings table through these functions, so a control kind is built the same way in
-both. The layout rules themselves are in pipeline/panelLayout.py. No engine driver imports this.
+both. Both panels also read their controller controls and apply the table's depends_on rules
+here, so a dependent control is enabled the same way in both. The layout rules themselves are in
+pipeline/panelLayout.py. No engine driver imports this.
 """
 
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import wx
 from gui import nvdaControls
 
 from .pipeline.panelLayout import (
+	ABSENT,
 	choice_index,
 	choice_values,
+	dependent_states,
 	from_display,
 	label_text,
 	selected_value,
@@ -77,3 +82,36 @@ def control_value(spec: Any, control: Any) -> Any:
 def control_row(control: Any, spec: Any) -> Any:
 	"""The settings-sizer item of control: a checkbox is added as itself, others in their own sizer."""
 	return control if spec.control == "checkbox" else control.GetContainingSizer()
+
+
+def read_control(spec: Any, control: Any, driver_options: Sequence[str] | None = None) -> Any:
+	"""A controller's value as its control shows it, for panelLayout.dependent_states.
+
+	ABSENT without a control (another synth has none). driver_options are the option ids of a
+	choice NVDA made for a driver setting, in list order; None for a control WorldVoice made from
+	the table, which reads as control_value. No selection reads as None.
+	"""
+	if control is None:
+		return ABSENT
+	if driver_options is not None and spec.control == "choice":
+		# No selection (-1) names no option, although the list's last option is at -1.
+		return selected_value(driver_options, control.GetSelection())
+	return control_value(spec, control)
+
+
+def apply_dependencies(
+	specs: Sequence[Any],
+	read: Callable[[str], Any],
+	control_of: Callable[[Any], Any],
+) -> None:
+	"""Enable or disable each dependent control of specs from read(controller key).
+
+	control_of(spec) is the panel's control for spec, or None. A dependent with no control, or
+	whose controller reads ABSENT, is left alone. Only Enable is called: disabled controls keep
+	their values, and onSave still stores them.
+	"""
+	states = dependent_states(specs, read)
+	for spec in specs:
+		control = control_of(spec)
+		if spec.key in states and control is not None:
+			control.Enable(states[spec.key])
