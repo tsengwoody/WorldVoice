@@ -220,3 +220,25 @@ def test_log_labels_come_from_the_table(monkeypatch):
 		{spec.display_name for spec in table.values()} - {None}
 	)
 	assert dialog_msgids() & strings == set()
+
+
+def test_table_labels_tell_translators_they_name_log_switches(monkeypatch):
+	# The Log Record panel shows these table strings as its switch labels; the dialog no longer has a
+	# _() call of its own for them, so only the table's comment can tell translators.
+	module = load_settings_dialog(monkeypatch).module
+	table = {spec.key for spec in module.PIPELINE_SETTINGS}
+	lines = (WORLDVOICE / "pipeline/settings.py").read_text(encoding="utf-8").splitlines()
+	silent = []
+	for key in LOG_SWITCH_ORDER:
+		if key not in table:
+			continue
+		call = f"_({module._LOG_LABELS[key]!r})".replace("'", '"')
+		(number,) = [n for n, line in enumerate(lines) if call in line]
+		comments = []
+		above = number - 1
+		while lines[above].lstrip().startswith("#"):
+			comments.insert(0, lines[above].strip().lstrip("# "))
+			above -= 1
+		if "log switch" not in " ".join(comments):
+			silent.append(key)
+	assert silent == []

@@ -153,7 +153,8 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		driver_id="numlan",
 		# Translators: Label for a pipeline setting in the voice settings panel.
 		label=_("Number &language"),
-		# Translators: Label for a setting in synth settings ring.
+		# Translators: Label for a setting in synth settings ring; also the label of the setting's
+		# pipeline log switch in the Log Record panel.
 		display_name=_("Number language"),
 		control="choice",
 		panels=("voice",),
@@ -166,7 +167,8 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		driver_id="nummod",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Number &mode"),
-		# Translators: Label for a setting in synth settings ring.
+		# Translators: Label for a setting in synth settings ring; also the label of the setting's
+		# pipeline log switch in the Log Record panel.
 		display_name=_("Number mode"),
 		normalize=_number_mode,
 		control="choice",
@@ -193,7 +195,8 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		int,
 		10,
 		driver_id="numberwaitfactor",
-		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+		# also the label of the setting's pipeline log switch in the Log Record panel.
 		label=_("Number wait factor"),
 		control="slider",
 	),
@@ -202,7 +205,8 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		int,
 		10,
 		driver_id="itemwaitfactor",
-		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+		# also the label of the setting's pipeline log switch in the Log Record panel.
 		label=_("Item wait factor"),
 		control="slider",
 	),
@@ -220,7 +224,8 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		int,
 		10,
 		driver_id="chinesespacewaitfactor",
-		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+		# also the label of the setting's pipeline log switch in the Log Record panel.
 		label=_("Chinese space wait factor"),
 		control="slider",
 	),
@@ -252,7 +257,8 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		int,
 		0,
 		driver_id="punctuationwaitfactor",
-		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+		# also the label of the setting's pipeline log switch in the Log Record panel.
 		label=_("Punctuation wait factor"),
 		control="slider",
 		depends_on=("punctuation_pause_enabled", True),
