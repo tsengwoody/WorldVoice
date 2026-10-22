@@ -302,7 +302,6 @@ _THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
 - Held commands at the end are yielded.
 - **Result.** `"1 2"` with number language en gives ‹en› `"1"` ‹zh› NB ‹en› `"2"` ‹zh› (prototype).
 - **Any position inside the run sounds the same.** `inject_langchange_reorder` (`pipeline/__init__.py:714-747`, called from `WorldVoice/__init__.py:324`) moves language commands ahead of the buffered non-text commands. The audio is therefore the same for any position of the break inside the held run. "Between the language commands" is the decided, readable placement.
-- **No-break spaces with a number language (batch 1 review M3).** `_GROUPED_NUMBER_RE` joins numbers whose whitespace gaps each hold U+00A0, U+202F or U+2007 (`"10 000"`). The number-language wrapper wraps such a group as one unit, and `_both_numbers` counts it as one number, so no NB ever lands inside it and `"2 10 000"` still pauses between `2` and the group. **Ruling:** the wrapper keeps the group whole rather than the pause refusing such gaps, because `_remove_space` drops the blank no-break item before the pause stage sees it, and one wrapper also keeps the voice from switching inside the number. Cost if wrong: a number language voice reads `"10 000"` with its own grouping rules, as it would without a number language.
 - **Other commands still block the pause:** a `BreakCommand` or `IndexCommand` between two numbers prevents it, as today. `item_wait_factor` is unchanged: no transparency.
 
 ### 6.6 Removed
@@ -419,7 +418,6 @@ Inside the wrapper, the number-language voice speaks the symbol names from the n
 | `12,345,678`, value, number language en | `‹en› "12" ‹zh› "," ‹en› "345" ‹zh› "," ‹en› "678" ‹zh›` | `‹en› "12345678" ‹zh›` | One match, removal first |
 | `5-3`, value, number language en | `‹en› "5" ‹zh› ‹en› "-3" ‹zh›` | `‹en› "5-3" ‹zh›` | One match: "5-3" is no longer "5", "minus 3" |
 | `1 2`, any, number language en | `‹en› "1" ‹zh› ‹en› "2" ‹zh›` | adds NB | O (old F4) |
-| `10 000` (U+00A0), any, number language en | `‹en› "10" ‹zh› " " ‹en› "000" ‹zh›` (two numbers, voice switching inside) | `‹en› "10 000" ‹zh›`, no NB | Batch 1 review M3: a gap with a no-break space never gets a number pause, with a number language too (6.5) |
 
 ### 7.4 Settings UI
 

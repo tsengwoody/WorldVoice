@@ -235,46 +235,6 @@ def test_thousands_removal_runs_before_number_language(monkeypatch):
 	assert [getattr(item, "lang", item) for item in sequence] == ["en", "12345678", "zh"]
 
 
-def run_with_number_language(monkeypatch, text):
-	"""Every stage, for WorldVoice speaking zh with number language en and a 10 ms number wait."""
-	settings = punctuation_settings(0)
-	settings.scaled_number_wait = lambda: 10
-	module, _ = load_pipeline_module(monkeypatch, settings)
-	ctx = module.SpeechContext(
-		supports_roles=True,
-		language="zh",
-		number_language="en",
-		default_voice=SimpleNamespace(name="Z", language="zh"),
-		voice_name_for_language={"zh": "Z", "en": "E"}.get,
-	)
-	monkeypatch.setattr(module, "current_context", lambda: ctx)
-	sequence = [text]
-	for stage in module.STAGES:
-		sequence = stage.handler(sequence)
-	return [
-		("NB", item.time) if isinstance(item, module.NumberBreakCommand) else getattr(item, "lang", item)
-		for item in sequence
-	]
-
-
-@pytest.mark.parametrize("space", ["\u00a0", "\u202f", "\u2007"])
-def test_number_language_keeps_a_number_grouped_by_a_no_break_space_whole(monkeypatch, space):
-	# Decided by the user: a no-break space groups digits, as in "10 000", so it never gets a pause.
-	assert run_with_number_language(monkeypatch, f"10{space}000") == ["en", f"10{space}000", "zh"]
-
-
-def test_number_language_pauses_between_a_number_and_a_grouped_one(monkeypatch):
-	assert run_with_number_language(monkeypatch, "2 10\u00a0000") == [
-		"en",
-		"2",
-		"zh",
-		("NB", 10),
-		"en",
-		"10\u00a0000",
-		"zh",
-	]
-
-
 def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):
 	# NVDA's Filter.apply calls callWithSupportedKwargs, which binds the value
 	# against inspect.signature(handler); that follows __wrapped__.
