@@ -80,6 +80,8 @@ def test_symbol_locale(module, monkeypatch, current, language, expected):
 		("", False),
 		("..", False),
 		("../en", False),
+		# This one resolves to locale/en/symbols.dic, which exists: only the guard refuses it.
+		("../locale/en", False),
 	],
 )
 def test_has_symbol_table_matches_nvdas_locale_dir(module, locale, expected):
