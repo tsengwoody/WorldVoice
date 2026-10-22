@@ -116,12 +116,11 @@ def test_nvda_names_symbols_in_the_requested_language(monkeypatch, tmp_path, loc
 @NVDA_WARNINGS
 def test_every_number_symbol_has_a_name(monkeypatch, tmp_path, locale):
 	character_processing = load_nvda_character_processing(monkeypatch, tmp_path)
-	unnamed = [
-		symbol
-		for symbol in NUMBER_SYMBOLS
-		if character_processing.processSpeechSymbol(locale, symbol) in ("", None, symbol)
-	]
-	assert unnamed == []
+	names = {symbol: character_processing.processSpeechSymbol(locale, symbol) for symbol in NUMBER_SYMBOLS}
+	assert [symbol for symbol, name in names.items() if name in ("", None, symbol)] == []
+	# Spec 8: the punctuation stage never splits a name, because no en or zh_TW name holds a
+	# number symbol. fr's "point d'exclamation" does (final review M1), a known limit.
+	assert {symbol: name for symbol, name in names.items() if set(name) & set(NUMBER_SYMBOLS)} == {}
 
 
 @NVDA_WARNINGS
