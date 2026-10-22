@@ -1,8 +1,10 @@
 """The pipeline settings table, repository and service."""
 
+import sys
 from dataclasses import fields
 
 import pytest
+from nvda_stubs import RefusingSection
 from pipeline_harness import load_settings_module
 
 OLD_DEFAULTS = {
@@ -329,3 +331,56 @@ def test_scaled_waits_follow_their_units_and_caps(monkeypatch, changes, method, 
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	settings = module.PipelineSettings(**{**OLD_DEFAULTS, **changes})
 	assert getattr(settings, method)() == expected
+
+
+def refusing_conf(values=(), refused=None):
+	return {"WorldVoice": {"pipeline": RefusingSection(values, refused)}}
+
+
+def test_read_stored_returns_the_default_for_an_invalid_value_and_warns_once(monkeypatch):
+	# Decided by the user (2026-10-22, Q3 and D3): the default, nothing written back, one debug warning.
+	warnings = []
+	conf = refusing_conf()
+	module = load_settings_module(monkeypatch, conf, warnings=warnings)
+	too_big = sys.modules["configobj.validate"].VdtValueTooBigError
+	section = conf["WorldVoice"]["pipeline"]
+	section.refused["group_size"] = too_big(11)
+	assert module.read_stored(section, "group_size", 3) == 3
+	assert module.read_stored(section, "group_size", 3) == 3
+	assert len(warnings) == 1
+	assert "'group_size'" in warnings[0][0] and '"11"' in warnings[0][0]
+	assert dict(section) == {}
+
+
+@pytest.mark.parametrize("key", list(OLD_DEFAULTS))
+def test_load_reads_the_default_for_each_invalid_key(monkeypatch, key):
+	# Decided by the user (2026-10-22, decision A): every pipeline key falls back on its own.
+	other = "number_wait_factor" if key == "item_wait_factor" else "item_wait_factor"
+	conf = refusing_conf({other: 40})
+	module = load_settings_module(monkeypatch, conf)
+	wrong_type = sys.modules["configobj.validate"].VdtTypeError
+	conf["WorldVoice"]["pipeline"].refused[key] = wrong_type("abc")
+	loaded = module.ConfigPipelineRepository(lambda: conf).load()
+	assert getattr(loaded, key) == module.PIPELINE_SETTING_BY_KEY[key].convert(OLD_DEFAULTS[key])
+	assert getattr(loaded, other) == 40
+
+
+def test_a_new_invalid_value_warns_again(monkeypatch):
+	warnings = []
+	conf = refusing_conf()
+	module = load_settings_module(monkeypatch, conf, warnings=warnings)
+	too_big = sys.modules["configobj.validate"].VdtValueTooBigError
+	repository = module.ConfigPipelineRepository(lambda: conf)
+	for value in (11, 11, 12):
+		conf["WorldVoice"]["pipeline"].refused["group_size"] = too_big(value)
+		assert repository.load().group_size == 3
+	assert [('"11"' in args[0], '"12"' in args[0]) for args in warnings] == [(True, False), (False, True)]
+
+
+@pytest.mark.parametrize("source", ["configobj.validate", "validate", None])
+def test_validate_error_comes_from_configobj(monkeypatch, source):
+	# NVDA imports it from configobj.validate; the top-level shim is configobj's older home. With
+	# neither, any error reading a value falls back, so WorldVoice still loads.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}}, validate=source)
+	expected = sys.modules[source].ValidateError if source else Exception
+	assert module.ValidateError is expected

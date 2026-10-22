@@ -138,3 +138,65 @@ def _confspec_default(validator):
 	if kind == "string":
 		return value
 	raise ValueError(f"Unexpected confspec check: {validator}")
+
+
+def configobj_stub(stubs):
+	"""Register configobj.validate with the errors NVDA's config raises on read; return that module.
+
+	The messages are configobj's own, which quote the stored value.
+	"""
+
+	class ValidateError(Exception):
+		pass
+
+	class VdtTypeError(ValidateError):
+		def __init__(self, value):
+			super().__init__(f'the value "{value}" is of the wrong type.')
+
+	class VdtValueError(ValidateError):
+		def __init__(self, value):
+			super().__init__(f'the value "{value}" is unacceptable.')
+
+	class VdtValueTooSmallError(VdtValueError):
+		def __init__(self, value):
+			ValidateError.__init__(self, f'the value "{value}" is too small.')
+
+	class VdtValueTooBigError(VdtValueError):
+		def __init__(self, value):
+			ValidateError.__init__(self, f'the value "{value}" is too big.')
+
+	package = stubs.module("configobj")
+	package.__path__ = []
+	validate = stubs.module(
+		"configobj.validate",
+		ValidateError=ValidateError,
+		VdtTypeError=VdtTypeError,
+		VdtValueError=VdtValueError,
+		VdtValueTooSmallError=VdtValueTooSmallError,
+		VdtValueTooBigError=VdtValueTooBigError,
+	)
+	package.validate = validate
+	return validate
+
+
+class RefusingSection(dict):
+	"""A config section that refuses some stored values on read, as NVDA's validation does.
+
+	refused maps a key to the error reading it raises. NVDA validates a stored value on every
+	read (config/__init__.py:1269-1274) and its get only catches KeyError, so both get and []
+	raise it.
+	"""
+
+	def __init__(self, values=(), refused=None):
+		super().__init__(values)
+		self.refused = dict(refused or {})
+
+	def __getitem__(self, key):
+		if key in self.refused:
+			raise self.refused[key]
+		return super().__getitem__(key)
+
+	def get(self, key, default=None):
+		if key in self.refused:
+			raise self.refused[key]
+		return super().get(key, default)

@@ -7,7 +7,7 @@ import unicodedata
 from types import SimpleNamespace
 
 from addon_loader import WORLDVOICE, alias_package, load_source
-from nvda_stubs import StubModules, worldvoice_conf
+from nvda_stubs import StubModules, configobj_stub, worldvoice_conf
 
 
 def symbol_name(locale, symbol):
@@ -164,7 +164,12 @@ LOG_SWITCH_ORDER = [
 ]
 
 
-def load_settings_module(monkeypatch, conf, errors=None):
+def load_settings_module(monkeypatch, conf, errors=None, warnings=None, validate="configobj.validate"):
+	"""pipeline/settings.py over stub NVDA modules.
+
+	errors and warnings collect the arguments of log.error and log.debugWarning. validate names
+	the module that provides ValidateError: configobj's, the old top-level shim, or None for none.
+	"""
 	stubs = StubModules(monkeypatch)
 	config = stubs.module("config")
 	config.conf = conf
@@ -173,7 +178,15 @@ def load_settings_module(monkeypatch, conf, errors=None):
 	log_handler = stubs.module("logHandler")
 	log_handler.log = SimpleNamespace(
 		error=lambda *args, **kwargs: (errors if errors is not None else []).append(args),
+		debugWarning=lambda *args, **kwargs: (warnings if warnings is not None else []).append(args),
 	)
+	# None in sys.modules makes an import of that name fail.
+	for name in ("configobj", "configobj.validate", "validate"):
+		monkeypatch.setitem(sys.modules, name, None)
+	if validate == "configobj.validate":
+		configobj_stub(stubs)
+	elif validate == "validate":
+		stubs.module("validate", ValidateError=type("ShimValidateError", (Exception,), {}))
 	synth_driver_handler = stubs.module("synthDriverHandler")
 	synth_driver_handler.getSynth = lambda: None
 	stubs.translation()

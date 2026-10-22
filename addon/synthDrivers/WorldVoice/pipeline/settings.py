@@ -6,6 +6,17 @@ import addonHandler
 import config
 from logHandler import log
 
+try:
+	from configobj.validate import ValidateError
+except ImportError:
+	try:
+		# configobj's older home, kept as a shim.
+		from validate import ValidateError
+	except ImportError:
+		# No configobj to name the error: any error reading a stored value falls back, so
+		# WorldVoice still loads.
+		ValidateError = Exception
+
 addonHandler.initTranslation()
 
 
@@ -319,14 +330,33 @@ class PipelineSettings:
 		return self
 
 
-def _get_value(section: Any, key: str) -> Any:
+# (key, error message) pairs already reported, so a stage reading on every utterance logs once.
+_reported: set[tuple[str, str]] = set()
+
+
+def read_stored(section: Any, key: str, default: Any) -> Any:
+	"""The value stored for *key* in *section*; *default* when none is stored or NVDA refuses it.
+
+	NVDA validates a stored value against the confspec on every read and raises configobj's
+	ValidateError for one outside it (config/__init__.py:1269-1274); its get only catches KeyError.
+	The refused value stays in the file until the next save of the panel replaces it (decided by
+	the user, 2026-10-22, Q3). Each key and stored value is reported once, as a debug warning
+	whose message (configobj's) quotes the stored value (D3).
+	"""
 	try:
-		return section.get(key, DEFAULT_PIPELINE_SETTINGS[key])
-	except AttributeError:
-		try:
-			return section[key]
-		except KeyError:
-			return DEFAULT_PIPELINE_SETTINGS[key]
+		return section.get(key, default)
+	except ValidateError as error:
+		message = str(error)
+		if (key, message) not in _reported:
+			_reported.add((key, message))
+			log.debugWarning(
+				f"WorldVoice: stored setting {key!r} is invalid ({message}); using its default {default!r}",
+			)
+		return default
+
+
+def _get_value(section: Any, key: str) -> Any:
+	return read_stored(section, key, DEFAULT_PIPELINE_SETTINGS[key])
 
 
 class ConfigPipelineRepository:
