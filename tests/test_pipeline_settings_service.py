@@ -437,10 +437,23 @@ def test_a_save_leaves_a_refused_key_it_does_not_name(monkeypatch):
 	assert dict(section) == {"group_size": 11, "item_wait_factor": 30}
 
 
-@pytest.mark.parametrize("source", ["configobj.validate", "validate", None])
+@pytest.mark.parametrize("source", ["configobj.validate", "validate"])
 def test_validate_error_comes_from_configobj(monkeypatch, source):
-	# NVDA imports it from configobj.validate; the top-level shim is configobj's older home. With
-	# neither, any error reading a value falls back, so WorldVoice still loads.
+	# NVDA imports it from configobj.validate; the top-level shim is configobj's older home.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}}, validate=source)
-	expected = sys.modules[source].ValidateError if source else Exception
-	assert module.ValidateError is expected
+	assert module.ValidateError is sys.modules[source].ValidateError
+
+
+def test_without_configobj_a_read_error_is_not_hidden(monkeypatch):
+	# NVDA cannot run without configobj, so this branch is unreachable there. If it is ever
+	# reached, a bug in reading a value must still raise rather than read as the default.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}}, validate=None)
+	assert issubclass(module.ValidateError, Exception)
+	assert module.ValidateError is not Exception
+
+	class Broken:
+		def get(self, key, default):
+			raise TypeError("a bug")
+
+	with pytest.raises(TypeError):
+		module.read_stored(Broken(), "group_size", 3)

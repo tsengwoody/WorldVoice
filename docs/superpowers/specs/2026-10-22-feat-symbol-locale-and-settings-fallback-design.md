@@ -62,7 +62,7 @@ Non-goals:
 
 ### 3.3 Reading stored settings (`pipeline/settings.py`)
 
-- **The error class.** `ValidateError` is imported from `configobj.validate`, then from the top-level `validate` shim. If both imports fail, it falls back to `Exception`, so WorldVoice still loads with any configobj NVDA ships.
+- **The error class.** `ValidateError` is imported from `configobj.validate`, then from the top-level `validate` shim. If both imports fail, it is a private placeholder class that nothing raises. NVDA cannot run without configobj, so this is never reached there; if it is, an error reading a value raises instead of hiding a bug as the default.
 - **`read_stored(section, key, default) -> Any`** returns `section.get(key, default)`. On `ValidateError` it returns `default`.
   - It logs one `log.debugWarning` per key and stored value, with the key and configobj's message, which quotes the stored value (D3). The message is not repeated on every later read: stages read the settings for every utterance.
   - It writes nothing back (Q3 A). It tells an optional `on_fallback(key)` callback which key fell back.

@@ -13,9 +13,13 @@ except ImportError:
 		# configobj's older home, kept as a shim.
 		from validate import ValidateError
 	except ImportError:
-		# No configobj to name the error: any error reading a stored value falls back, so
-		# WorldVoice still loads.
-		ValidateError = Exception
+		# NVDA cannot run without configobj, so this is never reached there. If it is, nothing
+		# raises this placeholder: an error reading a value (a real bug) raises instead of
+		# silently reading as the default.
+		class _NeverRaised(Exception):
+			"""A placeholder for configobj's ValidateError that nothing raises."""
+
+		ValidateError = _NeverRaised
 
 addonHandler.initTranslation()
 
