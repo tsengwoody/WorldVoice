@@ -289,3 +289,25 @@ Counts for later tasks are computed from the tests each task lists; if the real 
 - [ ] **Step 1:** Full §7 verification; record counts.
 - [ ] **Step 2:** mutmut 3 (≤3 workers, memory guard, scratch copy) on `remove_thousands_separators`, `_translate_number`, `iter_number_speech_segments_mode`, `inject_number_mode`, `_symbol_locale`, `_symbol_name`, `_split_spaced_numbers`, `_insert_number_breaks`, `number_wait_factor`, `_both_numbers`, `PipelineSettingSpec.confspec`, `PipelineSettingSpec.convert`, `_number_mode`, `PipelineSettings.effective`. Kill reasonable survivors with tests (commit `test: kill surviving mutants in the number pipeline`); list every remaining survivor with its reason in the report.
 - [ ] **Step 3:** Report to the orchestrator: commits, `BASE..HEAD`, counts, survivors, all Rulings. The orchestrator dispatches the final Fable 5.1 review.
+
+**Task 13 result (mutmut 3.8.0, 2026-10-22, on `844d8d2`, scratch copy, 3 children, memory guard):** 275 mutants in the listed functions: 274 killed, 1 survived.
+
+| Function | Killed | Survived |
+| --- | --- | --- |
+| `remove_thousands_separators` | 14 | 0 |
+| `_translate_number` | 47 | 0 |
+| `iter_number_speech_segments_mode` | 35 | 0 |
+| `inject_number_mode` | 38 | 0 |
+| `_symbol_locale` | 18 | 0 |
+| `_symbol_name` | 9 | 0 |
+| `_symbol_namer` | 12 | 0 |
+| `_split_spaced_numbers` | 21 | 0 |
+| `_insert_number_breaks` | 12 | 1 |
+| `number_wait_factor` | 10 | 0 |
+| `_both_numbers` | 10 | 0 |
+| `settings._number_mode` | 7 | 0 |
+| `PipelineSettingSpec.convert` | 15 | 0 |
+| `PipelineSettings.effective` | 26 | 0 |
+
+- **Survivor, equivalent:** `_insert_number_breaks__mutmut_1`, `previous = _MISSING` → `previous = None`. `_both_numbers(None, item)` is always false because `None` is not text, exactly like the `_MISSING` check, so no input can tell them apart.
+- **Not mutated by mutmut 3:** `PipelineSettingSpec.confspec` (a property; pinned by `test_group_size_confspec_keeps_the_stored_minimum` and the table test), and the module-level regexes `_NUMBER_RE`, `_THOUSANDS_RE`, `_NUMBER_TOKEN_RE` (pinned by the oracles P1 and P3 and the spec-table tests). The sign lookbehind in `_NUMBER_RE` is an equivalent mutant by construction (batch 1 review M1).
