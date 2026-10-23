@@ -189,6 +189,62 @@ def test_unavailable_language_does_not_cover_its_script(
 	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
 
 
+# After a run in another script, the base language comes back before the preference (spec §2).
+@pytest.mark.parametrize(
+	"languages,base,preferences,sequence,expected",
+	[
+		pytest.param(
+			("en_US", "zh_TW", "ja_JP"),
+			"zh_TW",
+			{"cjk": "ja"},
+			["你好 hello 世界"],
+			["你好 ", ("lang", "en"), "hello ", ("lang", "zh_TW"), "世界"],
+			id="R1",
+		),
+		pytest.param(
+			("en_GB", "en_US", "zh_TW"),
+			"en_GB",
+			{"cjk": "zh_TW"},
+			["hi 你好 ok"],
+			["hi ", ("lang", "zh_TW"), "你好 ", ("lang", "en_GB"), "ok"],
+			id="R2",
+		),
+		pytest.param(
+			("en_US", "ja_JP", "zh_TW"),
+			"ja_JP",
+			{"cjk": "zh_TW"},
+			["漢字 hello 漢字"],
+			["漢字 ", ("lang", "en"), "hello ", ("lang", "ja_JP"), "漢字"],
+			id="R3",
+		),
+		pytest.param(
+			("en_US", "zh_TW", "ja_JP"),
+			"zh_TW",
+			{"cjk": "ja"},
+			[L("ja"), "中", L(None), "a中"],
+			[("lang", "ja"), "中", ("lang", None), ("lang", "en"), "a", ("lang", "zh_TW"), "中"],
+			id="R4",
+		),
+		pytest.param(
+			("en_US", "ar-WW"),
+			"ar-WW",
+			{},
+			["مرحبا hi مرحبا"],
+			["مرحبا ", ("lang", "en"), "hi ", ("lang", "ar-WW"), "مرحبا"],
+			id="hyphenated-base",
+		),
+	],
+)
+def test_base_language_wins_after_another_script(env, languages, base, preferences, sequence, expected):
+	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
+
+
+@pytest.mark.parametrize("base,expected", [("zh_TW", "zh_TW"), ("ko_KR", "ja")])
+def test_find_language_for_script_prefers_an_available_base(env, base, expected):
+	switching(env)["CJKCharactersLanguage"] = "ja"
+	assert make_detector(env).find_language_for_script("Han", "en_US", base_language=base) == expected
+
+
 def test_spelling_with_an_unavailable_locale(env):
 	result = list(make_detector(env, languages=("en_US", "zh_TW")).process_for_spelling("a b", "de_DE"))
 	assert result == [("a", "en"), (" ", "de_DE"), ("b", "en")]
@@ -196,7 +252,7 @@ def test_spelling_with_an_unavailable_locale(env):
 
 def test_mixed_scripts_switch_at_script_boundaries(env):
 	result = make_detector(env).add_detected_language_commands(["hello 中文 ok"])
-	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en"), "ok"]
+	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en_US"), "ok"]
 
 
 @pytest.mark.parametrize(
@@ -276,7 +332,14 @@ def test_one_settings_read_per_sequence(env):
 		language=lambda: env.state.language,
 	)
 	result = detector.add_detected_language_commands(["中1中1 abc عربي 2"])
-	assert shape(env, result) == [("lang", "zh"), "中1中1 ", ("lang", "en"), "abc ", ("lang", "ar"), "عربي 2"]
+	assert shape(env, result) == [
+		("lang", "zh"),
+		"中1中1 ",
+		("lang", "en_US"),
+		"abc ",
+		("lang", "ar"),
+		"عربي 2",
+	]
 	assert counting.reads == 1
 
 

@@ -113,10 +113,14 @@ class LanguageDetector:
 		primary = get_primary_language(language)
 		return primary in SCRIPT_LANGUAGES.get(script, ()) and primary in self.availableLanguages
 
-	def find_language_for_script(self, script, current_language, settings=None):
+	def find_language_for_script(self, script, current_language, settings=None, base_language=None):
+		"""The language for a letter of script: the current language, the base language, the
+		configured language, then the first installed one; the current language if none has a voice."""
 		candidates = SCRIPT_LANGUAGES.get(script, ())
 		if not candidates or self._covers(current_language, script):
 			return current_language
+		if base_language is not None and self._covers(base_language, script):
+			return base_language
 		if settings is None:
 			settings = self._settings.get()
 		configured = settings.script_language.get(script)
@@ -137,7 +141,7 @@ class LanguageDetector:
 		script = get_script(ord(character))
 		if script in (None, "Common", "Inherited"):
 			return current_language
-		return self.find_language_for_script(script, current_language, settings)
+		return self.find_language_for_script(script, current_language, settings, base_language)
 
 	def add_detected_language_commands(self, speechSequence):
 		# Read the settings once, so the whole sequence is detected with the same values.
