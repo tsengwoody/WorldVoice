@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import REF, WORLDVOICE, alias_package
 from nvda_stubs import StubModules, worldvoice_conf
-from pipeline_harness import nvda_normalize_language
+from pipeline_harness import nvda_normalize_language, symbol_name
 from worldvoice_harness import chosen_voice, load_synth_class, voice_manager
 
 PACKAGE = "speak_test_worldvoice"
@@ -269,3 +269,189 @@ def test_pause_and_cancel_reach_the_runtime_until_the_synth_terminates(monkeypat
 	synth.pause(False)
 	assert voice_manager(synth).cancels == 1
 	assert synth.taskManager.calls == [("pause", True)]
+
+
+# Which voice reads a number (phase 35). Every row was recorded on da7f791, before phase 35.
+
+EN, ZH = VOICES["en"], VOICES["zh"]
+L = LangChangeCommand
+
+
+def stage_settings(*, number_mode="value", punctuation=False, number_wait=0, group_size=3):
+	"""The pipeline settings the stages read: only the given pauses and modes, every other wait 0."""
+	return SimpleNamespace(
+		number_mode=number_mode,
+		scope="WorldVoice",
+		punctuation_pause_characters=".,",
+		punctuation_pause_enabled=punctuation,
+		remove_punctuation_characters=False,
+		scaled_item_wait=lambda: 0,
+		scaled_number_wait=lambda: number_wait,
+		scaled_chinesespace_wait=lambda: 0,
+		scaled_punctuation_wait=lambda: 0,
+		group_size=group_size,
+	)
+
+
+def heard(calls):
+	"""What each voice reads, in order: (voice, text) with an index as "[i]", and "|" for a break."""
+	result = []
+	for call in calls:
+		if call == "submit":
+			continue
+		if call[0] != "speech":
+			result.append("|")
+			continue
+		_kind, voice, chunks = call
+		text = "".join(chunk if isinstance(chunk, str) else f"[{chunk.index}]" for chunk in chunks)
+		if result and isinstance(result[-1], tuple) and result[-1][0] == voice:
+			result[-1] = (voice, result[-1][1] + text)
+		else:
+			result.append((voice, text))
+	return result
+
+
+def speak_through_stages(
+	monkeypatch,
+	sequence,
+	*,
+	numlan,
+	timing="after",
+	uwv=True,
+	main="en",
+	settings=None,
+	ignore=False,
+):
+	"""Run the pipeline stages, then detection when it runs before NVDA, then speak; what is heard."""
+	synth, modules = _synth(monkeypatch, timing=timing, uwv=uwv)
+	synth._numlan = numlan
+	if main == "zh":
+		synth.language = "zh_TW"
+		synth._voiceManager.defaultVoiceName = ZH
+		synth._voiceManager.defaultVoiceInstance = SimpleNamespace(name=ZH, language="zh_TW")
+	conf = sys.modules["config"].conf
+	conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = ignore
+	monkeypatch.setattr(sys.modules["speech"], "getCurrentLanguage", lambda: synth.language, raising=False)
+	monkeypatch.setattr(sys.modules["characterProcessing"], "processSpeechSymbol", symbol_name)
+	ctx = synth.speech_context()
+	sequence = list(sequence)
+	for stage in modules.pipeline.STAGES:
+		sequence = list(stage.fn(sequence, settings or stage_settings(), ctx))
+	if uwv and timing == "before":
+		sequence = synth.add_detected_language_commands(sequence)
+	synth.speak(sequence)
+	return heard(synth.taskManager.calls)
+
+
+TIMINGS = pytest.mark.parametrize("timing", ["after", "before"])
+PUNCTUATION = stage_settings(punctuation=True)
+NUMBER_MODE = stage_settings(number_mode="number")
+# Today's "ignore numbers" off: digits go to the main language.
+MAIN = {"numlan": "default", "ignore": False}
+# Today's "ignore numbers" on: digits follow the text.
+FOLLOW = {"numlan": "default", "ignore": True}
+
+MAIN_ROWS = [
+	pytest.param(["中12"], {}, [(ZH, "中"), (EN, "12")], id="zh12"),
+	pytest.param(["中文 12"], {}, [(ZH, "中文 "), (EN, "12")], id="zh-space-12"),
+	pytest.param([L("de_DE"), "abc 12 中"], {}, [(EN, "abc 12 "), (ZH, "中")], id="tagged-de"),
+	pytest.param(["abc 123 def"], {"main": "zh"}, [(EN, "abc "), (ZH, "123 "), (EN, "def")], id="zh-main"),
+	pytest.param(
+		["中12.5 ok"],
+		{"settings": NUMBER_MODE},
+		[(ZH, "中"), (EN, "1"), "|", (EN, "2"), "|", (EN, "full stop en"), "|", (EN, "5 ok")],
+		id="number-mode",
+	),
+	pytest.param(["Total. 12"], {"settings": PUNCTUATION}, [(EN, "Total."), "|", (EN, " 12")], id="total"),
+	pytest.param(
+		["中 12. Next"],
+		{"settings": PUNCTUATION},
+		[(ZH, "中 "), (EN, "12 ."), "|", (EN, " Next")],
+		id="next",
+	),
+	pytest.param(["中", IndexCommand(1), "12"], {}, [(ZH, "中"), (EN, "[1]12")], id="index"),
+	pytest.param(["", "12", ""], {}, [(EN, "12")], id="empty"),
+]
+
+
+@TIMINGS
+@pytest.mark.parametrize(("sequence", "options", "expected"), MAIN_ROWS)
+def test_main_language_numbers(monkeypatch, sequence, options, expected, timing):
+	assert speak_through_stages(monkeypatch, sequence, timing=timing, **MAIN, **options) == expected
+
+
+FOLLOW_ROWS = [
+	pytest.param(["中12"], {}, [(ZH, "中12")], id="zh12"),
+	pytest.param(["中文 12"], {}, [(ZH, "中文 12")], id="zh-space-12"),
+	pytest.param(["Total. 12"], {"settings": PUNCTUATION}, [(EN, "Total."), "|", (EN, " 12")], id="total"),
+	pytest.param(
+		["中 12. Next"],
+		{"settings": PUNCTUATION},
+		[(ZH, "中 12 ."), "|", (ZH, " "), (EN, "Next")],
+		id="next",
+	),
+	pytest.param(
+		["中12.5 ok"],
+		{"settings": NUMBER_MODE},
+		[(ZH, "中1"), "|", (ZH, "2"), "|", (EN, "full stop en"), "|", (EN, "5 ok")],
+		id="number-mode",
+	),
+]
+
+
+@TIMINGS
+@pytest.mark.parametrize(("sequence", "options", "expected"), FOLLOW_ROWS)
+def test_follow_language_numbers(monkeypatch, sequence, options, expected, timing):
+	assert speak_through_stages(monkeypatch, sequence, timing=timing, **FOLLOW, **options) == expected
+
+
+OFF_ROWS = [
+	pytest.param("default", ["中12"], {}, [(EN, "中12")], id="default-zh12"),
+	pytest.param(
+		"default",
+		["Total. 12"],
+		{"settings": PUNCTUATION},
+		[(EN, "Total."), "|", (EN, " 12")],
+		id="default-total",
+	),
+	pytest.param(
+		"default",
+		["12. Next"],
+		{"settings": PUNCTUATION},
+		[(EN, "12 ."), "|", (EN, " Next")],
+		id="default-next",
+	),
+	pytest.param("zh_TW", ["中12"], {}, [(EN, "中"), (ZH, "12")], id="locale-zh12"),
+	pytest.param(
+		"zh_TW",
+		["Total. 12"],
+		{"settings": PUNCTUATION},
+		[(EN, "Total. "), (ZH, "12")],
+		id="locale-total",
+	),
+	pytest.param(
+		"zh_TW",
+		["12. Next"],
+		{"settings": PUNCTUATION},
+		[(ZH, "12"), (EN, "."), "|", (EN, " Next")],
+		id="locale-next",
+	),
+]
+
+
+@pytest.mark.parametrize(("numlan", "sequence", "options", "expected"), OFF_ROWS)
+def test_numbers_without_detection(monkeypatch, numlan, sequence, options, expected):
+	assert speak_through_stages(monkeypatch, sequence, numlan=numlan, uwv=False, **options) == expected
+
+
+LOCALE_ROWS = [
+	# The voice of the number language is the main voice: the stage's own dedupe drops its wrappers.
+	pytest.param(["abc 123 def"], {"main": "zh"}, [(EN, "abc "), (ZH, "123 "), (EN, "def")], id="zh-main"),
+	pytest.param(["abc 12"], {}, [(EN, "abc "), (ZH, "12")], id="en-main"),
+]
+
+
+@TIMINGS
+@pytest.mark.parametrize(("sequence", "options", "expected"), LOCALE_ROWS)
+def test_locale_numbers_with_detection(monkeypatch, sequence, options, expected, timing):
+	assert speak_through_stages(monkeypatch, sequence, numlan="zh_TW", timing=timing, **options) == expected

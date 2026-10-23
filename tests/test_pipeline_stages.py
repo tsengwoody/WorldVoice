@@ -159,6 +159,17 @@ def test_positive_number_wait_breaks_between_numbers(monkeypatch):
 	assert result[0] == "1" and result[2] == "2" and result[1].time == 40
 
 
+@pytest.mark.parametrize("numlan", ["default", "en"])
+def test_other_synths_get_no_worldvoice_language_commands(monkeypatch, numlan):
+	settings = punctuation_settings(0)
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	ctx = module.SpeechContext(supports_roles=False, language=None, number_language=numlan)
+	sequence = ["中12", "abc 1 2"]
+	for stage in module.STAGES:
+		sequence = list(stage.fn(sequence, settings, ctx))
+	assert not any(isinstance(item, module.WVLangChangeCommand) for item in sequence)
+
+
 def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 	settings = punctuation_settings(0)
 	module, _ = load_pipeline_module(monkeypatch, settings)
