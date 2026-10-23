@@ -102,21 +102,14 @@ def detect(env, sequence, *, languages, base, **preferences):
 			id="ru-before-uk",
 		),
 		pytest.param(("en_US",), "en_US", {}, ["hi Ελληνικά"], ["hi Ελληνικά"], id="no-greek-voice"),
+		# Phase 35: digits follow the text; the number language is the pipeline's (spec §6.3).
 		pytest.param(
 			("en_US", "zh_TW"),
 			"en_US",
 			{"cjk": "zh_TW"},
 			["中12"],
-			[("lang", "zh_TW"), "中", ("lang", "en_US"), "12"],
-			id="digits-to-base",
-		),
-		pytest.param(
-			("en_US", "zh_TW"),
-			"en_US",
-			{"cjk": "zh_TW", "ignore_numbers": True},
-			["中12"],
 			[("lang", "zh_TW"), "中12"],
-			id="digits-ignored",
+			id="digits-follow",
 		),
 		pytest.param(
 			("zh_TW",),
@@ -163,7 +156,7 @@ def test_detection_characterization(env, languages, base, preferences, sequence,
 		pytest.param(
 			("en_US", "zh_TW"),
 			"en_US",
-			{"ignore_numbers": True},
+			{},
 			[L("de_DE"), "12 hallo"],
 			[("lang", "de_DE"), "12 ", ("lang", "en"), "hallo"],
 			id="digits-ignored",
@@ -181,8 +174,8 @@ def test_detection_characterization(env, languages, base, preferences, sequence,
 			"en_US",
 			{},
 			[L("de_DE"), "hallo 12"],
-			[("lang", "de_DE"), ("lang", "en"), "hallo ", ("lang", "de_DE"), "12"],
-			id="digits-return-to-it",
+			[("lang", "de_DE"), ("lang", "en"), "hallo 12"],
+			id="digits-stay-in-the-run",
 		),
 	],
 )
@@ -343,16 +336,32 @@ def test_mixed_scripts_switch_at_script_boundaries(env):
 	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en_US"), "ok"]
 
 
+@pytest.mark.parametrize("stored", [False, True], ids=["stored-off", "stored-on"])
+def test_digits_follow_the_current_language_whatever_is_stored(env, stored):
+	# The old "ignore numbers" key is never read again (phase 35 goal 2).
+	switching(env)["ignoreNumbersInLanguageDetection"] = stored
+	assert shape(env, make_detector(env).add_detected_language_commands(["中1"])) == [("lang", "zh"), "中1"]
+
+
+# Decimal digits of any script are not letters: many are not Common script (Arabic-Indic digits are
+# Arabic), so without their own rule they would switch the voice (phase 35 spec §6.3, F4).
 @pytest.mark.parametrize(
-	"ignore,expected",
+	("sequence", "expected"),
 	[
-		(False, [("lang", "zh"), "中", ("lang", "en_US"), "1"]),
-		(True, [("lang", "zh"), "中1"]),
+		(["abc ١٢٣"], ["abc ١٢٣"]),
+		(["مرحبا ١٢٣"], [("lang", "ar"), "مرحبا ١٢٣"]),
+		(["中１２３"], [("lang", "zh"), "中１２３"]),
 	],
+	ids=["abc-arabic-indic", "arabic-arabic-indic", "han-full-width"],
 )
-def test_digits_follow_the_ignore_numbers_setting(env, ignore, expected):
-	switching(env)["ignoreNumbersInLanguageDetection"] = ignore
-	assert shape(env, make_detector(env).add_detected_language_commands(["中1"])) == expected
+def test_decimal_digits_never_switch_the_language(env, sequence, expected):
+	detector = make_detector(env, ("en_US", "zh_TW", "ar"))
+	assert shape(env, detector.add_detected_language_commands(sequence)) == expected
+
+
+def test_superscripts_are_not_digits(env):
+	# "²" is not a decimal digit (spec §6.1): it is Common script and stays in the run.
+	assert shape(env, make_detector(env).add_detected_language_commands(["中²"])) == [("lang", "zh"), "中²"]
 
 
 # The speech symbols are gone (phase 33 spec §1.2): an old caller fails at construction, not later.
@@ -420,7 +429,6 @@ class CountingSettings:
 
 
 def test_one_settings_read_per_sequence(env):
-	switching(env)["ignoreNumbersInLanguageDetection"] = True
 	counting = CountingSettings(env.settings)
 	detector = env.module.LanguageDetector(
 		["en_US", "zh_TW", "ar"],

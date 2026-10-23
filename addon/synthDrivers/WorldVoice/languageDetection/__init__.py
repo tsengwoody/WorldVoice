@@ -133,10 +133,11 @@ class LanguageDetector:
 		return current_language
 
 	def _language_for_character(self, character, current_language, base_language, settings):
-		if character.isdigit():
-			if settings.ignore_numbers:
-				return current_language
-			return base_language
+		# A decimal digit of any script stays in the current run: the pipeline wraps a number for
+		# its number language. Many decimal digits are not Common script (Arabic-Indic ones are
+		# Arabic), so they need this rule.
+		if character.isdecimal():
+			return current_language
 		script = get_script(ord(character))
 		if script in (None, "Common", "Inherited"):
 			return current_language

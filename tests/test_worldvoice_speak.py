@@ -360,8 +360,8 @@ PUNCTUATION = stage_settings(punctuation=True)
 NUMBER_MODE = stage_settings(number_mode="number")
 # "Follow document main language" reads digits as today's "ignore numbers" off did.
 MAIN = {"numlan": "main", "ignore": False}
-# Today's "ignore numbers" on: digits follow the text.
-FOLLOW = {"numlan": "default", "ignore": True}
+# "Follow current text language" reads digits as today's "ignore numbers" on did.
+FOLLOW = {"numlan": "default"}
 
 MAIN_ROWS = [
 	pytest.param(["中12"], {}, [(ZH, "中"), (EN, "12")], id="zh12"),
@@ -472,7 +472,7 @@ def test_locale_numbers_with_detection(monkeypatch, sequence, options, expected,
 
 @TIMINGS
 def test_full_width_digits_are_numbers(monkeypatch, timing):
-	result = speak_through_stages(monkeypatch, ["abc１２３"], numlan="zh_TW", ignore=True, timing=timing)
+	result = speak_through_stages(monkeypatch, ["abc１２３"], numlan="zh_TW", timing=timing)
 	assert result == [(EN, "abc"), (ZH, "１２３")]
 
 
@@ -596,3 +596,9 @@ def test_a_sign_that_changes_the_voice_starts_the_numbers_item(
 		nvda=nvda,
 	)
 	assert result == expected
+
+
+@TIMINGS
+def test_main_keeps_superscripts_in_the_text(monkeypatch, timing):
+	# Decided by the user (2026-10-23, spec §4.7 item 2): "²" is not a digit, so it stays with the text.
+	assert speak_through_stages(monkeypatch, ["中²"], timing=timing, **MAIN) == [(ZH, "中²")]
