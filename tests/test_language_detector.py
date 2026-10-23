@@ -1,8 +1,10 @@
 """Language detection: which language each run of text is spoken in."""
 
+from types import SimpleNamespace
+
 import pytest
 from detector_harness import LangChangeCommand, load_language_detection
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, example, given, settings, strategies as st
 
 
 @pytest.fixture
@@ -34,6 +36,7 @@ L = LangChangeCommand
 PREFERENCE_KEYS = {
 	"cjk": "CJKCharactersLanguage",
 	"latin": "latinCharactersLanguage",
+	"arabic": "arabicCharactersLanguage",
 	"ignore_numbers": "ignoreNumbersInLanguageDetection",
 }
 
@@ -423,28 +426,94 @@ def test_one_settings_read_per_spelling(env):
 
 
 SCRIPT_SAMPLES = st.sampled_from(
-	["hello", " ", "中文", "日本語", "عربي", "123", ",", "é", "\U0001f600", "\n"],
+	["hello", " ", "中文", "日本語", "عربي", "123", ",", "é", "\U0001f600", "\n"]
+	+ ["漢字", "привет", "한국", "かな", "Ελληνικά", "12", "，"],
 )
+TEXTS = st.lists(st.one_of(SCRIPT_SAMPLES, st.characters()), max_size=12).map("".join)
+VOICES = (
+	"en_US",
+	"en_GB",
+	"zh_TW",
+	"ja_JP",
+	"ko_KR",
+	"ar-WW",
+	"ru_RU",
+	"uk_UA",
+	"de_DE",
+	"fr_FR",
+	"hi_IN",
+	"el_GR",
+)
+# Document languages: none, without a voice, hyphenated, a regional variant, primary only, unknown.
+COMMAND_LANGUAGES = (None, "de_DE", "ar-WW", "zh_TW", "en_GB", "ja", "fr", "xx_YY")
+ITEMS = st.lists(
+	st.one_of(TEXTS, st.sampled_from(COMMAND_LANGUAGES).map(LangChangeCommand), st.builds(object)),
+	max_size=8,
+)
+
+
+@st.composite
+def scenarios(draw):
+	"""Installed voices, the synth language (always one of them), preferences and a spelling locale."""
+	installed = draw(st.lists(st.sampled_from(VOICES), min_size=1, max_size=6, unique=True))
+	return SimpleNamespace(
+		installed=installed,
+		base=draw(st.sampled_from(installed)),
+		preferences={
+			"cjk": draw(st.sampled_from(["zh", "zh_TW", "ja", "ko"])),
+			"latin": draw(st.sampled_from(["en", "fr", "de"])),
+			"arabic": draw(st.sampled_from(["ar", "fa"])),
+			"ignore_numbers": draw(st.booleans()),
+		},
+		locale=draw(st.one_of(st.none(), st.sampled_from(COMMAND_LANGUAGES[1:] + tuple(installed)))),
+	)
+
+
+def scenario_detector(env, scenario):
+	env.state.language = scenario.base
+	for name, value in scenario.preferences.items():
+		switching(env)[PREFERENCE_KEYS[name]] = value
+	return make_detector(env, scenario.installed)
+
+
+def is_letter(env, character):
+	return not character.isdigit() and env.module.get_script(ord(character)) not in (
+		None,
+		"Common",
+		"Inherited",
+	)
+
+
+def covers(env, scenario, language, script):
+	"""The phase 33 rule, written out: a language of the script with an installed voice."""
+	primary = env.module.get_primary_language(language)
+	installed = {env.module.get_primary_language(voice) for voice in scenario.installed}
+	return primary in env.module.SCRIPT_LANGUAGES.get(script, ()) and primary in installed
+
+
+def spoken_letters(env, scenario, items, result):
+	"""Each letter of the output: its script, the language in effect, the base, and the language of
+	the command detection inserted right before it (None if there is none)."""
+	given = [item for item in items if not isinstance(item, str)]
+	base = language = scenario.base
+	inserted = None
+	for item in result:
+		if isinstance(item, str):
+			for character in item:
+				if is_letter(env, character):
+					yield env.module.get_script(ord(character)), language, base, inserted
+				inserted = None
+		elif not any(item is command for command in given):
+			language = inserted = item.lang
+		elif isinstance(item, LangChangeCommand):
+			base = language = item.lang or scenario.base
 
 
 # The detector is stateless between calls, so one function-scoped env serves every example.
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-@given(
-	items=st.lists(
-		st.one_of(
-			st.lists(st.one_of(SCRIPT_SAMPLES, st.characters()), max_size=12).map("".join),
-			st.sampled_from(["zh_TW", "ar", None, "fr"]).map(LangChangeCommand),
-			st.builds(object),
-		),
-		max_size=8,
-	),
-	ignore_numbers=st.booleans(),
-)
-def test_property_detection_only_inserts_language_changes(env, items, ignore_numbers):
-	switching(env)["ignoreNumbersInLanguageDetection"] = ignore_numbers
-	result = list(
-		make_detector(env, languages=("en_US", "zh_TW", "ja", "ar")).add_detected_language_commands(items),
-	)
+@given(scenario=scenarios(), items=ITEMS)
+def test_property_detection_only_inserts_language_changes(env, scenario, items):
+	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
 	assert all(item != "" for item in result), "an empty text was yielded"
 	given = [item for item in items if not isinstance(item, str)]
 	added = [item for item in result if not isinstance(item, str) and all(item is not c for c in given)]
@@ -452,6 +521,48 @@ def test_property_detection_only_inserts_language_changes(env, items, ignore_num
 	# Without what detection added, the sequence is the input: same text, commands in place.
 	kept = [item for item in result if isinstance(item, str) or any(item is c for c in given)]
 	assert merge_texts(kept) == merge_texts(items)
+
+
+def plain_scenario(installed, base):
+	"""A fixed scenario with the shipped preferences, for the explicit examples."""
+	preferences = {"cjk": "ja", "latin": "en", "arabic": "ar", "ignore_numbers": False}
+	return SimpleNamespace(installed=list(installed), base=base, preferences=preferences, locale=None)
+
+
+# Random draws find these cases in most runs, not all; the examples make every run check them.
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(scenario=scenarios(), items=ITEMS)
+@example(scenario=plain_scenario(("en_US", "zh_TW"), "en_US"), items=[L("de_DE"), "hallo"])
+def test_property_letters_go_to_installed_languages(env, scenario, items):
+	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
+	installed = {env.module.get_primary_language(voice) for voice in scenario.installed}
+	for script, language, _base, inserted in spoken_letters(env, scenario, items, result):
+		if inserted is not None:
+			assert env.module.get_primary_language(inserted) in installed
+		if any(candidate in installed for candidate in env.module.SCRIPT_LANGUAGES.get(script, ())):
+			# Some installed language covers the script, so the letter is spoken in one of them.
+			assert covers(env, scenario, language, script)
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(scenario=scenarios(), items=ITEMS)
+@example(scenario=plain_scenario(("en_US", "zh_TW"), "en_US"), items=["中文hello"])
+def test_property_inserted_commands_prefer_a_covering_base(env, scenario, items):
+	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
+	for script, _language, base, inserted in spoken_letters(env, scenario, items, result):
+		if inserted is not None and covers(env, scenario, base, script):
+			assert inserted == base
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(scenario=scenarios(), text=TEXTS)
+def test_property_spelling_runs_of_the_base_primary_carry_the_base(env, scenario, text):
+	runs = list(scenario_detector(env, scenario).process_for_spelling(text, scenario.locale))
+	base = scenario.locale if scenario.locale is not None else scenario.base
+	assert "".join(part for part, _language in runs) == text
+	assert all(part for part, _language in runs)
+	primary = env.module.get_primary_language
+	assert all(language == base for _part, language in runs if primary(language) == primary(base))
 
 
 def merge_texts(sequence):
