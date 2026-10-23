@@ -52,12 +52,11 @@ Globally supported speech pipeline settings can be adjusted through the NVDA spe
 
 ## Unicode Detection
 
-These options adjust how WorldVoice handles numbers, punctuation, and character sets shared by multiple languages when detecting text language.
+These options adjust how WorldVoice handles numbers and character sets shared by multiple languages when detecting text language.
 
 * Ignore numbers during language detection: When checked, numbers are ignored during detection and are read using the current speech role.
-* Ignore common punctuation during language detection: When checked, punctuation is ignored during detection and is read using the current speech role.
 * Language detection timing: Determines whether Unicode-based language detection and language-switching commands are handled before or after NVDA processes speech commands.
-* Assumed language for character sets: Sets the default language for Unicode character sets shared by multiple languages, including Latin characters, CJK characters, and Arabic characters.
+* Assumed language for character sets: Sets the default language for Unicode character sets shared by multiple languages, including Latin characters, CJK characters, and Arabic characters. WorldVoice uses this language only when neither the language being read nor the main language (the main speech role's language, or the language the document marks) is a language of that character set with an installed voice. Languages without an installed voice are skipped.
 
 ## Notes
 

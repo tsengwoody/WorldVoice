@@ -20,110 +20,6 @@ msgstr ""
 "X-Poedit-Basepath: ../../..\n"
 "X-Poedit-SearchPath-0: .\n"
 
-#: addon\generics\speechSymbols\models.py:20
-msgid "context"
-msgstr "上下文"
-
-#: addon\generics\speechSymbols\models.py:21
-msgid "force"
-msgstr "強制"
-
-#. Translators: This is the label for the add symbol dialog.
-#: addon\generics\speechSymbols\views.py:30
-msgid "Add Symbol"
-msgstr "新增符號"
-
-#. Translators: This is the label for the edit field in the add symbol dialog.
-#: addon\generics\speechSymbols\views.py:35
-msgid "&Symbol:"
-msgstr "符號(&S)"
-
-#: addon\generics\speechSymbols\views.py:58
-msgid "Unicode Setting"
-msgstr "Unicode 設定"
-
-#. Translators: The label of a text field to search for symbols in the speech symbols dialog.
-#: addon\generics\speechSymbols\views.py:73
-msgctxt "speechSymbols"
-msgid "&Filter by:"
-msgstr "過濾(&F)："
-
-#. Translators: The label for symbols list in symbol pronunciation dialog.
-#: addon\generics\speechSymbols\views.py:82
-msgid "&Symbols"
-msgstr "符號(&S)"
-
-#. Translators: The label for a column in symbols list used to identify a symbol.
-#: addon\generics\speechSymbols\views.py:92
-msgid "Unicode"
-msgstr "Unicode"
-
-#. Translators: The label for a column in symbols list used to identify a replacement.
-#: addon\generics\speechSymbols\views.py:94
-msgid "Replacement"
-msgstr "替代文字"
-
-#. Translators: The label for a column in symbols list used to identify a symbol's speech level (either none, some, most, all or character).
-#: addon\generics\speechSymbols\views.py:96
-msgid "Language"
-msgstr "語言"
-
-#. Translators: The label for a column in symbols list which specifies when the actual symbol will be sent to the synthesizer (preserved).
-#. See the "Punctuation/Symbol Pronunciation" section of the User Guide for details.
-#: addon\generics\speechSymbols\views.py:99
-msgid "Mode"
-msgstr "模式"
-
-#. Translators: The label for the group of controls in symbol pronunciation dialog to change the pronunciation of a symbol.
-#: addon\generics\speechSymbols\views.py:103
-msgid "Change selected symbol"
-msgstr "變更選擇的符號"
-
-#. Translators: The label for the edit field in symbol pronunciation dialog to change the replacement text of a symbol.
-#: addon\generics\speechSymbols\views.py:125
-msgid "&Replacement"
-msgstr "替代文字(&R)"
-
-#: addon\generics\speechSymbols\views.py:133
-msgid "&language"
-msgstr "語言(&l)"
-
-#: addon\generics\speechSymbols\views.py:138
-msgid "&Detect language mode"
-msgstr "偵測語言模式(&D)"
-
-#. Translators: The label for a button in the Symbol Pronunciation dialog to add a new symbol.
-#: addon\generics\speechSymbols\views.py:145
-msgid "&Add"
-msgstr "新增(&A)"
-
-#. Translators: The label for a button in the Symbol Pronunciation dialog to remove a symbol.
-#: addon\generics\speechSymbols\views.py:148
-msgid "Re&move"
-msgstr "移除(&M)"
-
-#: addon\generics\speechSymbols\views.py:254
-#, python-format
-msgid "Symbol \"%s\" is already present."
-msgstr "符號 \"%s\" 已存在。"
-
-#: addon\generics\speechSymbols\views.py:255
-msgid "Error"
-msgstr "錯誤"
-
-#. Translators: The message displayed
-#: addon\generics\speechSymbols\views.py:322
-msgid ""
-"For the edited unicode rule to apply, NVDA must be restarted. Do you want to "
-"restart NVDA now?"
-msgstr ""
-"為了使編輯的 unicode 規則生效， NVDA 必需重新啟動。您要立即重新啟動 NVDA 嗎？"
-
-#. Translators: The title of the dialog
-#: addon\generics\speechSymbols\views.py:324
-msgid "unicode rule edited"
-msgstr "unicode 規則已編輯"
-
 #. Translators: Title of a setting dialog.
 #. if not AisoundVoice.install():
 #. item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
@@ -403,14 +299,6 @@ msgstr "設定(&S)"
 msgid "Settings."
 msgstr "設定。"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:77
-msgid "&Unicode Settings"
-msgstr "&Unicode 設定"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:77
-msgid "Unicode Settings."
-msgstr "Unicode 設定。"
-
 #: addon\globalPlugins\WorldVoice\__init__.py:79
 msgid "&File Import"
 msgstr "檔案匯入(&F)"
@@ -438,17 +326,9 @@ msgid ""
 "NVDA now ?"
 msgstr "為了讓新檔案匯入， NVDA 必需重新啟動。您要立即重新啟動 NVDA 嗎？"
 
-#: addon\globalPlugins\WorldVoice\__init__.py:152
-msgid "SpeechSymbolsDialog have already been opened"
-msgstr "Unicode 設定對話框已開啟"
-
 #: addon\globalPlugins\WorldVoice\__init__.py:155
 msgid "popup speech settings dialog"
 msgstr "彈出語音設定對話框"
-
-#: addon\globalPlugins\WorldVoice\__init__.py:162
-msgid "popup unicode settings dialog"
-msgstr "彈出 Unicode 設定對話框"
 
 #: addon\globalPlugins\WorldVoice\__init__.py:169
 msgid "switch log record"

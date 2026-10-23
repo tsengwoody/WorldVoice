@@ -262,6 +262,8 @@ Documentation. Decided by orchestrator with the recommended default; user may ov
   - zh_TW, appended: 「只有在目前朗讀的語言與主要語言（主要語音角色的語言，或文件標示的語言）都不是該字元集中已安裝語音的語言時，才會使用這個設定；沒有安裝語音的語言會被略過。」
 - The changelog section of `readme.md:68-` is not edited in this phase; §5 is the source for the release notes.
 
+Decided by the user (2026-10-23): the readmes stop describing the "Ignore common punctuation during language detection" option, which `9816ce0` removed (WorldVoice always behaves as if it were on; see Q5). The bullet goes from all six readmes (`readme.md:58`, `addon/doc/zh_TW/readme.md:58`, `addon/doc/zh_HK/readme.md:56`, `addon/doc/zh_CN/readme.md:57`, `addon/doc/ru/readme.md:57`, `addon/doc/uk/readme.md:57`), and "punctuation" goes from each section intro that names it (`readme.md:55`, `addon/doc/zh_TW/readme.md:55`, `addon/doc/zh_HK/readme.md:53`, `addon/doc/zh_CN/readme.md:54`, `addon/doc/ru/readme.md:54`, `addon/doc/uk/readme.md:54`), so no intro promises a punctuation option.
+
 ## 8. Settings, data, compatibility, error handling
 
 - Configuration keys: none added, removed or renamed. `config.conf.spec["WorldVoice"]` (`addon/synthDrivers/WorldVoice/__init__.py:62-79`) is unchanged.
