@@ -32,6 +32,106 @@ def switching(env):
 	return env.conf["WorldVoice"]["autoLanguageSwitching"]
 
 
+L = LangChangeCommand
+
+PREFERENCE_KEYS = {
+	"cjk": "CJKCharactersLanguage",
+	"latin": "latinCharactersLanguage",
+	"ignore_numbers": "ignoreNumbersInLanguageDetection",
+}
+
+
+def detect(env, sequence, *, languages, base, **preferences):
+	"""Detect with the given installed languages, synth language and detection preferences."""
+	env.state.language = base
+	for name, value in preferences.items():
+		switching(env)[PREFERENCE_KEYS[name]] = value
+	return shape(env, make_detector(env, languages=languages).add_detected_language_commands(sequence))
+
+
+# Outputs that phase 33 must not change (spec §10.1).
+@pytest.mark.parametrize(
+	"languages,base,preferences,sequence,expected",
+	[
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{"cjk": "zh_TW"},
+			["hi 你好，世界。"],
+			["hi ", ("lang", "zh_TW"), "你好，世界。"],
+			id="full-width",
+		),
+		pytest.param(
+			("en_US", "ko_KR", "ja_JP"),
+			"ko_KR",
+			{},
+			["한국 漢字 한국"],
+			["한국 漢字 한국"],
+			id="hanja",
+		),
+		pytest.param(
+			("en_US", "hi_IN"),
+			"en_US",
+			{},
+			["hi नमस्ते"],
+			["hi ", ("lang", "hi"), "नमस्ते"],
+			id="hindi",
+		),
+		pytest.param(
+			("en_US", "my_MM"),
+			"en_US",
+			{},
+			["hi မြန်မာ"],
+			["hi ", ("lang", "my"), "မြန်မာ"],
+			id="myanmar",
+		),
+		pytest.param(
+			("en_US", "ar-WW"),
+			"en_US",
+			{},
+			["hi مرحبا"],
+			["hi ", ("lang", "ar"), "مرحبا"],
+			id="hyphenated-voice",
+		),
+		pytest.param(
+			("en_US", "uk_UA", "ru_RU"),
+			"en_US",
+			{},
+			["hi привет"],
+			["hi ", ("lang", "ru"), "привет"],
+			id="ru-before-uk",
+		),
+		pytest.param(("en_US",), "en_US", {}, ["hi Ελληνικά"], ["hi Ελληνικά"], id="no-greek-voice"),
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{"cjk": "zh_TW"},
+			["中12"],
+			[("lang", "zh_TW"), "中", ("lang", "en_US"), "12"],
+			id="digits-to-base",
+		),
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{"cjk": "zh_TW", "ignore_numbers": True},
+			["中12"],
+			[("lang", "zh_TW"), "中12"],
+			id="digits-ignored",
+		),
+		pytest.param(
+			("zh_TW",),
+			"zh_TW",
+			{},
+			[L("de_DE"), "hallo 你好"],
+			[("lang", "de_DE"), "hallo ", ("lang", "zh"), "你好"],
+			id="no-latin-voice",
+		),
+	],
+)
+def test_detection_characterization(env, languages, base, preferences, sequence, expected):
+	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
+
+
 def test_mixed_scripts_switch_at_script_boundaries(env):
 	result = make_detector(env).add_detected_language_commands(["hello 中文 ok"])
 	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en"), "ok"]
