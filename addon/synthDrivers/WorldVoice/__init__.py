@@ -195,8 +195,6 @@ class SynthDriver(SynthDriver):
 				self._teardown.add("end notification", WVEnd.notify)
 				WVStart.notify()
 
-			self.order = 0
-
 			with timed(nvdaLog, "voice settings panel patch"):
 				self._teardown.add(
 					"voice settings panel restore",
@@ -309,7 +307,6 @@ class SynthDriver(SynthDriver):
 	def speak(self, speechSequence):
 		if self._terminated:
 			return
-		self.order = 0
 		if self.uwv and self._detectLanguageTiming() == "after":
 			speechSequence = self.add_detected_language_commands(speechSequence)
 
