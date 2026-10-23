@@ -132,6 +132,68 @@ def test_detection_characterization(env, languages, base, preferences, sequence,
 	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
 
 
+# A language counts only with an installed voice (spec §3); availability is by primary subtag.
+@pytest.mark.parametrize(
+	"languages,base,preferences,sequence,expected",
+	[
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{},
+			[L("de_DE"), "hallo 你好"],
+			[("lang", "de_DE"), ("lang", "en"), "hallo ", ("lang", "zh"), "你好"],
+			id="C1",
+		),
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{},
+			[L("de_DE"), ", hallo"],
+			[("lang", "de_DE"), ", ", ("lang", "en"), "hallo"],
+			id="C2",
+		),
+		pytest.param(
+			("fr_FR", "zh_TW", "en_US"),
+			"zh_TW",
+			{"latin": "fr"},
+			[L("de_DE"), "hallo"],
+			[("lang", "de_DE"), ("lang", "fr"), "hallo"],
+			id="C4",
+		),
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{"ignore_numbers": True},
+			[L("de_DE"), "12 hallo"],
+			[("lang", "de_DE"), "12 ", ("lang", "en"), "hallo"],
+			id="digits-ignored",
+		),
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{},
+			[L("en_GB"), "hello"],
+			[("lang", "en_GB"), "hello"],
+			id="installed-primary",
+		),
+	],
+)
+def test_unavailable_language_does_not_cover_its_script(
+	env,
+	languages,
+	base,
+	preferences,
+	sequence,
+	expected,
+):
+	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
+
+
+def test_spelling_with_an_unavailable_locale(env):
+	result = list(make_detector(env, languages=("en_US", "zh_TW")).process_for_spelling("a b", "de_DE"))
+	assert result == [("a", "en"), (" ", "de_DE"), ("b", "en")]
+
+
 def test_mixed_scripts_switch_at_script_boundaries(env):
 	result = make_detector(env).add_detected_language_commands(["hello 中文 ok"])
 	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en"), "ok"]
@@ -151,7 +213,8 @@ def test_digits_follow_the_ignore_numbers_setting(env, ignore, expected):
 
 def test_mode_one_symbol_speaks_its_replacement_in_its_language(env):
 	symbols = SimpleNamespace(symbols={"€": SimpleNamespace(replacement="euro", language="de", mode=1)})
-	result = make_detector(env, symbols=symbols).add_detected_language_commands(["€x"])
+	languages = ("en_US", "zh_TW", "ja", "de_DE")
+	result = make_detector(env, languages, symbols=symbols).add_detected_language_commands(["€x"])
 	assert shape(env, result) == [("lang", "de"), "eurox"]
 
 

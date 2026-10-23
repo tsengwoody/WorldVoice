@@ -108,10 +108,14 @@ class LanguageDetector:
 		self._language = language
 		self.availableLanguages = frozenset(get_primary_language(lang) for lang in availableLanguages)
 
+	def _covers(self, language, script):
+		"""Whether language is a language of script that has an installed voice."""
+		primary = get_primary_language(language)
+		return primary in SCRIPT_LANGUAGES.get(script, ()) and primary in self.availableLanguages
+
 	def find_language_for_script(self, script, current_language, settings=None):
 		candidates = SCRIPT_LANGUAGES.get(script, ())
-		current_primary = get_primary_language(current_language)
-		if not candidates or current_primary in candidates:
+		if not candidates or self._covers(current_language, script):
 			return current_language
 		if settings is None:
 			settings = self._settings.get()
