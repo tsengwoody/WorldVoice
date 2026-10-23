@@ -1,13 +1,17 @@
 """Load the speech pipeline, its settings and the synth settings that expose them, against NVDA stubs."""
 
 import ast
+import builtins
 import sys
 import types
 import unicodedata
 from types import SimpleNamespace
 
+import pytest
 from addon_loader import REF, WORLDVOICE, alias_package, load_definitions, load_source
 from nvda_stubs import StubModules, configobj_stub, worldvoice_conf
+
+CHARACTER_PROCESSING = REF / "nvda/source/characterProcessing.py"
 
 
 def symbol_name(locale, symbol):
@@ -304,3 +308,30 @@ def load_synth(monkeypatch, conf):
 	# is a statement with no name, so the selection is by hand.
 	exec(compile(ast.Module(body=wanted, type_ignores=[]), str(SYNTH), "exec"), environment)
 	return environment["SynthDriver"], settings_module
+
+
+def load_nvda_character_processing(monkeypatch, tmp_path):
+	"""NVDA's real characterProcessing over ref/nvda's symbol tables, with its built-in dictionaries."""
+	if not CHARACTER_PROCESSING.is_file():
+		pytest.skip("ref/nvda is not checked out")
+	stubs = StubModules(monkeypatch)
+	stubs.translation()
+	monkeypatch.setattr(builtins, "pgettext", lambda context, text: text, raising=False)
+	stubs.module(
+		"NVDAState",
+		shouldWriteToDisk=lambda: False,
+		WritePaths=SimpleNamespace(
+			getSymbolsConfigFile=lambda locale: str(tmp_path / f"symbols-{locale}.dic"),
+		),
+	)
+	ignore = lambda *args, **kwargs: None
+	stubs.module(
+		"logHandler",
+		log=SimpleNamespace(debug=ignore, debugWarning=ignore, error=ignore, exception=ignore),
+	)
+	stubs.module("globalVars", appDir=str(REF / "nvda/source"))
+	stubs.module("config", conf={"speech": {"symbolDictionaries": ["cldr"]}})
+	stubs.module("addonHandler", getRunningAddons=list)
+	character_processing = load_source(monkeypatch, "characterProcessing", CHARACTER_PROCESSING)
+	character_processing._addSymbolDefinitions()
+	return character_processing

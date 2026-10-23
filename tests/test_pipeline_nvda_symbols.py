@@ -5,17 +5,18 @@ changes its symbol tables or its locale fallback.
 """
 
 import ast
-import builtins
 import unicodedata
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
-from addon_loader import REF, load_source
-from nvda_stubs import StubModules
-from pipeline_harness import load_pipeline_module, nvda_normalize_language, punctuation_settings
+from pipeline_harness import (
+	CHARACTER_PROCESSING,
+	load_nvda_character_processing,
+	load_pipeline_module,
+	nvda_normalize_language,
+	punctuation_settings,
+)
 
-CHARACTER_PROCESSING = REF / "nvda/source/characterProcessing.py"
 # NVDA's symbol loader still calls codecs.open, which Python 3.14 deprecates.
 NVDA_WARNINGS = pytest.mark.filterwarnings("ignore:codecs.open:DeprecationWarning")
 NUMBER_SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.category(c)[0] in "PS")
@@ -186,33 +187,6 @@ def test_normalize_language_is_nvdas():
 	assert normalize("zh-tw") == "zh_TW"
 	assert normalize("ZH") == "zh"
 	assert normalize("x-western") is None
-
-
-def load_nvda_character_processing(monkeypatch, tmp_path):
-	"""NVDA's real characterProcessing over ref/nvda's symbol tables, with its built-in dictionaries."""
-	if not CHARACTER_PROCESSING.is_file():
-		pytest.skip("ref/nvda is not checked out")
-	stubs = StubModules(monkeypatch)
-	stubs.translation()
-	monkeypatch.setattr(builtins, "pgettext", lambda context, text: text, raising=False)
-	stubs.module(
-		"NVDAState",
-		shouldWriteToDisk=lambda: False,
-		WritePaths=SimpleNamespace(
-			getSymbolsConfigFile=lambda locale: str(tmp_path / f"symbols-{locale}.dic"),
-		),
-	)
-	ignore = lambda *args, **kwargs: None
-	stubs.module(
-		"logHandler",
-		log=SimpleNamespace(debug=ignore, debugWarning=ignore, error=ignore, exception=ignore),
-	)
-	stubs.module("globalVars", appDir=str(REF / "nvda/source"))
-	stubs.module("config", conf={"speech": {"symbolDictionaries": ["cldr"]}})
-	stubs.module("addonHandler", getRunningAddons=list)
-	character_processing = load_source(monkeypatch, "characterProcessing", CHARACTER_PROCESSING)
-	character_processing._addSymbolDefinitions()
-	return character_processing
 
 
 @pytest.mark.parametrize(
