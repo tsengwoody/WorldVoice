@@ -185,6 +185,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	synth._numlan = "default"
 	synth.language = "en"
 	synth.uwv = uwv
+	synth._uwv = uwv
 	synth.taskManager = RecordingTasks(ports)
 	synth._voiceManager = VoiceManager(ports)
 	detector = modules.detection.LanguageDetector(
@@ -352,8 +353,8 @@ def speak_through_stages(
 TIMINGS = pytest.mark.parametrize("timing", ["after", "before"])
 PUNCTUATION = stage_settings(punctuation=True)
 NUMBER_MODE = stage_settings(number_mode="number")
-# Today's "ignore numbers" off: digits go to the main language.
-MAIN = {"numlan": "default", "ignore": False}
+# "Follow document main language" reads digits as today's "ignore numbers" off did.
+MAIN = {"numlan": "main", "ignore": False}
 # Today's "ignore numbers" on: digits follow the text.
 FOLLOW = {"numlan": "default", "ignore": True}
 
@@ -427,6 +428,7 @@ OFF_ROWS = [
 		[(EN, "12 ."), "|", (EN, " Next")],
 		id="default-next",
 	),
+	pytest.param("main", ["中12"], {}, [(EN, "中12")], id="main-zh12"),
 	pytest.param("zh_TW", ["中12"], {}, [(EN, "中"), (ZH, "12")], id="locale-zh12"),
 	pytest.param(
 		"zh_TW",
@@ -467,3 +469,36 @@ def test_locale_numbers_with_detection(monkeypatch, sequence, options, expected,
 def test_full_width_digits_are_numbers(monkeypatch, timing):
 	result = speak_through_stages(monkeypatch, ["abc１２３"], numlan="zh_TW", ignore=True, timing=timing)
 	assert result == [(EN, "abc"), (ZH, "１２３")]
+
+
+# Decided by the user (2026-10-23, spec §4.7 item 1): a sign or hyphen right before the digits
+# moves with them, as a specific number language already wraps it.
+SIGN_ROWS = [
+	pytest.param(["中 -12"], {}, [(ZH, "中 "), (EN, "-12")], id="sign"),
+	pytest.param(
+		["中 -12 34"],
+		{"settings": stage_settings(number_wait=50)},
+		[(ZH, "中 "), (EN, "-12"), "|", (EN, "34")],
+		id="wait",
+	),
+	pytest.param(
+		["中 COVID-19 中"],
+		{"main": "zh"},
+		[(ZH, "中 "), (EN, "COVID"), (ZH, "-19 中")],
+		id="covid",
+	),
+]
+
+
+@TIMINGS
+@pytest.mark.parametrize(("sequence", "options", "expected"), SIGN_ROWS)
+def test_main_moves_a_sign_with_its_number(monkeypatch, sequence, options, expected, timing):
+	assert speak_through_stages(monkeypatch, sequence, timing=timing, **MAIN, **options) == expected
+
+
+@TIMINGS
+def test_a_number_language_with_the_main_voice_still_reads_numbers_in_the_text(monkeypatch, timing):
+	# Spec §3 last row: the main voice speaks the number language, so the early stage's dedupe drops
+	# its wrappers (the second trap, spec §4.2); the late stage keeps the digits in that language.
+	result = speak_through_stages(monkeypatch, ["中１２３"], numlan="en", ignore=True, timing=timing)
+	assert result == [(ZH, "中"), (EN, "１２３")]

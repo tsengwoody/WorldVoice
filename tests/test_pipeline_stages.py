@@ -59,6 +59,23 @@ def test_number_mode_switch_logs_both_number_mode_stages(monkeypatch):
 	assert writes == [("number_mode", "before"), ("number_mode", "after")] * 2
 
 
+def test_number_language_switch_logs_both_number_language_stages(monkeypatch):
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	sys.modules["config"].conf["WorldVoice"]["log"] = {
+		"enable": True,
+		**dict.fromkeys(LOG_SWITCH_ORDER, False),
+		"number_language": True,
+	}
+	writes = []
+	monkeypatch.setattr(module, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
+	ctx = detection_context(module, "main")
+	monkeypatch.setattr(module, "current_context", lambda: ctx)
+	sequence = ["12"]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	assert writes == [("number_language", "before"), ("number_language", "after")] * 2
+
+
 def test_register_puts_stages_first_in_order_and_unregister_removes_them(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	fake = OrderedFilter()
@@ -159,7 +176,7 @@ def test_positive_number_wait_breaks_between_numbers(monkeypatch):
 	assert result[0] == "1" and result[2] == "2" and result[1].time == 40
 
 
-@pytest.mark.parametrize("numlan", ["default", "en"])
+@pytest.mark.parametrize("numlan", ["default", "main", "en"])
 def test_other_synths_get_no_worldvoice_language_commands(monkeypatch, numlan):
 	settings = punctuation_settings(0)
 	module, _ = load_pipeline_module(monkeypatch, settings)
@@ -336,3 +353,97 @@ def test_worldvoice_keeps_the_break_subclasses_from_the_stages(monkeypatch, numb
 	ctx = module.SpeechContext(supports_roles=True, language="zh", number_language="default")
 	monkeypatch.setattr(module, "current_context", lambda: ctx)
 	assert break_types(run_stages(module, ["共 12 34 個. 5678 and 3"])) == expected
+
+
+# The late number-language stage (phase 35 spec §4.4).
+
+
+def detection_context(module, numlan, *, detects=True, roles=True):
+	return module.SpeechContext(
+		supports_roles=roles,
+		language="en",
+		number_language=numlan,
+		detects_language=detects,
+		default_voice_name="A:en",
+		default_voice_language="en",
+		voice_name_for_language={"en": "A:en", "zh_TW": "B:zh"}.get,
+	)
+
+
+def late_shape(module, sequence):
+	result = []
+	for item in sequence:
+		if isinstance(item, module.NumberBreakCommand):
+			result.append("NB")
+		elif hasattr(item, "lang"):
+			result.append(("lang", item.lang))
+		else:
+			result.append(item)
+	return result
+
+
+def wrap_late(monkeypatch, sequence, numlan, **options):
+	settings = punctuation_settings(0)
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	items = sequence(module) if callable(sequence) else sequence
+	ctx = detection_context(module, numlan, **options)
+	return module, items, list(module.wrap_numbers_for_detection(items, settings, ctx))
+
+
+@pytest.mark.parametrize(
+	("numlan", "detects", "roles"),
+	[("default", True, True), ("main", False, True), ("en", True, False)],
+	ids=["follow", "detection-off", "other-synth"],
+)
+def test_wrap_numbers_for_detection_is_inactive(monkeypatch, numlan, detects, roles):
+	_module, items, result = wrap_late(
+		monkeypatch,
+		lambda module: ["a1", module.WVLangChangeCommand("zh"), "2"],
+		numlan,
+		detects=detects,
+		roles=roles,
+	)
+	assert len(result) == len(items) and all(after is before for after, before in zip(result, items))
+
+
+EN = ("lang", "en")
+
+
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[
+		(lambda module: ["a 12,5 b"], ["a ", EN, "12,5", EN, " b"]),
+		(
+			lambda module: ["1", module.NumberBreakCommand(0), "2"],
+			[EN, "1", EN, "NB", EN, "2", EN],
+		),
+		(
+			lambda module: ["123", module.NumberBreakCommand(0), "45"],
+			[EN, "123", EN, "NB", EN, "45", EN],
+		),
+	],
+	ids=["value", "number", "group"],
+)
+def test_wrap_numbers_for_detection_wraps_every_match(monkeypatch, sequence, expected):
+	module, _items, result = wrap_late(monkeypatch, sequence, "main")
+	assert late_shape(module, result) == expected
+
+
+def test_wrap_numbers_for_detection_uses_the_locale(monkeypatch):
+	module, _items, result = wrap_late(monkeypatch, ["a 1"], "zh_TW")
+	assert late_shape(module, result) == ["a ", ("lang", "zh_TW"), "1", EN]
+
+
+def test_wrap_numbers_for_detection_tracks_language_commands(monkeypatch):
+	def sequence(module):
+		nvda = sys.modules["speech.commands"].LangChangeCommand
+		return [nvda("de"), "1", nvda(None), "2", module.WVLangChangeCommand("ja"), "3"]
+
+	module, _items, result = wrap_late(monkeypatch, sequence, "main")
+	de, ja = ("lang", "de"), ("lang", "ja")
+	assert late_shape(module, result) == [de, de, "1", de, ("lang", None), EN, "2", EN, ja, ja, "3", ja]
+
+
+def test_wrap_numbers_for_detection_drops_empty_texts(monkeypatch):
+	module, _items, result = wrap_late(monkeypatch, ["", "12", " "], "main")
+	assert late_shape(module, result) == [EN, "12", EN, " "]

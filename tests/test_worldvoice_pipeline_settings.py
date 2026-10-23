@@ -210,6 +210,10 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	synth.language = "en"
 	context = synth.speech_context()
 	assert context["number_language"] == "default"
+	# NVDA sets uwv only in initSettings, after __init__: until then detection counts as off.
+	assert context["detects_language"] is False
+	synth._uwv = True
+	assert synth.speech_context()["detects_language"] is True
 	assert (context["default_voice_name"], context["default_voice_language"]) == ("A:en", "en")
 	assert context["voice_locale_for_language"] is manager.getVoiceLocaleForLanguage
 	assert "speech_symbols" not in context

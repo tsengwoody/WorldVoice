@@ -360,6 +360,8 @@ class SynthDriver(SynthDriver):
 			supports_roles=True,
 			language=self.language,
 			number_language=self._numlan,
+			# NVDA sets uwv only in initSettings, after __init__: until then detection is off.
+			detects_language=bool(getattr(self, "_uwv", False)),
 			default_voice_name=voice.name,
 			default_voice_language=voice.language,
 			voice_name_for_language=manager.getVoiceNameForLanguage,
