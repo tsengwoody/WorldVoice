@@ -455,3 +455,9 @@ LOCALE_ROWS = [
 @pytest.mark.parametrize(("sequence", "options", "expected"), LOCALE_ROWS)
 def test_locale_numbers_with_detection(monkeypatch, sequence, options, expected, timing):
 	assert speak_through_stages(monkeypatch, sequence, numlan="zh_TW", timing=timing, **options) == expected
+
+
+@TIMINGS
+def test_full_width_digits_are_numbers(monkeypatch, timing):
+	result = speak_through_stages(monkeypatch, ["abc１２３"], numlan="zh_TW", ignore=True, timing=timing)
+	assert result == [(EN, "abc"), (ZH, "１２３")]

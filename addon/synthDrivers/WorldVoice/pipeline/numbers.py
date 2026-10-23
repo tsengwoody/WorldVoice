@@ -11,19 +11,21 @@ from itertools import pairwise
 # The symbols a number may hold between its digits: punctuation and symbols of Latin-1, so
 # "12,345", "5-3", "12:30" and "2×3" are one number each. Full-width and CJK punctuation are not.
 SYMBOLS = "".join(c for c in map(chr, range(0x100)) if unicodedata.category(c)[0] in "PS")
+# A digit is a Unicode decimal digit (category Nd, "\d" in a str pattern): ASCII, full-width,
+# Arabic-Indic and the like, decided by the user (2026-10-23). Superscripts and circled digits are
+# not digits, and signs and separators stay ASCII and Latin-1, so "１２．５" is two numbers.
 # The one definition of a number: an optional sign that is not right after a digit, digits, then
 # any number of (symbols, digits). "[SYM]+" rather than "[SYM]*" keeps fullmatch from backtracking
 # exponentially; both match the same strings. The sign's lookbehind documents Q3 ("not right after a
 # digit"); under left-to-right scanning it is equivalent to a bare "[+-]?", because a digit before
 # the sign would already belong to the previous match, so mutation testing reports it as equivalent.
-NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:[{re.escape(SYMBOLS)}]+[0-9]+)*")
+NUMBER_RE = re.compile(rf"(?:(?<!\d)[+-])?\d+(?:[{re.escape(SYMBOLS)}]+\d+)*")
 # The tokens of one number: its leading signed digit run, further digit runs, and single symbols.
-NUMBER_TOKEN_RE = re.compile(rf"^[+-]?[0-9]+|[0-9]+|[{re.escape(SYMBOLS)}]")
-DIGITS = frozenset("0123456789")
+NUMBER_TOKEN_RE = re.compile(rf"^[+-]?\d+|\d+|[{re.escape(SYMBOLS)}]")
 # A run of digits and commas that is a whole, valid thousands-separated number: one to three
 # digits, then groups of three. The lookarounds keep a longer comma/digit run, as in "1,234,,5" or
 # "a,1,234", from losing the commas of a valid part.
-THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
+THOUSANDS_RE = re.compile(r"(?<![\d,])\d{1,3}(?:,\d{3})+(?!,*\d)")
 
 
 def strip_thousands(text: str) -> str:
@@ -76,7 +78,7 @@ def number_pieces(
 	size = 1 if mode == "number" else group_size
 	pieces: list[str] = []
 	for token in NUMBER_TOKEN_RE.findall(raw):
-		if token[-1] in DIGITS:
+		if token[-1].isdecimal():
 			sign = token[0] if token[0] in "+-" else ""
 			digits = token[len(sign) :]
 			groups = [digits[index : index + size] for index in range(0, len(digits), size)]

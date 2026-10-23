@@ -136,8 +136,15 @@ def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
 		("1'000", ["1'000"]),
 		("1_000", ["1_000"]),
 		("1\u00d72", ["1\u00d72"]),
-		# Digits are ASCII only.
-		("\uff11\uff12", []),
+		# Digits are Unicode decimal digits (Nd): full-width and Arabic-Indic ones too. Separators stay
+		# Latin-1, so a full-width or Arabic decimal separator splits the number; superscripts and
+		# circled digits are not digits.
+		("１２", ["１２"]),
+		("٣٫١٤", ["٣", "١٤"]),
+		("１２．５", ["１２", "５"]),
+		("x²", []),
+		("10²", ["10"]),
+		("①", []),
 		("12.", ["12"]),
 	],
 )
@@ -184,6 +191,8 @@ SPLITS = [
 	("1-2 3 4", ["1-2", B40, "3", B40, "4"]),
 	("2026-10-22 12:30", ["2026-10-22", B40, "12:30"]),
 	("12,345 6", ["12,345", B40, "6"]),
+	("１ ２", ["１", B40, "２"]),
+	("١ ٢", ["١", B40, "٢"]),
 ]
 
 
@@ -655,6 +664,23 @@ def test_a_stored_pair_mode_reads_numbers_as_values(env, monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {"number_mode": "pair", "group_size": 2}}}
 	stored = load_settings_module(monkeypatch, conf).pipeline_settings.get()
 	assert list(env.module.inject_number_mode(["1234"], stored, env.module.GENERIC_CONTEXT)) == ["1234"]
+
+
+@pytest.mark.parametrize(("text", "expected"), [("１２,３４５", "１２３４５"), ("١٢,٣٤٥", "١٢٣٤٥")])
+def test_thousands_separators_of_other_digits(env, text, expected):
+	result = env.module.remove_thousands_separators([text], env.settings, env.module.GENERIC_CONTEXT)
+	assert list(result) == [expected]
+
+
+@pytest.mark.parametrize(
+	("mode", "size", "text", "expected"),
+	[("group", 3, "１２３４５", ["１２３", NB0, "４５"]), ("number", 1, "٣٤", ["٣", NB0, "٤"])],
+)
+def test_group_and_number_modes_keep_the_original_digits(env, mode, size, text, expected):
+	# Decided by the user (2026-10-23): pieces keep the characters they were written with.
+	env.settings.number_mode = mode
+	env.settings.group_size = size
+	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
 
 
 def test_number_language_wraps_each_number(env):
