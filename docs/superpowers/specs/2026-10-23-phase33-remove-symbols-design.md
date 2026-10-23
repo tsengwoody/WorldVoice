@@ -54,7 +54,7 @@ Edit:
 - `addon/synthDrivers/WorldVoice/__init__.py`:
   - Remove `:58`, `:177` and `:262-266`. Build the detector without the symbols argument (`:269-274`).
   - Update the comment at `:290` to stop mentioning symbols.
-  - **Keep** `base_dir`/`sys.path.insert` (`:56-57`). The global plugin imports `generics.coreArchive` (`globalPlugins/WorldVoice/__init__.py:19`) and depends on this package putting the add-on root on `sys.path` (comment at `:12-13`; pinned by `tests/test_hygiene_guards.py:73-85`). Replace the line-58 import with a comment there saying why the path is still added.
+  - **Keep** `base_dir`/`sys.path.insert` (`:56-57`). The global plugin imports `generics.coreArchive` (`globalPlugins/WorldVoice/__init__.py:19`) and depends on this package putting the add-on root on `sys.path` (comment at `:12-13`; `tests/test_hygiene_guards.py:73-85` only pins that the plugin imports `generics` after this package; the insert itself is pinned by the `sys.path[0]` assertion in `tests/test_runtime_composition.py::test_entry_point_imports_real_ledger_and_completion_policy`, added after the batch-2 review). Replace the line-58 import with a comment there saying why the path is still added.
 - `detection:104-109`: the signature becomes `LanguageDetector(availableLanguages, *, settings, language)`. The `speechSymbols` parameter and attribute go away, and so does the branch at `detection:152-155`. A caller that still passes a second positional argument gets a `TypeError`.
 - `pyproject.toml:25-26`: remove the coverage omit entry for `views.py` and its comment.
 

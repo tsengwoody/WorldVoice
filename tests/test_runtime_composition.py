@@ -622,6 +622,10 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 	try:
 		# __init__.py loads as a package, so its relative imports resolve inside the alias.
 		module = load_source(monkeypatch, package, WORLDVOICE / "__init__.py")
+		# The global plugin imports generics.coreArchive from the add-on root right after
+		# importing this package, which must put that root on sys.path although it no longer
+		# imports anything from it itself.
+		assert sys.path[0] == str(WORLDVOICE.parents[1])
 		ledger = importlib.import_module(package + ".indexLedger")
 		policies = importlib.import_module(package + ".compat.completionPolicies")
 		models = importlib.import_module(package + ".runtime.models")
