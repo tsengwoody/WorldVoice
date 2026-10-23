@@ -304,11 +304,11 @@ Changelog. The changelog is the second half of each readme (`readme.md:67-`, `ad
 Decided by the user (2026-10-23): write a changelog note. Decided by the user (2026-10-23): add a new top section in `readme.md` and `addon/doc/zh_TW/readme.md` only, headed "## Next update" / 「## 下一版更新」, to be renamed to the version number at release:
 
 > * **Numbers follow the text language by default:** The "Ignore numbers during language detection" option has been removed from the Unicode Detection panel. Number language now offers "Follow current text language" (the default: numbers are read in the language of the text around them) and "Follow document main language" (numbers are read in the main language). Earlier versions read numbers in the main language unless the option was checked; choose "Follow document main language" to keep that.
-> * **Hyphens stay with their word:** With a number language, a hyphen right after a word, as in "COVID-19", is no longer read as a minus sign by the number language's voice; the number after it still is. A sign after a space, as in "-3", still belongs to the number.
+> * **Hyphens stay with their word:** With a number language, a hyphen right after a word, as in "COVID-19", now stays with the word instead of being read as a minus sign with the number. A sign after a space, as in "-3", still belongs to the number.
 > * **Full-width and other Unicode digits are numbers:** Number language, number modes, number pauses and the thousands separator rule now also apply to full-width digits and other Unicode decimal digits, such as Arabic-Indic digits.
 
 > * **數字預設跟隨文字語言：** 移除 Unicode 偵測面板的「偵測語言時忽略數字」選項。數字語言新增「跟隨當前文字語言」（預設：數字以前後文字的語言朗讀）與「跟隨文件主要語言」（數字以主要語言朗讀）。先前版本在未勾選該選項時以主要語言朗讀數字；若要維持，請選擇「跟隨文件主要語言」。
-> * **連字號留在字詞上：** 使用數字語言時，緊接在字詞後的連字號（例如「COVID-19」）不再被當成負號由數字語言的語音朗讀，後面的數字照舊。空格後的正負號（例如「-3」）仍屬於數字。
+> * **連字號留在字詞上：** 使用數字語言時，緊接在字詞後的連字號（例如「COVID-19」）會留在字詞上，不再當成負號隨數字朗讀。空格後的正負號（例如「-3」）仍屬於數字。
 > * **全形與其他 Unicode 數字視為數字：** 數字語言、數字模式、數字停頓與千分位規則現在也適用於全形數字與其他 Unicode 十進位數字，例如阿拉伯-印度數字。
 
 ## 10. Risks

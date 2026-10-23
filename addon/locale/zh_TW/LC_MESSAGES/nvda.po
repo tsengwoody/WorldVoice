@@ -65,6 +65,17 @@ msgstr "數字"
 msgid "group"
 msgstr "群組"
 
+#. Translators: A number language choice: numbers are read in the language of the text around them.
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:72
+msgid "Follow current text language"
+msgstr "跟隨當前文字語言"
+
+#. Translators: A number language choice: numbers are read in the main language, the language the
+#. document marks or the main voice's language.
+#: addon\synthDrivers\WorldVoice\pipeline\settings.py:75
+msgid "Follow document main language"
+msgstr "跟隨文件主要語言"
+
 #. Translators: Label for a setting in voice settings dialog.
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:167
 #: addon\synthDrivers\WorldVoice\__init__.py:224
@@ -143,11 +154,6 @@ msgstr "保持不同語音角色之間的參數一致"
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:682
 msgid "Unicode Detection"
 msgstr "Unicode 偵測"
-
-#. Translators: Either to ignore or not numbers when language detection is active
-#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:724
-msgid "Ignore numbers when detecting text language"
-msgstr "偵測語言時忽略數字"
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:730
 msgid "Language assumed for latin characters:"
