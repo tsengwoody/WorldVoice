@@ -59,7 +59,7 @@ Globally supported speech pipeline settings can be adjusted through the NVDA spe
 These options adjust how WorldVoice handles character sets shared by multiple languages when detecting text language.
 
 * Language detection timing: Determines whether Unicode-based language detection and language-switching commands are handled before or after NVDA processes speech commands.
-* Assumed language for character sets: Sets the default language for Unicode character sets shared by multiple languages, including Latin characters, CJK characters, and Arabic characters. WorldVoice uses this language only when neither the language being read nor the main language (the main speech role's language, which NVDA may replace with its interface language when detection runs after NVDA and "Trust voice's language when processing characters and symbols" is off; or the language the document marks) is a language of that character set with an installed voice. Languages without an installed voice are skipped.
+* Assumed language for character sets: Sets the default language for Unicode character sets shared by multiple languages, including Latin characters, CJK characters, Arabic characters, Cyrillic characters, and Devanagari characters. WorldVoice uses this language only when neither the language being read nor the main language (the main speech role's language, which NVDA may replace with its interface language when detection runs after NVDA and "Trust voice's language when processing characters and symbols" is off; or the language the document marks) is a language of that character set with an installed voice. Languages without an installed voice are skipped.
 
 ## Notes
 
@@ -74,6 +74,7 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 * **Numbers follow the text language by default:** The "Ignore numbers when detecting text language" option has been removed from the Unicode Detection panel. Number language now offers "Follow current text language" (the default: numbers are read in the language of the text around them) and "Follow document main language" (numbers are read in the main language). Earlier versions read numbers in the main language unless the option was checked; choose "Follow document main language" to keep that.
 * **Hyphens stay with their word:** With a number language, a hyphen right after a word, as in "COVID-19", now stays with the word instead of being read as a minus sign with the number. A sign after a space, as in "-3", still belongs to the number.
 * **Full-width and other Unicode digits are numbers:** Number language, number modes, number pauses and the thousands separator rule now also apply to full-width digits and other Unicode decimal digits, such as Arabic-Indic digits.
+* **Assumed languages for Cyrillic and Devanagari:** The Unicode Detection panel now also lets you choose the language assumed for Cyrillic characters (default Russian) and Devanagari characters (default Hindi). Earlier versions always used the first language with an installed voice in WorldVoice's list for the character set; the defaults keep that behavior.
 
 ## WorldVoice 6 Update
 
