@@ -412,6 +412,12 @@ def test_wrap_numbers_for_detection_tracks_language_commands(monkeypatch):
 	assert wrapped_shape(module, result) == [de, de, "1", de, ("lang", None), EN, "2", EN, ja, ja, "3", ja]
 
 
+def test_wrap_numbers_for_detection_leaves_a_sign_after_a_word_with_it(monkeypatch):
+	# Decided by the user (2026-10-23, U1).
+	module, result = wrap(monkeypatch, ["x-1 (-2)"], "main")
+	assert wrapped_shape(module, result) == ["x-", EN, "1", EN, " (", EN, "-2", EN, ")"]
+
+
 def test_wrap_numbers_for_detection_drops_empty_texts(monkeypatch):
 	module, result = wrap(monkeypatch, ["", "12", " "], "main")
 	assert wrapped_shape(module, result) == [EN, "12", EN, " "]

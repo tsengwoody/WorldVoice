@@ -487,10 +487,11 @@ SIGN_ROWS = [
 		[(ZH, "中 "), (EN, "-12"), "|", (EN, "34")],
 		id="wait",
 	),
+	# A hyphen after a word stays with it (decided by the user, 2026-10-23, U1).
 	pytest.param(
 		["中 COVID-19 中"],
 		{"main": "zh"},
-		[(ZH, "中 "), (EN, "COVID"), (ZH, "-19 中")],
+		[(ZH, "中 "), (EN, "COVID-"), (ZH, "19 中")],
 		id="covid",
 	),
 ]
@@ -566,39 +567,6 @@ def test_numbers_reach_nvda_in_their_item_where_the_voice_stays(
 	assert result == [(ZH if main == "zh" else EN, f"{text}  ")]
 
 
-@NVDA_WARNINGS
-@pytest.mark.parametrize("numlan", ["main", "zh_TW"])
-@pytest.mark.parametrize(
-	("timing", "expected"),
-	[
-		# Detection after NVDA: NVDA processed the whole item; the zh voice reads "-19" as written.
-		("after", [(EN, "COVID"), (ZH, "-19 疫情  ")]),
-		# Detection before NVDA: the voice changes at the sign, so "-19 疫情" is an item of its own and
-		# NVDA reads its leading "-" as a negative sign, as for a number language of another voice
-		# before phase 35 (decided by the user, 2026-10-23, Q5: the sign moves with the digits).
-		("before", [(EN, "COVID  "), (ZH, " 負 19 疫情  ")]),
-	],
-)
-def test_a_sign_that_changes_the_voice_starts_the_numbers_item(
-	monkeypatch,
-	tmp_path,
-	numlan,
-	timing,
-	expected,
-):
-	character_processing = load_nvda_character_processing(monkeypatch, tmp_path)
-	nvda = nvda_processes_each_item(character_processing, "zh_TW")
-	result = speak_through_stages(
-		monkeypatch,
-		["COVID-19 疫情"],
-		numlan=numlan,
-		main="zh",
-		timing=timing,
-		nvda=nvda,
-	)
-	assert result == expected
-
-
 @TIMINGS
 def test_main_keeps_superscripts_in_the_text(monkeypatch, timing):
 	# Decided by the user (2026-10-23, spec §4.7 item 2): "²" is not a digit, so it stays with the text.
@@ -634,3 +602,111 @@ def test_a_locale_the_voices_no_longer_offer_reads_as_follow(monkeypatch):
 	assert len(synth.warnings) == 1
 	# NVDA's settings ring finds the stored value among the choices, so it can step from it.
 	assert synth._get_numlan() in synth._get_availableNumlans()
+
+
+# Decided by the user (2026-10-23, U1/U2, amending Q5): a sign right after a word character is a
+# hyphen, as in "COVID-19" or "中-1", and stays with the text before it, in both number-language
+# wrappers; after a space, punctuation or at the start it is a sign and moves with the number. NVDA's
+# own negative-number rule reads it the same way (ref/nvda/source/locale/en/symbols.dic:19).
+def heard_through_nvda(monkeypatch, tmp_path, text, *, main, **options):
+	character_processing = load_nvda_character_processing(monkeypatch, tmp_path)
+	nvda = nvda_processes_each_item(character_processing, "zh_TW" if main == "zh" else "en")
+	return speak_through_stages(monkeypatch, [text], main=main, nvda=nvda, **options)
+
+
+# What the base commit (da7f791, ignore numbers off) gives with NVDA's processing: "main" and the main
+# voice's own locale give the same items.
+HYPHEN_ROWS = [
+	pytest.param("en", "COVID-19", [(EN, "COVID-19  ")], [(EN, "COVID-19  ")], id="en-covid"),
+	pytest.param("en", "a-1", [(EN, "a-1  ")], [(EN, "a-1  ")], id="en-a"),
+	pytest.param("en", "x-1", [(EN, "x-1  ")], [(EN, "x-1  ")], id="en-x"),
+	pytest.param("en", "中-1", [(ZH, "中-"), (EN, "1  ")], [(ZH, "中-  "), (EN, "1  ")], id="en-han"),
+	pytest.param("en", "中文-5", [(ZH, "中文-"), (EN, "5  ")], [(ZH, "中文-  "), (EN, "5  ")], id="en-han2"),
+	pytest.param(
+		"zh",
+		"COVID-19 疫情",
+		[(EN, "COVID-"), (ZH, "19 疫情  ")],
+		[(EN, "COVID-  "), (ZH, "19 疫情  ")],
+		id="zh-covid",
+	),
+	pytest.param("zh", "中-1", [(ZH, "中-1  ")], [(ZH, "中-1  ")], id="zh-han"),
+	pytest.param("zh", "中文-5", [(ZH, "中文-5  ")], [(ZH, "中文-5  ")], id="zh-han2"),
+	pytest.param("zh", "a-1", [(EN, "a-"), (ZH, "1  ")], [(EN, "a-  "), (ZH, "1  ")], id="zh-a"),
+]
+
+
+@NVDA_WARNINGS
+@pytest.mark.parametrize("value", ["main", "locale"])
+@pytest.mark.parametrize(("main", "text", "after", "before"), HYPHEN_ROWS)
+def test_a_hyphen_after_a_word_stays_with_it(monkeypatch, tmp_path, main, text, after, before, value):
+	numlan = value if value == "main" else ("zh_TW" if main == "zh" else "en")
+	for timing, expected in (("after", after), ("before", before)):
+		with monkeypatch.context() as patch:
+			assert (
+				heard_through_nvda(patch, tmp_path, text, main=main, numlan=numlan, timing=timing) == expected
+			)
+
+
+@TIMINGS
+@pytest.mark.parametrize(
+	("main", "text", "expected"),
+	[
+		pytest.param("en", "中 -12", [(ZH, "中 "), (EN, "-12")], id="han-space"),
+		pytest.param("en", "價格是 -3 度", [(ZH, "價格是 "), (EN, "-3 "), (ZH, "度")], id="han-sentence"),
+		pytest.param("en", "abc -3 def", [(EN, "abc -3 def")], id="latin-space"),
+		pytest.param("zh", "價格是 -3 度", [(ZH, "價格是 -3 度")], id="zh-han-sentence"),
+	],
+)
+def test_a_sign_after_a_space_moves_with_the_number(monkeypatch, main, text, expected, timing):
+	assert speak_through_stages(monkeypatch, [text], numlan="main", main=main, timing=timing) == expected
+
+
+@pytest.mark.parametrize("uwv", [True, False], ids=["detection", "no-detection"])
+@TIMINGS
+def test_a_number_language_leaves_a_hyphen_with_the_word(monkeypatch, timing, uwv):
+	# U2: the early wrapping of a number language whose voice differs follows the same rule.
+	result = speak_through_stages(monkeypatch, ["COVID-19 a-1"], numlan="zh_TW", timing=timing, uwv=uwv)
+	assert result == [(EN, "COVID-"), (ZH, "19"), (EN, " a-"), (ZH, "1")]
+
+
+@pytest.mark.parametrize("uwv", [True, False], ids=["detection", "no-detection"])
+@TIMINGS
+def test_a_number_language_still_takes_a_sign_after_a_space(monkeypatch, timing, uwv):
+	result = speak_through_stages(monkeypatch, ["abc -3 def"], numlan="zh_TW", timing=timing, uwv=uwv)
+	assert result == [(EN, "abc "), (ZH, "-3"), (EN, " def")]
+
+
+# Decided by the user (2026-10-23, U3): with detection after NVDA and a number language of another
+# voice, the wrapping sees NVDA's symbol names, and a digit in a name ("subscript 2", "上標2") is
+# read by the number language's voice. "default" and "main" are unaffected.
+@NVDA_WARNINGS
+@pytest.mark.parametrize(
+	("main", "numlan", "text", "expected"),
+	[
+		pytest.param(
+			"en",
+			"zh_TW",
+			"H₂O 是水",
+			[(EN, "H subscript "), (ZH, "2"), (EN, " O "), (ZH, "是水  ")],
+			id="subscript",
+		),
+		pytest.param(
+			"zh",
+			"en",
+			"面積 30 m²",
+			[(ZH, "面積   "), (EN, "30  "), (ZH, " "), (EN, "m "), (ZH, "上標"), (EN, "2"), (ZH, "   ")],
+			id="superscript",
+		),
+	],
+)
+def test_a_digit_in_a_symbol_name_takes_the_number_language_after_nvda(
+	monkeypatch,
+	tmp_path,
+	main,
+	numlan,
+	text,
+	expected,
+):
+	assert (
+		heard_through_nvda(monkeypatch, tmp_path, text, main=main, numlan=numlan, timing="after") == expected
+	)

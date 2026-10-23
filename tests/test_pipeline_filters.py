@@ -733,6 +733,25 @@ def test_number_segments_with_main_wrap_in_the_current_language(env):
 	assert shape(result) == ["a", ("lang", "en"), "1", ("lang", "en")]
 
 
+def test_number_language_leaves_a_sign_after_a_word_with_it(env):
+	# Decided by the user (2026-10-23, U2): "a-1" and "中+2" keep their sign; " -3" moves it.
+	result = env.module.iter_number_speech_segments_language("a-1 中+2 -3", "en", "de")
+	assert shape(result) == [
+		"a-",
+		("lang", "de"),
+		"1",
+		("lang", "en"),
+		" 中+",
+		("lang", "de"),
+		"2",
+		("lang", "en"),
+		" ",
+		("lang", "de"),
+		"-3",
+		("lang", "en"),
+	]
+
+
 def test_chinese_space_pause(env):
 	env.settings.scaled_chinesespace_wait = lambda: 20
 	result = env.module.inject_chinese_space_pause(

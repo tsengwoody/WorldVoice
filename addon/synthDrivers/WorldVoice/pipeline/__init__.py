@@ -111,6 +111,31 @@ def _split_by(regex: re.Pattern, text: str) -> Iterator[tuple[Literal["text", "m
 		yield ("text", text[pos:])
 
 
+_WORD_CHARACTER_RE = re.compile(r"\w")
+
+
+def _split_numbers_for_language(text: str, number_re: re.Pattern = NUMBER_RE) -> Iterator[tuple[str, str]]:
+	"""Yield ("text", str) and ("number", str) parts of *text* for a number-language wrapper.
+
+	A sign right after a word character is a hyphen, as in "COVID-19" or "中-1", and stays with the
+	text before it; after a space, punctuation or at the start it moves with the number (decided by
+	the user, 2026-10-23). NVDA's own negative-number rule reads a sign the same way
+	(its negative number rule in locale/en/symbols.dic). The number modes and pauses keep NUMBER_RE's
+	matches.
+	"""
+	position = 0
+	for match in number_re.finditer(text):
+		start = match.start()
+		if text[start] in "+-" and start > 0 and _WORD_CHARACTER_RE.match(text[start - 1]):
+			start += 1
+		if start > position:
+			yield ("text", text[position:start])
+		yield ("number", text[start : match.end()])
+		position = match.end()
+	if position < len(text):
+		yield ("text", text[position:])
+
+
 def _both_text(previous: SpeechCmd, current: SpeechCmd) -> bool:
 	return isinstance(previous, str) and isinstance(current, str)
 
@@ -264,7 +289,7 @@ def iter_number_speech_segments_language(item, current_lang, number_language, nu
 
 	The function processes the input string without building an intermediate list.
 	"""
-	for kind, value in _split_by(number_re, item):
+	for kind, value in _split_numbers_for_language(item, number_re):
 		if kind == "text":
 			yield value
 			continue
@@ -272,7 +297,7 @@ def iter_number_speech_segments_language(item, current_lang, number_language, nu
 		num_lang = number_language if number_language not in (FOLLOW, MAIN) else current_lang
 		# Insert language switch and number
 		yield WVLangChangeCommand(num_lang)
-		yield value.group()
+		yield value
 		yield WVLangChangeCommand(current_lang)
 
 
@@ -315,16 +340,18 @@ def wrap_numbers_for_detection(
 			yield item
 			continue
 		target = language if ctx.number_language == MAIN else ctx.number_language
-		for kind, value in _split_by(NUMBER_RE, item):
+		position = 0
+		for kind, value in _split_numbers_for_language(item):
+			start, position = position, position + len(value)
 			if kind == "text":
 				yield value
 				continue
 			opening, closing = WVLangChangeCommand(target), WVLangChangeCommand(language)
 			if joins is not None:
-				joins[id(opening)] = value.start() > 0
-				joins[id(closing)] = value.end() < len(item)
+				joins[id(opening)] = start > 0
+				joins[id(closing)] = position < len(item)
 			yield opening
-			yield value.group()
+			yield value
 			yield closing
 
 
@@ -344,6 +371,8 @@ def detect_with_number_language(
 	"""
 	if not (ctx.supports_roles and ctx.number_language != FOLLOW):
 		return list(detect(speechSequence))
+	# Wrappers are told apart by id(): every wrapper stays alive in *detected* until the loop below
+	# ends, so no other object can take over one of these ids during the pass.
 	joins: dict[int, bool] = {}
 	detected = list(detect(list(wrap_numbers_for_detection(speechSequence, ctx, joins))))
 	kept = {id(item) for item in deduplicate_language_command(detected, ctx) if id(item) in joins}
