@@ -221,6 +221,7 @@ Nothing below changes, and the characterization tests in §10.1 pin the behavior
   - R3: Japanese kanji after English are read by the Japanese voice.
 - When a document marks a language with no installed voice (NVDA's automatic language switching on), its letters are read by the voice of the configured or first available language of their script, not by the main voice. Digits in such a passage still go to the main voice.
 - Spelling a letter of the base script right after a letter of another script uses the base locale's character descriptions.
+- Spelling with a locale that has no installed voice (added after the final review): letters use the character descriptions of an installed language of their script, while spaces and digits keep the locale's symbol names, so they become separate runs (`"a b"` in de_DE with en_US and zh_TW installed → `a` en, ` ` de_DE, `b` en; §3.3).
 - No new settings, no new strings, no changed defaults.
 
 ## 6. Affected layers
@@ -403,7 +404,7 @@ These have not been verified on Linux; report them as not done until someone che
   - Alternative: count only languages with a role assigned. This needs the detector to follow role changes at runtime, and it would make detection depend on role settings, so it is not recommended in this phase.
 - **Q5 Documentation.**
   - Default: extend the "Assumed language" bullet in `readme.md` and the zh_TW readme (§7); no changelog edit. Decided by orchestrator with the recommended default; user may override before merge.
-  - Both readmes (and the other locales' readmes) still describe an "Ignore common punctuation during language detection" option at `readme.md:58` and `addon/doc/zh_TW/readme.md:58`. No such option exists any more: there is no key in `languageDetection/settings.py:15-21`, and its zh_TW entry is obsolete (`#~` in `nvda.po`). Default: out of scope, reported to the user, not changed here.
+  - Both readmes (and the other locales' readmes) still describe an "Ignore common punctuation during language detection" option at `readme.md:58` and `addon/doc/zh_TW/readme.md:58`. No such option exists any more: there is no key in `languageDetection/settings.py:15-21`, and its zh_TW entry is obsolete (`#~` in `nvda.po`). Decided by the user (2026-10-23): removed from all six readmes, together with "punctuation" in each section intro (§7).
 - **Q6 Digits after an unavailable base language.** These still switch back to that language (§3.3), as upstream does. Default: unchanged, because digit handling is a non-goal. Decided by orchestrator with the recommended default; user may override before merge.
 - **Q7 mutmut source list.** Default: add `languageDetection/__init__.py` permanently (§10.6). Decided by orchestrator with the recommended default; user may override before merge.
 
