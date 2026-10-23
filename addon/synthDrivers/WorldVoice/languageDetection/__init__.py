@@ -190,10 +190,13 @@ class LanguageDetector:
 				if script in (None, "Common", "Inherited"):
 					target_language = current_language
 				else:
-					target_language = self.find_language_for_script(script, current_language, settings)
+					target_language = self.find_language_for_script(
+						script,
+						current_language,
+						settings,
+						base_language=default_language,
+					)
 
-			if get_primary_language(target_language) == get_primary_language(default_language):
-				target_language = default_language
 			if get_primary_language(target_language) != get_primary_language(current_language):
 				if buffer:
 					yield "".join(buffer), current_language

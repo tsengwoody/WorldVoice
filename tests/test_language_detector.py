@@ -245,6 +245,41 @@ def test_find_language_for_script_prefers_an_available_base(env, base, expected)
 	assert make_detector(env).find_language_for_script("Han", "en_US", base_language=base) == expected
 
 
+# Spelling answers like detection, with the spelling locale as the base (spec §2.4).
+@pytest.mark.parametrize(
+	"languages,cjk,text,locale,expected",
+	[
+		pytest.param(
+			("en_US", "zh_TW", "ja_JP"),
+			"zh_TW",
+			"a漢",
+			"ja_JP",
+			[("a", "en"), ("漢", "ja_JP")],
+			id="base-ja",
+		),
+		pytest.param(
+			("en_US", "zh_TW", "ja_JP"),
+			"ja",
+			"a中",
+			"zh_TW",
+			[("a", "en"), ("中", "zh_TW")],
+			id="base-zh",
+		),
+		pytest.param(
+			("en_US", "zh-TW"),
+			"zh",
+			"a漢",
+			"zh-TW",
+			[("a", "en"), ("漢", "zh-TW")],
+			id="hyphenated-locale",
+		),
+	],
+)
+def test_spelling_prefers_the_spelling_locale(env, languages, cjk, text, locale, expected):
+	switching(env)["CJKCharactersLanguage"] = cjk
+	assert list(make_detector(env, languages).process_for_spelling(text, locale)) == expected
+
+
 def test_spelling_with_an_unavailable_locale(env):
 	result = list(make_detector(env, languages=("en_US", "zh_TW")).process_for_spelling("a b", "de_DE"))
 	assert result == [("a", "en"), (" ", "de_DE"), ("b", "en")]
@@ -293,7 +328,7 @@ def test_spelling_without_locale_uses_the_synth_language(env):
 
 def test_spelling_with_locale(env):
 	result = list(make_detector(env).process_for_spelling("a中 1", "ja"))
-	assert result == [("a", "en"), ("中", "zh"), (" 1", "ja")]
+	assert result == [("a", "en"), ("中 1", "ja")]
 
 
 @pytest.mark.parametrize("configured,expected", [("zh", "zh"), ("ja", "ja"), ("ko", "zh")])
