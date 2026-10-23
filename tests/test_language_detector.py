@@ -1,5 +1,6 @@
 """Language detection: which language each run of text is spoken in."""
 
+from itertools import pairwise
 from types import SimpleNamespace
 
 import pytest
@@ -517,7 +518,9 @@ def test_one_settings_read_per_spelling(env):
 
 SCRIPT_SAMPLES = st.sampled_from(
 	["hello", " ", "中文", "日本語", "عربي", "123", ",", "é", "\U0001f600", "\n"]
-	+ ["漢字", "привет", "한국", "かな", "Ελληνικά", "12", "，"],
+	+ ["漢字", "привет", "한국", "かな", "Ελληνικά", "12", "，"]
+	# Phase 35: decimal digits of other scripts, and characters that only look like digits.
+	+ ["١٢", "１２", "²", "①"],
 )
 TEXTS = st.lists(st.one_of(SCRIPT_SAMPLES, st.characters()), max_size=12).map("".join)
 VOICES = (
@@ -663,3 +666,40 @@ def merge_texts(sequence):
 		else:
 			merged.append(item)
 	return [item for item in merged if item != ""]
+
+
+# Phase 35 spec §11.4 item 4: digits never start a run that detection opens.
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(scenario=scenarios(), items=ITEMS)
+def test_property_digits_never_start_a_detected_run(env, scenario, items):
+	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
+	given = [item for item in items if not isinstance(item, str)]
+	for command, following in pairwise(result):
+		inserted = isinstance(command, env.WV) and all(command is not item for item in given)
+		if inserted and isinstance(following, str):
+			assert not following[0].isdecimal(), (items, result)
+
+
+SPELLING_NUMBER_LANGUAGES = ("default", "main", "en", "zh_TW", "fr")
+
+
+# Phase 35 spec §11.4 item 6: every digit is spelled in the language spec §5 names.
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(scenario=scenarios(), text=TEXTS, number_language=st.sampled_from(SPELLING_NUMBER_LANGUAGES))
+def test_property_spelling_digits_carry_the_number_language(env, scenario, text, number_language):
+	detector = scenario_detector(env, scenario)
+	detector._number_language = lambda: number_language
+	runs = list(detector.process_for_spelling(text, scenario.locale))
+	primary = env.module.get_primary_language
+	base = scenario.locale if scenario.locale is not None else scenario.base
+	installed = {primary(voice) for voice in scenario.installed}
+	for index, (part, language) in enumerate(runs):
+		if not any(character.isdecimal() for character in part):
+			continue
+		if number_language == "default":
+			# A digit follows the run it is in, so it never opens one.
+			assert index == 0 or not part[0].isdecimal(), (text, runs)
+		elif number_language == "main" or primary(number_language) not in installed:
+			assert primary(language) == primary(base), (text, runs)
+		else:
+			assert primary(language) == primary(number_language), (text, runs)

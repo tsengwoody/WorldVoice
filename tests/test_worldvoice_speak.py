@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 from addon_loader import REF, WORLDVOICE, alias_package
+from hypothesis import HealthCheck, example, given, settings, strategies as st
 from nvda_stubs import StubModules, worldvoice_conf
 from pipeline_harness import load_nvda_character_processing, nvda_normalize_language, symbol_name
 from worldvoice_harness import chosen_voice, load_synth_class, voice_manager
@@ -723,3 +724,43 @@ def test_a_digit_in_a_symbol_name_takes_the_number_language_after_nvda(
 	assert (
 		heard_through_nvda(monkeypatch, tmp_path, text, main=main, numlan=numlan, timing="after") == expected
 	)
+
+
+# Phase 35 spec §11.4 item 5: the voice of every decimal digit, end to end, per number language.
+SPOKEN_PIECES = st.lists(st.sampled_from(["abc", "中文", "12", "٣", "１", " "]), max_size=8).map("".join)
+
+
+def voice_of_each_character(result):
+	return [(character, voice) for voice, text in result for character in text]
+
+
+@TIMINGS
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=50)
+@given(
+	text=SPOKEN_PIECES,
+	main=st.sampled_from(["en", "zh"]),
+	numlan=st.sampled_from(["default", "main", "en", "zh_TW"]),
+)
+# Random draws find these in most runs, not all; the examples make every run check them.
+@example(text="中文12", main="en", numlan="main")
+@example(text="abc 12", main="zh", numlan="zh_TW")
+@example(text="中文 12", main="en", numlan="default")
+def test_property_each_digit_is_read_by_the_number_language_voice(monkeypatch, timing, text, main, numlan):
+	with monkeypatch.context() as patch:
+		result = speak_through_stages(patch, [text], numlan=numlan, main=main, timing=timing)
+	characters = voice_of_each_character(result)
+	assert "".join(character for character, _voice in characters) == text
+	main_voice = ZH if main == "zh" else EN
+	letter_voice = None
+	for character, voice in characters:
+		if character.isalpha():
+			# Both voices are installed: Latin letters are English, Han characters Chinese.
+			letter_voice = voice
+		elif character.isdecimal():
+			expected = {
+				"default": letter_voice or main_voice,
+				"main": main_voice,
+				"en": EN,
+				"zh_TW": ZH,
+			}[numlan]
+			assert voice == expected, (text, result)
