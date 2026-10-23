@@ -287,17 +287,15 @@ Readmes. Decided by the user (2026-10-23): the ignore bullet goes from all six r
 - Number language bullet, `readme.md:43`:
   > * Number language: Chooses the language that reads numbers.
   >   * Follow current text language (default): numbers are read in the language of the text around them. With Unicode detection on, a number in Chinese text is read by the Chinese voice.
-  >   * Follow document main language: numbers are read in the main language: the language the document marks, or the main speech role's language.
+  >   * Follow document main language: numbers are read in the main language, that is, the language the document marks or the main speech role's language.
   >   * A specific language: numbers are always read by the speech role of that language.
-  >
-  >   Numbers include full-width digits (０–９) and other Unicode decimal digits, such as Arabic-Indic digits.
+  >   * Numbers include full-width digits (０–９) and other Unicode decimal digits, such as Arabic-Indic digits.
 - `addon/doc/zh_TW/readme.md:43`:
   > * 數字語言：選擇朗讀數字的語言。
   >  * 跟隨當前文字語言（預設）：數字以前後文字的語言朗讀。開啟 Unicode 偵測時，中文裡的數字由中文語音朗讀。
   >  * 跟隨文件主要語言：數字以主要語言朗讀，也就是文件標示的語言或主要語音角色的語言。
   >  * 指定語言：數字一律由該語言的語音角色朗讀。
-  >
-  >  數字包括全形數字（０～９）與其他 Unicode 十進位數字，例如阿拉伯-印度數字。
+  >  * 數字包括全形數字（０～９）與其他 Unicode 十進位數字，例如阿拉伯－印度數字。
 
 Changelog. The changelog is the second half of each readme (`readme.md:67-`, `addon/doc/zh_TW/readme.md:65-`). Its newest section, "WorldVoice 6 Update", has not changed since the `6.2` tag (`git diff --stat 6.2 HEAD -- readme.md` touches only the user guide part). Phase 33 left it alone (phase 33 §7). `buildVars.py:29` `addon_changelog` is the store summary, and the main checkout has an uncommitted user edit in `buildVars.py`, so that file is not touched.
 
@@ -309,7 +307,7 @@ Decided by the user (2026-10-23): write a changelog note. Decided by the user (2
 
 > * **數字預設跟隨文字語言：** 移除 Unicode 偵測面板的「偵測語言時忽略數字」選項。數字語言新增「跟隨當前文字語言」（預設：數字以前後文字的語言朗讀）與「跟隨文件主要語言」（數字以主要語言朗讀）。先前版本在未勾選該選項時以主要語言朗讀數字；若要維持，請選擇「跟隨文件主要語言」。
 > * **連字號留在字詞上：** 使用數字語言時，緊接在字詞後的連字號（例如「COVID-19」）會留在字詞上，不再當成負號隨數字朗讀。空格後的正負號（例如「-3」）仍屬於數字。
-> * **全形與其他 Unicode 數字視為數字：** 數字語言、數字模式、數字停頓與千分位規則現在也適用於全形數字與其他 Unicode 十進位數字，例如阿拉伯-印度數字。
+> * **全形與其他 Unicode 數字視為數字：** 數字語言、數字模式、數字停頓與千分位規則現在也適用於全形數字與其他 Unicode 十進位數字，例如阿拉伯－印度數字。
 
 ## 10. Risks
 

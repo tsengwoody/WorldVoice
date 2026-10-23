@@ -42,7 +42,7 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
 * Detect language based on Unicode characters: When enabled, WorldVoice automatically determines the language or region from the text's Unicode characters and switches speech roles accordingly. Note: This feature may conflict with NVDA's automatic language switching, so it is recommended not to enable both at the same time.
 * Number language: Chooses the language that reads numbers.
   * Follow current text language (default): numbers are read in the language of the text around them. With Unicode detection on, a number in Chinese text is read by the Chinese voice.
-  * Follow document main language: numbers are read in the main language: the language the document marks, or the main speech role's language.
+  * Follow document main language: numbers are read in the main language, that is, the language the document marks or the main speech role's language.
   * A specific language: numbers are always read by the speech role of that language.
   * Numbers include full-width digits (０–９) and other Unicode decimal digits, such as Arabic-Indic digits.
 * Number mode:
