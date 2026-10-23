@@ -140,7 +140,7 @@ class LanguageDetector:
 		script = get_script(ord(character))
 		if script in (None, "Common", "Inherited"):
 			return current_language
-		return self.find_language_for_script(script, current_language, settings, base_language)
+		return self.find_language_for_script(script, current_language, settings, base_language=base_language)
 
 	def add_detected_language_commands(self, speechSequence):
 		# Read the settings once, so the whole sequence is detected with the same values.
