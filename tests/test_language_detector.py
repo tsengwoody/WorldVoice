@@ -176,6 +176,14 @@ def test_detection_characterization(env, languages, base, preferences, sequence,
 			[("lang", "en_GB"), "hello"],
 			id="installed-primary",
 		),
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{},
+			[L("de_DE"), "hallo 12"],
+			[("lang", "de_DE"), ("lang", "en"), "hallo ", ("lang", "de_DE"), "12"],
+			id="digits-return-to-it",
+		),
 	],
 )
 def test_unavailable_language_does_not_cover_its_script(
@@ -301,6 +309,13 @@ def test_find_language_for_script_prefers_an_available_base(env, base, expected)
 def test_spelling_prefers_the_spelling_locale(env, languages, cjk, text, locale, expected):
 	switching(env)["CJKCharactersLanguage"] = cjk
 	assert list(make_detector(env, languages).process_for_spelling(text, locale)) == expected
+
+
+def test_script_without_an_installed_language_keeps_the_current_language(env):
+	# No Greek voice: the Greek stays in the zh run instead of returning to the base.
+	assert detect(env, ["中Ελλ"], languages=("en_US", "zh_TW"), base="en_US") == [("lang", "zh"), "中Ελλ"]
+	detector = make_detector(env, ("en_US", "zh_TW"))
+	assert list(detector.process_for_spelling("中Ελ", "en_US")) == [("中Ελ", "zh")]
 
 
 def test_spelling_with_an_unavailable_locale(env):
