@@ -11,8 +11,6 @@ class SpeechContext:
 	supports_roles: bool
 	language: str | None
 	number_language: str
-	# Whether WorldVoice's language detection runs on this speech (the synth's uwv setting).
-	detects_language: bool = False
 	# The name and language of the default voice; None without one.
 	default_voice_name: str | None = None
 	default_voice_language: str | None = None

@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 from addon_loader import REF, WORLDVOICE, alias_package
 from nvda_stubs import StubModules, worldvoice_conf
-from pipeline_harness import nvda_normalize_language, symbol_name
+from pipeline_harness import load_nvda_character_processing, nvda_normalize_language, symbol_name
 from worldvoice_harness import chosen_voice, load_synth_class, voice_manager
 
 PACKAGE = "speak_test_worldvoice"
@@ -166,6 +166,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 		"inject_langchange_reorder": pipeline.inject_langchange_reorder,
 		"deduplicate_language_command": pipeline.deduplicate_language_command,
 		"lang_cmd_to_voice": pipeline.lang_cmd_to_voice,
+		"detect_with_number_language": pipeline.detect_with_number_language,
 		"queue_speech_sequence": modules.builder.queue_speech_sequence,
 		"normalize_legacy_commands": modules.commands.normalize_legacy_commands,
 		"detection_settings": detection_settings,
@@ -185,7 +186,6 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	synth._numlan = "default"
 	synth.language = "en"
 	synth.uwv = uwv
-	synth._uwv = uwv
 	synth.taskManager = RecordingTasks(ports)
 	synth._voiceManager = VoiceManager(ports)
 	detector = modules.detection.LanguageDetector(
@@ -193,7 +193,8 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 		settings=detection_settings,
 		language=lambda: synth.language,
 	)
-	synth.add_detected_language_commands = pipeline.listable(detector.add_detected_language_commands)
+	synth._languageDetector = detector
+	synth.add_detected_language_commands = pipeline.listable(synth._detect_languages)
 	return synth, modules
 
 
@@ -328,8 +329,10 @@ def speak_through_stages(
 	main="en",
 	settings=None,
 	ignore=False,
+	nvda=None,
 ):
-	"""Run the pipeline stages, then detection when it runs before NVDA, then speak; what is heard."""
+	"""Run the pipeline stages, then detection when it runs before NVDA, then *nvda* (what NVDA's
+	speak() does to the filtered sequence), then speak; what is heard."""
 	synth, modules = _synth(monkeypatch, timing=timing, uwv=uwv)
 	synth._numlan = numlan
 	if main == "zh":
@@ -346,6 +349,8 @@ def speak_through_stages(
 		sequence = list(stage.fn(sequence, settings or stage_settings(), ctx))
 	if uwv and timing == "before":
 		sequence = synth.add_detected_language_commands(sequence)
+	if nvda is not None:
+		sequence = nvda(sequence)
 	synth.speak(sequence)
 	return heard(synth.taskManager.calls)
 
@@ -502,3 +507,92 @@ def test_a_number_language_with_the_main_voice_still_reads_numbers_in_the_text(m
 	# its wrappers (the second trap, spec §4.2); the late stage keeps the digits in that language.
 	result = speak_through_stages(monkeypatch, ["中１２３"], numlan="en", ignore=True, timing=timing)
 	assert result == [(ZH, "中"), (EN, "１２３")]
+
+
+# NVDA's speak() runs processText on each text item after the filters, and appends its chunk
+# separator: symbol rules that read the text around a symbol see only that item.
+def nvda_processes_each_item(character_processing, locale):
+	"""What NVDA's speak() does to the filtered sequence, with WorldVoice's default of NVDA's own
+	language switching off: each text item through the symbol step of processText in the synth's
+	language, at symbol level "some", then the chunk separator; empty items dropped.
+	"""
+	level = character_processing.SymbolLevel.SOME
+
+	def process(sequence):
+		return [
+			character_processing.processSpeechSymbols(locale, item, level) + "  "
+			if isinstance(item, str)
+			else item
+			for item in sequence
+			if item != ""
+		]
+
+	return process
+
+
+NVDA_WARNINGS = pytest.mark.filterwarnings("ignore:codecs.open:DeprecationWarning")
+# Where the voice does not change, a number wrapped for detection reaches NVDA's processText in its
+# item, as it did before phase 35: NVDA's context rules (a negative number, "1st", a sentence end
+# after a digit) read the whole item (batch 1 review C1).
+WHOLE_ITEM_ROWS = [
+	pytest.param("en", "main", "COVID-19 cases", id="en-main-covid"),
+	pytest.param("en", "en", "COVID-19 cases", id="en-locale-covid"),
+	pytest.param("en", "main", "the 1st item", id="en-main-1st"),
+	pytest.param("en", "en", "the 1st item", id="en-locale-1st"),
+	pytest.param("en", "main", "in 2024!", id="en-main-bang"),
+	pytest.param("en", "en", "in 2024!", id="en-locale-bang"),
+	pytest.param("en", "main", "Is it 5?", id="en-main-question"),
+	pytest.param("en", "en", "Is it 5?", id="en-locale-question"),
+	pytest.param("zh", "main", "第1名", id="zh-main-rank"),
+	pytest.param("zh", "zh_TW", "第1名", id="zh-locale-rank"),
+]
+
+
+@NVDA_WARNINGS
+@TIMINGS
+@pytest.mark.parametrize(("main", "numlan", "text"), WHOLE_ITEM_ROWS)
+def test_numbers_reach_nvda_in_their_item_where_the_voice_stays(
+	monkeypatch,
+	tmp_path,
+	main,
+	numlan,
+	text,
+	timing,
+):
+	character_processing = load_nvda_character_processing(monkeypatch, tmp_path)
+	nvda = nvda_processes_each_item(character_processing, "zh_TW" if main == "zh" else "en")
+	result = speak_through_stages(monkeypatch, [text], numlan=numlan, main=main, timing=timing, nvda=nvda)
+	assert result == [(ZH if main == "zh" else EN, f"{text}  ")]
+
+
+@NVDA_WARNINGS
+@pytest.mark.parametrize("numlan", ["main", "zh_TW"])
+@pytest.mark.parametrize(
+	("timing", "expected"),
+	[
+		# Detection after NVDA: NVDA processed the whole item; the zh voice reads "-19" as written.
+		("after", [(EN, "COVID"), (ZH, "-19 疫情  ")]),
+		# Detection before NVDA: the voice changes at the sign, so "-19 疫情" is an item of its own and
+		# NVDA reads its leading "-" as a negative sign, as for a number language of another voice
+		# before phase 35 (decided by the user, 2026-10-23, Q5: the sign moves with the digits).
+		("before", [(EN, "COVID  "), (ZH, " 負 19 疫情  ")]),
+	],
+)
+def test_a_sign_that_changes_the_voice_starts_the_numbers_item(
+	monkeypatch,
+	tmp_path,
+	numlan,
+	timing,
+	expected,
+):
+	character_processing = load_nvda_character_processing(monkeypatch, tmp_path)
+	nvda = nvda_processes_each_item(character_processing, "zh_TW")
+	result = speak_through_stages(
+		monkeypatch,
+		["COVID-19 疫情"],
+		numlan=numlan,
+		main="zh",
+		timing=timing,
+		nvda=nvda,
+	)
+	assert result == expected

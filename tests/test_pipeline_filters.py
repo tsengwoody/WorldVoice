@@ -676,7 +676,16 @@ def test_a_stored_pair_mode_reads_numbers_as_values(env, monkeypatch):
 	assert list(env.module.inject_number_mode(["1234"], stored, env.module.GENERIC_CONTEXT)) == ["1234"]
 
 
-@pytest.mark.parametrize(("text", "expected"), [("１２,３４５", "１２３４５"), ("١٢,٣٤٥", "١٢٣٤٥")])
+@pytest.mark.parametrize(
+	("text", "expected"),
+	[
+		("１２,３４５", "１２３４５"),
+		("١٢,٣٤٥", "١٢٣٤٥"),
+		# Not thousands runs: the lookarounds count every decimal digit.
+		("１２,３４５６", "１２,３４５６"),
+		("１２３４,５６７", "１２３４,５６７"),
+	],
+)
 def test_thousands_separators_of_other_digits(env, text, expected):
 	result = env.module.remove_thousands_separators([text], env.settings, env.module.GENERIC_CONTEXT)
 	assert list(result) == [expected]

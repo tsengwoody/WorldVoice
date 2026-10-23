@@ -285,8 +285,8 @@ def inject_number_language(
 		if ctx.number_language in (FOLLOW, MAIN):
 			# Both wrap a number in the language in force, so deduplicate_language_command
 			# would drop every wrapper: the pass-through is behavior-identical and avoids
-			# scanning every string for numbers. With detection on, wrap_numbers_for_detection
-			# wraps "main" numbers after the other number stages.
+			# scanning every string for numbers. With detection on, "main" numbers are wrapped
+			# where detection runs (detect_with_number_language).
 			yield from speechSequence
 			return
 		yield from _insert_WVLangChangeCommand_between_number(speechSequence, ctx)
@@ -296,22 +296,17 @@ def inject_number_language(
 
 def wrap_numbers_for_detection(
 	speechSequence: Iterable[SpeechCmd],
-	settings: "PipelineSettings",
 	ctx: SpeechContext,
+	joins: dict[int, bool] | None = None,
 ) -> Iterator[SpeechCmd]:
 	"""
-	With language detection on, wrap every number in WVLangChangeCommands for the number
-	language, so detection reads it there instead of in the text around it.
+	Wrap every number in WVLangChangeCommands for the number language, so language detection
+	reads it there instead of in the text around it.
 
-	It runs after the other number stages, so their pauses and pieces are those of a bare number.
 	"main" wraps each number in the language in force (the last language command, or the synth's
-	language), and a locale in that locale; each wrapper closes with the language in force. It does
-	not dedupe: a dedupe here would drop every "main" wrapper and every wrapper whose voice is the
-	voice in use, and speak() dedupes after detection anyway.
+	language), a locale in that locale; each wrapper closes with the language in force. *joins*
+	gets id(wrapper) -> whether text of the same item is on both sides of it.
 	"""
-	if not (ctx.supports_roles and ctx.detects_language and ctx.number_language != FOLLOW):
-		yield from speechSequence
-		return
 	language = ctx.language
 	for item in speechSequence:
 		if not isinstance(item, str):
@@ -324,9 +319,46 @@ def wrap_numbers_for_detection(
 			if kind == "text":
 				yield value
 				continue
-			yield WVLangChangeCommand(target)
+			opening, closing = WVLangChangeCommand(target), WVLangChangeCommand(language)
+			if joins is not None:
+				joins[id(opening)] = value.start() > 0
+				joins[id(closing)] = value.end() < len(item)
+			yield opening
 			yield value.group()
-			yield WVLangChangeCommand(language)
+			yield closing
+
+
+def detect_with_number_language(
+	speechSequence: Iterable[SpeechCmd],
+	detect: Callable[[Iterable[SpeechCmd]], Iterable[SpeechCmd]],
+	ctx: SpeechContext,
+) -> list[SpeechCmd]:
+	"""
+	Language detection that reads every number in the number language.
+
+	Unless the number language is "default" (numbers follow the text), each number is wrapped for
+	*detect*, which then keeps it in the number language. The wrappers that keep the voice are
+	dropped afterwards and the text they split joins up again, so NVDA, when detection runs before
+	it, processes each item as it was: its symbol rules read the text around a number (a negative
+	sign, "1st", a sentence end). Nothing joins across another command or across two items.
+	"""
+	if not (ctx.supports_roles and ctx.number_language != FOLLOW):
+		return list(detect(speechSequence))
+	joins: dict[int, bool] = {}
+	detected = list(detect(list(wrap_numbers_for_detection(speechSequence, ctx, joins))))
+	kept = {id(item) for item in deduplicate_language_command(detected, ctx) if id(item) in joins}
+	result: list[SpeechCmd] = []
+	glue = False
+	for item in detected:
+		if id(item) in joins and id(item) not in kept:
+			glue = glue or joins[id(item)]
+			continue
+		if glue and isinstance(item, str) and result and isinstance(result[-1], str):
+			result[-1] += item
+		else:
+			result.append(item)
+		glue = False
+	return result
 
 
 def _translate_number(
@@ -797,7 +829,7 @@ class Stage:
 
 	log_key: str
 	fn: Callable[..., Iterable[SpeechCmd]]
-	# False: the stage logs under the switch of another stage with the same log key.
+	# False: the stage logs under the switch of a later stage with the same log key.
 	log_switch: bool = True
 	handler: Callable[[Iterable[SpeechCmd]], Iterable[SpeechCmd]] = field(
 		init=False,
@@ -819,7 +851,6 @@ STAGES: tuple[Stage, ...] = (
 	Stage("item_wait_factor", item_wait_factor),
 	Stage("punctuation_wait_factor", inject_punctuation_pause),
 	Stage("number_wait_factor", number_wait_factor),
-	Stage("number_language", wrap_numbers_for_detection, log_switch=False),
 	Stage("speech_viewer", speech_viewer),
 )
 

@@ -601,6 +601,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 			for name in (
 				"inject_langchange_reorder",
 				"deduplicate_language_command",
+				"detect_with_number_language",
 				"lang_cmd_to_voice",
 				"order_move_to_start_register",
 				"listable",

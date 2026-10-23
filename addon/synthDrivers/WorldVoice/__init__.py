@@ -38,6 +38,7 @@ from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	LOG_SWITCHES,
 	deduplicate_language_command,
+	detect_with_number_language,
 	inject_langchange_reorder,
 	lang_cmd_to_voice,
 	listable,
@@ -270,9 +271,7 @@ class SynthDriver(SynthDriver):
 					settings=detection_settings,
 					language=lambda: self.language,
 				)
-				self.add_detected_language_commands = listable(
-					self._languageDetector.add_detected_language_commands,
-				)
+				self.add_detected_language_commands = listable(self._detect_languages)
 				self._teardown.add(
 					"language detection unregister",
 					lambda: filter_speechSequence.unregister(self.add_detected_language_commands),
@@ -329,6 +328,15 @@ class SynthDriver(SynthDriver):
 			self._voiceManager.resolve_playback,
 		)
 
+	def _detect_languages(self, speechSequence):
+		# The number language decides the digits: the pipeline wraps each number for detection,
+		# wherever detection runs (before NVDA's processing as a filter, or after it in speak).
+		return detect_with_number_language(
+			speechSequence,
+			self._languageDetector.add_detected_language_commands,
+			self.speech_context(),
+		)
+
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
 		if self.uwv and config.conf["speech"]["trustVoiceLanguage"]:
 			for part, loc in self._languageDetector.process_for_spelling(text, locale):
@@ -360,8 +368,6 @@ class SynthDriver(SynthDriver):
 			supports_roles=True,
 			language=self.language,
 			number_language=self._numlan,
-			# NVDA sets uwv only in initSettings, after __init__: until then detection is off.
-			detects_language=bool(getattr(self, "_uwv", False)),
 			default_voice_name=voice.name,
 			default_voice_language=voice.language,
 			voice_name_for_language=manager.getVoiceNameForLanguage,

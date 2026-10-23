@@ -132,7 +132,6 @@ def test_speech_context_holds_only_plain_values():
 		"supports_roles",
 		"language",
 		"number_language",
-		"detects_language",
 		"default_voice_name",
 		"default_voice_language",
 		"voice_name_for_language",

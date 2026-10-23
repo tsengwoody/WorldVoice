@@ -168,7 +168,6 @@ ORDER = [
 	"item_wait_factor",
 	"punctuation_wait_factor",
 	"number_wait_factor",
-	"number_language",
 	"speech_viewer",
 ]
 # One log switch per label, in the order of the stage that owns it.
