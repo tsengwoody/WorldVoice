@@ -136,3 +136,28 @@ spec 沒有單獨列、但值得使用者知道的使用者可見後果：
 ## coverage
 
 scratch `head2`（`2cd7cf4`）`python3 -m pytest -q -p no:cacheprovider tests --cov --cov-report=term`：`languageDetection/__init__.py` 91 statements／46 branches 全覆蓋（100%）；TOTAL 7959 statements、243 miss、2292 branches、185 partial，**96%**（帳本記錄 242 miss，差 1 行在隨機測試的分支內，非本階段檔案）。`views.py` 的 omit 已隨檔案移除。
+
+## 修正記錄
+
+修正者：Opus 5.5（實作 agent），2026-10-23，接在 `09fd3c0` 之後。10 項 Minor 全部修正，沒有不修的項目。
+
+| 項目 | commit | 內容與驗證 |
+| --- | --- | --- |
+| M-1 第 6 步只靠隨機抽樣釘住 | `6fbe32d` | 新增 `test_script_without_an_installed_language_keeps_the_current_language`：`["中Ελλ"]`（en_US、zh_TW，基底 en_US）→ `[<zh>, "中Ελλ"]`；拼字 `"中Ελ"`（en_US）→ 一個 zh run。在 scratch 複本套上 `return base_language or current_language`，此測試固定失敗（非性質測試）。 |
+| M-2 Q6 數字限制沒有測試 | `6fbe32d` | `test_unavailable_language_does_not_cover_its_script[digits-return-to-it]`：`[L("de_DE"), "hallo 12"]` → `<de_DE>` `<en>` `hallo ` `<de_DE>` `12`。套上「數字回目前語言」的 mutant 時失敗。 |
+| M-3 `base_language` 傳法不一致 | `35b6f01` | `_language_for_character` 改用關鍵字 `base_language=`，與 `process_for_spelling` 一致；純重構，偵測器測試全綠。 |
+| B2-M1 spec §11 Q5 仍寫 out of scope | `4e08caf` | 改為「Decided by the user (2026-10-23): removed from all six readmes, together with "punctuation" in each section intro (§7)」。 |
+| B2-M2 守門漏掉相對 import 與動態 import | `e40817f` | 相對 import 依檔案所在 package 解析成絕對名稱；`generics.speechSymbols` 文字本身也算違規（抓得到 `importlib.import_module` 字串）。scratch 種子：`from .speechSymbols import models`、`from . import speechSymbols`（`addon/generics/coreArchive.py`）、`importlib.import_module("generics.speechSymbols.models")`（`addon/installTasks.py`）三者在新守門失敗、舊守門通過；原有四種種子（絕對 import、`from generics import speechSymbols`、`unicode.dic`、殘留 `models.py`）仍失敗；乾淨樹通過。 |
+| B2-M3 zh_TW readme 用詞 | `35dda90` | 改為「使用該字元集且已安裝語音的語言」，「目前朗讀」改為「當前朗讀」，與相鄰項目一致。 |
+| B2-M4 測試註解只寫「spec §」 | `815ceaf` | `tests/test_language_detector.py` 五處改為「phase 33 spec §…」（第一處寫成「its spec §10.1」以免重複「phase 33」）。 |
+| F-M1 DeprecationWarning 守門的範圍 | `aefac3f` | `pyproject.toml` 註解與 spec §1.5 補上：收集階段也生效（import 時的 deprecation 會中斷整個 suite）、`PytestDeprecationWarning` 也算、逃生口（單一測試的 `filterwarnings` mark，或範圍限定模組的 `ignore::DeprecationWarning:<module>`；診斷用 `-W default::DeprecationWarning`）。在 scratch 複本實測：模組層警告得到「Interrupted: 1 error during collection」，`-W ignore::DeprecationWarning:<module>` 可放行。守門本身不變。 |
+| F-M2 readme 的主要語言定義漏掉 NVDA 介面語言 | `35dda90` | EN 與 zh_TW 各加一個子句：偵測在 NVDA 之後執行且未勾選「處理字元與符號時信任語音的語言」（Trust voice's language when processing characters and symbols）時，NVDA 可能改用其介面語言（依據 `ref/nvda/source/speech/speech.py:313-322` 的 `getCurrentLanguage` 與 `:1178-1200` 補 `LangChangeCommand` 的條件；後者還需要自動切換語言或報讀語言開啟，所以寫「可能」）。 |
+| F-M3 spec §5 漏列拼字切 run | `4e08caf` | §5 新增一條：拼字 locale 沒有安裝語音時，字母用該字元集可用語言的字元描述，空白與數字保留 locale 的符號名稱，因此切成不同 run（附 `"a b"` 例子，指向 §3.3）。 |
+
+修正後驗證（`35dda90`）：
+
+- `python3 -m pytest -q -p no:cacheprovider tests`：**2412 passed, 0 skipped, 0 warnings**（較審查時的 2410 多出 M-1 一個測試與 M-2 一列）。
+- `prek run --all-files`：8 個 hook 全數 Passed。
+- `git diff --check master`：無輸出；受保護路徑兩個指令皆無輸出。
+- `msgfmt --check` zh_TW：exit 0（本輪沒有改 `.po`）。
+- 未打包；未在 Windows／NVDA 驗證 spec §10.8 的手動項目。
