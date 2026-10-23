@@ -525,9 +525,16 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 
 	def _script_labels(self):
 		return {
+			# Translators: Label of the choice of the language assumed for Latin letters.
 			"Latin": _("Language assumed for latin characters:"),
+			# Translators: Label of the choice of the language assumed for Han characters (CJK ideographs).
 			"Han": _("Language assumed for CJK characters:"),
+			# Translators: Label of the choice of the language assumed for Arabic letters.
 			"Arabic": _("Language assumed for arabic characters:"),
+			# Translators: Label of the choice of the language assumed for Cyrillic letters.
+			"Cyrillic": _("Language assumed for cyrillic characters:"),
+			# Translators: Label of the choice of the language assumed for Devanagari letters.
+			"Devanagari": _("Language assumed for devanagari characters:"),
 		}
 
 	def _add_script_choice(self, helper, script, label):

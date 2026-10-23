@@ -167,6 +167,14 @@ msgstr "漢字字元假設的語言："
 msgid "Language assumed for arabic characters:"
 msgstr "阿拉伯字元假設的語言："
 
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:535
+msgid "Language assumed for cyrillic characters:"
+msgstr "西里爾字元假設的語言："
+
+#: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:537
+msgid "Language assumed for devanagari characters:"
+msgstr "天城文字元假設的語言："
+
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:760
 msgid "Before NVDA processes speech commands"
 msgstr "在 NVDA 處理語音指令前"

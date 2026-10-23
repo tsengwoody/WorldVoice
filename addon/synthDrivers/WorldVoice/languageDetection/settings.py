@@ -16,6 +16,9 @@ DETECTION_CONFSPEC = {
 	"latinCharactersLanguage": "string(default=en)",
 	"CJKCharactersLanguage": "string(default=ja)",
 	"arabicCharactersLanguage": "string(default=ar)",
+	# The first candidates of their scripts, which detection took before these choices existed.
+	"cyrillicCharactersLanguage": "string(default=ru)",
+	"devanagariCharactersLanguage": "string(default=hi)",
 	"DetectLanguageTiming": "string(default=after)",
 }
 # The scripts whose assumed language the user chooses, and where each choice is stored.
@@ -23,6 +26,8 @@ SCRIPT_CONFIG_KEYS = {
 	"Latin": "latinCharactersLanguage",
 	"Han": "CJKCharactersLanguage",
 	"Arabic": "arabicCharactersLanguage",
+	"Cyrillic": "cyrillicCharactersLanguage",
+	"Devanagari": "devanagariCharactersLanguage",
 }
 _TIMING_KEY = "DetectLanguageTiming"
 

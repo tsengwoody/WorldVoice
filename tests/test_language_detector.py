@@ -41,6 +41,8 @@ PREFERENCE_KEYS = {
 	"cjk": "CJKCharactersLanguage",
 	"latin": "latinCharactersLanguage",
 	"arabic": "arabicCharactersLanguage",
+	"cyrillic": "cyrillicCharactersLanguage",
+	"devanagari": "devanagariCharactersLanguage",
 }
 
 
@@ -126,6 +128,65 @@ def detect(env, sequence, *, languages, base, **preferences):
 )
 def test_detection_characterization(env, languages, base, preferences, sequence, expected):
 	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
+
+
+# Cyrillic and Devanagari have an assumed-language choice like Latin, Han and Arabic (2026-10-23).
+@pytest.mark.parametrize(
+	"languages,preferences,sequence,expected",
+	[
+		pytest.param(
+			("en_US", "ru_RU", "uk_UA"),
+			{"cyrillic": "uk"},
+			["hi привіт"],
+			["hi ", ("lang", "uk"), "привіт"],
+			id="cyrillic-uk",
+		),
+		pytest.param(
+			("en_US", "ru_RU", "uk_UA"),
+			{"cyrillic": "ru_RU"},
+			["hi привет"],
+			["hi ", ("lang", "ru_RU"), "привет"],
+			id="cyrillic-regional",
+		),
+		pytest.param(
+			("en_US", "uk_UA"),
+			{"cyrillic": "ru"},
+			["hi привіт"],
+			["hi ", ("lang", "uk"), "привіт"],
+			id="cyrillic-without-a-voice",
+		),
+		pytest.param(
+			("en_US", "hi_IN", "mr_IN"),
+			{"devanagari": "mr"},
+			["hi नमस्कार"],
+			["hi ", ("lang", "mr"), "नमस्कार"],
+			id="devanagari-mr",
+		),
+		pytest.param(
+			("en_US", "hi_IN", "mr_IN"),
+			{"devanagari": "ne"},
+			["hi नमस्ते"],
+			["hi ", ("lang", "hi"), "नमस्ते"],
+			id="devanagari-without-a-voice",
+		),
+	],
+)
+def test_configured_cyrillic_and_devanagari_languages(env, languages, preferences, sequence, expected):
+	assert detect(env, sequence, languages=languages, base="en_US", **preferences) == expected
+
+
+# The shipped defaults are the scripts' first candidates, so a fresh profile detects as before.
+@pytest.mark.parametrize(
+	"languages,sequence,expected",
+	[
+		pytest.param(("en_US", "uk_UA", "ru_RU"), ["hi привет"], ["hi ", ("lang", "ru"), "привет"], id="ru"),
+		pytest.param(("en_US", "mr_IN", "hi_IN"), ["hi नमस्ते"], ["hi ", ("lang", "hi"), "नमस्ते"], id="hi"),
+	],
+)
+def test_default_cyrillic_and_devanagari_languages(env, languages, sequence, expected):
+	assert env.settings.get().script_language["Cyrillic"] == "ru"
+	assert env.settings.get().script_language["Devanagari"] == "hi"
+	assert detect(env, sequence, languages=languages, base="en_US") == expected
 
 
 # A language counts only with an installed voice (phase 33 spec §3); availability is by primary subtag.
@@ -518,7 +579,7 @@ def test_one_settings_read_per_spelling(env):
 
 SCRIPT_SAMPLES = st.sampled_from(
 	["hello", " ", "中文", "日本語", "عربي", "123", ",", "é", "\U0001f600", "\n"]
-	+ ["漢字", "привет", "한국", "かな", "Ελληνικά", "12", "，"]
+	+ ["漢字", "привет", "한국", "かな", "Ελληνικά", "12", "，", "नमस्ते"]
 	# Phase 35: decimal digits of other scripts, and characters that only look like digits.
 	+ ["١٢", "１２", "²", "①"],
 )
@@ -535,6 +596,7 @@ VOICES = (
 	"de_DE",
 	"fr_FR",
 	"hi_IN",
+	"mr_IN",
 	"el_GR",
 )
 # Document languages: none, without a voice, hyphenated, a regional variant, primary only, unknown.
@@ -556,6 +618,8 @@ def scenarios(draw):
 			"cjk": draw(st.sampled_from(["zh", "zh_TW", "ja", "ko"])),
 			"latin": draw(st.sampled_from(["en", "fr", "de"])),
 			"arabic": draw(st.sampled_from(["ar", "fa"])),
+			"cyrillic": draw(st.sampled_from(["ru", "uk", "bg"])),
+			"devanagari": draw(st.sampled_from(["hi", "mr"])),
 		},
 		locale=draw(st.one_of(st.none(), st.sampled_from(COMMAND_LANGUAGES[1:] + tuple(installed)))),
 	)
@@ -617,7 +681,7 @@ def test_property_detection_only_inserts_language_changes(env, scenario, items):
 
 def plain_scenario(installed, base):
 	"""A fixed scenario with the shipped preferences, for the explicit examples."""
-	preferences = {"cjk": "ja", "latin": "en", "arabic": "ar"}
+	preferences = {"cjk": "ja", "latin": "en", "arabic": "ar", "cyrillic": "ru", "devanagari": "hi"}
 	return SimpleNamespace(installed=list(installed), base=base, preferences=preferences, locale=None)
 
 

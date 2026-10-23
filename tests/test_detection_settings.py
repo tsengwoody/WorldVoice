@@ -1,4 +1,4 @@
-"""The language detection settings service: the only reader and writer of its four keys."""
+"""The language detection settings service: the only reader and writer of its six keys."""
 
 import dataclasses
 from types import SimpleNamespace
@@ -38,6 +38,8 @@ def env(monkeypatch):
 		latinCharactersLanguage="en",
 		CJKCharactersLanguage="ja",
 		arabicCharactersLanguage="ar",
+		cyrillicCharactersLanguage="ru",
+		devanagariCharactersLanguage="hi",
 		DetectLanguageTiming="after",
 		KeepMainLocaleVoiceConsistent=True,
 	)
@@ -48,9 +50,12 @@ def env(monkeypatch):
 	return SimpleNamespace(module=module, section=section, service=service, errors=errors)
 
 
-def test_get_reads_the_four_detection_keys(env):
+ALL_SCRIPTS = {"Latin": "en", "Han": "ja", "Arabic": "ar", "Cyrillic": "ru", "Devanagari": "hi"}
+
+
+def test_get_reads_the_six_detection_keys(env):
 	settings = env.service.get()
-	assert dict(settings.script_language) == {"Latin": "en", "Han": "ja", "Arabic": "ar"}
+	assert dict(settings.script_language) == ALL_SCRIPTS
 	assert settings.timing == "after"
 
 
@@ -71,11 +76,27 @@ def test_update_writes_only_the_given_changed_keys(env):
 	assert (env.section["latinCharactersLanguage"], env.section["arabicCharactersLanguage"]) == ("en", "ar")
 
 
+@pytest.mark.parametrize(
+	"script,language,key",
+	[
+		("Cyrillic", "uk", "cyrillicCharactersLanguage"),
+		("Devanagari", "mr", "devanagariCharactersLanguage"),
+	],
+)
+def test_update_writes_the_cyrillic_and_devanagari_keys(env, script, language, key):
+	seen = []
+	env.service.subscribe(lambda settings, changed: seen.append(changed))
+	settings = env.service.update(script_language={script: language})
+	assert env.section.writes == [key]
+	assert env.section[key] == language and settings.script_language[script] == language
+	assert seen == [frozenset({"script_language"})]
+
+
 def test_update_with_stored_values_writes_and_notifies_nothing(env):
 	seen = []
 	env.service.subscribe(lambda settings, changed: seen.append(changed))
 	settings = env.service.update(
-		script_language={"Latin": "en", "Han": "ja", "Arabic": "ar"},
+		script_language=ALL_SCRIPTS,
 		timing="after",
 	)
 	assert env.section.writes == [] and seen == []
@@ -124,12 +145,17 @@ def test_confspec_and_script_keys_keep_the_stored_names_and_defaults(env):
 		"latinCharactersLanguage": "string(default=en)",
 		"CJKCharactersLanguage": "string(default=ja)",
 		"arabicCharactersLanguage": "string(default=ar)",
+		# The first candidates of their scripts: what the detector took before the choice existed.
+		"cyrillicCharactersLanguage": "string(default=ru)",
+		"devanagariCharactersLanguage": "string(default=hi)",
 		"DetectLanguageTiming": "string(default=after)",
 	}
 	assert env.module.SCRIPT_CONFIG_KEYS == {
 		"Latin": "latinCharactersLanguage",
 		"Han": "CJKCharactersLanguage",
 		"Arabic": "arabicCharactersLanguage",
+		"Cyrillic": "cyrillicCharactersLanguage",
+		"Devanagari": "devanagariCharactersLanguage",
 	}
 
 
@@ -140,12 +166,19 @@ def test_the_shared_service_reads_nvda_config(monkeypatch):
 				"latinCharactersLanguage": "fr",
 				"CJKCharactersLanguage": "zh",
 				"arabicCharactersLanguage": "fa",
+				"cyrillicCharactersLanguage": "bg",
+				"devanagariCharactersLanguage": "ne",
 				"DetectLanguageTiming": "before",
 			},
 		},
 	}
 	module = load_settings_module(monkeypatch, conf)
-	assert module.detection_settings.get().script_language["Arabic"] == "fa"
+	script_language = module.detection_settings.get().script_language
+	assert (script_language["Arabic"], script_language["Cyrillic"], script_language["Devanagari"]) == (
+		"fa",
+		"bg",
+		"ne",
+	)
 
 
 # Phase 35 removed the "ignore numbers" option: the number language decides every digit.
@@ -160,7 +193,7 @@ def test_get_reads_a_section_that_still_holds_the_old_key(env):
 	env.section["ignoreNumbersInLanguageDetection"] = True
 	settings = env.service.get()
 	assert (dict(settings.script_language), settings.timing) == (
-		{"Latin": "en", "Han": "ja", "Arabic": "ar"},
+		ALL_SCRIPTS,
 		"after",
 	)
 

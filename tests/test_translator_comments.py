@@ -39,8 +39,9 @@ def test_translator_comments_precede_gettext_calls():
 
 
 GROUP_MODE_MSGIDS = ("group", "Group size")
-# Labels that are new or changed with the shared, sentence-case labels (2026-10-21), and the
-# "off" number mode (2026-10-22).
+# Labels that are new or changed with the shared, sentence-case labels (2026-10-21), the
+# "off" number mode (2026-10-22), and the assumed languages of the Unicode Detection panel
+# (2026-10-23).
 CHANGED_LABEL_MSGIDS = (
 	"off",
 	"Number &mode",
@@ -53,6 +54,11 @@ CHANGED_LABEL_MSGIDS = (
 	"Punctuation pause characters",
 	"Apply speech dictionaries",
 	"Speech viewer",
+	"Language assumed for latin characters:",
+	"Language assumed for CJK characters:",
+	"Language assumed for arabic characters:",
+	"Language assumed for cyrillic characters:",
+	"Language assumed for devanagari characters:",
 )
 # msgids no _() call uses any more; the zh_TW catalog keeps none of them.
 DEAD_MSGIDS = (

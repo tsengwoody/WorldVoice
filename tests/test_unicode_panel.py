@@ -37,6 +37,8 @@ def build(env, languages, stored):
 		"latinCharactersLanguage": "en",
 		"CJKCharactersLanguage": "zh",
 		"arabicCharactersLanguage": "ar",
+		"cyrillicCharactersLanguage": "ru",
+		"devanagariCharactersLanguage": "hi",
 		"DetectLanguageTiming": "after",
 		**stored,
 	}
@@ -72,34 +74,49 @@ def build(env, languages, stored):
 	)
 
 
-LANGUAGES = ["en", "fr", "zh", "ja", "ar", "en_US"]
+LANGUAGES = ["en", "fr", "zh", "ja", "ar", "en_US", "uk", "ru", "ru_RU", "mr", "hi"]
+STORED = {
+	"latinCharactersLanguage": "fr",
+	"CJKCharactersLanguage": "ja",
+	"cyrillicCharactersLanguage": "uk",
+	"devanagariCharactersLanguage": "mr",
+}
+TIMING = 5
 
 
 def test_controls_choices_and_selections(env):
-	built = build(env, LANGUAGES, {"latinCharactersLanguage": "fr", "CJKCharactersLanguage": "ja"})
+	built = build(env, LANGUAGES, STORED)
 	labels = [control.label for control in built.added]
 	assert labels == [
 		"Language assumed for latin characters:",
 		"Language assumed for CJK characters:",
 		"Language assumed for arabic characters:",
+		"Language assumed for cyrillic characters:",
+		"Language assumed for devanagari characters:",
 		"Language detection timing:",
 	]
-	latin, cjk, arabic = built.added[0:3]
+	latin, cjk, arabic, cyrillic, devanagari = built.added[0:TIMING]
 	assert latin.choices == ["<en>", "<fr>"] and latin.selection == 1
 	assert cjk.choices == ["<ja>", "<zh>"] and cjk.selection == 0
 	assert arabic.choices == ["<ar>"] and arabic.selection == 0
+	assert cyrillic.choices == ["<ru>", "<uk>"] and cyrillic.selection == 1
+	assert devanagari.choices == ["<hi>", "<mr>"] and devanagari.selection == 1
 
 
 def test_save_writes_each_enabled_choice(env):
-	built = build(env, LANGUAGES, {"latinCharactersLanguage": "fr", "CJKCharactersLanguage": "ja"})
+	built = build(env, LANGUAGES, STORED)
 	built.added[0].Select(0)
 	built.added[1].Select(1)
+	built.added[3].Select(0)
+	built.added[4].Select(0)
 	built.panel.onSave()
 	assert (
 		built.switching["latinCharactersLanguage"],
 		built.switching["CJKCharactersLanguage"],
 		built.switching["arabicCharactersLanguage"],
-	) == ("en", "zh", "ar")
+		built.switching["cyrillicCharactersLanguage"],
+		built.switching["devanagariCharactersLanguage"],
+	) == ("en", "zh", "ar", "ru", "hi")
 
 
 def test_stored_language_not_offered_selects_the_first(env):
@@ -108,17 +125,22 @@ def test_stored_language_not_offered_selects_the_first(env):
 
 
 def test_script_without_candidates_is_disabled_and_not_saved(env):
-	built = build(env, ["en", "zh"], {"arabicCharactersLanguage": "fa"})
-	arabic = built.added[2]
-	assert arabic.choices == [] and arabic.enabled is False
+	stored = {
+		"arabicCharactersLanguage": "fa",
+		"cyrillicCharactersLanguage": "bg",
+		"devanagariCharactersLanguage": "ne",
+	}
+	built = build(env, ["en", "zh"], stored)
+	for index in (2, 3, 4):
+		assert built.added[index].choices == [] and built.added[index].enabled is False
 	built.panel.onSave()
-	assert built.switching["arabicCharactersLanguage"] == "fa"
+	assert {key: built.switching[key] for key in stored} == stored
 
 
 @pytest.mark.parametrize("timing,timing_changed", [("before", True), ("after", False)])
 def test_saving_reports_a_timing_change_to_subscribers_not_to_the_synth(env, timing, timing_changed):
 	built = build(env, LANGUAGES, {})
-	built.added[3].Select(["before", "after"].index(timing))
+	built.added[TIMING].Select(["before", "after"].index(timing))
 	built.synth.events.clear()
 	built.panel.onSave()
 	assert built.switching["DetectLanguageTiming"] == timing
@@ -127,7 +149,7 @@ def test_saving_reports_a_timing_change_to_subscribers_not_to_the_synth(env, tim
 
 
 def test_saving_unchanged_choices_notifies_nobody(env):
-	built = build(env, LANGUAGES, {"latinCharactersLanguage": "fr", "CJKCharactersLanguage": "ja"})
+	built = build(env, LANGUAGES, STORED)
 	built.panel.onSave()
 	assert built.notified == []
 
