@@ -152,6 +152,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	modules = _load_modules(monkeypatch, conf)
 	pipeline = modules.pipeline
 	detection_settings = modules.detection_settings.DetectionSettingsService(lambda: conf)
+	warnings = []
 	environment = {
 		"SynthDriver": object,
 		"IndexCommand": IndexCommand,
@@ -174,6 +175,8 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 		"GENERIC_CONTEXT": modules.context.GENERIC_CONTEXT,
 		"NUMBER_LANGUAGE_CHOICES": modules.settings.NUMBER_LANGUAGE_CHOICES,
 		"FOLLOW": modules.number_language.FOLLOW,
+		"MAIN": modules.number_language.MAIN,
+		"nvdaLog": SimpleNamespace(debugWarning=lambda *args: warnings.append(args)),
 		"StringParameterInfo": lambda id, name: SimpleNamespace(id=id, displayName=name),
 		"languageHandler": SimpleNamespace(
 			getLanguageDescription=lambda locale: {"en": "English"}.get(locale),
@@ -182,6 +185,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	}
 	ports = {key: object() for key in VOICES.values()}
 	synth = object.__new__(load_synth_class(environment))
+	synth.warnings = warnings
 	synth._terminated = False
 	synth._numlan = "default"
 	synth.language = "en"
@@ -599,3 +603,34 @@ def test_a_sign_that_changes_the_voice_starts_the_numbers_item(
 def test_main_keeps_superscripts_in_the_text(monkeypatch, timing):
 	# Decided by the user (2026-10-23, spec §4.7 item 2): "²" is not a digit, so it stays with the text.
 	assert speak_through_stages(monkeypatch, ["中²"], timing=timing, **MAIN) == [(ZH, "中²")]
+
+
+# A stored number language must be one of the choices (phase 35 spec §7.1, Q7); NVDA stores any
+# string, and an unknown one broke the settings ring.
+@pytest.mark.parametrize("value", ["zz", "fr"])
+def test_an_unknown_number_language_reads_as_follow(monkeypatch, value):
+	synth, _ = _synth(monkeypatch)
+	synth._set_numlan(value)
+	assert synth._get_numlan() == "default"
+	assert synth.speech_context().number_language == "default"
+	(warning,) = synth.warnings
+	assert value in warning
+
+
+@pytest.mark.parametrize("value", ["default", "main", "en", "zh_TW"])
+def test_known_number_languages_are_kept(monkeypatch, value):
+	synth, _ = _synth(monkeypatch)
+	synth._set_numlan(value)
+	assert synth._get_numlan() == value
+	assert synth.warnings == []
+
+
+def test_a_locale_the_voices_no_longer_offer_reads_as_follow(monkeypatch):
+	# For example after "Keep main locale engine consistent" hid it with a voice change.
+	synth, _ = _synth(monkeypatch)
+	synth._voiceManager.languages = ("en",)
+	synth._set_numlan("zh_TW")
+	assert synth._get_numlan() == "default"
+	assert len(synth.warnings) == 1
+	# NVDA's settings ring finds the stored value among the choices, so it can step from it.
+	assert synth._get_numlan() in synth._get_availableNumlans()

@@ -33,7 +33,7 @@ from .configRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
 from .indexLedger import IndexLedger
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
-from .numberLanguage import FOLLOW
+from .numberLanguage import FOLLOW, MAIN
 from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	LOG_SWITCHES,
@@ -478,6 +478,11 @@ class SynthDriver(SynthDriver):
 		return self._numlan
 
 	def _set_numlan(self, value):
+		# NVDA stores any string; one that is not a choice would leave the Voice panel without a
+		# selection and break the settings ring, so it reads as the default (no migration).
+		if value not in (FOLLOW, MAIN) and value not in self._voiceManager.languages:
+			nvdaLog.debugWarning("WorldVoice: unknown number language %r, using %r", value, FOLLOW)
+			value = FOLLOW
 		self._numlan = value
 
 	def _get_availableNummods(self):
