@@ -53,9 +53,10 @@ from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
 _: Any
 
+# The add-on root stays on sys.path although this package imports nothing from it: the
+# global plugin imports generics.coreArchive after importing this package.
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, base_dir)
-from generics.speechSymbols.models import SpeechSymbols
 
 addonHandler.initTranslation()
 
@@ -174,7 +175,6 @@ class SynthDriver(SynthDriver):
 		self._terminated = False
 		self._terminateCommit = True
 		self._numlan = "default"
-		self.speechSymbols = None
 		self._realSpellingFunc = None
 		self.taskManager = None
 		self._voiceManager = None
@@ -259,16 +259,9 @@ class SynthDriver(SynthDriver):
 					patch_attribute(speech.speech, "speakSpelling", self.patchedSpeakSpelling),
 				)
 
-			with timed(nvdaLog, "SpeechSymbols construct"):
-				self.speechSymbols = SpeechSymbols()
-
-			with timed(nvdaLog, "SpeechSymbols.load unicode.dic"):
-				self.speechSymbols.load("unicode.dic")
-
 			with timed(nvdaLog, "LanguageDetector"):
 				self._languageDetector = languageDetection.LanguageDetector(
 					list(self._voiceManager.allLanguages),
-					self.speechSymbols,
 					settings=detection_settings,
 					language=lambda: self.language,
 				)
@@ -287,7 +280,7 @@ class SynthDriver(SynthDriver):
 
 			self._voice = None
 
-			# Stages see a fully built synth: voices, symbols and the number language exist.
+			# Stages see a fully built synth: voices and the number language exist.
 			with timed(nvdaLog, "pipeline register"):
 				self._teardown.add("pipeline cleanup", pipeline_scope.worldvoice_ended)
 				pipeline_scope.worldvoice_started()

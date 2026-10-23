@@ -101,9 +101,8 @@ class LanguageDetector:
 	"""Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
 
-	def __init__(self, availableLanguages, speechSymbols=None, *, settings, language):
+	def __init__(self, availableLanguages, *, settings, language):
 		"""settings.get() returns the detection settings; language returns the synth's current language."""
-		self.speechSymbols = speechSymbols
 		self._settings = settings
 		self._language = language
 		self.availableLanguages = frozenset(get_primary_language(lang) for lang in availableLanguages)
@@ -157,21 +156,14 @@ class LanguageDetector:
 			elif isinstance(command, str):
 				buffer = []
 				for c in command:
-					if self.speechSymbols and c in self.speechSymbols.symbols:
-						symbol = self.speechSymbols.symbols[c]
-						text = symbol.replacement if symbol.replacement and c not in "0123456789" else c
-						targetLang = symbol.language if symbol.mode == 1 else tmpLang
-					else:
-						text = c
-						targetLang = self._language_for_character(c, tmpLang, curLang, settings)
-
+					targetLang = self._language_for_character(c, tmpLang, curLang, settings)
 					if get_primary_language(targetLang) != get_primary_language(tmpLang):
 						if buffer:
 							yield "".join(buffer)
 							buffer = []
 						yield WVLangChangeCommand(targetLang)
 						tmpLang = targetLang
-					buffer.append(text)
+					buffer.append(c)
 				if buffer:
 					yield "".join(buffer)
 			else:

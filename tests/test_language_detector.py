@@ -1,7 +1,5 @@
 """Language detection: which language each run of text is spoken in."""
 
-from types import SimpleNamespace
-
 import pytest
 from detector_harness import LangChangeCommand, load_language_detection
 from hypothesis import HealthCheck, given, settings, strategies as st
@@ -12,11 +10,10 @@ def env(stub_modules, monkeypatch):
 	return load_language_detection(stub_modules, monkeypatch)
 
 
-def make_detector(env, languages=("en_US", "zh_TW", "ja"), symbols=None):
+def make_detector(env, languages=("en_US", "zh_TW", "ja")):
 	"""The one place the detector is built; its dependencies come from env."""
 	return env.module.LanguageDetector(
 		list(languages),
-		symbols,
 		settings=env.settings,
 		language=lambda: env.state.language,
 	)
@@ -325,11 +322,20 @@ def test_digits_follow_the_ignore_numbers_setting(env, ignore, expected):
 	assert shape(env, make_detector(env).add_detected_language_commands(["中1"])) == expected
 
 
-def test_mode_one_symbol_speaks_its_replacement_in_its_language(env):
-	symbols = SimpleNamespace(symbols={"€": SimpleNamespace(replacement="euro", language="de", mode=1)})
-	languages = ("en_US", "zh_TW", "ja", "de_DE")
-	result = make_detector(env, languages, symbols=symbols).add_detected_language_commands(["€x"])
-	assert shape(env, result) == [("lang", "de"), "eurox"]
+# The speech symbols are gone (spec §1.2): an old caller fails at construction, not later.
+@pytest.mark.parametrize(
+	"args,kwargs",
+	[pytest.param((None,), {}, id="positional"), pytest.param((), {"speechSymbols": None}, id="keyword")],
+)
+def test_symbols_argument_is_rejected(env, args, kwargs):
+	with pytest.raises(TypeError):
+		env.module.LanguageDetector(
+			["en_US"],
+			*args,
+			settings=env.settings,
+			language=lambda: env.state.language,
+			**kwargs,
+		)
 
 
 def test_language_commands_reset_the_base_language(env):
@@ -385,7 +391,6 @@ def test_one_settings_read_per_sequence(env):
 	counting = CountingSettings(env.settings)
 	detector = env.module.LanguageDetector(
 		["en_US", "zh_TW", "ar"],
-		None,
 		settings=counting,
 		language=lambda: env.state.language,
 	)
@@ -405,7 +410,6 @@ def test_one_settings_read_per_spelling(env):
 	counting = CountingSettings(env.settings)
 	detector = env.module.LanguageDetector(
 		["en_US", "zh_TW", "ar"],
-		None,
 		settings=counting,
 		language=lambda: env.state.language,
 	)

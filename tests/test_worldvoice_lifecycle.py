@@ -84,15 +84,11 @@ def _construction_environment(failure, changes, close_error=None):
 		def close(self):
 			changes.append("ledger stopped")
 
-	class SpeechSymbols:
-		def load(self, path):
-			if failure == "symbols":
-				raise RuntimeError("dictionary failure")
-			changes.append("symbols loaded")
-
 	class LanguageDetector:
-		def __init__(self, languages, symbols, **providers):
+		def __init__(self, languages, **providers):
 			assert set(providers) == {"settings", "language"}
+			if failure == "detector":
+				raise RuntimeError("detector failure")
 			changes.append("detector built")
 
 		def add_detected_language_commands(self, sequence):
@@ -174,7 +170,6 @@ def _construction_environment(failure, changes, close_error=None):
 		"getSynth": unavailable_synth,
 		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "en"),
 		"speech": speech,
-		"SpeechSymbols": SpeechSymbols,
 		"filter_speechSequence": types.SimpleNamespace(
 			unregister=lambda handler: changes.append("filter unregistered"),
 		),
@@ -198,13 +193,13 @@ def _construction_environment(failure, changes, close_error=None):
 	)
 
 
-@pytest.mark.parametrize("failure", ["manager", "symbols", "bridge"])
+@pytest.mark.parametrize("failure", ["manager", "detector", "bridge"])
 def test_failed_synth_construction_releases_acquired_resources(failure):
 	changes = []
 	built = _construction_environment(failure, changes)
 	environment, settings_dialogs, panel = built.environment, built.settings_dialogs, built.panel
 	speech_api, spelling = built.speech_api, built.spelling
-	with pytest.raises(RuntimeError, match="no voices|dictionary failure|bridge failure"):
+	with pytest.raises(RuntimeError, match="no voices|detector failure|bridge failure"):
 		load_synth_class(environment)()
 
 	assert settings_dialogs.VoiceSettingsPanel is panel
@@ -219,7 +214,7 @@ def test_failed_synth_construction_releases_acquired_resources(failure):
 	assert "pipeline started" not in changes and "pipeline stopped" not in changes
 	assert changes.count("end") == 1
 	assert changes.count("settings subscribed") == changes.count("settings unsubscribed")
-	if failure == "symbols":
+	if failure == "detector":
 		assert "engine stopped" in changes
 		assert changes.index("bridge stopped") < changes.index("engine stopped")
 
@@ -249,10 +244,9 @@ def test_entry_points_are_silent_after_terminate():
 	driver.pause(True)
 
 
-def test_stages_register_after_symbols_and_detector():
+def test_stages_register_after_the_detector():
 	changes = []
 	load_synth_class(_construction_environment(None, changes).environment)()
-	assert changes.index("symbols loaded") < changes.index("pipeline started")
 	assert changes.index("detector built") < changes.index("pipeline started")
 
 

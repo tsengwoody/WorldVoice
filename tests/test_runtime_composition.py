@@ -589,9 +589,6 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 		synthDoneSpeaking=EventStub(),
 		getSynth=lambda: None,
 	)
-	stub("generics", __path__=[])
-	stub("generics.speechSymbols", __path__=[])
-	stub("generics.speechSymbols.models", SpeechSymbols=object)
 	# Unrelated UI and pipeline modules need NVDA, but all changed composition
 	# boundaries below are imported from their actual files by __init__.py.
 	stub(package + ".languageDetection", __path__=[])

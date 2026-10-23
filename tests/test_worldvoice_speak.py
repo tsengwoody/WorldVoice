@@ -179,7 +179,6 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	synth = object.__new__(load_synth_class(environment))
 	synth._terminated = False
 	synth._numlan = "default"
-	synth.speechSymbols = None
 	synth.language = "en"
 	synth.uwv = uwv
 	synth.taskManager = RecordingTasks(ports)
