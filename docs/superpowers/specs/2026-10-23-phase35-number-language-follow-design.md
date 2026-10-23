@@ -106,7 +106,7 @@ Both effects already exist today for a specific number language whose voice diff
 
 ### 4.4 Chosen: a second, late number-language stage for detection
 
-Decided by orchestrator with the recommended default; user may override before merge.
+Decided by the user (2026-10-23).
 
 1. **The early stage** (`inject_number_language`, `pipeline:278-293`) treats `"main"` exactly like `"default"`: a pass-through. A `"main"` wrapper would name the language in force and be dropped by the stage dedupe anyway (§4.2), so this changes nothing and skips the scan. Specific locales keep today's code, dedupe included. Update the comment at `pipeline:284-288` to cover both values.
 2. **A new stage `wrap_numbers_for_detection`**, placed in `STAGES` right after `number_wait_factor` and before `speech_viewer` (`pipeline:775-785`), logging under the `"number_language"` key with `log_switch=False` (the pattern `remove_thousands_separators` uses, `pipeline:777`). `LOG_SWITCHES` and the Log Record panel stay as they are.
@@ -150,13 +150,13 @@ T3 covers every engine with detection off. Engines differ only in the voices the
 
 ### 4.7 Where "main" still differs from today's "ignore off"
 
-1. **Signs and hyphens.** `NUMBER_RE` takes a `+`/`-` that does not follow a digit (`numbers:19`). Today's detector moved only the digits, so in `中 -12` the `-` stayed with the Chinese voice; now `-12` is read by the base voice. In `COVID-19` with a Chinese main voice, `-19` moves together. Specific locales already wrap this way. Decided by orchestrator with the recommended default; user may override before merge: accept.
+1. **Signs and hyphens.** `NUMBER_RE` takes a `+`/`-` that does not follow a digit (`numbers:19`). Today's detector moved only the digits, so in `中 -12` the `-` stayed with the Chinese voice; now `-12` is read by the base voice. In `COVID-19` with a Chinese main voice, `-19` moves together. Specific locales already wrap this way. Decided by the user (2026-10-23): accept.
 2. **Superscripts and circled digits** (`²`, `①`) went to the base under "ignore off" because the detector tested `str.isdigit()` (`detection:136`). They are not decimal digits (§6.1), so they now stay in the current language.
 3. **NVDA rewrites language commands after the filters, timing "after" only.** NVDA's `speak()` runs the filters first (`ref/nvda/source/speech/speech.py:1137`) and only then rewrites `LangChangeCommand`s (`speech.py:1184-1200`). The speech manager also drops them unless NVDA's automatic language switching is on (`ref/nvda/source/speech/manager.py:366-369`). The late stage sees the commands before the rewrite; detection timed "after" sees them after it. Two narrow cases differ:
    - "Report language" on, automatic language switching off, a passage NVDA tags with a language: the digits go to the tagged language's voice (or the main voice when it has none), while detection's base is the synth language.
    - Automatic language switching on and "Trust voice's language" off: NVDA inserts its interface language as the default (`speech.py:313-321`, `:1198-1200`), but the digits go to the synth's language.
 
-   The closing wrapper of a specific locale has the same property today. WorldVoice turns automatic language switching off on install (`_speechcommand.py` docstring). Decided by orchestrator with the recommended default; user may override before merge: accept and record it. The alternative (§13 Q3) is a "base language" marker that detection resolves, which puts part of `"main"` back into the detector.
+   The closing wrapper of a specific locale has the same property today. WorldVoice turns automatic language switching off on install (`_speechcommand.py` docstring). Decided by the user (2026-10-23): accept and record it. The alternative (§13 Q3) is a "base language" marker that detection resolves, which puts part of `"main"` back into the detector.
 
 ## 5. Spelling
 
@@ -167,7 +167,7 @@ Decided by the user (2026-10-23): spelling follows the number language too.
 - A digit (§6.1) in `process_for_spelling`:
   - `"default"`: the current language, the language of the run so far (at the start of the text that is the spelling locale);
   - `"main"`: the spelling locale (today's behavior);
-  - a locale `L`: `L` when `get_primary_language(L)` is in `availableLanguages`, otherwise the spelling locale. Decided by orchestrator with the recommended default; user may override before merge. In practice the fallback is hardly reachable: the choices come from `voiceManager.languages`, a subset of `allLanguages` (`voiceManager.py:276-285`).
+  - a locale `L`: `L` when `get_primary_language(L)` is in `availableLanguages`, otherwise the spelling locale. Decided by the user (2026-10-23). In practice the fallback is hardly reachable: the choices come from `voiceManager.languages`, a subset of `allLanguages` (`voiceManager.py:276-285`).
 - Whitespace keeps today's rule: the spelling locale. Changing it would split runs only to move a space between locales, so there is no reason to.
 - Runs still split only when the primary subtag changes (`detection:192`), so with locale `en_US`, number language `zh_TW` and text `中1` the result stays one run `("中1", "zh")`.
 - Examples with `en_US` and `zh_TW` installed and locale `en_US`: `中1` → `[("中1","zh")]` under "default"; `[("中","zh"),("1","en_US")]` under "main" (today); `[("中","zh"),("1","en")]` under number language `en`. The existing expectations `a中 1` (`tests/test_language_detector.py:386-393`) stay as they are under "default", because the space resets the run to the locale first.
@@ -196,7 +196,7 @@ Already consistent, no change: the punctuation regex's `(?![chars\d])` (`pipelin
 
 Rules that stay (decided earlier and kept):
 
-- **Signs and separators are unchanged.** A sign is ASCII `+`/`-`; separators are Latin-1 punctuation and symbols (`numbers:11-13`, decided by the user 2026-10-22, Q2). So `１２．５` (full-width full stop) is two numbers `１２` and `５`, like `12，34` today (`tests/test_pipeline_filters.py:126`). The same holds for the Arabic decimal and thousands separators `٫` `٬` (U+066B, U+066C). Decided by orchestrator with the recommended default; user may override before merge (§13 Q6).
+- **Signs and separators are unchanged.** A sign is ASCII `+`/`-`; separators are Latin-1 punctuation and symbols (`numbers:11-13`, decided by the user 2026-10-22, Q2). So `１２．５` (full-width full stop) is two numbers `１２` and `５`, like `12，34` today (`tests/test_pipeline_filters.py:126`). The same holds for the Arabic decimal and thousands separators `٫` `٬` (U+066B, U+066C). Decided by the user (2026-10-23) (§13 Q6).
 - **Mixed digit scripts in one run** (`1٢3`) form one number, as `\d+` matches them. Rare; not special-cased.
 - Whitespace pairing of spaced numbers already counts any `isspace()` gap (`numbers:42-48`), including the ideographic space U+3000, so `１　２` gets the number pause.
 
@@ -222,7 +222,7 @@ Decided by the user (2026-10-23): pieces keep their original characters. Number 
   - numbers are wrapped in an unknown language, which `getVoiceNameForLanguage` sends to the main voice;
   - the Voice panel combo box shows no selection (`settingsDialogs.py:1501-1507` swallows the `ValueError`);
   - the settings ring breaks: `StringSynthSetting._get_value` returns None (`synthSettingsRing.py:86-90`), and `increase`/`decrease` compute `None + step` (`:38-41`, `:49-52`), which raises `TypeError`.
-- New rule (decided by the user, 2026-10-23, goal 4; where it is checked: decided by orchestrator with the recommended default; user may override before merge): `_set_numlan` accepts `"default"`, `"main"` and the locales in `self._voiceManager.languages`; any other value is stored as `"default"` with one `debugWarning` per call that names the refused value.
+- New rule (decided by the user, 2026-10-23, goal 4; where it is checked: decided by the user (2026-10-23)): `_set_numlan` accepts `"default"`, `"main"` and the locales in `self._voiceManager.languages`; any other value is stored as `"default"` with one `debugWarning` per call that names the refused value.
   - NVDA loads `voice` before `numlan` (supported-settings order, `synth:129-148`; loader loop `autoSettings.py:200`), so the locale list matches the loaded voice.
   - A locale hidden by "Keep main locale engine consistent" (`voiceManager.py:280-285`) after a voice change also counts as invalid on the next load. Its digits were already going to an unrelated voice.
   - The refused value stays in the file until NVDA saves the synth settings: the Voice panel's `onSave` (`settingsDialogs.py:1630-1631`) writes `"default"` over it. Nothing writes it back on its own.
@@ -271,7 +271,7 @@ The English labels keep the sentence case of the existing labels ("Detect langua
 
 Removed string: `Ignore numbers when detecting text language` ("偵測語言時忽略數字", `addon/locale/zh_TW/LC_MESSAGES/nvda.po:147-150`). Delete the entry outright, as in `a4629a1` and phase 33 §7. `msgid "default"` (`nvda.po:428-431`) stays: the variant list still uses it (`synth:412`). Run `msgfmt --check`. Other catalogs are left to their translators.
 
-Readmes. Decided by the user (2026-10-23): the ignore bullet goes from all six readmes. Decided by orchestrator with the recommended default; user may override before merge: so that no section intro promises a number option any more, "numbers" also goes from each Unicode Detection intro (as phase 33 did for punctuation); the number language bullet is rewritten only in the two documents maintained here (`readme.md`, `addon/doc/zh_TW/readme.md`).
+Readmes. Decided by the user (2026-10-23): the ignore bullet goes from all six readmes. Decided by the user (2026-10-23): so that no section intro promises a number option any more, "numbers" also goes from each Unicode Detection intro (as phase 33 did for punctuation); the number language bullet is rewritten only in the two documents maintained here (`readme.md`, `addon/doc/zh_TW/readme.md`).
 
 - Delete the bullet: `readme.md:57`, `addon/doc/zh_TW/readme.md:57`, `addon/doc/zh_HK/readme.md:55`, `addon/doc/zh_CN/readme.md:56`, `addon/doc/ru/readme.md:56`, `addon/doc/uk/readme.md:56`.
 - Intros become:
@@ -297,7 +297,7 @@ Readmes. Decided by the user (2026-10-23): the ignore bullet goes from all six r
 
 Changelog. The changelog is the second half of each readme (`readme.md:67-`, `addon/doc/zh_TW/readme.md:65-`). Its newest section, "WorldVoice 6 Update", has not changed since the `6.2` tag (`git diff --stat 6.2 HEAD -- readme.md` touches only the user guide part). Phase 33 left it alone (phase 33 §7). `buildVars.py:29` `addon_changelog` is the store summary, and the main checkout has an uncommitted user edit in `buildVars.py`, so that file is not touched.
 
-Decided by the user (2026-10-23): write a changelog note. Decided by orchestrator with the recommended default; user may override before merge: add a new top section in `readme.md` and `addon/doc/zh_TW/readme.md` only, headed "## Next update" / 「## 下一版更新」, to be renamed to the version number at release:
+Decided by the user (2026-10-23): write a changelog note. Decided by the user (2026-10-23): add a new top section in `readme.md` and `addon/doc/zh_TW/readme.md` only, headed "## Next update" / 「## 下一版更新」, to be renamed to the version number at release:
 
 > * **Numbers follow the text language by default:** The "Ignore numbers during language detection" option has been removed from the Unicode Detection panel. Number language now offers "Follow current text language" (the default: numbers are read in the language of the text around them) and "Follow document main language" (numbers are read in the main language). Earlier versions read numbers in the main language unless the option was checked; choose "Follow document main language" to keep that.
 > * **Full-width and other Unicode digits are numbers:** Number language, number modes, number pauses and the thousands separator rule now also apply to full-width digits and other Unicode decimal digits, such as Arabic-Indic digits.
@@ -308,7 +308,7 @@ Decided by the user (2026-10-23): write a changelog note. Decided by orchestrato
 ## 10. Risks
 
 - **The default changes for every user** (goal 3). Most audible in mixed Chinese/English text with numbers. The changelog says how to get the old behavior back.
-- **Symbol names under "Follow current text language" in number or group mode.** Names are looked up in the language in force before detection (`pipeline:330`, `:343`). Detection later moves the digits to the text's language, but a name in another script can switch the voice mid-number. With a Chinese main voice and English text, `abc 12.5` is read `1`, `2` in English, then "點" and `5` in Chinese. Ignore-on users have this today, and value mode (the default number mode) has no names. Decided by orchestrator with the recommended default; user may override before merge: accept, record it, and check it by hand (M5). §13 Q4 lists the alternatives.
+- **Symbol names under "Follow current text language" in number or group mode.** Names are looked up in the language in force before detection (`pipeline:330`, `:343`). Detection later moves the digits to the text's language, but a name in another script can switch the voice mid-number. With a Chinese main voice and English text, `abc 12.5` is read `1`, `2` in English, then "點" and `5` in Chinese. Ignore-on users have this today, and value mode (the default number mode) has no names. Decided by the user (2026-10-23): accept, record it, and check it by hand (M5). §13 Q4 lists the alternatives.
 - The late stage adds commands to every utterance that has a number, while detection is on and the value is not "default". `speak()` already dedupes and turns commands into `SelectVoice` once per command. The cost is one regex scan per text item, the same as the early stage.
 - `STAGES` grows to ten. The order guard (`tests/test_pipeline_stages.py:36-38`, `tests/pipeline_harness.py` `ORDER`) must change in the same commit.
 - `\d` instead of `[0-9]` widens three regexes. The Hypothesis properties in `tests/test_pipeline_pause_properties.py` use ASCII alphabets (`:226`, `:257`, `:280`, `:300`, `:333`, `:364`, `:465`, `:484`, `:641`). Without new alphabets they would not exercise the change, and mutmut would report the `\d` literals as surviving.
@@ -468,18 +468,18 @@ None of these is verified on Linux. Report them as not done until someone checks
 
 ## 13. Open questions and the defaults applied
 
-- **Q1. Late stage instead of "no stage dedupe for main"** (§4.3, §4.4). Default: the late stage. Decided by orchestrator with the recommended default; user may override before merge. Alternative: wrap early without dedupe and make number-language wrappers transparent in the punctuation stage and in the dot rule. That touches two more stages and also changes specific-locale output.
-- **Q2. Specific locales now always win under detection, even with the voice in force** (§4.2, T6). Default: yes. Without it, goal 5 would make those digits follow the text. Decided by orchestrator with the recommended default; user may override before merge.
-- **Q3. The timing "after" differences under NVDA's own language handling** (§4.7 item 3). Default: accept and record. Decided by orchestrator with the recommended default; user may override before merge. Alternative: the pipeline emits a "base language" marker that detection resolves to its own base, which is exact but puts part of "main" back into the detector (against goal 6).
-- **Q4. Symbol names under "Follow" in number and group mode** (§10). Default: accept, as ignore-on users have it today. Decided by orchestrator with the recommended default; user may override before merge. Alternatives for a later phase:
+- **Q1. Late stage instead of "no stage dedupe for main"** (§4.3, §4.4). Default: the late stage. Decided by the user (2026-10-23). Alternative: wrap early without dedupe and make number-language wrappers transparent in the punctuation stage and in the dot rule. That touches two more stages and also changes specific-locale output.
+- **Q2. Specific locales now always win under detection, even with the voice in force** (§4.2, T6). Default: yes. Without it, goal 5 would make those digits follow the text. Decided by the user (2026-10-23).
+- **Q3. The timing "after" differences under NVDA's own language handling** (§4.7 item 3). Default: accept and record. Decided by the user (2026-10-23). Alternative: the pipeline emits a "base language" marker that detection resolves to its own base, which is exact but puts part of "main" back into the detector (against goal 6).
+- **Q4. Symbol names under "Follow" in number and group mode** (§10). Default: accept, as ignore-on users have it today. Decided by the user (2026-10-23). Alternatives for a later phase:
   - leave symbols unnamed under "Follow";
   - name them after detection (a new stage after detection, possible only for timing "after").
-- **Q5. Signs, hyphens and superscripts under "main"** (§4.7 items 1-2). Default: accept. Decided by orchestrator with the recommended default; user may override before merge.
-- **Q6. Separators next to non-ASCII digits** (§6.2). Default: unchanged Latin-1 separators (user decision Q2 of 2026-10-22), so `１２．５` and `٣٫١٤` are two numbers each. Decided by orchestrator with the recommended default; user may override before merge. Alternative: add the full-width forms of the Latin-1 symbols and `٫` `٬`. That reverses Q2 for `12，34` (a common Chinese list separator), so it is not recommended.
-- **Q7. Where an invalid number language is caught** (§7.1). Default: in `_set_numlan`, against the current choices. Decided by orchestrator with the recommended default; user may override before merge. Alternative: map it at read time in `speech_context()`. That keeps the stored value, but the ring stays broken.
-- **Q8. Changelog location and heading** (§9). Default: a new "Next update" section in the English and zh_TW readmes; `buildVars.py` untouched. Decided by orchestrator with the recommended default; user may override before merge.
-- **Q9. Readme scope** (§9). Default: the bullet and intro changes in all six; the number language bullet rewritten in English and zh_TW only. Decided by orchestrator with the recommended default; user may override before merge.
-- **Q10. Spelling with a number-language locale that has no voice** (§5). Default: the spelling locale. Decided by orchestrator with the recommended default; user may override before merge.
+- **Q5. Signs, hyphens and superscripts under "main"** (§4.7 items 1-2). Default: accept. Decided by the user (2026-10-23).
+- **Q6. Separators next to non-ASCII digits** (§6.2). Default: unchanged Latin-1 separators (user decision Q2 of 2026-10-22), so `１２．５` and `٣٫١٤` are two numbers each. Decided by the user (2026-10-23). Alternative: add the full-width forms of the Latin-1 symbols and `٫` `٬`. That reverses Q2 for `12，34` (a common Chinese list separator), so it is not recommended.
+- **Q7. Where an invalid number language is caught** (§7.1). Default: in `_set_numlan`, against the current choices. Decided by the user (2026-10-23). Alternative: map it at read time in `speech_context()`. That keeps the stored value, but the ring stays broken.
+- **Q8. Changelog location and heading** (§9). Default: a new "Next update" section in the English and zh_TW readmes; `buildVars.py` untouched. Decided by the user (2026-10-23).
+- **Q9. Readme scope** (§9). Default: the bullet and intro changes in all six; the number language bullet rewritten in English and zh_TW only. Decided by the user (2026-10-23).
+- **Q10. Spelling with a number-language locale that has no voice** (§5). Default: the spelling locale. Decided by the user (2026-10-23).
 
 Decided by the user (2026-10-23):
 
