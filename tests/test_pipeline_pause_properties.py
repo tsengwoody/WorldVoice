@@ -222,8 +222,17 @@ def test_property_an_empty_or_blank_list_changes_nothing(env, data):
 # Numbers
 
 NO_BREAK_SPACES = "\u00a0\u202f\u2007"
+# Full-width, Arabic-Indic, Extended Arabic-Indic and Devanagari digits (phase 35, Option B), and
+# characters that look like digits or separators but are neither: superscript two, circled one,
+# the Arabic decimal separator.
+OTHER_DIGITS = "１２٣٤۵۶१२"
+NOT_DIGITS = "²①٫"
+ANY_DIGITS = "0123456789" + OTHER_DIGITS
 NUMBER_TEXT = st.text(
-	alphabet="0123456789+-.,:/\u00d7\u00b0aZ共\uff0c\uff0e \t\n\r\u3000" + NO_BREAK_SPACES,
+	alphabet="0123456789+-.,:/\u00d7\u00b0aZ共\uff0c\uff0e \t\n\r\u3000"
+	+ NO_BREAK_SPACES
+	+ OTHER_DIGITS
+	+ NOT_DIGITS,
 	max_size=20,
 )
 
@@ -254,7 +263,7 @@ def run_group_mode(env, text, size, pause=0):
 @SHARED_ENV
 @given(
 	sign=st.sampled_from(["", "+", "-"]),
-	digits=st.text(alphabet="0123456789", min_size=1, max_size=30),
+	digits=st.text(alphabet=ANY_DIGITS, min_size=1, max_size=30),
 	size=st.integers(1, 10),
 	pause=st.integers(0, 500),
 )
@@ -277,7 +286,7 @@ def test_property_groups_are_separate_items_of_the_chosen_size(env, sign, digits
 @SHARED_ENV
 @given(
 	sign=st.sampled_from(["", "+", "-"]),
-	digits=st.text(alphabet="0123456789", min_size=1, max_size=30),
+	digits=st.text(alphabet=ANY_DIGITS, min_size=1, max_size=30),
 	wait=st.integers(0, 500),
 )
 def test_property_digit_mode_separates_every_digit(env, sign, digits, wait):
@@ -330,7 +339,7 @@ def test_property_no_digit_run_is_longer_than_the_size(env, text, mode_size):
 	size = mode_size[1]
 	for item in run_number_mode(env, text, *mode_size):
 		if isinstance(item, str):
-			assert all(len(run) <= size for run in re.findall(r"[0-9]+", item)), (text, item)
+			assert all(len(run) <= size for run in re.findall(r"\d+", item)), (text, item)
 
 
 @SHARED_ENV
@@ -345,8 +354,8 @@ def test_property_breaks_and_names_stay_inside_numbers(env, text, mode_size):
 		if is_break(item):
 			assert 0 < index < len(result) - 1, (text, result)
 			before, after = result[index - 1], result[index + 1]
-			assert before in symbols or before[-1] in DIGITS, (text, result)
-			assert after in symbols or after[0] in DIGITS, (text, result)
+			assert before in symbols or before[-1].isdecimal(), (text, result)
+			assert after in symbols or after[0].isdecimal(), (text, result)
 		elif item in symbols:
 			assert is_break(result[index - 1]) and is_break(result[index + 1]), (text, result)
 	# A leading sign belongs to the first piece, so it is not named.
@@ -359,9 +368,7 @@ def test_property_breaks_and_names_stay_inside_numbers(env, text, mode_size):
 	assert sorted(symbols[item] for item in result if item in symbols) == sorted(inside), (text, result)
 
 
-# One number definition (spec 6.1)
-
-DIGITS = "0123456789"
+# One number definition (spec 6.1); a digit is a Unicode decimal digit (phase 35 spec §6.1).
 
 
 def is_number_symbol(character):
@@ -379,23 +386,23 @@ def scanned_numbers(text):
 		signed = (
 			text[position] in "+-"
 			and position + 1 < len(text)
-			and text[position + 1] in DIGITS
-			and (position == 0 or text[position - 1] not in DIGITS)
+			and text[position + 1].isdecimal()
+			and (position == 0 or not text[position - 1].isdecimal())
 		)
-		if not signed and text[position] not in DIGITS:
+		if not signed and not text[position].isdecimal():
 			position += 1
 			continue
 		end = position + 1 if signed else position
-		while end < len(text) and text[end] in DIGITS:
+		while end < len(text) and text[end].isdecimal():
 			end += 1
 		while True:
 			after_symbols = end
 			while after_symbols < len(text) and is_number_symbol(text[after_symbols]):
 				after_symbols += 1
-			if after_symbols == end or after_symbols == len(text) or text[after_symbols] not in DIGITS:
+			if after_symbols == end or after_symbols == len(text) or not text[after_symbols].isdecimal():
 				break
 			end = after_symbols
-			while end < len(text) and text[end] in DIGITS:
+			while end < len(text) and text[end].isdecimal():
 				end += 1
 		spans.append((start, end))
 		position = end
@@ -406,6 +413,30 @@ def scanned_numbers(text):
 @given(text=NUMBER_TEXT)
 def test_property_number_re_equals_the_scanner(env, text):
 	assert [match.span() for match in env.module.numbers.NUMBER_RE.finditer(text)] == scanned_numbers(text)
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT)
+def test_property_every_decimal_digit_is_inside_a_number(env, text):
+	# Phase 35 spec §11.4 item 1: every decimal digit is part of a number; nothing that only looks like
+	# a digit, no letter and no whitespace is.
+	spans = [match.span() for match in env.module.numbers.NUMBER_RE.finditer(text)]
+	inside = {index for start, end in spans for index in range(start, end)}
+	assert {index for index, character in enumerate(text) if character.isdecimal()} <= inside, text
+	assert not any(
+		text[index] in NOT_DIGITS or text[index].isalpha() or text[index].isspace() for index in inside
+	), text
+
+
+@SHARED_ENV
+@given(text=NUMBER_TEXT, mode_size=MODE_SIZES)
+def test_property_pieces_keep_their_digits(env, text, mode_size):
+	# Phase 35 spec §11.4 item 2: number and group modes keep every digit as written, in order.
+	result = run_number_mode(env, text, *mode_size)
+	spoken = [
+		character for item in result if isinstance(item, str) for character in item if character.isdecimal()
+	]
+	assert spoken == [character for character in text if character.isdecimal()], (text, result)
 
 
 @SHARED_ENV
@@ -462,7 +493,7 @@ def test_property_every_symbol_is_its_own_item_when_some_have_no_name(env, data,
 
 # Value-mode thousands separators (spec 6.3, V1)
 
-WHOLE_THOUSANDS_RUN = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})+")
+WHOLE_THOUSANDS_RUN = re.compile(r"\d{1,3}(?:,\d{3})+")
 
 
 def without_valid_thousands_separators(text):
@@ -477,11 +508,11 @@ def without_valid_thousands_separators(text):
 			return body.replace(",", "") + run[len(body) :]
 		return run
 
-	return re.sub(r"[0-9,]+", replace, text)
+	return re.sub(r"[\d,]+", replace, text)
 
 
 @SHARED_ENV
-@given(text=st.text(alphabet="0123456789,.a -", max_size=20))
+@given(text=st.text(alphabet="0123456789١٢٣,.a -", max_size=20))
 def test_property_thousands_removal_equals_the_whole_run_oracle(env, text):
 	stage_settings = punctuation_settings(0)
 	result = list(env.module.remove_thousands_separators([text], stage_settings, env.module.GENERIC_CONTEXT))
@@ -555,7 +586,7 @@ def test_property_no_digits_are_glued_together(env, text):
 	result, _stripped = split_once(env, text)
 	for before, after in pairwise(result):
 		if isinstance(before, str) and isinstance(after, str):
-			assert not (before[-1] in DIGITS and after[0] in DIGITS)
+			assert not (before[-1].isdecimal() and after[0].isdecimal())
 
 
 @SHARED_ENV
