@@ -134,3 +134,20 @@ def test_speech_context_holds_only_plain_values():
 		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
 			assert not (isinstance(node, ast.Attribute) and node.attr == "default_voice"), path
 			assert not (isinstance(node, ast.keyword) and node.arg == "default_voice"), path
+
+
+def test_only_the_context_asks_nvda_for_the_synth():
+	# worldvoice_synth() in context.py is the one way the pipeline reaches the synth; a stage that
+	# asks NVDA itself could get another synth, or none.
+	for path in (WORLDVOICE / "pipeline").rglob("*.py"):
+		if path.name == "context.py":
+			continue
+		names = set()
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+			if isinstance(node, ast.Name):
+				names.add(node.id)
+			elif isinstance(node, ast.Attribute):
+				names.add(node.attr)
+			elif isinstance(node, (ast.Import, ast.ImportFrom)):
+				names |= {alias.name for alias in node.names} | {alias.asname for alias in node.names}
+		assert "getSynth" not in names, str(path.relative_to(WORLDVOICE))

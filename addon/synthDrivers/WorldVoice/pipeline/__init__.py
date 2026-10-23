@@ -10,7 +10,6 @@ import speechDictHandler
 from logHandler import log
 from speech.commands import BreakCommand, LangChangeCommand
 from speech.extensions import filter_speechSequence
-from synthDriverHandler import getSynth
 
 from .._speechcommand import WVLangChangeCommand
 from ..log import PipelineLog
@@ -40,26 +39,6 @@ class PunctuationBreakCommand(BreakCommand):
 	"""Pause after a configured punctuation mark."""
 
 
-def with_order_log(label: str):
-	"""The order numbers are reversed because of recursion: the order number assigned earlier execution is greater than that of a later execution."""
-
-	def decorator(func):
-		@wraps(func)
-		def wrapper(speechSequence, *args, **kwargs):
-			if config.conf["general"]["loggingLevel"] == "DEBUG":
-				try:
-					synth = getSynth()
-					synth.order += 1
-					log.debug(f"{label} order {synth.order}")
-				except Exception:  # noqa: BLE001 - debug counter only; never affects speech
-					pass
-			return func(speechSequence, *args, **kwargs)
-
-		return wrapper
-
-	return decorator
-
-
 def listable(func):
 	@wraps(func)
 	def wrapper(speechSequence):
@@ -71,7 +50,6 @@ def listable(func):
 	return wrapper
 
 
-# @with_order_log("speech_view")
 def speech_viewer(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
 	return list(speechSequence)
 
@@ -92,7 +70,6 @@ def remove_thousands_separators(speechSequence, settings: "PipelineSettings", ct
 			yield item
 
 
-# @with_order_log("apply_speech_dictionaries")
 def apply_speech_dictionaries(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
 	for item in speechSequence:
 		if isinstance(item, str):
@@ -146,7 +123,6 @@ def _both_numbers(previous: SpeechCmd, current: SpeechCmd) -> bool:
 	)
 
 
-# @with_order_log("item_wait_factor")
 def item_wait_factor(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
@@ -193,7 +169,6 @@ def _split_numbers(speechSequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
 			yield item
 
 
-# @with_order_log("number_wait_factor")
 def number_wait_factor(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
@@ -300,7 +275,6 @@ def iter_number_speech_segments_language(item, current_lang, number_language, nu
 		yield WVLangChangeCommand(current_lang)
 
 
-# @with_order_log("number_language")
 def inject_number_language(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
@@ -337,7 +311,6 @@ def _translate_number(
 		yield piece
 
 
-# @with_order_log("number_mode")
 def inject_number_mode(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
@@ -413,7 +386,6 @@ def merge_consecutive_strings(items):
 		yield buffer
 
 
-# @with_order_log("chinesespace_wait_factor")
 def inject_chinese_space_pause(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
@@ -475,7 +447,6 @@ def _split_punctuation_segments(
 			yield ("punct", value.group())
 
 
-# @with_order_log("punctuation_wait_factor")
 def inject_punctuation_pause(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
