@@ -64,7 +64,7 @@ What NVDA users hear:
 | number language "Follow document main language" | `中文 12` | — | English voice (what the defaults did) |
 | number language "zh_TW", main voice Chinese, English text | `abc 123 def` | Chinese voice (base) | Chinese voice (kept by §4.4; would have become English) |
 | detection off, any "default"/"main" | `中文 12` | all English voice | unchanged |
-| number language "en", full-width digits | `中１２３` | `１２３` not a number: Chinese voice reads it with the text | `１２３` is a number: English voice |
+| number language "en", full-width digits | `中１２３` | English voice: the detector sends `１２３` to the base, although it is not a number (with ignore on: the Chinese voice, with the text) | `１２３` is a number: English voice |
 
 What they see:
 
@@ -104,22 +104,24 @@ Skipping the stage dedupe and letting the dedupe in `speak()` (`synth:315`) remo
 
 Both effects already exist today for a specific number language whose voice differs (prototype, number language zh_TW: `'Total' '.' ' ' <zh_TW> '12'`, no pause). Moving every `"main"` user into them would break the "same as ignore off" promise of goal 1.
 
-### 4.4 Chosen: a second, late number-language stage for detection
+### 4.4 Chosen: wrap numbers where detection runs
 
-Decided by the user (2026-10-23).
+Decided by the user (2026-10-23): a late wrapping for detection (item 2 as first written). Revised after the batch 1 review (2026-10-23, finding C1): the wrapping is no longer a `STAGES` filter but runs right before detection, wherever detection runs. Decided by orchestrator with the recommended default; user may override before merge.
+
+Why the revision: a `STAGES` filter runs before NVDA's `speak()` calls `processText` on each text item and appends its chunk separator (`ref/nvda/source/speech/speech.py:1137`, `:1216-1225`). A filter that splits an item at every number, even where the voice does not change, made NVDA's context-dependent symbol rules read pieces instead of the item: with NVDA's real `characterProcessing` at symbol level "some", `COVID-19 cases` became `COVID` / ` minus 19` / ` cases`, `the 1st item` became `the  1  st item`, `in 2024!` and `Is it 5?` lost their `!` and `?`, and with a Chinese main voice `第1名` became `第  1  名`. Before phase 35 these items stayed whole.
 
 1. **The early stage** (`inject_number_language`, `pipeline:278-293`) treats `"main"` exactly like `"default"`: a pass-through. A `"main"` wrapper would name the language in force and be dropped by the stage dedupe anyway (§4.2), so this changes nothing and skips the scan. Specific locales keep today's code, dedupe included. Update the comment at `pipeline:284-288` to cover both values.
-2. **A new stage `wrap_numbers_for_detection`**, placed in `STAGES` right after `number_wait_factor` and before `speech_viewer` (`pipeline:775-785`), logging under the `"number_language"` key with `log_switch=False` (the pattern `remove_thousands_separators` uses, `pipeline:777`). `LOG_SWITCHES` and the Log Record panel stay as they are.
-   - It acts only when `ctx.supports_roles and ctx.detects_language and ctx.number_language != "default"`. Otherwise it is a pass-through.
+2. **`wrap_numbers_for_detection` and `detect_with_number_language`** in the pipeline module (not in `STAGES`; `LOG_SWITCHES` and the Log Record panel unchanged). The synth's detection call (`add_detected_language_commands`) is `detect_with_number_language(sequence, detector.add_detected_language_commands, speech_context())`: as NVDA's filter for timing "before" (after every stage, before `processText`), and in `speak()` for timing "after" (after `processText`). The detector itself still decides no digit (goals 5 and 6).
+   - It wraps only when `ctx.supports_roles and ctx.number_language != "default"`; otherwise detection runs on the sequence as it is.
    - It tracks the language in force like the early stage does (`pipeline:244-245`): `item.lang or ctx.language` at every `LangChangeCommand`/`WVLangChangeCommand`, starting from `ctx.language`.
    - For each `NUMBER_RE` match in a text item it yields `WVLangChangeCommand(target)`, the match, `WVLangChangeCommand(language in force)`. `target` is the language in force for `"main"`, and the stored locale otherwise.
-   - It does **not** dedupe. The dedupe in `speak()` (`synth:313-315`) runs after detection in both timings and removes every redundant command.
+   - After detection, each wrapper that `deduplicate_language_command` would drop (it keeps the voice) is removed, and the two pieces of one text item it separated join again. Nothing joins across another command (index, break, character mode, NVDA's own `LangChangeCommand`, a command detection inserted) or across two items, and NVDA's `LangChangeCommand`s are never removed (`processText` reads them for the symbol locale). So where the voice does not change, `processText` sees the item as before phase 35; where it changes, the split is the one detection makes anyway. The dedupe in `speak()` (`synth:313-315`) still removes the other redundant commands.
    - Inside the wrappers of the early stage the language in force is already the number language, so a specific locale yields duplicates there (`<zh_TW> <zh_TW> '12' <zh_TW> <en>`). They cost nothing: `speak()` drops them (`pipeline:609-610`).
-3. **`SpeechContext` gains `detects_language: bool = False`** (`pipeline/context.py:7-19`). `GENERIC_CONTEXT` keeps the default. `speech_context()` (`synth:347-360`) sets it from the synth's `uwv`, read defensively (`getattr(self, "_uwv", False)`): NVDA sets `uwv` only in `initSettings`, after `__init__` (`ref/nvda/source/synthDriverHandler.py:375-385`), and the prototype showed `speech_context()` failing on a bare synth without it (`tests/test_worldvoice_pipeline_settings.py::test_speech_context_falls_back_while_the_synth_is_not_running`).
+3. ~~**`SpeechContext` gains `detects_language: bool = False`**~~ Dropped with the revision: the wrapping runs only where detection runs, so no stage needs to know whether it does.
 
-Why the late stage gives exactly today's ignore-off result:
+Why this gives exactly today's ignore-off result:
 
-- Every number is wrapped only after the punctuation, number-mode and number-pause stages have run, so their output is today's output.
+- Every number is wrapped only after the punctuation, number-mode and number-pause stages have run, so their output is today's output. In timing "after" it is wrapped after `processText` too, so NVDA processes every item as before.
 - The opening wrapper makes detection switch to the base (`detection:152-154`). The closing wrapper resets `tmpLang` to the base after the number, exactly as today's digit rule leaves `tmpLang` at the base after the last digit (`detection:159-165`).
 - In number and group mode, every digit piece is its own match. A symbol name between pieces comes right after a closing wrapper, so detection sees it from the base, as today. Symbol names are still looked up in the language in force (`pipeline:330`, `"main"` added to the "no number language" case, §4.5).
 
@@ -131,6 +133,8 @@ Why the late stage gives exactly today's ignore-off result:
 - `_get_availableNumlans` (`synth:455-459`) lists `NUMBER_LANGUAGE_CHOICES` first, then the locales. The `_("default")` msgid stays in use for variants (`synth:412`).
 
 ### 4.6 Traces
+
+After the revision of §4.4, read "After the stages" as "what detection receives" (in timing "after", the text has been through `processText`), and redundant wrappers are removed after detection.
 
 Voices: English `A:en` (main voice, synth language `en`) and Chinese `B:zh`. `<x>` is a `WVLangChangeCommand(x)`, `<L:x>` a `LangChangeCommand(x)`. "Voices" is what `queue_speech_sequence` receives, consecutive chunks of one voice joined. The prototype matched today's ignore-off result (or ignore-on result for "default") in every row except §4.7.
 
@@ -150,9 +154,9 @@ T3 covers every engine with detection off. Engines differ only in the voices the
 
 ### 4.7 Where "main" still differs from today's "ignore off"
 
-1. **Signs and hyphens.** `NUMBER_RE` takes a `+`/`-` that does not follow a digit (`numbers:19`). Today's detector moved only the digits, so in `中 -12` the `-` stayed with the Chinese voice; now `-12` is read by the base voice. In `COVID-19` with a Chinese main voice, `-19` moves together. Specific locales already wrap this way. Decided by the user (2026-10-23): accept.
+1. **Signs and hyphens.** `NUMBER_RE` takes a `+`/`-` that does not follow a digit (`numbers:19`). Today's detector moved only the digits, so in `中 -12` the `-` stayed with the Chinese voice; now `-12` is read by the base voice. In `COVID-19` with a Chinese main voice, `-19` moves together. Specific locales already wrap this way. Decided by the user (2026-10-23): accept. With detection timed "before", the voice change at the sign starts a text item, so NVDA's `processText` reads that `-` as a negative sign (`COVID-19 疫情` with a Chinese main voice: `COVID` / `負 19 疫情`), as it already does before phase 35 for a number language whose voice differs; with detection timed "after", `processText` has already read the whole item.
 2. **Superscripts and circled digits** (`²`, `①`) went to the base under "ignore off" because the detector tested `str.isdigit()` (`detection:136`). They are not decimal digits (§6.1), so they now stay in the current language.
-3. **NVDA rewrites language commands after the filters, timing "after" only.** NVDA's `speak()` runs the filters first (`ref/nvda/source/speech/speech.py:1137`) and only then rewrites `LangChangeCommand`s (`speech.py:1184-1200`). The speech manager also drops them unless NVDA's automatic language switching is on (`ref/nvda/source/speech/manager.py:366-369`). The late stage sees the commands before the rewrite; detection timed "after" sees them after it. Two narrow cases differ:
+3. ~~**NVDA rewrites language commands after the filters, timing "after" only.**~~ No longer applies after the revision of §4.4: the wrapping runs where detection runs, so in both timings it sees the same language commands as detection. What follows is kept as the record of the first design. NVDA's `speak()` runs the filters first (`ref/nvda/source/speech/speech.py:1137`) and only then rewrites `LangChangeCommand`s (`speech.py:1184-1200`). The speech manager also drops them unless NVDA's automatic language switching is on (`ref/nvda/source/speech/manager.py:366-369`). The late stage sees the commands before the rewrite; detection timed "after" sees them after it. Two narrow cases differ:
    - "Report language" on, automatic language switching off, a passage NVDA tags with a language: the digits go to the tagged language's voice (or the main voice when it has none), while detection's base is the synth language.
    - Automatic language switching on and "Trust voice's language" off: NVDA inserts its interface language as the default (`speech.py:313-321`, `:1198-1200`), but the digits go to the synth's language.
 
@@ -241,15 +245,13 @@ Decided by the user (2026-10-23): pieces keep their original characters. Number 
 
 ### 7.3 Error handling
 
-- No new failure points. The late stage is a generator over the same items as the early stage and raises nothing new.
-- The `speech_context()` read of `uwv` defaults to False (§4.4), so a stage running before `initSettings` behaves as with detection off.
+- No new failure points. The wrapping is a generator over the same items as the early stage and raises nothing new; the rejoin only concatenates text items.
 
 ## 8. Affected layers
 
 - Core, shared by all engines:
-  - `pipeline/__init__.py`: early-stage gate, `inject_number_mode` gate, new late stage, `STAGES`;
+  - `pipeline/__init__.py`: early-stage gate, `inject_number_mode` gate, `wrap_numbers_for_detection` and `detect_with_number_language` (§4.4);
   - `pipeline/numbers.py`: digit set;
-  - `pipeline/context.py`: `detects_language`;
   - `pipeline/settings.py`: `NUMBER_LANGUAGE_CHOICES`;
   - `languageDetection/__init__.py`: digit branch, spelling, constructor;
   - `languageDetection/settings.py`: key removal;
@@ -309,8 +311,8 @@ Decided by the user (2026-10-23): write a changelog note. Decided by the user (2
 
 - **The default changes for every user** (goal 3). Most audible in mixed Chinese/English text with numbers. The changelog says how to get the old behavior back.
 - **Symbol names under "Follow current text language" in number or group mode.** Names are looked up in the language in force before detection (`pipeline:330`, `:343`). Detection later moves the digits to the text's language, but a name in another script can switch the voice mid-number. With a Chinese main voice and English text, `abc 12.5` is read `1`, `2` in English, then "點" and `5` in Chinese. Ignore-on users have this today, and value mode (the default number mode) has no names. Decided by the user (2026-10-23): accept, record it, and check it by hand (M5). §13 Q4 lists the alternatives.
-- The late stage adds commands to every utterance that has a number, while detection is on and the value is not "default". `speak()` already dedupes and turns commands into `SelectVoice` once per command. The cost is one regex scan per text item, the same as the early stage.
-- `STAGES` grows to ten. The order guard (`tests/test_pipeline_stages.py:36-38`, `tests/pipeline_harness.py` `ORDER`) must change in the same commit.
+- The wrapping adds commands to every utterance that has a number, while detection is on and the value is not "default"; the rejoin removes those that keep the voice. The cost is one regex scan per text item, the same as the early stage, and one dedupe pass.
+- ~~`STAGES` grows to ten.~~ Not after the revision of §4.4: `STAGES` is unchanged.
 - `\d` instead of `[0-9]` widens three regexes. The Hypothesis properties in `tests/test_pipeline_pause_properties.py` use ASCII alphabets (`:226`, `:257`, `:280`, `:300`, `:333`, `:364`, `:465`, `:484`, `:641`). Without new alphabets they would not exercise the change, and mutmut would report the `\d` literals as surviving.
 
 ## 11. Test plan
@@ -347,12 +349,14 @@ Signs, `²` and the §4.7 cases are listed as deliberate exceptions, each with i
 
 **§4.2 second trap.** T6 with timing "before" and with timing "after": `123` is read by the Chinese voice.
 
-**Late stage unit tests** (`tests/test_pipeline_stages.py`):
+**Wrapping unit tests** (`tests/test_pipeline_stages.py`):
 
-- inactive for `"default"`, for detection off, and for `supports_roles` False;
+- nothing wrapped for `"default"` and for `supports_roles` False;
 - wraps every match in value, number and group mode;
 - tracks `LangChangeCommand(None)` back to `ctx.language`;
-- `STAGES` order and log key, with `LOG_SWITCHES` unchanged.
+- after detection, wrappers that keep the voice are removed and their item joins again; nothing joins across two items or another command; NVDA's `LangChangeCommand`s stay.
+
+**C1 (batch 1 review).** With NVDA's real `characterProcessing` run on each item after the filters, `COVID-19 cases`, `the 1st item`, `in 2024!`, `Is it 5?` (English main voice) and `第1名` (Chinese main voice) reach NVDA whole under "main" and under the main voice's own locale, in both timings.
 
 **§4.5.** `inject_number_mode` with `"main"` names symbols in the language in force (`full stop en`, not unnamed).
 
@@ -401,8 +405,6 @@ The prototype run of the full suite (25 failures, of which 5 hygiene failures ar
   - `:423`, `:496`, `:558`;
 - `tests/test_unicode_panel.py`: the switching fixture and label list (`:37`, `:79-88`, `:106`);
 - `tests/test_pipeline_filters.py:139-140`: full-width digits are numbers;
-- `tests/test_pipeline_stages.py:36-38`, `tests/pipeline_harness.py` `ORDER`;
-- `tests/test_pipeline_structure.py:111-124`: the `SpeechContext` field list gains `detects_language`;
 - `tests/test_worldvoice_speak.py:237-248`: the number-language display names;
 - `tests/test_driver_ui_hooks.py:87`: the changed-field set no longer names `ignore_numbers`.
 
@@ -470,7 +472,7 @@ None of these is verified on Linux. Report them as not done until someone checks
 
 - **Q1. Late stage instead of "no stage dedupe for main"** (§4.3, §4.4). Default: the late stage. Decided by the user (2026-10-23). Alternative: wrap early without dedupe and make number-language wrappers transparent in the punctuation stage and in the dot rule. That touches two more stages and also changes specific-locale output.
 - **Q2. Specific locales now always win under detection, even with the voice in force** (§4.2, T6). Default: yes. Without it, goal 5 would make those digits follow the text. Decided by the user (2026-10-23).
-- **Q3. The timing "after" differences under NVDA's own language handling** (§4.7 item 3). Default: accept and record. Decided by the user (2026-10-23). Alternative: the pipeline emits a "base language" marker that detection resolves to its own base, which is exact but puts part of "main" back into the detector (against goal 6).
+- **Q3. The timing "after" differences under NVDA's own language handling** (§4.7 item 3). Default: accept and record. Decided by the user (2026-10-23). No longer applies after the revision of §4.4 (the wrapping sees the same commands as detection). Alternative: the pipeline emits a "base language" marker that detection resolves to its own base, which is exact but puts part of "main" back into the detector (against goal 6).
 - **Q4. Symbol names under "Follow" in number and group mode** (§10). Default: accept, as ignore-on users have it today. Decided by the user (2026-10-23). Alternatives for a later phase:
   - leave symbols unnamed under "Follow";
   - name them after detection (a new stage after detection, possible only for timing "after").
@@ -480,6 +482,7 @@ None of these is verified on Linux. Report them as not done until someone checks
 - **Q8. Changelog location and heading** (§9). Default: a new "Next update" section in the English and zh_TW readmes; `buildVars.py` untouched. Decided by the user (2026-10-23).
 - **Q9. Readme scope** (§9). Default: the bullet and intro changes in all six; the number language bullet rewritten in English and zh_TW only. Decided by the user (2026-10-23).
 - **Q10. Spelling with a number-language locale that has no voice** (§5). Default: the spelling locale. Decided by the user (2026-10-23).
+- **Q11. Where the wrapping for detection runs** (§4.4 revision, batch 1 review C1). Default: right before detection (as NVDA's filter for timing "before", in `speak()` for timing "after"), with redundant wrappers removed and their items joined again. Decided by orchestrator with the recommended default; user may override before merge.
 
 Decided by the user (2026-10-23):
 
