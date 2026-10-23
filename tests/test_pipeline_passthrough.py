@@ -184,7 +184,7 @@ def test_chinese_space_pause_passes_commands(env):
 
 def test_punctuation_pause_without_characters_changes_nothing(env):
 	settings = punctuation_settings(250, remove_characters=True)
-	settings.punctuation_pause_characters = "  "
+	settings.punctuation_pause_characters = ""
 	assert list(env.module.inject_punctuation_pause(["a. b"], settings, env.generic)) == ["a. b"]
 
 

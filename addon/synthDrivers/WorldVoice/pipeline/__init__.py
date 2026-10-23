@@ -588,7 +588,8 @@ def inject_punctuation_pause(
 		yield from speechSequence
 		return
 
-	chars = settings.punctuation_pause_characters.strip()
+	# Every character listed counts, a space included: entering one makes each space a pause point.
+	chars = settings.punctuation_pause_characters
 	if not chars:
 		# An empty character class would not compile (see _get_punctuation_regex).
 		yield from speechSequence

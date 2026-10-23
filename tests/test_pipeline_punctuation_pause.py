@@ -151,15 +151,46 @@ def test_zero_wait_pauses_at_every_point_whether_or_not_marks_are_removed(monkey
 	assert shape(run_punctuation_filters(module, ["Hi.", "there"])) == between
 
 
-@pytest.mark.parametrize("characters", ["", "  "])
 @pytest.mark.parametrize("remove", [False, True])
-def test_an_empty_or_blank_list_changes_nothing(monkeypatch, remove, characters):
+def test_an_empty_list_changes_nothing(monkeypatch, remove):
 	settings = punctuation_settings(0, remove_characters=remove)
-	settings.punctuation_pause_characters = characters
+	settings.punctuation_pause_characters = ""
 	module, _BreakCommand = load_pipeline_module(monkeypatch, settings)
-	sequence = ["Hello, world.", "Hi.", "there"]
+	sequence = ["Hello, world.", "Hi.", "\u4f60\u597d \u4e16\u754c"]
 
 	assert run_punctuation_filters(module, sequence) == sequence
+
+
+PAUSE = ("PunctuationBreakCommand", 250)
+
+
+@pytest.mark.parametrize(
+	("characters", "item", "expected"),
+	[
+		# A space is a character like any other: every space between words is a pause point.
+		(
+			" ",
+			"\u4f60\u597d \u4e16\u754c hello world",
+			["\u4f60\u597d", " ", PAUSE, "\u4e16\u754c", " ", PAUSE, "hello", " ", PAUSE, "world"],
+		),
+		# The ideographic space (U+3000) typed from a CJK layout.
+		("\u3000", "\u4f60\u597d\u3000\u4e16\u754c", ["\u4f60\u597d", "\u3000", PAUSE, "\u4e16\u754c"]),
+		# A comma followed by a space: both the comma and the space pause.
+		(
+			"\uff0c ",
+			"\u4f60\u597d\uff0c\u4e16\u754c hello",
+			["\u4f60\u597d", "\uff0c", PAUSE, "\u4e16\u754c", " ", PAUSE, "hello"],
+		),
+	],
+	ids=["space", "ideographic space", "comma and space"],
+)
+def test_a_space_in_the_list_pauses_at_every_such_space(monkeypatch, characters, item, expected):
+	# Decided by the user (2026-10-23): the list keeps every character typed, spaces included.
+	settings = punctuation_settings(250)
+	settings.punctuation_pause_characters = characters
+	module, _BreakCommand = load_pipeline_module(monkeypatch, settings)
+
+	assert shape(run_punctuation_filters(module, [item])) == expected
 
 
 @pytest.mark.parametrize(

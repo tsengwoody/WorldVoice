@@ -42,10 +42,6 @@ def _floor_to_ten(value: Any) -> int:
 	return int(value) // 10 * 10
 
 
-def _strip(value: Any) -> str:
-	return str(value).strip()
-
-
 # The Speech Pipeline panel's scope choices: (stored value, label), in display order.
 SCOPE_CHOICES: tuple[tuple[str, str], ...] = (
 	# Translators: A choice of the Speech Pipeline panel's effect scope: every synthesizer.
@@ -280,7 +276,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Punctuation pause characters"),
-		normalize=_strip,
+		# No normalize: every character typed is kept, spaces included (decided by the user, 2026-10-23).
 		control="text",
 		depends_on=("punctuation_pause_enabled", True),
 	),

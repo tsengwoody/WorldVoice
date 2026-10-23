@@ -497,7 +497,7 @@ def test_saving_writes_the_characters_and_keeps_them_after_a_later_cancel(monkey
 	panel.onSave()
 	panel.onDiscard()
 
-	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == ",;"
+	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == " ,; "
 	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]
 
 
@@ -619,14 +619,20 @@ def test_the_named_rule_and_placement_helpers_are_gone(monkeypatch):
 		assert not hasattr(panel_class, name), name
 
 
-def test_saving_strips_unicode_whitespace_from_the_characters(monkeypatch):
-	# U+3000 (ideographic space) and U+00A0 (no-break space) are typed from CJK and other layouts.
+@pytest.mark.parametrize(
+	"characters",
+	[" ", "\u3000\u3002\u00a0\uff01\u3000", "\u00a0\uff0c "],
+	ids=["space", "ideographic spaces around", "no-break space and trailing space"],
+)
+def test_saving_keeps_every_typed_character(monkeypatch, characters):
+	# Decided by the user (2026-10-23): nothing is stripped, spaces included; U+3000 (ideographic
+	# space) and U+00A0 (no-break space) are typed from CJK and other layouts.
 	env = open_panel(monkeypatch, Driver(ALL))
-	env.panel.punctuationPauseCharactersEdit.SetValue("　。 ！　")
+	env.panel.punctuationPauseCharactersEdit.SetValue(characters)
 
 	env.panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == "。 ！"
+	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == characters
 
 
 def test_a_follower_of_a_failed_driver_control_follows_the_row_before(monkeypatch):

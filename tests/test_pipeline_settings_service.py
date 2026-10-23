@@ -208,10 +208,37 @@ def test_update_converts_normalizes_and_writes_every_passed_key(monkeypatch):
 	assert writes == [
 		("global_wait_factor", 50),
 		("item_wait_factor", 10),
-		("punctuation_pause_characters", ".,"),
+		("punctuation_pause_characters", "  .,  "),
 	]
 	assert result.global_wait_factor == 50
-	assert result.punctuation_pause_characters == ".,"
+	assert result.punctuation_pause_characters == "  .,  "
+
+
+@pytest.mark.parametrize(
+	"characters",
+	[" ", "\uff0c ", " \uff0c", "\u3000", "\u00a0", "\t", "\uff0c\n\u3002", ""],
+	ids=[
+		"space",
+		"trailing space",
+		"leading space",
+		"ideographic space",
+		"no-break space",
+		"tab",
+		"newline",
+		"empty",
+	],
+)
+def test_the_characters_are_stored_and_read_exactly_as_typed(monkeypatch, characters):
+	# Decided by the user (2026-10-23): every character typed is kept, spaces included.
+	conf = {"WorldVoice": {"pipeline": {}}}
+	module = load_settings_module(monkeypatch, conf)
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+
+	result = service.update(punctuation_pause_characters=characters)
+
+	assert conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == characters
+	assert result.punctuation_pause_characters == characters
+	assert service.get().punctuation_pause_characters == characters
 
 
 @pytest.mark.parametrize(
@@ -420,7 +447,6 @@ def test_a_panel_save_writes_the_default_over_a_refused_value(monkeypatch, key):
 	[
 		("global_wait_factor", 57, 50),
 		("number_mode", "pair", "value"),
-		("punctuation_pause_characters", " ., ", ".,"),
 	],
 )
 def test_a_panel_save_rewrites_a_valid_stored_value_in_its_shown_form(monkeypatch, key, stored, shown):

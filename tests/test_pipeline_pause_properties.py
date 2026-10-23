@@ -206,12 +206,13 @@ def test_property_a_punctuation_break_never_ends_the_output_or_sits_next_to_an_e
 
 @SHARED_ENV
 @given(data=st.data())
-def test_property_an_empty_or_blank_list_changes_nothing(env, data):
+def test_property_an_empty_list_changes_nothing(env, data):
+	# A blank list is not empty: its spaces are pause characters (decided by the user, 2026-10-23).
 	sequence = data.draw(punctuation_sequences(env))
 	result = run_punctuation(
 		env,
 		sequence,
-		characters=data.draw(st.sampled_from(["", " ", "\t "])),
+		characters="",
 		remove=data.draw(st.booleans()),
 		wait=data.draw(st.integers(0, 500)),
 	)

@@ -378,7 +378,21 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 	assert stored["global_wait_factor"] == 70
 	assert stored["group_size"] == 6
 	assert stored["punctuation_pause_enabled"] is False
-	assert stored["punctuation_pause_characters"] == ";:"
+	assert stored["punctuation_pause_characters"] == " ;: "
+
+
+@pytest.mark.parametrize("characters", [" ", "\u3000"], ids=["space", "ideographic space"])
+def test_pipeline_panel_saves_a_space_as_the_characters(monkeypatch, characters):
+	# Decided by the user (2026-10-23): a space alone is a valid list; saving keeps it.
+	env = pipeline_env(monkeypatch)
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	panel._punctuation_pause_characters_edit.SetValue(characters)
+
+	panel.onSave()
+
+	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == characters
+	panel, _sizer = build(env, "SpeechPipelinePanel")
+	assert panel._punctuation_pause_characters_edit.value == characters
 
 
 def test_pipeline_panel_saved_unchanged_keeps_the_stored_settings(monkeypatch):
