@@ -239,6 +239,29 @@ def test_base_language_wins_after_another_script(env, languages, base, preferenc
 	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
 
 
+# The current language still comes before the base: kana or Hangul switch the run, and the Han
+# that follows stays in it although the base covers Han too.
+@pytest.mark.parametrize(
+	"languages,sequence,expected",
+	[
+		pytest.param(
+			("en_US", "zh_TW", "ja_JP"),
+			["ひらがな漢字"],
+			[("lang", "ja"), "ひらがな漢字"],
+			id="kana",
+		),
+		pytest.param(("en_US", "zh_TW", "ko_KR"), ["한국漢字"], [("lang", "ko"), "한국漢字"], id="hangul"),
+	],
+)
+def test_current_language_comes_before_the_base(env, languages, sequence, expected):
+	assert detect(env, sequence, languages=languages, base="zh_TW", cjk="ja") == expected
+
+
+def test_spelling_keeps_the_current_language_before_the_locale(env):
+	detector = make_detector(env, ("en_US", "zh_TW", "ja_JP"))
+	assert list(detector.process_for_spelling("ひ漢", "zh_TW")) == [("ひ漢", "ja")]
+
+
 @pytest.mark.parametrize("base,expected", [("zh_TW", "zh_TW"), ("ko_KR", "ja")])
 def test_find_language_for_script_prefers_an_available_base(env, base, expected):
 	switching(env)["CJKCharactersLanguage"] = "ja"
