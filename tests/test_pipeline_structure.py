@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from addon_loader import load_source
 from mutation_support import running_under_mutmut
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon" / "synthDrivers" / "WorldVoice"
@@ -50,6 +51,20 @@ def test_number_lexing_imports_only_the_standard_library():
 		else:
 			continue
 		assert all(module.split(".")[0] in sys.stdlib_module_names for module in modules), ast.unparse(node)
+
+
+@pytest.mark.skipif(running_under_mutmut(), reason="mutmut's copy imports mutmut")
+def test_number_language_values_import_only_the_standard_library(monkeypatch):
+	# The detector reads the values without the pipeline package, so they need nothing else.
+	path = WORLDVOICE / "numberLanguage.py"
+	for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+		if isinstance(node, (ast.Import, ast.ImportFrom)):
+			where = ast.unparse(node)
+			assert isinstance(node, ast.Import) or node.level == 0, where
+			modules = [alias.name for alias in node.names] if isinstance(node, ast.Import) else [node.module]
+			assert all(module.split(".")[0] in sys.stdlib_module_names for module in modules), where
+	module = load_source(monkeypatch, "number_language_values_under_test", path)
+	assert (module.FOLLOW, module.MAIN) == ("default", "main")
 
 
 # What phase 31 moved out of the package, or deleted: a name that comes back, bare or private,

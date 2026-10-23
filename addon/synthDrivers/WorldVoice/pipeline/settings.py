@@ -6,6 +6,8 @@ import addonHandler
 import config
 from logHandler import log
 
+from ..numberLanguage import FOLLOW, MAIN
+
 try:
 	from configobj.validate import ValidateError
 except ImportError:
@@ -62,6 +64,15 @@ NUMBER_MODE_CHOICES: tuple[tuple[str, str], ...] = (
 	("number", _("number")),
 	# Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
 	("group", _("group")),
+)
+
+# The number languages that are not locales: (stored value, label), listed before the locales.
+NUMBER_LANGUAGE_CHOICES: tuple[tuple[str, str], ...] = (
+	# Translators: A number language choice: numbers are read in the language of the text around them.
+	(FOLLOW, _("Follow current text language")),
+	# Translators: A number language choice: numbers are read in the main language, the language the
+	# document marks or the main voice's language.
+	(MAIN, _("Follow document main language")),
 )
 
 # The number modes the pipeline knows; any other stored or written mode reads as "value".
@@ -149,7 +160,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 	PipelineSettingSpec(
 		"number_language",
 		str,
-		"default",
+		FOLLOW,
 		driver_id="numlan",
 		# Translators: Label for a pipeline setting in the voice settings panel.
 		label=_("Number &language"),

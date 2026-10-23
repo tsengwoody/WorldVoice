@@ -516,6 +516,16 @@ def test_symbol_names_follow_language_commands_with_default_number_language(env)
 	assert names_in(result) == [N("×", "zh_TW"), N("×", "de"), N("×", "zh_TW")]
 
 
+def test_symbol_names_follow_language_commands_with_main_number_language(env):
+	# "main" is not a locale: symbols are named in the language in force, as for "default".
+	env.settings.number_mode = "number"
+	wv, nvda = env.module.WVLangChangeCommand, sys.modules["speech.commands"].LangChangeCommand
+	ctx = roles_context(env.module, "zh_TW", "main")
+	sequence = ["2×3", wv("de"), "2×3", nvda(None), "2×3"]
+	result = list(env.module.inject_number_mode(sequence, env.settings, ctx))
+	assert names_in(result) == [N("×", "zh_TW"), N("×", "de"), N("×", "zh_TW")]
+
+
 def test_symbol_names_follow_the_voice_locale(env, monkeypatch):
 	# Decided by the user (2026-10-22): the locale of the voice for the number language, or for
 	# the language in force, wins over NVDA's interface language.
@@ -698,6 +708,20 @@ def test_number_language_wraps_each_number(env):
 		("lang", "en"),
 	]
 	assert list(env.module.inject_number_language([""], env.settings, context)) == []
+
+
+def test_main_number_language_passes_through_the_early_stage(env):
+	# A "main" wrapper would name the language in force, which the stage's dedupe drops (spec §4.4).
+	english = SimpleNamespace(name="A:en", language="en")
+	context = replace(ctx(env.module, {"en": "A:en", "zh": "B:zh"}, english), number_language="main")
+	items = ["a1b2", env.module.WVLangChangeCommand("zh"), "3"]
+	result = list(env.module.inject_number_language(items, env.settings, context))
+	assert len(result) == len(items) and all(after is before for after, before in zip(result, items))
+
+
+def test_number_segments_with_main_wrap_in_the_current_language(env):
+	result = env.module.iter_number_speech_segments_language("a1", "en", "main")
+	assert shape(result) == ["a", ("lang", "en"), "1", ("lang", "en")]
 
 
 def test_chinese_space_pause(env):

@@ -54,6 +54,7 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers",
 		"synthDrivers.WorldVoice",
 		"synthDrivers.WorldVoice._speechcommand",
+		"synthDrivers.WorldVoice.numberLanguage",
 		"synthDrivers.WorldVoice.log",
 		"synthDrivers.WorldVoice.pipeline",
 		"synthDrivers.WorldVoice.pipeline.speech_dictionary",
@@ -204,7 +205,15 @@ def load_settings_module(monkeypatch, conf, errors=None, warnings=None, validate
 	synth_driver_handler = stubs.module("synthDriverHandler")
 	synth_driver_handler.getSynth = lambda: None
 	stubs.translation()
-	return load_source(monkeypatch, "pipeline_settings_under_test", WORLDVOICE / "pipeline/settings.py")
+	# Inside an alias package, so the settings' relative import of the number-language values resolves.
+	alias_package(monkeypatch, "pipeline_settings_under_test")
+	alias_package(monkeypatch, "pipeline_settings_under_test.pipeline")
+	load_source(monkeypatch, "pipeline_settings_under_test.numberLanguage", WORLDVOICE / "numberLanguage.py")
+	return load_source(
+		monkeypatch,
+		"pipeline_settings_under_test.pipeline.settings",
+		WORLDVOICE / "pipeline/settings.py",
+	)
 
 
 SYNTH = WORLDVOICE / "__init__.py"
@@ -268,6 +277,7 @@ def load_synth(monkeypatch, conf):
 		"SynthDriver": Base,
 		"PIPELINE_SETTINGS": settings_module.PIPELINE_SETTINGS,
 		"NUMBER_MODE_CHOICES": settings_module.NUMBER_MODE_CHOICES,
+		"NUMBER_LANGUAGE_CHOICES": settings_module.NUMBER_LANGUAGE_CHOICES,
 		"pipeline_settings": settings_module.pipeline_settings,
 		"BooleanDriverSetting": setting_factory("bool"),
 		"NumericDriverSetting": setting_factory("int"),

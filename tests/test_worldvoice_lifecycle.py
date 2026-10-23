@@ -169,6 +169,7 @@ def _construction_environment(failure, changes, close_error=None):
 		"config": types.SimpleNamespace(conf=worldvoice_conf()),
 		"getSynth": unavailable_synth,
 		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "en"),
+		"FOLLOW": "default",
 		"speech": speech,
 		"filter_speechSequence": types.SimpleNamespace(
 			unregister=lambda handler: changes.append("filter unregistered"),

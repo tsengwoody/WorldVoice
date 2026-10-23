@@ -132,6 +132,8 @@ def _load_modules(monkeypatch, conf):
 
 	return SimpleNamespace(
 		pipeline=load("pipeline"),
+		settings=load("pipeline.settings"),
+		number_language=load("numberLanguage"),
 		context=load("pipeline.context"),
 		detection=load("languageDetection"),
 		detection_settings=load("languageDetection.settings"),
@@ -169,6 +171,8 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 		"detection_settings": detection_settings,
 		"SpeechContext": modules.context.SpeechContext,
 		"GENERIC_CONTEXT": modules.context.GENERIC_CONTEXT,
+		"NUMBER_LANGUAGE_CHOICES": modules.settings.NUMBER_LANGUAGE_CHOICES,
+		"FOLLOW": modules.number_language.FOLLOW,
 		"StringParameterInfo": lambda id, name: SimpleNamespace(id=id, displayName=name),
 		"languageHandler": SimpleNamespace(
 			getLanguageDescription=lambda locale: {"en": "English"}.get(locale),
@@ -237,12 +241,14 @@ def test_language_changes_that_keep_the_voice_are_dropped(monkeypatch):
 def test_number_languages_list_every_voice_language_by_its_description(monkeypatch):
 	synth, _ = _synth(monkeypatch)
 	numlans = synth._get_availableNumlans()
-	assert {key: info.displayName for key, info in numlans.items()} == {
-		"default": "default",
-		"en": "English",
+	# The two follow values come first, then each voice language (spec §3).
+	assert [(key, info.displayName) for key, info in numlans.items()] == [
+		("default", "Follow current text language"),
+		("main", "Follow document main language"),
+		("en", "English"),
 		# No description: the locale itself names it.
-		"zh_TW": "zh_TW",
-	}
+		("zh_TW", "zh_TW"),
+	]
 	synth._set_numlan("zh_TW")
 	assert synth._get_numlan() == "zh_TW"
 	assert synth.speech_context().number_language == "zh_TW"

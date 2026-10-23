@@ -33,6 +33,7 @@ from .configRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
 from .indexLedger import IndexLedger
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
+from .numberLanguage import FOLLOW
 from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	LOG_SWITCHES,
@@ -44,7 +45,13 @@ from .pipeline import (
 )
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext
 from .pipeline.scope import pipeline_scope
-from .pipeline.settings import NUMBER_MODE_CHOICES, PIPELINE_CONFSPEC, PIPELINE_SETTINGS, pipeline_settings
+from .pipeline.settings import (
+	NUMBER_LANGUAGE_CHOICES,
+	NUMBER_MODE_CHOICES,
+	PIPELINE_CONFSPEC,
+	PIPELINE_SETTINGS,
+	pipeline_settings,
+)
 from .runtime.requestBuilder import queue_speech_sequence
 from .runtime.scheduler import TaskManager
 from .runtime.settings import VoiceSettingsStore
@@ -174,7 +181,7 @@ class SynthDriver(SynthDriver):
 	def __init__(self):
 		self._terminated = False
 		self._terminateCommit = True
-		self._numlan = "default"
+		self._numlan = FOLLOW
 		self._realSpellingFunc = None
 		self.taskManager = None
 		self._voiceManager = None
@@ -453,7 +460,7 @@ class SynthDriver(SynthDriver):
 			filter_speechSequence.unregister(self.add_detected_language_commands)
 
 	def _get_availableNumlans(self):
-		values = {"default": StringParameterInfo("default", _("default"))}
+		values = {value: StringParameterInfo(value, label) for value, label in NUMBER_LANGUAGE_CHOICES}
 		for locale in self._voiceManager.languages:
 			values[locale] = StringParameterInfo(locale, self._numlanDisplayName(locale))
 		return values

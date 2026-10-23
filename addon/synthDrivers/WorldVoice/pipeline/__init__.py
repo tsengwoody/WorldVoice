@@ -13,6 +13,7 @@ from speech.extensions import filter_speechSequence
 
 from .._speechcommand import WVLangChangeCommand
 from ..log import PipelineLog
+from ..numberLanguage import FOLLOW, MAIN
 from ..runtime.models import SelectVoice
 from . import speech_dictionary
 from .context import GENERIC_CONTEXT as GENERIC_CONTEXT, SpeechContext, current_context
@@ -268,7 +269,7 @@ def iter_number_speech_segments_language(item, current_lang, number_language, nu
 			yield value
 			continue
 		# Language for the numeric fragment
-		num_lang = number_language if number_language != "default" else current_lang
+		num_lang = number_language if number_language not in (FOLLOW, MAIN) else current_lang
 		# Insert language switch and number
 		yield WVLangChangeCommand(num_lang)
 		yield value.group()
@@ -281,11 +282,10 @@ def inject_number_language(
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	if ctx.supports_roles:
-		if ctx.number_language == "default":
-			# The number-language wrapper commands are always dropped by
-			# deduplicate_language_command in this case, so the pass-through
-			# below is behavior-identical and avoids scanning every string
-			# for numbers.
+		if ctx.number_language in (FOLLOW, MAIN):
+			# Both wrap a number in the language in force, so deduplicate_language_command
+			# would drop every wrapper: the pass-through is behavior-identical and avoids
+			# scanning every string for numbers.
 			yield from speechSequence
 			return
 		yield from _insert_WVLangChangeCommand_between_number(speechSequence, ctx)
@@ -327,7 +327,9 @@ def inject_number_mode(
 	# Symbols are named for the number language, the language of the wrapper around every number;
 	# with no number language, for the language in force at that point of the sequence. The locale
 	# is that of the voice that speaks the language, when NVDA has a table for it (symbols.symbol_locale).
-	number_language = ctx.number_language if ctx.supports_roles and ctx.number_language != "default" else None
+	number_language = (
+		ctx.number_language if ctx.supports_roles and ctx.number_language not in (FOLLOW, MAIN) else None
+	)
 	language = ctx.language
 	for item in speechSequence:
 		if not isinstance(item, str):
