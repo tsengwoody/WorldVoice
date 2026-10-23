@@ -33,13 +33,11 @@ def test_starting_adds_the_worldvoice_menu_to_nvdas_menu(monkeypatch):
 	submenu = inserted.submenu
 	assert [(item.label, item.help) for item in submenu.items] == [
 		("&Settings", "Settings."),
-		("&Unicode Settings", "Unicode Settings."),
 		("&File Import", "Import File."),
 	]
 	assert [(event, handler, item) for event, handler, item in env.tray.bindings] == [
 		("EVT_MENU", p.popup_SpeechSettingsDialog, submenu.items[0]),
-		("EVT_MENU", p.popup_SpeechSymbolsDialog, submenu.items[1]),
-		("EVT_MENU", p.onFileImport, submenu.items[2]),
+		("EVT_MENU", p.onFileImport, submenu.items[1]),
 	]
 	assert env.wx.called_after == [(p.check_log_record, ())]
 
@@ -81,15 +79,11 @@ def test_settings_menu_and_script_open_the_settings_dialog(monkeypatch):
 	assert env.popped == [env.settings_dialog]
 
 
-def test_unicode_script_opens_the_symbols_dialog_once(monkeypatch):
-	env = plugin(monkeypatch)
-	env.plugin.script_popup_unicode_settings_dialog(None)
-	assert env.popped == [env.symbols_dialog]
-
-	env.symbols_dialog._instance = object()
-	env.plugin.script_popup_unicode_settings_dialog(None)
-	assert env.popped == [env.symbols_dialog]
-	assert env.calls[-1] == ("message", "SpeechSymbolsDialog have already been opened")
+def test_unicode_settings_are_gone(monkeypatch):
+	# The speech-symbols dialog was removed in phase 33; a gesture bound to its script does nothing.
+	plugin_class = plugin(monkeypatch).module.GlobalPlugin
+	assert not hasattr(plugin_class, "script_popup_unicode_settings_dialog")
+	assert not hasattr(plugin_class, "popup_SpeechSymbolsDialog")
 
 
 @pytest.mark.parametrize("enabled", [False, True])

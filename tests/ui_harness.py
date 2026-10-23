@@ -874,9 +874,6 @@ def load_global_plugin(monkeypatch, *, secure=False, log_enabled=False):
 	stubs.module("synthDrivers.WorldVoice.workspace", workspace_path=lambda: env.workspace[0])
 	alias_package(monkeypatch, "generics")
 	stubs.module("generics.coreArchive", extract_core_archive=record("extract"))
-	alias_package(monkeypatch, "generics.speechSymbols")
-	env.symbols_dialog = type("SpeechSymbolsDialog", (), {"_instance": None})
-	stubs.module("generics.speechSymbols.views", SpeechSymbolsDialog=env.symbols_dialog)
 	package = "worldvoice_plugin_test"
 	env.pipeline_log = PipelineLog(enabled=log_enabled, calls=calls)
 	env.answers_for = {"confirm": env.wx.YES, "export": True, "disable on start": True}

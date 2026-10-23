@@ -17,7 +17,6 @@ from synthDrivers.WorldVoice.workspace import workspace_path
 
 # isort: split
 from generics.coreArchive import extract_core_archive
-from generics.speechSymbols.views import SpeechSymbolsDialog
 
 from .pipelineLog import ask_disable_on_start, ask_export, confirm_enable, pipeline_log
 from .speechSettingsDialog import WorldVoiceSettingsDialog
@@ -56,8 +55,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 		item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Settings"), _("Settings."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSettingsDialog, item)
-		item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Unicode Settings"), _("Unicode Settings."))
-		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSymbolsDialog, item)
 		item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onFileImport, item)
 		# if not AisoundVoice.install():
@@ -123,25 +120,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def popup_SpeechSettingsDialog(self, event):
 		wx.CallAfter(gui.mainFrame.popupSettingsDialog, WorldVoiceSettingsDialog)
 
-	def popup_SpeechSymbolsDialog(self, event):
-		if SpeechSymbolsDialog._instance is None:
-			gui.mainFrame.popupSettingsDialog(SpeechSymbolsDialog)
-		else:
-			ui.message(_("SpeechSymbolsDialog have already been opened"))
-
 	@script(
 		description=_("popup speech settings dialog"),
 		category=ADDON_SUMMARY,
 	)
 	def script_popup_SpeechSettingsDialog(self, gesture):
 		self.popup_SpeechSettingsDialog(None)
-
-	@script(
-		description=_("popup unicode settings dialog"),
-		category=ADDON_SUMMARY,
-	)
-	def script_popup_unicode_settings_dialog(self, gesture):
-		self.popup_SpeechSymbolsDialog(None)
 
 	@script(
 		description=_("switch log record"),
