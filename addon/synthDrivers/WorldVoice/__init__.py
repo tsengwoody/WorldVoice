@@ -270,6 +270,7 @@ class SynthDriver(SynthDriver):
 					list(self._voiceManager.allLanguages),
 					settings=detection_settings,
 					language=lambda: self.language,
+					number_language=lambda: self._numlan,
 				)
 				self.add_detected_language_commands = listable(self._detect_languages)
 				self._teardown.add(

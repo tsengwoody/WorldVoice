@@ -12,12 +12,15 @@ def env(stub_modules, monkeypatch):
 	return load_language_detection(stub_modules, monkeypatch)
 
 
-def make_detector(env, languages=("en_US", "zh_TW", "ja")):
-	"""The one place the detector is built; its dependencies come from env."""
+def make_detector(env, languages=("en_US", "zh_TW", "ja"), number_language=None):
+	"""The one place the detector is built; its dependencies come from env. Without a number language
+	the detector's own default applies (digits follow the text)."""
+	providers = {} if number_language is None else {"number_language": lambda: number_language}
 	return env.module.LanguageDetector(
 		list(languages),
 		settings=env.settings,
 		language=lambda: env.state.language,
+		**providers,
 	)
 
 
@@ -361,6 +364,50 @@ def test_decimal_digits_never_switch_the_language(env, sequence, expected):
 def test_superscripts_are_not_digits(env):
 	# "²" is not a decimal digit (spec §6.1): it is Common script and stays in the run.
 	assert shape(env, make_detector(env).add_detected_language_commands(["中²"])) == [("lang", "zh"), "中²"]
+
+
+# Spelling follows the number language (phase 35 spec §5, decided by the user 2026-10-23).
+@pytest.mark.parametrize(
+	("number_language", "expected"),
+	[
+		("default", [("中1", "zh")]),
+		("main", [("中", "zh"), ("1", "en_US")]),
+		("en", [("中", "zh"), ("1", "en")]),
+	],
+)
+def test_spelling_digits_follow_the_number_language(env, number_language, expected):
+	detector = make_detector(env, ("en_US", "zh_TW"), number_language)
+	assert list(detector.process_for_spelling("中1", "en_US")) == expected
+
+
+def test_spelling_keeps_one_run_for_a_number_language_of_the_same_primary(env):
+	# Runs split only when the primary subtag changes.
+	detector = make_detector(env, ("en_US", "zh_TW"), "zh_TW")
+	assert list(detector.process_for_spelling("中1", "en_US")) == [("中1", "zh")]
+
+
+def test_spelling_uses_the_locale_for_a_number_language_without_a_voice(env):
+	# Decided by the user (2026-10-23, Q10).
+	detector = make_detector(env, ("en_US", "zh_TW"), "fr")
+	assert list(detector.process_for_spelling("中1", "en_US")) == [("中", "zh"), ("1", "en_US")]
+
+
+def test_spelling_reads_the_number_language_once_per_call(env):
+	reads = []
+	detector = env.module.LanguageDetector(
+		["en_US", "zh_TW"],
+		settings=env.settings,
+		language=lambda: env.state.language,
+		number_language=lambda: reads.append(1) or "main",
+	)
+	assert list(detector.process_for_spelling("1a2b3", "en_US")) == [("1a2b3", "en_US")]
+	assert reads == [1]
+
+
+@pytest.mark.parametrize("number_language", ["default", "main"])
+def test_spelling_keeps_arabic_indic_digits_in_a_latin_run(env, number_language):
+	detector = make_detector(env, ("en_US", "ar"), number_language)
+	assert list(detector.process_for_spelling("abc١٢", "en_US")) == [("abc١٢", "en_US")]
 
 
 # The speech symbols are gone (phase 33 spec §1.2): an old caller fails at construction, not later.

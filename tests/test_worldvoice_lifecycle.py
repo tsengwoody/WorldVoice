@@ -20,6 +20,7 @@ def _construction_environment(failure, changes, close_error=None):
 	speech_api = types.SimpleNamespace(speakSpelling=spelling)
 	gui = types.SimpleNamespace(settingsDialogs=settings_dialogs)
 	speech = types.SimpleNamespace(speech=speech_api)
+	detectors = []
 
 	class TaskManager:
 		def __init__(self, output=None, logger=None):
@@ -86,7 +87,8 @@ def _construction_environment(failure, changes, close_error=None):
 
 	class LanguageDetector:
 		def __init__(self, languages, **providers):
-			assert set(providers) == {"settings", "language"}
+			assert set(providers) == {"settings", "language", "number_language"}
+			detectors.append(providers)
 			if failure == "detector":
 				raise RuntimeError("detector failure")
 			changes.append("detector built")
@@ -191,6 +193,7 @@ def _construction_environment(failure, changes, close_error=None):
 		spelling=spelling,
 		repositories=repositories,
 		logged=logged,
+		detectors=detectors,
 	)
 
 
@@ -243,6 +246,16 @@ def test_entry_points_are_silent_after_terminate():
 	driver.speak([])
 	driver.cancel()
 	driver.pause(True)
+
+
+def test_the_detector_reads_the_drivers_number_language():
+	# Spelling follows the number language (phase 35 spec §5): the detector asks the driver each time.
+	built = _construction_environment(None, [])
+	driver = load_synth_class(built.environment)()
+	(providers,) = built.detectors
+	assert providers["number_language"]() == "default"
+	driver._numlan = "main"
+	assert providers["number_language"]() == "main"
 
 
 def test_stages_register_after_the_detector():

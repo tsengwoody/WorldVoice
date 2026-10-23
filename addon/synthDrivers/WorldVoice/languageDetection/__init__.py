@@ -1,6 +1,7 @@
 from speech.commands import LangChangeCommand
 
 from .._speechcommand import WVLangChangeCommand
+from ..numberLanguage import FOLLOW, MAIN
 from .scripts import get_script
 
 BASIC_LATIN = (
@@ -101,10 +102,12 @@ class LanguageDetector:
 	"""Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
 
-	def __init__(self, availableLanguages, *, settings, language):
-		"""settings.get() returns the detection settings; language returns the synth's current language."""
+	def __init__(self, availableLanguages, *, settings, language, number_language=lambda: FOLLOW):
+		"""settings.get() returns the detection settings; language returns the synth's current language;
+		number_language returns the stored number language, which spelling follows."""
 		self._settings = settings
 		self._language = language
+		self._number_language = number_language
 		self.availableLanguages = frozenset(get_primary_language(lang) for lang in availableLanguages)
 
 	def _covers(self, language, script):
@@ -170,14 +173,30 @@ class LanguageDetector:
 			else:
 				yield command
 
+	def _spelling_language_for_digit(self, number_language, current_language, default_language):
+		"""The language a decimal digit is spelled in: the current one when it follows the text, the
+		spelling locale for "main", or the number language when it has a voice."""
+		if number_language == FOLLOW:
+			return current_language
+		if number_language != MAIN and get_primary_language(number_language) in self.availableLanguages:
+			return number_language
+		return default_language
+
 	def process_for_spelling(self, text, locale=None):
 		settings = self._settings.get()
+		number_language = self._number_language()
 		default_language = locale if locale is not None else self._language()
 		current_language = default_language
 		buffer = []
 		for character in text:
-			if character.isspace() or character.isdigit():
+			if character.isspace():
 				target_language = default_language
+			elif character.isdecimal():
+				target_language = self._spelling_language_for_digit(
+					number_language,
+					current_language,
+					default_language,
+				)
 			else:
 				script = get_script(ord(character))
 				if script in (None, "Common", "Inherited"):
