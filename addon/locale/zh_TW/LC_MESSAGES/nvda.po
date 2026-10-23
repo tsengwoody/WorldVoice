@@ -161,11 +161,11 @@ msgstr "拉丁字元假設的語言："
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:740
 msgid "Language assumed for CJK characters:"
-msgstr "中日韓字元假設的語言："
+msgstr "漢字字元假設的語言："
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:750
 msgid "Language assumed for arabic characters:"
-msgstr "阿拉柏字元假設的語言："
+msgstr "阿拉伯字元假設的語言："
 
 #: addon\globalPlugins\WorldVoice\speechSettingsDialog.py:760
 msgid "Before NVDA processes speech commands"
