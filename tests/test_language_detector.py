@@ -308,6 +308,21 @@ def test_spelling_with_an_unavailable_locale(env):
 	assert result == [("a", "en"), (" ", "de_DE"), ("b", "en")]
 
 
+@pytest.mark.parametrize(
+	"locale,primary",
+	[
+		("en_US", "en"),
+		("ar-WW", "ar"),
+		("ZH-tw", "zh"),
+		("ja", "ja"),
+		("sr-Latn-RS", "sr"),
+		("zh_Hant_TW", "zh"),
+	],
+)
+def test_primary_language_is_the_first_subtag(env, locale, primary):
+	assert env.module.get_primary_language(locale) == primary
+
+
 def test_mixed_scripts_switch_at_script_boundaries(env):
 	result = make_detector(env).add_detected_language_commands(["hello 中文 ok"])
 	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en_US"), "ok"]

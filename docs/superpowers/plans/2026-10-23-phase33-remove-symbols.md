@@ -383,3 +383,13 @@ Expected: the branch's total line+branch coverage is not lower than master's; `l
 - [ ] **Step 6: §7 on the branch head.** Full suite (**2401 + Task 11 additions passed, 0 skipped, 0 warnings**), `prek run --all-files`, `git diff --check master`, both protected-path commands, `msgfmt --check` on zh_TW.
 
 - [ ] **Step 7: Report** to the orchestrator: commits, counts, prek, diff-check, protected paths, msgfmt, mutmut survivors with reasons, Rulings, spec contradictions; Windows/NVDA manual items (spec §10.8) not verified.
+
+## Implementation notes: mutmut
+
+mutmut 3.8.0 on 2026-10-23, scratch `git clone --shared` of `d7d7a5d` plus this commit's `pyproject.toml`, `--max-children 3`, memory guard (lowest MemAvailable 6.0 GB), glob `addon.synthDrivers.WorldVoice.languageDetection.*`. The clean and stats runs passed with the `error::DeprecationWarning` filter active (`mutants/pyproject.toml` carries it). No timeout, no "suspicious".
+
+First run: 142 mutants, 123 killed, 19 survived. One survivor was not equivalent: `x_get_primary_language__mutmut_6` (`split` → `rsplit`) turns `sr-Latn-RS` into `sr_latn`. `test_primary_language_is_the_first_subtag` (three-part locales `sr-Latn-RS`, `zh_Hant_TW`) fails with that mutant in a scratch copy and passes without it. Re-run of `x_get_primary_language*` with the new test: 15 mutants, 13 killed, 2 survived. Final: 142 mutants, 124 killed, 18 survived, all equivalent:
+
+- `x_get_primary_language__mutmut_5` (no `maxsplit`), `_14` (`maxsplit=2`): `split(...)[0]` is the first subtag whatever the split limit.
+- `_covers__mutmut_6`, `_8` and `find_language_for_script__mutmut_3`, `_5` (the `.get(script, ())` default becomes `None`): `find_language_for_script` returns before any `_covers` call when the script has no candidates (`not None` is true, like `not ()`), so `_covers` only ever sees scripts that are keys of `SCRIPT_LANGUAGES`.
+- `_language_for_character__mutmut_5`–`_10` and `process_for_spelling__mutmut_14`–`_19` (the `"Common"` / `"Inherited"` names misspelled): a Common or Inherited character then reaches `find_language_for_script`, which finds no candidates for those scripts and returns the current language, the same answer as the explicit check. The check is a fast path, not a decision.
