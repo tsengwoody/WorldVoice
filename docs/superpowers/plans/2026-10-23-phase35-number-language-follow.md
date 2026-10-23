@@ -459,3 +459,19 @@ Expected: every line of `numberLanguage.py`, `pipeline/numbers.py`, `wrap_number
 - [ ] **Step 5: Final §7 checks** plus `msgfmt --check`. Expected **2518 passed** plus any mutant-killing tests.
 
 - [ ] **Step 6: Report** to the orchestrator: commits, counts, prek, diff-check, protected paths, msgfmt, coverage, mutmut survivors with reasons, all Rulings, spec contradictions; Windows/NVDA manual items M1–M7 (spec §11.7) not verified.
+
+## Implementation notes: mutmut and coverage
+
+mutmut 3.8.0 on 2026-10-23, scratch `git clone --shared` of `06efbe1` with `ref` symlinked, `--max-children 3`, memory guard (lowest MemAvailable 5.7 GB). The functions are those the phase touched after the batch reviews (Ruling in the ledger: the late stage became `detect_with_number_language`/`wrap_numbers_for_detection`, and U2 touched the early wrapper): `pipeline.numbers.*`, `pipeline.x_wrap_numbers_for_detection*`, `x_detect_with_number_language*`, `x__split_numbers_for_language*`, `x_iter_number_speech_segments_language*`, `x_inject_number_language*`, `x__insert_WVLangChangeCommand_between_number*`, `x_inject_number_mode*`, `languageDetection.*`. The clean and stats runs passed with the `error::DeprecationWarning` filter. No timeout, no "suspicious".
+
+407 mutants, 381 killed, 26 survived, all equivalent:
+
+- `_split_numbers_for_language__mutmut_8` and `numbers.number_pieces__mutmut_21` (`"+-"` → `"XX+-XX"`): the tested character is the first of a match, which is a sign or a digit, never an `X`.
+- `_split_numbers_for_language__mutmut_20`, `_21` (the `"number"` label renamed): callers test only `kind == "text"`.
+- `iter_number_speech_segments_language__mutmut_4` (`number_re` not passed on): every caller uses the default, `NUMBER_RE`.
+- `detect_with_number_language__mutmut_26`, `_45` (`glue = None`): falsy like `False`; `_27` (initial `glue = True`): the first item has nothing before it to join to.
+- The 18 detector survivors of phase 33, unchanged and equivalent for the reasons recorded there: `get_primary_language__mutmut_5`, `_14` (split limit), `_covers__mutmut_6`, `_8` and `find_language_for_script__mutmut_3`, `_5` (`.get(script, ())` default), `_language_for_character__mutmut_5`–`_10` and `process_for_spelling__mutmut_21`–`_26` (the `"Common"`/`"Inherited"` fast path).
+
+New code with no survivor: `wrap_numbers_for_detection` (29 killed), `_spelling_language_for_digit` (5), `_insert_WVLangChangeCommand_between_number` (20), `inject_number_language` (6), `inject_number_mode` (37). The module-level regexes of `pipeline/numbers.py` are not mutated by mutmut (module code), so the spec's expected `NUMBER_RE` lookbehind survivor does not occur; the `THOUSANDS_RE` lookarounds were checked by hand (batch 1 review M1).
+
+Coverage (`pytest --cov`, 2588 passed): `numberLanguage.py`, `pipeline/numbers.py`, `pipeline/__init__.py`, `languageDetection/__init__.py` and `languageDetection/settings.py` 100% lines and branches; `__init__.py` (synth) 96% with every new line (`_detect_languages`, `_is_number_language`, `_get_numlan`, `_set_numlan`, `speech_context`) covered; `speechSettingsDialog.py` 99% (the Unicode Detection panel fully covered).
