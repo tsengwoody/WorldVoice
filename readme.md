@@ -44,8 +44,7 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
   * Follow current text language (default): numbers are read in the language of the text around them. With Unicode detection on, a number in Chinese text is read by the Chinese voice.
   * Follow document main language: numbers are read in the main language: the language the document marks, or the main speech role's language.
   * A specific language: numbers are always read by the speech role of that language.
-
-  Numbers include full-width digits (０–９) and other Unicode decimal digits, such as Arabic-Indic digits.
+  * Numbers include full-width digits (０–９) and other Unicode decimal digits, such as Arabic-Indic digits.
 * Number mode:
   * Off: Numbers are left as they are.
   * Numeric mode: Reads numbers as values. For example, "12345" is read as "twelve thousand three hundred forty-five." Commas used as thousands separators, as in "12,345,678", are removed so the number is read as one value; other commas, as in "3,14", are kept.
