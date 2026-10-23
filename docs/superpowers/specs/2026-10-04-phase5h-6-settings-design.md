@@ -87,7 +87,7 @@ class PipelineSettingSpec:
 PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...]
 ```
 
-- 表的順序是主驅動設定對話框的順序：`ignore_comma_between_number`（cni）、`number_mode`（nummod）、`global_wait_factor`（min_step 10，normalize 為 `int(v) // 10 * 10`）、`number_wait_factor`、`pair_wait_factor`、`item_wait_factor`、`sayall_wait_factor`、`chinesespace_wait_factor`、`punctuation_pause_enabled`、`remove_punctuation_characters`、`punctuation_wait_factor`，再加上非 driver 的 `scope`、`punctuation_pause_characters`（normalize 為 `str(v).strip()`）。
+- 表的順序是主驅動設定對話框的順序：`ignore_comma_between_number`（cni）、`number_mode`（nummod）、`global_wait_factor`（min_step 10，normalize 為 `int(v) // 10 * 10`）、`number_wait_factor`、`pair_wait_factor`、`item_wait_factor`、`sayall_wait_factor`、`chinesespace_wait_factor`、`punctuation_pause_enabled`、`remove_punctuation_characters`、`punctuation_wait_factor`，再加上非 driver 的 `scope`、`punctuation_pause_characters`（~~normalize 為 `str(v).strip()`~~ Corrected by `fix/punctuation-characters-keep-spaces`（2026-10-23）：不做 normalize，保留使用者輸入的每個字元，包含空白）。
 - 標籤、`display_name` 與目前主驅動的 `_()` 字串完全相同；模組呼叫 `addonHandler.initTranslation()` 取得 `_`。
 - 由表產生：`DEFAULT_PIPELINE_SETTINGS`、`PIPELINE_CONFIG_KEYS`、`PIPELINE_CONFSPEC`。confspec 依 kind 產生：`boolean(default=...)`、`integer(default=...,min=0,max=100)`、`string(default="...")`，預設值與目前字面值相同。
 - `PipelineSettings` 改為 `frozen=True`，保留 `scaled_*` 方法，新增 `effective(supports_roles: bool) -> PipelineSettings`。它是 `get_effective_pipeline_settings` 非 WorldVoice 分支的純函式版本：
@@ -250,7 +250,7 @@ class PipelineScope:
 
 1. `tests/test_pipeline_settings_service.py`：
    - 表 ↔ dataclass 欄位 ↔ `DEFAULT_PIPELINE_SETTINGS` ↔ `PIPELINE_CONFSPEC` 一致，且 confspec 字串與舊字面值的預設等價；
-   - `update` 轉型、normalize（global 取整到 10、字元 strip）；
+   - `update` 轉型、normalize（global 取整到 10、~~字元 strip~~；Corrected by `fix/punctuation-characters-keep-spaces`（2026-10-23）：字元不再 strip）；
    - 只寫有變更的 key；
    - 未知 key 拋錯；
    - 通知訂閱者、訂閱者例外不中斷；

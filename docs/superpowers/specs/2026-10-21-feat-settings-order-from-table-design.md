@@ -202,7 +202,7 @@ Refinements over the proposal, with reasons:
 | 12 | `punctuation_pause_enabled` | bool, True | `punctuationpauseenabled` | checkbox | both | "Enable punctuation pause control" | "Punctuation pauses" | yes | |
 | 13 | `remove_punctuation_characters` | bool, False | `removepunctuationcharacters` | checkbox | both | "Remove configured punctuation at pause points" | "Remove punctuation at pause points" | yes | `depends_on=("punctuation_pause_enabled", True)` |
 | 14 | `punctuation_wait_factor` | int, 0 | `punctuationwaitfactor` | slider | both | "Punctuation wait factor" | — | yes | `depends_on=("punctuation_pause_enabled", True)` |
-| 15 | `punctuation_pause_characters` | str, `""` | — | text | both | "Punctuation pause characters" | — | — | `normalize=_strip`, `depends_on=("punctuation_pause_enabled", True)` |
+| 15 | `punctuation_pause_characters` | str, `""` | — | text | both | "Punctuation pause characters" | — | — | ~~`normalize=_strip`~~ (Corrected by `fix/punctuation-characters-keep-spaces`, 2026-10-23: no normalize), `depends_on=("punctuation_pause_enabled", True)` |
 
 - `SCOPE_CHOICES = (("all", _("All Synthesizers (Global)")), ("WorldVoice", _("Only WorldVoice Synthesizer")))` and `NUMBER_MODE_CHOICES = (("value", _("value")), ("number", _("number")), ("group", _("group")))` are module constants in `settings.py`, defined before `_number_mode`. The choice msgids are unchanged.
 - The comment at `:78` becomes "Every panel and the settings ring show these settings in this order."

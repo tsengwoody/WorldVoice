@@ -171,7 +171,7 @@ New start of `inject_punctuation_pause`:
 if not settings.punctuation_pause_enabled:
 	yield from speechSequence
 	return
-chars = settings.punctuation_pause_characters.strip()
+chars = settings.punctuation_pause_characters.strip()  # Corrected by fix/punctuation-characters-keep-spaces (2026-10-23): no .strip(); the raw value is used
 if not chars:
 	yield from speechSequence
 	return
@@ -219,7 +219,7 @@ The ring has no disabled state. Hiding entries would require a `supportedSetting
 
 ### 4.4 Default character list (item 2-6)
 
-`PipelineSettingSpec("punctuation_pause_characters", str, "", normalize=_strip)` (`settings.py:162`). The confspec becomes `string(default="")` (`settings.py:56-62`). Decided by the user (2026-10-21): option C, no migration and no release note.
+~~`PipelineSettingSpec("punctuation_pause_characters", str, "", normalize=_strip)`~~ (`settings.py:162`). Corrected by `fix/punctuation-characters-keep-spaces` (2026-10-23): no `normalize`; every typed character is kept, spaces included. The confspec becomes `string(default="")` (`settings.py:56-62`). Decided by the user (2026-10-21): option C, no migration and no release note.
 
 ## 5. What an NVDA user hears and sees
 
