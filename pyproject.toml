@@ -22,8 +22,6 @@ omit = [
 	"addon/synthDrivers/WorldVoice/driver/*/driver/*",
 	"addon/synthDrivers/WorldVoice/driver/sonic/*",
 	"addon/synthDrivers/WorldVoice/languageDetection/script_data.py",
-	# The wx speech-symbol editor, untested on purpose: the feature may be removed.
-	"addon/generics/speechSymbols/views.py",
 ]
 
 [tool.coverage.report]

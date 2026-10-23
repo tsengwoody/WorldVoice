@@ -85,6 +85,39 @@ def test_generics_is_imported_only_after_the_package_that_adds_its_path():
 		assert worldvoice and min(worldvoice) < min(generics), path
 
 
+def _imports_speech_symbols(node):
+	if isinstance(node, ast.Import):
+		modules = [alias.name for alias in node.names]
+	elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+		modules = [node.module]
+		if node.module == "generics":
+			modules += [f"generics.{alias.name}" for alias in node.names]
+	else:
+		return False
+	return any(
+		name == "generics.speechSymbols" or name.startswith("generics.speechSymbols.") for name in modules
+	)
+
+
+def test_the_speech_symbols_feature_is_gone():
+	# Removed in phase 33; an existing unicode.dic stays on disk, and nothing reads it again.
+	# A checkout that ran the old tests may keep an ignored __pycache__ there; Python never
+	# imports a cached module without its source.
+	package = ADDON / "generics" / "speechSymbols"
+	assert [path for path in package.rglob("*") if "__pycache__" not in path.parts] == []
+	offenders = []
+	for path in _addon_sources():
+		text = path.read_text(encoding="utf-8")
+		if "unicode.dic" in text:
+			offenders.append(f"{path.relative_to(ROOT)}: unicode.dic")
+		offenders += [
+			f"{path.relative_to(ROOT)}:{node.lineno}"
+			for node in ast.walk(ast.parse(text))
+			if _imports_speech_symbols(node)
+		]
+	assert offenders == []
+
+
 # The spec's reason table: the first entry whose calls all appear in a handler's
 # own body names where its error goes. Combined entries come first, so a handler
 # that both records and latches says both.
