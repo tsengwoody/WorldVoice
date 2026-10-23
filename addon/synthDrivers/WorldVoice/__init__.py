@@ -270,7 +270,7 @@ class SynthDriver(SynthDriver):
 					list(self._voiceManager.allLanguages),
 					settings=detection_settings,
 					language=lambda: self.language,
-					number_language=self._get_numlan,
+					number_language=self._number_language,
 				)
 				self.add_detected_language_commands = listable(self._detect_languages)
 				self._teardown.add(
@@ -368,7 +368,7 @@ class SynthDriver(SynthDriver):
 		return SpeechContext(
 			supports_roles=True,
 			language=self.language,
-			number_language=self._get_numlan(),
+			number_language=self._number_language(),
 			default_voice_name=voice.name,
 			default_voice_language=voice.language,
 			voice_name_for_language=manager.getVoiceNameForLanguage,
@@ -470,22 +470,34 @@ class SynthDriver(SynthDriver):
 
 	def _get_availableNumlans(self):
 		values = {value: StringParameterInfo(value, label) for value, label in NUMBER_LANGUAGE_CHOICES}
-		for locale in self._voiceManager.languages:
+		locales = list(self._voiceManager.languages)
+		stored = self._get_numlan()
+		if stored not in (FOLLOW, MAIN) and stored not in locales:
+			# A stored locale that "Keep main locale engine consistent" hides stays listed, so the
+			# Voice panel and the settings ring find the current value.
+			locales.append(stored)
+		for locale in locales:
 			values[locale] = StringParameterInfo(locale, self._numlanDisplayName(locale))
 		return values
 
-	def _is_number_language(self, value):
-		return value in (FOLLOW, MAIN) or value in self._voiceManager.languages
+	def _is_stored_number_language(self, value):
+		# Any installed voice's locale, also one the voice settings hide for now.
+		return value in (FOLLOW, MAIN) or value in self._voiceManager.allLanguages
 
 	def _get_numlan(self):
-		# A voice or engine change can hide a stored locale without a setter call: it reads as the
-		# default until the locale is offered again, so the settings ring always finds the value.
-		return self._numlan if self._is_number_language(self._numlan) else FOLLOW
+		# The stored choice, which NVDA saves back: a locale hidden by a voice or engine change is
+		# kept, so it comes back when its voices are offered again.
+		return self._numlan if self._is_stored_number_language(self._numlan) else FOLLOW
+
+	def _number_language(self):
+		"""The number language speech uses: a stored locale that no offered voice speaks is "default"."""
+		value = self._get_numlan()
+		return value if value in (FOLLOW, MAIN) or value in self._voiceManager.languages else FOLLOW
 
 	def _set_numlan(self, value):
 		# NVDA stores any string; one that is not a choice would leave the Voice panel without a
 		# selection and break the settings ring, so it reads as the default (no migration).
-		if not self._is_number_language(value):
+		if not self._is_stored_number_language(value):
 			nvdaLog.debugWarning("WorldVoice: unknown number language %r, using %r", value, FOLLOW)
 			value = FOLLOW
 		self._numlan = value

@@ -78,7 +78,10 @@ class VoiceManager:
 
 	defaultVoiceName = VOICES["en"]
 	defaultVoiceInstance = SimpleNamespace(name=VOICES["en"], language="en")
+	# The languages the voice settings offer; allLanguages has every installed voice's, also those
+	# that "Keep main locale engine consistent" hides.
 	languages = ("en", "zh_TW")
+	allLanguages = ("en", "zh_TW")
 
 	def __init__(self, ports):
 		self.ports = ports
@@ -594,28 +597,50 @@ def test_known_number_languages_are_kept(monkeypatch, value):
 	assert synth.warnings == []
 
 
-def test_a_locale_the_voices_no_longer_offer_is_refused_on_load(monkeypatch):
-	# For example a profile saved before "Keep main locale engine consistent" hid it.
+def test_a_locale_of_an_uninstalled_voice_is_refused_on_load(monkeypatch):
 	synth, _ = _synth(monkeypatch)
-	synth._voiceManager.languages = ("en",)
+	synth._voiceManager.languages = synth._voiceManager.allLanguages = ("en",)
 	synth._set_numlan("zh_TW")
 	assert synth._get_numlan() == "default"
 	assert len(synth.warnings) == 1
 
 
-def test_a_locale_hidden_after_it_was_stored_reads_as_follow(monkeypatch):
-	# A voice or engine change can hide the stored locale without a setter call (the main locale
-	# policy; NVDA's loadSettings(onlyChanged=True) skips unchanged settings). The value then reads
-	# as "default", so NVDA's settings ring finds it among the choices and can step from it.
+class NvdaSettings:
+	"""What NVDA's loadSettings(onlyChanged=True) and saveSettings do with the number language."""
+
+	def __init__(self, synth, stored):
+		self.synth, self.conf = synth, {"numlan": stored}
+
+	def load_changed(self):
+		# synthDriverHandler.py:402-408: a setting is set only when it differs from the config.
+		if self.synth._get_numlan() != self.conf["numlan"]:
+			self.synth._set_numlan(self.conf["numlan"])
+
+	def save(self):
+		# autoSettings.py:159-163: the property is written back to the config.
+		self.conf["numlan"] = self.synth._get_numlan()
+
+
+@pytest.mark.parametrize("hidden_first", [True, False], ids=["hidden-on-load", "hidden-after-load"])
+def test_a_hidden_locale_survives_loading_and_saving_and_comes_back(monkeypatch, hidden_first):
+	# A voice or engine change can hide the stored locale ("Keep main locale engine consistent").
+	# Decided by orchestrator with the recommended default (final review M2): the choice is kept, as
+	# long as an installed voice speaks it, while the speech reads numbers as "default".
 	synth, _ = _synth(monkeypatch)
-	synth._set_numlan("zh_TW")
+	nvda = NvdaSettings(synth, "zh_TW")
+	if hidden_first:
+		synth._voiceManager.languages = ("en",)
+	nvda.load_changed()
 	synth._voiceManager.languages = ("en",)
-	assert synth._get_numlan() == "default"
-	assert synth._get_numlan() in synth._get_availableNumlans()
+	nvda.load_changed()
+	nvda.save()
+	assert nvda.conf["numlan"] == "zh_TW"
 	assert synth.speech_context().number_language == "default"
+	# NVDA's settings ring and the Voice panel find the stored value among the choices.
+	assert "zh_TW" in synth._get_availableNumlans()
 	assert synth.warnings == []
 	synth._voiceManager.languages = ("en", "zh_TW")
-	assert synth._get_numlan() == "zh_TW"
+	assert synth.speech_context().number_language == "zh_TW"
 
 
 # Decided by the user (2026-10-23, U1/U2, amending Q5): a sign right after a word character is a
