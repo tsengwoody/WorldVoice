@@ -593,15 +593,28 @@ def test_known_number_languages_are_kept(monkeypatch, value):
 	assert synth.warnings == []
 
 
-def test_a_locale_the_voices_no_longer_offer_reads_as_follow(monkeypatch):
-	# For example after "Keep main locale engine consistent" hid it with a voice change.
+def test_a_locale_the_voices_no_longer_offer_is_refused_on_load(monkeypatch):
+	# For example a profile saved before "Keep main locale engine consistent" hid it.
 	synth, _ = _synth(monkeypatch)
 	synth._voiceManager.languages = ("en",)
 	synth._set_numlan("zh_TW")
 	assert synth._get_numlan() == "default"
 	assert len(synth.warnings) == 1
-	# NVDA's settings ring finds the stored value among the choices, so it can step from it.
+
+
+def test_a_locale_hidden_after_it_was_stored_reads_as_follow(monkeypatch):
+	# A voice or engine change can hide the stored locale without a setter call (the main locale
+	# policy; NVDA's loadSettings(onlyChanged=True) skips unchanged settings). The value then reads
+	# as "default", so NVDA's settings ring finds it among the choices and can step from it.
+	synth, _ = _synth(monkeypatch)
+	synth._set_numlan("zh_TW")
+	synth._voiceManager.languages = ("en",)
+	assert synth._get_numlan() == "default"
 	assert synth._get_numlan() in synth._get_availableNumlans()
+	assert synth.speech_context().number_language == "default"
+	assert synth.warnings == []
+	synth._voiceManager.languages = ("en", "zh_TW")
+	assert synth._get_numlan() == "zh_TW"
 
 
 # Decided by the user (2026-10-23, U1/U2, amending Q5): a sign right after a word character is a

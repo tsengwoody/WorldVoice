@@ -270,7 +270,7 @@ class SynthDriver(SynthDriver):
 					list(self._voiceManager.allLanguages),
 					settings=detection_settings,
 					language=lambda: self.language,
-					number_language=lambda: self._numlan,
+					number_language=self._get_numlan,
 				)
 				self.add_detected_language_commands = listable(self._detect_languages)
 				self._teardown.add(
@@ -368,7 +368,7 @@ class SynthDriver(SynthDriver):
 		return SpeechContext(
 			supports_roles=True,
 			language=self.language,
-			number_language=self._numlan,
+			number_language=self._get_numlan(),
 			default_voice_name=voice.name,
 			default_voice_language=voice.language,
 			voice_name_for_language=manager.getVoiceNameForLanguage,
@@ -474,13 +474,18 @@ class SynthDriver(SynthDriver):
 			values[locale] = StringParameterInfo(locale, self._numlanDisplayName(locale))
 		return values
 
+	def _is_number_language(self, value):
+		return value in (FOLLOW, MAIN) or value in self._voiceManager.languages
+
 	def _get_numlan(self):
-		return self._numlan
+		# A voice or engine change can hide a stored locale without a setter call: it reads as the
+		# default until the locale is offered again, so the settings ring always finds the value.
+		return self._numlan if self._is_number_language(self._numlan) else FOLLOW
 
 	def _set_numlan(self, value):
 		# NVDA stores any string; one that is not a choice would leave the Voice panel without a
 		# selection and break the settings ring, so it reads as the default (no migration).
-		if value not in (FOLLOW, MAIN) and value not in self._voiceManager.languages:
+		if not self._is_number_language(value):
 			nvdaLog.debugWarning("WorldVoice: unknown number language %r, using %r", value, FOLLOW)
 			value = FOLLOW
 		self._numlan = value

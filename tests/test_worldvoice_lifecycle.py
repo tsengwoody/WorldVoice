@@ -172,6 +172,7 @@ def _construction_environment(failure, changes, close_error=None):
 		"getSynth": unavailable_synth,
 		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "en"),
 		"FOLLOW": "default",
+		"MAIN": "main",
 		"speech": speech,
 		"filter_speechSequence": types.SimpleNamespace(
 			unregister=lambda handler: changes.append("filter unregistered"),

@@ -380,6 +380,12 @@ def test_spelling_digits_follow_the_number_language(env, number_language, expect
 	assert list(detector.process_for_spelling("中1", "en_US")) == expected
 
 
+def test_spelling_keeps_a_superscript_in_its_run(env):
+	# "²" is not a decimal digit: it is not spelled in the spelling locale under "main".
+	detector = make_detector(env, ("en_US", "zh_TW"), "main")
+	assert list(detector.process_for_spelling("中²", "en_US")) == [("中²", "zh")]
+
+
 def test_spelling_keeps_one_run_for_a_number_language_of_the_same_primary(env):
 	# Runs split only when the primary subtag changes.
 	detector = make_detector(env, ("en_US", "zh_TW"), "zh_TW")
