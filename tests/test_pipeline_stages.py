@@ -71,8 +71,6 @@ def test_register_puts_stages_first_in_order_and_unregister_removes_them(monkeyp
 
 	module.register_stages()
 	assert fake.handlers == [stage.handler for stage in module.STAGES] + [other]
-	module.order_move_to_end_register()
-	assert fake.handlers == [other] + [stage.handler for stage in module.STAGES]
 	module.unregister_stages()
 	assert fake.handlers == [other]
 	assert installs == ["install", "uninstall"]

@@ -795,11 +795,6 @@ def order_move_to_start_register():
 		filter_speechSequence.moveToEnd(stage.handler, False)
 
 
-def order_move_to_end_register():
-	for stage in STAGES:
-		filter_speechSequence.moveToEnd(stage.handler, True)
-
-
 def register_stages():
 	log.debug("register pipeline stages")
 	speech_dictionary.install()
