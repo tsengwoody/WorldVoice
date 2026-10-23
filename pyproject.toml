@@ -31,9 +31,12 @@ skip_empty = true
 include_namespace_packages = true
 
 [tool.pytest.ini_options]
-# A deprecated call fails the test that makes it. NVDA's own codecs.open in characterProcessing.py
-# stays ignored by the filterwarnings marks in tests/test_pipeline_nvda_symbols.py, which take
-# precedence over this list.
+# A deprecated call fails the test that makes it. One made at import time (a test module,
+# conftest.py, an add-on module or NVDA stub imported at module level) aborts collection, so the
+# whole run stops. pytest's own PytestDeprecationWarning is a DeprecationWarning and fails too.
+# Escape hatches: a @pytest.mark.filterwarnings("ignore:<message start>:DeprecationWarning") mark
+# on the test, as tests/test_pipeline_nvda_symbols.py does for NVDA's codecs.open (marks take
+# precedence over this list), or a narrow "ignore::DeprecationWarning:<module>" entry below.
 filterwarnings = ["error::DeprecationWarning"]
 
 [tool.mutmut]

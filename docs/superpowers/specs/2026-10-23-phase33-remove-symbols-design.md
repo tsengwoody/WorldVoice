@@ -79,6 +79,7 @@ Decided by orchestrator with the recommended default; user may override before m
 - Evidence: running today's suite with `-W error::DeprecationWarning` gives 2 failed and 2370 passed. The two failures are `tests/test_format_outputs.py::test_saved_symbol_lines` and `::test_invalid_symbol_line_warning`, both deleted by this phase.
 - NVDA's own `codecs.open` in `characterProcessing.py` stays covered by the existing `filterwarnings("ignore:codecs.open:DeprecationWarning")` marks (`tests/test_pipeline_nvda_symbols.py:19-20`), because marks take precedence over the ini filter.
 - Risk: mutmut runs pytest with the same configuration, so the plan must confirm that mutmut's clean run still passes with the guard on (§10.6).
+- Reach (added after the final review): the filter applies at collection too, so a deprecation raised at import time (a test module, `conftest.py`, an add-on module or NVDA stub imported at module level) aborts the whole run instead of failing one test. pytest's own `PytestDeprecationWarning` subclasses `DeprecationWarning` and is covered as well. Escape hatches: a `@pytest.mark.filterwarnings("ignore:<message start>:DeprecationWarning")` mark on the affected test (as `tests/test_pipeline_nvda_symbols.py:19-20` does), or a narrow `"ignore::DeprecationWarning:<module>"` entry in the list; `-W default::DeprecationWarning` for a one-off diagnosis. The `pyproject.toml` comment says the same.
 
 ## 2. Part B: restore "prefer the base language" in detection
 
