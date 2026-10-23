@@ -92,18 +92,20 @@ def test_generics_is_imported_only_after_the_package_that_adds_its_path():
 		assert worldvoice and min(worldvoice) < min(generics), path
 
 
-def _imports_speech_symbols(node):
+def _imported_modules(node, package):
+	"""The absolute names an import statement in package (a tuple of names) can load."""
 	if isinstance(node, ast.Import):
-		modules = [alias.name for alias in node.names]
-	elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-		modules = [node.module]
-		if node.module == "generics":
-			modules += [f"generics.{alias.name}" for alias in node.names]
-	else:
-		return False
-	return any(
-		name == "generics.speechSymbols" or name.startswith("generics.speechSymbols.") for name in modules
-	)
+		return [alias.name for alias in node.names]
+	if not isinstance(node, ast.ImportFrom):
+		return []
+	base = list(package[: len(package) - node.level + 1]) if node.level else []
+	module = ".".join([*base, *([node.module] if node.module else [])])
+	# `from x import y` may load the submodule x.y.
+	return [module, *(f"{module}.{alias.name}" for alias in node.names)]
+
+
+def _is_speech_symbols(name):
+	return name == "generics.speechSymbols" or name.startswith("generics.speechSymbols.")
 
 
 def test_the_speech_symbols_feature_is_gone():
@@ -115,12 +117,16 @@ def test_the_speech_symbols_feature_is_gone():
 	offenders = []
 	for path in _addon_sources():
 		text = path.read_text(encoding="utf-8")
-		if "unicode.dic" in text:
-			offenders.append(f"{path.relative_to(ROOT)}: unicode.dic")
+		where = path.relative_to(ROOT)
+		# The module name as text also catches importlib.import_module("generics.speechSymbols...").
 		offenders += [
-			f"{path.relative_to(ROOT)}:{node.lineno}"
+			f"{where}: {word}" for word in ("unicode.dic", "generics.speechSymbols") if word in text
+		]
+		parent = path.relative_to(ADDON).parent.parts
+		offenders += [
+			f"{where}:{node.lineno}"
 			for node in ast.walk(ast.parse(text))
-			if _imports_speech_symbols(node)
+			if any(_is_speech_symbols(name) for name in _imported_modules(node, parent))
 		]
 	assert offenders == []
 
