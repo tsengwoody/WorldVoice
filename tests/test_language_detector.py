@@ -37,7 +37,6 @@ PREFERENCE_KEYS = {
 	"cjk": "CJKCharactersLanguage",
 	"latin": "latinCharactersLanguage",
 	"arabic": "arabicCharactersLanguage",
-	"ignore_numbers": "ignoreNumbersInLanguageDetection",
 }
 
 
@@ -501,7 +500,6 @@ def scenarios(draw):
 			"cjk": draw(st.sampled_from(["zh", "zh_TW", "ja", "ko"])),
 			"latin": draw(st.sampled_from(["en", "fr", "de"])),
 			"arabic": draw(st.sampled_from(["ar", "fa"])),
-			"ignore_numbers": draw(st.booleans()),
 		},
 		locale=draw(st.one_of(st.none(), st.sampled_from(COMMAND_LANGUAGES[1:] + tuple(installed)))),
 	)
@@ -515,7 +513,7 @@ def scenario_detector(env, scenario):
 
 
 def is_letter(env, character):
-	return not character.isdigit() and env.module.get_script(ord(character)) not in (
+	return not character.isdecimal() and env.module.get_script(ord(character)) not in (
 		None,
 		"Common",
 		"Inherited",
@@ -563,7 +561,7 @@ def test_property_detection_only_inserts_language_changes(env, scenario, items):
 
 def plain_scenario(installed, base):
 	"""A fixed scenario with the shipped preferences, for the explicit examples."""
-	preferences = {"cjk": "ja", "latin": "en", "arabic": "ar", "ignore_numbers": False}
+	preferences = {"cjk": "ja", "latin": "en", "arabic": "ar"}
 	return SimpleNamespace(installed=list(installed), base=base, preferences=preferences, locale=None)
 
 

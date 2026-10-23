@@ -502,14 +502,6 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 
-		self._ignoreNumbersCheckBox = wx.CheckBox(
-			self,
-			# Translators: Either to ignore or not numbers when language detection is active
-			label=_("Ignore numbers when detecting text language"),
-		)
-		self._ignoreNumbersCheckBox.SetValue(self._detection.ignore_numbers)
-		settingsSizerHelper.addItem(self._ignoreNumbersCheckBox)
-
 		self._scriptChoices = {
 			script: self._add_script_choice(settingsSizerHelper, script, label)
 			for script, label in self._script_labels().items()
@@ -558,7 +550,6 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			return
 		# The driver subscribes to these settings and re-registers detection when the timing changes.
 		detection_settings.update(
-			ignore_numbers=self._ignoreNumbersCheckBox.GetValue(),
 			script_language={
 				script: locales[choice.GetCurrentSelection()]
 				for script, (choice, locales) in self._scriptChoices.items()

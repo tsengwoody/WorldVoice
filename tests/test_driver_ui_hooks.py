@@ -84,5 +84,5 @@ def test_a_timing_change_refreshes_language_detection(synth):
 
 def test_other_detection_changes_leave_the_filter_order_alone(synth):
 	synth.synth.uwv = True
-	synth.synth._on_detection_settings(object(), frozenset({"ignore_numbers", "script_language"}))
+	synth.synth._on_detection_settings(object(), frozenset({"script_language"}))
 	assert synth.calls == []

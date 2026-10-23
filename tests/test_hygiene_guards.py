@@ -131,6 +131,17 @@ def test_the_speech_symbols_feature_is_gone():
 	assert offenders == []
 
 
+def test_the_ignore_numbers_option_is_gone():
+	# Removed in phase 35: the number language decides every digit. A profile may keep the key.
+	readmes = [ROOT / "readme.md", *sorted((ADDON / "doc").glob("*/readme.md"))]
+	offenders = [
+		str(path.relative_to(ROOT))
+		for path in (*_addon_sources(), *readmes)
+		if "ignoreNumbersInLanguageDetection" in path.read_text(encoding="utf-8")
+	]
+	assert offenders == []
+
+
 # The spec's reason table: the first entry whose calls all appear in a handler's
 # own body names where its error goes. Combined entries come first, so a handler
 # that both records and latches says both.

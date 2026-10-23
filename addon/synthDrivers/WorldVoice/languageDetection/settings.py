@@ -13,7 +13,6 @@ import config
 from logHandler import log
 
 DETECTION_CONFSPEC = {
-	"ignoreNumbersInLanguageDetection": "boolean(default=false)",
 	"latinCharactersLanguage": "string(default=en)",
 	"CJKCharactersLanguage": "string(default=ja)",
 	"arabicCharactersLanguage": "string(default=ar)",
@@ -25,7 +24,6 @@ SCRIPT_CONFIG_KEYS = {
 	"Han": "CJKCharactersLanguage",
 	"Arabic": "arabicCharactersLanguage",
 }
-_IGNORE_NUMBERS_KEY = "ignoreNumbersInLanguageDetection"
 _TIMING_KEY = "DetectLanguageTiming"
 
 
@@ -33,7 +31,6 @@ _TIMING_KEY = "DetectLanguageTiming"
 class DetectionSettings:
 	"""One reading of the detection settings."""
 
-	ignore_numbers: bool
 	# Read-only; keyed by the script names of SCRIPT_CONFIG_KEYS.
 	script_language: Mapping[str, str]
 	# "before" or "after" NVDA processes speech commands, as stored.
@@ -59,7 +56,6 @@ class DetectionSettingsService:
 	def get(self) -> DetectionSettings:
 		section = self._section()
 		return DetectionSettings(
-			ignore_numbers=bool(section[_IGNORE_NUMBERS_KEY]),
 			script_language=MappingProxyType(
 				{script: section[key] for script, key in SCRIPT_CONFIG_KEYS.items()},
 			),
@@ -69,7 +65,6 @@ class DetectionSettingsService:
 	def update(
 		self,
 		*,
-		ignore_numbers: bool | None = None,
 		script_language: Mapping[str, str] | None = None,
 		timing: str | None = None,
 	) -> DetectionSettings:
@@ -81,9 +76,6 @@ class DetectionSettingsService:
 		current = self.get()
 		writes = {}
 		changed = set()
-		if ignore_numbers is not None and ignore_numbers != current.ignore_numbers:
-			writes[_IGNORE_NUMBERS_KEY] = ignore_numbers
-			changed.add("ignore_numbers")
 		for script, language in script_language.items():
 			if language != current.script_language[script]:
 				writes[SCRIPT_CONFIG_KEYS[script]] = language

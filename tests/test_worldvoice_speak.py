@@ -328,7 +328,6 @@ def speak_through_stages(
 	uwv=True,
 	main="en",
 	settings=None,
-	ignore=False,
 	nvda=None,
 ):
 	"""Run the pipeline stages, then detection when it runs before NVDA, then *nvda* (what NVDA's
@@ -339,8 +338,6 @@ def speak_through_stages(
 		synth.language = "zh_TW"
 		synth._voiceManager.defaultVoiceName = ZH
 		synth._voiceManager.defaultVoiceInstance = SimpleNamespace(name=ZH, language="zh_TW")
-	conf = sys.modules["config"].conf
-	conf["WorldVoice"]["autoLanguageSwitching"]["ignoreNumbersInLanguageDetection"] = ignore
 	monkeypatch.setattr(sys.modules["speech"], "getCurrentLanguage", lambda: synth.language, raising=False)
 	monkeypatch.setattr(sys.modules["characterProcessing"], "processSpeechSymbol", symbol_name)
 	ctx = synth.speech_context()
@@ -359,7 +356,7 @@ TIMINGS = pytest.mark.parametrize("timing", ["after", "before"])
 PUNCTUATION = stage_settings(punctuation=True)
 NUMBER_MODE = stage_settings(number_mode="number")
 # "Follow document main language" reads digits as today's "ignore numbers" off did.
-MAIN = {"numlan": "main", "ignore": False}
+MAIN = {"numlan": "main"}
 # "Follow current text language" reads digits as today's "ignore numbers" on did.
 FOLLOW = {"numlan": "default"}
 
@@ -505,7 +502,7 @@ def test_main_moves_a_sign_with_its_number(monkeypatch, sequence, options, expec
 def test_a_number_language_with_the_main_voice_still_reads_numbers_in_the_text(monkeypatch, timing):
 	# Spec §3 last row: the main voice speaks the number language, so the early stage's dedupe drops
 	# its wrappers (the second trap, spec §4.2); the late stage keeps the digits in that language.
-	result = speak_through_stages(monkeypatch, ["中１２３"], numlan="en", ignore=True, timing=timing)
+	result = speak_through_stages(monkeypatch, ["中１２３"], numlan="en", timing=timing)
 	assert result == [(ZH, "中"), (EN, "１２３")]
 
 

@@ -34,7 +34,6 @@ class NoConfig:
 
 def build(env, languages, stored):
 	switching = {
-		"ignoreNumbersInLanguageDetection": True,
 		"latinCharactersLanguage": "en",
 		"CJKCharactersLanguage": "zh",
 		"arabicCharactersLanguage": "ar",
@@ -80,46 +79,37 @@ def test_controls_choices_and_selections(env):
 	built = build(env, LANGUAGES, {"latinCharactersLanguage": "fr", "CJKCharactersLanguage": "ja"})
 	labels = [control.label for control in built.added]
 	assert labels == [
-		"Ignore numbers when detecting text language",
 		"Language assumed for latin characters:",
 		"Language assumed for CJK characters:",
 		"Language assumed for arabic characters:",
 		"Language detection timing:",
 	]
-	latin, cjk, arabic = built.added[1:4]
+	latin, cjk, arabic = built.added[0:3]
 	assert latin.choices == ["<en>", "<fr>"] and latin.selection == 1
 	assert cjk.choices == ["<ja>", "<zh>"] and cjk.selection == 0
 	assert arabic.choices == ["<ar>"] and arabic.selection == 0
-	assert built.added[0].value is True
 
 
 def test_save_writes_each_enabled_choice(env):
 	built = build(env, LANGUAGES, {"latinCharactersLanguage": "fr", "CJKCharactersLanguage": "ja"})
-	built.added[1].Select(0)
-	built.added[2].Select(1)
-	built.added[0].SetValue(False)
+	built.added[0].Select(0)
+	built.added[1].Select(1)
 	built.panel.onSave()
 	assert (
 		built.switching["latinCharactersLanguage"],
 		built.switching["CJKCharactersLanguage"],
 		built.switching["arabicCharactersLanguage"],
-		built.switching["ignoreNumbersInLanguageDetection"],
-	) == (
-		"en",
-		"zh",
-		"ar",
-		False,
-	)
+	) == ("en", "zh", "ar")
 
 
 def test_stored_language_not_offered_selects_the_first(env):
 	built = build(env, LANGUAGES, {"latinCharactersLanguage": "xx"})
-	assert built.added[1].selection == 0
+	assert built.added[0].selection == 0
 
 
 def test_script_without_candidates_is_disabled_and_not_saved(env):
 	built = build(env, ["en", "zh"], {"arabicCharactersLanguage": "fa"})
-	arabic = built.added[3]
+	arabic = built.added[2]
 	assert arabic.choices == [] and arabic.enabled is False
 	built.panel.onSave()
 	assert built.switching["arabicCharactersLanguage"] == "fa"
@@ -128,7 +118,7 @@ def test_script_without_candidates_is_disabled_and_not_saved(env):
 @pytest.mark.parametrize("timing,timing_changed", [("before", True), ("after", False)])
 def test_saving_reports_a_timing_change_to_subscribers_not_to_the_synth(env, timing, timing_changed):
 	built = build(env, LANGUAGES, {})
-	built.added[4].Select(["before", "after"].index(timing))
+	built.added[3].Select(["before", "after"].index(timing))
 	built.synth.events.clear()
 	built.panel.onSave()
 	assert built.switching["DetectLanguageTiming"] == timing

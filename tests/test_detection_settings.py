@@ -1,5 +1,6 @@
-"""The language detection settings service: the only reader and writer of its five keys."""
+"""The language detection settings service: the only reader and writer of its four keys."""
 
+import dataclasses
 from types import SimpleNamespace
 
 import pytest
@@ -34,7 +35,6 @@ def load_settings_module(monkeypatch, conf=None, errors=None):
 @pytest.fixture
 def env(monkeypatch):
 	section = RecordingSection(
-		ignoreNumbersInLanguageDetection=False,
 		latinCharactersLanguage="en",
 		CJKCharactersLanguage="ja",
 		arabicCharactersLanguage="ar",
@@ -48,9 +48,8 @@ def env(monkeypatch):
 	return SimpleNamespace(module=module, section=section, service=service, errors=errors)
 
 
-def test_get_reads_the_five_detection_keys(env):
+def test_get_reads_the_four_detection_keys(env):
 	settings = env.service.get()
-	assert settings.ignore_numbers is False
 	assert dict(settings.script_language) == {"Latin": "en", "Han": "ja", "Arabic": "ar"}
 	assert settings.timing == "after"
 
@@ -66,9 +65,9 @@ def test_get_follows_the_current_config(env):
 
 
 def test_update_writes_only_the_given_changed_keys(env):
-	settings = env.service.update(ignore_numbers=True, script_language={"Han": "zh"})
-	assert env.section.writes == ["ignoreNumbersInLanguageDetection", "CJKCharactersLanguage"]
-	assert settings.ignore_numbers is True and settings.script_language["Han"] == "zh"
+	settings = env.service.update(script_language={"Han": "zh"})
+	assert env.section.writes == ["CJKCharactersLanguage"]
+	assert settings.script_language["Han"] == "zh"
 	assert (env.section["latinCharactersLanguage"], env.section["arabicCharactersLanguage"]) == ("en", "ar")
 
 
@@ -76,7 +75,6 @@ def test_update_with_stored_values_writes_and_notifies_nothing(env):
 	seen = []
 	env.service.subscribe(lambda settings, changed: seen.append(changed))
 	settings = env.service.update(
-		ignore_numbers=False,
 		script_language={"Latin": "en", "Han": "ja", "Arabic": "ar"},
 		timing="after",
 	)
@@ -86,7 +84,7 @@ def test_update_with_stored_values_writes_and_notifies_nothing(env):
 
 def test_unknown_script_is_rejected_before_any_write(env):
 	with pytest.raises(KeyError):
-		env.service.update(ignore_numbers=True, timing="before", script_language={"Klingon": "tlh"})
+		env.service.update(timing="before", script_language={"Klingon": "tlh"})
 	assert env.section.writes == []
 
 
@@ -94,10 +92,10 @@ def test_listeners_learn_which_fields_changed(env):
 	seen = []
 	env.service.subscribe(lambda settings, changed: seen.append((settings.timing, changed)))
 	env.service.update(timing="before")
-	env.service.update(ignore_numbers=True, script_language={"Latin": "fr"}, timing="before")
+	env.service.update(script_language={"Latin": "fr"}, timing="before")
 	assert seen == [
 		("before", frozenset({"timing"})),
-		("before", frozenset({"ignore_numbers", "script_language"})),
+		("before", frozenset({"script_language"})),
 	]
 
 
@@ -123,7 +121,6 @@ def test_a_failing_listener_is_logged_and_the_others_still_run(env):
 
 def test_confspec_and_script_keys_keep_the_stored_names_and_defaults(env):
 	assert env.module.DETECTION_CONFSPEC == {
-		"ignoreNumbersInLanguageDetection": "boolean(default=false)",
 		"latinCharactersLanguage": "string(default=en)",
 		"CJKCharactersLanguage": "string(default=ja)",
 		"arabicCharactersLanguage": "string(default=ar)",
@@ -140,7 +137,6 @@ def test_the_shared_service_reads_nvda_config(monkeypatch):
 	conf = {
 		"WorldVoice": {
 			"autoLanguageSwitching": {
-				"ignoreNumbersInLanguageDetection": True,
 				"latinCharactersLanguage": "fr",
 				"CJKCharactersLanguage": "zh",
 				"arabicCharactersLanguage": "fa",
@@ -150,3 +146,27 @@ def test_the_shared_service_reads_nvda_config(monkeypatch):
 	}
 	module = load_settings_module(monkeypatch, conf)
 	assert module.detection_settings.get().script_language["Arabic"] == "fa"
+
+
+# Phase 35 removed the "ignore numbers" option: the number language decides every digit.
+def test_update_rejects_ignore_numbers(env):
+	with pytest.raises(TypeError):
+		env.service.update(ignore_numbers=True)
+	assert env.section.writes == []
+
+
+def test_get_reads_a_section_that_still_holds_the_old_key(env):
+	# A profile keeps the old key until NVDA drops it; nothing reads it.
+	env.section["ignoreNumbersInLanguageDetection"] = True
+	settings = env.service.get()
+	assert (dict(settings.script_language), settings.timing) == (
+		{"Latin": "en", "Han": "ja", "Arabic": "ar"},
+		"after",
+	)
+
+
+def test_settings_have_no_ignore_numbers_field(env):
+	assert [field.name for field in dataclasses.fields(env.module.DetectionSettings)] == [
+		"script_language",
+		"timing",
+	]
