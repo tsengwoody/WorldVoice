@@ -51,6 +51,7 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
   * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five." Symbols between digits, as in "12.5" or "5-3", are read separately by their names, such as "dot" or "dash", in the number language.
   * Group mode: Reads the digits of a number in groups counted from the left. The group size (2–10, default 3) is set in the Speech Pipeline panel or the Voice settings panel; groups and symbols are separated by the number pause. For example, with size 3, "12345" is read as "123", "45", and "123.456" as "123", "dot", "456".
 * Speech pause adjustment: Sets the pause length between numbers, items, Chinese text, and say-all reading. Smaller values mean shorter pauses, and 0 means no pause.
+* Punctuation pause characters: The marks at which WorldVoice pauses while "Enable punctuation pause control" is on. Type the marks next to each other without separators; a space also counts as a character, and entering one makes every space a pause point.
 
 Globally supported speech pipeline settings can be adjusted through the NVDA speech settings panel or the WorldVoice speech pipeline panel. Speech pipeline settings that are not globally supported can only be adjusted through the NVDA speech settings panel.
 
@@ -75,6 +76,7 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 * **Hyphens stay with their word:** With a number language, a hyphen right after a word, as in "COVID-19", now stays with the word instead of being read as a minus sign with the number. A sign after a space, as in "-3", still belongs to the number.
 * **Full-width and other Unicode digits are numbers:** Number language, number modes, number pauses and the thousands separator rule now also apply to full-width digits and other Unicode decimal digits, such as Arabic-Indic digits.
 * **Assumed languages for Cyrillic and Devanagari:** The Unicode Detection panel now also lets you choose the language assumed for Cyrillic characters (default Russian) and Devanagari characters (default Hindi). Earlier versions always used the first language with an installed voice in WorldVoice's list for the character set; the defaults keep that behavior.
+* **Spaces in the punctuation pause characters are kept:** The punctuation pause characters now keep every character you type, including spaces. Earlier versions removed spaces at the start and end of the list, so a single space was cleared on saving.
 
 ## WorldVoice 6 Update
 
