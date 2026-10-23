@@ -137,3 +137,13 @@ Ready to merge：**修掉 I1 之後是。** Critical 0、Important 1（文件轉
 ## 工作區備註
 
 review 開始前就存在的主 checkout 未提交變更，與本階段無關，未動：`M buildVars.py`、`D docs/superpowers/finish_task.md`、`?? DEVELOPMENT_WORKFLOW.md`、`?? diff.md`。
+
+## 修正記錄
+
+修正於 2026-10-23，每項先寫會失敗的測試（文件類用 Markdown 3.11 實際轉檔比對），再修正。完整驗證：`python3 -m pytest -q tests` 2589 passed、0 skipped、0 warnings；`prek run --all-files` 全數 Passed；`git diff --check master` 乾淨；受保護路徑與 `buildVars.py` 無 diff；沒有 Neural；`.po` 本輪未變動。
+
+- **I1（已修，`7deeefd`）：** `readme.md` 與 `addon/doc/zh_TW/readme.md` 的「Numbers include…」／「數字包括…」改成數字語言底下的子項目，照各檔既有的子項目縮排（英文兩格、zh_TW 一格），並刪掉前面的空行。用 markdown==3.11（scons 的設定，只開 tables）轉檔：修正前英文版有 1 處、zh_TW 版有 2 處「`* 數字模式`」之類的星號變成純文字；修正後 0 處，且與 `master` 的 HTML 比對，差異只剩本階段的文字（數字語言說明、Unicode 偵測導言與移除的項目、「下一版更新」）。
+- **M1（已修，`c3f7103`）：** 英文「Follow document main language」改成「numbers are read in the main language, that is, the language the document marks or the main speech role's language.」，一句一個冒號；zh_TW 兩處「阿拉伯-印度數字」改為「阿拉伯－印度數字」。spec §9 的對應文字（含 I1 的子項目寫法）一起更新。
+- **M2（已修，`eff9292`；spec `51eb046`）：** setter 改為接受 `default`、`main` 與 `voiceManager.allLanguages` 中的任何 locale（所有已安裝語音，包括「主要地區引擎一致」暫時藏起來的），所以設定檔切換時的 `loadSettings(onlyChanged=True)` 不再把它換成 default。協調者原本的指示是 getter 保留讀取時的對應；但 NVDA 的 `saveSettings` 寫回的正是 getter 的值（`autoSettingsUtils/autoSettings.py:159-163`），getter 若回傳 default，存檔時仍會蓋掉使用者的選擇，所以改成：getter 回傳儲存的值，`availableNumlans` 在它被藏起來時仍列出它（語音設定面板與設定環都找得到目前的值），只有朗讀（`speech_context()`）與拼字的提供者把目前不可見的 locale 當成 default。不在 `allLanguages` 的值仍存成 default 並發出 debugWarning。紅燈測試：`test_a_hidden_locale_survives_loading_and_saving_and_comes_back`（兩種順序：載入時已被藏、載入後才被藏），修正前 2 個都失敗；原本的 `test_a_locale_the_voices_no_longer_offer_is_refused_on_load` 改為 `test_a_locale_of_an_uninstalled_voice_is_refused_on_load`，`test_a_locale_hidden_after_it_was_stored_reads_as_follow` 由新測試取代。spec §7.1 與 Q7 標註「Decided by orchestrator with the recommended default; user may override before merge」。
+  - Ruling: getter 回傳儲存值而不是讀取時對應成 default，並讓選項清單在被藏時列出它——否則 NVDA 存檔仍會遺失選擇，與 M2 要修的問題相同——錯了的代價：被藏起來的 locale 會出現在數字語言清單裡，直到使用者換掉它。
+- **M3（不修）：** 便宜，沒有可量測的成本；照協調者指示保留。
