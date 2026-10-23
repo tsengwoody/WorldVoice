@@ -30,6 +30,12 @@ skip_empty = true
 # would be left out of the report instead of showing 0%.
 include_namespace_packages = true
 
+[tool.pytest.ini_options]
+# A deprecated call fails the test that makes it. NVDA's own codecs.open in characterProcessing.py
+# stays ignored by the filterwarnings marks in tests/test_pipeline_nvda_symbols.py, which take
+# precedence over this list.
+filterwarnings = ["error::DeprecationWarning"]
+
 [tool.mutmut]
 # Run with `mutmut run` (Linux or WSL), then `mutmut results` / `mutmut show <name>`.
 # Covered lines of the core decision logic only; widen the list as needed.

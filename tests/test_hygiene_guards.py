@@ -4,6 +4,7 @@ import ast
 import re
 import shutil
 import subprocess
+import warnings
 from pathlib import Path
 
 import pytest
@@ -54,6 +55,12 @@ def test_ruff_reports_nothing():
 		check=False,
 	)
 	assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_deprecation_warnings_fail_the_suite():
+	# pyproject.toml turns them into errors, so a deprecated call fails the test that makes it.
+	with pytest.raises(DeprecationWarning, match="probe"):
+		warnings.warn("probe", DeprecationWarning, stacklevel=1)
 
 
 def test_pre_commit_runs_the_ruff_lint_hook():
