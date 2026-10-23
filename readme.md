@@ -51,7 +51,7 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
   * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five." Symbols between digits, as in "12.5" or "5-3", are read separately by their names, such as "dot" or "dash", in the number language.
   * Group mode: Reads the digits of a number in groups counted from the left. The group size (2–10, default 3) is set in the Speech Pipeline panel or the Voice settings panel; groups and symbols are separated by the number pause. For example, with size 3, "12345" is read as "123", "45", and "123.456" as "123", "dot", "456".
 * Speech pause adjustment: Sets the pause length between numbers, items, Chinese text, and say-all reading. Smaller values mean shorter pauses, and 0 means no pause.
-* Punctuation pause characters: The marks at which WorldVoice pauses while "Enable punctuation pause control" is on. Type the marks next to each other without separators; a space also counts as a character, and entering one makes every space a pause point.
+* Punctuation pause characters: The marks at which WorldVoice pauses while "Enable punctuation pause control" is on. Type the marks next to each other without separators; a space also counts as a character, and entering one makes every space a pause point. Do not put a full-width space (U+3000) or a no-break space at the very start or end of the list: NVDA's configuration file drops it there when NVDA restarts.
 
 Globally supported speech pipeline settings can be adjusted through the NVDA speech settings panel or the WorldVoice speech pipeline panel. Speech pipeline settings that are not globally supported can only be adjusted through the NVDA speech settings panel.
 
