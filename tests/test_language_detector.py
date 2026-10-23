@@ -49,7 +49,7 @@ def detect(env, sequence, *, languages, base, **preferences):
 	return shape(env, make_detector(env, languages=languages).add_detected_language_commands(sequence))
 
 
-# Outputs that phase 33 must not change (spec §10.1).
+# Outputs that phase 33 must not change (its spec §10.1).
 @pytest.mark.parametrize(
 	"languages,base,preferences,sequence,expected",
 	[
@@ -132,7 +132,7 @@ def test_detection_characterization(env, languages, base, preferences, sequence,
 	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
 
 
-# A language counts only with an installed voice (spec §3); availability is by primary subtag.
+# A language counts only with an installed voice (phase 33 spec §3); availability is by primary subtag.
 @pytest.mark.parametrize(
 	"languages,base,preferences,sequence,expected",
 	[
@@ -197,7 +197,7 @@ def test_unavailable_language_does_not_cover_its_script(
 	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
 
 
-# After a run in another script, the base language comes back before the preference (spec §2).
+# After a run in another script, the base language comes back before the preference (phase 33 spec §2).
 @pytest.mark.parametrize(
 	"languages,base,preferences,sequence,expected",
 	[
@@ -276,7 +276,7 @@ def test_find_language_for_script_prefers_an_available_base(env, base, expected)
 	assert make_detector(env).find_language_for_script("Han", "en_US", base_language=base) == expected
 
 
-# Spelling answers like detection, with the spelling locale as the base (spec §2.4).
+# Spelling answers like detection, with the spelling locale as the base (phase 33 spec §2.4).
 @pytest.mark.parametrize(
 	"languages,cjk,text,locale,expected",
 	[
@@ -355,7 +355,7 @@ def test_digits_follow_the_ignore_numbers_setting(env, ignore, expected):
 	assert shape(env, make_detector(env).add_detected_language_commands(["中1"])) == expected
 
 
-# The speech symbols are gone (spec §1.2): an old caller fails at construction, not later.
+# The speech symbols are gone (phase 33 spec §1.2): an old caller fails at construction, not later.
 @pytest.mark.parametrize(
 	"args,kwargs",
 	[pytest.param((None,), {}, id="positional"), pytest.param((), {"speechSymbols": None}, id="keyword")],
