@@ -898,9 +898,19 @@ def _plain_breaks(speechSequence: Iterable[SpeechCmd]) -> list[SpeechCmd]:
 	"""The sequence with each BreakCommand subclass replaced by a plain BreakCommand.
 
 	NVDA's speechXml, which OneCore uses, finds a command's converter by its class name and
-	drops the rest of the utterance at a command it has none for.
+	drops the rest of the utterance at a command it has none for. A break made from an edge break
+	(or from a plain one already marked) carries _EDGE_MARKER, so the punctuation stage still tells
+	it apart. NVDA's BreakCommand has no __slots__ and its __eq__ reads only type and time, and the
+	synths read only .time, so the attribute is invisible to them.
 	"""
-	return [BreakCommand(item.time) if isinstance(item, BreakCommand) else item for item in speechSequence]
+	return [_plain_break(item) if isinstance(item, BreakCommand) else item for item in speechSequence]
+
+
+def _plain_break(command: BreakCommand) -> BreakCommand:
+	plain = BreakCommand(command.time)
+	if _is_edge_break(command):
+		setattr(plain, _EDGE_MARKER, True)
+	return plain
 
 
 def _stage_handler(log_key, fn, switches):

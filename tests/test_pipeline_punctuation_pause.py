@@ -276,6 +276,7 @@ def P(time):
 	return ("PunctuationBreakCommand", time)
 
 
+# ASCII ids: pytest escapes a non-ASCII id, and mutmut's second collection escapes it again.
 @pytest.mark.parametrize(
 	("sequence", "remove", "wait", "expected"),
 	[
@@ -299,17 +300,17 @@ def P(time):
 		(["a.", "E50", "b"], False, 50, ["a", ".", P(50), "b"]),
 	],
 	ids=[
-		"第3。-off",
-		"第3。-on",
-		"第3。下一章-off",
-		"第3。下一章-on",
-		"3，下-off",
-		"3，下-on",
+		"zh-3-end-off",
+		"zh-3-end-on",
+		"zh-3-next-off",
+		"zh-3-next-on",
+		"3-comma-off",
+		"3-comma-on",
 		"Total-off",
 		"Total-on",
-		"1，2-off",
-		"1，2-on",
-		"第3。下一章-on-wait0",
+		"1-comma-2-off",
+		"1-comma-2-on",
+		"zh-3-next-on-wait0",
 		"Total-off-wait0",
 		"tie",
 	],

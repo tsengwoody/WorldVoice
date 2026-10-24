@@ -543,3 +543,61 @@ def test_detection_keeps_the_commands_detection_adds(monkeypatch):
 
 	result = module.detect_with_number_language(["1中"], detect, number_context(module, "main"))
 	assert wrapped_shape(module, result) == ["1", ("lang", "zh_TW"), "中"]
+
+
+# Edge breaks for other synths (number-edge-pause spec D3).
+
+
+def test_plain_breaks_mark_only_edge_breaks(monkeypatch):
+	module, BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	sequence = [
+		module.NumberEdgeBreakCommand(10),
+		module.NumberBreakCommand(10),
+		module.PunctuationBreakCommand(20),
+		BreakCommand(5),
+		"x",
+	]
+	result = module._plain_breaks(sequence)
+	assert all(type(item) is BreakCommand for item in result[:4])
+	assert [item.time for item in result[:4]] == [10, 10, 20, 5]
+	assert [getattr(item, "worldvoice_number_edge", False) for item in result[:4]] == [
+		True,
+		False,
+		False,
+		False,
+	]
+	# Every stage handler plains its output again: a marked break stays marked.
+	again = module._plain_breaks(result)
+	assert [getattr(item, "worldvoice_number_edge", False) for item in again[:4]] == [
+		True,
+		False,
+		False,
+		False,
+	]
+
+
+def plain_shape(sequence):
+	return [item if isinstance(item, str) else (type(item).__name__, item.time) for item in sequence]
+
+
+@pytest.mark.parametrize(
+	("sequence", "remove", "expected"),
+	[
+		(
+			["Total. ", "E", "1", "NB", "2"],
+			False,
+			["Total", ".", " ", ("BreakCommand", 50), "1", ("BreakCommand", 10), "2"],
+		),
+		(["3", "E", "，下"], True, ["3", ("BreakCommand", 50), "下"]),
+	],
+	ids=["total", "3-comma-remove"],
+)
+def test_another_synth_keeps_the_punctuation_pause_next_to_an_edge(monkeypatch, sequence, remove, expected):
+	settings = punctuation_settings(50, remove_characters=remove)
+	settings.punctuation_pause_characters = "。，."
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	commands = {"E": module.NumberEdgeBreakCommand(10), "NB": module.NumberBreakCommand(10)}
+	plain = module._plain_breaks([commands.get(item, item) for item in sequence])
+	(stage,) = [stage for stage in module.STAGES if stage.log_key == "punctuation_wait_factor"]
+	assert plain_shape(stage.handler(plain)) == expected

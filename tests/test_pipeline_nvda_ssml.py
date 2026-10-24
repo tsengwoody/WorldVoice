@@ -5,6 +5,7 @@ name and ends the utterance at a command it has none for. The test runs NVDA's o
 so it still holds when NVDA changes that dispatch.
 """
 
+import ast
 import re
 import sys
 from types import SimpleNamespace
@@ -84,3 +85,32 @@ def test_nvda_ssml_speaks_a_symbol_name_as_words_between_breaks(monkeypatch):
 	assert re.search(r'12\s*<break time="10ms"/>\s*full stop en\s*<break time="10ms"/>\s*5', xml), xml
 	assert "say-as" not in xml
 	assert warnings == []
+
+
+def test_nvda_break_command_has_no_slots():
+	# Number-edge-pause spec D3: the plain break another synth gets for a number edge carries an
+	# attribute of WorldVoice's own, which needs instances without __slots__.
+	commands = REF / "nvda/source/speech/commands.py"
+	if not commands.is_file():
+		pytest.skip("ref/nvda is not checked out")
+	classes = {
+		node.name: node
+		for node in ast.parse(commands.read_text(encoding="utf-8")).body
+		if isinstance(node, ast.ClassDef)
+	}
+	pending, seen = ["BreakCommand"], []
+	while pending:
+		name = pending.pop()
+		if name in seen or name not in classes:
+			continue
+		seen.append(name)
+		node = classes[name]
+		for statement in node.body:
+			targets = (
+				statement.targets
+				if isinstance(statement, ast.Assign)
+				else [getattr(statement, "target", None)]
+			)
+			assert not any(getattr(target, "id", None) == "__slots__" for target in targets), name
+		pending.extend(base.id for base in node.bases if isinstance(base, ast.Name))
+	assert seen == ["BreakCommand", "SynthCommand", "SpeechCommand"]
