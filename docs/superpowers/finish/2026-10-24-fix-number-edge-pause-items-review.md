@@ -123,3 +123,22 @@ Linux 上只驗證了 pipeline 與 NVDA 的 `speak`／`manager`／`speakSpelling
 ## 工作區備註
 
 主 checkout `/workspace/WorldVoice` 在 review 開始前就有的未提交變更，與本分支無關，未動：`M buildVars.py`、`D docs/superpowers/finish_task.md`、`?? DEVELOPMENT_WORKFLOW.md`、`?? diff.md`。
+
+## 修正記錄
+
+實作者 Opus 5.5，2026-10-24，依協調者指示處理（I1 採審閱者的選項 A）。修正後完整測試 **2941 passed、0 skipped**（審閱時 2919／0，新增 22 個測試）；`prek run --all-files` 8 個 hook 全數 Passed；`git diff --check master` 無輸出；受保護路徑（`driver/*/driver/`、`driver/sonic/`、`script_data.py`）的 `git diff --stat master` 與 `git ls-files …/driver/Neural` 都無輸出；commit 都沒有 `Co-Authored-By`。
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| I1 | 改程式：`_ends_utterance` 把 `EndUtteranceCommand` 與 `ConfigProfileTriggerCommand` 當成 sequence 的邊界。`_inject_item_numbers` 遇到它就把 `spoken_before` 歸零；`_spoken_later` 一次反向掃描，標出每個 item 之後在同一個 utterance 內是否還有要朗讀的文字（取代整個序列的 `last_spoken`），仍是線性。`_merge_edge_breaks` 不用改。測試 stub（`tests/pipeline_harness.py`、`tests/test_worldvoice_speak.py`）加上兩個命令。先紅後綠的 row：拼讀 `a1b`（`["a", EU, "1", EU, "b", EU]`，原樣）、拼讀 `12`、`[EU, "3", EU]`、區塊結尾 `["第3", EU, "章"]` → `第 E 3 EU 章`、`["第", EU, "3章"]`、`["第3", CPT, "章"]`，以及同一個 utterance 內仍跨 item 的兩列，item 0 與 10 各一次（16 個 case）。P-E7 的輸入加上這兩個命令，改成逐 utterance 檢查；另加一條只抽文字與這兩個命令的性質（原本的 P-E7 在 400 例內抽不到這個情況，新性質修正前即紅）。與 `master` 的差異比對（scratch 複本，30000 個含 `EndUtteranceCommand`／`ConfigProfileTriggerCommand` 的隨機序列，數值模式與「不處理」任何停頓、數字／群組模式停頓 ≤ 0，roles 開關、`_plain_breaks`）逐位元組相同。spec §4.3、§4.6.5、§5、P-E7、D1 與 O2 更正句改為「utterance」。 | `6a57bd4`（程式與測試）、`3ebe69f`（spec 與原始碼註解）、`1bcf06f`（測試註解） |
+| M1 | spec §4.6.2 補一句：item break 已在兩個 run 各自勝出、標點移除再把兩個 run 接起來時，run 裡已沒有 edge，F7 的兩個 break 仍在，與 `master` 相同（`["3", "。", "4"]` → `3 B10 B10 4`，已實測）。不改程式。 | `3ebe69f` |
+| M2 | 接受並記入 spec §4.6.3：開頭的標點被移除、標點停頓 0 時以 E10 開頭（`["。", "3", "章"]` → `E10 3 E10 章`，`master` 是 `PB0 3 章`，已實測）。沒有改程式：要在標點階段丟掉第一個 run 的 edge，就得同時處理 I1 的每個 utterance 開頭，不算小改動。 | `3ebe69f` |
+| M3 | 兩份 readme 改寫：文字可以在同一段朗讀（utterance）裡的任何其他項目，中間隔著什麼命令都一樣；每段朗讀的開頭與結尾不加（以逐字拼讀為例）。 | `001ccf7` |
+| M4 | 補三組測試，並把審閱者的三組突變各套到工作區後確認都變紅，再還原：item 停頓剛好 1 ms（`["a", "b"]` → `a B1 b`，另一個 case 是 0）；`[LangChange("en"), "12. Next"]`、數值模式、數字語言 en → `L(en) "12 . Next"`（語言在力 ≠ ctx 語言）；`test_off_mode_with_a_locale_keeps_the_dots_as_they_are` 加上數字語言 zh（與語言在力同一個語音）與 fr（沒有語音），兩者都是 `"a.1. b"`。 | `179ed7b` |
+
+裁定：
+
+- **`ConfigProfileTriggerCommand` 一律當成邊界。** NVDA 只在觸發器有設定檔時才在它前面結束 utterance（`speech/manager.py:342-363`），沒有設定檔時直接忽略；pipeline 不讀觸發器的狀態，所以一律當成邊界。代價是：沒有設定檔的觸發器前後，數字不會跨過它取得 edge 停頓。這種觸發器只出現在 utterance 的開頭與結尾（例如 Say All 的設定檔觸發器），實際上很少遇到。
+- **`BaseCallbackCommand` 不算邊界。** speech manager 只會在它那裡插入 index 並切開，utterance 沒有結束。
+
+仍未驗證：Windows 上的 NVDA、實際音訊與各引擎。未打包。
