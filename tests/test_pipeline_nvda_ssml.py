@@ -114,3 +114,22 @@ def test_nvda_break_command_has_no_slots():
 			assert not any(getattr(target, "id", None) == "__slots__" for target in targets), name
 		pending.extend(base.id for base in node.bases if isinstance(base, ast.Name))
 	assert seen == ["BreakCommand", "SynthCommand", "SpeechCommand"]
+
+
+def test_nvda_ssml_keeps_every_word_of_a_number_between_edges(monkeypatch):
+	# Number-edge-pause spec D3: the marked plain breaks around a number convert like any break.
+	if not SPEECH_XML.is_file():
+		pytest.skip("ref/nvda is not checked out")
+	module, _ = load_pipeline_module(monkeypatch, pause_settings("number"))
+	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	sequence = ["第3章"]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	warnings = []
+	speech_xml = load_speech_xml(monkeypatch, warnings)
+
+	xml = speech_xml.SsmlConverter("zh_TW").convertToXml(list(sequence))
+
+	assert re.sub(r"<[^>]*>|\s", "", xml) == "第3章"
+	assert xml.count('<break time="10ms"/>') == 2
+	assert warnings == []

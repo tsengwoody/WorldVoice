@@ -354,3 +354,63 @@ def test_a_long_item_of_numbers_stays_linear(monkeypatch):
 		sequence = list(stage.fn(sequence, settings, ctx))
 	assert time.perf_counter() - start < 2
 	assert sum(isinstance(item, module.NumberEdgeBreakCommand) for item in sequence) == 10000 - 1
+
+
+@pytest.mark.parametrize(("sequence", "options", "stage", "full"), ROWS)
+def test_worked_examples_through_every_stage(monkeypatch, sequence, options, stage, full):
+	module, settings, ctx = run_row(monkeypatch, options)
+	for each in module.STAGES:
+		sequence = list(each.fn(sequence, settings, ctx))
+	assert shape(sequence) == (stage if full == "same" else full)
+
+
+def run_handlers(monkeypatch, sequence, options, ctx_of):
+	"""Every stage handler, as NVDA runs them, in the context *ctx_of(module)* gives."""
+	options = dict(options)
+	settings = make_settings(**options)
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	ctx = ctx_of(module)
+	monkeypatch.setattr(module, "current_context", lambda: ctx)
+	sequence = list(sequence(module)) if callable(sequence) else list(sequence)
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	return shape(sequence)
+
+
+@pytest.mark.parametrize(
+	("sequence", "numlan"),
+	[(["第3章"], "default"), (lambda module: [module.WVLangChangeCommand("en"), "第3章"], "en")],
+	ids=["29", "30"],
+)
+def test_other_synths_get_marked_edge_breaks(monkeypatch, sequence, numlan):
+	# Spec D3: another synth gets plain breaks, and the WorldVoice language command is dropped.
+	result = run_handlers(monkeypatch, sequence, {}, lambda module: context(module, numlan, roles=False))
+	assert result == ["第", ("B*", 10), "3", ("B*", 10), "章"]
+
+
+@pytest.mark.parametrize(
+	("sequence", "options", "expected"),
+	[
+		(["Total. 12"], {"chars": "."}, ["Total", ".", ("B", 50), "1", ("B", 10), "2"]),
+		(["3，下"], {"chars": "，", "remove": True}, ["3", ("B", 50), "下"]),
+	],
+	ids=["total", "3-comma-remove"],
+)
+def test_other_synths_keep_the_punctuation_pause_through_the_handlers(
+	monkeypatch,
+	sequence,
+	options,
+	expected,
+):
+	result = run_handlers(monkeypatch, sequence, options, lambda module: context(module, roles=False))
+	assert result == expected
+
+
+@pytest.mark.parametrize("remove", [False, True], ids=["remove-off", "remove-on"])
+def test_a_space_pause_character_meets_an_edge_break(monkeypatch, remove):
+	# Review Focus 5: the space after the number is a pause point where the edge break already is.
+	module, settings, ctx = run_row(monkeypatch, {"chars": " ", "remove": remove})
+	sequence = ["共 3 章"]
+	for stage in module.STAGES:
+		sequence = list(stage.fn(sequence, settings, ctx))
+	assert shape(sequence) == ["共", E, "3", PB, "章"]
