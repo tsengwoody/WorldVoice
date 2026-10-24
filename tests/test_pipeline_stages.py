@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from nvda_stubs import worldvoice_conf
 from pipeline_harness import LOG_SWITCH_ORDER, ORDER, load_pipeline_module, punctuation_settings
 
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
@@ -57,6 +58,49 @@ def test_number_mode_switch_logs_both_number_mode_stages(monkeypatch):
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)
 	assert writes == [("number_mode", "before"), ("number_mode", "after")] * 2
+
+
+@pytest.mark.parametrize(
+	"on",
+	[(), ("number_language",), ("number_mode",), ("number_language", "number_mode")],
+	ids=["none", "other-only", "own-only", "both"],
+)
+def test_a_stage_logs_under_each_of_its_switches(monkeypatch, on):
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	sys.modules["config"].conf["WorldVoice"]["log"] = {
+		"enable": True,
+		**dict.fromkeys(LOG_SWITCH_ORDER, False),
+		**dict.fromkeys(on, True),
+	}
+	writes = []
+	monkeypatch.setattr(module, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
+	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	stage = module.Stage(
+		"number_mode",
+		lambda sequence, s, ctx: list(sequence),
+		also_logged_by=("number_language",),
+	)
+	assert stage.handler(["a"]) == ["a"]
+	assert writes == ([("number_mode", "before"), ("number_mode", "after")] if on else [])
+
+
+def test_log_switches_list_each_key_once_in_stage_order(monkeypatch):
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	f = lambda sequence, s, ctx: sequence
+	Stage = module.Stage
+	stages = (
+		Stage("a", f),
+		Stage("b", f, log_switch=False, also_logged_by=("x",)),
+		Stage("c", f, also_logged_by=("a", "d")),
+		Stage("c", f),
+	)
+	assert module._log_switches(stages) == ("a", "d", "c")
+
+
+def test_the_log_confspec_has_every_log_switch(monkeypatch):
+	# tests/nvda_stubs.py derives the log confspec from STAGES; it must list every switch.
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	assert set(module.LOG_SWITCHES) <= set(worldvoice_conf()["WorldVoice"]["log"])
 
 
 def test_register_puts_stages_first_in_order_and_unregister_removes_them(monkeypatch):

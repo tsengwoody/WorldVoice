@@ -808,12 +808,15 @@ class _LogWriter:
 _log_writer = _LogWriter()
 
 
-def _run_logged(label, fn, speechSequence, settings, ctx):
+def _run_logged(label, fn, speechSequence, settings, ctx, switches=None):
+	"""Run one stage, logged under *label* when debugging or recording and any of *switches*
+	(by default the switch named *label*) is on."""
 	debug = config.conf["general"]["loggingLevel"] == "DEBUG"
 	section = config.conf["WorldVoice"]["log"]
 	# A switch NVDA refuses on read is off, so a bad stored value never stops the stage.
 	recording = read_stored(section, "enable", False)
-	if not ((debug or recording) and read_stored(section, label, False)):
+	switched_on = any(read_stored(section, key, False) for key in switches or (label,))
+	if not ((debug or recording) and switched_on):
 		return fn(speechSequence, settings, ctx)
 	_id = uuid.uuid4().hex
 	speechSequence = list(speechSequence)
@@ -838,11 +841,11 @@ def _plain_breaks(speechSequence: Iterable[SpeechCmd]) -> list[SpeechCmd]:
 	return [BreakCommand(item.time) if isinstance(item, BreakCommand) else item for item in speechSequence]
 
 
-def _stage_handler(log_key, fn):
+def _stage_handler(log_key, fn, switches):
 	def handler(speechSequence):
 		ctx = current_context()
 		settings = pipeline_settings.effective(ctx.supports_roles)
-		result = _run_logged(log_key, fn, speechSequence, settings, ctx)
+		result = _run_logged(log_key, fn, speechSequence, settings, ctx, switches)
 		# Only WorldVoice tells the pauses apart; another synth gets plain breaks.
 		return result if ctx.supports_roles else _plain_breaks(result)
 
@@ -861,6 +864,8 @@ class Stage:
 	fn: Callable[..., Iterable[SpeechCmd]]
 	# False: the stage logs under the switch of a later stage with the same log key.
 	log_switch: bool = True
+	# The switches that also turn this stage's log on; its rows still carry its log key.
+	also_logged_by: tuple[str, ...] = ()
 	handler: Callable[[Iterable[SpeechCmd]], Iterable[SpeechCmd]] = field(
 		init=False,
 		repr=False,
@@ -868,7 +873,8 @@ class Stage:
 	)
 
 	def __post_init__(self):
-		object.__setattr__(self, "handler", _stage_handler(self.log_key, self.fn))
+		switches = (*self.also_logged_by, self.log_key)
+		object.__setattr__(self, "handler", _stage_handler(self.log_key, self.fn, switches))
 
 
 # The order NVDA runs the filters in; register, reorder and the log switches derive from it.
@@ -885,8 +891,14 @@ STAGES: tuple[Stage, ...] = (
 )
 
 
+def _log_switches(stages: Iterable[Stage]) -> tuple[str, ...]:
+	"""Each switch of the stages with a switch of their own once: its also_logged_by keys, then its log key."""
+	keys = (key for stage in stages if stage.log_switch for key in (*stage.also_logged_by, stage.log_key))
+	return tuple(dict.fromkeys(keys))
+
+
 # One log switch per log key, in the order of the stage that owns it.
-LOG_SWITCHES: tuple[str, ...] = tuple(stage.log_key for stage in STAGES if stage.log_switch)
+LOG_SWITCHES: tuple[str, ...] = _log_switches(STAGES)
 
 
 def order_move_to_start_register():
