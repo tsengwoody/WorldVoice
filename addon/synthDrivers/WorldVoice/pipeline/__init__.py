@@ -33,7 +33,21 @@ _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 
 class NumberBreakCommand(BreakCommand):
-	"""Pause between numbers, and between the pieces and symbol names of a number in number and group modes."""
+	"""Pause between numbers, and between the pieces and symbol names of a number in number and group modes,
+	and between two numbers that only whitespace separates, in number and group modes."""
+
+
+class NumberEdgeBreakCommand(NumberBreakCommand):
+	"""Pause between a number and the text next to it in its item (number and group modes)."""
+
+
+# Set on the plain BreakCommand another synth gets for a NumberEdgeBreakCommand (_plain_breaks), so
+# the punctuation stage still tells an edge break apart.
+_EDGE_MARKER = "worldvoice_number_edge"
+
+
+def _is_edge_break(command: SpeechCmd) -> bool:
+	return isinstance(command, NumberEdgeBreakCommand) or bool(getattr(command, _EDGE_MARKER, False))
 
 
 class PunctuationBreakCommand(BreakCommand):
@@ -583,6 +597,15 @@ def inject_punctuation_pause(
 	  otherwise), the one after it is dropped, so the earlier one is the only
 	  pause: ["12", NB, ".", NB, "5"] with an unnamed "." becomes
 	  ["12", NB, "5"]. Every other break stays, as removal changes only marks.
+	* An edge break of the number stage (NumberEdgeBreakCommand) does not
+	  suppress a boundary pause: "Total. 12" in number mode keeps its pause
+	  before the number. Only the other breaks do.
+	* Where breaks meet around an edge break (between two non-blank text
+	  items, with only blank text and other commands among them), only one
+	  is kept: the longest, on a tie the first that is not an edge break.
+	  The punctuation pause the user tuned for a mark then wins over the
+	  short number pause, and a 0 ms one never leaves a number glued to the
+	  text. Breaks that meet without an edge break are left as they are.
 	"""
 	if not settings.punctuation_pause_enabled:
 		yield from speechSequence
@@ -595,6 +618,15 @@ def inject_punctuation_pause(
 		yield from speechSequence
 		return
 
+	yield from _merge_edge_breaks(_punctuation_pauses(speechSequence, settings, chars))
+
+
+def _punctuation_pauses(
+	speechSequence: Iterable[SpeechCmd],
+	settings: "PipelineSettings",
+	chars: str,
+) -> Iterator[SpeechCmd]:
+	"""inject_punctuation_pause without the merge of the breaks around an edge break."""
 	remove_punctuation = settings.remove_punctuation_characters
 	pause_cmd = PunctuationBreakCommand(settings.scaled_punctuation_wait())
 	regex = _get_punctuation_regex(chars)
@@ -655,7 +687,9 @@ def inject_punctuation_pause(
 			pending_breaks.append(current)
 			continue
 		text_follows = is_non_blank_text(current)
-		emitted = list(emit(previous, text_follows and not pending_breaks, text_follows))
+		# An edge break alone does not suppress the boundary pause; _merge_edge_breaks keeps one of the two.
+		pause_follows = text_follows and all(map(_is_edge_break, pending_breaks))
+		emitted = list(emit(previous, pause_follows, text_follows))
 		removed = is_non_blank_text(previous) and not any(map(is_non_blank_text, emitted))
 		if (
 			removed
@@ -676,6 +710,34 @@ def inject_punctuation_pause(
 
 	yield from emit(previous, False, False)
 	yield from pending_breaks
+
+
+def _merge_edge_breaks(speechSequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
+	"""Yield *speechSequence* with each run that holds an edge break and another break cut to one break.
+
+	A run is what lies between two non-blank text items (or before the first, or after the last):
+	breaks, blank text and other commands. The break kept is the longest; on a tie the first that is
+	not an edge break, or the first edge break. The other items of the run keep their order. Runs are
+	told apart by position: one break object can sit in several runs.
+	"""
+	run: list[SpeechCmd] = []
+	for item in speechSequence:
+		if isinstance(item, str) and item.strip():
+			yield from _merged_run(run)
+			run.clear()
+			yield item
+		else:
+			run.append(item)
+	yield from _merged_run(run)
+
+
+def _merged_run(run: list[SpeechCmd]) -> list[SpeechCmd]:
+	breaks = [index for index, item in enumerate(run) if isinstance(item, BreakCommand)]
+	if len(breaks) < 2 or not any(_is_edge_break(run[index]) for index in breaks):
+		return run
+	# max keeps the first of equal keys.
+	kept = max(breaks, key=lambda index: (run[index].time, not _is_edge_break(run[index])))
+	return [item for index, item in enumerate(run) if index == kept or not isinstance(item, BreakCommand)]
 
 
 def deduplicate_language_command(speechSequence, ctx: SpeechContext, start_language=None):

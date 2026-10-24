@@ -263,3 +263,117 @@ def test_removal_never_leaves_two_number_breaks_that_were_apart(monkeypatch, seq
 	result = run_punctuation_filters(module, [commands.get(item, item) for item in sequence])
 
 	assert result == [commands.get(item, item) for item in expected]
+
+
+# Number edge breaks (number-edge-pause spec §4.6.3: E1 and E2). The sequences are what the number
+# stage gives in number mode with a 10 ms number wait.
+EDGE_CHARACTERS = "。，."
+E = ("NumberEdgeBreakCommand", 10)
+NB = ("NumberBreakCommand", 10)
+
+
+def P(time):
+	return ("PunctuationBreakCommand", time)
+
+
+@pytest.mark.parametrize(
+	("sequence", "remove", "wait", "expected"),
+	[
+		# Nothing follows: the mark at the end is never a pause point.
+		(["第", "E", "3", "E", "。"], False, 50, ["第", E, "3", E, "。"]),
+		(["第", "E", "3", "E", "。"], True, 50, ["第", E, "3", E, "。"]),
+		(["第", "E", "3", "E", "。下一章"], False, 50, ["第", E, "3", E, "。", P(50), "下一章"]),
+		# Removal brings the edge break and the punctuation break together: the longer stays.
+		(["第", "E", "3", "E", "。下一章"], True, 50, ["第", E, "3", P(50), "下一章"]),
+		(["3", "E", "，下"], False, 50, ["3", E, "，", P(50), "下"]),
+		(["3", "E", "，下"], True, 50, ["3", P(50), "下"]),
+		# E1: the edge break before the number does not suppress the boundary pause.
+		(["Total. ", "E", "1", "NB", "2"], False, 50, ["Total", ".", " ", P(50), "1", NB, "2"]),
+		(["Total. ", "E", "1", "NB", "2"], True, 50, ["Total", " ", P(50), "1", NB, "2"]),
+		(["1", "E", "，", "E", "2"], False, 50, ["1", E, "，", P(50), "2"]),
+		(["1", "E", "，", "E", "2"], True, 50, ["1", P(50), "2"]),
+		# A 0 ms punctuation pause leaves the number apart by its edge break.
+		(["第", "E", "3", "E", "。下一章"], True, 0, ["第", E, "3", E, "下一章"]),
+		(["Total. ", "E", "1", "NB", "2"], False, 0, ["Total", ".", " ", E, "1", NB, "2"]),
+		# A tie keeps the punctuation break.
+		(["a.", "E50", "b"], False, 50, ["a", ".", P(50), "b"]),
+	],
+	ids=[
+		"第3。-off",
+		"第3。-on",
+		"第3。下一章-off",
+		"第3。下一章-on",
+		"3，下-off",
+		"3，下-on",
+		"Total-off",
+		"Total-on",
+		"1，2-off",
+		"1，2-on",
+		"第3。下一章-on-wait0",
+		"Total-off-wait0",
+		"tie",
+	],
+)
+def test_an_edge_break_keeps_the_punctuation_pause(monkeypatch, sequence, remove, wait, expected):
+	settings = punctuation_settings(wait, remove_characters=remove)
+	settings.punctuation_pause_characters = EDGE_CHARACTERS
+	module, _BreakCommand = load_pipeline_module(monkeypatch, settings)
+	commands = {
+		"E": module.NumberEdgeBreakCommand(10),
+		"E50": module.NumberEdgeBreakCommand(50),
+		"NB": module.NumberBreakCommand(10),
+	}
+	result = run_punctuation_filters(module, [commands.get(item, item) for item in sequence])
+	assert shape(result) == expected
+
+
+class Marker:
+	"""A speech command no stage knows, such as NVDA's IndexCommand."""
+
+
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[
+		# Language and index commands make no sound: they are part of the run.
+		(["a", "E10", "lang", "marker", "PB50", "b"], ["a", "lang", "marker", "PB50", "b"]),
+		# A run without an edge break is untouched.
+		(["a", "NB10", "PB50", "b"], ["a", "NB10", "PB50", "b"]),
+		(["a", "E10", " ", "PB0", "b"], ["a", "E10", " ", "b"]),
+		(["a", "E10", "E20"], ["a", "E20"]),
+		(["E10", "PB10", "a"], ["PB10", "a"]),
+		(["a", "E10", "E10b", "b"], ["a", "E10", "b"]),
+		# One break object can sit in several runs: each run is decided on its own.
+		(["a", "E10", "PB50", "b", "E10", "c"], ["a", "PB50", "b", "E10", "c"]),
+	],
+	ids=["transparent", "no-edge", "blank-text", "end", "start-tie", "edges-tie", "shared-instance"],
+)
+def test_merge_edge_breaks(monkeypatch, sequence, expected):
+	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	commands = {
+		"E10": module.NumberEdgeBreakCommand(10),
+		"E10b": module.NumberEdgeBreakCommand(10),
+		"E20": module.NumberEdgeBreakCommand(20),
+		"NB10": module.NumberBreakCommand(10),
+		"PB0": module.PunctuationBreakCommand(0),
+		"PB10": module.PunctuationBreakCommand(10),
+		"PB50": module.PunctuationBreakCommand(50),
+		"lang": module.WVLangChangeCommand("en"),
+		"marker": Marker(),
+	}
+	result = list(module._merge_edge_breaks([commands.get(item, item) for item in sequence]))
+	assert len(result) == len(expected)
+	assert all(after is commands.get(name, after) for after, name in zip(result, expected))
+	assert [item for item in result if isinstance(item, str)] == [
+		item for item in expected if item not in commands
+	]
+
+
+def test_is_edge_break(monkeypatch):
+	module, BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	assert module._is_edge_break(module.NumberEdgeBreakCommand(10))
+	assert not module._is_edge_break(module.NumberBreakCommand(10))
+	assert not module._is_edge_break(module.PunctuationBreakCommand(10))
+	plain = BreakCommand(10)
+	assert not module._is_edge_break(plain)
+	plain.worldvoice_number_edge = True
+	assert module._is_edge_break(plain)
