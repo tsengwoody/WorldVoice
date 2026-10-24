@@ -11,6 +11,7 @@ Status:
 - U1 was narrowed by the user the same day, in answer to Q1: edge pauses only in the number (digit) and group modes.
 - O1–O6 were shown to the user by the orchestrator.
 - D1–D10 are defaults added while writing this spec (§11).
+- O2 and D1 were replaced by the user (2026-10-24) after the merge, because the item wait could be 0: Corrected by `fix/number-edge-pause-items` (§2.2, §4.3, §11).
 - No question is open.
 
 References used throughout:
@@ -107,7 +108,9 @@ The design (§4) was prototyped in a scratch copy of the worktree, which was not
 ### 2.2 Orchestrator calls shown to the user (Decided by orchestrator; user may override before merge)
 
 - **O1.** The edge break sits outside the language wrapper: `第`, Break, Lang(num), pieces…, Lang(cur), Break, `章`.
-- **O2.** An edge break is added only on a side where the same text item has content next to the number. Whitespace counts as content (U3), refined by D1. A number at the very start or end of an item gets no break on that side; item boundaries are `item_wait_factor`'s job.
+- ~~**O2.** An edge break is added only on a side where the same text item has content next to the number. Whitespace counts as content (U3), refined by D1. A number at the very start or end of an item gets no break on that side; item boundaries are `item_wait_factor`'s job.~~
+
+  Corrected by `fix/number-edge-pause-items` (decided by the user, 2026-10-24): the premise failed when the item wait is 0. `["第3", "章"]` gave `第` E `3` `章` (no pause after 3) and `["第", "3", "章"]` no pause at all, while `["第1", "2章"]` got a number break between 1 and 2 across the items. The rule is now: a number gets an edge break on each side where spoken (non-whitespace) text lies anywhere in the speech sequence, in its own item or in another, whatever commands (index, language, other) lie between; the only exception is the very start or end of the whole sequence, where nothing is spoken before or after it. Where an item break or any other break meets an edge break with nothing spoken between, E2 keeps one break (the longest; on a tie the one that is not an edge break).
 - **O3.** Two numbers separated only by whitespace (`"1 2"`) get exactly one `NumberBreakCommand` between them, never two or three.
   - In the number and group modes, the number stage does this (§4.3).
   - In value and "none" modes, `number_wait_factor` does it, as today.
@@ -159,7 +162,9 @@ What NVDA users hear with number wait 10 ms and "Follow current text language", 
 
 - **Item**: one `str` in the speech sequence.
 - **Span**: one ("number", text) part of `_split_numbers_for_language(item)` (`pipeline:117-136`). The parts alternate between text and number: the hyphen rule only moves a sign into the text, and `NUMBER_RE` matches never touch (`numbers:42-43`).
-- **Content on a side**: the item has a non-whitespace character between the span and that end of the item (D1). The checks are `item[:start].strip()` for the left side and `item[end:].strip()` for the right side.
+- ~~**Content on a side**: the item has a non-whitespace character between the span and that end of the item (D1). The checks are `item[:start].strip()` for the left side and `item[end:].strip()` for the right side.~~
+
+  Corrected by `fix/number-edge-pause-items`: **spoken text on a side** is a non-whitespace character on that side of the span anywhere in the sequence: in its item (`item[:start].strip()`, `item[end:].strip()`), or in an earlier or later item.
 - **Whitespace gap**: a text part between two spans that is all whitespace (`str.isspace()`). A no-break space counts, as in `split_spaced_numbers` (`numbers:44-46`, decided by the user 2026-10-22).
 - **Edge break**: `NumberEdgeBreakCommand(scaled_number_wait())`, a new subclass of `NumberBreakCommand` (`pipeline:35-36`).
 
@@ -220,8 +225,10 @@ STAGES = (
 - **Where.** In the number and group modes, with a pause above 0, an edge break goes on each side of a span where the item has content on that side (§4.1). There is no edge break:
   - in value mode or "none";
   - when `pause <= 0`;
-  - at the start or end of an item;
-  - where only whitespace lies between the span and the item's end (D1).
+  - ~~at the start or end of an item;~~
+  - ~~where only whitespace lies between the span and the item's end (D1).~~
+  - Corrected by `fix/number-edge-pause-items`: at the very start or end of the sequence, that is, on a side with nothing spoken before or after the span in the whole sequence (whitespace-only items and a trailing `"1 "` count as nothing).
+- **Across items (Corrected by `fix/number-edge-pause-items`).** A number that begins its item (after whitespace only) gets a `NumberItemEdgeBreakCommand`, a subclass of `NumberEdgeBreakCommand`, at the start of the item when spoken text came in an earlier item; one that ends its item gets one at the end of the item when spoken text comes in a later item. `inject_numbers` then runs `_merge_edge_breaks` over its output, so two numbers at the end and start of neighbouring items get one break between them, as do a number and a break already in the sequence. `_plain_breaks` gives another synth's plain break the edge marker `"item"` for it (D3), so the item stage still sees it.
 - **Position (O1).** The edge break goes outside the wrapper: left edge, opening wrapper, pieces, closing wrapper, right edge. The closing wrapper names the language in force, as today (`pipeline:301`).
 - **Whitespace gaps (O3, D6).** When there are edge breaks, two spans separated only by whitespace get one `NumberBreakCommand`, the gap break, in place of the gap. The right edge of the first span and the left edge of the second are not added.
   - This is the result `number_wait_factor` gives for such text today (`pipeline:198-241`, `numbers:36-60`): one number break replaces the whitespace.
@@ -266,8 +273,12 @@ The Chinese-space pattern needs a CJK character on both sides of the space insid
 
 #### 4.6.2 Item wait (`pipeline:152-162`)
 
-- The item wait breaks only between two adjacent `str` items. An edge break always has non-blank text of its own item between it and the item's end (D1), so an item break is never placed next to an edge break.
-- Items that are separated only by formatting or an index command get no edge break (O2): `"第"`, IndexCommand, `"3"`, IndexCommand, `"章"` in browse mode (§5 row 28).
+- ~~The item wait breaks only between two adjacent `str` items. An edge break always has non-blank text of its own item between it and the item's end (D1), so an item break is never placed next to an edge break.~~
+- ~~Items that are separated only by formatting or an index command get no edge break (O2): `"第"`, IndexCommand, `"3"`, IndexCommand, `"章"` in browse mode (§5 row 28).~~
+- Corrected by `fix/number-edge-pause-items`:
+  - The item wait still breaks between two adjacent `str` items, and also between two `str` items that only `NumberItemEdgeBreakCommand`s separate; the item break goes before them. `item_wait_factor` then runs `_merge_edge_breaks` over its output, so the longer of the item wait and the number wait is the one break there (E2; a tie keeps the item break). With the item wait at 0 the stage passes the sequence on, and the edge break alone separates the number.
+  - Items that are separated by formatting or an index command get an edge break too: `"第"`, IndexCommand, `"3"`, IndexCommand, `"章"` gives `"第"`, IndexCommand, E, `"3"`, E, IndexCommand, `"章"` (§5 row 28). The item wait does not break across the command, as before.
+  - Two item breaks around a blank item still meet (spec F7) when no number is next to them; with a number edge in the run, E2 now leaves one break: `["第3", " ", "章"]` at item wait 10 gives `第` E `3` B10 `章` where it gave `第` E `3` B10 B10 `章`.
 
 #### 4.6.3 Punctuation pause (O5, F3, D2, D3)
 
@@ -291,8 +302,9 @@ The Chinese-space pattern needs a CJK character on both sides of the space insid
     - "a number break counts as an existing pause".
   - **Coverage.** E2 runs over the whole output of the active stage, the last item included. Today's final `emit` (`pipeline:677-678`) bypasses the M2 check; E2 must not. Implementation: `inject_punctuation_pause` yields from `_merge_edge_breaks(<today's loop>)` after its early returns (`pipeline:587-596`).
   - **When the stage is off,** E2 does not run. Property P-E5 (§8.3) shows that edge breaks cannot meet another break without this stage:
-    - an edge break always has non-blank text of its own item on its outer side;
-    - every other break the stages make sits between spoken text.
+    - ~~an edge break always has non-blank text of its own item on its outer side;~~
+    - ~~every other break the stages make sits between spoken text.~~
+    - Corrected by `fix/number-edge-pause-items`: the number stage and the item stage run `_merge_edge_breaks` themselves (§4.3, §4.6.2), and every other break the stages make sits between spoken text.
 - **Why "longest" and not "the earlier one" (M2).**
   - Where a punctuation pause and an edge pause fall on one spot, the punctuation pause is the one the user tuned for that mark, and it is usually the longer one. Keeping the earlier break would make `"Total. 12"` lose its 50–500 ms pause to the 10 ms edge.
   - Keeping the longer one also keeps the number separated when the punctuation pause is 0 ms (§5 rows 35, 44).
@@ -324,8 +336,9 @@ The code is unchanged.
 - **Number and group modes:**
   - The number stage has already replaced every whitespace gap with one number break (§4.3). `split_spaced_numbers` finds nothing more to split, and `_insert_number_breaks` sees a break instead of two adjacent numbers, so it adds nothing.
   - O3 holds: `"12 34"` gives `"1"`, NB, `"2"`, NB, `"3"`, NB, `"4"`. With a locale, `"1 2"` gives `L(en) "1" L(zh)`, NB, `L(en) "2" L(zh)`. Both are today's output.
-  - Whole-number items still get its break, as in `["1", "2"]`. A number alone in its item has no edge break (O2), so the two never meet.
-  - Added after review M1: an edge break can leave a whole number at an item's end or start, and `number_wait_factor` then puts a number break between it and a whole number at the start or end of the next item, as for `["1", "2"]`. `["第1", "2章"]` (NVDA split the line at a formatting change) gives `"第"`, E, `"1"`, NB, `"2"`, E, `"章"`, where today it gives `"第1"`, `"2章"` with no pause. It happens only in the number and group modes with a pause above 0, where digits are already a pause apart, and the two breaks never meet: the edge breaks sit on the outer sides of the two numbers.
+  - ~~Whole-number items still get its break, as in `["1", "2"]`. A number alone in its item has no edge break (O2), so the two never meet.~~
+  - Corrected by `fix/number-edge-pause-items`: whole-number items `["1", "2"]` get one edge break between them from the number stage (E2 merges the two item edges), so `_insert_number_breaks` sees no two adjacent numbers and adds nothing: `"1"`, E10, `"2"` at item wait 0, `"1"`, B10, `"2"` at item wait 10 (today's `"1"`, NB10, `"2"` and `"1"`, B10, `"2"`; the time is the same).
+  - ~~Added after review M1: an edge break can leave a whole number at an item's end or start, and `number_wait_factor` then puts a number break between it and a whole number at the start or end of the next item, as for `["1", "2"]`. `["第1", "2章"]` (NVDA split the line at a formatting change) gives `"第"`, E, `"1"`, NB, `"2"`, E, `"章"`, where today it gives `"第1"`, `"2章"` with no pause. It happens only in the number and group modes with a pause above 0, where digits are already a pause apart, and the two breaks never meet: the edge breaks sit on the outer sides of the two numbers.~~ Corrected by `fix/number-edge-pause-items`: `["第1", "2章"]` now gives `"第"`, E, `"1"`, E, `"2"`, E, `"章"` from the number stage, one edge break between the numbers, and `number_wait_factor` adds none.
   - `_remove_space` strips every text item whenever the number wait is above 0 (`pipeline:165-187`, `:209-216`), and edge breaks exist only then. So `"共 "`, E, `"3"`, E, `" 章"` reaches the synth as `"共"`, E, `"3"`, E, `"章"`.
 
 #### 4.6.5 In `speak` (`synth:314-330`)
@@ -445,7 +458,7 @@ These are prototype outputs: the stage output of `inject_numbers` and the output
 | 26b | `10am` | `1` NB10 `0` E10 `am` | same (F1) |
 | 26v | `the 1st item`, value | `the 1st item` | same (today's) |
 | 27 | `Is it 5?` | `Is it ` E10 `5` E10 `?` | `Is it` E10 `5` E10 `?` (F1) |
-| 28 | `第`, Index, `3`, Index, `章` | unchanged | unchanged (O2) |
+| 28 | `第`, Index, `3`, Index, `章` | ~~unchanged~~ `第`, Index, E10, `3`, E10, Index, `章` (Corrected by `fix/number-edge-pause-items`) | ~~unchanged (O2)~~ same |
 | 29 | `第3章`, no roles (scope "all") | `第` B10* `3` B10* `章` | same |
 | 30 | `WV("en")`, `第3章`, no roles, number language en | `第` B10* `3` B10* `章` (WV command dropped, no wrapper) | same |
 | 31 | `第3。`, `。` configured, remove off or on | `第` E10 `3` E10 `。` | same |
@@ -462,12 +475,27 @@ These are prototype outputs: the stage output of `inject_numbers` and the output
 | 41 | `1，2`, `，` configured | as row 40 | `1` E10 `，` PB50 `2` |
 | 42 | the same, remove on | as row 40 | `1` PB50 `2` |
 | 42v | the same, value | `1，2` | same (today's) |
-| 43 | `1 ` (trailing space) | `1 ` | `1` (no edge break, D1) |
+| 43 | `1 ` (trailing space) | `1 ` | `1` (no edge break, ~~D1~~ nothing spoken after it in the sequence) |
 | 44 | `Total. 12`, `.` configured, punctuation wait 0 | as row 38 | `Total` `.` E10 `1` NB10 `2` |
 | 45 | `["3，", "下"]`, `，` configured, remove on, item wait 30 | `3` E10 `，`, `下` | `3` B30 `下` (the item break is the longest) |
 | 46 | `12,345元`, value | `12345元` (thousands step first) | same (today's) |
 
 Rows 31–45 were not run for another synth in scope "all". From row 29 and §4.6.3, they give the same sequences with every break plain.
+
+Corrected by `fix/number-edge-pause-items`: rows across items, after all `STAGES` (number mode, number wait 10; `B10` is the item break). The left column is what `master` `20a8d9f` gave.
+
+| Input | Before, item wait 0 | Before, item wait 10 | Now, item wait 0 | Now, item wait 10 |
+|---|---|---|---|---|
+| `["第3", "章"]` | `第` E10 `3` `章` | `第` E10 `3` B10 `章` | `第` E10 `3` E10 `章` | `第` E10 `3` B10 `章` |
+| `["第", "3", "章"]` | `第` `3` `章` | `第` B10 `3` B10 `章` | `第` E10 `3` E10 `章` | `第` B10 `3` B10 `章` |
+| `["第3章"]` | `第` E10 `3` E10 `章` | the same | the same | the same |
+| `["第1", "2章"]` | `第` E10 `1` NB10 `2` E10 `章` | `第` E10 `1` B10 `2` E10 `章` | `第` E10 `1` E10 `2` E10 `章` | `第` E10 `1` B10 `2` E10 `章` |
+| `["1", "2"]` | `1` NB10 `2` | `1` B10 `2` | `1` E10 `2` | `1` B10 `2` |
+| `["3章"]`, `["第3"]`, `["3"]` | `3` E10 `章`, `第` E10 `3`, `3` | the same | the same | the same |
+| `["第3", " ", "章"]` | `第` E10 `3` `章` | `第` E10 `3` B10 B10 `章` | `第` E10 `3` E10 `章` | `第` E10 `3` B10 `章` |
+| `["第3", Index, "章"]` | `第` E10 `3` Index `章` | the same | `第` E10 `3` E10 Index `章` | the same |
+
+At item wait 20 the item break wins: `["第3", "章"]` gives `第` E10 `3` B20 `章`. With a locale wrapper (`["第3", "章"]`, en) the item wait does not apply across the wrapper, before or now: `第` E10 L(en) `3` L(zh) E10 `章`. Value and "none" modes and a number pause of 0 give the sequences of `master` (checked against a copy of `master` over 30000 random sequences through every stage, roles on and off).
 
 ## 6. Panels, strings and documentation
 
@@ -478,8 +506,9 @@ Rows 31–45 were not run for another synth in scope "all". From row 29 and §4.
 - **Translatable strings:** none added or changed. "Number wait factor" / 數字停頓參數 (`addon/locale/zh_TW/LC_MESSAGES/nvda.po:410-411`) now also sets the edge pause in the digit and group modes. Keeping the label is the conservative default (D8).
 - **Readmes (D8):** change `readme.md` and `addon/doc/zh_TW/readme.md` only. The ru, uk, zh_CN and zh_HK readmes stay untouched, as in phase 35 Q9.
   - Add to the "Speech pause adjustment" bullet (`readme.md:53`, `addon/doc/zh_TW/readme.md:53`):
-    - EN: "In digit mode and group mode, the number pause is also placed before and after every number that touches other text in the same item, as in "第3章", even when the number is read in the same language as the text. Numeric mode and Off add no such pause, and a number pause of 0 adds none."
-    - zh_TW: 「在數字模式與群組模式中，數字停頓也會加在每個數字的前後（數字與同一段文字的其他內容相鄰時），例如「第3章」，即使數字與文字以相同的語言朗讀。數值模式與不處理不加這個停頓；數字停頓為 0 時也不加。」
+    - ~~EN: "In digit mode and group mode, the number pause is also placed before and after every number that touches other text in the same item, as in "第3章", even when the number is read in the same language as the text. Numeric mode and Off add no such pause, and a number pause of 0 adds none."~~
+    - ~~zh_TW: 「在數字模式與群組模式中，數字停頓也會加在每個數字的前後（數字與同一段文字的其他內容相鄰時），例如「第3章」，即使數字與文字以相同的語言朗讀。數值模式與不處理不加這個停頓；數字停頓為 0 時也不加。」~~
+    - Corrected by `fix/number-edge-pause-items`: the bullet now says "every number that has other spoken text next to it, in the same item or in a neighbouring one", that there is no such pause at the very start or end of what is spoken, and that where the item pause falls at the same place only the longer is heard (zh_TW likewise). The changelog entry names the item pause next to the punctuation pause.
   - Add to the changelog, under "Next update" (`readme.md:73`, `addon/doc/zh_TW/readme.md:73`):
     - EN: "**Pause around numbers in digit and group modes:** In digit mode and group mode, the number pause now also separates every number from the text next to it, as in "第3章", even when the number is read in the same language as the text. Digits next to letters, as in "1st" or "MP3", are set apart too. Numeric mode, the default, is unchanged. Set the number wait factor to 0 to turn the pause off. Where a punctuation pause falls next to a number, only the longer of the two pauses is heard."
     - zh_TW: 「**數字模式與群組模式的數字前後停頓：** 在數字模式與群組模式中，數字停頓現在也會把每個數字與前後的文字分開，例如「第3章」，即使數字與文字以相同的語言朗讀。與字母相鄰的數字（例如「1st」、「MP3」）也會被分開。預設的數值模式不變。將數字停頓參數設為 0 即可關閉這個停頓。標點停頓與數字停頓落在同一處時，只會聽到較長的那一個。」
@@ -546,7 +575,7 @@ These guards must keep passing unchanged:
   - Mode "none" yields the same objects for default and main, and today's wrappers for a locale.
   - With `scaled_number_wait()` ≤ 0, the number and group modes add no edge break, while their separators are still `NumberBreakCommand(0)`.
   - A global factor below 10, through the real `PipelineSettings` (`psettings:309-313`).
-- **O2 / D1:** a number alone in its item; at the item's start or end; followed only by whitespace (ASCII space, no-break space, U+3000).
+- ~~**O2 / D1:** a number alone in its item; at the item's start or end; followed only by whitespace (ASCII space, no-break space, U+3000).~~ Corrected by `fix/number-edge-pause-items`: the same cases as a whole sequence of one item (no edge break at the sequence's start or end), plus the rows across items at item waits 0, 5, 10 and 20 (§5), group mode, value and "none" modes, pause 0, a locale wrapper, index and language commands between items, `"Total."` before a number item with the punctuation pause, other synths through the handlers, and a long sequence of number items in linear time.
 - **O3:** in number and group modes, `"1 2"`, `"1 2"`, `"12 34"`, and `"1 2"` with an en wrapper each get exactly one `NumberBreakCommand` between the numbers, and `number_wait_factor` adds none afterwards. Value-mode `"1 2"` is still split by `number_wait_factor`.
 - **O1:** the order is break, wrapper, pieces, wrapper, break. Dedupe uses `start_language` inside another language's stretch, as in `tests/test_pipeline_passthrough.py:118-153`.
 - **O4:** `"COVID-19"`, `"中+2"`, `"a -5"` and `"5-3"` in number and group modes, plus unchanged value-mode output.
@@ -577,14 +606,16 @@ These guards must keep passing unchanged:
 - **P-E1, text kept.** In the number and group modes, the `str` items of `inject_numbers` are joined, with each symbol name mapped back to its symbol, as in the existing P5 (`test_property_number_modes_keep_the_text`). The result equals the input with two changes: each whitespace gap between two numbers is removed when the pause is above 0, and the dot-rule spaces are added. Any number language, roles on.
 - **P-E2, no edge break outside number and group modes.** For any sequence and context, `inject_numbers` adds no `NumberEdgeBreakCommand` in value mode or "none", nor at pause ≤ 0. In value mode, the stage output is the same for every pause.
 - **P-E3, one break between numbers.** In the stage output, no two breaks are adjacent. Two numbers that only whitespace separates have exactly one `NumberBreakCommand` between them and no edge break.
-- **P-E4, edges sit at number boundaries.** Each edge break has a number piece on one side, or a wrapper and then a number piece. On the other side it has non-blank text of the same input item.
-- **P-E5, edges never meet another break.** Run all of `STAGES` through `stage.fn`, so break classes are kept, and treat language commands as transparent. No edge break may sit next to any other break. Inputs:
+- **P-E4, edges sit at number boundaries.** Each edge break has a number piece on one side, or a wrapper and then a number piece. On the other side it has non-blank text of the same input item. (Corrected by `fix/number-edge-pause-items`: this holds for a one-item sequence, which the property draws; across items the other side is spoken text of another item, P-E8.)
+- **P-E5, edges never meet another break.** Run all of `STAGES` through `stage.fn`, so break classes are kept, and treat language commands as transparent. No edge break may sit next to any other break. (Corrected by `fix/number-edge-pause-items`: a run between two spoken items that holds an edge break holds no other break, whatever commands, blank items and language commands it holds; the inputs add an unknown command like IndexCommand.) Inputs:
   - random text over digits, letters, marks, CJK and U+3000, with existing breaks and language commands;
   - random number, item and Chinese-space waits;
   - any mode, group size and number language; roles on and off;
   - punctuation pause on or off, with or without removal, with or without a space among the characters.
 
   The prototype passed this property, including P-E2's first check, in 4000 examples. The existing P10 (`tests/test_pipeline_pause_properties.py:663-701`) keeps running with `inject_numbers` in its chain and must still pass.
+- **P-E7, no edge break at the sequence's start or end (Corrected by `fix/number-edge-pause-items`).** For up to four items with text, breaks, language and unknown commands, the run before the first spoken item and the run after the last hold no edge break, after `inject_numbers`, and after all `STAGES` while removal is off. With removal on, the punctuation stage can still remove a leading mark and leave a break first, as for any mark today.
+- **P-E8, items do not change the edges (Corrected by `fix/number-edge-pause-items`).** With no item wait, words and numbers split into items (a word, blank or not, between every two numbers, so the joined text has the same numbers) give the same audible sequence after all `STAGES` as the joined text in one item: text with whitespace removed and joined, breaks by time, language commands dropped. Any spaced mode, group size, number language, roles on and off.
 - **P-E6, E2 keeps the longest.** In a run with an edge break, the kept break's time is the run's maximum, and the run's other items keep their order. Runs without an edge break are untouched (identity).
 - **P8** (`tests/test_pipeline_pause_properties.py:739-761`) keeps comparing number language en with default, with random number waits, now including edge breaks. It must still pass.
 - **Equivalence with today, during development only (D9).** Copy today's `inject_number_language` and `inject_number_mode` into a scratch oracle, and compare after stripping text items and dropping blank ones:
@@ -651,10 +682,11 @@ Untouched: `pipeline/numbers.py`, `pipeline/symbols.py`, `pipeline/settings.py`,
 
 Decided by orchestrator with the recommended default; user may override before merge:
 
-- **D1. A whitespace-only remainder counts as no content.** A number followed or preceded only by whitespace up to the item's end gets no edge break on that side (§4.3).
-  - Why: NVDA strips every item (`speech.py:214`), and `_remove_space` strips items when the number wait is above 0, so that whitespace is never heard.
-  - A break there would separate the number from nothing in its item. It would also put a number break next to the following item break, as in `["1 ", "2"]` with an item wait.
-  - Alternative: the literal O2, where whitespace always counts. That needs E2 for item breaks too, and leaves a pause at the end of an utterance.
+- ~~**D1. A whitespace-only remainder counts as no content.** A number followed or preceded only by whitespace up to the item's end gets no edge break on that side (§4.3).~~
+  - ~~Why: NVDA strips every item (`speech.py:214`), and `_remove_space` strips items when the number wait is above 0, so that whitespace is never heard.~~
+  - ~~A break there would separate the number from nothing in its item. It would also put a number break next to the following item break, as in `["1 ", "2"]` with an item wait.~~
+  - ~~Alternative: the literal O2, where whitespace always counts. That needs E2 for item breaks too, and leaves a pause at the end of an utterance.~~
+- **D1 (Corrected by `fix/number-edge-pause-items`, decided by the user, 2026-10-24).** Whitespace is still nothing spoken, but the side looks past the item's end: a number gets an edge break on each side where spoken (non-whitespace) text lies anywhere in the speech sequence, in its own item or in another, whatever commands (index, language, other) lie between; the only exception is the very start or end of the whole sequence, where nothing is spoken before or after it. Where an item break or any other break meets an edge break with nothing spoken between, E2 keeps one break (the longest; on a tie the one that is not an edge break). So `["1 ", "章"]` gives `1` E `章`, and `["1 ", "2"]` with an item wait gives one break (E2 in the item stage), not a number break next to the item break. No pause is left at the end of an utterance.
 - **D2. Edge breaks are their own class, with two rules (E1, E2; F3).**
   - Alternative: "longest wins" for every number break. That changes M2, P4b and `test_a_number_break_counts_as_an_existing_pause_for_punctuation`, and reverses earlier decisions.
   - Accepted consequence, in the number and group modes only: a full-width mark between two numbers (`"1，2"`) is now an item of its own, so removal drops it. Today the mark before a digit is not a pause point (`pipeline:520-526`).
