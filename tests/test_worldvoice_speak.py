@@ -572,6 +572,114 @@ def test_numbers_reach_nvda_in_their_item_where_the_voice_stays(
 	assert result == [(ZH if main == "zh" else EN, f"{text}  ")]
 
 
+# Number mode edge pauses (number-edge-pause spec §4.8, O6): detection passes the breaks through,
+# so the voices stay those of today and only pauses are added; _remove_space strips the items.
+EDGE_ROWS = [
+	pytest.param(
+		["第3章"],
+		"default",
+		"zh",
+		[(ZH, "第3章")],
+		[(ZH, "第"), "|", (ZH, "3"), "|", (ZH, "章")],
+		id="rank-follow",
+	),
+	pytest.param(
+		["第3章"],
+		"main",
+		"zh",
+		[(ZH, "第3章")],
+		[(ZH, "第"), "|", (ZH, "3"), "|", (ZH, "章")],
+		id="rank-main",
+	),
+	pytest.param(
+		["第3章"],
+		"en",
+		"zh",
+		[(ZH, "第"), (EN, "3"), (ZH, "章")],
+		[(ZH, "第"), "|", (EN, "3"), "|", (ZH, "章")],
+		id="rank-en",
+	),
+	pytest.param(
+		["中12"],
+		"main",
+		"en",
+		[(ZH, "中"), (EN, "1"), "|", (EN, "2")],
+		[(ZH, "中"), "|", (EN, "1"), "|", (EN, "2")],
+		id="zh12-main",
+	),
+	pytest.param(
+		["中12"],
+		"default",
+		"en",
+		[(ZH, "中1"), "|", (ZH, "2")],
+		[(ZH, "中"), "|", (ZH, "1"), "|", (ZH, "2")],
+		id="zh12-follow",
+	),
+	pytest.param(
+		["abc3中"],
+		"default",
+		"en",
+		[(EN, "abc3"), (ZH, "中")],
+		[(EN, "abc"), "|", (EN, "3"), "|", (ZH, "中")],
+		id="abc3-follow",
+	),
+	pytest.param(
+		["中 COVID-19 中"],
+		"main",
+		"zh",
+		[(ZH, "中 "), (EN, "COVID-"), (ZH, "1"), "|", (ZH, "9 中")],
+		[(ZH, "中 "), (EN, "COVID-"), "|", (ZH, "1"), "|", (ZH, "9"), "|", (ZH, "中")],
+		id="covid-main",
+	),
+	pytest.param(
+		["中 -12 34"],
+		"main",
+		"en",
+		[(ZH, "中 "), (EN, "-1"), "|", (EN, "2 3"), "|", (EN, "4")],
+		[(ZH, "中"), "|", (EN, "-1"), "|", (EN, "2"), "|", (EN, "3"), "|", (EN, "4")],
+		id="sign-main",
+	),
+	pytest.param(
+		["abc 123 def"],
+		"zh_TW",
+		"zh",
+		[(EN, "abc "), (ZH, "1"), "|", (ZH, "2"), "|", (ZH, "3 "), (EN, "def")],
+		[(EN, "abc"), "|", (ZH, "1"), "|", (ZH, "2"), "|", (ZH, "3"), "|", (EN, "def")],
+		id="zh-locale",
+	),
+]
+
+
+@TIMINGS
+@pytest.mark.parametrize("wait", [0, 10])
+@pytest.mark.parametrize(("sequence", "numlan", "main", "wait0", "wait10"), EDGE_ROWS)
+def test_number_mode_edges_with_detection(monkeypatch, sequence, numlan, main, wait0, wait10, wait, timing):
+	settings = stage_settings(number_mode="number", number_wait=wait)
+	result = speak_through_stages(
+		monkeypatch,
+		sequence,
+		numlan=numlan,
+		main=main,
+		timing=timing,
+		settings=settings,
+	)
+	assert result == (wait0 if wait == 0 else wait10)
+
+
+@TIMINGS
+def test_value_mode_has_no_edges_with_detection(monkeypatch, timing):
+	settings = stage_settings(number_wait=10)
+	result = speak_through_stages(
+		monkeypatch,
+		["第3章"],
+		numlan="default",
+		main="zh",
+		timing=timing,
+		settings=settings,
+	)
+	assert result == [(ZH, "第3章")]
+
+
 @TIMINGS
 def test_main_keeps_superscripts_in_the_text(monkeypatch, timing):
 	# Decided by the user (2026-10-23, spec §4.7 item 2): "²" is not a digit, so it stays with the text.
