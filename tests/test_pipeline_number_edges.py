@@ -523,7 +523,7 @@ def test_other_synths_get_edge_breaks_across_items(monkeypatch, sequence, item, 
 		(["a", "EU", "1", "EU", "b", "EU"], "same"),
 		(["1", "EU", "2", "EU"], "same"),
 		(["EU", "3", "EU"], "same"),
-		# Say All ends a chunk with an EndUtteranceCommand.
+		# The speech of a text range, as in Say All, ends a block with an EndUtteranceCommand.
 		(["第3", "EU", "章"], ["第", E, "3", "EU", "章"]),
 		(["第", "EU", "3章"], ["第", "EU", "3", E, "章"]),
 		(["第3", "CPT", "章"], ["第", E, "3", "CPT", "章"]),
