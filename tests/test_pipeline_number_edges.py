@@ -206,6 +206,15 @@ ROWS = [
 		id="45",
 	),
 	pytest.param(["12,345元"], {"mode": "value"}, None, ["12345元"], id="46"),
+	# Review M1: whole numbers that an edge break leaves at the end and start of two items get the
+	# number pause between them, as ["1", "2"] does.
+	pytest.param(
+		["第1", "2章"],
+		{},
+		["第", E, "1", "2", E, "章"],
+		["第", E, "1", NB, "2", E, "章"],
+		id="m1-items",
+	),
 	# O4: a sign after a word stays with the word; a number with a symbol inside is one number.
 	pytest.param(["中+2"], {}, ["中+", E, "2"], "same", id="o4-plus"),
 	pytest.param(["中+2"], {"mode": "value"}, ["中+2"], "same", id="o4-plus-value"),

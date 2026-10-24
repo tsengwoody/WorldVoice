@@ -323,6 +323,7 @@ The code is unchanged.
   - The number stage has already replaced every whitespace gap with one number break (§4.3). `split_spaced_numbers` finds nothing more to split, and `_insert_number_breaks` sees a break instead of two adjacent numbers, so it adds nothing.
   - O3 holds: `"12 34"` gives `"1"`, NB, `"2"`, NB, `"3"`, NB, `"4"`. With a locale, `"1 2"` gives `L(en) "1" L(zh)`, NB, `L(en) "2" L(zh)`. Both are today's output.
   - Whole-number items still get its break, as in `["1", "2"]`. A number alone in its item has no edge break (O2), so the two never meet.
+  - Added after review M1: an edge break can leave a whole number at an item's end or start, and `number_wait_factor` then puts a number break between it and a whole number at the start or end of the next item, as for `["1", "2"]`. `["第1", "2章"]` (NVDA split the line at a formatting change) gives `"第"`, E, `"1"`, NB, `"2"`, E, `"章"`, where today it gives `"第1"`, `"2章"` with no pause. It happens only in the number and group modes with a pause above 0, where digits are already a pause apart, and the two breaks never meet: the edge breaks sit on the outer sides of the two numbers.
   - `_remove_space` strips every text item whenever the number wait is above 0 (`pipeline:165-187`, `:209-216`), and edge breaks exist only then. So `"共 "`, E, `"3"`, E, `" 章"` reaches the synth as `"共"`, E, `"3"`, E, `"章"`.
 
 #### 4.6.5 In `speak` (`synth:314-330`)
