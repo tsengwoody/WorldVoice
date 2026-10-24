@@ -54,6 +54,18 @@ def test_item_wait_factor_edges(env, sequence, expected):
 	assert shape(env.module.item_wait_factor(sequence, env.settings, env.module.GENERIC_CONTEXT)) == expected
 
 
+@pytest.mark.parametrize(
+	("wait", "expected"),
+	[(1, ["a", ("BreakCommand", 1), "b"]), (0, ["a", "b"])],
+	ids=["1-ms", "0-ms"],
+)
+def test_the_shortest_item_wait_breaks(env, wait, expected):
+	# An item wait of 1 ms is a pause; 0 is none (review M4, mutmut).
+	sequence = ["a", "b"]
+	env.settings.scaled_item_wait = lambda: wait
+	assert shape(env.module.item_wait_factor(sequence, env.settings, env.module.GENERIC_CONTEXT)) == expected
+
+
 def test_item_wait_factor_breaks_only_between_adjacent_text(env):
 	env.settings.scaled_item_wait = lambda: 30
 	marker = env.module.BreakCommand(5)
@@ -777,6 +789,16 @@ def test_the_dot_rule_spaces_only_numbers_whose_wrapper_goes(env, mode, voice, e
 		voice_name_for_language={"zh_TW": "Z", "en": voice}.get,
 	)
 	assert shape(env.module.inject_numbers(["12. Next"], env.settings, context)) == expected
+
+
+def test_the_dot_rule_reads_the_language_in_force(env):
+	# The wrapper of an en number goes inside NVDA's en stretch, though the context's language is
+	# zh_TW, so the period is spaced (review M4, mutmut: the start language of the check).
+	env.settings.number_mode = "value"
+	LangChangeCommand = sys.modules["speech.commands"].LangChangeCommand
+	sequence = [LangChangeCommand("en"), "12. Next"]
+	result = env.module.inject_numbers(sequence, env.settings, roles_context(env.module, "zh_TW", "en"))
+	assert shape(result) == [("lang", "en"), "12 . Next"]
 
 
 @pytest.mark.parametrize("numlan", ["default", "main", "en"])

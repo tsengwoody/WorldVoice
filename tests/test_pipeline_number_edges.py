@@ -8,6 +8,7 @@ whatever text is next to the number, in its item or another (fix/number-edge-pau
 
 import sys
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -615,11 +616,18 @@ def test_the_shortest_number_wait_adds_edge_breaks(monkeypatch):
 	assert shape(result) == ["第", ("E", 1), "3", ("E", 1), "章"]
 
 
-def test_off_mode_with_a_locale_keeps_the_dots_as_they_are(monkeypatch):
-	# "Off" wraps a number for a locale number language but adds no dot-rule space (mutmut).
-	module, settings, ctx = run_row(monkeypatch, {"mode": "none", "numlan": "en"})
+@pytest.mark.parametrize(
+	("numlan", "expected"),
+	[("en", ["a.", LEN, "1", LZH, ". b"]), ("zh", ["a.1. b"]), ("fr", ["a.1. b"])],
+	ids=["wrapper-kept", "same-voice", "no-voice"],
+)
+def test_off_mode_with_a_locale_keeps_the_dots_as_they_are(monkeypatch, numlan, expected):
+	# "Off" wraps a number for a locale number language but adds no dot-rule space (mutmut), also
+	# where the wrapper goes: zh is the voice in force, fr has no voice here (review M4).
+	module, settings, ctx = run_row(monkeypatch, {"mode": "none", "numlan": numlan})
+	ctx = replace(ctx, voice_name_for_language={"zh": "Z", "en": "E"}.get)
 	result = module.inject_numbers(["a.1. b"], settings, ctx)
-	assert shape(result) == ["a.", LEN, "1", LZH, ". b"]
+	assert shape(result) == expected
 
 
 @pytest.mark.parametrize("wait", [0, 10])
