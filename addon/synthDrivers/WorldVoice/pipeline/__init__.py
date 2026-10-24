@@ -134,8 +134,9 @@ def _split_numbers_for_language(text: str, number_re: re.Pattern = NUMBER_RE) ->
 	A sign right after a word character is a hyphen, as in "COVID-19" or "中-1", and stays with the
 	text before it; after a space, punctuation or at the start it moves with the number (decided by
 	the user, 2026-10-23). NVDA's own negative-number rule reads a sign the same way
-	(its negative number rule in locale/en/symbols.dic). The number modes and pauses keep NUMBER_RE's
-	matches.
+	(its negative number rule in locale/en/symbols.dic). The number stage (inject_numbers) cuts
+	numbers here in every mode; the number pause between numbers (number_wait_factor) keeps
+	NUMBER_RE's matches.
 	"""
 	position = 0
 	for match in number_re.finditer(text):
@@ -264,75 +265,6 @@ def remove_language_command(speechSequence):
 			yield command
 
 
-def _insert_WVLangChangeCommand_between_number(
-	speechSequence: Iterable[SpeechCmd],
-	ctx: SpeechContext,
-) -> Iterator[SpeechCmd]:
-	"""
-	Yield *speechSequence* while wrapping every numeric fragment with
-	`WVLangChangeCommand`s so the TTS switches to *number_language* for
-	numbers and then back to the current language.
-	"""
-	number_language = ctx.number_language
-	current_lang = ctx.language
-	default_lang = ctx.language
-
-	for item in speechSequence:
-		# Forward non-string commands; update current_lang for explicit changes
-		if not isinstance(item, str):
-			yield item
-			if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
-				current_lang = item.lang or default_lang
-			continue
-		yield from merge_consecutive_strings(
-			deduplicate_language_command(
-				iter_number_speech_segments_language(item, current_lang, number_language),
-				ctx,
-				start_language=current_lang,
-			),
-		)
-
-
-def iter_number_speech_segments_language(item, current_lang, number_language, number_re=NUMBER_RE):
-	"""
-	Yield segments in the following order:
-	  - Plain text fragments (non-numeric parts of the original string)
-	  - WVLangChangeCommand(num_lang)
-	  - The numeric fragment as it appears
-	  - WVLangChangeCommand(current_lang)
-
-	The function processes the input string without building an intermediate list.
-	"""
-	for kind, value in _split_numbers_for_language(item, number_re):
-		if kind == "text":
-			yield value
-			continue
-		# Language for the numeric fragment
-		num_lang = number_language if number_language not in (FOLLOW, MAIN) else current_lang
-		# Insert language switch and number
-		yield WVLangChangeCommand(num_lang)
-		yield value
-		yield WVLangChangeCommand(current_lang)
-
-
-def inject_number_language(
-	speechSequence: Iterable[SpeechCmd],
-	settings: "PipelineSettings",
-	ctx: SpeechContext,
-) -> Iterator[SpeechCmd]:
-	if ctx.supports_roles:
-		if ctx.number_language in (FOLLOW, MAIN):
-			# Both wrap a number in the language in force, so deduplicate_language_command
-			# would drop every wrapper: the pass-through is behavior-identical and avoids
-			# scanning every string for numbers. With detection on, "main" numbers are wrapped
-			# where detection runs (detect_with_number_language).
-			yield from speechSequence
-			return
-		yield from _insert_WVLangChangeCommand_between_number(speechSequence, ctx)
-		return
-	yield from remove_language_command(speechSequence)
-
-
 def wrap_numbers_for_detection(
 	speechSequence: Iterable[SpeechCmd],
 	ctx: SpeechContext,
@@ -422,25 +354,39 @@ def _translate_number(
 		yield piece
 
 
-def inject_number_mode(
+def inject_numbers(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
+	"""
+	Speak each number of a text item in its number language and number mode.
+
+	Numbers are found once, with the number-language rule (_split_numbers_for_language), and each
+	gets, in order: its edge pauses, the wrapper of its number language, and the pieces of its
+	number mode (decided by the user, 2026-10-24, U5). A synth without roles gets no wrapper, and
+	the WVLangChangeCommands it was sent are dropped.
+
+	Two cases pass the sequence on as it is: "off" without a locale number language leaves numbers
+	alone, without even the dot rule, and "default" and "main" wrap a number in the language in
+	force, which deduplicate_language_command would drop again. With detection on, "main" numbers
+	are wrapped where detection runs (detect_with_number_language).
+	"""
 	mode = settings.number_mode
-	if mode == "none":
-		# "off" leaves numbers as they are, without even the dot rule.
+	wraps = ctx.supports_roles and ctx.number_language not in (FOLLOW, MAIN)
+	if not ctx.supports_roles:
+		speechSequence = remove_language_command(speechSequence)
+	if mode == "none" and not wraps:
 		yield from speechSequence
 		return
 	group_size = settings.group_size
-	number_pause = settings.scaled_number_wait()
-	namer = symbol_namer(ctx.voice_locale_for_language)
+	pause = settings.scaled_number_wait()
+	edge = gap_break = None
+	number_language = ctx.number_language if wraps else None
 	# Symbols are named for the number language, the language of the wrapper around every number;
 	# with no number language, for the language in force at that point of the sequence. The locale
 	# is that of the voice that speaks the language, when NVDA has a table for it (symbols.symbol_locale).
-	number_language = (
-		ctx.number_language if ctx.supports_roles and ctx.number_language not in (FOLLOW, MAIN) else None
-	)
+	namer = symbol_namer(ctx.voice_locale_for_language)
 	language = ctx.language
 	for item in speechSequence:
 		if not isinstance(item, str):
@@ -448,41 +394,58 @@ def inject_number_mode(
 				language = item.lang or ctx.language
 			yield item
 			continue
-		segments = iter_number_speech_segments_mode(
+		segments = _number_item_segments(
 			item,
-			mode,
-			group_size,
-			number_pause,
-			namer(number_language or language),
+			mode=mode,
+			group_size=group_size,
+			pause=pause,
+			name_of=namer(number_language or language),
+			number_language=number_language,
+			language=language,
+			edge=edge,
+			gap_break=gap_break,
 		)
-		if ctx.supports_roles:
-			segments = deduplicate_language_command(segments, ctx)
+		if wraps:
+			# The language in force here may not be the context's (phase 30 item 6).
+			segments = deduplicate_language_command(segments, ctx, start_language=language)
 		yield from merge_consecutive_strings(segments)
 
 
-def iter_number_speech_segments_mode(
+def _number_item_segments(
 	item: str,
+	*,
 	mode: str,
 	group_size: int,
-	number_pause: int,
+	pause: int,
 	name_of: Callable[[str], str | None],
-	number_re: re.Pattern = NUMBER_RE,
+	number_language: str | None,
+	language: str | None,
+	edge: SpeechCmd | None,
+	gap_break: SpeechCmd | None,
 ) -> Iterator[SpeechCmd]:
-	# A "." right after a number, or right before one, is spoken apart from it.
-	previous_was_number = False
-	preceding_text = ""
-	for kind, value in _split_by(number_re, item):
+	"""The segments of one text item: its text, and each number with its pauses, wrapper and pieces.
+
+	*number_language* is the language of the wrapper, or None for no wrapper; the wrapper closes with
+	*language*, the language in force. A "." right after a number, or right before one, is spoken
+	apart from it, in every mode but "none".
+	"""
+	parts = list(_split_numbers_for_language(item))
+	for index, (kind, value) in enumerate(parts):
 		if kind == "text":
-			if previous_was_number and value[0] == ".":
+			if mode != "none" and index > 0 and value[0] == ".":
 				yield " "
 			yield value
-			preceding_text = value
+			if mode != "none" and index + 1 < len(parts) and value.endswith("."):
+				yield " "
 			continue
-		if preceding_text.endswith("."):
-			yield " "
-		yield from _translate_number(value.group(), mode, group_size, number_pause, name_of)
-		previous_was_number = True
-		preceding_text = ""
+		if number_language is not None:
+			yield WVLangChangeCommand(number_language)
+		if mode == "none":
+			yield value
+		else:
+			yield from _translate_number(value, mode, group_size, pause, name_of)
+		if number_language is not None:
+			yield WVLangChangeCommand(language)
 
 
 def merge_consecutive_strings(items):
@@ -953,8 +916,7 @@ class Stage:
 STAGES: tuple[Stage, ...] = (
 	Stage("apply_speech_dictionaries", apply_speech_dictionaries),
 	Stage("number_mode", remove_thousands_separators, log_switch=False),
-	Stage("number_language", inject_number_language),
-	Stage("number_mode", inject_number_mode),
+	Stage("number_mode", inject_numbers, also_logged_by=("number_language",)),
 	Stage("chinesespace_wait_factor", inject_chinese_space_pause),
 	Stage("item_wait_factor", item_wait_factor),
 	Stage("punctuation_wait_factor", inject_punctuation_pause),

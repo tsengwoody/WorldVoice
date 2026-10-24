@@ -103,6 +103,28 @@ def test_the_log_confspec_has_every_log_switch(monkeypatch):
 	assert set(module.LOG_SWITCHES) <= set(worldvoice_conf()["WorldVoice"]["log"])
 
 
+@pytest.mark.parametrize(
+	("on", "pairs"),
+	[(("number_language",), 1), (("number_language", "number_mode"), 2)],
+	ids=["language-only", "both"],
+)
+def test_the_number_language_switch_logs_the_number_stage(monkeypatch, on, pairs):
+	# Number-edge-pause spec D4: one number stage, logged by either number switch, labelled "number_mode".
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	sys.modules["config"].conf["WorldVoice"]["log"] = {
+		"enable": True,
+		**dict.fromkeys(LOG_SWITCH_ORDER, False),
+		**dict.fromkeys(on, True),
+	}
+	writes = []
+	monkeypatch.setattr(module, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
+	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	sequence = ["12,345"]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	assert writes == [("number_mode", "before"), ("number_mode", "after")] * pairs
+
+
 def test_register_puts_stages_first_in_order_and_unregister_removes_them(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	fake = OrderedFilter()
@@ -226,10 +248,10 @@ def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 		default_voice_language=english.language,
 		voice_name_for_language={"en": "A:en", "de": "A:de"}.get,
 	)
-	result = list(module.inject_number_language(["a 1 b"], settings, ctx))
+	result = list(module.inject_numbers(["a 1 b"], settings, ctx))
 	assert [getattr(item, "lang", item) for item in result] == ["a ", "de", "1", "en", " b"]
 	command = module.WVLangChangeCommand("de")
-	assert list(module.inject_number_language([command, "x"], settings, module.GENERIC_CONTEXT)) == ["x"]
+	assert list(module.inject_numbers([command, "x"], settings, module.GENERIC_CONTEXT)) == ["x"]
 
 
 def test_number_language_and_number_wait_pause_between_numbers(monkeypatch):

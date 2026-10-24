@@ -90,7 +90,7 @@ def test_off_mode_leaves_the_sequence_unchanged(env):
 	# "off" skips number-mode processing entirely, the dot rule included (V3).
 	env.settings.number_mode = "none"
 	sequence = ["12.5 a. 3", Marker(), "3."]
-	result = list(env.module.inject_number_mode(sequence, env.settings, env.generic))
+	result = list(env.module.inject_numbers(sequence, env.settings, env.generic))
 	assert result == sequence
 	assert result[1] is sequence[1]
 
@@ -120,7 +120,7 @@ def test_number_language_follows_each_language_change_in_the_sequence(env):
 	ctx = voices_context(module, number_language="zh")
 	marker = Marker()
 	sequence = ["x 1", module.LangChangeCommand("fr"), marker, "y 2", module.LangChangeCommand(None), "3"]
-	result = list(module.inject_number_language(sequence, env.settings, ctx))
+	result = list(module.inject_numbers(sequence, env.settings, ctx))
 	# Each number switches to the number language and back to the language in force there;
 	# other commands leave that language alone.
 	assert kinds(result, env.BreakCommand) == [
@@ -147,7 +147,7 @@ def test_a_number_language_equal_to_the_main_language_still_applies_in_another_l
 	module = env.module
 	ctx = voices_context(module, number_language="en")
 	sequence = [module.LangChangeCommand("fr"), "y 2"]
-	result = list(module.inject_number_language(sequence, env.settings, ctx))
+	result = list(module.inject_numbers(sequence, env.settings, ctx))
 	assert kinds(result, env.BreakCommand) == [("lang", "fr"), "y ", ("lang", "en"), "2", ("lang", "fr")]
 
 
@@ -155,13 +155,13 @@ def test_default_number_language_leaves_numbers_alone(env):
 	marker = Marker()
 	sequence = ["x 1", marker, "2"]
 	ctx = voices_context(env.module, number_language="default")
-	assert list(env.module.inject_number_language(sequence, env.settings, ctx)) == sequence
+	assert list(env.module.inject_numbers(sequence, env.settings, ctx)) == sequence
 
 
 def test_number_mode_passes_commands_and_merges_text_around_them(env):
 	env.settings.number_mode = "number"
 	marker = Marker()
-	result = list(env.module.inject_number_mode([marker, "a 12", marker], env.settings, env.generic))
+	result = list(env.module.inject_numbers([marker, "a 12", marker], env.settings, env.generic))
 	assert kinds(result, env.BreakCommand) == [marker, "a 1", ("NumberBreakCommand", 0), "2", marker]
 
 

@@ -242,4 +242,4 @@ Strategies: `TEXT = st.text(alphabet="0123456789+-.,:aZ共第章。，，  　"
 
 ## Execution record
 
-(Filled in during execution: oracle result of Task 4 step 5, mutmut results of Task 9.)
+- **Task 4 step 5, equivalence oracle (D9), 2026-10-24, on the Task 4 code:** scratch module `<scratch>/oracle/test_oracle.py`, master's five removed functions compiled into the loaded pipeline module's namespace; Hypothesis, 3000 examples: lists of up to 4 items over digits, signs, `.,:×`, letters, CJK, `。，，`, ASCII/no-break/ideographic spaces, WV and NVDA language commands and a plain break; generic and roles contexts with number language default, main, en, fr, zh; value and "none" at pause 0–60, number and group at pause 0, group sizes 2–10. After stripping text items and dropping blank ones, `inject_numbers` equals `inject_number_mode(inject_number_language(...))`: **passed**. Without the stripping it fails at once on `['0.']`, number mode, number language en (D5's added space), so the oracle reaches the wrapper and dot-rule paths.

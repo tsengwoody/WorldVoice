@@ -451,7 +451,8 @@ OFF_ROWS = [
 		"zh_TW",
 		["12. Next"],
 		{"settings": PUNCTUATION},
-		[(ZH, "12"), (EN, "."), "|", (EN, " Next")],
+		# The dot rule spaces the period, as without a wrapper (number-edge-pause spec D5).
+		[(ZH, "12"), (EN, " ."), "|", (EN, " Next")],
 		id="locale-next",
 	),
 ]

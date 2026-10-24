@@ -290,7 +290,7 @@ def test_number_wait_splits_across_items_and_keeps_commands(env):
 def test_digit_mode_then_number_wait_pauses_between_digits(env):
 	env.settings.number_mode = "number"
 	env.settings.scaled_number_wait = lambda: 40
-	digits = env.module.inject_number_mode(["12"], env.settings, env.module.GENERIC_CONTEXT)
+	digits = env.module.inject_numbers(["12"], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(env.module.number_wait_factor(digits, env.settings, env.module.GENERIC_CONTEXT)) == [
 		"1",
 		B40,
@@ -323,12 +323,12 @@ def test_digit_mode_separates_digits_with_the_number_wait(env, wait):
 	env.settings.number_mode = "number"
 	env.settings.scaled_number_wait = lambda: wait
 	generic = env.module.GENERIC_CONTEXT
-	assert shape(env.module.inject_number_mode(["12"], env.settings, generic)) == [
+	assert shape(env.module.inject_numbers(["12"], env.settings, generic)) == [
 		"1",
 		("NumberBreakCommand", wait),
 		"2",
 	]
-	result = list(env.module.inject_number_mode(["-1234"], env.settings, generic))
+	result = list(env.module.inject_numbers(["-1234"], env.settings, generic))
 	assert result[0::2] == ["-1", "2", "3", "4"]
 	first, *others = result[1::2]
 	assert all(other is first for other in others)
@@ -345,7 +345,7 @@ def test_digit_mode_separates_digits_with_the_number_wait(env, wait):
 )
 def test_digit_mode_breaks_between_digits_and_around_symbols(env, text, pieces):
 	env.settings.number_mode = "number"
-	result = env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)
+	result = env.module.inject_numbers([text], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(result) == spoken(pieces)
 
 
@@ -353,7 +353,7 @@ def test_group_mode_then_number_wait_breaks_with_the_number_wait(env):
 	env.settings.number_mode = "group"
 	env.settings.group_size = 2
 	env.settings.scaled_number_wait = lambda: 40
-	groups = env.module.inject_number_mode(["1234 5678"], env.settings, env.module.GENERIC_CONTEXT)
+	groups = env.module.inject_numbers(["1234 5678"], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(env.module.number_wait_factor(groups, env.settings, env.module.GENERIC_CONTEXT)) == broken(
 		40,
 		"12",
@@ -428,7 +428,7 @@ def test_number_mode(env, mode, size, pause, text):
 	env.settings.group_size = size
 	env.settings.scaled_number_wait = lambda: pause
 	expected = {**SHARED, **NUMBER_MODES[(mode, size, pause)]}[text]
-	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+	assert shape(env.module.inject_numbers([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
 
 
 # Spec 7.1: (input, number, group 3, group 2), each as space-separated pieces.
@@ -463,7 +463,7 @@ SPEC_IDS = ["".join(c if c.isascii() else f"U+{ord(c):04X}" for c in row[0]) for
 def test_number_and_group_modes_name_each_symbol(env, mode, size, column, row):
 	env.settings.number_mode = mode
 	env.settings.group_size = size
-	result = env.module.inject_number_mode([row[0]], env.settings, env.module.GENERIC_CONTEXT)
+	result = env.module.inject_numbers([row[0]], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(result) == spoken(row[column])
 
 
@@ -471,7 +471,7 @@ def test_number_and_group_modes_name_each_symbol(env, mode, size, column, row):
 def test_number_breaks_use_the_number_pause(env, pause):
 	env.settings.number_mode = "group"
 	env.settings.scaled_number_wait = lambda: pause
-	result = list(env.module.inject_number_mode(["1,234.5"], env.settings, env.module.GENERIC_CONTEXT))
+	result = list(env.module.inject_numbers(["1,234.5"], env.settings, env.module.GENERIC_CONTEXT))
 	breaks = [item for item in result if not isinstance(item, str)]
 	assert breaks
 	assert all(type(item) is env.module.NumberBreakCommand and item.time == pause for item in breaks)
@@ -480,7 +480,7 @@ def test_number_breaks_use_the_number_pause(env, pause):
 
 def test_adjacent_symbols_get_a_name_each(env):
 	env.settings.number_mode = "number"
-	result = env.module.inject_number_mode(["1--2"], env.settings, env.module.GENERIC_CONTEXT)
+	result = env.module.inject_numbers(["1--2"], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(result) == spoken("1 <-> <-> 2")
 
 
@@ -503,7 +503,7 @@ def test_symbol_names_follow_the_number_language(env):
 	env.settings.number_mode = "number"
 	command = env.module.WVLangChangeCommand
 	ctx = roles_context(env.module, "zh_TW", "en")
-	result = list(env.module.inject_number_mode([command("en"), "2×3", command("zh_TW")], env.settings, ctx))
+	result = list(env.module.inject_numbers([command("en"), "2×3", command("zh_TW")], env.settings, ctx))
 	assert names_in(result) == [N("×", "en")]
 
 
@@ -512,7 +512,7 @@ def test_symbol_names_follow_language_commands_with_default_number_language(env)
 	wv, nvda = env.module.WVLangChangeCommand, sys.modules["speech.commands"].LangChangeCommand
 	ctx = roles_context(env.module, "zh_TW", "default")
 	sequence = ["2×3", wv("de"), "2×3", nvda(None), "2×3"]
-	result = list(env.module.inject_number_mode(sequence, env.settings, ctx))
+	result = list(env.module.inject_numbers(sequence, env.settings, ctx))
 	assert names_in(result) == [N("×", "zh_TW"), N("×", "de"), N("×", "zh_TW")]
 
 
@@ -522,7 +522,7 @@ def test_symbol_names_follow_language_commands_with_main_number_language(env):
 	wv, nvda = env.module.WVLangChangeCommand, sys.modules["speech.commands"].LangChangeCommand
 	ctx = roles_context(env.module, "zh_TW", "main")
 	sequence = ["2×3", wv("de"), "2×3", nvda(None), "2×3"]
-	result = list(env.module.inject_number_mode(sequence, env.settings, ctx))
+	result = list(env.module.inject_numbers(sequence, env.settings, ctx))
 	assert names_in(result) == [N("×", "zh_TW"), N("×", "de"), N("×", "zh_TW")]
 
 
@@ -532,21 +532,21 @@ def test_symbol_names_follow_the_voice_locale(env, monkeypatch):
 	env.settings.number_mode = "number"
 	monkeypatch.setattr(env.module.symbols.speech, "getCurrentLanguage", lambda: "en")
 	ctx = replace(roles_context(env.module, "zh", "en"), voice_locale_for_language={"en": "zh-TW"}.get)
-	assert names_in(env.module.inject_number_mode(["2×3"], env.settings, ctx)) == [N("×", "zh_TW")]
+	assert names_in(env.module.inject_numbers(["2×3"], env.settings, ctx)) == [N("×", "zh_TW")]
 	ctx = replace(roles_context(env.module, "zh", "default"), voice_locale_for_language={"zh": "zh_CN"}.get)
-	assert names_in(env.module.inject_number_mode(["2×3"], env.settings, ctx)) == [N("×", "zh_CN")]
+	assert names_in(env.module.inject_numbers(["2×3"], env.settings, ctx)) == [N("×", "zh_CN")]
 
 
 def test_symbol_names_without_roles_ignore_the_number_language(env):
 	env.settings.number_mode = "number"
 	ctx = env.module.SpeechContext(supports_roles=False, language="fr", number_language="en")
-	assert names_in(env.module.inject_number_mode(["2×3"], env.settings, ctx)) == [N("×", "fr")]
+	assert names_in(env.module.inject_numbers(["2×3"], env.settings, ctx)) == [N("×", "fr")]
 
 
 def test_symbol_names_without_a_language_use_nvdas_current_language(env, monkeypatch):
 	env.settings.number_mode = "number"
 	monkeypatch.setattr(env.module.symbols.speech, "getCurrentLanguage", lambda: "de")
-	result = env.module.inject_number_mode(["2×3"], env.settings, env.module.GENERIC_CONTEXT)
+	result = env.module.inject_numbers(["2×3"], env.settings, env.module.GENERIC_CONTEXT)
 	assert names_in(result) == [N("×", "de")]
 
 
@@ -566,7 +566,7 @@ def counting_lookup(env, monkeypatch, unnamed=""):
 def test_value_and_off_leave_symbols_alone(env, monkeypatch, mode):
 	calls = counting_lookup(env, monkeypatch)
 	env.settings.number_mode = mode
-	assert list(env.module.inject_number_mode(["2×3"], env.settings, env.module.GENERIC_CONTEXT)) == [
+	assert list(env.module.inject_numbers(["2×3"], env.settings, env.module.GENERIC_CONTEXT)) == [
 		"2×3",
 	]
 	assert calls == []
@@ -578,17 +578,17 @@ def test_a_symbol_without_a_name_is_its_own_item(env, monkeypatch):
 	counting_lookup(env, monkeypatch, unnamed=".")
 	generic = env.module.GENERIC_CONTEXT
 	env.settings.number_mode = "group"
-	assert shape(env.module.inject_number_mode(["123.456"], env.settings, generic)) == spoken("123 . 456")
+	assert shape(env.module.inject_numbers(["123.456"], env.settings, generic)) == spoken("123 . 456")
 	env.settings.number_mode = "number"
-	assert shape(env.module.inject_number_mode(["12.5"], env.settings, generic)) == spoken("1 2 . 5")
-	assert shape(env.module.inject_number_mode(["1-.2"], env.settings, generic)) == spoken("1 <-> . 2")
+	assert shape(env.module.inject_numbers(["12.5"], env.settings, generic)) == spoken("1 2 . 5")
+	assert shape(env.module.inject_numbers(["1-.2"], env.settings, generic)) == spoken("1 <-> . 2")
 
 
 def test_an_unnamed_symbol_and_a_named_one_are_two_items(env, monkeypatch):
 	# The batch 2 review I1 input: no name ever takes the next digits.
 	counting_lookup(env, monkeypatch, unnamed=".")
 	env.settings.number_mode = "number"
-	result = env.module.inject_number_mode(["1.-2"], env.settings, env.module.GENERIC_CONTEXT)
+	result = env.module.inject_numbers(["1.-2"], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(result) == spoken("1 . <-> 2")
 
 
@@ -637,7 +637,7 @@ def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
 	env.settings.number_mode = "number"
 	start = time.perf_counter()
 	result = list(
-		env.module.inject_number_mode(["1." * 3000 + "1"], env.settings, env.module.GENERIC_CONTEXT),
+		env.module.inject_numbers(["1." * 3000 + "1"], env.settings, env.module.GENERIC_CONTEXT),
 	)
 	assert time.perf_counter() - start < 2
 	assert (calls, len(languages)) == (["."], 1)
@@ -655,7 +655,7 @@ def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
 def test_group_mode_keeps_leading_zeros_and_every_digit(env, size, text, expected):
 	env.settings.number_mode = "group"
 	env.settings.group_size = size
-	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+	assert shape(env.module.inject_numbers([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
 
 
 @pytest.mark.parametrize("pause", [0, 50])
@@ -663,7 +663,7 @@ def test_group_separator_is_one_instance_per_number(env, pause):
 	env.settings.number_mode = "group"
 	env.settings.group_size = 2
 	env.settings.scaled_number_wait = lambda: pause
-	result = list(env.module.inject_number_mode(["123456"], env.settings, env.module.GENERIC_CONTEXT))
+	result = list(env.module.inject_numbers(["123456"], env.settings, env.module.GENERIC_CONTEXT))
 	assert result[0::2] == ["12", "34", "56"]
 	first, second = result[1::2]
 	assert first is second
@@ -673,7 +673,7 @@ def test_group_separator_is_one_instance_per_number(env, pause):
 def test_a_stored_pair_mode_reads_numbers_as_values(env, monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {"number_mode": "pair", "group_size": 2}}}
 	stored = load_settings_module(monkeypatch, conf).pipeline_settings.get()
-	assert list(env.module.inject_number_mode(["1234"], stored, env.module.GENERIC_CONTEXT)) == ["1234"]
+	assert list(env.module.inject_numbers(["1234"], stored, env.module.GENERIC_CONTEXT)) == ["1234"]
 
 
 @pytest.mark.parametrize(
@@ -699,13 +699,13 @@ def test_group_and_number_modes_keep_the_original_digits(env, mode, size, text, 
 	# Decided by the user (2026-10-23): pieces keep the characters they were written with.
 	env.settings.number_mode = mode
 	env.settings.group_size = size
-	assert shape(env.module.inject_number_mode([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
+	assert shape(env.module.inject_numbers([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
 
 
 def test_number_language_wraps_each_number(env):
 	english = SimpleNamespace(name="A:en", language="en")
 	context = ctx(env.module, {"en": "A:en", "de": "A:de"}, english)
-	result = env.module.inject_number_language(["a1b2"], env.settings, context)
+	result = env.module.inject_numbers(["a1b2"], env.settings, context)
 	assert shape(result) == [
 		"a",
 		("lang", "de"),
@@ -716,7 +716,7 @@ def test_number_language_wraps_each_number(env):
 		"2",
 		("lang", "en"),
 	]
-	assert list(env.module.inject_number_language([""], env.settings, context)) == []
+	assert list(env.module.inject_numbers([""], env.settings, context)) == []
 
 
 def test_main_number_language_passes_through_the_early_stage(env):
@@ -724,18 +724,17 @@ def test_main_number_language_passes_through_the_early_stage(env):
 	english = SimpleNamespace(name="A:en", language="en")
 	context = replace(ctx(env.module, {"en": "A:en", "zh": "B:zh"}, english), number_language="main")
 	items = ["a1b2", env.module.WVLangChangeCommand("zh"), "3"]
-	result = list(env.module.inject_number_language(items, env.settings, context))
-	assert len(result) == len(items) and all(after is before for after, before in zip(result, items))
-
-
-def test_number_segments_with_main_wrap_in_the_current_language(env):
-	result = env.module.iter_number_speech_segments_language("a1", "en", "main")
-	assert shape(result) == ["a", ("lang", "en"), "1", ("lang", "en")]
+	result = list(env.module.inject_numbers(items, env.settings, context))
+	# Value mode merges the text it reads, so the strings are equal, not the same objects.
+	assert result == ["a1b2", items[1], "3"]
+	assert result[1] is items[1]
 
 
 def test_number_language_leaves_a_sign_after_a_word_with_it(env):
 	# Decided by the user (2026-10-23, U2): "a-1" and "中+2" keep their sign; " -3" moves it.
-	result = env.module.iter_number_speech_segments_language("a-1 中+2 -3", "en", "de")
+	english = SimpleNamespace(name="A:en", language="en")
+	context = ctx(env.module, {"en": "A:en", "de": "A:de"}, english)
+	result = env.module.inject_numbers(["a-1 中+2 -3"], env.settings, context)
 	assert shape(result) == [
 		"a-",
 		("lang", "de"),
@@ -750,6 +749,34 @@ def test_number_language_leaves_a_sign_after_a_word_with_it(env):
 		"-3",
 		("lang", "en"),
 	]
+
+
+@pytest.mark.parametrize(
+	("mode", "expected"),
+	[
+		("value", [("lang", "en"), "12", ("lang", "zh_TW"), " . Next"]),
+		("number", [("lang", "en"), "1", ("NumberBreakCommand", 0), "2", ("lang", "zh_TW"), " . Next"]),
+	],
+	ids=["value", "number-pause-0"],
+)
+def test_the_dot_rule_reads_the_item_text_with_a_wrapper(env, mode, expected):
+	# Number-edge-pause spec D5: the dot rule reads the item's text, whether a wrapper stays or not.
+	env.settings.number_mode = mode
+	context = roles_context(env.module, "zh_TW", "en")
+	assert shape(env.module.inject_numbers(["12. Next"], env.settings, context)) == expected
+
+
+@pytest.mark.parametrize("numlan", ["default", "main", "en"])
+def test_off_mode_wraps_only_for_a_locale(env, numlan):
+	env.settings.number_mode = "none"
+	sequence = ["第3章"]
+	result = list(
+		env.module.inject_numbers(sequence, env.settings, roles_context(env.module, "zh_TW", numlan)),
+	)
+	if numlan == "en":
+		assert shape(result) == ["第", ("lang", "en"), "3", ("lang", "zh_TW"), "章"]
+	else:
+		assert len(result) == 1 and result[0] is sequence[0]
 
 
 def test_chinese_space_pause(env):

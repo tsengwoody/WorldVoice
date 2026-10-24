@@ -258,7 +258,7 @@ def run_group_mode(env, text, size, pause=0):
 	stage_settings.number_mode = "group"
 	stage_settings.group_size = size
 	stage_settings.scaled_number_wait = lambda: pause
-	return list(env.module.inject_number_mode([text], stage_settings, env.module.GENERIC_CONTEXT))
+	return list(env.module.inject_numbers([text], stage_settings, env.module.GENERIC_CONTEXT))
 
 
 @SHARED_ENV
@@ -294,7 +294,7 @@ def test_property_digit_mode_separates_every_digit(env, sign, digits, wait):
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = "number"
 	stage_settings.scaled_number_wait = lambda: wait
-	result = list(env.module.inject_number_mode([sign + digits], stage_settings, env.module.GENERIC_CONTEXT))
+	result = list(env.module.inject_numbers([sign + digits], stage_settings, env.module.GENERIC_CONTEXT))
 
 	texts, breaks = result[0::2], result[1::2]
 	assert all(isinstance(item, str) for item in texts)
@@ -315,7 +315,7 @@ def run_number_mode(env, text, mode, size):
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = mode
 	stage_settings.group_size = size
-	return list(env.module.inject_number_mode([text], stage_settings, env.module.GENERIC_CONTEXT))
+	return list(env.module.inject_numbers([text], stage_settings, env.module.GENERIC_CONTEXT))
 
 
 def symbol_of_name(env):
@@ -452,12 +452,12 @@ def test_property_matches_are_never_glued(env, text):
 
 @SHARED_ENV
 @given(data=st.data())
-def test_property_off_mode_is_the_identity_for_both_number_stages(env, data):
+def test_property_off_mode_is_the_identity_for_the_thousands_and_number_stages(env, data):
 	sequence = data.draw(st.lists(st.one_of(NUMBER_TEXT, st.builds(lambda: env.BreakCommand(5))), max_size=6))
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = "none"
 	stage_settings.group_size = data.draw(st.integers(2, 10))
-	for stage in (env.module.remove_thousands_separators, env.module.inject_number_mode):
+	for stage in (env.module.remove_thousands_separators, env.module.inject_numbers):
 		result = list(stage(sequence, stage_settings, env.module.GENERIC_CONTEXT))
 		assert len(result) == len(sequence)
 		assert all(after is before for after, before in zip(result, sequence))
@@ -691,7 +691,7 @@ def test_property_number_breaks_never_touch_another_break(env, data):
 	try:
 		for stage in (
 			module.remove_thousands_separators,
-			module.inject_number_mode,
+			module.inject_numbers,
 			module.inject_chinese_space_pause,
 			module.item_wait_factor,
 			module.inject_punctuation_pause,
@@ -741,10 +741,7 @@ def spoken_between_number_breaks(env, sequence):
 def test_property_the_number_language_changes_no_words_or_breaks(env, data, text):
 	"""P8: the text between number breaks is the same with number language en and default.
 
-	It ignores whitespace and runs with the punctuation pause off, so it does not cover
-	differences there. One predates this branch (master): in value mode the dot rule spaces
-	"There are 5. Next" as "5 . Next" without a number language, but with one the wrapper ends
-	the item at "5" and the dot rule never sees the period (final review M5).
+	It ignores whitespace and runs with the punctuation pause off.
 	"""
 	stage_settings = punctuation_settings(0)
 	stage_settings.punctuation_pause_enabled = False
