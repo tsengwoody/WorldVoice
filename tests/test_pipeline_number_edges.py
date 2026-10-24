@@ -56,6 +56,10 @@ def context(module, numlan="default", roles=True):
 	)
 
 
+# NVDA's commands that end an utterance, by class name, and their notation.
+UTTERANCE_ENDS = {"EndUtteranceCommand": "EU", "ConfigProfileTriggerCommand": "CPT"}
+
+
 def shape(sequence):
 	module = sys.modules["synthDrivers.WorldVoice.pipeline"]
 	BreakCommand = sys.modules["speech.commands"].BreakCommand
@@ -71,6 +75,8 @@ def shape(sequence):
 			result.append(("PB", item.time))
 		elif isinstance(item, BreakCommand):
 			result.append(("B*" if getattr(item, "worldvoice_number_edge", False) else "B", item.time))
+		elif type(item).__name__ in UTTERANCE_ENDS:
+			result.append(UTTERANCE_ENDS[type(item).__name__])
 		elif hasattr(item, "lang"):
 			result.append(("L", item.lang))
 		else:
@@ -505,6 +511,51 @@ def test_other_synths_get_edge_breaks_across_items(monkeypatch, sequence, item, 
 	# The item stage tells an edge break at an item's start or end apart on a plain break too.
 	result = run_handlers(monkeypatch, sequence, {"item": item}, lambda module: context(module, roles=False))
 	assert result == expected
+
+
+@pytest.mark.parametrize("item", [0, 10])
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[
+		# NVDA's speakSpelling puts the whole spelling in one speak(), an EndUtteranceCommand after
+		# every character; the filters see it all, the synth one utterance per character.
+		(["a", "EU", "1", "EU", "b", "EU"], "same"),
+		(["1", "EU", "2", "EU"], "same"),
+		(["EU", "3", "EU"], "same"),
+		# Say All ends a chunk with an EndUtteranceCommand.
+		(["第3", "EU", "章"], ["第", E, "3", "EU", "章"]),
+		(["第", "EU", "3章"], ["第", "EU", "3", E, "章"]),
+		(["第3", "CPT", "章"], ["第", E, "3", "CPT", "章"]),
+		# Inside one utterance the text of another item still counts.
+		(
+			["a", "EU", "第3", "章", "EU"],
+			{0: ["a", "EU", "第", E, "3", E, "章", "EU"], 10: ["a", "EU", "第", E, "3", B10, "章", "EU"]},
+		),
+		(["第", "EU", "3", "章"], {0: ["第", "EU", "3", E, "章"], 10: ["第", "EU", "3", B10, "章"]}),
+	],
+	ids=[
+		"spell-a1b",
+		"spell-12",
+		"spell-1",
+		"say-all-end",
+		"say-all-start",
+		"profile-trigger",
+		"inside",
+		"after-end",
+	],
+)
+def test_an_utterance_end_is_the_end_of_the_sequence(monkeypatch, item, sequence, expected):
+	# Review I1: NVDA's speech manager splits the sequence at an EndUtteranceCommand, and at a
+	# ConfigProfileTriggerCommand, into utterances; no edge break starts or ends one.
+	module, settings, ctx = run_row(monkeypatch, {"item": item})
+	commands = sys.modules["speech.commands"]
+	makers = {"EU": commands.EndUtteranceCommand, "CPT": commands.ConfigProfileTriggerCommand}
+	items = [makers[entry]() if entry in makers else entry for entry in sequence]
+	for stage in module.STAGES:
+		items = list(stage.fn(items, settings, ctx))
+	if isinstance(expected, dict):
+		expected = expected[item]
+	assert shape(items) == (sequence if expected == "same" else expected)
 
 
 @pytest.mark.parametrize("item", [0, 10])

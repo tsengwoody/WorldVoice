@@ -96,9 +96,21 @@ def load_pipeline_module(monkeypatch, settings):
 		def __init__(self, lang=None):
 			self.lang = lang
 
+	class EndUtteranceCommand(SpeechCommand):
+		"""NVDA's speech manager ends an utterance here (speech/manager.py)."""
+
+	class ConfigProfileTriggerCommand(SpeechCommand):
+		"""NVDA's speech manager ends an utterance before a profile trigger with a profile."""
+
+		def __init__(self, trigger=None, enter=True):
+			self.trigger = trigger
+			self.enter = enter
+
 	commands.SpeechCommand = SpeechCommand
 	commands.BreakCommand = BreakCommand
 	commands.LangChangeCommand = LangChangeCommand
+	commands.EndUtteranceCommand = EndUtteranceCommand
+	commands.ConfigProfileTriggerCommand = ConfigProfileTriggerCommand
 
 	speech = stubs.module("speech")
 	speech.speech = SimpleNamespace(processText=lambda *args, **kwargs: args[1])

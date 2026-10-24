@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Literal, Union
 import config
 import speechDictHandler
 from logHandler import log
-from speech.commands import BreakCommand, LangChangeCommand
+from speech.commands import BreakCommand, ConfigProfileTriggerCommand, EndUtteranceCommand, LangChangeCommand
 from speech.extensions import filter_speechSequence
 
 from .._speechcommand import WVLangChangeCommand
@@ -401,7 +401,9 @@ def inject_numbers(
 
 	The edge pauses go on each side of a number with spoken text anywhere in the sequence, in its
 	item or another, whatever commands lie between; none before the first spoken item or after the
-	last (corrected by fix/number-edge-pause-items, decided by the user, 2026-10-24). Where breaks
+	last (corrected by fix/number-edge-pause-items, decided by the user, 2026-10-24). The sequence
+	here is one utterance: NVDA splits the filtered sequence at an EndUtteranceCommand or a
+	ConfigProfileTriggerCommand (_ends_utterance, review I1). Where breaks
 	meet around an edge break, only one stays (_merge_edge_breaks): two numbers at the end and start
 	of two items get one pause, and so does a number next to a break of the sequence.
 	"""
@@ -427,6 +429,30 @@ def _is_spoken(item: SpeechCmd) -> bool:
 	return isinstance(item, str) and bool(item.strip())
 
 
+def _ends_utterance(item: SpeechCmd) -> bool:
+	"""Whether NVDA's speech manager ends the utterance at *item*, after the filters ran.
+
+	It splits the sequence at an EndUtteranceCommand (speakSpelling puts one after every character,
+	Say All one after every chunk), and before a ConfigProfileTriggerCommand of a trigger with a
+	profile; one without a profile counts too, as the pipeline cannot know.
+	"""
+	return isinstance(item, (EndUtteranceCommand, ConfigProfileTriggerCommand))
+
+
+def _spoken_later(speechSequence: list[SpeechCmd]) -> list[bool]:
+	"""For each index, whether a spoken item comes after it in its utterance."""
+	later = [False] * len(speechSequence)
+	spoken = False
+	for index in range(len(speechSequence) - 1, -1, -1):
+		later[index] = spoken
+		item = speechSequence[index]
+		if _ends_utterance(item):
+			spoken = False
+		elif _is_spoken(item):
+			spoken = True
+	return later
+
+
 def _inject_item_numbers(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
@@ -443,14 +469,10 @@ def _inject_item_numbers(
 	group_size = settings.group_size
 	pause = settings.scaled_number_wait()
 	edge, gap_break, item_edge = edges or (None, None, None)
-	# Whether a spoken item comes before this one; the index of the last spoken item.
+	# Whether a spoken item comes before this one in its utterance, and after it (review I1: an
+	# utterance, what the synth gets, is the sequence the rule speaks of).
 	spoken_before = False
-	last_spoken = -1
-	if edges is not None:
-		last_spoken = max(
-			(index for index, item in enumerate(speechSequence) if _is_spoken(item)),
-			default=-1,
-		)
+	spoken_after = _spoken_later(speechSequence) if edges is not None else None
 	number_language = ctx.number_language if wraps else None
 	# Symbols are named for the number language, the language of the wrapper around every number;
 	# with no number language, for the language in force at that point of the sequence. The locale
@@ -463,6 +485,8 @@ def _inject_item_numbers(
 		if not isinstance(item, str):
 			if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
 				language = item.lang or ctx.language
+			elif _ends_utterance(item):
+				spoken_before = False
 			yield item
 			continue
 		if wraps and language not in kept:
@@ -485,7 +509,7 @@ def _inject_item_numbers(
 			edge=edge,
 			gap_break=gap_break,
 			edge_before=item_edge if spoken_before else None,
-			edge_after=item_edge if index < last_spoken else None,
+			edge_after=item_edge if spoken_after and spoken_after[index] else None,
 		)
 		spoken_before = spoken_before or _is_spoken(item)
 		if wraps:

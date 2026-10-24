@@ -212,8 +212,10 @@ def draw_sequence(env, data, *, remove=None):
 		st.builds(lambda: env.BreakCommand(30)),
 		st.builds(lambda: module.WVLangChangeCommand("en")),
 		st.builds(Marker),
+		st.builds(lambda: sys.modules["speech.commands"].EndUtteranceCommand()),
+		st.builds(lambda: sys.modules["speech.commands"].ConfigProfileTriggerCommand()),
 	)
-	sequence = data.draw(st.lists(item, max_size=4))
+	sequence = data.draw(st.lists(item, max_size=5))
 	run_settings = stage_settings(
 		mode=data.draw(MODES),
 		size=data.draw(st.integers(2, 10)),
@@ -253,13 +255,56 @@ def test_property_edges_never_meet_another_break(env, data):
 def test_property_no_edge_at_the_start_or_end_of_the_sequence(env, data):
 	# P-E7 (fix/number-edge-pause-items): nothing spoken before the first spoken item or after the
 	# last, so no edge break there, after the number stage and, while removal leaves every mark
-	# spoken, after every stage.
+	# spoken, after every stage. NVDA's speech manager splits the sequence into utterances at
+	# EndUtteranceCommand and ConfigProfileTriggerCommand, and each utterance counts (review I1).
+	commands = sys.modules["speech.commands"]
+	ends = (commands.EndUtteranceCommand, commands.ConfigProfileTriggerCommand)
 	sequence, run_settings, ctx = draw_sequence(env, data, remove=False)
 	staged = list(env.module.inject_numbers(sequence, run_settings, ctx))
 	result = every_stage(env, sequence, run_settings, ctx)
 	for each in (staged, result):
-		groups = runs(each)
-		assert not any(is_edge(env, entry) for entry in (*groups[0], *groups[-1])), (sequence, each)
+		utterances = [[]]
+		for entry in each:
+			if isinstance(entry, ends):
+				utterances.append([])
+			else:
+				utterances[-1].append(entry)
+		for utterance in utterances:
+			groups = runs(utterance)
+			assert not any(is_edge(env, entry) for entry in (*groups[0], *groups[-1])), (sequence, each)
+
+
+@SHARED_ENV
+@given(
+	sequence=st.lists(st.one_of(TEXT, st.sampled_from(["EU", "CPT"])), max_size=6),
+	mode=SPACED_MODES,
+	numlan=NUMBER_LANGUAGES,
+	roles=st.booleans(),
+	wait=st.integers(1, 60),
+	item=st.sampled_from([0, 10]),
+)
+def test_property_no_edge_at_an_utterance_end(env, sequence, mode, numlan, roles, wait, item):
+	# P-E7 for utterances (review I1): what NVDA's speech manager sends the synth as one utterance,
+	# up to an EndUtteranceCommand or a ConfigProfileTriggerCommand, never starts or ends with an
+	# edge break, after every stage.
+	commands = sys.modules["speech.commands"]
+	makers = {"EU": commands.EndUtteranceCommand, "CPT": commands.ConfigProfileTriggerCommand}
+	items = [makers[entry]() if entry in makers else entry for entry in sequence]
+	result = every_stage(
+		env,
+		items,
+		stage_settings(mode, wait=wait, item=item),
+		context(env.module, numlan, roles),
+	)
+	utterances = [[]]
+	for entry in result:
+		if isinstance(entry, tuple(makers.values())):
+			utterances.append([])
+		else:
+			utterances[-1].append(entry)
+	for utterance in utterances:
+		groups = runs(utterance)
+		assert not any(is_edge(env, entry) for entry in (*groups[0], *groups[-1])), (sequence, result)
 
 
 NUMBER_TOKENS = st.sampled_from(["3", "12", "3.5", "1 2", "12:30"])

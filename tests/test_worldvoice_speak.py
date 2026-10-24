@@ -42,6 +42,14 @@ class BreakCommand(SynthCommand):
 		self.time = time
 
 
+class EndUtteranceCommand:
+	"""NVDA's speech manager ends an utterance here; the pipeline reads it."""
+
+
+class ConfigProfileTriggerCommand:
+	"""NVDA's speech manager ends an utterance before it; the pipeline reads it."""
+
+
 class LangChangeCommand(SynthParamCommand):
 	def __init__(self, lang):
 		self.lang = lang
@@ -116,6 +124,8 @@ def _load_modules(monkeypatch, conf):
 		IndexCommand=IndexCommand,
 		BreakCommand=BreakCommand,
 		LangChangeCommand=LangChangeCommand,
+		EndUtteranceCommand=EndUtteranceCommand,
+		ConfigProfileTriggerCommand=ConfigProfileTriggerCommand,
 	)
 	stubs.module("speech.extensions", filter_speechSequence=SimpleNamespace())
 	stubs.module("speechDictHandler", processText=lambda text: text)
