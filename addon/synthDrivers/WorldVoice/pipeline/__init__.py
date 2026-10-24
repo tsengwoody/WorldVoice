@@ -38,16 +38,35 @@ class NumberBreakCommand(BreakCommand):
 
 
 class NumberEdgeBreakCommand(NumberBreakCommand):
-	"""Pause between a number and the text next to it in its item (number and group modes)."""
+	"""Pause between a number and the spoken text next to it (number and group modes)."""
+
+
+class NumberItemEdgeBreakCommand(NumberEdgeBreakCommand):
+	"""An edge break at the start or end of the number's item, where the spoken text next to the
+	number is in another item: item_wait_factor's break goes in next to it."""
 
 
 # Set on the plain BreakCommand another synth gets for a NumberEdgeBreakCommand (_plain_breaks), so
-# the punctuation stage still tells an edge break apart.
+# the item and punctuation stages still tell an edge break apart: _ITEM_EDGE for one at an item's
+# start or end, True for any other.
 _EDGE_MARKER = "worldvoice_number_edge"
+_ITEM_EDGE = "item"
+
+
+def _edge_kind(command: SpeechCmd) -> bool | str:
+	if isinstance(command, NumberItemEdgeBreakCommand):
+		return _ITEM_EDGE
+	if isinstance(command, NumberEdgeBreakCommand):
+		return True
+	return getattr(command, _EDGE_MARKER, False)
 
 
 def _is_edge_break(command: SpeechCmd) -> bool:
-	return isinstance(command, NumberEdgeBreakCommand) or bool(getattr(command, _EDGE_MARKER, False))
+	return bool(_edge_kind(command))
+
+
+def _is_item_edge_break(command: SpeechCmd) -> bool:
+	return _edge_kind(command) == _ITEM_EDGE
 
 
 class PunctuationBreakCommand(BreakCommand):
@@ -94,23 +113,6 @@ def apply_speech_dictionaries(speechSequence, settings: "PipelineSettings", ctx:
 
 
 _MISSING = object()
-
-
-def _insert_between(
-	speechSequence: Iterable[SpeechCmd],
-	should_break: Callable[[SpeechCmd, SpeechCmd], bool],
-	break_cmd: SpeechCmd,
-) -> Iterator[SpeechCmd]:
-	"""Yield *speechSequence* with *break_cmd* between each adjacent pair that *should_break* accepts."""
-	previous = _MISSING
-	for current in speechSequence:
-		if previous is not _MISSING:
-			yield previous
-			if should_break(previous, current):
-				yield break_cmd
-		previous = current
-	if previous is not _MISSING:
-		yield previous
 
 
 def _split_by(regex: re.Pattern, text: str) -> Iterator[tuple[Literal["text", "match"], str | re.Match]]:
@@ -169,12 +171,37 @@ def item_wait_factor(
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
-	"""Insert a BreakCommand between every two consecutive plain-text items."""
+	"""Insert a BreakCommand between every two consecutive plain-text items.
+
+	The edge break the number stage put at the end or start of an item (NumberItemEdgeBreakCommand)
+	still leaves the two items consecutive: the item break goes in before it, and where breaks meet
+	around an edge break only one stays, as in the punctuation stage (_merge_edge_breaks): the
+	longest, on a tie the item break. Corrected by fix/number-edge-pause-items (decided by the user,
+	2026-10-24).
+	"""
 	wait_factor = settings.scaled_item_wait()
 	if wait_factor <= 0:
 		yield from speechSequence
 		return
-	yield from _insert_between(speechSequence, _both_text, BreakCommand(wait_factor))
+	yield from _merge_edge_breaks(_insert_item_breaks(speechSequence, BreakCommand(wait_factor)))
+
+
+def _insert_item_breaks(speechSequence: Iterable[SpeechCmd], break_cmd: SpeechCmd) -> Iterator[SpeechCmd]:
+	"""Yield *speechSequence* with *break_cmd* between two adjacent text items, or two text items
+	that only item edge breaks separate: before those breaks."""
+	previous = _MISSING
+	held: list[SpeechCmd] = []
+	for current in speechSequence:
+		if isinstance(previous, str) and _is_item_edge_break(current):
+			held.append(current)
+			continue
+		if _both_text(previous, current):
+			yield break_cmd
+		yield from held
+		held.clear()
+		yield current
+		previous = current
+	yield from held
 
 
 def _remove_space(
@@ -371,6 +398,12 @@ def inject_numbers(
 	alone, without even the dot rule, and "default" and "main" wrap a number in the language in
 	force, which deduplicate_language_command would drop again. With detection on, "main" numbers
 	are wrapped where detection runs (detect_with_number_language).
+
+	The edge pauses go on each side of a number with spoken text anywhere in the sequence, in its
+	item or another, whatever commands lie between; none before the first spoken item or after the
+	last (corrected by fix/number-edge-pause-items, decided by the user, 2026-10-24). Where breaks
+	meet around an edge break, only one stays (_merge_edge_breaks): two numbers at the end and start
+	of two items get one pause, and so does a number next to a break of the sequence.
 	"""
 	mode = settings.number_mode
 	wraps = ctx.supports_roles and ctx.number_language not in (FOLLOW, MAIN)
@@ -379,15 +412,45 @@ def inject_numbers(
 	if mode == "none" and not wraps:
 		yield from speechSequence
 		return
-	group_size = settings.group_size
 	pause = settings.scaled_number_wait()
 	# Decided by the user (2026-10-24, U1, U4): the number pause also goes before and after a number
 	# in number and group modes, and a pause of 0 adds no break at all. One instance each per run,
 	# as the synth only reads their time.
 	if mode in ("number", "group") and pause > 0:
-		edge, gap_break = NumberEdgeBreakCommand(pause), NumberBreakCommand(pause)
+		edges = (NumberEdgeBreakCommand(pause), NumberBreakCommand(pause), NumberItemEdgeBreakCommand(pause))
+		yield from _merge_edge_breaks(_inject_item_numbers(list(speechSequence), settings, ctx, wraps, edges))
 	else:
-		edge = gap_break = None
+		yield from _inject_item_numbers(speechSequence, settings, ctx, wraps, None)
+
+
+def _is_spoken(item: SpeechCmd) -> bool:
+	return isinstance(item, str) and bool(item.strip())
+
+
+def _inject_item_numbers(
+	speechSequence: Iterable[SpeechCmd],
+	settings: "PipelineSettings",
+	ctx: SpeechContext,
+	wraps: bool,
+	edges: tuple[SpeechCmd, SpeechCmd, SpeechCmd] | None,
+) -> Iterator[SpeechCmd]:
+	"""inject_numbers, item by item, without the merge of the breaks around an edge break.
+
+	*edges* is None, or the edge break, the break between two numbers that only whitespace
+	separates, and the edge break at an item's start or end; with it, *speechSequence* is a list.
+	"""
+	mode = settings.number_mode
+	group_size = settings.group_size
+	pause = settings.scaled_number_wait()
+	edge, gap_break, item_edge = edges or (None, None, None)
+	# Whether a spoken item comes before this one; the index of the last spoken item.
+	spoken_before = False
+	last_spoken = -1
+	if edges is not None:
+		last_spoken = max(
+			(index for index, item in enumerate(speechSequence) if _is_spoken(item)),
+			default=-1,
+		)
 	number_language = ctx.number_language if wraps else None
 	# Symbols are named for the number language, the language of the wrapper around every number;
 	# with no number language, for the language in force at that point of the sequence. The locale
@@ -396,7 +459,7 @@ def inject_numbers(
 	language = ctx.language
 	# Whether the wrapper stays, by the language in force: deduplicate_language_command decides it.
 	kept: dict[str | None, bool] = {}
-	for item in speechSequence:
+	for index, item in enumerate(speechSequence):
 		if not isinstance(item, str):
 			if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
 				language = item.lang or ctx.language
@@ -421,7 +484,10 @@ def inject_numbers(
 			language=language,
 			edge=edge,
 			gap_break=gap_break,
+			edge_before=item_edge if spoken_before else None,
+			edge_after=item_edge if index < last_spoken else None,
 		)
+		spoken_before = spoken_before or _is_spoken(item)
 		if wraps:
 			# The language in force here may not be the context's (phase 30 item 6).
 			segments = deduplicate_language_command(segments, ctx, start_language=language)
@@ -440,6 +506,8 @@ def _number_item_segments(
 	language: str | None,
 	edge: SpeechCmd | None,
 	gap_break: SpeechCmd | None,
+	edge_before: SpeechCmd | None,
+	edge_after: SpeechCmd | None,
 ) -> Iterator[SpeechCmd]:
 	"""The segments of one text item: its text, and each number with its pauses, wrapper and pieces.
 
@@ -448,12 +516,18 @@ def _number_item_segments(
 	one, is spoken apart from it.
 
 	With an *edge* break, a number gets it on each side where its item has spoken text, whatever
-	that text is (U3), outside the wrapper (O1); none at the item's start or end, or before only
-	whitespace up to it (D1). Whitespace between two numbers becomes *gap_break*, one pause between
-	two numbers (O3). Text parts and numbers alternate, so the text next to a number decides.
+	that text is (U3), outside the wrapper (O1). Whitespace between two numbers becomes *gap_break*,
+	one pause between two numbers (O3). Text parts and numbers alternate, so the text next to a
+	number decides. An item that a number begins, or ends, with only whitespace before it, or after
+	it, starts with *edge_before*, or ends with *edge_after*, when that is not None: inject_numbers
+	passes one where spoken text comes before or after the item (corrected by
+	fix/number-edge-pause-items; this replaces O2 and D1, no edge break at an item's start or end).
 	"""
 	parts = list(_split_numbers_for_language(item))
 	last = len(parts) - 1
+	spoken_kinds = [kind for kind, value in parts if value.strip()]
+	if edge_before is not None and spoken_kinds[:1] == ["number"]:
+		yield edge_before
 	for index, (kind, value) in enumerate(parts):
 		if kind == "text":
 			if edge is not None and 0 < index < last and value.isspace():
@@ -477,6 +551,8 @@ def _number_item_segments(
 			yield WVLangChangeCommand(language)
 		if edge is not None and index < last and parts[index + 1][1].strip():
 			yield edge
+	if edge_after is not None and spoken_kinds[-1:] == ["number"]:
+		yield edge_after
 
 
 def merge_consecutive_strings(items):
@@ -893,17 +969,18 @@ def _plain_breaks(speechSequence: Iterable[SpeechCmd]) -> list[SpeechCmd]:
 
 	NVDA's speechXml, which OneCore uses, finds a command's converter by its class name and
 	drops the rest of the utterance at a command it has none for. A break made from an edge break
-	(or from a plain one already marked) carries _EDGE_MARKER, so the punctuation stage still tells
-	it apart. NVDA's BreakCommand has no __slots__ and its __eq__ reads only type and time, and the
-	synths read only .time, so the attribute is invisible to them.
+	(or from a plain one already marked) carries _EDGE_MARKER, so the item and punctuation stages
+	still tell it apart. NVDA's BreakCommand has no __slots__ and its __eq__ reads only type and
+	time, and the synths read only .time, so the attribute is invisible to them.
 	"""
 	return [_plain_break(item) if isinstance(item, BreakCommand) else item for item in speechSequence]
 
 
 def _plain_break(command: BreakCommand) -> BreakCommand:
 	plain = BreakCommand(command.time)
-	if _is_edge_break(command):
-		setattr(plain, _EDGE_MARKER, True)
+	kind = _edge_kind(command)
+	if kind:
+		setattr(plain, _EDGE_MARKER, kind)
 	return plain
 
 

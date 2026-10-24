@@ -3,7 +3,7 @@
 The rows are the worked examples of the number-edge-pause spec (§5): the output of the number
 stage, and the output after every stage of STAGES ("same" when the two are equal). Decided by the
 user (2026-10-24): only the number and group modes get the pause, with a number pause above 0,
-whatever text is next to the number.
+whatever text is next to the number, in its item or another (fix/number-edge-pause-items).
 """
 
 import sys
@@ -87,6 +87,99 @@ E, NB, PB = ("E", 10), ("NB", 10), ("PB", 50)
 LEN, LZH = ("L", "en"), ("L", "zh")
 M = Marker()
 
+B10, B20 = ("B", 10), ("B", 20)
+
+
+def item_rows(sequence, stage, by_item_wait, name):
+	"""Rows of *sequence* at each item wait of *by_item_wait*: its output after STAGES ("same": *stage*)."""
+	return [
+		pytest.param(sequence, {"item": item}, stage, full, id=f"{name}-item{item}")
+		for item, full in by_item_wait.items()
+	]
+
+
+# Corrected by fix/number-edge-pause-items (decided by the user, 2026-10-24; replaces O2 and D1): a
+# number gets an edge break on each side with spoken text anywhere in the sequence, in its item or
+# another, but none at the start or end of the sequence. An item break that meets it leaves one break,
+# the longest (E2), so the item wait no longer decides whether a number is apart from the text.
+ITEM_ROWS = [
+	*item_rows(
+		["第3", "章"],
+		["第", E, "3", E, "章"],
+		{0: "same", 5: "same", 10: ["第", E, "3", B10, "章"]},
+		"end",
+	),
+	*item_rows(["第3", "章"], ["第", E, "3", E, "章"], {20: ["第", E, "3", B20, "章"]}, "end"),
+	*item_rows(
+		["第", "3", "章"],
+		["第", E, "3", E, "章"],
+		{0: "same", 10: ["第", B10, "3", B10, "章"]},
+		"alone",
+	),
+	*item_rows(["第3章"], ["第", E, "3", E, "章"], {0: "same", 10: "same"}, "inside"),
+	*item_rows(
+		["第1", "2章"],
+		["第", E, "1", E, "2", E, "章"],
+		{0: "same", 10: ["第", E, "1", B10, "2", E, "章"]},
+		"numbers",
+	),
+	*item_rows(["1", "2"], ["1", E, "2"], {0: "same", 10: ["1", B10, "2"]}, "whole-numbers"),
+	*item_rows(["3", "章"], ["3", E, "章"], {0: "same", 10: ["3", B10, "章"]}, "first"),
+	*item_rows(["第", "3"], ["第", E, "3"], {0: "same", 10: ["第", B10, "3"]}, "last"),
+	*item_rows(["3章"], ["3", E, "章"], {0: "same", 10: "same"}, "sequence-start"),
+	*item_rows(["第3"], ["第", E, "3"], {0: "same", 10: "same"}, "sequence-end"),
+	*item_rows([" ", "3", " "], [" ", "3", " "], {0: ["3"]}, "blank-around"),
+	*item_rows(["1 ", "章"], ["1 ", E, "章"], {0: ["1", E, "章"], 10: ["1", B10, "章"]}, "space-end"),
+	*item_rows(["第", " 3"], ["第", E, " 3"], {0: ["第", E, "3"], 10: ["第", B10, "3"]}, "space-start"),
+	*item_rows(
+		["第3", " ", "章"],
+		["第", E, "3", E, " ", "章"],
+		{0: ["第", E, "3", E, "章"], 10: ["第", E, "3", B10, "章"]},
+		"blank-item",
+	),
+	*item_rows(["第3", M, "章"], ["第", E, "3", E, M, "章"], {0: "same", 10: "same"}, "command"),
+	pytest.param(
+		["第3", "章"],
+		{"numlan": "en", "item": 10},
+		["第", E, LEN, "3", LZH, E, "章"],
+		"same",
+		id="wrapper-item10",
+	),
+	pytest.param(
+		["第", "3", "章"],
+		{"mode": "group", "item": 10},
+		None,
+		["第", B10, "3", B10, "章"],
+		id="group",
+	),
+	*[
+		pytest.param(sequence, {"mode": mode, "item": item}, None, full, id=f"{name}-{mode}-item{item}")
+		for sequence, full, name in [
+			(["第3", "章"], ["第3", "章"], "end"),
+			(["第", "3", "章"], ["第", "3", "章"], "alone"),
+			(["1", "2"], ["1", NB, "2"], "whole-numbers"),
+		]
+		for mode in ("value", "none")
+		for item in (0,)
+	],
+	pytest.param(["第", "3", "章"], {"wait": 0}, ["第", "3", "章"], "same", id="alone-pause0"),
+	pytest.param(["Total.", "12"], {"chars": "."}, None, ["Total", ".", PB, "1", NB, "2"], id="total-items"),
+	pytest.param(
+		["Total.", "12"],
+		{"chars": ".", "item": 10},
+		None,
+		["Total", ".", B10, "1", NB, "2"],
+		id="total-items-item10",
+	),
+	pytest.param(
+		["Total.", "12"],
+		{"chars": ".", "pwait": 0},
+		None,
+		["Total", ".", E, "1", NB, "2"],
+		id="total-items-pwait0",
+	),
+]
+
 # (sequence, options, stage output, output after STAGES). Options: make_settings keywords, and
 # "numlan". A stage output of None: the row is checked only after STAGES.
 ROWS = [
@@ -161,7 +254,7 @@ ROWS = [
 	pytest.param(["10am"], {}, ["1", NB, "0", E, "am"], "same", id="26b"),
 	pytest.param(["the 1st item"], {"mode": "value"}, ["the 1st item"], "same", id="26v"),
 	pytest.param(["Is it 5?"], {}, ["Is it ", E, "5", E, "?"], ["Is it", E, "5", E, "?"], id="27"),
-	pytest.param(["第", M, "3", M, "章"], {}, ["第", M, "3", M, "章"], "same", id="28"),
+	pytest.param(["第", M, "3", M, "章"], {}, ["第", M, E, "3", E, M, "章"], "same", id="28"),
 	pytest.param(["第3。"], {"chars": "。"}, None, ["第", E, "3", E, "。"], id="31"),
 	pytest.param(["第3。"], {"chars": "。", "remove": True}, None, ["第", E, "3", E, "。"], id="31r"),
 	pytest.param(["3，"], {"chars": "，"}, None, ["3", E, "，"], id="32"),
@@ -208,13 +301,8 @@ ROWS = [
 	pytest.param(["12,345元"], {"mode": "value"}, None, ["12345元"], id="46"),
 	# Review M1: whole numbers that an edge break leaves at the end and start of two items get the
 	# number pause between them, as ["1", "2"] does.
-	pytest.param(
-		["第1", "2章"],
-		{},
-		["第", E, "1", "2", E, "章"],
-		["第", E, "1", NB, "2", E, "章"],
-		id="m1-items",
-	),
+	pytest.param(["第1", "2章"], {}, ["第", E, "1", E, "2", E, "章"], "same", id="m1-items"),
+	*ITEM_ROWS,
 	# O4: a sign after a word stays with the word; a number with a symbol inside is one number.
 	pytest.param(["中+2"], {}, ["中+", E, "2"], "same", id="o4-plus"),
 	pytest.param(["中+2"], {"mode": "value"}, ["中+2"], "same", id="o4-plus-value"),
@@ -298,8 +386,10 @@ def test_a_global_factor_below_ten_adds_no_edge_break(monkeypatch):
 		"blank-ideographic",
 	],
 )
-def test_no_edge_break_at_an_item_end_or_before_only_whitespace(monkeypatch, text, expected):
-	# O2 and D1: an edge break only where the item has spoken text on that side of the number.
+def test_no_edge_break_at_the_sequence_start_or_end(monkeypatch, text, expected):
+	# An edge break only where spoken text is on that side of the number; an item alone is the
+	# whole sequence, so only whitespace before or after a number is nothing spoken (corrected by
+	# fix/number-edge-pause-items: this pinned O2 and D1, no edge break at an item's start or end).
 	module, settings, ctx = run_row(monkeypatch, {})
 	assert shape(module.inject_numbers([text], settings, ctx)) == expected
 
@@ -345,10 +435,13 @@ def test_the_dot_rule_with_a_wrapper_and_edges(monkeypatch):
 def test_one_edge_and_one_gap_instance_per_run(monkeypatch):
 	# D10: the synth only reads a break's time.
 	module, settings, ctx = run_row(monkeypatch, {})
-	result = list(module.inject_numbers(["第1章 2 3", "第4章"], settings, ctx))
+	result = list(module.inject_numbers(["第1章 2 3", "第4章", "5"], settings, ctx))
 	edges = [item for item in result if isinstance(item, module.NumberEdgeBreakCommand)]
-	assert len(edges) == 5
-	assert all(item is edges[0] for item in edges)
+	inside = [item for item in edges if not isinstance(item, module.NumberItemEdgeBreakCommand)]
+	at_items = [item for item in edges if isinstance(item, module.NumberItemEdgeBreakCommand)]
+	assert (len(inside), len(at_items)) == (5, 2)
+	assert all(item is inside[0] for item in inside)
+	assert all(item is at_items[0] for item in at_items)
 	index = result.index("2")
 	assert shape(result[index : index + 3]) == ["2", NB, "3"]
 	assert type(result[index + 1]) is module.NumberBreakCommand
@@ -395,6 +488,45 @@ def test_other_synths_get_marked_edge_breaks(monkeypatch, sequence, numlan):
 	# Spec D3: another synth gets plain breaks, and the WorldVoice language command is dropped.
 	result = run_handlers(monkeypatch, sequence, {}, lambda module: context(module, numlan, roles=False))
 	assert result == ["第", ("B*", 10), "3", ("B*", 10), "章"]
+
+
+@pytest.mark.parametrize(
+	("sequence", "item", "expected"),
+	[
+		(["第3", "章"], 0, ["第", ("B*", 10), "3", ("B*", 10), "章"]),
+		(["第3", "章"], 10, ["第", ("B*", 10), "3", ("B", 10), "章"]),
+		(["第", "3", "章"], 0, ["第", ("B*", 10), "3", ("B*", 10), "章"]),
+		(["第", "3", "章"], 20, ["第", ("B", 20), "3", ("B", 20), "章"]),
+		(["第1", "2章"], 0, ["第", ("B*", 10), "1", ("B*", 10), "2", ("B*", 10), "章"]),
+	],
+	ids=["end-item0", "end-item10", "alone-item0", "alone-item20", "numbers-item0"],
+)
+def test_other_synths_get_edge_breaks_across_items(monkeypatch, sequence, item, expected):
+	# The item stage tells an edge break at an item's start or end apart on a plain break too.
+	result = run_handlers(monkeypatch, sequence, {"item": item}, lambda module: context(module, roles=False))
+	assert result == expected
+
+
+@pytest.mark.parametrize("item", [0, 10])
+def test_language_commands_between_items_do_not_hide_the_text(monkeypatch, item):
+	module, settings, ctx = run_row(monkeypatch, {"item": item})
+	LangChangeCommand = sys.modules["speech.commands"].LangChangeCommand
+	sequence = ["第3", LangChangeCommand("en"), "abc", LangChangeCommand(None), "4"]
+	for stage in module.STAGES:
+		sequence = list(stage.fn(sequence, settings, ctx))
+	assert shape(sequence) == ["第", E, "3", E, LEN, "abc", ("L", None), E, "4"]
+
+
+def test_a_long_sequence_of_number_items_stays_linear(monkeypatch):
+	# A table read cell by cell: every number item with spoken items around it.
+	module, settings, ctx = run_row(monkeypatch, {"chars": ".,", "item": 10})
+	sequence = ["a", "1"] * 5000
+	start = time.perf_counter()
+	for stage in module.STAGES:
+		sequence = list(stage.fn(sequence, settings, ctx))
+	assert time.perf_counter() - start < 2
+	assert shape(sequence[:5]) == ["a", B10, "1", B10, "a"]
+	assert sum(isinstance(item, module.BreakCommand) for item in sequence) == 10000 - 1
 
 
 @pytest.mark.parametrize(

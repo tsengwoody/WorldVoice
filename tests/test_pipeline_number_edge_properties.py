@@ -187,37 +187,122 @@ def test_property_edges_sit_at_number_boundaries(env, text, mode, size, numlan, 
 		)
 
 
-@settings(SHARED_ENV, max_examples=400)
-@given(data=st.data())
-def test_property_edges_never_meet_another_break(env, data):
-	# P-E5: after every stage, no edge break sits next to any other break (language commands
-	# make no sound, so they are transparent).
+class Marker:
+	"""A speech command no stage knows, such as NVDA's IndexCommand."""
+
+
+def runs(items):
+	"""What lies between two spoken text items, before the first and after the last."""
+	groups, current = [], []
+	for entry in items:
+		if isinstance(entry, str) and entry.strip():
+			groups.append(current)
+			current = []
+		else:
+			current.append(entry)
+	groups.append(current)
+	return groups
+
+
+def draw_sequence(env, data, *, remove=None):
+	"""A sequence of up to 4 items, settings for every stage, and a context, from *data*."""
 	module = env.module
 	item = st.one_of(
 		TEXT,
 		st.builds(lambda: env.BreakCommand(30)),
 		st.builds(lambda: module.WVLangChangeCommand("en")),
+		st.builds(Marker),
 	)
 	sequence = data.draw(st.lists(item, max_size=4))
-	chars = data.draw(st.sampled_from(["", ".,", "。，", ". ,"]))
 	run_settings = stage_settings(
 		mode=data.draw(MODES),
 		size=data.draw(st.integers(2, 10)),
 		wait=data.draw(st.integers(0, 60)),
-		chars=chars,
-		remove=data.draw(st.booleans()),
+		chars=data.draw(st.sampled_from(["", ".,", "。，", ". ,"])),
+		remove=data.draw(st.booleans()) if remove is None else remove,
 		pwait=data.draw(st.integers(0, 300)),
 		item=data.draw(st.integers(0, 60)),
 		chinese=data.draw(st.integers(0, 60)),
 	)
 	ctx = context(module, data.draw(NUMBER_LANGUAGES), data.draw(st.booleans()))
-	result = sequence
-	for stage in module.STAGES:
-		result = list(stage.fn(result, run_settings, ctx))
-	audible = without_language(env, result)
-	for before, after in pairwise(audible):
-		if is_edge(env, before) or is_edge(env, after):
-			assert not (isinstance(before, env.BreakCommand) and isinstance(after, env.BreakCommand)), result
+	return sequence, run_settings, ctx
+
+
+def every_stage(env, sequence, run_settings, ctx):
+	for stage in env.module.STAGES:
+		sequence = list(stage.fn(sequence, run_settings, ctx))
+	return sequence
+
+
+@settings(SHARED_ENV, max_examples=400)
+@given(data=st.data())
+def test_property_edges_never_meet_another_break(env, data):
+	# P-E5: after every stage, a run between two spoken items that holds an edge break holds no
+	# other break: language and other commands make no sound, and the edge break of a number at an
+	# item's start or end meets the item break there (corrected by fix/number-edge-pause-items).
+	sequence, run_settings, ctx = draw_sequence(env, data)
+	result = every_stage(env, sequence, run_settings, ctx)
+	for run in runs(result):
+		breaks = [entry for entry in run if isinstance(entry, env.BreakCommand)]
+		if any(is_edge(env, entry) for entry in breaks):
+			assert len(breaks) == 1, (sequence, result)
+
+
+@settings(SHARED_ENV, max_examples=400)
+@given(data=st.data())
+def test_property_no_edge_at_the_start_or_end_of_the_sequence(env, data):
+	# P-E7 (fix/number-edge-pause-items): nothing spoken before the first spoken item or after the
+	# last, so no edge break there, after the number stage and, while removal leaves every mark
+	# spoken, after every stage.
+	sequence, run_settings, ctx = draw_sequence(env, data, remove=False)
+	staged = list(env.module.inject_numbers(sequence, run_settings, ctx))
+	result = every_stage(env, sequence, run_settings, ctx)
+	for each in (staged, result):
+		groups = runs(each)
+		assert not any(is_edge(env, entry) for entry in (*groups[0], *groups[-1])), (sequence, each)
+
+
+NUMBER_TOKENS = st.sampled_from(["3", "12", "3.5", "1 2", "12:30"])
+WORD_TOKENS = st.text(alphabet="aZ共第章。 　", min_size=1, max_size=4)
+# Items that join into the same numbers: a word, blank or not, between every two numbers.
+TOKENS = st.builds(
+	lambda pairs, last: [token for pair in pairs for token in pair if token is not None] + last,
+	st.lists(st.tuples(st.one_of(st.none(), NUMBER_TOKENS), WORD_TOKENS), max_size=3),
+	st.one_of(st.just([]), NUMBER_TOKENS.map(lambda token: [token])),
+)
+
+
+@SHARED_ENV
+@given(
+	items=TOKENS,
+	mode=SPACED_MODES,
+	size=st.integers(2, 10),
+	numlan=NUMBER_LANGUAGES,
+	wait=st.integers(1, 60),
+	roles=st.booleans(),
+)
+def test_property_items_do_not_change_the_edges(env, items, mode, size, numlan, wait, roles):
+	# P-E8 (fix/number-edge-pause-items): with no item wait, a number gets the same breaks whether
+	# the text next to it is in its item or in another. Language commands make no sound, and
+	# number_wait_factor strips each item, so whitespace is left out of the comparison.
+	module = env.module
+	run_settings = stage_settings(mode, size, wait)
+	ctx = context(module, numlan, roles)
+
+	def audible(sequence):
+		result = []
+		for entry in without_language(env, every_stage(env, sequence, run_settings, ctx)):
+			if isinstance(entry, str):
+				entry = "".join(entry.split())
+				if not entry:
+					continue
+				if result and isinstance(result[-1], str):
+					result[-1] += entry
+					continue
+			result.append(entry if isinstance(entry, str) else ("break", entry.time))
+		return result
+
+	assert audible(items) == audible(["".join(items)]), items
 
 
 @SHARED_ENV
@@ -237,17 +322,6 @@ def test_property_merge_keeps_the_longest(env, data):
 	)
 	sequence = data.draw(st.lists(item, max_size=10))
 	result = list(module._merge_edge_breaks(sequence))
-
-	def runs(items):
-		groups, current = [], []
-		for entry in items:
-			if isinstance(entry, str) and entry.strip():
-				groups.append(current)
-				current = []
-			else:
-				current.append(entry)
-		groups.append(current)
-		return groups
 
 	is_break = lambda entry: isinstance(entry, env.BreakCommand)
 	for before, after in zip(runs(sequence), runs(result), strict=True):
