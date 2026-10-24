@@ -135,3 +135,18 @@ Linux 上只驗證了 pipeline 與 NVDA 的 `speechXml`／`processText` 邏輯�
 ## 工作區備註
 
 主 checkout `/workspace/WorldVoice` 在 review 開始前就有的未提交變更，與本分支無關，未動：`M buildVars.py`、`D docs/superpowers/finish_task.md`、`?? DEVELOPMENT_WORKFLOW.md`、`?? diff.md`。
+
+## 修正記錄
+
+修正者：Opus 5.5（實作 agent），2026-10-24。每項先寫會失敗的測試（程式修正）再修；偏離與判斷記在進度帳本的 `Ruling:`。
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| I1 | 採 A 案：數字階段每個「語言在力」問 `deduplicate_language_command` 本身，開頭包裝會不會留下；只有包裝不會留下（沒有包裝，或 locale 的語音就是當下語音）時才套點號規則的空白，與 `master` 相同。先紅後綠的回歸測試 `test_the_dot_rule_adds_no_pause_point_where_the_wrapper_stays`：`12. Next`（數值模式）與 `35.`（數字模式、數值模式），數字語言 en、中文主要語音、標點字元 `" "`、pwait 50、數字停頓 0 與 10，句點前都沒有標點停頓（6 case）。D5 測試改為「包裝留下／去掉」四個 case（`test_the_dot_rule_spaces_only_numbers_whose_wrapper_goes`），row 23 與 `test_the_dot_rule_with_a_wrapper_and_edges` 回到 `". Next"`，`tests/test_worldvoice_speak.py` 的 `locale-next` 改回 `(EN, ".")`，P8 的 M5 註記恢復；spec §4.5、§5 row 23、§8.1、§8.2、§11 D5 以刪除線保留舊文並標註更正 | `486aa44` |
+| I1（oracle） | 審閱者的整條 `STAGES` 對 `master` oracle（含空白、標點字元含 `" "`）需要編入 `master` 已刪除的函式，所以不放進測試組，只在開發時跑：兩條性質各 6000 例、三個 seed 都通過；修正前的程式在 `['0.']`＋數字模式＋en 立即失敗。執行紀錄寫在 plan 的 Execution record | `242d53a` |
+| M1 | spec §4.6.4 補記：edge 切出的整數落在 item 尾／頭時，`number_wait_factor` 會在它和相鄰 item 的整數之間加數字停頓；`ROWS` 加 `m1-items`（`["第1", "2章"]` → `第` E `1` NB `2` E `章`），固定現有行為 | `e5d012d` |
+| M2 | zh_TW readme 改為「數值模式與「不處理」不加這個停頓」；兩份更新日誌補上「（數字之間的停頓也會一起關閉）」／"(this also turns off the pause between numbers)"；markdown 3.11 轉檔仍是 `<li><strong>` | `7195c75` |
+| M3 | `NumberBreakCommand` docstring 合併成一句，只說一次 number and group modes | `f7f12ef` |
+| M4 | spec §3 補 `１２．５`（全形句點前後各一個停頓）與 `C++11`（`C+` \| `+1` \| `1`，屬 2026-10-23 正負號規則的範圍）兩列，不改程式 | `c406fd9` |
+
+修正後驗證（`242d53a`）：完整測試 **2837 passed、0 skipped**（修正前 2827／0；新增 I1 回歸 6、D5 新 case 2、M1 列 2）；`prek run --all-files` 全數 Passed；`git diff --check master` 乾淨；兩個受保護路徑指令與 `git diff --stat master -- buildVars.py addon/locale` 都無輸出。未打包、未在 Windows／NVDA 驗證。
