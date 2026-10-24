@@ -144,6 +144,8 @@ What NVDA users hear with number wait 10 ms and "Follow current text language", 
 | `Total. 12`, number mode, `.` a punctuation pause character (50 ms) | `Total.` \| `1` \| `2` (50 ms first) | unchanged (the 10 ms edge pause merges into the 50 ms one) |
 | `第3。下一章`, number mode, `。` configured, remove on | `第3` \| `下一章` | `第` \| `3` \| `下一章` (the last pause is the longer of the two) |
 | `1，2`, number mode, `，` configured, remove on | `1，2` (the mark before a digit is not a pause point, `pipeline:520-526`) | `1` \| `2`: the mark is now an item of its own, so it is removed (D2) |
+| `１２．５`, number mode (added after review M4) | `１` \| `２．５` | `１` \| `２` \| `．` \| `５`: the full-width period is not a number symbol (`numbers:11-13`), so it is text between two numbers and gets an edge pause on each side (U3) |
+| `C++11`, number mode (added after review M4) | `C++1` \| `1` | `C+` \| `+1` \| `1`: `NUMBER_RE` reads the second `+` as the sign of `+11` (a `+` before it is not a word character, so the hyphen rule keeps it with the number, O4); NVDA may read `+1` as "plus 1". Changing that is the sign rule's scope (decided 2026-10-23), not this branch's |
 | Another synth, scope "all", number or group mode | as WorldVoice today | edge pauses as plain `BreakCommand`s, same rules |
 | Log Record panel | "Number language", "Number mode" switches | the same two switches, each of which logs the merged stage (§4.7) |
 
