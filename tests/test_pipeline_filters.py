@@ -363,6 +363,7 @@ def test_group_mode_then_number_wait_breaks_with_the_number_wait(env):
 	)
 
 
+E50 = ("NumberEdgeBreakCommand", 50)
 TEXTS = ["12.5", "-1234", "123", "12", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
 # The dot rule: a "." outside a number is spoken apart from it, in every mode but "off".
 SHARED = {"a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "": []}
@@ -394,13 +395,18 @@ NUMBER_MODES = {
 		"v1.2": spoken("v1 <.> 2"),
 		"1.2.3": spoken("1 <.> 2 <.> 3"),
 	},
+	# A number pause above 0 also sets a number apart from the text of its item (number-edge-pause
+	# spec, decided by the user 2026-10-24).
 	("group", 2, 50): {
 		"12.5": spoken("12 <.> 5", 50),
 		"-1234": spoken("-12 34", 50),
 		"123": spoken("12 3", 50),
 		"12": ["12"],
-		"v1.2": spoken("v1 <.> 2", 50),
+		"v1.2": ["v", E50, *spoken("1 <.> 2", 50)],
 		"1.2.3": spoken("1 <.> 2 <.> 3", 50),
+		"a. 3": ["a. ", E50, "3"],
+		"3.": ["3", E50, " ."],
+		".5": [". ", E50, "5"],
 	},
 	("group", 3, 0): {
 		"12.5": spoken("12 <.> 5"),

@@ -393,8 +393,14 @@ def test_other_synths_get_only_plain_breaks_from_the_stages(monkeypatch, number_
 	("number_mode", "expected"),
 	[
 		("value", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
-		("number", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
-		("group", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
+		(
+			"number",
+			{("NumberBreakCommand", 10), ("NumberEdgeBreakCommand", 10), ("PunctuationBreakCommand", 20)},
+		),
+		(
+			"group",
+			{("NumberBreakCommand", 10), ("NumberEdgeBreakCommand", 10), ("PunctuationBreakCommand", 20)},
+		),
 	],
 )
 def test_worldvoice_keeps_the_break_subclasses_from_the_stages(monkeypatch, number_mode, expected):

@@ -381,7 +381,13 @@ def inject_numbers(
 		return
 	group_size = settings.group_size
 	pause = settings.scaled_number_wait()
-	edge = gap_break = None
+	# Decided by the user (2026-10-24, U1, U4): the number pause also goes before and after a number
+	# in number and group modes, and a pause of 0 adds no break at all. One instance each per run,
+	# as the synth only reads their time.
+	if mode in ("number", "group") and pause > 0:
+		edge, gap_break = NumberEdgeBreakCommand(pause), NumberBreakCommand(pause)
+	else:
+		edge = gap_break = None
 	number_language = ctx.number_language if wraps else None
 	# Symbols are named for the number language, the language of the wrapper around every number;
 	# with no number language, for the language in force at that point of the sequence. The locale
@@ -428,16 +434,27 @@ def _number_item_segments(
 	*number_language* is the language of the wrapper, or None for no wrapper; the wrapper closes with
 	*language*, the language in force. A "." right after a number, or right before one, is spoken
 	apart from it, in every mode but "none".
+
+	With an *edge* break, a number gets it on each side where its item has spoken text, whatever
+	that text is (U3), outside the wrapper (O1); none at the item's start or end, or before only
+	whitespace up to it (D1). Whitespace between two numbers becomes *gap_break*, one pause between
+	two numbers (O3). Text parts and numbers alternate, so the text next to a number decides.
 	"""
 	parts = list(_split_numbers_for_language(item))
+	last = len(parts) - 1
 	for index, (kind, value) in enumerate(parts):
 		if kind == "text":
+			if edge is not None and 0 < index < last and value.isspace():
+				yield gap_break
+				continue
 			if mode != "none" and index > 0 and value[0] == ".":
 				yield " "
 			yield value
-			if mode != "none" and index + 1 < len(parts) and value.endswith("."):
+			if mode != "none" and index < last and value.endswith("."):
 				yield " "
 			continue
+		if edge is not None and index > 0 and parts[index - 1][1].strip():
+			yield edge
 		if number_language is not None:
 			yield WVLangChangeCommand(number_language)
 		if mode == "none":
@@ -446,6 +463,8 @@ def _number_item_segments(
 			yield from _translate_number(value, mode, group_size, pause, name_of)
 		if number_language is not None:
 			yield WVLangChangeCommand(language)
+		if edge is not None and index < last and parts[index + 1][1].strip():
+			yield edge
 
 
 def merge_consecutive_strings(items):
