@@ -33,8 +33,8 @@ _CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
 
 
 class NumberBreakCommand(BreakCommand):
-	"""Pause between numbers, and between the pieces and symbol names of a number in number and group modes,
-	and between two numbers that only whitespace separates, in number and group modes."""
+	"""Pause between numbers, and, in number and group modes, between the pieces and symbol names of a
+	number and between two numbers that only whitespace separates."""
 
 
 class NumberEdgeBreakCommand(NumberBreakCommand):
