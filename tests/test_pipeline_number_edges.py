@@ -414,3 +414,17 @@ def test_a_space_pause_character_meets_an_edge_break(monkeypatch, remove):
 	for stage in module.STAGES:
 		sequence = list(stage.fn(sequence, settings, ctx))
 	assert shape(sequence) == ["共", E, "3", PB, "章"]
+
+
+def test_the_shortest_number_wait_adds_edge_breaks(monkeypatch):
+	# A number wait factor of 1 at the default global factor is a 1 ms pause, above 0 (mutmut).
+	module, settings, ctx = run_row(monkeypatch, {"wait": 1})
+	result = module.inject_numbers(["第3章"], settings, ctx)
+	assert shape(result) == ["第", ("E", 1), "3", ("E", 1), "章"]
+
+
+def test_off_mode_with_a_locale_keeps_the_dots_as_they_are(monkeypatch):
+	# "Off" wraps a number for a locale number language but adds no dot-rule space (mutmut).
+	module, settings, ctx = run_row(monkeypatch, {"mode": "none", "numlan": "en"})
+	result = module.inject_numbers(["a.1. b"], settings, ctx)
+	assert shape(result) == ["a.", LEN, "1", LZH, ". b"]
