@@ -144,7 +144,7 @@ ROWS = [
 	pytest.param(
 		["12. Next"],
 		{"mode": "value", "numlan": "en", "wait": 0},
-		[LEN, "12", LZH, " . Next"],
+		[LEN, "12", LZH, ". Next"],
 		"same",
 		id="23",
 	),
@@ -330,7 +330,7 @@ def test_edge_breaks_sit_outside_the_wrapper(monkeypatch):
 def test_the_dot_rule_with_a_wrapper_and_edges(monkeypatch):
 	module, settings, ctx = run_row(monkeypatch, {"numlan": "en"})
 	result = module.inject_numbers(["12. Next"], settings, ctx)
-	assert shape(result) == [LEN, "1", NB, "2", LZH, E, " . Next"]
+	assert shape(result) == [LEN, "1", NB, "2", LZH, E, ". Next"]
 
 
 def test_one_edge_and_one_gap_instance_per_run(monkeypatch):
@@ -428,3 +428,21 @@ def test_off_mode_with_a_locale_keeps_the_dots_as_they_are(monkeypatch):
 	module, settings, ctx = run_row(monkeypatch, {"mode": "none", "numlan": "en"})
 	result = module.inject_numbers(["a.1. b"], settings, ctx)
 	assert shape(result) == ["a.", LEN, "1", LZH, ". b"]
+
+
+@pytest.mark.parametrize("wait", [0, 10])
+@pytest.mark.parametrize(
+	("text", "mode"),
+	[("12. Next", "value"), ("35.", "number"), ("35.", "value")],
+	ids=["next-value", "35-number", "35-value"],
+)
+def test_the_dot_rule_adds_no_pause_point_where_the_wrapper_stays(monkeypatch, text, mode, wait):
+	# Review I1: with a space among the punctuation pause characters, a dot-rule space next to a
+	# number read by another voice would be a new pause point before the period. Today's output
+	# has none, in value mode at any pause and in number mode alike.
+	module, settings, ctx = run_row(monkeypatch, {"mode": mode, "numlan": "en", "wait": wait, "chars": " "})
+	sequence = [text]
+	for stage in module.STAGES:
+		sequence = list(stage.fn(sequence, settings, ctx))
+	result = shape(sequence)
+	assert ("PB", 50) not in result[: result.index(".")], result

@@ -394,15 +394,26 @@ def inject_numbers(
 	# is that of the voice that speaks the language, when NVDA has a table for it (symbols.symbol_locale).
 	namer = symbol_namer(ctx.voice_locale_for_language)
 	language = ctx.language
+	# Whether the wrapper stays, by the language in force: deduplicate_language_command decides it.
+	kept: dict[str | None, bool] = {}
 	for item in speechSequence:
 		if not isinstance(item, str):
 			if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
 				language = item.lang or ctx.language
 			yield item
 			continue
+		if wraps and language not in kept:
+			opening = [WVLangChangeCommand(number_language)]
+			kept[language] = any(
+				True for _ in deduplicate_language_command(opening, ctx, start_language=language)
+			)
 		segments = _number_item_segments(
 			item,
 			mode=mode,
+			# A "." next to a number is spaced only where the number stays in the text's voice, as
+			# before the number stages were merged: next to a number read by another voice the
+			# space could be a new punctuation pause point (review I1).
+			dot_rule=mode != "none" and not (wraps and kept[language]),
 			group_size=group_size,
 			pause=pause,
 			name_of=namer(number_language or language),
@@ -421,6 +432,7 @@ def _number_item_segments(
 	item: str,
 	*,
 	mode: str,
+	dot_rule: bool,
 	group_size: int,
 	pause: int,
 	name_of: Callable[[str], str | None],
@@ -432,8 +444,8 @@ def _number_item_segments(
 	"""The segments of one text item: its text, and each number with its pauses, wrapper and pieces.
 
 	*number_language* is the language of the wrapper, or None for no wrapper; the wrapper closes with
-	*language*, the language in force. A "." right after a number, or right before one, is spoken
-	apart from it, in every mode but "none".
+	*language*, the language in force. With *dot_rule*, a "." right after a number, or right before
+	one, is spoken apart from it.
 
 	With an *edge* break, a number gets it on each side where its item has spoken text, whatever
 	that text is (U3), outside the wrapper (O1); none at the item's start or end, or before only
@@ -447,10 +459,10 @@ def _number_item_segments(
 			if edge is not None and 0 < index < last and value.isspace():
 				yield gap_break
 				continue
-			if mode != "none" and index > 0 and value[0] == ".":
+			if dot_rule and index > 0 and value[0] == ".":
 				yield " "
 			yield value
-			if mode != "none" and index < last and value.endswith("."):
+			if dot_rule and index < last and value.endswith("."):
 				yield " "
 			continue
 		if edge is not None and index > 0 and parts[index - 1][1].strip():

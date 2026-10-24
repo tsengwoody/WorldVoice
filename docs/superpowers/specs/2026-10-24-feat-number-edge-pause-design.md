@@ -245,10 +245,16 @@ STAGES = (
   - a text part right after a number that starts with `"."` gets a leading `" "`;
   - a text part right before a number that ends with `"."` gets a trailing `" "`.
 
-  The rule now depends only on the item's text, not on whether a wrapper is kept. Today, with a locale wrapper whose voice differs, the mode stage saw `"12"` and `"."` as separate strings and added no space (phase 35 F2). Now:
-  - `"12. Next"` in value mode with number language en gives `L(en) "12" L(zh) " . Next"` instead of `L(en) "12" L(zh) ". Next"` (§5 row 23).
-  - Nothing is audible. NVDA strips every text item in `processText` (`ref/nvda/source/speech/speech.py:214`) before any synth sees it (`:1225-1231`). With an edge break, `number_wait_factor`'s `_remove_space` also strips the item later (`pipeline:165-187`).
-  - The P8 docstring note about this difference becomes obsolete (`tests/test_pipeline_pause_properties.py:742-750`, final review M5).
+  ~~The rule now depends only on the item's text, not on whether a wrapper is kept. Today, with a locale wrapper whose voice differs, the mode stage saw `"12"` and `"."` as separate strings and added no space (phase 35 F2). Now:~~
+  - ~~`"12. Next"` in value mode with number language en gives `L(en) "12" L(zh) " . Next"` instead of `L(en) "12" L(zh) ". Next"` (§5 row 23).~~
+  - ~~Nothing is audible. NVDA strips every text item in `processText` (`ref/nvda/source/speech/speech.py:214`) before any synth sees it (`:1225-1231`). With an edge break, `number_wait_factor`'s `_remove_space` also strips the item later (`pipeline:165-187`).~~
+  - ~~The P8 docstring note about this difference becomes obsolete (`tests/test_pipeline_pause_properties.py:742-750`, final review M5).~~
+
+  Corrected by the review fixes on `feat/number-edge-pause` (review I1): the space was audible after all. With a space among the punctuation pause characters, it became a new pause point before the period (`"12. Next"`, value mode, number language en: a punctuation pause between `12` and `.`), which breaks the promise that value mode is unchanged. The rule therefore keeps today's behaviour:
+  - the space is added only where the number stays in the text's voice: no wrapper (number language default or main, or a synth without roles), or a locale wrapper that `deduplicate_language_command` drops because the number language's voice is the voice in force;
+  - next to a number whose wrapper stays, the period is left as it is: `"12. Next"` in value mode with number language en gives `L(en) "12" L(zh) ". Next"`, as today (§5 row 23);
+  - the stage asks `deduplicate_language_command` itself whether the opening wrapper stays, once per language in force, so the two can never disagree;
+  - the P8 docstring note about this difference stays (`tests/test_pipeline_pause_properties.py`, final review M5).
 
 ### 4.6 The later stages
 
@@ -428,7 +434,7 @@ These are prototype outputs: the stage output of `inject_numbers` and the output
 | 20 | `a.5` | `a. ` E10 `5` | `a.` E10 `5` |
 | 21 | `There are 5. Next` | `There are ` E10 `5` E10 ` . Next` | `There are` E10 `5` E10 `. Next` |
 | 22 | the same, `.` configured | as row 21 | `There are` E10 `5` E10 `.` PB50 `Next` |
-| 23 | `12. Next`, value, en, wait 0 | L(en) `12` L(zh) ` . Next` (today: `. Next`, D5) | same |
+| 23 | `12. Next`, value, en, wait 0 | L(en) `12` L(zh) `. Next` (today's; D5 as corrected by review I1) | same |
 | 24 | `3` | `3` | same |
 | 25 | `第3章`, wait 0 | `第3章` | same (today's) |
 | 26 | `the 1st item` | `the ` E10 `1` E10 `st item` | `the` E10 `1` E10 `st item` (F1) |
@@ -508,7 +514,7 @@ The prototype ran with temporary aliases (`inject_number_mode = inject_number_la
   - `test_stages_order_and_log_keys`: `ORDER` (`tests/pipeline_harness.py:161-172`) loses `"number_language"`. `LOG_SWITCH_ORDER` (`:173-183`) is unchanged.
   - `test_worldvoice_keeps_the_break_subclasses_from_the_stages[number]` and `[group]`: the sets gain `("NumberEdgeBreakCommand", 10)`. The `[value]` case is unchanged.
 - `tests/test_worldvoice_speak.py`:
-  - `test_numbers_without_detection[locale-next]`: `(EN, ".")` becomes `(EN, " .")` (D5, value mode).
+  - ~~`test_numbers_without_detection[locale-next]`: `(EN, ".")` becomes `(EN, " .")` (D5, value mode).~~ Corrected by review I1: unchanged.
 
 The value-mode rows of `test_main_moves_a_sign_with_its_number[wait-*]` (number wait 50) no longer change after the narrowing.
 
@@ -520,7 +526,7 @@ Mechanical renames, with identical output:
 Helpers and stubs:
 
 - `tests/nvda_stubs.py:103-118` must read `also_logged_by` (§4.7).
-- Drop the M5 note at `tests/test_pipeline_pause_properties.py:742-750` (D5).
+- ~~Drop the M5 note at `tests/test_pipeline_pause_properties.py:742-750` (D5).~~ Corrected by review I1: the note stays.
 
 These guards must keep passing unchanged:
 
@@ -541,7 +547,7 @@ These guards must keep passing unchanged:
 - **O3:** in number and group modes, `"1 2"`, `"1 2"`, `"12 34"`, and `"1 2"` with an en wrapper each get exactly one `NumberBreakCommand` between the numbers, and `number_wait_factor` adds none afterwards. Value-mode `"1 2"` is still split by `number_wait_factor`.
 - **O1:** the order is break, wrapper, pieces, wrapper, break. Dedupe uses `start_language` inside another language's stretch, as in `tests/test_pipeline_passthrough.py:118-153`.
 - **O4:** `"COVID-19"`, `"中+2"`, `"a -5"` and `"5-3"` in number and group modes, plus unchanged value-mode output.
-- **D5:** the dot rule with and without a wrapper, in value mode and in number mode at pause 0 and 10.
+- **D5:** the dot rule with no wrapper, a wrapper that stays and a wrapper that goes, in value mode and in number mode at pause 0 and 10; with a space among the punctuation pause characters, no pause point before the period next to a number whose wrapper stays (review I1).
 - **E1 / E2:**
   - §5 rows 31–45, through `inject_punctuation_pause` alone and through `STAGES`.
   - A run with an edge break and a language command or index command between it and a punctuation break.
@@ -653,7 +659,8 @@ Decided by orchestrator with the recommended default; user may override before m
   - Alternative: accept another known limit for scope "all". `"Total. 12"` in number mode would then lose its punctuation pause to the 10 ms edge.
 - **D4. Logging (§4.7).** The merged stage keeps log key `"number_mode"`, and the `"number_language"` switch also logs it, through `Stage.also_logged_by`. Rows are labelled `"number_mode"`. Neither the panel nor the confspec changes.
   - Alternative: one new switch. That needs a new label and translation, and orphans the stored keys.
-- **D5. The dot rule follows only the item's text,** with or without a kept wrapper (§4.5). The change shows in the sequence only, in value mode with a locale, and is not audible.
+- ~~**D5. The dot rule follows only the item's text,** with or without a kept wrapper (§4.5). The change shows in the sequence only, in value mode with a locale, and is not audible.~~
+- **D5 (corrected by review I1). The dot rule spaces a period only next to a number that stays in the text's voice,** as today (§4.5). The space next to a number read by another voice was audible as a punctuation pause when a space is a pause character.
 - **D6. Inside the number stage, a whitespace gap between two numbers becomes one plain `NumberBreakCommand`.** This happens in the number and group modes, with a pause above 0. `number_wait_factor` is unchanged (§4.3, §4.6.4).
 - **D7. Names.** `inject_numbers`, `_number_item_segments`, `NumberEdgeBreakCommand`, `_is_edge_break` and `_merge_edge_breaks`. The old functions are removed and their tests renamed (§4.9, §8.1).
 - **D8. Strings and docs.** "Number wait factor" keeps its label. Only the English and zh_TW readmes change: one bullet and one changelog entry (§6).

@@ -741,7 +741,11 @@ def spoken_between_number_breaks(env, sequence):
 def test_property_the_number_language_changes_no_words_or_breaks(env, data, text):
 	"""P8: the text between number breaks is the same with number language en and default.
 
-	It ignores whitespace and runs with the punctuation pause off.
+	It ignores whitespace and runs with the punctuation pause off, so it does not cover
+	differences there. One predates this branch (master): in value mode the dot rule spaces
+	"There are 5. Next" as "5 . Next" without a number language, but with one whose voice is
+	another the wrapper stays and the dot rule leaves the period as it is (final review M5;
+	number-edge-pause review I1).
 	"""
 	stage_settings = punctuation_settings(0)
 	stage_settings.punctuation_pause_enabled = False

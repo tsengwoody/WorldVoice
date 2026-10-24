@@ -758,17 +758,24 @@ def test_number_language_leaves_a_sign_after_a_word_with_it(env):
 
 
 @pytest.mark.parametrize(
-	("mode", "expected"),
+	("mode", "voice", "expected"),
 	[
-		("value", [("lang", "en"), "12", ("lang", "zh_TW"), " . Next"]),
-		("number", [("lang", "en"), "1", ("NumberBreakCommand", 0), "2", ("lang", "zh_TW"), " . Next"]),
+		("value", "E", [("lang", "en"), "12", ("lang", "zh_TW"), ". Next"]),
+		("number", "E", [("lang", "en"), "1", ("NumberBreakCommand", 0), "2", ("lang", "zh_TW"), ". Next"]),
+		("value", "Z", ["12 . Next"]),
+		("number", "Z", ["1", ("NumberBreakCommand", 0), "2 . Next"]),
 	],
-	ids=["value", "number-pause-0"],
+	ids=["value-kept", "number-pause-0-kept", "value-dropped", "number-pause-0-dropped"],
 )
-def test_the_dot_rule_reads_the_item_text_with_a_wrapper(env, mode, expected):
-	# Number-edge-pause spec D5: the dot rule reads the item's text, whether a wrapper stays or not.
+def test_the_dot_rule_spaces_only_numbers_whose_wrapper_goes(env, mode, voice, expected):
+	# Number-edge-pause spec D5 (review I1): as before the stages were merged, the dot rule spaces
+	# a period only where the number stays in the text's voice; next to a number read by another
+	# voice the space could be a new punctuation pause point.
 	env.settings.number_mode = mode
-	context = roles_context(env.module, "zh_TW", "en")
+	context = replace(
+		roles_context(env.module, "zh_TW", "en"),
+		voice_name_for_language={"zh_TW": "Z", "en": voice}.get,
+	)
 	assert shape(env.module.inject_numbers(["12. Next"], env.settings, context)) == expected
 
 
