@@ -433,7 +433,7 @@ def _ends_utterance(item: SpeechCmd) -> bool:
 	"""Whether NVDA's speech manager ends the utterance at *item*, after the filters ran.
 
 	It splits the sequence at an EndUtteranceCommand (speakSpelling puts one after every character,
-	Say All one after every chunk), and before a ConfigProfileTriggerCommand of a trigger with a
+	the speech of a text range one at the end of a block), and before a ConfigProfileTriggerCommand of a trigger with a
 	profile; one without a profile counts too, as the pipeline cannot know.
 	"""
 	return isinstance(item, (EndUtteranceCommand, ConfigProfileTriggerCommand))
