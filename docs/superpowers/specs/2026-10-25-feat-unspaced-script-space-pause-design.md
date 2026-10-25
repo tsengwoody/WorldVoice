@@ -12,6 +12,7 @@ Status:
 - D1–D6 are defaults added while writing this spec (§11). Decided by orchestrator with the recommended default; user may override before merge.
 - F1 contradicts an assumption of the request: the readmes do mention this pause (§0).
 - Q1–Q3 were decided by the user (2026-10-25), each with option A (§11). D7 became Q2's answer. No question is open.
+- Corrected by `fix/unspaced-common-rule` (2026-10-25): D1 and the explicit tone-mark list of Q1 are replaced by one rule decided by the user: a Common character counts as unspaced when its General Category is a letter, number or symbol (L, N or S; not punctuation, separator or other) and its Script_Extensions (Unicode 16.0.0 `ScriptExtensions.txt`) name at least one script of `UNSPACED_SCRIPTS` (decided by the user, 2026-10-25). The struck-through text below is the first version; §4.2 states the rule.
 
 References used throughout:
 
@@ -49,9 +50,9 @@ None of them names the setting's label ("Chinese space wait factor") or its key.
 The four Taiwan tone marks are Unicode modifier letters of the Common script: ˇ U+02C7, ˊ U+02CA, ˋ U+02CB and ˙ U+02D9. So is the first-tone macron ˉ U+02C9. Their Script_Extensions are {Bopomofo, Latin}. Only U+02EA–U+02EB are Bopomofo (`script_data.py:23`).
 
 - In Zhuyin written with tones, most syllables end with a tone mark. The light-tone dot is written before the syllable. So with the rule as stated, `ㄋㄧˇ ㄏㄠˇ` gets no pause, while `ㄧㄣ ㄓㄨ` (first tone, no mark) does.
-- The tone marks do not pass the D1 test (Script_Extensions only unspaced scripts), because Latin is in their extensions.
+- ~~The tone marks do not pass the D1 test (Script_Extensions only unspaced scripts), because Latin is in their extensions.~~ Corrected by `fix/unspaced-common-rule` (2026-10-25): they pass the new rule (§4.2): they are Lm or Sk, and Bopomofo is in their extensions.
 - Decided by the user (2026-10-25), Q1 = A: U+02C7, U+02C9, U+02CA, U+02CB and U+02D9 count as Bopomofo for this rule, like ー for kana. A pause still needs an unspaced character on both sides, so Latin text with these marks never gets one.
-- They are listed explicitly in `_UNSPACED_BOPOMOFO_MARKS`, next to the D1 set, because the D1 rule does not cover them (§4.2).
+- ~~They are listed explicitly in `_UNSPACED_BOPOMOFO_MARKS`, next to the D1 set, because the D1 rule does not cover them (§4.2).~~ Corrected by `fix/unspaced-common-rule` (2026-10-25): they need no list of their own; the generated `UNSPACED_COMMON` holds them (§4.2).
 
 ### F3 (Q3). With a space among the punctuation pause characters, this pause replaces the punctuation pause at that space
 
@@ -98,7 +99,7 @@ The rule goes by the Unicode script table, so some digits and marks count as the
 - **U3.** The unspaced scripts are Han, Hiragana, Katakana, Bopomofo, Thai, Lao, Khmer and Myanmar.
   - Han covers every ideograph block, through the Unicode script table, not a hard-coded range.
   - The script comes from the existing `get_script` (`scripts:6-13`).
-- **U4.** The prolonged sound marks U+30FC (ー) and U+FF70 (ｰ) are Common in Unicode, but count as kana for this rule. D1 extends this to the other kana-only Common letters.
+- **U4.** The prolonged sound marks U+30FC (ー) and U+FF70 (ｰ) are Common in Unicode, but count as kana for this rule. ~~D1 extends this to the other kana-only Common letters.~~ Corrected by `fix/unspaced-common-rule` (2026-10-25): the rule in §4.2 extends this to every Common letter, number or symbol with an unspaced script in its Script_Extensions.
 - **U5.** The rule does not look at the main voice language, and it applies to every synth, as today. It works within one string item, as today: no look across commands or items. A wait of 0 disables it.
 - **U6.** Everything is renamed, with no backward compatibility and no config migration:
   - setting key `unspaced_script_space_wait_factor`, driver_id `unspacedscriptspacewaitfactor`;
@@ -164,6 +165,13 @@ What NVDA users hear with the default factor 10 and global wait factor 10 (10 ms
 
 In `pipeline/__init__.py`, near the stage:
 
+Corrected by `fix/unspaced-common-rule` (2026-10-25): the rule below replaces `_UNSPACED_COMMON` and `_UNSPACED_BOPOMOFO_MARKS`. The first version's block follows, kept as it was; the bullets after it that no longer hold are struck through.
+
+- **The rule:** a Common character counts as unspaced when its General Category is a letter, number or symbol (L, N or S; not punctuation, separator or other) and its Script_Extensions (Unicode 16.0.0 `ScriptExtensions.txt`) name at least one script of `UNSPACED_SCRIPTS` (decided by the user, 2026-10-25). Inherited marks keep O1: the left side looks back past them to the base.
+- `tools/generate_unspaced_common.py` derives the set from `ScriptExtensions.txt`, the Script ranges of `languageDetection/script_data.py` (for "is Common") and `unicodedata` (for the category). It refuses to run unless all three have the same Unicode version, and writes `pipeline/unspaced_common_data.py` ("Do not edit by hand", `UNICODE_VERSION`, `SOURCE_SHA256`, `UNSPACED_COMMON_RANGES`, `UNSPACED_COMMON`). `script_data.py` is not touched.
+- Unicode 16.0.0 gives 286 code points: So 216, No 42, Lm 14, Sk 12, Lo 2. They include the thirteen letters and the five tone marks of the first version, the Chinese tone letters U+A700–U+A707, ʼ U+02BC and ˗ U+02D7, ideographic description characters ⿰–⿿, 〓, 〷, 〾, 〿, kanbun marks ㆐–㆟, CJK strokes ㇀–㇥ and ㇯, parenthesized and circled ideographs (㈠–㉇, ㊀–㊰), the telegraph month, day and hour symbols, the era squares ㋿ and ㍻–㍿, counting rods 𝍠–𝍱, and 🉐 🉑. Punctuation such as 。 、 〽 ゠ 「 」 ・ 〃 stays out.
+- `_is_unspaced(character)` is true when the character is in `UNSPACED_COMMON`, or `get_script(ord(character))` is in `UNSPACED_SCRIPTS`.
+
 ```python
 # Scripts whose words are not separated by spaces: a space between two of their characters is a
 # pause (decided by the user, 2026-10-25). Add a script here to extend the rule.
@@ -177,20 +185,20 @@ _UNSPACED_COMMON = frozenset({...})
 _UNSPACED_BOPOMOFO_MARKS = frozenset({...})
 ```
 
-- `_is_unspaced(character)` is true when the character is in `_UNSPACED_COMMON` or `_UNSPACED_BOPOMOFO_MARKS`, or `get_script(ord(character))` is in `UNSPACED_SCRIPTS`. The plan may merge the two sets into one, as long as each keeps its comment.
+- ~~`_is_unspaced(character)` is true when the character is in `_UNSPACED_COMMON` or `_UNSPACED_BOPOMOFO_MARKS`, or `get_script(ord(character))` is in `UNSPACED_SCRIPTS`. The plan may merge the two sets into one, as long as each keeps its comment.~~ Corrected by `fix/unspaced-common-rule` (2026-10-25): see the rule above.
 - `get_script` returns `None` for code points outside the table (`scripts:7-12`): unassigned ones, private use (U+E000) and lone surrogates (U+D800). These are not unspaced.
-- **D1. The Common characters that count.**
-  - U4 names ー and ｰ. This spec adds every other Common character that:
-    - is a letter or a modifier symbol (categories Lo, Lm, Sk), and
-    - has only unspaced scripts in its Script_Extensions.
+- **D1. The Common characters that count.** Corrected by `fix/unspaced-common-rule` (2026-10-25): the D1 test below is replaced by the rule above.
+  - ~~U4 names ー and ｰ. This spec adds every other Common character that:~~
+    - ~~is a letter or a modifier symbol (categories Lo, Lm, Sk), and~~
+    - ~~has only unspaced scripts in its Script_Extensions.~~
 
-    That gives the set in the comment above. The set was read from `ScriptExtensions.txt` 16.0.0.
+    ~~That gives the set in the comment above. The set was read from `ScriptExtensions.txt` 16.0.0.~~
   - Not included:
-    - punctuation and symbols such as ゠ U+30A0, ・ U+30FB, 。 and 「」, which are Common punctuation (U2);
-    - the Bopomofo tone marks, which have Latin in their extensions. They are not in this set, but Q1 = A adds them explicitly (next item).
+    - punctuation ~~and symbols~~ such as ゠ U+30A0, ・ U+30FB, 。 and 「」, which are Common punctuation (U2) (Corrected by `fix/unspaced-common-rule` (2026-10-25): Common symbols with an unspaced script in their Script_Extensions now count);
+    - ~~the Bopomofo tone marks, which have Latin in their extensions. They are not in this set, but Q1 = A adds them explicitly (next item).~~
     - U+3099 and U+309A (the combining voiced marks). They are Inherited, so O1 covers them: in `が か` the left base is か.
-- `languageDetection/script_data.py` does not hold Script_Extensions, and this branch does not change it. So the set is written out, and a test pins it (§8.2).
-- **Q1 = A (decided by the user, 2026-10-25).** The five Bopomofo tone marks count as unspaced through `_UNSPACED_BOPOMOFO_MARKS`, listed explicitly because they fall outside the D1 rule (F2). So `ㄋㄧˇ ㄏㄠˇ` pauses, and so does `ㄓㄨˋ ˙ㄉㄜ` (the light-tone dot before the syllable is the right neighbour).
+- ~~`languageDetection/script_data.py` does not hold Script_Extensions, and this branch does not change it. So the set is written out, and a test pins it (§8.2).~~ Corrected by `fix/unspaced-common-rule` (2026-10-25): the set is generated from `ScriptExtensions.txt` by `tools/generate_unspaced_common.py`; `script_data.py` is still unchanged.
+- **Q1 = A (decided by the user, 2026-10-25).** The five Bopomofo tone marks count as unspaced ~~through `_UNSPACED_BOPOMOFO_MARKS`, listed explicitly because they fall outside the D1 rule (F2)~~ (Corrected by `fix/unspaced-common-rule` (2026-10-25): through the rule above, with no special case). So `ㄋㄧˇ ㄏㄠˇ` pauses, and so does `ㄓㄨˋ ˙ㄉㄜ` (the light-tone dot before the syllable is the right neighbour).
 - **Superset of today.**
   - All of U+4E00–U+9FA5 is Han in the table, and a Han character is never Inherited.
   - So when today's regex sees an ideograph right before and right after a run, the new rule sees the same characters as the left base and the right neighbour.
@@ -401,10 +409,11 @@ These guards must keep passing:
   - wait 0 (27) and commands passing through (28).
 - **Classification:**
   - `_is_unspaced` is true for a sample of each script in `UNSPACED_SCRIPTS`: U+4E00, U+3400, U+9FFF, U+F900, U+20000, U+3005, U+3007, あ, ア, ｱ U+FF71, ㄅ U+3105, ㆠ U+31A0, ก, ກ, ក, က and U+1B001.
-  - It is true for every code point in `_UNSPACED_COMMON`.
+  - It is true for every code point in ~~`_UNSPACED_COMMON`~~ `UNSPACED_COMMON` (Corrected by `fix/unspaced-common-rule` (2026-10-25)).
   - It is true for the five Bopomofo tone marks ˇ ˉ ˊ ˋ ˙ (Q1).
   - It is false for: a, A, Я, 한, ㄱ U+3131, 1, １, 。, 「, ・ U+30FB, ゠ U+30A0, U+3000, U+3099, U+E000, U+D800, an unassigned code point, and the other Common modifier letters next to the tone marks, ˈ U+02C8 and ˌ U+02CC.
-- **D1 and Q1 pins:** `_UNSPACED_COMMON` equals the thirteen code points listed in §4.2, and `_UNSPACED_BOPOMOFO_MARKS` equals U+02C7, U+02C9, U+02CA, U+02CB and U+02D9. Each one is Common in `get_script`, so a later Unicode table that moves one into a script shows up in review.
+- **D1 and Q1 pins:** ~~`_UNSPACED_COMMON` equals the thirteen code points listed in §4.2, and `_UNSPACED_BOPOMOFO_MARKS` equals U+02C7, U+02C9, U+02CA, U+02CB and U+02D9. Each one is Common in `get_script`, so a later Unicode table that moves one into a script shows up in review.~~
+  Corrected by `fix/unspaced-common-rule` (2026-10-25): `UNSPACED_COMMON` has 286 code points, So 216, No 42, Lm 14, Sk 12 and Lo 2 by `unicodedata`, each Common in `get_script`, and holds the thirteen letters and five tone marks of the first version. Pinned in: ー ｰ 〆 ゛ ˇ ˉ ˊ ˋ ˙ ꜀ ㈱ ㊀ ㍻ ⿰ 〓 𝍠 🉐; out: 。 、 〽 ゠ 「 」 ・ 〃 - a 0. Worked examples add `㈱ 公司` and `第 ㊀ 項` (pause). `tests/test_generate_unspaced_common.py` tests the generator's parsing and selection on inline fixtures, and that its script codes name `UNSPACED_SCRIPTS`.
 - **O1:**
   - rows 19–21;
   - a run of two marks before the space (`が́ か`);
@@ -469,8 +478,9 @@ Alphabet: Han (U+4E00, U+3400, U+20000), kana, ー, ｰ, Thai, Hangul, Latin, di
 
 | File | Change |
 |---|---|
-| `addon/synthDrivers/WorldVoice/pipeline/__init__.py` | `UNSPACED_SCRIPTS`, `_UNSPACED_COMMON`, `_UNSPACED_BOPOMOFO_MARKS`, `_is_unspaced`, `_pauses_between`, the renamed stage, `STAGES`, the import (§4) |
+| `addon/synthDrivers/WorldVoice/pipeline/__init__.py` | `UNSPACED_SCRIPTS`, ~~`_UNSPACED_COMMON`, `_UNSPACED_BOPOMOFO_MARKS`~~ (Corrected by `fix/unspaced-common-rule` (2026-10-25): `UNSPACED_COMMON` from `pipeline/unspaced_common_data.py`, generated by `tools/generate_unspaced_common.py`), `_is_unspaced`, `_pauses_between`, the renamed stage, `STAGES`, the import (§4) |
 | `addon/synthDrivers/WorldVoice/pipeline/settings.py` | the table entry, field, scaled method and `effective` (§4.5) |
+| `tools/generate_unspaced_common.py`, `addon/synthDrivers/WorldVoice/pipeline/unspaced_common_data.py`, `tests/test_generate_unspaced_common.py` | Corrected by `fix/unspaced-common-rule` (2026-10-25): the generator, its output and its tests (§4.2) |
 | `addon/locale/zh_TW/LC_MESSAGES/nvda.po` | §6 |
 | `readme.md`, `addon/doc/zh_TW/readme.md` | §6 (Q2 = A) |
 | `tests/…` | §8 |
@@ -506,14 +516,14 @@ Alphabet: Han (U+4E00, U+3400, U+20000), kana, ー, ｰ, Thai, Hangul, Latin, di
 
 ### Resolved (decided by the user, 2026-10-25)
 
-- **Q1 (F2). Bopomofo tone marks.** Decided by the user (2026-10-25): A. ˇ U+02C7, ˉ U+02C9, ˊ U+02CA, ˋ U+02CB and ˙ U+02D9 count as Bopomofo for this rule, like ー for kana. They are listed explicitly (`_UNSPACED_BOPOMOFO_MARKS`, §4.2), so Zhuyin with tones pauses at its spaces (§5 rows 24–24c). Option B, keeping the user's first list literally, was not chosen.
+- **Q1 (F2). Bopomofo tone marks.** Decided by the user (2026-10-25): A. ˇ U+02C7, ˉ U+02C9, ˊ U+02CA, ˋ U+02CB and ˙ U+02D9 count as Bopomofo for this rule, like ー for kana. ~~They are listed explicitly (`_UNSPACED_BOPOMOFO_MARKS`, §4.2)~~ (Corrected by `fix/unspaced-common-rule` (2026-10-25): the rule in §4.2 covers them), so Zhuyin with tones pauses at its spaces (§5 rows 24–24c). Option B, keeping the user's first list literally, was not chosen.
 - **Q2 (F1). Readmes.** Decided by the user (2026-10-25): A. Update `readme.md` and `addon/doc/zh_TW/readme.md` at lines 14, 39 and 53, and add a changelog entry that says the setting is reset (§6). The zh_CN, zh_HK, ru and uk readmes stay unchanged. Options B (no readme) and C (all six) were not chosen.
 - **Q3 (F3). A space among the punctuation pause characters.** Decided by the user (2026-10-25): A. Keep today's behaviour: the space pause replaces the punctuation pause at spaces between unspaced characters, now for every unspaced script. Option B (the longer pause wins) was not chosen.
 
 ### Decided by orchestrator with the recommended default; user may override before merge
 
 - **O1.** Inherited characters take their base's script. The base comes before the mark, so a mark right after the run means no pause (§2.2).
-- **D1.** The Common letters with only unspaced Script_Extensions count, as for ー and ｰ (§4.2). These are 〆, 〱–〵, 〼, ゛, ゜, ー, ｰ, ﾞ and ﾟ. Punctuation does not count.
+- **D1.** ~~The Common letters with only unspaced Script_Extensions count, as for ー and ｰ (§4.2). These are 〆, 〱–〵, 〼, ゛, ゜, ー, ｰ, ﾞ and ﾟ. Punctuation does not count.~~ Corrected by `fix/unspaced-common-rule` (2026-10-25): replaced by the rule decided by the user: a Common character counts as unspaced when its General Category is a letter, number or symbol (L, N or S; not punctuation, separator or other) and its Script_Extensions (Unicode 16.0.0 `ScriptExtensions.txt`) name at least one script of `UNSPACED_SCRIPTS` (decided by the user, 2026-10-25); 286 code points in Unicode 16.0.0 (§4.2). Punctuation still does not count.
 - **D2.** The decision lives in `pipeline/__init__.py`, which is already mutated by mutmut.
 - **D3.** `get_script` is imported with `from ..languageDetection.scripts import get_script`. `script_data.py` is not touched.
 - **D4.** The ASCII fast path is optional. The plan may add it if the long-text check in §10 shows a need.
