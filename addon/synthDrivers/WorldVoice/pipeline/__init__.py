@@ -606,7 +606,7 @@ def _is_unspaced(character: str) -> bool:
 
 	Besides the characters of UNSPACED_SCRIPTS, a Common letter, number or symbol counts when its
 	Script_Extensions name one of those scripts: ー, 〆, ˇ, ㈱, ㊀, but not 。 or 「 (decided by
-	the user, 2026-10-25). UNSPACED_COMMON is generated from ScriptExtensions.txt by
+	the user, 2026-10-25). UNSPACED_COMMON is generated from ScriptExtensions.txt and UnicodeData.txt by
 	tools/generate_unspaced_common.py.
 	"""
 	return character in UNSPACED_COMMON or get_script(ord(character)) in UNSPACED_SCRIPTS

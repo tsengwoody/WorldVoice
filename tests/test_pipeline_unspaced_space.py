@@ -8,8 +8,8 @@ of an unspaced script: Han, kana, Bopomofo, Thai, Lao, Khmer or Myanmar (decided
 import re
 import sys
 import time
-import unicodedata
 from collections import Counter
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -59,12 +59,25 @@ def test_is_unspaced(env, character):
 	assert env._is_unspaced(character) is True
 
 
+def _generated_categories():
+	"""The General Category of each UNSPACED_COMMON character, as unspaced_common_data.py records it."""
+	data = sys.modules["synthDrivers.WorldVoice.pipeline.unspaced_common_data"]
+	source = Path(data.__file__).read_text(encoding="utf-8")
+	ranges = re.findall(r"^\t\(0x([0-9A-F]+), 0x([0-9A-F]+)\),  # \S+ (\w\w)$", source, re.MULTILINE)
+	assert [(int(start, 16), int(end, 16)) for start, end, _category in ranges] == list(
+		data.UNSPACED_COMMON_RANGES,
+	)
+	return [category for start, end, category in ranges for _code in range(int(start, 16), int(end, 16) + 1)]
+
+
 def test_unspaced_common_follows_the_rule(env):
 	# D1, corrected by fix/unspaced-common-rule: generated from Unicode 16.0.0 ScriptExtensions.txt,
 	# every Common letter, number or symbol with an unspaced script in its Script_Extensions.
 	assert len(env.UNSPACED_COMMON) == 286
 	assert {env.get_script(ord(character)) for character in env.UNSPACED_COMMON} == {"Common"}
-	assert Counter(unicodedata.category(character) for character in env.UNSPACED_COMMON) == {
+	# The General Categories are the ones the generator read from the same UnicodeData.txt and wrote
+	# beside each range, not Python's unicodedata, which may be of another Unicode version.
+	assert Counter(_generated_categories()) == {
 		"So": 216,
 		"No": 42,
 		"Lm": 14,

@@ -6,6 +6,7 @@ symbol, with an unspaced script in their Script_Extensions.
 
 UNICODE_VERSION = "16.0.0"
 SOURCE_SHA256 = "049117ce26b9769fe2749b06eef51a50a89faef4a97764dd2d81daa715980700"
+UNICODE_DATA_SHA256 = "ff58e5823bd095166564a006e47d111130813dcf8bf234ef79fa51a870edb48f"
 UNSPACED_COMMON_RANGES = (
 	(0x2BC, 0x2BC),  # ʼ Lm
 	(0x2C7, 0x2C7),  # ˇ Lm
