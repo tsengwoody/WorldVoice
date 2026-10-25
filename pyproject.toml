@@ -57,7 +57,8 @@ source_paths = [
 	"addon/synthDrivers/WorldVoice/languageDetection/__init__.py",
 ]
 mutate_only_covered_lines = true
-also_copy = ["addon/", ".pre-commit-config.yaml", "buildVars.py"]
+# tools/ for tests/test_generate_unspaced_common.py, which loads the generator.
+also_copy = ["addon/", ".pre-commit-config.yaml", "buildVars.py", "tools/"]
 pytest_add_cli_args_test_selection = ["tests/"]
 # The hygiene guards lint and scan the source; on mutmut's rewritten copy they judge the
 # rewrite, not behaviour. tests/mutation_support.py matches the alias-loaded modules.

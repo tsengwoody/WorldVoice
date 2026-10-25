@@ -8,6 +8,8 @@ of an unspaced script: Han, kana, Bopomofo, Thai, Lao, Khmer or Myanmar (decided
 import re
 import sys
 import time
+import unicodedata
+from collections import Counter
 from types import SimpleNamespace
 
 import pytest
@@ -57,25 +59,52 @@ def test_is_unspaced(env, character):
 	assert env._is_unspaced(character) is True
 
 
-def test_unspaced_common_is_pinned(env):
-	# D1: the Common letters whose Script_Extensions are only unspaced scripts (Unicode 16.0.0).
-	assert env._UNSPACED_COMMON == {
+def test_unspaced_common_follows_the_rule(env):
+	# D1, corrected by fix/unspaced-common-rule: generated from Unicode 16.0.0 ScriptExtensions.txt,
+	# every Common letter, number or symbol with an unspaced script in its Script_Extensions.
+	assert len(env.UNSPACED_COMMON) == 286
+	assert {env.get_script(ord(character)) for character in env.UNSPACED_COMMON} == {"Common"}
+	assert Counter(unicodedata.category(character) for character in env.UNSPACED_COMMON) == {
+		"So": 216,
+		"No": 42,
+		"Lm": 14,
+		"Sk": 12,
+		"Lo": 2,
+	}
+
+
+def test_unspaced_common_keeps_the_hand_listed_characters(env):
+	# The 13 letters of the first version and the five Bopomofo tone marks need no special case.
+	listed = {
 		chr(code)
 		for code in (0x3006, *range(0x3031, 0x3036), 0x303C, 0x309B, 0x309C, 0x30FC, 0xFF70, 0xFF9E, 0xFF9F)
 	}
-	assert {env.get_script(ord(character)) for character in env._UNSPACED_COMMON} == {"Common"}
+	tone_marks = {chr(code) for code in (0x02C7, 0x02C9, 0x02CA, 0x02CB, 0x02D9)}
+	assert listed | tone_marks <= env.UNSPACED_COMMON
 
 
-def test_bopomofo_tone_marks_are_pinned(env):
-	# Q1: Common, with Latin in their Script_Extensions, counted as Bopomofo.
-	assert env._UNSPACED_BOPOMOFO_MARKS == {chr(code) for code in (0x02C7, 0x02C9, 0x02CA, 0x02CB, 0x02D9)}
-	assert {env.get_script(ord(character)) for character in env._UNSPACED_BOPOMOFO_MARKS} == {"Common"}
+def test_unspaced_common_data_matches_the_script_data(env):
+	data = sys.modules["synthDrivers.WorldVoice.pipeline.unspaced_common_data"]
+	scripts = sys.modules["synthDrivers.WorldVoice.languageDetection.script_data"]
+	assert data.UNICODE_VERSION == scripts.UNICODE_VERSION == "16.0.0"
+	assert data.UNSPACED_COMMON is env.UNSPACED_COMMON
 
 
-def test_every_listed_character_is_unspaced(env):
-	assert all(
-		env._is_unspaced(character) for character in env._UNSPACED_COMMON | env._UNSPACED_BOPOMOFO_MARKS
-	)
+def test_every_unspaced_common_character_is_unspaced(env):
+	assert all(env._is_unspaced(character) for character in env.UNSPACED_COMMON)
+
+
+@pytest.mark.parametrize(
+	"character",
+	["ー", "ｰ", "〆", "゛", "ˇ", "ˉ", "ˊ", "ˋ", "˙", "꜀", "㈱", "㊀", "㍻", "⿰", "〓", "𝍠", "🉐"],
+)
+def test_common_characters_of_unspaced_scripts_are_unspaced(env, character):
+	assert env._is_unspaced(character) is True
+
+
+@pytest.mark.parametrize("character", ["。", "、", "〽", "゠", "「", "」", "・", "〃", "-", "a", "0"])
+def test_common_punctuation_and_ascii_are_not_unspaced(env, character):
+	assert env._is_unspaced(character) is False
 
 
 @pytest.mark.parametrize(
@@ -249,6 +278,8 @@ B10 = ("BreakCommand", 10)
 		("ㄧㄣ ㄓㄨ", ["ㄧㄣ", B, "ㄓㄨ"]),
 		("ㄓㄨˋ ㄧㄣ", ["ㄓㄨˋ", B, "ㄧㄣ"]),
 		("ㄋㄧˇ ㄏㄠˇ", ["ㄋㄧˇ", B, "ㄏㄠˇ"]),
+		("㈱ 公司", ["㈱", B, "公司"]),
+		("第 ㊀ 項", ["第", B, "㊀", B, "項"]),
 		("ㄓㄨˋ ˙ㄉㄜ", ["ㄓㄨˋ", B, "˙ㄉㄜ"]),
 		("a ˇ", "same"),
 		("ˇ a", "same"),

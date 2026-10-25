@@ -13,8 +13,8 @@ from pipeline_harness import load_pipeline_module, punctuation_settings
 SHARED_ENV = settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 
 # Han (basic, Extension A, Extension B), kana and the prolonged sound marks, Thai, Hangul, Latin, a digit,
-# CJK punctuation, two Inherited marks, a Bopomofo tone mark, and whitespace.
-TEXT = st.text(alphabet="中㐀\U00020000かカーｰก한a1。゙́ˇ \n　 ", max_size=16)
+# CJK punctuation, two Inherited marks, a Bopomofo tone mark, a parenthesized ideograph, and whitespace.
+TEXT = st.text(alphabet="中㐀\U00020000かカーｰก한a1。゙́ˇ㈱ \n　 ", max_size=16)
 WHITESPACE = re.compile(r"\s+")
 # Today's rule, kept as an oracle: a run between two ideographs of U+4E00-U+9FA5.
 HAN_RULE = re.compile(r"(?<=[一-龥])\s+(?=[一-龥])")
