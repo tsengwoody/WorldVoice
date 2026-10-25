@@ -12,6 +12,7 @@ from speech.commands import BreakCommand, ConfigProfileTriggerCommand, EndUttera
 from speech.extensions import filter_speechSequence
 
 from .._speechcommand import WVLangChangeCommand
+from ..languageDetection.scripts import get_script
 from ..log import PipelineLog
 from ..numberLanguage import FOLLOW, MAIN
 from ..runtime.models import SelectVoice
@@ -591,6 +592,29 @@ def merge_consecutive_strings(items):
 			yield item
 	if buffer:
 		yield buffer
+
+
+# Scripts whose words are not separated by spaces: a space between two of their characters is a
+# pause (decided by the user, 2026-10-25). Add a script here to extend the rule.
+UNSPACED_SCRIPTS = frozenset({"Han", "Hiragana", "Katakana", "Bopomofo", "Thai", "Lao", "Khmer", "Myanmar"})
+# Common letters whose Script_Extensions are only unspaced scripts (Unicode 16.0.0 ScriptExtensions.txt):
+# 〆 U+3006, the vertical kana repeat marks U+3031–U+3035, 〼 U+303C, ゛゜ U+309B–U+309C,
+# ー U+30FC, ｰ U+FF70 and ﾞﾟ U+FF9E–U+FF9F.
+_UNSPACED_COMMON = frozenset(
+	"\u3006\u3031\u3032\u3033\u3034\u3035\u303c\u309b\u309c\u30fc\uff70\uff9e\uff9f",
+)
+# The Bopomofo tone marks ˇ U+02C7, ˉ U+02C9, ˊ U+02CA, ˋ U+02CB and ˙ U+02D9: Common, with Latin in
+# their Script_Extensions, but counted as Bopomofo for this rule (decided by the user, 2026-10-25).
+_UNSPACED_BOPOMOFO_MARKS = frozenset("\u02c7\u02c9\u02ca\u02cb\u02d9")
+
+
+def _is_unspaced(character: str) -> bool:
+	"""Whether *character* belongs to a script written without spaces between words."""
+	return (
+		character in _UNSPACED_COMMON
+		or character in _UNSPACED_BOPOMOFO_MARKS
+		or get_script(ord(character)) in UNSPACED_SCRIPTS
+	)
 
 
 def inject_unspaced_script_space_pause(
