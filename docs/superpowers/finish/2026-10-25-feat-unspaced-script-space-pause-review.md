@@ -131,3 +131,12 @@ Linux 上只驗證了 pipeline 的邏輯與 harness 下的 synth 載入；spec �
 ## 工作區備註
 
 主 checkout `/workspace/WorldVoice` 在 review 開始前就有的未提交變更，與本分支無關，未動：`M buildVars.py`、`D docs/superpowers/finish_task.md`、`?? DEVELOPMENT_WORKFLOW.md`、`?? diff.md`。
+
+## 修正記錄
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| M1 | 採用選項 A（接受行為，不改程式）。spec §3 表格 `๑ ๒` 列的「Today」改為「數值模式、數字停頓 > 0 時是數字停頓，其他情況不停頓」（舊文字以刪除線保留）；§4.4 補一句：數值模式下兩個 script 數字之間的空白停頓取代數字停頓，因為命令已隔開兩個數字時 `number_wait_factor` 不再加數字停頓 | `f02cc18` |
+| M2 | `readme.md:54` 補 "except that spaces between CJK and Southeast Asian characters get the space pause instead"；`addon/doc/zh_TW/readme.md:54` 補「但中日文及東南亞文字之間的空白用的是空白停頓」。沒有測試釘住 readme 文字，完整測試照樣全綠 | `325be8b` |
+| M3 | 不修改。P2 的 oracle 與實作公式相同，但 O1 的方向已由 `test_pauses_between` 的 21 列與 `test_worked_examples` 的 row 19–21 釘住，沒有缺口（同審閱建議） | — |
+| M4 | 不修改。D1 只收 Lo／Lm／Sk 類別是 orchestrator 的預設，帶圈、括號、方形的漢字符號（㈱、㊀、㋿、㍻ 等）不算不分詞字元；仍列在「使用者還沒確認的使用者可見預設」第 6 項，使用者要納入時再擴充 `_UNSPACED_COMMON` 與 pin 測試 | — |
