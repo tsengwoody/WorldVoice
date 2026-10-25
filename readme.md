@@ -79,6 +79,7 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 * **Full-width and other Unicode digits are numbers:** Number language, number modes, number pauses and the thousands separator rule now also apply to full-width digits and other Unicode decimal digits, such as Arabic-Indic digits.
 * **Assumed languages for Cyrillic and Devanagari:** The Unicode Detection panel now also lets you choose the language assumed for Cyrillic characters (default Russian) and Devanagari characters (default Hindi). Earlier versions always used the first language with an installed voice in WorldVoice's list for the character set; the defaults keep that behavior.
 * **Spaces in the punctuation pause characters are kept:** The punctuation pause characters now keep every character you type, including spaces. Earlier versions removed spaces at the start and end of the list, so a single space was cleared on saving.
+* **Unicode data updated to 18.0.0:** Unicode detection and the space pause now know the characters Unicode 17.0 and 18.0 added, such as the ideographs of CJK Unified Ideographs Extension J and new kana. They are detected and get the space pause like the other Han and kana characters. Small seal script characters, new in 18.0, are a script of their own, not Han: Unicode detection does not switch language for them and they get no space pause.
 
 ## WorldVoice 6 Update
 

@@ -4,9 +4,9 @@ The Common characters the space pause counts as unspaced: General Category lette
 symbol, with an unspaced script in their Script_Extensions.
 """
 
-UNICODE_VERSION = "16.0.0"
-SOURCE_SHA256 = "049117ce26b9769fe2749b06eef51a50a89faef4a97764dd2d81daa715980700"
-UNICODE_DATA_SHA256 = "ff58e5823bd095166564a006e47d111130813dcf8bf234ef79fa51a870edb48f"
+UNICODE_VERSION = "18.0.0"
+SOURCE_SHA256 = "5c9d34a922f687726f2a8bcf57d49f905987e51f1b21b58c95a00fbe255cec23"
+UNICODE_DATA_SHA256 = "0736451de439ae7baf1425136617da495e09ee5afbe6e394374db7009ea08950"
 UNSPACED_COMMON_RANGES = (
 	(0x2BC, 0x2BC),  # ʼ Lm
 	(0x2C7, 0x2C7),  # ˇ Lm

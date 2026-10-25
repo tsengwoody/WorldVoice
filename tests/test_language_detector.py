@@ -130,6 +130,41 @@ def test_detection_characterization(env, languages, base, preferences, sequence,
 	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
 
 
+# Characters Unicode 17.0 and 18.0 assigned to scripts detection knows (fix/unicode-18). Seal, a
+# script of its own since 18.0, has no language.
+@pytest.mark.parametrize(
+	"languages,base,preferences,sequence,expected",
+	[
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{"cjk": "zh_TW"},
+			["hi \U000323b0\U000323b1"],
+			["hi ", ("lang", "zh_TW"), "\U000323b0\U000323b1"],
+			id="cjk-extension-j",
+		),
+		pytest.param(
+			("en_US", "ja_JP"),
+			"en_US",
+			{},
+			["hi \U0001b123\U0001b124"],
+			["hi ", ("lang", "ja"), "\U0001b123\U0001b124"],
+			id="new-kana",
+		),
+		pytest.param(
+			("en_US", "zh_TW"),
+			"en_US",
+			{"cjk": "zh_TW"},
+			["hi \U0003d000"],
+			["hi \U0003d000"],
+			id="seal-is-not-han",
+		),
+	],
+)
+def test_detection_of_unicode_18_characters(env, languages, base, preferences, sequence, expected):
+	assert detect(env, sequence, languages=languages, base=base, **preferences) == expected
+
+
 # Cyrillic and Devanagari have an assumed-language choice like Latin, Han and Arabic (2026-10-23).
 @pytest.mark.parametrize(
 	"languages,preferences,sequence,expected",

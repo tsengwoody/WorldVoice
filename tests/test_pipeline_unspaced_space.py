@@ -71,7 +71,7 @@ def _generated_categories():
 
 
 def test_unspaced_common_follows_the_rule(env):
-	# D1, corrected by fix/unspaced-common-rule: generated from Unicode 16.0.0 ScriptExtensions.txt,
+	# D1, corrected by fix/unspaced-common-rule: generated from Unicode 18.0.0 ScriptExtensions.txt,
 	# every Common letter, number or symbol with an unspaced script in its Script_Extensions.
 	assert len(env.UNSPACED_COMMON) == 286
 	assert {env.get_script(ord(character)) for character in env.UNSPACED_COMMON} == {"Common"}
@@ -99,7 +99,7 @@ def test_unspaced_common_keeps_the_hand_listed_characters(env):
 def test_unspaced_common_data_matches_the_script_data(env):
 	data = sys.modules["synthDrivers.WorldVoice.pipeline.unspaced_common_data"]
 	scripts = sys.modules["synthDrivers.WorldVoice.languageDetection.script_data"]
-	assert data.UNICODE_VERSION == scripts.UNICODE_VERSION == "16.0.0"
+	assert data.UNICODE_VERSION == scripts.UNICODE_VERSION == "18.0.0"
 	assert data.UNSPACED_COMMON is env.UNSPACED_COMMON
 
 
@@ -348,6 +348,33 @@ def test_stages_script_digits(env, mode, wait):
 	result = every_stage(env, ["๑ ๒"], space=10, mode=mode, wait=wait)
 	expected = ("NumberBreakCommand", 10) if mode != "value" and wait > 0 else B10
 	assert result == ["๑", expected, "๒"]
+
+
+# Characters Unicode 17.0 and 18.0 assigned (fix/unicode-18)
+
+
+@pytest.mark.parametrize(
+	("text", "expected"),
+	[
+		# CJK Extension J (17.0) and Han added to earlier blocks: U+16FF2 in 17.0, U+2B81E in 18.0.
+		("\U000323b0 \U000323b1", ["\U000323b0", B, "\U000323b1"]),
+		("中 \U00033479", ["中", B, "\U00033479"]),
+		("\U00016ff2 \U0002b81e", ["\U00016ff2", B, "\U0002b81e"]),
+		# Kana new in 18.0: a Hiragana and a Katakana digraph, and a Katakana letter.
+		("\U0001b123 \U0001b124", ["\U0001b123", B, "\U0001b124"]),
+		("か \U0001b168", ["か", B, "\U0001b168"]),
+		# Small seal script (18.0) is its own script, not Han, so it never pauses.
+		("\U0003d000 \U0003d001", "same"),
+		("中 \U0003d000", "same"),
+		("\U0003d000 中", "same"),
+	],
+)
+def test_unicode_18_characters(env, text, expected):
+	assert shape(env, space_stage(env, [text])) == ([text] if expected == "same" else expected)
+
+
+def test_stages_pause_between_extension_j_ideographs(env):
+	assert every_stage(env, ["\U000323b0 \U000323b1"], space=10) == ["\U000323b0", B10, "\U000323b1"]
 
 
 def test_long_text_stays_fast(env):
