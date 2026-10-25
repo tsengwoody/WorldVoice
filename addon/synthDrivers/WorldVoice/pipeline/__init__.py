@@ -617,6 +617,21 @@ def _is_unspaced(character: str) -> bool:
 	)
 
 
+def _pauses_between(text: str, start: int, end: int) -> bool:
+	"""Whether the whitespace run text[start:end] is a pause: unspaced characters on both sides.
+
+	An Inherited mark takes the script of the character it attaches to, the one before it (O1). So
+	the left side is the first character before the run that is not Inherited, and a mark right
+	after the run, which attaches to the whitespace, means no pause.
+	"""
+	if end == len(text):
+		return False
+	base = start - 1
+	while base >= 0 and get_script(ord(text[base])) == "Inherited":
+		base -= 1
+	return base >= 0 and _is_unspaced(text[base]) and _is_unspaced(text[end])
+
+
 def inject_unspaced_script_space_pause(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",

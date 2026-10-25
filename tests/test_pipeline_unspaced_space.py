@@ -5,6 +5,7 @@ of an unspaced script: Han, kana, Bopomofo, Thai, Lao, Khmer or Myanmar (decided
 2026-10-25). An Inherited mark takes the script of the character it attaches to (O1).
 """
 
+import re
 import sys
 
 import pytest
@@ -110,3 +111,42 @@ def test_pipeline_harness_loads_language_detection_fresh(monkeypatch):
 	second = sys.modules[LANGUAGE_DETECTION_SCRIPTS]
 	assert second is not first
 	assert module.get_script is second.get_script
+
+
+# Deciding one whitespace run (spec §4.3, O1)
+
+
+@pytest.mark.parametrize(
+	("text", "expected"),
+	[
+		("中 文", [True]),
+		# Row 19, with が decomposed: the combining voiced mark is Inherited and looked past.
+		("か\u3099 か", [True]),
+		# Row 20: an ideographic variation selector is Inherited.
+		("葛\U000e0100 中", [True]),
+		("中\ufe00 文", [True]),
+		("中\u200d 文", [True]),
+		("中\u200c 文", [True]),
+		("か\u3099\u0301 か", [True]),
+		# Row 21: a mark right after the run attaches to the whitespace.
+		("中 \u3099か", [False]),
+		("\u3099 か", [False]),
+		# The look-back stops at whitespace: the mark between the runs has no unspaced base.
+		("中 \u0301 文", [False, False]),
+		(" 中 ", [False, False]),
+		("   ", [False]),
+		("ｺｰ ｸ", [True]),
+		("ーー か", [True]),
+		("カﾞ ア", [True]),
+		("\U00020000 か", [True]),
+		("\ud800 中", [False]),
+		("中 \ud800", [False]),
+		("中 a", [False]),
+		("a 中", [False]),
+		("中\n\t 文", [True]),
+	],
+)
+def test_pauses_between(env, text, expected):
+	assert [
+		env._pauses_between(text, match.start(), match.end()) for match in re.finditer(r"\s+", text)
+	] == expected
