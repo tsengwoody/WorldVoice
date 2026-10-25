@@ -467,3 +467,26 @@ def test_main_reports_a_download_failure(tool, script_data, monkeypatch, tmp_pat
 	monkeypatch.setattr(tool, "urlopen", urlopen)
 	with pytest.raises(SystemExit, match=SCRIPT_EXTENSIONS_URL):
 		_run(tool, tmp_path / "unspaced_common_data.py", script_data)
+
+
+@pytest.mark.parametrize("make", [lambda path: None, lambda path: path.mkdir()], ids=["missing", "directory"])
+@pytest.mark.parametrize(
+	("option", "name"),
+	[("--source", "ScriptExtensions.txt"), ("--unicode-data", "UnicodeData.txt")],
+)
+def test_an_unreadable_local_file_names_the_path_and_option(
+	tool,
+	script_data,
+	served,
+	tmp_path,
+	make,
+	option,
+	name,
+):
+	given = tmp_path / name
+	make(given)
+	destination = tmp_path / "unspaced_common_data.py"
+	with pytest.raises(SystemExit) as raised:
+		_run(tool, destination, script_data, option, str(given))
+	assert f"Could not read {given} given with {option}" in str(raised.value.code)
+	assert not destination.exists()

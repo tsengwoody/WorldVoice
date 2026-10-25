@@ -76,9 +76,17 @@ def download(url: str, option: str) -> bytes:
 		) from error
 
 
+def read_local(path: Path, option: str) -> bytes:
+	"""The bytes of path, which option gave."""
+	try:
+		return path.read_bytes()
+	except OSError as error:
+		raise SystemExit(f"Could not read {path} given with {option}: {error}") from error
+
+
 def read_source(path: Path | None, url: str, option: str, expected_sha256: str) -> tuple[bytes, str]:
 	"""The bytes of path, or of url when no path is given, and their sha256, which must be expected."""
-	data = download(url, option) if path is None else path.read_bytes()
+	data = download(url, option) if path is None else read_local(path, option)
 	actual_sha256 = hashlib.sha256(data).hexdigest()
 	if actual_sha256 != expected_sha256:
 		name = url.rpartition("/")[2]

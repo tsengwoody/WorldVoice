@@ -42,6 +42,14 @@ def download(url: str) -> bytes:
 		) from error
 
 
+def read_local(path: Path, option: str) -> bytes:
+	"""The bytes of path, which option gave."""
+	try:
+		return path.read_bytes()
+	except OSError as error:
+		raise SystemExit(f"Could not read {path} given with {option}: {error}") from error
+
+
 def parse_scripts(lines: Iterable[str]) -> list[ScriptRange]:
 	ranges: list[ScriptRange] = []
 	for line_number, raw_line in enumerate(lines, start=1):
@@ -109,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
 	if args.source is None:
 		source_bytes = download(source_url(args.unicode_version))
 	else:
-		source_bytes = args.source.read_bytes()
+		source_bytes = read_local(args.source, "--source")
 	actual_sha256 = hashlib.sha256(source_bytes).hexdigest()
 	if actual_sha256 != args.expected_sha256:
 		raise SystemExit(
