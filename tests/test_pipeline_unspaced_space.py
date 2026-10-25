@@ -7,6 +7,8 @@ of an unspaced script: Han, kana, Bopomofo, Thai, Lao, Khmer or Myanmar (decided
 
 import re
 import sys
+import time
+from types import SimpleNamespace
 
 import pytest
 from pipeline_harness import load_pipeline_module, punctuation_settings
@@ -150,3 +152,163 @@ def test_pauses_between(env, text, expected):
 	assert [
 		env._pauses_between(text, match.start(), match.end()) for match in re.finditer(r"\s+", text)
 	] == expected
+
+
+# The stage (spec §5)
+
+
+class Marker:
+	"""A speech command no stage knows, such as NVDA's IndexCommand."""
+
+
+def make_settings(*, space=20, mode="value", wait=0, chars="", remove=False, pwait=250):
+	"""The settings the stages read; the punctuation stage is on when *chars* names characters."""
+	return SimpleNamespace(
+		number_mode=mode,
+		scope="WorldVoice",
+		punctuation_pause_characters=chars,
+		punctuation_pause_enabled=bool(chars),
+		remove_punctuation_characters=remove,
+		scaled_item_wait=lambda: 0,
+		scaled_number_wait=lambda: wait,
+		scaled_unspaced_script_space_wait=lambda: space,
+		scaled_punctuation_wait=lambda: pwait,
+		group_size=3,
+	)
+
+
+def context(module):
+	return module.SpeechContext(
+		supports_roles=True,
+		language="zh",
+		number_language="default",
+		default_voice_name="Z",
+		default_voice_language="zh",
+		voice_name_for_language={"zh": "Z", "en": "E"}.get,
+	)
+
+
+def shape(module, sequence):
+	"""Text as itself; a break as (class name, time); a language change as ("L", language)."""
+	result = []
+	for item in sequence:
+		if isinstance(item, str):
+			result.append(item)
+		elif hasattr(item, "lang"):
+			result.append(("L", item.lang))
+		elif hasattr(item, "time"):
+			result.append((type(item).__name__, item.time))
+		else:
+			result.append(item)
+	return result
+
+
+def space_stage(module, sequence, **options):
+	return list(
+		module.inject_unspaced_script_space_pause(sequence, make_settings(**options), module.GENERIC_CONTEXT),
+	)
+
+
+def every_stage(module, sequence, **options):
+	settings, ctx = make_settings(**options), context(module)
+	for stage in module.STAGES:
+		sequence = list(stage.fn(sequence, settings, ctx))
+	return shape(module, sequence)
+
+
+B = ("BreakCommand", 20)
+B10 = ("BreakCommand", 10)
+
+
+@pytest.mark.parametrize(
+	("text", "expected"),
+	[
+		("中 文 abc 中 文", ["中", B, "文 abc 中", B, "文"]),
+		("hello world", "same"),
+		("かな カナ", ["かな", B, "カナ"]),
+		("ภาษา ไทย", ["ภาษา", B, "ไทย"]),
+		("漢字 かな", ["漢字", B, "かな"]),
+		("中文 ภาษาไทย", ["中文", B, "ภาษาไทย"]),
+		("中 abc", "same"),
+		("中 한국", "same"),
+		("한국 어", "same"),
+		("コーヒー ください", ["コーヒー", B, "ください"]),
+		("ｺｰﾋｰ ｸﾀﾞｻｲ", ["ｺｰﾋｰ", B, "ｸﾀﾞｻｲ"]),
+		("\u3400 \u3401", ["\u3400", B, "\u3401"]),
+		("\U00020000 \U00020001", ["\U00020000", B, "\U00020001"]),
+		("中\u3000文", ["中", B, "文"]),
+		("中\n\t 文", ["中", B, "文"]),
+		("中\u00a0文", ["中", B, "文"]),
+		("中\u200b文", "same"),
+		(" 中 ", "same"),
+		("   ", "same"),
+		("か\u3099 か", ["か\u3099", B, "か"]),
+		("葛\U000e0100 中", ["葛\U000e0100", B, "中"]),
+		("中 \u3099か", "same"),
+		("中。 文", "same"),
+		("ㄧㄣ ㄓㄨ", ["ㄧㄣ", B, "ㄓㄨ"]),
+		("ㄓㄨˋ ㄧㄣ", ["ㄓㄨˋ", B, "ㄧㄣ"]),
+		("ㄋㄧˇ ㄏㄠˇ", ["ㄋㄧˇ", B, "ㄏㄠˇ"]),
+		("ㄓㄨˋ ˙ㄉㄜ", ["ㄓㄨˋ", B, "˙ㄉㄜ"]),
+		("a ˇ", "same"),
+		("ˇ a", "same"),
+		("中 ˇa", ["中", B, "ˇa"]),
+		("๑ ๒", ["๑", B, "๒"]),
+		("1 2", "same"),
+		("", []),
+	],
+)
+def test_worked_examples(env, text, expected):
+	assert shape(env, space_stage(env, [text])) == ([text] if expected == "same" else expected)
+
+
+def test_wait_zero_yields_the_same_objects(env):
+	sequence = [Marker(), "中 文", "かな カナ"]
+	result = space_stage(env, sequence, space=0)
+	assert len(result) == len(sequence) and all(out is item for out, item in zip(result, sequence))
+
+
+def test_several_runs_reuse_one_break(env):
+	result = space_stage(env, ["中 文 か ภา"])
+	assert shape(env, result) == ["中", B, "文", B, "か", B, "ภา"]
+	assert result[1] is result[3] is result[5]
+
+
+# Through every stage (spec §4.4, §8.2)
+
+
+def test_stages_pause_between_han_and_kana(env):
+	assert every_stage(env, ["漢字 かな"], space=10) == ["漢字", B10, "かな"]
+
+
+def test_stages_digit_neighbour_has_no_space_pause(env):
+	# A digit is Common, so the space after "第3" never pauses, as today.
+	result = every_stage(env, ["第3 章"], space=10, mode="number")
+	assert all(not isinstance(item, tuple) or item[0] != "BreakCommand" for item in result), result
+
+
+@pytest.mark.parametrize("remove", [False, True])
+def test_stages_space_among_punctuation_characters(env, remove):
+	# F3, Q3 = A: the space stage runs first, so a space between unspaced characters gets the space
+	# pause, and only the Latin spaces reach the punctuation stage.
+	result = every_stage(env, ["ภาษา ไทย hello world"], space=10, chars=" ", remove=remove)
+	PB = ("PunctuationBreakCommand", 250)
+	space = [] if remove else [" "]
+	assert result == ["ภาษา", B10, "ไทย", *space, PB, "hello", *space, PB, "world"]
+
+
+@pytest.mark.parametrize(("mode", "wait"), [(m, w) for m in ("value", "number", "group") for w in (0, 10)])
+def test_stages_script_digits(env, mode, wait):
+	# F6: Thai digits are Thai. Only the number and group modes with a number pause replace the space
+	# between two numbers with their own break first (number edge pause spec O3).
+	result = every_stage(env, ["๑ ๒"], space=10, mode=mode, wait=wait)
+	expected = ("NumberBreakCommand", 10) if mode != "value" and wait > 0 else B10
+	assert result == ["๑", expected, "๒"]
+
+
+def test_long_text_stays_fast(env):
+	for text, pieces in (("hello world " * 15000, 1), ("ภาษา ไทย " * 15000, 30000)):
+		start = time.perf_counter()
+		result = space_stage(env, [text])
+		assert time.perf_counter() - start < 2
+		assert sum(isinstance(item, str) for item in result) == pieces

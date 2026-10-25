@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 SpeechCmd = Union[str, "SpeechCommand"]
 pl = PipelineLog("pipeline.csv")
 
-_CH_SPACE_RE = re.compile(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])")
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 class NumberBreakCommand(BreakCommand):
@@ -650,12 +650,15 @@ def inject_unspaced_script_space_pause(
 			yield item
 			continue
 
-		# the space between two CJK characters becomes the pause
-		for kind, value in _split_by(_CH_SPACE_RE, item):
-			if kind == "text":
-				yield value
-			else:
+		# a whitespace run between two unspaced characters becomes the pause
+		pos = 0
+		for match in _WHITESPACE_RE.finditer(item):
+			if _pauses_between(item, match.start(), match.end()):
+				yield item[pos : match.start()]
 				yield pause_cmd
+				pos = match.end()
+		if pos < len(item):
+			yield item[pos:]
 
 
 _PUNCTUATION_RE_CACHE: dict[str, re.Pattern] = {}
