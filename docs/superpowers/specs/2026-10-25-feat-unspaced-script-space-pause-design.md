@@ -142,7 +142,7 @@ What NVDA users hear with the default factor 10 and global wait factor 10 (10 ms
 | `ㄋㄧˇ ㄏㄠˇ`, `ㄓㄨˋ ㄧㄣ` (tone marks, F2, Q1) | no pause | pause |
 | `中。 文`, `中 ２` | no pause | unchanged |
 | `中　文`, `中\n文` | pause | unchanged |
-| `๑ ๒` (Thai digits, F6) | no pause | pause |
+| `๑ ๒` (Thai digits, F6) | ~~no pause~~ the number pause (value mode, number pause > 0); no pause otherwise (corrected by the review, M1) | pause |
 | Space among the punctuation pause characters, `ภาษา ไทย` (F3) | punctuation pause | the space pause instead (Q3 = A) |
 | Factor set to 0 before the update | no pause anywhere | the default 10 again (U8) |
 
@@ -215,7 +215,7 @@ _UNSPACED_BOPOMOFO_MARKS = frozenset({...})
 - **Numbers before it.**
   - `remove_thousands_separators` and `inject_numbers` run first (`pipeline:1050-1051`).
   - A whitespace run next to a digit has a Common neighbour, so number pieces never touch this rule, as today.
-  - The Thai, Lao, Khmer and Myanmar digits count as their script (F6). The number stage treats them as numbers: `NUMBER_RE` uses Unicode decimal digits (`numbers:22`; phase 35, `readme.md:78`). In the number and group modes with a number pause above 0, `inject_numbers` puts one number break between two whitespace-separated numbers and removes the whitespace (number edge pause spec §2.2 O3, §8.3 P-E1). So that whitespace is gone before this stage runs. In value mode, `๑ ๒` reaches this stage with its space, and it pauses. The plan checks the number modes at pause 0 with a test.
+  - The Thai, Lao, Khmer and Myanmar digits count as their script (F6). The number stage treats them as numbers: `NUMBER_RE` uses Unicode decimal digits (`numbers:22`; phase 35, `readme.md:78`). In the number and group modes with a number pause above 0, `inject_numbers` puts one number break between two whitespace-separated numbers and removes the whitespace (number edge pause spec §2.2 O3, §8.3 P-E1). So that whitespace is gone before this stage runs. In value mode, `๑ ๒` reaches this stage with its space, and it pauses. So in value mode the space pause replaces the number pause between two script digits: `number_wait_factor` adds no number break where a command already separates the numbers (`pipeline:262-283`). Accepted by the orchestrator with the review's option A (review M1, 2026-10-25). The plan checks the number modes at pause 0 with a test.
 - **Item and number waits after it** (`pipeline:1053`, `:1055`): unchanged. They already see this stage's breaks today.
 - **Punctuation pause** (`pipeline:1054`, `:657-716`): an existing break between two items suppresses an item's boundary pause, as today. F3 describes the space-in-the-list case.
 - **Language detection** runs on the stage output inside the synth and passes breaks through, as today. In `中文 ภาษาไทย` the break comes before the switch to the Thai voice, as `中 abc` breaks do today.
