@@ -9,9 +9,9 @@ Status:
 
 - U1–U8 were decided by the user (2026-10-25).
 - O1 is the orchestrator's call (Decided by orchestrator with the recommended default; user may override before merge).
-- D1–D7 are defaults added while writing this spec (§11). Decided by orchestrator with the recommended default; user may override before merge.
+- D1–D6 are defaults added while writing this spec (§11). Decided by orchestrator with the recommended default; user may override before merge.
 - F1 contradicts an assumption of the request: the readmes do mention this pause (§0).
-- Q1–Q3 are open. Each changes what users hear or read, and each has a recommended answer (§11). The plan may start. Only the tests and docs named in each question depend on its answer.
+- Q1–Q3 were decided by the user (2026-10-25), each with option A (§11). D7 became Q2's answer. No question is open.
 
 References used throughout:
 
@@ -42,7 +42,7 @@ The request assumed no add-on document mentions the setting. They do. They call 
 - `addon/doc/zh_TW/readme.md:14`, `:39`, `:53`: 「中文」, 「中文間停頓」, 「中文之間」.
 - `addon/doc/zh_CN/readme.md:14`, `:39`, `:47`, `addon/doc/zh_HK/readme.md:14`, `:39`, `:47`, `addon/doc/ru/readme.md:14`, `:39`, `:47` and `addon/doc/uk/readme.md:14`, `:39`, `:47`.
 
-None of them names the setting's label ("Chinese space wait factor") or its key. Proposed default (D7, Q2): update `readme.md` and `addon/doc/zh_TW/readme.md` only, and add a changelog entry. The other four readmes stay as they are, as in the number edge pause spec (`docs/superpowers/specs/2026-10-24-feat-number-edge-pause-design.md` §6, D8). §6 gives the text.
+None of them names the setting's label ("Chinese space wait factor") or its key. Decided by the user (2026-10-25), Q2 = A: update `readme.md` and `addon/doc/zh_TW/readme.md` only, and add a changelog entry. The other four readmes stay as they are, as in the number edge pause spec (`docs/superpowers/specs/2026-10-24-feat-number-edge-pause-design.md` §6, D8). §6 gives the text.
 
 ### F2 (Q1). Bopomofo tone marks are Common
 
@@ -50,16 +50,15 @@ The four Taiwan tone marks are Unicode modifier letters of the Common script: ˇ
 
 - In Zhuyin written with tones, most syllables end with a tone mark. The light-tone dot is written before the syllable. So with the rule as stated, `ㄋㄧˇ ㄏㄠˇ` gets no pause, while `ㄧㄣ ㄓㄨ` (first tone, no mark) does.
 - The tone marks do not pass the D1 test (Script_Extensions only unspaced scripts), because Latin is in their extensions.
-- Recommended (Q1, option A): count U+02C7, U+02C9, U+02CA, U+02CB and U+02D9 as Bopomofo for this rule, like the kana marks of D1. A pause still needs an unspaced character on both sides, so Latin text with these marks never gets one.
-
-Until the user answers, the plan builds the rule without them. The decision is one set in one place (§4.2).
+- Decided by the user (2026-10-25), Q1 = A: U+02C7, U+02C9, U+02CA, U+02CB and U+02D9 count as Bopomofo for this rule, like ー for kana. A pause still needs an unspaced character on both sides, so Latin text with these marks never gets one.
+- They are listed explicitly in `_UNSPACED_BOPOMOFO_MARKS`, next to the D1 set, because the D1 rule does not cover them (§4.2).
 
 ### F3 (Q3). With a space among the punctuation pause characters, this pause replaces the punctuation pause at that space
 
 - The space stage runs before the punctuation stage (`pipeline:1048-1057`). It turns the space into a `BreakCommand` (`pipeline:603`, `:615-619`), so the punctuation stage never sees that space.
 - Prototype with today's stages, punctuation characters `" "`, punctuation wait 250 and Chinese wait 10. `你好 世界 hello world` gives `你好`, Break 10, `世界`, `" "`, PunctuationBreak 250, `hello`, `" "`, PunctuationBreak 250, `world`.
 - Today this affects only spaces between two basic CJK ideographs. After the change it also affects kana, Thai and the other unspaced scripts. A user who put a space in the list (allowed since 2026-10-23, `tests/test_pipeline_punctuation_pause.py:166-191`) hears the short space pause (10 ms by default) at those spaces instead of the punctuation pause.
-- Recommended (Q3, option A): keep it as it is. It matches today's Han behaviour, and the user can raise the space wait factor. Option B ("the longer pause wins") would need a rule in the punctuation stage and is not designed here.
+- Decided by the user (2026-10-25), Q3 = A: keep it as it is. It matches today's Han behaviour, and the user can raise the space wait factor. The punctuation stage is not changed.
 
 ### F4 (for information). The new label needs three proper nouns in the sentence-case guards
 
@@ -124,7 +123,7 @@ The rule goes by the Unicode script table, so some digits and marks count as the
 - Looking across items or commands, or at the voice language (U5).
 - Changing the pause time formula. It stays `global_factor_units * factor` (`psettings:309-322`), with the default 10 (`psettings:229-238`).
 - Any engine wrapper, the upstream drivers under `driver/<Engine>/driver/`, `driver/sonic/`, `languageDetection/script_data.py`, and Neural.
-- The zh_CN, zh_HK, ru, tr and uk catalogs and readmes (U7, D7).
+- The zh_CN, zh_HK, ru, tr and uk catalogs, and the zh_CN, zh_HK, ru and uk readmes (U7, Q2).
 
 ## 3. User-visible changes
 
@@ -140,11 +139,11 @@ What NVDA users hear with the default factor 10 and global wait factor 10 (10 ms
 | `漢字 かな`, `中文 ภาษาไทย` | no pause | pause |
 | `㐀 㐁` (Extension A), `𠀀 𠀁` (Extension B), `鿀 鿁` (U+9FC0–U+9FC1) | no pause | pause |
 | `ㄧㄣ ㄓㄨ` | no pause | pause |
-| `ㄋㄧˇ ㄏㄠˇ` (tone marks, F2) | no pause | no pause; pause if Q1 = A |
+| `ㄋㄧˇ ㄏㄠˇ`, `ㄓㄨˋ ㄧㄣ` (tone marks, F2, Q1) | no pause | pause |
 | `中。 文`, `中 ２` | no pause | unchanged |
 | `中　文`, `中\n文` | pause | unchanged |
 | `๑ ๒` (Thai digits, F6) | no pause | pause |
-| Space among the punctuation pause characters, `ภาษา ไทย` (F3) | punctuation pause | the space pause instead (Q3) |
+| Space among the punctuation pause characters, `ภาษา ไทย` (F3) | punctuation pause | the space pause instead (Q3 = A) |
 | Factor set to 0 before the update | no pause anywhere | the default 10 again (U8) |
 
 - Every space that pauses today still pauses (§4.2).
@@ -173,9 +172,12 @@ UNSPACED_SCRIPTS = frozenset({"Han", "Hiragana", "Katakana", "Bopomofo", "Thai",
 # 〆 U+3006, the vertical kana repeat marks U+3031–U+3035, 〼 U+303C, ゛゜ U+309B–U+309C,
 # ー U+30FC, ｰ U+FF70 and ﾞﾟ U+FF9E–U+FF9F.
 _UNSPACED_COMMON = frozenset({...})
+# The Bopomofo tone marks ˇ U+02C7, ˉ U+02C9, ˊ U+02CA, ˋ U+02CB and ˙ U+02D9: Common, with Latin in
+# their Script_Extensions, but counted as Bopomofo for this rule (decided by the user, 2026-10-25).
+_UNSPACED_BOPOMOFO_MARKS = frozenset({...})
 ```
 
-- `_is_unspaced(character)` is true when the character is in `_UNSPACED_COMMON`, or `get_script(ord(character))` is in `UNSPACED_SCRIPTS`.
+- `_is_unspaced(character)` is true when the character is in `_UNSPACED_COMMON` or `_UNSPACED_BOPOMOFO_MARKS`, or `get_script(ord(character))` is in `UNSPACED_SCRIPTS`. The plan may merge the two sets into one, as long as each keeps its comment.
 - `get_script` returns `None` for code points outside the table (`scripts:7-12`): unassigned ones, private use (U+E000) and lone surrogates (U+D800). These are not unspaced.
 - **D1. The Common characters that count.**
   - U4 names ー and ｰ. This spec adds every other Common character that:
@@ -185,10 +187,10 @@ _UNSPACED_COMMON = frozenset({...})
     That gives the set in the comment above. The set was read from `ScriptExtensions.txt` 16.0.0.
   - Not included:
     - punctuation and symbols such as ゠ U+30A0, ・ U+30FB, 。 and 「」, which are Common punctuation (U2);
-    - the Bopomofo tone marks, which have Latin in their extensions (F2, Q1);
+    - the Bopomofo tone marks, which have Latin in their extensions. They are not in this set, but Q1 = A adds them explicitly (next item).
     - U+3099 and U+309A (the combining voiced marks). They are Inherited, so O1 covers them: in `が か` the left base is か.
 - `languageDetection/script_data.py` does not hold Script_Extensions, and this branch does not change it. So the set is written out, and a test pins it (§8.2).
-- If Q1 = A, the five tone marks join this set with a comment that names F2.
+- **Q1 = A (decided by the user, 2026-10-25).** The five Bopomofo tone marks count as unspaced through `_UNSPACED_BOPOMOFO_MARKS`, listed explicitly because they fall outside the D1 rule (F2). So `ㄋㄧˇ ㄏㄠˇ` pauses, and so does `ㄓㄨˋ ˙ㄉㄜ` (the light-tone dot before the syllable is the right neighbour).
 - **Superset of today.**
   - All of U+4E00–U+9FA5 is Han in the table, and a Han character is never Inherited.
   - So when today's regex sees an ideograph right before and right after a run, the new rule sees the same characters as the left base and the right neighbour.
@@ -279,7 +281,11 @@ The stage logs under its log key `unspaced_script_space_wait_factor`, which is a
 | 21 | `中 ゙か` | unchanged (O1: the mark after the run attaches to the space) |
 | 22 | `中。 文` | unchanged |
 | 23 | `ㄧㄣ ㄓㄨ` | `ㄧㄣ` \| `ㄓㄨ` |
-| 24 | `ㄓㄨˋ ㄧㄣ` | unchanged; `ㄓㄨˋ` \| `ㄧㄣ` if Q1 = A |
+| 24 | `ㄓㄨˋ ㄧㄣ` | `ㄓㄨˋ` \| `ㄧㄣ` (Q1) |
+| 24a | `ㄋㄧˇ ㄏㄠˇ` | `ㄋㄧˇ` \| `ㄏㄠˇ` (Q1) |
+| 24b | `ㄓㄨˋ ˙ㄉㄜ` | `ㄓㄨˋ` \| `˙ㄉㄜ` (Q1) |
+| 24c | `a ˇ`, `ˇ a` | unchanged (a Latin neighbour) |
+| 24d | `中 ˇa` | `中` \| `ˇa` (the tone mark right after the run counts as Bopomofo; an accepted effect of Q1, as unlikely as it is harmless) |
 | 25 | `๑ ๒` | `๑` \| `๒` (F6) |
 | 26 | `1 2` | unchanged |
 | 27 | wait 0, any input | the same objects, unchanged |
@@ -312,7 +318,7 @@ Both panels and the settings ring derive their controls from the table (`psettin
 
   Their older lowercase entries (`"chinese space wait factor"`, `"chinese space wait factor:"`) are already dead today. The `.pot` is not committed.
 
-### Readmes (D7, Q2, F1)
+### Readmes (Q2 = A, decided by the user, 2026-10-25; F1)
 
 Change `readme.md` and `addon/doc/zh_TW/readme.md` only.
 
@@ -326,7 +332,7 @@ Change `readme.md` and `addon/doc/zh_TW/readme.md` only.
 - Changelog, under "Next update" (`readme.md:73`, `addon/doc/zh_TW/readme.md:73`):
   - EN: "**Space pause for Japanese and Southeast Asian text:** The Chinese space wait factor is now the "Space wait factor between CJK and Southeast Asian characters". A space between two characters of Han (including every extension block), kana, Bopomofo, Thai, Lao, Khmer or Myanmar script now gets the pause, also when the two sides are different scripts, as in "漢字 かな". Earlier versions paused only between two common Chinese characters. Because the setting was renamed, a value you changed returns to the default 10; set it again, or set it to 0 to turn the pause off."
   - zh_TW: 「**日文與東南亞文字的空白停頓：** 「中文空白停頓參數」改為「中日文及東南亞文字空白停頓參數」。空白兩側都是漢字（包括所有擴充區）、假名、注音符號、泰文、寮文、高棉文或緬甸文字元時，現在都會停頓，兩側是不同文字時也一樣，例如「漢字 かな」。先前版本只在兩個常用中文字之間停頓。由於設定已更名，您調整過的值會回到預設值 10；請重新設定，或設為 0 關閉這個停頓。」
-- If Q3 = A, add to both changelog entries: EN "If the punctuation pause characters include a space, these spaces get the space pause instead of the punctuation pause, as Chinese text already did."; zh_TW 「標點停頓字元包含空白時，這些空白使用空白停頓而非標點停頓，與先前中文的情況相同。」
+- Q3 = A, so add to both changelog entries: EN "If the punctuation pause characters include a space, these spaces get the space pause instead of the punctuation pause, as Chinese text already did."; zh_TW 「標點停頓字元包含空白時，這些空白使用空白停頓而非標點停頓，與先前中文的情況相同。」
 
 `buildVars.py` stays untouched.
 
@@ -396,8 +402,9 @@ These guards must keep passing:
 - **Classification:**
   - `_is_unspaced` is true for a sample of each script in `UNSPACED_SCRIPTS`: U+4E00, U+3400, U+9FFF, U+F900, U+20000, U+3005, U+3007, あ, ア, ｱ U+FF71, ㄅ U+3105, ㆠ U+31A0, ก, ກ, ក, က and U+1B001.
   - It is true for every code point in `_UNSPACED_COMMON`.
-  - It is false for: a, A, Я, 한, ㄱ U+3131, 1, １, 。, 「, ・ U+30FB, ゠ U+30A0, U+3000, ˇ U+02C7 (until Q1), U+3099, U+E000, U+D800 and an unassigned code point.
-- **D1 pin:** `_UNSPACED_COMMON` equals the thirteen code points listed in §4.2. Each one is Common in `get_script`, so a later Unicode table that moves one into a script shows up in review.
+  - It is true for the five Bopomofo tone marks ˇ ˉ ˊ ˋ ˙ (Q1).
+  - It is false for: a, A, Я, 한, ㄱ U+3131, 1, １, 。, 「, ・ U+30FB, ゠ U+30A0, U+3000, U+3099, U+E000, U+D800, an unassigned code point, and the other Common modifier letters next to the tone marks, ˈ U+02C8 and ˌ U+02CC.
+- **D1 and Q1 pins:** `_UNSPACED_COMMON` equals the thirteen code points listed in §4.2, and `_UNSPACED_BOPOMOFO_MARKS` equals U+02C7, U+02C9, U+02CA, U+02CB and U+02D9. Each one is Common in `get_script`, so a later Unicode table that moves one into a script shows up in review.
 - **O1:**
   - rows 19–21;
   - a run of two marks before the space (`が́ か`);
@@ -407,7 +414,7 @@ These guards must keep passing:
 - **Several runs in one item:** `中 文 か ภา`, where every run pauses. The same break object is reused, as today.
 - **Real settings:** `PipelineSettings.scaled_unspaced_script_space_wait()` is `global_wait_factor // 10 * factor`. A global factor of 9 gives 0. In scope "WorldVoice", `effective(False)` sets the factor to 0. These are the `tests/test_pipeline_settings_service.py:326` and `:360` rows, renamed.
 - **Whole `STAGES`:** `漢字 かな` in value mode with roles on gives `漢字`, `BreakCommand(10)`, `かな`. In number mode, `第3 章` gives no space pause (a digit neighbour), as today.
-- **F3:** the punctuation characters `" "` with `ภาษา ไทย hello` through the stages give the space break at the Thai space and the punctuation break at the Latin space. The expectation follows the answer to Q3.
+- **F3:** the punctuation characters `" "` with `ภาษา ไทย hello` through the stages give the space break at the Thai space and the punctuation break at the Latin space (Q3 = A).
 - **Settings and panels:** the confspec has the new key and no old one. The driver setting `unspacedscriptspacewaitfactor` has the new label. The Log Record label is the new label (renamed rows of §8.1).
 
 ### 8.3 Property tests (Hypothesis)
@@ -455,16 +462,17 @@ Alphabet: Han (U+4E00, U+3400, U+20000), kana, ー, ｰ, Thai, Hangul, Latin, di
 - **M8.** Scope "all" with OneCore, eSpeak and SAPI5: `かな カナ` pauses.
 - **M9.** A document with Extension B characters (for example 𠀀): spaces between them pause.
 - **M10.** Say all through a long Japanese or Thai page: no noticeable lag.
-- **M11.** Punctuation pause on with a space in the list: the behaviour matches the answer to Q3.
+- **M11.** Punctuation pause on with a space in the list: Thai and kana spaces get the space pause, Latin spaces the punctuation pause (Q3 = A).
+- **M12.** Chinese voice: Zhuyin with tone marks, `ㄋㄧˇ ㄏㄠˇ`, pauses at the space (Q1).
 
 ## 9. Affected layers
 
 | File | Change |
 |---|---|
-| `addon/synthDrivers/WorldVoice/pipeline/__init__.py` | `UNSPACED_SCRIPTS`, `_UNSPACED_COMMON`, `_is_unspaced`, `_pauses_between`, the renamed stage, `STAGES`, the import (§4) |
+| `addon/synthDrivers/WorldVoice/pipeline/__init__.py` | `UNSPACED_SCRIPTS`, `_UNSPACED_COMMON`, `_UNSPACED_BOPOMOFO_MARKS`, `_is_unspaced`, `_pauses_between`, the renamed stage, `STAGES`, the import (§4) |
 | `addon/synthDrivers/WorldVoice/pipeline/settings.py` | the table entry, field, scaled method and `effective` (§4.5) |
 | `addon/locale/zh_TW/LC_MESSAGES/nvda.po` | §6 |
-| `readme.md`, `addon/doc/zh_TW/readme.md` | §6 (pending Q2) |
+| `readme.md`, `addon/doc/zh_TW/readme.md` | §6 (Q2 = A) |
 | `tests/…` | §8 |
 
 - The panels and the synth change only through the table (§4.5, §6). Their code is untouched: `addon/synthDrivers/WorldVoice/__init__.py`, `speechSettingsDialog.py`, `panelLayout.py` and `VoiceSettingsDialogs.py`.
@@ -496,20 +504,11 @@ Alphabet: Han (U+4E00, U+3400, U+20000), kana, ー, ｰ, Thai, Hangul, Latin, di
 
 ## 11. Questions and the defaults applied
 
-### Open (user-visible; recommended answer first)
+### Resolved (decided by the user, 2026-10-25)
 
-- **Q1 (F2). Bopomofo tone marks.**
-  - A (recommended): count ˇ U+02C7, ˉ U+02C9, ˊ U+02CA, ˋ U+02CB and ˙ U+02D9 as Bopomofo for this rule, so Zhuyin with tones pauses at its spaces.
-  - B: keep the user's list literally. Zhuyin with tone marks then rarely pauses.
-
-  Affects `_UNSPACED_COMMON`, rows 24 and the ˇ classification test.
-- **Q2 (F1). Readmes.**
-  - A (recommended): update `readme.md` and `addon/doc/zh_TW/readme.md` (lines 14, 39, 53 and a changelog entry, §6). The other four readmes are left for translators.
-  - B: change no readme, so the readmes keep saying "Chinese pause".
-  - C: update all six readmes.
-- **Q3 (F3). A space among the punctuation pause characters.**
-  - A (recommended): as today. The space pause replaces the punctuation pause at spaces between unspaced characters, now for every unspaced script.
-  - B: the longer of the two wins. That needs a new rule in the punctuation stage and a design of its own.
+- **Q1 (F2). Bopomofo tone marks.** Decided by the user (2026-10-25): A. ˇ U+02C7, ˉ U+02C9, ˊ U+02CA, ˋ U+02CB and ˙ U+02D9 count as Bopomofo for this rule, like ー for kana. They are listed explicitly (`_UNSPACED_BOPOMOFO_MARKS`, §4.2), so Zhuyin with tones pauses at its spaces (§5 rows 24–24c). Option B, keeping the user's first list literally, was not chosen.
+- **Q2 (F1). Readmes.** Decided by the user (2026-10-25): A. Update `readme.md` and `addon/doc/zh_TW/readme.md` at lines 14, 39 and 53, and add a changelog entry that says the setting is reset (§6). The zh_CN, zh_HK, ru and uk readmes stay unchanged. Options B (no readme) and C (all six) were not chosen.
+- **Q3 (F3). A space among the punctuation pause characters.** Decided by the user (2026-10-25): A. Keep today's behaviour: the space pause replaces the punctuation pause at spaces between unspaced characters, now for every unspaced script. Option B (the longer pause wins) was not chosen.
 
 ### Decided by orchestrator with the recommended default; user may override before merge
 
@@ -520,4 +519,3 @@ Alphabet: Han (U+4E00, U+3400, U+20000), kana, ー, ｰ, Thai, Hangul, Latin, di
 - **D4.** The ASCII fast path is optional. The plan may add it if the long-text check in §10 shows a need.
 - **D5.** The pipeline harness pops the `languageDetection` modules with the others.
 - **D6.** "Chinese" leaves `PROPER_NOUNS` (`tests/test_settings_table_guard.py:24`) and the exemption at `tests/test_pipeline_panels.py:55`, because no label uses it any more. "CJK", "Southeast" and "Asian" are added (F4).
-- **D7.** Readmes: proposed as Q2 = A. If the user picks B, §6's readme part is dropped and nothing else changes.
