@@ -21,7 +21,7 @@ KIND_CONTROLS = {bool: {"checkbox"}, int: {"slider", "spin"}, str: {"choice", "t
 DRIVER_CONTROLS = {"checkbox", "slider", "choice"}
 PANELS = {"voice", "pipeline"}
 # Words that keep their capital letter inside a sentence-case label.
-PROPER_NOUNS = {"Unicode", "Chinese", "WorldVoice"}
+PROPER_NOUNS = {"Unicode", "CJK", "Southeast", "Asian", "WorldVoice"}
 
 
 @pytest.fixture

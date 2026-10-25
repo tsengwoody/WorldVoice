@@ -227,13 +227,13 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		control="slider",
 	),
 	PipelineSettingSpec(
-		"chinesespace_wait_factor",
+		"unspaced_script_space_wait_factor",
 		int,
 		10,
-		driver_id="chinesespacewaitfactor",
+		driver_id="unspacedscriptspacewaitfactor",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 		# also the label of the setting's pipeline log switch in the Log Record panel.
-		label=_("Chinese space wait factor"),
+		label=_("Space wait factor between CJK and Southeast Asian characters"),
 		control="slider",
 	),
 	PipelineSettingSpec(
@@ -298,7 +298,7 @@ class PipelineSettings:
 	number_wait_factor: int
 	item_wait_factor: int
 	sayall_wait_factor: int
-	chinesespace_wait_factor: int
+	unspaced_script_space_wait_factor: int
 	punctuation_wait_factor: int
 	punctuation_pause_enabled: bool
 	remove_punctuation_characters: bool
@@ -318,8 +318,8 @@ class PipelineSettings:
 	def scaled_sayall_wait(self) -> int:
 		return self.global_factor_units * self.sayall_wait_factor
 
-	def scaled_chinesespace_wait(self) -> int:
-		return self.global_factor_units * self.chinesespace_wait_factor
+	def scaled_unspaced_script_space_wait(self) -> int:
+		return self.global_factor_units * self.unspaced_script_space_wait_factor
 
 	def scaled_punctuation_wait(self) -> int:
 		return min(
@@ -341,7 +341,7 @@ class PipelineSettings:
 				number_wait_factor=0,
 				item_wait_factor=0,
 				sayall_wait_factor=0,
-				chinesespace_wait_factor=0,
+				unspaced_script_space_wait_factor=0,
 				punctuation_wait_factor=0,
 				punctuation_pause_enabled=False,
 				remove_punctuation_characters=False,

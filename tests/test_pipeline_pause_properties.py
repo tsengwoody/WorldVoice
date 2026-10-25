@@ -692,7 +692,7 @@ def test_property_number_breaks_never_touch_another_break(env, data):
 		for stage in (
 			module.remove_thousands_separators,
 			module.inject_numbers,
-			module.inject_chinese_space_pause,
+			module.inject_unspaced_script_space_pause,
 			module.item_wait_factor,
 			module.inject_punctuation_pause,
 			module.number_wait_factor,

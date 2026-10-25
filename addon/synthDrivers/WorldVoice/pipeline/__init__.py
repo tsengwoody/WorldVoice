@@ -593,12 +593,12 @@ def merge_consecutive_strings(items):
 		yield buffer
 
 
-def inject_chinese_space_pause(
+def inject_unspaced_script_space_pause(
 	speechSequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
-	waitfactor = settings.scaled_chinesespace_wait()
+	waitfactor = settings.scaled_unspaced_script_space_wait()
 	if waitfactor <= 0:
 		yield from speechSequence
 		return
@@ -1049,7 +1049,7 @@ STAGES: tuple[Stage, ...] = (
 	Stage("apply_speech_dictionaries", apply_speech_dictionaries),
 	Stage("number_mode", remove_thousands_separators, log_switch=False),
 	Stage("number_mode", inject_numbers, also_logged_by=("number_language",)),
-	Stage("chinesespace_wait_factor", inject_chinese_space_pause),
+	Stage("unspaced_script_space_wait_factor", inject_unspaced_script_space_pause),
 	Stage("item_wait_factor", item_wait_factor),
 	Stage("punctuation_wait_factor", inject_punctuation_pause),
 	Stage("number_wait_factor", number_wait_factor),

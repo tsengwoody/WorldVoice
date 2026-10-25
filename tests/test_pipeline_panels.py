@@ -37,7 +37,7 @@ def test_log_switch_labels_are_unchanged(monkeypatch):
 		("apply_speech_dictionaries", "Apply speech dictionaries"),
 		("number_language", "Number language"),
 		("number_mode", "Number mode"),
-		("chinesespace_wait_factor", "Chinese space wait factor"),
+		("unspaced_script_space_wait_factor", "Space wait factor between CJK and Southeast Asian characters"),
 		("item_wait_factor", "Item wait factor"),
 		("punctuation_wait_factor", "Punctuation wait factor"),
 		("number_wait_factor", "Number wait factor"),
@@ -52,7 +52,9 @@ def test_log_labels_follow_the_table_labels(monkeypatch):
 	table = {spec.key: spec for spec in env.module.PIPELINE_SETTINGS}
 	for key, label in labels.items():
 		first, *rest = label.split()
-		assert first[0].isupper() and not any(word[0].isupper() for word in rest if word != "Chinese"), label
+		assert first[0].isupper() and not any(
+			word[0].isupper() for word in rest if word not in {"CJK", "Southeast", "Asian"}
+		), label
 		if key in table:
 			spec = table[key]
 			assert label in {spec.display_name, spec.label.replace("&", "")}, (key, label)
@@ -68,7 +70,7 @@ def test_pipeline_panel_saves_once_through_the_service(monkeypatch):
 	panel._scope_choice = Widget(selection=0)
 	panel._number_mode_choice = Widget(selection=3)
 	panel._global_wait_factor_slider = Widget(3)
-	for name in ("number", "item", "sayall", "chinesespace", "punctuation"):
+	for name in ("number", "item", "sayall", "unspaced_script_space", "punctuation"):
 		setattr(panel, f"_{name}_wait_factor_slider", Widget(7))
 	panel._punctuation_pause_enabled_checkbox = Widget(False)
 	panel._remove_punctuation_characters_checkbox = Widget(True)
@@ -85,7 +87,7 @@ def test_pipeline_panel_saves_once_through_the_service(monkeypatch):
 			"number_wait_factor": 7,
 			"item_wait_factor": 7,
 			"sayall_wait_factor": 7,
-			"chinesespace_wait_factor": 7,
+			"unspaced_script_space_wait_factor": 7,
 			"punctuation_wait_factor": 7,
 			"punctuation_pause_enabled": False,
 			"remove_punctuation_characters": True,

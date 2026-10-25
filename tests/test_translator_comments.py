@@ -40,8 +40,8 @@ def test_translator_comments_precede_gettext_calls():
 
 GROUP_MODE_MSGIDS = ("group", "Group size")
 # Labels that are new or changed with the shared, sentence-case labels (2026-10-21), the
-# "off" number mode (2026-10-22), and the assumed languages of the Unicode Detection panel
-# (2026-10-23).
+# "off" number mode (2026-10-22), the assumed languages of the Unicode Detection panel
+# (2026-10-23), and the space pause of every unspaced script (2026-10-25).
 CHANGED_LABEL_MSGIDS = (
 	"off",
 	"Number &mode",
@@ -59,6 +59,7 @@ CHANGED_LABEL_MSGIDS = (
 	"Language assumed for arabic characters:",
 	"Language assumed for cyrillic characters:",
 	"Language assumed for devanagari characters:",
+	"Space wait factor between CJK and Southeast Asian characters",
 )
 # msgids no _() call uses any more; the zh_TW catalog keeps none of them.
 DEAD_MSGIDS = (
@@ -86,6 +87,7 @@ DEAD_MSGIDS = (
 	"punctuation wait factor",
 	"number wait factor",
 	"speech viewer",
+	"Chinese space wait factor",
 )
 ZH_TW_CATALOG = ADDON / "locale/zh_TW/LC_MESSAGES/nvda.po"
 

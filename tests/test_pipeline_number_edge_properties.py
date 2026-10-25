@@ -26,7 +26,7 @@ def env(monkeypatch):
 	return SimpleNamespace(module=module, BreakCommand=BreakCommand)
 
 
-def stage_settings(mode="number", size=3, wait=10, chars="", remove=False, pwait=50, item=0, chinese=0):
+def stage_settings(mode="number", size=3, wait=10, chars="", remove=False, pwait=50, item=0, unspaced=0):
 	return SimpleNamespace(
 		number_mode=mode,
 		scope="WorldVoice",
@@ -35,7 +35,7 @@ def stage_settings(mode="number", size=3, wait=10, chars="", remove=False, pwait
 		remove_punctuation_characters=remove,
 		scaled_item_wait=lambda: item,
 		scaled_number_wait=lambda: wait,
-		scaled_chinesespace_wait=lambda: chinese,
+		scaled_unspaced_script_space_wait=lambda: unspaced,
 		scaled_punctuation_wait=lambda: pwait,
 		group_size=size,
 	)
@@ -224,7 +224,7 @@ def draw_sequence(env, data, *, remove=None):
 		remove=data.draw(st.booleans()) if remove is None else remove,
 		pwait=data.draw(st.integers(0, 300)),
 		item=data.draw(st.integers(0, 60)),
-		chinese=data.draw(st.integers(0, 60)),
+		unspaced=data.draw(st.integers(0, 60)),
 	)
 	ctx = context(module, data.draw(NUMBER_LANGUAGES), data.draw(st.booleans()))
 	return sequence, run_settings, ctx

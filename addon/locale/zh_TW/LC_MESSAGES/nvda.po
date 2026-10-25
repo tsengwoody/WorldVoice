@@ -419,8 +419,8 @@ msgstr "讀出全部停頓參數"
 #. Translators: Label for a setting in voice settings dialog.
 #: addon\synthDrivers\WorldVoice\__init__.py:216
 #: addon\synthDrivers\WorldVoice\__init__.py:331
-msgid "Chinese space wait factor"
-msgstr "中文空白停頓參數"
+msgid "Space wait factor between CJK and Southeast Asian characters"
+msgstr "中日文及東南亞文字空白停頓參數"
 
 #. Translators: Label for a setting in synth settings ring.
 #: addon\synthDrivers\WorldVoice\__init__.py:228

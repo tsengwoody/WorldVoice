@@ -175,10 +175,10 @@ def test_merge_starts_a_new_string_after_each_command(env):
 	]
 
 
-def test_chinese_space_pause_passes_commands(env):
-	env.settings.scaled_chinesespace_wait = lambda: 70
+def test_unspaced_script_space_pause_passes_commands(env):
+	env.settings.scaled_unspaced_script_space_wait = lambda: 70
 	marker = Marker()
-	result = list(env.module.inject_chinese_space_pause([marker, "中 文"], env.settings, env.generic))
+	result = list(env.module.inject_unspaced_script_space_pause([marker, "中 文"], env.settings, env.generic))
 	assert kinds(result, env.BreakCommand) == [marker, "中", ("BreakCommand", 70), "文"]
 
 

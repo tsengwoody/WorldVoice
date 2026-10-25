@@ -814,17 +814,17 @@ def test_off_mode_wraps_only_for_a_locale(env, numlan):
 		assert len(result) == 1 and result[0] is sequence[0]
 
 
-def test_chinese_space_pause(env):
-	env.settings.scaled_chinesespace_wait = lambda: 20
-	result = env.module.inject_chinese_space_pause(
+def test_unspaced_script_space_pause(env):
+	env.settings.scaled_unspaced_script_space_wait = lambda: 20
+	result = env.module.inject_unspaced_script_space_pause(
 		["中 文 abc 中 文"],
 		env.settings,
 		env.module.GENERIC_CONTEXT,
 	)
 	assert shape(result) == ["中", ("BreakCommand", 20), "文 abc 中", ("BreakCommand", 20), "文"]
-	env.settings.scaled_chinesespace_wait = lambda: 0
+	env.settings.scaled_unspaced_script_space_wait = lambda: 0
 	assert list(
-		env.module.inject_chinese_space_pause(["中 文"], env.settings, env.module.GENERIC_CONTEXT),
+		env.module.inject_unspaced_script_space_pause(["中 文"], env.settings, env.module.GENERIC_CONTEXT),
 	) == ["中 文"]
 
 

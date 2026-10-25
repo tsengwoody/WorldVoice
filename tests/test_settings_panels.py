@@ -40,7 +40,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		group_size=4,
 		item_wait_factor=13,
 		sayall_wait_factor=14,
-		chinesespace_wait_factor=15,
+		unspaced_script_space_wait_factor=15,
 		punctuation_wait_factor=16,
 		punctuation_pause_enabled=False,
 		remove_punctuation_characters=True,
@@ -56,7 +56,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		"Number wait factor:",
 		"Item wait factor:",
 		"Say all wait factor:",
-		"Chinese space wait factor:",
+		"Space wait factor between CJK and Southeast Asian characters:",
 		"Enable punctuation pause control",
 		"Remove configured punctuation at pause points",
 		"Punctuation wait factor:",
@@ -69,7 +69,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._global_wait_factor_slider.value == 3
 	assert [
 		getattr(panel, f"_{name}_wait_factor_slider").value
-		for name in ("number", "item", "sayall", "chinesespace", "punctuation")
+		for name in ("number", "item", "sayall", "unspaced_script_space", "punctuation")
 	] == [11, 13, 14, 15, 16]
 	assert panel._punctuation_pause_enabled_checkbox.value is False
 	assert panel._remove_punctuation_characters_checkbox.value is True

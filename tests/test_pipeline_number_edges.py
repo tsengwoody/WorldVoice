@@ -38,7 +38,7 @@ def make_settings(
 		remove_punctuation_characters=remove,
 		scaled_item_wait=lambda: item,
 		scaled_number_wait=lambda: wait,
-		scaled_chinesespace_wait=lambda: 0,
+		scaled_unspaced_script_space_wait=lambda: 0,
 		scaled_punctuation_wait=lambda: pwait,
 		group_size=size,
 	)

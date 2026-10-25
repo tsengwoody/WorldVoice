@@ -22,7 +22,7 @@ Q1 = [
 	"number_wait_factor",
 	"item_wait_factor",
 	"sayall_wait_factor",
-	"chinesespace_wait_factor",
+	"unspaced_script_space_wait_factor",
 	"punctuation_pause_enabled",
 	"remove_punctuation_characters",
 	"punctuation_wait_factor",

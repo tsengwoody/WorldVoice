@@ -33,7 +33,7 @@ EXPECTED_IDS = [
 	"numberwaitfactor",
 	"itemwaitfactor",
 	"sayallwaitfactor",
-	"chinesespacewaitfactor",
+	"unspacedscriptspacewaitfactor",
 	"punctuationpauseenabled",
 	"removepunctuationcharacters",
 	"punctuationwaitfactor",
