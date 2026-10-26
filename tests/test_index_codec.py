@@ -30,7 +30,7 @@ def codec_env(monkeypatch, rt, nvda_commands):
 
 
 def encode(env, commands):
-	path = env.support.package + ".compat.indexCodec"
+	path = env.support.package + ".bridge.indexCodec"
 	assert importlib.util.find_spec(path) is not None, "Segment codec has not been implemented"
 	return importlib.import_module(path).encode_segment(commands, env.context, env.ledger)
 
@@ -75,7 +75,7 @@ def test_codec_scans_original_indexes_before_prepare(codec_env):
 
 def test_codec_constructor_failure_retires_mapping(codec_env, monkeypatch):
 	env = codec_env
-	path = env.support.package + ".compat.indexCodec"
+	path = env.support.package + ".bridge.indexCodec"
 	assert importlib.util.find_spec(path) is not None, "Segment codec has not been implemented"
 	module = importlib.import_module(path)
 
@@ -217,7 +217,7 @@ def test_property_encoding_keeps_commands_and_reports_each_index_once_in_order(c
 	]
 	snapshot = list(commands)
 	originals = [command.index for command in commands if isinstance(command, env.commands.IndexCommand)]
-	encoded = importlib.import_module(env.support.package + ".compat.indexCodec").encode_segment(
+	encoded = importlib.import_module(env.support.package + ".bridge.indexCodec").encode_segment(
 		commands,
 		models.PlaybackContext(source_id, 1),
 		ledger,

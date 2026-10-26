@@ -18,8 +18,8 @@ import logging
 from dataclasses import dataclass, field
 from threading import Lock
 
-from .runtime.completion import CompletionRule, rule_for
-from .runtime.models import (
+from ..runtime.completion import CompletionRule, rule_for
+from ..runtime.models import (
 	CompletionContract,
 	CompletionMode,
 	EventKind,

@@ -11,7 +11,7 @@ def install_binding(driver, config):
 	models = importlib.import_module(package + ".runtime.models")
 	settings = importlib.import_module(package + ".runtime.settings")
 	sessions = importlib.import_module(package + ".runtime.session")
-	facade = importlib.import_module(package + ".compat.voiceFacade")
+	facade = importlib.import_module(package + ".bridge.voiceFacade")
 	repository = importlib.import_module(package + ".configRepository")
 	store = settings.VoiceSettingsStore(repository.ConfigVoiceSettingsRepository(config.conf))
 	session = sessions.EngineSession(FakeAdapter(), store)
@@ -28,9 +28,9 @@ def bind_core(core, *voices):
 	"""Rebind *voices* to a real adapter and session that own *core*."""
 	voice_class = type(voices[0])
 	package = voice_class.__module__.split(".driver")[0]
-	adapters = importlib.import_module(package + ".compat.engineAdapter")
+	adapters = importlib.import_module(package + ".bridge.engineAdapter")
 	sessions = importlib.import_module(package + ".runtime.session")
-	facade = importlib.import_module(package + ".compat.voiceFacade")
+	facade = importlib.import_module(package + ".bridge.voiceFacade")
 	old = voices[0]._binding
 	by_name = {voice.name: voice for voice in voices}
 	voice_class.supportedSettings = classmethod(

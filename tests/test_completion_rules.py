@@ -109,7 +109,7 @@ def _mode_comparisons(path):
 ALLOWED = {
 	"runtime/completion.py": None,
 	"runtime/models.py": {"__post_init__"},
-	"compat/completionPolicies.py": None,
+	"bridge/completionPolicies.py": None,
 }
 
 

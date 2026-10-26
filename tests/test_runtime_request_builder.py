@@ -30,7 +30,7 @@ def builder(monkeypatch, rt):
 			"synthDriverHandler",
 			"logHandler",
 		}
-		assert ".driver" not in name and ".compat" not in name
+		assert ".driver" not in name and ".bridge" not in name
 		return original(name, *args, **kwargs)
 
 	monkeypatch.setattr(builtins, "__import__", pure_import)

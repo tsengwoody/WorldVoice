@@ -6,7 +6,7 @@ import pytest
 from runtime_harness import forbid_legacy_runtime_imports, load_runtime
 
 
-def test_models_load_without_nvda_or_compat(monkeypatch):
+def test_models_load_without_nvda_or_bridge(monkeypatch):
 	with forbid_legacy_runtime_imports(monkeypatch):
 		load_runtime(monkeypatch, "worldvoice_context_pure_test")
 

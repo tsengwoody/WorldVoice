@@ -2,7 +2,7 @@
 
 import languageHandler
 
-from ..compat.voiceFacade import VoiceFacade
+from ..bridge.voiceFacade import VoiceFacade
 
 
 def getVoiceKey(engine, voiceId):

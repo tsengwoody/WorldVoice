@@ -14,12 +14,12 @@ from worldvoice_harness import load_voice_manager
 def env(monkeypatch):
 	module = load_voice_manager(monkeypatch)
 	models = importlib.import_module(module.__package__ + ".runtime.models")
-	adapter = importlib.import_module(module.__package__ + ".compat.engineAdapter")
+	adapter = importlib.import_module(module.__package__ + ".bridge.engineAdapter")
 	return SimpleNamespace(module=module, models=models, adapter=adapter)
 
 
 def policies_of(env):
-	return importlib.import_module(env.module.__package__ + ".compat.completionPolicies")
+	return importlib.import_module(env.module.__package__ + ".bridge.completionPolicies")
 
 
 def drain_types(env):
@@ -380,8 +380,8 @@ def load_installed_engine(monkeypatch, tmp_path, engine):
 
 
 def fresh_policies(monkeypatch):
-	monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.compat.completionPolicies", raising=False)
-	return importlib.import_module("synthDrivers.WorldVoice.compat.completionPolicies")
+	monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.bridge.completionPolicies", raising=False)
+	return importlib.import_module("synthDrivers.WorldVoice.bridge.completionPolicies")
 
 
 @pytest.mark.parametrize("engine", SIX_ENGINES)

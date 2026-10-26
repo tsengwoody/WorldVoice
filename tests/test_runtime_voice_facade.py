@@ -5,14 +5,14 @@ from runtime_harness import FakeAdapter, MemoryRepository, make_spec
 
 
 @pytest.fixture
-def setup(compat, rt):
+def setup(bridge, rt):
 	repo = MemoryRepository()
 	store = rt.settings.VoiceSettingsStore(repo)
 	adapter = FakeAdapter()
 	session = rt.session.EngineSession(adapter, store)
-	binding = compat.facade.LegacyVoiceBinding(store, session, None)
+	binding = bridge.facade.LegacyVoiceBinding(store, session, None)
 
-	class Voice(compat.facade.VoiceFacade):
+	class Voice(bridge.facade.VoiceFacade):
 		pass
 
 	voice = Voice(make_spec("Fake:a"), binding)
@@ -111,9 +111,9 @@ def test_stop_cancels_the_shared_session_without_closing_it(setup):
 	assert setup.repo.saves == []
 
 
-def test_facade_reads_its_engine_core_from_the_binding(setup, compat):
+def test_facade_reads_its_engine_core_from_the_binding(setup, bridge):
 	core = object()
-	binding = compat.facade.LegacyVoiceBinding(setup.store, setup.session, core)
+	binding = bridge.facade.LegacyVoiceBinding(setup.store, setup.session, core)
 	voice = setup.cls(make_spec("Fake:b", "fr"), binding)
 	assert voice.core is core and setup.voice.core is None
 	assert (voice.id, voice.name, voice.language) == ("b", "Fake:b", "fr")

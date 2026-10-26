@@ -44,8 +44,8 @@ filterwarnings = ["error::DeprecationWarning"]
 # Covered lines of the core decision logic only; widen the list as needed.
 source_paths = [
 	"addon/synthDrivers/WorldVoice/runtime/completion.py",
-	"addon/synthDrivers/WorldVoice/indexLedger.py",
-	"addon/synthDrivers/WorldVoice/compat/indexCodec.py",
+	"addon/synthDrivers/WorldVoice/bridge/indexLedger.py",
+	"addon/synthDrivers/WorldVoice/bridge/indexCodec.py",
 	"addon/synthDrivers/WorldVoice/configRepository.py",
 	"addon/synthDrivers/WorldVoice/mainLocalePolicy.py",
 	"addon/synthDrivers/WorldVoice/pipeline/__init__.py",
@@ -141,9 +141,9 @@ combine-as-imports = true
 # ValueError is the runtime boundary's contract for rejected speech commands, pinned by tests
 # (test_legacy_speech_commands, test_index_codec, test_runtime_legacy_adapter); TypeError would
 # change the API. NVDA keeps the same raises with inline noqa: TRY004.
-"addon/synthDrivers/WorldVoice/compat/commands.py" = ["TRY004"]
-"addon/synthDrivers/WorldVoice/compat/engineAdapter.py" = ["TRY004"]
-"addon/synthDrivers/WorldVoice/compat/indexCodec.py" = ["TRY004"]
+"addon/synthDrivers/WorldVoice/bridge/commands.py" = ["TRY004"]
+"addon/synthDrivers/WorldVoice/bridge/engineAdapter.py" = ["TRY004"]
+"addon/synthDrivers/WorldVoice/bridge/indexCodec.py" = ["TRY004"]
 # Tests run parts of the add-on that need wx or NVDA by extracting their source with ast and
 # running it through exec against stub namespaces. tests/addon_loader.py (load_definitions) does
 # that for every test but load_synth in tests/pipeline_harness.py, which also runs the

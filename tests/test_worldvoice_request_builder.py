@@ -36,10 +36,10 @@ def modules(monkeypatch, nvda_commands):
 		models=load("runtime.models"),
 		settings=load("runtime.settings"),
 		session=load("runtime.session"),
-		adapter=load("compat.engineAdapter"),
-		facade=load("compat.voiceFacade"),
-		commands=load("compat.commands"),
-		bridge=load("nvdaEventBridge"),
+		adapter=load("bridge.engineAdapter"),
+		facade=load("bridge.voiceFacade"),
+		commands=load("bridge.commands"),
+		bridge=load("bridge.nvdaEvents"),
 		BreakCommand=nvda_commands.BreakCommand,
 	)
 

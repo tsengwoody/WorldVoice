@@ -152,7 +152,7 @@ def _load_modules(monkeypatch, conf):
 		detection=load("languageDetection"),
 		detection_settings=load("languageDetection.settings"),
 		builder=load("runtime.requestBuilder"),
-		commands=load("compat.commands"),
+		commands=load("bridge.commands"),
 		models=load("runtime.models"),
 		WV=load("_speechcommand").WVLangChangeCommand,
 	)

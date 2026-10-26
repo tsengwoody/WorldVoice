@@ -354,7 +354,7 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 			object(),
 			store,
 			bridge,
-			index_ledger=importlib.import_module(module.__package__ + ".indexLedger").IndexLedger(),
+			index_ledger=importlib.import_module(module.__package__ + ".bridge.indexLedger").IndexLedger(),
 			completion_for=lambda cls, core: models.CompletionContract(
 				models.CompletionMode.DRAIN,
 				models.IndexRange(1, 9999),

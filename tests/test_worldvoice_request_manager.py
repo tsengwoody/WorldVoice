@@ -76,7 +76,7 @@ def task_module(monkeypatch, buses):
 			monkeypatch.delitem(sys.modules, name)
 	alias_package(monkeypatch, package_name, root)
 	module = importlib.import_module(package_name + ".runtime.scheduler")
-	bridge_module = importlib.import_module(package_name + ".nvdaEventBridge")
+	bridge_module = importlib.import_module(package_name + ".bridge.nvdaEvents")
 	module.test_bridge_class = bridge_module.NvdaEventBridge
 	return module
 

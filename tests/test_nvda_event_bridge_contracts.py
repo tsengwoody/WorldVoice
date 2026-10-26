@@ -38,9 +38,9 @@ def env(monkeypatch, rt):
 	alias_package(monkeypatch, name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, f"{name}.runtime", rt.package)
 	monkeypatch.setitem(sys.modules, f"{name}.runtime.models", rt.models)
-	monkeypatch.delitem(sys.modules, f"{name}.indexLedger", raising=False)
-	ledger_module = importlib.import_module(f"{name}.indexLedger")
-	module = load_source(monkeypatch, f"{name}.nvdaEventBridge", RUNTIME.parent / "nvdaEventBridge.py")
+	monkeypatch.delitem(sys.modules, f"{name}.bridge.indexLedger", raising=False)
+	ledger_module = importlib.import_module(f"{name}.bridge.indexLedger")
+	module = load_source(monkeypatch, f"{name}.bridge.nvdaEvents", RUNTIME.parent / "bridge/nvdaEvents.py")
 	models = rt.models
 	env = SimpleNamespace(
 		models=models,

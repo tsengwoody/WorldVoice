@@ -207,7 +207,6 @@ def load_config_repository(monkeypatch, rt):
 def forbid_legacy_runtime_imports(monkeypatch):
 	"""Reject old boundaries even when another test already cached a module."""
 	forbidden = {
-		"compat",
 		"driver",
 		"synthDrivers",
 		"config",
@@ -225,8 +224,13 @@ def forbid_legacy_runtime_imports(monkeypatch):
 		"nvda",
 	}
 
+	# bridge/ is the legacy boundary, except the ledger and the NVDA event bridge: both are pure
+	# Python, and a native engine uses them too.
+	bridge_allowed = {"indexLedger", "nvdaEvents"}
+
 	def check(name):
-		if forbidden.intersection(name.split(".")):
+		parts = name.split(".")
+		if forbidden.intersection(parts) or ("bridge" in parts and bridge_allowed.isdisjoint(parts)):
 			raise AssertionError(f"Forbidden runtime dependency: {name}")
 
 	original_import = builtins.__import__
@@ -349,15 +353,15 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 	):
 		monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
 	for suffix in (
-		"indexLedger",
-		"nvdaEventBridge",
-		"compat",
-		"compat.engineAdapter",
-		"compat.indexCodec",
+		"bridge",
+		"bridge.indexLedger",
+		"bridge.nvdaEvents",
+		"bridge.engineAdapter",
+		"bridge.indexCodec",
 		"_speechcommand",
 	):
 		monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
-	ledger = importlib.import_module(name + ".indexLedger").IndexLedger()
+	ledger = importlib.import_module(name + ".bridge.indexLedger").IndexLedger()
 
 	@dataclass
 	class NativeIndex:
@@ -406,7 +410,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 						raise ValueError("Index command requires an integer")
 					allocation = ledger.prepare(context, originals)
 					indexes = iter(allocation.wire_indexes)
-					# As compat/indexCodec.py: a segment without wire indexes is sent without its indexes.
+					# As bridge/indexCodec.py: a segment without wire indexes is sent without its indexes.
 					commands = tuple(
 						NativeIndex(next(indexes)) if isinstance(command, NativeIndex) else command
 						for command in commands
@@ -426,7 +430,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 
 		adapter = NativeAdapter()
 	elif adapter_kind == "legacy":
-		legacy = importlib.import_module(name + ".compat.engineAdapter")
+		legacy = importlib.import_module(name + ".bridge.engineAdapter")
 		if core.marker_mode:
 			core.marker_type = importlib.import_module(name + "._speechcommand").WorldVoiceIndexCommand
 
@@ -496,7 +500,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 					handler(**kwargs)
 
 		done, index_event = EventSource(), EventSource()
-		bridge_type = importlib.import_module(name + ".nvdaEventBridge").NvdaEventBridge
+		bridge_type = importlib.import_module(name + ".bridge.nvdaEvents").NvdaEventBridge
 		bridge = bridge_type(
 			output,
 			done_event=done,
@@ -580,11 +584,11 @@ def load_index_support(monkeypatch, rt, package_name):
 		alias_package(monkeypatch, package_name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, package_name + ".runtime", rt.package)
 	monkeypatch.setitem(sys.modules, package_name + ".runtime.models", rt.models)
-	for suffix in ("indexLedger", "_speechcommand", "compat.indexCodec"):
+	for suffix in ("bridge.indexLedger", "_speechcommand", "bridge.indexCodec"):
 		monkeypatch.delitem(sys.modules, package_name + "." + suffix, raising=False)
 	return SimpleNamespace(
 		package=package_name,
-		ledger=importlib.import_module(package_name + ".indexLedger"),
+		ledger=importlib.import_module(package_name + ".bridge.indexLedger"),
 		commands=importlib.import_module(package_name + "._speechcommand"),
 	)
 

@@ -9,8 +9,8 @@ def test_copyable_parameters_are_every_voice_parameter_but_the_variant(rt):
 	assert set(rt.settings.PARAMETER_NAMES) == names - {"variant"}
 
 
-def test_the_adapter_applies_every_copyable_parameter_rate_boost_first(rt, compat):
-	order = compat.adapter.APPLY_ORDER
+def test_the_adapter_applies_every_copyable_parameter_rate_boost_first(rt, bridge):
+	order = bridge.adapter.APPLY_ORDER
 	assert sorted(order) == sorted(rt.settings.PARAMETER_NAMES)
 	assert order[0] == "rateBoost"
 

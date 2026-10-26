@@ -4,15 +4,15 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from threading import RLock
 
-from .indexLedger import IndexLedger
-from .runtime.completion import rule_for
-from .runtime.models import (
+from ..runtime.completion import rule_for
+from ..runtime.models import (
 	CompletionContract,
 	EventKind,
 	PlaybackContext,
 	PlaybackEvent,
 	SegmentEventSink,
 )
+from .indexLedger import IndexLedger
 
 # Frozen, so one instance can be every binding's default.
 _LEGACY_CONTRACT = CompletionContract()

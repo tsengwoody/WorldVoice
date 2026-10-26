@@ -4,11 +4,11 @@ from typing import Any
 
 from logHandler import log
 
-from .compat.engineAdapter import LegacyEngineAdapter
-from .compat.voiceFacade import LegacyVoiceBinding
-from .indexLedger import IndexLedger
+from .bridge.engineAdapter import LegacyEngineAdapter
+from .bridge.indexLedger import IndexLedger
+from .bridge.nvdaEvents import NvdaEventBridge
+from .bridge.voiceFacade import LegacyVoiceBinding
 from .mainLocalePolicy import EngineConsistency, ParameterConsistency, VoiceConsistency
-from .nvdaEventBridge import NvdaEventBridge
 from .roles import ConfigRoleRepository
 from .runtime.completion import rule_for
 from .runtime.models import CompletionContract, EngineCapabilities, VoiceSpec

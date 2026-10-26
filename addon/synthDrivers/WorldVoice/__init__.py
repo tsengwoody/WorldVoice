@@ -27,14 +27,14 @@ from synthDriverHandler import SynthDriver, getSynth, synthDoneSpeaking, synthIn
 
 from . import languageDetection
 from .assembly import Teardown, patch_attribute, timed
-from .compat.commands import normalize_legacy_commands
-from .compat.completionPolicies import CompletionPolicy
+from .bridge.commands import normalize_legacy_commands
+from .bridge.completionPolicies import CompletionPolicy
+from .bridge.indexLedger import IndexLedger
+from .bridge.nvdaEvents import NvdaEventBridge
 from .configRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
-from .indexLedger import IndexLedger
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
 from .numberLanguage import FOLLOW, MAIN
-from .nvdaEventBridge import NvdaEventBridge
 from .pipeline import (
 	LOG_SWITCHES,
 	deduplicate_language_command,

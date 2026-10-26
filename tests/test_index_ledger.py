@@ -22,9 +22,9 @@ def env(monkeypatch, rt):
 	alias_package(monkeypatch, name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, name + ".runtime", rt.package)
 	monkeypatch.setitem(sys.modules, name + ".runtime.models", rt.models)
-	monkeypatch.delitem(sys.modules, name + ".indexLedger", raising=False)
+	monkeypatch.delitem(sys.modules, name + ".bridge.indexLedger", raising=False)
 	with forbid_legacy_runtime_imports(monkeypatch):
-		module = importlib.import_module(name + ".indexLedger")
+		module = importlib.import_module(name + ".bridge.indexLedger")
 	ledger = module.IndexLedger()
 	source, source_id = object(), object()
 	contract = rt.models.CompletionContract(

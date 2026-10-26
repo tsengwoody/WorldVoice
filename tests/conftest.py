@@ -52,9 +52,9 @@ def rt(monkeypatch):
 
 
 @pytest.fixture
-def compat(monkeypatch, rt):
-	"""The compat engine adapter and voice facade, bound to this test's runtime."""
-	name = "worldvoice_compat_test"
+def bridge(monkeypatch, rt):
+	"""The bridge engine adapter and voice facade, bound to this test's runtime."""
+	name = "worldvoice_bridge_test"
 	alias_package(monkeypatch, name, RUNTIME.parent)
 	for suffix, module in (
 		("", rt.package),
@@ -63,12 +63,12 @@ def compat(monkeypatch, rt):
 		(".session", rt.session),
 	):
 		monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
-	# Remove cached compatibility imports between isolated runtime fixtures.
-	for suffix in ("compat", "compat.engineAdapter", "compat.voiceFacade"):
+	# Remove cached bridge imports between isolated runtime fixtures.
+	for suffix in ("bridge", "bridge.engineAdapter", "bridge.voiceFacade"):
 		monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
 	return SimpleNamespace(
-		adapter=importlib.import_module(name + ".compat.engineAdapter"),
-		facade=importlib.import_module(name + ".compat.voiceFacade"),
+		adapter=importlib.import_module(name + ".bridge.engineAdapter"),
+		facade=importlib.import_module(name + ".bridge.voiceFacade"),
 	)
 
 
@@ -148,9 +148,9 @@ def composition(monkeypatch):
 	driver = importlib.import_module(package + ".driver")
 	settings = importlib.import_module(package + ".runtime.settings")
 	scheduler = importlib.import_module(package + ".runtime.scheduler")
-	bridge_module = importlib.import_module(package + ".nvdaEventBridge")
+	bridge_module = importlib.import_module(package + ".bridge.nvdaEvents")
 	models = importlib.import_module(package + ".runtime.models")
-	ledger = importlib.import_module(package + ".indexLedger").IndexLedger()
+	ledger = importlib.import_module(package + ".bridge.indexLedger").IndexLedger()
 	repo = MemoryRepository()
 	store = settings.VoiceSettingsStore(repo)
 	done, index = EventStub(), EventStub()

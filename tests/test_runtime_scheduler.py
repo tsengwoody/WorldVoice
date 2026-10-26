@@ -15,7 +15,7 @@ def scheduler(monkeypatch, rt):
 
 	def pure_import(name, *args, **kwargs):
 		assert name not in {"synthDriverHandler", "config", "logHandler"}
-		assert "synthDrivers" not in name and ".compat" not in name
+		assert "synthDrivers" not in name and ".bridge" not in name
 		return original(name, *args, **kwargs)
 
 	monkeypatch.setattr(builtins, "__import__", pure_import)

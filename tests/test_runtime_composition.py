@@ -492,7 +492,9 @@ def test_partial_bind_failure_releases_resources_without_commit(composition):
 		c.create(lambda cls, core: marker_contract(c))
 	assert c.cores[0].closes == 1
 	assert bridge_bindings(c.bridge) == {}
-	with pytest.raises(importlib.import_module(c.module.__package__ + ".indexLedger").InvalidIndexContext):
+	with pytest.raises(
+		importlib.import_module(c.module.__package__ + ".bridge.indexLedger").InvalidIndexContext,
+	):
 		c.ledger.prepare(c.models.PlaybackContext(source_ids[0], 1), ())
 	assert c.repo.saves == []
 
@@ -628,8 +630,8 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 		# importing this package, which must put that root on sys.path although it no longer
 		# imports anything from it itself.
 		assert sys.path[0] == str(WORLDVOICE.parents[1])
-		ledger = importlib.import_module(package + ".indexLedger")
-		policies = importlib.import_module(package + ".compat.completionPolicies")
+		ledger = importlib.import_module(package + ".bridge.indexLedger")
+		policies = importlib.import_module(package + ".bridge.completionPolicies")
 		models = importlib.import_module(package + ".runtime.models")
 		assert module.IndexLedger is ledger.IndexLedger
 		assert module.CompletionPolicy is policies.CompletionPolicy
@@ -642,8 +644,8 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 		)
 		assert contract.mode is models.CompletionMode.LEGACY_DONE and support is None
 		assert module.SynthDriver.__module__ == package
-		assert ledger.__file__ == str(WORLDVOICE / "indexLedger.py")
-		assert policies.__file__ == str(WORLDVOICE / "compat/completionPolicies.py")
+		assert ledger.__file__ == str(WORLDVOICE / "bridge/indexLedger.py")
+		assert policies.__file__ == str(WORLDVOICE / "bridge/completionPolicies.py")
 	finally:
 		for name in tuple(sys.modules):
 			if name.startswith(package + "."):
@@ -655,7 +657,7 @@ def drain_contract(c, mode="DRAIN"):
 
 
 def runtime_completion_selector(c, version="synthetic"):
-	policies = importlib.import_module(c.module.__package__ + ".compat.completionPolicies")
+	policies = importlib.import_module(c.module.__package__ + ".bridge.completionPolicies")
 	logs = []
 	policy = policies.CompletionPolicy(
 		nvda_version=version,
@@ -736,7 +738,7 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 	assert indexes == [42]
 	with pytest.raises(RuntimeError, match="before speech"):
 		port._adapter.configure_completion(c.models.CompletionContract())
-	policies = importlib.import_module(c.module.__package__ + ".compat.completionPolicies")
+	policies = importlib.import_module(c.module.__package__ + ".bridge.completionPolicies")
 	assert policies._VERIFIED_CONTRACTS == {}
 
 
@@ -831,7 +833,7 @@ def test_wasapi_mode_sensitive_support_uses_actual_opened_core(
 	assert checked == [("synthetic", audio_mode)]
 	assert port.completion.mode is getattr(c.models.CompletionMode, completion_mode)
 	assert len(logs) == (0 if completion_mode == "DRAIN" else 1)
-	policies = importlib.import_module(c.module.__package__ + ".compat.completionPolicies")
+	policies = importlib.import_module(c.module.__package__ + ".bridge.completionPolicies")
 	assert policies._VERIFIED_CONTRACTS == {}
 
 
