@@ -114,7 +114,8 @@ def top_level_names(path):
 	return names
 
 
-# The modules pipeline/__init__.py was split into (phase 38): the stages, logging and registry.
+# The modules pipeline/__init__.py was split into (phase 38) and the log's recorder.py: the stages,
+# logging and registry.
 STAGE_MODULES = [
 	"registry",
 	"sequence",
@@ -124,6 +125,7 @@ STAGE_MODULES = [
 	"punctuation",
 	"unspaced",
 	"languageCommands",
+	"recorder",
 ]
 
 
