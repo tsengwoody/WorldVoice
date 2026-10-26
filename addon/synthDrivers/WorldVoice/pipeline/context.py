@@ -23,7 +23,12 @@ GENERIC_CONTEXT = SpeechContext(supports_roles=False, language=None, number_lang
 
 
 def worldvoice_synth():
-	"""NVDA's current synth when it is WorldVoice, otherwise None."""
+	"""NVDA's current synth when it is WorldVoice, otherwise None.
+
+	current_context() below asks through it, and so does the global plugin's settings dialog,
+	which reaches the voice manager this way. It stays here, not in ui/, so the pipeline never
+	imports the settings UI.
+	"""
 	synth = getSynth()
 	return synth if getattr(synth, "name", None) == "WorldVoice" else None
 
