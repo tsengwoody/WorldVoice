@@ -131,3 +131,11 @@ Ready to merge：**是**。Critical 0、Important 0、Minor 3（都不擋 merge�
 - 沒有擋 merge 的項目；`master` 仍在基準上，可直接 `--ff-only`。
 - 若修 M2／M3（都只動 `tests/`），`HEAD:addon` 仍是 `eb87b28e2eee4ec6c4a3c03249b182e3a6d3f05d`，`HEAD:tests` 會變；依 §4.5 在 plan 檔尾加「## 修正」段落寫出 `Edit:` 區塊和 commit 後的 tree id，從 Task 3 的 tree 接著 dry run。M1 建議留到測試衛生階段，和 phase 37 M5 一起處理。
 - 我的 scratch clone（`replay-phase38`、`probe-phase38`）、套用器、探針 plugin 與報告檔審完已刪除。
+
+## 修正記錄
+
+本輪沒有 Critical 或 Important，以下三項 Minor 都不在 merge 前修，由協調者決定（2026-10-26）：
+
+- M1（`tests/pipeline_harness.py` 不還原 `sys.modules`）：不修。是既有的測試衛生問題（與階段 37 M5 同型），目前無害；留給之後的測試衛生階段。
+- M2（`STAGE_MODULES` 未列 `recorder.py`）：不修，併入階段 39。修正會改變 `HEAD:tests`，在複雜流程下需要另一輪 plan 修正與 dry run，收益只有一個結構測試。
+- M3（A2 守衛的 NVDA 模組名單是第三份複本）：不修，留給之後的測試衛生階段一併合併三份名單。
