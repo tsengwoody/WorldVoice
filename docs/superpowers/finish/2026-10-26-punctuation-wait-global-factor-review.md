@@ -112,3 +112,16 @@ Ready to merge：**是**，建議先修 I1（只改六份 readme 的措辭，不
 - **M2 的「停頓處」用詞**是審閱者提議的。
 - 以下是使用者已經決定、這裡只列出提醒的可見變化：不遷移設定值，所以已把標點停頓參數調成非 0 的使用者在預設全域 10 下會聽到停頓從 5N ms 變成 N ms；全域 0 現在也把標點停頓變成 0 ms（先前不受影響）；最大停頓從 500 ms 變成 1000 ms。
 - Linux 上只驗證到 pipeline 輸出與 `Pause(0.0)` 的切分；0 ms break 在 Windows 各引擎（VE／Cerence／OneCore／SAPI5／eSpeak／RHVoice）實際聽起來和關閉開關差多少，沒有在這裡驗證，屬於手動項目。
+
+## 修正記錄
+
+修正者 Opus 5.5，簡化流程（沒有 plan）。基準 `a512d37`。
+
+| 項目 | commit | 說明 |
+| --- | --- | --- |
+| I1 | `896edda` | 六份 readme（`readme.md`、`addon/doc/{zh_TW,zh_HK,zh_CN,ru,uk}/readme.md`）的全域停頓參數 bullet（:52）、標點停頓參數 bullet（:63）、下一版更新條目（:101）採用審閱者的措辭，補上「啟用標點停頓控制時，文字仍會在每個停頓處被切開」，更新日誌並說明要讓文字保持原樣請關閉標點停頓控制。中文用「停頓處」，與 M2 一致 |
+| M1 | `3224798` | `punct:111` 在「glued to the text.」後換行，「Breaks that meet without an edge break are left as they are.」自成一行 |
+| M2 | `896edda` | zh_TW、zh_HK 第 63 行「停頓點」改為「停頓處」，zh_CN「停顿点」改為「停顿处」。和 I1 改的是同一行，所以放在同一個 commit |
+| M3 | `c5ccd5e` | `tests/test_pipeline_pause_properties.py:269`、`:291` 的數字停頓抽樣從 0..500 改為 0..1000 |
+
+驗證（`c5ccd5e`）：`python3 -m pytest -q tests` 3247 passed、0 skipped（MemAvailable < 3 GB 看門狗沒有觸發）；`prek run --all-files` 8 個 Passed；`git diff --check master` 無輸出；受保護路徑與 `tests/test_plugin_voice_contract.py` 無 diff；Neural 無追蹤檔。未打包，未在 Windows／NVDA 驗證。
