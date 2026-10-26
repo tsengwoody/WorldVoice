@@ -126,8 +126,22 @@ def test_panel_layout_imports_by_its_package_path_without_wx_or_nvda(monkeypatch
 	# or NVDA, so the rules load without any of them.
 	for name in [name for name in sys.modules if name.split(".")[0] == "synthDrivers"]:
 		monkeypatch.delitem(sys.modules, name)
-	# None in sys.modules makes an import of that name fail.
-	for name in ("wx", "gui", "config", "speech", "synthDriverHandler", "logHandler", "addonHandler"):
+	# None in sys.modules makes an import of that name fail, even when another test left a stub
+	# under that name: wx and every NVDA module forbid_legacy_runtime_imports rejects.
+	for name in (
+		"wx",
+		"gui",
+		"config",
+		"speech",
+		"synthDriverHandler",
+		"logHandler",
+		"languageHandler",
+		"globalVars",
+		"addonHandler",
+		"nvwave",
+		"winKernel",
+		"api",
+	):
 		monkeypatch.setitem(sys.modules, name, None)
 	alias_package(monkeypatch, "synthDrivers")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice", WORLDVOICE)
