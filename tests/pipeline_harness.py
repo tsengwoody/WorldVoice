@@ -104,7 +104,6 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice",
 		"synthDrivers.WorldVoice.speechCommands",
 		"synthDrivers.WorldVoice.numberLanguage",
-		"synthDrivers.WorldVoice.languageDetection",
 		"synthDrivers.WorldVoice.unicodeScripts.lookup",
 		"synthDrivers.WorldVoice.pipeline",
 		"synthDrivers.WorldVoice.pipeline.registry",
