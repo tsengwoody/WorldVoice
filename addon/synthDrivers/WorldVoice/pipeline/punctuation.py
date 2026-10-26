@@ -108,7 +108,8 @@ def inject_punctuation_pause(
 	  is kept: the longest, on a tie the first that is not an edge break.
 	  The punctuation pause the user tuned for a mark then wins over a
 	  shorter number pause (both use the same global wait units), and a 0 ms
-	  one never leaves a number glued to the text. Breaks that meet without an edge break are left as they are.
+	  one never leaves a number glued to the text.
+	  Breaks that meet without an edge break are left as they are.
 	"""
 	if not settings.punctuation_pause_enabled:
 		yield from speechSequence
