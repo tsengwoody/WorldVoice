@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoiceXVE' '1.4'\n"
-"Report-Msgid-Bugs-To: 'nvda-translations@groups.io'\n"
-"POT-Creation-Date: 2021-08-16 07:48+0200\n"
+"Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
+"POT-Creation-Date: 2026-10-26 02:26+0000\n"
 "PO-Revision-Date: 2021-08-16 08:07+0200\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -15,460 +15,510 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 1.8.12\n"
-"X-Poedit-Basepath: ../../..\n"
 "Plural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
 "&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5);\n"
-"X-Poedit-SourceCharset: UTF-8\n"
+"X-Generator: Poedit 1.8.12\n"
+"X-Poedit-Basepath: ../../..\n"
 "X-Poedit-SearchPath-0: .\n"
+"X-Poedit-SourceCharset: UTF-8\n"
 
-#. Translators: Message indicating no context sensitive help is available for the control or dialog.
-#: addon\generics\speechSymbols\contextHelp.py:34
-msgid "No help available here."
-msgstr "لا توجد مساعدة متاحة هنا."
-
-#. Translators: Message shown when trying to display context sensitive help,
-#. indicating that	the user guide could not be found.
-#: addon\generics\speechSymbols\contextHelp.py:41
-msgid "No user guide found."
-msgstr "لم يتم العثور على دليل مستخدم."
-
-#: addon\generics\speechSymbols\models.py:20
-msgid "context"
-msgstr "سياق الكلام"
-
-#: addon\generics\speechSymbols\models.py:21
-msgid "force"
-msgstr "إجباري"
-
-#. Translators: This is the label for the add symbol dialog.
-#: addon\generics\speechSymbols\views.py:31
-msgid "Add Symbol"
-msgstr "إضافة الرمز"
-
-#. Translators: This is the label for the edit field in the add symbol dialog.
-#: addon\generics\speechSymbols\views.py:36
-msgid "&Symbol:"
-msgstr "ال&رمز:"
-
-#: addon\generics\speechSymbols\views.py:59
-msgid "Unicode Setting"
-msgstr "إعداد Unicode"
-
-#. Translators: The label of a text field to search for symbols in the speech symbols dialog.
-#: addon\generics\speechSymbols\views.py:74
-msgctxt "speechSymbols"
-msgid "&Filter by:"
-msgstr "الت&صفية حسب"
-
-#. Translators: The label for symbols list in symbol pronunciation dialog.
-#: addon\generics\speechSymbols\views.py:83
-msgid "&Symbols"
-msgstr "&حرف او رمز"
-
-#. Translators: The label for a column in symbols list used to identify a symbol.
-#: addon\generics\speechSymbols\views.py:93
-msgid "Unicode"
-msgstr "يونيكود"
-
-#. Translators: The label for a column in symbols list used to identify a replacement.
-#: addon\generics\speechSymbols\views.py:95
-msgid "Replacement"
-msgstr "إستبدال"
-
-#. Translators: The label for a column in symbols list used to identify a symbol's speech level (either none, some, most, all or character).
-#: addon\generics\speechSymbols\views.py:97
-msgid "Language"
-msgstr "لغة"
-
-#. Translators: The label for a column in symbols list which specifies when the actual symbol will be sent to the synthesizer (preserved).
-#. See the "Punctuation/Symbol Pronunciation" section of the User Guide for details.
-#: addon\generics\speechSymbols\views.py:100
-msgid "Mode"
-msgstr "الوضع"
-
-#. Translators: The label for the group of controls in symbol pronunciation dialog to change the pronunciation of a symbol.
-#: addon\generics\speechSymbols\views.py:104
-msgid "Change selected symbol"
-msgstr "تغيير الرمز المحدد"
-
-#. Translators: The label for the edit field in symbol pronunciation dialog to change the replacement text of a symbol.
-#: addon\generics\speechSymbols\views.py:126
-msgid "&Replacement"
-msgstr "إستب&دال"
-
-#: addon\generics\speechSymbols\views.py:134
-msgid "&language"
-msgstr "&لغة"
-
-#: addon\generics\speechSymbols\views.py:139
-msgid "&Detect language mode"
-msgstr "& كشف وضع اللغة"
-
-#. Translators: The label for a button in the Symbol Pronunciation dialog to add a new symbol.
-#: addon\generics\speechSymbols\views.py:146
-msgid "&Add"
-msgstr "إ&ضافة"
-
-#. Translators: The label for a button in the Symbol Pronunciation dialog to remove a symbol.
-#: addon\generics\speechSymbols\views.py:149
-msgid "Re&move"
-msgstr "إ&زالة"
-
-#. Translators: An error reported in the Symbol Pronunciation dialog when adding a symbol that is already present.
-#: addon\generics\speechSymbols\views.py:254
-#, python-format
-msgid "Symbol \"%s\" is already present."
-msgstr "الرمز \"%s\" موجود بالفعل."
-
-#: addon\generics\speechSymbols\views.py:255
-msgid "Error"
-msgstr "خطأ"
-
-#. Translators: The message displayed
-#: addon\generics\speechSymbols\views.py:320
+#: addon/globalPlugins/WorldVoice/utils.py:31
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:469
+#, python-brace-format
 msgid ""
-"For the edited unicode rule to apply, NVDA must be restarted. Do you want to "
-"restart NVDA now?"
+"An unexpected error occurred while processing your action.\n"
+"\n"
+"Details: {err}\n"
+"\n"
+"A full stack trace has been written to the NVDA log."
 msgstr ""
-"لتطبيق قاعدة unicode المعدلة ، يجب إعادة تشغيل NVDA. هل تريد إعادة تشغيل "
-"NVDA الآن؟"
+"حدث خطأ غير متوقع أثناء معالجة الإجراء الذي قمت به.\n"
+"\n"
+"التفاصيل: {err}\n"
+"\n"
+"تمت كتابة تتبع المكدس الكامل في سجل NVDA."
+
+#. Caption
+#: addon/globalPlugins/WorldVoice/utils.py:36
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:473
+msgid "WorldVoice Setting Dialog - Error"
+msgstr "مربع حوار إعدادات WorldVoice - خطأ"
+
+#. Translators: The title of the Export pipeline log file window
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:47
+msgid "Export pipeline log files..."
+msgstr "تصدير ملفات سجل مسار المعالجة..."
+
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:60
+msgid ""
+"Log exported to:\n"
+"{}"
+msgstr ""
+"تم تصدير السجل إلى:\n"
+"{}"
+
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:61
+msgid "Success"
+msgstr "تم بنجاح"
+
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:66
+msgid ""
+"Cannot export log to {}:\n"
+"{}"
+msgstr ""
+"تعذر تصدير السجل إلى {}:\n"
+"{}"
+
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:78
+msgid ""
+"Enabling logging of WorldVoice’s speech pipeline will reduce speech response "
+"speed. If you are not debugging, we recommend keeping it disabled. Would you "
+"like to enable it anyway?"
+msgstr ""
+"سيؤدي تفعيل تسجيل مسار معالجة الكلام في WorldVoice إلى إبطاء استجابة الكلام. "
+"إذا لم تكن تقوم بتصحيح الأخطاء، فنوصي بإبقائه معطلاً. هل تريد تفعيله على أي "
+"حال؟"
 
 #. Translators: The title of the dialog
-#: addon\generics\speechSymbols\views.py:322
-msgid "unicode rule edited"
-msgstr "تم تحرير قاعدة يونيكود"
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:81
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:95
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:111
+msgid "Speech Pipeline Logging"
+msgstr "تسجيل مسار معالجة الكلام"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:61
-msgid "&Speech Settings"
-msgstr "إعدادات الكلا&م"
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:92
+msgid ""
+"Logging of WorldVoice’s speech pipeline has been disabled. Would you like to "
+"export the pipeline log now?"
+msgstr ""
+"تم تعطيل تسجيل مسار معالجة الكلام في WorldVoice. هل تريد تصدير سجل مسار "
+"المعالجة الآن؟"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:61
-msgid "Speech Settings."
-msgstr "إعدادات الكلام."
+#: addon/globalPlugins/WorldVoice/pipelineLog.py:108
+msgid ""
+"Logging of WorldVoice’s speech pipeline is enabled. This may reduce speech "
+"response speed. If you are not debugging, we recommend disabling it. Would "
+"you like to disable it now?"
+msgstr ""
+"تسجيل مسار معالجة الكلام في WorldVoice مفعّل. قد يؤدي ذلك إلى إبطاء استجابة "
+"الكلام. إذا لم تكن تقوم بتصحيح الأخطاء، فنوصي بتعطيله. هل تريد تعطيله الآن؟"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:63
-msgid "&Unicode Settings"
-msgstr "إعدادات &Unicode"
+#: addon/globalPlugins/WorldVoice/__init__.py:56
+msgid "&Settings"
+msgstr "الإ&عدادات"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:63
-msgid "Unicode Settings."
-msgstr "إعدادات Unicode."
+#: addon/globalPlugins/WorldVoice/__init__.py:56
+msgid "Settings."
+msgstr "الإعدادات."
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:65
+#: addon/globalPlugins/WorldVoice/__init__.py:58
 msgid "&File Import"
 msgstr "إستي&راد ملف"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:65
+#: addon/globalPlugins/WorldVoice/__init__.py:58
 msgid "Import File."
 msgstr "إستيراد ملف."
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:67
-msgid "WorldVoice(VE)"
-msgstr "الصوت العالمي (VE)"
+#. Translators: Title of a setting dialog.
+#. Add-on summary/title, usually the user visible name of the add-on
+#. Translators: Summary/title for this add-on
+#. to be shown on installation and add-on information found in add-on store
+#: addon/globalPlugins/WorldVoice/__init__.py:67
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:66 buildVars.py:21
+msgid "WorldVoice"
+msgstr "الصوت العالمي"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:78
+#: addon/globalPlugins/WorldVoice/__init__.py:84
 msgid "Import file..."
 msgstr "إستيراد ملف..."
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:91
+#: addon/globalPlugins/WorldVoice/__init__.py:100
 msgid "Import fail"
 msgstr "فشل الاستيراد"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:92
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:97
+#: addon/globalPlugins/WorldVoice/__init__.py:101
+#: addon/globalPlugins/WorldVoice/__init__.py:110
 msgid "Import File"
 msgstr "استيراد ملف"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:96
+#: addon/globalPlugins/WorldVoice/__init__.py:108
 msgid ""
 "For the new file to import, NVDA must be restarted. Are you want to restart "
 "NVDA now ?"
 msgstr ""
 "لاستيراد الملف الجديد ، يجب إعادة تشغيل NVDA. هل تريد إعادة تشغيل NVDA الآن؟"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:104
-msgid ""
-"You have no core(driver 2) installed.\n"
-"Do you want to install the core(driver 2) now?"
-msgstr ""
-"ليس لديك نواة (driver 2) مثبتة.\n"
-"هل تريد تثبيت النواة (driver 2) الآن؟"
+#: addon/globalPlugins/WorldVoice/__init__.py:124
+msgid "popup speech settings dialog"
+msgstr "يفتح مربع حوار إعدادات الكلام"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:106
-msgid "No core installed."
-msgstr "لا يوجد نواة مثبتة."
+#: addon/globalPlugins/WorldVoice/__init__.py:131
+msgid "switch log record"
+msgstr "تشغيل أو إيقاف السجل"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:119
-msgid "SpeechSettingsDialog have already been opened"
-msgstr "مربع  حوار إعدادات النطق مفتوح بالفعل"
+#: addon/globalPlugins/WorldVoice/__init__.py:148
+msgid "turn on WorldVoice`s log record"
+msgstr "تشغيل سجل WorldVoice"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:125
-msgid "SpeechSymbolsDialog have already been opened"
-msgstr "مربع حوار إعدادات نطق الرموز مفتوح بالفعل"
+#: addon/globalPlugins/WorldVoice/__init__.py:154
+msgid "turn off WorldVoice`s log record"
+msgstr "إيقاف سجل WorldVoice"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:129
-msgid "popup SpeechSettingsDialog"
-msgstr "مربع حوار إعدادات الكلام قائمة منبثقة"
+#. Translators: Label for the pipeline log switch of a speech pipeline stage.
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:42
+msgid "Apply speech dictionaries"
+msgstr "تطبيق قواميس الكلام"
 
-#: addon\globalPlugins\WorldVoiceXVED2\__init__.py:137
-msgid "popup SpeechSymbolsDialog"
-msgstr "مربع حوار إعدادات الرموز قائمة منبثقة"
+#. Translators: Label for the pipeline log switch of a speech pipeline stage.
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:44
+msgid "Speech viewer"
+msgstr "عارض الكلام"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:25
-msgid "Speech Settings"
-msgstr "إعدادات الكلام"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:126
+msgid "Speech Pipeline"
+msgstr "مسار معالجة الكلام"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:55
-msgid "Your current speech synthesizer is not ready."
-msgstr "مُركِّب الكلام الحالي ليس جاهزًا."
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:172
+msgid "Speech Role"
+msgstr "دور الكلام"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:64
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:181
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:489
+msgid "Your current speech synthesizer is not WorldVoice."
+msgstr "مُركِّب الكلام الحالي ليس WorldVoice."
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:210
 msgid "Select a language, and then configure the voice to be used:"
 msgstr "حدد لغة ، ثم قم بتكوين الصوت المطلوب استخدامه:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:69
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:215
 msgid "Locale Name:"
 msgstr "اللغة المحلية:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:72
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:220
 msgid "Voice Name:"
 msgstr "إسم الصوت:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:75
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:222
+msgid "Variant:"
+msgstr "النوع:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:226
 msgid "&Rate:"
 msgstr "ال&سرعة:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:77
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:237
+msgid "Rate boost"
+msgstr "زيادة السرعة"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:243
 msgid "&Pitch:"
 msgstr "ال&حدة:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:79
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:253
+msgid "I&nflection:"
+msgstr "ال&تنغيم:"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:263
 msgid "V&olume:"
-msgstr "مستوى الصوت:"
+msgstr "مستوى ال&صوت:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:84
-msgid "Keep main parameter and locale parameter consistent"
-msgstr "إحفظ معايير الصوت  الرئيسي للصوت المحلي"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:276
+msgid "Keep main engine and locale engine consistent"
+msgstr "الحفاظ على تطابق المحرك الرئيسي ومحرك اللغة المحلية"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:90
-msgid "Keep main voice and locale voice consistent"
-msgstr "حافظ على دمج  الصوت الرئيسي واللغة المحلية"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:284
+msgid "Keep main speech role and locale speech role consistent"
+msgstr "الحفاظ على تطابق دور الكلام الرئيسي ودور الكلام المحلي"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:95
-msgid "Detect text language based on unicode characters"
-msgstr "كشف لغة النص على أساس أحرف يونيكود"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:292
+msgid "Keep parameter settings consistent between different speech roles"
+msgstr "الحفاظ على تطابق إعدادات المعايير بين أدوار الكلام المختلفة"
 
-#. Translators: Either to ignore or not numbers when language detection is active
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:101
-msgid "Ignore numbers when detecting text language"
-msgstr "تجاهل الأرقام عند اكتشاف لغة النص"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:481
+msgid "Unicode Detection"
+msgstr "كشف Unicode"
 
-#. Translators: Either to ignore or not ASCII punctuation when language detection is active
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:107
-msgid "Ignore common punctuation when detecting text language"
-msgstr "تجاهل علامات الترقيم الشائعة عند اكتشاف لغة النص"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:511
+msgid "Before NVDA processes speech commands"
+msgstr "قبل أن يعالج NVDA أوامر الكلام"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:112
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:512
+msgid "After NVDA processes speech commands"
+msgstr "بعد أن يعالج NVDA أوامر الكلام"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:516
+msgid "Language detection timing:"
+msgstr "وقت كشف اللغة:"
+
+#. Translators: Label of the choice of the language assumed for Latin letters.
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:529
 msgid "Language assumed for latin characters:"
 msgstr "اللغة المفترضة للأحرف اللاتينية:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:122
+#. Translators: Label of the choice of the language assumed for Han characters
+#. (CJK ideographs).
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:531
 msgid "Language assumed for CJK characters:"
 msgstr "اللغة المفترضة أحرف CJK:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:131
-msgid "before symbol process"
-msgstr "قبل عملية الرمز"
+#. Translators: Label of the choice of the language assumed for Arabic
+#. letters.
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:533
+msgid "Language assumed for arabic characters:"
+msgstr "اللغة المفترضة للأحرف العربية:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:131
-msgid "after symbol process"
-msgstr "بعد عملية الرمز"
+#. Translators: Label of the choice of the language assumed for Cyrillic
+#. letters.
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:535
+msgid "Language assumed for cyrillic characters:"
+msgstr "اللغة المفترضة للأحرف السيريلية:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:133
-msgid "Detect language timing:"
-msgstr "وقت كشف اللغة:"
+#. Translators: Label of the choice of the language assumed for Devanagari
+#. letters.
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:537
+msgid "Language assumed for devanagari characters:"
+msgstr "اللغة المفترضة لأحرف الديفاناغاري:"
 
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:141
-msgid "Number dot replacement"
-msgstr "استبدال نقطةبين الأرقام"
+#. Translators: Title of a setting dialog.
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:571
+msgid "Speech Engine"
+msgstr "محرك الكلام"
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:577
+msgid "Please select one or more speech engines to enable."
+msgstr "يرجى تحديد محرك كلام واحد أو أكثر لتفعيله."
+
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:584
+msgid "Select Speech Engines to Enable"
+msgstr "تحديد محركات الكلام المراد تفعيلها"
 
 #. Translators: The message displayed
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:305
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:610
 msgid ""
-"For the detect language timing configuration to apply, NVDA must save "
-"configuration and be restarted. Do you want to do now?"
-msgstr ""
-"لتطبيق ضبط توقيت اللغة ، يجب أن يحفظ NVDA التكوين ويعاد تشغيله. هل تريد ان "
-"تفعل الان؟"
+"Changes to speech-engine settings can’t be saved because no speech engine is "
+"enabled."
+msgstr "لا يمكن حفظ التغييرات على إعدادات محرك الكلام لعدم تفعيل أي محرك كلام."
 
 #. Translators: The title of the dialog
-#: addon\globalPlugins\WorldVoiceXVED2\speechSettingsDialog.py:307
-msgid "Detect language timing Configuration Change"
-msgstr "كشف تغييروقت  تكوين اللغة"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:612
+msgid "No Speech Engine Enabled"
+msgstr "لم يتم تفعيل أي محرك كلام"
 
-#. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:51
-msgid "Number &Language"
-msgstr "&لغة الأرقام"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:621
+msgid ""
+"To enable or disable the speech engine, NVDA needs to save your "
+"configuration and restart. Would you like to restart now?"
+msgstr ""
+"لتفعيل محرك الكلام أو تعطيله، يحتاج NVDA إلى حفظ الإعدادات وإعادة التشغيل. "
+"هل تريد إعادة التشغيل الآن؟"
 
-#. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:55
-msgid "Number Language"
-msgstr "لغة االأرقام"
+#. Translators: The title of the dialog
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:624
+msgid "Speech Engine Change"
+msgstr "تغيير محرك الكلام"
 
-#. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:60
-msgid "Number &Mode"
-msgstr "وضع الأرقام"
+#. Translators: Title of a setting dialog.
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:645
+msgid "Log Record"
+msgstr "السجل"
 
-#. Translators: Label for a setting in synth settings ring.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:64
-msgid "Number Mode"
-msgstr "وضع الأرقام"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:654
+msgid "Enable logging of WorldVoice’s speech pipeline"
+msgstr "تفعيل تسجيل مسار معالجة الكلام في WorldVoice"
 
-#. Translators: Label for a setting in voice settings dialog.
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:69
-msgid "Pause time when encountering spaces between Chinese"
-msgstr "مدة التوقف عند المسافات للغة الصينية"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:658
+msgid "Select Speech Pipelines to Enable"
+msgstr "تحديد مسارات معالجة الكلام المراد تفعيلها"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:75
-msgid "Ignore comma between number"
-msgstr "تجاهل الفاصلة بين الأرقام"
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:711
+msgid "Settings"
+msgstr "الإعدادات"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:80
-msgid "Enable WorldVoice setting rules to detect text language"
-msgstr "تمكين قواعد إعداد WorldVoice لاكتشاف لغة النص"
+#. 這時父類別會讀取 self.categoryClasses
+#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:731
+#, python-format
+msgid "WorldVoice - %s"
+msgstr "WorldVoice - %s"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:83
-msgid "Enable WorldVoice rules"
-msgstr "تفعيل قواعد WorldVoice"
+#: addon/synthDrivers/WorldVoice/__init__.py:147
+#: addon/synthDrivers/WorldVoice/__init__.py:150
+msgid "Detect language based on Unicode characters"
+msgstr "كشف اللغة على أساس أحرف يونيكود"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:374
+#: addon/synthDrivers/WorldVoice/__init__.py:428
 msgid "default"
 msgstr "إفتراضي"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:387
+#. Translators: A choice of the Speech Pipeline panel's effect scope: every
+#. synthesizer.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:48
+msgid "All Synthesizers (Global)"
+msgstr "جميع المركبات (عام)"
+
+#. Translators: A choice of the Speech Pipeline panel's effect scope:
+#. WorldVoice only.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:50
+msgid "Only WorldVoice Synthesizer"
+msgstr "مركب WorldVoice فقط"
+
+#. Translators: A number mode: numbers are left as they are.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:56
+msgid "off"
+msgstr "بدون معالجة"
+
+#. Translators: A number mode: a number is read as a value, for example "one
+#. hundred twenty-three".
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:58
 msgid "value"
 msgstr "القيمة"
 
-#: addon\synthDrivers\WorldVoiceXVED2\__init__.py:388
+#. Translators: A number mode: the digits of a number are read one by one.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
 msgid "number"
 msgstr "أرقام فردية"
 
-#. Add-on summary, usually the user visible name of the addon.
-#. Translators: Summary for this add-on
-#. to be shown on installation and add-on information found in Add-ons Manager.
+#. Translators: A number mode: the digits of a number are read in groups of
+#. the chosen size, counted from the left.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:62
+msgid "group"
+msgstr "مجموعات"
+
+#. Translators: A number language choice: numbers are read in the language of
+#. the text around them.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:68
+msgid "Follow current text language"
+msgstr "اتباع لغة النص الحالي"
+
+#. Translators: A number language choice: numbers are read in the main
+#. language, the language the
+#. document marks or the main voice's language.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:71
+msgid "Follow document main language"
+msgstr "اتباع اللغة الرئيسية للمستند"
+
+#. Translators: Label for a pipeline setting in the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:141
+msgid "Effect scope"
+msgstr "نطاق التأثير"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:149
+msgid "Global wait factor"
+msgstr "معامل التوقف العام"
+
+#. Translators: Label for a pipeline setting in the voice settings panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:162
+msgid "Number &language"
+msgstr "&لغة الأرقام"
+
+#. Translators: Label for a setting in synth settings ring; also the label of
+#. the setting's
+#. pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:165
+msgid "Number language"
+msgstr "لغة الأرقام"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:176
+msgid "Number &mode"
+msgstr "&وضع الأرقام"
+
+#. Translators: Label for a setting in synth settings ring; also the label of
+#. the setting's
+#. pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:179
+msgid "Number mode"
+msgstr "وضع الأرقام"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:190
+msgid "Group size"
+msgstr "حجم المجموعة"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record
+#. panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:207
+msgid "Number wait factor"
+msgstr "معامل التوقف بين الأرقام"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record
+#. panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:217
+msgid "Item wait factor"
+msgstr "معامل التوقف بين العناصر"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:226
+msgid "Say all wait factor"
+msgstr "معامل التوقف في قراءة الكل"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record
+#. panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:236
+msgid "Space wait factor between CJK and Southeast Asian characters"
+msgstr "معامل التوقف عند المسافات بين أحرف CJK وجنوب شرق آسيا"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:245
+msgid "Enable punctuation pause control"
+msgstr "تفعيل التحكم في التوقف عند علامات الترقيم"
+
+#. Translators: Label for a setting in synth settings ring.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:247
+msgid "Punctuation pauses"
+msgstr "التوقف عند علامات الترقيم"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:256
+msgid "Remove configured punctuation at pause points"
+msgstr "إزالة علامات الترقيم المحددة عند مواضع التوقف"
+
+#. Translators: Label for a setting in synth settings ring.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:258
+msgid "Remove punctuation at pause points"
+msgstr "إزالة علامات الترقيم عند مواضع التوقف"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record
+#. panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:269
+msgid "Punctuation wait factor"
+msgstr "معامل التوقف عند علامات الترقيم"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and
+#. the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:278
+msgid "Punctuation pause characters"
+msgstr "علامات الترقيم للتوقف"
+
 #. Add-on description
-#. Translators: Long description to be shown for this add-on on add-on information from add-ons manager
-#: buildVars.py:23 buildVars.py:26
-msgid "WorldVoice"
-msgstr "الصوت العالمي"
+#. Translators: Long description to be shown for this add-on on add-on
+#. information from add-on store
+#: buildVars.py:24
+msgid ""
+"Multilingual synthesizer add-on: auto-switches voices across eSpeak, "
+"OneCore, SAPI5 & RHVoice based on text language."
+msgstr ""
+"إضافة مُركِّب متعدد اللغات: يبدّل الأصوات تلقائياً بين eSpeak وOneCore وSAPI5 "
+"وRHVoice حسب لغة النص."
 
-#~ msgid ""
-#~ "For the edited unicode rule to apply, NVDA must be restarted. Press enter "
-#~ "to restart NVDA, or cancel to exit at a later time."
-#~ msgstr ""
-#~ "لتطبيق قاعدة unicode المعدلة ، يجب إعادة تشغيل NVDA. اضغط على Enter "
-#~ "لإعادة تشغيل NVDA أو إلغاء للخروج في وقت لاحق."
-
-#~ msgid "Ignore language information of document"
-#~ msgstr "تجاهل معلومات لغة المستند"
-
-#~ msgid "Automatic &Language Switching Settings"
-#~ msgstr "إ&عدادات التحويل التلقائي واللغة"
-
-#~ msgid "Configure which voice is to be used for each language."
-#~ msgstr "قم بتكوين الصوت الذي سيتم استخدامه لكل لغة."
-
-#~ msgid "Configure speech rate each voice."
-#~ msgstr "تكوين معدل الكلام لكل صوت."
-
-#~ msgid "Configure unicode setting."
-#~ msgstr "تكوين إعداد unicode."
-
-#~ msgid "Automatic Language Switching Settings"
-#~ msgstr "إعدادات تبديل اللغة التلقائي"
-
-#~ msgid "Speech Rate Settings"
-#~ msgstr "إعدادات معدل الكلام"
-
-#~ msgid "&Number Mode"
-#~ msgstr "&وضع الأرقام"
-
-#~ msgid "&Chinese Space Break"
-#~ msgstr "&مهلة الصمت للحرف الصيني"
-
-#~ msgid "Chinese Space Break"
-#~ msgstr "مهلة الصمت للحرف الصيني"
-
-#~ msgid "automatic number"
-#~ msgstr "رقم تلقائي"
-
-#~ msgid "chinese number"
-#~ msgstr "رقم صيني"
-
-#~ msgid "english number"
-#~ msgstr "رقم انجليزي"
-
-#~ msgid ""
-#~ "You have no core installed.\n"
-#~ "Do you want to install the core now?"
-#~ msgstr ""
-#~ "您尚未安装 Vocalizer 核心。\n"
-#~ "您是否要现在进行核心安装？"
-
-#~ msgid "Select a locale, and then configure the voice to be used:"
-#~ msgstr "选择一个地区，并为其设定一个语音："
-
-#~ msgid "Ignore numbers and common punctuation when detecting text language"
-#~ msgstr "侦测语言时忽略数字和常见标点符号"
-
-#~ msgid ""
-#~ "Your current speech synthesizer is the %s. Please select the "
-#~ "WorldVoiceXVE as the speech synthesizer in the NVDA speech settings."
-#~ msgstr ""
-#~ "你当前的语音合程器为 %s 。请在 NVDA 设定中选择 WorldVoiceXVE 语音合成器。"
-
-#~ msgid "WorldVoiceXVE(driver 2)"
-#~ msgstr "WorldVoiceXVE(driver 2)"
-
-#~ msgid ""
-#~ "Your current speech synthesizer is the %s. Please select the "
-#~ "WorldVoiceXVE(driver 2) as the speech synthesizer in the NVDA speech "
-#~ "settings."
-#~ msgstr ""
-#~ "你当前的语音合程器为 %s 。请在 NVDA 设定中选择 WorldVoiceXVE(driver 2)语音"
-#~ "合成器。"
-
-#~ msgid "Speech Rate:"
-#~ msgstr "语音速度："
-
-#~ msgid "Import success"
-#~ msgstr "匯入成功"
-
-#~ msgid ""
-#~ "You have no Vocalizer voices installed.\n"
-#~ "You need at least one voice installed to use WorldVoiceXVE.\n"
-#~ "You can download all Vocalizer voices from the product web page.\n"
-#~ "Do you want to open the vocalizer for NVDA voices download page now?"
-#~ msgstr ""
-#~ "您尚未安裝 Vocalizer 語音。\n"
-#~ "您至少需要一個語音以便使用 WorldVoiceXVE。\n"
-#~ "您可以從商品網頁下載所有 Vocalizer 語音。\n"
-#~ "您是否要現在開啟 vocalizer for NVDA 語音下載頁面？"
-
-#~ msgid "No voices installed."
-#~ msgstr "尚未安裝語音"
-
-#~ msgid "Import Core DLL."
-#~ msgstr "匯入核心 DLL。"
-
-#~ msgid "Detect text language after symbol process"
-#~ msgstr "كشف لغة النص بعد عملية الرمز"
-
-#~ msgid "number "
-#~ msgstr "رقم"
-
-#~ msgid "value "
-#~ msgstr "المستوى"
+#. Brief changelog for this version
+#. Translators: what's new content for the add-on version to be shown in the
+#. add-on store
+#: buildVars.py:29
+msgid "Improved language detection, speech segmentation, and number parsing."
+msgstr "تحسين كشف اللغة وتقسيم الكلام وتحليل الأرقام."
