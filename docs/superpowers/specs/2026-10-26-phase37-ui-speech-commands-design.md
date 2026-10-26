@@ -101,7 +101,7 @@ test_panel_layout_imports_by_its_package_path_without_wx_or_nvda
 ### 5.5 Tests and harnesses
 
 - Path constants and dotted names follow §5.1/§5.2: `tests/test_ui_structure.py` (`VOICE_PANEL`, `PIPELINE_CONTROLS`, the import-source assertion becomes `(1, "panelLayout")`, one comment), `tests/ui_harness.py` (aliases `synthDrivers.WorldVoice.ui`; `load_source` names and paths; two docstrings), `tests/test_panel_layout.py`, `tests/test_settings_table_guard.py`, `tests/test_pipeline_controls.py`, `tests/test_pipeline_panels.py`, `tests/test_voice_settings_panel.py` (docstring), `tests/test_runtime_composition.py` (the stub of the panel module), `tests/test_speech_command_contract.py`, `tests/pipeline_harness.py`, `tests/runtime_harness.py`, `tests/detector_harness.py`, `tests/test_format_outputs.py`, `tests/test_legacy_speech_commands.py`, `tests/test_worldvoice_index_command.py`, `tests/test_worldvoice_speak.py`.
-- `tests/runtime_harness.py::forbid_legacy_runtime_imports` needs no new rule: `ui/` imports `wx`/`gui`, already forbidden, and the runtime never imports it.
+- `tests/runtime_harness.py::forbid_legacy_runtime_imports` needs no new rule: ~~`ui/` imports `wx`/`gui`, already forbidden,~~ `ui/controls.py` imports `gui`, which the guard's forbidden set already holds (`wx` is not in that set; `import wx` fails on Linux anyway), and the runtime never imports `ui/`. Corrected by the phase 37 review fixes (M3).
 - Helper and fixture names stay (`load_voice_settings_dialogs`, `load_pipeline_controls`, `speechcommand`): they name roles, are used in about twenty places, and renaming them would add churn without changing what a reader finds.
 
 Expected counts: baseline 3224 passed, 0 skipped; after the phase 3225 passed, 0 skipped (+1 guard).
