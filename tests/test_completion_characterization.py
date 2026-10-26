@@ -163,7 +163,7 @@ class EntryCore(Core):
 
 
 @pytest.fixture
-def adapter_env(monkeypatch, bridge, rt, nvda_commands):
+def adapter_env(monkeypatch, bridge_modules, rt, nvda_commands):
 	support = load_index_support(monkeypatch, rt, "worldvoice_bridge_test")
 	ledgers = []
 
@@ -171,7 +171,11 @@ def adapter_env(monkeypatch, bridge, rt, nvda_commands):
 		core = EntryCore()
 		cls = legacy_class(core)
 		index_ledger = support.ledger.IndexLedger() if ledger else None
-		adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls(), index_ledger=index_ledger)
+		adapter = bridge_modules.adapter.LegacyEngineAdapter(
+			cls,
+			lambda key: cls(),
+			index_ledger=index_ledger,
+		)
 		adapter.open()
 		chosen = contract(rt, name)
 		adapter.configure_completion(chosen)

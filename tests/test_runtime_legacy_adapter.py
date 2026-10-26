@@ -7,10 +7,10 @@ from runtime_harness import RUNTIME, MemoryRepository, load_index_support, make_
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 
 
-def test_lifecycle_metadata_and_apply_order(bridge, rt):
+def test_lifecycle_metadata_and_apply_order(bridge_modules, rt):
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	adapter.open()
 	adapter.open()
 	assert cls.opens == 1
@@ -46,14 +46,14 @@ def test_lifecycle_metadata_and_apply_order(bridge, rt):
 
 
 @pytest.mark.parametrize("extra", [{}, {"name": "noncanonical", "description": "", "locale": "en_US"}])
-def test_voice_metadata_defaults_and_canonical_key(bridge, rt, extra):
+def test_voice_metadata_defaults_and_canonical_key(bridge_modules, rt, extra):
 	cls = legacy_class(Core())
 	cls.voices = classmethod(lambda cls, core: [dict(engine="Fake", id="a", language="en_US", **extra)])
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "", "en_US", "Fake", "en_US"),)
 
 
-def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge, rt):
+def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge_modules, rt):
 	cls = legacy_class(Core())
 	valid = {
 		"engine": "Fake",
@@ -66,18 +66,18 @@ def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge, rt):
 	malformed = dict(valid, id="broken")
 	del malformed["language"]
 	cls.voices = classmethod(lambda cls, core: [malformed, valid])
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
 
 
 @pytest.mark.parametrize("support", [True, False, None])
-def test_token_support_comes_from_actual_core(bridge, support):
+def test_token_support_comes_from_actual_core(bridge_modules, support):
 	core = Core()
 	if support is not None:
 		core.supportsCancellationToken = support
 	cls = legacy_class(core)
 	cls.supportsCancellationToken = True  # Class claims are not authoritative.
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	adapter.open()
 	token = SimpleNamespace(is_cancelled=lambda: False)
 	adapter.speak(("hello",), token)
@@ -87,11 +87,11 @@ def test_token_support_comes_from_actual_core(bridge, support):
 	assert adapter.capabilities.supports_waitfactor is False
 
 
-def test_unsupported_generic_settings_are_not_written(bridge, rt):
+def test_unsupported_generic_settings_are_not_written(bridge_modules, rt):
 	core = Core()
 	cls = legacy_class(core)
 	cls.supportedSettings = classmethod(lambda cls: ["rate"])
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	adapter.open()
 	state = rt.settings.VoiceState(make_spec(), {})
 	adapter.apply(state.spec, state.snapshot())
@@ -99,7 +99,7 @@ def test_unsupported_generic_settings_are_not_written(bridge, rt):
 	assert adapter.capabilities.settings == frozenset({"rate"})
 
 
-def test_failed_core_creation_leaves_nothing_to_clean(bridge, rt):
+def test_failed_core_creation_leaves_nothing_to_clean(bridge_modules, rt):
 	core = Core()
 	cls = legacy_class(core)
 
@@ -108,7 +108,7 @@ def test_failed_core_creation_leaves_nothing_to_clean(bridge, rt):
 		raise ValueError("open failed")
 
 	cls.create_core = classmethod(fail_open)
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	session = rt.session.EngineSession(adapter, rt.settings.VoiceSettingsStore(MemoryRepository()))
 	with pytest.raises(ValueError, match="open failed"):
 		session.open()
@@ -118,7 +118,7 @@ def test_failed_core_creation_leaves_nothing_to_clean(bridge, rt):
 	assert (cls.opens, cls.closes) == (1, 0)
 
 
-def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge):
+def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge_modules):
 	core = Core()
 	cls = legacy_class(core)
 
@@ -127,7 +127,7 @@ def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge):
 		raise OSError("cleanup failed")
 
 	cls.destroy_core = classmethod(fail_destroy)
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	adapter.open()
 	with pytest.raises(OSError, match="cleanup failed"):
 		adapter.close()
@@ -136,11 +136,11 @@ def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge):
 	assert cls.closes == 1
 
 
-def test_each_adapter_owns_its_own_core(bridge):
+def test_each_adapter_owns_its_own_core(bridge_modules):
 	first_core, second_core = Core(), Core()
 	first_cls, second_cls = legacy_class(first_core), legacy_class(second_core)
-	first = bridge.adapter.LegacyEngineAdapter(first_cls, lambda key: first_cls())
-	second = bridge.adapter.LegacyEngineAdapter(second_cls, lambda key: second_cls())
+	first = bridge_modules.adapter.LegacyEngineAdapter(first_cls, lambda key: first_cls())
+	second = bridge_modules.adapter.LegacyEngineAdapter(second_cls, lambda key: second_cls())
 	first.open()
 	second.open()
 	assert (first.core, second.core) == (first_core, second_core)
@@ -151,7 +151,7 @@ def test_each_adapter_owns_its_own_core(bridge):
 	assert (first_cls.closes, second_cls.closes) == (1, 1)
 
 
-def test_onecore_cached_a_b_a_restores_language(bridge, rt):
+def test_onecore_cached_a_b_a_restores_language(bridge_modules, rt):
 	path = RUNTIME.parent / "driver/OneCore/__init__.py"
 	core = Core()
 	env = {"Voice": legacy_class(core), "SynthDriver": object, "DrainProfile": rt.playback_work.DrainProfile}
@@ -160,7 +160,7 @@ def test_onecore_cached_a_b_a_restores_language(bridge, rt):
 	store = rt.settings.VoiceSettingsStore(MemoryRepository())
 	store.ensure(make_spec("OneCore:a", "en")).update(rate=72)
 	store.ensure(make_spec("OneCore:b", "zh_TW")).update(rate=31)
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	session = rt.session.EngineSession(adapter, store)
 	session.open()
 	for key in ("OneCore:a", "OneCore:b", "OneCore:a"):
@@ -170,7 +170,7 @@ def test_onecore_cached_a_b_a_restores_language(bridge, rt):
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
-def test_real_variant_and_waitfactor_hooks(bridge, rt, monkeypatch, engine):
+def test_real_variant_and_waitfactor_hooks(bridge_modules, rt, monkeypatch, engine):
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 
 	class LegacyVoice(harness.module.Voice):
@@ -200,7 +200,7 @@ def test_real_variant_and_waitfactor_hooks(bridge, rt, monkeypatch, engine):
 	voice.id = "a"
 	# The harness's Voice base is a plain object; a bound facade exposes core.
 	voice.core = core
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: voice)
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: voice)
 	adapter.open()
 	core.writes.clear()
 	assert adapter.capabilities.supports_variants is True
@@ -217,7 +217,7 @@ def test_real_variant_and_waitfactor_hooks(bridge, rt, monkeypatch, engine):
 
 
 @pytest.fixture
-def marker_env(monkeypatch, bridge, rt, nvda_commands):
+def marker_env(monkeypatch, bridge_modules, rt, nvda_commands):
 	support = load_index_support(monkeypatch, rt, "worldvoice_bridge_test")
 	ledger = support.ledger.IndexLedger()
 	contract = rt.models.CompletionContract(
@@ -226,7 +226,7 @@ def marker_env(monkeypatch, bridge, rt, nvda_commands):
 	)
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge.adapter.LegacyEngineAdapter(
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(
 		cls,
 		lambda key: cls(),
 		index_ledger=ledger,
@@ -329,12 +329,12 @@ def test_cancel_retires_source_before_core_callback(marker_env):
 	assert env.ledger.prepare(env.context, ()).end_index == 503
 
 
-def test_legacy_without_context_preserves_commands(bridge, monkeypatch):
+def test_legacy_without_context_preserves_commands(bridge_modules, monkeypatch):
 	import builtins
 
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	adapter.open()
 	commands = ("hello", object())
 	original_import = builtins.__import__
@@ -358,12 +358,12 @@ def test_marker_mode_requires_context(marker_env):
 
 
 @pytest.fixture
-def drain_env(monkeypatch, bridge, rt, nvda_commands, request):
+def drain_env(monkeypatch, bridge_modules, rt, nvda_commands, request):
 	support = load_index_support(monkeypatch, rt, "worldvoice_bridge_test")
 	ledger = support.ledger.IndexLedger()
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls(), index_ledger=ledger)
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls(), index_ledger=ledger)
 	adapter.open()
 	contract = rt.models.CompletionContract(
 		getattr(rt.models.CompletionMode, getattr(request, "param", "DRAIN")),
@@ -513,11 +513,11 @@ def test_drain_requires_event_factory_before_speech(drain_env):
 
 
 @pytest.mark.parametrize("phase", ["before_open", "before_completion", "after_speech", "after_close"])
-def test_segment_event_configuration_rejects_wrong_lifecycle_phase(bridge, rt, phase):
+def test_segment_event_configuration_rejects_wrong_lifecycle_phase(bridge_modules, rt, phase):
 	core = Core()
 	core.speak_segment = lambda *args, **kwargs: None
 	cls = legacy_class(core)
-	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	if phase != "before_open":
 		adapter.open()
 	if phase in ("after_speech", "after_close"):

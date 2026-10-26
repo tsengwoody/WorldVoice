@@ -52,8 +52,8 @@ def rt(monkeypatch):
 
 
 @pytest.fixture
-def bridge(monkeypatch, rt):
-	"""The bridge engine adapter and voice facade, bound to this test's runtime."""
+def bridge_modules(monkeypatch, rt):
+	"""The bridge engine adapter and voice facade modules, bound to this test's runtime."""
 	name = "worldvoice_bridge_test"
 	alias_package(monkeypatch, name, RUNTIME.parent)
 	for suffix, module in (

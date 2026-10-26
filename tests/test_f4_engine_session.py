@@ -23,7 +23,7 @@ class FakeCore:
 
 
 @pytest.fixture
-def engine(session_module, bridge, rt):
+def engine(session_module, bridge_modules, rt):
 	store = rt.settings.VoiceSettingsStore(MemoryRepository())
 	for key in ("Fake:a", "Fake:b"):
 		store.ensure(make_spec(key))
@@ -43,7 +43,7 @@ def engine(session_module, bridge, rt):
 			def supportedSettings(cls):
 				return [setting.id for setting in core.supportedSettings]
 
-		return bridge.adapter.LegacyEngineAdapter(
+		return bridge_modules.adapter.LegacyEngineAdapter(
 			Legacy,
 			lambda key: SimpleNamespace(
 				applyEngineSettings=lambda core, snapshot: result.hook(core, snapshot),
