@@ -1005,3 +1005,251 @@ git ls-files addon/synthDrivers/WorldVoice/driver/Neural
 Every commit passed the hooks on the first try and left a clean tree. Task 4 in the clone: `prek run --all-files` all Passed; `git diff --check 1f7fa46`, both protected-path commands, the `test_plugin_voice_contract.py` diff and the old-name `git grep` printed nothing; `git diff -M --stat` shows `_speechcommand.py => speechCommands.py` and `{pipeline => ui}/panelLayout.py` with 0 changes; `git log --follow` of `ui/voicePanel.py` reaches the first commit of the repository.
 
 The first attempt stopped at Task 2 Step 6: run as one `bash -e` script, the expected pytest failure ended the block before `: > $W/ui/__init__.py` restored the empty file, so the commit carried `from . import controls` and ruff (F401) rejected it. The block now ends that pytest line with `|| echo "red as expected"`, and the dry run was redone from `1f7fa46`; the result above is that second run.
+
+
+---
+
+## 基準更新
+
+After the Fable review (`docs/superpowers/finish/2026-10-26-phase37-ui-speech-commands-review.md`, I1) the branch was rebased onto `master` `71748c1` (`docs: align the user guides and update the translations`), which changed `addon/doc/*/readme.md`, `addon/locale/*/LC_MESSAGES/nvda.po` and `readme.md` after this plan's base `1f7fa46`. The rebase had no conflicts: no file of that commit is touched by Tasks 1–3.
+
+New base: `71748c1` — `HEAD:addon` = `ac54467f434804ab13c8a74e795274e026679e80`, `HEAD:tests` = `85401e928c5697030cd8cc258beba179e7c9b658`.
+
+| After | HEAD:addon | HEAD:tests |
+| --- | --- | --- |
+| Task 1 (`refactor: rename _speechcommand to speechCommands`) | `bebeaa114b26bbfe723726b8d4ca97af9081271f` | `0e8ab84ffe217d851b93bec968e1fb2de7c0f090` |
+| Task 2 (`refactor: gather the synth-side settings UI in ui/`) | `9d972c67c9f61190a98be2b0ad47a0d03be561d2` | `08f6907fb671bfcf0badeafd32664dcba29d8369` |
+| Task 3 (`docs: say who uses worldvoice_synth and why it stays in pipeline`) | `0ce05e80f67d077c311702467f09befadba10bd5` | `08f6907fb671bfcf0badeafd32664dcba29d8369` |
+
+`HEAD:tests` ids are unchanged (the master commit did not touch `tests/`); `HEAD:addon` ids differ from Tasks 1–3 above only by the documentation and translation files of `71748c1`.
+
+Ruling: the rebase replaces the full re-dry-run that DEVELOPMENT_WORKFLOW.md §4.6 asks for when `master` changes `addon/` — `71748c1` changes only `addon/doc/` and `addon/locale/`, which no task reads or edits; for each of the three commits, `git diff <rebased parent> <rebased commit> -- addon tests pyproject.toml` is byte-identical (`cmp`) to the same diff of the original commit (`1f7fa46..183494a`, `183494a..6d5bb04`, `6d5bb04..ced33e5`), and over the whole range `git diff 71748c1 <rebased Task 3>` equals `git diff 1f7fa46 ced33e5` (586 lines), so a re-dry-run could only reproduce the same blocks onto the same files — cost if wrong: a plan block that depends on a file `71748c1` changed would go unnoticed, but no block names `addon/doc/`, `addon/locale/` or `readme.md`. The full suite and §7 checks were rerun on the rebased branch (3225 passed, 0 skipped).
+
+---
+
+## 修正
+
+Fixes for the Fable review `docs/superpowers/finish/2026-10-26-phase37-ui-speech-commands-review.md` (I1 above; M1, M2 in `tests/`; M3 in the spec; M4 deferred to phase 39's naming cleanup; M5 is older than this phase and out of scope). They start from the rebased Task 3 tree — `HEAD:addon` = `0ce05e80f67d077c311702467f09befadba10bd5`, `HEAD:tests` = `08f6907fb671bfcf0badeafd32664dcba29d8369` — and touch `tests/` and `docs/` only, so `HEAD:addon` stays the same. Same block rules and Global Constraints as Tasks 1–4.
+
+### Task F1: `ui/__init__.py` must stay empty (M1, test first)
+
+**Files:**
+- Test: `tests/test_runtime_import_guard.py` (`test_package_init_stays_empty`)
+
+**Interfaces:**
+- Consumes: the rebased Task 3 tree.
+- Produces: test item `test_package_init_stays_empty[ui]`.
+
+- [ ] **Step 1: Add `ui` to the empty-package test**
+
+**Edit:** `tests/test_runtime_import_guard.py` (1/1)
+
+Replace:
+
+```text
+@pytest.mark.parametrize("package", ["bridge", "voices"])
+def test_package_init_stays_empty(package):
+	# Importing one module of the package must not load the others (spec phase 36, section 2).
+```
+
+With:
+
+```text
+@pytest.mark.parametrize("package", ["bridge", "voices", "ui"])
+def test_package_init_stays_empty(package):
+	# Importing one module of the package must not load the others (spec phase 36, section 2);
+	# ui/__init__.py runs before ui.panelLayout, which loads without wx (spec phase 37, 2.1).
+```
+
+- [ ] **Step 2: See it fail on a non-empty `ui/__init__.py`, then pass**
+
+The A2 guard alone passes when `ui/__init__.py` re-exports `panelLayout` (review M1); the new item must not.
+
+```bash
+W=addon/synthDrivers/WorldVoice
+printf 'from . import panelLayout\n' > $W/ui/__init__.py
+python3 -m pytest -q -p no:cacheprovider tests/test_runtime_import_guard.py || echo "red as expected"
+: > $W/ui/__init__.py
+python3 -m pytest -q -p no:cacheprovider tests/test_runtime_import_guard.py
+```
+
+Expected: the first run `1 failed, 5 passed` (`test_package_init_stays_empty[ui]`, `assert b'from . import panelLayout\n' == b''`), then `red as expected`; the second `6 passed`. `git status --short` lists only `tests/test_runtime_import_guard.py`.
+
+- [ ] **Step 3: Full suite**
+
+Run: `python3 -m pytest -q -p no:cacheprovider tests` → `3226 passed`, 0 skipped.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add tests/test_runtime_import_guard.py
+git diff --cached --stat   # 1 file
+git commit -q -F - <<'EOF'
+test: guard that ui/__init__.py stays empty
+
+Phase 37's spec requires ui/__init__.py to stay empty: it runs before
+ui.panelLayout, which must load without wx. The import guard only
+catches an __init__ import that needs wx, NVDA or another add-on
+module; a re-export of panelLayout passed it, and the next re-export
+(of controls) would bring wx in. The empty-package test that already
+covers bridge/ and voices/ now covers ui/ too.
+EOF
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected after the commit: `HEAD:addon` = `0ce05e80f67d077c311702467f09befadba10bd5`, `HEAD:tests` = `f861801f9ce95afdf16f6aa21ee4df5255dbbe86`
+
+### Task F2: The A2 guard blocks every NVDA module the runtime guard forbids (M2, test first)
+
+**Files:**
+- Test: `tests/test_ui_structure.py` (`test_panel_layout_imports_by_its_package_path_without_wx_or_nvda`)
+
+**Interfaces:**
+- Consumes: Task F1's tree.
+- Produces: the guard sets `wx` and the NVDA names of `tests/runtime_harness.py::forbid_legacy_runtime_imports` (`gui`, `config`, `speech`, `synthDriverHandler`, `logHandler`, `languageHandler`, `globalVars`, `addonHandler`, `nvwave`, `winKernel`, `api`) to `None` in `sys.modules`.
+
+- [ ] **Step 1: Show the gap (nothing committed)**
+
+A stub some other test left in `sys.modules` (outside monkeypatch) hides an NVDA import the guard does not block. The pytest plugin below plays that stub for `languageHandler`; `ui/panelLayout.py` imports it for the duration of the check.
+
+```bash
+W=addon/synthDrivers/WorldVoice
+P=$(mktemp -d)
+printf 'import sys\nimport types\n\nsys.modules["languageHandler"] = types.ModuleType("languageHandler")\n' > $P/leaked_stub.py
+sed -i 's/^from typing import Any$/from typing import Any\n\nimport languageHandler  # noqa: F401/' $W/ui/panelLayout.py
+PYTHONPATH=$P python3 -m pytest -q -p no:cacheprovider -p leaked_stub tests/test_ui_structure.py::test_panel_layout_imports_by_its_package_path_without_wx_or_nvda
+git checkout -- $W/ui/panelLayout.py
+rm -r $P
+```
+
+Expected: `1 passed` — the guard misses the import.
+
+- [ ] **Step 2: Block the runtime guard's NVDA names**
+
+**Edit:** `tests/test_ui_structure.py` (1/1)
+
+Replace:
+
+```text
+	# None in sys.modules makes an import of that name fail.
+	for name in ("wx", "gui", "config", "speech", "synthDriverHandler", "logHandler", "addonHandler"):
+```
+
+With:
+
+```text
+	# None in sys.modules makes an import of that name fail, even when another test left a stub
+	# under that name: wx and every NVDA module forbid_legacy_runtime_imports rejects.
+	for name in (
+		"wx",
+		"gui",
+		"config",
+		"speech",
+		"synthDriverHandler",
+		"logHandler",
+		"languageHandler",
+		"globalVars",
+		"addonHandler",
+		"nvwave",
+		"winKernel",
+		"api",
+	):
+```
+
+- [ ] **Step 3: See the guard catch it now, then pass**
+
+```bash
+W=addon/synthDrivers/WorldVoice
+P=$(mktemp -d)
+printf 'import sys\nimport types\n\nsys.modules["languageHandler"] = types.ModuleType("languageHandler")\n' > $P/leaked_stub.py
+sed -i 's/^from typing import Any$/from typing import Any\n\nimport languageHandler  # noqa: F401/' $W/ui/panelLayout.py
+PYTHONPATH=$P python3 -m pytest -q -p no:cacheprovider -p leaked_stub tests/test_ui_structure.py::test_panel_layout_imports_by_its_package_path_without_wx_or_nvda || echo "red as expected"
+git checkout -- $W/ui/panelLayout.py
+rm -r $P
+python3 -m pytest -q -p no:cacheprovider tests/test_ui_structure.py
+```
+
+Expected: the first run `1 failed` with `ModuleNotFoundError: import of languageHandler halted; None in sys.modules`, then `red as expected`; the second `6 passed`. `git status --short` lists only `tests/test_ui_structure.py`.
+
+- [ ] **Step 4: Full suite**
+
+Run: `python3 -m pytest -q -p no:cacheprovider tests` → `3226 passed`, 0 skipped.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tests/test_ui_structure.py
+git diff --cached --stat   # 1 file
+git commit -q -F - <<'EOF'
+test: block every NVDA module the runtime guard forbids in the A2 guard
+
+The A2 guard set only seven names to None in sys.modules. An import of
+another NVDA module in ui.panelLayout failed only because the module
+does not exist on Linux, so a stub another test left behind would have
+hidden it. The guard now blocks wx and every NVDA name that
+forbid_legacy_runtime_imports rejects.
+EOF
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected after the commit: `HEAD:addon` = `0ce05e80f67d077c311702467f09befadba10bd5`, `HEAD:tests` = `4c484c956bfa897ef5c52740a8004ce66df01446`
+
+### Task F3: Correct the spec on the runtime guard (M3)
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-10-26-phase37-ui-speech-commands-design.md` §5.5
+
+**Interfaces:**
+- Consumes: Task F2's tree.
+- Produces: documentation only; tree ids unchanged.
+
+- [ ] **Step 1: Correct the sentence**
+
+**Edit:** `docs/superpowers/specs/2026-10-26-phase37-ui-speech-commands-design.md` (1/1)
+
+Replace:
+
+```text
+- `tests/runtime_harness.py::forbid_legacy_runtime_imports` needs no new rule: `ui/` imports `wx`/`gui`, already forbidden, and the runtime never imports it.
+```
+
+With:
+
+```text
+- `tests/runtime_harness.py::forbid_legacy_runtime_imports` needs no new rule: ~~`ui/` imports `wx`/`gui`, already forbidden,~~ `ui/controls.py` imports `gui`, which the guard's forbidden set already holds (`wx` is not in that set; `import wx` fails on Linux anyway), and the runtime never imports `ui/`. Corrected by the phase 37 review fixes (M3).
+```
+
+- [ ] **Step 2: Commit**
+
+`docs/` is git-ignored but tracked, so the path is added with `-f`.
+
+```bash
+git add -f docs/superpowers/specs/2026-10-26-phase37-ui-speech-commands-design.md
+git diff --cached --stat   # 1 file
+git commit -q -F - <<'EOF'
+docs: correct the phase 37 spec on the runtime guard's forbidden set
+
+The spec said wx is already forbidden by forbid_legacy_runtime_imports;
+its set holds gui, not wx. The old text stays struck through.
+EOF
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected after the commit: `HEAD:addon` = `0ce05e80f67d077c311702467f09befadba10bd5`, `HEAD:tests` = `4c484c956bfa897ef5c52740a8004ce66df01446`
+
+### Task F4: Verification
+
+- [ ] `python3 -m pytest -q -p no:cacheprovider tests` → `3226 passed`, 0 skipped (3225 + `test_package_init_stays_empty[ui]`).
+- [ ] `prek run --all-files` all Passed; `git diff --check master` prints nothing; both protected-path commands of Task 4 print nothing; `tests/test_plugin_voice_contract.py` has no diff from `master`; `HEAD:addon` is still `0ce05e80f67d077c311702467f09befadba10bd5`.
+
+### 修正 dry run record
+
+2026-10-26, fresh clone of `/workspace/WorldVoice` with the task branch at `f61778b` (the review commit on the rebased branch; the rebased Task 3 tree `0ce05e80…`/`08f6907f…`) in the scratchpad, `ref` symlinked, `prek install`, every step applied from this section's text, pytest under a MemAvailable < 3 GB guard:
+
+| Commit | Files | Focused run | Full suite | Tree ids |
+| --- | --- | --- | --- | --- |
+| Task F1 | 1 | red `1 failed, 5 passed` (`assert b'from . import panelLayout\n' == b''`), then `6 passed` | 3226 passed | match |
+| Task F2 | 1 | gap `1 passed` before the edit; red `1 failed` (`import of languageHandler halted`), then `6 passed` | 3226 passed | match |
+| Task F3 | 1 (`docs/`) | — | — | match (unchanged) |
+
+Every commit passed the hooks on the first try and left a clean tree; the `mktemp -d` probe directories were removed. Task F4 in the clone: `prek run --all-files` all Passed; `git diff --check 71748c1`, both protected-path commands and the `test_plugin_voice_contract.py` diff printed nothing. A first run with the tree ids still blank produced the same ids; this record is the second run, with the ids filled in.
