@@ -11,7 +11,7 @@ from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 from logHandler import log
 from synthDrivers.WorldVoice import languageDetection
-from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
+from synthDrivers.WorldVoice.engineRegistry import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
 from synthDrivers.WorldVoice.pipeline.registry import LOG_SWITCHES

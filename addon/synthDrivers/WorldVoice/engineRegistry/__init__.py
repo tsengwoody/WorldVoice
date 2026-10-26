@@ -1,3 +1,10 @@
+"""The known engines: found at import, with whether each is enabled, its label and its default.
+
+The engine wrappers themselves live in driver/<Engine>/ (bundled) and in the WorldVoice-workspace
+(plugins); discovery.py finds and loads them. Not part of driver/: a plugin's import of
+synthDrivers.WorldVoice.driver must not scan the disk or initialize translations.
+"""
+
 import os
 
 import addonHandler

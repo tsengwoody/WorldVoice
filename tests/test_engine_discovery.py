@@ -17,9 +17,9 @@ def discovery(stub_modules, monkeypatch):
 		if name.startswith(PACKAGE + "."):
 			monkeypatch.delitem(sys.modules, name)
 	stub_modules.package(PACKAGE, WORLDVOICE)
-	stub_modules.package(PACKAGE + ".engine", WORLDVOICE / "engine")
+	stub_modules.package(PACKAGE + ".engineRegistry", WORLDVOICE / "engineRegistry")
 	monkeypatch.setattr(sys, "path", list(sys.path))
-	return importlib.import_module(PACKAGE + ".engine.discovery")
+	return importlib.import_module(PACKAGE + ".engineRegistry.discovery")
 
 
 class Log:

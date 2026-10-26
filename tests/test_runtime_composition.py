@@ -619,7 +619,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 	)
 	stub(package + ".pipeline.context", GENERIC_CONTEXT=object(), SpeechContext=object)
 	stub(package + ".pipeline.scope", pipeline_scope=SimpleNamespace())
-	stub(package + ".engine", ready_engine_classes=lambda engine_config: {})
+	stub(package + ".engineRegistry", ready_engine_classes=lambda engine_config: {})
 	stub(package + ".ui.voicePanel", WorldVoiceVoiceSettingsPanel=object)
 	monkeypatch.setattr(sys, "path", list(sys.path))
 	try:

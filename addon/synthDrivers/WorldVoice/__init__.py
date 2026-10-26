@@ -31,7 +31,7 @@ from .bridge.commands import normalize_legacy_commands
 from .bridge.completionPolicies import CompletionPolicy
 from .bridge.indexLedger import IndexLedger
 from .bridge.nvdaEvents import NvdaEventBridge
-from .engine import ready_engine_classes
+from .engineRegistry import ready_engine_classes
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
 from .numberLanguage import FOLLOW, MAIN
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext

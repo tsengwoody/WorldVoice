@@ -1,4 +1,4 @@
-"""The engine package: the specs found at import, and what the driver and panels ask of them.
+"""The engineRegistry package: the specs found at import, and what the driver and panels ask of them.
 
 The package discovers the add-on's own drivers and the engines in the WorldVoice-workspace
 when it is imported. Here the workspace lives in a temporary NVDA config directory and
@@ -47,7 +47,7 @@ def engines(stub_modules, monkeypatch, tmp_path):
 	stub_modules.module("globalVars", appArgs=SimpleNamespace(configPath=str(tmp_path)))
 	monkeypatch.setattr(sys, "path", list(sys.path))
 	alias_package(monkeypatch, PACKAGE, WORLDVOICE)
-	module = importlib.import_module(PACKAGE + ".engine")
+	module = importlib.import_module(PACKAGE + ".engineRegistry")
 	yield SimpleNamespace(module=module, logged=logged)
 	sys.modules.pop(EXTERNAL, None)
 

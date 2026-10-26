@@ -761,12 +761,12 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 
 	# The flag is read by the add-on's own engine discovery rules.
 	alias_package(monkeypatch, "worldvoice_ui_engines", WORLDVOICE)
-	alias_package(monkeypatch, "worldvoice_ui_engines.engine", WORLDVOICE / "engine")
+	alias_package(monkeypatch, "worldvoice_ui_engines.engineRegistry", WORLDVOICE / "engineRegistry")
 	load_source(monkeypatch, "worldvoice_ui_engines.assembly", WORLDVOICE / "assembly.py")
 	discovery = load_source(
 		monkeypatch,
-		"worldvoice_ui_engines.engine.discovery",
-		WORLDVOICE / "engine/discovery.py",
+		"worldvoice_ui_engines.engineRegistry.discovery",
+		WORLDVOICE / "engineRegistry/discovery.py",
 	)
 
 	def get_engine_enabled(name, section):
@@ -774,7 +774,7 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 		return discovery.get_engine_enabled(section, spec)
 
 	stubs.module(
-		"synthDrivers.WorldVoice.engine",
+		"synthDrivers.WorldVoice.engineRegistry",
 		ENGINE_SPECS=env.engine_specs,
 		get_engine_enabled=get_engine_enabled,
 	)
