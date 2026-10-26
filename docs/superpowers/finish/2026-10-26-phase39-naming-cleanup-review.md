@@ -137,3 +137,12 @@ Ready to merge：**是**。Critical 0、Important 0、Minor 2（都不擋 merge�
 - merge 後請做 M2：`DEVELOPMENT_WORKFLOW.md` §7／§8 的兩個路徑、auto-memory `generated-unicode-data.md`、`storage/refactor8.md` §6 的階段 39 狀態；全套件基準改為 3240。
 - M1 留給測試衛生階段，和階段 37 M5、階段 38 M1、M3 一起處理。
 - 我的 scratch clone（`p39-review/replay`、`p39-review/probe`）、套用器、探針腳本、再產生的輸出與 log 審完已刪除。
+
+## 修正記錄
+
+依 `DEVELOPMENT_WORKFLOW.md` §3.4、§4.5 修正。plan 檔尾新增「## 修正」（`4784e3d`），寫出 M1 的逐位元組 `Edit:` 區塊與修正 commit 後的 tree id；先在 dry run 用的 scratch clone 從 Task 7 tree（`d19e2d98…`／`2d59af18…`）重做，tree id 吻合後才在 worktree 照 plan 落地，結果與 plan 一致。只動 `tests/` 與 `docs/`，`HEAD:addon` 仍是 `d19e2d9895d023ff1fa2b222091edea9220a11e9`。
+
+| 項目 | 處理 | commit | 驗證 |
+| --- | --- | --- | --- |
+| M1 pipeline harness 的 reload 名單留著 `languageDetection` | 已修（協調者決定在 merge 前修，不留到測試衛生階段）：刪掉 `tests/pipeline_harness.py` 的 `"synthDrivers.WorldVoice.languageDetection"` 一行。沒有 red 狀態（被刪的 `pop(name, None)` 從來找不到這個名字）。 | `82f073f` | pipeline 相關測試 `364 passed`；全套件 3240 passed、0 skipped；`prek run --all-files` 全數 Passed；`git diff --check master` 無輸出。`HEAD:tests` = `cb49dbafec3e4df9e263eb7962947cafaaa9846a` |
+| M2 merge 後要更新的分支外文件 | 不在分支內修：由主 session 在 merge 後更新 `DEVELOPMENT_WORKFLOW.md` §7／§8、auto-memory `generated-unicode-data.md`、`storage/refactor8.md` §6。 | — | — |
