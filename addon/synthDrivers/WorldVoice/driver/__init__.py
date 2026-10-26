@@ -1,4 +1,9 @@
-"""Legacy engine metadata and lifecycle backed by the runtime voice facade."""
+"""Base class every engine wrapper (built-in or WorldVoice-workspace plugin) subclasses.
+
+Voice gives a wrapper its engine metadata and lifecycle, backed by the runtime voice facade.
+Plugins import this module as synthDrivers.WorldVoice.driver (Voice, getVoiceKey), so that
+import path is public API: the rest of the add-on may move, this module may not.
+"""
 
 import languageHandler
 
