@@ -5,7 +5,7 @@ from pathlib import Path
 
 ADDON = Path(__file__).resolve().parents[1] / "addon"
 # Same exclusions as pyproject.toml and .pre-commit-config.yaml.
-EXCLUDED = re.compile(r"^synthDrivers/WorldVoice/(driver/[^/]+/driver/|languageDetection/script_data\.py$)")
+EXCLUDED = re.compile(r"^synthDrivers/WorldVoice/(driver/[^/]+/driver/|unicodeScripts/script_data\.py$)")
 GETTEXT_CALL = re.compile(r"\b(_|pgettext|ngettext|npgettext)\(")
 # NVDA's multi-line form places the comment inside the call's parentheses.
 GETTEXT_OPEN = re.compile(r"\b(_|pgettext|ngettext|npgettext)\($")

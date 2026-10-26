@@ -52,7 +52,7 @@ def test_guard_allows_the_ledger_and_the_event_bridge(monkeypatch, rt):
 	assert events.NvdaEventBridge.__name__ == "NvdaEventBridge"
 
 
-@pytest.mark.parametrize("package", ["bridge", "voices", "ui", "pipeline"])
+@pytest.mark.parametrize("package", ["bridge", "voices", "ui", "pipeline", "unicodeScripts"])
 def test_package_init_stays_empty(package):
 	# Importing one module of the package must not load the others (spec phase 36, section 2);
 	# ui/__init__.py runs before ui.panelLayout, which loads without wx (spec phase 37, 2.1), and

@@ -14,7 +14,7 @@ import urllib.error
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import ROOT, load_source
+from addon_loader import ROOT, WORLDVOICE, load_source
 from pipeline_harness import load_pipeline_module, punctuation_settings
 
 TOOL = ROOT / "tools" / "generate_unspaced_common.py"
@@ -91,6 +91,12 @@ def test_unspaced_codes_name_the_pipelines_scripts(tool):
 def test_unspaced_codes_follow_the_pipeline(tool, monkeypatch):
 	pipeline, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	assert set(tool.UNSPACED_SCRIPT_CODES.values()) == pipeline.UNSPACED_SCRIPTS
+
+
+def test_without_script_data_the_tool_reads_the_committed_one(tool):
+	# --script-data defaults to the add-on's own generated file, wherever that file is moved.
+	assert tool.SCRIPT_DATA == WORLDVOICE / "unicodeScripts" / "script_data.py"
+	assert tool.SCRIPT_DATA.is_file()
 
 
 def _select(tool, extensions, scripts, categories):

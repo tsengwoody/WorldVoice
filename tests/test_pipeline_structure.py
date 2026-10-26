@@ -36,6 +36,20 @@ def test_language_detection_reaches_for_no_nvda_globals():
 	}
 
 
+def test_the_pipeline_does_not_import_language_detection():
+	# The pipeline needs only the Unicode data, which unicodeScripts/ holds (refactor8 F10); an import
+	# of languageDetection would load the detector, and NVDA's speech commands with it.
+	for path in sorted((WORLDVOICE / "pipeline").glob("*.py")):
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+			if isinstance(node, ast.ImportFrom):
+				names = [*(node.module or "").split("."), *(alias.name for alias in node.names)]
+			elif isinstance(node, ast.Import):
+				names = [part for alias in node.names for part in alias.name.split(".")]
+			else:
+				continue
+			assert "languageDetection" not in names, f"{path.name}: {ast.unparse(node)}"
+
+
 # mutmut's rewritten copy imports its own trampoline into every mutated module; the guard judges
 # the source, as the hygiene guards do, so it stands aside on that copy.
 @pytest.mark.skipif(running_under_mutmut(), reason="mutmut's copy imports mutmut")

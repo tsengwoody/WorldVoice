@@ -1,6 +1,6 @@
 """The generated Unicode data files are exactly what their generators write.
 
-languageDetection/script_data.py and pipeline/unspaced_common_data.py change only by running
+unicodeScripts/script_data.py and unicodeScripts/unspaced_common_data.py change only by running
 tools/generate_unicode_scripts.py and tools/generate_unspaced_common.py (decided by the user,
 2026-10-25). These tests re-render each committed module with its generator's own functions from
 the module's own data (ranges, Unicode version and sha256 values) and require the result to be
@@ -15,8 +15,8 @@ import re
 import pytest
 from addon_loader import ROOT, WORLDVOICE, load_source
 
-SCRIPT_DATA = WORLDVOICE / "languageDetection" / "script_data.py"
-UNSPACED_COMMON_DATA = WORLDVOICE / "pipeline" / "unspaced_common_data.py"
+SCRIPT_DATA = WORLDVOICE / "unicodeScripts" / "script_data.py"
+UNSPACED_COMMON_DATA = WORLDVOICE / "unicodeScripts" / "unspaced_common_data.py"
 # The comment the unspaced Common generator writes after each range: the characters, then the
 # General Category it read from UnicodeData.txt.
 RANGE_LINE = re.compile(r"^\t\(0x[0-9A-Fa-f]+, 0x[0-9A-Fa-f]+\),[ \t]*#.* (\S+)\r?$", re.MULTILINE)

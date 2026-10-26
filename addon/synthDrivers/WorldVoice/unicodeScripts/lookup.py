@@ -1,3 +1,5 @@
+"""The Unicode Script of a code point, looked up in the generated script_data.py."""
+
 from bisect import bisect_right
 
 from .script_data import SCRIPT_RANGE_STARTS, SCRIPT_RANGES

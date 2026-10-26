@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import pytest
 from pipeline_harness import load_pipeline_module, punctuation_settings
 
-LANGUAGE_DETECTION_SCRIPTS = "synthDrivers.WorldVoice.languageDetection.scripts"
+SCRIPT_LOOKUP = "synthDrivers.WorldVoice.unicodeScripts.lookup"
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def test_is_unspaced(env, character):
 
 def _generated_categories():
 	"""The General Category of each UNSPACED_COMMON character, as unspaced_common_data.py records it."""
-	data = sys.modules["synthDrivers.WorldVoice.pipeline.unspaced_common_data"]
+	data = sys.modules["synthDrivers.WorldVoice.unicodeScripts.unspaced_common_data"]
 	source = Path(data.__file__).read_text(encoding="utf-8")
 	ranges = re.findall(r"^\t\(0x([0-9A-F]+), 0x([0-9A-F]+)\),  # \S+ (\w\w)$", source, re.MULTILINE)
 	assert [(int(start, 16), int(end, 16)) for start, end, _category in ranges] == list(
@@ -97,8 +97,8 @@ def test_unspaced_common_keeps_the_hand_listed_characters(env):
 
 
 def test_unspaced_common_data_matches_the_script_data(env):
-	data = sys.modules["synthDrivers.WorldVoice.pipeline.unspaced_common_data"]
-	scripts = sys.modules["synthDrivers.WorldVoice.languageDetection.script_data"]
+	data = sys.modules["synthDrivers.WorldVoice.unicodeScripts.unspaced_common_data"]
+	scripts = sys.modules["synthDrivers.WorldVoice.unicodeScripts.script_data"]
 	assert data.UNICODE_VERSION == scripts.UNICODE_VERSION == "18.0.0"
 	assert data.UNSPACED_COMMON is env.UNSPACED_COMMON
 
@@ -147,12 +147,12 @@ def test_is_not_unspaced(env, character):
 	assert env._is_unspaced(character) is False
 
 
-def test_pipeline_harness_loads_language_detection_fresh(monkeypatch):
+def test_pipeline_harness_loads_the_script_lookup_fresh(monkeypatch):
 	# D5: each load imports the script lookup again, never one cached against an earlier test's stubs.
 	load_pipeline_module(monkeypatch, punctuation_settings(0))
-	first = sys.modules[LANGUAGE_DETECTION_SCRIPTS]
+	first = sys.modules[SCRIPT_LOOKUP]
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	second = sys.modules[LANGUAGE_DETECTION_SCRIPTS]
+	second = sys.modules[SCRIPT_LOOKUP]
 	assert second is not first
 	assert module.get_script is second.get_script
 

@@ -1,4 +1,4 @@
-"""Generate languageDetection/script_data.py from Unicode's Scripts.txt.
+"""Generate unicodeScripts/script_data.py from Unicode's Scripts.txt.
 
 Without --source the tool downloads Scripts.txt of --unicode-version from
 https://www.unicode.org/Public/<version>/ucd/Scripts.txt into memory. Either way the file must
@@ -7,11 +7,11 @@ upgrading Unicode can copy after verifying the file.
 
 Usage:
 	python3 tools/generate_unicode_scripts.py \
-		addon/synthDrivers/WorldVoice/languageDetection/script_data.py \
+		addon/synthDrivers/WorldVoice/unicodeScripts/script_data.py \
 		--unicode-version 16.0.0 --expected-sha256 <sha256>
 
 	python3 tools/generate_unicode_scripts.py \
-		addon/synthDrivers/WorldVoice/languageDetection/script_data.py --source Scripts.txt \
+		addon/synthDrivers/WorldVoice/unicodeScripts/script_data.py --source Scripts.txt \
 		--unicode-version 16.0.0 --expected-sha256 <sha256>
 """
 

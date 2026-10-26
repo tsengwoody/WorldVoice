@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 
 from speech.commands import BreakCommand
 
-from ..languageDetection.scripts import get_script
+from ..unicodeScripts.lookup import get_script
+from ..unicodeScripts.unspaced_common_data import UNSPACED_COMMON
 from .context import SpeechContext
 from .sequence import SpeechCmd
-from .unspaced_common_data import UNSPACED_COMMON
 
 if TYPE_CHECKING:
 	from .settings import PipelineSettings
@@ -21,7 +21,8 @@ _WHITESPACE_RE = re.compile(r"\s+")
 
 # Scripts whose words are not separated by spaces: a space between two of their characters is a
 # pause (decided by the user, 2026-10-25). To extend the rule, add a script here and to
-# UNSPACED_SCRIPT_CODES in tools/generate_unspaced_common.py, then regenerate unspaced_common_data.py.
+# UNSPACED_SCRIPT_CODES in tools/generate_unspaced_common.py, then regenerate
+# unicodeScripts/unspaced_common_data.py.
 UNSPACED_SCRIPTS = frozenset({"Han", "Hiragana", "Katakana", "Bopomofo", "Thai", "Lao", "Khmer", "Myanmar"})
 
 

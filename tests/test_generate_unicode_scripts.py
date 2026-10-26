@@ -1,4 +1,4 @@
-"""tools/generate_unicode_scripts.py turns Unicode's Scripts.txt into languageDetection/script_data.py.
+"""tools/generate_unicode_scripts.py turns Unicode's Scripts.txt into unicodeScripts/script_data.py.
 
 Without --source the tool downloads Scripts.txt of --unicode-version from unicode.org (decided by
 the user, 2026-10-25). These tests never touch the network: they replace the downloader or urlopen.

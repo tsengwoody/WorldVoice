@@ -4,7 +4,7 @@ A Common character counts as unspaced when its General Category is a letter, num
 punctuation, separator or other) and its Script_Extensions name at least one unspaced script
 (decided by the user, 2026-10-25). The Script_Extensions come from Unicode's ScriptExtensions.txt,
 the General Category from Unicode's UnicodeData.txt and the Script from
-languageDetection/script_data.py. ScriptExtensions.txt and script_data.py must be of
+unicodeScripts/script_data.py. ScriptExtensions.txt and script_data.py must be of
 --unicode-version; UnicodeData.txt has no version header, so its sha256 pins it. Python's
 unicodedata is not used: it is of the Unicode version Python ships, so the tool works for any
 Unicode version whatever Python runs it.
@@ -19,11 +19,11 @@ verifying the file.
 
 Usage:
 	python3 tools/generate_unspaced_common.py \
-		addon/synthDrivers/WorldVoice/pipeline/unspaced_common_data.py --unicode-version 16.0.0 \
+		addon/synthDrivers/WorldVoice/unicodeScripts/unspaced_common_data.py --unicode-version 16.0.0 \
 		--expected-sha256 <ScriptExtensions.txt sha256> --unicode-data-sha256 <UnicodeData.txt sha256>
 
 	python3 tools/generate_unspaced_common.py \
-		addon/synthDrivers/WorldVoice/pipeline/unspaced_common_data.py --unicode-version 16.0.0 \
+		addon/synthDrivers/WorldVoice/unicodeScripts/unspaced_common_data.py --unicode-version 16.0.0 \
 		--source ScriptExtensions.txt --expected-sha256 <ScriptExtensions.txt sha256> \
 		--unicode-data UnicodeData.txt --unicode-data-sha256 <UnicodeData.txt sha256>
 """
@@ -40,7 +40,7 @@ from pathlib import Path
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT_DATA = ROOT / "addon/synthDrivers/WorldVoice/languageDetection/script_data.py"
+SCRIPT_DATA = ROOT / "addon/synthDrivers/WorldVoice/unicodeScripts/script_data.py"
 
 # The pipeline's UNSPACED_SCRIPTS, by the ISO 15924 codes ScriptExtensions.txt uses.
 UNSPACED_SCRIPT_CODES = {

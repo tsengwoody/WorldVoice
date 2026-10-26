@@ -6,7 +6,7 @@ import sys
 import pytest
 from addon_loader import WORLDVOICE, alias_package
 
-PACKAGE = "language_scripts_test_worldvoice"
+PACKAGE = "unicode_scripts_test_worldvoice"
 
 
 @pytest.fixture
@@ -15,9 +15,7 @@ def scripts(monkeypatch):
 		if name.startswith(PACKAGE + "."):
 			monkeypatch.delitem(sys.modules, name)
 	alias_package(monkeypatch, PACKAGE, WORLDVOICE)
-	# The detection package without its __init__, which needs NVDA's speech commands.
-	alias_package(monkeypatch, PACKAGE + ".languageDetection", WORLDVOICE / "languageDetection")
-	return importlib.import_module(PACKAGE + ".languageDetection.scripts")
+	return importlib.import_module(PACKAGE + ".unicodeScripts.lookup")
 
 
 @pytest.mark.parametrize(
@@ -65,6 +63,6 @@ def test_code_points_outside_every_range_have_no_script(scripts, codepoint):
 
 
 def test_script_data_is_of_unicode_18(scripts):
-	data = sys.modules[PACKAGE + ".languageDetection.script_data"]
+	data = sys.modules[PACKAGE + ".unicodeScripts.script_data"]
 	assert data.UNICODE_VERSION == "18.0.0"
 	assert data.SOURCE_SHA256 == "0071fd81b6aeae25f6e8bce8efec3066a6476a91b49bdb2f52dc76e817862a6a"

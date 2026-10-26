@@ -3,7 +3,7 @@ from speech.commands import LangChangeCommand
 from ..locales import primary_language
 from ..numberLanguage import FOLLOW, MAIN
 from ..speechCommands import WVLangChangeCommand
-from .scripts import get_script
+from ..unicodeScripts.lookup import get_script
 
 BASIC_LATIN = (
 	"en",

@@ -58,7 +58,6 @@ PIPELINE_MODULES = (
 	"numbers",
 	"symbols",
 	"speechDictionary",
-	"unspaced_common_data",
 )
 
 
@@ -106,7 +105,7 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice.speechCommands",
 		"synthDrivers.WorldVoice.numberLanguage",
 		"synthDrivers.WorldVoice.languageDetection",
-		"synthDrivers.WorldVoice.languageDetection.scripts",
+		"synthDrivers.WorldVoice.unicodeScripts.lookup",
 		"synthDrivers.WorldVoice.pipeline",
 		"synthDrivers.WorldVoice.pipeline.registry",
 		"synthDrivers.WorldVoice.pipeline.sequence",
@@ -123,7 +122,7 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice.pipeline.scope",
 		"synthDrivers.WorldVoice.pipeline.numbers",
 		"synthDrivers.WorldVoice.pipeline.symbols",
-		"synthDrivers.WorldVoice.pipeline.unspaced_common_data",
+		"synthDrivers.WorldVoice.unicodeScripts.unspaced_common_data",
 	]:
 		sys.modules.pop(name, None)
 
