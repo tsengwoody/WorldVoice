@@ -21,7 +21,7 @@ from ..runtime.session import CancellationView
 if TYPE_CHECKING:
 	from .indexLedger import IndexLedger
 
-# runtime.settings.PARAMETER_NAMES in the order engines receive them. rateBoost comes first:
+# runtime.voiceSettings.PARAMETER_NAMES in the order engines receive them. rateBoost comes first:
 # eSpeak converts the rate through the current rate boost (NVDA synthDrivers/espeak.py _set_rate).
 APPLY_ORDER = ("rateBoost", "rate", "pitch", "volume", "inflection")
 

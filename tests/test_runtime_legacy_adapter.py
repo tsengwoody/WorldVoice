@@ -19,7 +19,7 @@ def test_lifecycle_metadata_and_apply_order(bridge_modules, rt):
 	assert spec == rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en")
 	assert adapter.variants(spec.name) == ({"id": "bright", "name": "Bright"},)
 	assert core.writes == []
-	snapshot = rt.settings.VoiceState(spec, {"rate": 72, "rateBoost": True}).snapshot()
+	snapshot = rt.voice_settings.VoiceState(spec, {"rate": 72, "rateBoost": True}).snapshot()
 	adapter.apply(spec, snapshot)
 	assert core.writes == [
 		("voice", "a"),
@@ -93,7 +93,7 @@ def test_unsupported_generic_settings_are_not_written(bridge_modules, rt):
 	cls.supportedSettings = classmethod(lambda cls: ["rate"])
 	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
 	adapter.open()
-	state = rt.settings.VoiceState(make_spec(), {})
+	state = rt.voice_settings.VoiceState(make_spec(), {})
 	adapter.apply(state.spec, state.snapshot())
 	assert core.writes == [("voice", "a"), ("rate", 50), ("hook", "default")]
 	assert adapter.capabilities.settings == frozenset({"rate"})
@@ -109,7 +109,7 @@ def test_failed_core_creation_leaves_nothing_to_clean(bridge_modules, rt):
 
 	cls.create_core = classmethod(fail_open)
 	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
-	session = rt.session.EngineSession(adapter, rt.settings.VoiceSettingsStore(MemoryRepository()))
+	session = rt.session.EngineSession(adapter, rt.voice_settings.VoiceSettingsStore(MemoryRepository()))
 	with pytest.raises(ValueError, match="open failed"):
 		session.open()
 	assert adapter.core is None and adapter.notification_source is None
@@ -157,7 +157,7 @@ def test_onecore_cached_a_b_a_restores_language(bridge_modules, rt):
 	env = {"Voice": legacy_class(core), "SynthDriver": object, "DrainProfile": rt.playback_work.DrainProfile}
 	load_definitions(path, ["Voice"], env)
 	cls = env["Voice"]
-	store = rt.settings.VoiceSettingsStore(MemoryRepository())
+	store = rt.voice_settings.VoiceSettingsStore(MemoryRepository())
 	store.ensure(make_spec("OneCore:a", "en")).update(rate=72)
 	store.ensure(make_spec("OneCore:b", "zh_TW")).update(rate=31)
 	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
@@ -210,7 +210,7 @@ def test_real_variant_and_waitfactor_hooks(bridge_modules, rt, monkeypatch, engi
 		{"id": "bright", "name": "bright"},
 	)
 	assert core.writes == []
-	state = rt.settings.VoiceState(make_spec(engine + ":a"), {"variant": "bright", "waitfactor": 4})
+	state = rt.voice_settings.VoiceState(make_spec(engine + ":a"), {"variant": "bright", "waitfactor": 4})
 	adapter.apply(state.spec, state.snapshot())
 	assert (core.voice, core.rate, core.waitfactor) == ("a", 50, 4)
 	assert writes == [("native:a", "bright")]

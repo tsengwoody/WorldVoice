@@ -20,13 +20,13 @@ from worldvoice_harness import (
 PRESENTER = ADDON / "globalPlugins/WorldVoice/rolePresenter.py"
 
 
-def load_presenter(monkeypatch, runtime_settings):
-	"""Load the presenter against the runtime settings module the manager under test uses."""
+def load_presenter(monkeypatch, voice_settings):
+	"""Load the presenter against the runtime voiceSettings module the manager under test uses."""
 	stub = StubModules(monkeypatch)
 	for package in ("synthDrivers", "synthDrivers.WorldVoice", "synthDrivers.WorldVoice.runtime"):
 		stub.module(package, __path__=[])
-	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.runtime.settings", runtime_settings)
-	package = runtime_settings.__name__.rsplit(".", 2)[0]
+	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.runtime.voiceSettings", voice_settings)
+	package = voice_settings.__name__.rsplit(".", 2)[0]
 	monkeypatch.setitem(
 		sys.modules,
 		"synthDrivers.WorldVoice.voices.roles",
@@ -66,8 +66,8 @@ def env(monkeypatch):
 		manager.defaultVoiceName = name
 		conf["speech"]["WorldVoice"]["voice"] = name
 
-	runtime_settings = sys.modules[module.__package__.removesuffix(".voices") + ".runtime.settings"]
-	presenter = load_presenter(monkeypatch, runtime_settings)(
+	voice_settings = sys.modules[module.__package__.removesuffix(".voices") + ".runtime.voiceSettings"]
+	presenter = load_presenter(monkeypatch, voice_settings)(
 		manager,
 		speech_section=lambda: conf["speech"]["WorldVoice"],
 		set_main_voice=set_main_voice,

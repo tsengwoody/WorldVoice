@@ -27,13 +27,13 @@ def load_runtime(monkeypatch, package_name=PACKAGE):
 
 	package = load(package_name, RUNTIME / "__init__.py")
 	models = load(f"{package_name}.models", RUNTIME / "models.py")
-	settings = load(f"{package_name}.settings", RUNTIME / "settings.py")
+	voice_settings = load(f"{package_name}.voiceSettings", RUNTIME / "voiceSettings.py")
 	session = load(f"{package_name}.session", RUNTIME / "session.py")
 	playback_work = load(f"{package_name}.playbackWork", RUNTIME / "playbackWork.py")
 	return SimpleNamespace(
 		package=package,
 		models=models,
-		settings=settings,
+		voice_settings=voice_settings,
 		session=session,
 		playback_work=playback_work,
 	)
@@ -196,7 +196,7 @@ def load_config_repository(monkeypatch, rt):
 	alias_package(monkeypatch, package_name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, f"{package_name}.runtime", rt.package)
 	monkeypatch.setitem(sys.modules, f"{package_name}.runtime.models", rt.models)
-	monkeypatch.setitem(sys.modules, f"{package_name}.runtime.settings", rt.settings)
+	monkeypatch.setitem(sys.modules, f"{package_name}.runtime.voiceSettings", rt.voice_settings)
 	return load_source(
 		monkeypatch,
 		f"{package_name}.voices.settingsRepository",
@@ -354,7 +354,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 	for suffix, module in (
 		("", rt.package),
 		(".models", rt.models),
-		(".settings", rt.settings),
+		(".voiceSettings", rt.voice_settings),
 		(".session", rt.session),
 	):
 		monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
@@ -481,7 +481,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 	else:
 		raise ValueError(adapter_kind)
 	repo = MemoryRepository()
-	store = rt.settings.VoiceSettingsStore(repo)
+	store = rt.voice_settings.VoiceSettingsStore(repo)
 	session = rt.session.EngineSession(adapter, store)
 	session.open()
 	for spec in adapter.list_voices():

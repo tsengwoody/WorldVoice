@@ -52,7 +52,7 @@ from .pipeline.settings import (
 )
 from .runtime.requestBuilder import queue_speech_sequence
 from .runtime.scheduler import TaskManager
-from .runtime.settings import VoiceSettingsStore
+from .runtime.voiceSettings import VoiceSettingsStore
 from .ui.voicePanel import WorldVoiceVoiceSettingsPanel
 from .voices.manager import VoiceManager
 from .voices.settingsRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository

@@ -34,7 +34,7 @@ def modules(monkeypatch, nvda_commands):
 		manager_module=load("runtime.scheduler"),
 		builder=load("runtime.requestBuilder"),
 		models=load("runtime.models"),
-		settings=load("runtime.settings"),
+		voice_settings=load("runtime.voiceSettings"),
 		session=load("runtime.session"),
 		adapter=load("bridge.engineAdapter"),
 		facade=load("bridge.voiceFacade"),
@@ -65,7 +65,7 @@ def assembly(modules):
 	)
 	manager = modules.manager_module.TaskManager(bridge)
 	bridge.start(manager.on_event)
-	store = modules.settings.VoiceSettingsStore(MemoryRepository())
+	store = modules.voice_settings.VoiceSettingsStore(MemoryRepository())
 	ports, voices = {}, {}
 
 	def voice(key, *, supports_token=None, on_speak=None):

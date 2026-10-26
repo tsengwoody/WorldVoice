@@ -59,7 +59,7 @@ def bridge_modules(monkeypatch, rt):
 	for suffix, module in (
 		("", rt.package),
 		(".models", rt.models),
-		(".settings", rt.settings),
+		(".voiceSettings", rt.voice_settings),
 		(".session", rt.session),
 	):
 		monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
@@ -146,13 +146,13 @@ def composition(monkeypatch):
 	)
 	monkeypatch.setattr(sys.modules["synthDriverHandler"], "getSynth", lambda: None, raising=False)
 	driver = importlib.import_module(package + ".driver")
-	settings = importlib.import_module(package + ".runtime.settings")
+	voice_settings = importlib.import_module(package + ".runtime.voiceSettings")
 	scheduler = importlib.import_module(package + ".runtime.scheduler")
 	bridge_module = importlib.import_module(package + ".bridge.nvdaEvents")
 	models = importlib.import_module(package + ".runtime.models")
 	ledger = importlib.import_module(package + ".bridge.indexLedger").IndexLedger()
 	repo = MemoryRepository()
-	store = settings.VoiceSettingsStore(repo)
+	store = voice_settings.VoiceSettingsStore(repo)
 	done, index = EventStub(), EventStub()
 	owner = object()
 	bridge = bridge_module.NvdaEventBridge(

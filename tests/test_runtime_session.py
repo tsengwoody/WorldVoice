@@ -9,7 +9,7 @@ from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT
 
 @pytest.fixture
 def store(rt):
-	return rt.settings.VoiceSettingsStore(MemoryRepository())
+	return rt.voice_settings.VoiceSettingsStore(MemoryRepository())
 
 
 @pytest.fixture

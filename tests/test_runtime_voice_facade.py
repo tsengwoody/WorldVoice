@@ -7,7 +7,7 @@ from runtime_harness import FakeAdapter, MemoryRepository, make_spec
 @pytest.fixture
 def setup(bridge_modules, rt):
 	repo = MemoryRepository()
-	store = rt.settings.VoiceSettingsStore(repo)
+	store = rt.voice_settings.VoiceSettingsStore(repo)
 	adapter = FakeAdapter()
 	session = rt.session.EngineSession(adapter, store)
 	binding = bridge_modules.facade.LegacyVoiceBinding(store, session, None)

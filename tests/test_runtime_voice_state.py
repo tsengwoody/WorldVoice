@@ -8,7 +8,7 @@ from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
 
 
 def test_pending_state_is_atomic_and_snapshot_is_immutable(rt):
-	state = rt.settings.VoiceState(make_spec(), {})
+	state = rt.voice_settings.VoiceState(make_spec(), {})
 	before = state.snapshot()
 	state.update(rate=72, pitch=63)
 	assert (before.rate, before.pitch, before.revision) == (50, 50, 0)
@@ -23,7 +23,7 @@ def test_pending_state_is_atomic_and_snapshot_is_immutable(rt):
 
 def test_initial_values_are_copied_and_supply_the_rollback_baseline(rt):
 	values = {"rate": 62, "variant": "fast", "waitfactor": 2}
-	state = rt.settings.VoiceState(make_spec(language="zh_TW"), values)
+	state = rt.voice_settings.VoiceState(make_spec(language="zh_TW"), values)
 	values["rate"] = 99
 	snapshot = state.snapshot()
 	assert (snapshot.voice_id, snapshot.language, snapshot.revision) == ("a", "zh_TW", 0)
@@ -35,7 +35,7 @@ def test_initial_values_are_copied_and_supply_the_rollback_baseline(rt):
 
 
 def test_unknown_setting_update_changes_nothing(rt):
-	state = rt.settings.VoiceState(make_spec(), {})
+	state = rt.voice_settings.VoiceState(make_spec(), {})
 	with pytest.raises(ValueError, match="Unknown voice setting"):
 		state.update(rate=72, unknown=1)
 	assert (state.get("rate"), state.snapshot().revision) == (50, 0)
@@ -43,11 +43,11 @@ def test_unknown_setting_update_changes_nothing(rt):
 
 def test_unknown_initial_setting_is_rejected(rt):
 	with pytest.raises(ValueError, match="Unknown voice setting"):
-		rt.settings.VoiceState(make_spec(), {"unknown": 1})
+		rt.voice_settings.VoiceState(make_spec(), {"unknown": 1})
 
 
 def test_same_value_does_not_increase_revision(rt):
-	state = rt.settings.VoiceState(make_spec(), {})
+	state = rt.voice_settings.VoiceState(make_spec(), {})
 	state.update(rate=50, pitch=50, variant="default", rateBoost=False, waitfactor=0)
 	state.rollback()
 	assert state.snapshot().revision == 0
@@ -57,7 +57,7 @@ def test_same_value_does_not_increase_revision(rt):
 
 
 def test_checkpoint_keeps_pending_values_and_revision(rt):
-	state = rt.settings.VoiceState(make_spec(), {})
+	state = rt.voice_settings.VoiceState(make_spec(), {})
 	state.update(rate=72, pitch=63)
 	state.checkpoint()
 	assert (state.baseline("rate"), state.baseline("pitch"), state.snapshot().revision) == (72, 63, 2)
@@ -71,7 +71,7 @@ def test_checkpoint_keeps_pending_values_and_revision(rt):
 
 
 def test_unknown_checkpoint_changes_nothing(rt):
-	state = rt.settings.VoiceState(make_spec(), {})
+	state = rt.voice_settings.VoiceState(make_spec(), {})
 	state.update(rate=81)
 	with pytest.raises(ValueError, match="Unknown voice setting"):
 		state.checkpoint({"rate": 72, "unknown": 1})
@@ -90,7 +90,7 @@ def test_snapshot_never_observes_half_a_batch(rt):
 			assert finish_update.wait(HOLD_TIMEOUT)
 			return super().__ne__(other)
 
-	state = rt.settings.VoiceState(make_spec(), {"pitch": BlockingPitch(50)})
+	state = rt.voice_settings.VoiceState(make_spec(), {"pitch": BlockingPitch(50)})
 
 	def read():
 		reading.set()
@@ -126,11 +126,11 @@ def test_snapshot_never_observes_half_a_batch(rt):
 	],
 )
 def test_boolean_preserves_existing_config_conversion(rt, value, expected):
-	assert rt.settings.boolean(value) is expected
+	assert rt.voice_settings.boolean(value) is expected
 
 
 def test_parameter_definitions_provide_persisted_defaults(rt):
-	values = {name: convert(default) for name, convert, default in rt.settings.VOICE_PARAMETERS}
+	values = {name: convert(default) for name, convert, default in rt.voice_settings.VOICE_PARAMETERS}
 	assert values == {
 		"rate": 50,
 		"pitch": 50,
@@ -139,7 +139,7 @@ def test_parameter_definitions_provide_persisted_defaults(rt):
 		"inflection": 50,
 		"rateBoost": False,
 	}
-	assert rt.settings.VoiceState(make_spec(), values).snapshot().waitfactor == 0
+	assert rt.voice_settings.VoiceState(make_spec(), values).snapshot().waitfactor == 0
 
 
 def test_runtime_values_are_immutable_and_preserve_event_source(rt):

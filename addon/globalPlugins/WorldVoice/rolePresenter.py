@@ -2,7 +2,7 @@
 
 from collections.abc import Callable, MutableMapping
 
-from synthDrivers.WorldVoice.runtime.settings import PARAMETER_NAMES
+from synthDrivers.WorldVoice.runtime.voiceSettings import PARAMETER_NAMES
 from synthDrivers.WorldVoice.voices.roles import prune_assignments
 
 

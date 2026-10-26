@@ -358,7 +358,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 
 	monkeypatch.setattr(bridge, "segment_sink", segment_sink)
 	repo = MemoryRepository()
-	store = rt.settings.VoiceSettingsStore(repo)
+	store = rt.voice_settings.VoiceSettingsStore(repo)
 
 	def completion_for(cls, core):
 		if supported and cls.drain_profile is not None:

@@ -14,7 +14,7 @@ from .models import (
 	VoiceSnapshot,
 	VoiceSpec,
 )
-from .settings import VoiceSettingsStore
+from .voiceSettings import VoiceSettingsStore
 
 
 class CancellationView(Protocol):

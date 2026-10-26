@@ -24,7 +24,7 @@ class FakeCore:
 
 @pytest.fixture
 def engine(session_module, bridge_modules, rt):
-	store = rt.settings.VoiceSettingsStore(MemoryRepository())
+	store = rt.voice_settings.VoiceSettingsStore(MemoryRepository())
 	for key in ("Fake:a", "Fake:b"):
 		store.ensure(make_spec(key))
 	result = SimpleNamespace(core=FakeCore(), store=store, hook=lambda core, snapshot: None)

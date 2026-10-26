@@ -14,7 +14,7 @@ def repo():
 
 @pytest.fixture
 def store(rt, repo):
-	return rt.settings.VoiceSettingsStore(repo)
+	return rt.voice_settings.VoiceSettingsStore(repo)
 
 
 def test_ensure_returns_same_state(store, repo):

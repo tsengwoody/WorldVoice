@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from ..runtime.models import VoiceSpec
 from ..runtime.session import EngineSession
-from ..runtime.settings import VoiceSettingsStore
+from ..runtime.voiceSettings import VoiceSettingsStore
 
 
 @dataclass(frozen=True)

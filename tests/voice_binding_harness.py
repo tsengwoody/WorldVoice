@@ -9,11 +9,11 @@ def install_binding(driver, config):
 	"""Bind voices of *driver* to one settings store; returns a voice factory."""
 	package = driver.__name__.rsplit(".", 1)[0]
 	models = importlib.import_module(package + ".runtime.models")
-	settings = importlib.import_module(package + ".runtime.settings")
+	voice_settings = importlib.import_module(package + ".runtime.voiceSettings")
 	sessions = importlib.import_module(package + ".runtime.session")
 	facade = importlib.import_module(package + ".bridge.voiceFacade")
 	repository = importlib.import_module(package + ".voices.settingsRepository")
-	store = settings.VoiceSettingsStore(repository.ConfigVoiceSettingsRepository(config.conf))
+	store = voice_settings.VoiceSettingsStore(repository.ConfigVoiceSettingsRepository(config.conf))
 	session = sessions.EngineSession(FakeAdapter(), store)
 	binding = facade.LegacyVoiceBinding(store, session, None)
 
