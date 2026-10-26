@@ -139,3 +139,18 @@ Ready to merge：**是，但 merge 前要先處理 I1**（`master` 已經不在 
 - I1 不需要改任何原始碼；只要 rebase、確認 tree id、補 plan、重跑 §7。
 - 若修 M1／M2／M3（都只動 `tests/` 或 spec），`HEAD:addon` 仍是 `14d90d18…`（rebase 後 `0ce05e80…`），`HEAD:tests` 會變；依 §4.5 在 plan 檔尾加「## 修正」段落寫出 `Edit:` 區塊和 commit 後的 tree id，從 Task 3 的 tree 接著 dry run。
 - 我的 scratch clone（`replay-phase37`、`mut-phase37`）與 plugin 檔審完已刪除。
+
+## 修正記錄
+
+依 `DEVELOPMENT_WORKFLOW.md` §3.4、§4.5、§4.6 修正。plan 檔尾新增「## 基準更新」與「## 修正」兩段（`ccc91f2`）：前者記錄新基準與 rebase 後的 tree id，後者寫出 M1–M3 的逐位元組 `Edit:` 區塊與每個修正 commit 後的 tree id。修正先在 scratch 全新 clone 從 rebase 後的 Task 3 tree（`f61778b`）dry run，三個 commit 的 tree id 都吻合後才在 worktree 落地，落地結果與 plan 一致。只動 `tests/` 與 `docs/`，`HEAD:addon` 仍是 `0ce05e80f67d077c311702467f09befadba10bd5`。
+
+| 項目 | 處理 | commit | 驗證 |
+| --- | --- | --- | --- |
+| I1 `master` 離開 plan 基準 | 已修：分支 rebase 到 `master` `71748c1`，無衝突。三個 task commit 逐一比對 `git diff <新父> <新 commit> -- addon tests pyproject.toml` 與原 commit 的同一 diff，逐位元組相同；整段 `git diff 71748c1 <rebase 後 Task 3>` 與 `git diff 1f7fa46 ced33e5` 相同（586 行）。rebase 後 tree id：Task 1 `bebeaa11…`／`0e8ab84f…`、Task 2 `9d972c67…`／`08f6907f…`、Task 3 `0ce05e80…`／`08f6907f…`（與審閱者預期相同）。以這個比對取代 §4.6 的完整重做 dry run，理由記為 plan「## 基準更新」裡的 `Ruling:`。 | rebase（Task 1–3 新 sha：`0a581b1`、`ed02e0b`、`aee1f72`）；plan `ccc91f2` | rebase 後全套件 3225 passed、0 skipped；`prek run --all-files` 全數 Passed；`git diff --check master` 無輸出 |
+| M1 `ui/__init__.py` 必須為空沒有測試 | 已修：`tests/test_runtime_import_guard.py` 的 `test_package_init_stays_empty` 參數加上 `"ui"`，註解說明 `ui/__init__.py` 在 `ui.panelLayout` 之前執行。 | `6fb238a` | 先在 `ui/__init__.py` 寫 `from . import panelLayout`：`1 failed, 5 passed`（`assert b'from . import panelLayout\n' == b''`）；清空後 `6 passed`；全套件 3226 passed。`HEAD:tests` = `f861801f9ce95afdf16f6aa21ee4df5255dbbe86` |
+| M2 A2 守衛只擋 7 個名字 | 已修：`None` 清單加上 `forbid_legacy_runtime_imports` 禁止的其餘 NVDA 名字（`languageHandler`、`globalVars`、`nvwave`、`winKernel`、`api`），共 12 個（含 `wx`）。 | `3bf6498` | 先模擬殘留 stub：pytest plugin 在 `sys.modules` 放一個 `languageHandler` stub，`ui/panelLayout.py` 暫時 `import languageHandler`；修前守衛 `1 passed`（漏接），修後 `1 failed`（`import of languageHandler halted; None in sys.modules`）；還原後 `6 passed`；全套件 3226 passed。`HEAD:tests` = `4c484c956bfa897ef5c52740a8004ce66df01446` |
+| M3 spec 說 `wx` 在 runtime 守門的禁止清單 | 已修：spec §5.5 舊句以刪除線保留，改為「`ui/controls.py` import 的 `gui` 已在禁止清單（`wx` 不在，但在 Linux 上本來就 import 不到）」。 | `9adf902` | 只動 `docs/`，tree id 不變 |
+| M4 `load_voice_settings_dialogs` 名稱過時 | 不修：留給階段 39 命名收尾（審閱者同意）。 | — | — |
+| M5 既有 8 個測試把 `synthDrivers.WorldVoice.*` 留在 `sys.modules` | 不修：本階段之前就存在、與 spec 無關；列入測試衛生待辦。 | — | — |
+
+修正後驗證（worktree）：全套件 **3226 passed**、0 skipped（3225 + `test_package_init_stays_empty[ui]`）；`prek run --all-files` 全數 Passed；受保護路徑兩個指令皆無輸出；`tests/test_plugin_voice_contract.py` 未變動；最終 `HEAD:addon` = `0ce05e80f67d077c311702467f09befadba10bd5`、`HEAD:tests` = `4c484c956bfa897ef5c52740a8004ce66df01446`，與 plan 一致。
