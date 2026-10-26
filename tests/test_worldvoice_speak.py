@@ -265,8 +265,8 @@ def test_number_languages_list_every_voice_language_by_its_description(monkeypat
 	numlans = synth._get_availableNumlans()
 	# The two follow values come first, then each voice language (spec §3).
 	assert [(key, info.displayName) for key, info in numlans.items()] == [
-		("default", "Follow current text language"),
-		("main", "Follow document main language"),
+		("default", "Follow text language"),
+		("main", "Follow main language"),
 		("en", "English"),
 		# No description: the locale itself names it.
 		("zh_TW", "zh_TW"),
@@ -375,9 +375,9 @@ def speak_through_stages(
 TIMINGS = pytest.mark.parametrize("timing", ["after", "before"])
 PUNCTUATION = stage_settings(punctuation=True)
 NUMBER_MODE = stage_settings(number_mode="number")
-# "Follow document main language" reads digits as today's "ignore numbers" off did.
+# "Follow main language" reads digits as today's "ignore numbers" off did.
 MAIN = {"numlan": "main"}
-# "Follow current text language" reads digits as today's "ignore numbers" on did.
+# "Follow text language" reads digits as today's "ignore numbers" on did.
 FOLLOW = {"numlan": "default"}
 
 MAIN_ROWS = [

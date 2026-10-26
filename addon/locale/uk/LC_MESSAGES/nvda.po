@@ -386,15 +386,15 @@ msgstr "групами"
 #. Translators: A number language choice: numbers are read in the language of
 #. the text around them.
 #: addon/synthDrivers/WorldVoice/pipeline/settings.py:68
-msgid "Follow current text language"
-msgstr "Слідувати мові поточного тексту"
+msgid "Follow text language"
+msgstr "Слідувати мові тексту"
 
 #. Translators: A number language choice: numbers are read in the main
 #. language, the language the
 #. document marks or the main voice's language.
 #: addon/synthDrivers/WorldVoice/pipeline/settings.py:71
-msgid "Follow document main language"
-msgstr "Слідувати основній мові документа"
+msgid "Follow main language"
+msgstr "Слідувати основній мові"
 
 #. Translators: Label for a pipeline setting in the Speech Pipeline panel.
 #: addon/synthDrivers/WorldVoice/pipeline/settings.py:141

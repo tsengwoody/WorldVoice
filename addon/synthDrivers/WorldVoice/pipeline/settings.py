@@ -53,10 +53,10 @@ NUMBER_MODE_CHOICES: tuple[tuple[str, str], ...] = (
 # The number languages that are not locales: (stored value, label), listed before the locales.
 NUMBER_LANGUAGE_CHOICES: tuple[tuple[str, str], ...] = (
 	# Translators: A number language choice: numbers are read in the language of the text around them.
-	(FOLLOW, _("Follow current text language")),
+	(FOLLOW, _("Follow text language")),
 	# Translators: A number language choice: numbers are read in the main language, the language the
 	# document marks or the main voice's language.
-	(MAIN, _("Follow document main language")),
+	(MAIN, _("Follow main language")),
 )
 
 # The number modes the pipeline knows; any other stored or written mode reads as "value".
