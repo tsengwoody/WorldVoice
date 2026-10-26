@@ -1,15 +1,18 @@
 """The settings UI shares one path for each concern and uses only public driver hooks."""
 
 import ast
+import importlib
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import ADDON, WORLDVOICE, load_definitions
+from addon_loader import ADDON, WORLDVOICE, alias_package, load_definitions
 from mutation_support import running_under_mutmut
 
 DIALOG = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
-VOICE_PANEL = WORLDVOICE / "VoiceSettingsDialogs.py"
-PIPELINE_CONTROLS = WORLDVOICE / "pipelineControls.py"
+VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
+PIPELINE_CONTROLS = WORLDVOICE / "ui/controls.py"
 
 
 def class_source(path, name):
@@ -59,7 +62,7 @@ def called_names(node):
 
 
 def test_panels_apply_dependencies_through_one_path():
-	# The depends_on loop and the controller read live in pipelineControls; each panel passes in
+	# The depends_on loop and the controller read live in ui/controls.py; each panel passes in
 	# only its own lookups.
 	panels = {DIALOG: "SpeechPipelinePanel", VOICE_PANEL: "WorldVoiceVoiceSettingsPanel"}
 	for path, cls in panels.items():
@@ -88,7 +91,7 @@ def test_pipeline_controls_imports_only_wx_and_the_layout_rules():
 	tree = ast.parse(PIPELINE_CONTROLS.read_text(encoding="utf-8"))
 	for node in ast.walk(tree):
 		if isinstance(node, ast.ImportFrom) and node.level:
-			assert (node.level, node.module) == (1, "pipeline.panelLayout"), ast.unparse(node)
+			assert (node.level, node.module) == (1, "panelLayout"), ast.unparse(node)
 			continue
 		if isinstance(node, ast.Import):
 			modules = [alias.name for alias in node.names]
@@ -114,3 +117,31 @@ def test_settings_ui_asks_for_worldvoice_not_for_the_synth():
 			elif isinstance(node, (ast.Import, ast.ImportFrom)):
 				names |= {alias.name for alias in node.names} | {alias.asname for alias in node.names}
 		assert "getSynth" not in names, str(path.relative_to(ADDON))
+
+
+def test_panel_layout_imports_by_its_package_path_without_wx_or_nvda(monkeypatch):
+	# The global plugin imports synthDrivers.WorldVoice.ui.panelLayout, so Python runs
+	# ui/__init__.py first; the layout tests load the file on their own and would miss an import
+	# there. ui/__init__.py stays empty and the layout rules import nothing from the add-on, wx
+	# or NVDA, so the rules load without any of them.
+	for name in [name for name in sys.modules if name.split(".")[0] == "synthDrivers"]:
+		monkeypatch.delitem(sys.modules, name)
+	# None in sys.modules makes an import of that name fail.
+	for name in ("wx", "gui", "config", "speech", "synthDriverHandler", "logHandler", "addonHandler"):
+		monkeypatch.setitem(sys.modules, name, None)
+	alias_package(monkeypatch, "synthDrivers")
+	alias_package(monkeypatch, "synthDrivers.WorldVoice", WORLDVOICE)
+	try:
+		layout = importlib.import_module("synthDrivers.WorldVoice.ui.panelLayout")
+		loaded = sorted(name for name in sys.modules if name.split(".")[0] == "synthDrivers")
+	finally:
+		# The import registered these itself, so monkeypatch would leave them behind.
+		for name in ("synthDrivers.WorldVoice.ui.panelLayout", "synthDrivers.WorldVoice.ui"):
+			sys.modules.pop(name, None)
+	assert Path(layout.__file__) == WORLDVOICE / "ui/panelLayout.py"
+	assert loaded == [
+		"synthDrivers",
+		"synthDrivers.WorldVoice",
+		"synthDrivers.WorldVoice.ui",
+		"synthDrivers.WorldVoice.ui.panelLayout",
+	]

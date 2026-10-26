@@ -1,6 +1,6 @@
 """NVDA's voice panel under WorldVoice: every control in place, and the pause controls together.
 
-The real VoiceSettingsDialogs.py runs over ui_harness's stand-in for NVDA's VoiceSettingsPanel,
+The real ui/voicePanel.py runs over ui_harness's stand-in for NVDA's VoiceSettingsPanel,
 which makes and updates driver controls the way NVDA's AutoSettingsMixin does.
 """
 

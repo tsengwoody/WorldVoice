@@ -1,4 +1,4 @@
-"""The pure layout rules both settings panels follow (pipeline/panelLayout.py).
+"""The pure layout rules both settings panels follow (ui/panelLayout.py).
 
 The module imports nothing from the add-on, wx or NVDA, so it is loaded once on its own. The
 table tests use the real PIPELINE_SETTINGS; the property tests use synthetic tables.
@@ -11,7 +11,7 @@ from addon_loader import WORLDVOICE, load_source
 from hypothesis import given, strategies as st
 from pipeline_harness import load_settings_module
 
-layout = load_source(None, "panel_layout_under_test", WORLDVOICE / "pipeline/panelLayout.py", register=False)
+layout = load_source(None, "panel_layout_under_test", WORLDVOICE / "ui/panelLayout.py", register=False)
 
 Q1 = [
 	"scope",

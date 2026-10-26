@@ -4,22 +4,22 @@ from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverS
 from gui import guiHelper
 from gui.settingsDialogs import VoiceSettingsPanel
 
-from .pipeline.panelLayout import (
-	VOICE_PANEL,
-	controller_keys,
-	creation_followers,
-	driver_attribute,
-	panel_specs,
-	voice_attribute,
-)
-from .pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTINGS, pipeline_settings
-from .pipelineControls import (
+from ..pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTINGS, pipeline_settings
+from .controls import (
 	CHANGE_EVENTS,
 	apply_dependencies,
 	control_row,
 	control_value,
 	make_control,
 	read_control,
+)
+from .panelLayout import (
+	VOICE_PANEL,
+	controller_keys,
+	creation_followers,
+	driver_attribute,
+	panel_specs,
+	voice_attribute,
 )
 
 addonHandler.initTranslation()

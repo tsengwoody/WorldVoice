@@ -1,6 +1,6 @@
 """One builder makes, reads and locates every pipeline control both settings panels show.
 
-The real pipelineControls.py runs against ui_harness's fake wx, with specs from the real table.
+The real ui/controls.py runs against ui_harness's fake wx, with specs from the real table.
 """
 
 import sys
@@ -141,7 +141,7 @@ class Recorder:
 
 def helpers(monkeypatch):
 	env = load_pipeline_controls(monkeypatch)
-	env.layout = sys.modules["synthDrivers.WorldVoice.pipeline.panelLayout"]
+	env.layout = sys.modules["synthDrivers.WorldVoice.ui.panelLayout"]
 	env.spec = lambda key: next(spec for spec in env.settings.PIPELINE_SETTINGS if spec.key == key)
 	env.specs = env.layout.panel_specs(env.settings.PIPELINE_SETTINGS, env.layout.PIPELINE_PANEL)
 	env.recorders = {spec.key: Recorder() for spec in env.specs}

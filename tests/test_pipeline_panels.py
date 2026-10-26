@@ -8,7 +8,7 @@ from pipeline_harness import LOG_SWITCH_ORDER
 from ui_harness import load_settings_dialog, load_voice_settings_dialogs
 
 PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
-VOICE_PANEL = WORLDVOICE / "VoiceSettingsDialogs.py"
+VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
 SYNTH = WORLDVOICE / "__init__.py"
 
 

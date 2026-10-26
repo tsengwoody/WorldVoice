@@ -13,7 +13,7 @@ import pytest
 from addon_loader import WORLDVOICE, load_definitions, load_source
 from pipeline_harness import load_settings_module
 
-layout = load_source(None, "guard_panel_layout", WORLDVOICE / "pipeline/panelLayout.py", register=False)
+layout = load_source(None, "guard_panel_layout", WORLDVOICE / "ui/panelLayout.py", register=False)
 
 CONTROLS = {"checkbox", "slider", "choice", "spin", "text"}
 # The controls a setting of each kind may use; NVDA makes driver controls from the kind.

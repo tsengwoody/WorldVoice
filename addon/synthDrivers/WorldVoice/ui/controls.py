@@ -4,7 +4,7 @@ The NVDA Voice panel and the Speech Pipeline panel build the controls WorldVoice
 pipeline settings table through these functions, so a control kind is built the same way in
 both. Both panels also read their controller controls and apply the table's depends_on rules
 here, so a dependent control is enabled the same way in both. The layout rules themselves are in
-pipeline/panelLayout.py. No engine driver imports this.
+ui/panelLayout.py. No engine driver imports this.
 """
 
 from collections.abc import Callable, Sequence
@@ -13,7 +13,7 @@ from typing import Any
 import wx
 from gui import nvdaControls
 
-from .pipeline.panelLayout import (
+from .panelLayout import (
 	ABSENT,
 	choice_index,
 	choice_values,

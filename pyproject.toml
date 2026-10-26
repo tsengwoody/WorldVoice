@@ -52,8 +52,8 @@ source_paths = [
 	"addon/synthDrivers/WorldVoice/pipeline/numbers.py",
 	"addon/synthDrivers/WorldVoice/pipeline/symbols.py",
 	"addon/synthDrivers/WorldVoice/pipeline/settings.py",
-	"addon/synthDrivers/WorldVoice/pipeline/panelLayout.py",
-	"addon/synthDrivers/WorldVoice/pipelineControls.py",
+	"addon/synthDrivers/WorldVoice/ui/panelLayout.py",
+	"addon/synthDrivers/WorldVoice/ui/controls.py",
 	"addon/synthDrivers/WorldVoice/languageDetection/__init__.py",
 ]
 mutate_only_covered_lines = true

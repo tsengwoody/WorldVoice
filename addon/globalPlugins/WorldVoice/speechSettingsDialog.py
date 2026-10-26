@@ -15,19 +15,19 @@ from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
 from synthDrivers.WorldVoice.pipeline import LOG_SWITCHES
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
-from synthDrivers.WorldVoice.pipeline.panelLayout import (
-	PIPELINE_PANEL,
-	controller_keys,
-	panel_specs,
-	pipeline_attribute,
-)
 from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTINGS, pipeline_settings, read_stored
-from synthDrivers.WorldVoice.pipelineControls import (
+from synthDrivers.WorldVoice.ui.controls import (
 	CHANGE_EVENTS,
 	apply_dependencies,
 	control_value,
 	make_control,
 	read_control,
+)
+from synthDrivers.WorldVoice.ui.panelLayout import (
+	PIPELINE_PANEL,
+	controller_keys,
+	panel_specs,
+	pipeline_attribute,
 )
 
 from .pipelineLog import ask_export, confirm_enable, pipeline_log

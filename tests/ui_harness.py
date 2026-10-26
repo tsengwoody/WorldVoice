@@ -681,6 +681,7 @@ def _pipeline_ui(monkeypatch, stubs, conf):
 	alias_package(monkeypatch, "synthDrivers")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice.pipeline")
+	alias_package(monkeypatch, "synthDrivers.WorldVoice.ui")
 	load_source(monkeypatch, "synthDrivers.WorldVoice.numberLanguage", WORLDVOICE / "numberLanguage.py")
 	settings = load_source(
 		monkeypatch,
@@ -689,19 +690,19 @@ def _pipeline_ui(monkeypatch, stubs, conf):
 	)
 	load_source(
 		monkeypatch,
-		"synthDrivers.WorldVoice.pipeline.panelLayout",
-		WORLDVOICE / "pipeline/panelLayout.py",
+		"synthDrivers.WorldVoice.ui.panelLayout",
+		WORLDVOICE / "ui/panelLayout.py",
 	)
 	controls = load_source(
 		monkeypatch,
-		"synthDrivers.WorldVoice.pipelineControls",
-		WORLDVOICE / "pipelineControls.py",
+		"synthDrivers.WorldVoice.ui.controls",
+		WORLDVOICE / "ui/controls.py",
 	)
 	return settings, controls
 
 
 def load_pipeline_controls(monkeypatch, *, conf=None):
-	"""The real pipelineControls.py and the pipeline settings it builds controls for."""
+	"""The real ui/controls.py and the pipeline settings it builds controls for."""
 	env = gui_stubs(monkeypatch)
 	env.conf = conf if conf is not None else worldvoice_conf()
 	env.settings, env.controls = _pipeline_ui(monkeypatch, env.stubs, env.conf)
@@ -812,7 +813,7 @@ def make_panel(cls):
 
 
 def load_voice_settings_dialogs(monkeypatch, *, conf=None):
-	"""The real synthDrivers/WorldVoice/VoiceSettingsDialogs.py with real pipeline settings."""
+	"""The real synthDrivers/WorldVoice/ui/voicePanel.py with real pipeline settings."""
 	env = gui_stubs(monkeypatch)
 	env.conf = conf if conf is not None else worldvoice_conf()
 	env.settings, env.controls = _pipeline_ui(monkeypatch, env.stubs, env.conf)
@@ -826,8 +827,8 @@ def load_voice_settings_dialogs(monkeypatch, *, conf=None):
 	)
 	env.module = load_source(
 		monkeypatch,
-		"synthDrivers.WorldVoice.VoiceSettingsDialogs",
-		WORLDVOICE / "VoiceSettingsDialogs.py",
+		"synthDrivers.WorldVoice.ui.voicePanel",
+		WORLDVOICE / "ui/voicePanel.py",
 	)
 	return env
 
