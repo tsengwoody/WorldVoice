@@ -5,7 +5,7 @@ import types
 
 from addon_loader import ADDON, WORLDVOICE, load_definitions
 from pipeline_harness import LOG_SWITCH_ORDER
-from ui_harness import load_settings_dialog, load_voice_settings_dialogs
+from ui_harness import load_settings_dialog, load_voice_panel
 
 PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
@@ -145,7 +145,7 @@ def test_voice_panel_discard_restores_live_pipeline_changes():
 
 def voice_panel(monkeypatch, pipeline_settings, driver_name="WorldVoice"):
 	"""The real Voice panel over ui_harness's NVDA panel, without makeSettings."""
-	module = load_voice_settings_dialogs(monkeypatch).module
+	module = load_voice_panel(monkeypatch).module
 	module.pipeline_settings = pipeline_settings
 	panel = object.__new__(module.WorldVoiceVoiceSettingsPanel)
 	panel._driver = types.SimpleNamespace(name=driver_name)

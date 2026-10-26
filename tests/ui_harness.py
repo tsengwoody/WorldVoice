@@ -701,7 +701,7 @@ def _pipeline_ui(monkeypatch, stubs, conf):
 	return settings, controls
 
 
-def load_pipeline_controls(monkeypatch, *, conf=None):
+def load_ui_controls(monkeypatch, *, conf=None):
 	"""The real ui/controls.py and the pipeline settings it builds controls for."""
 	env = gui_stubs(monkeypatch)
 	env.conf = conf if conf is not None else worldvoice_conf()
@@ -812,7 +812,7 @@ def make_panel(cls):
 	return panel
 
 
-def load_voice_settings_dialogs(monkeypatch, *, conf=None):
+def load_voice_panel(monkeypatch, *, conf=None):
 	"""The real synthDrivers/WorldVoice/ui/voicePanel.py with real pipeline settings."""
 	env = gui_stubs(monkeypatch)
 	env.conf = conf if conf is not None else worldvoice_conf()

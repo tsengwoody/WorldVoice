@@ -11,7 +11,7 @@ from ui_harness import (
 	NumericDriverSetting,
 	Sizer,
 	load_settings_dialog,
-	load_voice_settings_dialogs,
+	load_voice_panel,
 	make_panel,
 )
 
@@ -113,7 +113,7 @@ class TableDriver:
 
 
 def voice_panel(monkeypatch):
-	env = load_voice_settings_dialogs(monkeypatch)
+	env = load_voice_panel(monkeypatch)
 	panel = env.module.WorldVoiceVoiceSettingsPanel(TableDriver(env.module.PIPELINE_SETTINGS))
 	panel.makeSettings(panel.settingsSizer)
 	specs = env.module.panel_specs(env.module.PIPELINE_SETTINGS, "voice")
@@ -227,7 +227,7 @@ class OtherDriver:
 
 def build_then(monkeypatch, scenario):
 	"""A WorldVoice Voice panel after the scenario; returns (env, panel, specs, windows before it)."""
-	env = load_voice_settings_dialogs(monkeypatch)
+	env = load_voice_panel(monkeypatch)
 	table_driver = TableDriver(env.module.PIPELINE_SETTINGS)
 	first = OtherDriver() if scenario == "other synth rebuild" else table_driver
 	panel = env.module.WorldVoiceVoiceSettingsPanel(first)

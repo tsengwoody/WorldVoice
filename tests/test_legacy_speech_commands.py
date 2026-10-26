@@ -23,12 +23,12 @@ def legacy(monkeypatch, rt, nvda_commands):
 		monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
 	driver = importlib.import_module(name + ".driver")
 	commands = importlib.import_module(name + ".bridge.commands")
-	speechcommand = importlib.import_module(name + ".speechCommands")
+	speech_commands = importlib.import_module(name + ".speechCommands")
 	return SimpleNamespace(
 		Voice=driver.Voice,
 		BreakCommand=nvda_commands.BreakCommand,
 		commands=commands,
-		speechcommand=speechcommand,
+		speech_commands=speech_commands,
 	)
 
 
@@ -63,7 +63,7 @@ def test_normalizer_is_lazy_and_preserves_unrecognized_objects(legacy, rt):
 
 
 def test_normalizer_rejects_external_marker(legacy):
-	marker = legacy.speechcommand.WorldVoiceIndexCommand(502)
+	marker = legacy.speech_commands.WorldVoiceIndexCommand(502)
 	normalized = legacy.commands.normalize_legacy_commands(["before", marker, "after"])
 	assert next(normalized) == "before"
 	with pytest.raises(ValueError):
@@ -97,4 +97,4 @@ def test_full_sequence_normalizes_without_inserting_internal_markers(legacy, rt,
 	]
 	assert result[4] is index
 	assert index.index == 123
-	assert not any(isinstance(command, legacy.speechcommand.WorldVoiceIndexCommand) for command in result)
+	assert not any(isinstance(command, legacy.speech_commands.WorldVoiceIndexCommand) for command in result)

@@ -12,7 +12,7 @@ from mutation_support import running_under_mutmut
 
 DIALOG = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
-PIPELINE_CONTROLS = WORLDVOICE / "ui/controls.py"
+UI_CONTROLS = WORLDVOICE / "ui/controls.py"
 
 
 def class_source(path, name):
@@ -85,10 +85,10 @@ def test_panels_apply_dependencies_through_one_path():
 # mutmut's rewritten copy imports its own trampoline into every mutated module; the guard judges
 # the source, as the hygiene guards do, so it stands aside on that copy.
 @pytest.mark.skipif(running_under_mutmut(), reason="mutmut's copy imports mutmut")
-def test_pipeline_controls_imports_only_wx_and_the_layout_rules():
+def test_ui_controls_imports_only_wx_and_the_layout_rules():
 	# The main driver imports the Voice panel, which imports this module: reaching back into the
 	# driver package, the panels or globalPlugins would close a cycle.
-	tree = ast.parse(PIPELINE_CONTROLS.read_text(encoding="utf-8"))
+	tree = ast.parse(UI_CONTROLS.read_text(encoding="utf-8"))
 	for node in ast.walk(tree):
 		if isinstance(node, ast.ImportFrom) and node.level:
 			assert (node.level, node.module) == (1, "panelLayout"), ast.unparse(node)

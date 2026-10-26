@@ -190,7 +190,7 @@ class FakePlayback(FakeAdapter):
 			self.on_cancel()
 
 
-def load_config_repository(monkeypatch, rt):
+def load_settings_repository(monkeypatch, rt):
 	# Supply only the package namespace: never execute the NVDA entry point.
 	package_name = "worldvoice_repository_test"
 	alias_package(monkeypatch, package_name, RUNTIME.parent)

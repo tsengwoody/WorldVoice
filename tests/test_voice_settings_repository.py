@@ -2,7 +2,7 @@ import builtins
 
 import pytest
 from nvda_stubs import worldvoice_conf
-from runtime_harness import load_config_repository, make_spec
+from runtime_harness import load_settings_repository, make_spec
 
 DEFAULTS = {
 	"rate": 50,
@@ -24,7 +24,7 @@ def conf():
 
 @pytest.fixture
 def repository(monkeypatch, rt, conf):
-	module = load_config_repository(monkeypatch, rt)
+	module = load_settings_repository(monkeypatch, rt)
 	return module.ConfigVoiceSettingsRepository(conf)
 
 
@@ -75,7 +75,7 @@ def test_repository_load_and_save_need_no_nvda_or_engine_imports(monkeypatch, rt
 		return original_import(name, *args, **kwargs)
 
 	monkeypatch.setattr(builtins, "__import__", guarded_import)
-	repository = load_config_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf)
+	repository = load_settings_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf)
 	values = repository.load(make_spec())
 	repository.save(make_spec(), values)
 	assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS

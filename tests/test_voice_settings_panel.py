@@ -17,7 +17,7 @@ from ui_harness import (
 	Spacer,
 	StaticText,
 	fire,
-	load_voice_settings_dialogs,
+	load_voice_panel,
 	pipeline_snapshot,
 )
 
@@ -84,7 +84,7 @@ ALL = {
 
 
 def open_panel(monkeypatch, driver, **pipeline):
-	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf(pipeline=pipeline))
+	env = load_voice_panel(monkeypatch, conf=worldvoice_conf(pipeline=pipeline))
 	panel = env.module.WorldVoiceVoiceSettingsPanel(driver)
 	panel.makeSettings(panel.settingsSizer)
 	env.panel = panel
@@ -384,7 +384,7 @@ def table_with(env, *entries):
 
 def test_a_control_after_a_checkbox_row_lands_after_the_checkbox(monkeypatch):
 	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
-	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
+	env = load_voice_panel(monkeypatch, conf=worldvoice_conf())
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
 		("punctuation_pause_enabled", {}),
@@ -407,7 +407,7 @@ def test_a_control_after_a_checkbox_row_lands_after_the_checkbox(monkeypatch):
 
 def test_adjacent_non_driver_controls_keep_table_order(monkeypatch):
 	settings = (DriverSetting("voice"), DriverSetting("nummod"))
-	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
+	env = load_voice_panel(monkeypatch, conf=worldvoice_conf())
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
 		("number_mode", {}),
@@ -541,7 +541,7 @@ def test_saving_skips_a_non_driver_choice_with_no_selection(monkeypatch):
 	# No such control today: a non-driver choice with no selection names no value, so the stored
 	# one is kept and the other controls are still saved.
 	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
-	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf(pipeline={"number_mode": "group"}))
+	env = load_voice_panel(monkeypatch, conf=worldvoice_conf(pipeline={"number_mode": "group"}))
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
 		("punctuation_pause_enabled", {}),
@@ -577,7 +577,7 @@ def test_cancel_after_the_synth_changed_restores_no_pipeline_setting(monkeypatch
 
 def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
 	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
-	env = load_voice_settings_dialogs(
+	env = load_voice_panel(
 		monkeypatch,
 		conf=worldvoice_conf(pipeline={"remove_punctuation_characters": False}),
 	)
@@ -602,7 +602,7 @@ def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
 
 
 def test_the_named_rule_and_placement_helpers_are_gone(monkeypatch):
-	panel_class = load_voice_settings_dialogs(monkeypatch).module.WorldVoiceVoiceSettingsPanel
+	panel_class = load_voice_panel(monkeypatch).module.WorldVoiceVoiceSettingsPanel
 	for name in (
 		"_bindNumberModeChoice",
 		"_onNumberModeChoice",
@@ -636,7 +636,7 @@ def test_saving_keeps_every_typed_character(monkeypatch, characters):
 
 
 def test_a_follower_of_a_failed_driver_control_follows_the_row_before(monkeypatch):
-	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
+	env = load_voice_panel(monkeypatch, conf=worldvoice_conf())
 
 	class Panel(env.module.WorldVoiceVoiceSettingsPanel):
 		def _createNewControl(self, setting, settingsStorage):
@@ -666,7 +666,7 @@ def test_a_follower_of_a_failed_driver_control_follows_the_row_before(monkeypatc
 
 def test_a_first_entry_without_a_driver_setting_comes_after_the_driver_rows(monkeypatch):
 	settings = (DriverSetting("voice"), DriverSetting("nummod"))
-	env = load_voice_settings_dialogs(monkeypatch, conf=worldvoice_conf())
+	env = load_voice_panel(monkeypatch, conf=worldvoice_conf())
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
 		("group_size", {"depends_on": None}),

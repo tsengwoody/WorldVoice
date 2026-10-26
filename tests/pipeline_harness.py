@@ -187,12 +187,12 @@ def load_pipeline_module(monkeypatch, settings):
 	alias_package(monkeypatch, "synthDrivers")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice", WORLDVOICE)
 
-	speechcommand = stubs.module("synthDrivers.WorldVoice.speechCommands")
+	speech_commands = stubs.module("synthDrivers.WorldVoice.speechCommands")
 
 	class WVLangChangeCommand(LangChangeCommand):
 		pass
 
-	speechcommand.WVLangChangeCommand = WVLangChangeCommand
+	speech_commands.WVLangChangeCommand = WVLangChangeCommand
 
 	recorder = stubs.module("synthDrivers.WorldVoice.pipeline.recorder")
 

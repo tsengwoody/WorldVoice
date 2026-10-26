@@ -16,13 +16,13 @@ from ui_harness import (
 	Sizer,
 	Slider,
 	TextCtrl,
-	load_pipeline_controls,
+	load_ui_controls,
 	make_panel,
 )
 
 
 def build(monkeypatch, key, value, **changes):
-	env = load_pipeline_controls(monkeypatch)
+	env = load_ui_controls(monkeypatch)
 	spec = replace(env.settings.PIPELINE_SETTING_BY_KEY[key], **changes)
 	sizer = Sizer()
 	env.parent = parent = make_panel(SettingsPanel)
@@ -120,7 +120,7 @@ def test_control_row_is_the_checkbox_or_its_sizer(monkeypatch, key, stored):
 
 
 def test_change_events_cover_the_controller_kinds(monkeypatch):
-	env = load_pipeline_controls(monkeypatch)
+	env = load_ui_controls(monkeypatch)
 	assert env.controls.CHANGE_EVENTS == {"checkbox": "EVT_CHECKBOX", "choice": "EVT_CHOICE"}
 
 
@@ -140,7 +140,7 @@ class Recorder:
 
 
 def helpers(monkeypatch):
-	env = load_pipeline_controls(monkeypatch)
+	env = load_ui_controls(monkeypatch)
 	env.layout = sys.modules["synthDrivers.WorldVoice.ui.panelLayout"]
 	env.spec = lambda key: next(spec for spec in env.settings.PIPELINE_SETTINGS if spec.key == key)
 	env.specs = env.layout.panel_specs(env.settings.PIPELINE_SETTINGS, env.layout.PIPELINE_PANEL)
