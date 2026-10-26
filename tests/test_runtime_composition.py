@@ -595,20 +595,19 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 	# boundaries below are imported from their actual files by __init__.py.
 	stub(package + ".languageDetection", __path__=[])
 	stub(package + ".languageDetection.settings", DETECTION_CONFSPEC={}, detection_settings=SimpleNamespace())
+	stub(package + ".pipeline", __path__=[])
 	stub(
-		package + ".pipeline",
-		LOG_SWITCHES=(),
+		package + ".pipeline.languageCommands",
 		**{
 			name: lambda *args: None
-			for name in (
-				"inject_langchange_reorder",
-				"deduplicate_language_command",
-				"detect_with_number_language",
-				"lang_cmd_to_voice",
-				"order_move_to_start_register",
-				"listable",
-			)
+			for name in ("inject_langchange_reorder", "deduplicate_language_command", "lang_cmd_to_voice")
 		},
+	)
+	stub(package + ".pipeline.numberStages", detect_with_number_language=lambda *args: None)
+	stub(
+		package + ".pipeline.registry",
+		LOG_SWITCHES=(),
+		**{name: lambda *args: None for name in ("order_move_to_start_register", "listable")},
 	)
 	stub(
 		package + ".pipeline.settings",

@@ -7,7 +7,7 @@ import config
 import gui
 import wx
 from logHandler import log
-from synthDrivers.WorldVoice.pipeline import pl
+from synthDrivers.WorldVoice.pipeline.registry import pl
 from synthDrivers.WorldVoice.pipeline.settings import read_stored
 
 addonHandler.initTranslation()

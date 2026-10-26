@@ -51,7 +51,7 @@ def test_nvda_ssml_keeps_every_word_and_pause_of_the_scope_all_output(monkeypatc
 	if not SPEECH_XML.is_file():
 		pytest.skip("ref/nvda is not checked out")
 	module, _ = load_pipeline_module(monkeypatch, pause_settings(number_mode))
-	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
 	sequence = [TEXT]
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)
@@ -73,7 +73,7 @@ def test_nvda_ssml_speaks_a_symbol_name_as_words_between_breaks(monkeypatch):
 	if not SPEECH_XML.is_file():
 		pytest.skip("ref/nvda is not checked out")
 	module, _ = load_pipeline_module(monkeypatch, pause_settings("group"))
-	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
 	sequence = ["12.5"]
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)
@@ -121,7 +121,7 @@ def test_nvda_ssml_keeps_every_word_of_a_number_between_edges(monkeypatch):
 	if not SPEECH_XML.is_file():
 		pytest.skip("ref/nvda is not checked out")
 	module, _ = load_pipeline_module(monkeypatch, pause_settings("number"))
-	monkeypatch.setattr(module, "current_context", lambda: module.GENERIC_CONTEXT)
+	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
 	sequence = ["第3章"]
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)

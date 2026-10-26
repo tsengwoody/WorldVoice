@@ -31,7 +31,8 @@ def load_service(monkeypatch, answers=None, read_stored=None):
 		"addonHandler": types.SimpleNamespace(initTranslation=lambda: None),
 		"synthDrivers": types.SimpleNamespace(__path__=[]),
 		"synthDrivers.WorldVoice": types.SimpleNamespace(__path__=[]),
-		"synthDrivers.WorldVoice.pipeline": types.SimpleNamespace(
+		"synthDrivers.WorldVoice.pipeline": types.SimpleNamespace(__path__=[]),
+		"synthDrivers.WorldVoice.pipeline.registry": types.SimpleNamespace(
 			pl=types.SimpleNamespace(move_to=lambda dst: asked.append(("moved", dst))),
 		),
 		"synthDrivers.WorldVoice.pipeline.settings": types.SimpleNamespace(

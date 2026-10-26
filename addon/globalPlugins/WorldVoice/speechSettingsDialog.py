@@ -13,8 +13,8 @@ from logHandler import log
 from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.engine import ENGINE_SPECS, get_engine_enabled
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
-from synthDrivers.WorldVoice.pipeline import LOG_SWITCHES
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
+from synthDrivers.WorldVoice.pipeline.registry import LOG_SWITCHES
 from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTINGS, pipeline_settings, read_stored
 from synthDrivers.WorldVoice.ui.controls import (
 	CHANGE_EVENTS,

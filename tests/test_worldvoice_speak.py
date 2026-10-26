@@ -145,7 +145,9 @@ def _load_modules(monkeypatch, conf):
 		return importlib.import_module(f"{PACKAGE}.{name}")
 
 	return SimpleNamespace(
-		pipeline=load("pipeline"),
+		pipeline=load("pipeline.registry"),
+		language_commands=load("pipeline.languageCommands"),
+		number_stages=load("pipeline.numberStages"),
 		settings=load("pipeline.settings"),
 		number_language=load("numberLanguage"),
 		context=load("pipeline.context"),
@@ -178,10 +180,10 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 		"VolumeCommand": SynthCommand,
 		"synthIndexReached": object(),
 		"synthDoneSpeaking": object(),
-		"inject_langchange_reorder": pipeline.inject_langchange_reorder,
-		"deduplicate_language_command": pipeline.deduplicate_language_command,
-		"lang_cmd_to_voice": pipeline.lang_cmd_to_voice,
-		"detect_with_number_language": pipeline.detect_with_number_language,
+		"inject_langchange_reorder": modules.language_commands.inject_langchange_reorder,
+		"deduplicate_language_command": modules.language_commands.deduplicate_language_command,
+		"lang_cmd_to_voice": modules.language_commands.lang_cmd_to_voice,
+		"detect_with_number_language": modules.number_stages.detect_with_number_language,
 		"queue_speech_sequence": modules.builder.queue_speech_sequence,
 		"normalize_legacy_commands": modules.commands.normalize_legacy_commands,
 		"detection_settings": detection_settings,

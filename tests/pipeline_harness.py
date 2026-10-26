@@ -2,6 +2,7 @@
 
 import ast
 import builtins
+import importlib
 import sys
 import types
 import unicodedata
@@ -42,6 +43,51 @@ def nvda_normalize_language():
 	return namespace["normalizeLanguage"]
 
 
+# The pipeline's modules, in the order PipelineModules looks a name up in.
+PIPELINE_MODULES = (
+	"registry",
+	"sequence",
+	"breaks",
+	"items",
+	"numberStages",
+	"punctuation",
+	"unspaced",
+	"languageCommands",
+	"context",
+	"settings",
+	"numbers",
+	"symbols",
+	"speech_dictionary",
+	"unspaced_common_data",
+)
+
+
+class PipelineModules:
+	"""The pipeline's modules read as one namespace by the tests; pipeline/__init__.py is empty.
+
+	module.<name of a module in PIPELINE_MODULES> is that module; any other name comes from the
+	first module there that defines or imports it. A patch goes to the module that looks the name
+	up, as module.registry for the stage handler's current_context, pipeline_settings, pl, log and
+	filter_speechSequence: setting an attribute here raises, so a patch can never silently miss.
+	"""
+
+	def __init__(self, test_settings):
+		modules = {name: sys.modules[f"synthDrivers.WorldVoice.pipeline.{name}"] for name in PIPELINE_MODULES}
+		object.__setattr__(self, "_modules", modules)
+		object.__setattr__(self, "_test_settings", test_settings)
+
+	def __getattr__(self, name):
+		if name in self._modules:
+			return self._modules[name]
+		for module in self._modules.values():
+			if name in vars(module):
+				return vars(module)[name]
+		raise AttributeError(name)
+
+	def __setattr__(self, name, value):
+		raise AttributeError(f"patch {name} on the pipeline module that looks it up, as module.registry")
+
+
 def load_pipeline_module(monkeypatch, settings):
 	stubs = StubModules(monkeypatch)
 	for name in [
@@ -62,6 +108,14 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice.languageDetection",
 		"synthDrivers.WorldVoice.languageDetection.scripts",
 		"synthDrivers.WorldVoice.pipeline",
+		"synthDrivers.WorldVoice.pipeline.registry",
+		"synthDrivers.WorldVoice.pipeline.sequence",
+		"synthDrivers.WorldVoice.pipeline.breaks",
+		"synthDrivers.WorldVoice.pipeline.items",
+		"synthDrivers.WorldVoice.pipeline.numberStages",
+		"synthDrivers.WorldVoice.pipeline.punctuation",
+		"synthDrivers.WorldVoice.pipeline.unspaced",
+		"synthDrivers.WorldVoice.pipeline.languageCommands",
 		"synthDrivers.WorldVoice.pipeline.recorder",
 		"synthDrivers.WorldVoice.pipeline.speech_dictionary",
 		"synthDrivers.WorldVoice.pipeline.settings",
@@ -155,9 +209,10 @@ def load_pipeline_module(monkeypatch, settings):
 	settingsModule.pipeline_settings = SimpleNamespace(effective=lambda supports_roles: settings)
 	settingsModule.read_stored = lambda section, key, default: section.get(key, default)
 
-	module = load_source(monkeypatch, "synthDrivers.WorldVoice.pipeline", WORLDVOICE / "pipeline/__init__.py")
-	module._test_settings = settings
-	return module, BreakCommand
+	load_source(monkeypatch, "synthDrivers.WorldVoice.pipeline", WORLDVOICE / "pipeline/__init__.py")
+	# The stage table imports every stage module.
+	importlib.import_module("synthDrivers.WorldVoice.pipeline.registry")
+	return PipelineModules(settings), BreakCommand
 
 
 def punctuation_settings(wait_factor, remove_characters=False):

@@ -778,7 +778,7 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 		ENGINE_SPECS=env.engine_specs,
 		get_engine_enabled=get_engine_enabled,
 	)
-	stubs.module("synthDrivers.WorldVoice.pipeline").LOG_SWITCHES = tuple(LOG_SWITCH_ORDER)
+	stubs.module("synthDrivers.WorldVoice.pipeline.registry").LOG_SWITCHES = tuple(LOG_SWITCH_ORDER)
 	load_source(monkeypatch, "synthDrivers.WorldVoice.pipeline.context", WORLDVOICE / "pipeline/context.py")
 	env.log_calls = []
 	env.pipeline_log = PipelineLog(calls=env.log_calls)

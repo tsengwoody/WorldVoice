@@ -62,7 +62,7 @@ UTTERANCE_ENDS = {"EndUtteranceCommand": "EU", "ConfigProfileTriggerCommand": "C
 
 
 def shape(sequence):
-	module = sys.modules["synthDrivers.WorldVoice.pipeline"]
+	module = sys.modules["synthDrivers.WorldVoice.pipeline.breaks"]
 	BreakCommand = sys.modules["speech.commands"].BreakCommand
 	result = []
 	for item in sequence:
@@ -479,7 +479,7 @@ def run_handlers(monkeypatch, sequence, options, ctx_of):
 	settings = make_settings(**options)
 	module, _ = load_pipeline_module(monkeypatch, settings)
 	ctx = ctx_of(module)
-	monkeypatch.setattr(module, "current_context", lambda: ctx)
+	monkeypatch.setattr(module.registry, "current_context", lambda: ctx)
 	sequence = list(sequence(module)) if callable(sequence) else list(sequence)
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)

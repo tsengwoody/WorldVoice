@@ -1,11 +1,12 @@
 """Pipeline modules take their dependencies as arguments and share one copy of each loop."""
 
 import ast
+import importlib
 import sys
 from pathlib import Path
 
 import pytest
-from addon_loader import load_source
+from addon_loader import alias_package, load_source
 from mutation_support import running_under_mutmut
 
 WORLDVOICE = Path(__file__).resolve().parents[1] / "addon" / "synthDrivers" / "WorldVoice"
@@ -99,8 +100,22 @@ def top_level_names(path):
 	return names
 
 
-def test_pipeline_package_keeps_only_stages_logging_and_registry():
-	package = WORLDVOICE / "pipeline" / "__init__.py"
+# The modules pipeline/__init__.py was split into (phase 38): the stages, logging and registry.
+STAGE_MODULES = [
+	"registry",
+	"sequence",
+	"breaks",
+	"items",
+	"numberStages",
+	"punctuation",
+	"unspaced",
+	"languageCommands",
+]
+
+
+@pytest.mark.parametrize("module", STAGE_MODULES)
+def test_pipeline_package_keeps_only_stages_logging_and_registry(module):
+	package = WORLDVOICE / "pipeline" / f"{module}.py"
 	assert top_level_names(package) & {*MOVED, *(f"_{name}" for name in MOVED)} == set()
 	# Symbol lookup and file probing stay in symbols.py. The stages need only speech's commands and
 	# its filter extension point; any other part of speech, or os by any submodule, is a lookup or a
@@ -121,6 +136,49 @@ def test_pipeline_package_keeps_only_stages_logging_and_registry():
 	assert [
 		ast.unparse(node) for node in ast.walk(symbols) if isinstance(node, ast.ImportFrom) and node.level
 	] == []
+
+
+def test_number_lexing_imports_by_its_package_path_without_nvda(monkeypatch):
+	# The number rules claim to need only the standard library, and the tests load the file on its
+	# own; an import by the package path runs pipeline/__init__.py first, which must stay empty for
+	# that claim to hold there too (refactor8 A2).
+	for name in [name for name in sys.modules if name.split(".")[0] == "synthDrivers"]:
+		monkeypatch.delitem(sys.modules, name)
+	# None in sys.modules makes an import of that name fail, even when another test left a stub
+	# under that name: every NVDA module forbid_legacy_runtime_imports rejects, and the two the
+	# stages import besides.
+	for name in (
+		"config",
+		"speech",
+		"synthDriverHandler",
+		"logHandler",
+		"languageHandler",
+		"globalVars",
+		"addonHandler",
+		"gui",
+		"nvwave",
+		"winKernel",
+		"api",
+		"speechDictHandler",
+		"characterProcessing",
+	):
+		monkeypatch.setitem(sys.modules, name, None)
+	alias_package(monkeypatch, "synthDrivers")
+	alias_package(monkeypatch, "synthDrivers.WorldVoice", WORLDVOICE)
+	try:
+		numbers = importlib.import_module("synthDrivers.WorldVoice.pipeline.numbers")
+		loaded = sorted(name for name in sys.modules if name.split(".")[0] == "synthDrivers")
+	finally:
+		# The import registered these itself, so monkeypatch would leave them behind.
+		for name in ("synthDrivers.WorldVoice.pipeline.numbers", "synthDrivers.WorldVoice.pipeline"):
+			sys.modules.pop(name, None)
+	assert Path(numbers.__file__) == WORLDVOICE / "pipeline/numbers.py"
+	assert loaded == [
+		"synthDrivers",
+		"synthDrivers.WorldVoice",
+		"synthDrivers.WorldVoice.pipeline",
+		"synthDrivers.WorldVoice.pipeline.numbers",
+	]
 
 
 def test_speech_context_holds_only_plain_values():

@@ -34,16 +34,14 @@ from .bridge.nvdaEvents import NvdaEventBridge
 from .engine import ready_engine_classes
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
 from .numberLanguage import FOLLOW, MAIN
-from .pipeline import (
-	LOG_SWITCHES,
+from .pipeline.context import GENERIC_CONTEXT, SpeechContext
+from .pipeline.languageCommands import (
 	deduplicate_language_command,
-	detect_with_number_language,
 	inject_langchange_reorder,
 	lang_cmd_to_voice,
-	listable,
-	order_move_to_start_register,
 )
-from .pipeline.context import GENERIC_CONTEXT, SpeechContext
+from .pipeline.numberStages import detect_with_number_language
+from .pipeline.registry import LOG_SWITCHES, listable, order_move_to_start_register
 from .pipeline.scope import pipeline_scope
 from .pipeline.settings import (
 	NUMBER_LANGUAGE_CHOICES,

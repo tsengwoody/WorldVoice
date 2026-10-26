@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from . import register_stages, unregister_stages
+from .registry import register_stages, unregister_stages
 from .settings import PipelineSettings, PipelineSettingsService, pipeline_settings
 
 

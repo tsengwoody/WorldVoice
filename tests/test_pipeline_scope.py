@@ -7,9 +7,11 @@ from addon_loader import WORLDVOICE, alias_package, load_source
 
 
 def load_scope_module(monkeypatch):
-	package = alias_package(monkeypatch, "scope_pkg")
-	package.register_stages = lambda: None
-	package.unregister_stages = lambda: None
+	alias_package(monkeypatch, "scope_pkg")
+	registry = ModuleType("scope_pkg.registry")
+	registry.register_stages = lambda: None
+	registry.unregister_stages = lambda: None
+	monkeypatch.setitem(sys.modules, "scope_pkg.registry", registry)
 	settings = ModuleType("scope_pkg.settings")
 	settings.pipeline_settings = SimpleNamespace(subscribe=lambda listener: None)
 	settings.PipelineSettings = object

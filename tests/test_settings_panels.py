@@ -617,7 +617,7 @@ def real_log_env(monkeypatch, refused=(), **stored):
 	error = sys.modules["configobj.validate"].VdtTypeError
 	section = RefusingSection(env.conf["WorldVoice"]["log"], {key: error(stored[key]) for key in refused})
 	env.conf["WorldVoice"]["log"] = section
-	monkeypatch.setattr(sys.modules["synthDrivers.WorldVoice.pipeline"], "pl", None, raising=False)
+	monkeypatch.setattr(sys.modules["synthDrivers.WorldVoice.pipeline.registry"], "pl", None, raising=False)
 	service_module = load_source(
 		monkeypatch,
 		"worldvoice_ui_test.pipelineLogService",

@@ -636,7 +636,7 @@ def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch, ro
 	env.settings.punctuation_pause_characters = "."
 	env.settings.remove_punctuation_characters = remove
 	context = roles_context(env.module, "zh_TW", "default") if roles else env.module.GENERIC_CONTEXT
-	monkeypatch.setattr(env.module, "current_context", lambda: context)
+	monkeypatch.setattr(env.module.registry, "current_context", lambda: context)
 	sequence = ["12.5"]
 	for stage in env.module.STAGES:
 		sequence = stage.handler(sequence)
@@ -858,7 +858,7 @@ def test_run_logged_records_only_when_switched_on(env, monkeypatch, level, enabl
 	conf["WorldVoice"]["log"] = {"enable": enable, "number_mode": label_on}
 	written = []
 	monkeypatch.setattr(
-		env.module,
+		env.module.registry,
 		"pl",
 		SimpleNamespace(write=lambda _id, label, timing, seq: written.append(timing)),
 	)
@@ -877,7 +877,7 @@ def test_run_logged_records_only_when_switched_on(env, monkeypatch, level, enabl
 def test_an_invalid_log_switch_reads_off(env, monkeypatch):
 	# NVDA refuses a stored "maybe" for a boolean on every read; the stage still runs, unlogged.
 	settings_module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	monkeypatch.setattr(env.module, "read_stored", settings_module.read_stored)
+	monkeypatch.setattr(env.module.registry, "read_stored", settings_module.read_stored)
 	error = sys.modules["configobj.validate"].VdtTypeError("maybe")
 	# The settings loader registered a config of its own; the pipeline keeps the one it imported.
 	conf = env.module.config.conf
