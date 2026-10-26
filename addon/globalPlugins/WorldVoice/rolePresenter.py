@@ -2,8 +2,8 @@
 
 from collections.abc import Callable, MutableMapping
 
-from synthDrivers.WorldVoice.roles import prune_assignments
 from synthDrivers.WorldVoice.runtime.settings import PARAMETER_NAMES
+from synthDrivers.WorldVoice.voices.roles import prune_assignments
 
 
 class RolePanelPresenter:

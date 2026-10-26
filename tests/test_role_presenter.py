@@ -27,7 +27,11 @@ def load_presenter(monkeypatch, runtime_settings):
 		stub.module(package, __path__=[])
 	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.runtime.settings", runtime_settings)
 	package = runtime_settings.__name__.rsplit(".", 2)[0]
-	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.roles", sys.modules[f"{package}.roles"])
+	monkeypatch.setitem(
+		sys.modules,
+		"synthDrivers.WorldVoice.voices.roles",
+		sys.modules[f"{package}.voices.roles"],
+	)
 	return load_source(monkeypatch, "role_presenter_under_test", PRESENTER).RolePanelPresenter
 
 
@@ -62,7 +66,7 @@ def env(monkeypatch):
 		manager.defaultVoiceName = name
 		conf["speech"]["WorldVoice"]["voice"] = name
 
-	runtime_settings = sys.modules[module.__package__ + ".runtime.settings"]
+	runtime_settings = sys.modules[module.__package__.removesuffix(".voices") + ".runtime.settings"]
 	presenter = load_presenter(monkeypatch, runtime_settings)(
 		manager,
 		speech_section=lambda: conf["speech"]["WorldVoice"],

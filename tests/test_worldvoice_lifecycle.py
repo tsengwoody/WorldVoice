@@ -336,7 +336,8 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 		engine = "broken"
 
 	module = load_voice_manager(monkeypatch)
-	models = importlib.import_module(module.__package__ + ".runtime.models")
+	package = module.__package__.removesuffix(".voices")
+	models = importlib.import_module(package + ".runtime.models")
 	from runtime_harness import MemoryRepository
 
 	store = module.VoiceSettingsStore(MemoryRepository())
@@ -354,7 +355,7 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 			object(),
 			store,
 			bridge,
-			index_ledger=importlib.import_module(module.__package__ + ".bridge.indexLedger").IndexLedger(),
+			index_ledger=importlib.import_module(package + ".bridge.indexLedger").IndexLedger(),
 			completion_for=lambda cls, core: models.CompletionContract(
 				models.CompletionMode.DRAIN,
 				models.IndexRange(1, 9999),

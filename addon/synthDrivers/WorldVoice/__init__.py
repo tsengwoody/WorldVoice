@@ -31,7 +31,6 @@ from .bridge.commands import normalize_legacy_commands
 from .bridge.completionPolicies import CompletionPolicy
 from .bridge.indexLedger import IndexLedger
 from .bridge.nvdaEvents import NvdaEventBridge
-from .configRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository
 from .engine import ready_engine_classes
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
 from .numberLanguage import FOLLOW, MAIN
@@ -56,7 +55,8 @@ from .pipeline.settings import (
 from .runtime.requestBuilder import queue_speech_sequence
 from .runtime.scheduler import TaskManager
 from .runtime.settings import VoiceSettingsStore
-from .voiceManager import VoiceManager
+from .voices.manager import VoiceManager
+from .voices.settingsRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository
 from .VoiceSettingsDialogs import WorldVoiceVoiceSettingsPanel
 
 _: Any

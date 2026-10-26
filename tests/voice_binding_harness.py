@@ -12,7 +12,7 @@ def install_binding(driver, config):
 	settings = importlib.import_module(package + ".runtime.settings")
 	sessions = importlib.import_module(package + ".runtime.session")
 	facade = importlib.import_module(package + ".bridge.voiceFacade")
-	repository = importlib.import_module(package + ".configRepository")
+	repository = importlib.import_module(package + ".voices.settingsRepository")
 	store = settings.VoiceSettingsStore(repository.ConfigVoiceSettingsRepository(config.conf))
 	session = sessions.EngineSession(FakeAdapter(), store)
 	binding = facade.LegacyVoiceBinding(store, session, None)

@@ -2,8 +2,8 @@
 
 from collections.abc import Mapping, MutableMapping
 
-from .runtime.models import SettingValue, VoiceSpec, VoiceValues
-from .runtime.settings import VOICE_PARAMETERS, boolean
+from ..runtime.models import SettingValue, VoiceSpec, VoiceValues
+from ..runtime.settings import VOICE_PARAMETERS, boolean
 
 
 def _confspec(convert, default) -> str:

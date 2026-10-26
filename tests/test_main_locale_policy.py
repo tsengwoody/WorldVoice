@@ -8,7 +8,11 @@ from nvda_stubs import worldvoice_conf
 
 def load_policy(monkeypatch):
 	alias_package(monkeypatch, "policy_pkg", WORLDVOICE)
-	return load_source(monkeypatch, "policy_pkg.mainLocalePolicy", WORLDVOICE / "mainLocalePolicy.py")
+	return load_source(
+		monkeypatch,
+		"policy_pkg.voices.mainLocalePolicy",
+		WORLDVOICE / "voices/mainLocalePolicy.py",
+	)
 
 
 def flags(**values):

@@ -9,8 +9,8 @@ from types import MappingProxyType
 import languageHandler
 from synthDriverHandler import VoiceInfo
 
-from .locales import primary_language
-from .runtime.models import VoiceSpec
+from ..locales import primary_language
+from ..runtime.models import VoiceSpec
 
 
 def group_by_primary_locale(specs: Iterable[VoiceSpec]) -> dict[str, list[str]]:

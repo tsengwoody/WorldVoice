@@ -308,7 +308,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 		for name in ENGINES
 		if name in controls
 	}
-	manager_module = importlib.import_module(PACKAGE + ".voiceManager")
+	manager_module = importlib.import_module(PACKAGE + ".voices.manager")
 	ledger = importlib.import_module(PACKAGE + ".bridge.indexLedger").IndexLedger()
 	bridge_type = importlib.import_module(PACKAGE + ".bridge.nvdaEvents").NvdaEventBridge
 	output = SimpleNamespace(indexes=[], dones=[], drains=[], timeline=[], condition=Condition())

@@ -6,7 +6,7 @@ from addon_loader import WORLDVOICE, alias_package, load_source
 
 def load_roles(monkeypatch):
 	alias_package(monkeypatch, "roles_pkg", WORLDVOICE)
-	return load_source(monkeypatch, "roles_pkg.roles", WORLDVOICE / "roles.py")
+	return load_source(monkeypatch, "roles_pkg.voices.roles", WORLDVOICE / "voices/roles.py")
 
 
 class Section(dict):

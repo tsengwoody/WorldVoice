@@ -52,8 +52,8 @@ def test_default_voice_follows_the_injected_language(composition):
 def test_manager_keeps_the_injected_policy_and_roles(composition):
 	c = composition
 	c.engine("ok")
-	policies = importlib.import_module(c.module.__package__ + ".mainLocalePolicy")
-	roles_module = importlib.import_module(c.module.__package__ + ".roles")
+	policies = importlib.import_module(c.package + ".voices.mainLocalePolicy")
+	roles_module = importlib.import_module(c.package + ".voices.roles")
 	parameters = policies.ParameterConsistency(lambda: c.config.conf)
 	roles = roles_module.ConfigRoleRepository(lambda: c.config.conf)
 	manager = c.create(parameter_consistency=parameters, roles=roles)
@@ -168,7 +168,7 @@ def test_source_is_bound_before_engine_is_published(composition):
 
 
 def _config_repository(c):
-	repository_module = importlib.import_module(c.module.__package__ + ".configRepository")
+	repository_module = importlib.import_module(c.package + ".voices.settingsRepository")
 	c.store._repository = repository_module.ConfigVoiceSettingsRepository(c.config.conf)
 
 
@@ -265,7 +265,7 @@ def test_normal_shutdown_saves_settings_without_a_facade(composition):
 
 
 def make_synth(c, manager):
-	assembly = importlib.import_module(c.module.__package__ + ".assembly")
+	assembly = importlib.import_module(c.package + ".assembly")
 	commands = {
 		name: type(name, (), {})
 		for name in (
@@ -416,7 +416,7 @@ def test_termination_closes_admission_before_blocking_cancel(composition, submis
 		assert entered.wait(WAIT_TIMEOUT)
 		assert synth_terminated(synth)
 		if submission == "new":
-			scheduler = importlib.import_module(c.module.__package__ + ".runtime.scheduler")
+			scheduler = importlib.import_module(c.package + ".runtime.scheduler")
 			with pytest.raises(scheduler.InvalidRequestState):
 				c.tasks.new_request()
 		elif submission == "building":
@@ -493,7 +493,7 @@ def test_partial_bind_failure_releases_resources_without_commit(composition):
 	assert c.cores[0].closes == 1
 	assert bridge_bindings(c.bridge) == {}
 	with pytest.raises(
-		importlib.import_module(c.module.__package__ + ".bridge.indexLedger").InvalidIndexContext,
+		importlib.import_module(c.package + ".bridge.indexLedger").InvalidIndexContext,
 	):
 		c.ledger.prepare(c.models.PlaybackContext(source_ids[0], 1), ())
 	assert c.repo.saves == []
@@ -657,7 +657,7 @@ def drain_contract(c, mode="DRAIN"):
 
 
 def runtime_completion_selector(c, version="synthetic"):
-	policies = importlib.import_module(c.module.__package__ + ".bridge.completionPolicies")
+	policies = importlib.import_module(c.package + ".bridge.completionPolicies")
 	logs = []
 	policy = policies.CompletionPolicy(
 		nvda_version=version,
@@ -668,7 +668,7 @@ def runtime_completion_selector(c, version="synthetic"):
 
 def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
 	"""Replace unavailable native resources at the installed-driver boundary."""
-	work = importlib.import_module(c.module.__package__ + ".runtime.playbackWork")
+	work = importlib.import_module(c.package + ".runtime.playbackWork")
 	support_type = work.DrainSupport
 	cls = c.engine(name)
 	cls.drain_profile = work.DrainProfile(wasapi_dependent=name in ("OneCore", "SAPI5"))
@@ -738,7 +738,7 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 	assert indexes == [42]
 	with pytest.raises(RuntimeError, match="before speech"):
 		port._adapter.configure_completion(c.models.CompletionContract())
-	policies = importlib.import_module(c.module.__package__ + ".bridge.completionPolicies")
+	policies = importlib.import_module(c.package + ".bridge.completionPolicies")
 	assert policies._VERIFIED_CONTRACTS == {}
 
 
@@ -833,7 +833,7 @@ def test_wasapi_mode_sensitive_support_uses_actual_opened_core(
 	assert checked == [("synthetic", audio_mode)]
 	assert port.completion.mode is getattr(c.models.CompletionMode, completion_mode)
 	assert len(logs) == (0 if completion_mode == "DRAIN" else 1)
-	policies = importlib.import_module(c.module.__package__ + ".bridge.completionPolicies")
+	policies = importlib.import_module(c.package + ".bridge.completionPolicies")
 	assert policies._VERIFIED_CONTRACTS == {}
 
 

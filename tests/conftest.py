@@ -128,9 +128,9 @@ def snap(session_module):
 @pytest.fixture
 def composition(monkeypatch):
 	manager_module = load_voice_manager(monkeypatch)
-	package = manager_module.__package__
+	package = manager_module.__package__.removesuffix(".voices")
 	monkeypatch.setattr(
-		importlib.import_module(package + ".voiceCatalog"),
+		importlib.import_module(package + ".voices.catalog"),
 		"VoiceInfo",
 		lambda key, description, language: SimpleNamespace(
 			id=key,
@@ -262,6 +262,7 @@ def composition(monkeypatch):
 		cores=cores,
 		Core=Core,
 		module=manager_module,
+		package=package,
 		driver=driver,
 		ledger=ledger,
 		models=models,

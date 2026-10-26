@@ -3,7 +3,7 @@
 from collections.abc import Callable, Collection, Mapping
 from typing import Any
 
-from .locales import primary_language
+from ..locales import primary_language
 
 
 def prune_assignments(

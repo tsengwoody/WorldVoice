@@ -26,7 +26,7 @@ def catalog_module(stub_modules, descriptions, monkeypatch):
 	stub_modules.package(PACKAGE, WORLDVOICE)
 	stub_modules.module("languageHandler", getLanguageDescription=descriptions.get)
 	stub_modules.module("synthDriverHandler", VoiceInfo=VoiceInfo)
-	return importlib.import_module(PACKAGE + ".voiceCatalog")
+	return importlib.import_module(PACKAGE + ".voices.catalog")
 
 
 @pytest.fixture

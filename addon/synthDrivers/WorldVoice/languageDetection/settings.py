@@ -1,7 +1,7 @@
 """The language detection settings: the only reader and writer of their config keys.
 
 They live in config["WorldVoice"]["autoLanguageSwitching"] beside the three
-KeepMainLocale* flags, which mainLocalePolicy owns.
+KeepMainLocale* flags, which voices/mainLocalePolicy.py owns.
 """
 
 from collections.abc import Callable, Mapping

@@ -320,7 +320,7 @@ def test_number_language_pauses_at_a_no_break_space(monkeypatch, space):
 
 def test_symbol_names_without_a_number_language_voice_use_the_default_voice_locale(monkeypatch):
 	# No voice for the number language: getVoiceNameForLanguage gives the default voice
-	# (voiceManager.py:295-299), so deduplication drops the wrapper and the name comes from the
+	# (voices/manager.py:295-299), so deduplication drops the wrapper and the name comes from the
 	# default voice's locale (decided by the user, 2026-10-22, Q1 A; replaces the number-unify F2
 	# expectation of the number language's table).
 	settings = punctuation_settings(0)

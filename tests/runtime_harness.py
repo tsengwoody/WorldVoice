@@ -198,8 +198,8 @@ def load_config_repository(monkeypatch, rt):
 	monkeypatch.setitem(sys.modules, f"{package_name}.runtime.settings", rt.settings)
 	return load_source(
 		monkeypatch,
-		f"{package_name}.configRepository",
-		RUNTIME.parent / "configRepository.py",
+		f"{package_name}.voices.settingsRepository",
+		RUNTIME.parent / "voices/settingsRepository.py",
 	)
 
 

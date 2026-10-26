@@ -3,8 +3,8 @@
 from collections.abc import Callable
 from typing import Any
 
-from .locales import primary_language
-from .runtime.settings import PARAMETER_NAMES
+from ..locales import primary_language
+from ..runtime.settings import PARAMETER_NAMES
 
 
 def _flags(conf_provider: Callable[[], Any]) -> Any:

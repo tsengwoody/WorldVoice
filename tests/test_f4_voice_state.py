@@ -41,7 +41,7 @@ def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 
 def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	(a, b), _ = _voices(monkeypatch)
-	manager_module = sys.modules["f4_test_worldvoice.voiceManager"]
+	manager_module = sys.modules["f4_test_worldvoice.voices.manager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
 	init_policies(manager_instance)
 	manager_instance._instanceCache = {a.name: a, b.name: b}

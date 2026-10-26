@@ -48,7 +48,7 @@ def _manager_conf():
 
 
 def load_voice_manager(monkeypatch):
-	"""voiceManager under lifecycle_test_worldvoice, with stub config, language, log and synth modules."""
+	"""voices.manager under lifecycle_test_worldvoice, with stub config, language, log and synth modules."""
 	package_name = "lifecycle_test_worldvoice"
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
@@ -78,7 +78,7 @@ def load_voice_manager(monkeypatch):
 			),
 		),
 	)
-	return load_source(monkeypatch, f"{package_name}.voiceManager", WORLDVOICE / "voiceManager.py")
+	return load_source(monkeypatch, f"{package_name}.voices.manager", WORLDVOICE / "voices/manager.py")
 
 
 def init_policies(manager):
@@ -88,7 +88,7 @@ def init_policies(manager):
 
 
 def load_f4_voice_manager(monkeypatch):
-	"""voiceManager under f4_test_worldvoice; its stubs also have getLanguageDescription and getSynth."""
+	"""voices.manager under f4_test_worldvoice; its stubs also have getLanguageDescription and getSynth."""
 	package_name = "f4_test_worldvoice"
 	for name in tuple(sys.modules):
 		if name.startswith(package_name + "."):
@@ -121,7 +121,7 @@ def load_f4_voice_manager(monkeypatch):
 			getSynth=lambda: types.SimpleNamespace(name="WorldVoice"),
 		),
 	)
-	return load_source(monkeypatch, f"{package_name}.voiceManager", WORLDVOICE / "voiceManager.py")
+	return load_source(monkeypatch, f"{package_name}.voices.manager", WORLDVOICE / "voices/manager.py")
 
 
 def create_f4_voices(monkeypatch, config):

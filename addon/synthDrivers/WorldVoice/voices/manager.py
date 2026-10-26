@@ -4,18 +4,18 @@ from typing import Any
 
 from logHandler import log
 
-from .bridge.engineAdapter import LegacyEngineAdapter
-from .bridge.indexLedger import IndexLedger
-from .bridge.nvdaEvents import NvdaEventBridge
-from .bridge.voiceFacade import LegacyVoiceBinding
+from ..bridge.engineAdapter import LegacyEngineAdapter
+from ..bridge.indexLedger import IndexLedger
+from ..bridge.nvdaEvents import NvdaEventBridge
+from ..bridge.voiceFacade import LegacyVoiceBinding
+from ..runtime.completion import rule_for
+from ..runtime.models import CompletionContract, EngineCapabilities, VoiceSpec
+from ..runtime.scheduler import TaskManager
+from ..runtime.session import EngineSession, PlaybackPort
+from ..runtime.settings import VoiceEditSession, VoiceSettingsStore
+from .catalog import EMPTY_CATALOG, VoiceCatalog, group_by_primary_locale
 from .mainLocalePolicy import EngineConsistency, ParameterConsistency, VoiceConsistency
 from .roles import ConfigRoleRepository
-from .runtime.completion import rule_for
-from .runtime.models import CompletionContract, EngineCapabilities, VoiceSpec
-from .runtime.scheduler import TaskManager
-from .runtime.session import EngineSession, PlaybackPort
-from .runtime.settings import VoiceEditSession, VoiceSettingsStore
-from .voiceCatalog import EMPTY_CATALOG, VoiceCatalog, group_by_primary_locale
 
 
 @dataclass
