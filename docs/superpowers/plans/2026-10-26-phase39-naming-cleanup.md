@@ -3434,3 +3434,81 @@ The `-M100%` command lists the two generated files as `R100` and `unicodeScripts
 Every commit passed the hooks on the first try and left a clean tree. Task 8 in the clone: `prek run --all-files` all Passed; `git diff --check e54d804`, the protected-path command for `driver/*/driver/` and `driver/sonic/`, `git ls-files …/driver/Neural`, the `test_plugin_voice_contract.py` diff and the stale-name `git grep` printed nothing; the `-M100%` listing is the four lines described in Task 8.
 
 The plan's blocks were generated from a prototype branch built in a separate clone (same commits); the clone's final root tree (`e81e389cedc091f73dd96e2eba0391b14c722c7e`, which also covers `tools/`, `pyproject.toml` and `.pre-commit-config.yaml`) equals the prototype's. An earlier dry run of the same plan text (before the red/green outputs were filled in) gave the same outputs and tree ids.
+
+## 修正
+
+Fix for the Fable review `docs/superpowers/finish/2026-10-26-phase39-naming-cleanup-review.md` (M1 in `tests/`; M2 is documentation outside the branch, done by the orchestrator after merge). It starts from the Task 7 tree — `HEAD:addon` = `d19e2d9895d023ff1fa2b222091edea9220a11e9`, `HEAD:tests` = `2d59af184cf6ad97b7a962ea876fe853fff42cde` — and touches `tests/` only, so `HEAD:addon` stays the same. Same block rules and Global Constraints as Tasks 1–8.
+
+### Task F1: Drop the dead `languageDetection` reload from the pipeline harness (M1)
+
+**Files:**
+- Test: `tests/pipeline_harness.py` (the list of modules `load_pipeline_module` pops)
+
+**Interfaces:**
+- Consumes: the Task 7 tree.
+- Produces: `load_pipeline_module` no longer pops `synthDrivers.WorldVoice.languageDetection`; everything else unchanged.
+
+- [ ] **Step 1: Remove the entry**
+
+The pipeline imports `unicodeScripts.lookup` and never loads the detector since Task 5 (`test_the_pipeline_does_not_import_language_detection`), so the entry pops a name this harness never puts in `sys.modules`.
+
+**Edit:** `tests/pipeline_harness.py` (1/1)
+
+Replace:
+
+```text
+		"synthDrivers.WorldVoice.numberLanguage",
+		"synthDrivers.WorldVoice.languageDetection",
+		"synthDrivers.WorldVoice.unicodeScripts.lookup",
+```
+
+With:
+
+```text
+		"synthDrivers.WorldVoice.numberLanguage",
+		"synthDrivers.WorldVoice.unicodeScripts.lookup",
+```
+
+- [ ] **Step 2: Run the pipeline tests and the full suite**
+
+No red state exists (the removed `pop(name, None)` never found the name).
+
+Run: `python3 -m pytest -q -p no:cacheprovider tests/test_pipeline_unspaced_space.py tests/test_pipeline_stages.py tests/test_pipeline_structure.py tests/test_generate_unspaced_common.py tests/test_language_detector.py`
+Expected: `364 passed`.
+
+Run: `$SCRATCH/runtests.sh . tests` → `3240 passed`, 0 skipped.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add tests/pipeline_harness.py
+git diff --cached --stat   # 1 file, 1 deletion
+git commit -q -F - <<'EOF'
+test: drop the dead languageDetection reload from the pipeline harness
+
+The harness pops the modules a pipeline load imports so that each load
+gets them fresh. languageDetection was on that list only because
+pipeline/unspaced.py reached the script lookup through it; since phase
+39 the pipeline imports unicodeScripts.lookup and never loads the
+detector, so the entry popped a name the harness never puts there and
+suggested a dependency that no longer exists (phase 39 review M1).
+EOF
+git status --short
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected: `git status --short` prints nothing; `HEAD:addon` = `d19e2d9895d023ff1fa2b222091edea9220a11e9` (unchanged), `HEAD:tests` = `cb49dbafec3e4df9e263eb7962947cafaaa9846a`.
+
+### Task F2: Verification
+
+- [ ] `$SCRATCH/runtests.sh . tests` → `3240 passed`, 0 skipped; `prek run --all-files` all Passed; `git diff --check master` prints nothing; Task 8's protected-path, Neural, contract and stale-name checks print nothing.
+
+### 修正 dry run record
+
+2026-10-26, the dry-run clone of this plan (`$SCRATCH/p39/final`, at the Task 7 tree `d19e2d98…`/`2d59af18…`, `ref` symlinked, hooks installed), the Edit block above applied by exact replacement, pytest under a MemAvailable < 3 GB guard:
+
+| Commit | Files | Focused run | Full suite | Tree ids |
+| --- | --- | --- | --- | --- |
+| Task F1 | 1 (1 deletion) | `364 passed` | 3240 passed | `d19e2d98…`/`cb49dbaf…` |
+
+The commit passed the hooks on the first try and left a clean tree.
