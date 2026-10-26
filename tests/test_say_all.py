@@ -50,7 +50,7 @@ def say_all(stub_modules, monkeypatch):
 	# The pipeline package without its __init__: say-all needs only its context and settings.
 	alias_package(monkeypatch, PACKAGE + ".pipeline", WORLDVOICE / "pipeline")
 	return SimpleNamespace(
-		module=importlib.import_module(PACKAGE + ".sayAll"),
+		module=importlib.import_module(PACKAGE + ".pipeline.sayAll"),
 		nvda=nvda_speech,
 		initialized=initialized,
 		spoken_by_nvda=spoken_by_nvda,

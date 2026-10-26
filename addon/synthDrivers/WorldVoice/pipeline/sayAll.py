@@ -1,7 +1,9 @@
-# A part of NonVisual Desktop Access (NVDA)
-# This file is covered by the GNU General Public License.
-# See the file COPYING for more details.
+"""Say All's pause after each speech sequence, the pipeline setting sayall_wait_factor.
 
+patch() hands NVDA's say-all a getTextInfoSpeech that adds the pause, through the same
+speech.sayAll.initialize call NVDA makes when speech starts (speech.initialize in
+ref/nvda/source/speech/__init__.py); unpatch() makes that call with NVDA's own functions again.
+"""
 
 from collections.abc import Callable, Iterable
 
@@ -10,8 +12,8 @@ from speech import sayAll
 from speech.commands import BreakCommand
 from speech.types import SpeechSequence
 
-from .pipeline.context import current_context
-from .pipeline.settings import pipeline_settings
+from .context import current_context
+from .settings import pipeline_settings
 
 
 def _wrap_get_text_info_speech_with_sayall_break(

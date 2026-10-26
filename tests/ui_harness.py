@@ -871,7 +871,7 @@ def load_global_plugin(monkeypatch, *, secure=False, log_enabled=False):
 		"synthDrivers.WorldVoice.pipeline.scope",
 		pipeline_scope=SimpleNamespace(attach_global=record("attach"), detach_global=record("detach")),
 	)
-	stubs.module("synthDrivers.WorldVoice.sayAll", patch=record("patch"), unpatch=record("unpatch"))
+	stubs.module("synthDrivers.WorldVoice.pipeline.sayAll", patch=record("patch"), unpatch=record("unpatch"))
 	env.workspace = ["workspace"]
 	stubs.module("synthDrivers.WorldVoice.workspace", workspace_path=lambda: env.workspace[0])
 	alias_package(monkeypatch, "generics")

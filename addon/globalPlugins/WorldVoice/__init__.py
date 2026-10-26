@@ -11,8 +11,8 @@ from scriptHandler import script
 
 # Importing the WorldVoice synth package puts the add-on root, home of
 # `generics`, on sys.path; keep these before the generics imports.
+from synthDrivers.WorldVoice.pipeline.sayAll import patch, unpatch
 from synthDrivers.WorldVoice.pipeline.scope import pipeline_scope
-from synthDrivers.WorldVoice.sayAll import patch, unpatch
 from synthDrivers.WorldVoice.workspace import workspace_path
 
 # isort: split
