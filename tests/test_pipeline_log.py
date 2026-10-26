@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from addon_loader import ADDON, WORLDVOICE, load_definitions, load_source
 from nvda_stubs import RefusingSection, StubModules, worldvoice_conf
-from pipeline_harness import load_settings_module
+from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings
 
-LOG = WORLDVOICE / "log.py"
+RECORDER = WORLDVOICE / "pipeline/recorder.py"
 SERVICE = ADDON / "globalPlugins/WorldVoice/pipelineLog.py"
 PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
 
@@ -108,14 +108,19 @@ def test_log_panel_no_unticks_enable(monkeypatch):
 
 
 @pytest.fixture
-def log_module(monkeypatch, tmp_path):
-	module = load_source(monkeypatch, "worldvoice_log_under_test", LOG)
-	monkeypatch.setattr(module, "log_dir", tmp_path / "missing" / "log")
-	return module
+def log_module(monkeypatch):
+	return load_source(monkeypatch, "worldvoice_log_under_test", RECORDER)
+
+
+def test_the_pipeline_log_is_written_to_the_add_on_log_folder(monkeypatch):
+	# The recorder moved into pipeline/ (phase 38); the file it writes stays addon/log/pipeline.csv.
+	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	recorder = load_source(monkeypatch, "worldvoice_recorder_path_under_test", RECORDER)
+	assert recorder.PipelineLog(*module.pl.args).log_file == ADDON / "log" / "pipeline.csv"
 
 
 def test_pipeline_log_touches_the_disk_only_when_written(log_module, tmp_path):
-	pipeline = log_module.PipelineLog("pipeline.csv")
+	pipeline = log_module.PipelineLog(tmp_path / "missing" / "log" / "pipeline.csv")
 	assert not (tmp_path / "missing").exists()
 	pipeline.write("id", "label", "before", ["text"])
 	lines = pipeline.log_file.read_text(encoding="utf-8").splitlines()
@@ -124,7 +129,7 @@ def test_pipeline_log_touches_the_disk_only_when_written(log_module, tmp_path):
 
 
 def test_move_to_hands_over_the_log_and_starts_a_new_one(log_module, tmp_path):
-	pipeline = log_module.PipelineLog("pipeline.csv")
+	pipeline = log_module.PipelineLog(tmp_path / "missing" / "log" / "pipeline.csv")
 	pipeline.write("id", "label", "before", ["text"])
 	dst = tmp_path / "exported" / "out.csv"
 	pipeline.move_to(dst)
@@ -186,7 +191,7 @@ def test_export_with_dialog(monkeypatch, tmp_path, outcome):
 
 
 def test_move_to_exports_a_log_that_was_never_written(log_module, tmp_path):
-	pipeline = log_module.PipelineLog("pipeline.csv")
+	pipeline = log_module.PipelineLog(tmp_path / "missing" / "log" / "pipeline.csv")
 	dst = tmp_path / "exported" / "out.csv"
 	pipeline.move_to(dst)
 	assert dst.read_text(encoding="utf-8").splitlines() == [",".join(log_module.PipelineLog.FIELDNAMES)]

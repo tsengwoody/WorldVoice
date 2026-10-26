@@ -3,6 +3,7 @@ import uuid
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from functools import wraps
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Union
 
 import config
@@ -12,13 +13,13 @@ from speech.commands import BreakCommand, ConfigProfileTriggerCommand, EndUttera
 from speech.extensions import filter_speechSequence
 
 from ..languageDetection.scripts import get_script
-from ..log import PipelineLog
 from ..numberLanguage import FOLLOW, MAIN
 from ..runtime.models import SelectVoice
 from ..speechCommands import WVLangChangeCommand
 from . import speech_dictionary
 from .context import GENERIC_CONTEXT as GENERIC_CONTEXT, SpeechContext, current_context
 from .numbers import NUMBER_RE, number_pieces, split_spaced_numbers, strip_thousands
+from .recorder import PipelineLog
 from .settings import pipeline_settings, read_stored
 from .symbols import symbol_namer
 from .unspaced_common_data import UNSPACED_COMMON
@@ -29,7 +30,8 @@ if TYPE_CHECKING:
 	from .settings import PipelineSettings
 
 SpeechCmd = Union[str, "SpeechCommand"]
-pl = PipelineLog("pipeline.csv")
+# The pipeline log is addon/log/pipeline.csv; parents[3] of a module in pipeline/ is addon/.
+pl = PipelineLog(Path(__file__).resolve().parents[3] / "log" / "pipeline.csv")
 
 _WHITESPACE_RE = re.compile(r"\s+")
 

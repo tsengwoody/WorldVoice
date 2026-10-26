@@ -61,8 +61,8 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice.numberLanguage",
 		"synthDrivers.WorldVoice.languageDetection",
 		"synthDrivers.WorldVoice.languageDetection.scripts",
-		"synthDrivers.WorldVoice.log",
 		"synthDrivers.WorldVoice.pipeline",
+		"synthDrivers.WorldVoice.pipeline.recorder",
 		"synthDrivers.WorldVoice.pipeline.speech_dictionary",
 		"synthDrivers.WorldVoice.pipeline.settings",
 		"synthDrivers.WorldVoice.pipeline.context",
@@ -141,13 +141,15 @@ def load_pipeline_module(monkeypatch, settings):
 
 	speechcommand.WVLangChangeCommand = WVLangChangeCommand
 
-	worldVoiceLog = stubs.module("synthDrivers.WorldVoice.log")
+	recorder = stubs.module("synthDrivers.WorldVoice.pipeline.recorder")
 
 	class PipelineLog:
-		def __init__(self, *args, **kwargs):
-			pass
+		"""Keeps what the pipeline passes; it has no write, so a test that logs must replace pl."""
 
-	worldVoiceLog.PipelineLog = PipelineLog
+		def __init__(self, *args):
+			self.args = args
+
+	recorder.PipelineLog = PipelineLog
 
 	settingsModule = stubs.module("synthDrivers.WorldVoice.pipeline.settings")
 	settingsModule.pipeline_settings = SimpleNamespace(effective=lambda supports_roles: settings)

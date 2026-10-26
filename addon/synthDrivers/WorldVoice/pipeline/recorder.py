@@ -1,20 +1,23 @@
+"""The speech pipeline's log: a CSV file of each logged stage's sequence before and after it ran."""
+
 import csv
 import shutil
 import time
 from pathlib import Path
 
-script_dir = Path(__file__).resolve().parent
-parent_dir = script_dir.parent.parent
-
-log_dir = parent_dir / "log"
 MAX_LOG_SIZE = 5 * 1024 * 1024
 
 
 class PipelineLog:
+	"""Rows in *log_file*, which moves aside to ".old" once it reaches MAX_LOG_SIZE.
+
+	The pipeline passes addon/log/pipeline.csv; nothing here depends on where this module lies.
+	"""
+
 	FIELDNAMES = ("id", "label", "timing", "timestamp", "sequence")
 
-	def __init__(self, log_name):
-		self.log_file = log_dir / log_name
+	def __init__(self, log_file: Path):
+		self.log_file = log_file
 
 	def _ensure_log_file(self):
 		self.log_file.parent.mkdir(parents=True, exist_ok=True)

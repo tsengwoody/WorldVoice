@@ -3,13 +3,14 @@
 import pytest
 from addon_loader import WORLDVOICE, load_source
 
+RECORDER = WORLDVOICE / "pipeline/recorder.py"
+
 
 @pytest.fixture
 def pipeline_log(monkeypatch, tmp_path):
-	module = load_source(monkeypatch, "worldvoice_log_rotation_under_test", WORLDVOICE / "log.py")
-	monkeypatch.setattr(module, "log_dir", tmp_path)
+	module = load_source(monkeypatch, "worldvoice_log_rotation_under_test", RECORDER)
 	monkeypatch.setattr(module, "MAX_LOG_SIZE", 200)
-	return module.PipelineLog("pipeline.csv")
+	return module.PipelineLog(tmp_path / "pipeline.csv")
 
 
 def rows(path):
