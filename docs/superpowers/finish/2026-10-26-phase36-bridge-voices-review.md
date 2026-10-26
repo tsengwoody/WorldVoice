@@ -48,13 +48,13 @@ Ready to merge：**是，但建議先修 I1**（一個測試守門的鬆動，�
 
   ```python
   def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-  	if level and globals and globals.get("__package__"):
-  		check(importlib.util.resolve_name("." * level + name, globals["__package__"]))
-  	else:
-  		check(name)
-  	for item in fromlist or ():
-  		check(item)
-  	return original_import(name, globals, locals, fromlist, level)
+      if level and globals and globals.get("__package__"):
+          check(importlib.util.resolve_name("." * level + name, globals["__package__"]))
+      else:
+          check(name)
+      for item in fromlist or ():
+          check(item)
+      return original_import(name, globals, locals, fromlist, level)
   ```
 
   （`runtime_harness.py:4` 已 `import importlib`；`importlib.util` 需另外 import。）這一改同時涵蓋 G5：`bridge/__init__.py` 內的 `from .voiceFacade` 會解析成 `<alias>.bridge.voiceFacade` 被擋。若想把「兩個 `__init__.py` 保持空白」寫成明文，再加一個 `tests/test_hygiene_guards.py` 風格的斷言（`(WORLDVOICE / "bridge/__init__.py").stat().st_size == 0`，voices 同）也只是兩行。
@@ -141,3 +141,19 @@ Ready to merge：**是，但建議先修 I1**（一個測試守門的鬆動，�
 
 - 若修 I1／M1，`tests/` 會改、`addon/` 不會，所以 `HEAD:tests` tree id 會變；依 §4.5 在 plan 檔尾加「## 修正」段落，寫出 `Edit:` 區塊和 commit 後的 tree id，並從 Task 4 的 tree 接著 dry run。
 - 我的 scratch clone（`review36/replay`、`review36/mutate`）審完已刪除；重放用的套用器只解析 plan 的 `### Task N:`／`- [ ] **Step S:`／`**File:**`／`**Edit:**` 標記，和實作者的 helper 互不相依。
+
+## 修正記錄
+
+依 `DEVELOPMENT_WORKFLOW.md` §3.4、§4.5 修正。plan 檔尾新增「## 修正」段落（`2737808`），寫出逐位元組的 `Edit:` 區塊與每個修正 commit 後的 tree id；先在 scratch 全新 clone 從 Task 4 的 tree（`f715f51`）dry run，兩個 commit 的 tree id 都吻合後才在 worktree 落地，落地結果與 plan 一致。只動 `tests/`，`HEAD:addon` 仍是 `9d4a7b01a9c558f4a984051b6f28c6a9be17b109`。
+
+| 項目 | 處理 | commit | 驗證 |
+| --- | --- | --- | --- |
+| I1 守門看不見同套件相對 import | 已修：`guarded_import` 遇到相對 import（`level > 0` 且有 `__package__`）先用 `importlib.util.resolve_name` 解析成絕對名稱再檢查。新增 `tests/test_runtime_import_guard.py`：在 `tmp_path` 自建 `bridge/`，`indexLedger.py` 寫 `from .voiceFacade import VoiceFacade`、`__init__.py` 寫同一行 re-export，兩者都必須被擋；真正的 `bridge.indexLedger`、`bridge.nvdaEvents` 仍可在守門下 import；`bridge/__init__.py`、`voices/__init__.py` 必須是 0 位元組。 | `e240753` | 先在舊守門上紅（`2 failed, 3 passed`，兩個 `DID NOT RAISE`），修後 `122 passed`（守門相關 4 檔）；全套件 3224 passed。`HEAD:tests` = `e10dab88fd1df193b0cce662a4dcd8c63bf8eb2b` |
+| M1 fixture `bridge` 與事件橋 `bridge` 撞名 | 已修：fixture 改名 `bridge_modules`（alias `worldvoice_bridge_test` 不變），5 個測試檔跟著改；`test_completion_characterization.py` 一行因變長由 prek 拆行。 | `531634e` | 全套件 3224 passed；`HEAD:tests` = `85401e928c5697030cd8cc258beba179e7c9b658` |
+| M2 守門表的舊名 | 已修（隨 I1）：`bridge_allowed` 上方註解寫明 phase 36 前的名稱（根目錄 `indexLedger`、`nvdaEventBridge`、`compat/`）已不存在，因此不需要規則。 | `e240753` | 同 I1 |
+| M3 註解中的行號引用 | 不修：目前行號正確，審閱者也建議本階段不改；留給會動 `voices/manager.py` 的後續階段。 | — | — |
+
+其他：
+
+- 本文件「建議修法」的程式碼區塊（原第 51–57 行）縮排是「兩個空白＋tab」，`git diff --check master` 會報 "space before tab in indent"；本次 commit 把這幾行改成只用空白縮排，內容不變。
+- 修正後驗證（worktree）：全套件 **3224 passed**、0 skipped（3219 + `test_runtime_import_guard.py` 的 5 個）；`prek run --all-files` 全數 Passed；受保護路徑兩個指令皆無輸出；`tests/test_plugin_voice_contract.py` 未變動。
