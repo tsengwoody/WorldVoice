@@ -2785,3 +2785,772 @@ git ls-files addon/synthDrivers/WorldVoice/driver/Neural
 Every commit passed the hooks on the first try and left a clean tree. Task 5 in the clone: `prek run --all-files` all Passed; `git diff --check c94623b` and both protected-path commands printed nothing; `tests/test_plugin_voice_contract.py` unchanged; `git log --follow` of `bridge/nvdaEvents.py` reaches `0b433d1 refactor: isolate NVDA speech event bridge`.
 
 The first attempt stopped at Task 2 Step 7: `git add` named the old paths (`compat`, `nvdaEventBridge.py`, …), which `git mv` had already staged and which no longer exist, so git refused the pathspec. The plan now names only the new paths (Tasks 2 and 3), and the dry run was redone from `c94623b`; the result above is that second run.
+
+---
+
+## 修正
+
+Fixes for the Fable review `docs/superpowers/finish/2026-10-26-phase36-bridge-voices-review.md` (I1, M1, M2; M3 needs no change). They start from Task 4's tree — `HEAD:addon` = `9d4a7b01a9c558f4a984051b6f28c6a9be17b109`, `HEAD:tests` = `e74d2f8bf9f55d566b3b3714ac5a802a97c6f0cf` — and touch `tests/` only, so `HEAD:addon` stays the same. Same block rules and Global Constraints as Tasks 1–5.
+
+### Task F1: The runtime import guard resolves relative imports (I1, M2, test first)
+
+**Files:**
+- Create: `tests/test_runtime_import_guard.py`
+- Modify: `tests/runtime_harness.py` (`forbid_legacy_runtime_imports`)
+
+**Interfaces:**
+- Consumes: Task 4's tree.
+- Produces: `guarded_import` checks `importlib.util.resolve_name("." * level + name, globals["__package__"])` for a relative import (level > 0 with a package) and the name as given otherwise; `forbidden` and `bridge_allowed` are unchanged.
+
+- [ ] **Step 1: Write the failing tests**
+
+The probe tests build their own `bridge/` under `tmp_path`, so no add-on file is touched: a sibling import `from .voiceFacade import VoiceFacade` in `bridge/indexLedger.py`, and the same line as a re-export in `bridge/__init__.py`. The real ledger and event bridge must still import under the guard, and both new package `__init__.py` files must stay empty.
+
+**File:** `tests/test_runtime_import_guard.py`
+
+```text
+"""The pure-runtime import guard sees through relative imports inside bridge/."""
+
+import importlib
+import sys
+
+import pytest
+from addon_loader import WORLDVOICE, alias_package
+from runtime_harness import forbid_legacy_runtime_imports
+
+
+@pytest.fixture
+def probe_package(monkeypatch, tmp_path):
+	"""An alias package with a bridge/ of its own; returns (name, bridge directory)."""
+	name = "worldvoice_guard_probe"
+	bridge = tmp_path / "bridge"
+	bridge.mkdir()
+	(bridge / "__init__.py").write_text("", encoding="utf-8")
+	(bridge / "voiceFacade.py").write_text("class VoiceFacade:\n\tpass\n", encoding="utf-8")
+	alias_package(monkeypatch, name, tmp_path)
+	yield name, bridge
+	for module in tuple(sys.modules):
+		if module.startswith(name + "."):
+			del sys.modules[module]
+
+
+def test_guard_rejects_a_relative_import_of_a_legacy_sibling(monkeypatch, probe_package):
+	name, bridge = probe_package
+	(bridge / "indexLedger.py").write_text("from .voiceFacade import VoiceFacade\n", encoding="utf-8")
+	with forbid_legacy_runtime_imports(monkeypatch), pytest.raises(AssertionError, match="voiceFacade"):
+		importlib.import_module(name + ".bridge.indexLedger")
+
+
+def test_guard_rejects_a_legacy_re_export_in_the_bridge_package(monkeypatch, probe_package):
+	name, bridge = probe_package
+	(bridge / "__init__.py").write_text("from .voiceFacade import VoiceFacade\n", encoding="utf-8")
+	(bridge / "nvdaEvents.py").write_text("", encoding="utf-8")
+	with forbid_legacy_runtime_imports(monkeypatch), pytest.raises(AssertionError, match="voiceFacade"):
+		importlib.import_module(name + ".bridge.nvdaEvents")
+
+
+def test_guard_allows_the_ledger_and_the_event_bridge(monkeypatch, rt):
+	name = "worldvoice_guard_allowed"
+	alias_package(monkeypatch, name, WORLDVOICE)
+	for suffix, module in (("", rt.package), (".models", rt.models)):
+		monkeypatch.setitem(sys.modules, name + ".runtime" + suffix, module)
+	for suffix in ("bridge", "bridge.indexLedger", "bridge.nvdaEvents"):
+		monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
+	with forbid_legacy_runtime_imports(monkeypatch):
+		ledger = importlib.import_module(name + ".bridge.indexLedger")
+		events = importlib.import_module(name + ".bridge.nvdaEvents")
+	assert ledger.IndexLedger.__name__ == "IndexLedger"
+	assert events.NvdaEventBridge.__name__ == "NvdaEventBridge"
+
+
+@pytest.mark.parametrize("package", ["bridge", "voices"])
+def test_package_init_stays_empty(package):
+	# Importing one module of the package must not load the others (spec phase 36, section 2).
+	assert (WORLDVOICE / package / "__init__.py").read_bytes() == b""
+```
+
+- [ ] **Step 2: Run them to see red**
+
+Run: `python3 -m pytest -q -p no:cacheprovider tests/test_runtime_import_guard.py`
+Expected: `2 failed, 3 passed` — `test_guard_rejects_a_relative_import_of_a_legacy_sibling` and `test_guard_rejects_a_legacy_re_export_in_the_bridge_package` fail with `Failed: DID NOT RAISE AssertionError`.
+
+- [ ] **Step 3: Resolve relative names in the guard**
+
+**Edit:** `tests/runtime_harness.py` (1/3)
+
+Replace:
+
+```text
+import importlib
+import sys
+```
+
+With:
+
+```text
+import importlib
+import importlib.util
+import sys
+```
+
+**Edit:** `tests/runtime_harness.py` (2/3)
+
+Replace:
+
+```text
+	# Python, and a native engine uses them too.
+```
+
+With:
+
+```text
+	# Python, and a native engine uses them too. The names they had before phase 36 (root
+	# indexLedger and nvdaEventBridge, compat/) no longer exist, so they need no rule.
+```
+
+**Edit:** `tests/runtime_harness.py` (3/3)
+
+Replace:
+
+```text
+	def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+		check(name)
+		for item in fromlist or ():
+```
+
+With:
+
+```text
+	def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+		# A relative import names only the sibling ("voiceFacade"); check where it resolves to.
+		if level and globals and globals.get("__package__"):
+			check(importlib.util.resolve_name("." * level + name, globals["__package__"]))
+		else:
+			check(name)
+		for item in fromlist or ():
+```
+
+- [ ] **Step 4: Run the guard's users to see green**
+
+Run: `python3 -m pytest -q -p no:cacheprovider tests/test_runtime_import_guard.py tests/test_index_ledger.py tests/test_runtime_adapter_contract.py tests/test_runtime_playback_context.py`
+Expected: `122 passed`.
+
+Run: `python3 -m pytest -q -p no:cacheprovider tests` → `3224 passed`, 0 skipped.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tests/test_runtime_import_guard.py tests/runtime_harness.py
+git diff --cached --stat   # 2 files
+git commit -q -F - <<'MSG'
+test: make the runtime import guard resolve relative imports
+
+forbid_legacy_runtime_imports checked the name __import__ receives, so
+"from .voiceFacade import VoiceFacade" inside bridge/indexLedger.py or
+bridge/nvdaEvents.py, or a re-export in bridge/__init__.py, passed as
+"voiceFacade". Before phase 36 the same dependency had to name compat
+and was rejected. Resolve a relative name against the importing
+package before checking it, and pin the rule with tests that build a
+probe bridge/ package, plus a check that both new package __init__.py
+files stay empty.
+MSG
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected after the commit: `HEAD:addon` = `9d4a7b01a9c558f4a984051b6f28c6a9be17b109`, `HEAD:tests` = `e10dab88fd1df193b0cce662a4dcd8c63bf8eb2b`
+
+### Task F2: Rename the `bridge` fixture to `bridge_modules` (M1)
+
+**Files:**
+- Modify: `tests/conftest.py` (fixture), `tests/test_completion_characterization.py`, `tests/test_f4_engine_session.py`, `tests/test_runtime_legacy_adapter.py`, `tests/test_runtime_voice_facade.py`, `tests/test_voice_parameter_guards.py`
+
+**Interfaces:**
+- Consumes: Task F1's tree.
+- Produces: fixture `bridge_modules` (`.adapter`, `.facade`); the alias `worldvoice_bridge_test` is unchanged. No test added or removed.
+
+- [ ] **Step 1: Rename the fixture and its users**
+
+The blocks are as prek leaves them: the longer name pushes one call in `test_completion_characterization.py` over the line length, so it is split with a trailing comma.
+
+**Edit:** `tests/conftest.py` (1/1)
+
+Replace:
+
+```text
+def bridge(monkeypatch, rt):
+	"""The bridge engine adapter and voice facade, bound to this test's runtime."""
+```
+
+With:
+
+```text
+def bridge_modules(monkeypatch, rt):
+	"""The bridge engine adapter and voice facade modules, bound to this test's runtime."""
+```
+
+**Edit:** `tests/test_completion_characterization.py` (1/2)
+
+Replace:
+
+```text
+def adapter_env(monkeypatch, bridge, rt, nvda_commands):
+```
+
+With:
+
+```text
+def adapter_env(monkeypatch, bridge_modules, rt, nvda_commands):
+```
+
+**Edit:** `tests/test_completion_characterization.py` (2/2)
+
+Replace:
+
+```text
+		adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls(), index_ledger=index_ledger)
+```
+
+With:
+
+```text
+		adapter = bridge_modules.adapter.LegacyEngineAdapter(
+			cls,
+			lambda key: cls(),
+			index_ledger=index_ledger,
+		)
+```
+
+**Edit:** `tests/test_f4_engine_session.py` (1/2)
+
+Replace:
+
+```text
+def engine(session_module, bridge, rt):
+```
+
+With:
+
+```text
+def engine(session_module, bridge_modules, rt):
+```
+
+**Edit:** `tests/test_f4_engine_session.py` (2/2)
+
+Replace:
+
+```text
+		return bridge.adapter.LegacyEngineAdapter(
+```
+
+With:
+
+```text
+		return bridge_modules.adapter.LegacyEngineAdapter(
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (1/25)
+
+Replace:
+
+```text
+def test_lifecycle_metadata_and_apply_order(bridge, rt):
+	core = Core()
+	cls = legacy_class(core)
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+```
+
+With:
+
+```text
+def test_lifecycle_metadata_and_apply_order(bridge_modules, rt):
+	core = Core()
+	cls = legacy_class(core)
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (2/25)
+
+Replace:
+
+```text
+def test_voice_metadata_defaults_and_canonical_key(bridge, rt, extra):
+	cls = legacy_class(Core())
+	cls.voices = classmethod(lambda cls, core: [dict(engine="Fake", id="a", language="en_US", **extra)])
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+```
+
+With:
+
+```text
+def test_voice_metadata_defaults_and_canonical_key(bridge_modules, rt, extra):
+	cls = legacy_class(Core())
+	cls.voices = classmethod(lambda cls, core: [dict(engine="Fake", id="a", language="en_US", **extra)])
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (3/25)
+
+Replace:
+
+```text
+def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge, rt):
+```
+
+With:
+
+```text
+def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge_modules, rt):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (4/25)
+
+Replace:
+
+```text
+	cls.voices = classmethod(lambda cls, core: [malformed, valid])
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
+```
+
+With:
+
+```text
+	cls.voices = classmethod(lambda cls, core: [malformed, valid])
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (5/25)
+
+Replace:
+
+```text
+def test_token_support_comes_from_actual_core(bridge, support):
+```
+
+With:
+
+```text
+def test_token_support_comes_from_actual_core(bridge_modules, support):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (6/25)
+
+Replace:
+
+```text
+	cls.supportsCancellationToken = True  # Class claims are not authoritative.
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter.open()
+```
+
+With:
+
+```text
+	cls.supportsCancellationToken = True  # Class claims are not authoritative.
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter.open()
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (7/25)
+
+Replace:
+
+```text
+def test_unsupported_generic_settings_are_not_written(bridge, rt):
+```
+
+With:
+
+```text
+def test_unsupported_generic_settings_are_not_written(bridge_modules, rt):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (8/25)
+
+Replace:
+
+```text
+	cls.supportedSettings = classmethod(lambda cls: ["rate"])
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter.open()
+```
+
+With:
+
+```text
+	cls.supportedSettings = classmethod(lambda cls: ["rate"])
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter.open()
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (9/25)
+
+Replace:
+
+```text
+def test_failed_core_creation_leaves_nothing_to_clean(bridge, rt):
+```
+
+With:
+
+```text
+def test_failed_core_creation_leaves_nothing_to_clean(bridge_modules, rt):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (10/25)
+
+Replace:
+
+```text
+	cls.create_core = classmethod(fail_open)
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	session = rt.session.EngineSession(adapter, rt.settings.VoiceSettingsStore(MemoryRepository()))
+```
+
+With:
+
+```text
+	cls.create_core = classmethod(fail_open)
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	session = rt.session.EngineSession(adapter, rt.settings.VoiceSettingsStore(MemoryRepository()))
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (11/25)
+
+Replace:
+
+```text
+def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge):
+```
+
+With:
+
+```text
+def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge_modules):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (12/25)
+
+Replace:
+
+```text
+	cls.destroy_core = classmethod(fail_destroy)
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter.open()
+```
+
+With:
+
+```text
+	cls.destroy_core = classmethod(fail_destroy)
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter.open()
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (13/25)
+
+Replace:
+
+```text
+def test_each_adapter_owns_its_own_core(bridge):
+	first_core, second_core = Core(), Core()
+	first_cls, second_cls = legacy_class(first_core), legacy_class(second_core)
+	first = bridge.adapter.LegacyEngineAdapter(first_cls, lambda key: first_cls())
+	second = bridge.adapter.LegacyEngineAdapter(second_cls, lambda key: second_cls())
+```
+
+With:
+
+```text
+def test_each_adapter_owns_its_own_core(bridge_modules):
+	first_core, second_core = Core(), Core()
+	first_cls, second_cls = legacy_class(first_core), legacy_class(second_core)
+	first = bridge_modules.adapter.LegacyEngineAdapter(first_cls, lambda key: first_cls())
+	second = bridge_modules.adapter.LegacyEngineAdapter(second_cls, lambda key: second_cls())
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (14/25)
+
+Replace:
+
+```text
+def test_onecore_cached_a_b_a_restores_language(bridge, rt):
+```
+
+With:
+
+```text
+def test_onecore_cached_a_b_a_restores_language(bridge_modules, rt):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (15/25)
+
+Replace:
+
+```text
+	store.ensure(make_spec("OneCore:b", "zh_TW")).update(rate=31)
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	session = rt.session.EngineSession(adapter, store)
+```
+
+With:
+
+```text
+	store.ensure(make_spec("OneCore:b", "zh_TW")).update(rate=31)
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	session = rt.session.EngineSession(adapter, store)
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (16/25)
+
+Replace:
+
+```text
+def test_real_variant_and_waitfactor_hooks(bridge, rt, monkeypatch, engine):
+```
+
+With:
+
+```text
+def test_real_variant_and_waitfactor_hooks(bridge_modules, rt, monkeypatch, engine):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (17/25)
+
+Replace:
+
+```text
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: voice)
+```
+
+With:
+
+```text
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: voice)
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (18/25)
+
+Replace:
+
+```text
+def marker_env(monkeypatch, bridge, rt, nvda_commands):
+```
+
+With:
+
+```text
+def marker_env(monkeypatch, bridge_modules, rt, nvda_commands):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (19/25)
+
+Replace:
+
+```text
+	adapter = bridge.adapter.LegacyEngineAdapter(
+```
+
+With:
+
+```text
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (20/25)
+
+Replace:
+
+```text
+def test_legacy_without_context_preserves_commands(bridge, monkeypatch):
+```
+
+With:
+
+```text
+def test_legacy_without_context_preserves_commands(bridge_modules, monkeypatch):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (21/25)
+
+Replace:
+
+```text
+	cls = legacy_class(core)
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter.open()
+```
+
+With:
+
+```text
+	cls = legacy_class(core)
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter.open()
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (22/25)
+
+Replace:
+
+```text
+def drain_env(monkeypatch, bridge, rt, nvda_commands, request):
+```
+
+With:
+
+```text
+def drain_env(monkeypatch, bridge_modules, rt, nvda_commands, request):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (23/25)
+
+Replace:
+
+```text
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls(), index_ledger=ledger)
+```
+
+With:
+
+```text
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls(), index_ledger=ledger)
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (24/25)
+
+Replace:
+
+```text
+def test_segment_event_configuration_rejects_wrong_lifecycle_phase(bridge, rt, phase):
+```
+
+With:
+
+```text
+def test_segment_event_configuration_rejects_wrong_lifecycle_phase(bridge_modules, rt, phase):
+```
+
+**Edit:** `tests/test_runtime_legacy_adapter.py` (25/25)
+
+Replace:
+
+```text
+	adapter = bridge.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+```
+
+With:
+
+```text
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+```
+
+**Edit:** `tests/test_runtime_voice_facade.py` (1/3)
+
+Replace:
+
+```text
+def setup(bridge, rt):
+```
+
+With:
+
+```text
+def setup(bridge_modules, rt):
+```
+
+**Edit:** `tests/test_runtime_voice_facade.py` (2/3)
+
+Replace:
+
+```text
+	binding = bridge.facade.LegacyVoiceBinding(store, session, None)
+
+	class Voice(bridge.facade.VoiceFacade):
+```
+
+With:
+
+```text
+	binding = bridge_modules.facade.LegacyVoiceBinding(store, session, None)
+
+	class Voice(bridge_modules.facade.VoiceFacade):
+```
+
+**Edit:** `tests/test_runtime_voice_facade.py` (3/3)
+
+Replace:
+
+```text
+def test_facade_reads_its_engine_core_from_the_binding(setup, bridge):
+	core = object()
+	binding = bridge.facade.LegacyVoiceBinding(setup.store, setup.session, core)
+```
+
+With:
+
+```text
+def test_facade_reads_its_engine_core_from_the_binding(setup, bridge_modules):
+	core = object()
+	binding = bridge_modules.facade.LegacyVoiceBinding(setup.store, setup.session, core)
+```
+
+**Edit:** `tests/test_voice_parameter_guards.py` (1/1)
+
+Replace:
+
+```text
+def test_the_adapter_applies_every_copyable_parameter_rate_boost_first(rt, bridge):
+	order = bridge.adapter.APPLY_ORDER
+```
+
+With:
+
+```text
+def test_the_adapter_applies_every_copyable_parameter_rate_boost_first(rt, bridge_modules):
+	order = bridge_modules.adapter.APPLY_ORDER
+```
+
+- [ ] **Step 2: Check that no test still asks for the old fixture**
+
+Run: `git grep -n -E "\bbridge[,)]|\bbridge\.(adapter|facade)\b" -- tests/test_completion_characterization.py tests/test_f4_engine_session.py tests/test_runtime_legacy_adapter.py tests/test_runtime_voice_facade.py tests/test_voice_parameter_guards.py`
+Expected: no output.
+
+- [ ] **Step 3: Full suite**
+
+Run: `python3 -m pytest -q -p no:cacheprovider tests` → `3224 passed`, 0 skipped.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add tests/conftest.py tests/test_completion_characterization.py tests/test_f4_engine_session.py tests/test_runtime_legacy_adapter.py tests/test_runtime_voice_facade.py tests/test_voice_parameter_guards.py
+git diff --cached --stat   # 6 files
+git commit -q -F - <<'MSG'
+test: rename the bridge fixture to bridge_modules
+
+The fixture that hands tests the bridge engine adapter and voice facade
+modules was called bridge, the word the tests already use for an
+NvdaEventBridge instance (composition.bridge, bridge_bindings(bridge)).
+Name it after what it returns so the two cannot be confused.
+MSG
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected after the commit: `HEAD:addon` = `9d4a7b01a9c558f4a984051b6f28c6a9be17b109`, `HEAD:tests` = `85401e928c5697030cd8cc258beba179e7c9b658`
+
+### Task F3: Verification
+
+- [ ] `python3 -m pytest -q -p no:cacheprovider tests` → `3224 passed`, 0 skipped (3219 + 5 in `tests/test_runtime_import_guard.py`).
+- [ ] `prek run --all-files` all Passed; `git diff --check master` prints nothing; both protected-path commands of Task 5 print nothing; `HEAD:addon` is still `9d4a7b01a9c558f4a984051b6f28c6a9be17b109`.
+
+### 修正 dry run record
+
+2026-10-26, fresh clone of the task branch at `f715f51` (the review commit; Task 4's tree) in the scratchpad, `ref` symlinked, `prek install`, every step applied from this section's text:
+
+| Commit | Files | Focused run | Full suite | Tree ids |
+| --- | --- | --- | --- | --- |
+| Task F1 | 2 | red `2 failed, 3 passed` (`DID NOT RAISE`), then `122 passed` | 3224 passed | match |
+| Task F2 | 6 | grep: no output | 3224 passed | match |
+
+Both commits passed the hooks on the first try and left a clean tree. `prek run --all-files` all Passed; both protected-path commands printed nothing. `git diff --check c94623b` reported only the review document's code block (`docs/superpowers/finish/2026-10-26-phase36-bridge-voices-review.md:51-57`, "space before tab in indent"), which the review commit added; the 修正記錄 commit re-indents those lines with spaces. The first attempt stopped at Task F1 Step 2 only because the Expected text quoted pytest's message as `<class 'AssertionError'>`; the text was corrected and the dry run redone from `f715f51`.
