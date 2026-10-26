@@ -266,7 +266,7 @@ def run_group_mode(env, text, size, pause=0):
 	sign=st.sampled_from(["", "+", "-"]),
 	digits=st.text(alphabet=ANY_DIGITS, min_size=1, max_size=30),
 	size=st.integers(1, 10),
-	pause=st.integers(0, 500),
+	pause=st.integers(0, 1000),
 )
 def test_property_groups_are_separate_items_of_the_chosen_size(env, sign, digits, size, pause):
 	result = run_group_mode(env, sign + digits, size, pause)
@@ -288,7 +288,7 @@ def test_property_groups_are_separate_items_of_the_chosen_size(env, sign, digits
 @given(
 	sign=st.sampled_from(["", "+", "-"]),
 	digits=st.text(alphabet=ANY_DIGITS, min_size=1, max_size=30),
-	wait=st.integers(0, 500),
+	wait=st.integers(0, 1000),
 )
 def test_property_digit_mode_separates_every_digit(env, sign, digits, wait):
 	stage_settings = punctuation_settings(0)
