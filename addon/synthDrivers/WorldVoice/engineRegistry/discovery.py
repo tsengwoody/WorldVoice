@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..assembly import timed
+from ..bringup import timed
 
 MANIFEST_FILENAME = "manifest.json"
 

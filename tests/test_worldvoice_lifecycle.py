@@ -8,8 +8,8 @@ from nvda_stubs import worldvoice_conf
 from worldvoice_harness import init_policies, load_synth_class, load_voice_manager
 
 
-def _assembly():
-	module = load_source(None, "lifecycle_assembly", WORLDVOICE / "assembly.py", register=False)
+def _bringup():
+	module = load_source(None, "lifecycle_bringup", WORLDVOICE / "bringup.py", register=False)
 	return {name: getattr(module, name) for name in ("Teardown", "timed", "patch_attribute")}
 
 
@@ -183,7 +183,7 @@ def _construction_environment(failure, changes, close_error=None):
 			unsubscribe=lambda listener: changes.append("detection unsubscribed"),
 		),
 		"listable": lambda function: function,
-		**_assembly(),
+		**_bringup(),
 		**commands,
 	}
 	return types.SimpleNamespace(

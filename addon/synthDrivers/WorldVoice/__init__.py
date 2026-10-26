@@ -26,11 +26,11 @@ from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, getSynth, synthDoneSpeaking, synthIndexReached
 
 from . import languageDetection
-from .assembly import Teardown, patch_attribute, timed
 from .bridge.commands import normalize_legacy_commands
 from .bridge.completionPolicies import CompletionPolicy
 from .bridge.indexLedger import IndexLedger
 from .bridge.nvdaEvents import NvdaEventBridge
+from .bringup import Teardown, patch_attribute, timed
 from .engineRegistry import ready_engine_classes
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
 from .numberLanguage import FOLLOW, MAIN

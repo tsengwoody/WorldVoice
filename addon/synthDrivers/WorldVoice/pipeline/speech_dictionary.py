@@ -4,7 +4,7 @@ from functools import wraps
 import globalVars
 import speech
 
-from ..assembly import patch_attribute
+from ..bringup import patch_attribute
 
 _restore: Callable[[], None] | None = None
 

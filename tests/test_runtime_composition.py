@@ -265,7 +265,7 @@ def test_normal_shutdown_saves_settings_without_a_facade(composition):
 
 
 def make_synth(c, manager):
-	assembly = importlib.import_module(c.package + ".assembly")
+	bringup = importlib.import_module(c.package + ".bringup")
 	commands = {
 		name: type(name, (), {})
 		for name in (
@@ -287,7 +287,7 @@ def make_synth(c, manager):
 			"synthDoneSpeaking": object(),
 			"nvdaLog": log,
 			**commands,
-			**{name: getattr(assembly, name) for name in ("Teardown", "timed", "patch_attribute")},
+			**{name: getattr(bringup, name) for name in ("Teardown", "timed", "patch_attribute")},
 		},
 	)
 	synth = object.__new__(root)
@@ -296,7 +296,7 @@ def make_synth(c, manager):
 	synth.taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
 	synth._indexLedger = c.ledger
 	# Register the runtime cleanups as _initialize does once each object exists.
-	synth._teardown = assembly.Teardown(root._TEARDOWN_ORDER, log)
+	synth._teardown = bringup.Teardown(root._TEARDOWN_ORDER, log)
 	synth._teardown.add("index ledger close", c.ledger.close)
 	synth._teardown.add("event bridge close", c.bridge.close)
 	synth._teardown.add("task manager shutdown", lambda: c.tasks.shutdown(manager.playback_ports))

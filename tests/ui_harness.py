@@ -762,7 +762,7 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 	# The flag is read by the add-on's own engine discovery rules.
 	alias_package(monkeypatch, "worldvoice_ui_engines", WORLDVOICE)
 	alias_package(monkeypatch, "worldvoice_ui_engines.engineRegistry", WORLDVOICE / "engineRegistry")
-	load_source(monkeypatch, "worldvoice_ui_engines.assembly", WORLDVOICE / "assembly.py")
+	load_source(monkeypatch, "worldvoice_ui_engines.bringup", WORLDVOICE / "bringup.py")
 	discovery = load_source(
 		monkeypatch,
 		"worldvoice_ui_engines.engineRegistry.discovery",
