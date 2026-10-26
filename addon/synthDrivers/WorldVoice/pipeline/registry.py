@@ -17,7 +17,7 @@ import speechDictHandler
 from logHandler import log
 from speech.extensions import filter_speechSequence
 
-from . import speech_dictionary
+from . import speechDictionary
 from .breaks import _plain_breaks
 from .context import SpeechContext, current_context
 from .items import item_wait_factor
@@ -175,7 +175,7 @@ def order_move_to_start_register():
 
 def register_stages():
 	log.debug("register pipeline stages")
-	speech_dictionary.install()
+	speechDictionary.install()
 	for stage in STAGES:
 		filter_speechSequence.register(stage.handler)
 	order_move_to_start_register()
@@ -185,4 +185,4 @@ def unregister_stages():
 	log.debug("unregister pipeline stages")
 	for stage in STAGES:
 		filter_speechSequence.unregister(stage.handler)
-	speech_dictionary.uninstall()
+	speechDictionary.uninstall()

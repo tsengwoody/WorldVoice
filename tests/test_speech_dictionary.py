@@ -24,7 +24,7 @@ def env(stub_modules, monkeypatch):
 		return text, global_vars.speechDictionaryProcessing
 
 	speech = stub_modules.module("speech", speech=SimpleNamespace(processText=process_text))
-	module = importlib.import_module(PACKAGE + ".pipeline.speech_dictionary")
+	module = importlib.import_module(PACKAGE + ".pipeline.speechDictionary")
 	return SimpleNamespace(module=module, speech=speech, globalVars=global_vars)
 
 

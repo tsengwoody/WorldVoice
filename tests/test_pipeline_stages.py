@@ -132,8 +132,8 @@ def test_register_puts_stages_first_in_order_and_unregister_removes_them(monkeyp
 	fake.register(other)
 	monkeypatch.setattr(module.registry, "filter_speechSequence", fake)
 	installs = []
-	monkeypatch.setattr(module.speech_dictionary, "install", lambda: installs.append("install"))
-	monkeypatch.setattr(module.speech_dictionary, "uninstall", lambda: installs.append("uninstall"))
+	monkeypatch.setattr(module.speechDictionary, "install", lambda: installs.append("install"))
+	monkeypatch.setattr(module.speechDictionary, "uninstall", lambda: installs.append("uninstall"))
 
 	module.register_stages()
 	assert fake.handlers == [stage.handler for stage in module.STAGES] + [other]

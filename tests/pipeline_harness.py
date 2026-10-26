@@ -57,7 +57,7 @@ PIPELINE_MODULES = (
 	"settings",
 	"numbers",
 	"symbols",
-	"speech_dictionary",
+	"speechDictionary",
 	"unspaced_common_data",
 )
 
@@ -117,7 +117,7 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice.pipeline.unspaced",
 		"synthDrivers.WorldVoice.pipeline.languageCommands",
 		"synthDrivers.WorldVoice.pipeline.recorder",
-		"synthDrivers.WorldVoice.pipeline.speech_dictionary",
+		"synthDrivers.WorldVoice.pipeline.speechDictionary",
 		"synthDrivers.WorldVoice.pipeline.settings",
 		"synthDrivers.WorldVoice.pipeline.context",
 		"synthDrivers.WorldVoice.pipeline.scope",
