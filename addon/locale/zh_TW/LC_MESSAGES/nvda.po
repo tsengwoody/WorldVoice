@@ -380,8 +380,8 @@ msgstr "群組"
 #. Translators: A number language choice: numbers are read in the language of
 #. the text around them.
 #: addon/synthDrivers/WorldVoice/pipeline/settings.py:68
-msgid "Follow text language"
-msgstr "跟隨文字語言"
+msgid "Follow surrounding text language"
+msgstr "跟隨前後文語言"
 
 #. Translators: A number language choice: numbers are read in the main
 #. language, the language the

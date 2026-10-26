@@ -388,8 +388,8 @@ msgstr "grup"
 #. Translators: A number language choice: numbers are read in the language of
 #. the text around them.
 #: addon/synthDrivers/WorldVoice/pipeline/settings.py:68
-msgid "Follow text language"
-msgstr "Metin dilini takip et"
+msgid "Follow surrounding text language"
+msgstr "Çevredeki metnin dilini takip et"
 
 #. Translators: A number language choice: numbers are read in the main
 #. language, the language the

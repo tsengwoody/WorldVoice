@@ -387,8 +387,8 @@ msgstr "مجموعات"
 #. Translators: A number language choice: numbers are read in the language of
 #. the text around them.
 #: addon/synthDrivers/WorldVoice/pipeline/settings.py:68
-msgid "Follow text language"
-msgstr "اتباع لغة النص"
+msgid "Follow surrounding text language"
+msgstr "اتباع لغة النص المحيط"
 
 #. Translators: A number language choice: numbers are read in the main
 #. language, the language the
