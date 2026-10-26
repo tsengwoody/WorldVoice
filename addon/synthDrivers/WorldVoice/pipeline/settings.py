@@ -26,18 +26,6 @@ except ImportError:
 addonHandler.initTranslation()
 
 
-# Maximum pause (in milliseconds) injected after a punctuation mark.
-# The pause is intentionally capped so the voice never falls fully silent
-# at punctuation, no matter how high the configured factor is.
-MAX_PUNCTUATION_WAIT_MS = 500
-
-# Milliseconds of pause per unit of punctuation_wait_factor (0..100),
-# so the full slider range maps to 0..500ms on its own, independent of the
-# global wait factor. This keeps the punctuation pause audible even when the
-# global wait factor is 0.
-PUNCTUATION_WAIT_UNIT_MS = 5
-
-
 def _floor_to_ten(value: Any) -> int:
 	return int(value) // 10 * 10
 
@@ -322,10 +310,7 @@ class PipelineSettings:
 		return self.global_factor_units * self.unspaced_script_space_wait_factor
 
 	def scaled_punctuation_wait(self) -> int:
-		return min(
-			self.punctuation_wait_factor * PUNCTUATION_WAIT_UNIT_MS,
-			MAX_PUNCTUATION_WAIT_MS,
-		)
+		return self.global_factor_units * self.punctuation_wait_factor
 
 	def effective(self, supports_roles: bool) -> "PipelineSettings":
 		"""The settings a synthesizer actually speaks with.

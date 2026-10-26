@@ -84,9 +84,10 @@ def inject_punctuation_pause(
 	  numeric punctuation such as the comma in "12,500" is skipped.
 	* The pause is only inserted when real text follows, and never as the
 	  last command of a sequence, so the voice cannot fall silent at the end.
-	* The pause length is capped (see PipelineSettings.scaled_punctuation_wait),
-	  so the voice never stops for a long silence at punctuation no matter how
-	  high the configured factor is.
+	* The pause length is the global wait units times the punctuation wait
+	  factor (PipelineSettings.scaled_punctuation_wait), like every other
+	  pause, with no cap: a global wait factor of 0 makes it 0 ms, and the
+	  break is still inserted.
 	* An existing BreakCommand between two text items suppresses only the
 	  boundary pause of the item before it. A mark that opens the next item
 	  is an internal pause point, so it still gets this pause after the
@@ -105,9 +106,9 @@ def inject_punctuation_pause(
 	* Where breaks meet around an edge break (between two non-blank text
 	  items, with only blank text and other commands among them), only one
 	  is kept: the longest, on a tie the first that is not an edge break.
-	  The punctuation pause the user tuned for a mark then wins over the
-	  short number pause, and a 0 ms one never leaves a number glued to the
-	  text. Breaks that meet without an edge break are left as they are.
+	  The punctuation pause the user tuned for a mark then wins over a
+	  shorter number pause (both use the same global wait units), and a 0 ms
+	  one never leaves a number glued to the text. Breaks that meet without an edge break are left as they are.
 	"""
 	if not settings.punctuation_pause_enabled:
 		yield from speechSequence

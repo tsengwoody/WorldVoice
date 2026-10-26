@@ -83,6 +83,14 @@ def test_group_wait_setting_is_gone(monkeypatch):
 	assert not hasattr(module, "GROUP_WAIT_UNIT_MS")
 
 
+def test_punctuation_wait_has_no_unit_or_cap_of_its_own(monkeypatch):
+	# Decided by the user (2026-10-26): no 5 ms unit and no 500 ms cap; no migration of stored values.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert not hasattr(module, "PUNCTUATION_WAIT_UNIT_MS")
+	assert not hasattr(module, "MAX_PUNCTUATION_WAIT_MS")
+	assert module.PIPELINE_CONFSPEC["punctuation_wait_factor"] == "integer(default=0,min=0,max=100)"
+
+
 def test_ignore_comma_option_is_gone(monkeypatch):
 	# Decided by the user (2026-10-22): value mode removes thousands separators instead; no migration.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
@@ -367,13 +375,16 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 			"scaled_unspaced_script_space_wait",
 			0,
 		),
-		# Punctuation and group pauses ignore the global factor: 5 ms a step, at most 500 ms.
-		({"global_wait_factor": 0, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 150),
-		({"punctuation_wait_factor": 100}, "scaled_punctuation_wait", 500),
-		({"punctuation_wait_factor": 101}, "scaled_punctuation_wait", 500),
+		# The punctuation pause follows the global factor like every other pause, with no cap
+		# (decided by the user, 2026-10-26).
+		({"global_wait_factor": 0, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 0),
+		({"global_wait_factor": 9, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 0),
+		({"global_wait_factor": 10, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 30),
+		({"global_wait_factor": 25, "punctuation_wait_factor": 7}, "scaled_punctuation_wait", 14),
+		({"global_wait_factor": 100, "punctuation_wait_factor": 100}, "scaled_punctuation_wait", 1000),
 	],
 )
-def test_scaled_waits_follow_their_units_and_caps(monkeypatch, changes, method, expected):
+def test_scaled_waits_are_the_global_units_times_the_factor(monkeypatch, changes, method, expected):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	settings = module.PipelineSettings(**{**OLD_DEFAULTS, **changes})
 	assert getattr(settings, method)() == expected

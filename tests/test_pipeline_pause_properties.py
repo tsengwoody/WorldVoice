@@ -69,7 +69,7 @@ def test_property_a_disabled_switch_changes_nothing(env, data):
 		enabled=False,
 		characters=data.draw(st.sampled_from(["", " ", MARKS, ".,;"])),
 		remove=data.draw(st.booleans()),
-		wait=data.draw(st.integers(0, 500)),
+		wait=data.draw(st.integers(0, 1000)),
 	)
 	assert len(result) == len(sequence)
 	assert all(after is before for after, before in zip(result, sequence))
@@ -80,7 +80,7 @@ def test_property_a_disabled_switch_changes_nothing(env, data):
 def test_property_the_wait_changes_only_the_break_time(env, data):
 	sequence = data.draw(punctuation_sequences(env))
 	remove = data.draw(st.booleans())
-	wait = data.draw(st.integers(1, 500))
+	wait = data.draw(st.integers(1, 1000))
 	at_zero = shape(run_punctuation(env, sequence, remove=remove, wait=0))
 	at_wait = shape(run_punctuation(env, sequence, remove=remove, wait=wait))
 	zero_break = ("PunctuationBreakCommand", 0)
@@ -172,7 +172,7 @@ def test_property_an_existing_break_suppresses_only_the_boundary_pause_before_it
 	"""
 	sequence = data.draw(punctuation_sequences(env))
 	remove = data.draw(st.booleans())
-	wait = data.draw(st.integers(0, 500))
+	wait = data.draw(st.integers(0, 1000))
 	result = run_punctuation(env, sequence, remove=remove, wait=wait)
 	plain = [item for item in sequence if not is_existing_break(env, item)]
 	without_breaks = run_punctuation(env, plain, remove=remove, wait=wait)
@@ -191,7 +191,7 @@ def test_property_a_punctuation_break_never_ends_the_output_or_sits_next_to_an_e
 	"""
 	sequence = data.draw(punctuation_sequences(env))
 	remove = data.draw(st.booleans())
-	result = run_punctuation(env, sequence, remove=remove, wait=data.draw(st.integers(0, 500)))
+	result = run_punctuation(env, sequence, remove=remove, wait=data.draw(st.integers(0, 1000)))
 
 	assert not (result and is_punctuation_break(env, result[-1]))
 	if remove:
@@ -214,7 +214,7 @@ def test_property_an_empty_list_changes_nothing(env, data):
 		sequence,
 		characters="",
 		remove=data.draw(st.booleans()),
-		wait=data.draw(st.integers(0, 500)),
+		wait=data.draw(st.integers(0, 1000)),
 	)
 	assert len(result) == len(sequence)
 	assert all(after is before for after, before in zip(result, sequence))
@@ -621,6 +621,32 @@ def test_property_leftover_text_is_never_a_number(env, text):
 
 
 # Settings (S1)
+
+SCALED_WAITS = {
+	"number_wait_factor": "scaled_number_wait",
+	"item_wait_factor": "scaled_item_wait",
+	"sayall_wait_factor": "scaled_sayall_wait",
+	"unspaced_script_space_wait_factor": "scaled_unspaced_script_space_wait",
+	"punctuation_wait_factor": "scaled_punctuation_wait",
+}
+
+
+@SHARED_ENV
+@given(
+	global_factor=st.integers(0, 100),
+	factor=st.integers(0, 100),
+	key=st.sampled_from(sorted(SCALED_WAITS)),
+)
+def test_property_every_pause_is_the_global_units_times_its_factor(
+	settings_module,
+	global_factor,
+	factor,
+	key,
+):
+	# The punctuation pause included, with no unit or cap of its own (decided by the user, 2026-10-26).
+	stored = {**settings_module.DEFAULT_PIPELINE_SETTINGS, "global_wait_factor": global_factor, key: factor}
+	pipeline_settings = settings_module.PipelineSettings(**stored)
+	assert getattr(pipeline_settings, SCALED_WAITS[key])() == global_factor // 10 * factor
 
 
 @SHARED_ENV

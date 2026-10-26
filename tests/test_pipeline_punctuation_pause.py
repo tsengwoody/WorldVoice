@@ -1,5 +1,5 @@
 import pytest
-from pipeline_harness import load_pipeline_module, punctuation_settings
+from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings
 
 
 def run_punctuation_filters(module, speech_sequence):
@@ -31,6 +31,34 @@ def test_positive_punctuation_wait_factor_inserts_a_punctuation_break(monkeypatc
 	assert type(result[2]).__name__ == "PunctuationBreakCommand"
 	assert result[2].time == 250
 	assert result[3] == " World"
+
+
+@pytest.mark.parametrize(
+	("global_factor", "factor", "expected"),
+	[
+		# Global factor 0: the pause is 0 ms, but the switch still splits the text at the mark.
+		(0, 30, 0),
+		(10, 30, 30),
+		# No cap: 10 units of 100 ms.
+		(100, 100, 1000),
+	],
+)
+def test_the_punctuation_pause_follows_the_global_factor(monkeypatch, global_factor, factor, expected):
+	# Decided by the user (2026-10-26): global units times the punctuation factor, like every pause.
+	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0))
+	pipeline = {
+		"global_wait_factor": global_factor,
+		"punctuation_wait_factor": factor,
+		"punctuation_pause_characters": ".",
+	}
+	settings = load_settings_module(
+		monkeypatch,
+		{"WorldVoice": {"pipeline": pipeline}},
+	).pipeline_settings.get()
+
+	result = list(module.inject_punctuation_pause(["Hello. World"], settings, module.GENERIC_CONTEXT))
+
+	assert shape(result) == ["Hello", ".", ("PunctuationBreakCommand", expected), " World"]
 
 
 def test_removing_configured_punctuation_preserves_existing_breaks(monkeypatch):
