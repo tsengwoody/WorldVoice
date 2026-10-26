@@ -4,7 +4,7 @@ import pytest
 from addon_loader import ADDON, load_source
 from nvda_stubs import StubModules
 
-SPEECH_COMMAND = ADDON / "synthDrivers/WorldVoice/_speechcommand.py"
+SPEECH_COMMAND = ADDON / "synthDrivers/WorldVoice/speechCommands.py"
 
 
 class SynthCommand:

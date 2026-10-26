@@ -1,8 +1,8 @@
 from speech.commands import LangChangeCommand
 
-from .._speechcommand import WVLangChangeCommand
 from ..locales import primary_language
 from ..numberLanguage import FOLLOW, MAIN
+from ..speechCommands import WVLangChangeCommand
 from .scripts import get_script
 
 BASIC_LATIN = (

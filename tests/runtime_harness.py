@@ -364,7 +364,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 		"bridge.nvdaEvents",
 		"bridge.engineAdapter",
 		"bridge.indexCodec",
-		"_speechcommand",
+		"speechCommands",
 	):
 		monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
 	ledger = importlib.import_module(name + ".bridge.indexLedger").IndexLedger()
@@ -438,7 +438,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 	elif adapter_kind == "legacy":
 		legacy = importlib.import_module(name + ".bridge.engineAdapter")
 		if core.marker_mode:
-			core.marker_type = importlib.import_module(name + "._speechcommand").WorldVoiceIndexCommand
+			core.marker_type = importlib.import_module(name + ".speechCommands").WorldVoiceIndexCommand
 
 		class LegacyVoice:
 			@classmethod
@@ -590,12 +590,12 @@ def load_index_support(monkeypatch, rt, package_name):
 		alias_package(monkeypatch, package_name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, package_name + ".runtime", rt.package)
 	monkeypatch.setitem(sys.modules, package_name + ".runtime.models", rt.models)
-	for suffix in ("bridge.indexLedger", "_speechcommand", "bridge.indexCodec"):
+	for suffix in ("bridge.indexLedger", "speechCommands", "bridge.indexCodec"):
 		monkeypatch.delitem(sys.modules, package_name + "." + suffix, raising=False)
 	return SimpleNamespace(
 		package=package_name,
 		ledger=importlib.import_module(package_name + ".bridge.indexLedger"),
-		commands=importlib.import_module(package_name + "._speechcommand"),
+		commands=importlib.import_module(package_name + ".speechCommands"),
 	)
 
 

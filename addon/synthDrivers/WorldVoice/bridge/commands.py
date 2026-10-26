@@ -4,8 +4,8 @@ from collections.abc import Iterable, Iterator
 
 from speech.commands import BreakCommand
 
-from .._speechcommand import WorldVoiceIndexCommand
 from ..runtime.models import Pause
+from ..speechCommands import WorldVoiceIndexCommand
 
 
 def normalize_legacy_commands(sequence: Iterable[object]) -> Iterator[object]:

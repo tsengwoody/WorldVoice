@@ -7,7 +7,7 @@ from detector_harness import load_language_detection
 
 
 def test_speech_command_reprs(env):
-	commands = importlib.import_module(env.module.__name__.rsplit(".", 1)[0] + "._speechcommand")
+	commands = importlib.import_module(env.module.__name__.rsplit(".", 1)[0] + ".speechCommands")
 	assert repr(commands.WVLangChangeCommand("zh")) == "WVLangChangeCommand ('zh')"
 	assert repr(commands.WVLangChangeCommand(None)) == "WVLangChangeCommand (None)"
 	marker = object.__new__(commands.WorldVoiceIndexCommand)

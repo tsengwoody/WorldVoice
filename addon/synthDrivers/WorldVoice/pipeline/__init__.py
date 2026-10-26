@@ -11,11 +11,11 @@ from logHandler import log
 from speech.commands import BreakCommand, ConfigProfileTriggerCommand, EndUtteranceCommand, LangChangeCommand
 from speech.extensions import filter_speechSequence
 
-from .._speechcommand import WVLangChangeCommand
 from ..languageDetection.scripts import get_script
 from ..log import PipelineLog
 from ..numberLanguage import FOLLOW, MAIN
 from ..runtime.models import SelectVoice
+from ..speechCommands import WVLangChangeCommand
 from . import speech_dictionary
 from .context import GENERIC_CONTEXT as GENERIC_CONTEXT, SpeechContext, current_context
 from .numbers import NUMBER_RE, number_pieces, split_spaced_numbers, strip_thousands

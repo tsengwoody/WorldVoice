@@ -1,4 +1,4 @@
-"""Load the real languageDetection package and _speechcommand under NVDA stubs."""
+"""Load the real languageDetection package and speechCommands under NVDA stubs."""
 
 import importlib
 import sys
@@ -45,5 +45,5 @@ def load_language_detection(stub_modules, monkeypatch):
 		state=state,
 		settings_module=settings_module,
 		settings=settings_module.DetectionSettingsService(lambda: conf),
-		WV=importlib.import_module(PACKAGE + "._speechcommand").WVLangChangeCommand,
+		WV=importlib.import_module(PACKAGE + ".speechCommands").WVLangChangeCommand,
 	)

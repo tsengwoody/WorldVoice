@@ -7,7 +7,7 @@ from runtime_harness import RUNTIME
 
 @pytest.fixture
 def speechcommand(monkeypatch, nvda_commands):
-	return load_source(monkeypatch, "worldvoice_index_command_test", RUNTIME.parent / "_speechcommand.py")
+	return load_source(monkeypatch, "worldvoice_index_command_test", RUNTIME.parent / "speechCommands.py")
 
 
 def test_marker_is_an_index_command(speechcommand, nvda_commands):

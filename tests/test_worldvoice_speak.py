@@ -154,7 +154,7 @@ def _load_modules(monkeypatch, conf):
 		builder=load("runtime.requestBuilder"),
 		commands=load("bridge.commands"),
 		models=load("runtime.models"),
-		WV=load("_speechcommand").WVLangChangeCommand,
+		WV=load("speechCommands").WVLangChangeCommand,
 	)
 
 

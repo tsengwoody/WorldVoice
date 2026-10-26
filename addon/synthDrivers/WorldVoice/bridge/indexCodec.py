@@ -6,8 +6,8 @@ its caller indexes; the ledger reports them when the segment completes.
 
 from speech.commands import IndexCommand
 
-from .._speechcommand import WorldVoiceIndexCommand
 from ..runtime.models import PlaybackContext, SpeechCommands
+from ..speechCommands import WorldVoiceIndexCommand
 from .indexLedger import IndexLedger
 
 
