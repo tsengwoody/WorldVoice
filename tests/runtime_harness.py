@@ -2,6 +2,7 @@
 
 import builtins
 import importlib
+import importlib.util
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -225,7 +226,8 @@ def forbid_legacy_runtime_imports(monkeypatch):
 	}
 
 	# bridge/ is the legacy boundary, except the ledger and the NVDA event bridge: both are pure
-	# Python, and a native engine uses them too.
+	# Python, and a native engine uses them too. The names they had before phase 36 (root
+	# indexLedger and nvdaEventBridge, compat/) no longer exist, so they need no rule.
 	bridge_allowed = {"indexLedger", "nvdaEvents"}
 
 	def check(name):
@@ -237,7 +239,11 @@ def forbid_legacy_runtime_imports(monkeypatch):
 	original_import_module = importlib.import_module
 
 	def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-		check(name)
+		# A relative import names only the sibling ("voiceFacade"); check where it resolves to.
+		if level and globals and globals.get("__package__"):
+			check(importlib.util.resolve_name("." * level + name, globals["__package__"]))
+		else:
+			check(name)
 		for item in fromlist or ():
 			check(item)
 		return original_import(name, globals, locals, fromlist, level)
