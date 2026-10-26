@@ -9,14 +9,14 @@ from types import MappingProxyType
 import languageHandler
 from synthDriverHandler import VoiceInfo
 
-from .roles import getPrimaryLocale
+from .locales import primary_language
 from .runtime.models import VoiceSpec
 
 
 def group_by_primary_locale(specs: Iterable[VoiceSpec]) -> dict[str, list[str]]:
 	groups: dict[str, list[str]] = defaultdict(list)
 	for spec in specs:
-		groups[getPrimaryLocale(spec.locale)].append(spec.name)
+		groups[primary_language(spec.locale)].append(spec.name)
 	return dict(groups)
 
 

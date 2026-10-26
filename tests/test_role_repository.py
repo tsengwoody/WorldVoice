@@ -1,11 +1,12 @@
 """Role assignments live behind one repository."""
 
 import pytest
-from addon_loader import WORLDVOICE, load_source
+from addon_loader import WORLDVOICE, alias_package, load_source
 
 
 def load_roles(monkeypatch):
-	return load_source(monkeypatch, "roles_under_test", WORLDVOICE / "roles.py")
+	alias_package(monkeypatch, "roles_pkg", WORLDVOICE)
+	return load_source(monkeypatch, "roles_pkg.roles", WORLDVOICE / "roles.py")
 
 
 class Section(dict):
@@ -26,13 +27,6 @@ def roles(monkeypatch):
 		},
 	}
 	return module, conf, module.ConfigRoleRepository(lambda: conf)
-
-
-def test_primary_locale(monkeypatch):
-	module = load_roles(monkeypatch)
-	assert module.getPrimaryLocale("zh_TW") == "zh"
-	assert module.getPrimaryLocale("en-US") == "en"
-	assert module.getPrimaryLocale("") == ""
 
 
 def test_voice_for_prefers_exact_then_primary_locale(roles):

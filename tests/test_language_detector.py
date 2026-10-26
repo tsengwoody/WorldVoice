@@ -415,21 +415,6 @@ def test_spelling_with_an_unavailable_locale(env):
 	assert result == [("a", "en"), (" ", "de_DE"), ("b", "en")]
 
 
-@pytest.mark.parametrize(
-	"locale,primary",
-	[
-		("en_US", "en"),
-		("ar-WW", "ar"),
-		("ZH-tw", "zh"),
-		("ja", "ja"),
-		("sr-Latn-RS", "sr"),
-		("zh_Hant_TW", "zh"),
-	],
-)
-def test_primary_language_is_the_first_subtag(env, locale, primary):
-	assert env.module.get_primary_language(locale) == primary
-
-
 def test_mixed_scripts_switch_at_script_boundaries(env):
 	result = make_detector(env).add_detected_language_commands(["hello 中文 ok"])
 	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en_US"), "ok"]
@@ -677,8 +662,8 @@ def is_letter(env, character):
 
 def covers(env, scenario, language, script):
 	"""The phase 33 rule, written out: a language of the script with an installed voice."""
-	primary = env.module.get_primary_language(language)
-	installed = {env.module.get_primary_language(voice) for voice in scenario.installed}
+	primary = env.module.primary_language(language)
+	installed = {env.module.primary_language(voice) for voice in scenario.installed}
 	return primary in env.module.SCRIPT_LANGUAGES.get(script, ()) and primary in installed
 
 
@@ -726,10 +711,10 @@ def plain_scenario(installed, base):
 @example(scenario=plain_scenario(("en_US", "zh_TW"), "en_US"), items=[L("de_DE"), "hallo"])
 def test_property_letters_go_to_installed_languages(env, scenario, items):
 	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
-	installed = {env.module.get_primary_language(voice) for voice in scenario.installed}
+	installed = {env.module.primary_language(voice) for voice in scenario.installed}
 	for script, language, _base, inserted in spoken_letters(env, scenario, items, result):
 		if inserted is not None:
-			assert env.module.get_primary_language(inserted) in installed
+			assert env.module.primary_language(inserted) in installed
 		if any(candidate in installed for candidate in env.module.SCRIPT_LANGUAGES.get(script, ())):
 			# Some installed language covers the script, so the letter is spoken in one of them.
 			assert covers(env, scenario, language, script)
@@ -752,7 +737,7 @@ def test_property_spelling_runs_of_the_base_primary_carry_the_base(env, scenario
 	base = scenario.locale if scenario.locale is not None else scenario.base
 	assert "".join(part for part, _language in runs) == text
 	assert all(part for part, _language in runs)
-	primary = env.module.get_primary_language
+	primary = env.module.primary_language
 	assert all(language == base for _part, language in runs if primary(language) == primary(base))
 
 
@@ -789,7 +774,7 @@ def test_property_spelling_digits_carry_the_number_language(env, scenario, text,
 	detector = scenario_detector(env, scenario)
 	detector._number_language = lambda: number_language
 	runs = list(detector.process_for_spelling(text, scenario.locale))
-	primary = env.module.get_primary_language
+	primary = env.module.primary_language
 	base = scenario.locale if scenario.locale is not None else scenario.base
 	installed = {primary(voice) for voice in scenario.installed}
 	for index, (part, language) in enumerate(runs):

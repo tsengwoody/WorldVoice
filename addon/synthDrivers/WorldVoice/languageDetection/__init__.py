@@ -1,6 +1,7 @@
 from speech.commands import LangChangeCommand
 
 from .._speechcommand import WVLangChangeCommand
+from ..locales import primary_language
 from ..numberLanguage import FOLLOW, MAIN
 from .scripts import get_script
 
@@ -94,10 +95,6 @@ SCRIPT_LANGUAGES = {
 }
 
 
-def get_primary_language(locale: str) -> str:
-	return locale.replace("-", "_").split("_", maxsplit=1)[0].lower()
-
-
 class LanguageDetector:
 	"""Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
@@ -108,11 +105,11 @@ class LanguageDetector:
 		self._settings = settings
 		self._language = language
 		self._number_language = number_language
-		self.availableLanguages = frozenset(get_primary_language(lang) for lang in availableLanguages)
+		self.availableLanguages = frozenset(primary_language(lang) for lang in availableLanguages)
 
 	def _covers(self, language, script):
 		"""Whether language is a language of script that has an installed voice."""
-		primary = get_primary_language(language)
+		primary = primary_language(language)
 		return primary in SCRIPT_LANGUAGES.get(script, ()) and primary in self.availableLanguages
 
 	def find_language_for_script(self, script, current_language, settings=None, base_language=None):
@@ -127,7 +124,7 @@ class LanguageDetector:
 			settings = self._settings.get()
 		configured = settings.script_language.get(script)
 		if configured is not None:
-			configured_primary = get_primary_language(configured)
+			configured_primary = primary_language(configured)
 			if configured_primary in candidates and configured_primary in self.availableLanguages:
 				return configured
 		for candidate in candidates:
@@ -161,7 +158,7 @@ class LanguageDetector:
 				buffer = []
 				for c in command:
 					targetLang = self._language_for_character(c, tmpLang, curLang, settings)
-					if get_primary_language(targetLang) != get_primary_language(tmpLang):
+					if primary_language(targetLang) != primary_language(tmpLang):
 						if buffer:
 							yield "".join(buffer)
 							buffer = []
@@ -178,7 +175,7 @@ class LanguageDetector:
 		spelling locale for "main", or the number language when it has a voice."""
 		if number_language == FOLLOW:
 			return current_language
-		if number_language != MAIN and get_primary_language(number_language) in self.availableLanguages:
+		if number_language != MAIN and primary_language(number_language) in self.availableLanguages:
 			return number_language
 		return default_language
 
@@ -209,7 +206,7 @@ class LanguageDetector:
 						base_language=default_language,
 					)
 
-			if get_primary_language(target_language) != get_primary_language(current_language):
+			if primary_language(target_language) != primary_language(current_language):
 				if buffer:
 					yield "".join(buffer), current_language
 					buffer = []

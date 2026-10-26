@@ -1,15 +1,9 @@
 """Locale to voice assignments ("speech roles") stored in the WorldVoice config."""
 
-import re
 from collections.abc import Callable, Collection, Mapping
 from typing import Any
 
-
-def getPrimaryLocale(locale: str) -> str:
-	"""Return the primary language subtag from locale strings like en_US / en-US."""
-	if not locale:
-		return locale
-	return re.split(r"[-_]", locale, maxsplit=1)[0].lower()
+from .locales import primary_language
 
 
 def prune_assignments(
@@ -39,7 +33,7 @@ class ConfigRoleRepository:
 
 	def voice_for(self, language: str) -> str | None:
 		section = self._section()
-		for locale in (language, getPrimaryLocale(language)):
+		for locale in (language, primary_language(language)):
 			value = section.get(locale) if hasattr(section, "get") else None
 			if _is_section(value):
 				voice = value.get("voice")

@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
-from .roles import getPrimaryLocale
+from .locales import primary_language
 from .runtime.settings import PARAMETER_NAMES
 
 
@@ -58,7 +58,7 @@ class VoiceConsistency:
 		_flags(self._conf_provider)[self._KEY] = value
 
 	def main_locale(self, voice) -> str:
-		return getPrimaryLocale(voice.language or self._language())
+		return primary_language(voice.language or self._language())
 
 	def follow(self, voice) -> None:
 		if self.enabled:
