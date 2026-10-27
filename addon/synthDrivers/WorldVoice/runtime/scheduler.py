@@ -298,7 +298,7 @@ class TaskManager:
 	def on_event(self, event: PlaybackEvent) -> None:
 		self.on_events(lambda: (event,))
 
-	def on_events(self, load_events: Callable[[], tuple[PlaybackEvent, ...]]) -> None:
+	def on_events(self, load_events: Callable[[], Iterable[PlaybackEvent]]) -> None:
 		# Serialize decoding and output. RLock permits output callbacks to
 		# reenter; queue those suppliers so they cannot overtake this batch.
 		with self._delivery_lock:

@@ -1,6 +1,6 @@
 """Translate NVDA notifications at the boundary of the pure voice runtime."""
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from threading import RLock
 
@@ -27,17 +27,21 @@ class _Binding:
 	ledgerToken: object | None
 
 
-class _BindingEvents(tuple):
-	"""Keep one decoded batch while checking revocation between deliveries."""
+class _EventsWhileActive:
+	"""One decoded batch that yields its events only while its binding stays active.
 
-	def __new__(cls, events: tuple[PlaybackEvent, ...], is_active: Callable[[], bool]):
-		batch = super().__new__(cls, events)
-		batch._is_active = is_active
-		return batch
+	Only iteration is offered, and each iteration checks the binding before every event, so no
+	consumer can read the batch past a revocation. A class rather than a generator: a generator
+	iterates once and would be silently empty the second time.
+	"""
+
+	def __init__(self, events: tuple[PlaybackEvent, ...], isActive: Callable[[], bool]):
+		self._events = events
+		self._isActive = isActive
 
 	def __iter__(self) -> Iterator[PlaybackEvent]:
-		for event in super().__iter__():
-			if not self._is_active():
+		for event in self._events:
+			if not self._isActive():
 				return
 			yield event
 
@@ -67,7 +71,7 @@ class NvdaEventBridge(NotificationOutput):
 		self,
 		handler: Callable[[PlaybackEvent], None],
 		*,
-		batchHandler: Callable[[Callable[[], tuple[PlaybackEvent, ...]]], None] | None = None,
+		batchHandler: Callable[[Callable[[], Iterable[PlaybackEvent]]], None] | None = None,
 	) -> None:
 		with self._lock:
 			if self._closed:
@@ -164,7 +168,7 @@ class NvdaEventBridge(NotificationOutput):
 			):
 				return
 
-			def loadEvents() -> tuple[PlaybackEvent, ...]:
+			def loadEvents() -> Iterable[PlaybackEvent]:
 				if not self._bindingIsActive(binding):
 					return ()
 				# Decode inside the scheduler's delivery lock. The ledger token
@@ -172,7 +176,7 @@ class NvdaEventBridge(NotificationOutput):
 				events = self._indexLedger.receiveSegmentEvent(event, bindingToken=binding.ledgerToken)
 				# An INDEX handler can unbind before this batch's drain. Keep
 				# the batch intact, but stop iteration when its generation dies.
-				return _BindingEvents(events, lambda: self._bindingIsActive(binding))
+				return _EventsWhileActive(events, lambda: self._bindingIsActive(binding))
 
 			batchHandler(loadEvents)
 
@@ -226,7 +230,7 @@ class NvdaEventBridge(NotificationOutput):
 				handler(PlaybackEvent(kind, binding.sourceId, index))
 		elif kind is EventKind.INDEX and batchHandler is not None:
 			# The consumer serializes both decode and delivery of this batch.
-			def loadEvents() -> tuple[PlaybackEvent, ...]:
+			def loadEvents() -> Iterable[PlaybackEvent]:
 				with self._lock:
 					if self._closed or self._sources.get(id(source)) is not binding:
 						return ()

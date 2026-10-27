@@ -526,7 +526,22 @@ def test_segment_sink_decodes_only_inside_batch_supplier(drain_env):
 		("INDEX", 7, 9),
 		("SEGMENT_DRAINED", None, 9),
 	]
-	assert env.suppliers[0]() == ()
+	assert list(env.suppliers[0]()) == []
+
+
+def test_batch_iterates_again_and_stops_after_unbind(drain_env):
+	# The batch checks its binding on every iteration: it is not a tuple, whose len(), indexing or
+	# equality would bypass the check, nor a generator, which would be empty the second time.
+	env = drain_env
+	env.bridge.segmentSink(env.source, env.context)(segment_event(env))
+	batch = env.suppliers[0]()
+	expected = [("INDEX", 42), ("INDEX", 7), ("SEGMENT_DRAINED", None)]
+	assert [(e.kind.name, e.index) for e in batch] == expected
+	assert [(e.kind.name, e.index) for e in batch] == expected
+	with pytest.raises(TypeError):
+		len(batch)
+	env.bridge.unbind(env.source_id)
+	assert list(batch) == []
 
 
 @pytest.mark.parametrize("mismatch", ["source", "segment", "done", "end", "index"])
@@ -545,7 +560,7 @@ def test_segment_sink_rejects_unrelated_events(drain_env, mismatch):
 	sink(event)
 	assert env.suppliers == []
 	sink(segment_event(env))
-	assert env.suppliers[0]()[-1].kind is env.models.EventKind.SEGMENT_DRAINED
+	assert list(env.suppliers[0]())[-1].kind is env.models.EventKind.SEGMENT_DRAINED
 
 
 @pytest.mark.parametrize("invalid", ["unknown", "wrong_context", "owner", "legacy", "end_index"])
@@ -584,7 +599,7 @@ def test_segment_failure_does_not_restore_pending_indexes(drain_env):
 	env = drain_env
 	error = OSError("native failure")
 	env.bridge.segmentSink(env.source, env.context)(segment_event(env, "SEGMENT_FAILED", error=error))
-	events = env.suppliers[0]()
+	events = list(env.suppliers[0]())
 	assert len(events) == 1 and events[0].error is error
 	assert env.ledger.receiveIndex(env.source_id, 1) == ()
 
@@ -627,7 +642,7 @@ def test_segment_supplier_rechecks_ledger_token_after_bridge_validation(drain_en
 		return receive(event, **kwargs)
 
 	monkeypatch.setattr(env.ledger, "receiveSegmentEvent", replace_binding)
-	assert env.suppliers[0]() == ()
+	assert list(env.suppliers[0]()) == []
 
 
 def test_segment_batch_stops_after_index_handler_unbinds(drain_env):

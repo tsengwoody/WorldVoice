@@ -192,9 +192,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"SynthDriver.voice_manager",
 		"base_dir",
 	},
-	"synthDrivers/WorldVoice/bridge/nvdaEvents.py": {
-		"_BindingEvents.__new__.<locals>.is_active",
-	},
 	"synthDrivers/WorldVoice/driver/Cerence/__init__.py": {
 		"SynthDriver._begin_record",
 		"SynthDriver._callback_admission",
