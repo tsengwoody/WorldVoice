@@ -2041,4 +2041,3 @@ addon/synthDrivers/WorldVoice/runtime/segmentHost.py:673:			return self._player.
 Every commit passed the hooks on the first try and left a clean tree. Task 7 in the clone: `3287 passed`, 0 skipped; `prek run --all-files` all Passed; `git diff --check 8e1df5b`, both protected-path commands and the Neural command printed nothing; leftover greps A and B printed exactly the listed lines; final tree ids as Task 6; the final root tree `567d8e3f…` equals the prototype's.
 
 The plan text was produced from a prototype branch (same tree ids). A first replay failed at Task 6 (`HEAD:tests` `5baa2123…`): an `Edit:` block whose "With" text was one blank line, which the replay script reads as empty, so a blank line was lost. The blocks now always carry a line of text on both sides, and this record is the second replay, from the base, of the final text.
-
