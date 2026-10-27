@@ -5,11 +5,11 @@ import types
 
 from addon_loader import ADDON, WORLDVOICE, load_definitions
 from pipeline_harness import LOG_SWITCH_ORDER
-from ui_harness import load_settings_dialog, load_voice_panel
+from ui_harness import PANEL_MODULES, load_settings_dialog, load_voice_panel
 
 PLUGIN = ADDON / "globalPlugins/WorldVoice"
-# The settings dialog and its panels.
-DIALOG_FILES = (PLUGIN / "dialog.py", *sorted((PLUGIN / "panels").glob("*.py")))
+# The settings dialog and its panels, listed so that a missing module fails instead of reading nothing.
+DIALOG_FILES = (PLUGIN / "dialog.py", *(PLUGIN / "panels" / f"{name}.py" for name in PANEL_MODULES))
 VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
 SYNTH = WORLDVOICE / "__init__.py"
 
@@ -207,6 +207,20 @@ def dialog_msgids():
 		and isinstance(node.args[0], ast.Constant)
 		and isinstance(node.args[0].value, str)
 	}
+
+
+def test_dialog_msgids_come_from_the_dialog_and_every_panel():
+	# The overlap check below would pass on an empty set; each module's title shows it was read.
+	titles = {
+		"Settings",
+		"WorldVoice",
+		"Speech Pipeline",
+		"Speech Role",
+		"Unicode Detection",
+		"Speech Engine",
+		"Log Record",
+	}
+	assert titles <= dialog_msgids()
 
 
 def test_log_labels_come_from_the_table(monkeypatch):
