@@ -2,7 +2,8 @@
 
 import importlib
 import sys
-from types import SimpleNamespace
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 from runtime_harness import lifecycle_hooks, segment_host, segment_lifecycle
@@ -412,6 +413,29 @@ def test_six_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine
 			assert control.session.completion.mode is installed.rt.models.CompletionMode.DRAIN
 			assert control.calls == []
 	finally:
+		installed.close()
+
+
+def fresh_discovery(monkeypatch):
+	"""engineRegistry/discovery.py without the package __init__, which scans the disk through NVDA."""
+	registry = "synthDrivers.WorldVoice.engineRegistry"
+	package = ModuleType(registry)
+	package.__path__ = [str(Path(sys.modules["synthDrivers.WorldVoice"].__path__[0]) / "engineRegistry")]
+	monkeypatch.setitem(sys.modules, registry, package)
+	monkeypatch.delitem(sys.modules, registry + ".discovery", raising=False)
+	return importlib.import_module(registry + ".discovery")
+
+
+@pytest.mark.parametrize("engine", SIX_ENGINES)
+def test_six_loaded_voices_pass_the_pre_rename_check(monkeypatch, tmp_path, engine):
+	# Discovery skips a Voice that has a pre-rename contract name, inherited ones included (hasattr),
+	# so the loaded class is checked the same way, not only the names its class body defines.
+	installed = load_installed_engine(monkeypatch, tmp_path, engine)
+	try:
+		discovery = fresh_discovery(monkeypatch)
+		assert discovery._pre_rename_contract_names(installed.outer.Voice) == []
+	finally:
+		sys.modules.pop("synthDrivers.WorldVoice.engineRegistry.discovery", None)
 		installed.close()
 
 
