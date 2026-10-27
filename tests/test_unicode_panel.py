@@ -8,7 +8,8 @@ from addon_loader import ADDON, load_definitions
 from detector_harness import load_language_detection
 from ui_harness import BoxSizerHelper, CheckBox, Choice, Sizer
 
-PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
+PLUGIN = ADDON / "globalPlugins/WorldVoice"
+PANEL = PLUGIN / "panels/detection.py"
 
 
 class Synth:
@@ -179,20 +180,22 @@ def test_detection_panel_lists_every_table_script(env):
 
 
 def test_the_dialog_reads_the_tables_without_the_detector():
-	# The panel needs the script table and the settings service, not the detector module.
+	# The panel needs the script table and the settings service, not the detector module; no other
+	# module of the settings UI imports more of languageDetection.
 	allowed = {
 		"synthDrivers.WorldVoice.languageDetection.settings",
 		"synthDrivers.WorldVoice.languageDetection.scriptLanguages",
 	}
-	for node in ast.walk(ast.parse(PANEL.read_text(encoding="utf-8"))):
-		if isinstance(node, ast.ImportFrom):
-			names = [node.module or "", *(f"{node.module}.{alias.name}" for alias in node.names)]
-		elif isinstance(node, ast.Import):
-			names = [alias.name for alias in node.names]
-		else:
-			continue
-		if any("languageDetection" in name for name in names):
-			assert isinstance(node, ast.ImportFrom) and node.module in allowed, ast.unparse(node)
+	for path in PLUGIN.rglob("*.py"):
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+			if isinstance(node, ast.ImportFrom):
+				names = [node.module or "", *(f"{node.module}.{alias.name}" for alias in node.names)]
+			elif isinstance(node, ast.Import):
+				names = [alias.name for alias in node.names]
+			else:
+				continue
+			if any("languageDetection" in name for name in names):
+				assert isinstance(node, ast.ImportFrom) and node.module in allowed, ast.unparse(node)
 
 
 @pytest.fixture

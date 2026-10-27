@@ -6,7 +6,7 @@ from collections import OrderedDict
 import pytest
 from addon_loader import ADDON, load_definitions
 
-PANEL_PATH = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
+PANELS = ADDON / "globalPlugins/WorldVoice/panels"
 
 
 class RecordingSection(dict):
@@ -38,7 +38,8 @@ def _load_panels(calls, logged):
 		),
 		"core": types.SimpleNamespace(restart=lambda: None),
 	}
-	load_definitions(PANEL_PATH, ["BaseSettingsPanel", "SpeechEngineSettingsPanel"], environment)
+	load_definitions(PANELS / "base.py", ["BaseSettingsPanel"], environment)
+	load_definitions(PANELS / "engine.py", ["SpeechEngineSettingsPanel"], environment)
 	return environment, section
 
 

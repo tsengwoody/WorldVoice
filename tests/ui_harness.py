@@ -17,6 +17,8 @@ from nvda_stubs import StubModules, configobj_stub, worldvoice_conf
 from pipeline_harness import LOG_SWITCH_ORDER
 
 PLUGIN_DIR = ADDON / "globalPlugins/WorldVoice"
+# The settings panel modules under PLUGIN_DIR / "panels", each after the ones it imports.
+PANEL_MODULES = ("base", "pipeline", "role", "detection", "engine", "log")
 NOT_FOUND = -1
 # wx.BOTTOM, the border flag NVDA gives each driver row (settingsDialogs.py:1585-1590).
 BOTTOM = 0x80
@@ -729,12 +731,15 @@ class PipelineLog:
 
 
 def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answers=None):
-	"""The real speechSettingsDialog.py, its real utils, pipeline settings and pipeline context.
+	"""The real dialog.py and panels/, their real utils, pipeline settings and pipeline context.
 
-	conf defaults to a fresh WorldVoice profile plus an empty speech section; synth is what
-	getSynth returns (``env.current[0]`` changes it later). engines are (name, label, default)
-	for ENGINE_SPECS, and get_engine_enabled reads the stored flag. The pipeline log service and
-	its prompts are recorded in ``env.log_calls``; tests replace RolePanelPresenter on the module.
+	``env.module`` is the dialog module, which imports every panel class it offers;
+	``env.panels.<name>`` is each panel module of PANEL_MODULES, where a test replaces a name the
+	panel looks up. conf defaults to a fresh WorldVoice profile plus an empty speech section;
+	synth is what getSynth returns (``env.current[0]`` changes it later). engines are (name,
+	label, default) for ENGINE_SPECS, and get_engine_enabled reads the stored flag. The pipeline
+	log service and its prompts are recorded in ``env.log_calls``; tests replace
+	RolePanelPresenter on ``env.panels.role``.
 	"""
 	env = gui_stubs(monkeypatch, answers=answers)
 	stubs = env.stubs
@@ -799,13 +804,16 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 		),
 	)
 	stubs.module(package + ".rolePresenter", RolePanelPresenter=None)
-	# Loaded here, not by the dialog's relative import, so it leaves sys.modules after the test.
+	# Loaded here, not by the relative imports, so they leave sys.modules after the test.
 	load_source(monkeypatch, package + ".utils", PLUGIN_DIR / "utils.py")
-	env.module = load_source(
-		monkeypatch,
-		package + ".speechSettingsDialog",
-		PLUGIN_DIR / "speechSettingsDialog.py",
+	alias_package(monkeypatch, package + ".panels", PLUGIN_DIR / "panels")
+	env.panels = SimpleNamespace(
+		**{
+			name: load_source(monkeypatch, f"{package}.panels.{name}", PLUGIN_DIR / "panels" / f"{name}.py")
+			for name in PANEL_MODULES
+		},
 	)
+	env.module = load_source(monkeypatch, package + ".dialog", PLUGIN_DIR / "dialog.py")
 	return env
 
 
@@ -899,7 +907,7 @@ def load_global_plugin(monkeypatch, *, secure=False, log_enabled=False):
 		confirm_enable=answer("confirm"),
 	)
 	env.settings_dialog = type("WorldVoiceSettingsDialog", (), {})
-	stubs.module(package + ".speechSettingsDialog", WorldVoiceSettingsDialog=env.settings_dialog)
+	stubs.module(package + ".dialog", WorldVoiceSettingsDialog=env.settings_dialog)
 	env.module = load_source(monkeypatch, package, PLUGIN_DIR / "__init__.py")
 	return env
 

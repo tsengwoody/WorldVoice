@@ -191,7 +191,7 @@ def test_pipeline_panel_keeps_the_stored_scope_when_nothing_is_selected(monkeypa
 def test_pipeline_panel_never_saves_an_entry_pipeline_config_does_not_store(monkeypatch):
 	# The guard keeps ordering-only entries out of this panel; onSave still skips one.
 	env = pipeline_env(monkeypatch, number_wait_factor=20, group_size=3)
-	env.module.PIPELINE_SETTINGS = tuple(
+	env.panels.pipeline.PIPELINE_SETTINGS = tuple(
 		replace(spec, pipeline_config=False) if spec.key == "number_wait_factor" else spec
 		for spec in env.settings.PIPELINE_SETTINGS
 	)
@@ -494,7 +494,7 @@ def test_log_panel_shows_one_switch_per_stage_from_config(monkeypatch):
 	assert panel._enable_checkbox.value is True
 	group = sizer.items[1].item
 	boxes = group.controls()
-	labels = env.module._LOG_LABELS
+	labels = env.panels.log._LOG_LABELS
 	assert [box.label for box in boxes] == [labels[key] for key in LOG_SWITCH_ORDER]
 	assert {key for key, box in zip(LOG_SWITCH_ORDER, boxes, strict=True) if box.value} == {
 		"number_mode",
@@ -623,7 +623,7 @@ def real_log_env(monkeypatch, refused=(), **stored):
 		"worldvoice_ui_test.pipelineLogService",
 		PLUGIN_DIR / "pipelineLog.py",
 	)
-	monkeypatch.setattr(env.module, "pipeline_log", service_module.PipelineLogService(lambda: env.conf))
+	monkeypatch.setattr(env.panels.log, "pipeline_log", service_module.PipelineLogService(lambda: env.conf))
 	return env, section
 
 
@@ -693,7 +693,7 @@ def test_base_panel_choice_selects_the_stored_option_or_the_first(monkeypatch):
 	env = load_settings_dialog(monkeypatch)
 	env.conf["WorldVoice"]["engine"] = {"mode": "fast", "other": "unknown"}
 
-	class Panel(env.module.BaseSettingsPanel):
+	class Panel(env.panels.base.BaseSettingsPanel):
 		field = "engine"
 		settings = {  # noqa: RUF012
 			"mode": {"label": "Mode:", "options": {"slow": "Slow", "fast": "Fast"}},

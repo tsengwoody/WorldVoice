@@ -1,5 +1,6 @@
 """Translator comments must sit directly above a gettext call (NVDA codingStandards.md)."""
 
+import ast
 import re
 from pathlib import Path
 
@@ -153,3 +154,47 @@ def test_zh_tw_catalog_follows_the_labels():
 	catalog = _catalog(ZH_TW_CATALOG)
 	assert {msgid: catalog.get(msgid, "") for msgid in CHANGED_LABEL_MSGIDS if not catalog.get(msgid)} == {}
 	assert [msgid for msgid in DEAD_MSGIDS if msgid in catalog] == []
+
+
+GETTEXT_NAMES = {"_", "pgettext", "ngettext", "npgettext"}
+# Modules that call _() without addonHandler.initTranslation(): the _ they reach is NVDA's own
+# catalog, which has none of their strings, so NVDA shows those in English.
+UNTRANSLATED = ("globalPlugins/WorldVoice/utils.py",)
+
+
+def _translated_modules():
+	"""(relative path, path, tree) of each add-on module with a gettext call."""
+	for path in sorted(ADDON.rglob("*.py")):
+		relative = path.relative_to(ADDON).as_posix()
+		if EXCLUDED.search(relative):
+			continue
+		tree = ast.parse(path.read_text(encoding="utf-8"))
+		if any(
+			isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in GETTEXT_NAMES
+			for node in ast.walk(tree)
+		):
+			yield relative, path, tree
+
+
+def test_every_translated_module_installs_the_add_on_catalog():
+	# initTranslation() sets _ in the calling module only, so a module split off another needs its own.
+	missing = [
+		relative
+		for relative, _path, tree in _translated_modules()
+		if "addonHandler.initTranslation()" not in {ast.unparse(node) for node in tree.body}
+	]
+	assert missing == list(UNTRANSLATED)
+
+
+def test_every_translated_module_is_a_pot_source():
+	# buildVars.pythonSources is what scons pot hands to xgettext; a module it misses drops out of
+	# the catalog template.
+	root = ADDON.parent
+	tree = ast.parse((root / "buildVars.py").read_text(encoding="utf-8"))
+	(sources,) = [
+		node.value
+		for node in tree.body
+		if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", None) == "pythonSources"
+	]
+	covered = {path for pattern in ast.literal_eval(sources) for path in root.glob(pattern)}
+	assert [relative for relative, path, _tree in _translated_modules() if path not in covered] == []

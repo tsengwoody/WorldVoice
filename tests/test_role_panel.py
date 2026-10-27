@@ -5,7 +5,7 @@ import types
 import pytest
 from addon_loader import ADDON, load_definitions
 
-PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
+PANEL = ADDON / "globalPlugins/WorldVoice/panels/role.py"
 
 
 def load_panel(environment):

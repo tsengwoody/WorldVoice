@@ -277,8 +277,8 @@ def test_pipeline_panel_controls_follow_the_table(monkeypatch):
 	panel = make_panel(env.module.SpeechPipelinePanel)
 	sizer = Sizer()
 	panel.makeSettings(sizer)
-	specs = env.module.panel_specs(env.module.PIPELINE_SETTINGS, "pipeline")
-	controls = {spec.key: getattr(panel, env.module.pipeline_attribute(spec)) for spec in specs}
+	specs = env.panels.pipeline.panel_specs(env.panels.pipeline.PIPELINE_SETTINGS, "pipeline")
+	controls = {spec.key: getattr(panel, env.panels.pipeline.pipeline_attribute(spec)) for spec in specs}
 	keys = [spec.key for spec in specs]
 	assert keys == ["scope", *(key for key in VOICE_KEYS if key != "number_language")]
 	assert tab_keys(types.SimpleNamespace(tab_order=sizer.controls()), controls) == keys

@@ -18,8 +18,8 @@ from synthDrivers.WorldVoice.workspace import workspace_path
 # isort: split
 from generics.coreArchive import extract_core_archive
 
+from .dialog import WorldVoiceSettingsDialog
 from .pipelineLog import ask_disable_on_start, ask_export, confirm_enable, pipeline_log
-from .speechSettingsDialog import WorldVoiceSettingsDialog
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]

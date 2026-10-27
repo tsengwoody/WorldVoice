@@ -4,11 +4,13 @@ import types
 
 from addon_loader import ADDON, load_definitions
 
-PANELS = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
+PLUGIN = ADDON / "globalPlugins/WorldVoice"
+ROLE_PANEL = PLUGIN / "panels/role.py"
 
 
 def test_error_callback_finds_its_dialog_without_a_class_registry():
-	assert ".wvd" not in PANELS.read_text(encoding="utf-8")
+	for path in PLUGIN.rglob("*.py"):
+		assert ".wvd" not in path.read_text(encoding="utf-8"), path.name
 	calls = []
 
 	class Dialog:
@@ -23,6 +25,6 @@ def test_error_callback_finds_its_dialog_without_a_class_registry():
 		),
 		"gui": types.SimpleNamespace(mainFrame=types.SimpleNamespace(popupSettingsDialog="popup")),
 	}
-	load_definitions(PANELS, ["got_error_callback"], environment)
+	load_definitions(ROLE_PANEL, ["got_error_callback"], environment)
 	environment["got_error_callback"](object())
 	assert calls == [("cancel", None), ("popup", Dialog)]

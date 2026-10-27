@@ -66,7 +66,7 @@ def ui(monkeypatch):
 	manager = SimpleNamespace(name="manager")
 	synth = SimpleNamespace(name="WorldVoice", voice_manager=manager)
 	env = load_settings_dialog(monkeypatch, synth=synth)
-	monkeypatch.setattr(env.module, "RolePanelPresenter", Presenter)
+	monkeypatch.setattr(env.panels.role, "RolePanelPresenter", Presenter)
 	panel = make_panel(env.module.SpeechRoleSettingsPanel)
 	sizer = Sizer()
 	panel.makeSettings(sizer)

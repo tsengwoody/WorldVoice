@@ -61,6 +61,7 @@ pythonSources: list[str] = [
 	'addon/generics/*.py',
 	'addon/generics/*/*.py',
 	'addon/globalPlugins/*/*.py',
+	'addon/globalPlugins/*/*/*.py',
 	'addon/synthDrivers/*/*.py',
 	'addon/synthDrivers/*/*/*.py',
 ]

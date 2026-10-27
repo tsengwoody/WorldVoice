@@ -10,7 +10,9 @@ import pytest
 from addon_loader import ADDON, WORLDVOICE, alias_package, load_definitions
 from mutation_support import running_under_mutmut
 
-DIALOG = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
+PLUGIN = ADDON / "globalPlugins/WorldVoice"
+ROLE_PANEL = PLUGIN / "panels/role.py"
+PIPELINE_PANEL = PLUGIN / "panels/pipeline.py"
 VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
 UI_CONTROLS = WORLDVOICE / "ui/controls.py"
 
@@ -37,7 +39,7 @@ def test_ui_uses_only_public_driver_hooks():
 
 def _role_panel_on_save(synth, log):
 	env = {"worldvoice_synth": lambda: synth, "log": log}
-	return load_definitions(DIALOG, ["SpeechRoleSettingsPanel.onSave"], env)["onSave"]
+	return load_definitions(ROLE_PANEL, ["SpeechRoleSettingsPanel.onSave"], env)["onSave"]
 
 
 def test_role_panel_does_not_save_to_a_voice_manager_the_synth_replaced():
@@ -61,19 +63,23 @@ def called_names(node):
 	return {n.func.id for n in ast.walk(node) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
 
 
+def referred_names(path):
+	tree = ast.parse(path.read_text(encoding="utf-8"))
+	return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} | {
+		alias.asname or alias.name
+		for n in ast.walk(tree)
+		if isinstance(n, (ast.Import, ast.ImportFrom))
+		for alias in n.names
+	}
+
+
 def test_panels_apply_dependencies_through_one_path():
 	# The depends_on loop and the controller read live in ui/controls.py; each panel passes in
-	# only its own lookups.
-	panels = {DIALOG: "SpeechPipelinePanel", VOICE_PANEL: "WorldVoiceVoiceSettingsPanel"}
+	# only its own lookups, and no other module of the settings UI reads dependencies itself.
+	for path in [*PLUGIN.rglob("*.py"), VOICE_PANEL]:
+		assert referred_names(path) & {"dependent_states", "ABSENT", "selected_value"} == set(), path.name
+	panels = {PIPELINE_PANEL: "SpeechPipelinePanel", VOICE_PANEL: "WorldVoiceVoiceSettingsPanel"}
 	for path, cls in panels.items():
-		tree = ast.parse(path.read_text(encoding="utf-8"))
-		referred = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} | {
-			alias.asname or alias.name
-			for n in ast.walk(tree)
-			if isinstance(n, (ast.Import, ast.ImportFrom))
-			for alias in n.names
-		}
-		assert referred & {"dependent_states", "ABSENT", "selected_value"} == set(), path.name
 		apply = method(path, cls, "_applyDependencies")
 		assert "apply_dependencies" in called_names(apply), path.name
 		# ast.comprehension covers list, set and dict comprehensions and generator expressions.
@@ -102,6 +108,12 @@ def test_ui_controls_imports_only_wx_and_the_layout_rules():
 		assert all(module.split(".")[0] in {"wx", "gui", "typing", "collections"} for module in modules), (
 			ast.unparse(node)
 		)
+
+
+def test_panels_package_init_stays_empty():
+	# As in the synth's packages (tests/test_runtime_import_guard.py): importing one panel module
+	# must not load the others.
+	assert (PLUGIN / "panels/__init__.py").read_bytes() == b""
 
 
 def test_settings_ui_asks_for_worldvoice_not_for_the_synth():

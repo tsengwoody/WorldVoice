@@ -11,7 +11,7 @@ from pipeline_harness import load_pipeline_module, load_settings_module, punctua
 
 RECORDER = WORLDVOICE / "pipeline/recorder.py"
 SERVICE = ADDON / "globalPlugins/WorldVoice/pipelineLog.py"
-PANEL = ADDON / "globalPlugins/WorldVoice/speechSettingsDialog.py"
+PANEL = ADDON / "globalPlugins/WorldVoice/panels/log.py"
 
 
 def load_service(monkeypatch, answers=None, read_stored=None):
