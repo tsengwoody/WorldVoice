@@ -114,7 +114,7 @@ class VoiceManager:
 		self._bridge.bind(source, session.source_id, completion=completion)
 		if rule_for(completion).drain_event is not None:
 			adapter.configure_segment_events(
-				lambda context: self._bridge.segment_sink(source, context),
+				lambda context: self._bridge.segmentSink(source, context),
 			)
 
 	def _publish(self, resource: EngineResource) -> None:

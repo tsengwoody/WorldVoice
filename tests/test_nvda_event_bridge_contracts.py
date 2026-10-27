@@ -54,10 +54,10 @@ def env(monkeypatch, rt):
 	)
 	env.bridge = module.NvdaEventBridge(
 		env.owner,
-		done_event=env.done,
-		index_event=env.index,
-		get_synth=lambda: env.owner,
-		index_ledger=env.ledger,
+		doneEvent=env.done,
+		indexEvent=env.index,
+		getSynth=lambda: env.owner,
+		indexLedger=env.ledger,
 	)
 	yield env
 	env.done.unregister_error = env.index.unregister_error = None
@@ -66,7 +66,7 @@ def env(monkeypatch, rt):
 
 
 def start(env):
-	env.bridge.start(env.received.append, batch_handler=env.batches.append)
+	env.bridge.start(env.received.append, batchHandler=env.batches.append)
 
 
 def test_a_bridge_starts_once_and_never_after_close(env):

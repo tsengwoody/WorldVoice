@@ -84,12 +84,12 @@ def task_module(monkeypatch, buses):
 def make_manager(task_module, buses):
 	bridge = task_module.test_bridge_class(
 		buses.owner,
-		done_event=buses.done,
-		index_event=buses.index,
-		get_synth=buses.get_synth,
+		doneEvent=buses.done,
+		indexEvent=buses.index,
+		getSynth=buses.get_synth,
 	)
 	instance = task_module.TaskManager(output=bridge)
-	bridge.start(instance.on_event, batch_handler=instance.on_events)
+	bridge.start(instance.on_event, batchHandler=instance.on_events)
 	# Test composition owns the event subscriptions and test port registry.
 	instance.test_bridge = bridge
 	instance.test_ports = {}

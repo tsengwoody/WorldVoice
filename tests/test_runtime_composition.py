@@ -1049,7 +1049,7 @@ def test_each_drain_factory_captures_its_own_resource(composition, nvda_commands
 	for cls in (first, second):
 
 		def speak(commands, token, *, context, on_event, source=cls.opened):
-			assert bridge_binding(c.bridge, source).source_id is context.source_id
+			assert bridge_binding(c.bridge, source).sourceId is context.source_id
 			calls.append(source)
 			on_event(
 				c.models.PlaybackEvent(

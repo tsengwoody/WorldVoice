@@ -215,10 +215,10 @@ class SynthDriver(SynthDriver):
 				self._teardown.add("index ledger close", self._indexLedger.close)
 				self._eventBridge = NvdaEventBridge(
 					self,
-					done_event=synthDoneSpeaking,
-					index_event=synthIndexReached,
-					get_synth=getSynth,
-					index_ledger=self._indexLedger,
+					doneEvent=synthDoneSpeaking,
+					indexEvent=synthIndexReached,
+					getSynth=getSynth,
+					indexLedger=self._indexLedger,
 				)
 				self._teardown.add("event bridge close", self._eventBridge.close)
 				tasks = self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
@@ -229,7 +229,7 @@ class SynthDriver(SynthDriver):
 					tasks.shutdown(manager.playback_ports if manager is not None else ())
 
 				self._teardown.add("task manager shutdown", shutdown_tasks)
-				self._eventBridge.start(tasks.on_event, batch_handler=tasks.on_events)
+				self._eventBridge.start(tasks.on_event, batchHandler=tasks.on_events)
 
 			with timed(nvdaLog, "VoiceManager"):
 				self._completionPolicy = CompletionPolicy(nvdaVersion=versionInfo.version, logger=nvdaLog)

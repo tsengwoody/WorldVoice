@@ -228,7 +228,7 @@ def test_cancel_and_stale_sink_cannot_release_new_same_source_segment(compositio
 			segment_id=old_context.segment_id,
 		),
 	)
-	c.bridge._done_event.notify(synth=control.core)
+	c.bridge._doneEvent.notify(synth=control.core)
 	with pytest.raises(TimeoutError):
 		fresh.tasks[0].future.result(timeout=0.03)
 	assert c.output.indexes == [22]
@@ -249,7 +249,7 @@ def test_old_sink_is_revoked_across_unbind_rebind(composition):
 	old = c.submit(("old",), "OneCore")
 	barrier = control.tail()
 	context = control.contexts[0]
-	old_sink = c.bridge.segment_sink(control.core, context)
+	old_sink = c.bridge.segmentSink(control.core, context)
 	c.tasks.cancel(c.manager.playback_ports)
 	c.bridge.unbind(control.session.source_id)
 	c.bridge.bind(control.core, control.session.source_id, completion=control.session.completion)
@@ -258,7 +258,7 @@ def test_old_sink_is_revoked_across_unbind_rebind(composition):
 	current = control.contexts[1]
 	# Even a sink captured for the current context becomes invalid on rebinding
 	# the identical source/context. This makes generation protection observable.
-	revoked = c.bridge.segment_sink(control.core, current)
+	revoked = c.bridge.segmentSink(control.core, current)
 	c.bridge.unbind(control.session.source_id)
 	c.bridge.bind(control.core, control.session.source_id, completion=control.session.completion)
 	c.ledger.prepare(current, ())
@@ -281,7 +281,7 @@ def test_old_sink_is_revoked_across_unbind_rebind(composition):
 	assert c.output.dones == []
 	# The wrapper retains the revoked sink too; install a freshly bound sink at
 	# the same actual work boundary to let this deliberately rebound job retire.
-	live = c.bridge.segment_sink(control.core, current)
+	live = c.bridge.segmentSink(control.core, current)
 	barrier = control.tail(2, idle_number=2)
 	assert not fresh.tasks[0].future.done()
 	barrier.release.set()

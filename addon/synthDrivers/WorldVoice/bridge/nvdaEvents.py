@@ -21,9 +21,9 @@ _LEGACY_CONTRACT = CompletionContract()
 @dataclass(frozen=True, eq=False)
 class _Binding:
 	source: object
-	source_id: object
+	sourceId: object
 	completion: CompletionContract
-	ledger_token: object | None
+	ledgerToken: object | None
 
 
 class _BindingEvents(tuple):
@@ -49,16 +49,16 @@ class NvdaEventBridge:
 	only and is never held while calling handlers or public notifications.
 	"""
 
-	def __init__(self, owner, *, done_event, index_event, get_synth, index_ledger: IndexLedger | None = None):
+	def __init__(self, owner, *, doneEvent, indexEvent, getSynth, indexLedger: IndexLedger | None = None):
 		self._owner = owner
-		self._done_event = done_event
-		self._index_event = index_event
-		self._get_synth = get_synth
-		self._index_ledger = index_ledger
+		self._doneEvent = doneEvent
+		self._indexEvent = indexEvent
+		self._get_synth = getSynth
+		self._indexLedger = indexLedger
 		self._lock = RLock()
 		self._closed = False
 		self._handler = None
-		self._batch_handler = None
+		self._batchHandler = None
 		self._sources = {}
 		self._registrations = []
 
@@ -66,7 +66,7 @@ class NvdaEventBridge:
 		self,
 		handler: Callable[[PlaybackEvent], None],
 		*,
-		batch_handler: Callable[[Callable[[], tuple[PlaybackEvent, ...]]], None] | None = None,
+		batchHandler: Callable[[Callable[[], tuple[PlaybackEvent, ...]]], None] | None = None,
 	) -> None:
 		with self._lock:
 			if self._closed:
@@ -74,11 +74,11 @@ class NvdaEventBridge:
 			if self._handler is not None:
 				raise RuntimeError("Event bridge is already started")
 			self._handler = handler
-			self._batch_handler = batch_handler
+			self._batchHandler = batchHandler
 		try:
 			for event, callback in (
-				(self._done_event, self._on_done),
-				(self._index_event, self._on_index),
+				(self._doneEvent, self._onDone),
+				(self._indexEvent, self._onIndex),
 			):
 				# Claim cleanup before register: it can add the handler then fail.
 				with self._lock:
@@ -87,14 +87,14 @@ class NvdaEventBridge:
 		except Exception as error:
 			try:
 				self.close()
-			except Exception as cleanup_error:
-				raise error from cleanup_error
+			except Exception as cleanupError:
+				raise error from cleanupError
 			raise
 
 	def bind(
 		self,
 		source: object,
-		source_id: object,
+		sourceId: object,
 		*,
 		completion: CompletionContract = _LEGACY_CONTRACT,
 	) -> None:
@@ -103,43 +103,43 @@ class NvdaEventBridge:
 				raise RuntimeError("Event bridge is closed")
 			existing = self._sources.get(id(source))
 			if existing is not None:
-				if existing.source_id is not source_id:
+				if existing.sourceId is not sourceId:
 					raise ValueError("Notification source is already bound to another source ID")
 				if existing.completion != completion:
 					raise ValueError("Notification source cannot change its completion contract")
 				return
-			ledger_token = None
+			ledgerToken = None
 			if rule_for(completion).correlated:
-				if self._index_ledger is None or self._batch_handler is None:
+				if self._indexLedger is None or self._batchHandler is None:
 					raise ValueError("Marker completion requires an index ledger and batch handler")
-				if any(binding.source_id is source_id for binding in self._sources.values()):
+				if any(binding.sourceId is sourceId for binding in self._sources.values()):
 					raise ValueError("Marker source ID is already bound to another source")
 				try:
-					ledger_token = self._index_ledger.bind(source, source_id, completion)
+					ledgerToken = self._indexLedger.bind(source, sourceId, completion)
 				except Exception as error:
 					# A ledger can publish its binding before raising.
 					try:
-						self._index_ledger.unbind(source_id)
-					except Exception as cleanup_error:
-						raise error from cleanup_error
+						self._indexLedger.unbind(sourceId)
+					except Exception as cleanupError:
+						raise error from cleanupError
 					raise
 			# The binding object also serves as the deferred supplier's generation.
-			self._sources[id(source)] = _Binding(source, source_id, completion, ledger_token)
+			self._sources[id(source)] = _Binding(source, sourceId, completion, ledgerToken)
 
-	def unbind(self, source_id: object) -> None:
+	def unbind(self, sourceId: object) -> None:
 		with self._lock:
-			bindings = [binding for binding in self._sources.values() if binding.source_id is source_id]
+			bindings = [binding for binding in self._sources.values() if binding.sourceId is sourceId]
 			for binding in bindings:
 				del self._sources[id(binding.source)]
 			if any(rule_for(binding.completion).correlated for binding in bindings):
-				self._index_ledger.unbind(source_id)
+				self._indexLedger.unbind(sourceId)
 		# Release source references after unlocking.
 
-	def _binding_is_active(self, binding: _Binding) -> bool:
+	def _bindingIsActive(self, binding: _Binding) -> bool:
 		with self._lock:
 			return not self._closed and self._sources.get(id(binding.source)) is binding
 
-	def segment_sink(self, source: object, context: PlaybackContext) -> SegmentEventSink:
+	def segmentSink(self, source: object, context: PlaybackContext) -> SegmentEventSink:
 		"""Capture the actual resource, context and binding generation for a job."""
 		with self._lock:
 			binding = self._sources.get(id(source))
@@ -148,32 +148,32 @@ class NvdaEventBridge:
 				or source is self._owner
 				or binding is None
 				or binding.source is not source
-				or binding.source_id is not context.source_id
+				or binding.sourceId is not context.source_id
 				or rule_for(binding.completion).drain_event is None
 			):
 				raise ValueError("Segment events require a matching drain-capable source binding")
-			batch_handler = self._batch_handler
+			batchHandler = self._batchHandler
 
 		def receive(event: PlaybackEvent) -> None:
 			if (
 				event.kind not in (EventKind.SEGMENT_DRAINED, EventKind.SEGMENT_FAILED)
 				or event.source_id is not context.source_id
 				or event.segment_id != context.segment_id
-				or not self._binding_is_active(binding)
+				or not self._bindingIsActive(binding)
 			):
 				return
 
-			def load_events() -> tuple[PlaybackEvent, ...]:
-				if not self._binding_is_active(binding):
+			def loadEvents() -> tuple[PlaybackEvent, ...]:
+				if not self._bindingIsActive(binding):
 					return ()
 				# Decode inside the scheduler's delivery lock. The ledger token
 				# also closes the race between bridge validation and decoding.
-				events = self._index_ledger.receiveSegmentEvent(event, bindingToken=binding.ledger_token)
+				events = self._indexLedger.receiveSegmentEvent(event, bindingToken=binding.ledgerToken)
 				# An INDEX handler can unbind before this batch's drain. Keep
 				# the batch intact, but stop iteration when its generation dies.
-				return _BindingEvents(events, lambda: self._binding_is_active(binding))
+				return _BindingEvents(events, lambda: self._bindingIsActive(binding))
 
-			batch_handler(load_events)
+			batchHandler(loadEvents)
 
 		return receive
 
@@ -183,32 +183,32 @@ class NvdaEventBridge:
 				return
 			self._closed = True
 			self._handler = None
-			self._batch_handler = None
+			self._batchHandler = None
 			registrations, self._registrations = self._registrations, []
 			sources, self._sources = self._sources, {}
-		first_error = None
+		firstError = None
 		for event, callback in registrations:
 			try:
 				event.unregister(callback)
 			except Exception as error:  # noqa: BLE001 - collected; the first is raised after every step ran
-				if first_error is None:
-					first_error = error
+				if firstError is None:
+					firstError = error
 		for binding in sources.values():
 			if not rule_for(binding.completion).correlated:
 				continue
 			try:
-				self._index_ledger.unbind(binding.source_id)
+				self._indexLedger.unbind(binding.sourceId)
 			except Exception as error:  # noqa: BLE001 - collected; the first is raised after every step ran
-				if first_error is None:
-					first_error = error
+				if firstError is None:
+					firstError = error
 		sources.clear()
-		if first_error is not None:
-			raise first_error
+		if firstError is not None:
+			raise firstError
 
-	def _on_index(self, synth, index: int) -> None:
+	def _onIndex(self, synth, index: int) -> None:
 		self._receive(synth, EventKind.INDEX, index)
 
-	def _on_done(self, synth) -> None:
+	def _onDone(self, synth) -> None:
 		self._receive(synth, EventKind.DONE)
 
 	def _receive(self, source, kind: EventKind, index: int | None = None) -> None:
@@ -219,36 +219,36 @@ class NvdaEventBridge:
 			if binding is None or binding.source is not source:
 				return
 			handler = self._handler
-			batch_handler = self._batch_handler
+			batchHandler = self._batchHandler
 		if not rule_for(binding.completion).correlated:
 			if handler is not None:
-				handler(PlaybackEvent(kind, binding.source_id, index))
-		elif kind is EventKind.INDEX and batch_handler is not None:
+				handler(PlaybackEvent(kind, binding.sourceId, index))
+		elif kind is EventKind.INDEX and batchHandler is not None:
 			# The consumer serializes both decode and delivery of this batch.
-			def load_events() -> tuple[PlaybackEvent, ...]:
+			def loadEvents() -> tuple[PlaybackEvent, ...]:
 				with self._lock:
 					if self._closed or self._sources.get(id(source)) is not binding:
 						return ()
 				# Unbind/rebind can occur after the bridge check; validate the
 				# ledger generation atomically with decode to reject that race.
-				return self._index_ledger.receiveIndex(
-					binding.source_id,
+				return self._indexLedger.receiveIndex(
+					binding.sourceId,
 					index,
-					bindingToken=binding.ledger_token,
+					bindingToken=binding.ledgerToken,
 				)
 
-			batch_handler(load_events)
+			batchHandler(loadEvents)
 
-	def _can_notify(self) -> bool:
+	def _canNotify(self) -> bool:
 		if self._get_synth() is not self._owner:
 			return False
 		with self._lock:
 			return not self._closed and self._handler is not None
 
 	def index_reached(self, index: int) -> None:
-		if self._can_notify():
-			self._index_event.notify(synth=self._owner, index=index)
+		if self._canNotify():
+			self._indexEvent.notify(synth=self._owner, index=index)
 
 	def done_speaking(self) -> None:
-		if self._can_notify():
-			self._done_event.notify(synth=self._owner)
+		if self._canNotify():
+			self._doneEvent.notify(synth=self._owner)

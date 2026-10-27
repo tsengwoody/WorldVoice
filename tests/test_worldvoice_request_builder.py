@@ -59,9 +59,9 @@ def assembly(modules):
 	index = EventStub(lambda synth, index: indexes.append(index) if synth is owner else None)
 	bridge = modules.bridge.NvdaEventBridge(
 		owner,
-		done_event=done,
-		index_event=index,
-		get_synth=lambda: owner,
+		doneEvent=done,
+		indexEvent=index,
+		getSynth=lambda: owner,
 	)
 	manager = modules.manager_module.TaskManager(bridge)
 	bridge.start(manager.on_event)

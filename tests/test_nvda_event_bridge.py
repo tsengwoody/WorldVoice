@@ -59,9 +59,9 @@ def env(monkeypatch, rt):
 	)
 	env.bridge = module.NvdaEventBridge(
 		owner,
-		done_event=env.done,
-		index_event=env.index,
-		get_synth=lambda: env.current,
+		doneEvent=env.done,
+		indexEvent=env.index,
+		getSynth=lambda: env.current,
 	)
 	yield env
 	env.done.on_unregister = env.index.on_unregister = None
@@ -276,10 +276,10 @@ def marker_env(env):
 def marker_setup(env):
 	env.bridge = env.module.NvdaEventBridge(
 		env.owner,
-		done_event=env.done,
-		index_event=env.index,
-		get_synth=lambda: env.current,
-		index_ledger=env.ledger,
+		doneEvent=env.done,
+		indexEvent=env.index,
+		getSynth=lambda: env.current,
+		indexLedger=env.ledger,
 	)
 	return env
 
@@ -287,7 +287,7 @@ def marker_setup(env):
 def start_marker(env, batch_handler=None):
 	env.bridge.start(
 		env.received.append,
-		batch_handler=(env.suppliers.append if batch_handler is None else batch_handler),
+		batchHandler=(env.suppliers.append if batch_handler is None else batch_handler),
 	)
 	env.bridge.bind(env.source, env.source_id, completion=env.contract)
 	return env.ledger.prepare(env.context, (42, 7))
@@ -319,7 +319,7 @@ def test_marker_mode_ignores_unidentified_done(marker_env):
 def test_marker_batch_is_decoded_when_consumer_serializes_it(marker_env):
 	env = marker_setup(marker_env)
 	allocation = start_marker(env)
-	env.bridge._on_index(env.source, allocation.endIndex)
+	env.bridge._onIndex(env.source, allocation.endIndex)
 	assert len(env.suppliers) == 1 and env.received == []
 	events = env.suppliers[0]()
 	assert [e.index for e in events] == [42, 7, None]
@@ -372,13 +372,13 @@ def test_marker_binding_requires_ledger_and_batch_handler(marker_env, missing):
 	if missing == "ledger":
 		env.bridge = env.module.NvdaEventBridge(
 			env.owner,
-			done_event=env.done,
-			index_event=env.index,
-			get_synth=lambda: env.current,
+			doneEvent=env.done,
+			indexEvent=env.index,
+			getSynth=lambda: env.current,
 		)
 	env.bridge.start(
 		env.received.append,
-		batch_handler=(None if missing == "batch_handler" else env.suppliers.append),
+		batchHandler=(None if missing == "batch_handler" else env.suppliers.append),
 	)
 	with pytest.raises(ValueError):
 		env.bridge.bind(env.source, env.source_id, completion=env.contract)
@@ -413,7 +413,7 @@ def test_marker_supplier_decodes_without_bridge_state_lock(marker_env, monkeypat
 
 def test_partial_marker_bind_revokes_ledger_binding(marker_env, monkeypatch):
 	env = marker_setup(marker_env)
-	env.bridge.start(env.received.append, batch_handler=env.suppliers.append)
+	env.bridge.start(env.received.append, batchHandler=env.suppliers.append)
 	bind = env.ledger.bind
 
 	def fail_after_binding(*args):
@@ -517,7 +517,7 @@ def segment_event(env, kind="SEGMENT_DRAINED", *, source_id=None, segment_id=Non
 
 def test_segment_sink_decodes_only_inside_batch_supplier(drain_env):
 	env = drain_env
-	sink = env.bridge.segment_sink(env.source, env.context)
+	sink = env.bridge.segmentSink(env.source, env.context)
 	sink(segment_event(env))
 	assert env.received == []
 	assert len(env.suppliers) == 1
@@ -532,7 +532,7 @@ def test_segment_sink_decodes_only_inside_batch_supplier(drain_env):
 @pytest.mark.parametrize("mismatch", ["source", "segment", "done", "end", "index"])
 def test_segment_sink_rejects_unrelated_events(drain_env, mismatch):
 	env = drain_env
-	sink = env.bridge.segment_sink(env.source, env.context)
+	sink = env.bridge.segmentSink(env.source, env.context)
 	event = (
 		segment_event(env, source_id=object())
 		if mismatch == "source"
@@ -577,13 +577,13 @@ def test_segment_sink_requires_correlated_source_binding(drain_env, invalid):
 		env.bridge.unbind(env.source_id)
 		env.bridge.bind(source, env.source_id)
 	with pytest.raises(ValueError):
-		env.bridge.segment_sink(source, context)
+		env.bridge.segmentSink(source, context)
 
 
 def test_segment_failure_does_not_restore_pending_indexes(drain_env):
 	env = drain_env
 	error = OSError("native failure")
-	env.bridge.segment_sink(env.source, env.context)(segment_event(env, "SEGMENT_FAILED", error=error))
+	env.bridge.segmentSink(env.source, env.context)(segment_event(env, "SEGMENT_FAILED", error=error))
 	events = env.suppliers[0]()
 	assert len(events) == 1 and events[0].error is error
 	assert env.ledger.receiveIndex(env.source_id, 1) == ()
@@ -591,20 +591,20 @@ def test_segment_failure_does_not_restore_pending_indexes(drain_env):
 
 def test_old_segment_sink_drops_after_rebind(drain_env):
 	env = drain_env
-	old_sink = env.bridge.segment_sink(env.source, env.context)
+	old_sink = env.bridge.segmentSink(env.source, env.context)
 	env.bridge.unbind(env.source_id)
 	env.bridge.bind(env.source, env.source_id, completion=env.contract)
 	env.ledger.prepare(env.context, (80,))
 	old_sink(segment_event(env))
 	assert env.received == env.suppliers == []
-	env.bridge.segment_sink(env.source, env.context)(segment_event(env))
+	env.bridge.segmentSink(env.source, env.context)(segment_event(env))
 	assert [e.index for e in env.suppliers[0]()] == [80, None]
 
 
 @pytest.mark.parametrize("release", ["unbind", "rebind", "close"])
 def test_delayed_segment_supplier_rechecks_binding(drain_env, release):
 	env = drain_env
-	env.bridge.segment_sink(env.source, env.context)(segment_event(env))
+	env.bridge.segmentSink(env.source, env.context)(segment_event(env))
 	if release == "close":
 		env.bridge.close()
 	else:
@@ -617,7 +617,7 @@ def test_delayed_segment_supplier_rechecks_binding(drain_env, release):
 
 def test_segment_supplier_rechecks_ledger_token_after_bridge_validation(drain_env, monkeypatch):
 	env = drain_env
-	env.bridge.segment_sink(env.source, env.context)(segment_event(env))
+	env.bridge.segmentSink(env.source, env.context)(segment_event(env))
 	receive = env.ledger.receiveSegmentEvent
 
 	def replace_binding(event, **kwargs):
@@ -638,6 +638,6 @@ def test_segment_batch_stops_after_index_handler_unbinds(drain_env):
 			env.received.append(event)
 			assert_other_thread_can_unbind(env.bridge, env.source_id)
 
-	env.bridge._batch_handler = receive
-	env.bridge.segment_sink(env.source, env.context)(segment_event(env))
+	env.bridge._batchHandler = receive
+	env.bridge.segmentSink(env.source, env.context)(segment_event(env))
 	assert [(e.kind.name, e.index) for e in env.received] == [("INDEX", 42)]

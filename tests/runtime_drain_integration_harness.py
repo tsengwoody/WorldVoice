@@ -337,14 +337,14 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 		monkeypatch.setattr(wrapper.synthDoneSpeaking, "notify", done.notify)
 	bridge = bridge_type(
 		owner,
-		done_event=done,
-		index_event=index,
-		get_synth=lambda: owner,
-		index_ledger=ledger,
+		doneEvent=done,
+		indexEvent=index,
+		getSynth=lambda: owner,
+		indexLedger=ledger,
 	)
 	tasks = scheduler.TaskManager(bridge)
-	bridge.start(tasks.on_event, batch_handler=tasks.on_events)
-	original_sink = bridge.segment_sink
+	bridge.start(tasks.on_event, batchHandler=tasks.on_events)
+	original_sink = bridge.segmentSink
 
 	def segment_sink(source, context):
 		sink = original_sink(source, context)
@@ -356,7 +356,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 
 		return receive
 
-	monkeypatch.setattr(bridge, "segment_sink", segment_sink)
+	monkeypatch.setattr(bridge, "segmentSink", segment_sink)
 	repo = MemoryRepository()
 	store = rt.voice_settings.VoiceSettingsStore(repo)
 

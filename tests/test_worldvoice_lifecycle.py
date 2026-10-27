@@ -67,11 +67,11 @@ def _construction_environment(failure, changes, close_error=None):
 			changes.append("engine stopped")
 
 	class Bridge:
-		def __init__(self, *args, index_ledger, **kwargs):
-			self.ledger = index_ledger
+		def __init__(self, *args, indexLedger, **kwargs):
+			self.ledger = indexLedger
 
-		def start(self, handler, *, batch_handler):
-			assert handler.__self__ is batch_handler.__self__
+		def start(self, handler, *, batchHandler):
+			assert handler.__self__ is batchHandler.__self__
 			changes.append("bridge started")
 			if failure == "bridge":
 				raise RuntimeError("bridge failure")
@@ -348,7 +348,7 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 	bridge = types.SimpleNamespace(
 		bind=bind,
 		unbind=lambda source_id: bound.pop(source_id, None),
-		segment_sink=lambda source, context: lambda event: None,
+		segmentSink=lambda source, context: lambda event: None,
 	)
 	with pytest.raises(ValueError, match="speak_segment"):
 		module.VoiceManager(

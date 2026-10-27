@@ -509,12 +509,12 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 		bridge_type = importlib.import_module(name + ".bridge.nvdaEvents").NvdaEventBridge
 		bridge = bridge_type(
 			output,
-			done_event=done,
-			index_event=index_event,
-			get_synth=lambda: output,
-			index_ledger=ledger,
+			doneEvent=done,
+			indexEvent=index_event,
+			getSynth=lambda: output,
+			indexLedger=ledger,
 		)
-		bridge.start(tasks.on_event, batch_handler=tasks.on_events)
+		bridge.start(tasks.on_event, batchHandler=tasks.on_events)
 		bridge.bind(core, session.source_id, completion=completion)
 
 		def emit(kind, index=None):

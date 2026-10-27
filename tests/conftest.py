@@ -157,13 +157,13 @@ def composition(monkeypatch):
 	owner = object()
 	bridge = bridge_module.NvdaEventBridge(
 		owner,
-		done_event=done,
-		index_event=index,
-		get_synth=lambda: owner,
-		index_ledger=ledger,
+		doneEvent=done,
+		indexEvent=index,
+		getSynth=lambda: owner,
+		indexLedger=ledger,
 	)
 	tasks = scheduler.TaskManager(bridge)
-	bridge.start(tasks.on_event, batch_handler=tasks.on_events)
+	bridge.start(tasks.on_event, batchHandler=tasks.on_events)
 	cores = []
 
 	class Core:
