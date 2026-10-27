@@ -4,7 +4,7 @@ import weakref
 from dataclasses import dataclass
 from threading import Condition, RLock
 
-from synthDrivers.WorldVoice.driver import Voice
+from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
@@ -426,7 +426,7 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 			raise error
 
 
-class Voice(Voice):
+class Voice(BaseVoice):
 	engine = "RHVoice"
 	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver

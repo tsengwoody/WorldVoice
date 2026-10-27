@@ -272,3 +272,17 @@ def test_every_wrapper_core_declares_the_segment_drain_entries():
 		assert ast.unparse(synth.bases[-1]) == "SegmentDrainCore", engine
 		own = {n.name for n in synth.body if isinstance(n, ast.FunctionDef)}
 		assert {"speak_segment", "get_segment_drain_support"} <= own, engine
+
+
+def test_wrappers_do_not_shadow_their_bases():
+	# class Voice(Voice) or class SynthDriver(SynthDriver) hides which class is the base; the
+	# modules import their bases under their own names (BaseVoice, BaseSynthDriver).
+	paths = [ROOT / "driver" / engine / "__init__.py" for engine in ENGINES] + [ROOT / "__init__.py"]
+	shadowing = [
+		f"{path.relative_to(ROOT)}:{node.lineno} {node.name}"
+		for path in paths
+		for node in ast.parse(path.read_text(encoding="utf-8")).body
+		if isinstance(node, ast.ClassDef)
+		and any(isinstance(base, ast.Name) and base.id == node.name for base in node.bases)
+	]
+	assert shadowing == []

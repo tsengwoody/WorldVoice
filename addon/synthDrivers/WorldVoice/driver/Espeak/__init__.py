@@ -5,7 +5,7 @@ from logHandler import log
 from synthDriverHandler import synthDoneSpeaking
 from synthDrivers import _espeak
 from synthDrivers.espeak import SynthDriver as BaseSynthDriver
-from synthDrivers.WorldVoice.driver import Voice
+from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
@@ -205,7 +205,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			return super().terminate()
 
 
-class Voice(Voice):
+class Voice(BaseVoice):
 	engine = "Espeak"
 	drain_profile = DrainProfile()
 	synth_driver_class = SynthDriver

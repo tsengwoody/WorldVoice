@@ -6,7 +6,7 @@ from logHandler import log
 from synthDriverHandler import synthIndexReached
 from synthDrivers import sapi5
 from synthDrivers.sapi5 import SynthDriver as BaseSynthDriver
-from synthDrivers.WorldVoice.driver import Voice
+from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
@@ -649,7 +649,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		return super().terminate()
 
 
-class Voice(Voice):
+class Voice(BaseVoice):
 	engine = "SAPI5"
 	drain_profile = DrainProfile(wasapi_dependent=True)
 

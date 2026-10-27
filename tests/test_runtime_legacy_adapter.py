@@ -154,7 +154,11 @@ def test_each_adapter_owns_its_own_core(bridge_modules):
 def test_onecore_cached_a_b_a_restores_language(bridge_modules, rt):
 	path = RUNTIME.parent / "driver/OneCore/__init__.py"
 	core = Core()
-	env = {"Voice": legacy_class(core), "SynthDriver": object, "DrainProfile": rt.playback_work.DrainProfile}
+	env = {
+		"BaseVoice": legacy_class(core),
+		"SynthDriver": object,
+		"DrainProfile": rt.playback_work.DrainProfile,
+	}
 	load_definitions(path, ["Voice"], env)
 	cls = env["Voice"]
 	store = rt.voice_settings.VoiceSettingsStore(MemoryRepository())

@@ -89,7 +89,7 @@ def test_onecore_language_is_applied_only_on_activation():
 			self.language = language
 
 	core = types.SimpleNamespace(language="original")
-	environment = {"Voice": BaseVoice, "SynthDriver": object, "DrainProfile": lambda **kwargs: None}
+	environment = {"BaseVoice": BaseVoice, "SynthDriver": object, "DrainProfile": lambda **kwargs: None}
 	load_definitions(path, ["Voice"], environment)
 	environment["Voice"].core = core
 	adapter = environment["Voice"]("a", "OneCore:a", None, language="en")

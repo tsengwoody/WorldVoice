@@ -8,7 +8,7 @@ from threading import Condition, Lock, Thread
 from logHandler import log
 from synthDriverHandler import synthDoneSpeaking, synthIndexReached
 from synthDrivers import oneCore
-from synthDrivers.WorldVoice.driver import Voice
+from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
@@ -626,7 +626,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 			super().terminate()
 
 
-class Voice(Voice):
+class Voice(BaseVoice):
 	engine = "OneCore"
 	drain_profile = DrainProfile(wasapi_dependent=True)
 	synth_driver_class = SynthDriver

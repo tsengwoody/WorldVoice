@@ -8,7 +8,7 @@ from io import BytesIO
 
 import languageHandler
 from logHandler import log
-from synthDrivers.WorldVoice.driver import Voice, getVoiceKey
+from synthDrivers.WorldVoice.driver import Voice as BaseVoice, getVoiceKey
 from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
@@ -957,7 +957,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			self._terminationDone.set()
 
 
-class Voice(Voice):
+class Voice(BaseVoice):
 	extra_capabilities = frozenset({"waitfactor", "variant"})
 	engine = "Cerence"
 	drain_profile = DrainProfile()
