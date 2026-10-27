@@ -206,7 +206,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	synth._numlan = "default"
 	synth.language = "en"
 	synth.uwv = uwv
-	synth.taskManager = RecordingTasks(ports)
+	synth._taskManager = RecordingTasks(ports)
 	synth._voiceManager = VoiceManager(ports)
 	detector = modules.detection.LanguageDetector(
 		list(VOICES),
@@ -224,7 +224,7 @@ def test_detection_after_nvda_switches_voices_and_keeps_indexes_with_the_followi
 	synth.speak(["Hello 世界", index, BreakCommand(200), "bye"])
 	# The detector switches to Chinese for 世界 and back for "bye"; the reorder moves that
 	# switch before the index and break, so they belong to the English text that follows.
-	assert synth.taskManager.calls == [
+	assert synth._taskManager.calls == [
 		("speech", "A:en", ("Hello ",)),
 		("speech", "B:zh", ("世界",)),
 		("speech", "A:en", (index,)),
@@ -238,7 +238,7 @@ def test_detection_after_nvda_switches_voices_and_keeps_indexes_with_the_followi
 def test_speak_detects_nothing_unless_detection_runs_after_nvda(monkeypatch, timing, uwv):
 	synth, _ = _synth(monkeypatch, timing=timing, uwv=uwv)
 	synth.speak(["Hello 世界"])
-	assert synth.taskManager.calls == [("speech", "A:en", ("Hello 世界",)), "submit"]
+	assert synth._taskManager.calls == [("speech", "A:en", ("Hello 世界",)), "submit"]
 
 
 def test_language_changes_lead_the_commands_they_follow_and_revert_to_the_default_voice(monkeypatch):
@@ -246,7 +246,7 @@ def test_language_changes_lead_the_commands_they_follow_and_revert_to_the_defaul
 	synth, modules = _synth(monkeypatch, timing="before")
 	first, second = IndexCommand(1), IndexCommand(2)
 	synth.speak([first, LangChangeCommand("zh"), "你好", modules.WV(None), second, "ok"])
-	assert synth.taskManager.calls == [
+	assert synth._taskManager.calls == [
 		("speech", "B:zh", (first, "你好")),
 		("speech", "A:en", (second, "ok")),
 		"submit",
@@ -257,7 +257,7 @@ def test_language_changes_that_keep_the_voice_are_dropped(monkeypatch):
 	synth, modules = _synth(monkeypatch, timing="before")
 	# en_GB maps to the voice already speaking; French has no voice, so the default stays.
 	synth.speak(["one", LangChangeCommand("en_GB"), "two", modules.WV("fr"), "three"])
-	assert synth.taskManager.calls == [("speech", "A:en", ("one", "two", "three")), "submit"]
+	assert synth._taskManager.calls == [("speech", "A:en", ("one", "two", "three")), "submit"]
 
 
 def test_number_languages_list_every_voice_language_by_its_description(monkeypatch):
@@ -290,13 +290,13 @@ def test_pause_and_cancel_reach_the_runtime_until_the_synth_terminates(monkeypat
 	synth, _ = _synth(monkeypatch)
 	synth.pause(True)
 	synth.cancel()
-	assert synth.taskManager.calls == [("pause", True)]
+	assert synth._taskManager.calls == [("pause", True)]
 	assert voice_manager(synth).cancels == 1
 	synth._terminated = True
 	synth.cancel()
 	synth.pause(False)
 	assert voice_manager(synth).cancels == 1
-	assert synth.taskManager.calls == [("pause", True)]
+	assert synth._taskManager.calls == [("pause", True)]
 
 
 # Which voice reads a number (phase 35). Every row was recorded on da7f791, before phase 35.
@@ -369,7 +369,7 @@ def speak_through_stages(
 	if nvda is not None:
 		sequence = nvda(sequence)
 	synth.speak(sequence)
-	return heard(synth.taskManager.calls)
+	return heard(synth._taskManager.calls)
 
 
 TIMINGS = pytest.mark.parametrize("timing", ["after", "before"])

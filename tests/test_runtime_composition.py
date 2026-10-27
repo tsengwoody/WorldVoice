@@ -293,7 +293,7 @@ def make_synth(c, manager):
 	synth = object.__new__(root)
 	synth._terminated = False
 	synth._terminateCommit = True
-	synth.taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
+	synth._taskManager, synth._eventBridge, synth._voiceManager = c.tasks, c.bridge, manager
 	synth._indexLedger = c.ledger
 	# Register the runtime cleanups as _initialize does once each object exists.
 	synth._teardown = bringup.Teardown(root._TEARDOWN_ORDER, log)

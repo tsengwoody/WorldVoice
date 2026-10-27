@@ -182,7 +182,7 @@ class SynthDriver(SynthDriver):
 		self._terminateCommit = True
 		self._numlan = FOLLOW
 		self._realSpellingFunc = None
-		self.taskManager = None
+		self._taskManager = None
 		self._voiceManager = None
 		self._eventBridge = None
 		self._settingsStore = None
@@ -221,7 +221,7 @@ class SynthDriver(SynthDriver):
 					indexLedger=self._indexLedger,
 				)
 				self._teardown.add("event bridge close", self._eventBridge.close)
-				tasks = self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
+				tasks = self._taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
 
 				def shutdownTasks():
 					# The voice manager comes later, so it may not exist yet.
@@ -234,7 +234,7 @@ class SynthDriver(SynthDriver):
 			with timed(nvdaLog, "VoiceManager"):
 				self._completionPolicy = CompletionPolicy(nvdaVersion=versionInfo.version, logger=nvdaLog)
 				self._voiceManager = VoiceManager(
-					task_manager=self.taskManager,
+					task_manager=self._taskManager,
 					settings=self._settingsStore,
 					bridge=self._eventBridge,
 					index_ledger=self._indexLedger,
@@ -296,7 +296,7 @@ class SynthDriver(SynthDriver):
 		try:
 			self._teardown.run()
 		finally:
-			self.taskManager = self._eventBridge = self._voiceManager = self._indexLedger = None
+			self._taskManager = self._eventBridge = self._voiceManager = self._indexLedger = None
 
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)
@@ -321,7 +321,7 @@ class SynthDriver(SynthDriver):
 		speechSequence = lang_cmd_to_voice(speechSequence, ctx)
 
 		queue_speech_sequence(
-			self.taskManager,
+			self._taskManager,
 			normalizeNvdaCommands(speechSequence),
 			self._voiceManager.default_voice_name,
 			self._voiceManager.resolve_playback,
@@ -351,7 +351,7 @@ class SynthDriver(SynthDriver):
 	def pause(self, switch):
 		if self._terminated:
 			return
-		self.taskManager.pause_current(switch)
+		self._taskManager.pause_current(switch)
 
 	@property
 	def voiceManager(self):
