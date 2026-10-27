@@ -189,7 +189,7 @@ def test_gate_checks_token_only_during_native_call(engine_harness):
 	gate.begin(token)
 	assert gate.cancelled() is False
 	assert gate.is_set() is True
-	gate._inside_native_call = True
+	gate._insideNativeCall = True
 	assert gate.isSet() is False
 	gate.set()
 	gate.clear()

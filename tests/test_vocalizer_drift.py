@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 DRIVERS = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
-ALLOWED = {"_PROFILE", "_ContextualVECallback._process", "SynthDriver._callback_admission", "Voice.variants"}
+ALLOWED = {"_PROFILE", "_ContextualVECallback._process", "SynthDriver._callbackAdmission", "Voice.variants"}
 
 
 def _definitions(source):

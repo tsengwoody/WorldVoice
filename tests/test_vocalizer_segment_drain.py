@@ -53,7 +53,7 @@ def env(request, monkeypatch):
 def prove_fake_quiescence(env, monkeypatch):
 	# A test-only contract promises this native call will not start callbacks
 	# after return. It never changes the production capability result.
-	monkeypatch.setattr(env.core, "_confirm_native_quiescence", lambda native: None)
+	monkeypatch.setattr(env.core, "_confirmNativeQuiescence", lambda native: None)
 
 
 def run_thread(action):
@@ -1752,7 +1752,7 @@ def test_stop_player_failure_rejects_successor(env, monkeypatch):
 
 	real_player(env.core).stop = stop
 	with pytest.raises(OSError):
-		env.core._stop_player()
+		env.core._stopPlayer()
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
 	_, _context, call = speak(env)
 	finish(call)

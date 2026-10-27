@@ -220,7 +220,7 @@ def _vocalizer_own_names(tree):
 			for item in node.body:
 				if isinstance(item, ast.Assign):
 					own |= {t.id for t in item.targets if isinstance(t, ast.Name)}
-				if isinstance(item, ast.FunctionDef) and item.name == "_install_guard":
+				if isinstance(item, ast.FunctionDef) and item.name == "_installGuard":
 					own |= {
 						n.attr
 						for n in ast.walk(item)

@@ -48,7 +48,7 @@ _RETAINED_CALLBACKS = []
 _ORDINARY_BARRIERS = frozenset()
 
 
-def _strip_bytes_repr(text):
+def _stripBytesRepr(text):
 	"""Turn a bytes repr like "b'English'" into its text, keeping every letter."""
 	if len(text) >= 3 and text.startswith("b'") and text.endswith("'"):
 		return text[2:-1]
@@ -97,18 +97,18 @@ class _SilenceGate(threading.Event):
 	def __init__(self):
 		super().__init__()
 		self._token = None
-		self._inside_native_call = False
+		self._insideNativeCall = False
 
 	def cancelled(self):
-		return super().is_set() or self.token_cancelled()
+		return super().is_set() or self.tokenCancelled()
 
-	def token_cancelled(self):
+	def tokenCancelled(self):
 		return bool(self._token and self._token.is_cancelled())
 
 	def is_set(self):
-		if not self._inside_native_call:
+		if not self._insideNativeCall:
 			log.debug("VE callback outside native call")
-		return self.cancelled() or not self._inside_native_call
+		return self.cancelled() or not self._insideNativeCall
 
 	def isSet(self):
 		return self.is_set()
@@ -122,8 +122,8 @@ class _SilenceGate(threading.Event):
 
 
 class _GuardedPlayer:
-	def __init__(self, real_player, gate, driver=None):
-		self._real = real_player
+	def __init__(self, realPlayer, gate, driver=None):
+		self._real = realPlayer
 		self._gate = gate
 		self._driver = weakref.ref(driver) if driver is not None else None
 
@@ -139,7 +139,7 @@ class _GuardedPlayer:
 	def idle(self):
 		driver = self._driver() if self._driver is not None else None
 		if driver is not None:
-			return driver._idle_player()
+			return driver._idlePlayer()
 		if not self._gate.cancelled():
 			self._real.idle()
 
@@ -179,7 +179,7 @@ class _Begin(_RecordTask):
 	def __call__(self):
 		driver = self._driver()
 		if driver is not None:
-			driver._begin_record(self.record)
+			driver._beginRecord(self.record)
 
 
 class _NativeTask(_RecordTask):
@@ -191,14 +191,14 @@ class _NativeTask(_RecordTask):
 	def __call__(self):
 		driver = self._driver()
 		if driver is not None:
-			driver._run_native(self.record, self._instance, self._text)
+			driver._runNative(self.record, self._instance, self._text)
 
 
 class _Retire(_RecordTask):
 	def __call__(self):
 		driver = self._driver()
 		if driver is not None:
-			driver._retire_record(self.record)
+			driver._retireRecord(self.record)
 
 
 class ProcessText2Speech(BaseProcessText2Speech):
@@ -246,9 +246,9 @@ class _ContextualVECallback(base.VECallback):
 		driver = self._driver() if self._driver is not None else None
 		if driver is None:
 			return NUAN_E_TTS_USERSTOP
-		if not driver._guard_installed:
+		if not driver._guardInstalled:
 			return super().__call__(instance, userData, message)
-		with driver._callback_admission(instance) as (record, call):
+		with driver._callbackAdmission(instance) as (record, call):
 			if record is None:
 				# Legacy ENDPROCESS historically acknowledges cancellation. It
 				# cannot flush or clear anything without an admitted call.
@@ -265,16 +265,16 @@ class _ContextualVECallback(base.VECallback):
 		host = driver._segmentHost
 		try:
 			with self._processingLock:
-				if not driver._record_valid(record):
+				if not driver._recordValid(record):
 					return NUAN_E_TTS_USERSTOP
-				message_type = message.contents.eMessage
-				if message_type == VE_MSG_OUTBUFREQ:
+				messageType = message.contents.eMessage
+				if messageType == VE_MSG_OUTBUFREQ:
 					data = cast(message.contents.pParam, POINTER(VE_OUTDATA)).contents
 					data.pOutPcmBuf = cast(self._pcmBuf, c_void_p)
 					data.cntPcmBufLen = base.pcmBufLen
 					data.pMrkList = cast(self._markBuf, POINTER(VE_MARKINFO))
 					data.cntMrkListLen = base.markBufSize * sizeof(VE_MARKINFO)
-				elif message_type == VE_MSG_OUTBUFDONE:
+				elif messageType == VE_MSG_OUTBUFDONE:
 					data = cast(message.contents.pParam, POINTER(VE_OUTDATA)).contents
 					if data.cntPcmBufLen > base.pcmBufLen or data.cntMrkListLen > base.markBufSize:
 						raise ValueError("VE output exceeds allocated PCM/marker buffers")
@@ -285,41 +285,41 @@ class _ContextualVECallback(base.VECallback):
 							if output:
 								self._feedBuf.write(bytes(output))
 							if self._feedBuf.tell() >= base.pcmBufLen:
-								driver._feed_callback(record, self._feedBuf.getvalue())
+								driver._feedCallback(record, self._feedBuf.getvalue())
 								self._feedBuf = BytesIO()
 						else:
-							driver._feed_callback(record, string_at(data.pOutPcmBuf, data.cntPcmBufLen))
-					if not driver._record_valid(record):
+							driver._feedCallback(record, string_at(data.pOutPcmBuf, data.cntPcmBufLen))
+					if not driver._recordValid(record):
 						self._feedBuf = BytesIO()
 						return NUAN_E_TTS_USERSTOP
 					for i in range(int(data.cntMrkListLen)):
-						if not driver._record_valid(record):
+						if not driver._recordValid(record):
 							return NUAN_E_TTS_USERSTOP
 						if data.pMrkList[i].eMrkType == VE_MRK_BOOKMARK:
 							self._onIndexReached(data.pMrkList[i].ulMrkId)
-				elif message_type == VE_MSG_ENDPROCESS:
+				elif messageType == VE_MSG_ENDPROCESS:
 					# ENDPROCESS flushes this chunk only. It supplies no drain
 					# or native callback-exclusion evidence.
 					if self._sonicEnabled and self.sonicStream is not None:
 						self.sonicStream.flush()
 						output = self.sonicStream.readShort()
-						if output and driver._record_valid(record):
+						if output and driver._recordValid(record):
 							self._feedBuf.write(bytes(output))
-					if self._feedBuf.tell() and driver._record_valid(record):
-						driver._feed_callback(record, self._feedBuf.getvalue())
+					if self._feedBuf.tell() and driver._recordValid(record):
+						driver._feedCallback(record, self._feedBuf.getvalue())
 					self._feedBuf = BytesIO()
-				return NUAN_OK if driver._record_valid(record) else NUAN_E_TTS_USERSTOP
+				return NUAN_OK if driver._recordValid(record) else NUAN_E_TTS_USERSTOP
 		except Exception as error:
 			host.record_error(record, error)
-			driver._close_admission(call)
+			driver._closeAdmission(call)
 			log.error("WorldVoice VE callback failed", exc_info=True)
 			return NUAN_E_TTS_USERSTOP
 		finally:
 			# The callback keeps its admission through the final stop; the
 			# worker cannot start another call until this consumer leaves.
 			try:
-				if not driver._record_valid(record):
-					driver._real_player.stop()
+				if not driver._recordValid(record):
+					driver._realPlayer.stop()
 			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				host.record_error(record, error)
 
@@ -340,7 +340,7 @@ class _VEStrategy(NativeStrategy):
 
 	def admission_error(self, host):
 		driver = self._driver()
-		if not driver._guard_installed:
+		if not driver._guardInstalled:
 			return RuntimeError("VE cancellation guard installation is unavailable")
 		with driver._speechStateLock:
 			if driver._terminated:
@@ -356,20 +356,20 @@ class _VEStrategy(NativeStrategy):
 		driver._enqueue(record, record.native.commands)
 
 	def stop_native(self, host, record):
-		self._driver()._stop_player()
+		self._driver()._stopPlayer()
 
 	def stop_player(self, host):
-		self._driver()._stop_player()
+		self._driver()._stopPlayer()
 
 	def drain(self, host, record):
 		driver = self._driver()
-		with driver._player_operation():
+		with driver._playerOperation():
 			try:
-				driver._real_player.idle()
+				driver._realPlayer.idle()
 				with driver._speechStateLock:
 					driver._speechStateLock.wait_for(
 						lambda: (
-							(driver._pauses == 0 and not driver._paused) or not driver._record_valid(record)
+							(driver._pauses == 0 and not driver._paused) or not driver._recordValid(record)
 						),
 					)
 			except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
@@ -377,13 +377,13 @@ class _VEStrategy(NativeStrategy):
 				host.record_error(record, error)
 				host.latch_control_error(error)
 				return
-			if driver._record_valid(record) and not driver._isSilence.cancelled():
+			if driver._recordValid(record) and not driver._isSilence.cancelled():
 				host.reach(record, "idle")
 
 
 class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def __init__(self):
-		self._guard_installed = False
+		self._guardInstalled = False
 		self._speechStateLock = threading.Condition()
 		self._segmentHost = SegmentHost("VE", _VEStrategy(self))
 		self._submitting = None
@@ -404,10 +404,10 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._terminationCleaning = False
 		self._terminationDone = threading.Event()
 		self._terminationError = None
-		self._initialize_native()
-		self._install_guard()
+		self._initializeNative()
+		self._installGuard()
 
-	def _initialize_native(self):
+	def _initializeNative(self):
 		# The inner constructor hardcodes VECallback. Build its resources here
 		# so the owned callback is registered before the first ve2.open.
 		resources = base.getResourcePaths()
@@ -440,7 +440,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._normalization = "OFF"
 		self._rateBoost = False
 
-	def _install_guard(self):
+	def _installGuard(self):
 		callback = getattr(self, "_veCallbackHandler", None)
 		if callback is None or not all(
 			hasattr(obj, name)
@@ -463,7 +463,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			self._player = player
 			callback._player = player
 		except Exception:
-			restoration_errors = []
+			restorationErrors = []
 			for obj, name, value in (
 				(self, "_isSilence", original[0]),
 				(self, "_player", original[1]),
@@ -473,25 +473,25 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				try:
 					setattr(obj, name, value)
 				except Exception as error:
-					restoration_errors.append(error)
+					restorationErrors.append(error)
 					log.warning("VE cancellation guard restoration failed", exc_info=True)
 			log.warning("VE cancellation guard installation failed", exc_info=True)
-			if restoration_errors:
-				raise RuntimeError("VE cancellation guard restoration failed") from restoration_errors[0]
+			if restorationErrors:
+				raise RuntimeError("VE cancellation guard restoration failed") from restorationErrors[0]
 			return
-		self._real_player = original[1]
-		self._guard_installed = True
+		self._realPlayer = original[1]
+		self._guardInstalled = True
 
 	@property
 	def supportsCancellationToken(self):
-		return self._guard_installed
+		return self._guardInstalled
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
-		if not self._guard_installed:
+		if not self._guardInstalled:
 			return DrainSupport(False, _PROFILE, "VE cancellation guard installation is unavailable")
 		return unverified_drain_support(_PROFILE, "SDK callback quiescence and physical playback are")
 
-	def _confirm_native_quiescence(self, call):
+	def _confirmNativeQuiescence(self, call):
 		# Explicit activation override; retain the callback guard and idle barrier.
 		return None
 
@@ -506,7 +506,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
 	def speak(self, speechSequence, cancellationToken=None):
-		if not self._guard_installed:
+		if not self._guardInstalled:
 			return super().speak(speechSequence)
 		with self._speechStateLock:
 			if self._terminated:
@@ -533,7 +533,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			self._submitting = None
 			self._bgQueue.put(_Retire(self, record))
 
-	def _record_valid(self, record):
+	def _recordValid(self, record):
 		# Sealing (retire) does not invalidate the work; callback admission
 		# already refuses sealed records.
 		token = record.native.token if record.native is not None else None
@@ -544,13 +544,13 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			and not (token and token.is_cancelled())
 		)
 
-	def _begin_record(self, record):
+	def _beginRecord(self, record):
 		host = self._segmentHost
 		with self._speechStateLock:
 			self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			record.native.began = True
 			self._doneOwner = record
-			if not self._record_valid(record) or record.abandoned or host.control_error is not None:
+			if not self._recordValid(record) or record.abandoned or host.control_error is not None:
 				record.native.skipped = True
 			else:
 				self._currentRecord = record
@@ -560,13 +560,13 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		if record.native.skipped:
 			host.abandon(record)
 			return
-		self._reset_callback_audio()
+		self._resetCallbackAudio()
 
-	def _retire_record(self, record):
+	def _retireRecord(self, record):
 		host = self._segmentHost
 		if not record.native.skipped:
-			self._isSilence._inside_native_call = False
-			if "spoken" in record.barriers and self._record_valid(record):
+			self._isSilence._insideNativeCall = False
+			if "spoken" in record.barriers and self._recordValid(record):
 				host.reach(record, "spoken")
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
@@ -581,7 +581,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			self._isSilence._token = None
 			self._speechStateLock.notify_all()
 
-	def _reset_callback_audio(self):
+	def _resetCallbackAudio(self):
 		callback = self._veCallbackHandler
 		callback._feedBuf = BytesIO()
 		if getattr(callback, "_sonicEnabled", False):
@@ -590,7 +590,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			callback._sonicInitTried = False
 
 	def _speak(self, voiceInstance, chunks):
-		if not self._guard_installed:
+		if not self._guardInstalled:
 			return super()._speak(voiceInstance, chunks)
 		record = self._submitting
 		if record is None:
@@ -599,7 +599,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			self._bgQueue.put(_NativeTask(self, record, voiceInstance, piece))
 
 	def getParameters(self, instance, *idAndTypes):
-		if not self._guard_installed:
+		if not self._guardInstalled:
 			return super().getParameters(instance, *idAndTypes)
 		# Read pending settings like the inner driver, but without draining and
 		# re-putting the queue: that could move a record's Begin behind its Retire.
@@ -616,34 +616,34 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			return values
 		return ve2.getParamList(instance, *idAndTypes)
 
-	def _run_native(self, record, voiceInstance, piece):
+	def _runNative(self, record, voiceInstance, piece):
 		host = self._segmentHost
-		if record is not self._currentRecord or not self._record_valid(record) or self._isSilence.cancelled():
+		if record is not self._currentRecord or not self._recordValid(record) or self._isSilence.cancelled():
 			return
 		call = _NativeCall(record, voiceInstance)
 		with self._speechStateLock:
 			self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			self._nativeCall = call
-			self._isSilence._inside_native_call = True
+			self._isSilence._insideNativeCall = True
 		invoked = False
 		try:
-			if self._record_valid(record):
+			if self._recordValid(record):
 				invoked = True
 				result = ProcessText2Speech(voiceInstance, piece)()
-				if result == NUAN_E_TTS_USERSTOP and self._record_valid(record):
+				if result == NUAN_E_TTS_USERSTOP and self._recordValid(record):
 					raise RuntimeError("VE native synthesis returned USERSTOP")
 		except Exception as error:
 			log.error("WorldVoice VE native synthesis failed", exc_info=True)
 			host.record_error(record, error)
 		finally:
-			self._close_admission(call)
-			self._isSilence._inside_native_call = False
+			self._closeAdmission(call)
+			self._isSilence._insideNativeCall = False
 			# Every callback admitted to this call returns before the next one.
 			host.wait_consumers(record)
 			blocked = None
 			if invoked:
 				try:
-					self._confirm_native_quiescence(call)
+					self._confirmNativeQuiescence(call)
 				except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
 					host.record_error(record, error)
 					host.latch_control_error(error)
@@ -654,16 +654,16 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 					self._nativeCall = None
 			if blocked is not None:
 				try:
-					self._real_player.stop()
+					self._realPlayer.stop()
 				except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 					host.record_error(record, error)
 
-	def _close_admission(self, call):
+	def _closeAdmission(self, call):
 		with self._speechStateLock:
 			call.admitting = False
 
 	@contextmanager
-	def _callback_admission(self, instance):
+	def _callbackAdmission(self, instance):
 		host = self._segmentHost
 		with self._speechStateLock:
 			call = self._nativeCall
@@ -674,7 +674,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			return
 		record = call.record
 		with host.consumer(record) as admitted:
-			if admitted is None or not self._record_valid(record):
+			if admitted is None or not self._recordValid(record):
 				yield None, call
 				return
 			self._callbackLocal.depth += 1
@@ -684,46 +684,46 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			finally:
 				self._callbackLocal.depth -= 1
 
-	def _feed_callback(self, record, data):
-		if self._record_valid(record):
-			self._real_player.feed(data)
+	def _feedCallback(self, record, data):
+		if self._recordValid(record):
+			self._realPlayer.feed(data)
 
-	def _idle_player(self):
+	def _idlePlayer(self):
 		# Called by the inner DoneSpeaking on the worker. Segments drain on the
 		# lifecycle thread; ordinary speech keeps the add-on's final idle.
 		record = self._currentRecord
 		if record is not None and record.operation is not None:
 			return
-		if self._isSilence.cancelled() or (record is not None and not self._record_valid(record)):
+		if self._isSilence.cancelled() or (record is not None and not self._recordValid(record)):
 			return
-		with self._player_operation():
-			self._real_player.idle()
+		with self._playerOperation():
+			self._realPlayer.idle()
 			if record is not None:
 				with self._speechStateLock:
 					self._speechStateLock.wait_for(
-						lambda: (self._pauses == 0 and not self._paused) or not self._record_valid(record),
+						lambda: (self._pauses == 0 and not self._paused) or not self._recordValid(record),
 					)
 
 	@contextmanager
-	def _player_operation(self):
+	def _playerOperation(self):
 		self._playerLocal.depth += 1
 		try:
 			yield
 		finally:
 			self._playerLocal.depth -= 1
 
-	def _stop_player(self):
+	def _stopPlayer(self):
 		with self._stopGate.hold():
 			try:
-				with self._player_operation():
-					self._real_player.stop()
+				with self._playerOperation():
+					self._realPlayer.stop()
 			except Exception as error:
 				# A failed stop leaves the player state unknown: reject successors.
 				self._segmentHost.latch_control_error(error)
 				raise
 
 	def cancel(self):
-		if not self._guard_installed:
+		if not self._guardInstalled:
 			return super().cancel()
 		host = self._segmentHost
 		entered = False
@@ -739,7 +739,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 					# predicate in sync so fresh speech does not await a stale pause.
 					self._paused = False
 					self._pauseRevision += 1
-					dropped = self._drop_queued_speech()
+					dropped = self._dropQueuedSpeech()
 					call = self._nativeCall
 					if call is not None:
 						call.admitting = False
@@ -750,7 +750,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				for record in dropped:
 					host.abandon(record)
 			try:
-				self._real_player.stop()
+				self._realPlayer.stop()
 			except Exception as error:
 				host.latch_control_error(error)
 				raise
@@ -758,9 +758,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			if entered:
 				with self._speechStateLock:
 					self._stopGate.leave()
-				self._retire_player_operation()
+				self._retirePlayerOperation()
 
-	def _drop_queued_speech(self):
+	def _dropQueuedSpeech(self):
 		"""Like the add-on's cancel: drop queued speech, keep settings and DONE.
 
 		A kept NativeTask of a dropped or cancelled record is a no-op.
@@ -801,7 +801,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		return dropped
 
 	def _onIndexReached(self, index):
-		if not self._guard_installed:
+		if not self._guardInstalled:
 			return super()._onIndexReached(index)
 		record = self._currentRecord
 		if index is None:
@@ -812,14 +812,14 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			# speak() no longer raises, so a failed request still releases its
 			# DONE waiter, as the add-on's DoneSpeaking does; only a cancelled
 			# token silences it.
-			if self._isSilence.token_cancelled() or (token is not None and token.is_cancelled()):
+			if self._isSilence.tokenCancelled() or (token is not None and token.is_cancelled()):
 				return
-		elif self._isSilence.cancelled() or (record is not None and not self._record_valid(record)):
+		elif self._isSilence.cancelled() or (record is not None and not self._recordValid(record)):
 			return
 		return super()._onIndexReached(index)
 
 	def pause(self, switch):
-		if not self._guard_installed:
+		if not self._guardInstalled:
 			return super().pause(switch)
 		host = self._segmentHost
 		with self._speechStateLock:
@@ -859,7 +859,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				host.record_error(record, error)
 			try:
 				# Release a real idle/feed blocked by the uncertain pause state.
-				self._real_player.stop()
+				self._realPlayer.stop()
 			except Exception:
 				log.error("WorldVoice pause failure cleanup failed", exc_info=True)
 			finally:
@@ -872,9 +872,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				# retirement, not merely the desired state above.
 				self._pauses -= 1
 				self._speechStateLock.notify_all()
-			self._retire_player_operation()
+			self._retirePlayerOperation()
 
-	def _is_reentrant_termination(self):
+	def _isReentrantTermination(self):
 		return bool(
 			self._callbackLocal.depth
 			or self._playerLocal.depth
@@ -882,17 +882,17 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			or threading.current_thread() is self._bgThread,
 		)
 
-	def _retire_player_operation(self):
+	def _retirePlayerOperation(self):
 		# A terminate() requested inside this cancel/pause finishes when the
 		# operation that owned the player returns, as before the async inner.
 		self._playerLocal.depth -= 1
-		if self._terminationRequested and not self._is_reentrant_termination():
-			self._finish_termination()
+		if self._terminationRequested and not self._isReentrantTermination():
+			self._finishTermination()
 
 	def terminate(self):
-		if not self._guard_installed:
+		if not self._guardInstalled:
 			return super().terminate()
-		reentrant = self._is_reentrant_termination()
+		reentrant = self._isReentrantTermination()
 		with self._speechStateLock:
 			first = not self._terminationRequested
 			self._terminationRequested = True
@@ -908,16 +908,16 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			# itself; a closer thread finishes once they all retire.
 			if first:
 				threading.Thread(
-					target=self._finish_termination,
+					target=self._finishTermination,
 					name="WorldVoice VE close",
 					daemon=True,
 				).start()
 			return
-		self._finish_termination()
+		self._finishTermination()
 		if self._terminationError is not None:
 			raise self._terminationError
 
-	def _finish_termination(self):
+	def _finishTermination(self):
 		with self._speechStateLock:
 			first = not self._terminationCleaning
 			self._terminationCleaning = True
@@ -998,7 +998,7 @@ class Voice(Voice):
 		langDescription = languageHandler.getLanguageDescription(localeName)
 		if not langDescription:
 			if " - " in voice.displayName:
-				langDescription = _strip_bytes_repr(voice.displayName.split(" - ", 1)[1])
+				langDescription = _stripBytesRepr(voice.displayName.split(" - ", 1)[1])
 			else:
 				langDescription = localeName
 		return {

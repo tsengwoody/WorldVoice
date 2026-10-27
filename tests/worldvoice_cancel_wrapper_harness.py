@@ -248,12 +248,12 @@ def load_real_driver_with_native_stubs(
 
 		initialize_native = getattr(
 			wrapped.SynthDriver,
-			"_initialize_native",
+			"_initializeNative",
 			original.SynthDriver.__init__,
 		)
 		with monkeypatch.context() as patch:
-			if hasattr(wrapped.SynthDriver, "_initialize_native"):
-				patch.setattr(wrapped.SynthDriver, "_initialize_native", custom_init)
+			if hasattr(wrapped.SynthDriver, "_initializeNative"):
+				patch.setattr(wrapped.SynthDriver, "_initializeNative", custom_init)
 			else:
 				patch.setattr(original.SynthDriver, "__init__", custom_init)
 			return wrapped.SynthDriver()
@@ -332,7 +332,7 @@ def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
 
 def real_player(core):
 	"""The fake WavePlayer behind the wrapper's guarded player."""
-	return core._real_player
+	return core._realPlayer
 
 
 def callback_handler(core):
@@ -362,7 +362,7 @@ def guarded_real_player(player):
 
 def inside_native_call(core):
 	"""Whether the wrapper's silence gate marks a native call in progress."""
-	return core._isSilence._inside_native_call
+	return core._isSilence._insideNativeCall
 
 
 def buffered_audio(handler):

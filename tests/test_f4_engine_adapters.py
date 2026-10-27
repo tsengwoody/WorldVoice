@@ -142,4 +142,4 @@ def test_voice_metadata_keeps_vocalizer_quirks(monkeypatch, engine):
 )
 def test_bytes_repr_loses_only_its_wrapper(monkeypatch, engine, raw, expected):
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
-	assert harness.module._strip_bytes_repr(raw) == expected
+	assert harness.module._stripBytesRepr(raw) == expected

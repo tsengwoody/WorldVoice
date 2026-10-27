@@ -285,7 +285,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 		)
 		monkeypatch.setattr(outer.Voice, "create_core", classmethod(lambda cls, core=control.core: core))
 		if engine != "OneCore":
-			monkeypatch.setattr(control.core, "_confirm_native_quiescence", lambda native: None)
+			monkeypatch.setattr(control.core, "_confirmNativeQuiescence", lambda native: None)
 
 	handler = sys.modules["synthDriverHandler"]
 	monkeypatch.setattr(
