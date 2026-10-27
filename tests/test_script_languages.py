@@ -99,3 +99,45 @@ def test_script_languages_import_by_their_package_path_without_nvda(monkeypatch)
 			sys.modules.pop(name, None)
 	assert Path(table.__file__) == SCRIPT_LANGUAGES_PATH
 	assert loaded == ["synthDrivers", "synthDrivers.WorldVoice", package, package + ".scriptLanguages"]
+
+
+# The candidates in the detector's order: the first one with an installed voice wins, so a dropped
+# script or a reordered tuple changes what is spoken. Latin is pinned by its two parts below.
+NON_LATIN_CANDIDATES = {
+	"Cyrillic": ("ru", "uk", "be", "kk", "tt", "uz", "mn", "sr", "mk", "bg", "ky"),
+	"Arabic": ("ar", "fa", "ps", "ur"),
+	"Devanagari": ("hi", "sa", "mr", "ne"),
+	"Han": ("zh", "ja", "ko"),
+	"Hiragana": ("ja",),
+	"Katakana": ("ja",),
+	"Hangul": ("ko",),
+	"Bopomofo": ("zh",),
+	"Armenian": ("hy",),
+	"Hebrew": ("he",),
+	"Bengali": ("bn",),
+	"Gurmukhi": ("pa",),
+	"Greek": ("el",),
+	"Gujarati": ("gu",),
+	"Oriya": ("or",),
+	"Tamil": ("ta",),
+	"Telugu": ("te",),
+	"Kannada": ("kn",),
+	"Malayalam": ("ml",),
+	"Sinhala": ("si",),
+	"Thai": ("th",),
+	"Lao": ("lo",),
+	"Tibetan": ("bo",),
+	"Myanmar": ("my",),
+	"Georgian": ("ka",),
+	"Mongolian": ("mn",),
+	"Khmer": ("km",),
+}
+
+
+def test_script_languages_keep_their_scripts_and_candidates(module):
+	assert list(module.SCRIPT_LANGUAGES) == ["Latin", *NON_LATIN_CANDIDATES]
+	assert {
+		script: module.SCRIPT_LANGUAGES[script] for script in NON_LATIN_CANDIDATES
+	} == NON_LATIN_CANDIDATES
+	assert module.SCRIPT_LANGUAGES["Latin"] == module.ALL_LATIN == module.BASIC_LATIN + module.EXTENDED_LATIN
+	assert (len(module.BASIC_LATIN), len(module.EXTENDED_LATIN), module.ALL_LATIN[0]) == (14, 33, "en")
