@@ -16,7 +16,7 @@ from ..runtime.models import (
 	VoiceSnapshot,
 	VoiceSpec,
 )
-from ..runtime.session import CancellationView
+from ..runtime.session import CancellationView, EngineAdapter
 
 if TYPE_CHECKING:
 	from .indexLedger import IndexLedger
@@ -44,7 +44,7 @@ _ENTRIES = {
 }
 
 
-class LegacyEngineAdapter:
+class LegacyEngineAdapter(EngineAdapter):
 	def __init__(
 		self,
 		voiceClass: type,

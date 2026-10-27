@@ -195,9 +195,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 	"synthDrivers/WorldVoice/bridge/commands.py": {
 		"normalize_legacy_commands",
 	},
-	"synthDrivers/WorldVoice/bridge/engineAdapter.py": {
-		"LegacyEngineAdapter.finish_segment",
-	},
 	"synthDrivers/WorldVoice/bridge/nvdaEvents.py": {
 		"_BindingEvents.__new__.<locals>.is_active",
 	},
