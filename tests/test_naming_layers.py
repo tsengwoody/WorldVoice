@@ -30,9 +30,8 @@ Every name a module binds is checked except imports: functions, methods, classes
 (lambdas included), class and dataclass fields, attributes set on self or cls, module variables and
 local variables (match captures included). Not checked: a name given as a string, as in
 setattr(obj, "name", value), and an attribute set on another object than self or cls.
-Two lists wait for later phases and may only shrink: TRANSITIONAL_47C, the plugin contract
-driver.Voice and VoiceFacade, until phase 47c renames it with Neural; TRANSITIONAL_47D, the stored
-identifiers above, until phase 47d.
+One list waits for a later phase and may only shrink: TRANSITIONAL_47D, the stored identifiers
+above, until phase 47d.
 """
 
 import ast
@@ -122,10 +121,6 @@ INTERFACE_NAMES = {
 		"ParamChangeTracker.update reads (speech/manager.py)",
 	},
 }
-
-
-# The plugin contract, which phase 47c renames together with Neural (refactor9 §6.1).
-TRANSITIONAL_47C: dict[str, set[str]] = {}
 
 
 # Stored identifiers, which phase 47d renames (refactor9 6.1 rule 3): NVDA binds a user's gestures
@@ -387,7 +382,7 @@ def test_every_add_on_module_has_a_layer():
 
 
 def test_naming_follows_layer(addon_violations):
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47C, TRANSITIONAL_47D)
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47D)
 	assert [
 		f"{definition.path}:{definition.line} {definition.qualname}"
 		for key, definition in sorted(addon_violations.items())
@@ -397,30 +392,17 @@ def test_naming_follows_layer(addon_violations):
 
 def test_lists_hold_only_names_that_break_the_rule(addon_violations):
 	# A renamed or removed name must leave the lists, so they only shrink.
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47C, TRANSITIONAL_47D)
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47D)
 	assert sorted(listed - set(addon_violations)) == []
 
 
-def test_only_stored_identifiers_and_the_plugin_contract_wait():
-	# Phase 47b emptied the host layer's list; what still waits may only shrink. The stored
-	# identifiers are the global plugin's two script names, whose gestures users have bound.
+def test_only_stored_identifiers_wait():
+	# Phases 47b and 47c emptied the host layer's and the plugin contract's lists; what still waits
+	# may only shrink. The stored identifiers are the global plugin's two script names, whose
+	# gestures users have bound.
 	assert _listed(TRANSITIONAL_47D) <= {
 		("globalPlugins/WorldVoice/__init__.py", "GlobalPlugin.script_popup_SpeechSettingsDialog"),
 		("globalPlugins/WorldVoice/__init__.py", "GlobalPlugin.script_switch_log_record"),
-	}
-	contract = "synthDrivers/WorldVoice/driver/__init__.py"
-	assert _listed(TRANSITIONAL_47C) <= {
-		("synthDrivers/WorldVoice/bridge/voiceFacade.py", "VoiceFacade.update_settings"),
-		*(
-			(contract, f"Voice.{name}")
-			for name in (
-				"create_core",
-				"destroy_core",
-				"drain_profile",
-				"extra_capabilities",
-				"synth_driver_class",
-			)
-		),
 	}
 
 
