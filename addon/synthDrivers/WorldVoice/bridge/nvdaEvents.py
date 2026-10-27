@@ -58,7 +58,7 @@ class NvdaEventBridge(NotificationOutput):
 		self._owner = owner
 		self._doneEvent = doneEvent
 		self._indexEvent = indexEvent
-		self._get_synth = getSynth
+		self._getSynth = getSynth
 		self._indexLedger = indexLedger
 		self._lock = RLock()
 		self._closed = False
@@ -245,7 +245,7 @@ class NvdaEventBridge(NotificationOutput):
 			batchHandler(loadEvents)
 
 	def _canNotify(self) -> bool:
-		if self._get_synth() is not self._owner:
+		if self._getSynth() is not self._owner:
 			return False
 		with self._lock:
 			return not self._closed and self._handler is not None
