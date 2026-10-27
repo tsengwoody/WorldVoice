@@ -88,19 +88,6 @@ INTERFACE_NAMES = {
 }
 
 
-# Core names that phase 47a renames to snake_case; empty at the end of the phase.
-TRANSITIONAL_47A: dict[str, set[str]] = {
-	"synthDrivers/WorldVoice/pipeline/sayAll.py": {
-		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeech",
-		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeechWithSayAllBreak",
-		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeechWithSayAllBreak.<locals>.waitFactor",
-	},
-	"synthDrivers/WorldVoice/runtime/segmentHost.py": {
-		"LeasedPlayer._callback.<locals>.onDone",
-		"LeasedPlayer._feed_admitted.<locals>.onDone",
-	},
-}
-
 # Host-layer names that phase 47b renames to mixedCase or marks as interface names.
 TRANSITIONAL_47B: dict[str, set[str]] = {
 	"generics/coreArchive.py": {
@@ -730,7 +717,7 @@ def test_every_add_on_module_has_a_layer():
 
 
 def test_naming_follows_layer(addon_violations):
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47A, TRANSITIONAL_47B, TRANSITIONAL_47C)
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47B, TRANSITIONAL_47C)
 	assert [
 		f"{definition.path}:{definition.line} {definition.qualname}"
 		for key, definition in sorted(addon_violations.items())
@@ -740,7 +727,7 @@ def test_naming_follows_layer(addon_violations):
 
 def test_lists_hold_only_names_that_break_the_rule(addon_violations):
 	# A renamed or removed name must leave the lists, so they only shrink.
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47A, TRANSITIONAL_47B, TRANSITIONAL_47C)
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47B, TRANSITIONAL_47C)
 	assert sorted(listed - set(addon_violations)) == []
 
 

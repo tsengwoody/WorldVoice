@@ -664,9 +664,9 @@ class LeasedPlayer:
 				return None
 			return self._feed_admitted(record, data, size, onDone)
 
-	def _feed_admitted(self, record: NativeRecord, data, size, onDone):
+	def _feed_admitted(self, record: NativeRecord, data, size, on_done):
 		"""Feed while ``record`` is admitted; subclasses choose which record to admit."""
-		callback = None if onDone is None else self._callback(record, onDone)
+		callback = None if on_done is None else self._callback(record, on_done)
 		try:
 			if size is None:
 				return self._player.feed(data, onDone=callback)
@@ -680,7 +680,7 @@ class LeasedPlayer:
 			if not record.is_valid():
 				self.stop()
 
-	def _callback(self, record: NativeRecord, onDone: Callable[[], None]) -> Callable[[], None]:
+	def _callback(self, record: NativeRecord, on_done: Callable[[], None]) -> Callable[[], None]:
 		host = self._host
 
 		def callback():
@@ -689,7 +689,7 @@ class LeasedPlayer:
 					return
 				with host.bound_callback(record):
 					try:
-						onDone()
+						on_done()
 					except Exception as error:
 						host.record_error(record, error)
 						raise
