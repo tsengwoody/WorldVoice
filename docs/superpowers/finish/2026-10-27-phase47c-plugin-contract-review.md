@@ -148,3 +148,15 @@
 ## 未在 Linux 驗證的項目
 
 - NVDA 本身、實際音訊裝置、引擎 SDK 都沒有載入；舊版 Neural 搭新版 WorldVoice 時 NVDA log 出現 §5 那一行、其他引擎照常載入，以及更新後 Neural 語音回到清單，要在 Windows 手動確認（spec §9 最後一點）。本 phase 未打包。
+
+## 修正記錄
+
+依 DEVELOPMENT_WORKFLOW.md §3.4 的一般流程修正；本輪只有 Minor，不做修正 review。
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| M1 略過訊息對內建引擎也說「plugin」 | 已修。訊息依候選引擎的 `spec.source` 區分：WorldVoice-workspace 的引擎（`external`）維持 `plugin uses the pre-rename contract name(s) …; update the plugin`；內建引擎（`internal`）改成 `bundled engine uses the pre-rename contract name(s) …; update WorldVoice`。先改測試：`test_plugin_with_old_contract_names_is_reported` 改用 `external` 的 spec，`test_old_contract_names_are_listed_together_and_inherited_ones_count`（內建 spec）改斷言 bundled 訊息，修正前紅燈只有後者（訊息仍是 plugin），修正後綠燈。 | `df244b5` |
+| M2 內建 wrapper 的舊名測試看不到繼承來的名字 | 已修。`tests/test_runtime_completion_policies.py` 新增 `test_six_loaded_voices_pass_the_pre_rename_check`（六個引擎各一），用既有的 `load_installed_engine` 載入真實 wrapper，再以 discovery 同一個判斷 `_pre_rename_contract_names`（`hasattr`）檢查 `outer.Voice`；discovery 模組以 stub 套件載入，不跑 `engineRegistry/__init__.py`。探針：在暫時的 worktree 讓 Espeak 的 `Voice` 多繼承一個帶 `drain_profile = None` 的 mixin，AST 測試 `test_no_bundled_voice_defines_a_pre_rename_name` 仍通過（缺口），新測試失敗 `assert ['drain_profile'] == []`；探針 worktree 用完已移除。 | `0c90418` |
+| M3 merge 時先改 Neural 那一行再驗證 | 不需修改程式；屬於協調者的 merge 步驟（主 checkout `ref/Neural/Neural/__init__.py:8` 改成 `synthDriverClass = SynthDriver` 後再跑 §7）。 | — |
+
+修正後驗證（worktree 的 Neural overlay 在位）：完整測試 3318 passed、0 skipped（3312 + M2 新增的 6 個）；`prek run --all-files` 全部 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令皆無輸出。
