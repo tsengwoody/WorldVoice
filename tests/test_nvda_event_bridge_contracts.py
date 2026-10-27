@@ -113,9 +113,9 @@ def test_a_marker_source_id_belongs_to_one_source(env):
 	with pytest.raises(ValueError, match="already bound to another source"):
 		env.bridge.bind(second, source_id, completion=env.marker)
 	allocation = env.ledger.prepare(env.models.PlaybackContext(source_id, 3), ())
-	env.index.notify(synth=second, index=allocation.end_index)
+	env.index.notify(synth=second, index=allocation.endIndex)
 	assert env.batches == []
-	env.index.notify(synth=first, index=allocation.end_index)
+	env.index.notify(synth=first, index=allocation.endIndex)
 	assert [event.segment_id for event in env.batches[0]()] == [3]
 
 

@@ -168,7 +168,7 @@ class NvdaEventBridge:
 					return ()
 				# Decode inside the scheduler's delivery lock. The ledger token
 				# also closes the race between bridge validation and decoding.
-				events = self._index_ledger.receive_segment_event(event, binding_token=binding.ledger_token)
+				events = self._index_ledger.receiveSegmentEvent(event, bindingToken=binding.ledger_token)
 				# An INDEX handler can unbind before this batch's drain. Keep
 				# the batch intact, but stop iteration when its generation dies.
 				return _BindingEvents(events, lambda: self._binding_is_active(binding))
@@ -231,10 +231,10 @@ class NvdaEventBridge:
 						return ()
 				# Unbind/rebind can occur after the bridge check; validate the
 				# ledger generation atomically with decode to reject that race.
-				return self._index_ledger.receive_index(
+				return self._index_ledger.receiveIndex(
 					binding.source_id,
 					index,
-					binding_token=binding.ledger_token,
+					bindingToken=binding.ledger_token,
 				)
 
 			batch_handler(load_events)

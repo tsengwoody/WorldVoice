@@ -255,7 +255,7 @@ def test_synchronous_marker_callback_has_mapping(marker_env):
 	env = marker_env
 	events = []
 	env.core.speak = lambda commands: events.extend(
-		env.ledger.receive_index(env.source_id, commands[-1].index),
+		env.ledger.receiveIndex(env.source_id, commands[-1].index),
 	)
 	env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
 	assert [event.kind for event in events] == [env.models.EventKind.INDEX, env.models.EventKind.SEGMENT_END]
@@ -267,7 +267,7 @@ def test_synchronous_marker_callback_has_mapping(marker_env):
 def test_success_keeps_mapping_for_async_marker(marker_env):
 	env = marker_env
 	env.adapter.speak(("hello",), env.token, context=env.context)
-	assert [event.segment_id for event in env.ledger.receive_index(env.source_id, 501)] == [1]
+	assert [event.segment_id for event in env.ledger.receiveIndex(env.source_id, 501)] == [1]
 
 
 @pytest.mark.parametrize("cancel_after_prepare", [False, True])
@@ -290,8 +290,8 @@ def test_cancel_before_and_after_prepare_does_not_publish_live_segment(
 	monkeypatch.setattr(env.ledger, "prepare", cancel_during_prepare)
 	env.adapter.speak(("hello",), env.token, context=env.context)
 	assert env.core.spoken == []
-	assert env.ledger.receive_index(env.source_id, 501) == ()
-	assert prepare(env.context, ()).end_index == (502 if cancel_after_prepare else 501)
+	assert env.ledger.receiveIndex(env.source_id, 501) == ()
+	assert prepare(env.context, ()).endIndex == (502 if cancel_after_prepare else 501)
 
 
 def test_speak_failure_retires_mapping(marker_env):
@@ -303,8 +303,8 @@ def test_speak_failure_retires_mapping(marker_env):
 	env.core.speak = fail
 	with pytest.raises(OSError, match="core failed"):
 		env.adapter.speak(("hello",), env.token, context=env.context)
-	assert env.ledger.receive_index(env.source_id, 501) == ()
-	assert env.ledger.prepare(env.context, ()).end_index == 502
+	assert env.ledger.receiveIndex(env.source_id, 501) == ()
+	assert env.ledger.prepare(env.context, ()).endIndex == 502
 
 
 def test_finish_is_idempotent(marker_env):
@@ -312,8 +312,8 @@ def test_finish_is_idempotent(marker_env):
 	env.adapter.speak(("hello",), env.token, context=env.context)
 	env.adapter.finish_segment(env.context)
 	env.adapter.finish_segment(env.context)
-	assert env.ledger.receive_index(env.source_id, 501) == ()
-	assert env.ledger.prepare(env.context, ()).end_index == 502
+	assert env.ledger.receiveIndex(env.source_id, 501) == ()
+	assert env.ledger.prepare(env.context, ()).endIndex == 502
 
 
 def test_cancel_retires_source_before_core_callback(marker_env):
@@ -322,11 +322,11 @@ def test_cancel_retires_source_before_core_callback(marker_env):
 	env.adapter.speak(("two",), env.token, context=env.models.PlaybackContext(env.source_id, 2))
 	events = []
 	env.core.cancel = lambda: events.extend(
-		env.ledger.receive_index(env.source_id, 501) + env.ledger.receive_index(env.source_id, 502),
+		env.ledger.receiveIndex(env.source_id, 501) + env.ledger.receiveIndex(env.source_id, 502),
 	)
 	env.adapter.cancel()
 	assert events == []
-	assert env.ledger.prepare(env.context, ()).end_index == 503
+	assert env.ledger.prepare(env.context, ()).endIndex == 503
 
 
 def test_legacy_without_context_preserves_commands(bridge_modules, monkeypatch):
@@ -354,7 +354,7 @@ def test_marker_mode_requires_context(marker_env):
 	with pytest.raises(ValueError, match="context"):
 		env.adapter.speak(("hello",), env.token)
 	assert env.core.spoken == []
-	assert env.ledger.prepare(env.context, ()).end_index == 501
+	assert env.ledger.prepare(env.context, ()).endIndex == 501
 
 
 @pytest.fixture
@@ -380,7 +380,7 @@ def drain_env(monkeypatch, bridge_modules, rt, nvda_commands, request):
 	core.speak_segment = speak_segment
 
 	def factory(context):
-		return lambda event: events.extend(ledger.receive_segment_event(event, binding_token=binding_token))
+		return lambda event: events.extend(ledger.receiveSegmentEvent(event, bindingToken=binding_token))
 
 	yield SimpleNamespace(
 		adapter=adapter,
@@ -444,8 +444,8 @@ def test_segment_entry_or_factory_failure_retires_mapping(drain_env, failure):
 		env.core.speak_segment = fail
 	with pytest.raises(OSError, match="segment setup failed"):
 		env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
-	assert env.ledger.receive_index(env.source_id, 1) == ()
-	assert env.ledger.prepare(env.context, (456,)).wire_indexes == (2,)
+	assert env.ledger.receiveIndex(env.source_id, 1) == ()
+	assert env.ledger.prepare(env.context, (456,)).wireIndexes == (2,)
 
 
 def test_segment_failure_sink_preserves_error_without_index_backfill(drain_env):
@@ -485,8 +485,8 @@ def test_drain_cancel_before_dispatch_retires_segment(drain_env, monkeypatch, ca
 	monkeypatch.setattr(env.ledger, "prepare", cancel_during_prepare)
 	env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
 	assert env.calls == []
-	assert env.ledger.receive_index(env.source_id, 1) == ()
-	assert prepare(env.context, (456,)).wire_indexes == ((2,) if cancel_after_prepare else (1,))
+	assert env.ledger.receiveIndex(env.source_id, 1) == ()
+	assert prepare(env.context, (456,)).wireIndexes == ((2,) if cancel_after_prepare else (1,))
 
 
 def test_drain_cancel_retires_before_core_emits_old_drain(drain_env):

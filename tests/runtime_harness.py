@@ -415,18 +415,18 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 					if any(not isinstance(index, int) for index in originals):
 						raise ValueError("Index command requires an integer")
 					allocation = ledger.prepare(context, originals)
-					indexes = iter(allocation.wire_indexes)
+					indexes = iter(allocation.wireIndexes)
 					# As bridge/indexCodec.py: a segment without wire indexes is sent without its indexes.
 					commands = tuple(
 						NativeIndex(next(indexes)) if isinstance(command, NativeIndex) else command
 						for command in commands
-						if allocation.wire_indexes or not isinstance(command, NativeIndex)
-					) + (NativeMarker(allocation.end_index),)
+						if allocation.wireIndexes or not isinstance(command, NativeIndex)
+					) + (NativeMarker(allocation.endIndex),)
 				if not token.is_cancelled():
 					core.speak(commands, cancellationToken=token)
 
 			def finish_segment(self, context):
-				ledger.retire_segment(context)
+				ledger.retireSegment(context)
 
 			def cancel(self):
 				core.cancel()
@@ -529,7 +529,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 
 		def emit(kind, index=None):
 			if kind == "INDEX":
-				tasks.on_events(lambda: ledger.receive_index(session.source_id, index))
+				tasks.on_events(lambda: ledger.receiveIndex(session.source_id, index))
 			else:
 				tasks.on_event(rt.models.PlaybackEvent(rt.models.EventKind[kind], session.source_id))
 

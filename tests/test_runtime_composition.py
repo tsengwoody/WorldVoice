@@ -504,7 +504,7 @@ def test_shutdown_disables_late_index_before_engine_close(composition):
 	cls = c.engine("marker")
 	manager = c.create(lambda cls, core: marker_contract(c))
 	port = manager.resolve_playback("marker:a")
-	marker = c.ledger.prepare(c.models.PlaybackContext(port.source_id, 1), (42,)).end_index
+	marker = c.ledger.prepare(c.models.PlaybackContext(port.source_id, 1), (42,)).endIndex
 	received = []
 	c.index.register(lambda synth, index: received.append(index) if synth is c.owner else None)
 	original_close = cls.opened.terminate
@@ -550,7 +550,7 @@ def test_live_core_rebind_preserves_allocator_high_water(composition, nvda_comma
 	port.speak(("second",), token, context=c.models.PlaybackContext(port.source_id, 2))
 	assert spoken == [501, 502]
 	assert cls.opened.closes == 0
-	assert c.ledger.receive_index(port.source_id, 501) == ()
+	assert c.ledger.receiveIndex(port.source_id, 501) == ()
 
 
 def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda_commands):
@@ -1076,13 +1076,13 @@ def test_reentrant_drain_supplier_waits_until_current_index_batch_finishes(compo
 	port = manager.resolve_playback("drain:a")
 	delivery, current = [], {}
 	completed = threading.Event()
-	receive = c.ledger.receive_segment_event
+	receive = c.ledger.receiveSegmentEvent
 
 	def record_decode(event, **kwargs):
 		delivery.append("decode")
 		return receive(event, **kwargs)
 
-	c.ledger.receive_segment_event = record_decode
+	c.ledger.receiveSegmentEvent = record_decode
 
 	def output(synth, index):
 		if synth is c.owner:

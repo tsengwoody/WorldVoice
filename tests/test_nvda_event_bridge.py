@@ -296,7 +296,7 @@ def start_marker(env, batch_handler=None):
 def test_marker_decodes_to_segment_events(marker_env):
 	env = marker_setup(marker_env)
 	allocation = start_marker(env, lambda load: env.received.extend(load()))
-	env.index.notify(synth=env.source, index=allocation.end_index)
+	env.index.notify(synth=env.source, index=allocation.endIndex)
 	assert [(e.kind, e.index, e.segment_id) for e in env.received] == [
 		(env.models.EventKind.INDEX, 42, 9),
 		(env.models.EventKind.INDEX, 7, 9),
@@ -319,7 +319,7 @@ def test_marker_mode_ignores_unidentified_done(marker_env):
 def test_marker_batch_is_decoded_when_consumer_serializes_it(marker_env):
 	env = marker_setup(marker_env)
 	allocation = start_marker(env)
-	env.bridge._on_index(env.source, allocation.end_index)
+	env.bridge._on_index(env.source, allocation.endIndex)
 	assert len(env.suppliers) == 1 and env.received == []
 	events = env.suppliers[0]()
 	assert [e.index for e in events] == [42, 7, None]
@@ -332,7 +332,7 @@ def test_marker_batch_is_decoded_when_consumer_serializes_it(marker_env):
 def test_delayed_supplier_ignores_revoked_binding(marker_env, release):
 	env = marker_setup(marker_env)
 	allocation = start_marker(env)
-	env.index.notify(synth=env.source, index=allocation.end_index)
+	env.index.notify(synth=env.source, index=allocation.endIndex)
 	if release == "close":
 		env.bridge.close()
 	else:
@@ -340,7 +340,7 @@ def test_delayed_supplier_ignores_revoked_binding(marker_env, release):
 		if release == "rebind":
 			env.bridge.bind(env.source, env.source_id, completion=env.contract)
 	assert env.suppliers[0]() == ()
-	assert env.ledger.receive_index(env.source_id, allocation.end_index) == ()
+	assert env.ledger.receiveIndex(env.source_id, allocation.endIndex) == ()
 
 
 def test_marker_rebind_preserves_high_water_and_rejects_stale_index(marker_env):
@@ -351,9 +351,9 @@ def test_marker_rebind_preserves_high_water_and_rejects_stale_index(marker_env):
 		env.ledger.prepare(env.context, ())
 	env.bridge.bind(env.source, env.source_id, completion=env.contract)
 	next_allocation = env.ledger.prepare(env.context, ())
-	assert next_allocation.end_index == 504
-	env.index.notify(synth=env.source, index=allocation.end_index)
-	env.index.notify(synth=env.source, index=next_allocation.end_index)
+	assert next_allocation.endIndex == 504
+	env.index.notify(synth=env.source, index=allocation.endIndex)
+	env.index.notify(synth=env.source, index=next_allocation.endIndex)
 	assert env.suppliers[0]() == ()
 	assert [e.segment_id for e in env.suppliers[1]()] == [9]
 
@@ -362,7 +362,7 @@ def test_marker_duplicate_bind_keeps_pending_mapping(marker_env):
 	env = marker_setup(marker_env)
 	allocation = start_marker(env)
 	env.bridge.bind(env.source, env.source_id, completion=env.contract)
-	env.index.notify(synth=env.source, index=allocation.end_index)
+	env.index.notify(synth=env.source, index=allocation.endIndex)
 	assert [e.index for e in env.suppliers[0]()] == [42, 7, None]
 
 
@@ -394,20 +394,20 @@ def test_marker_batch_handler_runs_without_bridge_state_lock(marker_env):
 		assert load() == ()
 
 	allocation = start_marker(env, receive)
-	env.index.notify(synth=env.source, index=allocation.end_index)
+	env.index.notify(synth=env.source, index=allocation.endIndex)
 
 
 def test_marker_supplier_decodes_without_bridge_state_lock(marker_env, monkeypatch):
 	env = marker_setup(marker_env)
 	allocation = start_marker(env)
-	receive_index = env.ledger.receive_index
+	receive_index = env.ledger.receiveIndex
 
 	def receive(source_id, index, **kwargs):
 		assert_other_thread_can_unbind(env.bridge, source_id)
 		return receive_index(source_id, index, **kwargs)
 
-	monkeypatch.setattr(env.ledger, "receive_index", receive)
-	env.index.notify(synth=env.source, index=allocation.end_index)
+	monkeypatch.setattr(env.ledger, "receiveIndex", receive)
+	env.index.notify(synth=env.source, index=allocation.endIndex)
 	assert env.suppliers[0]() == ()
 
 
@@ -463,9 +463,9 @@ def test_close_continues_revoking_markers_after_cleanup_failures(marker_env, mon
 def test_supplier_cannot_decode_replacement_binding_after_validation(marker_env, monkeypatch):
 	env = marker_setup(marker_env)
 	allocation = start_marker(env)
-	env.index.notify(synth=env.source, index=allocation.end_index)
+	env.index.notify(synth=env.source, index=allocation.endIndex)
 	entered_decode, resume_decode = Event(), Event()
-	receive_index = env.ledger.receive_index
+	receive_index = env.ledger.receiveIndex
 	batches = []
 
 	def paused_receive(source_id, index, **kwargs):
@@ -473,7 +473,7 @@ def test_supplier_cannot_decode_replacement_binding_after_validation(marker_env,
 		assert resume_decode.wait(HOLD_TIMEOUT), "replacement binding was not published"
 		return receive_index(source_id, index, **kwargs)
 
-	monkeypatch.setattr(env.ledger, "receive_index", paused_receive)
+	monkeypatch.setattr(env.ledger, "receiveIndex", paused_receive)
 	worker = Thread(target=lambda: batches.append(env.suppliers[0]()), daemon=True)
 	worker.start()
 	try:
@@ -483,14 +483,14 @@ def test_supplier_cannot_decode_replacement_binding_after_validation(marker_env,
 		env.bridge.bind(replacement, env.source_id, completion=env.contract)
 		replacement_context = env.models.PlaybackContext(env.source_id, 10)
 		replacement_allocation = env.ledger.prepare(replacement_context, (80, 81))
-		assert replacement_allocation.end_index == allocation.end_index
+		assert replacement_allocation.endIndex == allocation.endIndex
 	finally:
 		resume_decode.set()
 		worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive()
 	assert batches == [()]
-	monkeypatch.setattr(env.ledger, "receive_index", receive_index)
-	env.index.notify(synth=replacement, index=replacement_allocation.end_index)
+	monkeypatch.setattr(env.ledger, "receiveIndex", receive_index)
+	env.index.notify(synth=replacement, index=replacement_allocation.endIndex)
 	events = env.suppliers[1]()
 	assert [(e.index, e.segment_id) for e in events] == [(80, 10), (81, 10), (None, 10)]
 
@@ -586,7 +586,7 @@ def test_segment_failure_does_not_restore_pending_indexes(drain_env):
 	env.bridge.segment_sink(env.source, env.context)(segment_event(env, "SEGMENT_FAILED", error=error))
 	events = env.suppliers[0]()
 	assert len(events) == 1 and events[0].error is error
-	assert env.ledger.receive_index(env.source_id, 1) == ()
+	assert env.ledger.receiveIndex(env.source_id, 1) == ()
 
 
 def test_old_segment_sink_drops_after_rebind(drain_env):
@@ -618,7 +618,7 @@ def test_delayed_segment_supplier_rechecks_binding(drain_env, release):
 def test_segment_supplier_rechecks_ledger_token_after_bridge_validation(drain_env, monkeypatch):
 	env = drain_env
 	env.bridge.segment_sink(env.source, env.context)(segment_event(env))
-	receive = env.ledger.receive_segment_event
+	receive = env.ledger.receiveSegmentEvent
 
 	def replace_binding(event, **kwargs):
 		assert_other_thread_can_unbind(env.bridge, env.source_id)
@@ -626,7 +626,7 @@ def test_segment_supplier_rechecks_ledger_token_after_bridge_validation(drain_en
 		env.ledger.prepare(env.context, (80,))
 		return receive(event, **kwargs)
 
-	monkeypatch.setattr(env.ledger, "receive_segment_event", replace_binding)
+	monkeypatch.setattr(env.ledger, "receiveSegmentEvent", replace_binding)
 	assert env.suppliers[0]() == ()
 
 

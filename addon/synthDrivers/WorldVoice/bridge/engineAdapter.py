@@ -189,11 +189,11 @@ class LegacyEngineAdapter:
 
 	def finish_segment(self, context: PlaybackContext) -> None:
 		if self._index_ledger is not None:
-			self._index_ledger.retire_segment(context)
+			self._index_ledger.retireSegment(context)
 
 	def cancel(self) -> None:
 		if self._index_ledger is not None and self._source_id is not None:
-			self._index_ledger.retire_source(self._source_id)
+			self._index_ledger.retireSource(self._source_id)
 		self._core.cancel()
 
 	def pause(self, switch: bool) -> None:

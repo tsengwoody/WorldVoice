@@ -53,7 +53,7 @@ def test_codec_appends_one_marker_without_mutating_input(codec_env):
 	assert commands == ["hello", original, other]
 	assert isinstance(encoded[-1], env.support.commands.WorldVoiceIndexCommand)
 	assert encoded[-1].index == 502
-	assert [event.index for event in env.ledger.receive_index(env.source_id, 502)] == [123, None]
+	assert [event.index for event in env.ledger.receiveIndex(env.source_id, 502)] == [123, None]
 
 
 def test_codec_rejects_preexisting_internal_marker(codec_env):
@@ -61,7 +61,7 @@ def test_codec_rejects_preexisting_internal_marker(codec_env):
 	marker = env.support.commands.WorldVoiceIndexCommand(123)
 	with pytest.raises(ValueError, match="Input already contains an internal segment marker"):
 		encode(env, ("hello", marker))
-	assert env.ledger.prepare(env.context, ()).end_index == 501
+	assert env.ledger.prepare(env.context, ()).endIndex == 501
 
 
 def test_codec_scans_original_indexes_before_prepare(codec_env):
@@ -70,7 +70,7 @@ def test_codec_scans_original_indexes_before_prepare(codec_env):
 	original.index = "invalid"
 	with pytest.raises(ValueError, match="Index command requires an integer"):
 		encode(env, (original,))
-	assert env.ledger.prepare(env.context, ()).end_index == 501
+	assert env.ledger.prepare(env.context, ()).endIndex == 501
 
 
 def test_codec_constructor_failure_retires_mapping(codec_env, monkeypatch):
@@ -89,9 +89,9 @@ def test_codec_constructor_failure_retires_mapping(codec_env, monkeypatch):
 	)
 	with pytest.raises(ValueError, match="constructor failed"):
 		module.encodeSegment((env.commands.IndexCommand(123),), env.context, env.ledger)
-	assert env.ledger.receive_index(env.source_id, 501) == ()
-	assert env.ledger.receive_index(env.source_id, 502) == ()
-	assert env.ledger.prepare(env.context, ()).end_index == 503
+	assert env.ledger.receiveIndex(env.source_id, 501) == ()
+	assert env.ledger.receiveIndex(env.source_id, 502) == ()
+	assert env.ledger.prepare(env.context, ()).endIndex == 503
 
 
 @pytest.fixture
@@ -135,7 +135,7 @@ def test_drain_codec_rewrites_ordinary_indexes_without_terminal_or_input_mutatio
 		env.source_id,
 		segment_id=1,
 	)
-	assert [e.index for e in env.ledger.receive_segment_event(event, binding_token=env.token)] == [
+	assert [e.index for e in env.ledger.receiveSegmentEvent(event, bindingToken=env.token)] == [
 		123,
 		7,
 		None,
@@ -151,7 +151,7 @@ def test_drain_codec_empty_input_does_not_construct_internal_marker(drain_codec_
 	monkeypatch.setattr(env.support.commands.WorldVoiceIndexCommand, "__init__", fail_marker)
 	assert encode(env, ()) == ()
 	allocation = env.ledger.prepare(env.models.PlaybackContext(env.source_id, 2), (42,))
-	assert allocation.wire_indexes == (1,) and allocation.end_index is None
+	assert allocation.wireIndexes == (1,) and allocation.endIndex is None
 
 
 def test_drain_codec_rejects_external_internal_command_before_allocation(drain_codec_env):
@@ -159,7 +159,7 @@ def test_drain_codec_rejects_external_internal_command_before_allocation(drain_c
 	marker = env.support.commands.WorldVoiceIndexCommand(123)
 	with pytest.raises(ValueError, match="Input already contains an internal segment marker"):
 		encode(env, (env.commands.IndexCommand(7), marker))
-	assert env.ledger.prepare(env.context, (7,)).wire_indexes == (1,)
+	assert env.ledger.prepare(env.context, (7,)).wireIndexes == (1,)
 
 
 def test_drain_codec_leaves_out_the_indexes_of_a_degraded_segment(drain_codec_env):
@@ -173,7 +173,7 @@ def test_drain_codec_leaves_out_the_indexes_of_a_degraded_segment(drain_codec_en
 	assert encoded[0] is commands[0] and encoded[1] is other
 	assert commands == ["hello", original, other, last] and (original.index, last.index) == (123, 7)
 	event = env.models.PlaybackEvent(env.models.EventKind.SEGMENT_DRAINED, env.source_id, segment_id=1)
-	assert [e.index for e in env.ledger.receive_segment_event(event, binding_token=env.token)] == [
+	assert [e.index for e in env.ledger.receiveSegmentEvent(event, bindingToken=env.token)] == [
 		123,
 		7,
 		None,
@@ -190,7 +190,7 @@ def test_codec_sends_only_the_marker_for_a_degraded_segment(codec_env):
 	assert commands == snapshot
 	assert len(encoded) == 3 and encoded[0] is commands[0] and encoded[1] is other
 	assert type(encoded[2]) is env.support.commands.WorldVoiceIndexCommand and encoded[2].index == 501
-	assert [e.index for e in env.ledger.receive_index(env.source_id, 501)] == [*range(11), None]
+	assert [e.index for e in env.ledger.receiveIndex(env.source_id, 501)] == [*range(11), None]
 
 
 # Fresh ledgers per example come from the support modules the function-scoped env loaded once.
@@ -252,11 +252,11 @@ def test_property_encoding_keeps_commands_and_reports_each_index_once_in_order(c
 	expected = list(dict.fromkeys(originals))
 	reported = []
 	for wire in data.draw(st.lists(st.sampled_from(wires), max_size=12)) if wires else ():
-		reported += [event.index for event in ledger.receive_index(source_id, wire)]
+		reported += [event.index for event in ledger.receiveIndex(source_id, wire)]
 		assert reported == expected[: len(reported)]
 	if marker is not None:
-		reported += [event.index for event in ledger.receive_index(source_id, marker.index)]
+		reported += [event.index for event in ledger.receiveIndex(source_id, marker.index)]
 	else:
 		drained = models.PlaybackEvent(models.EventKind.SEGMENT_DRAINED, source_id, segment_id=1)
-		reported += [event.index for event in ledger.receive_segment_event(drained, binding_token=token)]
+		reported += [event.index for event in ledger.receiveSegmentEvent(drained, bindingToken=token)]
 	assert reported == [*expected, None]

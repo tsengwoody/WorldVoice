@@ -28,15 +28,15 @@ def encodeSegment(
 			originals.append(command.index)
 	allocation = ledger.prepare(context, tuple(originals))
 	try:
-		indexes = iter(allocation.wire_indexes)
+		indexes = iter(allocation.wireIndexes)
 		encoded = tuple(
 			IndexCommand(next(indexes)) if isinstance(command, IndexCommand) else command
 			for command in commands
-			if allocation.wire_indexes or not isinstance(command, IndexCommand)
+			if allocation.wireIndexes or not isinstance(command, IndexCommand)
 		)
-		if allocation.end_index is not None:
-			return (*encoded, WorldVoiceIndexCommand(allocation.end_index))
+		if allocation.endIndex is not None:
+			return (*encoded, WorldVoiceIndexCommand(allocation.endIndex))
 		return encoded
 	except Exception:
-		ledger.retire_segment(context)
+		ledger.retireSegment(context)
 		raise
