@@ -12,6 +12,7 @@ from typing import Any
 import config
 from logHandler import log
 
+from ..listeners import Listeners
 from .scriptLanguages import DETECTION_SCRIPTS
 
 # Each script of the table, then the timing, which is not a script.
@@ -45,7 +46,10 @@ class DetectionSettingsService:
 
 	def __init__(self, conf_provider: Callable[[], Any]):
 		self._conf_provider = conf_provider
-		self._listeners: list[DetectionListener] = []
+		self._listeners = Listeners[[DetectionSettings, frozenset[str]]](
+			log,
+			"WorldVoice: detection settings listener failed",
+		)
 
 	def _section(self) -> Any:
 		return self._conf_provider()["WorldVoice"]["autoLanguageSwitching"]
@@ -86,22 +90,14 @@ class DetectionSettingsService:
 		for key, value in writes.items():
 			section[key] = value
 		settings = self.get()
-		for listener in tuple(self._listeners):
-			try:
-				listener(settings, frozenset(changed))
-			except Exception:
-				log.error("WorldVoice: detection settings listener failed", exc_info=True)
+		self._listeners.notify(settings, frozenset(changed))
 		return settings
 
 	def subscribe(self, listener: DetectionListener) -> None:
-		if listener not in self._listeners:
-			self._listeners.append(listener)
+		self._listeners.subscribe(listener)
 
 	def unsubscribe(self, listener: DetectionListener) -> None:
-		try:
-			self._listeners.remove(listener)
-		except ValueError:
-			pass
+		self._listeners.unsubscribe(listener)
 
 
 detection_settings = DetectionSettingsService(lambda: config.conf)

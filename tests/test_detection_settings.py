@@ -11,6 +11,7 @@ from nvda_stubs import StubModules, _confspec_default, _detection_confspec, worl
 SETTINGS = WORLDVOICE / "languageDetection/settings.py"
 SCRIPT_LANGUAGES = WORLDVOICE / "languageDetection/scriptLanguages.py"
 PACKAGE = "detection_settings_under_test"
+DETECTION = PACKAGE + ".languageDetection"
 
 
 class RecordingSection(dict):
@@ -25,7 +26,7 @@ class RecordingSection(dict):
 
 def load_settings_module(monkeypatch, conf=None, errors=None, *, table=None):
 	"""settings.py in an alias of its package, so it loads alone: not the detector (detector.py),
-	nor the package's __init__.py, which stays empty.
+	nor the package's __init__.py, which stays empty, nor the rest of the synth package.
 
 	table, given the script table module, returns the DETECTION_SCRIPTS the settings derive from.
 	"""
@@ -37,11 +38,14 @@ def load_settings_module(monkeypatch, conf=None, errors=None, *, table=None):
 			error=lambda *args, **kwargs: (errors if errors is not None else []).append(args),
 		),
 	)
-	alias_package(monkeypatch, PACKAGE, WORLDVOICE / "languageDetection")
-	script_languages = load_source(monkeypatch, PACKAGE + ".scriptLanguages", SCRIPT_LANGUAGES)
+	# The synth package's alias holds the listener list the settings import from it.
+	alias_package(monkeypatch, PACKAGE)
+	load_source(monkeypatch, PACKAGE + ".listeners", WORLDVOICE / "listeners.py")
+	alias_package(monkeypatch, DETECTION, WORLDVOICE / "languageDetection")
+	script_languages = load_source(monkeypatch, DETECTION + ".scriptLanguages", SCRIPT_LANGUAGES)
 	if table is not None:
 		monkeypatch.setattr(script_languages, "DETECTION_SCRIPTS", table(script_languages))
-	return load_source(monkeypatch, PACKAGE + ".settings", SETTINGS)
+	return load_source(monkeypatch, DETECTION + ".settings", SETTINGS)
 
 
 @pytest.fixture
@@ -144,12 +148,14 @@ def test_a_failing_listener_is_logged_and_the_others_still_run(env):
 	env.service.subscribe(failing)
 	env.service.subscribe(record)
 	env.service.subscribe(record)
-	env.service.update(timing="before")
+	# A failing listener loses no update: the value is stored and returned.
+	assert env.service.update(timing="before").timing == "before"
+	assert env.section["detectLanguageTiming"] == "before"
 	env.service.unsubscribe(record)
 	env.service.unsubscribe(record)
 	env.service.update(timing="after")
 	assert seen == [frozenset({"timing"})]
-	assert len(env.errors) == 2
+	assert env.errors == [("WorldVoice: detection settings listener failed",)] * 2
 
 
 def test_confspec_and_script_keys_keep_the_stored_names_and_defaults(env):
