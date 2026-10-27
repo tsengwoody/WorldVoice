@@ -53,7 +53,7 @@ def env(monkeypatch):
 		cyrillicCharactersLanguage="ru",
 		devanagariCharactersLanguage="hi",
 		detectLanguageTiming="after",
-		KeepMainLocaleVoiceConsistent=True,
+		keepMainLocaleVoiceConsistent=True,
 	)
 	conf = {"WorldVoice": {"autoLanguageSwitching": section}}
 	errors = []
@@ -194,9 +194,9 @@ def test_the_config_stub_reads_the_detection_defaults_from_the_table(monkeypatch
 		key: _confspec_default(validator) for key, validator in module.DETECTION_CONFSPEC.items()
 	}
 	assert set(switching) - set(module.DETECTION_CONFSPEC) == {
-		"KeepMainLocaleVoiceConsistent",
-		"KeepMainLocaleParameterConsistent",
-		"KeepMainLocaleEngineConsistent",
+		"keepMainLocaleVoiceConsistent",
+		"keepMainLocaleParameterConsistent",
+		"keepMainLocaleEngineConsistent",
 	}
 
 

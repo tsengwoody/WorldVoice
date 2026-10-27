@@ -10,8 +10,8 @@ def make_manager(monkeypatch, *, engine=True, voice=True):
 	module = load_f4_voice_manager(monkeypatch)
 	conf = sys.modules["config"].conf
 	conf["WorldVoice"]["autoLanguageSwitching"].update(
-		KeepMainLocaleEngineConsistent=engine,
-		KeepMainLocaleVoiceConsistent=voice,
+		keepMainLocaleEngineConsistent=engine,
+		keepMainLocaleVoiceConsistent=voice,
 	)
 	conf["WorldVoice"]["role"] = {"fr": {"voice": "B:b"}, "en": {"voice": "X:gone"}}
 	manager = object.__new__(module.VoiceManager)

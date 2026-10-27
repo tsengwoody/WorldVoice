@@ -1,4 +1,4 @@
-"""The three KeepMainLocale* policies."""
+"""The three keepMainLocale* policies."""
 
 from types import SimpleNamespace
 
@@ -17,9 +17,9 @@ def load_policy(monkeypatch):
 
 def flags(**values):
 	given = {
-		"KeepMainLocaleEngineConsistent": values.get("engine"),
-		"KeepMainLocaleVoiceConsistent": values.get("voice"),
-		"KeepMainLocaleParameterConsistent": values.get("parameter"),
+		"keepMainLocaleEngineConsistent": values.get("engine"),
+		"keepMainLocaleVoiceConsistent": values.get("voice"),
+		"keepMainLocaleParameterConsistent": values.get("parameter"),
 	}
 	# A flag the test leaves out keeps the confspec default.
 	switching = {key: value for key, value in given.items() if value is not None}
@@ -34,10 +34,10 @@ def test_engine_consistency_reads_config_and_previews_without_saving(monkeypatch
 	assert [v.name for v in policy.visible(table, "A")] == ["a"]
 	policy.preview = False
 	assert [v.name for v in policy.visible(table, "A")] == ["a", "b"]
-	assert conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is True
+	assert conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleEngineConsistent"] is True
 	policy.preview = None
 	policy.enabled = False
-	assert conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is False
+	assert conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleEngineConsistent"] is False
 	assert [v.name for v in policy.visible(table, "A")] == ["a", "b"]
 
 
@@ -61,7 +61,7 @@ def test_voice_consistency_follows_the_main_voice_only_when_enabled(monkeypatch)
 	policy.follow(voice)
 	assert assigned == []
 	policy.enabled = True
-	assert conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] is True
+	assert conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleVoiceConsistent"] is True
 	policy.follow(voice)
 	policy.follow(SimpleNamespace(name="B:b", language=None))
 	assert assigned == [("en", "A:a"), ("zh", "B:b")]

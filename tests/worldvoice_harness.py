@@ -41,8 +41,8 @@ def _manager_conf():
 	"""Engine consistency off, so tests choose each voice's engine themselves."""
 	return worldvoice_conf(
 		autoLanguageSwitching={
-			"KeepMainLocaleEngineConsistent": False,
-			"KeepMainLocaleParameterConsistent": False,
+			"keepMainLocaleEngineConsistent": False,
+			"keepMainLocaleParameterConsistent": False,
 		},
 	)
 

@@ -11,7 +11,7 @@ def _create_voices(monkeypatch, config):
 	package_name = "lifecycle_test_worldvoice"
 	module = load_source(monkeypatch, f"{package_name}.driver", WORLDVOICE / "driver/__init__.py")
 	config.conf["WorldVoice"]["voices"] = {}
-	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = False
+	config.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleParameterConsistent"] = False
 	from voice_binding_harness import install_binding
 
 	voice = install_binding(module, config)
@@ -22,7 +22,7 @@ def _editing_manager(monkeypatch):
 	module = load_voice_manager(monkeypatch)
 	config = sys.modules["config"]
 	config.AggregatedSection = dict
-	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleVoiceConsistent"] = False
+	config.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleVoiceConsistent"] = False
 	config.conf["WorldVoice"]["role"] = {"en": {"voice": "A:a"}}
 	a, b = _create_voices(monkeypatch, config)
 	config.conf["speech"] = {"WorldVoice": {"voice": a.name}}
@@ -89,7 +89,7 @@ def test_main_voice_follows_the_nvda_language_until_one_is_chosen(monkeypatch):
 
 def test_main_synth_explicit_commit_updates_resolver_only_states(monkeypatch):
 	manager, a, b, config = _editing_manager(monkeypatch)
-	config.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+	config.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleParameterConsistent"] = True
 	synth = _synth_settings_class(config)()
 	synth._voiceManager = manager
 	synth._set_rate(72)

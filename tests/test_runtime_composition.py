@@ -178,7 +178,7 @@ def test_first_voice_resolution_inherits_main_values_and_keeps_cancel_baseline(c
 	c.engine("ok")
 	conf = c.config.conf
 	conf["WorldVoice"]["voices"] = {"ok:a": {"rate": "83"}}
-	conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+	conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleParameterConsistent"] = True
 	_config_repository(c)
 	manager = c.create()
 	edit = c.store.begin_edit() if during_edit else None
@@ -205,7 +205,7 @@ def test_voices_inherit_the_main_voice_once_it_exists_but_keep_their_variant(com
 	c = composition
 	c.engine("ok")
 	conf = c.config.conf
-	conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+	conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleParameterConsistent"] = True
 	conf["WorldVoice"]["voices"] = {
 		"ok:a": {"rate": "40", "variant": "own", "inflection": "35", "rateBoost": "False"},
 		"ok:b": {"rate": "41", "variant": "own-b"},
@@ -226,7 +226,7 @@ def test_reload_takes_the_main_voice_parameters_while_they_are_kept_consistent(c
 	c.engine("ok")
 	conf = c.config.conf
 	flags = conf["WorldVoice"]["autoLanguageSwitching"]
-	flags["KeepMainLocaleParameterConsistent"] = True
+	flags["keepMainLocaleParameterConsistent"] = True
 	conf["WorldVoice"]["voices"] = {"ok:a": {"rate": "40"}, "ok:b": {"rate": "41", "variant": "own-b"}}
 	_config_repository(c)
 	manager = c.create()
@@ -235,7 +235,7 @@ def test_reload_takes_the_main_voice_parameters_while_they_are_kept_consistent(c
 	manager.reload()
 	assert (manager.default_voice_instance.rate, other.rate, other.variant) == (83, 83, "own-b")
 	assert c.store.state("ok:b").baseline("rate") == 83
-	flags["KeepMainLocaleParameterConsistent"] = False
+	flags["keepMainLocaleParameterConsistent"] = False
 	manager.reload()
 	assert (manager.default_voice_instance.rate, other.rate) == (40, 41)
 

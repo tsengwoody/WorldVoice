@@ -297,8 +297,8 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 	config = sys.modules["config"]
 	config.conf["WorldVoice"] = {
 		"autoLanguageSwitching": {
-			"KeepMainLocaleEngineConsistent": False,
-			"KeepMainLocaleParameterConsistent": False,
+			"keepMainLocaleEngineConsistent": False,
+			"keepMainLocaleParameterConsistent": False,
 		},
 		"engine": {},
 		"role": {},

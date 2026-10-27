@@ -69,9 +69,9 @@ addonHandler.initTranslation()
 config.conf.spec["WorldVoice"] = {
 	"autoLanguageSwitching": {
 		**DETECTION_CONFSPEC,
-		"KeepMainLocaleVoiceConsistent": "boolean(default=true)",
-		"KeepMainLocaleParameterConsistent": "boolean(default=false)",
-		"KeepMainLocaleEngineConsistent": "boolean(default=true)",
+		"keepMainLocaleVoiceConsistent": "boolean(default=true)",
+		"keepMainLocaleParameterConsistent": "boolean(default=false)",
+		"keepMainLocaleEngineConsistent": "boolean(default=true)",
 	},
 	"pipeline": dict(PIPELINE_CONFSPEC),
 	"role": {},

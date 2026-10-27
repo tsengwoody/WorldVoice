@@ -41,9 +41,9 @@ def env(monkeypatch):
 	config = sys.modules["config"]
 	conf = config.conf
 	conf["WorldVoice"]["autoLanguageSwitching"].update(
-		KeepMainLocaleEngineConsistent=False,
-		KeepMainLocaleVoiceConsistent=False,
-		KeepMainLocaleParameterConsistent=False,
+		keepMainLocaleEngineConsistent=False,
+		keepMainLocaleVoiceConsistent=False,
+		keepMainLocaleParameterConsistent=False,
 	)
 	conf["WorldVoice"]["role"] = {"en": {"voice": "A:a"}}
 	a, b = create_f4_voices(monkeypatch, config)
@@ -102,11 +102,11 @@ def test_unticking_parameter_consistency_restores_the_previewed_voices(env):
 	assert env.b.rate == 64
 	env.presenter.apply()
 	assert env.conf["WorldVoice"]["voices"][env.b.name]["rate"] == 64
-	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] is False
+	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleParameterConsistent"] is False
 
 
 def test_unticking_a_consistency_that_was_already_on_changes_nothing(env):
-	env.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+	env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleParameterConsistent"] = True
 	env.presenter.discard()  # re-read pending flags from config
 	env.b.rate = 64
 	env.presenter.setParameterConsistency(False)
@@ -121,13 +121,13 @@ def test_engine_consistency_preview_cancel_and_apply(env):
 	assert env.manager.engine_consistency.preview is True
 	assert [locale for locale, _ in env.presenter.locales()] == ["en"]
 	assert env.conf["WorldVoice"]["role"]["fr"]["voice"] == env.b.name
-	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is False
+	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleEngineConsistent"] is False
 	env.presenter.discard()
 	assert env.manager.engine_consistency.preview is None
 	assert [locale for locale, _ in env.presenter.locales()] == ["en", "fr"]
 	env.presenter.setEngineConsistency(True)
 	env.presenter.apply()
-	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is True
+	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleEngineConsistent"] is True
 	assert "fr" not in env.conf["WorldVoice"]["role"]
 	env.presenter.discard()
 	assert env.manager.engine_consistency.enabled is True
@@ -212,7 +212,7 @@ def test_save_failure_writes_nothing_else_and_keeps_pending(env, monkeypatch):
 	assert env.a.rate == 72
 	assert settings_baseline(env.a, "rate") == 50
 	assert env.conf["WorldVoice"]["role"] == {"en": {"voice": env.a.name}}
-	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleEngineConsistent"] is False
+	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleEngineConsistent"] is False
 	assert env.conf["speech"]["WorldVoice"] == speech_before
 	assert env.presenter.selectedVoice("fr") == env.b.name
 	env.presenter.discard()

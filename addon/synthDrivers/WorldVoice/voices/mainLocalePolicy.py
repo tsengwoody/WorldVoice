@@ -12,13 +12,13 @@ def _flags(conf_provider: Callable[[], Any]) -> Any:
 
 
 class EngineConsistency:
-	"""KeepMainLocaleEngineConsistent: role choices come from the main voice's engine.
+	"""keepMainLocaleEngineConsistent: role choices come from the main voice's engine.
 
 	``enabled`` is the saved flag; ``preview`` is a settings panel's unsaved choice,
 	which the visible voice list follows until it is cleared.
 	"""
 
-	_KEY = "KeepMainLocaleEngineConsistent"
+	_KEY = "keepMainLocaleEngineConsistent"
 
 	def __init__(self, conf_provider: Callable[[], Any]):
 		self._conf_provider = conf_provider
@@ -40,9 +40,9 @@ class EngineConsistency:
 
 
 class VoiceConsistency:
-	"""KeepMainLocaleVoiceConsistent: the main locale's role follows the main voice."""
+	"""keepMainLocaleVoiceConsistent: the main locale's role follows the main voice."""
 
-	_KEY = "KeepMainLocaleVoiceConsistent"
+	_KEY = "keepMainLocaleVoiceConsistent"
 
 	def __init__(self, conf_provider: Callable[[], Any], roles, language: Callable[[], str]):
 		self._conf_provider = conf_provider
@@ -66,9 +66,9 @@ class VoiceConsistency:
 
 
 class ParameterConsistency:
-	"""KeepMainLocaleParameterConsistent: every voice speaks with the main voice's parameters."""
+	"""keepMainLocaleParameterConsistent: every voice speaks with the main voice's parameters."""
 
-	_KEY = "KeepMainLocaleParameterConsistent"
+	_KEY = "keepMainLocaleParameterConsistent"
 
 	def __init__(self, conf_provider: Callable[[], Any]):
 		self._conf_provider = conf_provider

@@ -88,6 +88,6 @@ def test_missing_voice_persists_and_loads_the_six_defaults(repository, conf):
 
 def test_voices_load_their_own_values_whatever_the_main_synth_has(repository, conf):
 	# Following the main voice is ParameterConsistency's job, through the settings store.
-	conf["WorldVoice"]["autoLanguageSwitching"]["KeepMainLocaleParameterConsistent"] = True
+	conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleParameterConsistent"] = True
 	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "variant": "bright"}
 	assert repository.load(make_spec()) == dict(DEFAULTS, rate=72, variant="bright")
