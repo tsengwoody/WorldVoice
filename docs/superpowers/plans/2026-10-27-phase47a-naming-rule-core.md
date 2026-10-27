@@ -2041,3 +2041,707 @@ addon/synthDrivers/WorldVoice/runtime/segmentHost.py:673:			return self._player.
 Every commit passed the hooks on the first try and left a clean tree. Task 7 in the clone: `3287 passed`, 0 skipped; `prek run --all-files` all Passed; `git diff --check 8e1df5b`, both protected-path commands and the Neural command printed nothing; leftover greps A and B printed exactly the listed lines; final tree ids as Task 6; the final root tree `567d8e3f…` equals the prototype's.
 
 The plan text was produced from a prototype branch (same tree ids). A first replay failed at Task 6 (`HEAD:tests` `5baa2123…`): an `Edit:` block whose "With" text was one blank line, which the replay script reads as empty, so a blank line was lost. The blocks now always carry a line of text on both sides, and this record is the second replay, from the base, of the final text.
+
+## 修正
+
+Review: `docs/superpowers/finish/2026-10-27-phase47a-naming-rule-core-review.md` (`41dd318`): 0 Critical, 0 Important, 5 Minor. The orchestrator asked for all five to be fixed before merge, each test-first (a probe or a red test, then green). Tasks 8–12 fix M5, M1, M2, M3 and M4 in that order (M5 first, so the walker's existing reach is pinned before M1 and M2 change the walker); Task 13 repeats the §7 verification.
+
+Starts from the end of Task 7: `feeb7f0` (`HEAD:addon` = `5e9cb1fbc5bff84d56ae3669a2fba3c316de6b47`, `HEAD:tests` = `9ebbdff74ed7505e7ea9cc01fc62f1571971b972`; the commits `2354744` and `41dd318` after it change only `docs/`). 3287 passed, 0 skipped. Global Constraints above still apply; the new tests raise the count to 3293.
+
+### Task 8: Pin more kinds of names the guard reads (review M5)
+
+**Files:**
+- Test: `tests/test_naming_layers.py`
+- Create (scratch, not committed): `$SCRATCH/phase47a_probe_global.py`
+
+**Interfaces:**
+- Consumes: Task 7's tree.
+- Produces: four more cases of `test_the_guard_reads_each_kind_of_name` (nested function, walrus target, `global` name, `cls.x`).
+
+- [ ] **Step 1: Probe (not committed): a walker that ignores `global` passes every guard test**
+
+**File:** `$SCRATCH/phase47a_probe_global.py`
+
+```python
+"""Probe: break, or restore, the naming guard's handling of names declared global.
+
+Usage (from the repository root): python3 phase47a_probe_global.py break|restore
+"""
+
+import sys
+from pathlib import Path
+
+path = Path("tests/test_naming_layers.py")
+text = path.read_text(encoding="utf-8")
+real, broken = "\t\t\tif node.id in declared_global:\n", "\t\t\tif False:\n"
+old, new = (real, broken) if sys.argv[1] == "break" else (broken, real)
+assert text.count(old) == 1
+path.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
+```
+
+```bash
+python3 $SCRATCH/phase47a_probe_global.py break
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | tail -1
+python3 $SCRATCH/phase47a_probe_global.py restore
+git status --short
+```
+
+Expected: `18 passed` (the gap), and afterwards `git status --short` prints nothing.
+
+- [ ] **Step 2: Add the cases, and see the probe caught**
+
+**Edit:** `tests/test_naming_layers.py`
+
+Replace:
+
+```text
+		(CORE_MODULE, "speak = lambda speechSequence: None\n", ["speechSequence"]),
+```
+
+With:
+
+```text
+		(CORE_MODULE, "speak = lambda speechSequence: None\n", ["speechSequence"]),
+		(CORE_MODULE, "def run():\n\tdef innerStep():\n\t\tpass\n", ["run.<locals>.innerStep"]),
+		(
+			CORE_MODULE,
+			"def run(items):\n\tif itemCount := len(items):\n\t\tpass\n",
+			["run.<locals>.itemCount"],
+		),
+		(CORE_MODULE, "def run():\n\tglobal lastValue\n\tlastValue = 1\n", ["lastValue"]),
+		(
+			CORE_MODULE,
+			"class Spec:\n\t@classmethod\n\tdef build(cls):\n\t\tcls.lastSpec = None\n",
+			["Spec.lastSpec"],
+		),
+```
+
+```bash
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | tail -1
+python3 $SCRATCH/phase47a_probe_global.py break
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | grep -E "^FAILED|passed|failed"
+python3 $SCRATCH/phase47a_probe_global.py restore
+git status --short
+```
+
+Expected: `22 passed`; with the probe, one `FAILED tests/test_naming_layers.py::test_the_guard_reads_each_kind_of_name[…]` line, the case whose source declares `global lastValue`, and `1 failed, 21 passed`; afterwards `git status --short` shows only ` M tests/test_naming_layers.py`.
+
+- [ ] **Step 3: Run the suite and commit**
+
+```bash
+bash $SCRATCH/runtests.sh . tests 2>&1 | tail -1
+git add tests/test_naming_layers.py
+git diff --cached --stat | tail -1
+git commit -q -m "test: pin more kinds of names the naming guard reads" -m "Review M5: the walker already reads nested functions, walrus targets, names declared global and attributes set on cls, but no case pinned them, so a walker change could drop one unnoticed (a probe that ignores global declarations left every guard test green)."
+git status --short
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected: `3291 passed`; the stat line `1 file changed, 12 insertions(+)`; every hook Passed (yaml Skipped); `git status --short` prints nothing.
+
+Expected after the commit: `HEAD:addon` = `5e9cb1fbc5bff84d56ae3669a2fba3c316de6b47` (unchanged), `HEAD:tests` = `72a52b59ac0e584770b11495005f2c649fccea9a`
+
+---
+
+### Task 9: Exempt only the override parameters the base method takes (review M1)
+
+**Files:**
+- Test: `tests/test_naming_layers.py` (`_class_members`, `_Index.inherited`, `_Walker.function`, docstring rule 2, one new test)
+
+**Interfaces:**
+- Consumes: Task 8's tree.
+- Produces: `_class_members(node) -> dict[str, set[str]]` (member name to the parameter names of the method, empty for a field); `_Index.inherited(module, node) -> dict[str, set[str]]`, merged over the readable bases; a parameter of an overriding method is exempt only when it is in the base method's set. New test `test_the_guard_flags_an_override_parameter_the_base_lacks`.
+
+- [ ] **Step 1: Write the test and see it fail**
+
+**Edit:** `tests/test_naming_layers.py`
+
+Replace:
+
+```text
+
+def test_the_guard_reads_the_imported_base_of_a_class_with_its_name():
+```
+
+With:
+
+```text
+
+def test_the_guard_flags_an_override_parameter_the_base_lacks():
+	# An override mirrors the parameters of the base method; one the base lacks is the class's own.
+	sources = {
+		SYNTH + "runtime/port.py": "class Port:\n\tdef speak_segment(self, segment_id):\n\t\tpass\n",
+		HOST_MODULE: (
+			"from ..runtime.port import Port\n\n\n"
+			"class Adapter(Port):\n"
+			"\tdef speak_segment(self, segment_id, extra_flag=None):\n\t\tpass\n"
+		),
+	}
+	found = violations(_Index(sources))
+	assert [qualname for _path, qualname in found] == ["Adapter.speak_segment.<locals>.extra_flag"]
+
+
+def test_the_guard_reads_the_imported_base_of_a_class_with_its_name():
+```
+
+```bash
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | grep -E "Right contains|passed|failed"
+```
+
+Expected: `E      Right contains one more item: 'Adapter.speak_segment.<locals>.extra_flag'` and `1 failed, 22 passed`.
+
+- [ ] **Step 2: Read the base methods' parameters**
+
+**Edit:** `tests/test_naming_layers.py` (1/8)
+
+Replace:
+
+```text
+     class, driver.Voice). The parameters of such a method mirror the base as well;
+```
+
+With:
+
+```text
+     class, driver.Voice), and a parameter of such a method that the base method also takes;
+```
+
+**Edit:** `tests/test_naming_layers.py` (2/8)
+
+Replace:
+
+```text
+def _class_members(node: ast.ClassDef) -> set[str]:
+	"""The method and field names a class defines itself."""
+	members = set()
+```
+
+With:
+
+```text
+def _class_members(node: ast.ClassDef) -> dict[str, set[str]]:
+	"""The method and field names a class defines itself, each with its parameter names (none for a field)."""
+	members: dict[str, set[str]] = {}
+```
+
+**Edit:** `tests/test_naming_layers.py` (3/8)
+
+Replace:
+
+```text
+			members.add(item.name)
+			members |= {target.attr for target in _self_fields(item)}
+```
+
+With:
+
+```text
+			members.setdefault(item.name, set()).update(argument.arg for argument in _arguments(item.args))
+			for target in _self_fields(item):
+				members.setdefault(target.attr, set())
+```
+
+**Edit:** `tests/test_naming_layers.py` (4/8)
+
+Replace:
+
+```text
+			members.add(item.id)
+```
+
+With:
+
+```text
+			members.setdefault(item.id, set())
+```
+
+**Edit:** `tests/test_naming_layers.py` (5/8)
+
+Replace:
+
+```text
+	def inherited(self, module: _Module, node: ast.ClassDef) -> frozenset[str]:
+		"""The member names of every base class of node that the index can read, transitively."""
+		names: set[str] = set()
+```
+
+With:
+
+```text
+	def inherited(self, module: _Module, node: ast.ClassDef) -> dict[str, set[str]]:
+		"""The members of every base class of node that the index can read, transitively, each with
+		the parameter names its methods take."""
+		names: dict[str, set[str]] = {}
+```
+
+**Edit:** `tests/test_naming_layers.py` (6/8)
+
+Replace:
+
+```text
+			names |= _class_members(found)
+```
+
+With:
+
+```text
+			for name, parameters in _class_members(found).items():
+				names.setdefault(name, set()).update(parameters)
+```
+
+**Edit:** `tests/test_naming_layers.py` (7/8)
+
+Replace:
+
+```text
+		return frozenset(names)
+```
+
+With:
+
+```text
+		return names
+```
+
+**Edit:** `tests/test_naming_layers.py` (8/8)
+
+Replace:
+
+```text
+			self.add(inner, argument.arg, "parameter", argument.lineno, overrides)
+```
+
+With:
+
+```text
+			mirrored = overrides and argument.arg in inherited[node.name]
+			self.add(inner, argument.arg, "parameter", argument.lineno, mirrored)
+```
+
+```bash
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | tail -1
+```
+
+Expected: `23 passed` (no add-on definition changes its verdict, so the lists stay as they are).
+
+- [ ] **Step 3: Run the suite and commit**
+
+```bash
+bash $SCRATCH/runtests.sh . tests 2>&1 | tail -1
+git add tests/test_naming_layers.py
+git diff --cached --stat | tail -1
+git commit -q -m "test: exempt only the override parameters the base method takes" -m "Review M1: the naming guard exempted every parameter of a method that overrides a readable base, so a parameter the override adds on its own escaped the check. The guard now reads the parameter names of each base method and exempts an override's parameter only when the base method takes it too. No current definition changes its verdict."
+git status --short
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected: `3292 passed`; the stat line `1 file changed, 31 insertions(+), 13 deletions(-)`; every hook Passed (yaml Skipped); `git status --short` prints nothing.
+
+Expected after the commit: `HEAD:addon` = `5e9cb1fbc5bff84d56ae3669a2fba3c316de6b47` (unchanged), `HEAD:tests` = `e187a4308e4ff882b19a78642226231ff3e74f3c`
+
+---
+
+### Task 10: Read `match` capture names; say what the guard cannot see (review M2)
+
+**Files:**
+- Test: `tests/test_naming_layers.py` (`_Walker.visit`, docstring, one case)
+
+**Interfaces:**
+- Consumes: Task 9's tree.
+- Produces: the walker binds `ast.MatchAs`/`ast.MatchStar` names and `ast.MatchMapping.rest` like other names of their scope; the docstring lists what is not checked (`setattr(obj, "name", value)`, attributes set on objects other than `self`/`cls`).
+
+- [ ] **Step 1: Write the case and see it fail**
+
+**Edit:** `tests/test_naming_layers.py`
+
+Replace:
+
+```text
+			CORE_MODULE,
+			"class Spec:\n\t@classmethod\n\tdef build(cls):\n\t\tcls.lastSpec = None\n",
+```
+
+With:
+
+```text
+			CORE_MODULE,
+			(
+				"def run(value):\n\tmatch value:\n\t\tcase [firstItem, *otherItems]:\n\t\t\tpass\n"
+				"\t\tcase {**allItems}:\n\t\t\tpass\n"
+			),
+			["run.<locals>.firstItem", "run.<locals>.otherItems", "run.<locals>.allItems"],
+		),
+		(
+			CORE_MODULE,
+			"class Spec:\n\t@classmethod\n\tdef build(cls):\n\t\tcls.lastSpec = None\n",
+```
+
+```bash
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | grep -E "Right contains|passed|failed"
+```
+
+Expected: `E      Right contains 3 more items, first extra item: 'run.<locals>.firstItem'` and `1 failed, 23 passed`.
+
+- [ ] **Step 2: Read the captures and document the limits**
+
+**Edit:** `tests/test_naming_layers.py` (1/3)
+
+Replace:
+
+```text
+(lambdas included), class and dataclass fields, attributes set on self, module variables and
+local variables. TRANSITIONAL_47B lists the host-layer names that break the rule until phase 47b
+renames them or marks them as interface names; TRANSITIONAL_47C the plugin contract driver.Voice
+and VoiceFacade, until phase 47c.
+```
+
+With:
+
+```text
+(lambdas included), class and dataclass fields, attributes set on self or cls, module variables and
+local variables (match captures included). Not checked: a name given as a string, as in
+setattr(obj, "name", value), and an attribute set on another object than self or cls.
+TRANSITIONAL_47B lists the host-layer names that break the rule until phase 47b renames them or
+marks them as interface names; TRANSITIONAL_47C the plugin contract driver.Voice and VoiceFacade,
+until phase 47c.
+```
+
+**Edit:** `tests/test_naming_layers.py` (2/3)
+
+Replace:
+
+```text
+		elif isinstance(node, ast.ExceptHandler) and node.name:
+```
+
+With:
+
+```text
+		elif isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and node.name:
+```
+
+**Edit:** `tests/test_naming_layers.py` (3/3)
+
+Replace:
+
+```text
+			self.add(scope, node.name, kind, node.lineno)
+```
+
+With:
+
+```text
+			self.add(scope, node.name, kind, node.lineno)
+		elif isinstance(node, ast.MatchMapping) and node.rest:
+			self.add(scope, node.rest, kind, node.lineno)
+```
+
+```bash
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | tail -1
+```
+
+Expected: `24 passed`.
+
+- [ ] **Step 3: Run the suite and commit**
+
+```bash
+bash $SCRATCH/runtests.sh . tests 2>&1 | tail -1
+git add tests/test_naming_layers.py
+git diff --cached --stat | tail -1
+git commit -q -m "test: read match capture names in the naming guard" -m "Review M2: the walker missed the names a match statement binds (case captures, starred captures and a mapping's rest). It now reads them like other locals. Its docstring also says what an AST guard cannot see: a name passed as a string to setattr, and attributes set on objects other than self or cls."
+git status --short
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected: `3293 passed`; the stat line `1 file changed, 17 insertions(+), 5 deletions(-)`; every hook Passed (yaml Skipped); `git status --short` prints nothing.
+
+Expected after the commit: `HEAD:addon` = `5e9cb1fbc5bff84d56ae3669a2fba3c316de6b47` (unchanged), `HEAD:tests` = `91a09f89f25a0da64aab7332fb2ef8b887253575`
+
+---
+
+### Task 11: Fail instead of skip once `typing.override` is safe (review M3)
+
+**Files:**
+- Test: `tests/test_naming_layers.py` (`test_no_module_imports_typing_override`)
+
+**Interfaces:**
+- Consumes: Task 10's tree.
+- Produces: with a minimum NVDA version of 2026.1 or later the test fails with a message to delete it; with today's 2024.1 it passes as before.
+
+- [ ] **Step 1: Probe (not committed): a 2026.1 minimum skips the test**
+
+```bash
+sed -i 's/addon_minimumNVDAVersion="2024.1"/addon_minimumNVDAVersion="2026.1"/' buildVars.py
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py -rs 2>&1 | grep -E "SKIPPED|passed|failed"
+git checkout -- buildVars.py
+git status --short
+```
+
+Expected: `SKIPPED [1] tests/test_naming_layers.py:755: the minimum NVDA version runs Python 3.13` and `23 passed, 1 skipped` (the gap: the suite's 0-skipped baseline would break); afterwards `git status --short` prints nothing.
+
+- [ ] **Step 2: Fail with a message to delete the test**
+
+**Edit:** `tests/test_naming_layers.py`
+
+Replace:
+
+```text
+		pytest.skip("the minimum NVDA version runs Python 3.13")
+```
+
+With:
+
+```text
+		# Not a skip: the suite keeps 0 skipped, so the test must go when its reason does.
+		pytest.fail(
+			"The minimum NVDA version now runs Python 3.13, so typing.override imports there: delete this test.",
+		)
+```
+
+```bash
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | tail -1
+sed -i 's/addon_minimumNVDAVersion="2024.1"/addon_minimumNVDAVersion="2026.1"/' buildVars.py
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | grep -E "Failed:|passed|failed"
+git checkout -- buildVars.py
+git status --short
+```
+
+Expected: `24 passed`; with the probe, `E     Failed: The minimum NVDA version now runs Python 3.13, so typing.override imports there: delete this test.` and `1 failed, 23 passed`; afterwards `git status --short` shows only ` M tests/test_naming_layers.py`.
+
+- [ ] **Step 3: Run the suite and commit**
+
+```bash
+bash $SCRATCH/runtests.sh . tests 2>&1 | tail -1
+git add tests/test_naming_layers.py
+git diff --cached --stat | tail -1
+git commit -q -m "test: fail instead of skip once typing.override is safe" -m "Review M3: test_no_module_imports_typing_override skipped itself once the minimum NVDA version reached 2026.1, which would break the suite's 0-skipped baseline (DEVELOPMENT_WORKFLOW.md §7). It now fails there with a message to delete it; with today's minimum, NVDA 2024.1, it passes as before."
+git status --short
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected: `3293 passed`; the stat line `1 file changed, 4 insertions(+), 1 deletion(-)`; every hook Passed (yaml Skipped); `git status --short` prints nothing.
+
+Expected after the commit: `HEAD:addon` = `5e9cb1fbc5bff84d56ae3669a2fba3c316de6b47` (unchanged), `HEAD:tests` = `3e00fcfc577883025f0e770006abe9c3779f0e2f`
+
+---
+
+### Task 12: Smooth the two mechanical names (review M4)
+
+**Files:**
+- Modify: `addon/synthDrivers/WorldVoice/voices/manager.py:88`, `:263`; `addon/synthDrivers/WorldVoice/pipeline/sayAll.py:24`, `:31`
+- Test: `tests/test_runtime_composition.py:106`
+- Modify (scratch, not committed): `$SCRATCH/phase47a_rename_check.py` (accepts `OLD=NEW` pairs)
+
+**Interfaces:**
+- Consumes: Task 11's tree.
+- Produces: `VoiceManager._set_voice_data()` (was `_set_voice_datas`); Say All's inner `get_text_info_speech_with_sayall_break` (was `get_text_info_speech_with_say_all_break`), spelled `sayall` like its enclosing `_wrap_get_text_info_speech_with_sayall_break` and the `sayall_wait_factor` setting. Both private; no other caller.
+
+- [ ] **Step 1: Probe: the two names**
+
+```bash
+git grep -nwE "_set_voice_datas|get_text_info_speech_with_say_all_break" -- addon tests
+```
+
+Expected (the gap):
+
+```text
+addon/synthDrivers/WorldVoice/pipeline/sayAll.py:24:	def get_text_info_speech_with_say_all_break(*args, **kwargs):
+addon/synthDrivers/WorldVoice/pipeline/sayAll.py:31:	return get_text_info_speech_with_say_all_break
+addon/synthDrivers/WorldVoice/voices/manager.py:88:		self._set_voice_datas()
+addon/synthDrivers/WorldVoice/voices/manager.py:263:	def _set_voice_datas(self):
+tests/test_runtime_composition.py:106:	manager._set_voice_datas()
+```
+
+- [ ] **Step 2: Rename, and let the token check take explicit pairs**
+
+**Edit:** `addon/synthDrivers/WorldVoice/pipeline/sayAll.py` (1/2)
+
+Replace:
+
+```text
+	def get_text_info_speech_with_say_all_break(*args, **kwargs):
+```
+
+With:
+
+```text
+	def get_text_info_speech_with_sayall_break(*args, **kwargs):
+```
+
+**Edit:** `addon/synthDrivers/WorldVoice/pipeline/sayAll.py` (2/2)
+
+Replace:
+
+```text
+	return get_text_info_speech_with_say_all_break
+```
+
+With:
+
+```text
+	return get_text_info_speech_with_sayall_break
+```
+
+**Edit:** `addon/synthDrivers/WorldVoice/voices/manager.py` (1/2)
+
+Replace:
+
+```text
+		self._set_voice_datas()
+```
+
+With:
+
+```text
+		self._set_voice_data()
+```
+
+**Edit:** `addon/synthDrivers/WorldVoice/voices/manager.py` (2/2)
+
+Replace:
+
+```text
+	def _set_voice_datas(self):
+```
+
+With:
+
+```text
+	def _set_voice_data(self):
+```
+
+**Edit:** `tests/test_runtime_composition.py`
+
+Replace:
+
+```text
+	manager._set_voice_datas()
+```
+
+With:
+
+```text
+	manager._set_voice_data()
+```
+
+**File:** `$SCRATCH/phase47a_rename_check.py`
+
+```python
+"""Check that HEAD differs from REV only by renaming NAMES, token by token in order.
+
+Usage (from the repository root): python3 phase47a_rename_check.py REV NAME...
+A NAME is renamed to snake(NAME), and an OLD=NEW pair to NEW.
+tests/test_naming_layers.py, whose lists the tasks edit, is left out. A name, comment or string token
+of HEAD must equal REV's token or REV's token with NAMES renamed; ruff's line breaks and trailing
+commas are ignored.
+"""
+
+import io
+import re
+import subprocess
+import sys
+import tokenize
+
+
+def snake(name):
+	lead = len(name) - len(name.lstrip("_"))
+	return name[:lead] + re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", name[lead:]).lower()
+
+
+rev, *names = sys.argv[1:]
+renames = dict(name.split("=", 1) if "=" in name else (name, snake(name)) for name in names)
+pattern = re.compile(r"(?<!\w)(" + "|".join(map(re.escape, renames)) + r")(?!\w)")
+
+
+def tokens(source):
+	found = [
+		(token.type, token.string)
+		for token in tokenize.generate_tokens(io.StringIO(source).readline)
+		if token.type != tokenize.NL
+	]
+	return [
+		token
+		for index, token in enumerate(found)
+		if not (token == (tokenize.OP, ",") and index + 1 < len(found) and found[index + 1][1] in ")]}")
+	]
+
+
+def git(*args):
+	return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
+
+
+paths = [p for p in git("diff", "--name-only", rev, "HEAD").split() if p != "tests/test_naming_layers.py"]
+renamed = 0
+for path in paths:
+	old, new = tokens(git("show", f"{rev}:{path}")), tokens(git("show", f"HEAD:{path}"))
+	if len(old) != len(new):
+		sys.exit(f"{path}: {len(old)} tokens before, {len(new)} after")
+	for before, after in zip(old, new, strict=True):
+		if before == after:
+			continue
+		allowed = pattern.sub(lambda match: renames[match.group(1)], before[1])
+		if before[0] != after[0] or after[1] != allowed:
+			sys.exit(f"{path}: {before[1]!r} became {after[1]!r}")
+		renamed += 1
+print(f"pure rename: OK ({len(paths)} files, {renamed} tokens renamed)")
+```
+
+```bash
+git grep -nwE "_set_voice_datas|get_text_info_speech_with_say_all_break" -- addon tests
+bash $SCRATCH/runtests.sh . tests/test_naming_layers.py 2>&1 | tail -1
+```
+
+Expected: the grep prints nothing; `24 passed`.
+
+- [ ] **Step 3: Run the suite, commit and check**
+
+```bash
+bash $SCRATCH/runtests.sh . tests 2>&1 | tail -1
+git add addon/synthDrivers/WorldVoice/pipeline/sayAll.py addon/synthDrivers/WorldVoice/voices/manager.py tests/test_runtime_composition.py
+git diff --cached --stat | tail -1
+git commit -q -m "refactor: smooth two names from the mechanical rename" -m "Review M4: the strict snake_case conversion left VoiceManager._set_voice_datas and Say All's inner get_text_info_speech_with_say_all_break, which disagrees with its enclosing _wrap_get_text_info_speech_with_sayall_break and the sayall_wait_factor setting. They become _set_voice_data and get_text_info_speech_with_sayall_break; both are private, so only the manager's one test follows."
+git status --short
+git rev-parse HEAD:addon HEAD:tests
+python3 $SCRATCH/phase47a_rename_check.py HEAD~1 _set_voice_datas=_set_voice_data get_text_info_speech_with_say_all_break=get_text_info_speech_with_sayall_break
+```
+
+Expected: `3293 passed`; the stat line `3 files changed, 5 insertions(+), 5 deletions(-)`; every hook Passed (yaml Skipped); `git status --short` prints nothing; `pure rename: OK (3 files, 5 tokens renamed)`.
+
+Expected after the commit: `HEAD:addon` = `c26c20f4f947a4529df94033ae0dd9aec9b0bf82`, `HEAD:tests` = `0824ffae4a2ff62df773057a8fbbbb12ec62f1d5`
+
+---
+
+### Task 13: Full verification after the fixes
+
+**Files:** none.
+
+**Interfaces:**
+- Consumes: Task 12's tree.
+- Produces: the verification record of the hand-off.
+
+- [ ] **Step 1: Run every check**
+
+```bash
+bash $SCRATCH/runtests.sh . tests 2>&1 | tail -1
+prek run --all-files
+git diff --check 8e1df5b
+git diff --stat 8e1df5b -- 'addon/synthDrivers/WorldVoice/driver/*/driver/' addon/synthDrivers/WorldVoice/driver/sonic/ addon/synthDrivers/WorldVoice/unicodeScripts/script_data.py addon/synthDrivers/WorldVoice/unicodeScripts/unspaced_common_data.py
+git ls-files addon/synthDrivers/WorldVoice/driver/Neural
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected: `3293 passed` (3287 + 4 + 1 + 1), 0 skipped; every hook Passed (yaml Skipped); the `git diff --check`, protected-path and Neural commands print nothing; the tree ids of Task 12.
+
+### Dry run record (修正)
+
+2026-10-27, fresh clone of the task branch at `41dd318` (the end of Task 7 plus the docs-only commits; `ref` symlinked, `prek install`), Tasks 8–13 applied from this section's text by the same replay script; a checker matched every expected output in order:
+
+| Commit | Files | Probe / red | Green | Full suite | Tree ids |
+| --- | --- | --- | --- | --- | --- |
+| Task 8 (M5) | 1 | probe `18 passed` (gap) | `22 passed`; probe now `1 failed, 21 passed` | 3291 passed | match |
+| Task 9 (M1) | 1 | red `1 failed, 22 passed` | `23 passed` | 3292 passed | match |
+| Task 10 (M2) | 1 | red `1 failed, 23 passed` | `24 passed` | 3293 passed | match |
+| Task 11 (M3) | 1 | probe `23 passed, 1 skipped` (gap) | `24 passed`; probe now `1 failed, 23 passed` | 3293 passed | match |
+| Task 12 (M4) | 3 | grep: 5 lines (gap) | grep empty; `24 passed`; `pure rename: OK (3 files, 5 tokens renamed)` | 3293 passed | match |
+
+Every commit passed the hooks on the first try and left a clean tree. Task 13 in the clone: `3293 passed`, 0 skipped; `prek run --all-files` all Passed; `git diff --check 8e1df5b`, both protected-path commands and the Neural command printed nothing; final tree ids as Task 12. The text was produced from a prototype branch with the same tree ids; this record is the first replay of the final text.
