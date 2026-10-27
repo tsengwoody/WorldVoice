@@ -18,7 +18,7 @@ EXCLUDED = re.compile(r"^synthDrivers/WorldVoice/(driver/[^/]+/driver/|unicodeSc
 # What config["WorldVoice"]["autoLanguageSwitching"] stores, so these never change.
 STORED_ROWS = [
 	("Latin", "latinCharactersLanguage", "en"),
-	("Han", "CJKCharactersLanguage", "ja"),
+	("Han", "cjkCharactersLanguage", "ja"),
 	("Arabic", "arabicCharactersLanguage", "ar"),
 	("Cyrillic", "cyrillicCharactersLanguage", "ru"),
 	("Devanagari", "devanagariCharactersLanguage", "hi"),

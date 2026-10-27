@@ -37,11 +37,11 @@ class NoConfig:
 def build(env, languages, stored, table=None):
 	switching = {
 		"latinCharactersLanguage": "en",
-		"CJKCharactersLanguage": "zh",
+		"cjkCharactersLanguage": "zh",
 		"arabicCharactersLanguage": "ar",
 		"cyrillicCharactersLanguage": "ru",
 		"devanagariCharactersLanguage": "hi",
-		"DetectLanguageTiming": "after",
+		"detectLanguageTiming": "after",
 		**stored,
 	}
 	conf = {"WorldVoice": {"autoLanguageSwitching": switching}}
@@ -80,7 +80,7 @@ def build(env, languages, stored, table=None):
 LANGUAGES = ["en", "fr", "zh", "ja", "ar", "en_US", "uk", "ru", "ru_RU", "mr", "hi"]
 STORED = {
 	"latinCharactersLanguage": "fr",
-	"CJKCharactersLanguage": "ja",
+	"cjkCharactersLanguage": "ja",
 	"cyrillicCharactersLanguage": "uk",
 	"devanagariCharactersLanguage": "mr",
 }
@@ -115,7 +115,7 @@ def test_save_writes_each_enabled_choice(env):
 	built.panel.onSave()
 	assert (
 		built.switching["latinCharactersLanguage"],
-		built.switching["CJKCharactersLanguage"],
+		built.switching["cjkCharactersLanguage"],
 		built.switching["arabicCharactersLanguage"],
 		built.switching["cyrillicCharactersLanguage"],
 		built.switching["devanagariCharactersLanguage"],
@@ -146,7 +146,7 @@ def test_saving_reports_a_timing_change_to_subscribers_not_to_the_synth(env, tim
 	built.added[TIMING].Select(["before", "after"].index(timing))
 	built.synth.events.clear()
 	built.panel.onSave()
-	assert built.switching["DetectLanguageTiming"] == timing
+	assert built.switching["detectLanguageTiming"] == timing
 	assert [("timing" in changed) for changed in built.notified] == ([True] if timing_changed else [])
 	assert built.synth.events == []
 

@@ -21,7 +21,7 @@ def load_language_detection(stub_modules, monkeypatch):
 		if name.startswith(PACKAGE + "."):
 			monkeypatch.delitem(sys.modules, name)
 	stub_modules.package(PACKAGE, WORLDVOICE)
-	conf = worldvoice_conf(autoLanguageSwitching={"CJKCharactersLanguage": "zh"})
+	conf = worldvoice_conf(autoLanguageSwitching={"cjkCharactersLanguage": "zh"})
 	state = SimpleNamespace(language="en_US")
 	stub_modules.module("speech")
 	stub_modules.module(

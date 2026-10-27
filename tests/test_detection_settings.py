@@ -48,11 +48,11 @@ def load_settings_module(monkeypatch, conf=None, errors=None, *, table=None):
 def env(monkeypatch):
 	section = RecordingSection(
 		latinCharactersLanguage="en",
-		CJKCharactersLanguage="ja",
+		cjkCharactersLanguage="ja",
 		arabicCharactersLanguage="ar",
 		cyrillicCharactersLanguage="ru",
 		devanagariCharactersLanguage="hi",
-		DetectLanguageTiming="after",
+		detectLanguageTiming="after",
 		KeepMainLocaleVoiceConsistent=True,
 	)
 	conf = {"WorldVoice": {"autoLanguageSwitching": section}}
@@ -77,13 +77,13 @@ def test_script_languages_are_read_only(env):
 
 
 def test_get_follows_the_current_config(env):
-	env.section["DetectLanguageTiming"] = "before"
+	env.section["detectLanguageTiming"] = "before"
 	assert env.service.get().timing == "before"
 
 
 def test_update_writes_only_the_given_changed_keys(env):
 	settings = env.service.update(script_language={"Han": "zh"})
-	assert env.section.writes == ["CJKCharactersLanguage"]
+	assert env.section.writes == ["cjkCharactersLanguage"]
 	assert settings.script_language["Han"] == "zh"
 	assert (env.section["latinCharactersLanguage"], env.section["arabicCharactersLanguage"]) == ("en", "ar")
 
@@ -155,16 +155,16 @@ def test_a_failing_listener_is_logged_and_the_others_still_run(env):
 def test_confspec_and_script_keys_keep_the_stored_names_and_defaults(env):
 	assert env.module.DETECTION_CONFSPEC == {
 		"latinCharactersLanguage": "string(default=en)",
-		"CJKCharactersLanguage": "string(default=ja)",
+		"cjkCharactersLanguage": "string(default=ja)",
 		"arabicCharactersLanguage": "string(default=ar)",
 		# The first candidates of their scripts: what the detector took before the choice existed.
 		"cyrillicCharactersLanguage": "string(default=ru)",
 		"devanagariCharactersLanguage": "string(default=hi)",
-		"DetectLanguageTiming": "string(default=after)",
+		"detectLanguageTiming": "string(default=after)",
 	}
 	assert env.module.SCRIPT_CONFIG_KEYS == {
 		"Latin": "latinCharactersLanguage",
-		"Han": "CJKCharactersLanguage",
+		"Han": "cjkCharactersLanguage",
 		"Arabic": "arabicCharactersLanguage",
 		"Cyrillic": "cyrillicCharactersLanguage",
 		"Devanagari": "devanagariCharactersLanguage",
@@ -179,7 +179,7 @@ def test_detection_confspec_and_keys_derive_from_the_table(monkeypatch):
 
 	module = load_settings_module(monkeypatch, table=with_hebrew)
 	table = with_hebrew(load_source(monkeypatch, "detection_table_under_test", SCRIPT_LANGUAGES))
-	assert list(module.DETECTION_CONFSPEC) == [*(row.config_key for row in table), "DetectLanguageTiming"]
+	assert list(module.DETECTION_CONFSPEC) == [*(row.config_key for row in table), "detectLanguageTiming"]
 	assert module.DETECTION_CONFSPEC["hebrewCharactersLanguage"] == "string(default=he)"
 	assert list(module.SCRIPT_CONFIG_KEYS) == [row.script for row in table]
 	assert module.SCRIPT_CONFIG_KEYS["Hebrew"] == "hebrewCharactersLanguage"
@@ -219,11 +219,11 @@ def test_the_shared_service_reads_nvda_config(monkeypatch):
 		"WorldVoice": {
 			"autoLanguageSwitching": {
 				"latinCharactersLanguage": "fr",
-				"CJKCharactersLanguage": "zh",
+				"cjkCharactersLanguage": "zh",
 				"arabicCharactersLanguage": "fa",
 				"cyrillicCharactersLanguage": "bg",
 				"devanagariCharactersLanguage": "ne",
-				"DetectLanguageTiming": "before",
+				"detectLanguageTiming": "before",
 			},
 		},
 	}

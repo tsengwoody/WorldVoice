@@ -17,11 +17,11 @@ from .scriptLanguages import DETECTION_SCRIPTS
 # Each script of the table, then the timing, which is not a script.
 DETECTION_CONFSPEC = {
 	**{row.config_key: f"string(default={row.default_language})" for row in DETECTION_SCRIPTS},
-	"DetectLanguageTiming": "string(default=after)",
+	"detectLanguageTiming": "string(default=after)",
 }
 # The scripts whose assumed language the user chooses, and where each choice is stored.
 SCRIPT_CONFIG_KEYS = {row.script: row.config_key for row in DETECTION_SCRIPTS}
-_TIMING_KEY = "DetectLanguageTiming"
+_TIMING_KEY = "detectLanguageTiming"
 
 
 @dataclass(frozen=True)

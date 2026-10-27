@@ -38,7 +38,7 @@ def switching(env):
 L = LangChangeCommand
 
 PREFERENCE_KEYS = {
-	"cjk": "CJKCharactersLanguage",
+	"cjk": "cjkCharactersLanguage",
 	"latin": "latinCharactersLanguage",
 	"arabic": "arabicCharactersLanguage",
 	"cyrillic": "cyrillicCharactersLanguage",
@@ -364,7 +364,7 @@ def test_spelling_keeps_the_current_language_before_the_locale(env):
 
 @pytest.mark.parametrize("base,expected", [("zh_TW", "zh_TW"), ("ko_KR", "ja")])
 def test_find_language_for_script_prefers_an_available_base(env, base, expected):
-	switching(env)["CJKCharactersLanguage"] = "ja"
+	switching(env)["cjkCharactersLanguage"] = "ja"
 	assert make_detector(env).find_language_for_script("Han", "en_US", base_language=base) == expected
 
 
@@ -399,7 +399,7 @@ def test_find_language_for_script_prefers_an_available_base(env, base, expected)
 	],
 )
 def test_spelling_prefers_the_spelling_locale(env, languages, cjk, text, locale, expected):
-	switching(env)["CJKCharactersLanguage"] = cjk
+	switching(env)["cjkCharactersLanguage"] = cjk
 	assert list(make_detector(env, languages).process_for_spelling(text, locale)) == expected
 
 
@@ -538,7 +538,7 @@ def test_spelling_with_locale(env):
 
 @pytest.mark.parametrize("configured,expected", [("zh", "zh"), ("ja", "ja"), ("ko", "zh")])
 def test_configured_script_language_wins_only_when_available(env, configured, expected):
-	switching(env)["CJKCharactersLanguage"] = configured
+	switching(env)["cjkCharactersLanguage"] = configured
 	assert make_detector(env).find_language_for_script("Han", "en_US") == expected
 
 

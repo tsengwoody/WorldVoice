@@ -163,7 +163,7 @@ def _load_modules(monkeypatch, conf):
 def _synth(monkeypatch, *, timing="after", uwv=True):
 	conf = {
 		"general": {"loggingLevel": "INFO"},
-		**worldvoice_conf(autoLanguageSwitching={"DetectLanguageTiming": timing}),
+		**worldvoice_conf(autoLanguageSwitching={"detectLanguageTiming": timing}),
 	}
 	modules = _load_modules(monkeypatch, conf)
 	pipeline = modules.pipeline

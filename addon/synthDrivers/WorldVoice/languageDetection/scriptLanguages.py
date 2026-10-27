@@ -112,7 +112,7 @@ class DetectionScript:
 # defaults and the panel's choices are all derived from it.
 DETECTION_SCRIPTS: tuple[DetectionScript, ...] = (
 	DetectionScript("Latin", "latinCharactersLanguage", "en"),
-	DetectionScript("Han", "CJKCharactersLanguage", "ja"),
+	DetectionScript("Han", "cjkCharactersLanguage", "ja"),
 	DetectionScript("Arabic", "arabicCharactersLanguage", "ar"),
 	# The first candidates of their scripts, which detection took before these choices existed.
 	DetectionScript("Cyrillic", "cyrillicCharactersLanguage", "ru"),
