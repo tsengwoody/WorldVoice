@@ -1,11 +1,12 @@
 """The language detection settings service: the only reader and writer of its six keys."""
 
+import ast
 import dataclasses
 from types import SimpleNamespace
 
 import pytest
 from addon_loader import WORLDVOICE, alias_package, load_source
-from nvda_stubs import StubModules, worldvoice_conf
+from nvda_stubs import StubModules, _confspec_default, _detection_confspec, worldvoice_conf
 
 SETTINGS = WORLDVOICE / "languageDetection/settings.py"
 SCRIPT_LANGUAGES = WORLDVOICE / "languageDetection/scriptLanguages.py"
@@ -184,13 +185,32 @@ def test_detection_confspec_and_keys_derive_from_the_table(monkeypatch):
 
 
 def test_the_config_stub_reads_the_detection_defaults_from_the_table(monkeypatch):
-	# Every test that builds a fresh profile with worldvoice_conf gets the table's defaults.
-	table = load_source(monkeypatch, "detection_table_under_test", SCRIPT_LANGUAGES).DETECTION_SCRIPTS
+	# Every test that builds a fresh profile with worldvoice_conf gets exactly the keys and defaults
+	# of the real DETECTION_CONFSPEC: no key NVDA lacks, none missing.
+	module = load_settings_module(monkeypatch)
 	switching = worldvoice_conf()["WorldVoice"]["autoLanguageSwitching"]
-	assert {row.config_key: switching[row.config_key] for row in table} == {
-		row.config_key: row.default_language for row in table
+	assert {key: switching[key] for key in module.DETECTION_CONFSPEC} == {
+		key: _confspec_default(validator) for key, validator in module.DETECTION_CONFSPEC.items()
 	}
-	assert switching["DetectLanguageTiming"] == "after"
+	assert set(switching) - set(module.DETECTION_CONFSPEC) == {
+		"KeepMainLocaleVoiceConsistent",
+		"KeepMainLocaleParameterConsistent",
+		"KeepMainLocaleEngineConsistent",
+	}
+
+
+@pytest.mark.parametrize(
+	"comprehension",
+	[
+		"{row.config_key: row.default_language for row in DETECTION_SCRIPTS if row.script != 'Latin'}",
+		"{row.config_key: row.default_language async for row in DETECTION_SCRIPTS}",
+	],
+)
+def test_the_config_stub_rejects_a_detection_confspec_it_cannot_read(comprehension):
+	# A filtered (or async) comprehension would give the stub keys the real confspec lacks.
+	node = ast.parse(f"DETECTION_CONFSPEC = {{**{comprehension}}}").body[0].value
+	with pytest.raises(ValueError):
+		_detection_confspec(node)
 
 
 def test_the_shared_service_reads_nvda_config(monkeypatch):

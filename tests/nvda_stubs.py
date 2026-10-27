@@ -122,7 +122,7 @@ def _spread_defaults(node):
 
 def _detection_confspec(node):
 	"""DETECTION_CONFSPEC: its literal entries, and one entry per row of the script table for a
-	{row.<field>: f"...{row.<field>}..." for row in DETECTION_SCRIPTS} spread into it."""
+	{row.<field>: f"...{row.<field>}..." for row in DETECTION_SCRIPTS} spread into it (no if)."""
 	spec = {}
 	for key, value in zip(node.keys, node.values, strict=True):
 		if key is not None:
@@ -131,6 +131,9 @@ def _detection_confspec(node):
 			isinstance(value, ast.DictComp)
 			and len(value.generators) == 1
 			and ast.unparse(value.generators[0].iter) == "DETECTION_SCRIPTS"
+			# A filter would drop rows the stub keeps; an async loop is no plain table walk.
+			and not value.generators[0].ifs
+			and not value.generators[0].is_async
 		):
 			name = value.generators[0].target.id
 			for row in _detection_scripts():
