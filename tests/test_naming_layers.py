@@ -60,6 +60,7 @@ CORE = tuple(
 		"languageDetection/",
 		"pipeline/",
 		"voices/",
+		"listeners.py",
 		"locales.py",
 		"numberLanguage.py",
 		"bringup.py",
