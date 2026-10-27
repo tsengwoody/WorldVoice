@@ -26,7 +26,7 @@ def build(monkeypatch, key, value, **changes):
 	spec = replace(env.settings.PIPELINE_SETTING_BY_KEY[key], **changes)
 	sizer = Sizer()
 	env.parent = parent = make_panel(SettingsPanel)
-	control = env.controls.make_control(parent, BoxSizerHelper(parent, sizer=sizer), spec, value)
+	control = env.controls.makeControl(parent, BoxSizerHelper(parent, sizer=sizer), spec, value)
 	return env, spec, sizer, control
 
 
@@ -104,7 +104,7 @@ def _select(index):
 def test_control_value_reads_what_is_saved(monkeypatch, key, stored, change, saved):
 	env, spec, _sizer, control = build(monkeypatch, key, stored)
 	change(control)
-	assert env.controls.control_value(spec, control) == saved
+	assert env.controls.controlValue(spec, control) == saved
 
 
 @pytest.mark.parametrize(
@@ -113,7 +113,7 @@ def test_control_value_reads_what_is_saved(monkeypatch, key, stored, change, sav
 )
 def test_control_row_is_the_checkbox_or_its_sizer(monkeypatch, key, stored):
 	env, spec, sizer, control = build(monkeypatch, key, stored)
-	row = env.controls.control_row(control, spec)
+	row = env.controls.controlRow(control, spec)
 	item = sizer.items[0]
 	assert row is (item.GetWindow() if spec.control == "checkbox" else item.GetSizer())
 	assert row is (control if spec.control == "checkbox" else control.GetContainingSizer())
@@ -143,7 +143,7 @@ def helpers(monkeypatch):
 	env = load_ui_controls(monkeypatch)
 	env.layout = sys.modules["synthDrivers.WorldVoice.ui.panelLayout"]
 	env.spec = lambda key: next(spec for spec in env.settings.PIPELINE_SETTINGS if spec.key == key)
-	env.specs = env.layout.panel_specs(env.settings.PIPELINE_SETTINGS, env.layout.PIPELINE_PANEL)
+	env.specs = env.layout.panelSpecs(env.settings.PIPELINE_SETTINGS, env.layout.PIPELINE_PANEL)
 	env.recorders = {spec.key: Recorder() for spec in env.specs}
 	return env
 
@@ -170,14 +170,14 @@ DEPENDENTS = ("group_size", *PAUSE_DEPENDENTS)
 )
 def test_read_control_without_a_control_is_absent(monkeypatch, key, options):
 	env = helpers(monkeypatch)
-	assert env.controls.read_control(env.spec(key), None, options) is env.layout.ABSENT
+	assert env.controls.readControl(env.spec(key), None, options) is env.layout.ABSENT
 
 
 @pytest.mark.parametrize("checked", [True, False])
 def test_read_control_reads_a_checkbox(monkeypatch, checked):
 	env = helpers(monkeypatch)
 	control = Recorder(value=checked)
-	assert env.controls.read_control(env.spec("punctuation_pause_enabled"), control) is checked
+	assert env.controls.readControl(env.spec("punctuation_pause_enabled"), control) is checked
 	assert control.calls == [("GetValue",)]
 
 
@@ -185,7 +185,7 @@ def test_read_control_reads_a_checkbox(monkeypatch, checked):
 def test_read_control_reads_a_table_choice_by_its_current_selection(monkeypatch, current, value):
 	env = helpers(monkeypatch)
 	control = Recorder(selection=1 - current, current=current)
-	assert env.controls.read_control(env.spec("scope"), control) == value
+	assert env.controls.readControl(env.spec("scope"), control) == value
 	assert "GetSelection" not in names(control.calls)
 
 
@@ -194,19 +194,19 @@ def test_read_control_reads_a_driver_choice_from_its_options(monkeypatch, select
 	# No selection (-1) names no option, although Python's list[-1] is the last one.
 	env = helpers(monkeypatch)
 	control = Recorder(selection=selection, current=0)
-	assert env.controls.read_control(env.spec("number_mode"), control, ["a", "b", "c"]) == value
+	assert env.controls.readControl(env.spec("number_mode"), control, ["a", "b", "c"]) == value
 	assert "GetCurrentSelection" not in names(control.calls)
 
 
 def test_read_control_ignores_driver_options_for_a_checkbox(monkeypatch):
 	env = helpers(monkeypatch)
 	control = Recorder(value=False, selection=0, current=0)
-	assert env.controls.read_control(env.spec("punctuation_pause_enabled"), control, []) is False
+	assert env.controls.readControl(env.spec("punctuation_pause_enabled"), control, []) is False
 	assert control.calls == [("GetValue",)]
 
 
 def apply(env, read, missing=()):
-	env.controls.apply_dependencies(
+	env.controls.applyDependencies(
 		env.specs,
 		read,
 		lambda spec: None if spec.key in missing else env.recorders[spec.key],

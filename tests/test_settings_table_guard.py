@@ -213,7 +213,7 @@ def check_attribute_names(specs):
 	for spec in specs:
 		if spec.driver_id is not None:
 			if spec.control in DRIVER_CONTROLS:
-				driver_names.add(layout.driver_attribute(spec))
+				driver_names.add(layout.driverAttribute(spec))
 			else:
 				problems.append(f"{spec.key}: NVDA names no {spec.control!r} driver control")
 	for spec in specs:
@@ -221,8 +221,8 @@ def check_attribute_names(specs):
 			continue
 		if spec.control not in CONTROLS:
 			problems.append(f"{spec.key}: a {spec.control!r} has no Voice panel attribute")
-		elif layout.voice_attribute(spec) in driver_names:
-			problems.append(f"{spec.key}: {layout.voice_attribute(spec)} is also an NVDA driver control")
+		elif layout.voiceAttribute(spec) in driver_names:
+			problems.append(f"{spec.key}: {layout.voiceAttribute(spec)} is also an NVDA driver control")
 	return problems
 
 

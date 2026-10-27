@@ -15,26 +15,26 @@ from gui import nvdaControls
 
 from .panelLayout import (
 	ABSENT,
-	choice_index,
-	choice_values,
-	dependent_states,
-	from_display,
-	label_text,
-	selected_value,
-	to_display,
+	choiceIndex,
+	choiceValues,
+	dependentStates,
+	fromDisplay,
+	labelText,
+	selectedValue,
+	toDisplay,
 )
 
 # The change event of each control kind that may control other settings.
 CHANGE_EVENTS = {"checkbox": wx.EVT_CHECKBOX, "choice": wx.EVT_CHOICE}
 
 
-def make_control(parent: Any, helper: Any, spec: Any, value: Any) -> Any:
+def makeControl(parent: Any, helper: Any, spec: Any, value: Any) -> Any:
 	"""Add the control for spec to helper's sizer, showing value, and return it.
 
 	The caller passes the helper: one helper keeps NVDA's spacing between rows, a fresh one per
 	control leaves no spacer behind when the row is moved.
 	"""
-	label = label_text(spec)
+	label = labelText(spec)
 	if spec.control == "checkbox":
 		control = helper.addItem(wx.CheckBox(parent, label=label))
 		control.SetValue(value)
@@ -44,14 +44,14 @@ def make_control(parent: Any, helper: Any, spec: Any, value: Any) -> Any:
 			wx.Choice,
 			choices=[choiceLabel for _value, choiceLabel in spec.choices],
 		)
-		control.Select(choice_index(choice_values(spec), value))
+		control.Select(choiceIndex(choiceValues(spec), value))
 	elif spec.control == "slider":
 		control = helper.addLabeledControl(
 			label,
 			wx.Slider,
-			value=to_display(spec, value),
-			minValue=to_display(spec, spec.min_value),
-			maxValue=to_display(spec, spec.max_value),
+			value=toDisplay(spec, value),
+			minValue=toDisplay(spec, spec.min_value),
+			maxValue=toDisplay(spec, spec.max_value),
 			style=wx.SL_HORIZONTAL,
 		)
 	elif spec.control == "spin":
@@ -70,48 +70,48 @@ def make_control(parent: Any, helper: Any, spec: Any, value: Any) -> Any:
 	return control
 
 
-def control_value(spec: Any, control: Any) -> Any:
+def controlValue(spec: Any, control: Any) -> Any:
 	"""The value to save from control; None for a choice with no selection."""
 	if spec.control == "choice":
-		return selected_value(choice_values(spec), control.GetCurrentSelection())
+		return selectedValue(choiceValues(spec), control.GetCurrentSelection())
 	if spec.control == "slider":
-		return from_display(spec, control.GetValue())
+		return fromDisplay(spec, control.GetValue())
 	return control.GetValue()
 
 
-def control_row(control: Any, spec: Any) -> Any:
+def controlRow(control: Any, spec: Any) -> Any:
 	"""The settings-sizer item of control: a checkbox is added as itself, others in their own sizer."""
 	return control if spec.control == "checkbox" else control.GetContainingSizer()
 
 
-def read_control(spec: Any, control: Any, driver_options: Sequence[str] | None = None) -> Any:
-	"""A controller's value as its control shows it, for panelLayout.dependent_states.
+def readControl(spec: Any, control: Any, driverOptions: Sequence[str] | None = None) -> Any:
+	"""A controller's value as its control shows it, for panelLayout.dependentStates.
 
-	ABSENT without a control (another synth has none). driver_options are the option ids of a
+	ABSENT without a control (another synth has none). driverOptions are the option ids of a
 	choice NVDA made for a driver setting, in list order; None for a control WorldVoice made from
-	the table, which reads as control_value. No selection reads as None.
+	the table, which reads as controlValue. No selection reads as None.
 	"""
 	if control is None:
 		return ABSENT
-	if driver_options is not None and spec.control == "choice":
+	if driverOptions is not None and spec.control == "choice":
 		# No selection (-1) names no option, although the list's last option is at -1.
-		return selected_value(driver_options, control.GetSelection())
-	return control_value(spec, control)
+		return selectedValue(driverOptions, control.GetSelection())
+	return controlValue(spec, control)
 
 
-def apply_dependencies(
+def applyDependencies(
 	specs: Sequence[Any],
 	read: Callable[[str], Any],
-	control_of: Callable[[Any], Any],
+	controlOf: Callable[[Any], Any],
 ) -> None:
 	"""Enable or disable each dependent control of specs from read(controller key).
 
-	control_of(spec) is the panel's control for spec, or None. A dependent with no control, or
+	controlOf(spec) is the panel's control for spec, or None. A dependent with no control, or
 	whose controller reads ABSENT, is left alone. Only Enable is called: disabled controls keep
 	their values, and onSave still stores them.
 	"""
-	states = dependent_states(specs, read)
+	states = dependentStates(specs, read)
 	for spec in specs:
-		control = control_of(spec)
+		control = controlOf(spec)
 		if spec.key in states and control is not None:
 			control.Enable(states[spec.key])

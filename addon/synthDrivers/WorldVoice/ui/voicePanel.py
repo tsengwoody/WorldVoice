@@ -7,19 +7,19 @@ from gui.settingsDialogs import VoiceSettingsPanel
 from ..pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTINGS, pipeline_settings
 from .controls import (
 	CHANGE_EVENTS,
-	apply_dependencies,
-	control_row,
-	control_value,
-	make_control,
-	read_control,
+	applyDependencies,
+	controlRow,
+	controlValue,
+	makeControl,
+	readControl,
 )
 from .panelLayout import (
 	VOICE_PANEL,
-	controller_keys,
-	creation_followers,
-	driver_attribute,
-	panel_specs,
-	voice_attribute,
+	controllerKeys,
+	creationFollowers,
+	driverAttribute,
+	panelSpecs,
+	voiceAttribute,
 )
 
 addonHandler.initTranslation()
@@ -44,7 +44,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 
 	def _bindControllers(self):
 		"""Hook every control other settings depend on (depends_on in the pipeline table)."""
-		controllers = controller_keys(self._voiceSpecs())
+		controllers = controllerKeys(self._voiceSpecs())
 		for spec in self._voiceSpecs():
 			control = self._voiceControl(spec)
 			if spec.key in controllers and control is not None:
@@ -56,7 +56,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self._applyDependencies()
 
 	def _controllerDriverIds(self):
-		controllers = controller_keys(self._voiceSpecs())
+		controllers = controllerKeys(self._voiceSpecs())
 		return {spec.driver_id for spec in self._voiceSpecs() if spec.key in controllers and spec.driver_id}
 
 	def _readController(self, key):
@@ -69,17 +69,17 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		options = None
 		if spec.driver_id is not None:
 			options = [option.id for option in getattr(self, f"_{spec.driver_id}s", [])]
-		return read_control(spec, self._voiceControl(spec), options)
+		return readControl(spec, self._voiceControl(spec), options)
 
 	def _applyDependencies(self):
 		# Disable rather than hide: NVDA's updateDriverSettings shows every supported
 		# control again after a voice change, but never enables or disables one.
-		apply_dependencies(self._voiceSpecs(), self._readController, self._voiceControl)
+		applyDependencies(self._voiceSpecs(), self._readController, self._voiceControl)
 
 	@staticmethod
 	def _voiceSpecs():
 		# Read at call time, so the order follows the table the module holds.
-		return panel_specs(PIPELINE_SETTINGS, VOICE_PANEL)
+		return panelSpecs(PIPELINE_SETTINGS, VOICE_PANEL)
 
 	def _voiceControl(self, spec):
 		"""The control of a Voice panel entry: NVDA's for a driver setting, else WorldVoice's; or None.
@@ -88,7 +88,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		the earlier build but keeps the attributes, and any call on a destroyed window raises; a
 		destroyed wx window is falsy (NVDA's "if self.lastControl:" relies on it), so it counts as none.
 		"""
-		name = driver_attribute(spec) if spec.driver_id is not None else voice_attribute(spec)
+		name = driverAttribute(spec) if spec.driver_id is not None else voiceAttribute(spec)
 		control = getattr(self, name, None)
 		return control if control else None
 
@@ -116,13 +116,13 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			# Drop the windows of an earlier build, which NVDA's refreshGui destroyed; _voiceControl
 			# already counts them as none, this keeps the attributes from naming them.
 			if spec.driver_id is None and self._voiceControl(spec) is None:
-				setattr(self, voice_attribute(spec), None)
+				setattr(self, voiceAttribute(spec), None)
 				absent = True
 		values = pipeline_settings.get() if absent and self._isWorldVoice() else None
 		listed = {setting.id for setting in allSettings if not setting.id.startswith("_")}
 		followers = {
 			driverId: [byKey[key] for key in keys]
-			for driverId, keys in creation_followers(specs, listed.__contains__).items()
+			for driverId, keys in creationFollowers(specs, listed.__contains__).items()
 		}
 		# Each row made here, with the row made just before it, which it is placed after.
 		placements = []
@@ -151,12 +151,12 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			if control is None and values is not None:
 				# A helper per control: its first item gets no spacer, so moving the row leaves none.
 				helper = guiHelper.BoxSizerHelper(self, sizer=self.settingsSizer)
-				control = make_control(self, helper, spec, getattr(values, spec.key))
-				setattr(self, voice_attribute(spec), control)
+				control = makeControl(self, helper, spec, getattr(values, spec.key))
+				setattr(self, voiceAttribute(spec), control)
 				# NVDA's next driver control moves after lastControl in Tab order (settingsDialogs.py
 				# :1457-1459), so it stays after this one, as it was made.
 				self.lastControl = control
-				row = control_row(control, spec)
+				row = controlRow(control, spec)
 				# The 10px bottom border NVDA gives each driver row (settingsDialogs.py:1585-1590), so
 				# the last row does not touch NVDA's own controls; _moveSizer keeps it.
 				item = self.settingsSizer.GetItem(row)
@@ -164,7 +164,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 				item.SetFlag(wx.BOTTOM)
 				placements.append((row, previousRow))
 			if control is not None:
-				previousRow = control_row(control, spec)
+				previousRow = controlRow(control, spec)
 		return previousRow
 
 	def _placePipelineRows(self, placements):
@@ -197,7 +197,7 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 			for spec in self._voiceSpecs():
 				control = self._voiceControl(spec)
 				if spec.driver_id is None and spec.pipeline_config and control is not None:
-					values[spec.key] = control_value(spec, control)
+					values[spec.key] = controlValue(spec, control)
 			# One update, so subscribers see every value together, before NVDA saves its own settings.
 			pipeline_settings.update(**{key: value for key, value in values.items() if value is not None})
 		super().onSave()

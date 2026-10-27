@@ -6,16 +6,16 @@ from gui.settingsDialogs import SettingsPanel
 from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTINGS, pipeline_settings
 from synthDrivers.WorldVoice.ui.controls import (
 	CHANGE_EVENTS,
-	apply_dependencies,
-	control_value,
-	make_control,
-	read_control,
+	applyDependencies,
+	controlValue,
+	makeControl,
+	readControl,
 )
 from synthDrivers.WorldVoice.ui.panelLayout import (
 	PIPELINE_PANEL,
-	controller_keys,
-	panel_specs,
-	pipeline_attribute,
+	controllerKeys,
+	panelSpecs,
+	pipelineAttribute,
 )
 
 addonHandler.initTranslation()
@@ -31,9 +31,9 @@ class SpeechPipelinePanel(SettingsPanel):
 		settings = pipeline_settings.get()
 		specs = self._specs()
 		for spec in specs:
-			control = make_control(self, settingsSizerHelper, spec, getattr(settings, spec.key))
-			setattr(self, pipeline_attribute(spec), control)
-		controllers = controller_keys(specs)
+			control = makeControl(self, settingsSizerHelper, spec, getattr(settings, spec.key))
+			setattr(self, pipelineAttribute(spec), control)
+		controllers = controllerKeys(specs)
 		for spec in specs:
 			if spec.key in controllers:
 				self.Bind(CHANGE_EVENTS[spec.control], self._onControllerChange, self._control(spec))
@@ -41,17 +41,17 @@ class SpeechPipelinePanel(SettingsPanel):
 
 	@staticmethod
 	def _specs():
-		return panel_specs(PIPELINE_SETTINGS, PIPELINE_PANEL)
+		return panelSpecs(PIPELINE_SETTINGS, PIPELINE_PANEL)
 
 	def _control(self, spec):
-		return getattr(self, pipeline_attribute(spec), None)
+		return getattr(self, pipelineAttribute(spec), None)
 
 	def _readController(self, key):
 		(spec,) = [spec for spec in self._specs() if spec.key == key]
-		return read_control(spec, self._control(spec))
+		return readControl(spec, self._control(spec))
 
 	def _applyDependencies(self):
-		apply_dependencies(self._specs(), self._readController, self._control)
+		applyDependencies(self._specs(), self._readController, self._control)
 
 	def _onControllerChange(self, event):
 		self._applyDependencies()
@@ -59,7 +59,7 @@ class SpeechPipelinePanel(SettingsPanel):
 	def onSave(self):
 		# The table guard keeps ordering-only entries (NVDA stores them) out of this panel; skip one anyway.
 		values = {
-			spec.key: control_value(spec, self._control(spec))
+			spec.key: controlValue(spec, self._control(spec))
 			for spec in self._specs()
 			if spec.pipeline_config
 		}

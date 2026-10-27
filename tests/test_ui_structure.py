@@ -84,15 +84,15 @@ def test_panels_apply_dependencies_through_one_path():
 	# The depends_on loop and the controller read live in ui/controls.py; each panel passes in
 	# only its own lookups, and no other module of the settings UI reads dependencies itself.
 	for path in [*PLUGIN.rglob("*.py"), VOICE_PANEL]:
-		assert referred_names(path) & {"dependent_states", "ABSENT", "selected_value"} == set(), path.name
+		assert referred_names(path) & {"dependentStates", "ABSENT", "selectedValue"} == set(), path.name
 	panels = {PIPELINE_PANEL: "SpeechPipelinePanel", VOICE_PANEL: "WorldVoiceVoiceSettingsPanel"}
 	for path, cls in panels.items():
 		apply = method(path, cls, "_applyDependencies")
-		assert "apply_dependencies" in called_names(apply), path.name
+		assert "applyDependencies" in called_names(apply), path.name
 		# ast.comprehension covers list, set and dict comprehensions and generator expressions.
 		loops = (ast.For, ast.AsyncFor, ast.While, ast.comprehension)
 		assert not any(isinstance(n, loops) for n in ast.walk(apply)), path.name
-		assert "read_control" in called_names(method(path, cls, "_readController")), path.name
+		assert "readControl" in called_names(method(path, cls, "_readController")), path.name
 
 
 # mutmut's rewritten copy imports its own trampoline into every mutated module; the guard judges

@@ -116,7 +116,7 @@ def voice_panel(monkeypatch):
 	env = load_voice_panel(monkeypatch)
 	panel = env.module.WorldVoiceVoiceSettingsPanel(TableDriver(env.module.PIPELINE_SETTINGS))
 	panel.makeSettings(panel.settingsSizer)
-	specs = env.module.panel_specs(env.module.PIPELINE_SETTINGS, "voice")
+	specs = env.module.panelSpecs(env.module.PIPELINE_SETTINGS, "voice")
 	return env, panel, specs
 
 
@@ -126,7 +126,7 @@ def voice_controls(env, panel, specs):
 	return {
 		spec.key: getattr(
 			panel,
-			module.driver_attribute(spec) if spec.driver_id is not None else module.voice_attribute(spec),
+			module.driverAttribute(spec) if spec.driver_id is not None else module.voiceAttribute(spec),
 		)
 		for spec in specs
 	}
@@ -140,7 +140,7 @@ def voice_row_items(env, panel, specs):
 		row = (
 			panel.sizerDict[spec.driver_id]
 			if spec.driver_id is not None
-			else env.controls.control_row(controls[spec.key], spec)
+			else env.controls.controlRow(controls[spec.key], spec)
 		)
 		rows[id(row)] = spec.key
 	return [(rows[id(entry.item)], entry) for entry in panel.settingsSizer.items if id(entry.item) in rows]
@@ -239,7 +239,7 @@ def build_then(monkeypatch, scenario):
 		# NVDA's refreshGui on a new synth instance: every window goes, makeSettings runs again.
 		panel._driver = TableDriver(env.module.PIPELINE_SETTINGS)
 		panel.refreshGui()
-	specs = env.module.panel_specs(env.module.PIPELINE_SETTINGS, "voice")
+	specs = env.module.panelSpecs(env.module.PIPELINE_SETTINGS, "voice")
 	return env, panel, specs, before
 
 
@@ -277,8 +277,8 @@ def test_pipeline_panel_controls_follow_the_table(monkeypatch):
 	panel = make_panel(env.module.SpeechPipelinePanel)
 	sizer = Sizer()
 	panel.makeSettings(sizer)
-	specs = env.panels.pipeline.panel_specs(env.panels.pipeline.PIPELINE_SETTINGS, "pipeline")
-	controls = {spec.key: getattr(panel, env.panels.pipeline.pipeline_attribute(spec)) for spec in specs}
+	specs = env.panels.pipeline.panelSpecs(env.panels.pipeline.PIPELINE_SETTINGS, "pipeline")
+	controls = {spec.key: getattr(panel, env.panels.pipeline.pipelineAttribute(spec)) for spec in specs}
 	keys = [spec.key for spec in specs]
 	assert keys == ["scope", *(key for key in VOICE_KEYS if key != "number_language")]
 	assert tab_keys(types.SimpleNamespace(tab_order=sizer.controls()), controls) == keys

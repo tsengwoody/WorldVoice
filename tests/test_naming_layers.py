@@ -326,31 +326,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"_SilenceGate.token_cancelled",
 		"_strip_bytes_repr",
 	},
-	"synthDrivers/WorldVoice/ui/controls.py": {
-		"apply_dependencies",
-		"apply_dependencies.<locals>.control_of",
-		"control_row",
-		"control_value",
-		"make_control",
-		"read_control",
-		"read_control.<locals>.driver_options",
-	},
-	"synthDrivers/WorldVoice/ui/panelLayout.py": {
-		"choice_index",
-		"choice_values",
-		"controller_keys",
-		"creation_followers",
-		"creation_followers.<locals>.driver_id",
-		"dependent_states",
-		"driver_attribute",
-		"from_display",
-		"label_text",
-		"panel_specs",
-		"pipeline_attribute",
-		"selected_value",
-		"to_display",
-		"voice_attribute",
-	},
 }
 
 # The plugin contract, which phase 47c renames together with Neural (refactor9 §6.1).
