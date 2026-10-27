@@ -1,4 +1,4 @@
-"""Legacy caller API backed by one runtime settings store and session."""
+"""The driver.Voice caller API, backed by one runtime settings store and session."""
 
 from dataclasses import dataclass
 

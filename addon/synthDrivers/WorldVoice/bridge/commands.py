@@ -1,4 +1,4 @@
-"""Normalize legacy command types at the boundary of the pure runtime."""
+"""Normalize NVDA command objects at the boundary of the pure runtime."""
 
 from collections.abc import Iterable, Iterator
 

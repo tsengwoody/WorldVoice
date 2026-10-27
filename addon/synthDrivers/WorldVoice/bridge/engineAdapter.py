@@ -1,4 +1,4 @@
-"""Translate legacy engine hooks into the independent runtime contract."""
+"""Adapt a driver.Voice class and its engine core to the runtime's EngineAdapter contract."""
 
 from __future__ import annotations
 
