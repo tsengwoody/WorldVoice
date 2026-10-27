@@ -752,7 +752,10 @@ def test_no_module_imports_typing_override():
 	minimum = re.search(r'addon_minimumNVDAVersion="(\d+)\.(\d+)', build_vars)
 	assert minimum
 	if (int(minimum.group(1)), int(minimum.group(2))) >= (2026, 1):
-		pytest.skip("the minimum NVDA version runs Python 3.13")
+		# Not a skip: the suite keeps 0 skipped, so the test must go when its reason does.
+		pytest.fail(
+			"The minimum NVDA version now runs Python 3.13, so typing.override imports there: delete this test.",
+		)
 	importers = []
 	for file in sorted(ADDON.rglob("*.py")):
 		path = file.relative_to(ADDON).as_posix()
