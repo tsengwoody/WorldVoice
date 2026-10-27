@@ -116,20 +116,6 @@ INTERFACE_NAMES = {
 
 # Host-layer names that phase 47b renames to mixedCase or marks as interface names.
 TRANSITIONAL_47B: dict[str, set[str]] = {
-	"synthDrivers/WorldVoice/driver/RHVoice/__init__.py": {
-		"SynthDriver.__init__.<locals>.get_player",
-		"SynthDriver.__init__.<locals>.original_get_player",
-		"SynthDriver._native_callback",
-		"SynthDriver._native_callback.<locals>.is_done",
-		"_NativeCallback.__init__.<locals>.is_done",
-		"_NativeCallback._is_done",
-		"_RHVoiceInner.cancel_flag",
-		"_RHVoiceInner.rate_boost",
-		"_RHVoiceInner.tts_engine",
-		"_RHVoiceInner.tts_queue",
-		"_RHVoiceInner.tts_thread",
-		"_WavePlayer._callback.<locals>.index_done",
-	},
 	"synthDrivers/WorldVoice/driver/SAPI5/__init__.py": {
 		"SynthDriver._speakThread.<locals>.control_error",
 		"_Sapi5Strategy.drain.<locals>.control_error",

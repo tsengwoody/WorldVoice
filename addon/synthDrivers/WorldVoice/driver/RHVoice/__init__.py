@@ -51,23 +51,23 @@ class _RHVoiceInner:
 		return self._driver()._SynthDriver__lib
 
 	@property
-	def tts_engine(self):
+	def ttsEngine(self):
 		return self._driver()._SynthDriver__tts_engine
 
-	@tts_engine.setter
-	def tts_engine(self, value):
+	@ttsEngine.setter
+	def ttsEngine(self, value):
 		self._driver()._SynthDriver__tts_engine = value
 
 	@property
-	def tts_queue(self):
+	def ttsQueue(self):
 		return self._driver()._SynthDriver__tts_queue
 
 	@property
-	def tts_thread(self):
+	def ttsThread(self):
 		return self._driver()._SynthDriver__tts_thread
 
 	@property
-	def cancel_flag(self):
+	def cancelFlag(self):
 		return self._driver()._SynthDriver__cancel_flag
 
 	@property
@@ -87,17 +87,17 @@ class _RHVoiceInner:
 		return self._driver()._SynthDriver__volume
 
 	@property
-	def rate_boost(self):
+	def rateBoost(self):
 		return self._driver()._SynthDriver__rate_boost
 
 
 class _NativeCallback:
 	"""Preserve the inner callback's public state, including lastIndex."""
 
-	def __init__(self, owner, callback, is_done):
+	def __init__(self, owner, callback, isDone):
 		self._owner = weakref.ref(owner)
 		self._callback = callback
-		self._is_done = is_done
+		self._isDone = isDone
 
 	def __getattr__(self, name):
 		return getattr(self._callback, name)
@@ -106,8 +106,8 @@ class _NativeCallback:
 		owner = self._owner()
 		if owner is None:
 			# The C library may call back after the driver was collected.
-			return None if self._is_done else 0
-		return owner._native_callback(self._callback, self._is_done, *args)
+			return None if self._isDone else 0
+		return owner._nativeCallback(self._callback, self._isDone, *args)
 
 
 class _NativeLibrary:
@@ -185,7 +185,7 @@ class _WavePlayer(LeasedPlayer):
 	def _callback(self, record, onDone):
 		host = self._host
 
-		def index_done():
+		def indexDone():
 			# The worker's final idle may release this after the native gate closes.
 			with host.consumer(record, audio=True) as admitted:
 				if admitted is None:
@@ -196,7 +196,7 @@ class _WavePlayer(LeasedPlayer):
 					except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 						host.record_error(record, error)
 
-		return index_done
+		return indexDone
 
 	def idle(self):
 		host = self._host
@@ -254,7 +254,7 @@ class _QueuedSpeech:
 		with owner._segmentCondition:
 			owner._segmentById.pop(record.native.identity, None)
 		if record.operation is not None:
-			owner._inner.cancel_flag.clear()
+			owner._inner.cancelFlag.clear()
 		else:
 			host.forget(record)
 
@@ -279,13 +279,13 @@ class _RHVoiceStrategy(NativeStrategy):
 			text = converter.convertToXml(commands)
 			inner = driver._inner
 			library = record.native.library = _NativeLibrary(host, inner.lib, record)
-			task = rhvoice.SpeakText(library, inner.tts_engine, text, inner.cancel_flag, inner.player)
+			task = rhvoice.SpeakText(library, inner.ttsEngine, text, inner.cancelFlag, inner.player)
 			task.set_voice_profile(inner.profile)
 			task.set_rate(inner.rate)
 			task.set_pitch(inner.pitch)
 			task.set_volume(inner.volume)
-			task.configure_rate_boost(inner.rate_boost)
-			inner.tts_queue.put(_QueuedSpeech(driver, record, task))
+			task.configure_rate_boost(inner.rateBoost)
+			inner.ttsQueue.put(_QueuedSpeech(driver, record, task))
 		except Exception:
 			with driver._segmentCondition:
 				driver._segmentById.pop(identity, None)
@@ -293,7 +293,7 @@ class _RHVoiceStrategy(NativeStrategy):
 
 	def stop_native(self, host, record):
 		driver = self._driver()
-		driver._inner.cancel_flag.set()
+		driver._inner.cancelFlag.set()
 		driver._inner.player.stop()
 
 	def stop_player(self, host):
@@ -312,18 +312,18 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 		self._inner = _RHVoiceInner(self)
 		super().__init__()
 		player = self._inner.player
-		original_get_player = player.get_player
+		originalGetPlayer = player.get_player
 		wrapped = {}
 
-		def get_player():
-			real = original_get_player()
+		def getPlayer():
+			real = originalGetPlayer()
 			if real is None:
 				return None
 			if real not in wrapped:
 				wrapped[real] = _WavePlayer(self._segmentHost, real)
 			return wrapped[real]
 
-		player.get_player = get_player
+		player.get_player = getPlayer
 
 	def __setattr__(self, name, value):
 		# Inner init creates C callbacks just after assigning Python callables.
@@ -331,12 +331,12 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 			value = _NativeCallback(self, value, name == _RHVoiceInner.DONE_CALLBACK)
 		super().__setattr__(name, value)
 
-	def _native_callback(self, callback, is_done, *args):
+	def _nativeCallback(self, callback, isDone, *args):
 		host = self._segmentHost
 		identity = args[-1]
 		with self._segmentCondition:
 			record = self._segmentById.get(identity)
-		refused = None if is_done else 0
+		refused = None if isDone else 0
 		if record is None:
 			return refused
 		with host.consumer(record) as admitted:
@@ -345,7 +345,7 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 			with host.bound_callback(record):
 				try:
 					result = callback(*args)
-					if is_done:
+					if isDone:
 						host.reach(record, "done")
 					elif not result:
 						host.record_error(record, RuntimeError("RHVoice callback failed"))
@@ -384,7 +384,7 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 					for record in dropped:
 						self._segmentById.pop(record.native.identity, None)
 				# Every record but the current one: queued (the inner cancel also empties
-				# tts_queue), held at the stop gate, or retired but not yet popped. Abandon
+				# ttsQueue), held at the stop gate, or retired but not yet popped. Abandon
 				# closes each, so a worker waiting at the gate returns without speaking.
 				for record in dropped:
 					host.abandon(record)
@@ -406,7 +406,7 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 
 	def terminate(self):
 		with self._segmentHost.admission():
-			if self._inner.tts_engine is None:
+			if self._inner.ttsEngine is None:
 				return
 			self._segmentHost.terminate()
 		error = None
@@ -415,13 +415,13 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 		except Exception as exc:  # noqa: BLE001 - kept and raised after the remaining cleanup
 			error = exc
 		inner = self._inner
-		inner.tts_queue.put(None)
-		inner.tts_thread.join()
+		inner.ttsQueue.put(None)
+		inner.ttsThread.join()
 		try:
 			inner.player.close()
 		finally:
-			inner.lib.RHVoice_delete_tts_engine(inner.tts_engine)
-			inner.tts_engine = None
+			inner.lib.RHVoice_delete_tts_engine(inner.ttsEngine)
+			inner.ttsEngine = None
 		if error is not None:
 			raise error
 
