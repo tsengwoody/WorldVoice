@@ -164,3 +164,22 @@ Linux 測試沒有載入 NVDA 真正的 `baseObject.AutoPropertyType`、真的�
 
 - scratchpad `review47b3/`：`indep.py`、`leftover.py`、`defnames.py`、`msgids.py` 與各輸出（`indep_batch3.txt`、`indep_batch12.txt`、`leftover_head.txt`、`suite_head.log`、`msg_master.txt`、`msg_head.txt`）。
 - 暫時 worktree `review47b3/wt` 已在 review 後移除（`git worktree remove`），主檢出與任務 worktree 未動。
+
+## 修正記錄
+
+本輪只有 Minor，依 DEVELOPMENT_WORKFLOW.md §3.4 走一般流程的修正：在任務 worktree 用 TDD，commit 小而聚焦；沒有 Critical／Important，所以不做修正 review。批次 review 延後的 Minor 先寫進進度帳本（M4），再一起修。
+
+| 項目 | commit | 修法與驗證 |
+| --- | --- | --- |
+| M1（F-M1） | `0b769aa` | `INTERFACE_NAMES` 兩處說明改成「`threading.Event.is_set`，vendored callback 的 `_isSilence.isSet()` 轉呼叫到它」；spec §4.3 以刪除線保留舊說法並附 `driver/VE/driver/__init__.py:153,182,193,195` 與 `driver/VE/__init__.py:113`。條目本身不變。 |
+| M2（F-M2） | `abdd6e9` | 新增兩檔的自我測試 `test_the_guard_follows_a_base_imported_under_an_alias`（`from ..runtime.port import Port as BasePort`，覆寫保持豁免、自己的名字被抓）。探針：把 `_Module` 的 import 改成以原名而非別名為鍵，這個測試與 `test_naming_follows_layer` 都失敗，還原後通過。 |
+| M3（F-M3，即批次 2 的 M4） | `01cedc5` | 假 presenter 改用明確的方法名集合 `RECORDED`（`selectVoice`、`setParameter`、`setVariant`、三個 `set*Consistency`、`discard`、`close`、`apply`），刪掉過時註解；新測試 `test_the_fake_presenter_records_only_the_presenter_methods` 先紅（拼錯的 `setParamter` 被記錄）後綠。 |
+| M4（帳本缺批次 Minor） | 帳本 | 進度帳本新增「Final review … Deferred Minors」段落，逐條列出下面的批次 Minor，並更正先前「`_TARGETS` 只放寬」的 Ruling。 |
+| 批次 1 M1 | `d6adbc6` | `tests/test_engine_interface_guards.py` 的 `_TARGETS` 重新列入 `_voice_class`（與 `voice_class`、`voiceClass`、`_voiceClass` 並列）。探針：`self._voice_class.core = x` 修正前不匹配、修正後匹配。本 review「Ruling 評估」表把 `74b6172` 評為「只放寬 pattern」，實際上它以新名取代了 `_voice_class`，在此更正。 |
+| 批次 1 M2 | `0dd3784`、`d8c920e` | `NvdaEventBridge._get_synth` → `_getSynth`，腳本改名並通過 token 比對（`pure rename: OK (1 files, 2 tokens renamed, 0 kept as listed)`，prescan 沒有字串命中）。之後守門把 `script_`／`event_`／`_get_`／`_set_` 前綴限定在 `kind == "function"`（`MIXED_CASE_FUNCTION`），docstring 同步；兩個新的 parametrize 案例（欄位 `_get_synth`、區域變數 `script_name`）先紅後綠，整個 add-on 仍然通過。 |
+| 批次 1 M3 | 無程式變更 | `check.py` 的缺口已在批次 2 修好：每個檔案都跑 AST＋依序比對註解（看得到 `(x,)` → `(x)`），ruff 保留 token 數時再跑 token 比對且兩邊計數要相同，只走 AST 的檔案回報改名數，並加了 `--head`。 |
+| 批次 1 M4 | `07420ee` | `_EventsWhileActive` 加上會丟 `TypeError` 的 `__bool__`（訊息說明要迭代，因為 binding 可能已撤銷）；`test_batch_iterates_again_and_stops_after_unbind` 先紅（DID NOT RAISE）後綠；spec §5.4 以刪除線更正「`bool()` 已消失」。scheduler 只用 `for` 消費批次。 |
+| 批次 2 M5 | `eae3810` | 新測試 `test_nvda_driver_metaclass_is_an_abcmeta` 以 AST 讀 `ref/nvda/source/baseObject.py`，斷言 `AutoPropertyType` 的基底是 `ABCMeta`。探針：把期望改成 `type` 時失敗。 |
+| 批次 2 M6 | `22cf829` | `test_unicode_settings_are_gone` 同時檢查 `popupSpeechSymbolsDialog`。負面檢查無法先紅，只能確認通過。 |
+
+修正後的驗證（head `22cf829`）：完整測試 `3303 passed`、0 skipped（3298 加上新的 1＋1＋2＋1 個測試）；`prek run --all-files` 全部 Passed；`git diff --check master` 沒有輸出；兩個受保護路徑指令都沒有輸出。Linux 測試仍然沒有載入 NVDA 本身、實際音訊與引擎 SDK；未打包。
