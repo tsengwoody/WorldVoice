@@ -82,6 +82,20 @@ INTERFACE_NAMES = {
 		"_SegmentNative.espeak_Synth": "the eSpeak NG DLL export, proxied for NVDA's _espeak.espeakDLL",
 		"_SegmentNative.espeak_ng_Cancel": "the eSpeak NG DLL export, proxied for NVDA's _espeak.espeakDLL",
 	},
+	SYNTH + "driver/RHVoice/__init__.py": {
+		"_NativeLibrary.RHVoice_delete_message": "the RHVoice export the vendored driver's __lib calls by name",
+		"_NativeLibrary.RHVoice_new_message": "the RHVoice export the vendored driver's __lib calls by name",
+		"_NativeLibrary.RHVoice_speak": "the RHVoice export the vendored driver's __lib calls by name",
+	},
+	SYNTH + "driver/SAPI5/__init__.py": {
+		"_SegmentAudioStream.ISequentialStream_RemoteWrite": "NVDA synthDrivers.sapi5.SynthDriverAudioStream."
+		"ISequentialStream_RemoteWrite, the COM method comtypes calls by name",
+		"_SegmentSapiSink.Bookmark": "NVDA sapi5.SapiSink.Bookmark, the SAPI event comtypes calls by name",
+		"_SegmentSapiSink.EndStream": "NVDA sapi5.SapiSink.EndStream, the SAPI event comtypes calls by name",
+		"_SegmentSapiSink.ISpNotifySink_Notify": "NVDA synthDrivers.sapi5.SapiSink.ISpNotifySink_Notify, the COM "
+		"method comtypes calls by name",
+		"_SegmentSapiSink.StartStream": "NVDA sapi5.SapiSink.StartStream, the SAPI event comtypes calls by name",
+	},
 	SYNTH + "driver/VE/__init__.py": {
 		"_SilenceGate.is_set": "threading.Event.is_set, which the vendored callback calls through _isSilence",
 	},
@@ -109,9 +123,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"SynthDriver._native_callback.<locals>.is_done",
 		"_NativeCallback.__init__.<locals>.is_done",
 		"_NativeCallback._is_done",
-		"_NativeLibrary.RHVoice_delete_message",
-		"_NativeLibrary.RHVoice_new_message",
-		"_NativeLibrary.RHVoice_speak",
 		"_RHVoiceInner.cancel_flag",
 		"_RHVoiceInner.rate_boost",
 		"_RHVoiceInner.tts_engine",
@@ -123,11 +134,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"SynthDriver._speakThread.<locals>.control_error",
 		"_Sapi5Strategy.drain.<locals>.control_error",
 		"_SapiRequest.index_lock",
-		"_SegmentAudioStream.ISequentialStream_RemoteWrite",
-		"_SegmentSapiSink.Bookmark",
-		"_SegmentSapiSink.EndStream",
-		"_SegmentSapiSink.ISpNotifySink_Notify",
-		"_SegmentSapiSink.StartStream",
 		"_purge_flags",
 	},
 }
