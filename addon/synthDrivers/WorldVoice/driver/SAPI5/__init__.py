@@ -24,7 +24,7 @@ class _SapiRequest:
 
 	request: object | None = None
 	stream: int | None = None
-	index_lock: object = field(default_factory=RLock)
+	indexLock: object = field(default_factory=RLock)
 	# Snapshots taken when the worker starts the request; a reload replaces
 	# the driver's resources but this request keeps controlling its own.
 	tts: object | None = None
@@ -32,7 +32,7 @@ class _SapiRequest:
 	sonic: object | None = None
 
 
-def _purge_flags():
+def _purgeFlags():
 	return sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak
 
 
@@ -125,9 +125,9 @@ class _Sapi5Strategy(NativeStrategy):
 			host.record_error(record, error)
 			try:
 				player.stop()
-				native.tts.Speak(None, _purge_flags())
-			except Exception as control_error:  # noqa: BLE001 - latched: the player or engine state is unknown
-				self._driver()._failSegmentControl(control_error)
+				native.tts.Speak(None, _purgeFlags())
+			except Exception as controlError:  # noqa: BLE001 - latched: the player or engine state is unknown
+				self._driver()._failSegmentControl(controlError)
 			return
 		host.reach(record, "idle")
 
@@ -317,7 +317,7 @@ class _SegmentSapiSink(sapi5.SapiSink):
 		if record.work is None:
 			return super().onIndexReached(streamNum, index)
 		native = record.native
-		with native.index_lock:
+		with native.indexLock:
 			bookmarks = native.request.bookmarks
 			if not record.work.is_valid() or index not in bookmarks:
 				return
@@ -484,7 +484,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		# Preserve ordinary source notifications, including untriggered tail
 		# bookmarks, without publishing the parent's pre-idle anonymous DONE.
 		native = record.native
-		with native.index_lock:
+		with native.indexLock:
 			while native.request.bookmarks:
 				bookmark = native.request.bookmarks.popleft()
 				if record.work.is_valid():
@@ -588,14 +588,14 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 						host.wait_consumers(record)
 						# Both ordinary and correlated failures leave native speech
 						# uncertain. Purge before another request can take this player.
-						tts.Speak(None, _purge_flags())
+						tts.Speak(None, _purgeFlags())
 					if work is None:
 						# One shared COM stream cannot attribute a post-purge callback
 						# to a new request. Require resource replacement after an
 						# ordinary failure rather than accepting a false successor drain.
 						self._failSegmentControl(failure)
-				except Exception as control_error:  # noqa: BLE001 - latched: the player or engine state is unknown
-					self._failSegmentControl(control_error)
+				except Exception as controlError:  # noqa: BLE001 - latched: the player or engine state is unknown
+					self._failSegmentControl(controlError)
 			finally:
 				# A feed admitted before cancellation may return after stop. Its
 				# final stop must retire before a successor uses the player.
@@ -608,7 +608,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 							# Token-only cancellation does not enter the parent's purge
 							# path. Retire this exact bookmark deque and discard Sonic
 							# only after all its admitted PCM callbacks have returned.
-							with native.index_lock:
+							with native.indexLock:
 								request.bookmarks.clear()
 								for index, bookmarks in enumerate(self._bookmarkLists):
 									if bookmarks is request.bookmarks:
@@ -616,8 +616,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 										break
 							sonic.flush()
 							sonic.readShort()
-					except Exception as control_error:  # noqa: BLE001 - latched: the player or engine state is unknown
-						self._failSegmentControl(control_error)
+					except Exception as controlError:  # noqa: BLE001 - latched: the player or engine state is unknown
+						self._failSegmentControl(controlError)
 				if error is not None:
 					host.record_error(record, error)
 				# Segments wait here for the lifecycle's handoff; their drain runs
@@ -626,7 +626,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 					host.forget(record)
 
 	def _purgeCancelledSpeech(self, tts, sonic):
-		tts.Speak(None, _purge_flags())
+		tts.Speak(None, _purgeFlags())
 		self._bookmarkLists.clear()
 		if sonic:
 			sonic.flush()

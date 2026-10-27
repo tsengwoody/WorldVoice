@@ -115,14 +115,7 @@ INTERFACE_NAMES = {
 
 
 # Host-layer names that phase 47b renames to mixedCase or marks as interface names.
-TRANSITIONAL_47B: dict[str, set[str]] = {
-	"synthDrivers/WorldVoice/driver/SAPI5/__init__.py": {
-		"SynthDriver._speakThread.<locals>.control_error",
-		"_Sapi5Strategy.drain.<locals>.control_error",
-		"_SapiRequest.index_lock",
-		"_purge_flags",
-	},
-}
+TRANSITIONAL_47B: dict[str, set[str]] = {}
 
 # The plugin contract, which phase 47c renames together with Neural (refactor9 §6.1).
 TRANSITIONAL_47C: dict[str, set[str]] = {
