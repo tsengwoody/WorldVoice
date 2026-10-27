@@ -11,18 +11,18 @@ class LanguageDetector:
 	"""Provides functionality to add guessed language commands to NVDA speech sequences.
 	Unicode ranges and user configuration are used to guess the language."""
 
-	def __init__(self, availableLanguages, *, settings, language, number_language=lambda: FOLLOW):
+	def __init__(self, available_languages, *, settings, language, number_language=lambda: FOLLOW):
 		"""settings.get() returns the detection settings; language returns the synth's current language;
 		number_language returns the stored number language, which spelling follows."""
 		self._settings = settings
 		self._language = language
 		self._number_language = number_language
-		self.availableLanguages = frozenset(primary_language(lang) for lang in availableLanguages)
+		self.available_languages = frozenset(primary_language(lang) for lang in available_languages)
 
 	def _covers(self, language, script):
 		"""Whether language is a language of script that has an installed voice."""
 		primary = primary_language(language)
-		return primary in SCRIPT_LANGUAGES.get(script, ()) and primary in self.availableLanguages
+		return primary in SCRIPT_LANGUAGES.get(script, ()) and primary in self.available_languages
 
 	def find_language_for_script(self, script, current_language, settings=None, base_language=None):
 		"""The language for a letter of script: the current language, the base language, the
@@ -37,10 +37,10 @@ class LanguageDetector:
 		configured = settings.script_language.get(script)
 		if configured is not None:
 			configured_primary = primary_language(configured)
-			if configured_primary in candidates and configured_primary in self.availableLanguages:
+			if configured_primary in candidates and configured_primary in self.available_languages:
 				return configured
 		for candidate in candidates:
-			if candidate in self.availableLanguages:
+			if candidate in self.available_languages:
 				return candidate
 		return current_language
 
@@ -55,27 +55,27 @@ class LanguageDetector:
 			return current_language
 		return self.find_language_for_script(script, current_language, settings, base_language=base_language)
 
-	def add_detected_language_commands(self, speechSequence):
+	def add_detected_language_commands(self, speech_sequence):
 		# Read the settings once, so the whole sequence is detected with the same values.
 		settings = self._settings.get()
-		defaultLang = self._language()
-		curLang = defaultLang
-		tmpLang = curLang
-		for command in speechSequence:
+		default_lang = self._language()
+		cur_lang = default_lang
+		tmp_lang = cur_lang
+		for command in speech_sequence:
 			if isinstance(command, (LangChangeCommand, WVLangChangeCommand)):
-				curLang = command.lang or defaultLang
-				tmpLang = curLang
+				cur_lang = command.lang or default_lang
+				tmp_lang = cur_lang
 				yield command
 			elif isinstance(command, str):
 				buffer = []
 				for c in command:
-					targetLang = self._language_for_character(c, tmpLang, curLang, settings)
-					if primary_language(targetLang) != primary_language(tmpLang):
+					target_lang = self._language_for_character(c, tmp_lang, cur_lang, settings)
+					if primary_language(target_lang) != primary_language(tmp_lang):
 						if buffer:
 							yield "".join(buffer)
 							buffer = []
-						yield WVLangChangeCommand(targetLang)
-						tmpLang = targetLang
+						yield WVLangChangeCommand(target_lang)
+						tmp_lang = target_lang
 					buffer.append(c)
 				if buffer:
 					yield "".join(buffer)
@@ -87,7 +87,7 @@ class LanguageDetector:
 		spelling locale for "main", or the number language when it has a voice."""
 		if number_language == FOLLOW:
 			return current_language
-		if number_language != MAIN and primary_language(number_language) in self.availableLanguages:
+		if number_language != MAIN and primary_language(number_language) in self.available_languages:
 			return number_language
 		return default_language
 

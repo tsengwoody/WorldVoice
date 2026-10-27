@@ -90,15 +90,6 @@ INTERFACE_NAMES = {
 
 # Core names that phase 47a renames to snake_case; empty at the end of the phase.
 TRANSITIONAL_47A: dict[str, set[str]] = {
-	"synthDrivers/WorldVoice/languageDetection/detector.py": {
-		"LanguageDetector.__init__.<locals>.availableLanguages",
-		"LanguageDetector.add_detected_language_commands.<locals>.curLang",
-		"LanguageDetector.add_detected_language_commands.<locals>.defaultLang",
-		"LanguageDetector.add_detected_language_commands.<locals>.speechSequence",
-		"LanguageDetector.add_detected_language_commands.<locals>.targetLang",
-		"LanguageDetector.add_detected_language_commands.<locals>.tmpLang",
-		"LanguageDetector.availableLanguages",
-	},
 	"synthDrivers/WorldVoice/pipeline/sayAll.py": {
 		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeech",
 		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeechWithSayAllBreak",
