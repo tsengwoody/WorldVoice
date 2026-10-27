@@ -49,7 +49,7 @@ def test_number_mode_switch_logs_both_number_mode_stages(monkeypatch):
 	sys.modules["config"].conf["WorldVoice"]["log"] = {
 		"enable": True,
 		**dict.fromkeys(LOG_SWITCH_ORDER, False),
-		"number_mode": True,
+		"numberMode": True,
 	}
 	writes = []
 	monkeypatch.setattr(module.registry, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
@@ -62,7 +62,7 @@ def test_number_mode_switch_logs_both_number_mode_stages(monkeypatch):
 
 @pytest.mark.parametrize(
 	"on",
-	[(), ("number_language",), ("number_mode",), ("number_language", "number_mode")],
+	[(), ("numberLanguage",), ("numberMode",), ("numberLanguage", "numberMode")],
 	ids=["none", "other-only", "own-only", "both"],
 )
 def test_a_stage_logs_under_each_of_its_switches(monkeypatch, on):
@@ -105,7 +105,7 @@ def test_the_log_confspec_has_every_log_switch(monkeypatch):
 
 @pytest.mark.parametrize(
 	("on", "pairs"),
-	[(("number_language",), 1), (("number_language", "number_mode"), 2)],
+	[(("numberLanguage",), 1), (("numberLanguage", "numberMode"), 2)],
 	ids=["language-only", "both"],
 )
 def test_the_number_language_switch_logs_the_number_stage(monkeypatch, on, pairs):
@@ -171,7 +171,7 @@ def test_handler_asks_for_the_settings_of_the_contexts_synth(monkeypatch):
 
 def test_handler_logs_before_and_after_when_enabled(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	sys.modules["config"].conf["WorldVoice"]["log"] = {"enable": True, "speech_viewer": True}
+	sys.modules["config"].conf["WorldVoice"]["log"] = {"enable": True, "speechViewer": True}
 	writes = []
 	monkeypatch.setattr(module.registry, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
 	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
@@ -184,7 +184,7 @@ def test_a_failing_log_write_neither_silences_the_stage_nor_floods_the_log(monke
 	# NVDA's Filter.apply keeps the input after an exception; the stage has read that generator
 	# already, so a raised write would leave every later stage and the synth with nothing.
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	sys.modules["config"].conf["WorldVoice"]["log"] = {"enable": True, "speech_viewer": True}
+	sys.modules["config"].conf["WorldVoice"]["log"] = {"enable": True, "speechViewer": True}
 	failing = [OSError("disk full")]
 
 	def write(*args):

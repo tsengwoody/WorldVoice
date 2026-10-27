@@ -487,7 +487,7 @@ def log_env(monkeypatch, *, enabled, **stored):
 
 
 def test_log_panel_shows_one_switch_per_stage_from_config(monkeypatch):
-	env = log_env(monkeypatch, enabled=True, number_mode=True, speech_viewer=True)
+	env = log_env(monkeypatch, enabled=True, numberMode=True, speechViewer=True)
 	panel, sizer = build(env, "LogSettingsPanel")
 
 	assert sizer.items[0].item is panel._enableCheckbox
@@ -497,36 +497,36 @@ def test_log_panel_shows_one_switch_per_stage_from_config(monkeypatch):
 	labels = env.panels.log._LOG_LABELS
 	assert [box.label for box in boxes] == [labels[key] for key in LOG_SWITCH_ORDER]
 	assert {key for key, box in zip(LOG_SWITCH_ORDER, boxes, strict=True) if box.value} == {
-		"number_mode",
-		"speech_viewer",
+		"numberMode",
+		"speechViewer",
 	}
 	assert all(box.enabled for box in boxes)
 
 
 def test_log_panel_shows_an_invalid_switch_unticked(monkeypatch):
 	# NVDA refuses a stored "maybe" for a boolean on read; the panel still opens.
-	env = log_env(monkeypatch, enabled=True, number_mode="maybe", speech_viewer=True)
+	env = log_env(monkeypatch, enabled=True, numberMode="maybe", speechViewer=True)
 	section = env.conf["WorldVoice"]["log"]
 	error = sys.modules["configobj.validate"].VdtTypeError("maybe")
-	env.conf["WorldVoice"]["log"] = RefusingSection(section, {"number_mode": error})
+	env.conf["WorldVoice"]["log"] = RefusingSection(section, {"numberMode": error})
 	_panel, sizer = build(env, "LogSettingsPanel")
 	boxes = dict(zip(LOG_SWITCH_ORDER, sizer.items[1].item.controls(), strict=True))
-	assert boxes["number_mode"].value is False
-	assert boxes["speech_viewer"].value is True
+	assert boxes["numberMode"].value is False
+	assert boxes["speechViewer"].value is True
 
 
 def test_log_panel_save_fixes_an_invalid_switch(monkeypatch):
 	# The panel writes every switch, and NVDA compares the old value unvalidated, so saving it
 	# untouched writes the shown False over the refused "maybe" (Q3).
-	env = log_env(monkeypatch, enabled=True, number_mode="maybe", speech_viewer=True)
+	env = log_env(monkeypatch, enabled=True, numberMode="maybe", speechViewer=True)
 	error = sys.modules["configobj.validate"].VdtTypeError("maybe")
-	section = RefusingSection(env.conf["WorldVoice"]["log"], {"number_mode": error})
+	section = RefusingSection(env.conf["WorldVoice"]["log"], {"numberMode": error})
 	env.conf["WorldVoice"]["log"] = section
 	panel, _sizer = build(env, "LogSettingsPanel")
 
 	panel.onSave()
 
-	assert (dict(section)["number_mode"], dict(section)["speech_viewer"]) == (False, True)
+	assert (dict(section)["numberMode"], dict(section)["speechViewer"]) == (False, True)
 
 
 def test_log_panel_stage_switches_follow_the_enable_checkbox(monkeypatch):
@@ -558,14 +558,14 @@ def test_log_panel_enabling_turns_logging_on_and_saves_the_switches(monkeypatch)
 	env = log_env(monkeypatch, enabled=False)
 	panel, _sizer = build(env, "LogSettingsPanel")
 	panel._enableCheckbox.SetValue(True)
-	panel.number_modeCheckBox.SetValue(True)
+	panel.numberModeCheckBox.SetValue(True)
 
 	assert panel.isValid() is True
 	panel.onSave()
 
 	assert env.log_calls == [("confirm", True), "enable"]
-	assert env.conf["WorldVoice"]["log"]["number_mode"] is True
-	assert env.conf["WorldVoice"]["log"]["item_wait_factor"] is False
+	assert env.conf["WorldVoice"]["log"]["numberMode"] is True
+	assert env.conf["WorldVoice"]["log"]["itemWaitFactor"] is False
 
 
 @pytest.mark.parametrize("export", [True, False])
@@ -588,14 +588,14 @@ def test_log_panel_unchanged_logging_writes_the_flag_without_prompts(monkeypatch
 	# like the stage switches; NVDA skips an unchanged value. Nothing is confirmed or exported.
 	env = log_env(monkeypatch, enabled=enabled)
 	panel, _sizer = build(env, "LogSettingsPanel")
-	panel.speech_viewerCheckBox.SetValue(True)
+	panel.speechViewerCheckBox.SetValue(True)
 
 	assert panel.isValid() is True
 	panel.onSave()
 
 	assert env.log_calls == [write]
 	assert env.wx.called_after == []
-	assert env.conf["WorldVoice"]["log"]["speech_viewer"] is True
+	assert env.conf["WorldVoice"]["log"]["speechViewer"] is True
 
 
 def test_log_panel_declined_enable_writes_logging_off(monkeypatch):

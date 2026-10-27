@@ -16,13 +16,13 @@ addonHandler.initTranslation()
 # Labels of the log switches that have no pipeline setting of their own.
 _STAGE_LOG_LABELS = {
 	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"apply_speech_dictionaries": _("Apply speech dictionaries"),
+	"applySpeechDictionaries": _("Apply speech dictionaries"),
 	# Translators: Label for the pipeline log switch of a speech pipeline stage.
-	"speech_viewer": _("Speech viewer"),
+	"speechViewer": _("Speech viewer"),
 }
 # One label per log switch, in LOG_SWITCHES order. A stage named after a pipeline setting uses that
 # setting's name: its settings-ring name, else its label (tests keep "&" out of these).
-_SETTING_NAMES = {spec.key: spec.display_name or spec.label for spec in PIPELINE_SETTINGS}
+_SETTING_NAMES = {spec.stored_key: spec.display_name or spec.label for spec in PIPELINE_SETTINGS}
 _LOG_LABELS = {key: _SETTING_NAMES.get(key) or _STAGE_LOG_LABELS.get(key, key) for key in LOG_SWITCHES}
 
 

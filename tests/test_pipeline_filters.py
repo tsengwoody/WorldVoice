@@ -855,7 +855,7 @@ def test_run_logged_records_only_when_switched_on(env, monkeypatch, level, enabl
 
 	conf = sys.modules["config"].conf
 	conf["general"]["loggingLevel"] = level
-	conf["WorldVoice"]["log"] = {"enable": enable, "number_mode": label_on}
+	conf["WorldVoice"]["log"] = {"enable": enable, "numberMode": label_on}
 	written = []
 	monkeypatch.setattr(
 		env.module.registry,
@@ -882,7 +882,7 @@ def test_an_invalid_log_switch_reads_off(env, monkeypatch):
 	# The settings loader registered a config of its own; the pipeline keeps the one it imported.
 	conf = env.module.config.conf
 	conf["general"]["loggingLevel"] = "DEBUG"
-	conf["WorldVoice"]["log"] = RefusingSection({}, {"enable": error, "number_mode": error})
+	conf["WorldVoice"]["log"] = RefusingSection({}, {"enable": error, "numberMode": error})
 	debugged = []
 	monkeypatch.setattr(env.module.log, "debug", lambda *args, **kwargs: debugged.append(args))
 	result = env.module._run_logged(

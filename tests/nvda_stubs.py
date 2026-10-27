@@ -118,16 +118,17 @@ def _spread_defaults(node):
 		and ast.unparse(node.generators[0].iter) == "LOG_SWITCHES"
 	):
 		# One log switch per Stage(log_key, fn) in pipeline STAGES, except log_switch=False ones,
-		# and one per key of a stage's also_logged_by.
+		# and one per key of a stage's also_logged_by, each under its stored key.
 		stages = _top_level_value(WORLDVOICE / "pipeline/registry.py", "STAGES")
 		value = _value_default(node.value)
+		stored_key_for = _stored_key_for()
 		keys = {}
 		for stage in stages.elts:
 			options = {keyword.arg: ast.literal_eval(keyword.value) for keyword in stage.keywords}
 			if options.get("log_switch", True) is False:
 				continue
 			for key in (*options.get("also_logged_by", ()), ast.literal_eval(stage.args[0])):
-				keys[key] = value
+				keys[stored_key_for(key)] = value
 		return keys
 	raise ValueError(f"Unexpected confspec entries: {source}")
 

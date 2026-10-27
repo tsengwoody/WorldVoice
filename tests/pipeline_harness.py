@@ -206,6 +206,12 @@ def load_pipeline_module(monkeypatch, settings):
 	settingsModule = stubs.module("synthDrivers.WorldVoice.pipeline.settings")
 	settingsModule.pipeline_settings = SimpleNamespace(effective=lambda supports_roles: settings)
 	settingsModule.read_stored = lambda section, key, default: section.get(key, default)
+	# The real derivation, so the stages read their log switches under the stored keys.
+	settingsModule.stored_key_for = load_definitions(
+		WORLDVOICE / "pipeline/settings.py",
+		["STORED_WORDS", "stored_key_for"],
+		{},
+	)["stored_key_for"]
 
 	load_source(monkeypatch, "synthDrivers.WorldVoice.pipeline", WORLDVOICE / "pipeline/__init__.py")
 	# The stage table imports every stage module.
@@ -229,7 +235,7 @@ def punctuation_settings(wait_factor, remove_characters=False):
 
 
 # The log key of each stage in STAGES, in order: the thousands step logs as "number_mode", and so does
-# the number stage, which the "number_language" switch also logs.
+# the number stage, which the "numberLanguage" switch also logs.
 ORDER = [
 	"apply_speech_dictionaries",
 	"number_mode",
@@ -242,14 +248,14 @@ ORDER = [
 ]
 # One log switch per label, in the order of the stage that owns it.
 LOG_SWITCH_ORDER = [
-	"apply_speech_dictionaries",
-	"number_language",
-	"number_mode",
-	"unspaced_script_space_wait_factor",
-	"item_wait_factor",
-	"punctuation_wait_factor",
-	"number_wait_factor",
-	"speech_viewer",
+	"applySpeechDictionaries",
+	"numberLanguage",
+	"numberMode",
+	"unspacedScriptSpaceWaitFactor",
+	"itemWaitFactor",
+	"punctuationWaitFactor",
+	"numberWaitFactor",
+	"speechViewer",
 ]
 
 

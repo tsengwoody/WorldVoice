@@ -25,7 +25,7 @@ from .numberStages import inject_numbers, number_wait_factor, remove_thousands_s
 from .punctuation import inject_punctuation_pause
 from .recorder import PipelineLog
 from .sequence import SpeechCmd
-from .settings import pipeline_settings, read_stored
+from .settings import pipeline_settings, read_stored, stored_key_for
 from .unspaced import inject_unspaced_script_space_pause
 
 if TYPE_CHECKING:
@@ -85,13 +85,13 @@ _log_writer = _LogWriter()
 
 
 def _run_logged(label, fn, speech_sequence, settings, ctx, switches=None):
-	"""Run one stage, logged under *label* when debugging or recording and any of *switches*
-	(by default the switch named *label*) is on."""
+	"""Run one stage, logged under *label* when debugging or recording and any of *switches* (stored
+	keys of the log section; by default the switch of *label*) is on."""
 	debug = config.conf["general"]["loggingLevel"] == "DEBUG"
 	section = config.conf["WorldVoice"]["log"]
 	# A switch NVDA refuses on read is off, so a bad stored value never stops the stage.
 	recording = read_stored(section, "enable", False)
-	switched_on = any(read_stored(section, key, False) for key in switches or (label,))
+	switched_on = any(read_stored(section, key, False) for key in switches or (stored_key_for(label),))
 	if not ((debug or recording) and switched_on):
 		return fn(speech_sequence, settings, ctx)
 	_id = uuid.uuid4().hex
@@ -140,7 +140,7 @@ class Stage:
 	)
 
 	def __post_init__(self):
-		switches = (*self.also_logged_by, self.log_key)
+		switches = tuple(stored_key_for(key) for key in (*self.also_logged_by, self.log_key))
 		object.__setattr__(self, "handler", _stage_handler(self.log_key, self.fn, switches))
 
 
@@ -158,12 +158,13 @@ STAGES: tuple[Stage, ...] = (
 
 
 def _log_switches(stages: Iterable[Stage]) -> tuple[str, ...]:
-	"""Each switch of the stages with a switch of their own once: its also_logged_by keys, then its log key."""
+	"""Each switch of the stages with a switch of their own once: its also_logged_by keys, then its log
+	key, each as the key nvda.ini stores the switch under (NVDA camelCase)."""
 	keys = (key for stage in stages if stage.log_switch for key in (*stage.also_logged_by, stage.log_key))
-	return tuple(dict.fromkeys(keys))
+	return tuple(dict.fromkeys(stored_key_for(key) for key in keys))
 
 
-# One log switch per log key, in the order of the stage that owns it.
+# One log switch per log key, in the order of the stage that owns it; rows and debug lines keep the log key.
 LOG_SWITCHES: tuple[str, ...] = _log_switches(STAGES)
 
 

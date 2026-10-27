@@ -36,14 +36,14 @@ def test_log_switch_labels_are_unchanged(monkeypatch):
 	# The test _ is the identity, so these are the msgids the Log Record panel shows.
 	labels = load_settings_dialog(monkeypatch).panels.log._LOG_LABELS
 	assert list(labels.items()) == [
-		("apply_speech_dictionaries", "Apply speech dictionaries"),
-		("number_language", "Number language"),
-		("number_mode", "Number mode"),
-		("unspaced_script_space_wait_factor", "Space wait factor between CJK and Southeast Asian characters"),
-		("item_wait_factor", "Item wait factor"),
-		("punctuation_wait_factor", "Punctuation wait factor"),
-		("number_wait_factor", "Number wait factor"),
-		("speech_viewer", "Speech viewer"),
+		("applySpeechDictionaries", "Apply speech dictionaries"),
+		("numberLanguage", "Number language"),
+		("numberMode", "Number mode"),
+		("unspacedScriptSpaceWaitFactor", "Space wait factor between CJK and Southeast Asian characters"),
+		("itemWaitFactor", "Item wait factor"),
+		("punctuationWaitFactor", "Punctuation wait factor"),
+		("numberWaitFactor", "Number wait factor"),
+		("speechViewer", "Speech viewer"),
 	]
 
 
@@ -51,7 +51,7 @@ def test_log_labels_follow_the_table_labels(monkeypatch):
 	# Decided by the user (2026-10-21): the log switches use the settings' sentence-case labels.
 	env = load_settings_dialog(monkeypatch)
 	labels = env.panels.log._LOG_LABELS
-	table = {spec.key: spec for spec in env.panels.log.PIPELINE_SETTINGS}
+	table = {spec.stored_key: spec for spec in env.panels.log.PIPELINE_SETTINGS}
 	for key, label in labels.items():
 		first, *rest = label.split()
 		assert first[0].isupper() and not any(
@@ -60,8 +60,8 @@ def test_log_labels_follow_the_table_labels(monkeypatch):
 		if key in table:
 			spec = table[key]
 			assert label in {spec.display_name, spec.label.replace("&", "")}, (key, label)
-	assert labels["apply_speech_dictionaries"] == "Apply speech dictionaries"
-	assert labels["speech_viewer"] == "Speech viewer"
+	assert labels["applySpeechDictionaries"] == "Apply speech dictionaries"
+	assert labels["speechViewer"] == "Speech viewer"
 
 
 def test_pipeline_panel_saves_once_through_the_service(monkeypatch):
@@ -227,7 +227,7 @@ def test_log_labels_come_from_the_table(monkeypatch):
 	# A log switch named after a pipeline setting shows that setting's name, translated once in the
 	# table; only stages without a setting have a label of their own in the dialog.
 	module = load_settings_dialog(monkeypatch).panels.log
-	table = {spec.key: spec for spec in module.PIPELINE_SETTINGS}
+	table = {spec.stored_key: spec for spec in module.PIPELINE_SETTINGS}
 	assert set(module._STAGE_LOG_LABELS) == {key for key in LOG_SWITCH_ORDER if key not in table}
 	for key in LOG_SWITCH_ORDER:
 		if key in table:
@@ -244,7 +244,7 @@ def test_table_labels_tell_translators_they_name_log_switches(monkeypatch):
 	# The Log Record panel shows these table strings as its switch labels; the dialog no longer has a
 	# _() call of its own for them, so only the table's comment can tell translators.
 	module = load_settings_dialog(monkeypatch).panels.log
-	table = {spec.key for spec in module.PIPELINE_SETTINGS}
+	table = {spec.stored_key for spec in module.PIPELINE_SETTINGS}
 	lines = (WORLDVOICE / "pipeline/settings.py").read_text(encoding="utf-8").splitlines()
 	silent = []
 	for key in LOG_SWITCH_ORDER:
