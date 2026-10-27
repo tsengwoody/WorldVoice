@@ -149,3 +149,9 @@
 ## 未在 Linux 驗證的項目
 
 - NVDA 本身、實際音訊裝置、引擎 SDK 都沒有載入。要在 Windows 手動確認（spec §8 最後一點）：在仍有舊鍵的 profile 上升級，NVDA 啟動不出現 config 錯誤；被重設的設定顯示預設值且能儲存；nvda.ini 保留舊行；兩個 gesture 可在 Input Gestures 的 WorldVoice 類別重新綁定；settings ring 的 number mode 與各 wait factor 仍可切換。本 phase 未打包。
+
+## 修正記錄
+
+- **M1 不修**：`assert "pairWaitFactor" not in PIPELINE_CONFSPEC` 雖然已被逐一列出 12 個鍵的測試涵蓋，但它在這個測試裡說明「group 只加 size、不加 wait」的意圖，保留無害；master 上原本的 `pair_wait_factor` 斷言只是跟著改名。
+- **M2 已修**：進度帳本（未追蹤）的 t2 註記改為「除 `sayall_wait_factor` 外」，並寫出原因。
+- **M3 不修**：plan 是實作時的紀錄，不回頭改寫；正確的覆蓋說明已寫在本 review 的 M3。
