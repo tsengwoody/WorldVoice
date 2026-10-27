@@ -540,6 +540,9 @@ def test_batch_iterates_again_and_stops_after_unbind(drain_env):
 	assert [(e.kind.name, e.index) for e in batch] == expected
 	with pytest.raises(TypeError):
 		len(batch)
+	# Always true would make `if batch:` silently wrong once the binding is revoked.
+	with pytest.raises(TypeError):
+		bool(batch)
 	env.bridge.unbind(env.source_id)
 	assert list(batch) == []
 

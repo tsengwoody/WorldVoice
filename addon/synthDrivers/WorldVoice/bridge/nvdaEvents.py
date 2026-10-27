@@ -45,6 +45,10 @@ class _EventsWhileActive:
 				return
 			yield event
 
+	def __bool__(self) -> bool:
+		# An object is otherwise always true, which `if batch:` would read past a revocation.
+		raise TypeError("A batch has no truth value; iterate it, as its binding may be revoked")
+
 
 class NvdaEventBridge(NotificationOutput):
 	"""Own event subscriptions and resource identities, never request identities.
