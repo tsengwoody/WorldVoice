@@ -133,3 +133,14 @@ Ready to merge：**是**。Critical 0、Important 0、Minor 4（M1 建議 merge 
 
 - M1、M3 都只動 `tests/`，合計約 6 行，建議 merge 前一起修；M2 可延後；M4 在 merge 後由協調者處理。
 - 未打包、未在 Windows／NVDA 上驗證（本階段沒有使用者可見變化，spec §6 的 smoke check 為可選）。
+
+## 修正記錄
+
+| 項目 | commit | 修正內容與驗證 |
+| --- | --- | --- |
+| M1 | `2e08302` | `tests/nvda_stubs.py` 的 `_detection_confspec` 遇到帶 `if` 或 `async` 的 comprehension 改丟 `ValueError`；`test_the_config_stub_reads_the_detection_defaults_from_the_table` 改成和載入的 settings 模組真正的 `DETECTION_CONFSPEC`（經 `_confspec_default`）比對，並斷言 stub 除此之外只多三個 `KeepMainLocale*` 鍵。紅燈：新增的 `test_the_config_stub_rejects_a_detection_confspec_it_cannot_read`（兩個參數）修正前 2 failed；探針：在 `settings.py` 的 comprehension 暫時加 `if row.script != "Latin"`，強化後的 stub 測試在修 walker 前即紅（stub 多出 `latinCharactersLanguage`），還原後綠。 |
+| M2 | `db7de82` | `tests/test_script_languages.py` 新增 `test_script_languages_keep_their_scripts_and_candidates`：釘住 28 個 script 的順序、非 Latin 各 script 的候選語言（含順序），以及 `ALL_LATIN == BASIC_LATIN + EXTENDED_LATIN`、長度 14／33、首位 `en`。探針：暫時刪掉 `"Hebrew": ("he",)` 一列，該測試紅（1 failed），還原後綠。 |
+| M3 | `27d2ce8` | 更新 `tests/test_pipeline_structure.py` 守衛的註解與 `tests/test_detection_settings.py` `load_settings_module` 的 docstring，改為說明偵測器在 `detector.py`、`__init__.py` 為空。探針：修正前 `grep` 找得到兩處過時文字，修正後找不到。 |
+| M4 | — | 依協調者指示不在本分支處理（分支外文件，merge 後由協調者更新）。 |
+
+修正後完整驗證：`python3 -m pytest -q tests` → 3260 passed、0 skipped（修正前 3257／0，新增 3 個測試）；`prek run --all-files` 全部 Passed；`git diff --check master` 無輸出；受保護路徑的兩個指令皆無輸出。
