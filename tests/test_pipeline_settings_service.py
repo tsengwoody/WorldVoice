@@ -607,3 +607,33 @@ def test_without_configobj_a_read_error_is_not_hidden(monkeypatch):
 
 	with pytest.raises(TypeError):
 		module.read_stored(Broken(), "group_size", 3)
+
+
+def test_repository_reads_and_writes_stored_keys(monkeypatch):
+	# nvda.ini holds the NVDA camelCase keys; the settings keep their snake_case fields (phase 47d).
+	conf = {"WorldVoice": {"pipeline": {"numberMode": "group", "sayAllWaitFactor": 30}}}
+	module = load_settings_module(monkeypatch, conf)
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+	settings = service.get()
+	assert (settings.number_mode, settings.sayall_wait_factor) == ("group", 30)
+	service.update(number_mode="number")
+	section = conf["WorldVoice"]["pipeline"]
+	assert section["numberMode"] == "number"
+	assert "number_mode" not in section
+	assert list(module.PIPELINE_CONFSPEC) == [spec.stored_key for spec in module.PIPELINE_STORED_SETTINGS]
+
+
+def test_old_snake_case_keys_read_as_defaults(monkeypatch):
+	# No migration (decided by the user, 2026-10-27): a pre-rename key stays in nvda.ini, unread and
+	# untouched.
+	conf = {"WorldVoice": {"pipeline": {"number_mode": "group", "global_wait_factor": 50}}}
+	module = load_settings_module(monkeypatch, conf)
+	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
+	settings = service.get()
+	assert (settings.number_mode, settings.global_wait_factor) == ("value", 10)
+	service.update(group_size=4)
+	assert conf["WorldVoice"]["pipeline"] == {
+		"number_mode": "group",
+		"global_wait_factor": 50,
+		"groupSize": 4,
+	}

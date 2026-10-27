@@ -104,3 +104,17 @@ def test_inherited_parameters_follow_the_main_voice_only_when_enabled(monkeypatc
 		"inflection": 55,
 		"rateBoost": True,
 	}
+
+
+def test_old_pascal_case_flags_are_ignored(monkeypatch):
+	# No migration (decided by the user, 2026-10-27): each policy reads only its camelCase flag.
+	module = load_policy(monkeypatch)
+	conf = flags(engine=False, voice=False, parameter=True)
+	conf["WorldVoice"]["autoLanguageSwitching"].update(
+		KeepMainLocaleEngineConsistent=True,
+		KeepMainLocaleVoiceConsistent=True,
+		KeepMainLocaleParameterConsistent=False,
+	)
+	assert module.EngineConsistency(lambda: conf).enabled is False
+	assert module.VoiceConsistency(lambda: conf, None, lambda: "en").enabled is False
+	assert module.ParameterConsistency(lambda: conf).enabled is True

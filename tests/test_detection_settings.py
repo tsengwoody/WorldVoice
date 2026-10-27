@@ -258,3 +258,21 @@ def test_settings_have_no_ignore_numbers_field(env):
 		"script_language",
 		"timing",
 	]
+
+
+def test_old_pascal_case_keys_are_ignored(monkeypatch):
+	# No migration (decided by the user, 2026-10-27): the pre-rename keys stay in nvda.ini, unread.
+	section = RecordingSection(
+		latinCharactersLanguage="en",
+		cjkCharactersLanguage="ja",
+		arabicCharactersLanguage="ar",
+		cyrillicCharactersLanguage="ru",
+		devanagariCharactersLanguage="hi",
+		detectLanguageTiming="after",
+		CJKCharactersLanguage="zh",
+		DetectLanguageTiming="before",
+	)
+	conf = {"WorldVoice": {"autoLanguageSwitching": section}}
+	settings = load_settings_module(monkeypatch, conf).DetectionSettingsService(lambda: conf).get()
+	assert settings.timing == "after"
+	assert settings.script_language["Han"] == "ja"

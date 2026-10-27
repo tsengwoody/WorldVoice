@@ -894,3 +894,28 @@ def test_an_invalid_log_switch_reads_off(env, monkeypatch):
 	)
 	assert list(result) == ["out"]
 	assert debugged == []
+
+
+def test_an_old_snake_case_log_switch_does_not_log(env, monkeypatch):
+	# No migration (phase 47d): only the camelCase switch turns a stage's log on.
+	conf = sys.modules["config"].conf
+	conf["general"]["loggingLevel"] = "INFO"
+	conf["WorldVoice"]["log"] = {"enable": True, "number_mode": True}
+	written = []
+	monkeypatch.setattr(
+		env.module.registry,
+		"pl",
+		SimpleNamespace(write=lambda _id, label, timing, seq: written.append((label, timing))),
+	)
+
+	def run():
+		stage = lambda sequence, settings, ctx: iter(["out"])
+		return list(
+			env.module._run_logged("number_mode", stage, ["in"], env.settings, env.module.GENERIC_CONTEXT),
+		)
+
+	assert run() == ["out"]
+	assert written == []
+	conf["WorldVoice"]["log"]["numberMode"] = True
+	assert run() == ["out"]
+	assert written == [("number_mode", "before"), ("number_mode", "after")]
