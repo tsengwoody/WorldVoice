@@ -175,7 +175,7 @@ For each group:
 
 - [ ] Write `test_segment_drain_core_combines_with_an_abcmeta_driver_metaclass`: `type(SegmentDrainCore) is ABCMeta`; `class Meta(ABCMeta)`, `class Driver(metaclass=Meta)`, a `class Core(Driver, SegmentDrainCore)` defining both entries instantiates and `type(Core) is Meta`; a subclass defining only one raises `TypeError` on instantiation. Write `test_every_wrapper_core_declares_the_segment_drain_entries`: for the six engines, `ast.unparse(SynthDriver.bases[-1]) == "SegmentDrainCore"`.
 - [ ] Run: FAIL (`ImportError` / bases differ).
-- [ ] Add `SegmentDrainCore` (docstring: the entries the bridge looks up by name; why ABC, not Protocol); delete the 36 `speak_segment`/`get_segment_drain_support` entries from `TRANSITIONAL_47B` (guard red), add the base and import in six wrappers (guard green).
+- [ ] Add `SegmentDrainCore` (docstring: the entries the bridge looks up by name; why ABC, not Protocol); delete the ~~36~~ 30 (five per wrapper) `speak_segment`/`get_segment_drain_support` entries from `TRANSITIONAL_47B` (guard red), add the base and import in six wrappers (guard green).
 - [ ] Suite 3296 passed. Commit `refactor: declare the wrappers' segment drain entries as a core base`.
 - [ ] Batch report (Tasks 6–10).
 
