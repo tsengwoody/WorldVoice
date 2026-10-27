@@ -19,10 +19,12 @@
    migration, so they stay as stored.
 
 Every name a module binds is checked except imports: functions, methods, classes, parameters
-(lambdas included), class and dataclass fields, attributes set on self, module variables and
-local variables. TRANSITIONAL_47B lists the host-layer names that break the rule until phase 47b
-renames them or marks them as interface names; TRANSITIONAL_47C the plugin contract driver.Voice
-and VoiceFacade, until phase 47c.
+(lambdas included), class and dataclass fields, attributes set on self or cls, module variables and
+local variables (match captures included). Not checked: a name given as a string, as in
+setattr(obj, "name", value), and an attribute set on another object than self or cls.
+TRANSITIONAL_47B lists the host-layer names that break the rule until phase 47b renames them or
+marks them as interface names; TRANSITIONAL_47C the plugin contract driver.Voice and VoiceFacade,
+until phase 47c.
 """
 
 import ast
@@ -669,8 +671,10 @@ class _Walker:
 				self.add("", node.id, "variable", node.lineno)
 			else:
 				self.add(scope, node.id, kind, node.lineno, node.id in inherited)
-		elif isinstance(node, ast.ExceptHandler) and node.name:
+		elif isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and node.name:
 			self.add(scope, node.name, kind, node.lineno)
+		elif isinstance(node, ast.MatchMapping) and node.rest:
+			self.add(scope, node.rest, kind, node.lineno)
 		elif isinstance(node, ast.Lambda):
 			for argument in _arguments(node.args):
 				self.add(scope, argument.arg, "parameter", argument.lineno)
@@ -784,6 +788,14 @@ HOST_MODULE = SYNTH + "bridge/example.py"
 			["run.<locals>.itemCount"],
 		),
 		(CORE_MODULE, "def run():\n\tglobal lastValue\n\tlastValue = 1\n", ["lastValue"]),
+		(
+			CORE_MODULE,
+			(
+				"def run(value):\n\tmatch value:\n\t\tcase [firstItem, *otherItems]:\n\t\t\tpass\n"
+				"\t\tcase {**allItems}:\n\t\t\tpass\n"
+			),
+			["run.<locals>.firstItem", "run.<locals>.otherItems", "run.<locals>.allItems"],
+		),
 		(
 			CORE_MODULE,
 			"class Spec:\n\t@classmethod\n\tdef build(cls):\n\t\tcls.lastSpec = None\n",
