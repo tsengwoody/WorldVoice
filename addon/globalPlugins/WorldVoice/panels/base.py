@@ -79,3 +79,15 @@ class BaseSettingsPanel(SettingsPanel):
 			tones.beep(100, 100)
 			return False
 		return True
+
+
+def notWorldVoiceNotice(panel, sizer):
+	"""Show the read-only note that WorldVoice is not the synthesizer in a panel that needs it."""
+	infoCtrl = wx.TextCtrl(
+		panel,
+		# Translators: Shown in place of a settings panel that needs WorldVoice as the speech synthesizer.
+		value=_("Your current speech synthesizer is not WorldVoice."),
+		style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE,
+	)
+	infoCtrl.SetBackgroundColour(panel.GetBackgroundColour())
+	sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)

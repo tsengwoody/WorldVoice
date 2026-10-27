@@ -8,6 +8,8 @@ from synthDrivers.WorldVoice.languageDetection.scriptLanguages import DETECTION_
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
 
+from .base import notWorldVoiceNotice
+
 addonHandler.initTranslation()
 
 
@@ -18,13 +20,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		self.disable = False
 		synth = worldvoice_synth()
 		if synth is None:
-			infoCtrl = wx.TextCtrl(
-				self,
-				value=_("Your current speech synthesizer is not WorldVoice."),
-				style=wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE,
-			)
-			infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
-			sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
+			notWorldVoiceNotice(self, sizer)
 			self.disable = True
 			return
 

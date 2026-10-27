@@ -726,6 +726,20 @@ def test_unicode_panel_for_another_synth_only_says_so(monkeypatch):
 	panel.onSave()  # detection_settings is None in this harness: saving must not reach it
 
 
+@pytest.mark.parametrize("name", ["SpeechRoleSettingsPanel", "UnicodeDetectionSettingsPanel"])
+def test_panels_for_another_synth_show_the_same_read_only_notice(monkeypatch, name):
+	env = load_settings_dialog(monkeypatch, synth=SimpleNamespace(name="espeak"))
+	wx = env.wx
+	panel, sizer = build(env, name)
+	(item,) = sizer.items
+	info = item.item
+	assert isinstance(info, TextCtrl) and info.parent is panel
+	assert info.value == "Your current speech synthesizer is not WorldVoice."
+	assert info.kwargs == {"style": wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE}
+	assert info.background == "panel colour"
+	assert (item.proportion, item.flag, item.border) == (1, wx.EXPAND, 0)
+
+
 # WorldVoiceSettingsDialog
 
 
