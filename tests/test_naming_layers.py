@@ -11,20 +11,27 @@
 2. A name that implements or overrides someone else's interface keeps that name:
    - a method or field whose name a base class defines, when the guard can read that base: a class
      of the add-on named in the class statement (a Protocol or ABC of the core, a vendored driver
-     class, driver.Voice), and a parameter of such a method that the base method also takes;
-   - a name from an interface the guard cannot read (NVDA, the standard library, a stored setting
-     id) is listed in INTERFACE_NAMES with the interface it mirrors.
+     class, driver.Voice, also under an alias such as BaseVoice), and a parameter of such a method
+     that the base method also takes. A structural implementation of a core interface names it as a
+     base, so the guard can read it: the bridge's adapters derive from runtime.session.EngineAdapter
+     and runtime.scheduler.NotificationOutput, the engine wrappers' SynthDriver from
+     runtime.segmentHost.SegmentDrainCore. An NVDA driver's metaclass (baseObject.AutoPropertyType,
+     an ABCMeta) conflicts with a Protocol's, so such a base for a driver is an ABC;
+   - a name from an interface the guard cannot read (NVDA, the standard library, a native library's
+     exports, a stored setting id) is listed in INTERFACE_NAMES with the interface it mirrors.
    typing.override cannot be the marker yet: see test_no_module_imports_typing_override.
-3. Config keys and driver setting ids are strings, not names: renaming one needs a config
-   migration, so they stay as stored.
+3. Identifiers stored in a user's settings (nvda.ini keys, driver setting ids, the script names
+   gestures.ini binds) are host-layer names too; phase 47d renames them to mixedCase without a
+   migration (refactor9 §6.1, decided by the user 2026-10-27). Until then, a definition whose name
+   must equal one waits in TRANSITIONAL_47D (the setting id rateBoost is in INTERFACE_NAMES).
 
 Every name a module binds is checked except imports: functions, methods, classes, parameters
 (lambdas included), class and dataclass fields, attributes set on self or cls, module variables and
 local variables (match captures included). Not checked: a name given as a string, as in
 setattr(obj, "name", value), and an attribute set on another object than self or cls.
-TRANSITIONAL_47B lists the host-layer names that break the rule until phase 47b renames them or
-marks them as interface names; TRANSITIONAL_47C the plugin contract driver.Voice and VoiceFacade,
-until phase 47c.
+Two lists wait for later phases and may only shrink: TRANSITIONAL_47C, the plugin contract
+driver.Voice and VoiceFacade, until phase 47c renames it with Neural; TRANSITIONAL_47D, the stored
+identifiers above, until phase 47d.
 """
 
 import ast
@@ -113,9 +120,6 @@ INTERFACE_NAMES = {
 	},
 }
 
-
-# Host-layer names that phase 47b renames to mixedCase or marks as interface names.
-TRANSITIONAL_47B: dict[str, set[str]] = {}
 
 # The plugin contract, which phase 47c renames together with Neural (refactor9 §6.1).
 TRANSITIONAL_47C: dict[str, set[str]] = {
@@ -389,7 +393,7 @@ def test_every_add_on_module_has_a_layer():
 
 
 def test_naming_follows_layer(addon_violations):
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47B, TRANSITIONAL_47C, TRANSITIONAL_47D)
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47C, TRANSITIONAL_47D)
 	assert [
 		f"{definition.path}:{definition.line} {definition.qualname}"
 		for key, definition in sorted(addon_violations.items())
@@ -399,13 +403,31 @@ def test_naming_follows_layer(addon_violations):
 
 def test_lists_hold_only_names_that_break_the_rule(addon_violations):
 	# A renamed or removed name must leave the lists, so they only shrink.
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47B, TRANSITIONAL_47C, TRANSITIONAL_47D)
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47C, TRANSITIONAL_47D)
 	assert sorted(listed - set(addon_violations)) == []
 
 
-def test_only_the_host_layer_waits_for_a_rename():
-	assert [path for path in TRANSITIONAL_47B if layer(path) != "host"] == []
-	assert sorted(TRANSITIONAL_47C) == [SYNTH + "bridge/voiceFacade.py", SYNTH + "driver/__init__.py"]
+def test_only_stored_identifiers_and_the_plugin_contract_wait():
+	# Phase 47b emptied the host layer's list; what still waits may only shrink. The stored
+	# identifiers are the global plugin's two script names, whose gestures users have bound.
+	assert _listed(TRANSITIONAL_47D) <= {
+		("globalPlugins/WorldVoice/__init__.py", "GlobalPlugin.script_popup_SpeechSettingsDialog"),
+		("globalPlugins/WorldVoice/__init__.py", "GlobalPlugin.script_switch_log_record"),
+	}
+	contract = "synthDrivers/WorldVoice/driver/__init__.py"
+	assert _listed(TRANSITIONAL_47C) <= {
+		("synthDrivers/WorldVoice/bridge/voiceFacade.py", "VoiceFacade.update_settings"),
+		*(
+			(contract, f"Voice.{name}")
+			for name in (
+				"create_core",
+				"destroy_core",
+				"drain_profile",
+				"extra_capabilities",
+				"synth_driver_class",
+			)
+		),
+	}
 
 
 def test_no_module_imports_typing_override():
