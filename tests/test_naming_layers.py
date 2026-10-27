@@ -537,6 +537,21 @@ def test_the_guard_flags_an_override_parameter_the_base_lacks():
 	assert [qualname for _path, qualname in found] == ["Adapter.speak_segment.<locals>.extra_flag"]
 
 
+def test_the_guard_follows_a_base_imported_under_an_alias():
+	# The wrappers import driver.Voice as BaseVoice; their contract overrides stay exempt only if the
+	# guard resolves the alias to the class it names.
+	sources = {
+		SYNTH + "runtime/port.py": "class Port:\n\tdef speak_segment(self, segment_id):\n\t\tpass\n",
+		HOST_MODULE: (
+			"from ..runtime.port import Port as BasePort\n\n\n"
+			"class Port(BasePort):\n"
+			"\tdef speak_segment(self, segment_id):\n\t\tpass\n\n"
+			"\tdef own_name(self):\n\t\tpass\n"
+		),
+	}
+	assert [qualname for _path, qualname in violations(_Index(sources))] == ["Port.own_name"]
+
+
 def test_the_guard_reads_the_imported_base_of_a_class_with_its_name():
 	# class SynthDriver(SynthDriver) derives from the imported class, not from itself.
 	source = (
