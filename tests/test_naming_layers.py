@@ -18,20 +18,22 @@
      and runtime.scheduler.NotificationOutput, the engine wrappers' SynthDriver from
      runtime.segmentHost.SegmentDrainCore. An NVDA driver's metaclass (baseObject.AutoPropertyType,
      an ABCMeta) conflicts with a Protocol's, so such a base for a driver is an ABC;
-   - a name from an interface the guard cannot read (NVDA, the standard library, a native library's
-     exports, a stored setting id) is listed in INTERFACE_NAMES with the interface it mirrors.
+   - a name from an interface the guard cannot read (NVDA, its setting ids included, the standard
+     library, a native library's exports) is listed in INTERFACE_NAMES with the interface it mirrors.
    typing.override cannot be the marker yet: see test_no_module_imports_typing_override.
-3. Identifiers stored in a user's settings (nvda.ini keys, driver setting ids, the script names
-   gestures.ini binds) are host-layer names too; phase 47d renames them to mixedCase without a
-   migration (refactor9 §6.1, decided by the user 2026-10-27). Until then, a definition whose name
-   must equal one waits in TRANSITIONAL_47D (the setting id rateBoost is in INTERFACE_NAMES).
+3. Stored identifiers use NVDA camelCase (refactor9 §6.1 rule 3, decided by the user 2026-10-27):
+   what WorldVoice stores in a user's NVDA files belongs to the host layer, so the keys of nvda.ini's
+   [WorldVoice] section, the driver setting ids and the script names gestures.ini binds have a
+   lowercase first letter and no underscore (phase 47d renamed them without a migration). The core
+   keeps its snake_case fields and maps each to its stored key (pipeline/settings.stored_key_for).
+   Listed, with reasons: the product name (PROPER_NOUN_SECTIONS), the data sections whose keys are
+   names, not identifiers (DATA_SECTIONS), and NVDA's own setting ids (NVDA_SETTING_IDS).
 
 Every name a module binds is checked except imports: functions, methods, classes, parameters
 (lambdas included), class and dataclass fields, attributes set on self or cls, module variables and
 local variables (match captures included). Not checked: a name given as a string, as in
 setattr(obj, "name", value), and an attribute set on another object than self or cls.
-One list waits for a later phase and may only shrink: TRANSITIONAL_47D, the stored identifiers
-above, until phase 47d.
+No list waits for a later phase: phases 47b to 47d emptied them.
 """
 
 import ast
@@ -41,6 +43,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from addon_loader import REF
+from nvda_stubs import worldvoice_conf
+from pipeline_harness import load_synth
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDON = ROOT / "addon"
@@ -121,11 +126,6 @@ INTERFACE_NAMES = {
 		"ParamChangeTracker.update reads (speech/manager.py)",
 	},
 }
-
-
-# Stored identifiers, which phase 47d renames (refactor9 6.1 rule 3): NVDA binds a user's gestures
-# in gestures.ini by the name after script_ (ref/nvda/source/inputCore.py, getattr(cls, "script_%s")).
-TRANSITIONAL_47D: dict[str, set[str]] = {}
 
 
 @dataclass(frozen=True)
@@ -377,7 +377,7 @@ def test_every_add_on_module_has_a_layer():
 
 
 def test_naming_follows_layer(addon_violations):
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47D)
+	listed = _listed(INTERFACE_NAMES)
 	assert [
 		f"{definition.path}:{definition.line} {definition.qualname}"
 		for key, definition in sorted(addon_violations.items())
@@ -387,18 +387,8 @@ def test_naming_follows_layer(addon_violations):
 
 def test_lists_hold_only_names_that_break_the_rule(addon_violations):
 	# A renamed or removed name must leave the lists, so they only shrink.
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47D)
+	listed = _listed(INTERFACE_NAMES)
 	assert sorted(listed - set(addon_violations)) == []
-
-
-def test_only_stored_identifiers_wait():
-	# Phases 47b and 47c emptied the host layer's and the plugin contract's lists; what still waits
-	# may only shrink. The stored identifiers are the global plugin's two script names, whose
-	# gestures users have bound.
-	assert _listed(TRANSITIONAL_47D) <= {
-		("globalPlugins/WorldVoice/__init__.py", "GlobalPlugin.script_popup_SpeechSettingsDialog"),
-		("globalPlugins/WorldVoice/__init__.py", "GlobalPlugin.script_switch_log_record"),
-	}
 
 
 def test_no_module_imports_typing_override():
@@ -426,6 +416,88 @@ def test_no_module_imports_typing_override():
 			):
 				importers.append(f"{path}:{node.lineno}")
 	assert importers == []
+
+
+# Rule 3: the identifiers WorldVoice stores in a user's NVDA files.
+STORED_CASE = re.compile(r"[a-z][a-zA-Z0-9]*")
+# Not walked: the product name, which NVDA also stores as the selected synthesizer ([speech] synth).
+PROPER_NOUN_SECTIONS = {
+	"WorldVoice": "the product name: nvda.ini's [WorldVoice] and [speech][WorldVoice] sections and the "
+	"synth name NVDA stores as the selected synthesizer",
+}
+# Sections whose keys are data, not identifiers; the confspec defines none of their keys (only __many__).
+DATA_SECTIONS = {
+	"engine": "engine names, each enabled or not",
+	"role": "locales, each a section naming the voice assigned to it",
+	"voices": "voice names, each a section of NVDA's voice setting ids",
+}
+# NVDA's own setting ids (synthDriverHandler.SynthDriver), which the synth and each voice store; they are
+# camelCase already, and listed to pin that they are NVDA's, not WorldVoice's, names.
+NVDA_SETTING_IDS = frozenset({"voice", "variant", "rate", "rateBoost", "pitch", "inflection", "volume"})
+
+
+def stored_identifier_violations(names):
+	"""Each (where, name) whose name is not NVDA camelCase, as "where: name"."""
+	return [f"{where}: {name}" for where, name in names if not STORED_CASE.fullmatch(name)]
+
+
+def _driver_setting_ids(monkeypatch):
+	synth_class, _settings = load_synth(monkeypatch, worldvoice_conf())
+	return [setting.id for setting in object.__new__(synth_class).allSupportedSettings]
+
+
+def _stored_identifiers(monkeypatch):
+	"""Every identifier WorldVoice defines and stores: (where, name)."""
+	names = []
+	for section, values in worldvoice_conf()["WorldVoice"].items():
+		names.append(("nvda.ini [WorldVoice]", section))
+		if section not in DATA_SECTIONS:
+			names += [(f"nvda.ini [WorldVoice][{section}]", key) for key in values]
+	names += [("nvda.ini [WorldVoice][voices][<voice>]", name) for name in _voice_parameter_names()]
+	names += [("driver setting id", setting_id) for setting_id in _driver_setting_ids(monkeypatch)]
+	for file in sorted(ADDON.rglob("*.py")):
+		path = file.relative_to(ADDON).as_posix()
+		if layer(path) != "host":
+			continue
+		for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+			if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith("script_"):
+				names.append((f"gestures.ini script in {path}", node.name.removeprefix("script_")))
+	return names
+
+
+def _voice_parameter_names():
+	"""The keys of each voice's section: the names of runtime/voiceSettings.VOICE_PARAMETERS."""
+	source = (ADDON / SYNTH / "runtime/voiceSettings.py").read_text(encoding="utf-8")
+	for node in ast.parse(source).body:
+		if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == "VOICE_PARAMETERS":
+			return [ast.literal_eval(row.elts[0]) for row in node.value.elts]
+	raise LookupError("runtime/voiceSettings.py assigns no VOICE_PARAMETERS")
+
+
+def test_stored_identifiers_use_nvda_camel_case(monkeypatch):
+	assert stored_identifier_violations(_stored_identifiers(monkeypatch)) == []
+
+
+def test_the_stored_identifier_check_reports_other_spellings():
+	names = [("x", "DetectLanguageTiming"), ("x", "number_mode"), ("x", "numberMode")]
+	assert stored_identifier_violations(names) == ["x: DetectLanguageTiming", "x: number_mode"]
+
+
+def test_data_sections_hold_no_defined_keys():
+	# The confspec gives these sections only __many__ (or nothing): every key in them is a name.
+	conf = worldvoice_conf()["WorldVoice"]
+	assert [section for section in DATA_SECTIONS if conf[section] != {}] == []
+
+
+def test_nvda_setting_ids_are_nvdas(monkeypatch):
+	# The synth's settings are NVDA's ids, its own uwv, and the pipeline table's driver ids; each voice
+	# stores NVDA's ids too. Every one of NVDA's is a setting id in NVDA's own SynthDriver.
+	_synth_class, settings = load_synth(monkeypatch, worldvoice_conf())
+	table_ids = {spec.driver_id for spec in settings.PIPELINE_SETTINGS if spec.driver_id}
+	assert set(_driver_setting_ids(monkeypatch)) - table_ids - {"uwv"} == NVDA_SETTING_IDS
+	assert set(_voice_parameter_names()) <= NVDA_SETTING_IDS
+	nvda = (REF / "nvda/source/synthDriverHandler.py").read_text(encoding="utf-8")
+	assert [name for name in sorted(NVDA_SETTING_IDS) if f'"{name}"' not in nvda] == []
 
 
 CORE_MODULE = SYNTH + "voices/example.py"

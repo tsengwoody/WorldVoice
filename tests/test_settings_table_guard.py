@@ -6,6 +6,7 @@ it is opened. Each check below returns one message per problem. The real table m
 check, and each check must report a table broken on purpose, so the guard itself is tested.
 """
 
+import re
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -226,6 +227,32 @@ def check_attribute_names(specs):
 	return problems
 
 
+# Stored identifiers use NVDA camelCase (refactor9 6.1 rule 3, phase 47d), a lowercase first letter and
+# no underscore. A driver setting id is its entry's stored key, except these coined single-token ids,
+# which NVDA already stored and which phase 47d kept (decided by the orchestrator with the recommended
+# default): numlan is stored in [speech][WorldVoice].
+CODED_DRIVER_IDS = {"numlan", "nummod"}
+STORED_CASE = re.compile(r"[a-z][a-zA-Z0-9]*")
+
+
+def check_stored_names(specs):
+	problems = []
+	for spec in specs:
+		if not STORED_CASE.fullmatch(spec.stored_key):
+			problems.append(f"{spec.key}: the stored key {spec.stored_key!r} is not NVDA camelCase")
+		if spec.driver_id is None:
+			continue
+		if spec.driver_id not in CODED_DRIVER_IDS and spec.driver_id != spec.stored_key:
+			problems.append(
+				f"{spec.key}: the driver id {spec.driver_id!r} is not the stored key {spec.stored_key!r}",
+			)
+		if spec.control == "choice" and spec.driver_id != spec.driver_id.lower():
+			# NVDA lists the options from available{id.capitalize()}s (gui/settingsDialogs.py,
+			# synthSettingsRing.py), which lowercases every letter after the first.
+			problems.append(f"{spec.key}: the choice driver id {spec.driver_id!r} is not one lowercase token")
+	return problems
+
+
 CHECKS = [
 	check_unique,
 	check_control_known,
@@ -240,6 +267,7 @@ CHECKS = [
 	check_sentence_case,
 	check_ordering_only,
 	check_attribute_names,
+	check_stored_names,
 ]
 
 
@@ -364,6 +392,18 @@ BROKEN = {
 		lambda m: _with(m, "number_wait_factor", control="spin"),
 	),
 	"Voice panel control of no kind": (check_attribute_names, lambda m: _with(m, "group_size", control=None)),
+	"stored key not camel case": (
+		check_stored_names,
+		lambda m: (*m.PIPELINE_SETTINGS, replace(m.PIPELINE_SETTING_BY_KEY["group_size"], key="Group_size")),
+	),
+	"driver id other than the stored key": (
+		check_stored_names,
+		lambda m: _with(m, "number_wait_factor", driver_id="numberwaitfactor"),
+	),
+	"camel-case choice driver id": (
+		check_stored_names,
+		lambda m: _with(m, "number_mode", driver_id="numberMode"),
+	),
 }
 
 
