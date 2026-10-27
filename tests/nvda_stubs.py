@@ -38,13 +38,17 @@ def worldvoice_conf(**sections):
 
 	NVDA's config returns a spec default for every key nobody stored, so a stub with every
 	default behaves like a fresh profile. Each keyword names a section and its values replace
-	those defaults. The defaults are read from the add-on sources, so a new key reaches every
-	test that uses this stub.
+	those defaults; a key the section's confspec lacks raises KeyError, except in a section with
+	no keys of its own (engines, roles, voices), whose keys are data. The defaults are read from
+	the add-on sources, so a new key reaches every test that uses this stub.
 	"""
 	conf = copy.deepcopy(_worldvoice_defaults())
 	for name, values in sections.items():
 		if name not in conf:
 			raise KeyError(f"The WorldVoice confspec has no {name!r} section")
+		unknown = sorted(set(values) - set(conf[name]))
+		if conf[name] and unknown:
+			raise KeyError(f"The WorldVoice confspec's {name!r} section has no {unknown}")
 		conf[name].update(values)
 	return {"WorldVoice": conf}
 
