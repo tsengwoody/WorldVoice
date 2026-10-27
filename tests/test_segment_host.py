@@ -4,7 +4,7 @@ from threading import Condition, Event, Thread, get_ident
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import load_source
+from addon_loader import REF, load_source
 from runtime_harness import (
 	RUNTIME,
 	accepted_operations,
@@ -1120,3 +1120,12 @@ def test_segment_drain_core_combines_with_an_abcmeta_driver_metaclass(env):
 
 	with pytest.raises(TypeError):
 		Incomplete()
+
+
+def test_nvda_driver_metaclass_is_an_abcmeta():
+	# The stand-in metaclass above, and the drain harnesses', model this: NVDA's AutoPropertyType.
+	import ast
+
+	tree = ast.parse((REF / "nvda/source/baseObject.py").read_text(encoding="utf-8"))
+	meta = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "AutoPropertyType")
+	assert [ast.unparse(base) for base in meta.bases] == ["ABCMeta"]
