@@ -134,3 +134,17 @@
 ## 未在本機驗證的部分
 
 Linux 上只驗證了測試與受控的 stub；Windows 上的 NVDA、實際音訊裝置與引擎 SDK 都沒有驗證。本 phase 是純改名，沒有新的手動項目；未打包。
+
+## 修正記錄
+
+五項 Minor 依協調者指示在 merge 前全部修正，走複雜流程的修正規則（DEVELOPMENT_WORKFLOW.md §4.5）：plan 檔尾新增「## 修正」段落（Task 8–13，逐位元組的 `File:`／`Edit:` 區塊與每個 commit 後的 tree id，`c36833d`），先在全新的 scratch 複本從 plan 原本的最後一步接著 dry run，tree id 全部吻合，再照 plan 落地。每一項都先用探針或會失敗的測試顯示缺口，再修到綠燈。
+
+| 項目 | commit | 修法與驗證 |
+| --- | --- | --- |
+| M5 | `0a490b4` | `test_the_guard_reads_each_kind_of_name` 加入巢狀函式、walrus、`global`、`cls.x` 四個案例。探針：讓 walker 忽略 `global` 宣告，修正前守門 `18 passed`（沒有測試擋住），加案例後同一個探針 `1 failed, 21 passed`。 |
+| M1 | `cfa8a74` | 基底類別改記下每個方法的參數名；覆寫方法的參數只有在基底同名方法也有這個參數時才豁免。新測試 `test_the_guard_flags_an_override_parameter_the_base_lacks` 先紅（`1 failed, 22 passed`）後綠；add-on 現有的定義判定都沒有改變，清單不動。 |
+| M2 | `f94081e` | walker 讀 `match` 的 `MatchAs`／`MatchStar` 名字與 `MatchMapping` 的 rest；docstring 寫明不檢查 `setattr(obj, "name", …)` 與設在 `self`／`cls` 以外物件上的屬性。新案例先紅（`1 failed, 23 passed`）後綠。 |
+| M3 | `73aa016` | 最低 NVDA 版本到 2026.1 時改成 `pytest.fail`，訊息要人刪除這個測試，不再 skip。探針：把 `buildVars.py` 暫改成 2026.1，修正前 `23 passed, 1 skipped`，修正後 `1 failed, 23 passed`，並顯示刪除訊息；以目前的 2024.1 照常通過。 |
+| M4 | `a1b5807` | `_set_voice_datas` → `_set_voice_data`；Say All 內層函式改成 `get_text_info_speech_with_sayall_break`，和外層 `_wrap_get_text_info_speech_with_sayall_break` 及設定鍵 `sayall_wait_factor` 一致。探針 `git grep` 修正前 5 行、修正後沒有輸出；token 比對工具改成也接受 `OLD=NEW`，`pure rename: OK (3 files, 5 tokens renamed)`。 |
+
+修正後的驗證：完整測試 `3293 passed`、0 skipped（基準 3287 加上新的 4＋1＋1 個測試）；`prek run --all-files` 全部 Passed；`git diff --check master` 沒有輸出；兩個受保護路徑指令都沒有輸出；最後的 tree id `HEAD:addon` = `c26c20f4f947a4529df94033ae0dd9aec9b0bf82`、`HEAD:tests` = `0824ffae4a2ff62df773057a8fbbbb12ec62f1d5`，和 plan 的 Task 12 相同。spec 以刪除線標出這些修正改掉的原內容（`c36833d`）。
