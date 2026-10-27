@@ -49,7 +49,7 @@ class VoiceFacade:
 	def snapshot(self):
 		return self._state.snapshot()
 
-	def update_settings(self, **values):
+	def updateSettings(self, **values):
 		self._state.update(**values)
 
 	def loadParameter(self):

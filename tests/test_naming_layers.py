@@ -125,11 +125,7 @@ INTERFACE_NAMES = {
 
 
 # The plugin contract, which phase 47c renames together with Neural (refactor9 §6.1).
-TRANSITIONAL_47C: dict[str, set[str]] = {
-	"synthDrivers/WorldVoice/bridge/voiceFacade.py": {
-		"VoiceFacade.update_settings",
-	},
-}
+TRANSITIONAL_47C: dict[str, set[str]] = {}
 
 
 # Stored identifiers, which phase 47d renames (refactor9 6.1 rule 3): NVDA binds a user's gestures

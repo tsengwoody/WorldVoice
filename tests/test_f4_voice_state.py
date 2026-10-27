@@ -54,7 +54,7 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 		original_update(**values)
 
 	b._state.update = record_update
-	a.update_settings(rate=72, pitch=60, volume=70, inflection=55, rateBoost=True)
+	a.updateSettings(rate=72, pitch=60, volume=70, inflection=55, rateBoost=True)
 	manager_instance.preview_voice_parameter_consistent(a)
 	assert updates == [
 		{

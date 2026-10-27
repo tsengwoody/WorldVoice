@@ -244,7 +244,7 @@ def test_queries_go_through_the_manager(env):
 
 
 def test_select_voice_copies_main_parameters_atomically(env, monkeypatch):
-	env.a.update_settings(rate=72, pitch=61, volume=73, inflection=44, rateBoost=True)
+	env.a.updateSettings(rate=72, pitch=61, volume=73, inflection=44, rateBoost=True)
 	core = RecordingCore()
 	bind_core(core, env.a, env.b)
 	env.presenter.setParameterConsistency(True)

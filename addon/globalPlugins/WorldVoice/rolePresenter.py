@@ -73,7 +73,7 @@ class RolePanelPresenter:
 			return None
 		voice = self.voice(name)
 		if self.keepParameters:
-			voice.update_settings(**self._mainParameters())
+			voice.updateSettings(**self._mainParameters())
 		return voice
 
 	def setParameter(self, name: str, parameter: str, value) -> None:

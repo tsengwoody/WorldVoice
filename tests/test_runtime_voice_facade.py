@@ -56,7 +56,7 @@ def test_constructor_and_reload_do_not_activate_core(setup):
 
 def test_all_settings_are_live_proxies(setup):
 	voice = setup.voice
-	voice.update_settings(
+	voice.updateSettings(
 		rate=72,
 		pitch=63,
 		volume=84,

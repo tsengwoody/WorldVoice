@@ -50,7 +50,7 @@ def test_neural_style_plugin_runs_through_the_manager(composition):
 	assert [spec.name for spec in manager.table] == ["Neural:v1"]
 	voice = manager.get_voice_instance("Neural:v1")
 	assert voice.core is None  # the plugin's class attribute shadows the facade property
-	voice.update_settings(rate=61, pitch=42, volume=73)
+	voice.updateSettings(rate=61, pitch=42, volume=73)
 	session = manager.resolve_playback("Neural:v1")
 	assert session.activate("Neural:v1") is True
 	core = manager._resources["Neural"].adapter.core
