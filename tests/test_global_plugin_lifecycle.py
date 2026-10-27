@@ -45,7 +45,7 @@ def plugin_environment(calls, *, secure, menu_error=None):
 def test_secure_mode_terminate_runs_every_cleanup_step():
 	calls = []
 	plugin = load_plugin_class(plugin_environment(calls, secure=True))()
-	assert plugin.submenu_item is None
+	assert plugin.submenuItem is None
 
 	plugin.terminate()
 
@@ -61,7 +61,7 @@ def test_dead_menu_runtime_error_does_not_stop_cleanup():
 		menu_error=RuntimeError("wrapped C/C++ object deleted"),
 	)
 	plugin = load_plugin_class(environment)()
-	plugin.submenu_item = types.SimpleNamespace(Destroy=lambda: calls.append("destroy"))
+	plugin.submenuItem = types.SimpleNamespace(Destroy=lambda: calls.append("destroy"))
 
 	plugin.terminate()
 

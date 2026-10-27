@@ -7,7 +7,7 @@ import wx
 from synthDrivers.WorldVoice.pipeline.registry import LOG_SWITCHES
 from synthDrivers.WorldVoice.pipeline.settings import PIPELINE_SETTINGS
 
-from ..pipelineLog import ask_export, confirm_enable, pipeline_log
+from ..pipelineLog import askExport, confirmEnable, pipelineLogService
 from .base import BaseSettingsPanel
 
 addonHandler.initTranslation()
@@ -35,24 +35,24 @@ class LogSettingsPanel(BaseSettingsPanel):
 	)
 
 	def makeSettings(self, sizer):
-		self._enable_checkbox = wx.CheckBox(
+		self._enableCheckbox = wx.CheckBox(
 			self,
 			label=_("Enable logging of WorldVoice’s speech pipeline"),
 		)
-		sizer.Add(self._enable_checkbox, proportion=1, flag=wx.EXPAND)
-		group_sizer = wx.StaticBoxSizer(
+		sizer.Add(self._enableCheckbox, proportion=1, flag=wx.EXPAND)
+		groupSizer = wx.StaticBoxSizer(
 			wx.StaticBox(self, label=_("Select Speech Pipelines to Enable")),
 			wx.VERTICAL,
 		)
-		sizer.Add(group_sizer, proportion=1, flag=wx.EXPAND)
+		sizer.Add(groupSizer, proportion=1, flag=wx.EXPAND)
 
-		self.Bind(wx.EVT_CHECKBOX, self.onEnableCheckboxChange, self._enable_checkbox)
-		self._enable_checkbox.SetValue(pipeline_log.enabled)
-		super().makeSettings(group_sizer)
+		self.Bind(wx.EVT_CHECKBOX, self.onEnableCheckboxChange, self._enableCheckbox)
+		self._enableCheckbox.SetValue(pipelineLogService.enabled)
+		super().makeSettings(groupSizer)
 		self.onEnableCheckboxChange(None)
 
 	def onEnableCheckboxChange(self, event):
-		if self._enable_checkbox.GetValue():
+		if self._enableCheckbox.GetValue():
 			self.sliderEnable()
 		else:
 			self.sliderDisable()
@@ -66,28 +66,28 @@ class LogSettingsPanel(BaseSettingsPanel):
 			getattr(self, k + "CheckBox").Disable()
 
 	def isValid(self) -> bool:
-		if self._enable_checkbox.GetValue() and not pipeline_log.enabled:
-			answer = confirm_enable(allow_cancel=True)
+		if self._enableCheckbox.GetValue() and not pipelineLogService.enabled:
+			answer = confirmEnable(allowCancel=True)
 			if answer == wx.CANCEL:
-				self._enable_checkbox.SetValue(False)
+				self._enableCheckbox.SetValue(False)
 				self.onEnableCheckboxChange(None)
 				return False
 			if answer != wx.YES:
 				# "No" keeps logging off; show that instead of a checked box.
-				self._enable_checkbox.SetValue(False)
+				self._enableCheckbox.SetValue(False)
 				self.onEnableCheckboxChange(None)
 		return True
 
 	def onSave(self):
-		enabled_before = pipeline_log.enabled
-		enabled_after = self._enable_checkbox.GetValue()
+		enabledBefore = pipelineLogService.enabled
+		enabledAfter = self._enableCheckbox.GetValue()
 		# Written on every save, like the stage switches (decided by the user, 2026-10-22,
 		# fix/uniform-settings-save): NVDA skips an unchanged value and replaces a refused one.
 		# isValid already confirmed turning logging on, or unticked the box when it was declined.
-		if enabled_after:
-			pipeline_log.enable()
+		if enabledAfter:
+			pipelineLogService.enable()
 		else:
-			pipeline_log.disable()
-		if enabled_before and not enabled_after and ask_export():
-			wx.CallAfter(pipeline_log.export)
-		self._write_settings()
+			pipelineLogService.disable()
+		if enabledBefore and not enabledAfter and askExport():
+			wx.CallAfter(pipelineLogService.export)
+		self._writeSettings()

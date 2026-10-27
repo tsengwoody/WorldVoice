@@ -19,7 +19,7 @@ from synthDrivers.WorldVoice.workspace import workspace_path
 from generics.coreArchive import extract_core_archive
 
 from .dialog import WorldVoiceSettingsDialog
-from .pipelineLog import ask_disable_on_start, ask_export, confirm_enable, pipeline_log
+from .pipelineLog import askDisableOnStart, askExport, confirmEnable, pipelineLogService
 
 addonHandler.initTranslation()
 ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
@@ -28,7 +28,7 @@ ADDON_SUMMARY = addonHandler.getCodeAddon().manifest["summary"]
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self):
 		super().__init__()
-		self.submenu_item = None
+		self.submenuItem = None
 
 		patch()
 		pipeline_scope.attach_global()
@@ -38,7 +38,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 		self.createMenu()
 
-		wx.CallAfter(self.check_log_record)
+		wx.CallAfter(self.checkLogRecord)
 
 	def terminate(self):
 		try:
@@ -51,32 +51,32 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		pipeline_scope.detach_global()
 
 	def createMenu(self):
-		self.submenu_WorldVoice = wx.Menu()
+		self.submenuWorldVoice = wx.Menu()
 
-		item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Settings"), _("Settings."))
-		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popup_SpeechSettingsDialog, item)
-		item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
+		item = self.submenuWorldVoice.Append(wx.ID_ANY, _("&Settings"), _("Settings."))
+		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.popupSpeechSettingsDialog, item)
+		item = self.submenuWorldVoice.Append(wx.ID_ANY, _("&File Import"), _("Import File."))
 		gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onFileImport, item)
 		# if not AisoundVoice.install():
-		# 	item = self.submenu_WorldVoice.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
+		# 	item = self.submenuWorldVoice.Append(wx.ID_ANY, _("&Aisound Core Install"), _("Install Aisound Core."))
 		# 	gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onAisoundCoreInstall, item)
 
-		self.submenu_item = gui.mainFrame.sysTrayIcon.menu.Insert(
+		self.submenuItem = gui.mainFrame.sysTrayIcon.menu.Insert(
 			2,
 			wx.ID_ANY,
 			_("WorldVoice"),
-			self.submenu_WorldVoice,
+			self.submenuWorldVoice,
 		)
 
 	def removeMenu(self):
-		if self.submenu_item is not None:
+		if self.submenuItem is not None:
 			try:
-				gui.mainFrame.sysTrayIcon.menu.Remove(self.submenu_item)
+				gui.mainFrame.sysTrayIcon.menu.Remove(self.submenuItem)
 			except (
 				AttributeError
 			):  # We can get this somehow from wx python when NVDA is shuttingdown, just ignore
 				pass
-			self.submenu_item.Destroy()
+			self.submenuItem.Destroy()
 
 	def onFileImport(self, event):
 		with wx.FileDialog(
@@ -86,15 +86,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		) as entryDialog:
 			if entryDialog.ShowModal() != wx.ID_OK:
 				return
-			core_zip_path = entryDialog.GetPath()
+			coreZipPath = entryDialog.GetPath()
 
 		workspace = workspace_path()
 		try:
 			os.makedirs(workspace, exist_ok=True)
-			extract_core_archive(core_zip_path, workspace)
+			extract_core_archive(coreZipPath, workspace)
 		except Exception:
 			log.exception(
-				f"An unexpected error occurred while processing '{os.path.basename(core_zip_path)}'",
+				f"An unexpected error occurred while processing '{os.path.basename(coreZipPath)}'",
 			)
 			gui.messageBox(
 				_("Import fail"),
@@ -117,7 +117,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 				queueHandler.queueFunction(queueHandler.eventQueue, core.restart)
 
-	def popup_SpeechSettingsDialog(self, event):
+	def popupSpeechSettingsDialog(self, event):
 		wx.CallAfter(gui.mainFrame.popupSettingsDialog, WorldVoiceSettingsDialog)
 
 	@script(
@@ -125,30 +125,30 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		category=ADDON_SUMMARY,
 	)
 	def script_popup_SpeechSettingsDialog(self, gesture):
-		self.popup_SpeechSettingsDialog(None)
+		self.popupSpeechSettingsDialog(None)
 
 	@script(
 		description=_("switch log record"),
 		category=ADDON_SUMMARY,
 	)
 	def script_switch_log_record(self, gesture):
-		if not pipeline_log.enabled:
-			wx.CallAfter(self.enable_log_record)
+		if not pipelineLogService.enabled:
+			wx.CallAfter(self.enableLogRecord)
 		else:
-			wx.CallAfter(self.disable_log_record)
+			wx.CallAfter(self.disableLogRecord)
 
-	def check_log_record(self):
-		if pipeline_log.enabled and ask_disable_on_start():
-			pipeline_log.disable()
-			pipeline_log.export()
+	def checkLogRecord(self):
+		if pipelineLogService.enabled and askDisableOnStart():
+			pipelineLogService.disable()
+			pipelineLogService.export()
 
-	def enable_log_record(self):
-		if confirm_enable(allow_cancel=False) == wx.YES:
-			pipeline_log.enable()
+	def enableLogRecord(self):
+		if confirmEnable(allowCancel=False) == wx.YES:
+			pipelineLogService.enable()
 			ui.message(_("turn on WorldVoice`s log record"))
 
-	def disable_log_record(self):
-		pipeline_log.disable()
-		if ask_export():
-			pipeline_log.export()
+	def disableLogRecord(self):
+		pipelineLogService.disable()
+		if askExport():
+			pipelineLogService.export()
 		ui.message(_("turn off WorldVoice`s log record"))

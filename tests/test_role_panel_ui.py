@@ -16,10 +16,10 @@ VOICES = {
 
 
 class Presenter:
-	def __init__(self, manager, *, speech_section, set_main_voice):
+	def __init__(self, manager, *, speechSection, setMainVoice):
 		self.manager = manager
 		self.calls = []
-		self.keep_engine, self.keep_voice, self.keep_parameters = True, False, True
+		self.keepEngine, self.keepVoice, self.keepParameters = True, False, True
 		self.assigned = {"en": "tom"}
 		self.locale_names = [("en", "English"), ("zh", "Chinese")]
 		self.instances = {
@@ -42,7 +42,7 @@ class Presenter:
 	def voices(self, locale):
 		return VOICES.get(locale, [])
 
-	def selected_voice(self, locale):
+	def selectedVoice(self, locale):
 		return self.assigned.get(locale, "")
 
 	def voice(self, name):
@@ -55,7 +55,7 @@ class Presenter:
 		return self.supported[name]
 
 	def __getattr__(self, name):
-		# select_voice, set_parameter, set_*_consistency, discard, close, apply: recorded. The prefixes
+		# selectVoice, setParameter, set_*_consistency, discard, close, apply: recorded. The prefixes
 		# carry no separator, so they match the presenter's names in either naming style.
 		if name.startswith(("select", "set")) or name in {"discard", "close", "apply"}:
 			return lambda *args: self.calls.append((name, *args))
@@ -147,14 +147,14 @@ def test_choosing_a_voice_assigns_it_and_shows_what_it_supports(ui):
 	choose(panel, panel._localesChoice, 0)
 	choose(panel, panel._voicesChoice, 1)
 
-	assert ui.presenter.calls == [("select_voice", "en", "eva")]
+	assert ui.presenter.calls == [("selectVoice", "en", "eva")]
 	assert [slider.value for slider in sliders(panel)] == [10, 20, 30, 40]
 	assert all(slider.enabled for slider in sliders(panel))
 	assert panel._rateBoostCheckBox.enabled is True
 	assert panel._variantsChoice.selection == 0
 
 	choose(panel, panel._voicesChoice, 0)
-	assert ui.presenter.calls[-1] == ("select_voice", "en", "")
+	assert ui.presenter.calls[-1] == ("selectVoice", "en", "")
 	assert not any(slider.enabled for slider in sliders(panel))
 
 
@@ -184,12 +184,12 @@ def test_parameter_controls_edit_the_selected_voice(ui):
 	fire(panel._variantsChoice, "EVT_CHOICE", panel=panel)
 
 	assert ui.presenter.calls == [
-		("set_parameter", "eva", "rate", 15),
-		("set_parameter", "eva", "pitch", 25),
-		("set_parameter", "eva", "volume", 35),
-		("set_parameter", "eva", "inflection", 45),
-		("set_parameter", "eva", "rateBoost", True),
-		("set_variant", "eva", "v2"),
+		("setParameter", "eva", "rate", 15),
+		("setParameter", "eva", "pitch", 25),
+		("setParameter", "eva", "volume", 35),
+		("setParameter", "eva", "inflection", 45),
+		("setParameter", "eva", "rateBoost", True),
+		("setVariant", "eva", "v2"),
 	]
 
 
@@ -208,7 +208,7 @@ def test_engine_consistency_reloads_the_locales(ui):
 	panel._keepEngineConsistentCheckBox.SetValue(False)
 	fire(panel._keepEngineConsistentCheckBox, "EVT_CHECKBOX", panel=panel)
 
-	assert ui.presenter.calls == [("set_engine_consistency", False)]
+	assert ui.presenter.calls == [("setEngineConsistency", False)]
 	assert panel._localesChoice.choices == ["Chinese"]
 	assert panel._locales == ["zh"]
 
@@ -222,7 +222,7 @@ def test_voice_and_parameter_consistency_reach_the_presenter(ui):
 	panel._keepParameterConsistentCheckBox.SetValue(False)
 	fire(panel._keepParameterConsistentCheckBox, "EVT_CHECKBOX", panel=panel)
 
-	assert ui.presenter.calls == [("set_voice_consistency", True), ("set_parameter_consistency", False)]
+	assert ui.presenter.calls == [("setVoiceConsistency", True), ("setParameterConsistency", False)]
 	# The shown parameters are reread: with consistency off each role has its own.
 	assert panel._rateSlider.value == 77
 
@@ -246,7 +246,7 @@ def test_a_failing_handler_reports_the_error_and_reopens_the_dialog(ui):
 	assert caption == "WorldVoice Setting Dialog - Error"
 	assert style == ui.env.wx.OK | ui.env.wx.ICON_ERROR
 	assert ("error", "Unhandled exception in SpeechRoleSettingsPanel.onLocaleChanged") in ui.env.logged
-	# got_error_callback: cancel this dialog and open a fresh one of the same type.
+	# gotErrorCallback: cancel this dialog and open a fresh one of the same type.
 	assert dialog.cancelled == [None]
 	assert ui.env.wx.called_after == [(ui.env.gui.mainFrame.popupSettingsDialog, (SimpleNamespace,))]
 

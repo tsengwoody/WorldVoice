@@ -140,7 +140,7 @@ def test_panels_share_the_not_worldvoice_notice():
 
 
 def test_settings_errors_share_one_dialog():
-	# A failing handler (guard_errors) and a failed Speech Role save show the same error dialog.
+	# A failing handler (guardErrors) and a failed Speech Role save show the same error dialog.
 	assert string_constants(ERROR_MESSAGE) == ["utils.py"]
 	assert string_constants(ERROR_TITLE) == ["utils.py"]
 

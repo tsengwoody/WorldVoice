@@ -7,7 +7,7 @@ handler bound last runs first, ``Skip`` passes the event on, and a command event
 panel's handlers after the control's own). A parent keeps its windows in creation order
 (``children``, the order NVDA's object navigation follows) apart from its Tab order
 (``tab_order``), and a labelled control's label is a window just before it. The loaders run the real add-on
-modules against these fakes, so module-level code and the real ``guard_errors`` take part.
+modules against these fakes, so module-level code and the real ``guardErrors`` take part.
 """
 
 from types import SimpleNamespace
@@ -797,10 +797,10 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 	alias_package(monkeypatch, package, PLUGIN_DIR)
 	stubs.module(
 		package + ".pipelineLog",
-		pipeline_log=env.pipeline_log,
-		ask_export=lambda: env.log_calls.append("ask export") or env.export_answer[0],
-		confirm_enable=lambda *, allow_cancel: (
-			env.log_calls.append(("confirm", allow_cancel)) or env.confirm_answer[0]
+		pipelineLogService=env.pipeline_log,
+		askExport=lambda: env.log_calls.append("ask export") or env.export_answer[0],
+		confirmEnable=lambda *, allowCancel: (
+			env.log_calls.append(("confirm", allowCancel)) or env.confirm_answer[0]
 		),
 	)
 	stubs.module(package + ".rolePresenter", RolePanelPresenter=None)
@@ -901,10 +901,10 @@ def load_global_plugin(monkeypatch, *, secure=False, log_enabled=False):
 
 	stubs.module(
 		package + ".pipelineLog",
-		pipeline_log=env.pipeline_log,
-		ask_disable_on_start=answer("disable on start"),
-		ask_export=answer("export"),
-		confirm_enable=answer("confirm"),
+		pipelineLogService=env.pipeline_log,
+		askDisableOnStart=answer("disable on start"),
+		askExport=answer("export"),
+		confirmEnable=answer("confirm"),
 	)
 	env.settings_dialog = type("WorldVoiceSettingsDialog", (), {})
 	stubs.module(package + ".dialog", WorldVoiceSettingsDialog=env.settings_dialog)

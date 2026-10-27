@@ -490,8 +490,8 @@ def test_log_panel_shows_one_switch_per_stage_from_config(monkeypatch):
 	env = log_env(monkeypatch, enabled=True, number_mode=True, speech_viewer=True)
 	panel, sizer = build(env, "LogSettingsPanel")
 
-	assert sizer.items[0].item is panel._enable_checkbox
-	assert panel._enable_checkbox.value is True
+	assert sizer.items[0].item is panel._enableCheckbox
+	assert panel._enableCheckbox.value is True
 	group = sizer.items[1].item
 	boxes = group.controls()
 	labels = env.panels.log._LOG_LABELS
@@ -535,8 +535,8 @@ def test_log_panel_stage_switches_follow_the_enable_checkbox(monkeypatch):
 	boxes = sizer.items[1].item.controls()
 	assert not any(box.enabled for box in boxes)
 
-	panel._enable_checkbox.SetValue(True)
-	fire(panel._enable_checkbox, "EVT_CHECKBOX", panel=panel)
+	panel._enableCheckbox.SetValue(True)
+	fire(panel._enableCheckbox, "EVT_CHECKBOX", panel=panel)
 	assert all(box.enabled for box in boxes)
 
 
@@ -544,20 +544,20 @@ def test_log_panel_cancelled_enable_is_unticked_and_blocks_the_save(monkeypatch)
 	env = log_env(monkeypatch, enabled=False)
 	env.confirm_answer[0] = env.wx.CANCEL
 	panel, sizer = build(env, "LogSettingsPanel")
-	panel._enable_checkbox.SetValue(True)
-	fire(panel._enable_checkbox, "EVT_CHECKBOX", panel=panel)
+	panel._enableCheckbox.SetValue(True)
+	fire(panel._enableCheckbox, "EVT_CHECKBOX", panel=panel)
 
 	assert panel.isValid() is False
 
 	assert env.log_calls == [("confirm", True)]
-	assert panel._enable_checkbox.value is False
+	assert panel._enableCheckbox.value is False
 	assert not any(box.enabled for box in sizer.items[1].item.controls())
 
 
 def test_log_panel_enabling_turns_logging_on_and_saves_the_switches(monkeypatch):
 	env = log_env(monkeypatch, enabled=False)
 	panel, _sizer = build(env, "LogSettingsPanel")
-	panel._enable_checkbox.SetValue(True)
+	panel._enableCheckbox.SetValue(True)
 	panel.number_modeCheckBox.SetValue(True)
 
 	assert panel.isValid() is True
@@ -573,7 +573,7 @@ def test_log_panel_disabling_offers_to_export_the_log(monkeypatch, export):
 	env = log_env(monkeypatch, enabled=True)
 	env.export_answer[0] = export
 	panel, _sizer = build(env, "LogSettingsPanel")
-	panel._enable_checkbox.SetValue(False)
+	panel._enableCheckbox.SetValue(False)
 
 	assert panel.isValid() is True
 	panel.onSave()
@@ -602,7 +602,7 @@ def test_log_panel_declined_enable_writes_logging_off(monkeypatch):
 	env = log_env(monkeypatch, enabled=False)
 	env.confirm_answer[0] = env.wx.NO
 	panel, _sizer = build(env, "LogSettingsPanel")
-	panel._enable_checkbox.SetValue(True)
+	panel._enableCheckbox.SetValue(True)
 
 	assert panel.isValid() is True
 	panel.onSave()
@@ -623,7 +623,11 @@ def real_log_env(monkeypatch, refused=(), **stored):
 		"worldvoice_ui_test.pipelineLogService",
 		PLUGIN_DIR / "pipelineLog.py",
 	)
-	monkeypatch.setattr(env.panels.log, "pipeline_log", service_module.PipelineLogService(lambda: env.conf))
+	monkeypatch.setattr(
+		env.panels.log,
+		"pipelineLogService",
+		service_module.PipelineLogService(lambda: env.conf),
+	)
 	return env, section
 
 
@@ -634,8 +638,8 @@ def test_log_panel_save_fixes_an_invalid_enable_flag(monkeypatch, ticked):
 	# it with the stored value unvalidated (fix/uniform-settings-save).
 	env, section = real_log_env(monkeypatch, refused=["enable"], enable="maybe")
 	panel, _sizer = build(env, "LogSettingsPanel")
-	assert panel._enable_checkbox.value is False
-	panel._enable_checkbox.SetValue(ticked)
+	assert panel._enableCheckbox.value is False
+	panel._enableCheckbox.SetValue(ticked)
 
 	assert panel.isValid() is True
 	panel.onSave()
@@ -651,7 +655,7 @@ def test_log_panel_declined_enable_never_stores_logging_on(monkeypatch, stored):
 	env, section = real_log_env(monkeypatch, refused=refused, enable=stored)
 	env.confirm_answer[0] = env.wx.NO
 	panel, _sizer = build(env, "LogSettingsPanel")
-	panel._enable_checkbox.SetValue(True)
+	panel._enableCheckbox.SetValue(True)
 
 	assert panel.isValid() is True
 	panel.onSave()
@@ -677,7 +681,7 @@ def test_log_panel_save_of_an_unchanged_enable_flag_writes_nothing(monkeypatch, 
 def test_log_panel_switching_logging_still_writes_the_flag(monkeypatch, enabled):
 	env, section = real_log_env(monkeypatch, enable=enabled)
 	panel, _sizer = build(env, "LogSettingsPanel")
-	panel._enable_checkbox.SetValue(not enabled)
+	panel._enableCheckbox.SetValue(not enabled)
 
 	assert panel.isValid() is True
 	panel.onSave()

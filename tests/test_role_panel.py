@@ -23,8 +23,8 @@ def test_failed_apply_shows_error_and_raises_value_error():
 		{
 			"SettingsPanel": object,
 			"_": lambda text: text,
-			"guard_errors": lambda **kwargs: lambda method: method,
-			"got_error_callback": None,
+			"guardErrors": lambda **kwargs: lambda method: method,
+			"gotErrorCallback": None,
 			"reportError": messages.append,
 			"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
 			"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice", voiceManager=manager),
@@ -39,9 +39,9 @@ def test_failed_apply_shows_error_and_raises_value_error():
 		raise OSError("save failed")
 
 	panel._presenter = types.SimpleNamespace(
-		set_engine_consistency=lambda value: calls.append(("engine", value)),
-		set_voice_consistency=lambda value: calls.append(("voice", value)),
-		set_parameter_consistency=lambda value: calls.append(("parameter", value)),
+		setEngineConsistency=lambda value: calls.append(("engine", value)),
+		setVoiceConsistency=lambda value: calls.append(("voice", value)),
+		setParameterConsistency=lambda value: calls.append(("parameter", value)),
 		apply=apply,
 	)
 	panel._keepEngineConsistentCheckBox = checkbox(True)
@@ -62,8 +62,8 @@ def test_destroy_closes_the_presenter_only_for_the_panel_itself():
 		{
 			"SettingsPanel": object,
 			"_": lambda text: text,
-			"guard_errors": lambda **kwargs: lambda method: method,
-			"got_error_callback": None,
+			"guardErrors": lambda **kwargs: lambda method: method,
+			"gotErrorCallback": None,
 		},
 	)
 	panel = object.__new__(panel_type)
@@ -98,7 +98,7 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 		def __init__(self, manager, **kwargs):
 			created.append((manager, sorted(kwargs)))
 			hooks.update(kwargs)
-			self.keep_engine = self.keep_voice = self.keep_parameters = False
+			self.keepEngine = self.keepVoice = self.keepParameters = False
 
 		def locales(self):
 			return [("en", "English")]
@@ -123,8 +123,8 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 		{
 			"SettingsPanel": object,
 			"_": lambda text: text,
-			"guard_errors": lambda **kwargs: lambda method: method,
-			"got_error_callback": None,
+			"guardErrors": lambda **kwargs: lambda method: method,
+			"gotErrorCallback": None,
 			"wx": wx,
 			"worldvoice_synth": lambda: current[0],
 			"config": types.SimpleNamespace(conf={"speech": speech}),
@@ -143,15 +143,15 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 	panel.GetSize = lambda: (1000, 480)
 	panel.GetBackgroundColour = lambda: None
 	panel.makeSettings(types.SimpleNamespace(Add=lambda *args, **kwargs: None))
-	assert created == [(manager, ["set_main_voice", "speech_section"])]
+	assert created == [(manager, ["setMainVoice", "speechSection"])]
 	assert panel._onDestroy in bindings
 	assert panel._locales == ["en"]
 	assert panel.disable is False
 	# The dialog is not modal: setting the main voice asks for the current synth when it runs.
-	hooks["set_main_voice"]("b")
+	hooks["setMainVoice"]("b")
 	assert synth.voice == "b" and speech["WorldVoice"]["voice"] == "b"
 	current[0] = None
-	hooks["set_main_voice"]("c")
+	hooks["setMainVoice"]("c")
 	assert synth.voice == "b" and speech["WorldVoice"]["voice"] == "c"
 
 
@@ -161,8 +161,8 @@ def test_save_does_nothing_after_the_synth_was_switched_away():
 		{
 			"SettingsPanel": object,
 			"_": lambda text: text,
-			"guard_errors": lambda **kwargs: lambda method: method,
-			"got_error_callback": None,
+			"guardErrors": lambda **kwargs: lambda method: method,
+			"gotErrorCallback": None,
 			"worldvoice_synth": lambda: None,
 		},
 	)

@@ -35,7 +35,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		# One choice per script of the table, in its order; the labels are this panel's own.
 		labels = self._script_labels()
 		self._scriptChoices = {
-			detectionScript.script: self._add_script_choice(
+			detectionScript.script: self._addScriptChoice(
 				settingsSizerHelper,
 				detectionScript.script,
 				labels[detectionScript.script],
@@ -43,7 +43,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			for detectionScript in DETECTION_SCRIPTS
 		}
 
-		DetectLanguageTimingLabel = [
+		detectLanguageTimingLabel = [
 			_("Before NVDA processes speech commands"),
 			_("After NVDA processes speech commands"),
 		]
@@ -51,7 +51,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 		self._DLTChoice = settingsSizerHelper.addLabeledControl(
 			_("Language detection timing:"),
 			wx.Choice,
-			choices=DetectLanguageTimingLabel,
+			choices=detectLanguageTimingLabel,
 		)
 		self._DetectLanguageTiming = self._detection.timing
 		try:
@@ -73,7 +73,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			"Devanagari": _("Language assumed for devanagari characters:"),
 		}
 
-	def _add_script_choice(self, helper, script, label):
+	def _addScriptChoice(self, helper, script, label):
 		"""A choice of the available two-letter languages written in script."""
 		candidates = set(SCRIPT_LANGUAGES[script])
 		locales = sorted(candidates & {locale for locale in self._locales if len(locale) == 2})

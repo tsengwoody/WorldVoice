@@ -123,7 +123,7 @@ def test_failed_save_changes_no_settings_and_logs():
 	panel.OneCoreCheckBox = _checkbox(RuntimeError("checkbox destroyed"))
 	panel.SAPI5CheckBox = _checkbox(True)
 
-	assert panel._write_settings() is False
+	assert panel._writeSettings() is False
 
 	assert calls == [("beep",)]
 	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}
@@ -145,7 +145,7 @@ def test_failed_choice_save_changes_no_settings():
 	panel.OneCoreSelection = types.SimpleNamespace(GetSelection=lambda: 7)
 	panel.SAPI5Selection = types.SimpleNamespace(GetSelection=lambda: 1)
 
-	assert panel._write_settings() is False
+	assert panel._writeSettings() is False
 
 	assert calls == [("beep",)]
 	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}

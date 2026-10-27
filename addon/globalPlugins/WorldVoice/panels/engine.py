@@ -29,17 +29,17 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		infoCtrl.SetBackgroundColour(self.GetBackgroundColour())
 		sizer.Add(infoCtrl, proportion=1, flag=wx.EXPAND)
 
-		group_sizer = wx.StaticBoxSizer(
+		groupSizer = wx.StaticBoxSizer(
 			wx.StaticBox(self, label=_("Select Speech Engines to Enable")),
 			wx.VERTICAL,
 		)
-		sizer.Add(group_sizer, proportion=1, flag=wx.EXPAND)
+		sizer.Add(groupSizer, proportion=1, flag=wx.EXPAND)
 
 		self.settings = OrderedDict(
 			{eng.name: {"label": eng.label, "default": eng.default_enabled} for eng in ENGINE_SPECS},
 		)
 
-		super().makeSettings(group_sizer)
+		super().makeSettings(groupSizer)
 
 		self.previousActiveEngine = {
 			eng.name
@@ -82,7 +82,7 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		# Write the engine flags first so the saved configuration includes them.
 		if (
 			self.activeEngine != self.previousActiveEngine
-			and self._write_settings()
+			and self._writeSettings()
 			and self.confirm == wx.YES
 		):
 			gui.mainFrame.onSaveConfigurationCommand(None)

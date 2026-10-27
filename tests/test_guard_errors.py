@@ -1,4 +1,4 @@
-"""guard_errors keeps a failing settings handler from reaching wx and tells the user."""
+"""guardErrors keeps a failing settings handler from reaching wx and tells the user."""
 
 import pytest
 from ui_harness import load_utils
@@ -11,7 +11,7 @@ def env(monkeypatch):
 
 def guarded(env, body, callback=None):
 	class Panel:
-		@env.module.guard_errors(callback=callback)
+		@env.module.guardErrors(callback=callback)
 		def onChange(self, *args, **kwargs):
 			return body(*args, **kwargs)
 

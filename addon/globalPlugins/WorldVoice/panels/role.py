@@ -10,13 +10,13 @@ from logHandler import log
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
 
 from ..rolePresenter import RolePanelPresenter
-from ..utils import guard_errors, reportError
+from ..utils import guardErrors, reportError
 from .base import notWorldVoiceNotice
 
 addonHandler.initTranslation()
 
 
-def got_error_callback(panel):
+def gotErrorCallback(panel):
 	dialog = wx.GetTopLevelParent(panel)
 	dialog.onCancel(None)
 	wx.CallAfter(gui.mainFrame.popupSettingsDialog, type(dialog))
@@ -36,7 +36,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 		self._manager = synth.voiceManager
 
-		def set_main_voice(name):
+		def setMainVoice(name):
 			current = worldvoice_synth()
 			if current is not None:
 				current.voice = name
@@ -44,8 +44,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 
 		self._presenter = RolePanelPresenter(
 			self._manager,
-			speech_section=lambda: config.conf["speech"][synth.name],
-			set_main_voice=set_main_voice,
+			speechSection=lambda: config.conf["speech"][synth.name],
+			setMainVoice=setMainVoice,
 		)
 		self.Bind(wx.EVT_WINDOW_DESTROY, self._onDestroy)
 		locales = self._presenter.locales()
@@ -123,7 +123,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self,
 			label=_("Keep main engine and locale engine consistent"),
 		)
-		self._keepEngineConsistentCheckBox.SetValue(self._presenter.keep_engine)
+		self._keepEngineConsistentCheckBox.SetValue(self._presenter.keepEngine)
 		settingsSizerHelper.addItem(self._keepEngineConsistentCheckBox)
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepEngineConsistentChange, self._keepEngineConsistentCheckBox)
 
@@ -131,7 +131,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self,
 			label=_("Keep main speech role and locale speech role consistent"),
 		)
-		self._keepConsistentCheckBox.SetValue(self._presenter.keep_voice)
+		self._keepConsistentCheckBox.SetValue(self._presenter.keepVoice)
 		settingsSizerHelper.addItem(self._keepConsistentCheckBox)
 		self.Bind(wx.EVT_CHECKBOX, self.onKeepVoiceConsistentChange, self._keepConsistentCheckBox)
 
@@ -139,7 +139,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self,
 			label=_("Keep parameter settings consistent between different speech roles"),
 		)
-		self._keepParameterConsistentCheckBox.SetValue(self._presenter.keep_parameters)
+		self._keepParameterConsistentCheckBox.SetValue(self._presenter.keepParameters)
 		settingsSizerHelper.addItem(self._keepParameterConsistentCheckBox)
 		self.Bind(
 			wx.EVT_CHECKBOX,
@@ -177,7 +177,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		self._voicesChoice.SetItems([self.NO_SELECT] + [label for _name, label in voices])
 		try:
 			self._voicesChoice.Select(
-				self._voiceNamesByChoiceIndex.index(self._presenter.selected_voice(locale)),
+				self._voiceNamesByChoiceIndex.index(self._presenter.selectedVoice(locale)),
 			)
 		except ValueError:
 			self._voicesChoice.Select(0)
@@ -207,40 +207,40 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		except ValueError:
 			self._variantsChoice.Select(0)
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onLocaleChanged(self, event):
 		self._updateVoicesSelection()
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onVoiceChange(self, event):
 		locale = self._currentLocale()
 		if locale is None:
 			return
 		voiceName = self._getSelectedVoiceName()
-		self._presenter.select_voice(locale, voiceName)
+		self._presenter.selectVoice(locale, voiceName)
 		self._showVoice(voiceName)
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onVariantChange(self, event):
 		voiceName = self._getSelectedVoiceName()
 		if voiceName:
-			self._presenter.set_variant(voiceName, self._variantsChoice.GetStringSelection())
+			self._presenter.setVariant(voiceName, self._variantsChoice.GetStringSelection())
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onKeepEngineConsistentChange(self, event):
-		self._presenter.set_engine_consistency(self._keepEngineConsistentCheckBox.GetValue())
+		self._presenter.setEngineConsistency(self._keepEngineConsistentCheckBox.GetValue())
 		locales = self._presenter.locales()
 		self._locales = [locale for locale, _name in locales]
 		self._localesChoice.SetItems([name for _locale, name in locales])
 		self._updateVoicesSelection()
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onKeepVoiceConsistentChange(self, event):
-		self._presenter.set_voice_consistency(self._keepConsistentCheckBox.GetValue())
+		self._presenter.setVoiceConsistency(self._keepConsistentCheckBox.GetValue())
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onKeepParameterConsistentChange(self, event):
-		self._presenter.set_parameter_consistency(self._keepParameterConsistentCheckBox.GetValue())
+		self._presenter.setParameterConsistency(self._keepParameterConsistentCheckBox.GetValue())
 		self._showVoice(self._getSelectedVoiceName())
 
 	def sliderEnable(self):
@@ -265,29 +265,29 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 	def _setParameter(self, parameter, value):
 		voiceName = self._getSelectedVoiceName()
 		if voiceName:
-			self._presenter.set_parameter(voiceName, parameter, value)
+			self._presenter.setParameter(voiceName, parameter, value)
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onSpeechRateSliderScroll(self, event):
 		self._setParameter("rate", self._rateSlider.GetValue())
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onPitchSliderScroll(self, event):
 		self._setParameter("pitch", self._pitchSlider.GetValue())
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onVolumeSliderScroll(self, event):
 		self._setParameter("volume", self._volumeSlider.GetValue())
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onInflectionSliderScroll(self, event):
 		self._setParameter("inflection", self._inflectionSlider.GetValue())
 
-	@guard_errors(callback=got_error_callback)
+	@guardErrors(callback=gotErrorCallback)
 	def onRateBoostChange(self, event):
 		self._setParameter("rateBoost", self._rateBoostCheckBox.GetValue())
 
-	@guard_errors(callback=lambda self: None)
+	@guardErrors(callback=lambda self: None)
 	def onDiscard(self):
 		if self.disable:
 			return

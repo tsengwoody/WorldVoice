@@ -25,6 +25,6 @@ def test_error_callback_finds_its_dialog_without_a_class_registry():
 		),
 		"gui": types.SimpleNamespace(mainFrame=types.SimpleNamespace(popupSettingsDialog="popup")),
 	}
-	load_definitions(ROLE_PANEL, ["got_error_callback"], environment)
-	environment["got_error_callback"](object())
+	load_definitions(ROLE_PANEL, ["gotErrorCallback"], environment)
+	environment["gotErrorCallback"](object())
 	assert calls == [("cancel", None), ("popup", Dialog)]

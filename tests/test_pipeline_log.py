@@ -81,9 +81,9 @@ def test_the_repair_step_is_gone(monkeypatch):
 
 def test_prompts_map_answers(monkeypatch):
 	module, _, asked = load_service(monkeypatch, answers=[2, 8, 2])
-	assert module.confirm_enable(allow_cancel=True) == 2
-	assert module.ask_export() is False
-	assert module.ask_disable_on_start() is True
+	assert module.confirmEnable(allowCancel=True) == 2
+	assert module.askExport() is False
+	assert module.askDisableOnStart() is True
 	assert asked[0][2] == 2 | 8 | 16
 
 
@@ -91,13 +91,13 @@ def test_log_panel_no_unticks_enable(monkeypatch):
 	enabled = []
 	environment = {
 		"wx": types.SimpleNamespace(YES=2, NO=8, CANCEL=16),
-		"pipeline_log": types.SimpleNamespace(enabled=False),
-		"confirm_enable": lambda *, allow_cancel: 8,
+		"pipelineLogService": types.SimpleNamespace(enabled=False),
+		"confirmEnable": lambda *, allowCancel: 8,
 	}
 	load_definitions(PANEL, ["LogSettingsPanel"], environment, members={"isValid", "onEnableCheckboxChange"})
 	panel = environment["LogSettingsPanel"]()
 	state = {"value": True}
-	panel._enable_checkbox = types.SimpleNamespace(
+	panel._enableCheckbox = types.SimpleNamespace(
 		GetValue=lambda: state["value"],
 		SetValue=lambda v: state.update(value=v),
 	)
@@ -186,7 +186,7 @@ def test_export_with_dialog(monkeypatch, tmp_path, outcome):
 			raise OSError("disk")
 		moved.append(dst)
 
-	module.export_with_dialog(types.SimpleNamespace(move_to=move_to))
+	module.exportWithDialog(types.SimpleNamespace(move_to=move_to))
 	assert moved == ([Path(path)] if outcome == "ok" else [])
 	assert shown == {"cancel": [], "ok": ["message"], "fail": ["error"]}[outcome]
 

@@ -14,12 +14,12 @@ addonHandler.initTranslation()
 
 
 class PipelineLogService:
-	def __init__(self, conf_provider=lambda: config.conf, exporter=None):
-		self._conf_provider = conf_provider
-		self._exporter = exporter or export_with_dialog
+	def __init__(self, confProvider=lambda: config.conf, exporter=None):
+		self._confProvider = confProvider
+		self._exporter = exporter or exportWithDialog
 
 	def _section(self):
-		return self._conf_provider()["WorldVoice"]["log"]
+		return self._confProvider()["WorldVoice"]["log"]
 
 	@property
 	def enabled(self) -> bool:
@@ -38,9 +38,9 @@ class PipelineLogService:
 			log.error("WorldVoice: exporting the pipeline log failed", exc_info=True)
 
 
-def export_with_dialog(pipeline_log_file=None):
+def exportWithDialog(pipelineLogFile=None):
 	"""Ask where to save the pipeline log, move it there and report the result."""
-	pipeline_log_file = pipeline_log_file or pl
+	pipelineLogFile = pipelineLogFile or pl
 	with wx.FileDialog(
 		gui.mainFrame,
 		# Translators: The title of the Export pipeline log file window
@@ -55,7 +55,7 @@ def export_with_dialog(pipeline_log_file=None):
 		dst = Path(entryDialog.GetPath())
 
 	try:
-		pipeline_log_file.move_to(dst)
+		pipelineLogFile.move_to(dst)
 		wx.MessageBox(
 			_("Log exported to:\n{}").format(dst),
 			_("Success"),
@@ -67,11 +67,11 @@ def export_with_dialog(pipeline_log_file=None):
 		)
 
 
-pipeline_log = PipelineLogService()
+pipelineLogService = PipelineLogService()
 
 
-def confirm_enable(*, allow_cancel: bool) -> int:
-	buttons = wx.YES | wx.NO | (wx.CANCEL if allow_cancel else 0)
+def confirmEnable(*, allowCancel: bool) -> int:
+	buttons = wx.YES | wx.NO | (wx.CANCEL if allowCancel else 0)
 	return gui.messageBox(
 		# Translators: The message displayed
 		_(
@@ -84,7 +84,7 @@ def confirm_enable(*, allow_cancel: bool) -> int:
 	)
 
 
-def ask_export() -> bool:
+def askExport() -> bool:
 	return (
 		gui.messageBox(
 			# Translators: The message displayed
@@ -100,7 +100,7 @@ def ask_export() -> bool:
 	)
 
 
-def ask_disable_on_start() -> bool:
+def askDisableOnStart() -> bool:
 	return (
 		gui.messageBox(
 			# Translators: The message displayed

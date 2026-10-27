@@ -23,7 +23,7 @@ def reportError(error):
 	)
 
 
-def guard_errors(callback=None):
+def guardErrors(callback=None):
 	"""
 	Decorator that traps any unhandled exception inside an event handler.
 

@@ -14,7 +14,7 @@ from synthDrivers.WorldVoice.pipeline.settings import read_stored
 addonHandler.initTranslation()
 
 
-def _as_bool(value):
+def _asBool(value):
 	if isinstance(value, str):
 		return value.lower() not in {"false", "0", ""}
 	return bool(value)
@@ -53,13 +53,13 @@ class BaseSettingsPanel(SettingsPanel):
 				)
 				# A value NVDA refuses on read shows the default, so the panel still opens.
 				value = read_stored(config.conf["WorldVoice"][self.field], k, v.get("default", False))
-				getattr(self, k + "CheckBox").SetValue(_as_bool(value))
+				getattr(self, k + "CheckBox").SetValue(_asBool(value))
 		return settingsSizerHelper
 
 	def onSave(self) -> None:
-		self._write_settings()
+		self._writeSettings()
 
-	def _write_settings(self) -> bool:
+	def _writeSettings(self) -> bool:
 		"""Write the panel's widgets to config; return False if any value could not be written.
 
 		Every widget is read before anything is written, so a failed read leaves config untouched.

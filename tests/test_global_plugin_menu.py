@@ -27,7 +27,7 @@ def test_starting_adds_the_worldvoice_menu_to_nvdas_menu(monkeypatch):
 	p = env.plugin
 
 	assert env.calls == [("patch",), ("attach",)]
-	inserted = p.submenu_item
+	inserted = p.submenuItem
 	assert env.tray.menu.items == [*env.nvda_items[:2], inserted, *env.nvda_items[2:]]
 	assert inserted.label == "WorldVoice"
 	submenu = inserted.submenu
@@ -36,22 +36,22 @@ def test_starting_adds_the_worldvoice_menu_to_nvdas_menu(monkeypatch):
 		("&File Import", "Import File."),
 	]
 	assert [(event, handler, item) for event, handler, item in env.tray.bindings] == [
-		("EVT_MENU", p.popup_SpeechSettingsDialog, submenu.items[0]),
+		("EVT_MENU", p.popupSpeechSettingsDialog, submenu.items[0]),
 		("EVT_MENU", p.onFileImport, submenu.items[1]),
 	]
-	assert env.wx.called_after == [(p.check_log_record, ())]
+	assert env.wx.called_after == [(p.checkLogRecord, ())]
 
 
 def test_secure_mode_adds_no_menu(monkeypatch):
 	env = plugin(monkeypatch, secure=True)
 	assert env.tray.menu.items == env.nvda_items
-	assert env.plugin.submenu_item is None
+	assert env.plugin.submenuItem is None
 	assert env.wx.called_after == []
 
 
 def test_terminating_removes_and_destroys_the_menu(monkeypatch):
 	env = plugin(monkeypatch)
-	item = env.plugin.submenu_item
+	item = env.plugin.submenuItem
 
 	env.plugin.terminate()
 
@@ -62,7 +62,7 @@ def test_terminating_removes_and_destroys_the_menu(monkeypatch):
 
 def test_a_menu_nvda_already_dismantled_is_still_destroyed(monkeypatch):
 	env = plugin(monkeypatch)
-	item = env.plugin.submenu_item
+	item = env.plugin.submenuItem
 	env.gui.mainFrame.sysTrayIcon.menu = None  # NVDA shutting down: Remove raises AttributeError
 
 	env.plugin.terminate()
@@ -111,14 +111,14 @@ def test_declined_log_prompts_go_no_further(monkeypatch):
 	env = plugin(monkeypatch)
 	env.calls.clear()
 	env.answers_for["confirm"] = env.wx.NO
-	env.plugin.enable_log_record()
+	env.plugin.enableLogRecord()
 	assert env.calls == [("ask", "confirm")]
 	assert env.pipeline_log.enabled is False
 
 	env.pipeline_log.enabled = True
 	env.answers_for["export"] = False
 	env.calls.clear()
-	env.plugin.disable_log_record()
+	env.plugin.disableLogRecord()
 	# Recording stops either way, so the user hears that it did even without an export.
 	assert env.calls == ["disable", ("ask", "export"), ("message", "turn off WorldVoice`s log record")]
 
