@@ -124,14 +124,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		description=_("popup speech settings dialog"),
 		category=ADDON_SUMMARY,
 	)
-	def script_popup_SpeechSettingsDialog(self, gesture):
+	def script_popupSpeechSettingsDialog(self, gesture):
 		self.popupSpeechSettingsDialog(None)
 
 	@script(
 		description=_("switch log record"),
 		category=ADDON_SUMMARY,
 	)
-	def script_switch_log_record(self, gesture):
+	def script_switchLogRecord(self, gesture):
 		if not pipelineLogService.enabled:
 			wx.CallAfter(self.enableLogRecord)
 		else:

@@ -74,7 +74,7 @@ def test_a_menu_nvda_already_dismantled_is_still_destroyed(monkeypatch):
 def test_settings_menu_and_script_open_the_settings_dialog(monkeypatch):
 	env = plugin(monkeypatch)
 	run_called_after(env)  # the startup log check
-	env.plugin.script_popup_SpeechSettingsDialog(None)
+	env.plugin.script_popupSpeechSettingsDialog(None)
 	run_called_after(env)
 	assert env.popped == [env.settings_dialog]
 
@@ -93,7 +93,7 @@ def test_log_script_switches_the_pipeline_log(monkeypatch, enabled):
 	env.wx.called_after.clear()
 	env.calls.clear()
 
-	env.plugin.script_switch_log_record(None)
+	env.plugin.script_switchLogRecord(None)
 	run_called_after(env)
 
 	if enabled:

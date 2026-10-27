@@ -125,12 +125,7 @@ INTERFACE_NAMES = {
 
 # Stored identifiers, which phase 47d renames (refactor9 6.1 rule 3): NVDA binds a user's gestures
 # in gestures.ini by the name after script_ (ref/nvda/source/inputCore.py, getattr(cls, "script_%s")).
-TRANSITIONAL_47D: dict[str, set[str]] = {
-	"globalPlugins/WorldVoice/__init__.py": {
-		"GlobalPlugin.script_popup_SpeechSettingsDialog",
-		"GlobalPlugin.script_switch_log_record",
-	},
-}
+TRANSITIONAL_47D: dict[str, set[str]] = {}
 
 
 @dataclass(frozen=True)
