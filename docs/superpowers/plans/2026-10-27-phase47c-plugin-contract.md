@@ -69,8 +69,8 @@ For each group:
   rm ref                                   # removes the symlink only
   mkdir ref
   for entry in /workspace/WorldVoice/ref/*; do
-  	name=$(basename "$entry")
-  	[ "$name" = Neural ] || ln -s "$entry" "ref/$name"
+      name=$(basename "$entry")
+      [ "$name" = Neural ] || ln -s "$entry" "ref/$name"
   done
   cp -a /workspace/WorldVoice/ref/Neural ref/Neural
   rm -rf ref/Neural/Neural/__pycache__
