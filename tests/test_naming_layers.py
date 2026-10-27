@@ -1,0 +1,911 @@
+"""Names follow the layer of the module that defines them (refactor9 §6.1, decided 2026-10-27).
+
+1. The layer of a module decides the style of the names it defines itself:
+   - portable core (CORE): PEP 8 snake_case;
+   - NVDA host layer (HOST): NVDA's mixedCase (ref/nvda/projectDocs/dev/codingStandards.md), a
+     lowercase first letter and no underscore apart from the prefixes script_, event_, _get_, _set_;
+   - both: classes in CapWords; module and class names may also be UPPER_CASE constants or
+     CapWords type aliases; leading underscores and dunder names are free.
+   PENDING modules wait for the command model (refactor9 §6.2) and are not checked. EXCLUDED code
+   (vendored engine drivers, NVDA's sonic, generated Unicode data) and tests/ are not renamed.
+2. A name that implements or overrides someone else's interface keeps that name:
+   - a method or field whose name a base class defines, when the guard can read that base: a class
+     of the add-on named in the class statement (a Protocol or ABC of the core, a vendored driver
+     class, driver.Voice). The parameters of such a method mirror the base as well;
+   - a name from an interface the guard cannot read (NVDA, the standard library, a stored setting
+     id) is listed in INTERFACE_NAMES with the interface it mirrors.
+   typing.override cannot be the marker yet: see test_no_module_imports_typing_override.
+3. Config keys and driver setting ids are strings, not names: renaming one needs a config
+   migration, so they stay as stored.
+
+Every name a module binds is checked except imports: functions, methods, classes, parameters
+(lambdas included), class and dataclass fields, attributes set on self, module variables and
+local variables. TRANSITIONAL_47B lists the host-layer names that break the rule until phase 47b
+renames them or marks them as interface names; TRANSITIONAL_47C the plugin contract driver.Voice
+and VoiceFacade, until phase 47c.
+"""
+
+import ast
+import re
+from collections.abc import Iterator
+from dataclasses import dataclass
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+ADDON = ROOT / "addon"
+SYNTH = "synthDrivers/WorldVoice/"
+
+CORE = tuple(
+	SYNTH + path
+	for path in (
+		"runtime/",
+		"unicodeScripts/",
+		"text/",
+		"languageDetection/",
+		"pipeline/",
+		"voices/",
+		"locales.py",
+		"numberLanguage.py",
+		"bringup.py",
+		"speechCommands.py",
+	)
+)
+HOST = (
+	SYNTH + "bridge/",
+	SYNTH + "driver/",
+	SYNTH + "ui/",
+	SYNTH + "__init__.py",
+	"globalPlugins/WorldVoice/",
+	"installTasks.py",
+	"generics/",
+)
+PENDING = (SYNTH + "engineRegistry/", SYNTH + "workspace.py")
+EXCLUDED = re.compile(
+	r"synthDrivers/WorldVoice/(driver/[^/]+/driver/|driver/sonic/|unicodeScripts/\w+_data\.py$)",
+)
+
+SNAKE_CASE = re.compile(r"_*[a-z][a-z0-9_]*")
+MIXED_CASE = re.compile(r"_*(script_|event_|_get_|_set_)?[a-z][a-zA-Z0-9]*")
+CAP_WORDS = re.compile(r"_*[A-Z][a-zA-Z0-9]*")
+UPPER_CASE = re.compile(r"_*[A-Z][A-Z0-9_]*")
+
+# Names from interfaces outside the add-on: {module path: {qualified name: the interface}}.
+INTERFACE_NAMES = {
+	SYNTH + "runtime/models.py": {
+		"VoiceSnapshot.rateBoost": "the voice setting id rateBoost (runtime/voiceSettings.VOICE_PARAMETERS), "
+		"stored in nvda.ini and NVDA's SynthDriver setting of that name",
+	},
+	SYNTH + "runtime/segmentHost.py": {
+		"LeasedPlayer.feed.<locals>.onDone": "NVDA nvwave.WavePlayer.feed(data, size=None, onDone=None), "
+		"which engine wrappers call by keyword",
+	},
+	SYNTH + "speechCommands.py": {
+		"WVLangChangeCommand.isDefault": "NVDA speech.commands.SynthParamCommand.isDefault, which "
+		"ParamChangeTracker.update reads (speech/manager.py)",
+	},
+}
+
+
+# Core names that phase 47a renames to snake_case; empty at the end of the phase.
+TRANSITIONAL_47A: dict[str, set[str]] = {
+	"synthDrivers/WorldVoice/languageDetection/detector.py": {
+		"LanguageDetector.__init__.<locals>.availableLanguages",
+		"LanguageDetector.add_detected_language_commands.<locals>.curLang",
+		"LanguageDetector.add_detected_language_commands.<locals>.defaultLang",
+		"LanguageDetector.add_detected_language_commands.<locals>.speechSequence",
+		"LanguageDetector.add_detected_language_commands.<locals>.targetLang",
+		"LanguageDetector.add_detected_language_commands.<locals>.tmpLang",
+		"LanguageDetector.availableLanguages",
+	},
+	"synthDrivers/WorldVoice/pipeline/breaks.py": {
+		"_merge_edge_breaks.<locals>.speechSequence",
+		"_plain_breaks.<locals>.speechSequence",
+	},
+	"synthDrivers/WorldVoice/pipeline/items.py": {
+		"_insert_item_breaks.<locals>.speechSequence",
+		"item_wait_factor.<locals>.speechSequence",
+	},
+	"synthDrivers/WorldVoice/pipeline/languageCommands.py": {
+		"deduplicate_language_command.<locals>.speechSequence",
+		"inject_langchange_reorder.<locals>.speechSequence",
+		"lang_cmd_to_voice.<locals>.speechSequence",
+		"remove_language_command.<locals>.speechSequence",
+	},
+	"synthDrivers/WorldVoice/pipeline/numberStages.py": {
+		"_inject_item_numbers.<locals>.speechSequence",
+		"_insert_number_breaks.<locals>.speechSequence",
+		"_remove_space.<locals>.speechSequence",
+		"_split_numbers.<locals>.speechSequence",
+		"_spoken_later.<locals>.speechSequence",
+		"detect_with_number_language.<locals>.speechSequence",
+		"inject_numbers.<locals>.speechSequence",
+		"number_wait_factor.<locals>.speechSequence",
+		"remove_thousands_separators.<locals>.speechSequence",
+		"wrap_numbers_for_detection.<locals>.speechSequence",
+	},
+	"synthDrivers/WorldVoice/pipeline/punctuation.py": {
+		"_punctuation_pauses.<locals>.speechSequence",
+		"inject_punctuation_pause.<locals>.speechSequence",
+	},
+	"synthDrivers/WorldVoice/pipeline/registry.py": {
+		"_run_logged.<locals>.speechSequence",
+		"_stage_handler.<locals>.handler.<locals>.speechSequence",
+		"apply_speech_dictionaries.<locals>.speechSequence",
+		"listable.<locals>.wrapper.<locals>.speechSequence",
+		"speech_viewer.<locals>.speechSequence",
+	},
+	"synthDrivers/WorldVoice/pipeline/sayAll.py": {
+		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeech",
+		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeechWithSayAllBreak",
+		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeechWithSayAllBreak.<locals>.waitFactor",
+	},
+	"synthDrivers/WorldVoice/pipeline/unspaced.py": {
+		"inject_unspaced_script_space_pause.<locals>.speechSequence",
+	},
+	"synthDrivers/WorldVoice/runtime/segmentHost.py": {
+		"LeasedPlayer._callback.<locals>.onDone",
+		"LeasedPlayer._feed_admitted.<locals>.onDone",
+	},
+	"synthDrivers/WorldVoice/voices/manager.py": {
+		"VoiceManager.__init__.<locals>.taskManager",
+		"VoiceManager._createVoiceInstance",
+		"VoiceManager._createVoiceInstance.<locals>.voiceInstance",
+		"VoiceManager._createVoiceInstance.<locals>.voiceName",
+		"VoiceManager._defaultVoiceInstance",
+		"VoiceManager._getConfiguredVoiceNameForLanguage",
+		"VoiceManager._getDefaultVoiceSpec",
+		"VoiceManager._instanceCache",
+		"VoiceManager._setVoiceDatas",
+		"VoiceManager.allLanguages",
+		"VoiceManager.beginVoiceSettingsEdit",
+		"VoiceManager.defaultVoiceInstance",
+		"VoiceManager.defaultVoiceName",
+		"VoiceManager.getVoiceCapabilities",
+		"VoiceManager.getVoiceInstance",
+		"VoiceManager.getVoiceInstance.<locals>.voiceName",
+		"VoiceManager.getVoiceLocaleForLanguage",
+		"VoiceManager.getVoiceNameForLanguage",
+		"VoiceManager.getVoiceSpec",
+		"VoiceManager.getVoiceVariants",
+		"VoiceManager.localeToVoicesMap",
+		"VoiceManager.localesToNamesMap",
+		"VoiceManager.onKeepEngineConsistent",
+		"VoiceManager.onKeepMainLocaleVoiceConsistent",
+		"VoiceManager.onVoiceParameterConsistent",
+		"VoiceManager.onVoiceParameterConsistent.<locals>.baseInstance",
+		"VoiceManager.previewVoiceParameterConsistent",
+		"VoiceManager.previewVoiceParameterConsistent.<locals>.baseInstance",
+		"VoiceManager.taskManager",
+		"VoiceManager.voiceInfos",
+	},
+}
+
+# Host-layer names that phase 47b renames to mixedCase or marks as interface names.
+TRANSITIONAL_47B: dict[str, set[str]] = {
+	"generics/coreArchive.py": {
+		"extract_core_archive",
+		"extract_core_archive.<locals>.archive_path",
+		"extract_core_archive.<locals>.bad_member",
+		"extract_core_archive.<locals>.core_file",
+		"extract_core_archive.<locals>.workspace_path",
+	},
+	"globalPlugins/WorldVoice/__init__.py": {
+		"GlobalPlugin.check_log_record",
+		"GlobalPlugin.disable_log_record",
+		"GlobalPlugin.enable_log_record",
+		"GlobalPlugin.onFileImport.<locals>.core_zip_path",
+		"GlobalPlugin.popup_SpeechSettingsDialog",
+		"GlobalPlugin.script_popup_SpeechSettingsDialog",
+		"GlobalPlugin.script_switch_log_record",
+		"GlobalPlugin.submenu_WorldVoice",
+		"GlobalPlugin.submenu_item",
+	},
+	"globalPlugins/WorldVoice/panels/base.py": {
+		"BaseSettingsPanel._write_settings",
+		"_as_bool",
+	},
+	"globalPlugins/WorldVoice/panels/detection.py": {
+		"UnicodeDetectionSettingsPanel._add_script_choice",
+		"UnicodeDetectionSettingsPanel.makeSettings.<locals>.DetectLanguageTimingLabel",
+	},
+	"globalPlugins/WorldVoice/panels/engine.py": {
+		"SpeechEngineSettingsPanel.makeSettings.<locals>.group_sizer",
+	},
+	"globalPlugins/WorldVoice/panels/log.py": {
+		"LogSettingsPanel._enable_checkbox",
+		"LogSettingsPanel.makeSettings.<locals>.group_sizer",
+		"LogSettingsPanel.onSave.<locals>.enabled_after",
+		"LogSettingsPanel.onSave.<locals>.enabled_before",
+	},
+	"globalPlugins/WorldVoice/panels/role.py": {
+		"SpeechRoleSettingsPanel.makeSettings.<locals>.set_main_voice",
+		"got_error_callback",
+	},
+	"globalPlugins/WorldVoice/pipelineLog.py": {
+		"PipelineLogService.__init__.<locals>.conf_provider",
+		"PipelineLogService._conf_provider",
+		"ask_disable_on_start",
+		"ask_export",
+		"confirm_enable",
+		"confirm_enable.<locals>.allow_cancel",
+		"export_with_dialog",
+		"export_with_dialog.<locals>.pipeline_log_file",
+		"pipeline_log",
+	},
+	"globalPlugins/WorldVoice/rolePresenter.py": {
+		"RolePanelPresenter.__init__.<locals>.set_main_voice",
+		"RolePanelPresenter.__init__.<locals>.speech_section",
+		"RolePanelPresenter._before_parameter_preview",
+		"RolePanelPresenter._main_parameters",
+		"RolePanelPresenter._read_flags",
+		"RolePanelPresenter._set_main_voice",
+		"RolePanelPresenter._speech_section",
+		"RolePanelPresenter.keep_engine",
+		"RolePanelPresenter.keep_parameters",
+		"RolePanelPresenter.keep_voice",
+		"RolePanelPresenter.select_voice",
+		"RolePanelPresenter.selected_voice",
+		"RolePanelPresenter.set_engine_consistency",
+		"RolePanelPresenter.set_parameter",
+		"RolePanelPresenter.set_parameter_consistency",
+		"RolePanelPresenter.set_variant",
+		"RolePanelPresenter.set_voice_consistency",
+	},
+	"globalPlugins/WorldVoice/utils.py": {
+		"guard_errors",
+	},
+	"installTasks.py": {
+		"_extract_core_archive",
+		"_extract_core_archive.<locals>.archive_path",
+		"_extract_core_archive.<locals>.workspace_path",
+		"_load_by_path",
+		"_load_core_archive",
+		"_workspace_path",
+		"onInstall.<locals>.archive_path",
+		"onInstall.<locals>.core_dir",
+		"onInstall.<locals>.core_zip_paths",
+		"onInstall.<locals>.workspace_path",
+	},
+	"synthDrivers/WorldVoice/__init__.py": {
+		"SynthDriver._apply_pipeline_settings",
+		"SynthDriver._detect_languages",
+		"SynthDriver._driver_settings",
+		"SynthDriver._initialize.<locals>.shutdown_tasks",
+		"SynthDriver._is_stored_number_language",
+		"SynthDriver._number_language",
+		"SynthDriver._on_detection_settings",
+		"SynthDriver._pipeline_driver_setting",
+		"SynthDriver._set_voice_parameter",
+		"SynthDriver.add_detected_language_commands",
+		"SynthDriver.refresh_language_detection",
+		"SynthDriver.speech_context",
+		"SynthDriver.voice_manager",
+		"base_dir",
+	},
+	"synthDrivers/WorldVoice/bridge/commands.py": {
+		"normalize_legacy_commands",
+	},
+	"synthDrivers/WorldVoice/bridge/completionPolicies.py": {
+		"CompletionPolicy.__init__.<locals>.force_unverified_drain",
+		"CompletionPolicy.__init__.<locals>.nvda_version",
+		"CompletionPolicy.audio_mode",
+		"CompletionPolicy.audio_mode.<locals>.use_wasapi",
+		"CompletionPolicy.audio_mode.<locals>.voice_class",
+		"CompletionPolicy.contract_for",
+		"CompletionPolicy.contract_for.<locals>.audio_mode",
+		"CompletionPolicy.contract_for.<locals>.nvda_version",
+		"CompletionPolicy.contract_for.<locals>.voice_class",
+		"CompletionPolicy.drain_support",
+		"CompletionPolicy.drain_support.<locals>.audio_mode",
+		"CompletionPolicy.drain_support.<locals>.module_name",
+		"CompletionPolicy.drain_support.<locals>.nvda_version",
+		"CompletionPolicy.drain_support.<locals>.voice_class",
+		"CompletionPolicy.force_unverified_drain",
+		"CompletionPolicy.nvda_version",
+		"CompletionPolicy.select.<locals>.audio_mode",
+		"CompletionPolicy.select.<locals>.voice_class",
+	},
+	"synthDrivers/WorldVoice/bridge/engineAdapter.py": {
+		"LegacyEngineAdapter.__init__.<locals>.index_ledger",
+		"LegacyEngineAdapter.__init__.<locals>.resolve_voice",
+		"LegacyEngineAdapter.__init__.<locals>.voice_class",
+		"LegacyEngineAdapter._completion_configured",
+		"LegacyEngineAdapter._index_ledger",
+		"LegacyEngineAdapter._resolve_voice",
+		"LegacyEngineAdapter._segment_events",
+		"LegacyEngineAdapter._source_id",
+		"LegacyEngineAdapter._voice_class",
+		"LegacyEngineAdapter.configure_completion",
+		"LegacyEngineAdapter.configure_segment_events",
+		"LegacyEngineAdapter.finish_segment",
+		"LegacyEngineAdapter.list_voices",
+		"LegacyEngineAdapter.list_voices.<locals>.voice_id",
+		"LegacyEngineAdapter.notification_source",
+		"LegacyEngineAdapter.speak.<locals>.on_event",
+		"_speak_plain",
+		"_speak_plain.<locals>.on_event",
+		"_speak_segment",
+		"_speak_segment.<locals>.on_event",
+	},
+	"synthDrivers/WorldVoice/bridge/indexCodec.py": {
+		"encode_segment",
+	},
+	"synthDrivers/WorldVoice/bridge/indexLedger.py": {
+		"IndexAllocation.end_index",
+		"IndexAllocation.wire_indexes",
+		"IndexLedger._pending_indexes",
+		"IndexLedger._pending_indexes.<locals>.source_id",
+		"IndexLedger._remove_indexes",
+		"IndexLedger._remove_indexes.<locals>.keep_terminal",
+		"IndexLedger.bind.<locals>.index_range",
+		"IndexLedger.bind.<locals>.source_id",
+		"IndexLedger.prepare.<locals>.original_indexes",
+		"IndexLedger.prepare.<locals>.segment_id",
+		"IndexLedger.prepare.<locals>.source_id",
+		"IndexLedger.receive_index",
+		"IndexLedger.receive_index.<locals>.binding_token",
+		"IndexLedger.receive_index.<locals>.source_id",
+		"IndexLedger.receive_index.<locals>.wire_index",
+		"IndexLedger.receive_segment_event",
+		"IndexLedger.receive_segment_event.<locals>.binding_token",
+		"IndexLedger.retire_segment",
+		"IndexLedger.retire_segment.<locals>.segment_id",
+		"IndexLedger.retire_segment.<locals>.source_id",
+		"IndexLedger.retire_source",
+		"IndexLedger.retire_source.<locals>.source_id",
+		"IndexLedger.unbind.<locals>.source_id",
+		"_Binding.source_id",
+		"_Segment.drain_seen",
+		"_Segment.end_seen",
+		"_Segment.segment_id",
+		"_Source.next_index",
+		"_find_start",
+	},
+	"synthDrivers/WorldVoice/bridge/nvdaEvents.py": {
+		"NvdaEventBridge.__init__.<locals>.done_event",
+		"NvdaEventBridge.__init__.<locals>.get_synth",
+		"NvdaEventBridge.__init__.<locals>.index_event",
+		"NvdaEventBridge.__init__.<locals>.index_ledger",
+		"NvdaEventBridge._batch_handler",
+		"NvdaEventBridge._binding_is_active",
+		"NvdaEventBridge._can_notify",
+		"NvdaEventBridge._done_event",
+		"NvdaEventBridge._index_event",
+		"NvdaEventBridge._index_ledger",
+		"NvdaEventBridge._on_done",
+		"NvdaEventBridge._on_index",
+		"NvdaEventBridge._receive.<locals>.batch_handler",
+		"NvdaEventBridge._receive.<locals>.load_events",
+		"NvdaEventBridge.bind.<locals>.cleanup_error",
+		"NvdaEventBridge.bind.<locals>.ledger_token",
+		"NvdaEventBridge.bind.<locals>.source_id",
+		"NvdaEventBridge.close.<locals>.first_error",
+		"NvdaEventBridge.done_speaking",
+		"NvdaEventBridge.index_reached",
+		"NvdaEventBridge.segment_sink",
+		"NvdaEventBridge.segment_sink.<locals>.batch_handler",
+		"NvdaEventBridge.segment_sink.<locals>.receive.<locals>.load_events",
+		"NvdaEventBridge.start.<locals>.batch_handler",
+		"NvdaEventBridge.start.<locals>.cleanup_error",
+		"NvdaEventBridge.unbind.<locals>.source_id",
+		"_Binding.ledger_token",
+		"_Binding.source_id",
+		"_BindingEvents.__new__.<locals>.is_active",
+	},
+	"synthDrivers/WorldVoice/driver/Cerence/__init__.py": {
+		"SynthDriver._begin_record",
+		"SynthDriver._callback_admission",
+		"SynthDriver._close_admission",
+		"SynthDriver._confirm_native_quiescence",
+		"SynthDriver._drop_queued_speech",
+		"SynthDriver._feed_callback",
+		"SynthDriver._finish_termination",
+		"SynthDriver._guard_installed",
+		"SynthDriver._idle_player",
+		"SynthDriver._initialize_native",
+		"SynthDriver._install_guard",
+		"SynthDriver._install_guard.<locals>.restoration_errors",
+		"SynthDriver._is_reentrant_termination",
+		"SynthDriver._player_operation",
+		"SynthDriver._real_player",
+		"SynthDriver._record_valid",
+		"SynthDriver._reset_callback_audio",
+		"SynthDriver._retire_player_operation",
+		"SynthDriver._retire_record",
+		"SynthDriver._run_native",
+		"SynthDriver._stop_player",
+		"SynthDriver.get_segment_drain_support",
+		"SynthDriver.get_segment_drain_support.<locals>.audio_mode",
+		"SynthDriver.get_segment_drain_support.<locals>.nvda_version",
+		"SynthDriver.speak_segment",
+		"SynthDriver.speak_segment.<locals>.on_event",
+		"_ContextualCerenceCallback._process.<locals>.message_type",
+		"_GuardedPlayer.__init__.<locals>.real_player",
+		"_SilenceGate._inside_native_call",
+		"_SilenceGate.is_set",
+		"_SilenceGate.token_cancelled",
+		"_strip_bytes_repr",
+	},
+	"synthDrivers/WorldVoice/driver/Espeak/__init__.py": {
+		"SynthDriver._beginSpeech.<locals>.index_callback",
+		"SynthDriver._beginSpeech.<locals>.owner_ref",
+		"SynthDriver.get_segment_drain_support",
+		"SynthDriver.get_segment_drain_support.<locals>.audio_mode",
+		"SynthDriver.get_segment_drain_support.<locals>.nvda_version",
+		"SynthDriver.speak_segment",
+		"SynthDriver.speak_segment.<locals>.on_event",
+		"_EspeakPort.mark_not_speaking",
+		"_EspeakPort.run_when_done",
+		"_EspeakPort.set_index_callback",
+		"_EspeakPort.stop_player",
+		"_SegmentNative.espeak_Synth",
+		"_SegmentNative.espeak_ng_Cancel",
+	},
+	"synthDrivers/WorldVoice/driver/OneCore/__init__.py": {
+		"SynthDriver._callback.<locals>.control_failed",
+		"SynthDriver._checkSegmentAdmission.<locals>.control_error",
+		"SynthDriver._feedSegment.<locals>.on_done",
+		"SynthDriver._segmentPlayback.<locals>.bytes_per_sec",
+		"SynthDriver._segmentPlayback.<locals>.data_len",
+		"SynthDriver.get_segment_drain_support",
+		"SynthDriver.get_segment_drain_support.<locals>.audio_mode",
+		"SynthDriver.get_segment_drain_support.<locals>.nvda_version",
+		"SynthDriver.speak_segment",
+		"SynthDriver.speak_segment.<locals>.on_event",
+		"_DetachableCallback.__call__.<locals>.driver_ref",
+	},
+	"synthDrivers/WorldVoice/driver/RHVoice/__init__.py": {
+		"SynthDriver.__init__.<locals>.get_player",
+		"SynthDriver.__init__.<locals>.original_get_player",
+		"SynthDriver._native_callback",
+		"SynthDriver._native_callback.<locals>.is_done",
+		"SynthDriver.get_segment_drain_support",
+		"SynthDriver.get_segment_drain_support.<locals>.audio_mode",
+		"SynthDriver.get_segment_drain_support.<locals>.nvda_version",
+		"SynthDriver.speak_segment",
+		"SynthDriver.speak_segment.<locals>.on_event",
+		"_NativeCallback.__init__.<locals>.is_done",
+		"_NativeCallback._is_done",
+		"_NativeLibrary.RHVoice_delete_message",
+		"_NativeLibrary.RHVoice_new_message",
+		"_NativeLibrary.RHVoice_speak",
+		"_RHVoiceInner.cancel_flag",
+		"_RHVoiceInner.rate_boost",
+		"_RHVoiceInner.tts_engine",
+		"_RHVoiceInner.tts_queue",
+		"_RHVoiceInner.tts_thread",
+		"_WavePlayer._callback.<locals>.index_done",
+	},
+	"synthDrivers/WorldVoice/driver/SAPI5/__init__.py": {
+		"SynthDriver._speakThread.<locals>.control_error",
+		"SynthDriver.get_segment_drain_support",
+		"SynthDriver.get_segment_drain_support.<locals>.audio_mode",
+		"SynthDriver.get_segment_drain_support.<locals>.nvda_version",
+		"SynthDriver.speak_segment",
+		"SynthDriver.speak_segment.<locals>.on_event",
+		"_Sapi5Strategy.drain.<locals>.control_error",
+		"_SapiRequest.index_lock",
+		"_SegmentAudioStream.ISequentialStream_RemoteWrite",
+		"_SegmentSapiSink.Bookmark",
+		"_SegmentSapiSink.EndStream",
+		"_SegmentSapiSink.ISpNotifySink_Notify",
+		"_SegmentSapiSink.StartStream",
+		"_purge_flags",
+	},
+	"synthDrivers/WorldVoice/driver/VE/__init__.py": {
+		"SynthDriver._begin_record",
+		"SynthDriver._callback_admission",
+		"SynthDriver._close_admission",
+		"SynthDriver._confirm_native_quiescence",
+		"SynthDriver._drop_queued_speech",
+		"SynthDriver._feed_callback",
+		"SynthDriver._finish_termination",
+		"SynthDriver._guard_installed",
+		"SynthDriver._idle_player",
+		"SynthDriver._initialize_native",
+		"SynthDriver._install_guard",
+		"SynthDriver._install_guard.<locals>.restoration_errors",
+		"SynthDriver._is_reentrant_termination",
+		"SynthDriver._player_operation",
+		"SynthDriver._real_player",
+		"SynthDriver._record_valid",
+		"SynthDriver._reset_callback_audio",
+		"SynthDriver._retire_player_operation",
+		"SynthDriver._retire_record",
+		"SynthDriver._run_native",
+		"SynthDriver._stop_player",
+		"SynthDriver.get_segment_drain_support",
+		"SynthDriver.get_segment_drain_support.<locals>.audio_mode",
+		"SynthDriver.get_segment_drain_support.<locals>.nvda_version",
+		"SynthDriver.speak_segment",
+		"SynthDriver.speak_segment.<locals>.on_event",
+		"_ContextualVECallback._process.<locals>.message_type",
+		"_GuardedPlayer.__init__.<locals>.real_player",
+		"_SilenceGate._inside_native_call",
+		"_SilenceGate.is_set",
+		"_SilenceGate.token_cancelled",
+		"_strip_bytes_repr",
+	},
+	"synthDrivers/WorldVoice/ui/controls.py": {
+		"apply_dependencies",
+		"apply_dependencies.<locals>.control_of",
+		"control_row",
+		"control_value",
+		"make_control",
+		"read_control",
+		"read_control.<locals>.driver_options",
+	},
+	"synthDrivers/WorldVoice/ui/panelLayout.py": {
+		"choice_index",
+		"choice_values",
+		"controller_keys",
+		"creation_followers",
+		"creation_followers.<locals>.driver_id",
+		"dependent_states",
+		"driver_attribute",
+		"from_display",
+		"label_text",
+		"panel_specs",
+		"pipeline_attribute",
+		"selected_value",
+		"to_display",
+		"voice_attribute",
+	},
+}
+
+# The plugin contract, which phase 47c renames together with Neural (refactor9 §6.1).
+TRANSITIONAL_47C: dict[str, set[str]] = {
+	"synthDrivers/WorldVoice/bridge/voiceFacade.py": {
+		"VoiceFacade.update_settings",
+	},
+	"synthDrivers/WorldVoice/driver/__init__.py": {
+		"Voice.create_core",
+		"Voice.destroy_core",
+		"Voice.drain_profile",
+		"Voice.extra_capabilities",
+		"Voice.synth_driver_class",
+	},
+}
+
+
+@dataclass(frozen=True)
+class Definition:
+	path: str
+	qualname: str
+	name: str
+	kind: str  # class, function, parameter, field, variable or local
+	line: int
+
+
+def layer(path: str) -> str | None:
+	"""core, host, pending or excluded for a module path relative to addon/; None when unknown."""
+	if EXCLUDED.match(path):
+		return "excluded"
+	for name, prefixes in (("pending", PENDING), ("core", CORE), ("host", HOST)):
+		if path.startswith(prefixes):
+			return name
+	return None
+
+
+def follows_layer(definition: Definition, module_layer: str) -> bool:
+	name = definition.name
+	if name.startswith("__") and name.endswith("__") or not name.strip("_"):
+		return True
+	if definition.kind == "class":
+		return bool(CAP_WORDS.fullmatch(name))
+	if definition.kind in ("field", "variable") and (UPPER_CASE.fullmatch(name) or CAP_WORDS.fullmatch(name)):
+		return True
+	return bool((SNAKE_CASE if module_layer == "core" else MIXED_CASE).fullmatch(name))
+
+
+def _module_name(path: str) -> str:
+	parts = path.removesuffix(".py").split("/")
+	return ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
+
+
+def _arguments(arguments: ast.arguments) -> list[ast.arg]:
+	extra = [arg for arg in (arguments.vararg, arguments.kwarg) if arg is not None]
+	return [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs, *extra]
+
+
+def _self_fields(node: ast.FunctionDef | ast.AsyncFunctionDef) -> Iterator[ast.Attribute]:
+	"""The attributes a method sets on its first parameter (self, or cls in a class method)."""
+	arguments = node.args.posonlyargs + node.args.args
+	if not arguments or any(getattr(item, "id", None) == "staticmethod" for item in node.decorator_list):
+		return
+	for target in ast.walk(node):
+		if (
+			isinstance(target, ast.Attribute)
+			and isinstance(target.ctx, ast.Store)
+			and isinstance(target.value, ast.Name)
+			and target.value.id == arguments[0].arg
+		):
+			yield target
+
+
+def _class_members(node: ast.ClassDef) -> set[str]:
+	"""The method and field names a class defines itself."""
+	members = set()
+	pending = list(node.body)
+	while pending:
+		item = pending.pop()
+		if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+			members.add(item.name)
+			members |= {target.attr for target in _self_fields(item)}
+		elif isinstance(item, ast.Name) and isinstance(item.ctx, ast.Store):
+			members.add(item.id)
+		elif not isinstance(item, ast.ClassDef):
+			pending += ast.iter_child_nodes(item)
+	return members
+
+
+class _Module:
+	"""One parsed module: what its imported names refer to, and its top-level classes."""
+
+	def __init__(self, path: str, source: str):
+		self.path = path
+		self.tree = ast.parse(source)
+		package = _module_name(path).split(".")
+		if not path.endswith("/__init__.py"):
+			package = package[:-1]
+		# name -> (module, attribute), attribute None for an imported module.
+		self.imports: dict[str, tuple[str, str | None]] = {}
+		for node in ast.walk(self.tree):
+			if isinstance(node, ast.ImportFrom):
+				source_module = node.module or ""
+				if node.level:
+					parent = package[: len(package) - node.level + 1]
+					source_module = ".".join([*parent, *filter(None, [node.module])])
+				for alias in node.names:
+					self.imports[alias.asname or alias.name] = (source_module, alias.name)
+			elif isinstance(node, ast.Import):
+				for alias in node.names:
+					bound = alias.asname or alias.name.partition(".")[0]
+					self.imports[bound] = (alias.name if alias.asname else bound, None)
+		self.classes = {node.name: node for node in self.tree.body if isinstance(node, ast.ClassDef)}
+
+
+class _Index:
+	"""Modules by dotted name, to read the base classes that a checked class names."""
+
+	def __init__(self, sources: dict[str, str]):
+		self.modules = {_module_name(path): _Module(path, source) for path, source in sources.items()}
+		self._owners = {
+			id(node): module for module in self.modules.values() for node in module.classes.values()
+		}
+
+	@classmethod
+	def of_addon(cls) -> "_Index":
+		files = sorted(ADDON.rglob("*.py"))
+		return cls({file.relative_to(ADDON).as_posix(): file.read_text(encoding="utf-8") for file in files})
+
+	def _lookup(self, module_name: str, name: str, depth: int = 0) -> ast.ClassDef | None:
+		"""The class module_name defines or imports as name, following re-exports."""
+		module = self.modules.get(module_name)
+		if module is None or depth > 5:
+			return None
+		if name in module.classes:
+			return module.classes[name]
+		source, attribute = module.imports.get(name, ("", None))
+		return None if attribute is None else self._lookup(source, attribute, depth + 1)
+
+	def _resolve(self, module: _Module, base: ast.expr, line: int) -> ast.ClassDef | None:
+		"""The class base names in a class statement at line of module (class X(X) names the import)."""
+		if isinstance(base, ast.Subscript):
+			base = base.value
+		if isinstance(base, ast.Name):
+			if base.id in module.classes and module.classes[base.id].lineno < line:
+				return module.classes[base.id]
+			source, attribute = module.imports.get(base.id, ("", None))
+			return None if attribute is None else self._lookup(source, attribute)
+		if (
+			isinstance(base, ast.Attribute)
+			and isinstance(base.value, ast.Name)
+			and base.value.id in module.imports
+		):
+			source, attribute = module.imports[base.value.id]
+			return self._lookup(source if attribute is None else f"{source}.{attribute}", base.attr)
+		return None
+
+	def inherited(self, module: _Module, node: ast.ClassDef) -> frozenset[str]:
+		"""The member names of every base class of node that the index can read, transitively."""
+		names: set[str] = set()
+		pending = [(module, base, node.lineno) for base in node.bases]
+		seen = set()
+		while pending:
+			owner, base, line = pending.pop()
+			found = self._resolve(owner, base, line)
+			if found is None or id(found) in seen:
+				continue
+			seen.add(id(found))
+			names |= _class_members(found)
+			pending += [(self._owners[id(found)], parent, found.lineno) for parent in found.bases]
+		return frozenset(names)
+
+
+class _Walker:
+	"""Each name one module binds, with whether a base class of its class defines it (rule 2)."""
+
+	def __init__(self, index: _Index, module: _Module):
+		self.index = index
+		self.module = module
+		self.found: list[tuple[Definition, bool]] = []
+		self.body(module.tree.body, "", "variable", frozenset(), frozenset())
+
+	def add(self, scope: str, name: str, kind: str, line: int, overrides: bool = False) -> None:
+		self.found.append((Definition(self.module.path, scope + name, name, kind, line), overrides))
+
+	def body(self, nodes, scope, kind, inherited, declared_global):
+		for node in nodes:
+			self.visit(node, scope, kind, inherited, declared_global)
+
+	def visit(self, node, scope, kind, inherited, declared_global):
+		if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+			self.function(node, scope, kind == "field", inherited)
+			return
+		if isinstance(node, ast.ClassDef):
+			self.add(scope, node.name, "class", node.lineno)
+			self.body(
+				node.body,
+				f"{scope}{node.name}.",
+				"field",
+				self.index.inherited(self.module, node),
+				frozenset(),
+			)
+			return
+		if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+			if node.id in declared_global:
+				self.add("", node.id, "variable", node.lineno)
+			else:
+				self.add(scope, node.id, kind, node.lineno, node.id in inherited)
+		elif isinstance(node, ast.ExceptHandler) and node.name:
+			self.add(scope, node.name, kind, node.lineno)
+		elif isinstance(node, ast.Lambda):
+			for argument in _arguments(node.args):
+				self.add(scope, argument.arg, "parameter", argument.lineno)
+		for child in ast.iter_child_nodes(node):
+			self.visit(child, scope, kind, inherited, declared_global)
+
+	def function(self, node, scope, is_method, inherited):
+		overrides = is_method and node.name in inherited
+		self.add(scope, node.name, "function", node.lineno, overrides)
+		inner = f"{scope}{node.name}.<locals>."
+		for argument in _arguments(node.args):
+			self.add(inner, argument.arg, "parameter", argument.lineno, overrides)
+		declared = frozenset(
+			name for child in ast.walk(node) if isinstance(child, ast.Global) for name in child.names
+		)
+		self.body(node.body, inner, "local", frozenset(), declared)
+		if is_method:
+			for target in _self_fields(node):
+				self.add(scope, target.attr, "field", target.lineno, target.attr in inherited)
+
+
+def violations(index: _Index) -> dict[tuple[str, str], Definition]:
+	"""The definitions in checked modules that break their layer's style and override nothing."""
+	found = {}
+	for module in index.modules.values():
+		module_layer = layer(module.path)
+		if module_layer not in ("core", "host"):
+			continue
+		for definition, overrides in _Walker(index, module).found:
+			if not overrides and not follows_layer(definition, module_layer):
+				found.setdefault((definition.path, definition.qualname), definition)
+	return found
+
+
+def _listed(*tables: dict) -> set[tuple[str, str]]:
+	return {(path, name) for table in tables for path, names in table.items() for name in names}
+
+
+@pytest.fixture(scope="module")
+def addon_violations():
+	return violations(_Index.of_addon())
+
+
+def test_every_add_on_module_has_a_layer():
+	paths = sorted(file.relative_to(ADDON).as_posix() for file in ADDON.rglob("*.py"))
+	assert [path for path in paths if layer(path) is None] == []
+
+
+def test_naming_follows_layer(addon_violations):
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47A, TRANSITIONAL_47B, TRANSITIONAL_47C)
+	assert [
+		f"{definition.path}:{definition.line} {definition.qualname}"
+		for key, definition in sorted(addon_violations.items())
+		if key not in listed
+	] == []
+
+
+def test_lists_hold_only_names_that_break_the_rule(addon_violations):
+	# A renamed or removed name must leave the lists, so they only shrink.
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47A, TRANSITIONAL_47B, TRANSITIONAL_47C)
+	assert sorted(listed - set(addon_violations)) == []
+
+
+def test_only_the_host_layer_waits_for_a_rename():
+	assert [path for path in TRANSITIONAL_47B if layer(path) != "host"] == []
+	assert sorted(TRANSITIONAL_47C) == [SYNTH + "bridge/voiceFacade.py", SYNTH + "driver/__init__.py"]
+
+
+def test_no_module_imports_typing_override():
+	# typing.override is new in Python 3.12, and NVDA runs Python 3.11 before 2026.1
+	# (ref/nvda/user_docs/en/changes.md, 2026.1: "NVDA is now built with Python 3.13"). While the
+	# add-on supports an older NVDA, the import would stop the synth from loading there.
+	build_vars = (ROOT / "buildVars.py").read_text(encoding="utf-8")
+	minimum = re.search(r'addon_minimumNVDAVersion="(\d+)\.(\d+)', build_vars)
+	assert minimum
+	if (int(minimum.group(1)), int(minimum.group(2))) >= (2026, 1):
+		pytest.skip("the minimum NVDA version runs Python 3.13")
+	importers = []
+	for file in sorted(ADDON.rglob("*.py")):
+		path = file.relative_to(ADDON).as_posix()
+		if layer(path) == "excluded":
+			continue
+		for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+			if (
+				isinstance(node, ast.ImportFrom)
+				and node.module in ("typing", "typing_extensions")
+				and any(alias.name == "override" for alias in node.names)
+			):
+				importers.append(f"{path}:{node.lineno}")
+	assert importers == []
+
+
+CORE_MODULE = SYNTH + "voices/example.py"
+HOST_MODULE = SYNTH + "bridge/example.py"
+
+
+@pytest.mark.parametrize(
+	("path", "source", "expected"),
+	[
+		(CORE_MODULE, "def getVoice():\n\tpass\n", ["getVoice"]),
+		(CORE_MODULE, "def get_voice(voiceName):\n\tpass\n", ["get_voice.<locals>.voiceName"]),
+		(CORE_MODULE, "class Spec:\n\tvoiceName: str\n", ["Spec.voiceName"]),
+		(CORE_MODULE, "class Spec:\n\tdef __init__(self):\n\t\tself.voiceName = 1\n", ["Spec.voiceName"]),
+		(CORE_MODULE, "def run():\n\tfor voiceName in ():\n\t\tpass\n", ["run.<locals>.voiceName"]),
+		(CORE_MODULE, "speak = lambda speechSequence: None\n", ["speechSequence"]),
+		(
+			CORE_MODULE,
+			"MAX_RATE = 1\nVoiceKey = str\n\n\nclass VoiceSpec:\n\tdef __repr__(self):\n\t\tpass\n",
+			[],
+		),
+		(HOST_MODULE, "def get_voice():\n\tpass\n", ["get_voice"]),
+		(HOST_MODULE, "class Panel:\n\tdef _get_rateBoost(self):\n\t\tpass\n", []),
+		(HOST_MODULE, "class Plugin:\n\tdef script_toggle(self, gesture):\n\t\tpass\n", []),
+		(
+			HOST_MODULE,
+			"import wx\n\n\nclass Panel(wx.Panel):\n\tdef Destroy(self):\n\t\tpass\n",
+			["Panel.Destroy"],
+		),
+	],
+)
+def test_the_guard_reads_each_kind_of_name(path, source, expected):
+	assert [qualname for _path, qualname in violations(_Index({path: source}))] == expected
+
+
+def test_the_guard_lets_an_override_keep_the_base_name():
+	sources = {
+		SYNTH
+		+ "runtime/port.py": "class Port:\n\tdef speak_segment(self, segment_id):\n\t\tself.last_id = 0\n",
+		HOST_MODULE: (
+			"from ..runtime.port import Port\n\n\n"
+			"class Adapter(Port):\n"
+			"\tdef speak_segment(self, segment_id):\n\t\tself.last_id = segment_id\n\n"
+			"\tdef own_name(self):\n\t\tpass\n"
+		),
+	}
+	assert [qualname for _path, qualname in violations(_Index(sources))] == ["Adapter.own_name"]
+
+
+def test_the_guard_reads_the_imported_base_of_a_class_with_its_name():
+	# class SynthDriver(SynthDriver) derives from the imported class, not from itself.
+	source = (
+		"from synthDriverHandler import SynthDriver\n\n\n"
+		"class SynthDriver(SynthDriver):\n"
+		"\tdef own_name(self):\n\t\tpass\n"
+	)
+	found = violations(_Index({HOST_MODULE: source}))
+	assert [qualname for _path, qualname in found] == ["SynthDriver.own_name"]
