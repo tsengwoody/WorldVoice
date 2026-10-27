@@ -1,5 +1,6 @@
 """The [WorldVoice] confspec: its sections, in order, and the owners each one comes from."""
 
+import ast
 from types import SimpleNamespace
 
 from addon_loader import load_definitions
@@ -42,3 +43,14 @@ def test_confspec_sections():
 	}
 	assert spec["voices"] == {"__many__": {"rate": "integer(default=50)"}}
 	assert spec["voices"]["__many__"] is not OWNERS["VOICE_CONFSPEC"]
+
+
+def test_confspec_receives_conf():
+	# The caller passes NVDA's config.conf; the module imports only the sections' owners.
+	tree = ast.parse(CONFSPEC_SOURCE.read_text(encoding="utf-8"))
+	imports = [node for node in ast.walk(tree) if isinstance(node, ast.Import | ast.ImportFrom)]
+	assert [
+		ast.unparse(node) for node in imports if not isinstance(node, ast.ImportFrom) or node.level != 1
+	] == []
+	(function,) = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
+	assert (function.name, [arg.arg for arg in function.args.args]) == ("installConfspec", ["conf"])
