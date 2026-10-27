@@ -218,8 +218,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"_speak_segment.<locals>.on_event",
 	},
 	"synthDrivers/WorldVoice/bridge/nvdaEvents.py": {
-		"NvdaEventBridge.done_speaking",
-		"NvdaEventBridge.index_reached",
 		"_BindingEvents.__new__.<locals>.is_active",
 	},
 	"synthDrivers/WorldVoice/driver/Cerence/__init__.py": {

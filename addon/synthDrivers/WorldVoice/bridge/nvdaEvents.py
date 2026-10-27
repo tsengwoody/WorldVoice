@@ -12,6 +12,7 @@ from ..runtime.models import (
 	PlaybackEvent,
 	SegmentEventSink,
 )
+from ..runtime.scheduler import NotificationOutput
 from .indexLedger import IndexLedger
 
 # Frozen, so one instance can be every binding's default.
@@ -41,7 +42,7 @@ class _BindingEvents(tuple):
 			yield event
 
 
-class NvdaEventBridge:
+class NvdaEventBridge(NotificationOutput):
 	"""Own event subscriptions and resource identities, never request identities.
 
 	The composition owner starts and closes the bridge in lifecycle order.
