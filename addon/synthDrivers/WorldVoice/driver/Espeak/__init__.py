@@ -9,7 +9,7 @@ from synthDrivers.WorldVoice.driver import Voice
 
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentHost
+from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentDrainCore, SegmentHost
 from ...runtime.session import CancellationView
 
 
@@ -112,7 +112,7 @@ class _EspeakStrategy(NativeStrategy):
 		self._driver()._port.stop_player()
 
 
-class SynthDriver(BaseSynthDriver):
+class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	"""Add correlated completion without changing NVDA's synthesis queue."""
 
 	def __init__(self):

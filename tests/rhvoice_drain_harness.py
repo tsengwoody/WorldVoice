@@ -1,6 +1,7 @@
 """Load the installed RHVoice wrapper with real inner code and fake external edges."""
 
 import ctypes
+from abc import ABCMeta
 from dataclasses import dataclass
 from threading import Condition, Event, Thread, current_thread
 from types import SimpleNamespace
@@ -218,7 +219,8 @@ def load_rhvoice(monkeypatch, tmp_path):
 	def load(name, path):
 		return load_source(monkeypatch, name, path)
 
-	class BaseMeta(type):
+	# Like NVDA's baseObject.AutoPropertyType, an ABCMeta.
+	class BaseMeta(ABCMeta):
 		def __new__(meta, name, bases, attrs):
 			result = super().__new__(meta, name, bases, attrs)
 			for key, getter in attrs.items():

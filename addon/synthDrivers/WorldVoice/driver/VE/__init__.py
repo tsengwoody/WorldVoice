@@ -15,7 +15,7 @@ from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.segmentHost import NativeStrategy, SegmentHost
+from ...runtime.segmentHost import NativeStrategy, SegmentDrainCore, SegmentHost
 from ...runtime.session import CancellationView
 from . import driver as base
 from .driver import (
@@ -381,7 +381,7 @@ class _VEStrategy(NativeStrategy):
 				host.reach(record, "idle")
 
 
-class SynthDriver(BaseSynthDriver):
+class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def __init__(self):
 		self._guard_installed = False
 		self._speechStateLock = threading.Condition()

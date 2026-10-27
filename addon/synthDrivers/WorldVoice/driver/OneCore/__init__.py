@@ -13,7 +13,7 @@ from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import NativeStrategy, SegmentHost
+from ...runtime.segmentHost import NativeStrategy, SegmentDrainCore, SegmentHost
 from ...runtime.session import CancellationView
 from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 
@@ -172,7 +172,7 @@ class _OneCoreStrategy(NativeStrategy):
 		host.reach(record, "synced")
 
 
-class SynthDriver(BaseOneCoreSynthDriver):
+class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 	"""Retain terminal callback ownership and drain each correlated utterance."""
 
 	def __init__(self):

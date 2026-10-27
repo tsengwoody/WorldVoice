@@ -1088,3 +1088,35 @@ def test_a_strategy_without_barriers_is_rejected(env):
 
 	with pytest.raises(ValueError, match="barriers"):
 		env.module.SegmentHost("Fake", native(env.module, Barrierless))
+
+
+def test_segment_drain_core_combines_with_an_abcmeta_driver_metaclass(env):
+	# NVDA's SynthDriver has the metaclass baseObject.AutoPropertyType(ABCMeta); a Protocol's
+	# _ProtocolMeta would conflict with it, an ABC does not. The suite's stub drivers are plain classes.
+	from abc import ABCMeta
+
+	core = env.module.SegmentDrainCore
+	assert type(core) is ABCMeta
+
+	class DriverMeta(ABCMeta):
+		pass
+
+	class Driver(metaclass=DriverMeta):
+		pass
+
+	class Wrapper(Driver, core):
+		def get_segment_drain_support(self, *, nvda_version, audio_mode):
+			return None
+
+		def speak_segment(self, commands, token, *, context, on_event):
+			return None
+
+	assert type(Wrapper) is DriverMeta
+	Wrapper()
+
+	class Incomplete(Driver, core):
+		def speak_segment(self, commands, token, *, context, on_event):
+			return None
+
+	with pytest.raises(TypeError):
+		Incomplete()

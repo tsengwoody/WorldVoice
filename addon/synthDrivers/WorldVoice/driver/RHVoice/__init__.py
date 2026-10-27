@@ -9,7 +9,7 @@ from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
 from ...runtime.session import CancellationView
 from . import driver as rhvoice
 
@@ -300,7 +300,7 @@ class _RHVoiceStrategy(NativeStrategy):
 		self._driver()._inner.player.stop()
 
 
-class SynthDriver(rhvoice.SynthDriver):
+class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 	"""Retain RHVoice's single worker and observe its actual completion barriers."""
 
 	def __init__(self):

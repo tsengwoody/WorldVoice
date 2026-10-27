@@ -11,7 +11,7 @@ from synthDrivers.WorldVoice.driver import Voice
 from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
 from ...runtime.session import CancellationView
 
 # Ordinary requests keep the parent's queue-empty idle, so they prove no idle.
@@ -349,7 +349,7 @@ class _SegmentSapiSink(sapi5.SapiSink):
 			driver._threadCond.notify()
 
 
-class SynthDriver(BaseSynthDriver):
+class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	"""Correlate each WASAPI request with its final real idle barrier."""
 
 	def __init__(self, *args, **kwargs):

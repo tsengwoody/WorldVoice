@@ -22,7 +22,7 @@ from threading import Condition, Event, RLock, Thread, local
 
 from ._segmentLifecycle import ProducerLease, SegmentLifecycle, SegmentOperation
 from .models import EventKind, PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
-from .playbackWork import PlaybackWork
+from .playbackWork import DrainSupport, PlaybackWork
 from .session import CancellationView
 
 log = logging.getLogger(__name__)
@@ -119,6 +119,32 @@ class NativeStrategy(ABC):
 		instead of raising; it may be called more than once for the same record.
 		The host checks the barriers afterwards.
 		"""
+
+
+class SegmentDrainCore(ABC):
+	"""The two entries of an engine core whose Voice declares a drain profile.
+
+	The bridge looks both up by name on the opened core: the completion policy asks
+	get_segment_drain_support before any segment starts, and the engine adapter speaks each
+	segment through speak_segment. A wrapper's SynthDriver names this class as its last base, so
+	the names are one interface. It is an ABC, not a typing.Protocol: NVDA's SynthDriver has the
+	metaclass baseObject.AutoPropertyType, an ABCMeta, which a Protocol's metaclass conflicts with.
+	"""
+
+	@abstractmethod
+	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
+		"""Decide whether this opened core reports segment drain under this NVDA and audio mode."""
+
+	@abstractmethod
+	def speak_segment(
+		self,
+		commands: SpeechCommands,
+		token: CancellationView,
+		*,
+		context: PlaybackContext,
+		on_event: SegmentEventSink,
+	) -> None:
+		"""Speak one segment and report its drain or failure to on_event."""
 
 
 class SegmentHost:

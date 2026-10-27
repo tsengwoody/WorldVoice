@@ -261,3 +261,14 @@ def test_vocalizer_inner_privates_are_listed_and_exist(engine):
 		and re.search(rf"def {n.name}\(", inner)
 	}
 	assert overridden == overrides
+
+
+def test_every_wrapper_core_declares_the_segment_drain_entries():
+	# The bridge looks both entries up by name; the base makes them one interface, and it comes
+	# last so it never shadows an implementation from another base.
+	for engine in ENGINES:
+		tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+		synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
+		assert ast.unparse(synth.bases[-1]) == "SegmentDrainCore", engine
+		own = {n.name for n in synth.body if isinstance(n, ast.FunctionDef)}
+		assert {"speak_segment", "get_segment_drain_support"} <= own, engine
