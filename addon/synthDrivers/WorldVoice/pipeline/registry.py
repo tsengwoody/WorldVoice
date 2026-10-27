@@ -37,21 +37,21 @@ pl = PipelineLog(Path(__file__).resolve().parents[3] / "log" / "pipeline.csv")
 
 def listable(func):
 	@wraps(func)
-	def wrapper(speechSequence):
-		speechSequence = list(speechSequence)
-		speechSequence = func(speechSequence)
-		speechSequence = list(speechSequence)
-		return speechSequence
+	def wrapper(speech_sequence):
+		speech_sequence = list(speech_sequence)
+		speech_sequence = func(speech_sequence)
+		speech_sequence = list(speech_sequence)
+		return speech_sequence
 
 	return wrapper
 
 
-def speech_viewer(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
-	return list(speechSequence)
+def speech_viewer(speech_sequence, settings: "PipelineSettings", ctx: SpeechContext):
+	return list(speech_sequence)
 
 
-def apply_speech_dictionaries(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
-	for item in speechSequence:
+def apply_speech_dictionaries(speech_sequence, settings: "PipelineSettings", ctx: SpeechContext):
+	for item in speech_sequence:
 		if isinstance(item, str):
 			yield speechDictHandler.processText(item)
 		else:
@@ -84,7 +84,7 @@ class _LogWriter:
 _log_writer = _LogWriter()
 
 
-def _run_logged(label, fn, speechSequence, settings, ctx, switches=None):
+def _run_logged(label, fn, speech_sequence, settings, ctx, switches=None):
 	"""Run one stage, logged under *label* when debugging or recording and any of *switches*
 	(by default the switch named *label*) is on."""
 	debug = config.conf["general"]["loggingLevel"] == "DEBUG"
@@ -93,26 +93,26 @@ def _run_logged(label, fn, speechSequence, settings, ctx, switches=None):
 	recording = read_stored(section, "enable", False)
 	switched_on = any(read_stored(section, key, False) for key in switches or (label,))
 	if not ((debug or recording) and switched_on):
-		return fn(speechSequence, settings, ctx)
+		return fn(speech_sequence, settings, ctx)
 	_id = uuid.uuid4().hex
-	speechSequence = list(speechSequence)
+	speech_sequence = list(speech_sequence)
 	if debug:
-		log.debug(f"speech sequence before {label} pipeline: {speechSequence}")
+		log.debug(f"speech sequence before {label} pipeline: {speech_sequence}")
 	if recording:
-		_log_writer.write(_id, label, "before", speechSequence)
-	speechSequence = list(fn(speechSequence, settings, ctx))
+		_log_writer.write(_id, label, "before", speech_sequence)
+	speech_sequence = list(fn(speech_sequence, settings, ctx))
 	if debug:
-		log.debug(f"speech sequence after {label} pipeline: {speechSequence}")
+		log.debug(f"speech sequence after {label} pipeline: {speech_sequence}")
 	if recording:
-		_log_writer.write(_id, label, "after", speechSequence)
-	return speechSequence
+		_log_writer.write(_id, label, "after", speech_sequence)
+	return speech_sequence
 
 
 def _stage_handler(log_key, fn, switches):
-	def handler(speechSequence):
+	def handler(speech_sequence):
 		ctx = current_context()
 		settings = pipeline_settings.effective(ctx.supports_roles)
-		result = _run_logged(log_key, fn, speechSequence, settings, ctx, switches)
+		result = _run_logged(log_key, fn, speech_sequence, settings, ctx, switches)
 		# Only WorldVoice tells the pauses apart; another synth gets plain breaks.
 		return result if ctx.supports_roles else _plain_breaks(result)
 

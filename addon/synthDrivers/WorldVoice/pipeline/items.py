@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 def item_wait_factor(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
@@ -28,17 +28,17 @@ def item_wait_factor(
 	"""
 	wait_factor = settings.scaled_item_wait()
 	if wait_factor <= 0:
-		yield from speechSequence
+		yield from speech_sequence
 		return
-	yield from _merge_edge_breaks(_insert_item_breaks(speechSequence, BreakCommand(wait_factor)))
+	yield from _merge_edge_breaks(_insert_item_breaks(speech_sequence, BreakCommand(wait_factor)))
 
 
-def _insert_item_breaks(speechSequence: Iterable[SpeechCmd], break_cmd: SpeechCmd) -> Iterator[SpeechCmd]:
-	"""Yield *speechSequence* with *break_cmd* between two adjacent text items, or two text items
+def _insert_item_breaks(speech_sequence: Iterable[SpeechCmd], break_cmd: SpeechCmd) -> Iterator[SpeechCmd]:
+	"""Yield *speech_sequence* with *break_cmd* between two adjacent text items, or two text items
 	that only item edge breaks separate: before those breaks."""
 	previous = _MISSING
 	held: list[SpeechCmd] = []
-	for current in speechSequence:
+	for current in speech_sequence:
 		if isinstance(previous, str) and _is_item_edge_break(current):
 			held.append(current)
 			continue

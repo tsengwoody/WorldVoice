@@ -11,8 +11,8 @@ from .context import SpeechContext
 from .sequence import SpeechCmd
 
 
-def remove_language_command(speechSequence):
-	for command in speechSequence:
+def remove_language_command(speech_sequence):
+	for command in speech_sequence:
 		# Handle language-change commands
 		if isinstance(command, WVLangChangeCommand):
 			continue
@@ -20,7 +20,7 @@ def remove_language_command(speechSequence):
 			yield command
 
 
-def deduplicate_language_command(speechSequence, ctx: SpeechContext, start_language=None):
+def deduplicate_language_command(speech_sequence, ctx: SpeechContext, start_language=None):
 	"""
 	Stream *speech_sequence* and emit only the language-change commands
 	that actually switch to a different voice.
@@ -44,7 +44,7 @@ def deduplicate_language_command(speechSequence, ctx: SpeechContext, start_langu
 		current_language = start_language
 		voice_name = ctx.voice_name_for_language(start_language) or default_name
 
-	for command in speechSequence:
+	for command in speech_sequence:
 		# Handle language-change commands
 		if isinstance(command, (LangChangeCommand, WVLangChangeCommand)):
 			# Skip if the language is actually unchanged
@@ -73,14 +73,14 @@ def deduplicate_language_command(speechSequence, ctx: SpeechContext, start_langu
 
 
 def lang_cmd_to_voice(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	"""
 	Convert each LangChangeCommand / WVLangChangeCommand into a voice key.
 	All other commands pass through unchanged.
 	"""
-	for cmd in speechSequence:
+	for cmd in speech_sequence:
 		if isinstance(cmd, (LangChangeCommand, WVLangChangeCommand)):
 			lang = cmd.lang or ctx.default_voice_language
 			yield SelectVoice(ctx.voice_name_for_language(lang) or ctx.default_voice_name)
@@ -89,7 +89,7 @@ def lang_cmd_to_voice(
 
 
 def inject_langchange_reorder(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
 	Re-order language-change commands so that any LangChangeCommand /
@@ -101,7 +101,7 @@ def inject_langchange_reorder(
 	"""
 	buffer: list[SpeechCmd] = []
 
-	for cmd in speechSequence:
+	for cmd in speech_sequence:
 		if isinstance(cmd, (LangChangeCommand, WVLangChangeCommand)):
 			# 1. put language switch at the *front* of this mini-chunk
 			buffer.insert(0, cmd)

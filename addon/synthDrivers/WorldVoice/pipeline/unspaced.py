@@ -53,18 +53,18 @@ def _pauses_between(text: str, start: int, end: int) -> bool:
 
 
 def inject_unspaced_script_space_pause(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
 	waitfactor = settings.scaled_unspaced_script_space_wait()
 	if waitfactor <= 0:
-		yield from speechSequence
+		yield from speech_sequence
 		return
 
 	pause_cmd = BreakCommand(waitfactor)
 
-	for item in speechSequence:
+	for item in speech_sequence:
 		# non-string commands flow through untouched
 		if not isinstance(item, str):
 			yield item

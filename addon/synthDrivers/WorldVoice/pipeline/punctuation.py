@@ -63,7 +63,7 @@ def _split_punctuation_segments(
 
 
 def inject_punctuation_pause(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
@@ -112,21 +112,21 @@ def inject_punctuation_pause(
 	  Breaks that meet without an edge break are left as they are.
 	"""
 	if not settings.punctuation_pause_enabled:
-		yield from speechSequence
+		yield from speech_sequence
 		return
 
 	# Every character listed counts, a space included: entering one makes each space a pause point.
 	chars = settings.punctuation_pause_characters
 	if not chars:
 		# An empty character class would not compile (see _get_punctuation_regex).
-		yield from speechSequence
+		yield from speech_sequence
 		return
 
-	yield from _merge_edge_breaks(_punctuation_pauses(speechSequence, settings, chars))
+	yield from _merge_edge_breaks(_punctuation_pauses(speech_sequence, settings, chars))
 
 
 def _punctuation_pauses(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	chars: str,
 ) -> Iterator[SpeechCmd]:
@@ -177,7 +177,7 @@ def _punctuation_pauses(
 		if boundary_pause:
 			yield pause_cmd
 
-	it = iter(speechSequence)
+	it = iter(speech_sequence)
 	try:
 		previous = next(it)
 	except StopIteration:

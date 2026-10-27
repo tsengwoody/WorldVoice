@@ -99,50 +99,10 @@ TRANSITIONAL_47A: dict[str, set[str]] = {
 		"LanguageDetector.add_detected_language_commands.<locals>.tmpLang",
 		"LanguageDetector.availableLanguages",
 	},
-	"synthDrivers/WorldVoice/pipeline/breaks.py": {
-		"_merge_edge_breaks.<locals>.speechSequence",
-		"_plain_breaks.<locals>.speechSequence",
-	},
-	"synthDrivers/WorldVoice/pipeline/items.py": {
-		"_insert_item_breaks.<locals>.speechSequence",
-		"item_wait_factor.<locals>.speechSequence",
-	},
-	"synthDrivers/WorldVoice/pipeline/languageCommands.py": {
-		"deduplicate_language_command.<locals>.speechSequence",
-		"inject_langchange_reorder.<locals>.speechSequence",
-		"lang_cmd_to_voice.<locals>.speechSequence",
-		"remove_language_command.<locals>.speechSequence",
-	},
-	"synthDrivers/WorldVoice/pipeline/numberStages.py": {
-		"_inject_item_numbers.<locals>.speechSequence",
-		"_insert_number_breaks.<locals>.speechSequence",
-		"_remove_space.<locals>.speechSequence",
-		"_split_numbers.<locals>.speechSequence",
-		"_spoken_later.<locals>.speechSequence",
-		"detect_with_number_language.<locals>.speechSequence",
-		"inject_numbers.<locals>.speechSequence",
-		"number_wait_factor.<locals>.speechSequence",
-		"remove_thousands_separators.<locals>.speechSequence",
-		"wrap_numbers_for_detection.<locals>.speechSequence",
-	},
-	"synthDrivers/WorldVoice/pipeline/punctuation.py": {
-		"_punctuation_pauses.<locals>.speechSequence",
-		"inject_punctuation_pause.<locals>.speechSequence",
-	},
-	"synthDrivers/WorldVoice/pipeline/registry.py": {
-		"_run_logged.<locals>.speechSequence",
-		"_stage_handler.<locals>.handler.<locals>.speechSequence",
-		"apply_speech_dictionaries.<locals>.speechSequence",
-		"listable.<locals>.wrapper.<locals>.speechSequence",
-		"speech_viewer.<locals>.speechSequence",
-	},
 	"synthDrivers/WorldVoice/pipeline/sayAll.py": {
 		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeech",
 		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeechWithSayAllBreak",
 		"_wrap_get_text_info_speech_with_sayall_break.<locals>.getTextInfoSpeechWithSayAllBreak.<locals>.waitFactor",
-	},
-	"synthDrivers/WorldVoice/pipeline/unspaced.py": {
-		"inject_unspaced_script_space_pause.<locals>.speechSequence",
 	},
 	"synthDrivers/WorldVoice/runtime/segmentHost.py": {
 		"LeasedPlayer._callback.<locals>.onDone",

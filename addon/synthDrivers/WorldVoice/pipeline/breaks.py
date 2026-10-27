@@ -49,8 +49,8 @@ class PunctuationBreakCommand(BreakCommand):
 	"""Pause after a configured punctuation mark."""
 
 
-def _merge_edge_breaks(speechSequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
-	"""Yield *speechSequence* with each run that holds an edge break and another break cut to one break.
+def _merge_edge_breaks(speech_sequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
+	"""Yield *speech_sequence* with each run that holds an edge break and another break cut to one break.
 
 	A run is what lies between two non-blank text items (or before the first, or after the last):
 	breaks, blank text and other commands. The break kept is the longest; on a tie the first that is
@@ -58,7 +58,7 @@ def _merge_edge_breaks(speechSequence: Iterable[SpeechCmd]) -> Iterator[SpeechCm
 	told apart by position: one break object can sit in several runs.
 	"""
 	run: list[SpeechCmd] = []
-	for item in speechSequence:
+	for item in speech_sequence:
 		if isinstance(item, str) and item.strip():
 			yield from _merged_run(run)
 			run.clear()
@@ -77,7 +77,7 @@ def _merged_run(run: list[SpeechCmd]) -> list[SpeechCmd]:
 	return [item for index, item in enumerate(run) if index == kept or not isinstance(item, BreakCommand)]
 
 
-def _plain_breaks(speechSequence: Iterable[SpeechCmd]) -> list[SpeechCmd]:
+def _plain_breaks(speech_sequence: Iterable[SpeechCmd]) -> list[SpeechCmd]:
 	"""The sequence with each BreakCommand subclass replaced by a plain BreakCommand.
 
 	NVDA's speechXml, which OneCore uses, finds a command's converter by its class name and
@@ -86,7 +86,7 @@ def _plain_breaks(speechSequence: Iterable[SpeechCmd]) -> list[SpeechCmd]:
 	still tell it apart. NVDA's BreakCommand has no __slots__ and its __eq__ reads only type and
 	time, and the synths read only .time, so the attribute is invisible to them.
 	"""
-	return [_plain_break(item) if isinstance(item, BreakCommand) else item for item in speechSequence]
+	return [_plain_break(item) if isinstance(item, BreakCommand) else item for item in speech_sequence]
 
 
 def _plain_break(command: BreakCommand) -> BreakCommand:

@@ -20,16 +20,16 @@ if TYPE_CHECKING:
 	from .settings import PipelineSettings
 
 
-def remove_thousands_separators(speechSequence, settings: "PipelineSettings", ctx: SpeechContext):
+def remove_thousands_separators(speech_sequence, settings: "PipelineSettings", ctx: SpeechContext):
 	"""In value mode, drop the commas of each valid thousands run: "12,345,678" -> "12345678".
 
 	It runs before the number language, which would otherwise cut the run away from the text
 	before it ("a,1,234" must stay as it is), and is logged as part of the number mode.
 	"""
 	if settings.number_mode != "value":
-		yield from speechSequence
+		yield from speech_sequence
 		return
-	for item in speechSequence:
+	for item in speech_sequence:
 		if isinstance(item, str):
 			yield strip_thousands(item)
 		else:
@@ -72,10 +72,10 @@ def _both_numbers(previous: SpeechCmd, current: SpeechCmd) -> bool:
 
 
 def _remove_space(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 ) -> Iterator[SpeechCmd]:
 	"""
-	Yield items from *speechSequence* while removing blank strings on the fly.
+	Yield items from *speech_sequence* while removing blank strings on the fly.
 
 	* If the item is a string:
 		– Strip leading/trailing whitespace.
@@ -86,7 +86,7 @@ def _remove_space(
 	The function is a generator, so elements are streamed without
 	constructing an intermediate list.
 	"""
-	for cmd in speechSequence:
+	for cmd in speech_sequence:
 		if isinstance(cmd, str):
 			stripped = cmd.strip()
 			if stripped:
@@ -96,8 +96,8 @@ def _remove_space(
 			yield cmd
 
 
-def _split_numbers(speechSequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
-	for item in speechSequence:
+def _split_numbers(speech_sequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
+	for item in speech_sequence:
 		if isinstance(item, str):
 			yield from split_spaced_numbers(item)
 		else:
@@ -105,7 +105,7 @@ def _split_numbers(speechSequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
 
 
 def number_wait_factor(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
@@ -117,16 +117,16 @@ def number_wait_factor(
 	"""
 	wait_factor = settings.scaled_number_wait()
 	if wait_factor <= 0:
-		yield from speechSequence
+		yield from speech_sequence
 		return
 	yield from _insert_number_breaks(
-		_split_numbers(_remove_space(speechSequence)),
+		_split_numbers(_remove_space(speech_sequence)),
 		NumberBreakCommand(wait_factor),
 	)
 
 
-def _insert_number_breaks(speechSequence: Iterable[SpeechCmd], break_cmd: SpeechCmd) -> Iterator[SpeechCmd]:
-	"""Yield *speechSequence* with *break_cmd* between two adjacent whole numbers.
+def _insert_number_breaks(speech_sequence: Iterable[SpeechCmd], break_cmd: SpeechCmd) -> Iterator[SpeechCmd]:
+	"""Yield *speech_sequence* with *break_cmd* between two adjacent whole numbers.
 
 	Language commands are transparent: a number language wraps each number as
 	"en", "1", "zh", "en", "2", "zh", and the break goes after the first language
@@ -134,7 +134,7 @@ def _insert_number_breaks(speechSequence: Iterable[SpeechCmd], break_cmd: Speech
 	"""
 	previous = _MISSING
 	held: list[SpeechCmd] = []
-	for item in speechSequence:
+	for item in speech_sequence:
 		if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
 			held.append(item)
 			continue
@@ -151,7 +151,7 @@ def _insert_number_breaks(speechSequence: Iterable[SpeechCmd], break_cmd: Speech
 
 
 def wrap_numbers_for_detection(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	ctx: SpeechContext,
 	joins: dict[int, bool] | None = None,
 ) -> Iterator[SpeechCmd]:
@@ -164,7 +164,7 @@ def wrap_numbers_for_detection(
 	gets id(wrapper) -> whether text of the same item is on both sides of it.
 	"""
 	language = ctx.language
-	for item in speechSequence:
+	for item in speech_sequence:
 		if not isinstance(item, str):
 			if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
 				language = item.lang or ctx.language
@@ -187,7 +187,7 @@ def wrap_numbers_for_detection(
 
 
 def detect_with_number_language(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	detect: Callable[[Iterable[SpeechCmd]], Iterable[SpeechCmd]],
 	ctx: SpeechContext,
 ) -> list[SpeechCmd]:
@@ -201,11 +201,11 @@ def detect_with_number_language(
 	sign, "1st", a sentence end). Nothing joins across another command or across two items.
 	"""
 	if not (ctx.supports_roles and ctx.number_language != FOLLOW):
-		return list(detect(speechSequence))
+		return list(detect(speech_sequence))
 	# Wrappers are told apart by id(): every wrapper stays alive in *detected* until the loop below
 	# ends, so no other object can take over one of these ids during the pass.
 	joins: dict[int, bool] = {}
-	detected = list(detect(list(wrap_numbers_for_detection(speechSequence, ctx, joins))))
+	detected = list(detect(list(wrap_numbers_for_detection(speech_sequence, ctx, joins))))
 	kept = {id(item) for item in deduplicate_language_command(detected, ctx) if id(item) in joins}
 	result: list[SpeechCmd] = []
 	glue = False
@@ -240,7 +240,7 @@ def _translate_number(
 
 
 def inject_numbers(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 ) -> Iterator[SpeechCmd]:
@@ -268,9 +268,9 @@ def inject_numbers(
 	mode = settings.number_mode
 	wraps = ctx.supports_roles and ctx.number_language not in (FOLLOW, MAIN)
 	if not ctx.supports_roles:
-		speechSequence = remove_language_command(speechSequence)
+		speech_sequence = remove_language_command(speech_sequence)
 	if mode == "none" and not wraps:
-		yield from speechSequence
+		yield from speech_sequence
 		return
 	pause = settings.scaled_number_wait()
 	# Decided by the user (2026-10-24, U1, U4): the number pause also goes before and after a number
@@ -278,9 +278,11 @@ def inject_numbers(
 	# as the synth only reads their time.
 	if mode in ("number", "group") and pause > 0:
 		edges = (NumberEdgeBreakCommand(pause), NumberBreakCommand(pause), NumberItemEdgeBreakCommand(pause))
-		yield from _merge_edge_breaks(_inject_item_numbers(list(speechSequence), settings, ctx, wraps, edges))
+		yield from _merge_edge_breaks(
+			_inject_item_numbers(list(speech_sequence), settings, ctx, wraps, edges),
+		)
 	else:
-		yield from _inject_item_numbers(speechSequence, settings, ctx, wraps, None)
+		yield from _inject_item_numbers(speech_sequence, settings, ctx, wraps, None)
 
 
 def _is_spoken(item: SpeechCmd) -> bool:
@@ -297,13 +299,13 @@ def _ends_utterance(item: SpeechCmd) -> bool:
 	return isinstance(item, (EndUtteranceCommand, ConfigProfileTriggerCommand))
 
 
-def _spoken_later(speechSequence: list[SpeechCmd]) -> list[bool]:
+def _spoken_later(speech_sequence: list[SpeechCmd]) -> list[bool]:
 	"""For each index, whether a spoken item comes after it in its utterance."""
-	later = [False] * len(speechSequence)
+	later = [False] * len(speech_sequence)
 	spoken = False
-	for index in range(len(speechSequence) - 1, -1, -1):
+	for index in range(len(speech_sequence) - 1, -1, -1):
 		later[index] = spoken
-		item = speechSequence[index]
+		item = speech_sequence[index]
 		if _ends_utterance(item):
 			spoken = False
 		elif _is_spoken(item):
@@ -312,7 +314,7 @@ def _spoken_later(speechSequence: list[SpeechCmd]) -> list[bool]:
 
 
 def _inject_item_numbers(
-	speechSequence: Iterable[SpeechCmd],
+	speech_sequence: Iterable[SpeechCmd],
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 	wraps: bool,
@@ -321,7 +323,7 @@ def _inject_item_numbers(
 	"""inject_numbers, item by item, without the merge of the breaks around an edge break.
 
 	*edges* is None, or the edge break, the break between two numbers that only whitespace
-	separates, and the edge break at an item's start or end; with it, *speechSequence* is a list.
+	separates, and the edge break at an item's start or end; with it, *speech_sequence* is a list.
 	"""
 	mode = settings.number_mode
 	group_size = settings.group_size
@@ -330,7 +332,7 @@ def _inject_item_numbers(
 	# Whether a spoken item comes before this one in its utterance, and after it (review I1: an
 	# utterance, what the synth gets, is the sequence the rule speaks of).
 	spoken_before = False
-	spoken_after = _spoken_later(speechSequence) if edges is not None else None
+	spoken_after = _spoken_later(speech_sequence) if edges is not None else None
 	number_language = ctx.number_language if wraps else None
 	# Symbols are named for the number language, the language of the wrapper around every number;
 	# with no number language, for the language in force at that point of the sequence. The locale
@@ -339,7 +341,7 @@ def _inject_item_numbers(
 	language = ctx.language
 	# Whether the wrapper stays, by the language in force: deduplicate_language_command decides it.
 	kept: dict[str | None, bool] = {}
-	for index, item in enumerate(speechSequence):
+	for index, item in enumerate(speech_sequence):
 		if not isinstance(item, str):
 			if isinstance(item, (LangChangeCommand, WVLangChangeCommand)):
 				language = item.lang or ctx.language
