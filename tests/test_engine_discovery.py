@@ -212,3 +212,73 @@ def test_enabled_engines_import_from_their_root_and_must_be_ready_and_named(
 	assert warnings == ["Skipping Renamed engine candidate: Voice.engine mismatch (Other)"]
 	assert any("ready check Unready voice.ready" in message for _, message in log.lines)
 	assert not any("ready check Off" in message for _, message in log.lines)
+
+
+STALE_MESSAGE = (
+	"Skipping Stale engine candidate: plugin uses the pre-rename contract name(s) {}; update the plugin"
+)
+
+
+@pytest.mark.parametrize(
+	("old", "new", "member"),
+	[
+		("synth_driver_class", "synthDriverClass", object),
+		("extra_capabilities", "extraCapabilities", frozenset({"waitfactor"})),
+		("drain_profile", "drainProfile", None),
+		("create_core", "createCore", classmethod(lambda cls: object())),
+		("destroy_core", "destroyCore", classmethod(lambda cls, core: None)),
+		("update_settings", "updateSettings", lambda self, **values: None),
+	],
+)
+def test_plugin_with_old_contract_names_is_reported(discovery, monkeypatch, tmp_path, old, new, member):
+	# A plugin built for the contract before phase 47c would fail when its core is created, or
+	# silently lose its drain profile or capabilities: discovery skips it before asking ready().
+	asked = []
+	voice = type(
+		"Voice",
+		(),
+		{"engine": "Stale", "ready": classmethod(lambda cls: asked.append(cls) or True), old: member},
+	)
+	engine_module(monkeypatch, "fake_stale", voice)
+	log = Log()
+
+	loaded = discovery.load_enabled_engine_classes(
+		[spec(discovery, "Stale", "fake_stale", tmp_path)],
+		{},
+		logger=log,
+	)
+
+	assert loaded == {}
+	assert asked == []
+	assert [message for level, message in log.lines if level == "error"] == [
+		STALE_MESSAGE.format(f"{old} (now {new})"),
+	]
+
+
+def test_old_contract_names_are_listed_together_and_inherited_ones_count(discovery, monkeypatch, tmp_path):
+	helper = type("Helper", (), {"create_core": classmethod(lambda cls: object())})
+	stale = type("Voice", (helper,), {"engine": "Stale", "drain_profile": None})
+	fresh = type(
+		"Voice",
+		(),
+		{
+			"engine": "Fresh",
+			"synthDriverClass": object,
+			"createCore": classmethod(lambda cls: object()),
+			"ready": classmethod(lambda cls: True),
+		},
+	)
+	engine_module(monkeypatch, "fake_stale", stale)
+	engine_module(monkeypatch, "fake_fresh", fresh)
+	log = Log()
+	specs = [
+		spec(discovery, "Stale", "fake_stale", tmp_path),
+		spec(discovery, "Fresh", "fake_fresh", tmp_path),
+	]
+
+	loaded = discovery.load_enabled_engine_classes(specs, {}, logger=log)
+
+	assert loaded == {"Fresh": fresh}
+	assert [message for level, message in log.lines if level == "error"] == [
+		STALE_MESSAGE.format("drain_profile (now drainProfile), create_core (now createCore)"),
+	]

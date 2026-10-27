@@ -1,6 +1,7 @@
 """External engine plugins subclass driver.Voice the way ref/Neural does; that must keep working."""
 
 import ast
+import importlib
 import inspect
 from pathlib import Path
 from types import SimpleNamespace
@@ -103,3 +104,45 @@ def test_listing_voices_trusts_the_ready_check_discovery_made(composition):
 			raise AssertionError("discovery already asked")
 
 	assert [meta["name"] for meta in Voice.voices(FakeCore())] == ["Neural:v1"]
+
+
+BUNDLED_ENGINES = ("Cerence", "Espeak", "OneCore", "RHVoice", "SAPI5", "VE")
+
+
+def pre_rename_names(composition, stub_modules):
+	# The engineRegistry package scans the disk through NVDA when imported; discovery alone does not.
+	registry = composition.driver.__name__.rsplit(".", 1)[0] + ".engineRegistry"
+	stub_modules.package(registry, ROOT / "addon/synthDrivers/WorldVoice/engineRegistry")
+	return importlib.import_module(registry + ".discovery").PRE_RENAME_CONTRACT_NAMES
+
+
+def test_pre_rename_names_map_onto_the_base_voice(composition, stub_modules):
+	# Discovery skips a plugin whose Voice has an old name: the base must have none, or every engine
+	# would be skipped, and must have each new name the error message points to.
+	base = composition.driver.Voice
+	names = pre_rename_names(composition, stub_modules)
+	assert len(names) == 6
+	for old, new in names.items():
+		assert not hasattr(base, old), old
+		assert hasattr(base, new), new
+
+
+def test_no_bundled_voice_defines_a_pre_rename_name(composition, stub_modules):
+	old_names = set(pre_rename_names(composition, stub_modules))
+	found = {}
+	for engine in BUNDLED_ENGINES:
+		path = ROOT / "addon/synthDrivers/WorldVoice/driver" / engine / "__init__.py"
+		tree = ast.parse(path.read_text(encoding="utf-8"))
+		for node in tree.body:
+			if isinstance(node, ast.ClassDef) and node.name == "Voice":
+				defined = set()
+				for statement in node.body:
+					if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+						defined.add(statement.name)
+					elif isinstance(statement, (ast.Assign, ast.AnnAssign)):
+						targets = (
+							statement.targets if isinstance(statement, ast.Assign) else [statement.target]
+						)
+						defined |= {target.id for target in targets if isinstance(target, ast.Name)}
+				found[engine] = defined & old_names
+	assert found == {engine: set() for engine in BUNDLED_ENGINES}

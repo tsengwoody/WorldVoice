@@ -27,6 +27,18 @@ class EngineSpec:
 # Callers that pass no logger report through stdlib logging, which NVDA routes to its log.
 _LOG = logging.getLogger(__name__)
 
+# driver.Voice contract names before phase 47c renamed them to NVDA mixedCase (refactor9 6.1), with
+# their new names. A plugin that still has one was built for an older WorldVoice: its core cannot be
+# created, or its drain profile or capabilities would be silently ignored, so it is skipped.
+PRE_RENAME_CONTRACT_NAMES = {
+	"synth_driver_class": "synthDriverClass",
+	"extra_capabilities": "extraCapabilities",
+	"drain_profile": "drainProfile",
+	"create_core": "createCore",
+	"destroy_core": "destroyCore",
+	"update_settings": "updateSettings",
+}
+
 
 def coerce_bool(value: Any) -> bool:
 	if isinstance(value, str):
@@ -139,6 +151,11 @@ def discover_engine_specs(
 	return specs
 
 
+def _pre_rename_contract_names(voice: Any) -> list[str]:
+	"""The pre-rename contract names voice defines or inherits, in the table's order."""
+	return [name for name in PRE_RENAME_CONTRACT_NAMES if hasattr(voice, name)]
+
+
 def load_enabled_engine_classes(
 	engine_specs: list[EngineSpec],
 	engine_config: dict[str, Any],
@@ -164,6 +181,15 @@ def load_enabled_engine_classes(
 						"Skipping %s engine candidate: Voice.engine mismatch (%s)",
 						spec.name,
 						voice_engine,
+					)
+					continue
+				stale = _pre_rename_contract_names(voice)
+				if stale:
+					logger.error(
+						"Skipping %s engine candidate: plugin uses the pre-rename contract name(s) %s; "
+						"update the plugin",
+						spec.name,
+						", ".join(f"{name} (now {PRE_RENAME_CONTRACT_NAMES[name]})" for name in stale),
 					)
 					continue
 				with timed(logger, f"ready check {spec.name} voice.ready"):
