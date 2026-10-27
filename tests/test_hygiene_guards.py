@@ -147,19 +147,14 @@ def test_the_ignore_numbers_option_is_gone():
 # that both records and latches says both.
 _LATCHED = "recorded on the record and latched: later speech is rejected"
 _REASONS = (
-	(
-		("record_error", "operation is not None", "_failSegmentControl"),
-		"recorded on the record; a segment's failure also latches",
-	),
 	(("record_error", "latch_control_error"), _LATCHED),
 	(("record_error", "_failSegmentControl"), _LATCHED),
 	(("latch_control_error", "error = exc"), "latched, and kept to raise after the remaining cleanup"),
 	(("record_error",), "recorded on the record; the segment fails"),
-	(("latch_control_error",), "latched: the player or engine state is unknown"),
 	(("_failSegmentControl",), "latched: the player or engine state is unknown"),
 	(("_latch_fault",), "latched as a lifecycle fault"),
 	(("_terminationError",), "kept and raised once termination finishes"),
-	(("first_error",), "collected; the first is raised after every step ran"),
+	(("firstError",), "collected; the first is raised after every step ran"),
 	(("error = exc",), "kept and raised after the remaining cleanup"),
 	(("return unsupported",), "any failure means drain is unsupported"),
 	(("return error",), "returned as the admission error"),
@@ -178,8 +173,8 @@ def _own_body(handler):
 	return "\n".join(ast.unparse(statement) for statement in body)
 
 
-def test_blind_except_reasons_match_their_handlers():
-	wrong = []
+def _marked_handlers():
+	"""(location, reason, the first matching _REASONS keys) for every handler with a BLE001 reason."""
 	for path in _addon_sources():
 		source = path.read_text(encoding="utf-8")
 		lines = source.splitlines()
@@ -190,10 +185,25 @@ def test_blind_except_reasons_match_their_handlers():
 			if match is None:
 				continue
 			body = _own_body(node)
-			expected = next((reason for keys, reason in _REASONS if all(key in body for key in keys)), None)
-			if expected is not None and match.group(1) != expected:
-				wrong.append(f"{path.relative_to(ROOT)}:{node.lineno}: {match.group(1)!r} != {expected!r}")
+			keys = next((keys for keys, _reason in _REASONS if all(key in body for key in keys)), None)
+			yield f"{path.relative_to(ROOT)}:{node.lineno}", match.group(1), keys
+
+
+def test_blind_except_reasons_match_their_handlers():
+	reasons = dict(_REASONS)
+	wrong = [
+		f"{where}: {reason!r} != {reasons[keys]!r}"
+		for where, reason, keys in _marked_handlers()
+		if keys is not None and reason != reasons[keys]
+	]
 	assert wrong == []
+
+
+def test_every_reason_entry_still_checks_a_handler():
+	# An entry no marked handler selects checks nothing: a renamed call it names silently ends
+	# the check of its handlers.
+	used = {keys for _where, _reason, keys in _marked_handlers()}
+	assert [keys for keys, _reason in _REASONS if keys not in used] == []
 
 
 @pytest.fixture(scope="module")
