@@ -55,8 +55,9 @@ class Presenter:
 		return self.supported[name]
 
 	def __getattr__(self, name):
-		# select_voice, set_parameter, set_*_consistency, discard, close, apply: recorded.
-		if name.startswith(("select_", "set_")) or name in {"discard", "close", "apply"}:
+		# select_voice, set_parameter, set_*_consistency, discard, close, apply: recorded. The prefixes
+		# carry no separator, so they match the presenter's names in either naming style.
+		if name.startswith(("select", "set")) or name in {"discard", "close", "apply"}:
 			return lambda *args: self.calls.append((name, *args))
 		raise AttributeError(name)
 
