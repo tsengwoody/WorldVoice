@@ -2,11 +2,13 @@
 
 import ast
 import dataclasses
+import importlib
 import re
 import sys
+from pathlib import Path
 
 import pytest
-from addon_loader import ADDON, WORLDVOICE, load_source
+from addon_loader import ADDON, WORLDVOICE, alias_package, load_source
 from mutation_support import running_under_mutmut
 
 SCRIPT_LANGUAGES_PATH = WORLDVOICE / "languageDetection/scriptLanguages.py"
@@ -74,3 +76,26 @@ def test_script_config_keys_are_written_only_in_the_table():
 			if isinstance(node, ast.Constant) and str(node.value).endswith("CharactersLanguage"):
 				holders.add(path)
 	assert holders == {SCRIPT_LANGUAGES_PATH}
+
+
+def test_script_languages_import_by_their_package_path_without_nvda(monkeypatch):
+	# The panel imports synthDrivers.WorldVoice.languageDetection.scriptLanguages, so Python runs
+	# languageDetection/__init__.py first; it stays empty (the detector is detector.py), and the
+	# table loads without NVDA's speech commands, as ui.panelLayout loads without wx.
+	for name in [name for name in sys.modules if name.split(".")[0] == "synthDrivers"]:
+		monkeypatch.delitem(sys.modules, name)
+	# None in sys.modules makes an import of that name fail, even when another test left a stub.
+	for name in ("speech", "config", "logHandler", "languageHandler", "synthDriverHandler", "addonHandler"):
+		monkeypatch.setitem(sys.modules, name, None)
+	alias_package(monkeypatch, "synthDrivers")
+	alias_package(monkeypatch, "synthDrivers.WorldVoice", WORLDVOICE)
+	package = "synthDrivers.WorldVoice.languageDetection"
+	try:
+		table = importlib.import_module(package + ".scriptLanguages")
+		loaded = sorted(name for name in sys.modules if name.split(".")[0] == "synthDrivers")
+	finally:
+		# The import registered these itself, so monkeypatch would leave them behind.
+		for name in (package + ".scriptLanguages", package):
+			sys.modules.pop(name, None)
+	assert Path(table.__file__) == SCRIPT_LANGUAGES_PATH
+	assert loaded == ["synthDrivers", "synthDrivers.WorldVoice", package, package + ".scriptLanguages"]

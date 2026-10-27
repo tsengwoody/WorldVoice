@@ -25,13 +25,13 @@ from speech.commands import (
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, getSynth, synthDoneSpeaking, synthIndexReached
 
-from . import languageDetection
 from .bridge.commands import normalize_legacy_commands
 from .bridge.completionPolicies import CompletionPolicy
 from .bridge.indexLedger import IndexLedger
 from .bridge.nvdaEvents import NvdaEventBridge
 from .bringup import Teardown, patch_attribute, timed
 from .engineRegistry import ready_engine_classes
+from .languageDetection.detector import LanguageDetector
 from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
 from .numberLanguage import FOLLOW, MAIN
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext
@@ -264,7 +264,7 @@ class SynthDriver(SynthDriver):
 				)
 
 			with timed(nvdaLog, "LanguageDetector"):
-				self._languageDetector = languageDetection.LanguageDetector(
+				self._languageDetector = LanguageDetector(
 					list(self._voiceManager.allLanguages),
 					settings=detection_settings,
 					language=lambda: self.language,

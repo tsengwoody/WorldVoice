@@ -30,7 +30,7 @@ def packages(modules):
 
 
 def test_language_detection_reaches_for_no_nvda_globals():
-	assert not packages(imported_modules(WORLDVOICE / "languageDetection" / "__init__.py")) & {
+	assert not packages(imported_modules(WORLDVOICE / "languageDetection" / "detector.py")) & {
 		"config",
 		"synthDriverHandler",
 	}

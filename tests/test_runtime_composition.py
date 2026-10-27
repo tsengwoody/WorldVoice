@@ -594,6 +594,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 	# Unrelated UI and pipeline modules need NVDA, but all changed composition
 	# boundaries below are imported from their actual files by __init__.py.
 	stub(package + ".languageDetection", __path__=[])
+	stub(package + ".languageDetection.detector", LanguageDetector=object)
 	stub(package + ".languageDetection.settings", DETECTION_CONFSPEC={}, detection_settings=SimpleNamespace())
 	stub(package + ".pipeline", __path__=[])
 	stub(

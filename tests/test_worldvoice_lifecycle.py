@@ -177,7 +177,7 @@ def _construction_environment(failure, changes, close_error=None):
 		"filter_speechSequence": types.SimpleNamespace(
 			unregister=lambda handler: changes.append("filter unregistered"),
 		),
-		"languageDetection": types.SimpleNamespace(LanguageDetector=LanguageDetector),
+		"LanguageDetector": LanguageDetector,
 		"detection_settings": types.SimpleNamespace(
 			subscribe=lambda listener: changes.append("detection subscribed"),
 			unsubscribe=lambda listener: changes.append("detection unsubscribed"),

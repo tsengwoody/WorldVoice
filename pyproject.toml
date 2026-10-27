@@ -61,7 +61,7 @@ source_paths = [
 	"addon/synthDrivers/WorldVoice/pipeline/settings.py",
 	"addon/synthDrivers/WorldVoice/ui/panelLayout.py",
 	"addon/synthDrivers/WorldVoice/ui/controls.py",
-	"addon/synthDrivers/WorldVoice/languageDetection/__init__.py",
+	"addon/synthDrivers/WorldVoice/languageDetection/detector.py",
 ]
 mutate_only_covered_lines = true
 # tools/ for tests/test_generate_unicode_scripts.py and tests/test_generate_unspaced_common.py,

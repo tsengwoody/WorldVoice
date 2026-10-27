@@ -151,7 +151,7 @@ def _load_modules(monkeypatch, conf):
 		settings=load("pipeline.settings"),
 		number_language=load("numberLanguage"),
 		context=load("pipeline.context"),
-		detection=load("languageDetection"),
+		detection=load("languageDetection.detector"),
 		detection_settings=load("languageDetection.settings"),
 		builder=load("runtime.requestBuilder"),
 		commands=load("bridge.commands"),

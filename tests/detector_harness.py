@@ -1,4 +1,4 @@
-"""Load the real languageDetection package and speechCommands under NVDA stubs."""
+"""Load the real language detector, its settings and speechCommands under NVDA stubs."""
 
 import importlib
 import sys
@@ -37,7 +37,7 @@ def load_language_detection(stub_modules, monkeypatch):
 	)
 	stub_modules.module("config", conf=conf)
 	stub_modules.module("logHandler", log=SimpleNamespace(error=lambda *args, **kwargs: None))
-	module = importlib.import_module(PACKAGE + ".languageDetection")
+	module = importlib.import_module(PACKAGE + ".languageDetection.detector")
 	settings_module = importlib.import_module(PACKAGE + ".languageDetection.settings")
 	return SimpleNamespace(
 		module=module,
