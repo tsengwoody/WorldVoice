@@ -144,3 +144,10 @@
 - `_as_bool` 留在 `panels/base.py:17-20`、不改用 `engineRegistry.discovery.coerce_bool`（協調者採建議預設）。對使用者沒有可見差異，改不改都只是一個 import。
 
 已由使用者決定（不再列為未確認）：錯誤對話框共用並翻譯（選項 (a)）、不加 changelog 行。
+
+## 修正記錄
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| M2 `DIALOG_FILES` 的 glob 空掉時 `dialog_msgids()` 變成空集合 | 已修正。`tests/test_pipeline_panels.py` 的 `DIALOG_FILES` 改由 `ui_harness.PANEL_MODULES` 組出固定的 `dialog.py` 加六個 panel 模組路徑，模組不見時會 `FileNotFoundError` 而不是讀不到東西；另加 `test_dialog_msgids_come_from_the_dialog_and_every_panel`，斷言七個模組的標題 msgid 都在 `dialog_msgids()` 裡。照測試優先：先用探針把 glob 指到不存在的資料夾，`test_log_labels_come_from_the_table` 照樣通過（空洞通過）；新測試在同一個探針下失敗；改成固定清單後，把路徑指到不存在的資料夾，`test_log_labels_come_from_the_table` 本身就以 `FileNotFoundError` 失敗。plan 的「## 修正」段落（Task 5–6）在 scratch clone 從 `654ef07` 接續 dry run，tree id 吻合後才落地：`HEAD:addon` = `b62ed753…`（不變）、`HEAD:tests` = `0cbb15ea…`；完整測試 3269 passed、0 skipped。 | `4eb54af`（plan 段落：`f864cf9`） |
+| M1 plan 的純搬移檢查對順序不敏感 | 不修改程式碼。`check_move.py` 是多重集合比對，本來就證明不了順序；這是 plan 自帶證據的強度問題，不是分支內容的問題。審閱者自寫的順序敏感檢查 `strict_move.py` 已確認拆分逐段、依原順序搬移（`strict pure move: OK`），結果不受影響。之後同類的拆分 plan 改用「連續片段、位置遞增、恰好覆蓋一次」的檢查。 | 無 |
