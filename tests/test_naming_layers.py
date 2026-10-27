@@ -3,7 +3,8 @@
 1. The layer of a module decides the style of the names it defines itself:
    - portable core (CORE): PEP 8 snake_case;
    - NVDA host layer (HOST): NVDA's mixedCase (ref/nvda/projectDocs/dev/codingStandards.md), a
-     lowercase first letter and no underscore apart from the prefixes script_, event_, _get_, _set_;
+     lowercase first letter and no underscore apart from the prefixes script_, event_, _get_, _set_ of
+     a function or method;
    - both: classes in CapWords; module and class names may also be UPPER_CASE constants or
      CapWords type aliases; leading underscores and dunder names are free.
    PENDING modules wait for the command model (refactor9 §6.2) and are not checked. EXCLUDED code
@@ -76,7 +77,9 @@ EXCLUDED = re.compile(
 )
 
 SNAKE_CASE = re.compile(r"_*[a-z][a-z0-9_]*")
-MIXED_CASE = re.compile(r"_*(script_|event_|_get_|_set_)?[a-z][a-zA-Z0-9]*")
+MIXED_CASE = re.compile(r"_*[a-z][a-zA-Z0-9]*")
+# NVDA's method prefixes: scripts, events and auto-property getters and setters are functions.
+MIXED_CASE_FUNCTION = re.compile(r"_*(script_|event_|_get_|_set_)?[a-z][a-zA-Z0-9]*")
 CAP_WORDS = re.compile(r"_*[A-Z][a-zA-Z0-9]*")
 UPPER_CASE = re.compile(r"_*[A-Z][A-Z0-9_]*")
 
@@ -173,7 +176,9 @@ def follows_layer(definition: Definition, module_layer: str) -> bool:
 		return bool(CAP_WORDS.fullmatch(name))
 	if definition.kind in ("field", "variable") and (UPPER_CASE.fullmatch(name) or CAP_WORDS.fullmatch(name)):
 		return True
-	return bool((SNAKE_CASE if module_layer == "core" else MIXED_CASE).fullmatch(name))
+	if module_layer == "core":
+		return bool(SNAKE_CASE.fullmatch(name))
+	return bool((MIXED_CASE_FUNCTION if definition.kind == "function" else MIXED_CASE).fullmatch(name))
 
 
 def _module_name(path: str) -> str:
@@ -498,6 +503,12 @@ HOST_MODULE = SYNTH + "bridge/example.py"
 		(HOST_MODULE, "def get_voice():\n\tpass\n", ["get_voice"]),
 		(HOST_MODULE, "class Panel:\n\tdef _get_rateBoost(self):\n\t\tpass\n", []),
 		(HOST_MODULE, "class Plugin:\n\tdef script_toggle(self, gesture):\n\t\tpass\n", []),
+		(
+			HOST_MODULE,
+			"class Bridge:\n\tdef __init__(self, getSynth):\n\t\tself._get_synth = getSynth\n",
+			["Bridge._get_synth"],
+		),
+		(HOST_MODULE, "def run():\n\tscript_name = 1\n", ["run.<locals>.script_name"]),
 		(
 			HOST_MODULE,
 			"import wx\n\n\nclass Panel(wx.Panel):\n\tdef Destroy(self):\n\t\tpass\n",
