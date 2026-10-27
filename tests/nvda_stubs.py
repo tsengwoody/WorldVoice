@@ -86,8 +86,8 @@ def _value_default(node):
 def _spread_defaults(node):
 	source = ast.unparse(node)
 	if source == "DETECTION_CONFSPEC":
-		spec = ast.literal_eval(_top_level_value(WORLDVOICE / "languageDetection/settings.py", source))
-		return {key: _confspec_default(validator) for key, validator in spec.items()}
+		spec = _top_level_value(WORLDVOICE / "languageDetection/settings.py", source)
+		return {key: _confspec_default(validator) for key, validator in _detection_confspec(spec).items()}
 	if source == "PIPELINE_CONFSPEC":
 		# Built from the PipelineSettingSpec(key, kind, default, ...) table, without the
 		# ordering-only entries (pipeline_config=False) that NVDA stores as driver settings.
@@ -118,6 +118,56 @@ def _spread_defaults(node):
 				keys[key] = value
 		return keys
 	raise ValueError(f"Unexpected confspec entries: {source}")
+
+
+def _detection_confspec(node):
+	"""DETECTION_CONFSPEC: its literal entries, and one entry per row of the script table for a
+	{row.<field>: f"...{row.<field>}..." for row in DETECTION_SCRIPTS} spread into it."""
+	spec = {}
+	for key, value in zip(node.keys, node.values, strict=True):
+		if key is not None:
+			spec[ast.literal_eval(key)] = ast.literal_eval(value)
+		elif (
+			isinstance(value, ast.DictComp)
+			and len(value.generators) == 1
+			and ast.unparse(value.generators[0].iter) == "DETECTION_SCRIPTS"
+		):
+			name = value.generators[0].target.id
+			for row in _detection_scripts():
+				spec[_row_value(value.key, name, row)] = _row_value(value.value, name, row)
+		else:
+			raise ValueError(f"Unexpected detection confspec entries: {ast.unparse(value)}")
+	return spec
+
+
+def _row_value(node, name, row):
+	"""A field of row (name.field), a constant, or an f-string of them."""
+	if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == name:
+		return row[node.attr]
+	if isinstance(node, ast.Constant):
+		return node.value
+	if isinstance(node, ast.JoinedStr):
+		return "".join(
+			str(_row_value(part.value if isinstance(part, ast.FormattedValue) else part, name, row))
+			for part in node.values
+		)
+	raise ValueError(f"Unexpected detection confspec expression: {ast.unparse(node)}")
+
+
+def _detection_scripts():
+	"""The DetectionScript(...) rows of scriptLanguages.py, each as a dict of its fields."""
+	path = WORLDVOICE / "languageDetection/scriptLanguages.py"
+	(fields,) = [
+		[item.target.id for item in node.body if isinstance(item, ast.AnnAssign)]
+		for node in ast.parse(path.read_text(encoding="utf-8")).body
+		if isinstance(node, ast.ClassDef) and node.name == "DetectionScript"
+	]
+	rows = []
+	for call in _top_level_value(path, "DETECTION_SCRIPTS").elts:
+		row = dict(zip(fields, (ast.literal_eval(argument) for argument in call.args), strict=False))
+		row.update({keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords})
+		rows.append(row)
+	return rows
 
 
 def _top_level_value(path, name):

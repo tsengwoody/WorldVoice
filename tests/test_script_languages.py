@@ -2,13 +2,16 @@
 
 import ast
 import dataclasses
+import re
 import sys
 
 import pytest
-from addon_loader import WORLDVOICE, load_source
+from addon_loader import ADDON, WORLDVOICE, load_source
 from mutation_support import running_under_mutmut
 
 SCRIPT_LANGUAGES_PATH = WORLDVOICE / "languageDetection/scriptLanguages.py"
+# The vendored drivers and the generated data, as tests/test_translator_comments.py skips them.
+EXCLUDED = re.compile(r"^synthDrivers/WorldVoice/(driver/[^/]+/driver/|unicodeScripts/\w+_data\.py$)")
 
 # What config["WorldVoice"]["autoLanguageSwitching"] stores, so these never change.
 STORED_ROWS = [
@@ -58,3 +61,16 @@ def test_every_detection_script_has_candidates_and_a_candidate_default(module):
 	scripts = [row.script for row in module.DETECTION_SCRIPTS]
 	keys = [row.config_key for row in module.DETECTION_SCRIPTS]
 	assert len(set(scripts)) == len(scripts) and len(set(keys)) == len(keys)
+
+
+def test_script_config_keys_are_written_only_in_the_table():
+	# The settings and the panel derive the keys from DETECTION_SCRIPTS, so a new script is one row.
+	holders = set()
+	for path in sorted(ADDON.rglob("*.py")):
+		relative = path.relative_to(ADDON).as_posix()
+		if EXCLUDED.search(relative):
+			continue
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+			if isinstance(node, ast.Constant) and str(node.value).endswith("CharactersLanguage"):
+				holders.add(path)
+	assert holders == {SCRIPT_LANGUAGES_PATH}

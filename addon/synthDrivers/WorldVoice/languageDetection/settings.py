@@ -12,23 +12,15 @@ from typing import Any
 import config
 from logHandler import log
 
+from .scriptLanguages import DETECTION_SCRIPTS
+
+# Each script of the table, then the timing, which is not a script.
 DETECTION_CONFSPEC = {
-	"latinCharactersLanguage": "string(default=en)",
-	"CJKCharactersLanguage": "string(default=ja)",
-	"arabicCharactersLanguage": "string(default=ar)",
-	# The first candidates of their scripts, which detection took before these choices existed.
-	"cyrillicCharactersLanguage": "string(default=ru)",
-	"devanagariCharactersLanguage": "string(default=hi)",
+	**{row.config_key: f"string(default={row.default_language})" for row in DETECTION_SCRIPTS},
 	"DetectLanguageTiming": "string(default=after)",
 }
 # The scripts whose assumed language the user chooses, and where each choice is stored.
-SCRIPT_CONFIG_KEYS = {
-	"Latin": "latinCharactersLanguage",
-	"Han": "CJKCharactersLanguage",
-	"Arabic": "arabicCharactersLanguage",
-	"Cyrillic": "cyrillicCharactersLanguage",
-	"Devanagari": "devanagariCharactersLanguage",
-}
+SCRIPT_CONFIG_KEYS = {row.script: row.config_key for row in DETECTION_SCRIPTS}
 _TIMING_KEY = "DetectLanguageTiming"
 
 

@@ -4,10 +4,12 @@ import dataclasses
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import WORLDVOICE, load_source
-from nvda_stubs import StubModules
+from addon_loader import WORLDVOICE, alias_package, load_source
+from nvda_stubs import StubModules, worldvoice_conf
 
 SETTINGS = WORLDVOICE / "languageDetection/settings.py"
+SCRIPT_LANGUAGES = WORLDVOICE / "languageDetection/scriptLanguages.py"
+PACKAGE = "detection_settings_under_test"
 
 
 class RecordingSection(dict):
@@ -20,7 +22,11 @@ class RecordingSection(dict):
 		super().__setitem__(key, value)
 
 
-def load_settings_module(monkeypatch, conf=None, errors=None):
+def load_settings_module(monkeypatch, conf=None, errors=None, *, table=None):
+	"""settings.py in an alias of its package, whose __init__.py (the detector) never runs.
+
+	table, given the script table module, returns the DETECTION_SCRIPTS the settings derive from.
+	"""
 	stubs = StubModules(monkeypatch)
 	stubs.module("config", conf=conf if conf is not None else {})
 	stubs.module(
@@ -29,7 +35,11 @@ def load_settings_module(monkeypatch, conf=None, errors=None):
 			error=lambda *args, **kwargs: (errors if errors is not None else []).append(args),
 		),
 	)
-	return load_source(monkeypatch, "detection_settings_under_test", SETTINGS)
+	alias_package(monkeypatch, PACKAGE, WORLDVOICE / "languageDetection")
+	script_languages = load_source(monkeypatch, PACKAGE + ".scriptLanguages", SCRIPT_LANGUAGES)
+	if table is not None:
+		monkeypatch.setattr(script_languages, "DETECTION_SCRIPTS", table(script_languages))
+	return load_source(monkeypatch, PACKAGE + ".settings", SETTINGS)
 
 
 @pytest.fixture
@@ -157,6 +167,30 @@ def test_confspec_and_script_keys_keep_the_stored_names_and_defaults(env):
 		"Cyrillic": "cyrillicCharactersLanguage",
 		"Devanagari": "devanagariCharactersLanguage",
 	}
+
+
+def test_detection_confspec_and_keys_derive_from_the_table(monkeypatch):
+	# A script added to the table gets its config key, default and script key, before the timing.
+	def with_hebrew(script_languages):
+		hebrew = script_languages.DetectionScript("Hebrew", "hebrewCharactersLanguage", "he")
+		return (*script_languages.DETECTION_SCRIPTS, hebrew)
+
+	module = load_settings_module(monkeypatch, table=with_hebrew)
+	table = with_hebrew(load_source(monkeypatch, "detection_table_under_test", SCRIPT_LANGUAGES))
+	assert list(module.DETECTION_CONFSPEC) == [*(row.config_key for row in table), "DetectLanguageTiming"]
+	assert module.DETECTION_CONFSPEC["hebrewCharactersLanguage"] == "string(default=he)"
+	assert list(module.SCRIPT_CONFIG_KEYS) == [row.script for row in table]
+	assert module.SCRIPT_CONFIG_KEYS["Hebrew"] == "hebrewCharactersLanguage"
+
+
+def test_the_config_stub_reads_the_detection_defaults_from_the_table(monkeypatch):
+	# Every test that builds a fresh profile with worldvoice_conf gets the table's defaults.
+	table = load_source(monkeypatch, "detection_table_under_test", SCRIPT_LANGUAGES).DETECTION_SCRIPTS
+	switching = worldvoice_conf()["WorldVoice"]["autoLanguageSwitching"]
+	assert {row.config_key: switching[row.config_key] for row in table} == {
+		row.config_key: row.default_language for row in table
+	}
+	assert switching["DetectLanguageTiming"] == "after"
 
 
 def test_the_shared_service_reads_nvda_config(monkeypatch):
