@@ -143,3 +143,9 @@
 ## 未在 Linux 驗證的項目
 
 - NVDA 本身、Windows、實際音訊裝置、引擎 SDK 都沒有載入；Python 3.11 沒有實跑（容器只有 3.14），相容性依語法與標準庫文件判斷。本 phase 沒有使用者可見的行為變更，不需要打包；未打包、未在 Windows 驗證。
+
+## 修正記錄
+
+- **M1 不修**：共用實作的必然結果；NVDA-free 模組無法傳 NVDA 的 `codepath=`。log 文字不變，列為未確認的預設。
+- **M2 不修**：`exc_info=True` 已由 `test_listeners_isolate_a_failing_listener` 釘住（m4b 在單元層會被抓到）；要在服務層也釘住，得改兩個共用 log stub 的記錄格式，牽動其他比對 `errors` 內容的測試，代價大於收益。
+- **M3 不修**：`DetectionListener` 別名在 master 就已存在，本 phase 只是沿用；pipeline 端原本就沒有別名。兩邊寫法統一可留待之後順手整理。
