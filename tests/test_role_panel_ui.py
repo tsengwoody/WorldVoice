@@ -54,10 +54,23 @@ class Presenter:
 	def capabilities(self, name):
 		return self.supported[name]
 
+	# RolePanelPresenter's edits and transaction: recorded, so the tests see what the panel called.
+	RECORDED = frozenset(
+		{
+			"selectVoice",
+			"setParameter",
+			"setVariant",
+			"setEngineConsistency",
+			"setVoiceConsistency",
+			"setParameterConsistency",
+			"discard",
+			"close",
+			"apply",
+		},
+	)
+
 	def __getattr__(self, name):
-		# selectVoice, setParameter, set_*_consistency, discard, close, apply: recorded. The prefixes
-		# carry no separator, so they match the presenter's names in either naming style.
-		if name.startswith(("select", "set")) or name in {"discard", "close", "apply"}:
+		if name in self.RECORDED:
 			return lambda *args: self.calls.append((name, *args))
 		raise AttributeError(name)
 
@@ -299,3 +312,14 @@ def test_controls_used_before_choosing_a_locale_change_nothing(ui):
 	fire(panel._rateSlider, "EVT_SLIDER", panel=panel)
 	assert ui.presenter.calls == []
 	assert ui.env.shown == []
+
+
+def test_the_fake_presenter_records_only_the_presenter_methods():
+	# A mistyped call must fail as it would on RolePanelPresenter, not be recorded.
+	presenter = Presenter(None, speechSection=None, setMainVoice=None)
+	presenter.setParameter("eva", "rate", 1)
+	assert presenter.calls == [("setParameter", "eva", "rate", 1)]
+	with pytest.raises(AttributeError):
+		presenter.setParamter("eva", "rate", 1)
+	with pytest.raises(AttributeError):
+		presenter.select_voice("en", "eva")
