@@ -11,8 +11,8 @@ from pipeline_harness import load_synth
 def manager(capabilities=frozenset()):
 	recorded = []
 	return types.SimpleNamespace(
-		defaultVoiceName="v",
-		getVoiceCapabilities=lambda name: types.SimpleNamespace(settings=capabilities),
+		default_voice_name="v",
+		get_voice_capabilities=lambda name: types.SimpleNamespace(settings=capabilities),
 		reload=lambda: recorded.append("reload"),
 		recorded=recorded,
 	)
@@ -180,9 +180,9 @@ def test_voice_parameters_commit_and_follow_the_consistency_policy(monkeypatch, 
 	calls = []
 	instance = types.SimpleNamespace(commit=lambda: calls.append("commit"))
 	synth._voiceManager = types.SimpleNamespace(
-		defaultVoiceInstance=instance,
+		default_voice_instance=instance,
 		parameter_consistency=types.SimpleNamespace(enabled=consistent),
-		onVoiceParameterConsistent=lambda voice: calls.append(("consistent", voice)),
+		on_voice_parameter_consistent=lambda voice: calls.append(("consistent", voice)),
 	)
 	# The AST-loaded class has no NVDA auto-property metaclass; call the setter itself.
 	getattr(synth, f"_set_{name}")(42)
@@ -203,17 +203,17 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	assert synth.speech_context() is generic
 	voice = types.SimpleNamespace(name="A:en", language="en")
 	synth._voiceManager = manager = types.SimpleNamespace(
-		defaultVoiceInstance=voice,
-		getVoiceNameForLanguage=lambda lang: None,
-		getVoiceLocaleForLanguage=lambda lang: "zh_TW",
+		default_voice_instance=voice,
+		get_voice_name_for_language=lambda lang: None,
+		get_voice_locale_for_language=lambda lang: "zh_TW",
 	)
 	synth.language = "en"
 	context = synth.speech_context()
 	assert context["number_language"] == "default"
 	assert (context["default_voice_name"], context["default_voice_language"]) == ("A:en", "en")
-	assert context["voice_locale_for_language"] is manager.getVoiceLocaleForLanguage
+	assert context["voice_locale_for_language"] is manager.get_voice_locale_for_language
 	assert "speech_symbols" not in context
 	# Each speak builds its own context, so a new default voice reaches the next one.
-	manager.defaultVoiceInstance = types.SimpleNamespace(name="B:zh", language="zh")
+	manager.default_voice_instance = types.SimpleNamespace(name="B:zh", language="zh")
 	context = synth.speech_context()
 	assert (context["default_voice_name"], context["default_voice_language"]) == ("B:zh", "zh")

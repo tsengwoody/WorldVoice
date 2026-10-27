@@ -67,9 +67,9 @@ def test_filters_do_not_create_voice_instances(composition, monkeypatch):
 		supports_roles=True,
 		language="en",
 		number_language="default",
-		default_voice_name=manager.defaultVoiceInstance.name,
-		default_voice_language=manager.defaultVoiceInstance.language,
-		voice_name_for_language=manager.getVoiceNameForLanguage,
+		default_voice_name=manager.default_voice_instance.name,
+		default_voice_language=manager.default_voice_instance.language,
+		voice_name_for_language=manager.get_voice_name_for_language,
 	)
 	L = module.LangChangeCommand
 	list(module.deduplicate_language_command(["a", L("zh"), "b", L("en"), "c"], ctx))
@@ -79,18 +79,18 @@ def test_filters_do_not_create_voice_instances(composition, monkeypatch):
 
 def test_voice_locale_follows_the_voice_for_the_language(composition):
 	# Decided by the user (2026-10-22): the locale of the voice that speaks the language; with no
-	# usable voice for it, getVoiceNameForLanguage gives the default voice, so its locale.
+	# usable voice for it, get_voice_name_for_language gives the default voice, so its locale.
 	# Voice b reports language "zh" with the full locale "zh-TW", as OneCore does: the locale is
 	# what the symbol names need, not the bare language.
 	composition.engine("ok", locales={"b": "zh-TW"})
 	manager = composition.create()
 	sys.modules["config"].conf["WorldVoice"]["role"] = {"zh": {"voice": "ok:b"}}
-	assert manager.getVoiceSpec("ok:b").language == "zh"
-	assert manager.getVoiceNameForLanguage("zh") == "ok:b"
-	assert manager.getVoiceLocaleForLanguage("zh") == "zh-TW"
+	assert manager.get_voice_spec("ok:b").language == "zh"
+	assert manager.get_voice_name_for_language("zh") == "ok:b"
+	assert manager.get_voice_locale_for_language("zh") == "zh-TW"
 	assert (
-		manager.getVoiceLocaleForLanguage("fr")
-		== manager.getVoiceSpec(manager.defaultVoiceName).locale
+		manager.get_voice_locale_for_language("fr")
+		== manager.get_voice_spec(manager.default_voice_name).locale
 		== "en"
 	)
 
@@ -98,8 +98,8 @@ def test_voice_locale_follows_the_voice_for_the_language(composition):
 def test_voice_locale_is_none_for_a_voice_without_a_spec(composition, monkeypatch):
 	composition.engine("ok")
 	manager = composition.create()
-	monkeypatch.setattr(manager, "getVoiceNameForLanguage", lambda language: "gone:x")
-	assert manager.getVoiceLocaleForLanguage("zh") is None
+	monkeypatch.setattr(manager, "get_voice_name_for_language", lambda language: "gone:x")
+	assert manager.get_voice_locale_for_language("zh") is None
 
 
 def test_generic_context_has_no_voice_locale(monkeypatch):

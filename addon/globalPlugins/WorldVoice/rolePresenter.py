@@ -23,7 +23,7 @@ class RolePanelPresenter:
 		self._manager = manager
 		self._speech_section = speech_section
 		self._set_main_voice = set_main_voice
-		self._edit = manager.beginVoiceSettingsEdit()
+		self._edit = manager.begin_voice_settings_edit()
 		self._pending: dict[str, str] = {}
 		self._before_parameter_preview: dict[str, dict] | None = None
 		self._read_flags()
@@ -36,13 +36,13 @@ class RolePanelPresenter:
 	# Queries
 
 	def locales(self) -> list[tuple[str, str]]:
-		names = self._manager.localesToNamesMap
+		names = self._manager.locales_to_names_map
 		return [(locale, names[locale]) for locale in self._manager.languages]
 
 	def voices(self, locale: str) -> list[tuple[str, str]]:
 		descriptions = {voice.name: voice.description for voice in self._manager.table}
 		names = []
-		for name in self._manager.localeToVoicesMap.get(locale, []):
+		for name in self._manager.locale_to_voices_map.get(locale, []):
 			if name not in names:
 				names.append(name)
 		return [(name, descriptions.get(name) or name) for name in names]
@@ -53,18 +53,18 @@ class RolePanelPresenter:
 		return self._manager.roles.assignments().get(locale, "")
 
 	def voice(self, name: str):
-		return self._manager.getVoiceInstance(name)
+		return self._manager.get_voice_instance(name)
 
 	def capabilities(self, name: str) -> frozenset:
-		return self._manager.getVoiceCapabilities(name).settings if name else frozenset()
+		return self._manager.get_voice_capabilities(name).settings if name else frozenset()
 
 	def variants(self, name: str) -> list[str]:
-		return ["default"] + [item["id"] for item in self._manager.getVoiceVariants(name) if item != ""]
+		return ["default"] + [item["id"] for item in self._manager.get_voice_variants(name) if item != ""]
 
 	# Edits
 
 	def _main_parameters(self) -> dict:
-		base = self._manager.defaultVoiceInstance.snapshot()
+		base = self._manager.default_voice_instance.snapshot()
 		return {parameter: getattr(base, parameter) for parameter in PARAMETER_NAMES}
 
 	def select_voice(self, locale: str, name: str):
@@ -80,7 +80,7 @@ class RolePanelPresenter:
 		voice = self.voice(name)
 		setattr(voice, parameter, value)
 		if self.keep_parameters:
-			self._manager.previewVoiceParameterConsistent(voice)
+			self._manager.preview_voice_parameter_consistent(voice)
 
 	def set_variant(self, name: str, value: str) -> None:
 		self.voice(name).variant = value
@@ -101,7 +101,7 @@ class RolePanelPresenter:
 				for key in settings.names()
 			}
 			self.keep_parameters = True
-			self._manager.previewVoiceParameterConsistent(self._manager.defaultVoiceInstance)
+			self._manager.preview_voice_parameter_consistent(self._manager.default_voice_instance)
 		elif not enabled and self.keep_parameters:
 			self.keep_parameters = False
 			# Undo only this dialog's preview, keeping other edits made before it.
@@ -120,7 +120,7 @@ class RolePanelPresenter:
 	def apply(self) -> None:
 		manager = self._manager
 		if self.keep_parameters:
-			manager.previewVoiceParameterConsistent(manager.defaultVoiceInstance)
+			manager.preview_voice_parameter_consistent(manager.default_voice_instance)
 		self._edit.apply()  # A failure leaves everything below unsaved.
 
 		assignments = manager.roles.assignments()
@@ -133,11 +133,11 @@ class RolePanelPresenter:
 		manager.engine_consistency.preview = None
 		manager.voice_consistency.enabled = self.keep_voice
 		manager.parameter_consistency.enabled = self.keep_parameters
-		manager.roles.save(prune_assignments(assignments, manager.localeToVoicesMap))
+		manager.roles.save(prune_assignments(assignments, manager.locale_to_voices_map))
 
 		if self.keep_voice:
-			chosen = self._pending.get(manager.voice_consistency.main_locale(manager.defaultVoiceInstance))
-			if chosen and chosen != manager.defaultVoiceName:
+			chosen = self._pending.get(manager.voice_consistency.main_locale(manager.default_voice_instance))
+			if chosen and chosen != manager.default_voice_name:
 				self._set_main_voice(chosen)
 
 		try:
@@ -145,7 +145,7 @@ class RolePanelPresenter:
 		except KeyError:
 			section = None
 		if section is not None:
-			snapshot = manager.settings.snapshot(manager.defaultVoiceName)
+			snapshot = manager.settings.snapshot(manager.default_voice_name)
 			for parameter in PARAMETER_NAMES:
 				section[parameter] = getattr(snapshot, parameter)
 

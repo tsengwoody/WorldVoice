@@ -45,8 +45,8 @@ def test_only_started_sessions_are_resolvable(composition):
 
 def test_default_voice_follows_the_injected_language(composition):
 	composition.engine("x")
-	assert composition.create(get_language=lambda: "zh").defaultVoiceName == "x:b"
-	assert composition.create(get_language=lambda: "en").defaultVoiceName == "x:a"
+	assert composition.create(get_language=lambda: "zh").default_voice_name == "x:b"
+	assert composition.create(get_language=lambda: "en").default_voice_name == "x:a"
 
 
 def test_manager_keeps_the_injected_policy_and_roles(composition):
@@ -72,7 +72,7 @@ def test_each_opened_engine_is_one_engine_resource(composition):
 		assert resource.voice_class is cls
 		assert resource.adapter.core is cls.opened is resource.binding.core
 		assert resource.session is resource.binding.session is manager.resolve_playback(cls.engine + ":a")
-		assert voice_binding(manager.getVoiceInstance(cls.engine + ":a")) is resource.binding
+		assert voice_binding(manager.get_voice_instance(cls.engine + ":a")) is resource.binding
 	assert not hasattr(manager, "installEngine")
 	manager.terminate(commit=False)
 	assert engine_resources(manager) == {} and [cls.opened for cls in classes] == [None, None]
@@ -104,13 +104,13 @@ def test_an_unpublished_engine_is_never_visible(composition):
 	first, second = engine_resources(manager)["first"], engine_resources(manager)["second"]
 	second.published = False
 	manager._set_voice_datas()
-	assert "second:a" not in manager.voiceInfos and "first:a" in manager.voiceInfos
+	assert "second:a" not in manager.voice_infos and "first:a" in manager.voice_infos
 	assert manager.playback_ports == (first.session,)
 	assert manager.resolve_playback("second:a") is None
 	with pytest.raises(KeyError):
-		manager.getVoiceCapabilities("second:a")
+		manager.get_voice_capabilities("second:a")
 	with pytest.raises(KeyError):
-		manager.getVoiceVariants("second:a")
+		manager.get_voice_variants("second:a")
 
 
 def test_after_terminate_nothing_resolves(composition):
@@ -121,7 +121,7 @@ def test_after_terminate_nothing_resolves(composition):
 	assert manager.resolve_playback("ok:a") is None
 	assert manager.playback_ports == ()
 	with pytest.raises(KeyError):
-		manager.getVoiceCapabilities("ok:a")
+		manager.get_voice_capabilities("ok:a")
 
 
 def test_engines_open_in_engine_classes_order(composition):
@@ -183,14 +183,14 @@ def test_first_voice_resolution_inherits_main_values_and_keeps_cancel_baseline(c
 	manager = c.create()
 	edit = c.store.begin_edit() if during_edit else None
 	try:
-		assert manager.defaultVoiceInstance.rate == 83
+		assert manager.default_voice_instance.rate == 83
 		assert manager.resolve_playback("ok:b") is not None
 		state = c.store.state("ok:b")
 		assert state.get("rate") == 83
 		if edit is None:
 			edit = c.store.begin_edit()
 		state.update(rate=72)
-		voice = manager.getVoiceInstance("ok:b")
+		voice = manager.get_voice_instance("ok:b")
 		assert voice.rate == 72
 		assert c.store.state("ok:b") is state
 		edit.discard()
@@ -230,14 +230,14 @@ def test_reload_takes_the_main_voice_parameters_while_they_are_kept_consistent(c
 	conf["WorldVoice"]["voices"] = {"ok:a": {"rate": "40"}, "ok:b": {"rate": "41", "variant": "own-b"}}
 	_config_repository(c)
 	manager = c.create()
-	other = manager.getVoiceInstance("ok:b")
+	other = manager.get_voice_instance("ok:b")
 	c.store.state("ok:a").update(rate=83)
 	manager.reload()
-	assert (manager.defaultVoiceInstance.rate, other.rate, other.variant) == (83, 83, "own-b")
+	assert (manager.default_voice_instance.rate, other.rate, other.variant) == (83, 83, "own-b")
 	assert c.store.state("ok:b").baseline("rate") == 83
 	flags["KeepMainLocaleParameterConsistent"] = False
 	manager.reload()
-	assert (manager.defaultVoiceInstance.rate, other.rate) == (40, 41)
+	assert (manager.default_voice_instance.rate, other.rate) == (40, 41)
 
 
 def test_manager_cancel_passes_sessions_without_core_access(composition):
@@ -366,7 +366,7 @@ def test_save_or_engine_close_failure_does_not_abandon_other_resources(compositi
 	c.engine("one")
 	c.engine("two")
 	manager = c.create()
-	manager.getVoiceInstance("two:a")
+	manager.get_voice_instance("two:a")
 	c.repo.fail_next_save = True
 
 	def close_failure():
@@ -387,9 +387,9 @@ def test_waitfactor_updates_declared_capability_without_activating(composition):
 	capable.extra_capabilities = frozenset({"waitfactor", "variant"})
 	manager = c.create()
 	manager.waitfactor = 4
-	assert manager.getVoiceInstance("extension:b").waitfactor == 4
-	assert manager.getVoiceInstance("plain:a").waitfactor == 0
-	assert manager.getVoiceCapabilities("extension:b").supports_variants
+	assert manager.get_voice_instance("extension:b").waitfactor == 4
+	assert manager.get_voice_instance("plain:a").waitfactor == 0
+	assert manager.get_voice_capabilities("extension:b").supports_variants
 	assert not any(hasattr(core, "voice") for core in c.cores)
 
 
@@ -1167,5 +1167,5 @@ def test_an_unavailable_main_voice_raises_and_keeps_the_current_one(composition)
 	composition.engine("x")
 	manager = composition.create(get_language=lambda: "en")
 	with pytest.raises(LookupError):
-		manager.defaultVoiceName = "x:missing"
-	assert manager.defaultVoiceName == "x:a"
+		manager.default_voice_name = "x:missing"
+	assert manager.default_voice_name == "x:a"

@@ -37,7 +37,7 @@ def _construction_environment(failure, changes, close_error=None):
 
 	class VoiceManager:
 		playback_ports = ()
-		allLanguages = ("en",)
+		all_languages = ("en",)
 		waitfactor = 0
 
 		def __init__(

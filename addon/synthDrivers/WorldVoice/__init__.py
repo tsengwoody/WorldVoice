@@ -156,7 +156,7 @@ class SynthDriver(SynthDriver):
 
 	@property
 	def supportedSettings(self):
-		capabilities = self._voiceManager.getVoiceCapabilities(self._voiceManager.defaultVoiceName)
+		capabilities = self._voiceManager.get_voice_capabilities(self._voiceManager.default_voice_name)
 		return self._driver_settings(capabilities.settings)
 
 	@property
@@ -265,7 +265,7 @@ class SynthDriver(SynthDriver):
 
 			with timed(nvdaLog, "LanguageDetector"):
 				self._languageDetector = LanguageDetector(
-					list(self._voiceManager.allLanguages),
+					list(self._voiceManager.all_languages),
 					settings=detection_settings,
 					language=lambda: self.language,
 					number_language=self._number_language,
@@ -323,7 +323,7 @@ class SynthDriver(SynthDriver):
 		queue_speech_sequence(
 			self.taskManager,
 			normalize_legacy_commands(speechSequence),
-			self._voiceManager.defaultVoiceName,
+			self._voiceManager.default_voice_name,
 			self._voiceManager.resolve_playback,
 		)
 
@@ -362,80 +362,80 @@ class SynthDriver(SynthDriver):
 		manager = self._voiceManager
 		if manager is None:
 			return GENERIC_CONTEXT
-		voice = manager.defaultVoiceInstance
+		voice = manager.default_voice_instance
 		return SpeechContext(
 			supports_roles=True,
 			language=self.language,
 			number_language=self._number_language(),
 			default_voice_name=voice.name,
 			default_voice_language=voice.language,
-			voice_name_for_language=manager.getVoiceNameForLanguage,
-			voice_locale_for_language=manager.getVoiceLocaleForLanguage,
+			voice_name_for_language=manager.get_voice_name_for_language,
+			voice_locale_for_language=manager.get_voice_locale_for_language,
 		)
 
 	def _set_voice_parameter(self, name, value):
-		instance = self._voiceManager.defaultVoiceInstance
+		instance = self._voiceManager.default_voice_instance
 		setattr(instance, name, value)
 		instance.commit()
 		if self._voiceManager.parameter_consistency.enabled:
-			self._voiceManager.onVoiceParameterConsistent(instance)
+			self._voiceManager.on_voice_parameter_consistent(instance)
 
 	def _get_volume(self):
-		return self._voiceManager.defaultVoiceInstance.volume
+		return self._voiceManager.default_voice_instance.volume
 
 	def _set_volume(self, value):
 		self._set_voice_parameter("volume", value)
 
 	def _get_rate(self):
-		return self._voiceManager.defaultVoiceInstance.rate
+		return self._voiceManager.default_voice_instance.rate
 
 	def _set_rate(self, value):
 		self._set_voice_parameter("rate", value)
 
 	def _get_pitch(self):
-		return self._voiceManager.defaultVoiceInstance.pitch
+		return self._voiceManager.default_voice_instance.pitch
 
 	def _set_pitch(self, value):
 		self._set_voice_parameter("pitch", value)
 
 	def _get_inflection(self):
-		return self._voiceManager.defaultVoiceInstance.inflection
+		return self._voiceManager.default_voice_instance.inflection
 
 	def _set_inflection(self, value):
 		self._set_voice_parameter("inflection", value)
 
 	def _getAvailableVoices(self):
-		return self._voiceManager.voiceInfos
+		return self._voiceManager.voice_infos
 
 	def _get_voice(self):
 		if self._voice is None:
-			return self._voiceManager.getVoiceNameForLanguage(languageHandler.getLanguage())
-		return self._voiceManager.defaultVoiceName
+			return self._voiceManager.get_voice_name_for_language(languageHandler.getLanguage())
+		return self._voiceManager.default_voice_name
 
 	def _set_voice(self, voiceName):
-		if voiceName != self._voiceManager.defaultVoiceName:
+		if voiceName != self._voiceManager.default_voice_name:
 			# Stop speech before setting a new voice to avoid voice instances
 			# continuing speaking when changing voices for, e.g., say-all
 			# See NVDA ticket #3540
-			self._voiceManager.defaultVoiceInstance.stop()
+			self._voiceManager.default_voice_instance.stop()
 			# Raises LookupError for an unavailable voice, before the choice is recorded.
-			self._voiceManager.defaultVoiceName = voiceName
+			self._voiceManager.default_voice_name = voiceName
 		self._voice = voiceName
 
 	def _get_availableVariants(self):
 		values = OrderedDict([("default", StringParameterInfo("default", _("default")))])
-		for item in self._voiceManager.getVoiceVariants(self._voiceManager.defaultVoiceName):
+		for item in self._voiceManager.get_voice_variants(self._voiceManager.default_voice_name):
 			values[item["id"]] = StringParameterInfo(item["id"], item["name"])
 		return values
 
 	def _get_variant(self):
-		return self._voiceManager.defaultVoiceInstance.variant
+		return self._voiceManager.default_voice_instance.variant
 
 	def _set_variant(self, value):
 		self._set_voice_parameter("variant", value)
 
 	def _get_rateBoost(self):
-		return self._voiceManager.defaultVoiceInstance.rateBoost
+		return self._voiceManager.default_voice_instance.rateBoost
 
 	def _set_rateBoost(self, enable):
 		self._set_voice_parameter("rateBoost", enable)
@@ -480,7 +480,7 @@ class SynthDriver(SynthDriver):
 
 	def _is_stored_number_language(self, value):
 		# Any installed voice's locale, also one the voice settings hide for now.
-		return value in (FOLLOW, MAIN) or value in self._voiceManager.allLanguages
+		return value in (FOLLOW, MAIN) or value in self._voiceManager.all_languages
 
 	def _get_numlan(self):
 		# The stored choice, which NVDA saves back: a locale hidden by a voice or engine change is

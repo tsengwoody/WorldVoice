@@ -84,23 +84,23 @@ class RecordingTasks:
 class VoiceManager:
 	"""Voices by primary language; the default voice speaks English."""
 
-	defaultVoiceName = VOICES["en"]
-	defaultVoiceInstance = SimpleNamespace(name=VOICES["en"], language="en")
-	# The languages the voice settings offer; allLanguages has every installed voice's, also those
+	default_voice_name = VOICES["en"]
+	default_voice_instance = SimpleNamespace(name=VOICES["en"], language="en")
+	# The languages the voice settings offer; all_languages has every installed voice's, also those
 	# that "Keep main locale engine consistent" hides.
 	languages = ("en", "zh_TW")
-	allLanguages = ("en", "zh_TW")
+	all_languages = ("en", "zh_TW")
 
 	def __init__(self, ports):
 		self.ports = ports
 		self.cancels = 0
 
-	def getVoiceNameForLanguage(self, language):
+	def get_voice_name_for_language(self, language):
 		return VOICES.get(language.replace("-", "_").split("_")[0])
 
-	def getVoiceLocaleForLanguage(self, language):
+	def get_voice_locale_for_language(self, language):
 		# An engine with no locale of its own reports the voice's language.
-		name = self.getVoiceNameForLanguage(language)
+		name = self.get_voice_name_for_language(language)
 		return name.split(":")[1] if name else None
 
 	def resolve_playback(self, voice_key):
@@ -279,7 +279,7 @@ def test_number_languages_list_every_voice_language_by_its_description(monkeypat
 def test_choosing_the_current_voice_records_it_without_stopping_speech(monkeypatch):
 	synth, _ = _synth(monkeypatch)
 	stops = []
-	synth._voiceManager.defaultVoiceInstance = SimpleNamespace(stop=lambda: stops.append(True))
+	synth._voiceManager.default_voice_instance = SimpleNamespace(stop=lambda: stops.append(True))
 	synth._set_voice("A:en")
 	assert stops == []
 	assert chosen_voice(synth) == "A:en"
@@ -356,8 +356,8 @@ def speak_through_stages(
 	synth._numlan = numlan
 	if main == "zh":
 		synth.language = "zh_TW"
-		synth._voiceManager.defaultVoiceName = ZH
-		synth._voiceManager.defaultVoiceInstance = SimpleNamespace(name=ZH, language="zh_TW")
+		synth._voiceManager.default_voice_name = ZH
+		synth._voiceManager.default_voice_instance = SimpleNamespace(name=ZH, language="zh_TW")
 	monkeypatch.setattr(sys.modules["speech"], "getCurrentLanguage", lambda: synth.language, raising=False)
 	monkeypatch.setattr(sys.modules["characterProcessing"], "processSpeechSymbol", symbol_name)
 	ctx = synth.speech_context()
@@ -719,7 +719,7 @@ def test_known_number_languages_are_kept(monkeypatch, value):
 
 def test_a_locale_of_an_uninstalled_voice_is_refused_on_load(monkeypatch):
 	synth, _ = _synth(monkeypatch)
-	synth._voiceManager.languages = synth._voiceManager.allLanguages = ("en",)
+	synth._voiceManager.languages = synth._voiceManager.all_languages = ("en",)
 	synth._set_numlan("zh_TW")
 	assert synth._get_numlan() == "default"
 	assert len(synth.warnings) == 1

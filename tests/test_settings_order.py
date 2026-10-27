@@ -34,8 +34,8 @@ def synth_and_table(monkeypatch):
 	synth_class, settings_module = load_synth(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	synth = object.__new__(synth_class)
 	synth._voiceManager = types.SimpleNamespace(
-		defaultVoiceName="v",
-		getVoiceCapabilities=lambda name: types.SimpleNamespace(settings=frozenset()),
+		default_voice_name="v",
+		get_voice_capabilities=lambda name: types.SimpleNamespace(settings=frozenset()),
 	)
 	return synth, settings_module.PIPELINE_SETTINGS
 

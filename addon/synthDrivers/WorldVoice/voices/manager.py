@@ -88,10 +88,10 @@ class VoiceManager:
 		self._set_voice_datas()
 		if not self.table:
 			raise RuntimeError("No WorldVoice voices are available from enabled speech engines.")
-		self._default_voice_instance = self.getVoiceInstance(self._get_default_voice_spec().name)
+		self._default_voice_instance = self.get_voice_instance(self._get_default_voice_spec().name)
 
 	def _open_engine(self, name: str, cls: type) -> EngineResource | None:
-		adapter = LegacyEngineAdapter(cls, self.getVoiceInstance, index_ledger=self._index_ledger)
+		adapter = LegacyEngineAdapter(cls, self.get_voice_instance, index_ledger=self._index_ledger)
 		try:
 			adapter.open()
 		except Exception:
@@ -165,34 +165,34 @@ class VoiceManager:
 		self.settings.ensure(spec)
 		return resource.session
 
-	def getVoiceSpec(self, key: str) -> VoiceSpec:
+	def get_voice_spec(self, key: str) -> VoiceSpec:
 		return self.catalog.by_name[key]
 
-	def getVoiceCapabilities(self, key: str) -> EngineCapabilities:
-		return self._published(self.getVoiceSpec(key).engine).session.capabilities
+	def get_voice_capabilities(self, key: str) -> EngineCapabilities:
+		return self._published(self.get_voice_spec(key).engine).session.capabilities
 
-	def getVoiceVariants(self, key: str) -> tuple[Mapping[str, str], ...]:
-		return self._published(self.getVoiceSpec(key).engine).session.variants(key)
+	def get_voice_variants(self, key: str) -> tuple[Mapping[str, str], ...]:
+		return self._published(self.get_voice_spec(key).engine).session.variants(key)
 
-	def beginVoiceSettingsEdit(self) -> VoiceEditSession:
+	def begin_voice_settings_edit(self) -> VoiceEditSession:
 		return self.settings.begin_edit()
 
 	@property
-	def defaultVoiceInstance(self):
+	def default_voice_instance(self):
 		return self._default_voice_instance
 
 	@property
-	def defaultVoiceName(self):
+	def default_voice_name(self):
 		return self._default_voice_instance.name
 
-	@defaultVoiceName.setter
-	def defaultVoiceName(self, name):
+	@default_voice_name.setter
+	def default_voice_name(self, name):
 		if name not in self.catalog.voice_infos:
 			# NVDA's SynthDriver.loadSettings repairs the saved voice only when this raises.
 			raise LookupError(name)
-		self._default_voice_instance = self.getVoiceInstance(name)
-		self.onKeepEngineConsistent()
-		self.onKeepMainLocaleVoiceConsistent()
+		self._default_voice_instance = self.get_voice_instance(name)
+		self.on_keep_engine_consistent()
+		self.on_keep_main_locale_voice_consistent()
 
 	@property
 	def waitfactor(self):
@@ -202,8 +202,8 @@ class VoiceManager:
 	def waitfactor(self, value):
 		self._waitfactor = value
 		for key in self.catalog.by_name:
-			if self.getVoiceCapabilities(key).supports_waitfactor:
-				self.settings.ensure(self.getVoiceSpec(key)).update(waitfactor=value)
+			if self.get_voice_capabilities(key).supports_waitfactor:
+				self.settings.ensure(self.get_voice_spec(key)).update(waitfactor=value)
 
 	def _get_default_voice_spec(self) -> VoiceSpec:
 		lang = self._get_language()
@@ -212,7 +212,7 @@ class VoiceManager:
 		except StopIteration:
 			return self.table[0]
 
-	def getVoiceInstance(self, voice_name):
+	def get_voice_instance(self, voice_name):
 		try:
 			instance = self._instance_cache[voice_name]
 		except KeyError:
@@ -220,7 +220,7 @@ class VoiceManager:
 		return instance
 
 	def _create_voice_instance(self, voice_name: str):
-		spec = self.getVoiceSpec(voice_name)
+		spec = self.get_voice_spec(voice_name)
 		resource = self._published(spec.engine)
 		self.settings.ensure(spec)
 		voice_instance = resource.voice_class(spec, resource.binding)
@@ -234,19 +234,19 @@ class VoiceManager:
 			return {}
 		return self.parameter_consistency.inherited(self.settings, main.name)
 
-	def previewVoiceParameterConsistent(self, base_instance):
+	def preview_voice_parameter_consistent(self, base_instance):
 		self.parameter_consistency.copy_from(self.settings, base_instance.name)
 
-	def onVoiceParameterConsistent(self, base_instance):
-		self.previewVoiceParameterConsistent(base_instance)
+	def on_voice_parameter_consistent(self, base_instance):
+		self.preview_voice_parameter_consistent(base_instance)
 		for key in self.settings.names():
 			self.settings.commit(key)
 
-	def onKeepEngineConsistent(self):
-		self.roles.prune(self.localeToVoicesMap)
+	def on_keep_engine_consistent(self):
+		self.roles.prune(self.locale_to_voices_map)
 
-	def onKeepMainLocaleVoiceConsistent(self):
-		self.voice_consistency.follow(self.defaultVoiceInstance)
+	def on_keep_main_locale_voice_consistent(self):
+		self.voice_consistency.follow(self.default_voice_instance)
 
 	def reload(self):
 		for instance in self._instance_cache.values():
@@ -270,11 +270,11 @@ class VoiceManager:
 		return self.catalog.table
 
 	@property
-	def voiceInfos(self):
+	def voice_infos(self):
 		return self.catalog.voice_infos
 
 	@property
-	def allLanguages(self):
+	def all_languages(self):
 		return list(self.catalog.all_languages)
 
 	def _visible_table(self):
@@ -285,22 +285,22 @@ class VoiceManager:
 		return sorted(group_by_primary_locale(self._visible_table()))
 
 	@property
-	def localeToVoicesMap(self):
+	def locale_to_voices_map(self):
 		return group_by_primary_locale(self._visible_table())
 
 	@property
-	def localesToNamesMap(self):
-		return {locale: self.catalog.readable_name(locale) for locale in self.localeToVoicesMap}
+	def locales_to_names_map(self):
+		return {locale: self.catalog.readable_name(locale) for locale in self.locale_to_voices_map}
 
-	def getVoiceNameForLanguage(self, language):
+	def get_voice_name_for_language(self, language):
 		configured = self._get_configured_voice_name_for_language(language)
-		if configured is not None and configured in self.voiceInfos:
+		if configured is not None and configured in self.voice_infos:
 			return configured
-		return self.defaultVoiceName
+		return self.default_voice_name
 
-	def getVoiceLocaleForLanguage(self, language) -> str | None:
-		"""The locale of the voice getVoiceNameForLanguage picks; None when that voice has no spec."""
-		spec = self.catalog.by_name.get(self.getVoiceNameForLanguage(language))
+	def get_voice_locale_for_language(self, language) -> str | None:
+		"""The locale of the voice get_voice_name_for_language picks; None when that voice has no spec."""
+		spec = self.catalog.by_name.get(self.get_voice_name_for_language(language))
 		return spec.locale if spec is not None else None
 
 	def _get_configured_voice_name_for_language(self, language):

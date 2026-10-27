@@ -148,25 +148,6 @@ TRANSITIONAL_47A: dict[str, set[str]] = {
 		"LeasedPlayer._callback.<locals>.onDone",
 		"LeasedPlayer._feed_admitted.<locals>.onDone",
 	},
-	"synthDrivers/WorldVoice/voices/manager.py": {
-		"VoiceManager.allLanguages",
-		"VoiceManager.beginVoiceSettingsEdit",
-		"VoiceManager.defaultVoiceInstance",
-		"VoiceManager.defaultVoiceName",
-		"VoiceManager.getVoiceCapabilities",
-		"VoiceManager.getVoiceInstance",
-		"VoiceManager.getVoiceLocaleForLanguage",
-		"VoiceManager.getVoiceNameForLanguage",
-		"VoiceManager.getVoiceSpec",
-		"VoiceManager.getVoiceVariants",
-		"VoiceManager.localeToVoicesMap",
-		"VoiceManager.localesToNamesMap",
-		"VoiceManager.onKeepEngineConsistent",
-		"VoiceManager.onKeepMainLocaleVoiceConsistent",
-		"VoiceManager.onVoiceParameterConsistent",
-		"VoiceManager.previewVoiceParameterConsistent",
-		"VoiceManager.voiceInfos",
-	},
 }
 
 # Host-layer names that phase 47b renames to mixedCase or marks as interface names.

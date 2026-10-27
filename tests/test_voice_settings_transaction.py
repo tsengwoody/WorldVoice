@@ -33,7 +33,7 @@ def _editing_manager(monkeypatch):
 	manager._default_voice_instance = a
 	manager.engine_consistency.enabled = False
 	manager.catalog = module.VoiceCatalog.from_specs([a._state.spec, b._state.spec])
-	manager.getVoiceInstance = lambda key: {a.name: a, b.name: b}[key]
+	manager.get_voice_instance = lambda key: {a.name: a, b.name: b}[key]
 	return manager, a, b, config
 
 
@@ -68,8 +68,8 @@ def _synth_settings_class(config):
 
 def test_main_synth_settings_use_manager_capabilities_and_variants(monkeypatch):
 	manager, _a, _, config = _editing_manager(monkeypatch)
-	manager.getVoiceCapabilities = lambda key: types.SimpleNamespace(settings={"rateBoost", "inflection"})
-	manager.getVoiceVariants = lambda key: ({"id": "bright", "name": "Bright"},)
+	manager.get_voice_capabilities = lambda key: types.SimpleNamespace(settings={"rateBoost", "inflection"})
+	manager.get_voice_variants = lambda key: ({"id": "bright", "name": "Bright"},)
 	synth = _synth_settings_class(config)()
 	synth._voiceManager = manager
 	assert {"rateboost", "inflection"} <= set(synth.supportedSettings)
@@ -84,7 +84,7 @@ def test_main_voice_follows_the_nvda_language_until_one_is_chosen(monkeypatch):
 	synth._voice = None
 	assert synth._get_voice() == b.name
 	synth._voice = b.name
-	assert synth._get_voice() == manager.defaultVoiceName == a.name
+	assert synth._get_voice() == manager.default_voice_name == a.name
 
 
 def test_main_synth_explicit_commit_updates_resolver_only_states(monkeypatch):
@@ -108,7 +108,7 @@ def test_main_synth_records_a_chosen_voice_only_once_it_is_set(monkeypatch):
 	with pytest.raises(LookupError):
 		synth._set_voice("Missing:x")
 	assert chosen_voice(synth) is None
-	assert manager.defaultVoiceName == a.name
+	assert manager.default_voice_name == a.name
 	synth._set_voice(b.name)
 	assert chosen_voice(synth) == b.name
-	assert manager.defaultVoiceName == b.name
+	assert manager.default_voice_name == b.name

@@ -57,13 +57,13 @@ def env(monkeypatch):
 	manager._instance_cache = dict(voices)
 	manager.catalog = module.VoiceCatalog.from_specs(voice._state.spec for voice in voices.values())
 	manager._default_voice_instance = a
-	manager.getVoiceInstance = voices.__getitem__
+	manager.get_voice_instance = voices.__getitem__
 	conf["speech"] = {"WorldVoice": {"voice": a.name}}
 	switched = []
 
 	def set_main_voice(name):
 		switched.append(name)
-		manager.defaultVoiceName = name
+		manager.default_voice_name = name
 		conf["speech"]["WorldVoice"]["voice"] = name
 
 	voice_settings = sys.modules[module.__package__.removesuffix(".voices") + ".runtime.voiceSettings"]
@@ -180,7 +180,7 @@ def test_main_locale_voice_consistency_switches_then_mirrors_new_voice(env):
 	env.c.rate = 72
 	env.presenter.apply()
 	assert env.switched == [env.c.name]
-	assert env.manager.defaultVoiceName == env.c.name
+	assert env.manager.default_voice_name == env.c.name
 	assert env.conf["speech"]["WorldVoice"]["voice"] == env.c.name
 	assert env.conf["speech"]["WorldVoice"]["rate"] == 72  # D4: mirrored from the new main voice
 	assert env.conf["WorldVoice"]["role"] == {"en": {"voice": env.c.name}, "fr": {"voice": env.b.name}}
@@ -193,7 +193,7 @@ def test_main_locale_voice_consistency_switches_then_mirrors_new_voice(env):
 	env.c.rate = 81
 	env.presenter.discard()
 	assert env.c.rate == 72
-	assert env.manager.defaultVoiceName == env.c.name
+	assert env.manager.default_voice_name == env.c.name
 	assert env.conf["WorldVoice"]["role"] == {"en": {"voice": env.c.name}, "fr": {"voice": env.b.name}}
 
 
@@ -232,8 +232,10 @@ def test_apply_previews_consistency_before_saving(env):
 
 
 def test_queries_go_through_the_manager(env):
-	env.manager.getVoiceCapabilities = lambda key: types.SimpleNamespace(settings={"rateBoost", "inflection"})
-	env.manager.getVoiceVariants = lambda key: ({"id": "bright", "name": "Bright"},)
+	env.manager.get_voice_capabilities = lambda key: types.SimpleNamespace(
+		settings={"rateBoost", "inflection"},
+	)
+	env.manager.get_voice_variants = lambda key: ({"id": "bright", "name": "Bright"},)
 	assert env.presenter.capabilities(env.a.name) == {"rateBoost", "inflection"}
 	assert env.presenter.variants(env.a.name) == ["default", "bright"]
 	assert env.presenter.voices("en") == [(env.a.name, env.a.name), (env.c.name, env.c.name)]

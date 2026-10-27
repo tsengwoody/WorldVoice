@@ -50,7 +50,7 @@ def build(env, languages, stored, table=None):
 	service.subscribe(lambda settings, changed: notified.append(changed))
 	manager = SimpleNamespace(
 		languages=languages,
-		localesToNamesMap={locale: f"<{locale}>" for locale in languages},
+		locales_to_names_map={locale: f"<{locale}>" for locale in languages},
 	)
 	synth = Synth(manager)
 	environment = {
