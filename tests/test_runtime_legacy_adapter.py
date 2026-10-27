@@ -10,7 +10,7 @@ from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
 def test_lifecycle_metadata_and_apply_order(bridge_modules, rt):
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	adapter.open()
 	adapter.open()
 	assert cls.opens == 1
@@ -49,7 +49,7 @@ def test_lifecycle_metadata_and_apply_order(bridge_modules, rt):
 def test_voice_metadata_defaults_and_canonical_key(bridge_modules, rt, extra):
 	cls = legacy_class(Core())
 	cls.voices = classmethod(lambda cls, core: [dict(engine="Fake", id="a", language="en_US", **extra)])
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	assert adapter.listVoices() == (rt.models.VoiceSpec("a", "Fake:a", "", "en_US", "Fake", "en_US"),)
 
 
@@ -66,7 +66,7 @@ def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge_modules, rt)
 	malformed = dict(valid, id="broken")
 	del malformed["language"]
 	cls.voices = classmethod(lambda cls, core: [malformed, valid])
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	assert adapter.listVoices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
 
 
@@ -77,7 +77,7 @@ def test_token_support_comes_from_actual_core(bridge_modules, support):
 		core.supportsCancellationToken = support
 	cls = legacy_class(core)
 	cls.supportsCancellationToken = True  # Class claims are not authoritative.
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	adapter.open()
 	token = SimpleNamespace(is_cancelled=lambda: False)
 	adapter.speak(("hello",), token)
@@ -91,7 +91,7 @@ def test_unsupported_generic_settings_are_not_written(bridge_modules, rt):
 	core = Core()
 	cls = legacy_class(core)
 	cls.supportedSettings = classmethod(lambda cls: ["rate"])
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	adapter.open()
 	state = rt.voice_settings.VoiceState(make_spec(), {})
 	adapter.apply(state.spec, state.snapshot())
@@ -108,7 +108,7 @@ def test_failed_core_creation_leaves_nothing_to_clean(bridge_modules, rt):
 		raise ValueError("open failed")
 
 	cls.create_core = classmethod(fail_open)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	session = rt.session.EngineSession(adapter, rt.voice_settings.VoiceSettingsStore(MemoryRepository()))
 	with pytest.raises(ValueError, match="open failed"):
 		session.open()
@@ -127,7 +127,7 @@ def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge_module
 		raise OSError("cleanup failed")
 
 	cls.destroy_core = classmethod(fail_destroy)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	adapter.open()
 	with pytest.raises(OSError, match="cleanup failed"):
 		adapter.close()
@@ -139,8 +139,8 @@ def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge_module
 def test_each_adapter_owns_its_own_core(bridge_modules):
 	first_core, second_core = Core(), Core()
 	first_cls, second_cls = legacy_class(first_core), legacy_class(second_core)
-	first = bridge_modules.adapter.LegacyEngineAdapter(first_cls, lambda key: first_cls())
-	second = bridge_modules.adapter.LegacyEngineAdapter(second_cls, lambda key: second_cls())
+	first = bridge_modules.adapter.VoiceClassAdapter(first_cls, lambda key: first_cls())
+	second = bridge_modules.adapter.VoiceClassAdapter(second_cls, lambda key: second_cls())
 	first.open()
 	second.open()
 	assert (first.core, second.core) == (first_core, second_core)
@@ -160,7 +160,7 @@ def test_onecore_cached_a_b_a_restores_language(bridge_modules, rt):
 	store = rt.voice_settings.VoiceSettingsStore(MemoryRepository())
 	store.ensure(make_spec("OneCore:a", "en")).update(rate=72)
 	store.ensure(make_spec("OneCore:b", "zh_TW")).update(rate=31)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	session = rt.session.EngineSession(adapter, store)
 	session.open()
 	for key in ("OneCore:a", "OneCore:b", "OneCore:a"):
@@ -200,7 +200,7 @@ def test_real_variant_and_waitfactor_hooks(bridge_modules, rt, monkeypatch, engi
 	voice.id = "a"
 	# The harness's Voice base is a plain object; a bound facade exposes core.
 	voice.core = core
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: voice)
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: voice)
 	adapter.open()
 	core.writes.clear()
 	assert adapter.capabilities.supports_variants is True
@@ -226,7 +226,7 @@ def marker_env(monkeypatch, bridge_modules, rt, nvda_commands):
 	)
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(
+	adapter = bridge_modules.adapter.VoiceClassAdapter(
 		cls,
 		lambda key: cls(),
 		indexLedger=ledger,
@@ -334,7 +334,7 @@ def test_legacy_without_context_preserves_commands(bridge_modules, monkeypatch):
 
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	adapter.open()
 	commands = ("hello", object())
 	original_import = builtins.__import__
@@ -363,7 +363,7 @@ def drain_env(monkeypatch, bridge_modules, rt, nvda_commands, request):
 	ledger = support.ledger.IndexLedger()
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls(), indexLedger=ledger)
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls(), indexLedger=ledger)
 	adapter.open()
 	contract = rt.models.CompletionContract(
 		getattr(rt.models.CompletionMode, getattr(request, "param", "DRAIN")),
@@ -517,7 +517,7 @@ def test_segment_event_configuration_rejects_wrong_lifecycle_phase(bridge_module
 	core = Core()
 	core.speak_segment = lambda *args, **kwargs: None
 	cls = legacy_class(core)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	if phase != "before_open":
 		adapter.open()
 	if phase in ("after_speech", "after_close"):

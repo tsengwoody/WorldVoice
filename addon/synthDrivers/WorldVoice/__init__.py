@@ -25,7 +25,7 @@ from speech.commands import (
 from speech.extensions import filter_speechSequence
 from synthDriverHandler import SynthDriver, getSynth, synthDoneSpeaking, synthIndexReached
 
-from .bridge.commands import normalize_legacy_commands
+from .bridge.commands import normalizeNvdaCommands
 from .bridge.completionPolicies import CompletionPolicy
 from .bridge.indexLedger import IndexLedger
 from .bridge.nvdaEvents import NvdaEventBridge
@@ -322,7 +322,7 @@ class SynthDriver(SynthDriver):
 
 		queue_speech_sequence(
 			self.taskManager,
-			normalize_legacy_commands(speechSequence),
+			normalizeNvdaCommands(speechSequence),
 			self._voiceManager.default_voice_name,
 			self._voiceManager.resolve_playback,
 		)

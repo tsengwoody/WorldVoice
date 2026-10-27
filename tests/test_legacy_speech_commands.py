@@ -36,7 +36,7 @@ def test_normalizer_passes_voice_objects_through_unchanged(legacy):
 	# Voices are chosen by SelectVoice from lang_cmd_to_voice; a Voice object is not a command.
 	voice = object.__new__(legacy.Voice)
 	voice.name = "Fake:a"
-	assert list(legacy.commands.normalize_legacy_commands([voice])) == [voice]
+	assert list(legacy.commands.normalizeNvdaCommands([voice])) == [voice]
 
 
 def test_normalizer_is_lazy_and_preserves_unrecognized_objects(legacy, rt):
@@ -54,7 +54,7 @@ def test_normalizer_is_lazy_and_preserves_unrecognized_objects(legacy, rt):
 			yield command
 		raise RuntimeError("source failed")
 
-	normalized = legacy.commands.normalize_legacy_commands(sequence())
+	normalized = legacy.commands.normalizeNvdaCommands(sequence())
 	assert seen == []
 	for command in commands:
 		assert next(normalized) is command
@@ -64,7 +64,7 @@ def test_normalizer_is_lazy_and_preserves_unrecognized_objects(legacy, rt):
 
 def test_normalizer_rejects_external_marker(legacy):
 	marker = legacy.speech_commands.WorldVoiceIndexCommand(502)
-	normalized = legacy.commands.normalize_legacy_commands(["before", marker, "after"])
+	normalized = legacy.commands.normalizeNvdaCommands(["before", marker, "after"])
 	assert next(normalized) == "before"
 	with pytest.raises(ValueError):
 		next(normalized)
@@ -74,7 +74,7 @@ def test_full_sequence_normalizes_without_inserting_internal_markers(legacy, rt,
 	select = rt.models.SelectVoice("Fake:b")
 	index = nvda_commands.IndexCommand(123)
 	result = list(
-		legacy.commands.normalize_legacy_commands(
+		legacy.commands.normalizeNvdaCommands(
 			[
 				"A",
 				select,

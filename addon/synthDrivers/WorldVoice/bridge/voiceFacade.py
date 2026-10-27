@@ -8,7 +8,7 @@ from ..runtime.voiceSettings import VoiceSettingsStore
 
 
 @dataclass(frozen=True)
-class LegacyVoiceBinding:
+class VoiceBinding:
 	"""One opened engine's settings, playback session and core."""
 
 	settings: VoiceSettingsStore
@@ -27,7 +27,7 @@ def _setting(name):
 
 
 class VoiceFacade:
-	def __init__(self, spec: VoiceSpec, binding: LegacyVoiceBinding):
+	def __init__(self, spec: VoiceSpec, binding: VoiceBinding):
 		self._binding = binding
 		self._state = binding.settings.ensure(spec)
 		self.id = self._state.spec.id

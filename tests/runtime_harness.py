@@ -465,7 +465,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 			variants = ()
 
 		cached = {spec.name: LegacyVoice() for spec in voices}
-		adapter = legacy.LegacyEngineAdapter(
+		adapter = legacy.VoiceClassAdapter(
 			LegacyVoice,
 			cached.__getitem__,
 			indexLedger=ledger,

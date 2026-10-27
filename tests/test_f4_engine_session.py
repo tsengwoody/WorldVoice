@@ -43,7 +43,7 @@ def engine(session_module, bridge_modules, rt):
 			def supportedSettings(cls):
 				return [setting.id for setting in core.supportedSettings]
 
-		return bridge_modules.adapter.LegacyEngineAdapter(
+		return bridge_modules.adapter.VoiceClassAdapter(
 			Legacy,
 			lambda key: SimpleNamespace(
 				applyEngineSettings=lambda core, snapshot: result.hook(core, snapshot),

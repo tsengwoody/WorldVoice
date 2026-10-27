@@ -192,7 +192,7 @@ def make_adapter(env):
 		def supportedSettings(cls):
 			return ()
 
-	return env.adapter.LegacyEngineAdapter(Voice, lambda key: None)
+	return env.adapter.VoiceClassAdapter(Voice, lambda key: None)
 
 
 def test_configure_requires_open_and_cannot_downgrade(env):

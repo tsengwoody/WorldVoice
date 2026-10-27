@@ -192,9 +192,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"SynthDriver.voice_manager",
 		"base_dir",
 	},
-	"synthDrivers/WorldVoice/bridge/commands.py": {
-		"normalize_legacy_commands",
-	},
 	"synthDrivers/WorldVoice/bridge/nvdaEvents.py": {
 		"_BindingEvents.__new__.<locals>.is_active",
 	},

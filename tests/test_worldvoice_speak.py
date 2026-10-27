@@ -185,7 +185,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 		"lang_cmd_to_voice": modules.language_commands.lang_cmd_to_voice,
 		"detect_with_number_language": modules.number_stages.detect_with_number_language,
 		"queue_speech_sequence": modules.builder.queue_speech_sequence,
-		"normalize_legacy_commands": modules.commands.normalize_legacy_commands,
+		"normalizeNvdaCommands": modules.commands.normalizeNvdaCommands,
 		"detection_settings": detection_settings,
 		"SpeechContext": modules.context.SpeechContext,
 		"GENERIC_CONTEXT": modules.context.GENERIC_CONTEXT,

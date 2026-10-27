@@ -171,7 +171,7 @@ def adapter_env(monkeypatch, bridge_modules, rt, nvda_commands):
 		core = EntryCore()
 		cls = legacy_class(core)
 		index_ledger = support.ledger.IndexLedger() if ledger else None
-		adapter = bridge_modules.adapter.LegacyEngineAdapter(
+		adapter = bridge_modules.adapter.VoiceClassAdapter(
 			cls,
 			lambda key: cls(),
 			indexLedger=index_ledger,

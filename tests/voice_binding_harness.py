@@ -15,7 +15,7 @@ def install_binding(driver, config):
 	repository = importlib.import_module(package + ".voices.settingsRepository")
 	store = voice_settings.VoiceSettingsStore(repository.ConfigVoiceSettingsRepository(config.conf))
 	session = sessions.EngineSession(FakeAdapter(), store)
-	binding = facade.LegacyVoiceBinding(store, session, None)
+	binding = facade.VoiceBinding(store, session, None)
 
 	def voice(voice_id, key, language):
 		engine = key.split(":", 1)[0]
@@ -37,10 +37,10 @@ def bind_core(core, *voices):
 		lambda cls: [setting.id for setting in core.supportedSettings],
 	)
 	voice_class.create_core = classmethod(lambda cls: core)
-	adapter = adapters.LegacyEngineAdapter(voice_class, by_name.__getitem__)
+	adapter = adapters.VoiceClassAdapter(voice_class, by_name.__getitem__)
 	session = sessions.EngineSession(adapter, old.settings)
 	session.open()
-	binding = facade.LegacyVoiceBinding(old.settings, session, core)
+	binding = facade.VoiceBinding(old.settings, session, core)
 	for voice in voices:
 		voice._binding = binding
 	return session

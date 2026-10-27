@@ -44,7 +44,7 @@ _ENTRIES = {
 }
 
 
-class LegacyEngineAdapter(EngineAdapter):
+class VoiceClassAdapter(EngineAdapter):
 	def __init__(
 		self,
 		voiceClass: type,

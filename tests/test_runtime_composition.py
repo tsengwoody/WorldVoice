@@ -711,14 +711,14 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 	if engine in ("OneCore", "SAPI5"):
 		installed.driver.useWasapi = True
 	configured = []
-	configure = c.module.LegacyEngineAdapter.configureSegmentEvents
+	configure = c.module.VoiceClassAdapter.configureSegmentEvents
 
 	def configure_after_bind(adapter, factory):
 		assert bridge_binding(c.bridge, installed.voice.opened).source is installed.voice.opened
 		configure(adapter, factory)
 		configured.append(adapter)
 
-	monkeypatch.setattr(c.module.LegacyEngineAdapter, "configureSegmentEvents", configure_after_bind)
+	monkeypatch.setattr(c.module.VoiceClassAdapter, "configureSegmentEvents", configure_after_bind)
 	select, logs = runtime_completion_selector(c)
 	manager = c.create(select)
 	port = manager.resolve_playback(engine + ":a")
@@ -909,14 +909,14 @@ def test_drain_factory_configured_after_bind_before_publication(composition, mon
 	cls = c.engine("drain")
 	calls, setup = [], []
 	cls.synth_driver_class.speak_segment = lambda core, commands, token, **kwargs: calls.append(kwargs)
-	configure = c.module.LegacyEngineAdapter.configureSegmentEvents
+	configure = c.module.VoiceClassAdapter.configureSegmentEvents
 
 	def configure_after_bind(adapter, factory):
 		assert bridge_binding(c.bridge, cls.opened).source is cls.opened
 		configure(adapter, factory)
 		setup.append(adapter)
 
-	monkeypatch.setattr(c.module.LegacyEngineAdapter, "configureSegmentEvents", configure_after_bind)
+	monkeypatch.setattr(c.module.VoiceClassAdapter, "configureSegmentEvents", configure_after_bind)
 	manager = c.create(lambda cls, core: drain_contract(c))
 	port = manager.resolve_playback("drain:a")
 	context = c.models.PlaybackContext(port.source_id, 1)
@@ -1026,13 +1026,13 @@ def test_partial_event_configuration_rolls_back_binding_and_owner(composition, m
 	c = composition
 	cls = c.engine("drain")
 	cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
-	configure = c.module.LegacyEngineAdapter.configureSegmentEvents
+	configure = c.module.VoiceClassAdapter.configureSegmentEvents
 
 	def fail_after_configure(adapter, factory):
 		configure(adapter, factory)
 		raise RuntimeError("partial event setup")
 
-	monkeypatch.setattr(c.module.LegacyEngineAdapter, "configureSegmentEvents", fail_after_configure)
+	monkeypatch.setattr(c.module.VoiceClassAdapter, "configureSegmentEvents", fail_after_configure)
 	with pytest.raises(RuntimeError, match="partial event setup"):
 		c.create(lambda cls, core: drain_contract(c))
 	assert bridge_bindings(c.bridge) == {}

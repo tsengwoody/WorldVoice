@@ -1,4 +1,4 @@
-"""A recording engine core and the legacy Voice class that owns it, for LegacyEngineAdapter tests."""
+"""A recording engine core and the legacy Voice class that owns it, for VoiceClassAdapter tests."""
 
 
 class Core:

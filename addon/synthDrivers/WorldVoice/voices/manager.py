@@ -4,10 +4,10 @@ from typing import Any
 
 from logHandler import log
 
-from ..bridge.engineAdapter import LegacyEngineAdapter
+from ..bridge.engineAdapter import VoiceClassAdapter
 from ..bridge.indexLedger import IndexLedger
 from ..bridge.nvdaEvents import NvdaEventBridge
-from ..bridge.voiceFacade import LegacyVoiceBinding
+from ..bridge.voiceFacade import VoiceBinding
 from ..runtime.completion import rule_for
 from ..runtime.models import CompletionContract, EngineCapabilities, VoiceSpec
 from ..runtime.scheduler import TaskManager
@@ -24,9 +24,9 @@ class EngineResource:
 
 	engine: str
 	voice_class: type
-	adapter: LegacyEngineAdapter
+	adapter: VoiceClassAdapter
 	session: EngineSession
-	binding: LegacyVoiceBinding
+	binding: VoiceBinding
 	voices: tuple[VoiceSpec, ...] = ()
 	published: bool = False
 
@@ -91,14 +91,14 @@ class VoiceManager:
 		self._default_voice_instance = self.get_voice_instance(self._get_default_voice_spec().name)
 
 	def _open_engine(self, name: str, cls: type) -> EngineResource | None:
-		adapter = LegacyEngineAdapter(cls, self.get_voice_instance, indexLedger=self._index_ledger)
+		adapter = VoiceClassAdapter(cls, self.get_voice_instance, indexLedger=self._index_ledger)
 		try:
 			adapter.open()
 		except Exception:
 			log.error("engine %s on error", name, exc_info=True)
 			return None
 		session = EngineSession(adapter, self.settings)
-		binding = LegacyVoiceBinding(self.settings, session, adapter.core)
+		binding = VoiceBinding(self.settings, session, adapter.core)
 		resource = EngineResource(name, cls, adapter, session, binding)
 		# Claim cleanup before opening: every later step may fail.
 		self._resources[name] = resource

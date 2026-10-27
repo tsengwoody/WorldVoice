@@ -98,10 +98,10 @@ def assembly(modules):
 
 		Voice.engine = engine
 		spec = modules.models.VoiceSpec(voice_id, key, key, "en", engine, "en")
-		adapter = modules.adapter.LegacyEngineAdapter(Voice, voices.__getitem__)
+		adapter = modules.adapter.VoiceClassAdapter(Voice, voices.__getitem__)
 		session = modules.session.EngineSession(adapter, store)
 		session.open()
-		instance = Voice(spec, modules.facade.LegacyVoiceBinding(store, session, adapter.core))
+		instance = Voice(spec, modules.facade.VoiceBinding(store, session, adapter.core))
 		voices[key] = instance
 		ports[key] = session
 		bridge.bind(adapter.notificationSource, session.source_id)
@@ -110,7 +110,7 @@ def assembly(modules):
 	def queue(sequence, default):
 		return modules.builder.queue_speech_sequence(
 			manager,
-			modules.commands.normalize_legacy_commands(sequence),
+			modules.commands.normalizeNvdaCommands(sequence),
 			default.name,
 			ports.get,
 		)
