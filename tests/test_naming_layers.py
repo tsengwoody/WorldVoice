@@ -134,7 +134,6 @@ TRANSITIONAL_47C: dict[str, set[str]] = {
 		"Voice.destroy_core",
 		"Voice.drain_profile",
 		"Voice.extra_capabilities",
-		"Voice.synth_driver_class",
 	},
 }
 

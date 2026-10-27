@@ -208,7 +208,7 @@ def test_onecore_uses_the_stop_gate_and_declares_voice_last():
 	assert names.count("Voice") == 1 and names.index("Voice") > names.index("SynthDriver")
 	assert not any(
 		isinstance(n, ast.Assign)
-		and any(ast.unparse(t) in {"SynthDriver", "Voice.synth_driver_class"} for t in n.targets)
+		and any(ast.unparse(t) in {"SynthDriver", "Voice.synthDriverClass"} for t in n.targets)
 		for n in tree.body
 	)
 

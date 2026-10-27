@@ -629,7 +629,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 class Voice(BaseVoice):
 	engine = "OneCore"
 	drain_profile = DrainProfile(wasapi_dependent=True)
-	synth_driver_class = SynthDriver
+	synthDriverClass = SynthDriver
 
 	def applyEngineSettings(self, core, snapshot):
 		core.language = snapshot.language

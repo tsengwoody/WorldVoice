@@ -49,7 +49,7 @@ def fake_voice(
 			return work.DrainSupport(supported, "test-profile", reason)
 
 	class Voice:
-		synth_driver_class = SynthDriver
+		synthDriverClass = SynthDriver
 		drain_profile = work.DrainProfile(wasapi_dependent=wasapi) if profile else None
 
 	Voice.engine = engine
@@ -294,7 +294,7 @@ def test_actual_outer_voice_and_core_select_enabled_drain_profiles(
 	try:
 		policies = fresh_policies(monkeypatch)
 		policy = policies.CompletionPolicy()
-		assert installed.outer.Voice.synth_driver_class is type(installed.driver)
+		assert installed.outer.Voice.synthDriverClass is type(installed.driver)
 		for audio_mode, expected in audio_modes:
 			contract, support = policy.contractFor(
 				installed.outer.Voice,
@@ -392,7 +392,7 @@ def test_six_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine
 	outer, core, control = installed.outer, installed.core, installed.control
 	try:
 		policies = fresh_policies(monkeypatch)
-		assert outer.Voice.synth_driver_class is type(core)
+		assert outer.Voice.synthDriverClass is type(core)
 		assert outer.Voice.drain_profile is not None
 		# The host owns the lifecycle and implements its hooks.
 		host = segment_host(core)

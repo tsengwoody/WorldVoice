@@ -79,7 +79,7 @@ class CompletionPolicy:
 
 		if getattr(voiceClass, "drain_profile", None) is None:
 			return unsupported("The Voice declares no drain profile")
-		driver = getattr(voiceClass, "synth_driver_class", None)
+		driver = getattr(voiceClass, "synthDriverClass", None)
 		if not isinstance(driver, type) or not isinstance(core, driver):
 			return unsupported("The opened core is not the Voice's custom outer SynthDriver")
 		if not callable(getattr(core, "speak_segment", None)):

@@ -68,7 +68,7 @@ def test_installs_gate_on_core_and_existing_callback(engine_harness):
 	assert player_of(core) is player_of(handler)
 	assert isinstance(silence_gate(core), engine_harness.module._SilenceGate)
 	assert guarded_real_player(player_of(core)) is real_player(core)
-	assert engine_harness.module.Voice.synth_driver_class is engine_harness.module.SynthDriver
+	assert engine_harness.module.Voice.synthDriverClass is engine_harness.module.SynthDriver
 
 
 @pytest.mark.parametrize(

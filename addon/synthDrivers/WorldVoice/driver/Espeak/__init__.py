@@ -208,4 +208,4 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 class Voice(BaseVoice):
 	engine = "Espeak"
 	drain_profile = DrainProfile()
-	synth_driver_class = SynthDriver
+	synthDriverClass = SynthDriver

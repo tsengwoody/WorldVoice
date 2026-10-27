@@ -10,7 +10,7 @@ from addon_loader import REF
 
 ROOT = Path(__file__).resolve().parents[1]
 # The class attributes the base Voice offers plugins.
-PLUGIN_VOICE_ATTRIBUTES = {"core", "engine", "synth_driver_class", "extra_capabilities", "drain_profile"}
+PLUGIN_VOICE_ATTRIBUTES = {"core", "engine", "synthDriverClass", "extra_capabilities", "drain_profile"}
 
 
 class FakeCore:
@@ -39,7 +39,7 @@ def neural_voice(base):
 	class Voice(base):
 		core = None
 		engine = "Neural"
-		synth_driver_class = FakeCore
+		synthDriverClass = FakeCore
 
 	return Voice
 

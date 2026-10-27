@@ -94,7 +94,7 @@ def assembly(modules):
 				pass
 
 		class Voice(modules.driver.Voice):
-			synth_driver_class = Core
+			synthDriverClass = Core
 
 		Voice.engine = engine
 		spec = modules.models.VoiceSpec(voice_id, key, key, "en", engine, "en")

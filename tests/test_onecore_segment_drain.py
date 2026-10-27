@@ -261,7 +261,7 @@ def test_onecore_waits_for_tail_sync_before_drain(env):
 	assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert events[0].source_id is context.source_id
 	assert events[0].segment_id == 17
-	assert env.outer.Voice.synth_driver_class is type(env.driver)
+	assert env.outer.Voice.synthDriverClass is type(env.driver)
 
 
 def test_settings_tuples_do_not_take_native_job_identity(env):

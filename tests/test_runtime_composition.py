@@ -689,7 +689,7 @@ def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
 				),
 			)
 
-	cls.synth_driver_class = SynthDriver
+	cls.synthDriverClass = SynthDriver
 	return SimpleNamespace(
 		voice=cls,
 		driver=SynthDriver,
@@ -908,7 +908,7 @@ def test_drain_factory_configured_after_bind_before_publication(composition, mon
 	c = composition
 	cls = c.engine("drain")
 	calls, setup = [], []
-	cls.synth_driver_class.speak_segment = lambda core, commands, token, **kwargs: calls.append(kwargs)
+	cls.synthDriverClass.speak_segment = lambda core, commands, token, **kwargs: calls.append(kwargs)
 	configure = c.module.VoiceClassAdapter.configureSegmentEvents
 
 	def configure_after_bind(adapter, factory):
@@ -936,7 +936,7 @@ def test_drain_factory_configured_after_bind_before_publication(composition, mon
 def test_drain_request_integrates_encoded_indexes_and_native_events(composition, nvda_commands, mode, order):
 	c = composition
 	cls = c.engine("drain")
-	cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+	cls.synthDriverClass.speak_segment = lambda *args, **kwargs: None
 	manager = c.create(lambda cls, core: drain_contract(c, mode))
 	port = manager.resolve_playback("drain:a")
 	indexes, sinks, completed = [], [], threading.Event()
@@ -977,7 +977,7 @@ def test_drain_request_integrates_encoded_indexes_and_native_events(composition,
 def test_index_handler_revokes_remainder_of_drain_batch(composition, nvda_commands, action):
 	c = composition
 	cls = c.engine("drain")
-	cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+	cls.synthDriverClass.speak_segment = lambda *args, **kwargs: None
 	manager = c.create(lambda cls, core: drain_contract(c))
 	port = manager.resolve_playback("drain:a")
 	entered, returned = threading.Event(), threading.Event()
@@ -1025,7 +1025,7 @@ def test_index_handler_revokes_remainder_of_drain_batch(composition, nvda_comman
 def test_partial_event_configuration_rolls_back_binding_and_owner(composition, monkeypatch):
 	c = composition
 	cls = c.engine("drain")
-	cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+	cls.synthDriverClass.speak_segment = lambda *args, **kwargs: None
 	configure = c.module.VoiceClassAdapter.configureSegmentEvents
 
 	def fail_after_configure(adapter, factory):
@@ -1043,7 +1043,7 @@ def test_partial_event_configuration_rolls_back_binding_and_owner(composition, m
 def test_each_drain_factory_captures_its_own_resource(composition, nvda_commands):
 	c = composition
 	first, second = c.engine("first"), c.engine("second")
-	first.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+	first.synthDriverClass.speak_segment = lambda *args, **kwargs: None
 	manager = c.create(lambda cls, core: drain_contract(c))
 	calls, completed = [], threading.Event()
 	for cls in (first, second):
@@ -1071,7 +1071,7 @@ def test_each_drain_factory_captures_its_own_resource(composition, nvda_commands
 def test_reentrant_drain_supplier_waits_until_current_index_batch_finishes(composition, nvda_commands):
 	c = composition
 	cls = c.engine("drain")
-	cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+	cls.synthDriverClass.speak_segment = lambda *args, **kwargs: None
 	manager = c.create(lambda cls, core: drain_contract(c))
 	port = manager.resolve_playback("drain:a")
 	delivery, current = [], {}
@@ -1120,7 +1120,7 @@ def test_reentrant_drain_supplier_waits_until_current_index_batch_finishes(compo
 def test_old_drain_sink_cannot_complete_request_after_core_rebind(composition, nvda_commands):
 	c = composition
 	cls = c.engine("drain")
-	cls.synth_driver_class.speak_segment = lambda *args, **kwargs: None
+	cls.synthDriverClass.speak_segment = lambda *args, **kwargs: None
 	manager = c.create(lambda cls, core: drain_contract(c))
 	port = manager.resolve_playback("drain:a")
 	entered = threading.Event()

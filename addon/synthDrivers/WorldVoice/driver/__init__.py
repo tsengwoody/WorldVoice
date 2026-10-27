@@ -22,7 +22,7 @@ class Voice(VoiceFacade):
 	"""
 
 	engine = ""
-	synth_driver_class = None
+	synthDriverClass = None
 	extra_capabilities = frozenset()
 	drain_profile = None
 
@@ -71,9 +71,9 @@ class Voice(VoiceFacade):
 
 	@classmethod
 	def supportedSettings(cls):
-		if cls.synth_driver_class:
+		if cls.synthDriverClass:
 			try:
-				return [i.id for i in cls.synth_driver_class.supportedSettings]
+				return [i.id for i in cls.synthDriverClass.supportedSettings]
 			except TypeError:
 				return []
 		else:
@@ -85,7 +85,7 @@ class Voice(VoiceFacade):
 
 	@classmethod
 	def create_core(cls):
-		return cls.synth_driver_class()
+		return cls.synthDriverClass()
 
 	@classmethod
 	def destroy_core(cls, core):

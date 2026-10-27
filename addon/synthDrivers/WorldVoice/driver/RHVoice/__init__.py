@@ -429,4 +429,4 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 class Voice(BaseVoice):
 	engine = "RHVoice"
 	drain_profile = DrainProfile()
-	synth_driver_class = SynthDriver
+	synthDriverClass = SynthDriver

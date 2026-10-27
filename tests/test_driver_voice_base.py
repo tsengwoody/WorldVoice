@@ -54,7 +54,7 @@ def test_voice_metadata_finds_a_language_description(driver, language, display_n
 
 def test_settings_come_from_the_synth_driver_class(driver):
 	assert driver.supportedSettings() == []
-	driver.synth_driver_class = type(
+	driver.synthDriverClass = type(
 		"Core",
 		(),
 		{"supportedSettings": [SimpleNamespace(id="rate"), SimpleNamespace(id="pitch")]},
@@ -65,7 +65,7 @@ def test_settings_come_from_the_synth_driver_class(driver):
 def test_settings_declared_as_an_instance_property_are_not_listed(driver):
 	# NVDA's OneCore driver computes supportedSettings in _get_supportedSettings: on the class
 	# that is a property, which cannot be iterated.
-	driver.synth_driver_class = type("Core", (), {"supportedSettings": property(lambda self: [])})
+	driver.synthDriverClass = type("Core", (), {"supportedSettings": property(lambda self: [])})
 	assert driver.supportedSettings() == []
 
 

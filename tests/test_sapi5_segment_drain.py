@@ -119,7 +119,7 @@ def test_end_stream_waits_for_actual_idle_and_preserves_tail_indexes(env):
 	assert event.source_id is context.source_id
 	assert event.segment_id == 17
 	assert env.dones == []
-	assert env.outer.Voice.synth_driver_class is type(env.driver)
+	assert env.outer.Voice.synthDriverClass is type(env.driver)
 
 
 @pytest.mark.parametrize("failure", ["feed", "idle", "sonic", "native"])

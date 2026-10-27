@@ -188,14 +188,14 @@ def composition(monkeypatch):
 		locales = dict(locales or {})
 
 		class Voice(driver.Voice):
-			synth_driver_class = Core
+			synthDriverClass = Core
 			opened = None  # Test bookkeeping: the core this engine has open.
 
 			@classmethod
 			def create_core(cls):
 				if fail:
 					raise RuntimeError("partial open")
-				cls.opened = cls.synth_driver_class()
+				cls.opened = cls.synthDriverClass()
 				return cls.opened
 
 			@classmethod
