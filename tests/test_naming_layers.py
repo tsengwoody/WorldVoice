@@ -105,8 +105,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"GlobalPlugin.enable_log_record",
 		"GlobalPlugin.onFileImport.<locals>.core_zip_path",
 		"GlobalPlugin.popup_SpeechSettingsDialog",
-		"GlobalPlugin.script_popup_SpeechSettingsDialog",
-		"GlobalPlugin.script_switch_log_record",
 		"GlobalPlugin.submenu_WorldVoice",
 		"GlobalPlugin.submenu_item",
 	},
@@ -323,6 +321,16 @@ TRANSITIONAL_47C: dict[str, set[str]] = {
 		"Voice.drain_profile",
 		"Voice.extra_capabilities",
 		"Voice.synth_driver_class",
+	},
+}
+
+
+# Stored identifiers, which phase 47d renames (refactor9 6.1 rule 3): NVDA binds a user's gestures
+# in gestures.ini by the name after script_ (ref/nvda/source/inputCore.py, getattr(cls, "script_%s")).
+TRANSITIONAL_47D: dict[str, set[str]] = {
+	"globalPlugins/WorldVoice/__init__.py": {
+		"GlobalPlugin.script_popup_SpeechSettingsDialog",
+		"GlobalPlugin.script_switch_log_record",
 	},
 }
 
@@ -574,7 +582,7 @@ def test_every_add_on_module_has_a_layer():
 
 
 def test_naming_follows_layer(addon_violations):
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47B, TRANSITIONAL_47C)
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47B, TRANSITIONAL_47C, TRANSITIONAL_47D)
 	assert [
 		f"{definition.path}:{definition.line} {definition.qualname}"
 		for key, definition in sorted(addon_violations.items())
@@ -584,7 +592,7 @@ def test_naming_follows_layer(addon_violations):
 
 def test_lists_hold_only_names_that_break_the_rule(addon_violations):
 	# A renamed or removed name must leave the lists, so they only shrink.
-	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47B, TRANSITIONAL_47C)
+	listed = _listed(INTERFACE_NAMES, TRANSITIONAL_47B, TRANSITIONAL_47C, TRANSITIONAL_47D)
 	assert sorted(listed - set(addon_violations)) == []
 
 
