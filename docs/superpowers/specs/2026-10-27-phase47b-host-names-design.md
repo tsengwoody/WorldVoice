@@ -62,7 +62,7 @@ Names from interfaces the guard cannot read (NVDA, the standard library, native 
 
 | Module | Name | Interface |
 | --- | --- | --- |
-| `driver/VE/__init__.py`, `driver/Cerence/__init__.py` | `_SilenceGate.is_set` | `threading.Event.is_set`, which the vendored callback calls through `_isSilence` (refactor9 §4.3) |
+| `driver/VE/__init__.py`, `driver/Cerence/__init__.py` | `_SilenceGate.is_set` | `threading.Event.is_set`; ~~which the vendored callback calls through `_isSilence`~~ the vendored callback calls `_isSilence.isSet()` (`driver/VE/driver/__init__.py:153`, `:182`, `:193`, `:195`), which `_SilenceGate.isSet` forwards to it (`driver/VE/__init__.py:113`; corrected after the final review F-M1) (refactor9 §4.3) |
 | `driver/Espeak/__init__.py` | `_SegmentNative.espeak_Synth`, `_SegmentNative.espeak_ng_Cancel` | eSpeak NG DLL exports, proxied for NVDA's `_espeak.espeakDLL` (`driver/Espeak/__init__.py:16-55`, `:68`) |
 | `driver/RHVoice/__init__.py` | `_NativeLibrary.RHVoice_new_message`, `RHVoice_speak`, `RHVoice_delete_message` | RHVoice library exports, proxied for the vendored driver's `__lib` (`driver/RHVoice/__init__.py:111-157`) |
 | `driver/SAPI5/__init__.py` | `_SegmentAudioStream.ISequentialStream_RemoteWrite` | NVDA `synthDrivers.sapi5.SynthDriverAudioStream` (`ref/nvda/source/synthDrivers/sapi5.py:251`) |
