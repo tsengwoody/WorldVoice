@@ -634,15 +634,20 @@ def test_segment_supplier_rechecks_ledger_token_after_bridge_validation(drain_en
 	env = drain_env
 	env.bridge.segmentSink(env.source, env.context)(segment_event(env))
 	receive = env.ledger.receiveSegmentEvent
+	decoded = []
 
 	def replace_binding(event, **kwargs):
 		assert_other_thread_can_unbind(env.bridge, env.source_id)
 		env.bridge.bind(env.source, env.source_id, completion=env.contract)
 		env.ledger.prepare(env.context, (80,))
-		return receive(event, **kwargs)
+		decoded.append(receive(event, **kwargs))
+		return decoded[-1]
 
 	monkeypatch.setattr(env.ledger, "receiveSegmentEvent", replace_binding)
-	assert list(env.suppliers[0]()) == []
+	batch = env.suppliers[0]()
+	# The ledger itself rejects the stale token; the batch would hide that, as its binding is gone.
+	assert decoded == [()]
+	assert list(batch) == []
 
 
 def test_segment_batch_stops_after_index_handler_unbinds(drain_env):
