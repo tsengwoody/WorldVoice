@@ -84,6 +84,7 @@ def test_unicode_settings_are_gone(monkeypatch):
 	plugin_class = plugin(monkeypatch).module.GlobalPlugin
 	assert not hasattr(plugin_class, "script_popup_unicode_settings_dialog")
 	assert not hasattr(plugin_class, "popup_SpeechSymbolsDialog")
+	assert not hasattr(plugin_class, "popupSpeechSymbolsDialog")
 
 
 @pytest.mark.parametrize("enabled", [False, True])
