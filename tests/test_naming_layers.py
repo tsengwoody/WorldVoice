@@ -75,6 +75,12 @@ UPPER_CASE = re.compile(r"_*[A-Z][A-Z0-9_]*")
 
 # Names from interfaces outside the add-on: {module path: {qualified name: the interface}}.
 INTERFACE_NAMES = {
+	SYNTH + "driver/Cerence/__init__.py": {
+		"_SilenceGate.is_set": "threading.Event.is_set, which the vendored callback calls through _isSilence",
+	},
+	SYNTH + "driver/VE/__init__.py": {
+		"_SilenceGate.is_set": "threading.Event.is_set, which the vendored callback calls through _isSilence",
+	},
 	SYNTH + "runtime/models.py": {
 		"VoiceSnapshot.rateBoost": "the voice setting id rateBoost (runtime/voiceSettings.VOICE_PARAMETERS), "
 		"stored in nvda.ini and NVDA's SynthDriver setting of that name",
@@ -117,7 +123,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"_ContextualCerenceCallback._process.<locals>.message_type",
 		"_GuardedPlayer.__init__.<locals>.real_player",
 		"_SilenceGate._inside_native_call",
-		"_SilenceGate.is_set",
 		"_SilenceGate.token_cancelled",
 		"_strip_bytes_repr",
 	},
@@ -192,7 +197,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"_ContextualVECallback._process.<locals>.message_type",
 		"_GuardedPlayer.__init__.<locals>.real_player",
 		"_SilenceGate._inside_native_call",
-		"_SilenceGate.is_set",
 		"_SilenceGate.token_cancelled",
 		"_strip_bytes_repr",
 	},
