@@ -10,8 +10,8 @@ import wx
 from gui import guiHelper
 from gui.settingsDialogs import MultiCategorySettingsDialog, SettingsPanel
 from logHandler import log
-from synthDrivers.WorldVoice import languageDetection
 from synthDrivers.WorldVoice.engineRegistry import ENGINE_SPECS, get_engine_enabled
+from synthDrivers.WorldVoice.languageDetection.scriptLanguages import DETECTION_SCRIPTS, SCRIPT_LANGUAGES
 from synthDrivers.WorldVoice.languageDetection.settings import detection_settings
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
 from synthDrivers.WorldVoice.pipeline.registry import LOG_SWITCHES
@@ -502,9 +502,15 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 
 		settingsSizerHelper = guiHelper.BoxSizerHelper(self, sizer=sizer)
 
+		# One choice per script of the table, in its order; the labels are this panel's own.
+		labels = self._script_labels()
 		self._scriptChoices = {
-			script: self._add_script_choice(settingsSizerHelper, script, label)
-			for script, label in self._script_labels().items()
+			detectionScript.script: self._add_script_choice(
+				settingsSizerHelper,
+				detectionScript.script,
+				labels[detectionScript.script],
+			)
+			for detectionScript in DETECTION_SCRIPTS
 		}
 
 		DetectLanguageTimingLabel = [
@@ -539,7 +545,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 
 	def _add_script_choice(self, helper, script, label):
 		"""A choice of the available two-letter languages written in script."""
-		candidates = set(languageDetection.SCRIPT_LANGUAGES[script])
+		candidates = set(SCRIPT_LANGUAGES[script])
 		locales = sorted(candidates & {locale for locale in self._locales if len(locale) == 2})
 		names = [self.localesToNames[locale] for locale in locales]
 		choice = helper.addLabeledControl(label, wx.Choice, choices=names)

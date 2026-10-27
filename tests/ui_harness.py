@@ -753,7 +753,11 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 	stubs.module("synthDriverHandler", getSynth=lambda: env.current[0])
 	env.settings, env.controls = _pipeline_ui(monkeypatch, stubs, env.conf)
 	env.pipeline_settings = env.settings.pipeline_settings
-	stubs.module("synthDrivers.WorldVoice.languageDetection", SCRIPT_LANGUAGES={})
+	load_source(
+		monkeypatch,
+		"synthDrivers.WorldVoice.languageDetection.scriptLanguages",
+		WORLDVOICE / "languageDetection/scriptLanguages.py",
+	)
 	stubs.module("synthDrivers.WorldVoice.languageDetection.settings", detection_settings=None)
 	env.engine_specs = tuple(
 		SimpleNamespace(name=name, label=label, default_enabled=default) for name, label, default in engines

@@ -1,5 +1,6 @@
 """The Unicode detection panel's script choices and what it saves."""
 
+import ast
 from types import SimpleNamespace
 
 import pytest
@@ -32,7 +33,7 @@ class NoConfig:
 		raise AssertionError(f"the panel read config[{key!r}] directly")
 
 
-def build(env, languages, stored):
+def build(env, languages, stored, table=None):
 	switching = {
 		"latinCharactersLanguage": "en",
 		"CJKCharactersLanguage": "zh",
@@ -58,7 +59,8 @@ def build(env, languages, stored):
 		"guiHelper": SimpleNamespace(BoxSizerHelper=BoxSizerHelper),
 		"config": SimpleNamespace(conf=NoConfig()),
 		"worldvoice_synth": lambda: synth,
-		"languageDetection": env.module,
+		"DETECTION_SCRIPTS": table if table is not None else env.script_languages.DETECTION_SCRIPTS,
+		"SCRIPT_LANGUAGES": env.script_languages.SCRIPT_LANGUAGES,
 		"detection_settings": service,
 	}
 	load_definitions(PANEL, ["UnicodeDetectionSettingsPanel"], environment)
@@ -152,6 +154,45 @@ def test_saving_unchanged_choices_notifies_nobody(env):
 	built = build(env, LANGUAGES, STORED)
 	built.panel.onSave()
 	assert built.notified == []
+
+
+DEFAULT_LABELS = [
+	"Language assumed for latin characters:",
+	"Language assumed for CJK characters:",
+	"Language assumed for arabic characters:",
+	"Language assumed for cyrillic characters:",
+	"Language assumed for devanagari characters:",
+]
+
+
+def test_detection_panel_lists_every_table_script(env):
+	table = env.script_languages.DETECTION_SCRIPTS
+	built = build(env, LANGUAGES, STORED)
+	assert set(built.panel._script_labels()) == {row.script for row in table}
+	assert len(built.panel._script_labels()) == len(table)
+	# The controls follow the table, not the labels: reversed rows give reversed controls.
+	reversed_built = build(env, LANGUAGES, STORED, table=tuple(reversed(table)))
+	assert [control.label for control in reversed_built.added[0:TIMING]] == DEFAULT_LABELS[::-1]
+	reversed_built.added[TIMING - 1].Select(0)
+	reversed_built.panel.onSave()
+	assert reversed_built.switching["latinCharactersLanguage"] == "en"
+
+
+def test_the_dialog_reads_the_tables_without_the_detector():
+	# The panel needs the script table and the settings service, not the detector module.
+	allowed = {
+		"synthDrivers.WorldVoice.languageDetection.settings",
+		"synthDrivers.WorldVoice.languageDetection.scriptLanguages",
+	}
+	for node in ast.walk(ast.parse(PANEL.read_text(encoding="utf-8"))):
+		if isinstance(node, ast.ImportFrom):
+			names = [node.module or "", *(f"{node.module}.{alias.name}" for alias in node.names)]
+		elif isinstance(node, ast.Import):
+			names = [alias.name for alias in node.names]
+		else:
+			continue
+		if any("languageDetection" in name for name in names):
+			assert isinstance(node, ast.ImportFrom) and node.module in allowed, ast.unparse(node)
 
 
 @pytest.fixture
