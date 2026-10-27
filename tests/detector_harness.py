@@ -45,5 +45,6 @@ def load_language_detection(stub_modules, monkeypatch):
 		state=state,
 		settings_module=settings_module,
 		settings=settings_module.DetectionSettingsService(lambda: conf),
+		script_languages=importlib.import_module(PACKAGE + ".languageDetection.scriptLanguages"),
 		WV=importlib.import_module(PACKAGE + ".speechCommands").WVLangChangeCommand,
 	)

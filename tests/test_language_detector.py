@@ -664,7 +664,7 @@ def covers(env, scenario, language, script):
 	"""The phase 33 rule, written out: a language of the script with an installed voice."""
 	primary = env.module.primary_language(language)
 	installed = {env.module.primary_language(voice) for voice in scenario.installed}
-	return primary in env.module.SCRIPT_LANGUAGES.get(script, ()) and primary in installed
+	return primary in env.script_languages.SCRIPT_LANGUAGES.get(script, ()) and primary in installed
 
 
 def spoken_letters(env, scenario, items, result):
@@ -715,7 +715,7 @@ def test_property_letters_go_to_installed_languages(env, scenario, items):
 	for script, language, _base, inserted in spoken_letters(env, scenario, items, result):
 		if inserted is not None:
 			assert env.module.primary_language(inserted) in installed
-		if any(candidate in installed for candidate in env.module.SCRIPT_LANGUAGES.get(script, ())):
+		if any(candidate in installed for candidate in env.script_languages.SCRIPT_LANGUAGES.get(script, ())):
 			# Some installed language covers the script, so the letter is spoken in one of them.
 			assert covers(env, scenario, language, script)
 
