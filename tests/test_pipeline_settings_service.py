@@ -50,6 +50,40 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert all(spec.ring for spec in module.PIPELINE_SETTINGS if spec.driver_id)
 
 
+@pytest.mark.parametrize(
+	("field", "stored"),
+	[
+		("scope", "scope"),
+		("number_mode", "numberMode"),
+		# NVDA spells "say all" sayAll in its own keys.
+		("sayall_wait_factor", "sayAllWaitFactor"),
+		("unspaced_script_space_wait_factor", "unspacedScriptSpaceWaitFactor"),
+	],
+)
+def test_stored_key_is_nvda_camel_case_of_the_field(monkeypatch, field, stored):
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert module.stored_key_for(field) == stored
+
+
+def test_every_entry_reads_its_stored_key_from_the_derivation(monkeypatch):
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	assert all(spec.stored_key == module.stored_key_for(spec.key) for spec in module.PIPELINE_SETTINGS)
+	assert [spec.stored_key for spec in module.PIPELINE_STORED_SETTINGS] == [
+		"scope",
+		"globalWaitFactor",
+		"numberMode",
+		"groupSize",
+		"numberWaitFactor",
+		"itemWaitFactor",
+		"sayAllWaitFactor",
+		"unspacedScriptSpaceWaitFactor",
+		"punctuationPauseEnabled",
+		"removePunctuationCharacters",
+		"punctuationWaitFactor",
+		"punctuationPauseCharacters",
+	]
+
+
 def test_number_mode_choices_put_off_first(monkeypatch):
 	# Decided by the user (2026-10-22): "off" leaves numbers alone; the default stays "value".
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})

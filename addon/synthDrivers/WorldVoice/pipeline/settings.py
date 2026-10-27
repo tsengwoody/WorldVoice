@@ -68,6 +68,20 @@ def _number_mode(value: Any) -> str:
 	return mode if mode in NUMBER_MODES else "value"
 
 
+# A word NVDA spells in camelCase where a field name writes it as one: NVDA's own keys say sayAll
+# (ref/nvda/source/config/configSpec.py, sayAllReadingUnit).
+STORED_WORDS = {"sayall": "sayAll"}
+
+
+def stored_key_for(name: str) -> str:
+	"""The nvda.ini key for a snake_case name of the table: NVDA camelCase (refactor9 6.1 rule 3).
+
+	The fields stay snake_case in the core; only what WorldVoice stores in NVDA's files follows NVDA.
+	"""
+	first, *rest = (STORED_WORDS.get(word, word) for word in name.split("_"))
+	return first + "".join(word[:1].upper() + word[1:] for word in rest)
+
+
 @dataclass(frozen=True)
 class PipelineSettingSpec:
 	"""One pipeline setting: its config key, type, default, synth-setting metadata and panel control."""
@@ -98,6 +112,11 @@ class PipelineSettingSpec:
 	panel_scale: int = 1
 	# False: an ordering-only entry whose value NVDA stores as a driver setting.
 	pipeline_config: bool = True
+
+	@property
+	def stored_key(self) -> str:
+		"""Where nvda.ini stores the entry in WorldVoice's pipeline section, and its log switch."""
+		return stored_key_for(self.key)
 
 	def convert(self, value: Any) -> Any:
 		result = self.normalize(value) if self.normalize is not None else self.kind(value)
