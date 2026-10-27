@@ -11,7 +11,7 @@ PLUGIN = ADDON / "globalPlugins/WorldVoice"
 # The settings dialog and its panels, listed so that a missing module fails instead of reading nothing.
 DIALOG_FILES = (PLUGIN / "dialog.py", *(PLUGIN / "panels" / f"{name}.py" for name in PANEL_MODULES))
 VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
-SYNTH = WORLDVOICE / "__init__.py"
+CONFSPEC = WORLDVOICE / "confspec.py"
 
 
 class Widget:
@@ -27,7 +27,7 @@ class Widget:
 
 def test_log_labels_match_stages_and_confspec(monkeypatch):
 	assert list(load_settings_dialog(monkeypatch).panels.log._LOG_LABELS) == LOG_SWITCH_ORDER
-	tree = ast.parse(SYNTH.read_text(encoding="utf-8"))
+	tree = ast.parse(CONFSPEC.read_text(encoding="utf-8"))
 	source = ast.unparse(tree)
 	assert "key: 'boolean(default=false)' for key in LOG_SWITCHES" in source
 

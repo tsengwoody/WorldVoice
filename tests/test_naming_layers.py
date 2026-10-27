@@ -72,6 +72,7 @@ HOST = (
 	SYNTH + "driver/",
 	SYNTH + "ui/",
 	SYNTH + "__init__.py",
+	SYNTH + "confspec.py",
 	"globalPlugins/WorldVoice/",
 	"installTasks.py",
 	"generics/",

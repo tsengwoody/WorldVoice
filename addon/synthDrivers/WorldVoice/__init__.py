@@ -30,9 +30,10 @@ from .bridge.completionPolicies import CompletionPolicy
 from .bridge.indexLedger import IndexLedger
 from .bridge.nvdaEvents import NvdaEventBridge
 from .bringup import Teardown, patch_attribute, timed
+from .confspec import installConfspec
 from .engineRegistry import ready_engine_classes
 from .languageDetection.detector import LanguageDetector
-from .languageDetection.settings import DETECTION_CONFSPEC, detection_settings
+from .languageDetection.settings import detection_settings
 from .numberLanguage import FOLLOW, MAIN
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext
 from .pipeline.languageCommands import (
@@ -41,12 +42,11 @@ from .pipeline.languageCommands import (
 	lang_cmd_to_voice,
 )
 from .pipeline.numberStages import detect_with_number_language
-from .pipeline.registry import LOG_SWITCHES, listable, order_move_to_start_register
+from .pipeline.registry import listable, order_move_to_start_register
 from .pipeline.scope import pipeline_scope
 from .pipeline.settings import (
 	NUMBER_LANGUAGE_CHOICES,
 	NUMBER_MODE_CHOICES,
-	PIPELINE_CONFSPEC,
 	PIPELINE_SETTINGS,
 	pipeline_settings,
 )
@@ -55,7 +55,7 @@ from .runtime.scheduler import TaskManager
 from .runtime.voiceSettings import VoiceSettingsStore
 from .ui.voicePanel import WorldVoiceVoiceSettingsPanel
 from .voices.manager import VoiceManager
-from .voices.settingsRepository import VOICE_CONFSPEC, ConfigVoiceSettingsRepository
+from .voices.settingsRepository import ConfigVoiceSettingsRepository
 
 _: Any
 
@@ -65,29 +65,6 @@ baseDir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, baseDir)
 
 addonHandler.initTranslation()
-
-
-def installConfspec(conf):
-	"""Give NVDA's conf the [WorldVoice] spec; each section's keys come from the module that owns it."""
-	conf.spec["WorldVoice"] = {
-		"autoLanguageSwitching": {
-			**DETECTION_CONFSPEC,
-			"keepMainLocaleVoiceConsistent": "boolean(default=true)",
-			"keepMainLocaleParameterConsistent": "boolean(default=false)",
-			"keepMainLocaleEngineConsistent": "boolean(default=true)",
-		},
-		"pipeline": dict(PIPELINE_CONFSPEC),
-		"role": {},
-		"engine": {
-			"__many__": "boolean(default=false)",
-		},
-		"log": {
-			"enable": "boolean(default=false)",
-			**{key: "boolean(default=false)" for key in LOG_SWITCHES},
-		},
-		"voices": {"__many__": dict(VOICE_CONFSPEC)},
-	}
-
 
 installConfspec(config.conf)
 

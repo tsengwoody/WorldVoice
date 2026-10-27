@@ -11,7 +11,7 @@ from types import ModuleType
 from addon_loader import WORLDVOICE, load_definitions
 
 # The file whose installConfspec(conf) assigns conf.spec["WorldVoice"].
-CONFSPEC_SOURCE = WORLDVOICE / "__init__.py"
+CONFSPEC_SOURCE = WORLDVOICE / "confspec.py"
 
 
 class StubModules:
