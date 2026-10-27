@@ -85,7 +85,7 @@ class VoiceManager:
 				continue
 			self._bind(resource)
 			self._publish(resource)
-		self._set_voice_datas()
+		self._set_voice_data()
 		if not self.table:
 			raise RuntimeError("No WorldVoice voices are available from enabled speech engines.")
 		self._default_voice_instance = self.get_voice_instance(self._get_default_voice_spec().name)
@@ -260,7 +260,7 @@ class VoiceManager:
 	def playback_ports(self) -> tuple[PlaybackPort, ...]:
 		return tuple(resource.session for resource in self._resources.values() if resource.published)
 
-	def _set_voice_datas(self):
+	def _set_voice_data(self):
 		self.catalog = VoiceCatalog.from_specs(
 			spec for resource in self._resources.values() if resource.published for spec in resource.voices
 		)

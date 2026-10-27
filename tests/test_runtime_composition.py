@@ -103,7 +103,7 @@ def test_an_unpublished_engine_is_never_visible(composition):
 	manager = c.create()
 	first, second = engine_resources(manager)["first"], engine_resources(manager)["second"]
 	second.published = False
-	manager._set_voice_datas()
+	manager._set_voice_data()
 	assert "second:a" not in manager.voice_infos and "first:a" in manager.voice_infos
 	assert manager.playback_ports == (first.session,)
 	assert manager.resolve_playback("second:a") is None
