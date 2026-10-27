@@ -63,8 +63,8 @@ class _DetachableCallback:
 
 	def __call__(self, audio, length, markers):
 		with self._lock:
-			driver_ref = self._driver
-			driver = driver_ref() if driver_ref is not None else None
+			driverRef = self._driver
+			driver = driverRef() if driverRef is not None else None
 		# An already admitted callback retains its driver only until it exits.
 		# detach/terminate never waits for its feed/sync under this lock.
 		if driver is not None:
@@ -227,9 +227,9 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 		# Called under the condition; a control fault requires resource replacement.
 		if self._segmentTerminated:
 			raise RuntimeError("OneCore driver has terminated")
-		control_error = self._segmentHost.control_error
-		if control_error is not None:
-			raise control_error
+		controlError = self._segmentHost.control_error
+		if controlError is not None:
+			raise controlError
 
 	def speak(self, speechSequence):
 		with self._segmentCondition:
@@ -372,10 +372,10 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 		host = self._segmentHost
 		with self._segmentCondition:
 			record = self._segmentNative
-		control_failed = host.control_error is not None
+		controlFailed = host.control_error is not None
 		if record is None or self._earlyExitCB:
 			return
-		if control_failed:
+		if controlFailed:
 			return
 		if record.operation is None:
 			self._legacyCallback(record, audio, length, markers)
@@ -395,17 +395,17 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 				raise ValueError("OneCore WAV header is truncated")
 			with wave.open(io.BytesIO(ctypes.string_at(audio, oneCore.WAVE_HEADER_LENGTH)), "rb") as wav:
 				self._maybeInitPlayer(wav)
-				data_len = wav.getnframes() * wav.getnchannels() * wav.getsampwidth()
-				bytes_per_sec = wav.getframerate() * wav.getnchannels() * wav.getsampwidth()
-			if data_len > length - oneCore.WAVE_HEADER_LENGTH:
+				dataLen = wav.getnframes() * wav.getnchannels() * wav.getsampwidth()
+				bytesPerSec = wav.getframerate() * wav.getnchannels() * wav.getsampwidth()
+			if dataLen > length - oneCore.WAVE_HEADER_LENGTH:
 				raise ValueError("OneCore WAV payload is truncated")
 			player = self._player
 			data = audio + oneCore.WAVE_HEADER_LENGTH
 			previous = 0
 			for marker in markers.split("|") if markers else ():
 				index, position = (int(value) for value in marker.split(":"))
-				position = position * bytes_per_sec // oneCore.HUNDRED_NS_PER_SEC
-				if not previous <= position <= data_len:
+				position = position * bytesPerSec // oneCore.HUNDRED_NS_PER_SEC
+				if not previous <= position <= dataLen:
 					raise ValueError("OneCore marker offset is outside ordered WAV audio")
 				if not self._feedSegment(
 					record,
@@ -416,7 +416,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 				):
 					return
 				previous = position
-			if not self._feedSegment(record, player, data + previous, data_len - previous):
+			if not self._feedSegment(record, player, data + previous, dataLen - previous):
 				return
 			host.reach(record, "callback")
 		except Exception as error:
@@ -465,11 +465,11 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 		if record.work.is_valid():
 			synthIndexReached.notify(synth=self, index=index)
 
-	def _feedSegment(self, record, player, address, size, on_done=None):
+	def _feedSegment(self, record, player, address, size, onDone=None):
 		if not record.is_valid():
 			return False
 		try:
-			player.feed(ctypes.c_void_p(address), size=size, onDone=on_done)
+			player.feed(ctypes.c_void_p(address), size=size, onDone=onDone)
 		finally:
 			if not record.is_valid():
 				player.stop()
