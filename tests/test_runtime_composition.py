@@ -635,7 +635,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 		models = importlib.import_module(package + ".runtime.models")
 		assert module.IndexLedger is ledger.IndexLedger
 		assert module.CompletionPolicy is policies.CompletionPolicy
-		voice = SimpleNamespace(engine="unverified", drain_profile=None)
+		voice = SimpleNamespace(engine="unverified", drainProfile=None)
 		contract, support = module.CompletionPolicy().contractFor(
 			voice,
 			object(),
@@ -671,7 +671,7 @@ def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
 	work = importlib.import_module(c.package + ".runtime.playbackWork")
 	support_type = work.DrainSupport
 	cls = c.engine(name)
-	cls.drain_profile = work.DrainProfile(wasapi_dependent=name in ("OneCore", "SAPI5"))
+	cls.drainProfile = work.DrainProfile(wasapi_dependent=name in ("OneCore", "SAPI5"))
 	checked, spoken = [], []
 
 	class SynthDriver(c.Core):

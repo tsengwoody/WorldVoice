@@ -953,7 +953,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 class Voice(BaseVoice):
 	extraCapabilities = frozenset({"waitfactor", "variant"})
 	engine = "VE"
-	drain_profile = DrainProfile()
+	drainProfile = DrainProfile()
 	synthDriverClass = SynthDriver
 	# The engine's own default variant, cached on each voice and re-read when its core changes.
 	_defaultVariant = None

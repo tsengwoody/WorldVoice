@@ -50,7 +50,7 @@ def fake_voice(
 
 	class Voice:
 		synthDriverClass = SynthDriver
-		drain_profile = work.DrainProfile(wasapi_dependent=wasapi) if profile else None
+		drainProfile = work.DrainProfile(wasapi_dependent=wasapi) if profile else None
 
 	Voice.engine = engine
 	return SimpleNamespace(voice=Voice, driver=SynthDriver, core=SynthDriver(), checked=checked)
@@ -393,7 +393,7 @@ def test_six_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine
 	try:
 		policies = fresh_policies(monkeypatch)
 		assert outer.Voice.synthDriverClass is type(core)
-		assert outer.Voice.drain_profile is not None
+		assert outer.Voice.drainProfile is not None
 		# The host owns the lifecycle and implements its hooks.
 		host = segment_host(core)
 		assert isinstance(host, outer.SegmentHost)

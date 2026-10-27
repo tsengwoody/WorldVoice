@@ -5,7 +5,7 @@ verified table empty until the engine/version/audio mode has documented
 physical playback and ordered-index evidence. IndexCommand support alone
 never establishes completion semantics or a safe integer range.
 
-A wrapper opts into DRAIN by declaring ``Voice.drain_profile``; its opened core
+A wrapper opts into DRAIN by declaring ``Voice.drainProfile``; its opened core
 then decides through ``get_segment_drain_support``. This is separate from
 physical playback certification. No installed wrapper profile is verified yet,
 so DRAIN for them is a forced activation controlled by ``forceUnverifiedDrain``;
@@ -57,7 +57,7 @@ class CompletionPolicy:
 
 	def audioMode(self, voiceClass: type, core: object) -> str:
 		"""Report the opened core's audio path; only explicit booleans are trusted."""
-		profile = getattr(voiceClass, "drain_profile", None)
+		profile = getattr(voiceClass, "drainProfile", None)
 		if profile is None or not profile.wasapi_dependent:
 			return "default"
 		useWasapi = getattr(core, "useWasapi", None)
@@ -77,7 +77,7 @@ class CompletionPolicy:
 		def unsupported(reason):
 			return DrainSupport(False, moduleName, reason)
 
-		if getattr(voiceClass, "drain_profile", None) is None:
+		if getattr(voiceClass, "drainProfile", None) is None:
 			return unsupported("The Voice declares no drain profile")
 		driver = getattr(voiceClass, "synthDriverClass", None)
 		if not isinstance(driver, type) or not isinstance(core, driver):
@@ -117,7 +117,7 @@ class CompletionPolicy:
 		declares no drain profile. Unsupported profiles must not select a
 		different contract while a segment is waiting for completion.
 		"""
-		if getattr(voiceClass, "drain_profile", None) is None:
+		if getattr(voiceClass, "drainProfile", None) is None:
 			key = (voiceClass.engine, nvdaVersion, audioMode)
 			return _VERIFIED_CONTRACTS.get(key, CompletionContract()), None
 		support = self.drainSupport(voiceClass, core, nvdaVersion=nvdaVersion, audioMode=audioMode)

@@ -10,7 +10,7 @@ from addon_loader import REF
 
 ROOT = Path(__file__).resolve().parents[1]
 # The class attributes the base Voice offers plugins.
-PLUGIN_VOICE_ATTRIBUTES = {"core", "engine", "synthDriverClass", "extraCapabilities", "drain_profile"}
+PLUGIN_VOICE_ATTRIBUTES = {"core", "engine", "synthDriverClass", "extraCapabilities", "drainProfile"}
 
 
 class FakeCore:

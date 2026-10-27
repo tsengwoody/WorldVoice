@@ -361,7 +361,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 	store = rt.voice_settings.VoiceSettingsStore(repo)
 
 	def completion_for(cls, core):
-		if supported and cls.drain_profile is not None:
+		if supported and cls.drainProfile is not None:
 			# Explicit fake-native callback exclusion evidence, not certification
 			# of any installed SDK or physical Windows playback profile.
 			return rt.models.CompletionContract(

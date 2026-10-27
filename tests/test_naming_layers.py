@@ -132,7 +132,6 @@ TRANSITIONAL_47C: dict[str, set[str]] = {
 	"synthDrivers/WorldVoice/driver/__init__.py": {
 		"Voice.create_core",
 		"Voice.destroy_core",
-		"Voice.drain_profile",
 	},
 }
 

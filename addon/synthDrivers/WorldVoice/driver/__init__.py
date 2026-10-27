@@ -24,7 +24,7 @@ class Voice(VoiceFacade):
 	engine = ""
 	synthDriverClass = None
 	extraCapabilities = frozenset()
-	drain_profile = None
+	drainProfile = None
 
 	def applyEngineSettings(self, core, snapshot):
 		return None

@@ -628,7 +628,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 
 class Voice(BaseVoice):
 	engine = "OneCore"
-	drain_profile = DrainProfile(wasapi_dependent=True)
+	drainProfile = DrainProfile(wasapi_dependent=True)
 	synthDriverClass = SynthDriver
 
 	def applyEngineSettings(self, core, snapshot):

@@ -651,6 +651,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 class Voice(BaseVoice):
 	engine = "SAPI5"
-	drain_profile = DrainProfile(wasapi_dependent=True)
+	drainProfile = DrainProfile(wasapi_dependent=True)
 
 	synthDriverClass = SynthDriver
