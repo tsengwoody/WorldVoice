@@ -1651,3 +1651,161 @@ Expected: `3268 passed` after Task 3 (`3266 passed` after Task 2), 0 skipped; ev
 Every commit passed the hooks on the first try and left a clean tree. `buildVars.py` after Task 1: blob `89f0c1c0fbc3563b5ab71cf876706e4c024f04fb`. Task 4 in the clone: `3268 passed`, 0 skipped; `prek run --all-files` all Passed; `git diff --check a7bd115`, both protected-path commands and the `git grep` printed nothing; final tree ids as Task 3.
 
 The plan text was produced from a prototype branch (same tree ids) and first replayed in a calibration clone that filled in the expected outputs; this record is the replay of the final text.
+
+## 修正
+
+Review: `docs/superpowers/finish/2026-10-27-phase42-settings-panels-review.md` (`d5313ff`): 0 Critical, 0 Important, 2 Minor. M2 is fixed below. M1 (Step 6's `check_move.py` compares line multisets, so it cannot prove order) needs no code change: the reviewer's order-sensitive check passed, and the review's fix log records it.
+
+Starts from the end of Task 4: `654ef07` (`HEAD:addon` = `b62ed75314a91f666f195771ec025f77886d128c`, `HEAD:tests` = `76da7b1ca08375c278df4dd9b6b67477ca5f2574`; the review commit `d5313ff` changes only `docs/`). 3268 passed, 0 skipped.
+
+### Task 5: Read the dialog's msgids from a fixed module list (review M2)
+
+**Files:**
+- Test: `tests/test_pipeline_panels.py`
+
+**Interfaces:**
+- Consumes: Task 3's tree; `tests/ui_harness.PANEL_MODULES`.
+- Produces: `DIALOG_FILES` = `dialog.py` plus `panels/<name>.py` for each name of `PANEL_MODULES`, in that order; new test `test_dialog_msgids_come_from_the_dialog_and_every_panel`.
+
+- [ ] **Step 1: Probe (not committed): the overlap check passes when the glob finds no panel**
+
+```bash
+sed -i 's|(PLUGIN / "panels").glob("\*.py")|(PLUGIN / "missing").glob("*.py")|' tests/test_pipeline_panels.py
+grep -c '"missing"' tests/test_pipeline_panels.py
+$SCRATCH/runtests.sh . "tests/test_pipeline_panels.py::test_log_labels_come_from_the_table" 2>&1 | tail -1
+git checkout -- tests/test_pipeline_panels.py
+```
+
+Expected: `1`, then `1 passed` — with no panel read, `dialog_msgids()` holds only `dialog.py`'s two msgids, and `dialog_msgids() & strings == set()` passes vacuously.
+
+- [ ] **Step 2: Write the test that every module of the dialog was read**
+
+**Edit:** `tests/test_pipeline_panels.py` (1/1)
+
+Replace:
+
+```text
+def test_log_labels_come_from_the_table(monkeypatch):
+```
+
+With:
+
+```text
+def test_dialog_msgids_come_from_the_dialog_and_every_panel():
+	# The overlap check below would pass on an empty set; each module's title shows it was read.
+	titles = {
+		"Settings",
+		"WorldVoice",
+		"Speech Pipeline",
+		"Speech Role",
+		"Unicode Detection",
+		"Speech Engine",
+		"Log Record",
+	}
+	assert titles <= dialog_msgids()
+
+
+def test_log_labels_come_from_the_table(monkeypatch):
+```
+
+```bash
+$SCRATCH/runtests.sh . tests/test_pipeline_panels.py 2>&1 | tail -1
+cp tests/test_pipeline_panels.py $SCRATCH/test_pipeline_panels.py.keep
+sed -i 's|(PLUGIN / "panels").glob("\*.py")|(PLUGIN / "missing").glob("*.py")|' tests/test_pipeline_panels.py
+$SCRATCH/runtests.sh . "tests/test_pipeline_panels.py::test_dialog_msgids_come_from_the_dialog_and_every_panel" 2>&1 | tail -1
+cp $SCRATCH/test_pipeline_panels.py.keep tests/test_pipeline_panels.py
+rm $SCRATCH/test_pipeline_panels.py.keep
+```
+
+Expected: `10 passed` (the new test passes on the real tree); with the glob pointed at a missing folder, red `1 failed` — the guard catches the vacuous case.
+
+- [ ] **Step 3: List the modules instead of globbing**
+
+**Edit:** `tests/test_pipeline_panels.py` (1/2)
+
+Replace:
+
+```text
+from ui_harness import load_settings_dialog, load_voice_panel
+```
+
+With:
+
+```text
+from ui_harness import PANEL_MODULES, load_settings_dialog, load_voice_panel
+```
+
+**Edit:** `tests/test_pipeline_panels.py` (2/2)
+
+Replace:
+
+```text
+# The settings dialog and its panels.
+DIALOG_FILES = (PLUGIN / "dialog.py", *sorted((PLUGIN / "panels").glob("*.py")))
+```
+
+With:
+
+```text
+# The settings dialog and its panels, listed so that a missing module fails instead of reading nothing.
+DIALOG_FILES = (PLUGIN / "dialog.py", *(PLUGIN / "panels" / f"{name}.py" for name in PANEL_MODULES))
+```
+
+```bash
+$SCRATCH/runtests.sh . tests/test_pipeline_panels.py 2>&1 | tail -1
+cp tests/test_pipeline_panels.py $SCRATCH/test_pipeline_panels.py.keep
+sed -i 's|PLUGIN / "panels" / f"{name}.py"|PLUGIN / "missing" / f"{name}.py"|' tests/test_pipeline_panels.py
+$SCRATCH/runtests.sh . "tests/test_pipeline_panels.py::test_log_labels_come_from_the_table" 2>&1 | grep -E "^E +FileNotFoundError|passed|failed" | tail -2
+cp $SCRATCH/test_pipeline_panels.py.keep tests/test_pipeline_panels.py
+rm $SCRATCH/test_pipeline_panels.py.keep
+grep -c '"missing"' tests/test_pipeline_panels.py
+```
+
+Expected: `10 passed`; with the listed panels pointed at a missing folder, `test_log_labels_come_from_the_table` itself is red (`E       FileNotFoundError: [Errno 2] No such file or directory: '<repo>/addon/globalPlugins/WorldVoice/missing/base.py'`, `1 failed`) instead of passing; after the restore `0`.
+
+- [ ] **Step 4: Run the suite and commit**
+
+```bash
+$SCRATCH/runtests.sh . tests 2>&1 | tail -1
+```
+
+Expected: `3269 passed` (3268 + `test_dialog_msgids_come_from_the_dialog_and_every_panel`).
+
+```bash
+git add tests/test_pipeline_panels.py
+git diff --cached --stat | tail -1
+git commit -q -m "test: read the dialog's msgids from a fixed module list" -m "DIALOG_FILES globbed panels/*.py, so if the panels moved, dialog_msgids() would read only dialog.py and the overlap check in test_log_labels_come_from_the_table would pass on nothing. The list now comes from ui_harness.PANEL_MODULES, so a missing module fails, and a new test checks that every module's title is among the msgids (phase 42 review M2)."
+git status --short
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected: `1 file changed, 17 insertions(+), 3 deletions(-)`; every hook Passed; clean status.
+
+Expected after the commit: `HEAD:addon` = `b62ed75314a91f666f195771ec025f77886d128c` (unchanged), `HEAD:tests` = `0cbb15eaac511bddf3d7969c0b8049b709814b72`
+
+### Task 6: Full verification after the fix
+
+**Files:** none.
+
+- [ ] **Step 1: Run every check**
+
+```bash
+$SCRATCH/runtests.sh . tests 2>&1 | tail -1
+prek run --all-files
+git diff --check a7bd115
+git diff --stat a7bd115 -- 'addon/synthDrivers/WorldVoice/driver/*/driver/' addon/synthDrivers/WorldVoice/driver/sonic/ addon/synthDrivers/WorldVoice/unicodeScripts/script_data.py addon/synthDrivers/WorldVoice/unicodeScripts/unspaced_common_data.py
+git ls-files addon/synthDrivers/WorldVoice/driver/Neural
+git rev-parse HEAD:addon HEAD:tests
+```
+
+Expected: `3269 passed`, 0 skipped; every hook Passed; the diff-check, protected-path and Neural commands print nothing; the tree ids of Task 5.
+
+### Dry run record (修正)
+
+2026-10-27, fresh clone of `/workspace/WorldVoice` at `654ef07` (`ref` symlinked, `prek install`), Tasks 5–6 applied from this section's text with the same step runner; pytest under the MemAvailable < 3 GB guard:
+
+| Commit | Files | Focused runs | Full suite | Tree ids |
+| --- | --- | --- | --- | --- |
+| Task 5 | 1 | probe: vacuous `1 passed`; `10 passed`, probe red `1 failed`; `10 passed`, probe red `FileNotFoundError` … `missing/base.py`, `1 failed`; restore `0` | 3269 passed | match |
+
+The commit passed the hooks on the first try and left a clean tree. Task 6: `3269 passed`, 0 skipped; `prek run --all-files` all Passed; `git diff --check a7bd115`, both protected-path commands printed nothing. A calibration clone filled in the expected outputs first; this record is the replay of the final text.
