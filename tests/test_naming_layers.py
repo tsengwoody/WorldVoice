@@ -78,6 +78,10 @@ INTERFACE_NAMES = {
 	SYNTH + "driver/Cerence/__init__.py": {
 		"_SilenceGate.is_set": "threading.Event.is_set, which the vendored callback calls through _isSilence",
 	},
+	SYNTH + "driver/Espeak/__init__.py": {
+		"_SegmentNative.espeak_Synth": "the eSpeak NG DLL export, proxied for NVDA's _espeak.espeakDLL",
+		"_SegmentNative.espeak_ng_Cancel": "the eSpeak NG DLL export, proxied for NVDA's _espeak.espeakDLL",
+	},
 	SYNTH + "driver/VE/__init__.py": {
 		"_SilenceGate.is_set": "threading.Event.is_set, which the vendored callback calls through _isSilence",
 	},
@@ -105,8 +109,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"_EspeakPort.run_when_done",
 		"_EspeakPort.set_index_callback",
 		"_EspeakPort.stop_player",
-		"_SegmentNative.espeak_Synth",
-		"_SegmentNative.espeak_ng_Cancel",
 	},
 	"synthDrivers/WorldVoice/driver/OneCore/__init__.py": {
 		"SynthDriver._callback.<locals>.control_failed",
