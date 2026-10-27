@@ -67,18 +67,18 @@ class _EspeakPort:
 		_espeak.player = LeasedPlayer(host, _espeak.player)
 		_espeak.espeakDLL = _SegmentNative(driver, _espeak.espeakDLL, _espeak.EE_OK)
 
-	def run_when_done(self, function, record):
+	def runWhenDone(self, function, record):
 		_espeak._execWhenDone(function, record, mustBeAsync=True)
 
-	def set_index_callback(self, callback):
+	def setIndexCallback(self, callback):
 		_espeak.onIndexReached = callback
 
-	def mark_not_speaking(self):
+	def markNotSpeaking(self):
 		# NVDA's callback clears isSpeaking on its final empty-wav call; a failed
 		# utterance never reaches it, so clear it here or the next one is aborted early.
 		_espeak.isSpeaking = False
 
-	def stop_player(self):
+	def stopPlayer(self):
 		# As NVDA's stop(): an in-flight callback sees isSpeaking False and aborts
 		# synthesis instead of feeding the player after it was stopped.
 		_espeak.isSpeaking = False
@@ -97,19 +97,19 @@ class _EspeakStrategy(NativeStrategy):
 		driver = self._driver()
 		# Begin and retirement remain separate queue entries: NVDA stop()
 		# removes queued _speak calls but preserves both identity barriers.
-		driver._port.run_when_done(driver._beginSpeech, record)
+		driver._port.runWhenDone(driver._beginSpeech, record)
 		try:
 			BaseSynthDriver.speak(driver, commands)
 		except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 			host.record_error(record, error)
 		finally:
-			driver._port.run_when_done(driver._retireSpeech, record)
+			driver._port.runWhenDone(driver._retireSpeech, record)
 
 	def stop_native(self, host, record):
 		self.stop_player(host)
 
 	def stop_player(self, host):
-		self._driver()._port.stop_player()
+		self._driver()._port.stopPlayer()
 
 
 class SynthDriver(BaseSynthDriver, SegmentDrainCore):
@@ -142,14 +142,14 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 	def _beginSpeech(self, record):
 		self._segmentHost.begin(record)
-		owner_ref = weakref.ref(self)
+		ownerRef = weakref.ref(self)
 
-		def index_callback(index):
-			owner = owner_ref()
+		def indexCallback(index):
+			owner = ownerRef()
 			if owner is not None:
 				owner._indexFor(record, index)
 
-		self._port.set_index_callback(index_callback)
+		self._port.setIndexCallback(indexCallback)
 
 	def _indexFor(self, record, index):
 		# NVDA's onDone lambdas resolve its mutable onIndexReached global.
@@ -177,7 +177,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		if outcome is None or outcome.cancelled:
 			return
 		if outcome.error is not None:
-			self._port.mark_not_speaking()
+			self._port.markNotSpeaking()
 		Thread(
 			target=self._notifyDone,
 			args=(record,),

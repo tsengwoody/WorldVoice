@@ -102,14 +102,6 @@ INTERFACE_NAMES = {
 
 # Host-layer names that phase 47b renames to mixedCase or marks as interface names.
 TRANSITIONAL_47B: dict[str, set[str]] = {
-	"synthDrivers/WorldVoice/driver/Espeak/__init__.py": {
-		"SynthDriver._beginSpeech.<locals>.index_callback",
-		"SynthDriver._beginSpeech.<locals>.owner_ref",
-		"_EspeakPort.mark_not_speaking",
-		"_EspeakPort.run_when_done",
-		"_EspeakPort.set_index_callback",
-		"_EspeakPort.stop_player",
-	},
 	"synthDrivers/WorldVoice/driver/OneCore/__init__.py": {
 		"SynthDriver._callback.<locals>.control_failed",
 		"SynthDriver._checkSegmentAdmission.<locals>.control_error",
