@@ -6,6 +6,7 @@ import types
 import pytest
 from nvda_stubs import RefusingSection, worldvoice_conf
 from pipeline_harness import load_synth
+from worldvoice_harness import number_language_choice_class
 
 
 def manager(capabilities=frozenset()):
@@ -198,7 +199,7 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	monkeypatch.setitem(synth_class.speechContext.__globals__, "SpeechContext", lambda **kwargs: kwargs)
 	synth = object.__new__(synth_class)
 	# What __init__ sets before any stage can run.
-	synth._numlan = "default"
+	synth._numberLanguageChoice = None
 	synth._voiceManager = None
 	assert synth.speechContext() is generic
 	voice = types.SimpleNamespace(name="A:en", language="en")
@@ -207,6 +208,8 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 		get_voice_name_for_language=lambda lang: None,
 		get_voice_locale_for_language=lambda lang: "zh_TW",
 	)
+	# What _initialize builds right after the voice manager.
+	synth._numberLanguageChoice = number_language_choice_class()(manager)
 	synth.language = "en"
 	context = synth.speechContext()
 	assert context["number_language"] == "default"

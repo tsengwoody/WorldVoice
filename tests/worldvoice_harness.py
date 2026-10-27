@@ -32,6 +32,18 @@ class EventStub:
 			handler(**kwargs)
 
 
+# The file that defines NumberLanguageChoice.
+NUMBER_LANGUAGE_CHOICE_SOURCE = WORLDVOICE / "voices/numberLanguageChoice.py"
+
+
+def number_language_choice_class():
+	"""The real NumberLanguageChoice, over the real number-language values."""
+	values = load_definitions(WORLDVOICE / "numberLanguage.py", ["FOLLOW", "MAIN"], {})
+	return load_definitions(NUMBER_LANGUAGE_CHOICE_SOURCE, ["NumberLanguageChoice"], values)[
+		"NumberLanguageChoice"
+	]
+
+
 def load_synth_class(environment):
 	"""Execute the real driver class with NVDA's unavailable services replaced."""
 	return load_definitions(WORLDVOICE / "__init__.py", ["SynthDriver"], environment)["SynthDriver"]

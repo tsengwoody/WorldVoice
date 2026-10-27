@@ -15,7 +15,7 @@ from addon_loader import REF, WORLDVOICE, alias_package
 from hypothesis import HealthCheck, example, given, settings, strategies as st
 from nvda_stubs import StubModules, worldvoice_conf
 from pipeline_harness import load_nvda_character_processing, nvda_normalize_language, symbol_name
-from worldvoice_harness import chosen_voice, load_synth_class, voice_manager
+from worldvoice_harness import chosen_voice, load_synth_class, number_language_choice_class, voice_manager
 
 PACKAGE = "speak_test_worldvoice"
 VOICES = {"en": "A:en", "zh": "B:zh"}
@@ -203,11 +203,11 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	synth = object.__new__(load_synth_class(environment))
 	synth.warnings = warnings
 	synth._terminated = False
-	synth._numlan = "default"
 	synth.language = "en"
 	synth.uwv = uwv
 	synth._taskManager = RecordingTasks(ports)
 	synth._voiceManager = VoiceManager(ports)
+	synth._numberLanguageChoice = number_language_choice_class()(synth._voiceManager)
 	detector = modules.detection.LanguageDetector(
 		list(VOICES),
 		settings=detection_settings,
@@ -353,7 +353,7 @@ def speak_through_stages(
 	"""Run the pipeline stages, then detection when it runs before NVDA, then *nvda* (what NVDA's
 	speak() does to the filtered sequence), then speak; what is heard."""
 	synth, modules = _synth(monkeypatch, timing=timing, uwv=uwv)
-	synth._numlan = numlan
+	synth._set_numlan(numlan)
 	if main == "zh":
 		synth.language = "zh_TW"
 		synth._voiceManager.default_voice_name = ZH

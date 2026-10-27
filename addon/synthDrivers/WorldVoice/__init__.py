@@ -34,7 +34,7 @@ from .confspec import installConfspec
 from .engineRegistry import ready_engine_classes
 from .languageDetection.detector import LanguageDetector
 from .languageDetection.settings import detection_settings
-from .numberLanguage import FOLLOW, MAIN
+from .numberLanguage import FOLLOW
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext
 from .pipeline.languageCommands import (
 	deduplicate_language_command,
@@ -55,6 +55,7 @@ from .runtime.scheduler import TaskManager
 from .runtime.voiceSettings import VoiceSettingsStore
 from .ui.voicePanel import WorldVoiceVoiceSettingsPanel
 from .voices.manager import VoiceManager
+from .voices.numberLanguageChoice import NumberLanguageChoice
 from .voices.settingsRepository import ConfigVoiceSettingsRepository
 
 _: Any
@@ -163,7 +164,7 @@ class SynthDriver(BaseSynthDriver):
 	def __init__(self):
 		self._terminated = False
 		self._terminateCommit = True
-		self._numlan = FOLLOW
+		self._numberLanguageChoice = None
 		self._realSpellingFunc = None
 		self._taskManager = None
 		self._voiceManager = None
@@ -231,6 +232,7 @@ class SynthDriver(BaseSynthDriver):
 					"voice manager terminate",
 					lambda: manager.terminate(commit=self._terminateCommit),
 				)
+				self._numberLanguageChoice = NumberLanguageChoice(manager)
 
 			self._applyPipelineSettings(pipeline_settings.get())
 			pipeline_settings.subscribe(self._applyPipelineSettings)
@@ -451,37 +453,20 @@ class SynthDriver(BaseSynthDriver):
 
 	def _get_availableNumlans(self):
 		values = {value: StringParameterInfo(value, label) for value, label in NUMBER_LANGUAGE_CHOICES}
-		locales = list(self._voiceManager.languages)
-		stored = self._get_numlan()
-		if stored not in (FOLLOW, MAIN) and stored not in locales:
-			# A stored locale that "Keep main locale engine consistent" hides stays listed, so the
-			# Voice panel and the settings ring find the current value.
-			locales.append(stored)
-		for locale in locales:
+		for locale in self._numberLanguageChoice.listed_locales():
 			values[locale] = StringParameterInfo(locale, self._numlanDisplayName(locale))
 		return values
 
-	def _isStoredNumberLanguage(self, value):
-		# Any installed voice's locale, also one the voice settings hide for now.
-		return value in (FOLLOW, MAIN) or value in self._voiceManager.all_languages
-
 	def _get_numlan(self):
-		# The stored choice, which NVDA saves back: a locale hidden by a voice or engine change is
-		# kept, so it comes back when its voices are offered again.
-		return self._numlan if self._isStoredNumberLanguage(self._numlan) else FOLLOW
+		return self._numberLanguageChoice.stored
 
 	def _numberLanguage(self):
-		"""The number language speech uses: a stored locale that no offered voice speaks is "default"."""
-		value = self._get_numlan()
-		return value if value in (FOLLOW, MAIN) or value in self._voiceManager.languages else FOLLOW
+		"""The number language speech uses."""
+		return self._numberLanguageChoice.spoken
 
 	def _set_numlan(self, value):
-		# NVDA stores any string; one that is not a choice would leave the Voice panel without a
-		# selection and break the settings ring, so it reads as the default (no migration).
-		if not self._isStoredNumberLanguage(value):
+		if not self._numberLanguageChoice.store(value):
 			nvdaLog.debugWarning("WorldVoice: unknown number language %r, using %r", value, FOLLOW)
-			value = FOLLOW
-		self._numlan = value
 
 	def _get_availableNummods(self):
 		return {value: StringParameterInfo(value, label) for value, label in NUMBER_MODE_CHOICES}

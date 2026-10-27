@@ -5,7 +5,12 @@ import types
 import pytest
 from addon_loader import WORLDVOICE, load_source
 from nvda_stubs import worldvoice_conf
-from worldvoice_harness import init_policies, load_synth_class, load_voice_manager
+from worldvoice_harness import (
+	init_policies,
+	load_synth_class,
+	load_voice_manager,
+	number_language_choice_class,
+)
 
 
 def _bringup():
@@ -173,6 +178,7 @@ def _construction_environment(failure, changes, close_error=None):
 		"languageHandler": types.SimpleNamespace(getLanguage=lambda: "en"),
 		"FOLLOW": "default",
 		"MAIN": "main",
+		"NumberLanguageChoice": number_language_choice_class(),
 		"speech": speech,
 		"filter_speechSequence": types.SimpleNamespace(
 			unregister=lambda handler: changes.append("filter unregistered"),
@@ -255,7 +261,7 @@ def test_the_detector_reads_the_drivers_number_language():
 	driver = load_synth_class(built.environment)()
 	(providers,) = built.detectors
 	assert providers["number_language"]() == "default"
-	driver._numlan = "main"
+	driver._set_numlan("main")
 	assert providers["number_language"]() == "main"
 
 
