@@ -11,7 +11,7 @@
 2. A name that implements or overrides someone else's interface keeps that name:
    - a method or field whose name a base class defines, when the guard can read that base: a class
      of the add-on named in the class statement (a Protocol or ABC of the core, a vendored driver
-     class, driver.Voice). The parameters of such a method mirror the base as well;
+     class, driver.Voice), and a parameter of such a method that the base method also takes;
    - a name from an interface the guard cannot read (NVDA, the standard library, a stored setting
      id) is listed in INTERFACE_NAMES with the interface it mirrors.
    typing.override cannot be the marker yet: see test_no_module_imports_typing_override.
@@ -531,17 +531,18 @@ def _self_fields(node: ast.FunctionDef | ast.AsyncFunctionDef) -> Iterator[ast.A
 			yield target
 
 
-def _class_members(node: ast.ClassDef) -> set[str]:
-	"""The method and field names a class defines itself."""
-	members = set()
+def _class_members(node: ast.ClassDef) -> dict[str, set[str]]:
+	"""The method and field names a class defines itself, each with its parameter names (none for a field)."""
+	members: dict[str, set[str]] = {}
 	pending = list(node.body)
 	while pending:
 		item = pending.pop()
 		if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-			members.add(item.name)
-			members |= {target.attr for target in _self_fields(item)}
+			members.setdefault(item.name, set()).update(argument.arg for argument in _arguments(item.args))
+			for target in _self_fields(item):
+				members.setdefault(target.attr, set())
 		elif isinstance(item, ast.Name) and isinstance(item.ctx, ast.Store):
-			members.add(item.id)
+			members.setdefault(item.id, set())
 		elif not isinstance(item, ast.ClassDef):
 			pending += ast.iter_child_nodes(item)
 	return members
@@ -615,9 +616,10 @@ class _Index:
 			return self._lookup(source if attribute is None else f"{source}.{attribute}", base.attr)
 		return None
 
-	def inherited(self, module: _Module, node: ast.ClassDef) -> frozenset[str]:
-		"""The member names of every base class of node that the index can read, transitively."""
-		names: set[str] = set()
+	def inherited(self, module: _Module, node: ast.ClassDef) -> dict[str, set[str]]:
+		"""The members of every base class of node that the index can read, transitively, each with
+		the parameter names its methods take."""
+		names: dict[str, set[str]] = {}
 		pending = [(module, base, node.lineno) for base in node.bases]
 		seen = set()
 		while pending:
@@ -626,9 +628,10 @@ class _Index:
 			if found is None or id(found) in seen:
 				continue
 			seen.add(id(found))
-			names |= _class_members(found)
+			for name, parameters in _class_members(found).items():
+				names.setdefault(name, set()).update(parameters)
 			pending += [(self._owners[id(found)], parent, found.lineno) for parent in found.bases]
-		return frozenset(names)
+		return names
 
 
 class _Walker:
@@ -679,7 +682,8 @@ class _Walker:
 		self.add(scope, node.name, "function", node.lineno, overrides)
 		inner = f"{scope}{node.name}.<locals>."
 		for argument in _arguments(node.args):
-			self.add(inner, argument.arg, "parameter", argument.lineno, overrides)
+			mirrored = overrides and argument.arg in inherited[node.name]
+			self.add(inner, argument.arg, "parameter", argument.lineno, mirrored)
 		declared = frozenset(
 			name for child in ast.walk(node) if isinstance(child, ast.Global) for name in child.names
 		)
@@ -816,6 +820,20 @@ def test_the_guard_lets_an_override_keep_the_base_name():
 		),
 	}
 	assert [qualname for _path, qualname in violations(_Index(sources))] == ["Adapter.own_name"]
+
+
+def test_the_guard_flags_an_override_parameter_the_base_lacks():
+	# An override mirrors the parameters of the base method; one the base lacks is the class's own.
+	sources = {
+		SYNTH + "runtime/port.py": "class Port:\n\tdef speak_segment(self, segment_id):\n\t\tpass\n",
+		HOST_MODULE: (
+			"from ..runtime.port import Port\n\n\n"
+			"class Adapter(Port):\n"
+			"\tdef speak_segment(self, segment_id, extra_flag=None):\n\t\tpass\n"
+		),
+	}
+	found = violations(_Index(sources))
+	assert [qualname for _path, qualname in found] == ["Adapter.speak_segment.<locals>.extra_flag"]
 
 
 def test_the_guard_reads_the_imported_base_of_a_class_with_its_name():
