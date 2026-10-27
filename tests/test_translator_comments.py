@@ -157,9 +157,6 @@ def test_zh_tw_catalog_follows_the_labels():
 
 
 GETTEXT_NAMES = {"_", "pgettext", "ngettext", "npgettext"}
-# Modules that call _() without addonHandler.initTranslation(): the _ they reach is NVDA's own
-# catalog, which has none of their strings, so NVDA shows those in English.
-UNTRANSLATED = ("globalPlugins/WorldVoice/utils.py",)
 
 
 def _translated_modules():
@@ -178,12 +175,14 @@ def _translated_modules():
 
 def test_every_translated_module_installs_the_add_on_catalog():
 	# initTranslation() sets _ in the calling module only, so a module split off another needs its own.
+	# Without it, _ is NVDA's own catalog, which has none of the add-on's strings: NVDA shows them in
+	# English.
 	missing = [
 		relative
 		for relative, _path, tree in _translated_modules()
 		if "addonHandler.initTranslation()" not in {ast.unparse(node) for node in tree.body}
 	]
-	assert missing == list(UNTRANSLATED)
+	assert missing == []
 
 
 def test_every_translated_module_is_a_pot_source():

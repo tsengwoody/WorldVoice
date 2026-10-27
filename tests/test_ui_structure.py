@@ -15,6 +15,12 @@ ROLE_PANEL = PLUGIN / "panels/role.py"
 PIPELINE_PANEL = PLUGIN / "panels/pipeline.py"
 VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
 NOT_WORLDVOICE = "Your current speech synthesizer is not WorldVoice."
+ERROR_MESSAGE = (
+	"An unexpected error occurred while processing your action.\n\n"
+	"Details: {err}\n\n"
+	"A full stack trace has been written to the NVDA log."
+)
+ERROR_TITLE = "WorldVoice Setting Dialog - Error"
 UI_CONTROLS = WORLDVOICE / "ui/controls.py"
 
 
@@ -131,6 +137,12 @@ def test_panels_share_the_not_worldvoice_notice():
 	# The Speech Role and Unicode Detection panels show the same notice for another synthesizer;
 	# one copy keeps the two from drifting apart.
 	assert string_constants(NOT_WORLDVOICE) == ["panels/base.py"]
+
+
+def test_settings_errors_share_one_dialog():
+	# A failing handler (guard_errors) and a failed Speech Role save show the same error dialog.
+	assert string_constants(ERROR_MESSAGE) == ["utils.py"]
+	assert string_constants(ERROR_TITLE) == ["utils.py"]
 
 
 def test_settings_ui_asks_for_worldvoice_not_for_the_synth():

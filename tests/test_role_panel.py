@@ -25,8 +25,7 @@ def test_failed_apply_shows_error_and_raises_value_error():
 			"_": lambda text: text,
 			"guard_errors": lambda **kwargs: lambda method: method,
 			"got_error_callback": None,
-			"wx": types.SimpleNamespace(OK=1, ICON_ERROR=2),
-			"gui": types.SimpleNamespace(messageBox=lambda *args: messages.append(args)),
+			"reportError": messages.append,
 			"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
 			"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice", voice_manager=manager),
 		},
@@ -54,7 +53,7 @@ def test_failed_apply_shows_error_and_raises_value_error():
 
 	# The checkbox handlers already told the presenter; saving only applies.
 	assert calls == []
-	assert messages and "save failed" in messages[0][0]
+	assert [str(error) for error in messages] == ["save failed"]
 	assert logged
 
 

@@ -1,8 +1,26 @@
 from functools import wraps
 
+import addonHandler
 import gui
 import wx
 from logHandler import log
+
+addonHandler.initTranslation()
+
+
+def reportError(error):
+	"""Show the settings error dialog for error; the caller has written the stack trace to the log."""
+	gui.messageBox(
+		# Translators: The message of the dialog shown when a WorldVoice settings action fails.
+		_(
+			"An unexpected error occurred while processing your action.\n\n"
+			"Details: {err}\n\n"
+			"A full stack trace has been written to the NVDA log.",
+		).format(err=str(error)),
+		# Translators: The title of the dialog shown when a WorldVoice settings action fails.
+		_("WorldVoice Setting Dialog - Error"),
+		wx.OK | wx.ICON_ERROR,
+	)
 
 
 def guard_errors(callback=None):
@@ -25,18 +43,7 @@ def guard_errors(callback=None):
 				log.error(f"Unhandled exception in {func.__qualname__}", exc_info=True)
 
 				# show a modal error dialog
-				gui.messageBox(
-					# Body text
-					_(
-						"An unexpected error occurred while processing your action.\n\n"
-						"Details: {err}\n\n"
-						"A full stack trace has been written to the NVDA log.",
-					).format(err=str(e)),
-					# Caption
-					_("WorldVoice Setting Dialog - Error"),
-					# Style flags
-					wx.OK | wx.ICON_ERROR,
-				)
+				reportError(e)
 
 				# If the user acknowledged the dialog, invoke the callback
 				if callable(callback):

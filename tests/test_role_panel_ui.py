@@ -267,6 +267,22 @@ def test_save_applies_the_pending_edits(ui):
 	assert ui.presenter.calls == [("apply",)]
 
 
+def test_a_failed_save_reports_the_error_and_keeps_the_dialog_open(ui):
+	def broken():
+		raise OSError("disk full")
+
+	ui.presenter.apply = broken
+	with pytest.raises(ValueError):  # NVDA keeps its settings dialog open only on ValueError
+		ui.panel.onSave()
+
+	((message, caption, style),) = ui.env.shown
+	assert message.startswith("An unexpected error occurred while processing your action.")
+	assert "Details: disk full" in message
+	assert caption == "WorldVoice Setting Dialog - Error"
+	assert style == ui.env.wx.OK | ui.env.wx.ICON_ERROR
+	assert ("error", "Failed to save voice settings") in ui.env.logged
+
+
 def test_an_assigned_voice_the_locale_no_longer_offers_shows_no_voice(ui):
 	panel = ui.panel
 	ui.presenter.assigned["en"] = "removed"

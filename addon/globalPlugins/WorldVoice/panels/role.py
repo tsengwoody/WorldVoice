@@ -10,7 +10,7 @@ from logHandler import log
 from synthDrivers.WorldVoice.pipeline.context import worldvoice_synth
 
 from ..rolePresenter import RolePanelPresenter
-from ..utils import guard_errors
+from ..utils import guard_errors, reportError
 from .base import notWorldVoiceNotice
 
 addonHandler.initTranslation()
@@ -312,14 +312,6 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self._presenter.apply()
 		except Exception as error:
 			log.error("Failed to save voice settings", exc_info=True)
-			gui.messageBox(
-				_(
-					"An unexpected error occurred while processing your action.\n\n"
-					"Details: {err}\n\n"
-					"A full stack trace has been written to the NVDA log.",
-				).format(err=str(error)),
-				_("WorldVoice Setting Dialog - Error"),
-				wx.OK | wx.ICON_ERROR,
-			)
+			reportError(error)
 			# NVDA's settings dialog aborts the save and stays open only on ValueError.
 			raise ValueError("WorldVoice voice settings were not saved") from error
