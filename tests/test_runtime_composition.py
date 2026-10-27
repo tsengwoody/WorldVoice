@@ -636,11 +636,11 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 		assert module.IndexLedger is ledger.IndexLedger
 		assert module.CompletionPolicy is policies.CompletionPolicy
 		voice = SimpleNamespace(engine="unverified", drain_profile=None)
-		contract, support = module.CompletionPolicy().contract_for(
+		contract, support = module.CompletionPolicy().contractFor(
 			voice,
 			object(),
-			nvda_version="test",
-			audio_mode="test",
+			nvdaVersion="test",
+			audioMode="test",
 		)
 		assert contract.mode is models.CompletionMode.LEGACY_DONE and support is None
 		assert module.SynthDriver.__module__ == package
@@ -660,7 +660,7 @@ def runtime_completion_selector(c, version="synthetic"):
 	policies = importlib.import_module(c.package + ".bridge.completionPolicies")
 	logs = []
 	policy = policies.CompletionPolicy(
-		nvda_version=version,
+		nvdaVersion=version,
 		logger=SimpleNamespace(warning=lambda *args: logs.append(args)),
 	)
 	return policy.select, logs

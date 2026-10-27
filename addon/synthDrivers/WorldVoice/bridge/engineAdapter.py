@@ -173,9 +173,9 @@ class LegacyEngineAdapter:
 		try:
 			if rule.correlated:
 				# Legacy direct calls must not load NVDA command dependencies.
-				from .indexCodec import encode_segment
+				from .indexCodec import encodeSegment
 
-				commands = encode_segment(commands, context, self._index_ledger)
+				commands = encodeSegment(commands, context, self._index_ledger)
 			on_event = self._segment_events(context) if rule.entry is SpeakEntry.SEGMENT else None
 			if token.is_cancelled():
 				if rule.correlated:

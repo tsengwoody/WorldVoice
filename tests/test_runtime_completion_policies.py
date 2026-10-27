@@ -62,11 +62,11 @@ def test_profiled_voice_uses_drain_only_with_explicit_support(env, supported):
 	contract, support = (
 		policies_of(env)
 		.CompletionPolicy()
-		.contract_for(
+		.contractFor(
 			pair.voice,
 			pair.core,
-			nvda_version="unknown",
-			audio_mode="default",
+			nvdaVersion="unknown",
+			audioMode="default",
 		)
 	)
 	assert pair.checked == [("unknown", "default")]
@@ -83,11 +83,11 @@ def test_voice_without_profile_still_uses_legacy_done(env):
 	contract, support = (
 		policies_of(env)
 		.CompletionPolicy()
-		.contract_for(
+		.contractFor(
 			pair.voice,
 			pair.core,
-			nvda_version="unknown",
-			audio_mode="default",
+			nvdaVersion="unknown",
+			audioMode="default",
 		)
 	)
 	assert support is None and pair.checked == []
@@ -137,11 +137,11 @@ def test_unconfirmed_profile_falls_back_with_concrete_reason(env, failure, reaso
 	contract, support = (
 		policies_of(env)
 		.CompletionPolicy()
-		.contract_for(
+		.contractFor(
 			pair.voice,
 			core,
-			nvda_version="2026.1",
-			audio_mode="default",
+			nvdaVersion="2026.1",
+			audioMode="default",
 		)
 	)
 	assert support.supported is False and support.reason == reason
@@ -153,11 +153,11 @@ def test_drain_support_refuses_a_voice_without_profile(env):
 	support = (
 		policies_of(env)
 		.CompletionPolicy()
-		.drain_support(
+		.drainSupport(
 			pair.voice,
 			pair.core,
-			nvda_version="2026.1",
-			audio_mode="default",
+			nvdaVersion="2026.1",
+			audioMode="default",
 		)
 	)
 	assert support.supported is False and support.reason == "The Voice declares no drain profile"
@@ -166,12 +166,12 @@ def test_drain_support_refuses_a_voice_without_profile(env):
 
 def test_disabled_force_switch_reports_the_wrapper_reason(env):
 	pair = fake_voice(env, reason="DRAIN explicitly enabled; playback is unverified")
-	policy = policies_of(env).CompletionPolicy(force_unverified_drain=False)
-	contract, support = policy.contract_for(
+	policy = policies_of(env).CompletionPolicy(forceUnverifiedDrain=False)
+	contract, support = policy.contractFor(
 		pair.voice,
 		pair.core,
-		nvda_version="2026.1",
-		audio_mode="default",
+		nvdaVersion="2026.1",
+		audioMode="default",
 	)
 	assert support.supported is False and support.profile == "test-profile"
 	assert support.reason == (
@@ -179,7 +179,7 @@ def test_disabled_force_switch_reports_the_wrapper_reason(env):
 		"DRAIN explicitly enabled; playback is unverified"
 	)
 	assert contract.mode is env.models.CompletionMode.LEGACY_DONE
-	assert policies_of(env).CompletionPolicy().force_unverified_drain is True
+	assert policies_of(env).CompletionPolicy().forceUnverifiedDrain is True
 
 
 def make_adapter(env):
@@ -236,7 +236,7 @@ def real_completion_selector(policies, warnings, *, policy=None, version="2026.1
 	"""The driver's selector: CompletionPolicy.select with NVDA's version and logger."""
 	if policy is None:
 		policy = policies.CompletionPolicy()
-	policy.nvda_version = version
+	policy.nvdaVersion = version
 	policy._logger = SimpleNamespace(warning=lambda *args: warnings.append(args))
 	return policy.select
 
@@ -296,11 +296,11 @@ def test_actual_outer_voice_and_core_select_enabled_drain_profiles(
 		policy = policies.CompletionPolicy()
 		assert installed.outer.Voice.synth_driver_class is type(installed.driver)
 		for audio_mode, expected in audio_modes:
-			contract, support = policy.contract_for(
+			contract, support = policy.contractFor(
 				installed.outer.Voice,
 				installed.driver,
-				nvda_version="2026.1",
-				audio_mode=audio_mode,
+				nvdaVersion="2026.1",
+				audioMode=audio_mode,
 			)
 			assert support.supported is expected and support.reason
 			expected_mode = (
@@ -331,11 +331,11 @@ def test_sapi5_legacy_first_segment_remains_legacy_done(monkeypatch):
 	try:
 		installed.driver.useWasapi = False
 		policies = fresh_policies(monkeypatch)
-		support = policies.CompletionPolicy().drain_support(
+		support = policies.CompletionPolicy().drainSupport(
 			installed.outer.Voice,
 			installed.driver,
-			nvda_version="2026.1",
-			audio_mode="legacy",
+			nvdaVersion="2026.1",
+			audioMode="legacy",
 		)
 		assert support.supported is False
 		contract = real_completion_selector(policies, [])(installed.outer.Voice, installed.driver)
@@ -399,11 +399,11 @@ def test_six_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine
 		assert isinstance(host, outer.SegmentHost)
 		assert lifecycle_hooks(segment_lifecycle(host)) is host
 		policy = policies.CompletionPolicy()
-		contract, support = policy.contract_for(
+		contract, support = policy.contractFor(
 			outer.Voice,
 			core,
-			nvda_version="2026.1",
-			audio_mode=installed.mode,
+			nvdaVersion="2026.1",
+			audioMode=installed.mode,
 		)
 		assert support.supported is True
 		assert contract.mode is policies.CompletionMode.DRAIN
@@ -421,12 +421,12 @@ def test_disabled_force_switch_restores_legacy_done(monkeypatch, tmp_path, engin
 	outer, core = installed.outer, installed.core
 	try:
 		policies = fresh_policies(monkeypatch)
-		disabled = policies.CompletionPolicy(force_unverified_drain=False)
-		support = disabled.drain_support(
+		disabled = policies.CompletionPolicy(forceUnverifiedDrain=False)
+		support = disabled.drainSupport(
 			outer.Voice,
 			core,
-			nvda_version="2026.1",
-			audio_mode=installed.mode,
+			nvdaVersion="2026.1",
+			audioMode=installed.mode,
 		)
 		assert support.supported is False
 		assert "force_unverified_drain" in support.reason and "unverified" in support.reason
@@ -448,12 +448,12 @@ def test_disabled_force_switch_keeps_structural_fallback_reason(monkeypatch):
 	try:
 		installed.driver.useWasapi = False
 		policies = fresh_policies(monkeypatch)
-		disabled = policies.CompletionPolicy(force_unverified_drain=False)
-		support = disabled.drain_support(
+		disabled = policies.CompletionPolicy(forceUnverifiedDrain=False)
+		support = disabled.drainSupport(
 			installed.outer.Voice,
 			installed.driver,
-			nvda_version="2026.1",
-			audio_mode="legacy",
+			nvdaVersion="2026.1",
+			audioMode="legacy",
 		)
 		assert support.supported is False
 		assert support.reason == "SAPI5 legacy audio has no owned player idle barrier"
@@ -465,7 +465,7 @@ def test_select_warns_once_per_distinct_fallback_profile(env):
 	policies = policies_of(env)
 	warnings = []
 	policy = policies.CompletionPolicy(
-		nvda_version="2026.1",
+		nvdaVersion="2026.1",
 		logger=SimpleNamespace(warning=lambda *args: warnings.append(args)),
 	)
 	first = fake_voice(env, supported=False, reason="reason a", engine="Fake")
@@ -485,7 +485,7 @@ def test_fallback_dedupe_belongs_to_one_policy(env):
 	logger = SimpleNamespace(warning=lambda *args: warnings.append(args))
 	pair = fake_voice(env, supported=False)
 	for _ in range(2):
-		policies.CompletionPolicy(nvda_version="2026.1", logger=logger).select(pair.voice, pair.core)
+		policies.CompletionPolicy(nvdaVersion="2026.1", logger=logger).select(pair.voice, pair.core)
 	assert len(warnings) == 2
 
 
@@ -493,14 +493,14 @@ def test_fallback_dedupe_belongs_to_one_policy(env):
 def test_select_matches_contract_for(env, profile, supported):
 	policies = policies_of(env)
 	policy = policies.CompletionPolicy(
-		nvda_version="2026.1",
+		nvdaVersion="2026.1",
 		logger=SimpleNamespace(warning=lambda *args: None),
 	)
 	pair = fake_voice(env, profile=profile, supported=supported)
-	expected, _ = policy.contract_for(
+	expected, _ = policy.contractFor(
 		pair.voice,
 		pair.core,
-		nvda_version="2026.1",
-		audio_mode=policy.audio_mode(pair.voice, pair.core),
+		nvdaVersion="2026.1",
+		audioMode=policy.audioMode(pair.voice, pair.core),
 	)
 	assert policy.select(pair.voice, pair.core) == expected

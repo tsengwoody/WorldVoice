@@ -195,26 +195,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 	"synthDrivers/WorldVoice/bridge/commands.py": {
 		"normalize_legacy_commands",
 	},
-	"synthDrivers/WorldVoice/bridge/completionPolicies.py": {
-		"CompletionPolicy.__init__.<locals>.force_unverified_drain",
-		"CompletionPolicy.__init__.<locals>.nvda_version",
-		"CompletionPolicy.audio_mode",
-		"CompletionPolicy.audio_mode.<locals>.use_wasapi",
-		"CompletionPolicy.audio_mode.<locals>.voice_class",
-		"CompletionPolicy.contract_for",
-		"CompletionPolicy.contract_for.<locals>.audio_mode",
-		"CompletionPolicy.contract_for.<locals>.nvda_version",
-		"CompletionPolicy.contract_for.<locals>.voice_class",
-		"CompletionPolicy.drain_support",
-		"CompletionPolicy.drain_support.<locals>.audio_mode",
-		"CompletionPolicy.drain_support.<locals>.module_name",
-		"CompletionPolicy.drain_support.<locals>.nvda_version",
-		"CompletionPolicy.drain_support.<locals>.voice_class",
-		"CompletionPolicy.force_unverified_drain",
-		"CompletionPolicy.nvda_version",
-		"CompletionPolicy.select.<locals>.audio_mode",
-		"CompletionPolicy.select.<locals>.voice_class",
-	},
 	"synthDrivers/WorldVoice/bridge/engineAdapter.py": {
 		"LegacyEngineAdapter.__init__.<locals>.index_ledger",
 		"LegacyEngineAdapter.__init__.<locals>.resolve_voice",
@@ -236,9 +216,6 @@ TRANSITIONAL_47B: dict[str, set[str]] = {
 		"_speak_plain.<locals>.on_event",
 		"_speak_segment",
 		"_speak_segment.<locals>.on_event",
-	},
-	"synthDrivers/WorldVoice/bridge/indexCodec.py": {
-		"encode_segment",
 	},
 	"synthDrivers/WorldVoice/bridge/indexLedger.py": {
 		"IndexAllocation.end_index",

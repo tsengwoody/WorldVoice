@@ -232,7 +232,7 @@ class SynthDriver(SynthDriver):
 				self._eventBridge.start(tasks.on_event, batch_handler=tasks.on_events)
 
 			with timed(nvdaLog, "VoiceManager"):
-				self._completionPolicy = CompletionPolicy(nvda_version=versionInfo.version, logger=nvdaLog)
+				self._completionPolicy = CompletionPolicy(nvdaVersion=versionInfo.version, logger=nvdaLog)
 				self._voiceManager = VoiceManager(
 					task_manager=self.taskManager,
 					settings=self._settingsStore,

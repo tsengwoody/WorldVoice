@@ -8,7 +8,7 @@ never establishes completion semantics or a safe integer range.
 A wrapper opts into DRAIN by declaring ``Voice.drain_profile``; its opened core
 then decides through ``get_segment_drain_support``. This is separate from
 physical playback certification. No installed wrapper profile is verified yet,
-so DRAIN for them is a forced activation controlled by ``force_unverified_drain``;
+so DRAIN for them is a forced activation controlled by ``forceUnverifiedDrain``;
 turning it off restores LEGACY_DONE for every one.
 """
 
@@ -26,27 +26,27 @@ class CompletionPolicy:
 	def __init__(
 		self,
 		*,
-		nvda_version: str | None = None,
+		nvdaVersion: str | None = None,
 		logger=None,
-		force_unverified_drain: bool = True,
+		forceUnverifiedDrain: bool = True,
 	):
 		# Forced activation of DRAIN on wrapper profiles without playback evidence.
-		self.force_unverified_drain = force_unverified_drain
-		self.nvda_version = nvda_version
+		self.forceUnverifiedDrain = forceUnverifiedDrain
+		self.nvdaVersion = nvdaVersion
 		self._logger = logger or logging.getLogger(__name__)
 		self._fallbacks: set[tuple] = set()
 
-	def select(self, voice_class: type, core: object) -> CompletionContract:
+	def select(self, voiceClass: type, core: object) -> CompletionContract:
 		"""Choose the opened core's contract, logging each distinct fallback once."""
-		audio_mode = self.audio_mode(voice_class, core)
-		contract, support = self.contract_for(
-			voice_class,
+		audioMode = self.audioMode(voiceClass, core)
+		contract, support = self.contractFor(
+			voiceClass,
 			core,
-			nvda_version=self.nvda_version,
-			audio_mode=audio_mode,
+			nvdaVersion=self.nvdaVersion,
+			audioMode=audioMode,
 		)
 		if support is not None and not support.supported:
-			profile = (voice_class.engine, self.nvda_version, audio_mode, support.profile, support.reason)
+			profile = (voiceClass.engine, self.nvdaVersion, audioMode, support.profile, support.reason)
 			if profile not in self._fallbacks:
 				self._fallbacks.add(profile)
 				self._logger.warning(
@@ -55,31 +55,31 @@ class CompletionPolicy:
 				)
 		return contract
 
-	def audio_mode(self, voice_class: type, core: object) -> str:
+	def audioMode(self, voiceClass: type, core: object) -> str:
 		"""Report the opened core's audio path; only explicit booleans are trusted."""
-		profile = getattr(voice_class, "drain_profile", None)
+		profile = getattr(voiceClass, "drain_profile", None)
 		if profile is None or not profile.wasapi_dependent:
 			return "default"
-		use_wasapi = getattr(core, "useWasapi", None)
-		return "wasapi" if use_wasapi is True else "legacy" if use_wasapi is False else "unknown"
+		useWasapi = getattr(core, "useWasapi", None)
+		return "wasapi" if useWasapi is True else "legacy" if useWasapi is False else "unknown"
 
-	def drain_support(
+	def drainSupport(
 		self,
-		voice_class: type,
+		voiceClass: type,
 		core: object,
 		*,
-		nvda_version: str,
-		audio_mode: str,
+		nvdaVersion: str,
+		audioMode: str,
 	) -> DrainSupport:
 		"""Ask the opened core of a Voice that declares a drain profile."""
-		module_name = __package__.rsplit(".", 1)[0] + ".driver." + voice_class.engine
+		moduleName = __package__.rsplit(".", 1)[0] + ".driver." + voiceClass.engine
 
 		def unsupported(reason):
-			return DrainSupport(False, module_name, reason)
+			return DrainSupport(False, moduleName, reason)
 
-		if getattr(voice_class, "drain_profile", None) is None:
+		if getattr(voiceClass, "drain_profile", None) is None:
 			return unsupported("The Voice declares no drain profile")
-		driver = getattr(voice_class, "synth_driver_class", None)
+		driver = getattr(voiceClass, "synth_driver_class", None)
 		if not isinstance(driver, type) or not isinstance(core, driver):
 			return unsupported("The opened core is not the Voice's custom outer SynthDriver")
 		if not callable(getattr(core, "speak_segment", None)):
@@ -88,14 +88,14 @@ class CompletionPolicy:
 		if not callable(check):
 			return unsupported("The custom core has no callable get_segment_drain_support check")
 		try:
-			support = check(nvda_version=nvda_version, audio_mode=audio_mode)
+			support = check(nvda_version=nvdaVersion, audio_mode=audioMode)
 		except Exception as error:  # noqa: BLE001 - any failure means drain is unsupported
 			return unsupported(f"Drain support inspection failed: {type(error).__name__}: {error}")
 		if not isinstance(support, DrainSupport) or not isinstance(support.supported, bool):
 			return unsupported("The wrapper did not return an explicit DrainSupport boolean decision")
 		if not support.supported and not support.reason:
 			return unsupported("The wrapper has no supported adapter/native drain profile")
-		if support.supported and not self.force_unverified_drain:
+		if support.supported and not self.forceUnverifiedDrain:
 			return DrainSupport(
 				False,
 				support.profile,
@@ -103,13 +103,13 @@ class CompletionPolicy:
 			)
 		return support
 
-	def contract_for(
+	def contractFor(
 		self,
-		voice_class: type,
+		voiceClass: type,
 		core: object,
 		*,
-		nvda_version: str,
-		audio_mode: str,
+		nvdaVersion: str,
+		audioMode: str,
 	) -> tuple[CompletionContract, DrainSupport | None]:
 		"""Select the contract before any segment starts.
 
@@ -117,8 +117,8 @@ class CompletionPolicy:
 		declares no drain profile. Unsupported profiles must not select a
 		different contract while a segment is waiting for completion.
 		"""
-		if getattr(voice_class, "drain_profile", None) is None:
-			key = (voice_class.engine, nvda_version, audio_mode)
+		if getattr(voiceClass, "drain_profile", None) is None:
+			key = (voiceClass.engine, nvdaVersion, audioMode)
 			return _VERIFIED_CONTRACTS.get(key, CompletionContract()), None
-		support = self.drain_support(voice_class, core, nvda_version=nvda_version, audio_mode=audio_mode)
+		support = self.drainSupport(voiceClass, core, nvdaVersion=nvdaVersion, audioMode=audioMode)
 		return (_DRAIN_CONTRACT if support.supported else CompletionContract()), support

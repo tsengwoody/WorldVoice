@@ -11,7 +11,7 @@ from ..speechCommands import WorldVoiceIndexCommand
 from .indexLedger import IndexLedger
 
 
-def encode_segment(
+def encodeSegment(
 	commands: SpeechCommands,
 	context: PlaybackContext,
 	ledger: IndexLedger,
