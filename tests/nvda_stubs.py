@@ -10,6 +10,9 @@ from types import ModuleType
 
 from addon_loader import WORLDVOICE, load_definitions
 
+# The file whose installConfspec(conf) assigns conf.spec["WorldVoice"].
+CONFSPEC_SOURCE = WORLDVOICE / "__init__.py"
+
 
 class StubModules:
 	"""Create stub modules through monkeypatch, so each test restores sys.modules."""
@@ -55,15 +58,18 @@ def worldvoice_conf(**sections):
 
 @functools.cache
 def _worldvoice_defaults():
-	# config.conf.spec["WorldVoice"] = {...} in the synth package's __init__.py.
-	for node in ast.parse((WORLDVOICE / "__init__.py").read_text(encoding="utf-8")).body:
-		if (
-			isinstance(node, ast.Assign)
-			and isinstance(node.targets[0], ast.Subscript)
-			and ast.unparse(node.targets[0]) == "config.conf.spec['WorldVoice']"
-		):
-			return _section_defaults(node.value)
-	raise LookupError("The WorldVoice confspec is not assigned in __init__.py")
+	# conf.spec["WorldVoice"] = {...} in installConfspec(conf) of CONFSPEC_SOURCE.
+	for function in ast.parse(CONFSPEC_SOURCE.read_text(encoding="utf-8")).body:
+		if not (isinstance(function, ast.FunctionDef) and function.name == "installConfspec"):
+			continue
+		for node in function.body:
+			if (
+				isinstance(node, ast.Assign)
+				and isinstance(node.targets[0], ast.Subscript)
+				and ast.unparse(node.targets[0]) == "conf.spec['WorldVoice']"
+			):
+				return _section_defaults(node.value)
+	raise LookupError(f"installConfspec in {CONFSPEC_SOURCE.name} does not assign the WorldVoice confspec")
 
 
 def _section_defaults(node):

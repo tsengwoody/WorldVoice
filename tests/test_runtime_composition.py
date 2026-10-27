@@ -567,7 +567,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 		NumericDriverSetting=object,
 	)
 	stub("autoSettingsUtils.utils", StringParameterInfo=object)
-	stub("config", conf=SimpleNamespace(spec={}))
+	config_stub = stub("config", conf=SimpleNamespace(spec={}))
 	stub("extensionPoints", Action=EventStub)
 	stub("gui")
 	stub("languageHandler")
@@ -630,6 +630,10 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 		# importing this package, which must put that root on sys.path although it no longer
 		# imports anything from it itself.
 		assert sys.path[0] == str(WORLDVOICE.parents[1])
+		# Importing the package installs the confspec: the global plugin's import of a submodule
+		# runs this, also when another synth is active and its panels read [WorldVoice].
+		sections = ["autoLanguageSwitching", "pipeline", "role", "engine", "log", "voices"]
+		assert list(config_stub.conf.spec["WorldVoice"]) == sections
 		ledger = importlib.import_module(package + ".bridge.indexLedger")
 		policies = importlib.import_module(package + ".bridge.completionPolicies")
 		models = importlib.import_module(package + ".runtime.models")
