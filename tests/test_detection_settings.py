@@ -24,7 +24,8 @@ class RecordingSection(dict):
 
 
 def load_settings_module(monkeypatch, conf=None, errors=None, *, table=None):
-	"""settings.py in an alias of its package, whose __init__.py (the detector) never runs.
+	"""settings.py in an alias of its package, so it loads alone: not the detector (detector.py),
+	nor the package's __init__.py, which stays empty.
 
 	table, given the script table module, returns the DETECTION_SCRIPTS the settings derive from.
 	"""

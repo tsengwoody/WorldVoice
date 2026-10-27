@@ -37,8 +37,9 @@ def test_language_detection_reaches_for_no_nvda_globals():
 
 
 def test_the_pipeline_does_not_import_language_detection():
-	# The pipeline needs only the Unicode data, which unicodeScripts/ holds (refactor8 F10); an import
-	# of languageDetection would load the detector, and NVDA's speech commands with it.
+	# The pipeline needs only the Unicode data, which unicodeScripts/ holds (refactor8 F10). The
+	# detector (languageDetection/detector.py, beside an empty __init__.py) imports NVDA's speech
+	# commands, and the pipeline has no use for the detection package at all.
 	for path in sorted((WORLDVOICE / "pipeline").glob("*.py")):
 		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
 			if isinstance(node, ast.ImportFrom):
