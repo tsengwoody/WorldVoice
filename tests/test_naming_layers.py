@@ -773,6 +773,18 @@ HOST_MODULE = SYNTH + "bridge/example.py"
 		(CORE_MODULE, "class Spec:\n\tdef __init__(self):\n\t\tself.voiceName = 1\n", ["Spec.voiceName"]),
 		(CORE_MODULE, "def run():\n\tfor voiceName in ():\n\t\tpass\n", ["run.<locals>.voiceName"]),
 		(CORE_MODULE, "speak = lambda speechSequence: None\n", ["speechSequence"]),
+		(CORE_MODULE, "def run():\n\tdef innerStep():\n\t\tpass\n", ["run.<locals>.innerStep"]),
+		(
+			CORE_MODULE,
+			"def run(items):\n\tif itemCount := len(items):\n\t\tpass\n",
+			["run.<locals>.itemCount"],
+		),
+		(CORE_MODULE, "def run():\n\tglobal lastValue\n\tlastValue = 1\n", ["lastValue"]),
+		(
+			CORE_MODULE,
+			"class Spec:\n\t@classmethod\n\tdef build(cls):\n\t\tcls.lastSpec = None\n",
+			["Spec.lastSpec"],
+		),
 		(
 			CORE_MODULE,
 			"MAX_RATE = 1\nVoiceKey = str\n\n\nclass VoiceSpec:\n\tdef __repr__(self):\n\t\tpass\n",
