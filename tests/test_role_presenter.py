@@ -54,9 +54,9 @@ def env(monkeypatch):
 	manager = object.__new__(module.VoiceManager)
 	init_policies(manager)
 	manager.settings = a._binding.settings
-	manager._instanceCache = dict(voices)
+	manager._instance_cache = dict(voices)
 	manager.catalog = module.VoiceCatalog.from_specs(voice._state.spec for voice in voices.values())
-	manager._defaultVoiceInstance = a
+	manager._default_voice_instance = a
 	manager.getVoiceInstance = voices.__getitem__
 	conf["speech"] = {"WorldVoice": {"voice": a.name}}
 	switched = []

@@ -44,7 +44,7 @@ def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):
 	manager_module = sys.modules["f4_test_worldvoice.voices.manager"]
 	manager_instance = object.__new__(manager_module.VoiceManager)
 	init_policies(manager_instance)
-	manager_instance._instanceCache = {a.name: a, b.name: b}
+	manager_instance._instance_cache = {a.name: a, b.name: b}
 	manager_instance.settings = a._binding.settings
 	updates = []
 	original_update = b._state.update

@@ -215,7 +215,7 @@ def chosen_voice(synth):
 
 def voice_instances(manager):
 	"""The voice instances the voice manager has created, by voice name."""
-	return dict(manager._instanceCache)
+	return dict(manager._instance_cache)
 
 
 def settings_baseline(voice, setting):

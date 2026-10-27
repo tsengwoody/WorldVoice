@@ -234,7 +234,7 @@ class SynthDriver(SynthDriver):
 			with timed(nvdaLog, "VoiceManager"):
 				self._completionPolicy = CompletionPolicy(nvda_version=versionInfo.version, logger=nvdaLog)
 				self._voiceManager = VoiceManager(
-					taskManager=self.taskManager,
+					task_manager=self.taskManager,
 					settings=self._settingsStore,
 					bridge=self._eventBridge,
 					index_ledger=self._indexLedger,

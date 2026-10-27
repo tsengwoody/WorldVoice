@@ -29,8 +29,8 @@ def _editing_manager(monkeypatch):
 	manager = object.__new__(module.VoiceManager)
 	init_policies(manager)
 	manager.settings = a._binding.settings
-	manager._instanceCache = {a.name: a}
-	manager._defaultVoiceInstance = a
+	manager._instance_cache = {a.name: a}
+	manager._default_voice_instance = a
 	manager.engine_consistency.enabled = False
 	manager.catalog = module.VoiceCatalog.from_specs([a._state.spec, b._state.spec])
 	manager.getVoiceInstance = lambda key: {a.name: a, b.name: b}[key]

@@ -42,7 +42,7 @@ def _construction_environment(failure, changes, close_error=None):
 
 		def __init__(
 			self,
-			taskManager,
+			task_manager,
 			settings=None,
 			bridge=None,
 			*,
@@ -288,9 +288,9 @@ def test_voice_manager_logs_close_failures_under_the_published_engine_name(monke
 	)
 	manager = object.__new__(module.VoiceManager)
 	init_policies(manager)
-	manager.taskManager = object()
+	manager.task_manager = object()
 	manager._terminated = False
-	manager._instanceCache = {}
+	manager._instance_cache = {}
 	manager.settings = types.SimpleNamespace(names=lambda: ())
 	manager._bridge = types.SimpleNamespace(unbind=fail)
 	manager._resources = {

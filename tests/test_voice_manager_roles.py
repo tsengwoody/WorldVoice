@@ -24,7 +24,7 @@ def make_manager(monkeypatch, *, engine=True, voice=True):
 			spec("c", "A:c", "C", "fr", "A", "fr"),
 		],
 	)
-	manager._defaultVoiceInstance = types.SimpleNamespace(name="A:a", engine="A", language="en_US")
+	manager._default_voice_instance = types.SimpleNamespace(name="A:a", engine="A", language="en_US")
 	return module, conf, manager
 
 
@@ -52,6 +52,6 @@ def test_main_locale_voice_follows_default_voice(monkeypatch):
 def test_configured_voice_comes_from_the_repository(monkeypatch):
 	module, _conf, manager = make_manager(monkeypatch)
 	manager.catalog = module.VoiceCatalog.from_specs([s for s in manager.table if s.name == "B:b"])
-	manager._defaultVoiceInstance.name = "A:a"
+	manager._default_voice_instance.name = "A:a"
 	assert manager.getVoiceNameForLanguage("fr_CA") == "B:b"
 	assert manager.getVoiceNameForLanguage("en") == "A:a"

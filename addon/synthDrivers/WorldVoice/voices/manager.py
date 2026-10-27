@@ -34,7 +34,7 @@ class EngineResource:
 class VoiceManager:
 	def __init__(
 		self,
-		taskManager: TaskManager,
+		task_manager: TaskManager,
 		settings: VoiceSettingsStore,
 		bridge: NvdaEventBridge,
 		*,
@@ -46,17 +46,17 @@ class VoiceManager:
 		parameter_consistency: ParameterConsistency | None = None,
 		roles: ConfigRoleRepository | None = None,
 	):
-		self.taskManager = taskManager
+		self.task_manager = task_manager
 		self.settings = settings
 		self._bridge = bridge
 		self._index_ledger = index_ledger
 		self._completion_for = completion_for
 		self._resources: dict[str, EngineResource] = {}
 		self.catalog = EMPTY_CATALOG
-		self._instanceCache = {}
+		self._instance_cache = {}
 		self._waitfactor = 0
 		self._terminated = False
-		self._defaultVoiceInstance = None
+		self._default_voice_instance = None
 		try:
 			self._init_policies(
 				conf_provider,
@@ -85,10 +85,10 @@ class VoiceManager:
 				continue
 			self._bind(resource)
 			self._publish(resource)
-		self._setVoiceDatas()
+		self._set_voice_datas()
 		if not self.table:
 			raise RuntimeError("No WorldVoice voices are available from enabled speech engines.")
-		self._defaultVoiceInstance = self.getVoiceInstance(self._getDefaultVoiceSpec().name)
+		self._default_voice_instance = self.getVoiceInstance(self._get_default_voice_spec().name)
 
 	def _open_engine(self, name: str, cls: type) -> EngineResource | None:
 		adapter = LegacyEngineAdapter(cls, self.getVoiceInstance, index_ledger=self._index_ledger)
@@ -141,7 +141,7 @@ class VoiceManager:
 					self.settings.commit(key)
 				except Exception:
 					log.error("Failed to save voice %s", key, exc_info=True)
-		self._instanceCache.clear()
+		self._instance_cache.clear()
 		for resource in reversed(list(self._resources.values())):
 			engine = resource.engine
 			try:
@@ -153,7 +153,7 @@ class VoiceManager:
 			except Exception:
 				log.error("Failed to close engine %s", engine, exc_info=True)
 		self._resources.clear()
-		self.taskManager = None
+		self.task_manager = None
 
 	def resolve_playback(self, key: str) -> PlaybackPort | None:
 		spec = self.catalog.by_name.get(key)
@@ -179,18 +179,18 @@ class VoiceManager:
 
 	@property
 	def defaultVoiceInstance(self):
-		return self._defaultVoiceInstance
+		return self._default_voice_instance
 
 	@property
 	def defaultVoiceName(self):
-		return self._defaultVoiceInstance.name
+		return self._default_voice_instance.name
 
 	@defaultVoiceName.setter
 	def defaultVoiceName(self, name):
 		if name not in self.catalog.voice_infos:
 			# NVDA's SynthDriver.loadSettings repairs the saved voice only when this raises.
 			raise LookupError(name)
-		self._defaultVoiceInstance = self.getVoiceInstance(name)
+		self._default_voice_instance = self.getVoiceInstance(name)
 		self.onKeepEngineConsistent()
 		self.onKeepMainLocaleVoiceConsistent()
 
@@ -205,40 +205,40 @@ class VoiceManager:
 			if self.getVoiceCapabilities(key).supports_waitfactor:
 				self.settings.ensure(self.getVoiceSpec(key)).update(waitfactor=value)
 
-	def _getDefaultVoiceSpec(self) -> VoiceSpec:
+	def _get_default_voice_spec(self) -> VoiceSpec:
 		lang = self._get_language()
 		try:
 			return next(v for v in self.table if v.language == lang)
 		except StopIteration:
 			return self.table[0]
 
-	def getVoiceInstance(self, voiceName):
+	def getVoiceInstance(self, voice_name):
 		try:
-			instance = self._instanceCache[voiceName]
+			instance = self._instance_cache[voice_name]
 		except KeyError:
-			instance = self._createVoiceInstance(voiceName)
+			instance = self._create_voice_instance(voice_name)
 		return instance
 
-	def _createVoiceInstance(self, voiceName: str):
-		spec = self.getVoiceSpec(voiceName)
+	def _create_voice_instance(self, voice_name: str):
+		spec = self.getVoiceSpec(voice_name)
 		resource = self._published(spec.engine)
 		self.settings.ensure(spec)
-		voiceInstance = resource.voice_class(spec, resource.binding)
-		self._instanceCache[voiceName] = voiceInstance
-		return voiceInstance
+		voice_instance = resource.voice_class(spec, resource.binding)
+		self._instance_cache[voice_name] = voice_instance
+		return voice_instance
 
 	def _inherited_parameters(self, spec: VoiceSpec) -> Mapping[str, Any]:
 		"""A loading voice follows the main voice once one exists (the main voice loads first)."""
-		main = self._defaultVoiceInstance
+		main = self._default_voice_instance
 		if main is None:
 			return {}
 		return self.parameter_consistency.inherited(self.settings, main.name)
 
-	def previewVoiceParameterConsistent(self, baseInstance):
-		self.parameter_consistency.copy_from(self.settings, baseInstance.name)
+	def previewVoiceParameterConsistent(self, base_instance):
+		self.parameter_consistency.copy_from(self.settings, base_instance.name)
 
-	def onVoiceParameterConsistent(self, baseInstance):
-		self.previewVoiceParameterConsistent(baseInstance)
+	def onVoiceParameterConsistent(self, base_instance):
+		self.previewVoiceParameterConsistent(base_instance)
 		for key in self.settings.names():
 			self.settings.commit(key)
 
@@ -249,18 +249,18 @@ class VoiceManager:
 		self.voice_consistency.follow(self.defaultVoiceInstance)
 
 	def reload(self):
-		for instance in self._instanceCache.values():
+		for instance in self._instance_cache.values():
 			instance.loadParameter()
 
 	def cancel(self):
-		if self.taskManager:
-			self.taskManager.cancel(self.playback_ports)
+		if self.task_manager:
+			self.task_manager.cancel(self.playback_ports)
 
 	@property
 	def playback_ports(self) -> tuple[PlaybackPort, ...]:
 		return tuple(resource.session for resource in self._resources.values() if resource.published)
 
-	def _setVoiceDatas(self):
+	def _set_voice_datas(self):
 		self.catalog = VoiceCatalog.from_specs(
 			spec for resource in self._resources.values() if resource.published for spec in resource.voices
 		)
@@ -278,7 +278,7 @@ class VoiceManager:
 		return list(self.catalog.all_languages)
 
 	def _visible_table(self):
-		return self.engine_consistency.visible(self.table, self._defaultVoiceInstance.engine)
+		return self.engine_consistency.visible(self.table, self._default_voice_instance.engine)
 
 	@property
 	def languages(self):
@@ -293,7 +293,7 @@ class VoiceManager:
 		return {locale: self.catalog.readable_name(locale) for locale in self.localeToVoicesMap}
 
 	def getVoiceNameForLanguage(self, language):
-		configured = self._getConfiguredVoiceNameForLanguage(language)
+		configured = self._get_configured_voice_name_for_language(language)
 		if configured is not None and configured in self.voiceInfos:
 			return configured
 		return self.defaultVoiceName
@@ -303,5 +303,5 @@ class VoiceManager:
 		spec = self.catalog.by_name.get(self.getVoiceNameForLanguage(language))
 		return spec.locale if spec is not None else None
 
-	def _getConfiguredVoiceNameForLanguage(self, language):
+	def _get_configured_voice_name_for_language(self, language):
 		return self.roles.voice_for(language)
