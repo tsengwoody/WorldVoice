@@ -10,7 +10,7 @@ ADDON = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
 # keep the old interface; the guard checks only the add-on's own sources.
 UNTRACKED_ENGINES = ("driver/Neural/",)
 
-_TARGETS = r"(?:cls|Voice|voice_class|voiceClass|_voiceClass|voiceInstance|type\([^)]*\))"
+_TARGETS = r"(?:cls|Voice|voice_class|_voice_class|voiceClass|_voiceClass|voiceInstance|type\([^)]*\))"
 _STATE = r"(?:core|session|_runtime_binding)"
 CLASS_STATE = re.compile(
 	rf"\b{_TARGETS}\.{_STATE}\s*=[^=]"
