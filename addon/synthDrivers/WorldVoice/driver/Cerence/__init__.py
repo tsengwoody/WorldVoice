@@ -958,7 +958,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 
 class Voice(BaseVoice):
-	extra_capabilities = frozenset({"waitfactor", "variant"})
+	extraCapabilities = frozenset({"waitfactor", "variant"})
 	engine = "Cerence"
 	drain_profile = DrainProfile()
 	synthDriverClass = SynthDriver

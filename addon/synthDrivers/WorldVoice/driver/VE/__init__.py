@@ -951,7 +951,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 
 class Voice(BaseVoice):
-	extra_capabilities = frozenset({"waitfactor", "variant"})
+	extraCapabilities = frozenset({"waitfactor", "variant"})
 	engine = "VE"
 	drain_profile = DrainProfile()
 	synthDriverClass = SynthDriver

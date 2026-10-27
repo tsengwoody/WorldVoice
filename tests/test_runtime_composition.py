@@ -384,7 +384,7 @@ def test_waitfactor_updates_declared_capability_without_activating(composition):
 	c = composition
 	c.engine("plain")
 	capable = c.engine("extension")
-	capable.extra_capabilities = frozenset({"waitfactor", "variant"})
+	capable.extraCapabilities = frozenset({"waitfactor", "variant"})
 	manager = c.create()
 	manager.waitfactor = 4
 	assert manager.get_voice_instance("extension:b").waitfactor == 4

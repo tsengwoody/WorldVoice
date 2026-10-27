@@ -178,7 +178,7 @@ def test_real_variant_and_waitfactor_hooks(bridge_modules, rt, monkeypatch, engi
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 
 	class LegacyVoice(harness.module.Voice):
-		extra_capabilities = frozenset({"variant", "waitfactor"})
+		extraCapabilities = frozenset({"variant", "waitfactor"})
 
 	cls = LegacyVoice
 	core = Core()

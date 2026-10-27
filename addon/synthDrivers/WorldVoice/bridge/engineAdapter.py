@@ -109,7 +109,7 @@ class VoiceClassAdapter(EngineAdapter):
 
 	@property
 	def capabilities(self) -> EngineCapabilities:
-		extra = getattr(self._voiceClass, "extra_capabilities", frozenset())
+		extra = getattr(self._voiceClass, "extraCapabilities", frozenset())
 		return EngineCapabilities(
 			settings=frozenset(self._voiceClass.supportedSettings()),
 			supports_waitfactor="waitfactor" in extra,
