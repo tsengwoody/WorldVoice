@@ -6,6 +6,7 @@ import addonHandler
 import config
 from logHandler import log
 
+from ..listeners import Listeners
 from ..numberLanguage import FOLLOW, MAIN
 
 try:
@@ -411,7 +412,7 @@ class PipelineSettingsService:
 
 	def __init__(self, repository: ConfigPipelineRepository):
 		self._repository = repository
-		self._listeners: list[Callable[[PipelineSettings], None]] = []
+		self._listeners = Listeners[[PipelineSettings]](log, "WorldVoice: pipeline settings listener failed")
 
 	def get(self) -> PipelineSettings:
 		return self._repository.load()
@@ -437,22 +438,14 @@ class PipelineSettingsService:
 		if all(getattr(current, key) == value for key, value in converted.items()):
 			return current
 		settings = self.get()
-		for listener in tuple(self._listeners):
-			try:
-				listener(settings)
-			except Exception:
-				log.error("WorldVoice: pipeline settings listener failed", exc_info=True)
+		self._listeners.notify(settings)
 		return settings
 
 	def subscribe(self, listener: Callable[[PipelineSettings], None]) -> None:
-		if listener not in self._listeners:
-			self._listeners.append(listener)
+		self._listeners.subscribe(listener)
 
 	def unsubscribe(self, listener: Callable[[PipelineSettings], None]) -> None:
-		try:
-			self._listeners.remove(listener)
-		except ValueError:
-			pass
+		self._listeners.unsubscribe(listener)
 
 
 pipeline_settings = PipelineSettingsService(ConfigPipelineRepository())

@@ -355,13 +355,15 @@ def test_update_notifies_subscribers_and_survives_a_failing_one(monkeypatch):
 	service.subscribe(seen.append)
 	service.subscribe(seen.append)
 
-	service.update(scope="all")
+	# A failing listener loses no update: the value is stored and returned.
+	assert service.update(scope="all").scope == "all"
+	assert conf["WorldVoice"]["pipeline"]["scope"] == "all"
 	service.update(scope="all")
 	service.unsubscribe(seen.append)
 	service.update(scope="WorldVoice")
 
 	assert [settings.scope for settings in seen] == ["all"]
-	assert len(errors) == 2
+	assert errors == [("WorldVoice: pipeline settings listener failed",)] * 2
 
 
 def test_effective_matches_the_old_synth_scoping(monkeypatch):

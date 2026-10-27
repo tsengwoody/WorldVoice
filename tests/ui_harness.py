@@ -684,6 +684,7 @@ def _pipeline_ui(monkeypatch, stubs, conf):
 	alias_package(monkeypatch, "synthDrivers.WorldVoice")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice.pipeline")
 	alias_package(monkeypatch, "synthDrivers.WorldVoice.ui")
+	load_source(monkeypatch, "synthDrivers.WorldVoice.listeners", WORLDVOICE / "listeners.py")
 	load_source(monkeypatch, "synthDrivers.WorldVoice.numberLanguage", WORLDVOICE / "numberLanguage.py")
 	settings = load_source(
 		monkeypatch,

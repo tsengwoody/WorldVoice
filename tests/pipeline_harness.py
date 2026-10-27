@@ -285,10 +285,12 @@ def load_settings_module(monkeypatch, conf, errors=None, warnings=None, validate
 	synth_driver_handler = stubs.module("synthDriverHandler")
 	synth_driver_handler.getSynth = lambda: None
 	stubs.translation()
-	# Inside an alias package, so the settings' relative import of the number-language values resolves.
+	# Inside an alias package, so the settings' relative imports of the number-language values and
+	# the listener list resolve.
 	alias_package(monkeypatch, "pipeline_settings_under_test")
 	alias_package(monkeypatch, "pipeline_settings_under_test.pipeline")
 	load_source(monkeypatch, "pipeline_settings_under_test.numberLanguage", WORLDVOICE / "numberLanguage.py")
+	load_source(monkeypatch, "pipeline_settings_under_test.listeners", WORLDVOICE / "listeners.py")
 	return load_source(
 		monkeypatch,
 		"pipeline_settings_under_test.pipeline.settings",
