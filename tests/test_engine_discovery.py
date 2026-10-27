@@ -214,9 +214,11 @@ def test_enabled_engines_import_from_their_root_and_must_be_ready_and_named(
 	assert not any("ready check Off" in message for _, message in log.lines)
 
 
-STALE_MESSAGE = (
+# A workspace engine is a plugin its author updates; a bundled one is fixed in WorldVoice itself.
+STALE_PLUGIN = (
 	"Skipping Stale engine candidate: plugin uses the pre-rename contract name(s) {}; update the plugin"
 )
+STALE_BUNDLED = "Skipping Stale engine candidate: bundled engine uses the pre-rename contract name(s) {}; update WorldVoice"
 
 
 @pytest.mark.parametrize(
@@ -242,16 +244,14 @@ def test_plugin_with_old_contract_names_is_reported(discovery, monkeypatch, tmp_
 	engine_module(monkeypatch, "fake_stale", voice)
 	log = Log()
 
-	loaded = discovery.load_enabled_engine_classes(
-		[spec(discovery, "Stale", "fake_stale", tmp_path)],
-		{},
-		logger=log,
-	)
+	plugin = discovery.EngineSpec("Stale", "Stale", "external", "fake_stale", str(tmp_path), True)
+
+	loaded = discovery.load_enabled_engine_classes([plugin], {}, logger=log)
 
 	assert loaded == {}
 	assert asked == []
 	assert [message for level, message in log.lines if level == "error"] == [
-		STALE_MESSAGE.format(f"{old} (now {new})"),
+		STALE_PLUGIN.format(f"{old} (now {new})"),
 	]
 
 
@@ -280,5 +280,5 @@ def test_old_contract_names_are_listed_together_and_inherited_ones_count(discove
 
 	assert loaded == {"Fresh": fresh}
 	assert [message for level, message in log.lines if level == "error"] == [
-		STALE_MESSAGE.format("drain_profile (now drainProfile), create_core (now createCore)"),
+		STALE_BUNDLED.format("drain_profile (now drainProfile), create_core (now createCore)"),
 	]

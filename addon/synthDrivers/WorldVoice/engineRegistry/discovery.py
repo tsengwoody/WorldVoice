@@ -185,11 +185,18 @@ def load_enabled_engine_classes(
 					continue
 				stale = _pre_rename_contract_names(voice)
 				if stale:
+					# A workspace engine is a plugin its author updates; a bundled one is WorldVoice's own.
+					owner, remedy = (
+						("plugin", "update the plugin")
+						if spec.source == "external"
+						else ("bundled engine", "update WorldVoice")
+					)
 					logger.error(
-						"Skipping %s engine candidate: plugin uses the pre-rename contract name(s) %s; "
-						"update the plugin",
+						"Skipping %s engine candidate: %s uses the pre-rename contract name(s) %s; %s",
 						spec.name,
+						owner,
 						", ".join(f"{name} (now {PRE_RENAME_CONTRACT_NAMES[name]})" for name in stale),
+						remedy,
 					)
 					continue
 				with timed(logger, f"ready check {spec.name} voice.ready"):
