@@ -442,12 +442,12 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 
 		class LegacyVoice:
 			@classmethod
-			def create_core(cls):
+			def createCore(cls):
 				core.open_count += 1
 				return core
 
 			@classmethod
-			def destroy_core(cls, target):
+			def destroyCore(cls, target):
 				core.close_count += 1
 
 			@classmethod

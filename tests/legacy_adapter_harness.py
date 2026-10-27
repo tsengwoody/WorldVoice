@@ -28,12 +28,12 @@ def legacy_class(core):
 		opens = closes = 0
 
 		@classmethod
-		def create_core(cls):
+		def createCore(cls):
 			cls.opens += 1
 			return core
 
 		@classmethod
-		def destroy_core(cls, target):
+		def destroyCore(cls, target):
 			assert target is core
 			cls.closes += 1
 

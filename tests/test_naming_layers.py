@@ -129,10 +129,6 @@ TRANSITIONAL_47C: dict[str, set[str]] = {
 	"synthDrivers/WorldVoice/bridge/voiceFacade.py": {
 		"VoiceFacade.update_settings",
 	},
-	"synthDrivers/WorldVoice/driver/__init__.py": {
-		"Voice.create_core",
-		"Voice.destroy_core",
-	},
 }
 
 

@@ -17,8 +17,8 @@ def getVoiceKey(engine, voiceId):
 class Voice(VoiceFacade):
 	"""One engine's metadata and core factory; instances are bound voices.
 
-	The engine adapter owns the core: create_core either returns a working core
-	or raises without leaving one behind, and destroy_core releases it.
+	The engine adapter owns the core: createCore either returns a working core
+	or raises without leaving one behind, and destroyCore releases it.
 	"""
 
 	engine = ""
@@ -84,9 +84,9 @@ class Voice(VoiceFacade):
 		return True
 
 	@classmethod
-	def create_core(cls):
+	def createCore(cls):
 		return cls.synthDriverClass()
 
 	@classmethod
-	def destroy_core(cls, core):
+	def destroyCore(cls, core):
 		core.terminate()

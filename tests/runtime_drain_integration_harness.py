@@ -283,7 +283,7 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 			[SimpleNamespace(id=name) for name in ("voice", "rate", "rateBoost", "pitch", "volume")],
 			raising=False,
 		)
-		monkeypatch.setattr(outer.Voice, "create_core", classmethod(lambda cls, core=control.core: core))
+		monkeypatch.setattr(outer.Voice, "createCore", classmethod(lambda cls, core=control.core: core))
 		if engine != "OneCore":
 			monkeypatch.setattr(control.core, "_confirmNativeQuiescence", lambda native: None)
 

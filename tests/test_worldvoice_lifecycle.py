@@ -311,14 +311,14 @@ def test_drain_configuration_failure_rolls_back_previously_opened_engines(monkey
 
 	class Engine:
 		@classmethod
-		def create_core(cls):
+		def createCore(cls):
 			core = types.SimpleNamespace()
 			if cls.engine == "first":
 				core.speak_segment = lambda *args, **kwargs: None
 			return core
 
 		@classmethod
-		def destroy_core(cls, core):
+		def destroyCore(cls, core):
 			closed.append(cls.engine)
 
 		@classmethod

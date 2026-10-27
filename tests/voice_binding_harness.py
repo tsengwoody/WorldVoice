@@ -36,7 +36,7 @@ def bind_core(core, *voices):
 	voice_class.supportedSettings = classmethod(
 		lambda cls: [setting.id for setting in core.supportedSettings],
 	)
-	voice_class.create_core = classmethod(lambda cls: core)
+	voice_class.createCore = classmethod(lambda cls: core)
 	adapter = adapters.VoiceClassAdapter(voice_class, by_name.__getitem__)
 	session = sessions.EngineSession(adapter, old.settings)
 	session.open()

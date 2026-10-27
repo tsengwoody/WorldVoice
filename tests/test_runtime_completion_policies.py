@@ -185,7 +185,7 @@ def test_disabled_force_switch_reports_the_wrapper_reason(env):
 def make_adapter(env):
 	class Voice:
 		@classmethod
-		def create_core(cls):
+		def createCore(cls):
 			return SimpleNamespace(speak=lambda commands: None)
 
 		@classmethod

@@ -32,11 +32,11 @@ def engine(session_module, bridge_modules, rt):
 	def adapter(core):
 		class Legacy:
 			@classmethod
-			def create_core(cls):
+			def createCore(cls):
 				return core
 
 			@classmethod
-			def destroy_core(cls, target):
+			def destroyCore(cls, target):
 				pass
 
 			@classmethod

@@ -38,7 +38,7 @@ def test_only_started_sessions_are_resolvable(composition):
 	manager = c.create()
 	assert manager.resolve_playback("failed:a") is None
 	assert manager.resolve_playback("ok:a") is not None
-	# A failed create_core leaves no core behind; only the started engine opened one.
+	# A failed createCore leaves no core behind; only the started engine opened one.
 	assert [core.closes for core in c.cores] == [0]
 	assert c.repo.saves == []
 
@@ -865,7 +865,7 @@ def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(
 			voice.opened = c.Core()
 			return voice.opened
 
-		cls.create_core = classmethod(foreign_core)
+		cls.createCore = classmethod(foreign_core)
 	elif failure == "missing_entry":
 		installed.driver.speak_segment = None
 	elif failure == "missing_support":

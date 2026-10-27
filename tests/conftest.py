@@ -192,17 +192,17 @@ def composition(monkeypatch):
 			opened = None  # Test bookkeeping: the core this engine has open.
 
 			@classmethod
-			def create_core(cls):
+			def createCore(cls):
 				if fail:
 					raise RuntimeError("partial open")
 				cls.opened = cls.synthDriverClass()
 				return cls.opened
 
 			@classmethod
-			def destroy_core(cls, core):
+			def destroyCore(cls, core):
 				if cls.opened is core:
 					cls.opened = None
-				super().destroy_core(core)
+				super().destroyCore(core)
 
 			@classmethod
 			def supportedSettings(cls):

@@ -107,7 +107,7 @@ def test_failed_core_creation_leaves_nothing_to_clean(bridge_modules, rt):
 		cls.opens += 1
 		raise ValueError("open failed")
 
-	cls.create_core = classmethod(fail_open)
+	cls.createCore = classmethod(fail_open)
 	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	session = rt.session.EngineSession(adapter, rt.voice_settings.VoiceSettingsStore(MemoryRepository()))
 	with pytest.raises(ValueError, match="open failed"):
@@ -126,7 +126,7 @@ def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge_module
 		cls.closes += 1
 		raise OSError("cleanup failed")
 
-	cls.destroy_core = classmethod(fail_destroy)
+	cls.destroyCore = classmethod(fail_destroy)
 	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	adapter.open()
 	with pytest.raises(OSError, match="cleanup failed"):
@@ -198,7 +198,7 @@ def test_real_variant_and_waitfactor_hooks(bridge_modules, rt, monkeypatch, engi
 		"getSpeechDBList",
 		lambda language, key: ["plain", "bright"],
 	)
-	monkeypatch.setattr(cls, "create_core", classmethod(lambda cls: core), raising=False)
+	monkeypatch.setattr(cls, "createCore", classmethod(lambda cls: core), raising=False)
 	monkeypatch.setattr(cls, "supportedSettings", classmethod(lambda cls: ["rate"]), raising=False)
 	voice = object.__new__(cls)
 	voice.id = "a"

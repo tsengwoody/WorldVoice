@@ -68,8 +68,8 @@ class VoiceClassAdapter(EngineAdapter):
 	def open(self) -> None:
 		if self._opened:
 			return
-		# create_core either returns a core this adapter owns or raises without one.
-		self._core = self._voiceClass.create_core()
+		# createCore either returns a core this adapter owns or raises without one.
+		self._core = self._voiceClass.createCore()
 		self.notificationSource = self._core
 		self._opened = True
 
@@ -105,7 +105,7 @@ class VoiceClassAdapter(EngineAdapter):
 		self.notificationSource = None
 		self._segmentEvents = None
 		self._spoken = False
-		self._voiceClass.destroy_core(core)
+		self._voiceClass.destroyCore(core)
 
 	@property
 	def capabilities(self) -> EngineCapabilities:
