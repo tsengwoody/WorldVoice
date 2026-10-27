@@ -14,8 +14,8 @@ def test_lifecycle_metadata_and_apply_order(bridge_modules, rt):
 	adapter.open()
 	adapter.open()
 	assert cls.opens == 1
-	assert adapter.notification_source is core
-	spec = adapter.list_voices()[0]
+	assert adapter.notificationSource is core
+	spec = adapter.listVoices()[0]
 	assert spec == rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en")
 	assert adapter.variants(spec.name) == ({"id": "bright", "name": "Bright"},)
 	assert core.writes == []
@@ -38,7 +38,7 @@ def test_lifecycle_metadata_and_apply_order(bridge_modules, rt):
 	adapter.close()
 	adapter.close()
 	assert cls.closes == 1
-	assert adapter.core is None and adapter.notification_source is None
+	assert adapter.core is None and adapter.notificationSource is None
 	adapter.open()
 	assert adapter.core is core
 	adapter.close()
@@ -50,7 +50,7 @@ def test_voice_metadata_defaults_and_canonical_key(bridge_modules, rt, extra):
 	cls = legacy_class(Core())
 	cls.voices = classmethod(lambda cls, core: [dict(engine="Fake", id="a", language="en_US", **extra)])
 	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
-	assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "", "en_US", "Fake", "en_US"),)
+	assert adapter.listVoices() == (rt.models.VoiceSpec("a", "Fake:a", "", "en_US", "Fake", "en_US"),)
 
 
 def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge_modules, rt):
@@ -67,7 +67,7 @@ def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge_modules, rt)
 	del malformed["language"]
 	cls.voices = classmethod(lambda cls, core: [malformed, valid])
 	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls())
-	assert adapter.list_voices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
+	assert adapter.listVoices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
 
 
 @pytest.mark.parametrize("support", [True, False, None])
@@ -112,7 +112,7 @@ def test_failed_core_creation_leaves_nothing_to_clean(bridge_modules, rt):
 	session = rt.session.EngineSession(adapter, rt.voice_settings.VoiceSettingsStore(MemoryRepository()))
 	with pytest.raises(ValueError, match="open failed"):
 		session.open()
-	assert adapter.core is None and adapter.notification_source is None
+	assert adapter.core is None and adapter.notificationSource is None
 	session.close()
 	adapter.close()
 	assert (cls.opens, cls.closes) == (1, 0)
@@ -131,7 +131,7 @@ def test_close_releases_adapter_state_even_when_destroy_core_fails(bridge_module
 	adapter.open()
 	with pytest.raises(OSError, match="cleanup failed"):
 		adapter.close()
-	assert adapter.core is None and adapter.notification_source is None
+	assert adapter.core is None and adapter.notificationSource is None
 	adapter.close()
 	assert cls.closes == 1
 
@@ -229,7 +229,7 @@ def marker_env(monkeypatch, bridge_modules, rt, nvda_commands):
 	adapter = bridge_modules.adapter.LegacyEngineAdapter(
 		cls,
 		lambda key: cls(),
-		index_ledger=ledger,
+		indexLedger=ledger,
 		completion=contract,
 	)
 	adapter.open()
@@ -363,13 +363,13 @@ def drain_env(monkeypatch, bridge_modules, rt, nvda_commands, request):
 	ledger = support.ledger.IndexLedger()
 	core = Core()
 	cls = legacy_class(core)
-	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls(), index_ledger=ledger)
+	adapter = bridge_modules.adapter.LegacyEngineAdapter(cls, lambda key: cls(), indexLedger=ledger)
 	adapter.open()
 	contract = rt.models.CompletionContract(
 		getattr(rt.models.CompletionMode, getattr(request, "param", "DRAIN")),
 		rt.models.IndexRange(1, 9999),
 	)
-	adapter.configure_completion(contract)
+	adapter.configureCompletion(contract)
 	source_id = object()
 	binding_token = ledger.bind(core, source_id, contract)
 	events, calls = [], []
@@ -403,7 +403,7 @@ def drain_env(monkeypatch, bridge_modules, rt, nvda_commands, request):
 
 def test_adapter_passes_original_context_to_segment_entry(drain_env):
 	env = drain_env
-	env.adapter.configure_segment_events(env.factory)
+	env.adapter.configureSegmentEvents(env.factory)
 	original = env.commands.IndexCommand(123)
 	env.adapter.speak(("hello", original), env.token, context=env.context)
 	commands, token, context, sink = env.calls[0]
@@ -416,7 +416,7 @@ def test_adapter_passes_original_context_to_segment_entry(drain_env):
 
 def test_synchronous_segment_drain_has_prepared_mapping(drain_env):
 	env = drain_env
-	env.adapter.configure_segment_events(env.factory)
+	env.adapter.configureSegmentEvents(env.factory)
 
 	def speak(commands, token, *, context, on_event):
 		on_event(
@@ -439,7 +439,7 @@ def test_segment_entry_or_factory_failure_retires_mapping(drain_env, failure):
 	def fail(*args, **kwargs):
 		raise OSError("segment setup failed")
 
-	env.adapter.configure_segment_events(fail if failure == "factory" else env.factory)
+	env.adapter.configureSegmentEvents(fail if failure == "factory" else env.factory)
 	if failure == "entry":
 		env.core.speak_segment = fail
 	with pytest.raises(OSError, match="segment setup failed"):
@@ -451,7 +451,7 @@ def test_segment_entry_or_factory_failure_retires_mapping(drain_env, failure):
 def test_segment_failure_sink_preserves_error_without_index_backfill(drain_env):
 	env = drain_env
 	error = OSError("playback failed")
-	env.adapter.configure_segment_events(env.factory)
+	env.adapter.configureSegmentEvents(env.factory)
 
 	def speak(commands, token, *, context, on_event):
 		on_event(
@@ -471,7 +471,7 @@ def test_segment_failure_sink_preserves_error_without_index_backfill(drain_env):
 @pytest.mark.parametrize("cancel_after_prepare", [False, True])
 def test_drain_cancel_before_dispatch_retires_segment(drain_env, monkeypatch, cancel_after_prepare):
 	env = drain_env
-	env.adapter.configure_segment_events(env.factory)
+	env.adapter.configureSegmentEvents(env.factory)
 	cancelled = not cancel_after_prepare
 	env.token.is_cancelled = lambda: cancelled
 	prepare = env.ledger.prepare
@@ -491,7 +491,7 @@ def test_drain_cancel_before_dispatch_retires_segment(drain_env, monkeypatch, ca
 
 def test_drain_cancel_retires_before_core_emits_old_drain(drain_env):
 	env = drain_env
-	env.adapter.configure_segment_events(env.factory)
+	env.adapter.configureSegmentEvents(env.factory)
 	env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
 	sink = env.calls[0][3]
 	env.core.cancel = lambda: sink(
@@ -521,13 +521,13 @@ def test_segment_event_configuration_rejects_wrong_lifecycle_phase(bridge_module
 	if phase != "before_open":
 		adapter.open()
 	if phase in ("after_speech", "after_close"):
-		adapter.configure_completion(rt.models.CompletionContract())
+		adapter.configureCompletion(rt.models.CompletionContract())
 		if phase == "after_speech":
 			adapter.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False))
 		else:
 			adapter.close()
 	with pytest.raises(RuntimeError):
-		adapter.configure_segment_events(lambda context: lambda event: None)
+		adapter.configureSegmentEvents(lambda context: lambda event: None)
 	adapter.close()
 
 
@@ -535,13 +535,13 @@ def test_segment_configuration_requires_callable_core_entry(drain_env):
 	env = drain_env
 	env.core.speak_segment = None
 	with pytest.raises(ValueError, match="speak_segment"):
-		env.adapter.configure_segment_events(env.factory)
+		env.adapter.configureSegmentEvents(env.factory)
 
 
 @pytest.mark.parametrize("drain_env", ["END_INDEX_AND_DRAIN"], indirect=True)
 def test_and_mode_uses_segment_entry_and_keeps_terminal_marker(drain_env):
 	env = drain_env
-	env.adapter.configure_segment_events(env.factory)
+	env.adapter.configureSegmentEvents(env.factory)
 	env.adapter.speak(("hello", env.commands.IndexCommand(123)), env.token, context=env.context)
 	commands, token, context, _ = env.calls[0]
 	assert token is env.token and context is env.context

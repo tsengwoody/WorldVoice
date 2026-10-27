@@ -201,14 +201,14 @@ def test_configure_requires_open_and_cannot_downgrade(env):
 		env.models.CompletionMode.END_INDEX,
 		env.models.IndexRange(1, 10),
 	)
-	assert hasattr(adapter, "configure_completion"), "Resource-bound completion configuration is missing"
+	assert hasattr(adapter, "configureCompletion"), "Resource-bound completion configuration is missing"
 	with pytest.raises(RuntimeError):
-		adapter.configure_completion(contract)
+		adapter.configureCompletion(contract)
 	adapter.open()
-	adapter.configure_completion(contract)
-	adapter.configure_completion(contract)
+	adapter.configureCompletion(contract)
+	adapter.configureCompletion(contract)
 	with pytest.raises(RuntimeError):
-		adapter.configure_completion(env.models.CompletionContract())
+		adapter.configureCompletion(env.models.CompletionContract())
 	assert adapter.capabilities.completion == contract
 
 
@@ -216,9 +216,9 @@ def test_configure_after_speech_is_rejected(env):
 	adapter = make_adapter(env)
 	adapter.open()
 	adapter.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False))
-	assert hasattr(adapter, "configure_completion"), "Resource-bound completion configuration is missing"
+	assert hasattr(adapter, "configureCompletion"), "Resource-bound completion configuration is missing"
 	with pytest.raises(RuntimeError):
-		adapter.configure_completion(env.models.CompletionContract())
+		adapter.configureCompletion(env.models.CompletionContract())
 
 
 COMMANDS = (

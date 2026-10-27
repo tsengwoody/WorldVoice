@@ -91,7 +91,7 @@ class VoiceManager:
 		self._default_voice_instance = self.get_voice_instance(self._get_default_voice_spec().name)
 
 	def _open_engine(self, name: str, cls: type) -> EngineResource | None:
-		adapter = LegacyEngineAdapter(cls, self.get_voice_instance, index_ledger=self._index_ledger)
+		adapter = LegacyEngineAdapter(cls, self.get_voice_instance, indexLedger=self._index_ledger)
 		try:
 			adapter.open()
 		except Exception:
@@ -107,19 +107,19 @@ class VoiceManager:
 
 	def _bind(self, resource: EngineResource) -> None:
 		adapter, session = resource.adapter, resource.session
-		source = adapter.notification_source
+		source = adapter.notificationSource
 		completion = self._completion_for(resource.voice_class, source)
-		adapter.configure_completion(completion)
+		adapter.configureCompletion(completion)
 		# Claim ownership before binding, since bind may register then raise.
 		self._bridge.bind(source, session.source_id, completion=completion)
 		if rule_for(completion).drain_event is not None:
-			adapter.configure_segment_events(
+			adapter.configureSegmentEvents(
 				lambda context: self._bridge.segmentSink(source, context),
 			)
 
 	def _publish(self, resource: EngineResource) -> None:
 		# Only bound, operational resources become visible to resolvers.
-		resource.voices = resource.adapter.list_voices()
+		resource.voices = resource.adapter.listVoices()
 		resource.published = True
 
 	def _published(self, engine: str) -> EngineResource:

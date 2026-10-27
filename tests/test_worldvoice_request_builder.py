@@ -104,7 +104,7 @@ def assembly(modules):
 		instance = Voice(spec, modules.facade.LegacyVoiceBinding(store, session, adapter.core))
 		voices[key] = instance
 		ports[key] = session
-		bridge.bind(adapter.notification_source, session.source_id)
+		bridge.bind(adapter.notificationSource, session.source_id)
 		return instance
 
 	def queue(sequence, default):

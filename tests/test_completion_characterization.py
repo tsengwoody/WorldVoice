@@ -174,11 +174,11 @@ def adapter_env(monkeypatch, bridge_modules, rt, nvda_commands):
 		adapter = bridge_modules.adapter.LegacyEngineAdapter(
 			cls,
 			lambda key: cls(),
-			index_ledger=index_ledger,
+			indexLedger=index_ledger,
 		)
 		adapter.open()
 		chosen = contract(rt, name)
-		adapter.configure_completion(chosen)
+		adapter.configureCompletion(chosen)
 		source_id = object()
 		if index_ledger is not None:
 			ledgers.append((adapter, index_ledger))
@@ -191,7 +191,7 @@ def adapter_env(monkeypatch, bridge_modules, rt, nvda_commands):
 			rt.models.CompletionMode.DRAIN,
 			rt.models.CompletionMode.END_INDEX_AND_DRAIN,
 		):
-			adapter.configure_segment_events(lambda context: sinks.segment)
+			adapter.configureSegmentEvents(lambda context: sinks.segment)
 		return SimpleNamespace(
 			adapter=adapter,
 			core=core,

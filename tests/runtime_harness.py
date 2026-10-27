@@ -103,7 +103,7 @@ class FakeAdapter:
 	"""An observable engine boundary with explicit blocking/failure hooks."""
 
 	def __init__(self, capabilities=None, voices=(), voice_variants=None):
-		self.notification_source = object()
+		self.notificationSource = object()
 		self.capabilities = capabilities
 		self.voices = voices
 		self.voice_variants = voice_variants or {}
@@ -131,7 +131,7 @@ class FakeAdapter:
 		if self.close_error is not None:
 			raise self.close_error
 
-	def list_voices(self):
+	def listVoices(self):
 		return self.voices
 
 	def variants(self, key):
@@ -382,7 +382,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 	if adapter_kind == "native":
 
 		class NativeAdapter:
-			notification_source = core
+			notificationSource = core
 			capabilities = rt.models.EngineCapabilities(
 				supported,
 				supports_cancellation_token=True,
@@ -395,7 +395,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 			def close(self):
 				core.close_count += 1
 
-			def list_voices(self):
+			def listVoices(self):
 				return voices
 
 			def variants(self, key):
@@ -468,7 +468,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 		adapter = legacy.LegacyEngineAdapter(
 			LegacyVoice,
 			cached.__getitem__,
-			index_ledger=ledger,
+			indexLedger=ledger,
 			completion=completion,
 		)
 		original_speak = adapter.speak
@@ -484,7 +484,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 	store = rt.voice_settings.VoiceSettingsStore(repo)
 	session = rt.session.EngineSession(adapter, store)
 	session.open()
-	for spec in adapter.list_voices():
+	for spec in adapter.listVoices():
 		store.ensure(spec)
 	output = RecordingOutput()
 	tasks = scheduler.TaskManager(output)
