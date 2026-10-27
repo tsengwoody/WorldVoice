@@ -282,7 +282,7 @@ def make_synth(c, manager):
 	log = SimpleNamespace(error=lambda *args, **kwargs: errors.append(args))
 	root = load_synth_class(
 		{
-			"SynthDriver": object,
+			"BaseSynthDriver": object,
 			"synthIndexReached": object(),
 			"synthDoneSpeaking": object(),
 			"nvdaLog": log,

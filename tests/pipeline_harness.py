@@ -348,7 +348,7 @@ def load_synth(monkeypatch, conf):
 		and ast.unparse(node.iter) == "PIPELINE_SETTINGS"
 	]
 	environment = {
-		"SynthDriver": Base,
+		"BaseSynthDriver": Base,
 		"PIPELINE_SETTINGS": settings_module.PIPELINE_SETTINGS,
 		"NUMBER_MODE_CHOICES": settings_module.NUMBER_MODE_CHOICES,
 		"NUMBER_LANGUAGE_CHOICES": settings_module.NUMBER_LANGUAGE_CHOICES,

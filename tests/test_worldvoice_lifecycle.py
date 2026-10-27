@@ -136,7 +136,7 @@ def _construction_environment(failure, changes, close_error=None):
 		raise AssertionError("getSynth() is None while the synth is constructed")
 
 	environment = {
-		"SynthDriver": NVDASynthDriver,
+		"BaseSynthDriver": NVDASynthDriver,
 		"synthIndexReached": object(),
 		"synthDoneSpeaking": object(),
 		"WVStart": Action("start"),

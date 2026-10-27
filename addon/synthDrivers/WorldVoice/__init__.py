@@ -23,7 +23,7 @@ from speech.commands import (
 	VolumeCommand,
 )
 from speech.extensions import filter_speechSequence
-from synthDriverHandler import SynthDriver, getSynth, synthDoneSpeaking, synthIndexReached
+from synthDriverHandler import SynthDriver as BaseSynthDriver, getSynth, synthDoneSpeaking, synthIndexReached
 
 from .bridge.commands import normalizeNvdaCommands
 from .bridge.completionPolicies import CompletionPolicy
@@ -89,7 +89,7 @@ WVStart = extensionPoints.Action()
 WVEnd = extensionPoints.Action()
 
 
-class SynthDriver(SynthDriver):
+class SynthDriver(BaseSynthDriver):
 	name = "WorldVoice"
 	description = "WorldVoice"
 	supportedCommands = {  # noqa: RUF012

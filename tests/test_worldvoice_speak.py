@@ -170,7 +170,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	detection_settings = modules.detection_settings.DetectionSettingsService(lambda: conf)
 	warnings = []
 	environment = {
-		"SynthDriver": object,
+		"BaseSynthDriver": object,
 		"IndexCommand": IndexCommand,
 		"CharacterModeCommand": SynthCommand,
 		"LangChangeCommand": LangChangeCommand,
