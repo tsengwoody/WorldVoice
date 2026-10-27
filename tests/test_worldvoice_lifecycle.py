@@ -259,6 +259,18 @@ def test_the_detector_reads_the_drivers_number_language():
 	assert providers["number_language"]() == "main"
 
 
+def test_the_driver_gives_the_voice_settings_repository_a_conf_provider():
+	built = _construction_environment(None, [])
+	load_synth_class(built.environment)()
+	((args, kwargs),) = built.repositories
+	(provider,) = args
+	assert kwargs == {}
+	config = built.environment["config"]
+	assert provider() is config.conf
+	config.conf = worldvoice_conf()
+	assert provider() is config.conf
+
+
 def test_stages_register_after_the_detector():
 	changes = []
 	load_synth_class(_construction_environment(None, changes).environment)()

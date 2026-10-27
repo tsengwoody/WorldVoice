@@ -25,7 +25,7 @@ def conf():
 @pytest.fixture
 def repository(monkeypatch, rt, conf):
 	module = load_settings_repository(monkeypatch, rt)
-	return module.ConfigVoiceSettingsRepository(conf)
+	return module.ConfigVoiceSettingsRepository(lambda: conf)
 
 
 def test_load_converts_existing_values_and_defaults_missing_fields(repository, conf):
@@ -75,10 +75,21 @@ def test_repository_load_and_save_need_no_nvda_or_engine_imports(monkeypatch, rt
 		return original_import(name, *args, **kwargs)
 
 	monkeypatch.setattr(builtins, "__import__", guarded_import)
-	repository = load_settings_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(conf)
+	repository = load_settings_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(lambda: conf)
 	values = repository.load(make_spec())
 	repository.save(make_spec(), values)
 	assert conf["WorldVoice"]["voices"]["Fake:a"] == DEFAULTS
+
+
+def test_repository_reads_the_conf_its_provider_returns_at_each_call(monkeypatch, rt, conf):
+	# Like every other config reader (refactor9 F9): NVDA's config.conf is read when used.
+	current = [{**worldvoice_conf(), "speech": {"WorldVoice": {}}}]
+	repository = load_settings_repository(monkeypatch, rt).ConfigVoiceSettingsRepository(lambda: current[0])
+	current[0] = conf
+	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72"}
+	assert repository.load(make_spec())["rate"] == 72
+	repository.save(make_spec(), {**DEFAULTS, "pitch": 61})
+	assert conf["WorldVoice"]["voices"]["Fake:a"]["pitch"] == 61
 
 
 def test_missing_voice_persists_and_loads_the_six_defaults(repository, conf):

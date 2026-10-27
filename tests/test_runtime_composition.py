@@ -169,7 +169,7 @@ def test_source_is_bound_before_engine_is_published(composition):
 
 def _config_repository(c):
 	repository_module = importlib.import_module(c.package + ".voices.settingsRepository")
-	c.store._repository = repository_module.ConfigVoiceSettingsRepository(c.config.conf)
+	c.store._repository = repository_module.ConfigVoiceSettingsRepository(lambda: c.config.conf)
 
 
 @pytest.mark.parametrize("during_edit", [False, True])
