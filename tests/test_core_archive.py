@@ -24,7 +24,7 @@ def test_extracts_members_and_reports_skipped(tmp_path, monkeypatch):
 	module = load(ARCHIVE, "core_archive_under_test", monkeypatch, logged)
 	archive = make_zip(tmp_path / "core.zip", **{"Engine/a.txt": "a", "Engine/b.txt": "b"})
 	workspace = tmp_path / "ws"
-	assert module.extract_core_archive(archive, str(workspace)) == []
+	assert module.extractCoreArchive(archive, str(workspace)) == []
 	assert (workspace / "Engine/a.txt").read_text() == "a"
 	original = ZipFile.extract
 
@@ -34,7 +34,7 @@ def test_extracts_members_and_reports_skipped(tmp_path, monkeypatch):
 		return original(self, member, path, pwd)
 
 	monkeypatch.setattr(ZipFile, "extract", locked)
-	assert module.extract_core_archive(archive, str(workspace)) == ["Engine/b.txt"]
+	assert module.extractCoreArchive(archive, str(workspace)) == ["Engine/b.txt"]
 
 
 def test_corrupt_archive_raises_bad_zip(tmp_path, monkeypatch):
@@ -42,7 +42,7 @@ def test_corrupt_archive_raises_bad_zip(tmp_path, monkeypatch):
 	broken = tmp_path / "broken.zip"
 	broken.write_bytes(b"not a zip")
 	with pytest.raises(BadZipFile):
-		module.extract_core_archive(str(broken), str(tmp_path / "ws"))
+		module.extractCoreArchive(str(broken), str(tmp_path / "ws"))
 
 
 @pytest.mark.parametrize("corrupt", [False, True])
@@ -57,7 +57,7 @@ def test_install_always_removes_the_archive(tmp_path, monkeypatch, corrupt):
 		archive.write_bytes(b"not a zip")
 	else:
 		make_zip(archive, **{"x.txt": "x"})
-	module._extract_core_archive(str(archive), str(tmp_path / "ws"))
+	module._extractCoreArchive(str(archive), str(tmp_path / "ws"))
 	assert not archive.exists()
 	assert any(entry[0] == "error" for entry in logged) is corrupt
 
@@ -94,12 +94,12 @@ def test_menu_import_reports_a_corrupt_archive(monkeypatch, tmp_path):
 			info=lambda *a: None,
 			warning=lambda *a: None,
 		),
-		"extract_core_archive": load(
+		"extractCoreArchive": load(
 			ARCHIVE,
 			"core_archive_for_plugin",
 			monkeypatch,
 			[],
-		).extract_core_archive,
+		).extractCoreArchive,
 	}
 	load_definitions(PLUGIN, ["GlobalPlugin.onFileImport"], environment)
 	environment["onFileImport"](None, None)

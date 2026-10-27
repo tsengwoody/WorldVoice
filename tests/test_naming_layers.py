@@ -92,25 +92,6 @@ INTERFACE_NAMES = {
 
 # Host-layer names that phase 47b renames to mixedCase or marks as interface names.
 TRANSITIONAL_47B: dict[str, set[str]] = {
-	"generics/coreArchive.py": {
-		"extract_core_archive",
-		"extract_core_archive.<locals>.archive_path",
-		"extract_core_archive.<locals>.bad_member",
-		"extract_core_archive.<locals>.core_file",
-		"extract_core_archive.<locals>.workspace_path",
-	},
-	"installTasks.py": {
-		"_extract_core_archive",
-		"_extract_core_archive.<locals>.archive_path",
-		"_extract_core_archive.<locals>.workspace_path",
-		"_load_by_path",
-		"_load_core_archive",
-		"_workspace_path",
-		"onInstall.<locals>.archive_path",
-		"onInstall.<locals>.core_dir",
-		"onInstall.<locals>.core_zip_paths",
-		"onInstall.<locals>.workspace_path",
-	},
 	"synthDrivers/WorldVoice/driver/Cerence/__init__.py": {
 		"SynthDriver._begin_record",
 		"SynthDriver._callback_admission",

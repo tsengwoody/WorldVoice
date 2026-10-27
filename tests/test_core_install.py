@@ -40,7 +40,7 @@ def test_an_unreadable_archive_raises_bad_zip_and_extracts_nothing(archive_modul
 
 	monkeypatch.setattr(ZipFile, "testzip", encrypted)
 	with pytest.raises(BadZipFile, match="Corrupted archive 'core.zip': File 'a.txt' is encrypted") as raised:
-		archive_module.module.extract_core_archive(str(archive), str(tmp_path / "ws"))
+		archive_module.module.extractCoreArchive(str(archive), str(tmp_path / "ws"))
 	assert raised.value.__cause__ is failure
 	assert not (tmp_path / "ws").exists()
 
@@ -50,7 +50,7 @@ def test_a_member_with_a_bad_checksum_raises_bad_zip_and_extracts_nothing(archiv
 	data = archive.read_bytes()
 	archive.write_bytes(data.replace(b"hello world", b"jello world"))
 	with pytest.raises(BadZipFile, match="Corrupted archive 'core.zip': bad member bad.txt"):
-		archive_module.module.extract_core_archive(str(archive), str(tmp_path / "ws"))
+		archive_module.module.extractCoreArchive(str(archive), str(tmp_path / "ws"))
 	assert not (tmp_path / "ws").exists()
 
 
@@ -64,7 +64,7 @@ def test_any_extraction_error_skips_only_that_file(archive_module, tmp_path, mon
 		return original(self, member, path, pwd)
 
 	monkeypatch.setattr(ZipFile, "extract", sharing_violation)
-	assert archive_module.module.extract_core_archive(str(archive), str(tmp_path / "ws")) == ["a.dll"]
+	assert archive_module.module.extractCoreArchive(str(archive), str(tmp_path / "ws")) == ["a.dll"]
 	assert (tmp_path / "ws" / "b.txt").read_text() == "b"
 	assert archive_module.logged[-1] == ("warning", "Update complete. Skipped 1 in-use file(s): ['a.dll']")
 
@@ -157,5 +157,5 @@ def test_an_unexpected_failure_is_logged_and_the_next_archive_still_installs(ins
 
 
 def test_install_loads_the_archive_code_from_its_own_folder(install, tmp_path):
-	loaded = install.module._load_core_archive()
+	loaded = install.module._loadCoreArchive()
 	assert loaded.__file__ == str(tmp_path / "addon" / "generics" / "coreArchive.py")

@@ -199,7 +199,7 @@ def test_failed_extraction_reports_and_logs_the_archive_name(monkeypatch, tmp_pa
 	def fail(*args):
 		raise OSError("bad archive")
 
-	monkeypatch.setattr(env.module, "extract_core_archive", fail)
+	monkeypatch.setattr(env.module, "extractCoreArchive", fail)
 	env.plugin.onFileImport(None)
 
 	assert env.shown == [("Import fail", "Import File", env.wx.OK)]

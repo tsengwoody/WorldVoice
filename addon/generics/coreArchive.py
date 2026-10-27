@@ -6,23 +6,23 @@ from zipfile import BadZipFile, ZipFile
 from logHandler import log
 
 
-def extract_core_archive(archive_path: str, workspace_path: str) -> list[str]:
+def extractCoreArchive(archivePath: str, workspacePath: str) -> list[str]:
 	"""Extract every member; return the names skipped because they are in use.
 
 	Raises BadZipFile when the archive is corrupt.
 	"""
-	name = os.path.basename(archive_path)
-	with ZipFile(archive_path, "r") as core_file:
+	name = os.path.basename(archivePath)
+	with ZipFile(archivePath, "r") as coreFile:
 		try:
-			bad_member = core_file.testzip()
+			badMember = coreFile.testzip()
 		except (BadZipFile, RuntimeError) as error:
 			raise BadZipFile(f"Corrupted archive '{name}': {error}") from error
-		if bad_member is not None:
-			raise BadZipFile(f"Corrupted archive '{name}': bad member {bad_member}")
+		if badMember is not None:
+			raise BadZipFile(f"Corrupted archive '{name}': bad member {badMember}")
 		skipped = []
-		for member in core_file.infolist():
+		for member in coreFile.infolist():
 			try:
-				core_file.extract(member, path=workspace_path)
+				coreFile.extract(member, path=workspacePath)
 			except Exception as error:  # noqa: BLE001 - in-use files raise OS-specific errors; they are skipped and reported
 				# Catching a broad Exception is intentional. Locked files (e.g., in-use DLLs)
 				# can raise different errors on different OSes. This safely skips them.

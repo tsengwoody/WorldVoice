@@ -6,7 +6,7 @@ import config
 from logHandler import log
 
 
-def _load_by_path(name, *parts):
+def _loadByPath(name, *parts):
 	path = os.path.join(os.path.dirname(__file__), *parts)
 	spec = importlib.util.spec_from_file_location(name, path)
 	module = importlib.util.module_from_spec(spec)
@@ -14,37 +14,37 @@ def _load_by_path(name, *parts):
 	return module
 
 
-def _load_core_archive():
+def _loadCoreArchive():
 	# Load by path: during installation an older `generics` may already be imported.
-	return _load_by_path("_worldvoice_install_core_archive", "generics", "coreArchive.py")
+	return _loadByPath("_worldvoice_install_core_archive", "generics", "coreArchive.py")
 
 
-def _workspace_path():
+def _workspacePath():
 	# Load by path too: the add-on being installed is not importable yet.
-	module = _load_by_path("_worldvoice_install_workspace", "synthDrivers", "WorldVoice", "workspace.py")
+	module = _loadByPath("_worldvoice_install_workspace", "synthDrivers", "WorldVoice", "workspace.py")
 	return module.workspace_path()
 
 
-def _extract_core_archive(archive_path, workspace_path):
-	log.info(f"Found '{os.path.basename(archive_path)}', preparing to extract to '{workspace_path}'")
+def _extractCoreArchive(archivePath, workspacePath):
+	log.info(f"Found '{os.path.basename(archivePath)}', preparing to extract to '{workspacePath}'")
 
 	try:
-		_load_core_archive().extract_core_archive(archive_path, workspace_path)
+		_loadCoreArchive().extractCoreArchive(archivePath, workspacePath)
 	except BadZipFile as e:
-		log.error(f"Cannot extract corrupted archive '{os.path.basename(archive_path)}': {e}")
+		log.error(f"Cannot extract corrupted archive '{os.path.basename(archivePath)}': {e}")
 	except Exception:
 		# Catch any other unexpected errors during I/O or ZipFile init.
-		log.exception(f"An unexpected error occurred while processing '{os.path.basename(archive_path)}'")
+		log.exception(f"An unexpected error occurred while processing '{os.path.basename(archivePath)}'")
 
 	finally:
 		# The source archive must be removed regardless of success or failure
 		# to prevent re-installation on every startup.
 		try:
-			os.remove(archive_path)
-			log.info(f"Source archive '{os.path.basename(archive_path)}' removed.")
+			os.remove(archivePath)
+			log.info(f"Source archive '{os.path.basename(archivePath)}' removed.")
 		except OSError as e:
 			log.warning(
-				f"Could not remove source archive '{os.path.basename(archive_path)}' (it may be locked): {e}",
+				f"Could not remove source archive '{os.path.basename(archivePath)}' (it may be locked): {e}",
 			)
 
 
@@ -68,22 +68,22 @@ def onInstall():
 		# honours both command types.
 		config.conf["speech"]["autoLanguageSwitching"] = False
 
-	core_dir = os.path.join(os.path.dirname(__file__), "core")
-	if not os.path.isdir(core_dir):
+	coreDir = os.path.join(os.path.dirname(__file__), "core")
+	if not os.path.isdir(coreDir):
 		return
 
-	core_zip_paths = sorted(
-		os.path.join(core_dir, name) for name in os.listdir(core_dir) if name.lower().endswith(".zip")
+	coreZipPaths = sorted(
+		os.path.join(coreDir, name) for name in os.listdir(coreDir) if name.lower().endswith(".zip")
 	)
-	if not core_zip_paths:
+	if not coreZipPaths:
 		return
 
-	workspace_path = _workspace_path()
+	workspacePath = _workspacePath()
 	try:
-		os.makedirs(workspace_path, exist_ok=True)
+		os.makedirs(workspacePath, exist_ok=True)
 	except Exception:
-		log.exception(f"An unexpected error occurred while preparing '{workspace_path}'")
+		log.exception(f"An unexpected error occurred while preparing '{workspacePath}'")
 		return
 
-	for archive_path in core_zip_paths:
-		_extract_core_archive(archive_path, workspace_path)
+	for archivePath in coreZipPaths:
+		_extractCoreArchive(archivePath, workspacePath)

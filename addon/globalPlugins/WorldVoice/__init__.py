@@ -16,7 +16,7 @@ from synthDrivers.WorldVoice.pipeline.scope import pipeline_scope
 from synthDrivers.WorldVoice.workspace import workspace_path
 
 # isort: split
-from generics.coreArchive import extract_core_archive
+from generics.coreArchive import extractCoreArchive
 
 from .dialog import WorldVoiceSettingsDialog
 from .pipelineLog import askDisableOnStart, askExport, confirmEnable, pipelineLogService
@@ -91,7 +91,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		workspace = workspace_path()
 		try:
 			os.makedirs(workspace, exist_ok=True)
-			extract_core_archive(coreZipPath, workspace)
+			extractCoreArchive(coreZipPath, workspace)
 		except Exception:
 			log.exception(
 				f"An unexpected error occurred while processing '{os.path.basename(coreZipPath)}'",
