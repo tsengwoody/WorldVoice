@@ -40,11 +40,11 @@ def _editing_manager(monkeypatch):
 def _synth_settings_class(config):
 	names = {
 		"supportedSettings",
-		"_driver_settings",
-		"_pipeline_driver_setting",
+		"_driverSettings",
+		"_pipelineDriverSetting",
 		"_get_availableVariants",
 		"_set_rate",
-		"_set_voice_parameter",
+		"_setVoiceParameter",
 		"_get_voice",
 		"_set_voice",
 	}

@@ -59,10 +59,10 @@ def test_role_panel_does_not_save_to_a_voice_manager_the_synth_replaced():
 		_manager=opened_with,
 		_presenter=SimpleNamespace(apply=lambda: applied.append(True)),
 	)
-	_role_panel_on_save(SimpleNamespace(voice_manager=object()), log)(panel)
+	_role_panel_on_save(SimpleNamespace(voiceManager=object()), log)(panel)
 	assert applied == []
 	assert len(warnings) == 1
-	_role_panel_on_save(SimpleNamespace(voice_manager=opened_with), log)(panel)
+	_role_panel_on_save(SimpleNamespace(voiceManager=opened_with), log)(panel)
 	assert applied == [True]
 
 

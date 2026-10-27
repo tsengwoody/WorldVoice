@@ -214,7 +214,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 		language=lambda: synth.language,
 	)
 	synth._languageDetector = detector
-	synth.add_detected_language_commands = pipeline.listable(synth._detect_languages)
+	synth.addDetectedLanguageCommands = pipeline.listable(synth._detectLanguages)
 	return synth, modules
 
 
@@ -273,7 +273,7 @@ def test_number_languages_list_every_voice_language_by_its_description(monkeypat
 	]
 	synth._set_numlan("zh_TW")
 	assert synth._get_numlan() == "zh_TW"
-	assert synth.speech_context().number_language == "zh_TW"
+	assert synth.speechContext().number_language == "zh_TW"
 
 
 def test_choosing_the_current_voice_records_it_without_stopping_speech(monkeypatch):
@@ -360,12 +360,12 @@ def speak_through_stages(
 		synth._voiceManager.default_voice_instance = SimpleNamespace(name=ZH, language="zh_TW")
 	monkeypatch.setattr(sys.modules["speech"], "getCurrentLanguage", lambda: synth.language, raising=False)
 	monkeypatch.setattr(sys.modules["characterProcessing"], "processSpeechSymbol", symbol_name)
-	ctx = synth.speech_context()
+	ctx = synth.speechContext()
 	sequence = list(sequence)
 	for stage in modules.pipeline.STAGES:
 		sequence = list(stage.fn(sequence, settings or stage_settings(), ctx))
 	if uwv and timing == "before":
-		sequence = synth.add_detected_language_commands(sequence)
+		sequence = synth.addDetectedLanguageCommands(sequence)
 	if nvda is not None:
 		sequence = nvda(sequence)
 	synth.speak(sequence)
@@ -704,7 +704,7 @@ def test_an_unknown_number_language_reads_as_follow(monkeypatch, value):
 	synth, _ = _synth(monkeypatch)
 	synth._set_numlan(value)
 	assert synth._get_numlan() == "default"
-	assert synth.speech_context().number_language == "default"
+	assert synth.speechContext().number_language == "default"
 	(warning,) = synth.warnings
 	assert value in warning
 
@@ -755,12 +755,12 @@ def test_a_hidden_locale_survives_loading_and_saving_and_comes_back(monkeypatch,
 	nvda.load_changed()
 	nvda.save()
 	assert nvda.conf["numlan"] == "zh_TW"
-	assert synth.speech_context().number_language == "default"
+	assert synth.speechContext().number_language == "default"
 	# NVDA's settings ring and the Voice panel find the stored value among the choices.
 	assert "zh_TW" in synth._get_availableNumlans()
 	assert synth.warnings == []
 	synth._voiceManager.languages = ("en", "zh_TW")
-	assert synth.speech_context().number_language == "zh_TW"
+	assert synth.speechContext().number_language == "zh_TW"
 
 
 # Decided by the user (2026-10-23, U1/U2, amending Q5): a sign right after a word character is a

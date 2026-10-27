@@ -43,7 +43,7 @@ def say_all(stub_modules, monkeypatch):
 	stub_modules.module("config", conf=conf)
 	stub_modules.module("addonHandler", initTranslation=lambda: None)
 	stub_modules.module("logHandler", log=SimpleNamespace(error=lambda *args, **kwargs: None))
-	synth = SimpleNamespace(name="WorldVoice", speech_context=lambda: SimpleNamespace(supports_roles=True))
+	synth = SimpleNamespace(name="WorldVoice", speechContext=lambda: SimpleNamespace(supports_roles=True))
 	stub_modules.module("synthDriverHandler", getSynth=lambda: synth)
 	stub_modules.translation()
 	alias_package(monkeypatch, PACKAGE, WORLDVOICE)

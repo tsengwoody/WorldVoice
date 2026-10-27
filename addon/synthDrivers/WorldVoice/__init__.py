@@ -61,8 +61,8 @@ _: Any
 
 # The add-on root stays on sys.path although this package imports nothing from it: the
 # global plugin imports generics.coreArchive after importing this package.
-base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-sys.path.insert(0, base_dir)
+baseDir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, baseDir)
 
 addonHandler.initTranslation()
 
@@ -108,7 +108,7 @@ class SynthDriver(SynthDriver):
 		return True
 
 	@staticmethod
-	def _pipeline_driver_setting(spec):
+	def _pipelineDriverSetting(spec):
 		# An ordering-only entry (number language) is stored by NVDA; the others in the pipeline section.
 		options = {
 			"availableInSettingsRing": spec.ring,
@@ -130,7 +130,7 @@ class SynthDriver(SynthDriver):
 			)
 		return DriverSetting(spec.driver_id, spec.label, **options)
 
-	def _driver_settings(self, capabilities):
+	def _driverSettings(self, capabilities):
 		"""The synth settings; ``capabilities`` None lists every optional voice setting."""
 		settings = [SynthDriver.VoiceSetting(), SynthDriver.VariantSetting(), SynthDriver.RateSetting()]
 		if capabilities is None or "rateBoost" in capabilities:
@@ -151,17 +151,17 @@ class SynthDriver(SynthDriver):
 		for spec in PIPELINE_SETTINGS:
 			if spec.driver_id is None:
 				continue
-			settings.append(self._pipeline_driver_setting(spec))
+			settings.append(self._pipelineDriverSetting(spec))
 		return settings
 
 	@property
 	def supportedSettings(self):
 		capabilities = self._voiceManager.get_voice_capabilities(self._voiceManager.default_voice_name)
-		return self._driver_settings(capabilities.settings)
+		return self._driverSettings(capabilities.settings)
 
 	@property
 	def allSupportedSettings(self):
-		return self._driver_settings(None)
+		return self._driverSettings(None)
 
 	_TEARDOWN_ORDER = (
 		"task manager shutdown",
@@ -223,12 +223,12 @@ class SynthDriver(SynthDriver):
 				self._teardown.add("event bridge close", self._eventBridge.close)
 				tasks = self.taskManager = TaskManager(output=self._eventBridge, logger=nvdaLog)
 
-				def shutdown_tasks():
+				def shutdownTasks():
 					# The voice manager comes later, so it may not exist yet.
 					manager = self._voiceManager
 					tasks.shutdown(manager.playback_ports if manager is not None else ())
 
-				self._teardown.add("task manager shutdown", shutdown_tasks)
+				self._teardown.add("task manager shutdown", shutdownTasks)
 				self._eventBridge.start(tasks.on_event, batchHandler=tasks.on_events)
 
 			with timed(nvdaLog, "VoiceManager"):
@@ -249,11 +249,11 @@ class SynthDriver(SynthDriver):
 					lambda: manager.terminate(commit=self._terminateCommit),
 				)
 
-			self._apply_pipeline_settings(pipeline_settings.get())
-			pipeline_settings.subscribe(self._apply_pipeline_settings)
+			self._applyPipelineSettings(pipeline_settings.get())
+			pipeline_settings.subscribe(self._applyPipelineSettings)
 			self._teardown.add(
 				"pipeline settings unsubscribe",
-				lambda: pipeline_settings.unsubscribe(self._apply_pipeline_settings),
+				lambda: pipeline_settings.unsubscribe(self._applyPipelineSettings),
 			)
 
 			with timed(nvdaLog, "speakSpelling patch"):
@@ -268,17 +268,17 @@ class SynthDriver(SynthDriver):
 					list(self._voiceManager.all_languages),
 					settings=detection_settings,
 					language=lambda: self.language,
-					number_language=self._number_language,
+					number_language=self._numberLanguage,
 				)
-				self.add_detected_language_commands = listable(self._detect_languages)
+				self.addDetectedLanguageCommands = listable(self._detectLanguages)
 				self._teardown.add(
 					"language detection unregister",
-					lambda: filter_speechSequence.unregister(self.add_detected_language_commands),
+					lambda: filter_speechSequence.unregister(self.addDetectedLanguageCommands),
 				)
-				detection_settings.subscribe(self._on_detection_settings)
+				detection_settings.subscribe(self._onDetectionSettings)
 				self._teardown.add(
 					"detection settings unsubscribe",
-					lambda: detection_settings.unsubscribe(self._on_detection_settings),
+					lambda: detection_settings.unsubscribe(self._onDetectionSettings),
 				)
 
 			self._voice = None
@@ -301,10 +301,10 @@ class SynthDriver(SynthDriver):
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)
 		# Pipeline settings are not NVDA driver config; re-read them for this profile.
-		self._apply_pipeline_settings(pipeline_settings.get())
+		self._applyPipelineSettings(pipeline_settings.get())
 		self._voiceManager.reload()
 
-	def _apply_pipeline_settings(self, settings):
+	def _applyPipelineSettings(self, settings):
 		manager = self._voiceManager
 		if manager is not None:
 			manager.waitfactor = min(settings.global_wait_factor // 10, 9)
@@ -313,9 +313,9 @@ class SynthDriver(SynthDriver):
 		if self._terminated:
 			return
 		if self.uwv and self._detectLanguageTiming() == "after":
-			speechSequence = self.add_detected_language_commands(speechSequence)
+			speechSequence = self.addDetectedLanguageCommands(speechSequence)
 
-		ctx = self.speech_context()
+		ctx = self.speechContext()
 		speechSequence = inject_langchange_reorder(speechSequence)
 		speechSequence = deduplicate_language_command(speechSequence, ctx)
 		speechSequence = lang_cmd_to_voice(speechSequence, ctx)
@@ -327,13 +327,13 @@ class SynthDriver(SynthDriver):
 			self._voiceManager.resolve_playback,
 		)
 
-	def _detect_languages(self, speechSequence):
+	def _detectLanguages(self, speechSequence):
 		# The number language decides the digits: the pipeline wraps each number for detection,
 		# wherever detection runs (before NVDA's processing as a filter, or after it in speak).
 		return detect_with_number_language(
 			speechSequence,
 			self._languageDetector.add_detected_language_commands,
-			self.speech_context(),
+			self.speechContext(),
 		)
 
 	def patchedSpeakSpelling(self, text, locale=None, useCharacterDescriptions=False, priority=None):
@@ -354,11 +354,11 @@ class SynthDriver(SynthDriver):
 		self.taskManager.pause_current(switch)
 
 	@property
-	def voice_manager(self):
+	def voiceManager(self):
 		"""The voice manager the settings panels read; None after terminate."""
 		return self._voiceManager
 
-	def speech_context(self) -> SpeechContext:
+	def speechContext(self) -> SpeechContext:
 		manager = self._voiceManager
 		if manager is None:
 			return GENERIC_CONTEXT
@@ -366,14 +366,14 @@ class SynthDriver(SynthDriver):
 		return SpeechContext(
 			supports_roles=True,
 			language=self.language,
-			number_language=self._number_language(),
+			number_language=self._numberLanguage(),
 			default_voice_name=voice.name,
 			default_voice_language=voice.language,
 			voice_name_for_language=manager.get_voice_name_for_language,
 			voice_locale_for_language=manager.get_voice_locale_for_language,
 		)
 
-	def _set_voice_parameter(self, name, value):
+	def _setVoiceParameter(self, name, value):
 		instance = self._voiceManager.default_voice_instance
 		setattr(instance, name, value)
 		instance.commit()
@@ -384,25 +384,25 @@ class SynthDriver(SynthDriver):
 		return self._voiceManager.default_voice_instance.volume
 
 	def _set_volume(self, value):
-		self._set_voice_parameter("volume", value)
+		self._setVoiceParameter("volume", value)
 
 	def _get_rate(self):
 		return self._voiceManager.default_voice_instance.rate
 
 	def _set_rate(self, value):
-		self._set_voice_parameter("rate", value)
+		self._setVoiceParameter("rate", value)
 
 	def _get_pitch(self):
 		return self._voiceManager.default_voice_instance.pitch
 
 	def _set_pitch(self, value):
-		self._set_voice_parameter("pitch", value)
+		self._setVoiceParameter("pitch", value)
 
 	def _get_inflection(self):
 		return self._voiceManager.default_voice_instance.inflection
 
 	def _set_inflection(self, value):
-		self._set_voice_parameter("inflection", value)
+		self._setVoiceParameter("inflection", value)
 
 	def _getAvailableVoices(self):
 		return self._voiceManager.voice_infos
@@ -432,39 +432,39 @@ class SynthDriver(SynthDriver):
 		return self._voiceManager.default_voice_instance.variant
 
 	def _set_variant(self, value):
-		self._set_voice_parameter("variant", value)
+		self._setVoiceParameter("variant", value)
 
 	def _get_rateBoost(self):
 		return self._voiceManager.default_voice_instance.rateBoost
 
 	def _set_rateBoost(self, enable):
-		self._set_voice_parameter("rateBoost", enable)
+		self._setVoiceParameter("rateBoost", enable)
 
 	def _get_uwv(self):
 		return self._uwv
 
 	def _set_uwv(self, value):
 		self._uwv = value
-		self.refresh_language_detection()
+		self.refreshLanguageDetection()
 
 	def _detectLanguageTiming(self):
 		return detection_settings.get().timing
 
-	def _on_detection_settings(self, settings, changed):
+	def _onDetectionSettings(self, settings, changed):
 		# Only the timing decides the filter registration; refreshing also reorders NVDA's filters.
 		if "timing" in changed:
-			self.refresh_language_detection()
+			self.refreshLanguageDetection()
 
-	def refresh_language_detection(self):
+	def refreshLanguageDetection(self):
 		"""Register language detection as an NVDA filter only when it runs before NVDA's processing.
 
 		Called when uwv or the detection timing changes.
 		"""
 		if self.uwv and self._detectLanguageTiming() == "before":
-			filter_speechSequence.register(self.add_detected_language_commands)
+			filter_speechSequence.register(self.addDetectedLanguageCommands)
 			order_move_to_start_register()
 		else:
-			filter_speechSequence.unregister(self.add_detected_language_commands)
+			filter_speechSequence.unregister(self.addDetectedLanguageCommands)
 
 	def _get_availableNumlans(self):
 		values = {value: StringParameterInfo(value, label) for value, label in NUMBER_LANGUAGE_CHOICES}
@@ -478,16 +478,16 @@ class SynthDriver(SynthDriver):
 			values[locale] = StringParameterInfo(locale, self._numlanDisplayName(locale))
 		return values
 
-	def _is_stored_number_language(self, value):
+	def _isStoredNumberLanguage(self, value):
 		# Any installed voice's locale, also one the voice settings hide for now.
 		return value in (FOLLOW, MAIN) or value in self._voiceManager.all_languages
 
 	def _get_numlan(self):
 		# The stored choice, which NVDA saves back: a locale hidden by a voice or engine change is
 		# kept, so it comes back when its voices are offered again.
-		return self._numlan if self._is_stored_number_language(self._numlan) else FOLLOW
+		return self._numlan if self._isStoredNumberLanguage(self._numlan) else FOLLOW
 
-	def _number_language(self):
+	def _numberLanguage(self):
 		"""The number language speech uses: a stored locale that no offered voice speaks is "default"."""
 		value = self._get_numlan()
 		return value if value in (FOLLOW, MAIN) or value in self._voiceManager.languages else FOLLOW
@@ -495,7 +495,7 @@ class SynthDriver(SynthDriver):
 	def _set_numlan(self, value):
 		# NVDA stores any string; one that is not a choice would leave the Voice panel without a
 		# selection and break the settings ring, so it reads as the default (no migration).
-		if not self._is_stored_number_language(value):
+		if not self._isStoredNumberLanguage(value):
 			nvdaLog.debugWarning("WorldVoice: unknown number language %r, using %r", value, FOLLOW)
 			value = FOLLOW
 		self._numlan = value

@@ -64,7 +64,7 @@ class Presenter:
 @pytest.fixture
 def ui(monkeypatch):
 	manager = SimpleNamespace(name="manager")
-	synth = SimpleNamespace(name="WorldVoice", voice_manager=manager)
+	synth = SimpleNamespace(name="WorldVoice", voiceManager=manager)
 	env = load_settings_dialog(monkeypatch, synth=synth)
 	monkeypatch.setattr(env.panels.role, "RolePanelPresenter", Presenter)
 	panel = make_panel(env.module.SpeechRoleSettingsPanel)
@@ -102,7 +102,7 @@ def test_panel_for_another_synth_only_says_so(monkeypatch):
 
 def test_opened_panel_shows_locales_and_consistency_flags_with_no_voice_yet(ui):
 	panel, presenter = ui.panel, ui.presenter
-	assert presenter.manager is ui.synth.voice_manager
+	assert presenter.manager is ui.synth.voiceManager
 	assert panel._localesChoice.choices == ["English", "Chinese"]
 	assert panel._localesChoice.focused is True
 	# No locale chosen yet: nothing to edit.

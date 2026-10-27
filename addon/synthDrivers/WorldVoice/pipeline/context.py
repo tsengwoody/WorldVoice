@@ -40,4 +40,4 @@ def current_context() -> SpeechContext:
 		return GENERIC_CONTEXT
 	if synth is None:
 		return GENERIC_CONTEXT
-	return synth.speech_context()
+	return synth.speechContext()

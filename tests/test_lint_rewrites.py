@@ -56,7 +56,7 @@ def _context_module(stub_modules, synth):
 
 
 def test_worldvoice_synth_returns_only_worldvoice(stub_modules):
-	worldvoice = types.SimpleNamespace(name="WorldVoice", speech_context=lambda: "worldvoice context")
+	worldvoice = types.SimpleNamespace(name="WorldVoice", speechContext=lambda: "worldvoice context")
 	module = _context_module(stub_modules, worldvoice)
 	assert module.worldvoice_synth() is worldvoice
 	assert module.current_context() == "worldvoice context"

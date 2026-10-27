@@ -164,7 +164,7 @@ def test_global_wait_change_reaches_the_voice_manager(monkeypatch):
 	synth = object.__new__(synth_class)
 	manager = types.SimpleNamespace(waitfactor=None)
 	synth._voiceManager = manager
-	settings_module.pipeline_settings.subscribe(synth._apply_pipeline_settings)
+	settings_module.pipeline_settings.subscribe(synth._applyPipelineSettings)
 	synth.globalwaitfactor = 100
 	assert manager.waitfactor == 9
 	synth._voiceManager = None
@@ -194,13 +194,13 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}}
 	synth_class, _ = load_synth(monkeypatch, conf)
 	generic = object()
-	monkeypatch.setitem(synth_class.speech_context.__globals__, "GENERIC_CONTEXT", generic)
-	monkeypatch.setitem(synth_class.speech_context.__globals__, "SpeechContext", lambda **kwargs: kwargs)
+	monkeypatch.setitem(synth_class.speechContext.__globals__, "GENERIC_CONTEXT", generic)
+	monkeypatch.setitem(synth_class.speechContext.__globals__, "SpeechContext", lambda **kwargs: kwargs)
 	synth = object.__new__(synth_class)
 	# What __init__ sets before any stage can run.
 	synth._numlan = "default"
 	synth._voiceManager = None
-	assert synth.speech_context() is generic
+	assert synth.speechContext() is generic
 	voice = types.SimpleNamespace(name="A:en", language="en")
 	synth._voiceManager = manager = types.SimpleNamespace(
 		default_voice_instance=voice,
@@ -208,12 +208,12 @@ def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 		get_voice_locale_for_language=lambda lang: "zh_TW",
 	)
 	synth.language = "en"
-	context = synth.speech_context()
+	context = synth.speechContext()
 	assert context["number_language"] == "default"
 	assert (context["default_voice_name"], context["default_voice_language"]) == ("A:en", "en")
 	assert context["voice_locale_for_language"] is manager.get_voice_locale_for_language
 	assert "speech_symbols" not in context
 	# Each speak builds its own context, so a new default voice reaches the next one.
 	manager.default_voice_instance = types.SimpleNamespace(name="B:zh", language="zh")
-	context = synth.speech_context()
+	context = synth.speechContext()
 	assert (context["default_voice_name"], context["default_voice_language"]) == ("B:zh", "zh")

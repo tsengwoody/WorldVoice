@@ -34,7 +34,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 			self.disable = True
 			return
 
-		self._manager = synth.voice_manager
+		self._manager = synth.voiceManager
 
 		def set_main_voice(name):
 			current = worldvoice_synth()
@@ -304,7 +304,7 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		current = worldvoice_synth()
 		if self.disable or current is None:
 			return
-		if current.voice_manager is not self._manager:
+		if current.voiceManager is not self._manager:
 			# NVDA rebuilt WorldVoice (e.g. after an audio device change); the panel edits the old one.
 			log.warning("WorldVoice restarted while the voice settings were open; role settings not saved")
 			return

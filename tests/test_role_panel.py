@@ -27,7 +27,7 @@ def test_failed_apply_shows_error_and_raises_value_error():
 			"got_error_callback": None,
 			"reportError": messages.append,
 			"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
-			"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice", voice_manager=manager),
+			"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice", voiceManager=manager),
 		},
 	)
 	panel = object.__new__(panel_type)
@@ -89,7 +89,7 @@ class Control:
 def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 	created = []
 	manager = types.SimpleNamespace()
-	synth = types.SimpleNamespace(name="WorldVoice", voice_manager=manager)
+	synth = types.SimpleNamespace(name="WorldVoice", voiceManager=manager)
 	current = [synth]
 	speech = {"WorldVoice": {}}
 	hooks = {}

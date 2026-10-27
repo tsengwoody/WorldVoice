@@ -16,14 +16,14 @@ class Synth:
 	def __init__(self, manager):
 		object.__setattr__(self, "events", [])
 		object.__setattr__(self, "name", "WorldVoice")
-		object.__setattr__(self, "voice_manager", manager)
+		object.__setattr__(self, "voiceManager", manager)
 		object.__setattr__(self, "uwv", True)
 
 	def __setattr__(self, name, value):
 		self.events.append(("set", name))
 		object.__setattr__(self, name, value)
 
-	def refresh_language_detection(self):
+	def refreshLanguageDetection(self):
 		self.events.append(("refresh",))
 
 

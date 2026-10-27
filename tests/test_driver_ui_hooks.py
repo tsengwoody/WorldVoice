@@ -12,7 +12,7 @@ def synth(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}}
 	synth_class, _ = load_synth(monkeypatch, conf)
 	calls = []
-	globals_ = synth_class.refresh_language_detection.__globals__
+	globals_ = synth_class.refreshLanguageDetection.__globals__
 	detection = types.SimpleNamespace(timing="before")
 	monkeypatch.setitem(
 		globals_,
@@ -31,21 +31,21 @@ def synth(monkeypatch):
 	)
 	monkeypatch.setitem(globals_, "order_move_to_start_register", lambda: calls.append(("reorder",)))
 	instance = object.__new__(synth_class)
-	instance.add_detected_language_commands = handler = object()
+	instance.addDetectedLanguageCommands = handler = object()
 	return types.SimpleNamespace(synth=instance, calls=calls, detection=detection, handler=handler)
 
 
 def test_voice_manager_is_the_private_manager_or_none(synth):
 	manager = object()
 	synth.synth._voiceManager = manager
-	assert synth.synth.voice_manager is manager
+	assert synth.synth.voiceManager is manager
 	synth.synth._voiceManager = None
-	assert synth.synth.voice_manager is None
+	assert synth.synth.voiceManager is None
 
 
 def test_refresh_without_detection_only_unregisters(synth):
 	synth.synth.uwv = False
-	synth.synth.refresh_language_detection()
+	synth.synth.refreshLanguageDetection()
 	assert synth.calls == [("unregister", synth.handler)]
 
 
@@ -59,7 +59,7 @@ def test_refresh_without_detection_only_unregisters(synth):
 def test_refresh_registers_only_for_detection_before_nvda(synth, timing, expected):
 	synth.detection.timing = timing
 	synth.synth.uwv = True
-	synth.synth.refresh_language_detection()
+	synth.synth.refreshLanguageDetection()
 	assert [call[0] for call in synth.calls] == expected
 
 
@@ -78,11 +78,11 @@ def test_detection_timing_comes_from_the_settings_service(synth):
 
 def test_a_timing_change_refreshes_language_detection(synth):
 	synth.synth.uwv = True
-	synth.synth._on_detection_settings(object(), frozenset({"timing"}))
+	synth.synth._onDetectionSettings(object(), frozenset({"timing"}))
 	assert [call[0] for call in synth.calls] == ["register", "reorder"]
 
 
 def test_other_detection_changes_leave_the_filter_order_alone(synth):
 	synth.synth.uwv = True
-	synth.synth._on_detection_settings(object(), frozenset({"script_language"}))
+	synth.synth._onDetectionSettings(object(), frozenset({"script_language"}))
 	assert synth.calls == []

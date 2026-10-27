@@ -24,7 +24,7 @@ class UnicodeDetectionSettingsPanel(SettingsPanel):
 			self.disable = True
 			return
 
-		self._manager = synth.voice_manager
+		self._manager = synth.voiceManager
 
 		self.localesToNames = self._manager.locales_to_names_map
 		self._locales = self._manager.languages
