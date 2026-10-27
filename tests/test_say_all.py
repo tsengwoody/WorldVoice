@@ -73,7 +73,7 @@ def speak_say_all(say_all):
 
 
 def test_say_all_adds_the_scaled_pause_after_nvdas_speech(say_all):
-	say_all.pipeline.update(global_wait_factor=30, sayall_wait_factor=4)
+	say_all.pipeline.update(globalWaitFactor=30, sayAllWaitFactor=4)
 	sequences = speak_say_all(say_all)
 	assert sequences[:2] == [["first"], ["second"]]
 	# 30 // 10 units of 4, plus the fixed 100.
@@ -85,7 +85,7 @@ def test_say_all_adds_the_scaled_pause_after_nvdas_speech(say_all):
 def test_the_pause_is_read_when_say_all_reaches_the_end(say_all):
 	say_all.module.patch()
 	get_text_info_speech = say_all.initialized[-1][2]
-	say_all.pipeline.update(global_wait_factor=10, sayall_wait_factor=0)
+	say_all.pipeline.update(globalWaitFactor=10, sayAllWaitFactor=0)
 	assert list(get_text_info_speech()) == [["first"], ["second"]]
 
 

@@ -294,7 +294,7 @@ PIPELINE_STORED_SETTINGS = tuple(spec for spec in PIPELINE_SETTINGS if spec.pipe
 PIPELINE_SETTING_BY_KEY = {spec.key: spec for spec in PIPELINE_STORED_SETTINGS}
 DEFAULT_PIPELINE_SETTINGS = {spec.key: spec.default for spec in PIPELINE_STORED_SETTINGS}
 PIPELINE_CONFIG_KEYS = tuple(spec.key for spec in PIPELINE_STORED_SETTINGS)
-PIPELINE_CONFSPEC = {spec.key: spec.confspec for spec in PIPELINE_STORED_SETTINGS}
+PIPELINE_CONFSPEC = {spec.stored_key: spec.confspec for spec in PIPELINE_STORED_SETTINGS}
 
 
 @dataclass(frozen=True)
@@ -380,10 +380,6 @@ def read_stored(section: Any, key: str, default: Any) -> Any:
 		return default
 
 
-def _get_value(section: Any, key: str) -> Any:
-	return read_stored(section, key, DEFAULT_PIPELINE_SETTINGS[key])
-
-
 class ConfigPipelineRepository:
 	"""Read and write the pipeline section of the active NVDA configuration profile."""
 
@@ -394,15 +390,20 @@ class ConfigPipelineRepository:
 		return self._conf_provider()["WorldVoice"]["pipeline"]
 
 	def load(self) -> PipelineSettings:
+		"""The settings by field key, each read from its stored key."""
 		section = self._section()
 		return PipelineSettings(
-			**{spec.key: spec.convert(_get_value(section, spec.key)) for spec in PIPELINE_STORED_SETTINGS},
+			**{
+				spec.key: spec.convert(read_stored(section, spec.stored_key, spec.default))
+				for spec in PIPELINE_STORED_SETTINGS
+			},
 		)
 
 	def save(self, values: Mapping[str, Any]) -> None:
+		"""Write values given by field key, each under its stored key."""
 		section = self._section()
 		for key, value in values.items():
-			section[key] = value
+			section[PIPELINE_SETTING_BY_KEY[key].stored_key] = value
 
 
 class PipelineSettingsService:

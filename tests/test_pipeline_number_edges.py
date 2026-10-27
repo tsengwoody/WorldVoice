@@ -353,7 +353,7 @@ def test_no_edge_break_without_a_number_pause(monkeypatch, mode, wait):
 
 def test_a_global_factor_below_ten_adds_no_edge_break(monkeypatch):
 	module, _, _ = run_row(monkeypatch, {})
-	pipeline = {"number_mode": "number", "global_wait_factor": 9, "number_wait_factor": 10}
+	pipeline = {"numberMode": "number", "globalWaitFactor": 9, "numberWaitFactor": 10}
 	settings = load_settings_module(
 		monkeypatch,
 		{"WorldVoice": {"pipeline": pipeline}},

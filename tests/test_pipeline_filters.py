@@ -689,7 +689,7 @@ def test_group_separator_is_one_instance_per_number(env, pause):
 
 
 def test_a_stored_pair_mode_reads_numbers_as_values(env, monkeypatch):
-	conf = {"WorldVoice": {"pipeline": {"number_mode": "pair", "group_size": 2}}}
+	conf = {"WorldVoice": {"pipeline": {"numberMode": "pair", "groupSize": 2}}}
 	stored = load_settings_module(monkeypatch, conf).pipeline_settings.get()
 	assert list(env.module.inject_numbers(["1234"], stored, env.module.GENERIC_CONTEXT)) == ["1234"]
 

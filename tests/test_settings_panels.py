@@ -34,17 +34,17 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	env = pipeline_env(
 		monkeypatch,
 		scope="all",
-		number_mode="group",
-		global_wait_factor=30,
-		number_wait_factor=11,
-		group_size=4,
-		item_wait_factor=13,
-		sayall_wait_factor=14,
-		unspaced_script_space_wait_factor=15,
-		punctuation_wait_factor=16,
-		punctuation_pause_enabled=False,
-		remove_punctuation_characters=True,
-		punctuation_pause_characters="。，",
+		numberMode="group",
+		globalWaitFactor=30,
+		numberWaitFactor=11,
+		groupSize=4,
+		itemWaitFactor=13,
+		sayAllWaitFactor=14,
+		unspacedScriptSpaceWaitFactor=15,
+		punctuationWaitFactor=16,
+		punctuationPauseEnabled=False,
+		removePunctuationCharacters=True,
+		punctuationPauseCharacters="。，",
 	)
 	panel, sizer = build(env, "SpeechPipelinePanel")
 
@@ -93,7 +93,7 @@ def test_pipeline_panel_rows_are_spaced_as_nvda_spaces_them(monkeypatch):
 
 def test_pipeline_panel_shows_an_unknown_stored_value_as_its_normal_form(monkeypatch):
 	# An unknown scope selects the first choice; an unknown mode reads as "value", not "off".
-	env = pipeline_env(monkeypatch, scope="nowhere", number_mode="roman")
+	env = pipeline_env(monkeypatch, scope="nowhere", numberMode="roman")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._scope_choice.selection == 0
 	assert panel._number_mode_choice.selection == 1
@@ -131,13 +131,13 @@ def group_size_enabled(panel):
 	[("value", False), ("number", False), ("group", True), ("pair", False)],
 )
 def test_pipeline_panel_enables_group_controls_for_the_stored_mode(monkeypatch, mode, enabled):
-	env = pipeline_env(monkeypatch, number_mode=mode)
+	env = pipeline_env(monkeypatch, numberMode=mode)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert group_size_enabled(panel) is enabled
 
 
 def test_pipeline_panel_group_controls_follow_the_mode_choice(monkeypatch):
-	env = pipeline_env(monkeypatch, number_mode="value")
+	env = pipeline_env(monkeypatch, numberMode="value")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	choice = panel._number_mode_choice
 
@@ -152,7 +152,7 @@ def test_pipeline_panel_group_controls_follow_the_mode_choice(monkeypatch):
 
 def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
 	# Index -1 would be the last choice, group: a choice with no selection must not enable the group controls.
-	env = pipeline_env(monkeypatch, number_mode="group")
+	env = pipeline_env(monkeypatch, numberMode="group")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._number_mode_choice.Select(-1)
 	fire(panel._number_mode_choice, "EVT_CHOICE", panel=panel)
@@ -163,7 +163,7 @@ def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
 def test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected(monkeypatch, stored):
 	# A choice with no selection names no mode: neither the last choice, group, nor "value" is
 	# saved, and the other settings still are.
-	env = pipeline_env(monkeypatch, number_mode=stored)
+	env = pipeline_env(monkeypatch, numberMode=stored)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._number_mode_choice.Select(-1)
 	panel._number_wait_factor_slider.SetValue(33)
@@ -171,7 +171,7 @@ def test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected(monkeypat
 	panel.onSave()
 
 	saved = env.conf["WorldVoice"]["pipeline"]
-	assert (saved["number_mode"], saved["number_wait_factor"]) == (stored, 33)
+	assert (saved["numberMode"], saved["numberWaitFactor"]) == (stored, 33)
 
 
 @pytest.mark.parametrize("stored", ["all", "WorldVoice"])
@@ -185,12 +185,12 @@ def test_pipeline_panel_keeps_the_stored_scope_when_nothing_is_selected(monkeypa
 	panel.onSave()
 
 	saved = env.conf["WorldVoice"]["pipeline"]
-	assert (saved["scope"], saved["number_wait_factor"]) == (stored, 33)
+	assert (saved["scope"], saved["numberWaitFactor"]) == (stored, 33)
 
 
 def test_pipeline_panel_never_saves_an_entry_pipeline_config_does_not_store(monkeypatch):
 	# The guard keeps ordering-only entries out of this panel; onSave still skips one.
-	env = pipeline_env(monkeypatch, number_wait_factor=20, group_size=3)
+	env = pipeline_env(monkeypatch, numberWaitFactor=20, groupSize=3)
 	env.panels.pipeline.PIPELINE_SETTINGS = tuple(
 		replace(spec, pipeline_config=False) if spec.key == "number_wait_factor" else spec
 		for spec in env.settings.PIPELINE_SETTINGS
@@ -202,11 +202,11 @@ def test_pipeline_panel_never_saves_an_entry_pipeline_config_does_not_store(monk
 	panel.onSave()
 
 	saved = env.conf["WorldVoice"]["pipeline"]
-	assert (saved["number_wait_factor"], saved["group_size"]) == (20, 6)
+	assert (saved["numberWaitFactor"], saved["groupSize"]) == (20, 6)
 
 
 def test_pipeline_panel_global_wait_slider_shows_tens_and_saves_units(monkeypatch):
-	env = pipeline_env(monkeypatch, global_wait_factor=30)
+	env = pipeline_env(monkeypatch, globalWaitFactor=30)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	slider = panel._global_wait_factor_slider
 	assert (slider.value, slider.kwargs["minValue"], slider.kwargs["maxValue"]) == (3, 0, 10)
@@ -215,7 +215,7 @@ def test_pipeline_panel_global_wait_slider_shows_tens_and_saves_units(monkeypatc
 	slider.SetValue(4)
 	panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["global_wait_factor"] == 40
+	assert env.conf["WorldVoice"]["pipeline"]["globalWaitFactor"] == 40
 
 
 def test_pipeline_panel_binds_only_the_controllers(monkeypatch):
@@ -231,14 +231,14 @@ def test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid(monk
 	# A hand-edited nvda.ini value reads floored to tens and shows in units. Saving the panel
 	# untouched writes the value it shows, 50 (never 570); the setting read back is unchanged.
 	# Changed by fix/uniform-settings-save (user, 2026-10-22): the raw 57 was left as is.
-	env = pipeline_env(monkeypatch, global_wait_factor=57)
+	env = pipeline_env(monkeypatch, globalWaitFactor=57)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._global_wait_factor_slider.value == 5
 
 	panel.onSave()
 
 	assert env.pipeline_settings.get().global_wait_factor == 50
-	assert env.conf["WorldVoice"]["pipeline"]["global_wait_factor"] == 50
+	assert env.conf["WorldVoice"]["pipeline"]["globalWaitFactor"] == 50
 
 
 @pytest.mark.parametrize(("typed", "saved"), [(0, 3), (42, 3)])
@@ -249,29 +249,29 @@ def test_pipeline_panel_saves_an_out_of_range_group_size_as_the_default(monkeypa
 
 	panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == saved
+	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == saved
 
 
 def test_pipeline_panel_saves_the_disabled_group_size(monkeypatch):
-	env = pipeline_env(monkeypatch, number_mode="value")
+	env = pipeline_env(monkeypatch, numberMode="value")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._group_size_spin.SetValue(7)
 
 	panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 7
+	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 7
 
 
 @pytest.mark.parametrize(("stored", "shown"), [(0, 3), (1, 3), (12, 3), ("4", 4)])
 def test_pipeline_panel_shows_an_out_of_range_stored_size_as_the_default(monkeypatch, stored, shown):
-	env = pipeline_env(monkeypatch, group_size=stored)
+	env = pipeline_env(monkeypatch, groupSize=stored)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._group_size_spin.GetValue() == shown
 
 
 def nvda_pipeline_section(env, refused=None):
 	"""Replace the stored pipeline section with one that refuses and skips like NVDA's."""
-	defaults = env.settings.DEFAULT_PIPELINE_SETTINGS
+	defaults = {spec.stored_key: spec.default for spec in env.settings.PIPELINE_STORED_SETTINGS}
 	section = RefusingSection(env.conf["WorldVoice"]["pipeline"], refused, defaults=defaults)
 	env.conf["WorldVoice"]["pipeline"] = section
 	return section
@@ -281,21 +281,21 @@ def test_pipeline_panel_save_fixes_a_refused_stored_size(monkeypatch):
 	# Decided by the user (2026-10-22, Q3 and fix/uniform-settings-save): NVDA refuses a stored
 	# 11, the panel shows 3, and saving the panel untouched writes every shown value; NVDA writes
 	# only the 3, the one value that differs from what is stored.
-	env = pipeline_env(monkeypatch, group_size=11, number_wait_factor=40)
+	env = pipeline_env(monkeypatch, groupSize=11, numberWaitFactor=40)
 	error = sys.modules["configobj.validate"].VdtValueTooBigError(11)
-	section = nvda_pipeline_section(env, {"group_size": error})
+	section = nvda_pipeline_section(env, {"groupSize": error})
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._group_size_spin.GetValue() == 3
 
 	panel.onSave()
 
-	assert section.written == ["group_size"]
-	assert (dict(section)["group_size"], dict(section)["number_wait_factor"]) == (3, 40)
+	assert section.written == ["groupSize"]
+	assert (dict(section)["groupSize"], dict(section)["numberWaitFactor"]) == (3, 40)
 	assert env.pipeline_settings.get().group_size == 3
 
 
 def test_pipeline_panel_save_passes_every_value_it_shows(monkeypatch):
-	env = pipeline_env(monkeypatch, number_wait_factor=33)
+	env = pipeline_env(monkeypatch, numberWaitFactor=33)
 	passed = []
 	update = env.pipeline_settings.update
 	monkeypatch.setattr(
@@ -320,13 +320,13 @@ def pause_controls_enabled(panel):
 @pytest.mark.parametrize("remove", [False, True])
 @pytest.mark.parametrize("pause", [False, True])
 def test_pipeline_panel_enables_pause_controls_from_the_stored_switch(monkeypatch, pause, remove):
-	env = pipeline_env(monkeypatch, punctuation_pause_enabled=pause, remove_punctuation_characters=remove)
+	env = pipeline_env(monkeypatch, punctuationPauseEnabled=pause, removePunctuationCharacters=remove)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert pause_controls_enabled(panel) == (pause, pause, pause)
 
 
 def test_pipeline_panel_pause_controls_follow_the_switch_only(monkeypatch):
-	env = pipeline_env(monkeypatch, punctuation_pause_enabled=False, remove_punctuation_characters=False)
+	env = pipeline_env(monkeypatch, punctuationPauseEnabled=False, removePunctuationCharacters=False)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	pause = panel._punctuation_pause_enabled_checkbox
 	remove = panel._remove_punctuation_characters_checkbox
@@ -347,7 +347,7 @@ def test_pipeline_panel_pause_controls_follow_the_switch_only(monkeypatch):
 
 
 def test_pipeline_panel_saves_the_disabled_pause_controls(monkeypatch):
-	env = pipeline_env(monkeypatch, punctuation_pause_enabled=False)
+	env = pipeline_env(monkeypatch, punctuationPauseEnabled=False)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._remove_punctuation_characters_checkbox.SetValue(True)
 	panel._punctuation_wait_factor_slider.SetValue(30)
@@ -356,8 +356,8 @@ def test_pipeline_panel_saves_the_disabled_pause_controls(monkeypatch):
 	panel.onSave()
 
 	stored = env.conf["WorldVoice"]["pipeline"]
-	assert (stored["remove_punctuation_characters"], stored["punctuation_wait_factor"]) == (True, 30)
-	assert stored["punctuation_pause_characters"] == "。"
+	assert (stored["removePunctuationCharacters"], stored["punctuationWaitFactor"]) == (True, 30)
+	assert stored["punctuationPauseCharacters"] == "。"
 
 
 def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
@@ -374,11 +374,11 @@ def test_pipeline_panel_saves_the_edited_controls_to_config(monkeypatch):
 
 	stored = env.conf["WorldVoice"]["pipeline"]
 	assert stored["scope"] == "all"
-	assert stored["number_mode"] == "number"
-	assert stored["global_wait_factor"] == 70
-	assert stored["group_size"] == 6
-	assert stored["punctuation_pause_enabled"] is False
-	assert stored["punctuation_pause_characters"] == " ;: "
+	assert stored["numberMode"] == "number"
+	assert stored["globalWaitFactor"] == 70
+	assert stored["groupSize"] == 6
+	assert stored["punctuationPauseEnabled"] is False
+	assert stored["punctuationPauseCharacters"] == " ;: "
 
 
 @pytest.mark.parametrize("characters", [" ", "\u3000"], ids=["space", "ideographic space"])
@@ -390,13 +390,13 @@ def test_pipeline_panel_saves_a_space_as_the_characters(monkeypatch, characters)
 
 	panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == characters
+	assert env.conf["WorldVoice"]["pipeline"]["punctuationPauseCharacters"] == characters
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert panel._punctuation_pause_characters_edit.value == characters
 
 
 def test_pipeline_panel_saved_unchanged_keeps_the_stored_settings(monkeypatch):
-	env = pipeline_env(monkeypatch, number_wait_factor=33)
+	env = pipeline_env(monkeypatch, numberWaitFactor=33)
 	section = nvda_pipeline_section(env)
 	before = dict(section)
 	panel, _sizer = build(env, "SpeechPipelinePanel")

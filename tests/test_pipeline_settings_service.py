@@ -22,6 +22,22 @@ OLD_DEFAULTS = {
 	"punctuation_pause_characters": "",
 	"group_size": 3,
 }
+# Where nvda.ini stores each of them: NVDA camelCase (phase 47d).
+STORED_KEYS = {
+	"scope": "scope",
+	"number_mode": "numberMode",
+	"global_wait_factor": "globalWaitFactor",
+	"number_wait_factor": "numberWaitFactor",
+	"item_wait_factor": "itemWaitFactor",
+	"sayall_wait_factor": "sayAllWaitFactor",
+	"unspaced_script_space_wait_factor": "unspacedScriptSpaceWaitFactor",
+	"punctuation_wait_factor": "punctuationWaitFactor",
+	"punctuation_pause_enabled": "punctuationPauseEnabled",
+	"remove_punctuation_characters": "removePunctuationCharacters",
+	"punctuation_pause_characters": "punctuationPauseCharacters",
+	"group_size": "groupSize",
+}
+STORED_DEFAULTS = {STORED_KEYS[key]: value for key, value in OLD_DEFAULTS.items()}
 
 
 def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
@@ -30,10 +46,10 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert sorted(keys) == sorted(field.name for field in fields(module.PipelineSettings))
 	assert module.DEFAULT_PIPELINE_SETTINGS == OLD_DEFAULTS
 	assert module.PIPELINE_CONFIG_KEYS == tuple(keys)
-	assert module.PIPELINE_CONFSPEC["global_wait_factor"] == "integer(default=10,min=0,max=100)"
-	assert module.PIPELINE_CONFSPEC["punctuation_pause_enabled"] == "boolean(default=true)"
+	assert module.PIPELINE_CONFSPEC["globalWaitFactor"] == "integer(default=10,min=0,max=100)"
+	assert module.PIPELINE_CONFSPEC["punctuationPauseEnabled"] == "boolean(default=true)"
 	assert module.PIPELINE_CONFSPEC["scope"] == 'string(default="WorldVoice")'
-	assert module.PIPELINE_CONFSPEC["punctuation_pause_characters"] == 'string(default="")'
+	assert module.PIPELINE_CONFSPEC["punctuationPauseCharacters"] == 'string(default="")'
 	driver_ids = [spec.driver_id for spec in module.PIPELINE_SETTINGS if spec.driver_id]
 	assert driver_ids == [
 		"globalWaitFactor",
@@ -102,7 +118,7 @@ def test_group_size_confspec_is_its_range(monkeypatch):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	spec = module.PIPELINE_SETTING_BY_KEY["group_size"]
 	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (2, 10, 3, True)
-	assert module.PIPELINE_CONFSPEC["group_size"] == "integer(default=3,min=2,max=10)"
+	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=3,min=2,max=10)"
 	assert not hasattr(spec, "stored_min_value")
 	assert [other.key for other in module.PIPELINE_SETTINGS if other.reset_out_of_range] == ["group_size"]
 
@@ -122,7 +138,7 @@ def test_punctuation_wait_has_no_unit_or_cap_of_its_own(monkeypatch):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	assert not hasattr(module, "PUNCTUATION_WAIT_UNIT_MS")
 	assert not hasattr(module, "MAX_PUNCTUATION_WAIT_MS")
-	assert module.PIPELINE_CONFSPEC["punctuation_wait_factor"] == "integer(default=0,min=0,max=100)"
+	assert module.PIPELINE_CONFSPEC["punctuationWaitFactor"] == "integer(default=0,min=0,max=100)"
 
 
 def test_ignore_comma_option_is_gone(monkeypatch):
@@ -208,8 +224,8 @@ def test_group_size_outside_its_range_reads_as_the_default(monkeypatch, raw, exp
 
 def test_group_settings_add_the_size_without_a_wait(monkeypatch):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	assert module.PIPELINE_CONFSPEC["group_size"] == "integer(default=3,min=2,max=10)"
-	assert "pair_wait_factor" not in module.PIPELINE_CONFSPEC
+	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=3,min=2,max=10)"
+	assert "pairWaitFactor" not in module.PIPELINE_CONFSPEC
 	assert module.PIPELINE_SETTING_BY_KEY["group_size"].driver_id is None
 	assert module.PIPELINE_CONFIG_KEYS[-1] == "punctuation_pause_characters"
 
@@ -217,7 +233,7 @@ def test_group_settings_add_the_size_without_a_wait(monkeypatch):
 def test_get_reads_defaults_and_current_profile(monkeypatch):
 	profiles = {
 		"normal": {"WorldVoice": {"pipeline": {}}},
-		"app": {"WorldVoice": {"pipeline": {"item_wait_factor": 40}}},
+		"app": {"WorldVoice": {"pipeline": {"itemWaitFactor": 40}}},
 	}
 	active = ["normal"]
 	module = load_settings_module(monkeypatch, profiles["normal"])
@@ -248,9 +264,9 @@ def test_update_converts_normalizes_and_writes_every_passed_key(monkeypatch):
 	)
 
 	assert writes == [
-		("global_wait_factor", 50),
-		("item_wait_factor", 10),
-		("punctuation_pause_characters", "  .,  "),
+		("globalWaitFactor", 50),
+		("itemWaitFactor", 10),
+		("punctuationPauseCharacters", "  .,  "),
 	]
 	assert result.global_wait_factor == 50
 	assert result.punctuation_pause_characters == "  .,  "
@@ -278,7 +294,7 @@ def test_the_characters_are_stored_and_read_exactly_as_typed(monkeypatch, charac
 
 	result = service.update(punctuation_pause_characters=characters)
 
-	assert conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == characters
+	assert conf["WorldVoice"]["pipeline"]["punctuationPauseCharacters"] == characters
 	assert result.punctuation_pause_characters == characters
 	assert service.get().punctuation_pause_characters == characters
 
@@ -304,8 +320,8 @@ def test_number_mode_reads_and_writes_only_known_modes(monkeypatch, raw, expecte
 			writes.append((key, value))
 			super().__setitem__(key, value)
 
-	stored = {"WorldVoice": {"pipeline": {"number_mode": raw}}}
-	conf = {"WorldVoice": {"pipeline": Section(number_mode="number")}}
+	stored = {"WorldVoice": {"pipeline": {"numberMode": raw}}}
+	conf = {"WorldVoice": {"pipeline": Section(numberMode="number")}}
 	module = load_settings_module(monkeypatch, conf)
 	assert module.PipelineSettingsService(
 		module.ConfigPipelineRepository(lambda: stored),
@@ -313,7 +329,7 @@ def test_number_mode_reads_and_writes_only_known_modes(monkeypatch, raw, expecte
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	assert service.update(number_mode=raw).number_mode == expected
 	# Every passed key is written, normalised; NVDA skips the one equal to the stored value.
-	assert writes == [("number_mode", expected)]
+	assert writes == [("numberMode", expected)]
 
 
 def test_update_rejects_unknown_keys_before_writing(monkeypatch):
@@ -447,10 +463,10 @@ def test_read_stored_returns_the_default_for_an_invalid_value_and_warns_once(mon
 def test_load_reads_the_default_for_each_invalid_key(monkeypatch, key):
 	# Decided by the user (2026-10-22, decision A): every pipeline key falls back on its own.
 	other = "number_wait_factor" if key == "item_wait_factor" else "item_wait_factor"
-	conf = refusing_conf({other: 40})
+	conf = refusing_conf({STORED_KEYS[other]: 40})
 	module = load_settings_module(monkeypatch, conf)
 	wrong_type = sys.modules["configobj.validate"].VdtTypeError
-	conf["WorldVoice"]["pipeline"].refused[key] = wrong_type("abc")
+	conf["WorldVoice"]["pipeline"].refused[STORED_KEYS[key]] = wrong_type("abc")
 	loaded = module.ConfigPipelineRepository(lambda: conf).load()
 	assert getattr(loaded, key) == module.PIPELINE_SETTING_BY_KEY[key].convert(OLD_DEFAULTS[key])
 	assert getattr(loaded, other) == 40
@@ -463,14 +479,14 @@ def test_a_new_invalid_value_warns_again(monkeypatch):
 	too_big = sys.modules["configobj.validate"].VdtValueTooBigError
 	repository = module.ConfigPipelineRepository(lambda: conf)
 	for value in (11, 11, 12):
-		conf["WorldVoice"]["pipeline"].refused["group_size"] = too_big(value)
+		conf["WorldVoice"]["pipeline"].refused["groupSize"] = too_big(value)
 		assert repository.load().group_size == 3
 	assert [('"11"' in args[0], '"12"' in args[0]) for args in warnings] == [(True, False), (False, True)]
 
 
 def nvda_conf(values=(), refused=None):
 	"""A pipeline section that refuses and skips like NVDA's, with the pipeline defaults."""
-	section = RefusingSection(values, refused, defaults=OLD_DEFAULTS)
+	section = RefusingSection(values, refused, defaults=STORED_DEFAULTS)
 	return {"WorldVoice": {"pipeline": section}}, section
 
 
@@ -479,21 +495,22 @@ def test_a_panel_save_writes_the_default_over_a_refused_value(monkeypatch, key):
 	# Decided by the user (2026-10-22, fix/uniform-settings-save): a save writes every value the
 	# panel shows, and a refused value shows as the default; NVDA writes only what differs.
 	other = "number_wait_factor" if key == "item_wait_factor" else "item_wait_factor"
-	conf, section = nvda_conf({key: "abc", other: 40})
+	stored_key, other_key = STORED_KEYS[key], STORED_KEYS[other]
+	conf, section = nvda_conf({stored_key: "abc", other_key: 40})
 	module = load_settings_module(monkeypatch, conf)
-	section.refused[key] = sys.modules["configobj.validate"].VdtTypeError("abc")
+	section.refused[stored_key] = sys.modules["configobj.validate"].VdtTypeError("abc")
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	seen = []
 	service.subscribe(seen.append)
 	shown = asdict(service.get())
 	service.update(**shown)
-	assert section.written == [key]
-	assert dict(section) == {key: shown[key], other: 40}
+	assert section.written == [stored_key]
+	assert dict(section) == {stored_key: shown[key], other_key: 40}
 	# The effective settings did not change, so no subscriber is told.
 	assert seen == []
 	# Repaired: the same save again writes nothing.
 	service.update(**shown)
-	assert section.written == [key]
+	assert section.written == [stored_key]
 
 
 @pytest.mark.parametrize(
@@ -505,7 +522,7 @@ def test_a_panel_save_writes_the_default_over_a_refused_value(monkeypatch, key):
 )
 def test_a_panel_save_rewrites_a_valid_stored_value_in_its_shown_form(monkeypatch, key, stored, shown):
 	# NVDA accepts the stored value, but it reads as another; the save writes what the panel shows.
-	conf, section = nvda_conf({key: stored})
+	conf, section = nvda_conf({STORED_KEYS[key]: stored})
 	module = load_settings_module(monkeypatch, conf)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	seen = []
@@ -513,13 +530,13 @@ def test_a_panel_save_rewrites_a_valid_stored_value_in_its_shown_form(monkeypatc
 	values = asdict(service.get())
 	assert values[key] == shown
 	service.update(**values)
-	assert section.written == [key]
-	assert dict(section) == {key: shown}
+	assert section.written == [STORED_KEYS[key]]
+	assert dict(section) == {STORED_KEYS[key]: shown}
 	assert seen == []
 
 
 def test_subscribers_hear_only_a_real_change(monkeypatch):
-	conf, section = nvda_conf({"item_wait_factor": 40})
+	conf, section = nvda_conf({"itemWaitFactor": 40})
 	module = load_settings_module(monkeypatch, conf)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	seen = []
@@ -540,13 +557,15 @@ def test_a_save_writes_every_passed_key_even_unchanged(monkeypatch):
 			writes.append((key, value))
 			super().__setitem__(key, value)
 
-	conf = {"WorldVoice": {"pipeline": Section(item_wait_factor=40)}}
+	conf = {"WorldVoice": {"pipeline": Section(itemWaitFactor=40)}}
 	module = load_settings_module(monkeypatch, conf)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	seen = []
 	service.subscribe(seen.append)
 	service.update(**asdict(service.get()))
-	assert sorted(key for key, _value in writes) == sorted(module.PIPELINE_CONFIG_KEYS)
+	assert sorted(key for key, _value in writes) == sorted(
+		spec.stored_key for spec in module.PIPELINE_STORED_SETTINGS
+	)
 	assert seen == []
 
 
@@ -559,13 +578,13 @@ def test_the_refused_key_bookkeeping_is_gone(monkeypatch):
 
 def test_a_save_leaves_a_refused_key_it_does_not_name(monkeypatch):
 	# The settings ring saves one key; only a save that names the refused key rewrites it.
-	conf, section = nvda_conf({"group_size": 11})
+	conf, section = nvda_conf({"groupSize": 11})
 	module = load_settings_module(monkeypatch, conf)
-	section.refused["group_size"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
+	section.refused["groupSize"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	assert service.update(item_wait_factor=30).group_size == 3
-	assert section.written == ["item_wait_factor"]
-	assert dict(section) == {"group_size": 11, "item_wait_factor": 30}
+	assert section.written == ["itemWaitFactor"]
+	assert dict(section) == {"groupSize": 11, "itemWaitFactor": 30}
 
 
 @pytest.mark.parametrize("source", ["configobj.validate", "validate"])

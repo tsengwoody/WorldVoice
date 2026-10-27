@@ -215,7 +215,7 @@ def test_the_pre_pass_leaves_the_changed_setting_to_nvda(monkeypatch):
 
 
 def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
-	env = open_panel(monkeypatch, Driver(ALL), punctuation_pause_characters="。！")
+	env = open_panel(monkeypatch, Driver(ALL), punctuationPauseCharacters="。！")
 	panel = env.panel
 
 	edit = panel.punctuationPauseCharactersEdit
@@ -232,7 +232,7 @@ def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
 
 
 def test_group_size_follows_the_number_mode_list(monkeypatch):
-	env = open_panel(monkeypatch, Driver(ALL), group_size=5)
+	env = open_panel(monkeypatch, Driver(ALL), groupSize=5)
 	panel = env.panel
 
 	spin = panel.groupSizeSpin
@@ -472,7 +472,7 @@ def test_a_rebuild_for_another_synth_drops_the_worldvoice_controls(monkeypatch):
 	assert (panel.groupSizeSpin, panel.punctuationPauseCharactersEdit) == (None, None)
 	assert spin.destroyed and edit.destroyed
 	pipeline = env.conf["WorldVoice"]["pipeline"]
-	assert (pipeline["group_size"], pipeline["punctuation_pause_characters"]) == (3, "")
+	assert (pipeline["groupSize"], pipeline["punctuationPauseCharacters"]) == (3, "")
 	assert panel.base_calls[-1] == "onSave"
 
 
@@ -485,41 +485,41 @@ def test_saving_after_the_synth_changed_writes_no_pipeline_setting(monkeypatch):
 
 	panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 3
+	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 3
 	assert panel.base_calls[-1] == "onSave"
 
 
 def test_saving_writes_the_characters_and_keeps_them_after_a_later_cancel(monkeypatch):
-	env = open_panel(monkeypatch, Driver(ALL), punctuation_pause_characters=".")
+	env = open_panel(monkeypatch, Driver(ALL), punctuationPauseCharacters=".")
 	panel = env.panel
 	panel.punctuationPauseCharactersEdit.SetValue(" ,; ")
 
 	panel.onSave()
 	panel.onDiscard()
 
-	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == " ,; "
+	assert env.conf["WorldVoice"]["pipeline"]["punctuationPauseCharacters"] == " ,; "
 	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]
 
 
 def test_saving_writes_the_group_size_and_keeps_it_after_a_later_cancel(monkeypatch):
-	env = open_panel(monkeypatch, Driver(ALL), group_size=3)
+	env = open_panel(monkeypatch, Driver(ALL), groupSize=3)
 	panel = env.panel
 	panel.groupSizeSpin.SetValue(7)
 
 	panel.onSave()
 	panel.onDiscard()
 
-	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 7
+	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 7
 
 
 def test_cancel_without_save_keeps_the_stored_group_size(monkeypatch):
-	env = open_panel(monkeypatch, Driver(ALL), group_size=4)
+	env = open_panel(monkeypatch, Driver(ALL), groupSize=4)
 	panel = env.panel
 	panel.groupSizeSpin.SetValue(9)
 
 	panel.onDiscard()
 
-	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 4
+	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 4
 
 
 def test_another_synth_saves_and_cancels_without_touching_pipeline_settings(monkeypatch):
@@ -531,8 +531,8 @@ def test_another_synth_saves_and_cancels_without_touching_pipeline_settings(monk
 	panel.onDiscard()
 
 	pipeline = env.conf["WorldVoice"]["pipeline"]
-	assert (pipeline["punctuation_pause_characters"], pipeline["group_size"]) == ("", 3)
-	assert pipeline["item_wait_factor"] == 90
+	assert (pipeline["punctuationPauseCharacters"], pipeline["groupSize"]) == ("", 3)
+	assert pipeline["itemWaitFactor"] == 90
 	assert pipeline_snapshot(panel) is None
 	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]
 
@@ -541,7 +541,7 @@ def test_saving_skips_a_non_driver_choice_with_no_selection(monkeypatch):
 	# No such control today: a non-driver choice with no selection names no value, so the stored
 	# one is kept and the other controls are still saved.
 	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationPauseEnabled"))
-	env = load_voice_panel(monkeypatch, conf=worldvoice_conf(pipeline={"number_mode": "group"}))
+	env = load_voice_panel(monkeypatch, conf=worldvoice_conf(pipeline={"numberMode": "group"}))
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
 		("punctuation_pause_enabled", {}),
@@ -558,20 +558,20 @@ def test_saving_skips_a_non_driver_choice_with_no_selection(monkeypatch):
 	panel.onSave()
 
 	pipeline = env.conf["WorldVoice"]["pipeline"]
-	assert (pipeline["number_mode"], pipeline["punctuation_pause_characters"]) == ("group", ";")
+	assert (pipeline["numberMode"], pipeline["punctuationPauseCharacters"]) == ("group", ";")
 
 
 def test_cancel_after_the_synth_changed_restores_no_pipeline_setting(monkeypatch):
 	# Built for WorldVoice, then the synth changed and the dialog was cancelled before NVDA
 	# rebuilt the panel: the snapshot belongs to WorldVoice's panel, so nothing is restored.
-	env = open_panel(monkeypatch, Driver(ALL), group_size=3)
+	env = open_panel(monkeypatch, Driver(ALL), groupSize=3)
 	panel = env.panel
 	env.pipeline_settings.update(group_size=7)  # applied from the Speech Pipeline panel
 	panel._driver = other_synth()
 
 	panel.onDiscard()
 
-	assert env.conf["WorldVoice"]["pipeline"]["group_size"] == 7
+	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 7
 	assert panel.base_calls[-1] == "onDiscard"
 
 
@@ -579,7 +579,7 @@ def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
 	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationPauseEnabled"))
 	env = load_voice_panel(
 		monkeypatch,
-		conf=worldvoice_conf(pipeline={"remove_punctuation_characters": False}),
+		conf=worldvoice_conf(pipeline={"removePunctuationCharacters": False}),
 	)
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
@@ -632,7 +632,7 @@ def test_saving_keeps_every_typed_character(monkeypatch, characters):
 
 	env.panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["punctuation_pause_characters"] == characters
+	assert env.conf["WorldVoice"]["pipeline"]["punctuationPauseCharacters"] == characters
 
 
 def test_a_follower_of_a_failed_driver_control_follows_the_row_before(monkeypatch):

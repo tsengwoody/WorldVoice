@@ -8,7 +8,7 @@ import re
 import sys
 from types import ModuleType
 
-from addon_loader import WORLDVOICE
+from addon_loader import WORLDVOICE, load_definitions
 
 
 class StubModules:
@@ -87,17 +87,25 @@ def _value_default(node):
 	raise ValueError(f"Unexpected confspec value: {ast.unparse(node)}")
 
 
+@functools.cache
+def _stored_key_for():
+	"""pipeline/settings.py's stored_key_for, run from the source with the STORED_WORDS it reads."""
+	path = WORLDVOICE / "pipeline/settings.py"
+	return load_definitions(path, ["STORED_WORDS", "stored_key_for"], {})["stored_key_for"]
+
+
 def _spread_defaults(node):
 	source = ast.unparse(node)
 	if source == "DETECTION_CONFSPEC":
 		spec = _top_level_value(WORLDVOICE / "languageDetection/settings.py", source)
 		return {key: _confspec_default(validator) for key, validator in _detection_confspec(spec).items()}
 	if source == "PIPELINE_CONFSPEC":
-		# Built from the PipelineSettingSpec(key, kind, default, ...) table, without the
-		# ordering-only entries (pipeline_config=False) that NVDA stores as driver settings.
+		# Built from the PipelineSettingSpec(key, kind, default, ...) table, under each key's stored
+		# key, without the ordering-only entries (pipeline_config=False) NVDA stores as driver settings.
 		table = _top_level_value(WORLDVOICE / "pipeline/settings.py", "PIPELINE_SETTINGS")
+		stored_key_for = _stored_key_for()
 		return {
-			ast.literal_eval(spec.args[0]): ast.literal_eval(spec.args[2])
+			stored_key_for(ast.literal_eval(spec.args[0])): ast.literal_eval(spec.args[2])
 			for spec in table.elts
 			if not any(
 				keyword.arg == "pipeline_config" and ast.literal_eval(keyword.value) is False

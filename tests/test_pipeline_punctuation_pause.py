@@ -47,9 +47,9 @@ def test_the_punctuation_pause_follows_the_global_factor(monkeypatch, global_fac
 	# Decided by the user (2026-10-26): global units times the punctuation factor, like every pause.
 	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	pipeline = {
-		"global_wait_factor": global_factor,
-		"punctuation_wait_factor": factor,
-		"punctuation_pause_characters": ".",
+		"globalWaitFactor": global_factor,
+		"punctuationWaitFactor": factor,
+		"punctuationPauseCharacters": ".",
 	}
 	settings = load_settings_module(
 		monkeypatch,

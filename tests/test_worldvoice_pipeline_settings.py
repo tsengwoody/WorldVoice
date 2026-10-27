@@ -98,9 +98,9 @@ def test_descriptors_read_and_write_through_the_service(monkeypatch):
 	synth.globalWaitFactor = 57
 	synth.nummod = "group"
 	assert conf["WorldVoice"]["pipeline"] == {
-		"item_wait_factor": 30,
-		"global_wait_factor": 50,
-		"number_mode": "group",
+		"itemWaitFactor": 30,
+		"globalWaitFactor": 50,
+		"numberMode": "group",
 	}
 	assert (synth.itemWaitFactor, synth.globalWaitFactor, synth.nummod) == (30, 50, "group")
 	assert "speech" not in conf
@@ -109,22 +109,22 @@ def test_descriptors_read_and_write_through_the_service(monkeypatch):
 def test_a_ring_change_writes_only_its_own_key(monkeypatch):
 	# The settings ring and NVDA's Voice panel set one synth attribute at a time; that writes its
 	# key and nothing else, even beside a stored value NVDA refuses.
-	section = RefusingSection({"group_size": 11, "number_wait_factor": 40})
+	section = RefusingSection({"groupSize": 11, "numberWaitFactor": 40})
 	conf = {"WorldVoice": {"pipeline": section}}
 	synth_class, _ = load_synth(monkeypatch, conf)
-	section.refused["group_size"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
+	section.refused["groupSize"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
 	synth = object.__new__(synth_class)
 	synth.itemWaitFactor = 30
-	assert section.written == ["item_wait_factor"]
-	assert dict(section) == {"group_size": 11, "number_wait_factor": 40, "item_wait_factor": 30}
+	assert section.written == ["itemWaitFactor"]
+	assert dict(section) == {"groupSize": 11, "numberWaitFactor": 40, "itemWaitFactor": 30}
 
 
 def test_an_unknown_number_mode_is_stored_and_read_as_value(monkeypatch):
-	conf = {"WorldVoice": {"pipeline": {"number_mode": "group"}}}
+	conf = {"WorldVoice": {"pipeline": {"numberMode": "group"}}}
 	synth_class, _ = load_synth(monkeypatch, conf)
 	synth = object.__new__(synth_class)
 	synth.nummod = "pair"
-	assert conf["WorldVoice"]["pipeline"]["number_mode"] == "value"
+	assert conf["WorldVoice"]["pipeline"]["numberMode"] == "value"
 	assert synth.nummod == "value"
 
 
@@ -133,7 +133,7 @@ def test_load_settings_reapplies_waitfactor_without_writing_pipeline(monkeypatch
 		def __setitem__(self, key, value):
 			raise AssertionError(f"loadSettings wrote {key}")
 
-	conf = {"WorldVoice": {"pipeline": Section(global_wait_factor=0)}}
+	conf = {"WorldVoice": {"pipeline": Section(globalWaitFactor=0)}}
 	synth_class, _ = load_synth(monkeypatch, conf)
 	synth = object.__new__(synth_class)
 	writes = []
