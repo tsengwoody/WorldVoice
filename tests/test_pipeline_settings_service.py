@@ -36,16 +36,16 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert module.PIPELINE_CONFSPEC["punctuation_pause_characters"] == 'string(default="")'
 	driver_ids = [spec.driver_id for spec in module.PIPELINE_SETTINGS if spec.driver_id]
 	assert driver_ids == [
-		"globalwaitfactor",
+		"globalWaitFactor",
 		"numlan",
 		"nummod",
-		"numberwaitfactor",
-		"itemwaitfactor",
-		"sayallwaitfactor",
-		"unspacedscriptspacewaitfactor",
-		"punctuationpauseenabled",
-		"removepunctuationcharacters",
-		"punctuationwaitfactor",
+		"numberWaitFactor",
+		"itemWaitFactor",
+		"sayAllWaitFactor",
+		"unspacedScriptSpaceWaitFactor",
+		"punctuationPauseEnabled",
+		"removePunctuationCharacters",
+		"punctuationWaitFactor",
 	]
 	assert all(spec.ring for spec in module.PIPELINE_SETTINGS if spec.driver_id)
 

@@ -266,7 +266,7 @@ BROKEN = {
 	),
 	"duplicate driver id": (
 		check_unique,
-		lambda m: _with(m, "number_wait_factor", driver_id="itemwaitfactor"),
+		lambda m: _with(m, "number_wait_factor", driver_id="itemWaitFactor"),
 	),
 	"no control": (check_control_known, lambda m: _with(m, "group_size", control=None)),
 	"bool slider": (

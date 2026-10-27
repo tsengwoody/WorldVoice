@@ -29,9 +29,9 @@ SETTINGS = (
 	NumericDriverSetting("inflection"),
 	BooleanDriverSetting("_private"),
 	DriverSetting("nummod"),
-	BooleanDriverSetting("punctuationpauseenabled"),
-	BooleanDriverSetting("removepunctuationcharacters"),
-	NumericDriverSetting("punctuationwaitfactor"),
+	BooleanDriverSetting("punctuationPauseEnabled"),
+	BooleanDriverSetting("removePunctuationCharacters"),
+	NumericDriverSetting("punctuationWaitFactor"),
 )
 
 
@@ -55,9 +55,9 @@ class Driver:
 			"inflection": 40,
 			"_private": False,
 			"nummod": "value",
-			"punctuationpauseenabled": True,
-			"removepunctuationcharacters": False,
-			"punctuationwaitfactor": 20,
+			"punctuationPauseEnabled": True,
+			"removePunctuationCharacters": False,
+			"punctuationWaitFactor": 20,
 		}
 		for key, value in {**defaults, **values}.items():
 			setattr(self, key, value)
@@ -77,9 +77,9 @@ ALL = {
 	"rateBoost",
 	"inflection",
 	"nummod",
-	"punctuationpauseenabled",
-	"removepunctuationcharacters",
-	"punctuationwaitfactor",
+	"punctuationPauseEnabled",
+	"removePunctuationCharacters",
+	"punctuationWaitFactor",
 }
 
 
@@ -128,18 +128,18 @@ def test_every_setting_gets_a_control_in_standard_order_and_unsupported_ones_are
 		"rateBoost",
 		"inflection",
 		"nummod",
-		"punctuationpauseenabled",
-		"removepunctuationcharacters",
-		"punctuationwaitfactor",
+		"punctuationPauseEnabled",
+		"removePunctuationCharacters",
+		"punctuationWaitFactor",
 	]
 	assert shown_ids(panel) == [
 		"voice",
 		"variant",
 		"rate",
 		"nummod",
-		"punctuationpauseenabled",
-		"removepunctuationcharacters",
-		"punctuationwaitfactor",
+		"punctuationPauseEnabled",
+		"removePunctuationCharacters",
+		"punctuationWaitFactor",
 	]
 	assert panel.base_calls == ["makeSettings"]
 
@@ -189,13 +189,13 @@ def test_rebuilding_the_driver_controls_updates_values_except_the_changed_settin
 	driver = Driver(ALL)
 	panel = open_panel(monkeypatch, driver).panel
 	driver.supported = ALL - {"rateBoost"}
-	driver.rate, driver.punctuationpauseenabled = 80, False
+	driver.rate, driver.punctuationPauseEnabled = 80, False
 	panel.rateBoostCheckbox.SetValue("untouched")
 
 	panel.updateDriverSettings(changedSetting="rateBoost")
 
 	assert panel.rateSlider.value == 80
-	assert panel.punctuationpauseenabledCheckbox.value is False
+	assert panel.punctuationPauseEnabledCheckbox.value is False
 	# The setting being changed keeps its control and value even though it is now unsupported.
 	assert panel.settingsSizer.IsShown(panel.sizerDict["rateBoost"])
 	assert panel.rateBoostCheckbox.value == "untouched"
@@ -222,10 +222,10 @@ def test_punctuation_characters_follow_the_wait_factor_slider(monkeypatch):
 	assert edit.label == "Punctuation pause characters:"
 	assert edit.value == "。！"
 	names = order(panel)
-	assert names.index("Punctuation pause characters:") == names.index("punctuationwaitfactor") + 1
+	assert names.index("Punctuation pause characters:") == names.index("punctuationWaitFactor") + 1
 	# NVDA's own controls stay after the driver controls.
 	assert names[-1] == "Automatic language switching (when supported)"
-	assert before(panel.children, edit) is before(panel.tab_order, edit) is panel.punctuationwaitfactorSlider
+	assert before(panel.children, edit) is before(panel.tab_order, edit) is panel.punctuationWaitFactorSlider
 	assert names.index("Group size:") == names.index("nummod") + 1
 	# Each added control has its own helper, so moving its row leaves no spacer behind.
 	assert "<spacer>" not in names
@@ -246,57 +246,57 @@ def test_group_size_follows_the_number_mode_list(monkeypatch):
 
 def pause_controls_enabled(panel):
 	return (
-		panel.removepunctuationcharactersCheckbox.enabled,
-		panel.punctuationwaitfactorSlider.enabled,
+		panel.removePunctuationCharactersCheckbox.enabled,
+		panel.punctuationWaitFactorSlider.enabled,
 		panel.punctuationPauseCharactersEdit.enabled,
 	)
 
 
 @pytest.mark.parametrize("enabled", [True, False])
 def test_pause_controls_are_enabled_only_while_pauses_are_enabled(monkeypatch, enabled):
-	panel = open_panel(monkeypatch, Driver(ALL, punctuationpauseenabled=enabled)).panel
+	panel = open_panel(monkeypatch, Driver(ALL, punctuationPauseEnabled=enabled)).panel
 	assert pause_controls_enabled(panel) == (enabled, enabled, enabled)
 	# Disabled, not hidden.
-	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationwaitfactor"])
+	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationWaitFactor"])
 
 
 def test_toggling_pauses_enables_or_disables_the_controls_and_still_saves_the_setting(monkeypatch):
-	driver = Driver(ALL, punctuationpauseenabled=True)
+	driver = Driver(ALL, punctuationPauseEnabled=True)
 	panel = open_panel(monkeypatch, driver).panel
-	checkbox = panel.punctuationpauseenabledCheckbox
+	checkbox = panel.punctuationPauseEnabledCheckbox
 
 	checkbox.SetValue(False)
 	fire(checkbox, "EVT_CHECKBOX")
 	assert pause_controls_enabled(panel) == (False, False, False)
-	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationwaitfactor"])
+	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationWaitFactor"])
 	# WorldVoice's handler skips the event, so NVDA's own handler still writes the setting.
-	assert driver.punctuationpauseenabled is False
+	assert driver.punctuationPauseEnabled is False
 
 	checkbox.SetValue(True)
 	fire(checkbox, "EVT_CHECKBOX")
 	assert pause_controls_enabled(panel) == (True, True, True)
-	assert driver.punctuationpauseenabled is True
+	assert driver.punctuationPauseEnabled is True
 
 
 def test_a_voice_switch_keeps_the_pause_controls_disabled(monkeypatch):
-	panel = open_panel(monkeypatch, Driver(ALL, punctuationpauseenabled=False)).panel
+	panel = open_panel(monkeypatch, Driver(ALL, punctuationPauseEnabled=False)).panel
 
 	panel.updateDriverSettings(changedSetting="voice")  # shows every supported control again
 
 	assert pause_controls_enabled(panel) == (False, False, False)
-	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationwaitfactor"])
+	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationWaitFactor"])
 
 
 @pytest.mark.parametrize("enabled", [True, False])
 def test_a_voice_switch_after_a_settings_ring_toggle_matches_the_controls_to_the_switch(monkeypatch, enabled):
-	driver = Driver(ALL, punctuationpauseenabled=not enabled)
+	driver = Driver(ALL, punctuationPauseEnabled=not enabled)
 	panel = open_panel(monkeypatch, driver).panel
-	driver.punctuationpauseenabled = enabled  # toggled with the settings ring while the dialog is open
+	driver.punctuationPauseEnabled = enabled  # toggled with the settings ring while the dialog is open
 
 	# SetValue on the switch fires no EVT_CHECKBOX, so the panel must apply the state itself.
 	panel.updateDriverSettings(changedSetting="voice")
 
-	assert panel.punctuationpauseenabledCheckbox.value is enabled
+	assert panel.punctuationPauseEnabledCheckbox.value is enabled
 	assert pause_controls_enabled(panel) == (enabled, enabled, enabled)
 
 
@@ -370,7 +370,7 @@ def test_another_synth_gets_no_worldvoice_controls(monkeypatch):
 	panel = open_panel(monkeypatch, other_synth()).panel
 
 	assert pipeline_snapshot(panel) is None
-	assert not hasattr(panel, "punctuationpauseenabledCheckbox")
+	assert not hasattr(panel, "punctuationPauseEnabledCheckbox")
 	assert order(panel) == ["voice", "rate", "Automatic language switching (when supported)"]
 	assert panel.groupSizeSpin is None
 	assert panel.punctuationPauseCharactersEdit is None
@@ -383,7 +383,7 @@ def table_with(env, *entries):
 
 
 def test_a_control_after_a_checkbox_row_lands_after_the_checkbox(monkeypatch):
-	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
+	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationPauseEnabled"))
 	env = load_voice_panel(monkeypatch, conf=worldvoice_conf())
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
@@ -391,16 +391,16 @@ def test_a_control_after_a_checkbox_row_lands_after_the_checkbox(monkeypatch):
 		("punctuation_pause_characters", {"depends_on": None}),
 	)
 	panel = env.module.WorldVoiceVoiceSettingsPanel(
-		Driver({"voice", "punctuationpauseenabled"}, settings=settings, punctuationpauseenabled=False),
+		Driver({"voice", "punctuationPauseEnabled"}, settings=settings, punctuationPauseEnabled=False),
 	)
 	panel.makeSettings(panel.settingsSizer)
 
 	names = order(panel)
 	# NVDA adds a checkbox row as the checkbox window itself, not in a sizer.
-	assert names.index("Punctuation pause characters:") == names.index("punctuationpauseenabled") + 1
+	assert names.index("Punctuation pause characters:") == names.index("punctuationPauseEnabled") + 1
 	edit = panel.punctuationPauseCharactersEdit
 	assert (
-		before(panel.children, edit) is before(panel.tab_order, edit) is panel.punctuationpauseenabledCheckbox
+		before(panel.children, edit) is before(panel.tab_order, edit) is panel.punctuationPauseEnabledCheckbox
 	)
 	assert "<spacer>" not in names
 
@@ -434,7 +434,7 @@ def test_a_rebuild_for_worldvoice_places_the_controls_again(monkeypatch):
 
 	names = order(panel)
 	assert names.index("Group size:") == names.index("nummod") + 1
-	assert names.index("Punctuation pause characters:") == names.index("punctuationwaitfactor") + 1
+	assert names.index("Punctuation pause characters:") == names.index("punctuationWaitFactor") + 1
 	assert panel.groupSizeSpin in panel.settingsSizer.controls()
 	assert not panel.groupSizeSpin.destroyed
 
@@ -450,7 +450,7 @@ def test_a_rebuild_for_worldvoice_from_worldvoice_places_the_controls_again(monk
 
 	names = order(panel)
 	assert names.index("Group size:") == names.index("nummod") + 1
-	assert names.index("Punctuation pause characters:") == names.index("punctuationwaitfactor") + 1
+	assert names.index("Punctuation pause characters:") == names.index("punctuationWaitFactor") + 1
 	assert panel.groupSizeSpin is not oldSpin and panel.nummodList is not oldList
 	assert oldSpin.destroyed and not panel.groupSizeSpin.destroyed
 	assert group_size_enabled(panel) is False
@@ -540,7 +540,7 @@ def test_another_synth_saves_and_cancels_without_touching_pipeline_settings(monk
 def test_saving_skips_a_non_driver_choice_with_no_selection(monkeypatch):
 	# No such control today: a non-driver choice with no selection names no value, so the stored
 	# one is kept and the other controls are still saved.
-	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
+	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationPauseEnabled"))
 	env = load_voice_panel(monkeypatch, conf=worldvoice_conf(pipeline={"number_mode": "group"}))
 	env.module.PIPELINE_SETTINGS = table_with(
 		env,
@@ -549,7 +549,7 @@ def test_saving_skips_a_non_driver_choice_with_no_selection(monkeypatch):
 		("punctuation_pause_characters", {"depends_on": None}),
 	)
 	panel = env.module.WorldVoiceVoiceSettingsPanel(
-		Driver({"voice", "punctuationpauseenabled"}, settings=settings, punctuationpauseenabled=False),
+		Driver({"voice", "punctuationPauseEnabled"}, settings=settings, punctuationPauseEnabled=False),
 	)
 	panel.makeSettings(panel.settingsSizer)
 	panel.numberModeList.Select(-1)
@@ -576,7 +576,7 @@ def test_cancel_after_the_synth_changed_restores_no_pipeline_setting(monkeypatch
 
 
 def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
-	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationpauseenabled"))
+	settings = (DriverSetting("voice"), BooleanDriverSetting("punctuationPauseEnabled"))
 	env = load_voice_panel(
 		monkeypatch,
 		conf=worldvoice_conf(pipeline={"remove_punctuation_characters": False}),
@@ -588,7 +588,7 @@ def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
 		("punctuation_pause_characters", {"depends_on": ("remove_punctuation_characters", True)}),
 	)
 	panel = env.module.WorldVoiceVoiceSettingsPanel(
-		Driver({"voice", "punctuationpauseenabled"}, settings=settings, punctuationpauseenabled=False),
+		Driver({"voice", "punctuationPauseEnabled"}, settings=settings, punctuationPauseEnabled=False),
 	)
 	panel.makeSettings(panel.settingsSizer)
 	checkbox, edit = panel.removePunctuationCharactersCheckbox, panel.punctuationPauseCharactersEdit
@@ -660,7 +660,7 @@ def test_a_follower_of_a_failed_driver_control_follows_the_row_before(monkeypatc
 	names = order(panel)
 	assert names[names.index("inflection") + 1 : names.index("inflection") + 3] == [
 		"Group size:",
-		"punctuationpauseenabled",
+		"punctuationPauseEnabled",
 	]
 
 

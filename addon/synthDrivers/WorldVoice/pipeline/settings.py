@@ -132,7 +132,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"global_wait_factor",
 		int,
 		10,
-		driver_id="globalwaitfactor",
+		driver_id="globalWaitFactor",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Global wait factor"),
 		min_step=10,
@@ -189,7 +189,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"number_wait_factor",
 		int,
 		10,
-		driver_id="numberwaitfactor",
+		driver_id="numberWaitFactor",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 		# also the label of the setting's pipeline log switch in the Log Record panel.
 		label=_("Number wait factor"),
@@ -199,7 +199,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"item_wait_factor",
 		int,
 		10,
-		driver_id="itemwaitfactor",
+		driver_id="itemWaitFactor",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 		# also the label of the setting's pipeline log switch in the Log Record panel.
 		label=_("Item wait factor"),
@@ -209,7 +209,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"sayall_wait_factor",
 		int,
 		10,
-		driver_id="sayallwaitfactor",
+		driver_id="sayAllWaitFactor",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Say all wait factor"),
 		control="slider",
@@ -218,7 +218,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"unspaced_script_space_wait_factor",
 		int,
 		10,
-		driver_id="unspacedscriptspacewaitfactor",
+		driver_id="unspacedScriptSpaceWaitFactor",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 		# also the label of the setting's pipeline log switch in the Log Record panel.
 		label=_("Space wait factor between CJK and Southeast Asian characters"),
@@ -228,7 +228,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"punctuation_pause_enabled",
 		bool,
 		True,
-		driver_id="punctuationpauseenabled",
+		driver_id="punctuationPauseEnabled",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Enable punctuation pause control"),
 		# Translators: Label for a setting in synth settings ring.
@@ -239,7 +239,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"remove_punctuation_characters",
 		bool,
 		False,
-		driver_id="removepunctuationcharacters",
+		driver_id="removePunctuationCharacters",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Remove configured punctuation at pause points"),
 		# Translators: Label for a setting in synth settings ring.
@@ -251,7 +251,7 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		"punctuation_wait_factor",
 		int,
 		0,
-		driver_id="punctuationwaitfactor",
+		driver_id="punctuationWaitFactor",
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 		# also the label of the setting's pipeline log switch in the Log Record panel.
 		label=_("Punctuation wait factor"),

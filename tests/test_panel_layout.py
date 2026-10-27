@@ -127,15 +127,15 @@ def voice(table):
 def test_creation_followers_of_the_table(table):
 	assert layout.creationFollowers(voice(table), lambda driver_id: True) == {
 		"nummod": ("group_size",),
-		"punctuationwaitfactor": ("punctuation_pause_characters",),
+		"punctuationWaitFactor": ("punctuation_pause_characters",),
 	}
 
 
 def test_creation_followers_skip_an_unlisted_driver(table):
-	unlisted = {"nummod", "punctuationwaitfactor"}
+	unlisted = {"nummod", "punctuationWaitFactor"}
 	assert layout.creationFollowers(voice(table), lambda driver_id: driver_id not in unlisted) == {
 		"numlan": ("group_size",),
-		"removepunctuationcharacters": ("punctuation_pause_characters",),
+		"removePunctuationCharacters": ("punctuation_pause_characters",),
 	}
 
 
@@ -167,13 +167,13 @@ def test_creation_followers_without_an_earlier_listed_driver():
 			"global_wait_factor",
 			"_global_wait_factor_slider",
 			"globalWaitFactorSlider",
-			"globalwaitfactorSlider",
+			"globalWaitFactorSlider",
 		),
 		(
 			"punctuation_pause_enabled",
 			"_punctuation_pause_enabled_checkbox",
 			"punctuationPauseEnabledCheckbox",
-			"punctuationpauseenabledCheckbox",
+			"punctuationPauseEnabledCheckbox",
 		),
 		("group_size", "_group_size_spin", "groupSizeSpin", None),
 		(

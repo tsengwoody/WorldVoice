@@ -27,16 +27,16 @@ EXPECTED_IDS = [
 	"inflection",
 	"volume",
 	"uwv",
-	"globalwaitfactor",
+	"globalWaitFactor",
 	"numlan",
 	"nummod",
-	"numberwaitfactor",
-	"itemwaitfactor",
-	"sayallwaitfactor",
-	"unspacedscriptspacewaitfactor",
-	"punctuationpauseenabled",
-	"removepunctuationcharacters",
-	"punctuationwaitfactor",
+	"numberWaitFactor",
+	"itemWaitFactor",
+	"sayAllWaitFactor",
+	"unspacedScriptSpaceWaitFactor",
+	"punctuationPauseEnabled",
+	"removePunctuationCharacters",
+	"punctuationWaitFactor",
 ]
 
 
@@ -57,7 +57,7 @@ def test_settings_lists_keep_their_order_and_store_pipeline_values_outside_speec
 	assert all(setting.options["availableInSettingsRing"] for setting in synth.allSupportedSettings[8:])
 	# The group size is set in the panels only: no synth setting, no descriptor, not in the ring.
 	assert not hasattr(synth_class, "groupsize")
-	wait = next(s for s in synth.allSupportedSettings if s.id == "globalwaitfactor")
+	wait = next(s for s in synth.allSupportedSettings if s.id == "globalWaitFactor")
 	assert (wait.kind, wait.options["minStep"], wait.options["defaultVal"]) == ("int", 10, 10)
 
 
@@ -93,16 +93,16 @@ def test_descriptors_read_and_write_through_the_service(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}}
 	synth_class, _ = load_synth(monkeypatch, conf)
 	synth = object.__new__(synth_class)
-	assert synth.itemwaitfactor == 10
-	synth.itemwaitfactor = 30
-	synth.globalwaitfactor = 57
+	assert synth.itemWaitFactor == 10
+	synth.itemWaitFactor = 30
+	synth.globalWaitFactor = 57
 	synth.nummod = "group"
 	assert conf["WorldVoice"]["pipeline"] == {
 		"item_wait_factor": 30,
 		"global_wait_factor": 50,
 		"number_mode": "group",
 	}
-	assert (synth.itemwaitfactor, synth.globalwaitfactor, synth.nummod) == (30, 50, "group")
+	assert (synth.itemWaitFactor, synth.globalWaitFactor, synth.nummod) == (30, 50, "group")
 	assert "speech" not in conf
 
 
@@ -114,7 +114,7 @@ def test_a_ring_change_writes_only_its_own_key(monkeypatch):
 	synth_class, _ = load_synth(monkeypatch, conf)
 	section.refused["group_size"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
 	synth = object.__new__(synth_class)
-	synth.itemwaitfactor = 30
+	synth.itemWaitFactor = 30
 	assert section.written == ["item_wait_factor"]
 	assert dict(section) == {"group_size": 11, "number_wait_factor": 40, "item_wait_factor": 30}
 
@@ -165,10 +165,10 @@ def test_global_wait_change_reaches_the_voice_manager(monkeypatch):
 	manager = types.SimpleNamespace(waitfactor=None)
 	synth._voiceManager = manager
 	settings_module.pipeline_settings.subscribe(synth._applyPipelineSettings)
-	synth.globalwaitfactor = 100
+	synth.globalWaitFactor = 100
 	assert manager.waitfactor == 9
 	synth._voiceManager = None
-	synth.globalwaitfactor = 30
+	synth.globalWaitFactor = 30
 
 
 @pytest.mark.parametrize("name", ["volume", "rate", "pitch", "inflection", "variant", "rateBoost"])

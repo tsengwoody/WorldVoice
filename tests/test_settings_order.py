@@ -17,16 +17,16 @@ from ui_harness import (
 
 STANDARD = ["voice", "variant", "rate", "rateBoost", "pitch", "inflection", "volume", "uwv"]
 TABLE_DRIVER_IDS = [
-	"globalwaitfactor",
+	"globalWaitFactor",
 	"numlan",
 	"nummod",
-	"numberwaitfactor",
-	"itemwaitfactor",
-	"sayallwaitfactor",
-	"unspacedscriptspacewaitfactor",
-	"punctuationpauseenabled",
-	"removepunctuationcharacters",
-	"punctuationwaitfactor",
+	"numberWaitFactor",
+	"itemWaitFactor",
+	"sayAllWaitFactor",
+	"unspacedScriptSpaceWaitFactor",
+	"punctuationPauseEnabled",
+	"removePunctuationCharacters",
+	"punctuationWaitFactor",
 ]
 
 
@@ -68,16 +68,16 @@ def test_ring_names_follow_the_label_rule(monkeypatch):
 		if setting.id in TABLE_DRIVER_IDS and setting.options.get("availableInSettingsRing")
 	}
 	assert names == {
-		"globalwaitfactor": "Global wait factor",
+		"globalWaitFactor": "Global wait factor",
 		"numlan": "Number language",
 		"nummod": "Number mode",
-		"numberwaitfactor": "Number wait factor",
-		"itemwaitfactor": "Item wait factor",
-		"sayallwaitfactor": "Say all wait factor",
-		"unspacedscriptspacewaitfactor": "Space wait factor between CJK and Southeast Asian characters",
-		"punctuationpauseenabled": "Punctuation pauses",
-		"removepunctuationcharacters": "Remove punctuation at pause points",
-		"punctuationwaitfactor": "Punctuation wait factor",
+		"numberWaitFactor": "Number wait factor",
+		"itemWaitFactor": "Item wait factor",
+		"sayAllWaitFactor": "Say all wait factor",
+		"unspacedScriptSpaceWaitFactor": "Space wait factor between CJK and Southeast Asian characters",
+		"punctuationPauseEnabled": "Punctuation pauses",
+		"removePunctuationCharacters": "Remove punctuation at pause points",
+		"punctuationWaitFactor": "Punctuation wait factor",
 	}
 
 
