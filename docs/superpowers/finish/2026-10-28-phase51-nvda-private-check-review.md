@@ -266,3 +266,76 @@ SAPI5 和 OneCore 列的 instance 屬性（`_threadCond`、`_dll`…）永遠不
 
 - 下一輪只需要改 NI1（6 行變更紀錄，NM2 可以順手改）；NM1 是便宜的 Minor，可以一起修（改 docstring 或沿鏈走）。改完以後是否還要再做一次修正 review，依 §3.4 由協調者決定。這一輪的新發現只有文件。
 - 使用者還沒確認的預設要改寫第 1 點：**相對於發佈版 6.2，NVDA 2024.1–2025.2 的使用者會失去 SAPI5 語音**（6.2 用 NVDA 自己的 SAPI5 driver；目前的分段 drain wrapper 需要 NVDA 2025.3 的語音佇列）。
+
+## 修正記錄（第二輪）
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4、§8）。範圍 `7a881ba..67095ae`，4 個 commit，加上本記錄的 commit。依據：修正 review 的 NI1、NM1、NM2，以及**使用者決定（2026-10-28）**：在缺少 SAPI5 wrapper 所需 NVDA 名稱的版本（< 2025.3），SAPI5 改用 NVDA 自己的 `synthDrivers.sapi5.SynthDriver` 當整個 core，和 6.2 一樣：不做分段 drain（completion 落在 LEGACY_DONE）、直接 `speak(commands)`、不經過 WorldVoice 的 SAPI5 wrapper 程式碼。這是整個 class 的選擇，不是 wrapper 裡逐個入口的 `if`。≥ 2025.3 行為不變。
+
+完整套件（序列，記憶體看門狗 3 GB）**3454 passed，0 skipped**（3435＋19：`test_sapi5_old_nvda.py` 16、`test_nvda_ready.py` 淨增 2、NM1 1）；`prek run --all-files` 8 個 hook 全 Passed；`git diff --check master` 乾淨；受保護路徑（內層驅動、`driver/sonic/`、兩個 Unicode 資料檔）、`addon/doc/en`、`*.html` 與 Neural 都沒有輸出。
+
+| 項目 | commit | 修法 | red／green 證據 |
+| --- | --- | --- | --- |
+| 使用者決定（SAPI5 在 NVDA < 2025.3） | `543052f` | SAPI5 `Voice.ready()` 一律回 `True`，用同一份檢查（`missing_host_names` ＋ `_Sapi5Port` 三個清單）選整個 core：名稱齊全 → `synthDriverClass = SynthDriver`（wrapper）、`drainProfile = DrainProfile(wasapi_dependent=True)`；有缺 → `synthDriverClass = sapi5.SynthDriver`（NVDA 的）、`drainProfile = None`，並寫一行 `info`。每次呼叫兩個分支都會設定，所以之後在齊全的 NVDA 上再檢查會換回 wrapper。eSpeak、OneCore 仍用 `host_names_ready` 略過。`_nvdaBase` 保留，只讓模組在 2024.x 能 import | 修前：`test_nvda_ready.py` 4 failed、`test_sapi5_old_nvda.py` 12 failed（2024.1–2025.2 兩個測試都紅；2025.3 以後 4 個綠，因為行為沒變）→ 修後全綠 |
+| NI1、NM2 | `041905a` | 根目錄 `readme.md` 與 `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` 的 Notes 與「下一版更新」兩行改寫：NVDA 2024.1–2025.2 上 SAPI5 使用 NVDA 內建的 SAPI5 驅動程式，和 6.2 一樣，SAPI5 語音的表現和 6.2 相同；WorldVoice 自己的 SAPI5 驅動程式（等每一段 SAPI5 語音播放完畢才開始下一段——另一個語音或停頓）只在 2025.3 以後使用；舊版會在記錄檔寫一行說明。不再說發佈版「不能用」。zh_CN 改用「或更高版本」。各語言沿用原有用語（ru「речевой движок」「журнал」、uk「мовленнєвий рушій」「журнал」、zh_CN「语音引擎」「日志」、zh_TW／zh_HK「語音引擎」「記錄檔」），zh_HK 與 zh_TW 逐字相同 | 文件 |
+| NM1 | `013f24c` | 選 (a)：`hostNames.py` 模組 docstring 與 `_function_code` 註解、`tests/nvda_releases.py` 的例外說明、spec §4.2 改成「只讀 class 屬性往下一層：函式本身、staticmethod／classmethod／property 底下的函式、屬性自己的 `__wrapped__`；不沿鏈走」，並列出兩層 wrapper、`staticmethod`／`property` 包 wrapper 的情況。新增 `test_wrapped_is_read_one_level_below_the_class_attribute_only` 釘住這個限制 | 文件＋釘住現有行為的測試（綠） |
+| spec 更正 | `67095ae` | §1.1、§2、§4.1、§4.3、§6、§7、§9 Q1 原本「略過」的文字加刪除線，標 *Decided by the user (2026-10-28)*；新增 §4.4（選擇方式、bridge 為何把 NVDA 的 driver 當 LEGACY_DONE 純 core、log 行、release 測試） | 文件 |
+
+### class 怎麼選
+
+選擇發生在 `Voice.ready()`（discovery 在 import 之後、任何 `createCore`／`supportedSettings`／completion policy 之前呼叫）。下游本來就支援純 core，不用改：`createCore()` 建 `synthDriverClass()`；`supportedSettings()` 讀它的設定；`CompletionPolicy.contractFor` 看到 `drainProfile is None` 直接回 `CompletionContract()`（LEGACY_DONE），不問 core，也不寫 fallback 警告；`VoiceClassAdapter` 因為 NVDA 的 driver 沒有 `supportsCancellationToken`，呼叫 `speak(commands)`；`voices()`、`voiceInfoToMetadata()`、`applyEngineSettings()` 都是基底 `Voice` 的。
+
+### 在 NVDA 2024.1–2025.2 上用 bridge 驗證純 core
+
+`tests/test_sapi5_old_nvda.py` 用 `git -C ref/nvda show release-<v>:source/synthDrivers/sapi5.py`（唯讀）載入每個 release 的 `sapi5.py`，搭配 SAPI5 harness 的 NVDA stub，再補上 release 原始碼需要的 stub（`comtypes.IUnknown`、`objidl`、`ctypes.windll.ole32`、`nvwave.outputDeviceNameToID`、`config.conf.getConfigValidation`、兩種大小寫的假 `SAPI.SpVoice`），然後載入真正的 `driver/__init__.py`（基底 `Voice`）與 SAPI5 wrapper：
+
+- 2024.1、2024.2、2024.3、2024.4、2025.1、2025.2：`ready()` 是 `True`；`synthDriverClass` 就是該 release 的 `sapi5.SynthDriver`；`drainProfile is None`；只有一行 `info`，缺少的名稱和靜態視圖（`release_missing`）完全相同（22／22／22／22／16／15 個）。接著透過 `VoiceClassAdapter`：`open()` 建出 NVDA 的 driver（`type(core) is base.SynthDriver`、`notificationSource is core`）；`contractFor` 回 `support is None`，`select` 回 `CompletionContract()`／LEGACY_DONE，沒有警告；`supports_cancellation_token is False`；settings 等於該 release 的 `supportedSettings`；`listVoices()` 回 `SAPI5:v1`；`apply()` 設定 voice、rate、volume；`speak(["hello", IndexCommand(3)], token)` 讓假 SpVoice 收到一次 XML（含 hello 與 `<Bookmark Mark="3" />`；若傳了 token，NVDA 的 `speak(speechSequence)` 會 TypeError）；`cancel()` 送出 purge（`Speak(None, …)`）；`close()` 之後 `core.tts is None`。
+- 2025.3、2026.1、2026.2、2026.3beta6：靜態視圖沒有缺名稱，`ready()` 選 wrapper（是該 release `SynthDriver` 的子類）與 `DrainProfile(wasapi_dependent=True)`，沒有 log。
+- 6.2 依賴的也只是這些：6.2 的 SAPI5 wrapper 只有 `synth_driver_class = SynthDriver`。
+
+### log 行
+
+`info` 等級（SAPI5 能用、使用者不用處理；NVDA 預設記錄 info；warning 留給真的略過）：
+
+```
+SAPI5 engine uses NVDA's own SAPI5 driver, without WorldVoice's segment drain: NVDA 2025.1.0 lacks 16 of the names WorldVoice's SAPI5 driver needs: synthDrivers.sapi5.ISpVoice, …
+```
+
+### 突變驗證
+
+`scratchpad/p51r2/mutrun.py`：把 worktree 複製到 scratch（不含 `.git`、`__pycache__`、`.superpowers`，`ref` 用 symlink），每個突變單獨套用到 `driver/SAPI5/__init__.py`，`PYTHONDONTWRITEBYTECODE=1 timeout 300 python3 -m pytest -p no:cacheprovider -q` 跑 `test_sapi5_old_nvda.py`、`test_nvda_ready.py`、`test_native_strategy_guards.py`、`test_runtime_completion_policies.py`，輸出寫到 `scratchpad/p51r2/<突變>.log`，複本已刪除。NONE：97 passed。**11 個突變全部被殺**：
+
+| 突變 | 結果 |
+| --- | --- |
+| M1 缺名稱時仍用 wrapper class | 16 failed |
+| M2 缺名稱時保留 drain profile | 16 failed |
+| M3 齊全時不重設（只剩缺名稱分支） | 1 failed |
+| M4 缺名稱時回 `False`（舊的略過） | 15 failed |
+| M5 `log.info` → `log.warning` | 9 failed |
+| M6 條件反轉 | 22 failed |
+| M7 class 名稱拿掉 overrides | 7 failed |
+| M8 數量寫成 0 | 9 failed |
+| M9 `_nvdaBase` 拿掉 `object` 預設 | 9 failed |
+| M10 不寫 log | 9 failed |
+| M11 不檢查模組名稱 | 9 failed |
+
+### `Ruling:`（已寫入進度帳本）
+
+- SAPI5 `Voice.ready()` 在 class 上設定 `synthDriverClass` 與 `drainProfile`，每次兩個分支都設定：discovery 註冊的是模組的 `Voice` class，且在 `createCore`、`supportedSettings`、completion policy 讀取之前呼叫 `ready()`；`ready()` 不能換成另一個 class。錯了的代價：在 `ready()` 之前讀的人看到 wrapper，和這輪之前相同。
+- NVDA driver 路徑同時把 `drainProfile` 設成 `None`，不只換 class：保留 profile 的話 policy 仍會選 LEGACY_DONE（core 不是自訂的外層 SynthDriver），但每次 open 多寫一行 warning；`None` 就是所有沒有 profile 的 plugin 走的純 core 路徑。錯了的代價：只有 log 不同。
+- log 用 `info`（理由見上）。錯了的代價：在只看 warning 的記錄裡比較不顯眼。
+- SAPI5 `ready()` 直接用 `missing_host_names`，不新增 runtime helper；清單仍在 `_Sapi5Port`，「存在」的定義仍在 `hostNames.py`，檢查仍是單一來源。
+- NM1 選 (a)，不沿鏈走：經過帶萬用 `__getattr__` 的物件（例如 Mock 的 `fget` 子物件）沿 `__wrapped__`／`fget` 走需要深度上限，而 NVDA 沒有任何 release 用這種 decorator。錯了的代價：將來 NVDA 某個 method 套兩層 wrapper 並存了清單上的名稱，會被誤判缺少（SAPI5 改用 NVDA 的 driver、eSpeak／OneCore 被略過），而靜態 release 測試抓不到。
+- readme 用效果描述 drain（「等每一段 SAPI5 語音播放完畢才開始下一段」），不用「segment drain」這個詞；log 行保留這個詞。
+
+### 給協調者
+
+- 使用者還沒確認的預設要改寫第 1 點：相對於 6.2，NVDA 2024.1–2025.2 的使用者**保留** SAPI5 語音（NVDA 自己的 driver，和 6.2 相同），只是沒有 WorldVoice 的分段 drain；log 等級選 `info`。
+- 本輪沒有新的 Critical／Important，只有使用者決定的實作與文件；是否再做修正 review，依 §3.4 由協調者決定（這輪改了 SAPI5 的程式碼路徑）。
+
+### 未在 Linux 驗證的項目（Windows／NVDA 手動）
+
+Linux 上不能跑 NVDA 或 SAPI5，以下都沒有驗證：
+
+1. NVDA 2024.x、2025.1、2025.2（有的話）：WorldVoice 列出 SAPI5 語音、能說話、按 Ctrl 能停下（cancel），切換到其他引擎的語音正常；NVDA 記錄檔只有一行 `SAPI5 engine uses NVDA's own SAPI5 driver …`（info），沒有 traceback；eSpeak、OneCore 正常。
+2. NVDA 2025.3、2026.x：SAPI5 用 WorldVoice 的 wrapper（記錄檔沒有上面那一行，也沒有任何「Skipping … engine candidate」）；三個引擎都能列出語音並說話。
+3. 原本的項目 4（`ready check … voice.ready` 計時）不變。
