@@ -9,8 +9,10 @@ the live check sees the whole MRO, so the static view is the stricter one, with 
 
 - a module name bound only inside `if` or `try` (a platform check, `except ImportError`) counts
   here even when that branch does not run on the user's machine, where the live check misses it;
-- a method under a decorator that hides the function without keeping it as __wrapped__ hides its
-  stores from the live check, not from the compiled source.
+- the live check reads functions only one level below a class attribute (hostNames.py), so a
+  method under a decorator that keeps no __wrapped__, under two wrapping decorators, or under
+  staticmethod or property over a wrapping decorator hides its stores from the live check, not
+  from the compiled source.
 
 The phase 51 review checked every release in RELEASES by hand: no name the wrappers list is bound
 either way. A name added to a list later is not checked for this automatically.

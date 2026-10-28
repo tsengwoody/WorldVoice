@@ -14,9 +14,12 @@ What "exists" means, for the live check here and the tests' check of a release's
   (STORE_ATTR, on any object), which is how instance attributes made in __init__ show up without
   constructing the class. A name-mangled name is listed in its mangled form.
 
-The functions read are plain functions, those under staticmethod, classmethod and property, and
-a function a decorator keeps as __wrapped__ (functools.wraps). Stores inside a function some other
-wrapper hides are not seen.
+The functions read are one level below each attribute in the dict of a class in the MRO: the
+attribute itself when it is a function, the function under staticmethod, classmethod or property
+(fget, fset, fdel), and the attribute's own __wrapped__ (one functools.wraps decorator). Nothing
+deeper is followed, so stores are not seen in a function under a decorator that keeps no
+__wrapped__, under two wrapping decorators, or under staticmethod or property over a wrapping
+decorator (there the wrapper's own code is read).
 """
 
 import dis
@@ -42,8 +45,8 @@ def stored_attribute_names(code: CodeType) -> frozenset[str]:
 
 
 def _function_code(value) -> Iterator[CodeType]:
-	# Plain functions, the functions under staticmethod, classmethod and property, and the function
-	# a wrapping decorator keeps as __wrapped__.
+	# One level only: the value as a function, the function under staticmethod, classmethod and
+	# property, and the value's own __wrapped__. A __wrapped__ chain is not followed.
 	for candidate in (
 		value,
 		getattr(value, "__wrapped__", None),

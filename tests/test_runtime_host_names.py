@@ -166,6 +166,46 @@ def test_stores_under_a_wrapping_decorator_are_present():
 	)
 
 
+def test_wrapped_is_read_one_level_below_the_class_attribute_only():
+	# The documented limit: a __wrapped__ chain, or a wrapper under staticmethod or property, is
+	# not followed, so these stores are not seen live (the static view still sees them).
+	module = make_module(
+		"fake.deepwrap",
+		"""
+		import functools
+
+		def logged(function):
+			@functools.wraps(function)
+			def wrapper(*args, **kwargs):
+				return function(*args, **kwargs)
+
+			return wrapper
+
+		class Cls:
+			@logged
+			@logged
+			def _twice(self):
+				self._fromTwice = 1
+
+			@staticmethod
+			@logged
+			def _static(target):
+				target._fromStatic = 1
+
+			@property
+			@logged
+			def _prop(self):
+				self._fromProperty = 1
+		""",
+	)
+	names = {"_fromTwice", "_fromStatic", "_fromProperty"}
+	assert host_names.missing_host_names(module, module.Cls, module_names=(), class_names=names) == (
+		"fake.deepwrap.Cls._fromProperty",
+		"fake.deepwrap.Cls._fromStatic",
+		"fake.deepwrap.Cls._fromTwice",
+	)
+
+
 def test_nested_class_names_are_qualified_with_the_qualname():
 	module = make_module("fake.nest", "class Outer:\n\tclass Inner:\n\t\tpass\n")
 	result = host_names.missing_host_names(module, module.Outer.Inner, module_names=(), class_names={"_gone"})
