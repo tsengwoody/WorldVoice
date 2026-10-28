@@ -174,7 +174,7 @@ On NVDA 2025.3 and later (every engine complete): no change; no log line.
 
 On NVDA 2024.1–2025.2: SAPI5 voices were already missing (import error or constructor traceback); now the log has one warning naming the NVDA version and the missing names, and no traceback. eSpeak and OneCore are unaffected.
 
-No new translatable strings (log lines are not translated), no settings, no UI, no migration. Readme and changelog: no change, because supported-version behaviour does not change; the SAPI5 minimum is a user decision (§9 Q1).
+No new translatable strings (log lines are not translated), no settings, no UI, no migration. Readme and changelog: the user chose (a) plus (c) (§9 Q1), so the Notes section of the root readme and of `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` states that the SAPI5 engine needs NVDA 2025.3 or later, and each "Next update" changelog has an entry for it.
 
 ## 7. Test plan
 
@@ -195,7 +195,7 @@ Windows: nothing here runs on Windows or a real NVDA. Manual items for the user:
 
 ## 9. Open questions (for the user)
 
-1. **SAPI5 on NVDA 2024.1–2025.2** (§1.1). Today it is broken there; after this phase it is cleanly skipped with a log line. Options: (a) keep it so (recommended for this phase; no behaviour change); (b) raise `addon_minimumNVDAVersion` to 2025.3 (affects eSpeak/OneCore users on older NVDA too); (c) note in the readme that SAPI5 needs NVDA 2025.3+; (d) support the pre-2025.3 SAPI5 driver separately (a large phase). *Decided by orchestrator with the recommended default (a); user may override before merge.*
+1. **SAPI5 on NVDA 2024.1–2025.2** (§1.1). Today it is broken there; after this phase it is cleanly skipped with a log line. Options: (a) keep it so (recommended for this phase; no behaviour change); (b) raise `addon_minimumNVDAVersion` to 2025.3 (affects eSpeak/OneCore users on older NVDA too); (c) note in the readme that SAPI5 needs NVDA 2025.3+; (d) support the pre-2025.3 SAPI5 driver separately (a large phase). *Decided by the user (2026-10-28): (a) and (c) — SAPI5 stays skipped on NVDA < 2025.3 with the minimum at 2024.1, and the readmes say SAPI5 needs NVDA 2025.3 or later.*
 2. Coverage beyond the synth class (§2 non-goals): members of `sapi5.SapiSink`/`SynthDriverAudioStream` the wrapper overrides, public instance attributes, and the eSpeak DLL calls NVDA makes. All exist on every version where the lists are complete; a follow-up could add them. *Decided by orchestrator with the recommended default: out of scope.*
 
 ## 10. Implementation notes
