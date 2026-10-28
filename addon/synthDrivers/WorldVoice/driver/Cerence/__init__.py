@@ -210,8 +210,6 @@ class _ContextualCerenceCallback(base.VECallback):
 		driver = self._driver() if self._driver is not None else None
 		if driver is None:
 			return NUAN_E_TTS_USERSTOP
-		if not driver._guardInstalled:
-			return super().__call__(instance, userData, message)
 		with driver._callbackAdmission(instance) as (record, call):
 			if record is None:
 				# Legacy ENDPROCESS historically acknowledges cancellation. It
@@ -304,8 +302,6 @@ class _CerenceStrategy(NativeStrategy):
 
 	def admission_error(self, host):
 		driver = self._driver()
-		if not driver._guardInstalled:
-			return RuntimeError("Cerence cancellation guard installation is unavailable")
 		with driver._speechStateLock:
 			if driver._terminated:
 				return RuntimeError("Cerence driver has terminated")
@@ -348,8 +344,9 @@ class _CerenceStrategy(NativeStrategy):
 
 
 class SynthDriver(BaseSynthDriver, SegmentDrainCore):
+	supportsCancellationToken = True
+
 	def __init__(self):
-		self._guardInstalled = False
 		self._speechStateLock = threading.Condition()
 		self._segmentHost = SegmentHost("Cerence", _CerenceStrategy(self))
 		self._submitting = None
@@ -411,15 +408,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		# guarded callback decides by record validity and feeds _realPlayer.
 		self._realPlayer = self._player
 		self._player = _IdleRoutingPlayer(self._realPlayer, self)
-		self._guardInstalled = True
-
-	@property
-	def supportsCancellationToken(self):
-		return self._guardInstalled
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
-		if not self._guardInstalled:
-			return DrainSupport(False, _PROFILE, "Cerence cancellation guard installation is unavailable")
 		return unverified_drain_support(_PROFILE, "SDK callback quiescence and physical playback are")
 
 	def _confirmNativeQuiescence(self, call):
@@ -437,8 +427,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
 	def speak(self, speechSequence, cancellationToken=None):
-		if not self._guardInstalled:
-			return super().speak(speechSequence)
 		with self._speechStateLock:
 			if self._terminated:
 				raise RuntimeError("Cerence driver has terminated")
@@ -517,8 +505,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			callback._sonicInitTried = False
 
 	def _speak(self, voiceInstance, chunks):
-		if not self._guardInstalled:
-			return super()._speak(voiceInstance, chunks)
 		record = self._submitting
 		if record is None:
 			return
@@ -526,8 +512,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			self._bgQueue.put(_NativeTask(self, record, voiceInstance, piece))
 
 	def getParameters(self, instance, *idAndTypes):
-		if not self._guardInstalled:
-			return super().getParameters(instance, *idAndTypes)
 		# Read pending settings like the inner driver, but without draining and
 		# re-putting the queue: that could move a record's Begin behind its Retire.
 		with self._bgQueue.mutex:
@@ -653,8 +637,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				raise
 
 	def cancel(self):
-		if not self._guardInstalled:
-			return super().cancel()
 		host = self._segmentHost
 		entered = False
 		try:
@@ -730,8 +712,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		return dropped
 
 	def _onIndexReached(self, index):
-		if not self._guardInstalled:
-			return super()._onIndexReached(index)
 		record = self._currentRecord
 		if index is None:
 			record = self._doneOwner
@@ -749,8 +729,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		return super()._onIndexReached(index)
 
 	def pause(self, switch):
-		if not self._guardInstalled:
-			return super().pause(switch)
 		host = self._segmentHost
 		with self._speechStateLock:
 			if self._terminated:
@@ -820,8 +798,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			self._finishTermination()
 
 	def terminate(self):
-		if not self._guardInstalled:
-			return super().terminate()
 		reentrant = self._isReentrantTermination()
 		with self._speechStateLock:
 			first = not self._terminationRequested
