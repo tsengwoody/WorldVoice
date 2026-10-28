@@ -20,8 +20,7 @@ def test_shared_barrier_values():
 def test_shared_barriers_are_the_only_public_names():
 	module = load_source(None, "segment_barriers_under_test", BARRIERS, register=False)
 	public = {name for name in vars(module) if not name.startswith("_")}
-	# SYNTHESIZED stays only until every wrapper names AUDIO_FED (phase 52 fix round).
-	assert public == {"AUDIO_FED", "SYNTHESIZED", "ENGINE_DONE", "PLAYED_OUT"}
+	assert public == {"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}
 
 
 def test_barrier_module_imports_nothing():

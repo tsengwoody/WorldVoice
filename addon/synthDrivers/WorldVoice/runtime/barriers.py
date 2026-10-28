@@ -14,9 +14,6 @@ lists them, with the reasons in the phase 52 spec).
 # (OneCore); the SAPI5 worker flushed Sonic and fed the tail after EndStream (SAPI5).
 AUDIO_FED = "audio_fed"
 
-# Superseded by AUDIO_FED; removed once no wrapper names it.
-SYNTHESIZED = "synthesized"
-
 # The engine's own end-of-utterance notification for the record arrived. Optional: VE/Cerence
 # and OneCore have no separate terminal notification (OneCore's delivery callback is also its
 # terminal notification, so it proves AUDIO_FED only).
