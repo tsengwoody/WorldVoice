@@ -642,3 +642,196 @@ def test_index_without_running_request_is_dropped(engine_harness, monkeypatch):
 	core._onIndexReached(5)
 	assert indexes == []
 	assert dones == []
+
+
+def send(core, types, instance, message_type, out_data):
+	return callback_handler(core)(instance, None, native_message(types, message_type, out_data))
+
+
+def test_core_cancel_during_real_callback_feed_stops_after_feed(engine_harness, monkeypatch):
+	core, types = ready_core(engine_harness), engine_harness.types
+	feed_entered, release_feed = threading.Event(), threading.Event()
+	results, stops = [], []
+
+	def slow_feed(data):
+		feed_entered.set()
+		assert release_feed.wait(HOLD_TIMEOUT)
+		real_player(core).fed.append(data)
+
+	real_player(core).feed = slow_feed
+	callback_handler(core)._ensureSonicStream = lambda: False
+
+	def native(instance, text):
+		out_data = types.VE_OUTDATA()
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFREQ, out_data))
+		ctypes.memmove(out_data.pOutPcmBuf, b"sound", 5)
+		out_data.cntPcmBufLen = 5
+		out_data.cntMrkListLen = 0
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFDONE, out_data))
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	worker = threading.Thread(target=speak_now, args=(core, ["old"]))
+	worker.start()
+	assert feed_entered.wait(WAIT_TIMEOUT)
+	stopper = threading.Thread(target=core.cancel)
+	stopper.start()
+	stopper.join(WAIT_TIMEOUT)
+	assert not stopper.is_alive()
+	stops.append(real_player(core).stops)
+	release_feed.set()
+	worker.join(WAIT_TIMEOUT)
+	assert not worker.is_alive()
+	assert results == [types.NUAN_OK, types.NUAN_E_TTS_USERSTOP]
+	assert real_player(core).fed == [b"sound"]
+	# The feed that was admitted before cancel is stopped again once it returns.
+	assert real_player(core).stops > stops[0]
+	assert real_player(core).idles == 0
+
+
+def test_callback_after_core_cancel_feeds_nothing(engine_harness, monkeypatch):
+	core, types = ready_core(engine_harness), engine_harness.types
+	callback_handler(core)._ensureSonicStream = lambda: False
+	results = []
+
+	def native(instance, text):
+		out_data = types.VE_OUTDATA()
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFREQ, out_data))
+		core.cancel()
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFREQ, out_data))
+		ctypes.memmove(out_data.pOutPcmBuf, b"late", 4)
+		out_data.cntPcmBufLen = 4
+		out_data.cntMrkListLen = 0
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFDONE, out_data))
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	speak_now(core, ["old"])
+	assert results == [types.NUAN_OK] + [types.NUAN_E_TTS_USERSTOP] * 2
+	assert real_player(core).fed == []
+	assert real_player(core).idles == 0
+
+
+def test_cancel_while_request_begins_stays_stopped(engine_harness, monkeypatch):
+	core, token = ready_core(engine_harness), Token()
+	host = core._segmentHost
+	entry_paused, release_entry = threading.Event(), threading.Event()
+	begin = host.begin
+
+	def paused_begin(record):
+		# host.begin runs in the worker's begin task, after its validity check.
+		entry_paused.set()
+		assert release_entry.wait(HOLD_TIMEOUT)
+		return begin(record)
+
+	monkeypatch.setattr(host, "begin", paused_begin)
+	called = []
+	monkeypatch.setattr(
+		engine_harness.native,
+		"processText2Speech",
+		lambda instance, text: called.append(text),
+	)
+	worker = threading.Thread(target=speak_now, args=(core, ["old"]), kwargs={"cancellationToken": token})
+	worker.start()
+	assert entry_paused.wait(WAIT_TIMEOUT)
+	token.cancel()
+	stopper = threading.Thread(target=core.cancel)
+	stopper.start()
+	release_entry.set()
+	worker.join(WAIT_TIMEOUT)
+	stopper.join(WAIT_TIMEOUT)
+	assert not worker.is_alive() and not stopper.is_alive()
+	assert called == []
+	assert real_player(core).fed == []
+	assert real_player(core).idles == 0
+
+
+def test_native_call_admission_closes_after_exception(engine_harness, monkeypatch):
+	core, types = ready_core(engine_harness), engine_harness.types
+	instances, results = [], []
+
+	def fail(instance, text):
+		instances.append(instance)
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFREQ, types.VE_OUTDATA()))
+		raise RuntimeError("native failed")
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", fail)
+	speak_now(core, ["old"], cancellationToken=Token())
+	assert results == [types.NUAN_OK]
+	assert native_call(core) is None
+	assert (
+		send(core, types, instances[0], types.VE_MSG_OUTBUFREQ, types.VE_OUTDATA())
+		== types.NUAN_E_TTS_USERSTOP
+	)
+
+
+def test_dropped_request_done_skips_idle_and_reports_done(engine_harness, monkeypatch):
+	core = ready_core(engine_harness)
+	indexes, dones = record_notifications(engine_harness, monkeypatch)
+	entered, release = threading.Event(), threading.Event()
+	called = []
+
+	def native(instance, text):
+		called.append(text)
+		entered.set()
+		assert release.wait(HOLD_TIMEOUT)
+		core.cancel()
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	core.speak(["first"])
+	assert entered.wait(WAIT_TIMEOUT)
+	core.speak(["second"])
+	release.set()
+	eventually(lambda: background_idle(core))
+	assert called == ["first"]
+	# Like the add-on's cancel: queued speech is dropped, its DONE kept.
+	assert dones == [core, core]
+	assert indexes == []
+	assert real_player(core).idles == 0
+	assert real_player(core).fed == []
+
+
+@pytest.mark.parametrize("cancel_kind", ["core", "token"])
+def test_endprocess_after_cancel_feeds_no_sonic_tail(engine_harness, monkeypatch, cancel_kind):
+	core, types, token = ready_core(engine_harness), engine_harness.types, Token()
+	callback = callback_handler(core)
+	flushed, results = [], []
+
+	class Sonic:
+		speed = 1.0
+
+		def writeShort(self, *args):
+			pass
+
+		def readShort(self):
+			return b"tail"
+
+		def flush(self):
+			flushed.append(True)
+
+	def sonic():
+		callback.sonicStream = Sonic()
+		callback._sonicEnabled = True
+		return True
+
+	callback._ensureSonicStream = sonic
+
+	def native(instance, text):
+		out_data = types.VE_OUTDATA()
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFREQ, out_data))
+		ctypes.memmove(out_data.pOutPcmBuf, b"pcm!", 4)
+		out_data.cntPcmBufLen = 4
+		out_data.cntMrkListLen = 0
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFDONE, out_data))
+		if cancel_kind == "core":
+			core.cancel()
+		else:
+			token.cancel()
+		results.append(send(core, types, instance, types.VE_MSG_ENDPROCESS, out_data))
+
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	speak_now(core, ["old"], cancellationToken=token)
+	# Core cancel closes the call's admission; a token cancel keeps the legacy
+	# ENDPROCESS acknowledgement. Neither flushes or feeds the buffered tail.
+	last = types.NUAN_E_TTS_USERSTOP if cancel_kind == "core" else types.NUAN_OK
+	assert results == [types.NUAN_OK, types.NUAN_OK, last]
+	assert flushed == []
+	assert real_player(core).fed == []
