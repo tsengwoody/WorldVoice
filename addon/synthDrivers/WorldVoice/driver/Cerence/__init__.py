@@ -367,19 +367,32 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._terminationCleaning = False
 		self._terminationDone = threading.Event()
 		self._terminationError = None
-		self._initializeNative()
-		self._installGuard()
+		releases = [self._segmentHost.terminate]
+		try:
+			self._initializeNative(releases)
+			self._installGuard()
+		except BaseException:
+			# VoiceClassAdapter.open gets no core to terminate when the
+			# constructor raises: release what was built, newest first.
+			for release in reversed(releases):
+				try:
+					release()
+				except Exception:
+					log.error("WorldVoice Cerence initialization cleanup failed", exc_info=True)
+			raise
 
-	def _initializeNative(self):
+	def _initializeNative(self, releases):
 		# The inner constructor hardcodes VECallback. Build its resources here
 		# so the owned callback is registered before the first ttsapi.open.
 		resources = base.getResourcePaths()
 		if not resources:
 			raise RuntimeError("no resources available")
 		ttsapi.initialize(resources)
+		releases.append(ttsapi.terminate)
 		self._instanceCache = {}
 		self._bgQueue = queue.Queue()
 		self._bgThread = base.BgThread(self._bgQueue)
+		releases.append(self._stopBgThread)
 		try:
 			device = base.config.conf["audio"]["outputDevice"]
 		except KeyError:
@@ -390,6 +403,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			bitsPerSample=16,
 			outputDevice=device,
 		)
+		releases.append(self._player.close)
 		self._isSilence = threading.Event()
 		self._veCallbackHandler = _ContextualCerenceCallback(
 			self,
@@ -399,9 +413,16 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		)
 		self._veCallback = VE_CBOUTNOTIFY(self._veCallbackHandler)
 		self._resources = base.getAvailableResources()
-		self._voice = next(iter(self.availableVoices))
+		voices = self.availableVoices
+		if not voices:
+			raise RuntimeError("no voices available")
+		self._voice = next(iter(voices))
 		self._normalization = "OFF"
 		self._rateBoost = False
+
+	def _stopBgThread(self):
+		self._bgQueue.put(None)
+		self._bgThread.join()
 
 	def _installGuard(self):
 		# The inner stop Event and the callback's player stay as created: the
@@ -834,8 +855,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		try:
 			# Let the BgThread finish its current record, then keep native and
 			# player resources alive through any stop or pause still running.
-			self._bgQueue.put(None)
-			self._bgThread.join()
+			self._stopBgThread()
 			self._segmentHost.wait_idle()
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
