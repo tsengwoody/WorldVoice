@@ -52,9 +52,8 @@ def _function_code(value) -> Iterator[CodeType]:
 
 def _class_stored_names(host_class: type) -> frozenset[str]:
 	names = set()
+	# object's own members are builtins without code, so walking it adds nothing.
 	for klass in host_class.__mro__:
-		if klass is object:
-			continue
 		for value in vars(klass).values():
 			for code in _function_code(value):
 				names |= stored_attribute_names(code)

@@ -90,6 +90,14 @@ class Cls(Base):
 	def held(self):
 		self._fromProperty = 1
 
+	@held.setter
+	def held(self, value):
+		self._fromSetter = value
+
+	@held.deleter
+	def held(self):
+		self._fromDeleter = None
+
 	@staticmethod
 	def build(obj):
 		obj._fromStatic = 1
@@ -120,6 +128,17 @@ def test_instance_attributes_from_init_and_other_methods_are_present(probe):
 def test_class_level_and_property_names_are_present(probe):
 	names = {"_flag", "_m", "_get_rate", "rate", "_fromProperty", "_fromStatic", "_fromClassMethod"}
 	assert missing(probe, class_names=names) == ()
+
+
+def test_property_setter_and_deleter_stores_are_present(probe):
+	# A decorated setter or deleter lives only inside the property, not in the class namespace.
+	assert missing(probe, class_names={"_fromSetter", "_fromDeleter"}) == ()
+
+
+def test_nested_class_names_are_qualified_with_the_qualname():
+	module = make_module("fake.nest", "class Outer:\n\tclass Inner:\n\t\tpass\n")
+	result = host_names.missing_host_names(module, module.Outer.Inner, module_names=(), class_names={"_gone"})
+	assert result == ("fake.nest.Outer.Inner._gone",)
 
 
 def test_inherited_instance_attribute_is_present_live(probe):
