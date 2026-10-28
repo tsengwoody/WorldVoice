@@ -57,7 +57,12 @@ def test_missing_done_does_not_drain_after_native_return(env):
 	assert call.returned.wait(WAIT_TIMEOUT)
 	event = events.wait_one()
 	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
-	assert env.outer.ENGINE_DONE in str(event.error)
+	# Compared as a set: the names come from a frozenset, whose order depends on the hash seed.
+	# PLAYED_OUT must be missing too, so a worker that reaches it without its idle() is caught.
+	missing = (
+		str(event.error).removeprefix("RHVoice synthesis retired without its ").removesuffix(" barriers")
+	)
+	assert set(missing.split(", ")) == {env.outer.ENGINE_DONE, env.outer.PLAYED_OUT}, str(event.error)
 	# Without the done callback the worker skips its final idle(): only the inner SpeakText's
 	# own idle ran, so a failure is not delayed until earlier audio has played.
 	assert env.players[0].idle_count == 1
