@@ -6,6 +6,7 @@ from threading import Condition, RLock
 
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
+from ...runtime.barriers import ENGINE_DONE, PLAYED_OUT, SYNTHESIZED
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
@@ -143,7 +144,7 @@ class _NativeLibrary:
 			if not result:
 				host.record_error(self._record, RuntimeError("RHVoice synthesis failed"))
 			else:
-				host.reach(self._record, "returned")
+				host.reach(self._record, SYNTHESIZED)
 			return result
 		except Exception as error:
 			host.record_error(self._record, error)
@@ -239,15 +240,15 @@ class _QueuedSpeech:
 		host.close(record)
 		host.wait_consumers(record)
 		if (
-			record.barriers["done"]
-			and record.barriers["returned"]
+			record.barriers[ENGINE_DONE]
+			and record.barriers[SYNTHESIZED]
 			and record.is_valid()
 			and record.error is None
 			and host.control_error is None
 		):
 			try:
 				owner._inner.player.idle()
-				host.reach(record, "idle")
+				host.reach(record, PLAYED_OUT)
 			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				host.record_error(record, error)
 		host.retire(record, finish=record.native.library.cleanup)
@@ -262,7 +263,7 @@ class _QueuedSpeech:
 class _RHVoiceStrategy(NativeStrategy):
 	"""RHVoice's native queue: the inner tts queue and its single worker."""
 
-	barriers = frozenset({"message", "done", "returned", "idle"})
+	barriers = frozenset({"message", ENGINE_DONE, SYNTHESIZED, PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
@@ -346,7 +347,7 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 				try:
 					result = callback(*args)
 					if isDone:
-						host.reach(record, "done")
+						host.reach(record, ENGINE_DONE)
 					elif not result:
 						host.record_error(record, RuntimeError("RHVoice callback failed"))
 					return result
