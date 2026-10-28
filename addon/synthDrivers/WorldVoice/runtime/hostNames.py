@@ -12,6 +12,10 @@ What "exists" means, for the live check here and the tests' check of a release's
   a property), or when code of a function defined on a class in its MRO stores it as an attribute
   (STORE_ATTR, on any object), which is how instance attributes made in __init__ show up without
   constructing the class. A name-mangled name is listed in its mangled form.
+
+The functions read are plain functions, those under staticmethod, classmethod and property, and
+a function a decorator keeps as __wrapped__ (functools.wraps). Stores inside a function some other
+wrapper hides are not seen.
 """
 
 import dis
@@ -37,9 +41,11 @@ def stored_attribute_names(code: CodeType) -> frozenset[str]:
 
 
 def _function_code(value) -> Iterator[CodeType]:
-	# Plain functions, and the functions under staticmethod, classmethod and property.
+	# Plain functions, the functions under staticmethod, classmethod and property, and the function
+	# a wrapping decorator keeps as __wrapped__.
 	for candidate in (
 		value,
+		getattr(value, "__wrapped__", None),
 		getattr(value, "__func__", None),
 		getattr(value, "fget", None),
 		getattr(value, "fset", None),

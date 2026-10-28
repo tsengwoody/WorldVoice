@@ -140,6 +140,32 @@ def test_property_setter_and_deleter_stores_are_present(probe):
 	assert missing(probe, class_names={"_fromSetter", "_fromDeleter"}) == ()
 
 
+def test_stores_under_a_wrapping_decorator_are_present():
+	# functools.wraps keeps the decorated function as __wrapped__; its stores count as the static
+	# view, which compiles the source, already counts them.
+	module = make_module(
+		"fake.wrap",
+		"""
+		import functools
+
+		def logged(function):
+			@functools.wraps(function)
+			def wrapper(*args, **kwargs):
+				return function(*args, **kwargs)
+
+			return wrapper
+
+		class Cls:
+			@logged
+			def _start(self):
+				self._fromWrapped = 1
+		""",
+	)
+	assert (
+		host_names.missing_host_names(module, module.Cls, module_names=(), class_names={"_fromWrapped"}) == ()
+	)
+
+
 def test_nested_class_names_are_qualified_with_the_qualname():
 	module = make_module("fake.nest", "class Outer:\n\tclass Inner:\n\t\tpass\n")
 	result = host_names.missing_host_names(module, module.Outer.Inner, module_names=(), class_names={"_gone"})
