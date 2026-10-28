@@ -3,8 +3,8 @@
 The runtime check (runtime/hostNames.py) looks at the live NVDA module and class. Old releases
 cannot be imported here, so static_missing builds the same view from a release's compiled source:
 a module name exists when the module body stores it at top level (STORE_NAME, or STORE_GLOBAL
-after a top-level `global` statement); a class name exists when the
-class body stores it or the code nested in the body stores it as an attribute. It sees one class
+for a name some function declares `global`); a class name exists when the class body stores it
+or the code nested in the body stores it as an attribute. It sees one class
 and one file, where the live check sees the whole MRO, so the runtime is never the stricter one.
 """
 
@@ -81,7 +81,8 @@ def static_missing(
 		# Old sources may hold escapes a newer Python warns about.
 		warnings.simplefilter("ignore", SyntaxWarning)
 		module_code = compile(source, module_label, "exec")
-	# A top-level `global name` (NVDA's _espeak.py has some) makes the body store with STORE_GLOBAL.
+	# A name a function declares `global` is stored with STORE_GLOBAL at module level too (NVDA's
+	# _espeak.py: player, isSpeaking and others); a module-level `global` statement does the same.
 	module_bound = _stored_names(module_code, frozenset({"STORE_NAME", "STORE_GLOBAL"}))
 	class_bound = set()
 	for const in module_code.co_consts:
