@@ -267,8 +267,9 @@ def test_vocalizer_inner_privates_are_listed_and_exist(engine):
 def test_vocalizer_wrapper_has_no_guard_fallback(engine):
 	# The vendored inner is pinned above, so the guard always installs: no flag, no
 	# "original driver" branch, and the bridge always passes the cancellation token.
-	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
-	assert "_guardInstalled" not in {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+	source = (ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
+	assert "_guardInstalled" not in source
+	tree = ast.parse(source)
 	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
 	assert any(
 		isinstance(item, ast.Assign)
