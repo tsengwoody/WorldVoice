@@ -51,19 +51,23 @@ Anti-goals (a failure even if tests pass):
 
 ## 3. Part 1 — the classification
 
+> **Decided by the user (2026-10-28): option B′.** Classify each barrier by what its evidence proves, rename the constant whose definition changes, and let the host enforce the one invariant that matters. §3.5 is the classification in force. §3.1–§3.4 are the first version, kept for the record; struck-through text there no longer holds.
+
 ### 3.1 The shared kinds
 
 `runtime/barriers.py` (portable core; constants are upper case under §6.1 in every layer; module name follows the `runtime/` file names `segmentHost.py`, `hostNames.py`):
 
 | Constant | Value | Meaning (what is true once reached) |
 | --- | --- | --- |
-| `SYNTHESIZED` | `"synthesized"` | Every native synthesis call the engine made for this record has returned. These engines synthesize synchronously, so all of the record's audio callbacks ran (and fed the player) inside those calls. |
+| ~~`SYNTHESIZED`~~ | ~~`"synthesized"`~~ | ~~Every native synthesis call the engine made for this record has returned. These engines synthesize synchronously, so all of the record's audio callbacks ran (and fed the player) inside those calls.~~ Replaced by `AUDIO_FED` (§3.5). |
 | `ENGINE_DONE` | `"engine_done"` | The engine's own end-of-utterance notification for this record arrived. |
-| `PLAYED_OUT` | `"played_out"` | `WavePlayer.idle()` returned for this record: its audio finished playing (`idle` first calls `sync`, `ref/nvda/source/nvwave.py:370-378`) and the continuous segment was closed (leading-silence trimming re-armed, ducking released, `:379-382`). |
+| `PLAYED_OUT` | `"played_out"` | ~~`WavePlayer.idle()` returned for this record: its audio finished playing (`idle` first calls `sync`, `ref/nvda/source/nvwave.py:370-378`) and the continuous segment was closed (leading-silence trimming re-armed, ducking released, `:379-382`).~~ Redefined in §3.5. |
 
 The values are the meanings, so `"VE synthesis retired without its played_out barriers"` reads the same for every engine (refactor9 P52: "錯誤 log 可跨引擎比較").
 
 ### 3.2 Every existing barrier
+
+> First version (pre-phase names → phase 52 names). Under option B′ every `SYNTHESIZED` below reads `AUDIO_FED`, and the SAPI5 `"processed"` and OneCore `"callback"`/`"synced"` rows are replaced (§3.5).
 
 | Engine | Old | New | Evidence | Why |
 | --- | --- | --- | --- | --- |
@@ -93,9 +97,11 @@ Resulting declarations (sets unchanged in size and membership up to spelling):
 | OneCore | `{"callback", "synced"}` | `{"callback"}` |
 | VE / Cerence | `{SYNTHESIZED, PLAYED_OUT}` | `frozenset()` |
 
-OneCore uses no shared constant: both its barriers differ in meaning (above). It is still covered by the guard.
+~~OneCore uses no shared constant: both its barriers differ in meaning (above). It is still covered by the guard.~~
 
-**Decided by orchestrator with the recommended default; user may override before merge:** the alternative is to classify by the claim "all of this record's audio is in the player" and merge OneCore `callback` and SAPI5 `processed` into `SYNTHESIZED` (and OneCore `synced` into `PLAYED_OUT`). That loses the distinction the user asked to keep (refactor9 P52: "callback 和 returned 的證據不同", "sync 和 idle 行為不同"); switching later is a one-line change per wrapper plus the guard table.
+~~**Decided by orchestrator with the recommended default; user may override before merge:** the alternative is to classify by the claim "all of this record's audio is in the player" and merge OneCore `callback` and SAPI5 `processed` into `SYNTHESIZED` (and OneCore `synced` into `PLAYED_OUT`). That loses the distinction the user asked to keep (refactor9 P52: "callback 和 returned 的證據不同", "sync 和 idle 行為不同"); switching later is a one-line change per wrapper plus the guard table.~~
+
+**Decided by the user (2026-10-28): option B′** (§3.5). The distinction the user asked to keep is kept in the definitions and comments instead of in the names: `AUDIO_FED` lists each engine's different evidence, and `PLAYED_OUT` says that only `idle()` closes the continuous segment.
 
 ### 3.3 Where the strings appear
 
@@ -111,6 +117,43 @@ By script, with explicit `OLD=NEW` token lists, one commit per group, each passi
 4. **G4 — VE + Cerence** (one commit: the drift test compares them). `"spoken"`→`SYNTHESIZED`, `"idle"`→`PLAYED_OUT`.
 
 OneCore needs no rename. Each renamed file gains exactly one import statement from `runtime/barriers.py`; the token check allows that statement and nothing else. `runtime/barriers.py` itself is added in its own commit before G1; the guard test after G4.
+
+### 3.5 Option B′ (fix round, in force)
+
+`runtime/barriers.py`:
+
+| Constant | Value | Meaning (what is true once reached) |
+| --- | --- | --- |
+| `AUDIO_FED` | `"audio_fed"` | All of this record's audio has been fed to the player, and no further audio callback for it will come. Evidence per engine: a synchronous synthesis call returned (eSpeak, RHVoice, VE/Cerence); the asynchronous delivery callback fed every chunk (OneCore); the SAPI5 worker flushed Sonic and fed the tail after EndStream (SAPI5). |
+| `ENGINE_DONE` | `"engine_done"` | The engine's own end-of-utterance notification for this record arrived. Optional: VE/Cerence and OneCore have no separate terminal notification; OneCore's delivery callback is also its terminal notification. |
+| `PLAYED_OUT` | `"played_out"` | The player has played all of this record's audio, proven by `WavePlayer.idle()` returning, or by `sync()` returning plus the engine's own unpause wait. Only `idle()` also closes the continuous segment (re-arms leading-silence trimming, releases ducking); OneCore's segment mode only calls `sync()` and never closes it (see its `drain`). This barrier does not guarantee those side effects. |
+
+RHVoice `"message"` stays engine-specific: a precondition, not completion. It is the only engine-specific barrier left.
+
+Changes from §3.2:
+
+| Engine | Phase 52 first version | Option B′ |
+| --- | --- | --- |
+| eSpeak, RHVoice, VE/Cerence | `SYNTHESIZED` | `AUDIO_FED` (pure rename) |
+| SAPI5 | `"processed"` | `AUDIO_FED`; a comment before the ENGINE_DONE-required raise says `AUDIO_FED` must follow `ENGINE_DONE` |
+| OneCore | `"callback"` | `AUDIO_FED`; the delivery-callback reach notes it is also OneCore's only terminal notification (there is no `ENGINE_DONE`) |
+| OneCore | `"synced"` | `PLAYED_OUT`; the drain reach notes that `sync()` is not `idle()` and does not close the continuous segment |
+
+eSpeak's reach of `AUDIO_FED` moves from the `finally` of `espeak_Synth` to its success path, so the reach matches the definition. Behaviour is unchanged: a failure is recorded on the record before the exception propagates, and both retire and the drain check report a recorded error ahead of any missing barrier.
+
+Resulting declarations (membership unchanged; only spelling):
+
+| Engine | Strategy `barriers` | Ordinary |
+| --- | --- | --- |
+| eSpeak | `{AUDIO_FED, ENGINE_DONE, PLAYED_OUT}` | (strategy) |
+| RHVoice | `{"message", ENGINE_DONE, AUDIO_FED, PLAYED_OUT}` | (strategy) |
+| SAPI5 | `{ENGINE_DONE, AUDIO_FED, PLAYED_OUT}` | `{ENGINE_DONE, AUDIO_FED}` |
+| OneCore | `{AUDIO_FED, PLAYED_OUT}` | `{AUDIO_FED}` |
+| VE / Cerence | `{AUDIO_FED, PLAYED_OUT}` | `frozenset()` |
+
+**Host check.** `SegmentHost.__init__` no longer refuses only an empty set: it refuses a strategy whose `barriers` lack `PLAYED_OUT` (`ValueError(f"{engine} strategy declares no played-out barrier")`), because a segment must not drain before its audio has played. Ordinary `enqueue(barriers=…)` sets are not subject to it (VE's is empty). Every strategy satisfies it after the renames, so this is the only behaviour change and no engine is affected.
+
+**Guards.** `tests/test_native_strategy_guards.py` reads the engines from `driver/` (every package whose `__init__.py` defines a `*Strategy` class; `sonic` is listed as a non-engine package, and a locally restored untracked `Neural` is skipped), requires a declared-set row for each, lists only `RHVoice: {"message"}` as engine-specific, and asserts every strategy declares `AUDIO_FED` and `PLAYED_OUT` by their constants.
 
 ## 4. Part 2 — `"cancellationToken"` in `Voice.extraCapabilities`
 
@@ -173,3 +216,4 @@ Nothing can be checked on Windows here: no NVDA, no audio device, no engine SDK.
 
 - §3.3 missed one test string table: `tests/test_segment_host.py:323` checks the missing-barrier message with the substrings `"returned, idle"` / `"idle, returned"`. The full run caught it in G1 and both strings were added to that commit's `OLD=NEW` list (now `"returned, played_out"` / `"played_out, returned"`). A scan of every string token in `tests/` for barrier words inside longer strings found no other label use (SAPI5's `"... no owned player idle barrier"` drain-support reason is prose, kept).
 - Mutation survivors (§7.3): RHVoice's worker read `record.barriers[ENGINE_DONE]` → `[SYNTHESIZED]` survives the behaviour tests, as the same mutant does on `master`: when the done callback never comes the record still fails, the only difference is one extra final `player.idle()`. VE/Cerence `_retireRecord`'s `SYNTHESIZED in record.barriers` → `PLAYED_OUT in …` is equivalent (segment records declare both, ordinary records neither).
+- Fix round (option B′, §3.5): the RHVoice survivor above is now killed — `test_missing_done_does_not_drain_after_native_return` asserts the worker's final `idle()` did not run (review M1). The fix round's renames, host check, guards and mutants are recorded in the review's 修正記錄 (`docs/superpowers/finish/2026-10-28-phase52-shared-barriers-review.md`).
