@@ -142,9 +142,8 @@ def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 		and n.value.id in {"self", "driver", "synth"}
 	}
 	assert accessed - own <= privates
+	# Existence on every supported NVDA: tests/test_nvda_release_names.py.
 	nvda = NVDA_SAPI5.read_text(encoding="utf-8")
-	# Whole words: `_thread` must not pass on `_threadCond` alone.
-	assert [name for name in privates if not re.search(rf"\b{re.escape(name)}\b", nvda)] == []
 	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
 	overridden = {
 		n.name
@@ -227,8 +226,8 @@ def test_onecore_parent_privates_are_listed_and_exist():
 		and n.value.id in {"self", "driver"}
 	}
 	assert accessed - _own_names(tree) <= privates
+	# Existence on every supported NVDA: tests/test_nvda_release_names.py.
 	parents = INNER_ONECORE.read_text(encoding="utf-8") + NVDA_ONECORE.read_text(encoding="utf-8")
-	assert all(re.search(rf"\b{re.escape(name)}\b", parents) for name in privates)
 	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
 	overridden = {
 		n.name

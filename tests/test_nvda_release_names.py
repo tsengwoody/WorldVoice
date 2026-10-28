@@ -1,9 +1,25 @@
 """The NVDA names the eSpeak, SAPI5 and OneCore wrappers list, checked on each NVDA release (phase 51)."""
 
+import re
 import textwrap
 from types import ModuleType
 
-from nvda_releases import host_names, static_missing
+import pytest
+from addon_loader import ROOT
+from nvda_releases import (
+	ENGINES,
+	RELEASES,
+	WORKING_TREE,
+	host_names,
+	release_missing,
+	release_source,
+	static_missing,
+)
+
+# The first NVDA release with every name the engine lists (phase 51 spec §1.1). SAPI5's wrapper is
+# built on the request-queue worker NVDA 2025.3 introduced: on older NVDA, Voice.ready() skips it.
+FIRST_COMPLETE = {"Espeak": "2024.1", "SAPI5": "2025.3", "OneCore": "2024.1"}
+VERSIONS = (*RELEASES, WORKING_TREE)
 
 AGREEMENT_SOURCE = textwrap.dedent(
 	"""
@@ -121,3 +137,33 @@ def test_static_view_ignores_globals_bound_only_inside_functions():
 	live = host_names.missing_host_names(module, module.Cls, module_names={"late"}, class_names=())
 	static = static_missing(source, "m", "Cls", "m.Cls", module_names={"late"}, class_names=())
 	assert static == live == ("m.late",)
+
+
+@pytest.mark.parametrize("version", VERSIONS)
+@pytest.mark.parametrize("engine", sorted(ENGINES))
+def test_nvda_names_exist_from_the_first_complete_release(engine, version):
+	missing = release_missing(engine, version)
+	if VERSIONS.index(version) >= VERSIONS.index(FIRST_COMPLETE[engine]):
+		assert missing == (), f"NVDA {version} lacks names the {engine} wrapper lists: {', '.join(missing)}"
+	else:
+		assert missing, f"NVDA {version} now has every {engine} name: move FIRST_COMPLETE[{engine!r}]"
+
+
+def test_missing_release_tag_fails_with_fetch_hint():
+	with pytest.raises(pytest.fail.Exception) as failure:
+		release_source("1999.1", "sapi5.py")
+	assert "release-1999.1" in str(failure.value)
+	assert "git -C ref/nvda fetch --tags" in str(failure.value)
+
+
+def test_release_table_covers_the_supported_range():
+	minimum = re.search(
+		r'addon_minimumNVDAVersion="([^"]+)"',
+		(ROOT / "buildVars.py").read_text(encoding="utf-8"),
+	)
+	assert RELEASES[0] == minimum.group(1)
+	years_and_releases = [
+		tuple(int(part) for part in re.match(r"(\d+)\.(\d+)", v).groups()) for v in RELEASES
+	]
+	assert years_and_releases == sorted(set(years_and_releases))
+	assert set(FIRST_COMPLETE.values()) <= set(RELEASES)
