@@ -70,19 +70,24 @@ def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge_modules, rt)
 	assert adapter.listVoices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
 
 
-@pytest.mark.parametrize("support", [True, False, None])
-def test_token_support_comes_from_actual_core(bridge_modules, support):
+@pytest.mark.parametrize(("declared", "core_claim"), [(True, None), (False, True), (False, None)])
+def test_token_support_comes_from_the_voice_class(bridge_modules, declared, core_claim):
+	# Phase 52 rule change: token support is a fixed engine trait declared in the plugin
+	# contract's Voice.extraCapabilities, like waitfactor and variant. Before phase 50 the
+	# VE/Cerence core decided per instance (a failed guard fell back to the original driver);
+	# a supportsCancellationToken attribute on the core is now ignored.
 	core = Core()
-	if support is not None:
-		core.supportsCancellationToken = support
+	if core_claim is not None:
+		core.supportsCancellationToken = core_claim
 	cls = legacy_class(core)
-	cls.supportsCancellationToken = True  # Class claims are not authoritative.
+	if declared:
+		cls.extraCapabilities = frozenset({"cancellationToken"})
 	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
 	adapter.open()
 	token = SimpleNamespace(is_cancelled=lambda: False)
 	adapter.speak(("hello",), token)
-	assert core.spoken == [(("hello",), {"cancellationToken": token} if support else {})]
-	assert adapter.capabilities.supports_cancellation_token is bool(support)
+	assert core.spoken == [(("hello",), {"cancellationToken": token} if declared else {})]
+	assert adapter.capabilities.supports_cancellation_token is declared
 	assert adapter.capabilities.supports_variants is False
 	assert adapter.capabilities.supports_waitfactor is False
 
@@ -556,10 +561,13 @@ def test_and_mode_uses_segment_entry_and_keeps_terminal_marker(drain_env):
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
 def test_bridge_passes_the_token_to_the_real_vocalizer_wrapper(bridge_modules, rt, monkeypatch, engine):
-	# Phase 50 review M3: the wrapper's class-level claim reaches the plain speak path.
+	# Phase 50 review M3, phase 52: the wrapper Voice's declared capability reaches the plain
+	# speak path of the real core, which no longer carries a claim of its own.
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 	cls = harness.module.Voice
+	assert "cancellationToken" in cls.extraCapabilities
 	core = harness.new_core()
+	assert not hasattr(core, "supportsCancellationToken")
 	monkeypatch.setattr(cls, "createCore", classmethod(lambda cls: core), raising=False)
 	monkeypatch.setattr(cls, "supportedSettings", classmethod(lambda cls: ["rate"]), raising=False)
 	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: None)

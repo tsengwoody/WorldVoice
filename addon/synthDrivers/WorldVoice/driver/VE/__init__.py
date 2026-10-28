@@ -343,8 +343,6 @@ class _VEStrategy(NativeStrategy):
 
 
 class SynthDriver(BaseSynthDriver, SegmentDrainCore):
-	supportsCancellationToken = True
-
 	def __init__(self):
 		self._speechStateLock = threading.Condition()
 		self._segmentHost = SegmentHost("VE", _VEStrategy(self))
@@ -871,7 +869,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 
 class Voice(BaseVoice):
-	extraCapabilities = frozenset({"waitfactor", "variant"})
+	extraCapabilities = frozenset({"waitfactor", "variant", "cancellationToken"})
 	engine = "VE"
 	drainProfile = DrainProfile()
 	synthDriverClass = SynthDriver

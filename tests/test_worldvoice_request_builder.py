@@ -77,8 +77,6 @@ def assembly(modules):
 			def __init__(self):
 				self.spoken = []
 				self.cancelled = 0
-				if supports_token is not None:
-					self.supportsCancellationToken = supports_token
 
 			def speak(self, commands, **kwargs):
 				self.spoken.append((commands, kwargs))
@@ -97,6 +95,8 @@ def assembly(modules):
 			synthDriverClass = Core
 
 		Voice.engine = engine
+		if supports_token:
+			Voice.extraCapabilities = frozenset({"cancellationToken"})
 		spec = modules.models.VoiceSpec(voice_id, key, key, "en", engine, "en")
 		adapter = modules.adapter.VoiceClassAdapter(Voice, voices.__getitem__)
 		session = modules.session.EngineSession(adapter, store)
@@ -211,9 +211,9 @@ def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_brea
 		assert a.done_calls == []
 		assert len(requests) == 1
 		assert [task.seconds for task in requests[0].tasks] == [None] * len(voices) + [0.2]
-		for core, _, kwargs in calls:
+		for voice, (_, _, kwargs) in zip(voices, calls, strict=True):
 			assert kwargs == (
-				{"cancellationToken": requests[0].token} if core.supportsCancellationToken else {}
+				{"cancellationToken": requests[0].token} if voice.engine in ("VE", "Cerence") else {}
 			)
 	finally:
 		release.set()

@@ -114,7 +114,7 @@ class VoiceClassAdapter(EngineAdapter):
 			settings=frozenset(self._voiceClass.supportedSettings()),
 			supports_waitfactor="waitfactor" in extra,
 			supports_variants="variant" in extra,
-			supports_cancellation_token=bool(getattr(self._core, "supportsCancellationToken", False)),
+			supports_cancellation_token="cancellationToken" in extra,
 			completion=self._completion,
 		)
 

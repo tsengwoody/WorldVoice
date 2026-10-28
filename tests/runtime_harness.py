@@ -261,8 +261,6 @@ def forbid_legacy_runtime_imports(monkeypatch):
 class ContractCore:
 	"""Only the hardware/event source is fake; runtime ownership stays real."""
 
-	supportsCancellationToken = True
-
 	def __init__(self):
 		self.open_count = self.close_count = self.cancel_count = 0
 		self.spoken = []
@@ -441,6 +439,9 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 			core.marker_type = importlib.import_module(name + ".speechCommands").WorldVoiceIndexCommand
 
 		class LegacyVoice:
+			# ContractCore.speak requires the token.
+			extraCapabilities = frozenset({"cancellationToken"})
+
 			@classmethod
 			def createCore(cls):
 				core.open_count += 1

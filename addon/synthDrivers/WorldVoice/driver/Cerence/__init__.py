@@ -345,8 +345,6 @@ class _CerenceStrategy(NativeStrategy):
 
 
 class SynthDriver(BaseSynthDriver, SegmentDrainCore):
-	supportsCancellationToken = True
-
 	def __init__(self):
 		self._speechStateLock = threading.Condition()
 		self._segmentHost = SegmentHost("Cerence", _CerenceStrategy(self))
@@ -878,7 +876,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 
 class Voice(BaseVoice):
-	extraCapabilities = frozenset({"waitfactor", "variant"})
+	extraCapabilities = frozenset({"waitfactor", "variant", "cancellationToken"})
 	engine = "Cerence"
 	drainProfile = DrainProfile()
 	synthDriverClass = SynthDriver

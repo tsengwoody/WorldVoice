@@ -305,18 +305,18 @@ def test_vocalizer_inner_privates_are_listed_and_exist(engine):
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
 def test_vocalizer_wrapper_has_no_guard_fallback(engine):
 	# The vendored inner is pinned above, so the guard always installs: no flag, no
-	# "original driver" branch, and the bridge always passes the cancellation token.
+	# "original driver" branch, and token support is a fixed trait declared on the Voice
+	# (phase 52), not a claim of the core.
 	source = (ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
 	assert "_guardInstalled" not in source
+	assert "supportsCancellationToken" not in source
 	tree = ast.parse(source)
-	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
-	assert any(
-		isinstance(item, ast.Assign)
-		and [ast.unparse(t) for t in item.targets] == ["supportsCancellationToken"]
-		and isinstance(item.value, ast.Constant)
-		and item.value.value is True
-		for item in synth.body
-	)
+	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
+	assert _class_constant(tree, "Voice", "extraCapabilities") == {
+		"waitfactor",
+		"variant",
+		"cancellationToken",
+	}, voice.name
 
 
 def test_every_wrapper_core_declares_the_segment_drain_entries():
