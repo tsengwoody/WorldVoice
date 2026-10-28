@@ -85,7 +85,7 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 * If you enable both NVDA automatic language switching and WorldVoice Unicode detection, the two features may affect each other. Choose one according to your needs.
 * If you want to disable a specific speech engine, clear the corresponding checkbox in the WorldVoice speech engine panel.
 * If you need to use a speech engine other than eSpeak, OneCore, RHVoice, or SAPI5, download the corresponding driver or voice package separately.
-* WorldVoice's SAPI5 engine needs NVDA 2025.3 or later. On older NVDA versions, WorldVoice does not offer SAPI5 voices and writes one warning to the NVDA log; the other engines work as usual.
+* On NVDA 2024.1 to 2025.2, WorldVoice's SAPI5 engine uses NVDA's own SAPI5 driver, as WorldVoice 6.2 did, so SAPI5 voices work as they did in 6.2. WorldVoice's own SAPI5 driver, which waits until each part of SAPI5 speech has finished playing before the next part (another voice or a pause) starts, is used only on NVDA 2025.3 or later.
 
 # WorldVoice Changelog
 
@@ -98,7 +98,7 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 * **Full-width and other Unicode digits are numbers:** Number language, number modes, number pauses and the thousands separator rule now also apply to full-width digits and other Unicode decimal digits, such as Arabic-Indic digits.
 * **Assumed languages for Cyrillic and Devanagari:** The Unicode Detection panel now also lets you choose the language assumed for Cyrillic characters (default Russian) and Devanagari characters (default Hindi). Earlier versions always used the first language with an installed voice in WorldVoice's list for the character set; the defaults keep that behavior.
 * **Unicode data updated to 18.0.0:** Unicode detection and the space pause between CJK and Southeast Asian characters now know the characters Unicode 17.0 and 18.0 added, such as the ideographs of CJK Unified Ideographs Extension J and new kana. They are detected and get the space pause like the other Han and kana characters. Small seal script characters, new in 18.0, are a script of their own, not Han: Unicode detection does not switch language for them and they get no space pause.
-* **SAPI5 needs NVDA 2025.3 or later:** WorldVoice's SAPI5 engine is built on the speech queue NVDA 2025.3 introduced. On NVDA 2024.1 to 2025.2, SAPI5 voices did not work in WorldVoice and errors appeared in the NVDA log. WorldVoice now leaves SAPI5 out on these versions and writes one warning to the log instead. eSpeak, OneCore and the other engines are not affected.
+* **SAPI5 waits for playback on NVDA 2025.3 or later:** On NVDA 2025.3 or later, WorldVoice's SAPI5 engine uses WorldVoice's own SAPI5 driver, built on the speech queue NVDA 2025.3 introduced. It waits until each part of SAPI5 speech has finished playing before the next part (another voice or a pause) starts. On NVDA 2024.1 to 2025.2, SAPI5 keeps using NVDA's own SAPI5 driver, as in WorldVoice 6.2, without this wait, and WorldVoice writes one line about it to the NVDA log.
 
 ## WorldVoice 6 Update
 
