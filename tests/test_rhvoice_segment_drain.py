@@ -55,7 +55,12 @@ def test_missing_done_does_not_drain_after_native_return(env):
 	_, _, events = speak(env)
 	call = env.native.wait_call()
 	assert call.returned.wait(WAIT_TIMEOUT)
-	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+	event = events.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert env.outer.ENGINE_DONE in str(event.error)
+	# Without the done callback the worker skips its final idle(): only the inner SpeakText's
+	# own idle ran, so a failure is not delayed until earlier audio has played.
+	assert env.players[0].idle_count == 1
 
 
 def test_message_delete_failure_fails_closed_for_contextual_and_legacy_successors(env):
