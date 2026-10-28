@@ -94,12 +94,8 @@ class _ThreadState(threading.local):
 
 
 class _IdleRoutingPlayer:
-	"""The inner driver's player, as its DoneSpeaking sees it: idle goes to the wrapper.
-
-	Indexes come from SDK bookmarks in the callback and audio is fed by the
-	wrapper, so this stand-in only routes the final idle; pause, stop and
-	close reach the real player.
-	"""
+	"""Routes only the inner DoneSpeaking idle to `_idlePlayer`, passing the rest to the real player;
+	it is not a `LeasedPlayer` like RHVoice's `_WavePlayer`."""
 
 	def __init__(self, player, driver):
 		self._player = player
