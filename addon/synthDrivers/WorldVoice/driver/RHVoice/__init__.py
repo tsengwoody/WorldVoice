@@ -6,7 +6,7 @@ from threading import Condition, RLock
 
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
-from ...runtime.barriers import ENGINE_DONE, PLAYED_OUT, SYNTHESIZED
+from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
@@ -144,7 +144,7 @@ class _NativeLibrary:
 			if not result:
 				host.record_error(self._record, RuntimeError("RHVoice synthesis failed"))
 			else:
-				host.reach(self._record, SYNTHESIZED)
+				host.reach(self._record, AUDIO_FED)
 			return result
 		except Exception as error:
 			host.record_error(self._record, error)
@@ -241,7 +241,7 @@ class _QueuedSpeech:
 		host.wait_consumers(record)
 		if (
 			record.barriers[ENGINE_DONE]
-			and record.barriers[SYNTHESIZED]
+			and record.barriers[AUDIO_FED]
 			and record.is_valid()
 			and record.error is None
 			and host.control_error is None
@@ -263,7 +263,7 @@ class _QueuedSpeech:
 class _RHVoiceStrategy(NativeStrategy):
 	"""RHVoice's native queue: the inner tts queue and its single worker."""
 
-	barriers = frozenset({"message", ENGINE_DONE, SYNTHESIZED, PLAYED_OUT})
+	barriers = frozenset({"message", ENGINE_DONE, AUDIO_FED, PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
