@@ -393,3 +393,146 @@ def test_wrappers_read_no_nvda_module_attribute_at_import():
 		"_SegmentAudioStream": ["_nvdaBase('SynthDriverAudioStream')"],
 		"_SegmentSapiSink": ["_nvdaBase('SapiSink')"],
 	}
+
+
+# Barrier names (phase 52). A barrier of a shared kind is named by its runtime/barriers.py
+# constant; these are the only engine-specific names, each because its evidence proves
+# something no shared kind describes (docs/superpowers/specs/2026-10-28-phase52-shared-barriers-design.md §3.2).
+ENGINE_SPECIFIC_BARRIERS = {
+	"Espeak": set(),
+	"SAPI5": {"processed"},  # post-EndStream worker processing; SAPI5 speaks asynchronously
+	"RHVoice": {"message"},  # RHVoice_new_message succeeded: a precondition, not completion
+	"OneCore": {"callback", "synced"},  # async delivery callback fed all audio; sync() is not idle()
+	"VE": set(),
+	"Cerence": set(),
+}
+# Each strategy's declared set and its ordinary set (None: ordinary records take the strategy's).
+DECLARED_BARRIERS = {
+	"Espeak": ({"SYNTHESIZED", "ENGINE_DONE", "PLAYED_OUT"}, None),
+	"RHVoice": ({"message", "ENGINE_DONE", "SYNTHESIZED", "PLAYED_OUT"}, None),
+	"SAPI5": ({"ENGINE_DONE", "processed", "PLAYED_OUT"}, {"ENGINE_DONE", "processed"}),
+	"OneCore": ({"callback", "synced"}, {"callback"}),
+	"VE": ({"SYNTHESIZED", "PLAYED_OUT"}, set()),
+	"Cerence": ({"SYNTHESIZED", "PLAYED_OUT"}, set()),
+}
+
+
+def _shared_barriers():
+	tree = ast.parse((ROOT / "runtime/barriers.py").read_text(encoding="utf-8"))
+	return {
+		node.targets[0].id: node.value.value
+		for node in tree.body
+		if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+	}
+
+
+def _frozenset_elements(call):
+	assert isinstance(call, ast.Call) and ast.unparse(call.func) == "frozenset", ast.unparse(call)
+	if not call.args:
+		return []
+	assert isinstance(call.args[0], ast.Set), ast.unparse(call)
+	return list(call.args[0].elts)
+
+
+def _barrier_label(node):
+	return node.id if isinstance(node, ast.Name) else node.value
+
+
+def _declared_barriers(tree):
+	strategy = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name.endswith("Strategy"))
+	declared = next(
+		n.value
+		for n in strategy.body
+		if isinstance(n, ast.Assign) and [ast.unparse(t) for t in n.targets] == ["barriers"]
+	)
+	ordinary = next(
+		(
+			n.value
+			for n in tree.body
+			if isinstance(n, ast.Assign) and [ast.unparse(t) for t in n.targets] == ["_ORDINARY_BARRIERS"]
+		),
+		None,
+	)
+	return _frozenset_elements(declared), None if ordinary is None else _frozenset_elements(ordinary)
+
+
+def _barrier_expressions(tree):
+	"""Every expression the wrapper uses as a barrier name, wherever it declares, reaches or reads one."""
+	declared, ordinary = _declared_barriers(tree)
+	found = declared + (ordinary or [])
+	for node in ast.walk(tree):
+		if isinstance(node, ast.Call):
+			if isinstance(node.func, ast.Attribute) and node.func.attr == "reach":
+				found.append(node.args[1])
+			if (
+				isinstance(node.func, ast.Attribute)
+				and node.func.attr == "get"
+				and isinstance(node.func.value, ast.Attribute)
+				and node.func.value.attr == "barriers"
+			):
+				found.append(node.args[0])
+			for keyword in node.keywords:
+				if keyword.arg == "idle_barrier" and not (
+					isinstance(keyword.value, ast.Constant) and keyword.value.value is None
+				):
+					found.append(keyword.value)
+				if keyword.arg == "barriers":
+					# Ordinary speech passes its set by name; a literal set would bypass the table.
+					assert ast.unparse(keyword.value) == "_ORDINARY_BARRIERS", ast.unparse(node)
+		elif isinstance(node, ast.Subscript):
+			if isinstance(node.value, ast.Attribute) and node.value.attr == "barriers":
+				found.append(node.slice)
+		elif isinstance(node, ast.Compare):
+			for op, right in zip(node.ops, node.comparators, strict=True):
+				if (
+					isinstance(op, ast.In | ast.NotIn)
+					and isinstance(right, ast.Attribute)
+					and right.attr == "barriers"
+				):
+					found.append(node.left)
+	return found
+
+
+def _barrier_imports(tree):
+	return {
+		alias.name
+		for node in tree.body
+		if isinstance(node, ast.ImportFrom) and node.module == "runtime.barriers" and node.level == 3
+		for alias in node.names
+	}
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_strategy_barriers_use_shared_or_listed_names(engine):
+	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+	shared, imported = _shared_barriers(), _barrier_imports(tree)
+	assert imported <= set(shared), (engine, imported)
+	for node in _barrier_expressions(tree):
+		if isinstance(node, ast.Name):
+			assert node.id in imported, (engine, node.id, node.lineno)
+		else:
+			assert isinstance(node, ast.Constant), (engine, ast.unparse(node), node.lineno)
+			assert node.value in ENGINE_SPECIFIC_BARRIERS[engine], (engine, node.value, node.lineno)
+	declared, ordinary = _declared_barriers(tree)
+	expected_declared, expected_ordinary = DECLARED_BARRIERS[engine]
+	assert {_barrier_label(node) for node in declared} == expected_declared
+	assert len(declared) == len(expected_declared)
+	assert (None if ordinary is None else {_barrier_label(node) for node in ordinary}) == expected_ordinary
+
+
+def test_engine_specific_barrier_names_are_used_and_not_shared():
+	shared_values = set(_shared_barriers().values())
+	for engine, names in ENGINE_SPECIFIC_BARRIERS.items():
+		assert not names & shared_values, engine
+		tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+		used = {node.value for node in _barrier_expressions(tree) if isinstance(node, ast.Constant)}
+		assert used == names, engine
+
+
+def test_leased_player_reaches_played_out_by_default():
+	host_tree = ast.parse((ROOT / "runtime/segmentHost.py").read_text(encoding="utf-8"))
+	leased = next(n for n in host_tree.body if isinstance(n, ast.ClassDef) and n.name == "LeasedPlayer")
+	init = next(n for n in leased.body if isinstance(n, ast.FunctionDef) and n.name == "__init__")
+	defaults = dict(zip((a.arg for a in init.args.kwonlyargs), init.args.kw_defaults, strict=True))
+	assert ast.unparse(defaults["idle_barrier"]) == "PLAYED_OUT"
+	assert "from .barriers import PLAYED_OUT" in ast.unparse(host_tree)
