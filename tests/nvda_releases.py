@@ -4,8 +4,16 @@ The runtime check (runtime/hostNames.py) looks at the live NVDA module and class
 cannot be imported here, so static_missing builds the same view from a release's compiled source:
 a module name exists when the module body stores it at top level (STORE_NAME, or STORE_GLOBAL
 for a name some function declares `global`); a class name exists when the class body stores it
-or the code nested in the body stores it as an attribute. It sees one class
-and one file, where the live check sees the whole MRO, so the runtime is never the stricter one.
+or the code nested in the body stores it as an attribute. It sees one class and one file, where
+the live check sees the whole MRO, so the static view is the stricter one, with two exceptions:
+
+- a module name bound only inside `if` or `try` (a platform check, `except ImportError`) counts
+  here even when that branch does not run on the user's machine, where the live check misses it;
+- a method under a decorator that hides the function without keeping it as __wrapped__ hides its
+  stores from the live check, not from the compiled source.
+
+The phase 51 review checked every release in RELEASES by hand: no name the wrappers list is bound
+either way. A name added to a list later is not checked for this automatically.
 """
 
 import ast
