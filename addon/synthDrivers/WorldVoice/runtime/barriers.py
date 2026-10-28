@@ -5,7 +5,8 @@ evidence arrives; SegmentHost fails a record that retires with one unreached. A 
 classified by what its evidence proves, not by how the engine delivers it: wrappers name a
 barrier by one of these kinds when its evidence proves exactly that. Evidence that proves
 something else keeps an engine-specific name in its wrapper (tests/test_native_strategy_guards.py
-lists them, with the reasons in the phase 52 spec).
+lists them, with the reasons in the phase 52 spec). Every strategy declares PLAYED_OUT, which
+SegmentHost enforces; nothing else about a strategy's set is required.
 """
 
 # All of this record's audio has been fed to the player, and no further audio callback for

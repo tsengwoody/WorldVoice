@@ -150,9 +150,10 @@ class SegmentDrainCore(ABC):
 
 class SegmentHost:
 	def __init__(self, engine: str, strategy: NativeStrategy):
-		if not strategy.barriers:
-			# With no barriers a segment would drain before its audio has played.
-			raise ValueError(f"{engine} strategy declares no playback barriers")
+		if PLAYED_OUT not in strategy.barriers:
+			# Without it a segment would drain before its audio has played. Ordinary
+			# enqueue(barriers=...) sets are exempt: the parent owns their playback end.
+			raise ValueError(f"{engine} strategy declares no played-out barrier")
 		self.engine = engine
 		self._strategy = strategy
 		self._admission = RLock()

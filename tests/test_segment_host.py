@@ -956,7 +956,7 @@ def test_wait_idle_returns_once_the_last_segment_retires(env):
 
 def test_default_hooks_finish_a_segment(env):
 	class Bare(env.module.NativeStrategy):
-		barriers = frozenset({"done"})
+		barriers = frozenset({PLAYED_OUT})
 
 		def __init__(self):
 			self.submitted = Event()
@@ -984,7 +984,7 @@ def test_default_hooks_finish_a_segment(env):
 
 	def work():
 		host.begin(strategy.record)
-		host.reach(strategy.record, "done")
+		host.reach(strategy.record, PLAYED_OUT)
 		host.retire(strategy.record)
 
 	worker = Thread(target=work, daemon=True)
@@ -1090,8 +1090,24 @@ def test_a_strategy_without_barriers_is_rejected(env):
 	class Barrierless(FakeStrategy):
 		barriers = frozenset()
 
-	with pytest.raises(ValueError, match="barriers"):
+	with pytest.raises(ValueError, match="^Fake strategy declares no played-out barrier$"):
 		env.module.SegmentHost("Fake", native(env.module, Barrierless))
+
+
+def test_a_strategy_without_played_out_is_rejected(env):
+	# Without PLAYED_OUT a segment would drain before its audio has played.
+	class NotPlayedOut(FakeStrategy):
+		barriers = frozenset({"returned"})
+
+	with pytest.raises(ValueError, match="^Fake strategy declares no played-out barrier$"):
+		env.module.SegmentHost("Fake", native(env.module, NotPlayedOut))
+
+
+def test_ordinary_barrier_sets_need_no_played_out(env):
+	# Ordinary speech keeps the parent's own playback end (VE's set is empty).
+	env.host.enqueue(("ordinary",), barriers=frozenset())
+	record = env.strategy.wait_submitted()
+	assert record.barriers == {}
 
 
 def test_segment_drain_core_combines_with_an_abcmeta_driver_metaclass(env):
