@@ -30,7 +30,7 @@ Goals:
 
 1. VE and Cerence move to the RHVoice approach: remove `_SilenceGate`; the inner `_isSilence` Event stays the plain inner Event and the guarded wrapper never reads or writes it; the record (`_recordValid`), the host admission (`host.consumer`) and the native-call admission (`_NativeCall.admitting`) are the single source of truth for "is this work still valid". *Decided by orchestrator with the recommended default; user may override before merge.*
    Why this direction and not the reverse: the wrapper already owns every decision the gate makes (§3), so the gate only adds a duck-typed stand-in for an inner object (fragile to inner updates) and three extra states. Moving RHVoice to a gate would add a stand-in where RHVoice now has none.
-2. The player stand-in stays, because VE/Cerence need it for a reason RHVoice does not have: the inner `speak` builds `DoneSpeaking(self._player, …)` (inner `:435`) whose `__call__` runs `self._player.idle()` (inner `:236`), and the wrapper must route that idle to `_idlePlayer` (segments drain on the lifecycle thread instead, `:691-705`). It is simplified to that one duty and renamed `_WavePlayer` — the name RHVoice gives its own stand-in for the inner player (`driver/RHVoice/__init__.py:169`). It does **not** become a `LeasedPlayer`: VE/Cerence indexes come from SDK bookmarks inside the callback (`:295-299`), not from the player's `onDone`, and audio is fed by `_feedCallback` (`:687-689`), not through the stand-in.
+2. The player stand-in stays, because VE/Cerence need it for a reason RHVoice does not have: the inner `speak` builds `DoneSpeaking(self._player, …)` (inner `:435`) whose `__call__` runs `self._player.idle()` (inner `:236`), and the wrapper must route that idle to `_idlePlayer` (segments drain on the lifecycle thread instead, `:691-705`). It is simplified to that one duty and renamed ~~`_WavePlayer` — the name RHVoice gives its own stand-in for the inner player (`driver/RHVoice/__init__.py:169`)~~ `_IdleRoutingPlayer`, after that duty (*Corrected by review M1*: RHVoice's `_WavePlayer` is a `LeasedPlayer` that owns feed admission and index binding, so sharing its name suggested duties this stand-in does not have). It does **not** become a `LeasedPlayer`: VE/Cerence indexes come from SDK bookmarks inside the callback (`:295-299`), not from the player's `onDone`, and audio is fed by `_feedCallback` (`:687-689`), not through the stand-in.
 3. VE and Cerence change identically; `tests/test_vocalizer_drift.py` `ALLOWED` stays as it is.
 4. The fallback path (guard not installed → original inner driver) is unchanged, including *when* it is chosen.
 
@@ -96,11 +96,11 @@ Unchanged: `_installGuard` keeps the same availability check (the same five fiel
 
 ### D0. Install
 
-`_installGuard` keeps its availability check and log line. It then wraps only the core's `_player` in `_WavePlayer(real, self)`, records `self._realPlayer = real` and sets `_guardInstalled`. The callback's `_player` and both `_isSilence` references are left as created: the guarded path never reads them (§3.1, §3.2). If the one assignment raises, the core falls back with nothing changed and logs "installation failed"; there is no restoration step and so no "restoration failed" error any more (a single failed assignment cannot leave a partial install). *Decided by orchestrator with the recommended default; user may override before merge.*
+`_installGuard` keeps its availability check and log line. It then wraps only the core's `_player` in ~~`_WavePlayer(real, self)`~~ `_IdleRoutingPlayer(real, self)` (*Corrected by review M1*), records `self._realPlayer = real` and sets `_guardInstalled`. The callback's `_player` and both `_isSilence` references are left as created: the guarded path never reads them (§3.1, §3.2). If the one assignment raises, the core falls back with nothing changed and logs "installation failed"; there is no restoration step and so no "restoration failed" error any more (a single failed assignment cannot leave a partial install). *Decided by orchestrator with the recommended default; user may override before merge.*
 
 ### D1. The inner DONE idle needs a running record
 
-`_idlePlayer` (`:691-705`) becomes: segment record → return (unchanged); **no current record → return**; invalid record → return; else idle as now (with the pause wait). `_WavePlayer.idle` with a dead driver returns `None`.
+`_idlePlayer` (`:691-705`) becomes: segment record → return (unchanged); **no current record → return**; invalid record → return; else idle as now (with the pause wait). ~~`_WavePlayer.idle`~~ `_IdleRoutingPlayer.idle` (*Corrected by review M1*) with a dead driver returns `None`.
 
 Old behaviour with no current record: idle the real player unless a cancel happened since the last real begin. New: never. The only case that changes is a skipped ordinary request (its token cancelled before it began, or a latched control error) with no cancel since the last real begin: the old code idled the player, the new code does not. That idle had nothing of its own to wait for — a skipped record fed no audio, and the record before it already idled (ordinary), drained (segment) or was stopped (cancelled; `segmentHost.py:515-523`) on the same FIFO worker — and after a control error the player state is uncertain, so skipping is the safer side. DONE ordering is unchanged (the inner `DoneSpeaking` still calls `_onIndexReached(None)` right after). *Decided by orchestrator with the recommended default; user may override before merge.*
 
@@ -112,11 +112,12 @@ Old behaviour with no current record: idle the real player unless a cancel happe
 
 `_SilenceGate`, the `begin`/`set`/`_insideNativeCall`/`_token` calls of §3.2, `_GuardedPlayer.feed` and the second gate argument. `_VEPort.INNER_PRIVATES` keeps `_isSilence` and `_player` (still read by the availability check and the callback constructor). The two `"_SilenceGate.is_set"` entries in `tests/test_naming_layers.py:95`, `:116` go, since the name no longer exists.
 
-### D4. `_WavePlayer`
+### D4. ~~`_WavePlayer`~~ `_IdleRoutingPlayer` (*Corrected by review M1*)
 
 ```python
-class _WavePlayer:
-	"""The inner driver's player, as its DoneSpeaking sees it: idle goes to the wrapper."""
+class _IdleRoutingPlayer:  # was _WavePlayer; corrected by review M1
+	"""Routes only the inner DoneSpeaking idle to `_idlePlayer`, passing the rest to the real player;
+	it is not a `LeasedPlayer` like RHVoice's `_WavePlayer`."""
 	def __init__(self, player, driver): ...
 	def idle(self): ...          # driver._idlePlayer(), or None when the driver is gone
 	def __getattr__(self, name): ...  # pause, stop, close, ... reach the real player
@@ -128,7 +129,7 @@ No audible or visible change: no audio after cancel, the same index and DONE not
 
 ## 6. RHVoice
 
-Checked for alignment only. RHVoice needs the inner flag (it is how the inner `SpeakText` stops the native message, `stop_native` `:294-297`), so its use is not a leftover and stays. No inconsistency found that needs a Ruling. The only alignment is naming: the VE/Cerence player stand-in takes RHVoice's name `_WavePlayer`.
+Checked for alignment only. RHVoice needs the inner flag (it is how the inner `SpeakText` stops the native message, `stop_native` `:294-297`), so its use is not a leftover and stays. No inconsistency found that needs a Ruling. ~~The only alignment is naming: the VE/Cerence player stand-in takes RHVoice's name `_WavePlayer`.~~ No naming alignment either: the VE/Cerence stand-in is `_IdleRoutingPlayer`, not RHVoice's `_WavePlayer` (*Corrected by review M1*).
 
 ## 7. Test plan
 
@@ -148,10 +149,10 @@ Rewritten (they pinned gate internals; each keeps its behaviour and is proved by
 
 | Old test (`tests/test_worldvoice_cancel_wrappers.py`) | New form |
 | --- | --- |
-| `test_installs_gate_on_core_and_existing_callback` | `test_installs_player_stand_in_and_keeps_inner_stop_flag`: core `_player` is a `_WavePlayer` over `real_player`; core and callback share one plain, unset `threading.Event`; callback `_player` is `real_player` |
-| `test_missing_private_field_falls_back_without_partial_install` | same parameters; asserts no `_WavePlayer` anywhere and the Event untouched |
+| `test_installs_gate_on_core_and_existing_callback` | `test_installs_player_stand_in_and_keeps_inner_stop_flag`: core `_player` is a ~~`_WavePlayer`~~ `_IdleRoutingPlayer` over `real_player`; core and callback share one plain, unset `threading.Event`; callback `_player` is `real_player` (*Corrected by review M1*) |
+| `test_missing_private_field_falls_back_without_partial_install` | same parameters; asserts no ~~`_WavePlayer`~~ `_IdleRoutingPlayer` anywhere and the Event untouched (*Corrected by review M1*) |
 | `test_missing_callback_falls_back_without_partial_install` | unchanged |
-| `test_assignment_failure_restores_all_four_references` | `test_assignment_failure_falls_back_unchanged`: the core's `_player` assignment of a `_WavePlayer` raises; fallback with the original player |
+| `test_assignment_failure_restores_all_four_references` | `test_assignment_failure_falls_back_unchanged`: the core's `_player` assignment of a ~~`_WavePlayer`~~ `_IdleRoutingPlayer` raises; fallback with the original player (*Corrected by review M1*) |
 | `test_restoration_failure_raises_instead_of_returning_partial_core` | deleted: D0 has no restoration step |
 | `test_gate_checks_token_only_during_native_call` | deleted: its duties are pinned by `test_callback_rejects_audio_outside_native_call` (outside a call), the token tests below (token), and `test_cancelled_idle_cannot_complete_segment[inner-clear]` (reset) |
 | `test_player_stops_after_feed_when_cancelled_mid_feed` | `test_core_cancel_during_real_callback_feed_stops_after_feed` (through the real callback, with core `cancel()`), plus no idle |
@@ -176,7 +177,7 @@ The wrappers are not core decision modules (§7 of the workflow names `runtime/`
 - `_runNative`: drop `not self._recordValid(record)` in the first check; drop the re-check under the lock.
 - `_VEStrategy.drain`: drop `driver._recordValid(record)`.
 - `_beginRecord`: drop the validity check that skips a record.
-- `_WavePlayer.idle`: call the real `idle` instead of the driver's.
+- ~~`_WavePlayer.idle`~~ `_IdleRoutingPlayer.idle` (*Corrected by review M1*): call the real `idle` instead of the driver's.
 - `_installGuard`: also replace the callback's `_player`; skip the swap.
 - `cancel`: drop `call.admitting = False`.
 
@@ -184,7 +185,7 @@ Each rewritten test of §7 is also proved by at least one mutant it kills. Survi
 
 ## 9. Open questions
 
-None blocking. Defaults the user may override: D0 (no restoration step), D1 (no idle without a running record), D2 (no index without a running record), and the stand-in name `_WavePlayer`.
+None blocking. Defaults the user may override: D0 (no restoration step), D1 (no idle without a running record), D2 (no index without a running record), and the stand-in name ~~`_WavePlayer`~~ `_IdleRoutingPlayer` (*Corrected by review M1*).
 
 ## 10. Implementation notes (mutation results)
 
@@ -195,4 +196,4 @@ Survivors, each with its reason:
 - `_runNative` without its first validity check: the re-check under the lock decides the same; the first check only saves a wait.
 - `_VEStrategy.drain` reaching `idle` for an invalid record: the host never publishes a cancelled segment (`segmentHost.py:570-572`, `:634`), so the reach has no effect. It also survives on `ea0d197` with the gate check removed as well.
 - `_beginRecord` without its validity skip, `_feedCallback` without its validity check: later checks (`_runNative`, `_process`) decide the same. Both also survive on `ea0d197`; neither line changed in this phase.
-- `_WavePlayer.idle` idling the real player when the driver is gone: unreachable (§3.2).
+- ~~`_WavePlayer.idle`~~ `_IdleRoutingPlayer.idle` (*Corrected by review M1*) idling the real player when the driver is gone: unreachable (§3.2).
