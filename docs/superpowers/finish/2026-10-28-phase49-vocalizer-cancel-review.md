@@ -165,3 +165,30 @@ Linux 測試只驗證受控的 native 與音訊邊界；真正的 SDK callback�
 5. 快速連按多個鍵（多筆短 request 互相取消）：沒有漏字也沒有重複、沒有「嗶」聲或雜音。
 6. 說話中切換語音／variant、說話中關閉 NVDA 或換合成器（terminate）：不當機、不殘留音訊。
 7. 中文＋英文混合（兩個引擎各一段）的 segment 流程：段落之間沒有多餘停頓或重疊。
+
+## 修正記錄
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4）。分支 `phase49-vocalizer-cancel`，review commit `968acdd` 之後。只有 Minor，依 §3.4 不做修正 review。突變都在 scratch 複本跑（`PYTHONDONTWRITEBYTECODE=1`、`-p no:cacheprovider`、先清 `__pycache__`、每輪 300 s timeout、輸出寫檔），腳本 `scratchpad/p49fix/mutate.py`、`run_mut.sh`，結果 `scratchpad/p49fix/final_*.txt`；VE 與 Cerence 同時套用突變。
+
+| 項目 | commit | 修法 | 驗證 |
+| --- | --- | --- | --- |
+| M4 | `95fe8f0` | `test_done_of_never_spoken_request_skips_idle`、`test_index_without_running_request_is_dropped` 先說一筆正常的 request（新 helper `speak_live_request`：native 叫一次、`idles == 1`、`dones == [core]`），再送 token 已取消的一筆／直接 `_onIndexReached(5)`，斷言 `idles` 仍為 1、`dones` 不變、`indexes == []` | R4（`_retireRecord` 不清 `_currentRecord`）：目標四檔 322 個測試中 4 failed（兩個測試 ×VE／Cerence；`assert 2 == 1`、`assert [5] == []`）；head：322 passed |
+| M3 | `f730f96` | `test_guarded_speech_never_touches_inner_stop_flag` 末尾再做 `pause(True)`／`pause(False)`（斷言 `pauses == [True, False]`）與 `terminate()`（native `close`／`terminate` monkeypatch，斷言 `closes == 1`），最後再斷言 `flag.calls == []` | 突變 T1（`cancel` 在 `_playerClosing` 提前返回前 `self._isSilence.set()`，即內層 `terminate` → 包裝層 `cancel` 這條路）→ `['set'] == []` 失敗；P1（`pause` 在 `super().pause` 前讀 `_isSilence.is_set()`）→ `['is_set', 'is_set'] == []` 失敗；兩者在修正前的測試上都存活（2 passed）；head 綠。見下方 Ruling |
+| M2 | `ed54487` | 兩個包裝層的 `_idlePlayer` 拿掉永遠為真的 `if record is not None:`，pause 等待往外縮一層；行為不變 | 無可寫的失敗測試（純死碼）；cancel-wrappers、segment-drain、drift 246 passed |
+| M1 | `d45a59e`（改名）、`bfe3b2a`（docstring）、`e630382`（spec） | 協調者決定改名：VE／Cerence 的替身 `_WavePlayer` → `_IdleRoutingPlayer`，docstring 改成一句：只把內層 DoneSpeaking 的 idle 轉給 `_idlePlayer`，其他轉給真 player，不是 RHVoice 那種 `LeasedPlayer`。改名獨立一個 commit，通過會檢查順序的 token 比對（`scratchpad/p49fix/rename_check.py`：只有 7 個 `_WavePlayer` NAME token 變了，VE 2、Cerence 2、測試 3）；RHVoice 的 `_WavePlayer` 與 `test_native_strategy_guards.py:149` 刻意保留。spec 裡描述替身的地方舊名加刪除線、寫新名並標 *Corrected by review M1*；plan 保留原樣當歷史 | naming、drift、native-strategy-guards、cancel-wrappers、segment-drain 290 passed |
+
+第 4 點「使用者還沒確認的使用者可見預設」的替身名改為 `_IdleRoutingPlayer`（協調者決定，使用者可在 merge 前覆寫）；第 5 點 M2、M3 已在 merge 前修。
+
+Ruling（也記在進度帳本）：
+
+- M1：spec 視為這個設計的現行說明，用刪除線更新；plan 是執行紀錄，不改。
+- M3：review 舉的「把 `_playerClosing` 移到 `super().terminate()` 之後」會讓包裝層 `cancel` 跑完整流程，但包裝層 `cancel` 從不呼叫內層 `cancel`，不會碰到旗標，所以不是這個測試要釘的東西；改用兩個真的碰旗標的突變（T1、P1）證明擴充後的測試抓得到。那個重排的風險仍由 `test_guard_keeps_original_pause_and_terminate` 與 segment-drain 的 terminate 測試覆蓋。
+
+最後驗證（head `e630382`）：
+
+- 完整測試（序列、記憶體看門狗、bytecode 關閉）：**3379 passed, 0 skipped**（和 review 基準相同：只改既有測試，沒有新增或刪除）。
+- `prek run --all-files`：8 個 hook 全部 Passed。
+- `git diff --check master`：乾淨。
+- 受保護路徑（`driver/*/driver/*`、`sonic/`、兩個產生的 Unicode 資料檔）、`runtime/`、`RHVoice/`：對 master 無 diff；`git ls-files …/Neural` 無輸出。
+- VE／Cerence 對 master 的 diff 在引擎名換成佔位字後逐字相同；`tests/test_vocalizer_drift.py` 的 `ALLOWED` 沒動。
+- 6 個修正 commit 都沒有 `Co-Authored-By`。
