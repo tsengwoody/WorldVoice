@@ -759,6 +759,16 @@ def test_guarded_speech_never_touches_inner_stop_flag(engine_harness, monkeypatc
 	speak_now(core, ["second"])
 	assert flag.calls == []
 	assert real_player(core).fed == [b"first", b"second"]
+	core.pause(True)
+	core.pause(False)
+	assert real_player(core).pauses == [True, False]
+	# The inner terminate calls cancel; it must return before the inner cancel
+	# would set the flag.
+	monkeypatch.setattr(engine_harness.native, "close", lambda instance: None)
+	monkeypatch.setattr(engine_harness.native, "terminate", lambda: None)
+	core.terminate()
+	assert real_player(core).closes == 1
+	assert flag.calls == []
 
 
 @pytest.mark.parametrize("cancel_kind", ["core", "token"])
