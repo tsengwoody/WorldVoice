@@ -63,7 +63,7 @@ def test_installs_player_stand_in_and_keeps_inner_stop_flag(engine_harness):
 	core = engine_harness.new_core()
 	assert core.supportsCancellationToken is True
 	handler = callback_handler(core)
-	assert isinstance(player_of(core), engine_harness.module._WavePlayer)
+	assert isinstance(player_of(core), engine_harness.module._IdleRoutingPlayer)
 	assert stand_in_real_player(player_of(core)) is real_player(core)
 	# The guard leaves the callback's player and the inner stop Event as created.
 	assert player_of(handler) is real_player(core)
@@ -96,7 +96,7 @@ def test_missing_private_field_falls_back_without_partial_install(engine_harness
 			owner is core._veCallbackHandler and missing == f"callback.{field}"
 		)
 		if not missing_here:
-			assert not isinstance(getattr(owner, field), engine_harness.module._WavePlayer)
+			assert not isinstance(getattr(owner, field), engine_harness.module._IdleRoutingPlayer)
 			if field == "_isSilence":
 				assert type(getattr(owner, field)) is threading.Event
 
@@ -134,7 +134,7 @@ def test_assignment_failure_falls_back_unchanged(engine_harness, monkeypatch):
 	setter = module.SynthDriver.__setattr__
 
 	def fail_stand_in(self, name, value):
-		if name == "_player" and isinstance(value, module._WavePlayer):
+		if name == "_player" and isinstance(value, module._IdleRoutingPlayer):
 			raise RuntimeError("injected install failure")
 		setter(self, name, value)
 

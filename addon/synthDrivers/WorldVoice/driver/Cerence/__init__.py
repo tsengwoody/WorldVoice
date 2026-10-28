@@ -93,7 +93,7 @@ class _ThreadState(threading.local):
 	cleaning = False
 
 
-class _WavePlayer:
+class _IdleRoutingPlayer:
 	"""The inner driver's player, as its DoneSpeaking sees it: idle goes to the wrapper.
 
 	Indexes come from SDK bookmarks in the callback and audio is fed by the
@@ -428,7 +428,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		# guarded callback decides by record validity and feeds _realPlayer.
 		real = self._player
 		try:
-			self._player = _WavePlayer(real, self)
+			self._player = _IdleRoutingPlayer(real, self)
 		except Exception:
 			log.warning("Cerence cancellation guard installation failed", exc_info=True)
 			return
