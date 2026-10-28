@@ -651,11 +651,10 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			return
 		with self._playerOperation():
 			self._realPlayer.idle()
-			if record is not None:
-				with self._speechStateLock:
-					self._speechStateLock.wait_for(
-						lambda: (self._pauses == 0 and not self._paused) or not self._recordValid(record),
-					)
+			with self._speechStateLock:
+				self._speechStateLock.wait_for(
+					lambda: (self._pauses == 0 and not self._paused) or not self._recordValid(record),
+				)
 
 	@contextmanager
 	def _playerOperation(self):
