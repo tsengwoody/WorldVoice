@@ -2,8 +2,9 @@
 
 A wrapper built on the host's own engine module (NVDA's synthDrivers.sapi5, say) lists the names
 it reads, writes or overrides there. Before the engine is offered, the wrapper checks them here
-against the running host, so a host version that lacks one skips the engine with one log line
-instead of failing at construction or speak time.
+against the running host, so a host version that lacks one does not fail at construction or speak
+time: host_names_ready skips the engine with one log line, or a wrapper with another whole core to
+use instead (SAPI5: NVDA's own driver) chooses it from missing_host_names.
 
 What "exists" means, for the live check here and the tests' check of a release's source alike:
 

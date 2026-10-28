@@ -19,7 +19,8 @@ from nvda_releases import (
 )
 
 # The first NVDA release with every name the engine lists (phase 51 spec §1.1). SAPI5's wrapper is
-# built on the request-queue worker NVDA 2025.3 introduced: on older NVDA, Voice.ready() skips it.
+# built on the request-queue worker NVDA 2025.3 introduced: on older NVDA, Voice.ready() uses
+# NVDA's own SAPI5 driver instead (tests/test_sapi5_old_nvda.py).
 FIRST_COMPLETE = {"Espeak": "2024.1", "SAPI5": "2025.3", "OneCore": "2024.1"}
 VERSIONS = (*RELEASES, WORKING_TREE)
 

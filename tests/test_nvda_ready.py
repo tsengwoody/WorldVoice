@@ -1,4 +1,8 @@
-"""Voice.ready() of eSpeak, SAPI5 and OneCore checks their NVDA names on the live NVDA (phase 51)."""
+"""Voice.ready() of eSpeak, SAPI5 and OneCore checks their NVDA names on the live NVDA (phase 51).
+
+eSpeak and OneCore are skipped when a name is missing. SAPI5 then uses NVDA's own SAPI5 driver as
+the whole core, without WorldVoice's segment drain (user decision 2026-10-28, spec §9 Q1).
+"""
 
 import sys
 from types import SimpleNamespace
@@ -46,17 +50,16 @@ class RecordingLogger:
 class UnreadVersion:
 	@property
 	def version(self):
-		raise AssertionError("the NVDA version is read only to log a skip")
+		raise AssertionError("the NVDA version is read only to write a log line")
 
 
-@pytest.fixture(params=sorted(CASES))
-def engine(request, monkeypatch, tmp_path):
-	adapter_class, module, host_class, module_name, class_name = CASES[request.param]
+def _opened(name, monkeypatch, tmp_path):
+	adapter_class, module, host_class, module_name, class_name = CASES[name]
 	adapter = adapter_class()
 	adapter.open(monkeypatch, tmp_path)
 	try:
 		yield SimpleNamespace(
-			name=request.param,
+			name=name,
 			env=adapter.env,
 			module=module(adapter.env),
 			host_class=host_class(adapter.env),
@@ -65,6 +68,22 @@ def engine(request, monkeypatch, tmp_path):
 		)
 	finally:
 		adapter.close()
+
+
+@pytest.fixture(params=sorted(CASES))
+def engine(request, monkeypatch, tmp_path):
+	yield from _opened(request.param, monkeypatch, tmp_path)
+
+
+# Engines that discovery skips when the running NVDA lacks a listed name.
+@pytest.fixture(params=["Espeak", "OneCore"])
+def skipped_engine(request, monkeypatch, tmp_path):
+	yield from _opened(request.param, monkeypatch, tmp_path)
+
+
+@pytest.fixture
+def sapi5(monkeypatch, tmp_path):
+	yield from _opened("SAPI5", monkeypatch, tmp_path)
 
 
 def ready(engine, monkeypatch, version):
@@ -80,7 +99,8 @@ def test_ready_on_ref_nvda_is_true_and_silent(engine, monkeypatch):
 	assert ready(engine, monkeypatch, UnreadVersion()) == (True, [])
 
 
-def test_ready_skips_with_one_warning_when_a_module_name_is_missing(engine, monkeypatch):
+def test_ready_skips_with_one_warning_when_a_module_name_is_missing(skipped_engine, monkeypatch):
+	engine = skipped_engine
 	with monkeypatch.context() as patch:
 		patch.delattr(engine.module, engine.module_name)
 		result, records = ready(engine, monkeypatch, SimpleNamespace(version="2025.1.0"))
@@ -92,7 +112,8 @@ def test_ready_skips_with_one_warning_when_a_module_name_is_missing(engine, monk
 	assert records == [("warning", message)]
 
 
-def test_ready_skips_when_a_class_name_is_missing(engine, monkeypatch):
+def test_ready_skips_when_a_class_name_is_missing(skipped_engine, monkeypatch):
+	engine = skipped_engine
 	owner = f"{engine.host_class.__module__}.{engine.host_class.__qualname__}"
 	with monkeypatch.context() as patch:
 		patch.delattr(engine.host_class, engine.class_name)
@@ -100,6 +121,61 @@ def test_ready_skips_when_a_class_name_is_missing(engine, monkeypatch):
 	assert result is False
 	assert [level for level, _message in records] == ["warning"]
 	assert records[0][1].endswith(f"NVDA 2026.3.0 lacks names this engine needs: {owner}.{engine.class_name}")
+
+
+def sapi5_fallback_message(version, *missing):
+	return (
+		f"SAPI5 engine uses NVDA's own SAPI5 driver, without WorldVoice's segment drain: NVDA {version} "
+		f"lacks {len(missing)} of the names WorldVoice's SAPI5 driver needs: {', '.join(missing)}"
+	)
+
+
+def assert_sapi5_uses_the_wrapper(sapi5):
+	voice = sapi5.env.outer.Voice
+	assert voice.synthDriverClass is sapi5.env.outer.SynthDriver
+	assert voice.drainProfile == sapi5.env.outer.DrainProfile(wasapi_dependent=True)
+
+
+def assert_sapi5_uses_nvdas_driver(sapi5):
+	voice = sapi5.env.outer.Voice
+	assert voice.synthDriverClass is sapi5.host_class
+	assert voice.drainProfile is None
+
+
+def test_sapi5_on_ref_nvda_uses_the_wrapper(sapi5, monkeypatch):
+	assert ready(sapi5, monkeypatch, UnreadVersion()) == (True, [])
+	assert_sapi5_uses_the_wrapper(sapi5)
+
+
+def test_sapi5_uses_nvdas_driver_with_one_info_line_when_a_module_name_is_missing(sapi5, monkeypatch):
+	with monkeypatch.context() as patch:
+		patch.delattr(sapi5.module, sapi5.module_name)
+		result, records = ready(sapi5, monkeypatch, SimpleNamespace(version="2025.1.0"))
+	assert result is True
+	assert_sapi5_uses_nvdas_driver(sapi5)
+	assert records == [
+		("info", sapi5_fallback_message("2025.1.0", f"synthDrivers.sapi5.{sapi5.module_name}")),
+	]
+
+
+def test_sapi5_uses_nvdas_driver_when_a_class_name_is_missing(sapi5, monkeypatch):
+	with monkeypatch.context() as patch:
+		patch.delattr(sapi5.host_class, sapi5.class_name)
+		result, records = ready(sapi5, monkeypatch, SimpleNamespace(version="2025.2.0"))
+	assert result is True
+	assert_sapi5_uses_nvdas_driver(sapi5)
+	missing = f"synthDrivers.sapi5.SynthDriver.{sapi5.class_name}"
+	assert records == [("info", sapi5_fallback_message("2025.2.0", missing))]
+
+
+def test_sapi5_choice_follows_each_ready_call(sapi5, monkeypatch):
+	# ready() decides both ways each time: a later check on a complete NVDA restores the wrapper.
+	with monkeypatch.context() as patch:
+		patch.delattr(sapi5.module, sapi5.module_name)
+		ready(sapi5, monkeypatch, SimpleNamespace(version="2025.1.0"))
+	assert_sapi5_uses_nvdas_driver(sapi5)
+	assert ready(sapi5, monkeypatch, UnreadVersion()) == (True, [])
+	assert_sapi5_uses_the_wrapper(sapi5)
 
 
 def test_live_and_static_views_agree_on_ref_nvda(engine):
@@ -113,7 +189,7 @@ def test_live_and_static_views_agree_on_ref_nvda(engine):
 	assert live == release_missing(engine.name, WORKING_TREE) == ()
 
 
-def test_sapi5_imports_and_skips_without_audio_stream_class(monkeypatch, tmp_path):
+def test_sapi5_imports_and_uses_nvdas_driver_without_audio_stream_class(monkeypatch, tmp_path):
 	adapter = SAPI5Adapter()
 	adapter.open(monkeypatch, tmp_path)
 	try:
@@ -128,11 +204,10 @@ def test_sapi5_imports_and_skips_without_audio_stream_class(monkeypatch, tmp_pat
 			logger = RecordingLogger()
 			patch.setattr(outer, "log", logger)
 			patch.setitem(sys.modules, "versionInfo", SimpleNamespace(version="2024.1.0"))
-			assert outer.Voice.ready() is False
-		message = (
-			"Skipping SAPI5 engine candidate: NVDA 2024.1.0 lacks names this engine needs: "
-			"synthDrivers.sapi5.SynthDriverAudioStream"
-		)
-		assert logger.records == [("warning", message)]
+			assert outer.Voice.ready() is True
+			assert outer.Voice.synthDriverClass is adapter.env.base.SynthDriver
+			assert outer.Voice.drainProfile is None
+		message = sapi5_fallback_message("2024.1.0", "synthDrivers.sapi5.SynthDriverAudioStream")
+		assert logger.records == [("info", message)]
 	finally:
 		adapter.close()

@@ -9,7 +9,7 @@ from synthDrivers.sapi5 import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
-from ...runtime.hostNames import host_names_ready
+from ...runtime.hostNames import missing_host_names
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
@@ -38,15 +38,15 @@ def _purgeFlags():
 
 
 def _nvdaLabel():
-	# Imported here: the NVDA version is read only to name it in a skip log.
+	# Imported here: the NVDA version is read only to name it in the log line of ready().
 	import versionInfo
 
 	return f"NVDA {versionInfo.version}"
 
 
 def _nvdaBase(name):
-	# ready() refuses the engine when NVDA lacks the class (it is in NVDA_MODULE_NAMES);
-	# object only lets this module import so ready() can say so.
+	# ready() chooses NVDA's own driver when NVDA lacks the class (it is in NVDA_MODULE_NAMES), so
+	# this class is then never used; object only lets this module import so ready() can choose.
 	return getattr(sapi5, name, object)
 
 
@@ -55,7 +55,8 @@ class _Sapi5Port:
 
 	The worker (_speakThread) re-implements NVDA's own loop around these, so
 	they are used in place rather than forwarded. Voice.ready() checks these
-	names against the running NVDA; compare them with NVDA's sapi5.py on every
+	names against the running NVDA and, when one is missing, uses NVDA's own
+	driver instead of this wrapper; compare them with NVDA's sapi5.py on every
 	NVDA upgrade.
 	"""
 
@@ -681,21 +682,38 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		return super().terminate()
 
 
+_DRAIN_PROFILE = DrainProfile(wasapi_dependent=True)
+
+
 class Voice(BaseVoice):
 	engine = "SAPI5"
-	drainProfile = DrainProfile(wasapi_dependent=True)
-
+	# ready() sets both for the running NVDA, so the core is one whole class either way.
+	drainProfile = _DRAIN_PROFILE
 	synthDriverClass = SynthDriver
 
 	@classmethod
 	def ready(cls):
-		# Skip the engine, with one log line, when the running NVDA lacks a name the wrapper uses.
-		return host_names_ready(
-			cls.engine,
+		"""Choose this wrapper where NVDA has every name it uses, otherwise NVDA's own driver.
+
+		NVDA before 2025.3 lacks the speech queue the wrapper is built on. There NVDA's
+		sapi5.SynthDriver is the whole core, as in WorldVoice 6.2: no drain profile, so the
+		completion policy selects LEGACY_DONE, and plain speak(commands).
+		"""
+		missing = missing_host_names(
 			sapi5,
 			BaseSynthDriver,
 			module_names=_Sapi5Port.NVDA_MODULE_NAMES,
 			class_names=_Sapi5Port.NVDA_PRIVATES | _Sapi5Port.NVDA_OVERRIDES,
-			host_label=_nvdaLabel,
-			logger=log,
 		)
+		if not missing:
+			cls.synthDriverClass, cls.drainProfile = SynthDriver, _DRAIN_PROFILE
+			return True
+		cls.synthDriverClass, cls.drainProfile = BaseSynthDriver, None
+		log.info(
+			"SAPI5 engine uses NVDA's own SAPI5 driver, without WorldVoice's segment drain: "
+			"%s lacks %d of the names WorldVoice's SAPI5 driver needs: %s",
+			_nvdaLabel(),
+			len(missing),
+			", ".join(missing),
+		)
+		return True
