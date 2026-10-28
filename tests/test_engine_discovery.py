@@ -224,7 +224,6 @@ STALE_BUNDLED = "Skipping Stale engine candidate: bundled engine uses the pre-re
 @pytest.mark.parametrize(
 	("old", "new", "member"),
 	[
-		("synth_driver_class", "synthDriverClass", object),
 		("extra_capabilities", "extraCapabilities", frozenset({"waitfactor"})),
 		("drain_profile", "drainProfile", None),
 		("create_core", "createCore", classmethod(lambda cls: object())),
@@ -252,6 +251,88 @@ def test_plugin_with_old_contract_names_is_reported(discovery, monkeypatch, tmp_
 	assert asked == []
 	assert [message for level, message in log.lines if level == "error"] == [
 		STALE_PLUGIN.format(f"{old} (now {new})"),
+	]
+
+
+MAPPED = "Mapping {} engine candidate's pre-rename contract name synth_driver_class onto synthDriverClass for now; {}"
+
+
+class OldDriver:
+	pass
+
+
+def test_plugin_with_only_the_old_driver_class_name_is_mapped_and_loaded(discovery, monkeypatch, tmp_path):
+	# Decided by the user (2026-10-28): the Neural, IBM and AISound plugins in use differ from the
+	# new contract only in synth_driver_class, so discovery maps it onto synthDriverClass and warns.
+	asked = []
+	base = type("BaseVoice", (), {"synthDriverClass": None})
+	voice = type(
+		"Voice",
+		(base,),
+		{
+			"engine": "Stale",
+			"ready": classmethod(lambda cls: asked.append(cls) or True),
+			"synth_driver_class": OldDriver,
+		},
+	)
+	engine_module(monkeypatch, "fake_stale", voice)
+	log = Log()
+	plugin = discovery.EngineSpec("Stale", "Stale", "external", "fake_stale", str(tmp_path), True)
+
+	loaded = discovery.load_enabled_engine_classes([plugin], {}, logger=log)
+
+	assert loaded == {"Stale": voice}
+	assert voice.synthDriverClass is OldDriver
+	assert base.synthDriverClass is None
+	assert asked == [voice]
+	assert [message for level, message in log.lines if level in ("warning", "error")] == [
+		MAPPED.format("Stale", "update the plugin"),
+	]
+
+
+def test_plugin_with_both_driver_class_names_keeps_the_new_one_quietly(discovery, monkeypatch, tmp_path):
+	voice = type(
+		"Voice",
+		(),
+		{
+			"engine": "Both",
+			"ready": classmethod(lambda cls: True),
+			"synthDriverClass": object,
+			"synth_driver_class": OldDriver,
+		},
+	)
+	engine_module(monkeypatch, "fake_both", voice)
+	log = Log()
+	plugin = discovery.EngineSpec("Both", "Both", "external", "fake_both", str(tmp_path), True)
+
+	loaded = discovery.load_enabled_engine_classes([plugin], {}, logger=log)
+
+	assert loaded == {"Both": voice}
+	assert voice.synthDriverClass is object
+	assert [message for level, message in log.lines if level in ("warning", "error")] == []
+
+
+def test_old_driver_class_name_with_another_old_name_is_still_skipped(discovery, monkeypatch, tmp_path):
+	voice = type(
+		"Voice",
+		(),
+		{
+			"engine": "Stale",
+			"ready": classmethod(lambda cls: True),
+			"synth_driver_class": OldDriver,
+			"drain_profile": None,
+		},
+	)
+	engine_module(monkeypatch, "fake_stale", voice)
+	log = Log()
+	plugin = discovery.EngineSpec("Stale", "Stale", "external", "fake_stale", str(tmp_path), True)
+
+	loaded = discovery.load_enabled_engine_classes([plugin], {}, logger=log)
+
+	assert loaded == {}
+	assert "synthDriverClass" not in vars(voice)
+	assert [message for level, message in log.lines if level in ("warning", "error")] == [
+		STALE_PLUGIN.format("synth_driver_class (now synthDriverClass), drain_profile (now drainProfile)"),
 	]
 
 

@@ -30,6 +30,9 @@ _LOG = logging.getLogger(__name__)
 # driver.Voice contract names before phase 47c renamed them to NVDA mixedCase (refactor9 6.1), with
 # their new names. A plugin that still has one was built for an older WorldVoice: its core cannot be
 # created, or its drain profile or capabilities would be silently ignored, so it is skipped.
+# Decided by the user (2026-10-28): the one exception is synth_driver_class alone, the only name the
+# Neural, IBM and AISound plugins use; it is mapped onto synthDriverClass with a warning.
+MAPPED_CONTRACT_NAME = "synth_driver_class"
 PRE_RENAME_CONTRACT_NAMES = {
 	"synth_driver_class": "synthDriverClass",
 	"extra_capabilities": "extraCapabilities",
@@ -184,13 +187,26 @@ def load_enabled_engine_classes(
 					)
 					continue
 				stale = _pre_rename_contract_names(voice)
+				# A workspace engine is a plugin its author updates; a bundled one is WorldVoice's own.
+				owner, remedy = (
+					("plugin", "update the plugin")
+					if spec.source == "external"
+					else ("bundled engine", "update WorldVoice")
+				)
+				if stale == [MAPPED_CONTRACT_NAME]:
+					new_name = PRE_RENAME_CONTRACT_NAMES[MAPPED_CONTRACT_NAME]
+					# A plugin that also sets the new name supports both contracts; the new one wins.
+					if not getattr(voice, new_name, None):
+						setattr(voice, new_name, getattr(voice, MAPPED_CONTRACT_NAME))
+						logger.warning(
+							"Mapping %s engine candidate's pre-rename contract name %s onto %s for now; %s",
+							spec.name,
+							MAPPED_CONTRACT_NAME,
+							new_name,
+							remedy,
+						)
+					stale = []
 				if stale:
-					# A workspace engine is a plugin its author updates; a bundled one is WorldVoice's own.
-					owner, remedy = (
-						("plugin", "update the plugin")
-						if spec.source == "external"
-						else ("bundled engine", "update WorldVoice")
-					)
 					logger.error(
 						"Skipping %s engine candidate: %s uses the pre-rename contract name(s) %s; %s",
 						spec.name,
