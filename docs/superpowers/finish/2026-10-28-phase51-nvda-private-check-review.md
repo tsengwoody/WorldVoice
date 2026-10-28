@@ -189,3 +189,80 @@ SAPI5 和 OneCore 列的 instance 屬性（`_threadCond`、`_dll`…）永遠不
 - 使用者決定覆蓋 spec §6 原本的「readme 不改」。
 
 本輪有 Important（I1、I2），依 §3.4 由協調者另派修正 review。
+
+## 修正 review（Opus xHigh）
+
+日期：2026-10-28。審閱者：Opus 5.5（effort xHigh，DEVELOPMENT_WORKFLOW.md §3.4 修正 review；唯讀，只新增本段）。範圍：修正 commit `10da13a..a502278`（11 個：5 個 test、1 個 fix、5 個 docs），對照上面的 I1、I2、M1–M6 與「修正記錄」。行號以 head `a502278` 為準。
+
+### 結論
+
+**需要再修一輪，只有文件。** 程式碼與測試的修正都正確：I1、I2 真的修好，新測試抓得到原本存活的突變（我在修前、修後兩份 scratch 複本上自己重跑過），`__wrapped__` 候選沒有引入假「存在」或迴圈，M5 的新測試不會在 beta／rc tag、排序或不同 tag 集合下誤紅，也不會 skip。但使用者決定的 readme 變更紀錄有一句事實錯誤（新 Important NI1）：它說 SAPI5 在 NVDA 2024.1–2025.2 上「以前就不能用」，而最後一個發佈版 6.2 在這些版本上是能用的。
+
+### 逐項確認
+
+| 項目 | 結果 | 依據 |
+| --- | --- | --- |
+| I1 | **已修** | `tests/test_runtime_host_names.py:179-183`。先斷言 `_inherited`、`_inheritedFlag` 不在 `_class_stored_names` 裡，所以只能靠 `hasattr` 的繼承部分通過。突變 H1（`name in vars(host_class)`）：修前（`10da13a` 的測試）**存活**（81 passed）→ 修後**殺**（只有這個新測試失敗）。 |
+| I2 | **已修** | `tests/test_nvda_release_names.py:168-212`。四個版本的完整限定集合和 spec §10 逐一相同（module 9／3 個；class 13／12 個，含 overrides `_onEndStream`、`_speakThread`、`_initWasapiAudio`）。N1（`class_names=()`）、N2（丟掉 `NVDA_OVERRIDES`）：修前都**存活** → 修後都**殺**（各 4 個 failed）。我另外加了 N2b（丟掉 `NVDA_PRIVATES`），也被殺。只釘 SAPI5 就夠，因為 eSpeak 和 OneCore 每一版都齊全，N1 在它們身上沒有可觀察的差別；它們 class 視圖整個壞掉的情況，會被 FIRST_COMPLETE 測試抓到。 |
+| M1 | **已修**（見新 Minor NM1） | `hostNames.py:48` 加了 `__wrapped__` 候選，`:16-18` 的 docstring、`nvda_releases.py:8-16` 和 spec §4.2 都寫出兩個例外。W1（拿掉候選）會被 `test_stores_under_a_wrapping_decorator_are_present` 殺。 |
+| M2 | **已修** | N6 修後**殺**（`test_static_and_live_views_agree_on_synthetic_source`）。 |
+| M3 | **已修** | `nvda_releases.py:5-6`、`:92-93` 的成因寫對了。 |
+| M4 | **已修** | G7（`from synthDrivers.sapi5 import SapiSink`）：修前**存活** → 修後**殺**。G8（`import *`）也被殺。G9（`from synthDrivers.espeak import SynthDriver …`）**沒有**被這個守門擋，符合「只容許 `SynthDriver`」的設計，所以沒有假陽性（這個突變在 `test_nvda_ready` 因為 harness 失敗，和守門無關）。見下方「未涵蓋」。 |
+| M5 | **已修** | R1（`RELEASES` 拿掉 `2026.3beta6`）：修前**存活**（78 passed）→ 修後**殺**。邊界行為見下方 M5 探測。 |
+| M6 | 不修，**理由成立** | 每次 discovery 跑一次，十幾 ms；已列進 Windows 手動項目 4。 |
+| 使用者決定（readme） | **段落正確，事實有誤** | 6 個檔都放在 Notes／Примечания／Примітки／注意，以及 Next update／Следующее обновление／Наступне оновлення／下一版更新的最後一條；`addon/doc/en/` 和 `.html` 沒有變動。Notes 那一點正確；變更紀錄那一條有問題，見 NI1。 |
+
+### 新發現
+
+#### Important
+
+**NI1. 變更紀錄說 SAPI5 在 NVDA 2024.1–2025.2「以前就不能用」，但對發佈版來說不是這樣**（`readme.md:101`；`addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md:101`，commit `ddd9c55`）
+
+英文原句是「On NVDA 2024.1 to 2025.2, SAPI5 voices did not work in WorldVoice and errors appeared in the NVDA log」，五個翻譯的意思相同。這句話只對 6.2 之後、還沒發佈的開發版成立：會壞是因為 `2b3b159`（2026-09-29，`Add correlated SAPI5 WASAPI segment drain wrapper`），而它不在 tag `6.2` 裡（`git merge-base --is-ancestor 2b3b159 6.2` → 否）。最後一個發佈版 6.2（2026-07-31）的 `driver/SAPI5/__init__.py` 只有 8 行，`synth_driver_class = SynthDriver`，就是 NVDA 自己的 `synthDrivers.sapi5.SynthDriver`；`engineOn` 直接建構它（`git show 6.2:addon/synthDrivers/WorldVoice/driver/__init__.py:174-177`），沒有讀任何 2025.3 才有的名稱。6.2 的最低版本也是 2024.1。「下一版更新」是相對於 6.2 寫的，所以對使用者來說，這次是**移除** NVDA 2024.1–2025.2 上的 SAPI5，不是修好一個錯誤。（6.2 在這些 NVDA 上實際能說話，是從程式碼推論的，沒有在 Windows 驗證。）
+
+失敗情境：使用者在 NVDA 2025.1 上用 WorldVoice 6.2 的 SAPI5 語音，更新後 SAPI5 語音不見了。變更紀錄卻告訴他「以前在你的版本上本來就不能用、還會出錯」，他沒辦法從文件知道這是一項支援被拿掉、要升級 NVDA 才能恢復。另外，spec §9 Q1 的選項 (a) 寫「no behaviour change」，這是相對於 `master` 說的；相對於 6.2，(a) 就是移除。使用者 2026-10-28 的決定可能是在「今天本來就壞了」的前提下做的。
+
+建議修法：只改這 6 行，例如英文改成「**SAPI5 now needs NVDA 2025.3 or later:** WorldVoice's SAPI5 engine is now built on the speech queue NVDA 2025.3 introduced. On NVDA 2024.1 to 2025.2, WorldVoice no longer offers SAPI5 voices and writes one warning to the NVDA log instead. eSpeak, OneCore and the other engines are not affected.」，五個翻譯照著改（拿掉「以前不能用／出現錯誤」那一句，改成「不再提供」）。Notes 那一點不用改。協調者 merge 前向使用者列預設時，要寫清楚：**相對於 6.2，NVDA 2024.1–2025.2 的使用者會失去 SAPI5**（spec §9 Q1 的 (d) 仍然是唯一保留它的選項）。
+
+#### Minor
+
+**NM1. `__wrapped__` 只往下看一層，而且只看 class 屬性本身；docstring 讓人以為「有留 `__wrapped__` 就看得到」**（`hostNames.py:16-18`、`:48`；`tests/nvda_releases.py:12-13`；spec §4.2 `:137`）
+
+用 `scratchpad/p51fixreview/wrapped_probe.py` 在 CPython 3.11.18、3.13.18、3.14.4 下跑，三個版本結果相同：單層 `@functools.wraps` 和 `@functools.lru_cache` 現在看得到。但兩層 `@logged @logged`、`@staticmethod @logged`、`@property @logged` 裡的 `self.x =` 仍然是 `[]`。原因是外層包裝的 `__wrapped__` 指向內層包裝，而 `staticmethod.__wrapped__`、`fget` 指向的是包裝函式本身。這三種情況裡，原函式都有被某一層保留成 `__wrapped__`，所以兩份 docstring 寫的「a function a decorator keeps as __wrapped__」和「without keeping it as __wrapped__」都不精確。這些都是 live 比較嚴的情況（會假略過），而靜態視圖照樣算存在，所以多版本測試抓不到。今天沒有影響：2024.1、2025.3、2026.3beta6 的 `synthDriverHandler`、`driverHandler`、`baseObject`、`autoSettings`、`garbageHandler` 與三個 synth 檔，除了 `@property`／`@staticmethod`／`@classmethod`／`@abstractmethod`／`.setter`，沒有別的 decorator，也沒有 `__wrapped__`、`wraps(`、`lru_cache`、`cached_property`。建議二選一：(a) docstring 改成「只看 class 屬性本身那一層 `__wrapped__`」；或 (b) 對每個候選沿 `__wrapped__` 鏈走，用 seen set 防迴圈。(b) 不會有遞迴問題：`selfloop.__wrapped__ = selfloop` 在現在的實作下只是同一段 code 產出兩次。
+
+**NM2.（可選）zh_CN 的「或更新版本」**（`addon/doc/zh_CN/readme.md:88`、`:101`）：大陸軟體文件慣用「或更高版本」；繁中的「或更新版本」沒問題。修 NI1 時可以順手改。
+
+#### 確認沒有新問題
+
+- **`__wrapped__` 不會造成假「存在」**：會多認得的只有「class dict 裡某個物件帶的函式 code」，這和原本的語意一樣（例如 `b = functools.lru_cache(_helper)` 現在會讀模組層 `_helper` 的 store，而修前 `b = _helper` 本來就會讀）。帶萬用 `__getattr__` 的物件，修前就會經由 `__func__`／`fget` 被讀到（`wrapped_probe_pre.py` 用 `10da13a` 的 `hostNames.py` 跑，`WithProxy` 一樣是 `['_fromProxy']`），不是這次新增的。只做一次 `getattr`，不會遞迴也不會迴圈。`unittest.mock` 的 `Mock`／`MagicMock` 對 `__wrapped__` 回 `None`（實測），所以測試 stub 不會因此多出名稱。
+- **static ⊆ live 方向仍成立**：`__wrapped__` 只會讓 live 的「存在」集合變大，所以 live 缺的名稱仍是 static 缺的名稱的子集，只差 docstring 寫的兩個例外，和 docstring 一致。
+- **M5 不會誤紅、不會 skip**：`scratchpad/p51fixreview/m5probe.py` 讓測試對著假 repo 跑，結果如下。
+  - 同一個 feature release 有 beta、rc、正式版、點版本（`2026.3beta6`／`rc1`／`2026.3`／`2026.3.1`）→ PASS。
+  - `2026.10beta1` 和 `2026.9` 並存 → FAIL，訊息是 2026.10，證明是數值排序，不是字串排序。
+  - 有 `2026.4beta1` 或 `2027.1rc1` → FAIL，附「add its newest tag」提示。
+  - `0.6p3`、`2027.1-dev`、`2027.1alpha1`、`2027.1.next` 這類不符合格式的 tag 會被忽略 → PASS。
+  - 只有較舊的 tag → PASS（缺的 tag 由 `release_source` 的 fetch 提示處理）。
+  - 沒有 tag、不是 git 目錄、目錄不存在 → `pytest.fail` 附 fetch 提示。
+  - 實際的 `ref/nvda` 有 367 個 `release-*` tag，除了 6 個 0.x 舊 tag，全部符合格式；最大的是 (2026, 3)，在 `RELEASES` 裡。
+- **M4 守門沒有假陽性**：三個 wrapper 在 import 時期的 `from synthDrivers.<mod> import` 只有 `SynthDriver`。OneCore 用相對 import `.driver`，被 `level == 0` 排除；vendored 內層本來就不在掃描範圍。**未涵蓋（既有的缺口，不是這次引入的）**：在 import 時期讀 `BaseSynthDriver.X`（NVDA class 的屬性）、`from synthDrivers import sapi5 as 別名` 之後讀 `別名.X`、`synthDrivers.sapi5.X` 這種長鏈。今天都沒有，這次不用修。
+
+### 驗證指令與結果
+
+| 項目 | 指令／方法 | 結果 |
+| --- | --- | --- |
+| 修前／修後突變 | `scratchpad/p51fixreview/mutrun.py`：把 worktree 複製到 scratch（不含 `.git`、`__pycache__`，`ref` 用 symlink）；`pre` 把 5 個修正檔換回 `git show 10da13a:<path>`。每個突變單獨套用，先清 `__pycache__`，`PYTHONDONTWRITEBYTECODE=1 timeout 300 python3 -m pytest -p no:cacheprovider -q` 跑 4 個目標測試檔，輸出在 `scratchpad/p51fixreview/{pre,post}.log`，複本已刪除 | pre：NONE 81 passed；H1、N1、N2、G7 **存活**，R1 **存活**（78 passed）。post：NONE 88 passed；H1、N1、N2、N2b、N6、W1、G7、G8、R1 全部**殺**；G9 沒有被守門擋（符合設計） |
+| M5 邊界 | `scratchpad/p51fixreview/m5probe.py`（假 git repo，替換 `test_nvda_release_names.NVDA`） | 結果見上一節 |
+| `__wrapped__` 行為 | `wrapped_probe.py` 在 3.11.18、3.13.18、3.14.4 下跑；`wrapped_probe_pre.py` 用修前的 `hostNames.py` 跑 | 結果見 NM1 與上一節 |
+| NVDA 的 decorator | `git -C ref/nvda show <tag>:<file> \| grep -nE '^\s*@…\|__wrapped__\|wraps\(\|lru_cache\|cached_property'`（排除 property、staticmethod、classmethod、abstractmethod、setter），在 2024.1、2025.3、2026.3beta6 對 8 個檔案跑 | 沒有輸出 |
+| 6.2 的 SAPI5 | `git show 6.2:addon/synthDrivers/WorldVoice/driver/SAPI5/__init__.py`；`git merge-base --is-ancestor 2b3b159 6.2`；`git log -S'_threadCond' -- …/SAPI5/__init__.py` | 6.2 是 8 行的薄包裝；破壞相容性的 commit 是 6.2 之後才有（NI1） |
+| 完整套件（`a502278`，序列，記憶體看門狗 3 GB） | `cd /workspace/WorldVoice-phase51 \|\| exit 1; ( while sleep 5; do … pkill -f pytest … done ) & W=$!; PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -p no:cacheprovider tests; kill $W` | **3435 passed，0 skipped，102.05 s**（和修正記錄一致） |
+| prek | `prek run --all-files` | 8 個 hook 全部 Passed |
+| 空白 | `git diff --check master` | 乾淨（rc 0） |
+| 受保護路徑 | `git diff --stat master -- 'addon/synthDrivers/WorldVoice/driver/*/driver/*' …/driver/sonic/ …/script_data.py …/unspaced_common_data.py`；`git ls-files addon/synthDrivers/WorldVoice/driver/Neural` | 兩個都沒有輸出 |
+| 建置輸出 | `git diff --stat master -- addon/doc/en '*.html'` | 沒有輸出 |
+| 翻譯用語 | 用 grep 對照各檔原有的用語：ru「речевой движок」「журнал」；uk「мовленнєвий рушій」「журнал」；zh_CN「语音引擎」「日志」；zh_TW／zh_HK「語音引擎」「記錄檔」（NVDA 的 log；WorldVoice 自己的功能叫「日誌記錄」，兩者有區分）；zh_HK 和 zh_TW 逐字相同，和 master 上的做法一致 | 用語一致、句子自然；只有 NI1 的事實錯誤和 NM2 |
+
+### 給協調者
+
+- 下一輪只需要改 NI1（6 行變更紀錄，NM2 可以順手改）；NM1 是便宜的 Minor，可以一起修（改 docstring 或沿鏈走）。改完以後是否還要再做一次修正 review，依 §3.4 由協調者決定。這一輪的新發現只有文件。
+- 使用者還沒確認的預設要改寫第 1 點：**相對於發佈版 6.2，NVDA 2024.1–2025.2 的使用者會失去 SAPI5 語音**（6.2 用 NVDA 自己的 SAPI5 driver；目前的分段 drain wrapper 需要 NVDA 2025.3 的語音佇列）。
