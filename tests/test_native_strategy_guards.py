@@ -8,7 +8,33 @@ import pytest
 from addon_loader import REF
 
 ROOT = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
-ENGINES = ("Espeak", "SAPI5", "RHVoice", "OneCore", "VE", "Cerence")
+# Packages under driver/ that are not engine wrappers. Neural restored locally from
+# storage/Neural-snapshot-*.zip is untracked and keeps the old interface.
+NON_ENGINE_PACKAGES = {"sonic"}
+UNTRACKED_PACKAGES = {"Neural"}
+
+
+def _driver_packages():
+	return sorted(
+		path.parent.name
+		for path in (ROOT / "driver").glob("*/__init__.py")
+		if path.parent.name not in UNTRACKED_PACKAGES
+	)
+
+
+def _defines_strategy(package):
+	tree = ast.parse((ROOT / "driver" / package / "__init__.py").read_text(encoding="utf-8"))
+	return any(isinstance(n, ast.ClassDef) and n.name.endswith("Strategy") for n in tree.body)
+
+
+# Every wrapper that defines a *Strategy, so a new one is checked without being listed here.
+ENGINES = tuple(package for package in _driver_packages() if _defines_strategy(package))
+
+
+def test_every_driver_package_is_an_engine_or_listed():
+	# A new wrapper without a strategy, or a helper package, must be named on purpose.
+	assert set(_driver_packages()) - set(ENGINES) == NON_ENGINE_PACKAGES
+	assert {"Cerence", "Espeak", "OneCore", "RHVoice", "SAPI5", "VE"} <= set(ENGINES)
 
 
 def test_every_strategy_subclasses_native_strategy():
@@ -395,16 +421,12 @@ def test_wrappers_read_no_nvda_module_attribute_at_import():
 	}
 
 
-# Barrier names (phase 52). A barrier of a shared kind is named by its runtime/barriers.py
-# constant; these are the only engine-specific names, each because its evidence proves
-# something no shared kind describes (docs/superpowers/specs/2026-10-28-phase52-shared-barriers-design.md §3.2).
+# Barrier names (phase 52, option B'). A barrier of a shared kind is named by its
+# runtime/barriers.py constant; these are the only engine-specific names, each because its
+# evidence proves something no shared kind describes
+# (docs/superpowers/specs/2026-10-28-phase52-shared-barriers-design.md §3). Other engines have none.
 ENGINE_SPECIFIC_BARRIERS = {
-	"Espeak": set(),
-	"SAPI5": set(),
 	"RHVoice": {"message"},  # RHVoice_new_message succeeded: a precondition, not completion
-	"OneCore": set(),
-	"VE": set(),
-	"Cerence": set(),
 }
 # Each strategy's declared set and its ordinary set (None: ordinary records take the strategy's).
 DECLARED_BARRIERS = {
@@ -506,18 +528,33 @@ def _barrier_imports(tree):
 def test_strategy_barriers_use_shared_or_listed_names(engine):
 	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
 	shared, imported = _shared_barriers(), _barrier_imports(tree)
+	specific = ENGINE_SPECIFIC_BARRIERS.get(engine, set())
 	assert imported <= set(shared), (engine, imported)
 	for node in _barrier_expressions(tree):
 		if isinstance(node, ast.Name):
 			assert node.id in imported, (engine, node.id, node.lineno)
 		else:
 			assert isinstance(node, ast.Constant), (engine, ast.unparse(node), node.lineno)
-			assert node.value in ENGINE_SPECIFIC_BARRIERS[engine], (engine, node.value, node.lineno)
+			assert node.value in specific, (engine, node.value, node.lineno)
 	declared, ordinary = _declared_barriers(tree)
 	expected_declared, expected_ordinary = DECLARED_BARRIERS[engine]
 	assert {_barrier_label(node) for node in declared} == expected_declared
 	assert len(declared) == len(expected_declared)
 	assert (None if ordinary is None else {_barrier_label(node) for node in ordinary}) == expected_ordinary
+
+
+def test_every_engine_has_a_declared_barriers_row():
+	assert set(DECLARED_BARRIERS) == set(ENGINES)
+	assert set(ENGINE_SPECIFIC_BARRIERS) <= set(ENGINES)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_every_strategy_feeds_and_plays_out_its_audio(engine):
+	# SegmentHost enforces PLAYED_OUT; AUDIO_FED is what every current engine also proves.
+	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+	declared, _ = _declared_barriers(tree)
+	assert {"AUDIO_FED", "PLAYED_OUT"} <= {_barrier_label(node) for node in declared}
+	assert {"AUDIO_FED", "PLAYED_OUT"} <= _barrier_imports(tree)
 
 
 def test_engine_specific_barrier_names_are_used_and_not_shared():
