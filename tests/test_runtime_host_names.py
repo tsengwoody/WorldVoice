@@ -68,8 +68,13 @@ PROBE = """
 b = 1
 
 class Base:
+	_inheritedFlag = 1
+
 	def __init__(self):
 		self._base = 1
+
+	def _inherited(self):
+		return 1
 
 class Cls(Base):
 	_flag = False
@@ -143,6 +148,13 @@ def test_nested_class_names_are_qualified_with_the_qualname():
 
 def test_inherited_instance_attribute_is_present_live(probe):
 	assert missing(probe, class_names={"_base"}) == ()
+
+
+def test_inherited_class_attributes_are_present_live(probe):
+	# A method or class attribute a base defines is found by hasattr; no function stores these names.
+	names = {"_inherited", "_inheritedFlag"}
+	assert not names & host_names._class_stored_names(probe.Cls)
+	assert missing(probe, class_names=names) == ()
 
 
 def test_missing_class_names_are_qualified_with_module_and_qualname(probe):
