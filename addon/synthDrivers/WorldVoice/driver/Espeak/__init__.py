@@ -60,8 +60,18 @@ class _EspeakPort:
 	"""Every NVDA private the wrapper touches in synthDrivers._espeak.
 
 	NVDA's _espeak.terminate() resets player, espeakDLL and onIndexReached to
-	None, so nothing here needs restoring.
+	None, so nothing here needs restoring. Voice.ready() checks these names
+	against the running NVDA; compare them with NVDA's _espeak.py and espeak.py
+	on every NVDA upgrade.
 	"""
+
+	# Read or written through the synthDrivers._espeak module.
+	NVDA_MODULE_NAMES = frozenset(
+		{"EE_OK", "_execWhenDone", "espeakDLL", "isSpeaking", "onIndexReached", "player"},
+	)
+	# Members of NVDA's synthDrivers.espeak.SynthDriver: none used in place, one overridden.
+	NVDA_PRIVATES = frozenset()
+	NVDA_OVERRIDES = frozenset({"_onIndexReached"})
 
 	def install(self, host, driver):
 		_espeak.player = LeasedPlayer(host, _espeak.player)

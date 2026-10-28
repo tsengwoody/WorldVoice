@@ -40,14 +40,32 @@ class _Sapi5Port:
 	"""NVDA synthDrivers.sapi5 private names this wrapper reads, writes or overrides.
 
 	The worker (_speakThread) re-implements NVDA's own loop around these, so
-	they are used in place rather than forwarded; compare this list with
-	NVDA's sapi5.py on every NVDA upgrade.
+	they are used in place rather than forwarded. Voice.ready() checks these
+	names against the running NVDA; compare them with NVDA's sapi5.py on every
+	NVDA upgrade.
 	"""
 
-	NVDA_PRIVATES = frozenset(
+	# Read through the synthDrivers.sapi5 module, including the modules it imports.
+	NVDA_MODULE_NAMES = frozenset(
 		{
+			"ISpEventSource",
+			"ISpNotifySource",
+			"ISpVoice",
+			"SapiSink",
+			"SonicStream",
+			"SpeechVoiceSpeakFlags",
+			"SynthDriverAudioStream",
 			"_SPEventEnum",
 			"_SapiEvent",
+			"config",
+			"hresult",
+			"nvwave",
+			"sonicInitialize",
+		},
+	)
+	# Members of NVDA's sapi5.SynthDriver used in place, and the ones overridden.
+	NVDA_PRIVATES = frozenset(
+		{
 			"_bookmarkLists",
 			"_isCancelling",
 			"_isCompleted",

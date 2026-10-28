@@ -31,13 +31,17 @@ class _OneCorePort:
 	"""Parent private names (vendored OneCoreSynthDriver and NVDA oneCore) this wrapper uses.
 
 	The worker and native callback re-implement the parent's flow around these,
-	so they are used in place; compare these lists with both parents on upgrade.
+	so they are used in place. Every listed name is NVDA's; Voice.ready() checks
+	them against the running NVDA. Compare these lists with both parents on upgrade.
 	"""
 
+	# Read through the synthDrivers.oneCore module.
+	NVDA_MODULE_NAMES = frozenset(
+		{"HUNDRED_NS_PER_SEC", "WAVE_HEADER_LENGTH", "_OcPreAPI5SsmlConverter", "_OcSsmlConverter"},
+	)
+	# Members of NVDA's oneCore.SynthDriver used in place, and the ones overridden.
 	NVDA_PRIVATES = frozenset(
 		{
-			"_OcPreAPI5SsmlConverter",
-			"_OcSsmlConverter",
 			"_callbackInst",
 			"_dll",
 			"_earlyExitCB",

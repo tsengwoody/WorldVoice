@@ -35,6 +35,28 @@ def test_espeak_touches_nvda_privates_only_through_its_port():
 	assert outside == []
 
 
+NVDA_ESPEAK = REF / "nvda/source/synthDrivers/espeak.py"
+
+
+def test_espeak_nvda_names_are_listed_and_exist_in_nvda():
+	tree = ast.parse((ROOT / "driver/Espeak/__init__.py").read_text(encoding="utf-8"))
+	module_names = _class_constant(tree, "_EspeakPort", "NVDA_MODULE_NAMES")
+	assert module_names == _module_reads(tree, "_espeak")
+	assert module_names == {"EE_OK", "_execWhenDone", "espeakDLL", "isSpeaking", "onIndexReached", "player"}
+	assert _class_constant(tree, "_EspeakPort", "NVDA_PRIVATES") == set()
+	nvda = NVDA_ESPEAK.read_text(encoding="utf-8")
+	synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
+	overridden = {
+		n.name
+		for n in synth.body
+		if isinstance(n, ast.FunctionDef)
+		and n.name.startswith("_")
+		and not n.name.startswith("__")
+		and f"def {n.name}(" in nvda
+	}
+	assert overridden == _class_constant(tree, "_EspeakPort", "NVDA_OVERRIDES") == {"_onIndexReached"}
+
+
 @pytest.mark.parametrize("engine", ["Espeak", "RHVoice"])
 def test_drain_support_requires_keywords(engine):
 	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
@@ -59,13 +81,23 @@ def _class_constant(tree, class_name, constant):
 		for n in node.body
 		if isinstance(n, ast.Assign) and any(getattr(t, "id", None) == constant for t in n.targets)
 	)
-	return set(ast.literal_eval(assign.value.args[0]))
+	return set(ast.literal_eval(assign.value.args[0])) if assign.value.args else set()
+
+
+def _module_reads(tree, alias):
+	"""Every attribute the wrapper reads through the NVDA module object called alias."""
+	return {
+		n.attr
+		for n in ast.walk(tree)
+		if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == alias
+	}
 
 
 def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 	tree = _sapi5_tree()
 	privates = _class_constant(tree, "_Sapi5Port", "NVDA_PRIVATES")
 	overrides = _class_constant(tree, "_Sapi5Port", "NVDA_OVERRIDES")
+	assert _class_constant(tree, "_Sapi5Port", "NVDA_MODULE_NAMES") == _module_reads(tree, "sapi5")
 	own = set()
 	for node in tree.body:
 		if isinstance(node, ast.ClassDef):
@@ -100,7 +132,7 @@ def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 		and n.attr.startswith("_")
 		and not n.attr.startswith("__")
 		and isinstance(n.value, ast.Name)
-		and n.value.id in {"self", "driver", "sapi5", "synth"}
+		and n.value.id in {"self", "driver", "synth"}
 	}
 	assert accessed - own <= privates
 	nvda = NVDA_SAPI5.read_text(encoding="utf-8")
@@ -177,6 +209,7 @@ def test_onecore_parent_privates_are_listed_and_exist():
 	tree = ast.parse((ROOT / "driver/OneCore/__init__.py").read_text(encoding="utf-8"))
 	privates = _class_constant(tree, "_OneCorePort", "NVDA_PRIVATES")
 	overrides = _class_constant(tree, "_OneCorePort", "NVDA_OVERRIDES")
+	assert _class_constant(tree, "_OneCorePort", "NVDA_MODULE_NAMES") == _module_reads(tree, "oneCore")
 	accessed = {
 		n.attr
 		for n in ast.walk(tree)
@@ -184,7 +217,7 @@ def test_onecore_parent_privates_are_listed_and_exist():
 		and n.attr.startswith("_")
 		and not n.attr.startswith("__")
 		and isinstance(n.value, ast.Name)
-		and n.value.id in {"self", "driver", "oneCore"}
+		and n.value.id in {"self", "driver"}
 	}
 	assert accessed - _own_names(tree) <= privates
 	parents = INNER_ONECORE.read_text(encoding="utf-8") + NVDA_ONECORE.read_text(encoding="utf-8")
