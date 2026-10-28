@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from threading import Condition, Event, RLock, Thread, local
 
 from ._segmentLifecycle import ProducerLease, SegmentLifecycle, SegmentOperation
+from .barriers import PLAYED_OUT
 from .models import EventKind, PlaybackContext, PlaybackEvent, SegmentEventSink, SpeechCommands
 from .playbackWork import DrainSupport, PlaybackWork
 from .session import CancellationView
@@ -676,7 +677,7 @@ class LeasedPlayer:
 	feed error is recorded, and what a failed stop does.
 	"""
 
-	def __init__(self, host: SegmentHost, player, *, idle_barrier: str | None = "idle"):
+	def __init__(self, host: SegmentHost, player, *, idle_barrier: str | None = PLAYED_OUT):
 		self._host = host
 		self._player = player
 		self._idle_barrier = idle_barrier

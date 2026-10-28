@@ -19,7 +19,7 @@ from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_false, stays_u
 class FakeStrategy:
 	"""Records submitted native work; tests step it through begin/reach/retire."""
 
-	barriers = frozenset({"returned", "idle"})
+	barriers = frozenset({"returned", "played_out"})
 
 	def __init__(self):
 		self.condition = Condition()
@@ -101,7 +101,7 @@ def env(monkeypatch, request):
 		host.speak_segment(("hello",), token, context=context, on_event=sink or events.append)
 		return token, context, events
 
-	def run_native(record, reach=("returned", "idle")):
+	def run_native(record, reach=("returned", "played_out")):
 		# The engine's FIFO worker: begin, mark barriers, retire (blocks until handoff).
 		def work():
 			host.begin(record)
@@ -147,7 +147,7 @@ def test_missing_barrier_fails_and_discards_audio(env):
 	env.run_native(record, reach=("returned",))
 	event = events.wait_one()
 	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
-	assert str(event.error) == "Fake synthesis retired without its idle barriers"
+	assert str(event.error) == "Fake synthesis retired without its played_out barriers"
 	# The lifecycle's own stop/drain pass after fail() may stop the player again.
 	assert env.strategy.player_stops >= 1
 
@@ -292,7 +292,7 @@ def test_a_retired_ordinary_record_stays_cancellable_until_forgotten(env):
 	record = env.strategy.wait_submitted()
 	env.host.begin(record)
 	env.host.reach(record, "returned")
-	env.host.reach(record, "idle")
+	env.host.reach(record, "played_out")
 	assert env.host.retire(record).cancelled is False
 	assert record in pending_records(env.host)
 	env.host.cancel()
@@ -309,7 +309,7 @@ def test_ordinary_record_outcomes(env, case):
 	env.host.begin(record)
 	if case != "missing":
 		env.host.reach(record, "returned")
-		env.host.reach(record, "idle")
+		env.host.reach(record, "played_out")
 	if case == "error":
 		env.host.record_error(record, OSError("feed failed"))
 	if case == "cancelled":
@@ -320,7 +320,7 @@ def test_ordinary_record_outcomes(env, case):
 		assert outcome.error is None
 		assert env.strategy.player_stops == 0
 	elif case == "missing":
-		assert "returned, idle" in str(outcome.error) or "idle, returned" in str(outcome.error)
+		assert "returned, played_out" in str(outcome.error) or "played_out, returned" in str(outcome.error)
 		assert env.strategy.player_stops == 1
 	elif case == "error":
 		assert isinstance(outcome.error, OSError)
@@ -381,7 +381,7 @@ def test_leased_player_binds_on_done_to_its_record_and_reaches_idle(env):
 	assert seen == [record]
 	assert env.host.callback_record() is None
 	player.idle()
-	assert record.barriers["idle"] is True
+	assert record.barriers["played_out"] is True
 
 
 def test_leased_player_stops_again_after_an_invalidated_feed(env):
@@ -431,7 +431,7 @@ class DrainingStrategy(FakeStrategy):
 		if self.drain_error is not None:
 			host.record_error(record, self.drain_error)
 			return
-		host.reach(record, "idle")
+		host.reach(record, "played_out")
 
 
 @pytest.fixture
@@ -677,7 +677,7 @@ def test_retire_seals_the_record_against_audio_consumers(env):
 
 	Thread(target=hold, daemon=True).start()
 	assert held.wait(WAIT_TIMEOUT)
-	for barrier in ("returned", "idle"):
+	for barrier in ("returned", "played_out"):
 		env.host.reach(record, barrier)
 	Thread(target=env.host.retire, args=(record,), daemon=True).start()
 	eventually(lambda: record.closed)
@@ -707,7 +707,7 @@ def test_retire_runs_finish_after_consumers_and_before_retirement(env):
 
 	Thread(target=hold, daemon=True).start()
 	assert held.wait(WAIT_TIMEOUT)
-	for barrier in ("returned", "idle"):
+	for barrier in ("returned", "played_out"):
 		env.host.reach(record, barrier)
 	Thread(target=lambda: env.host.retire(record, finish=finish), daemon=True).start()
 	release.set()
@@ -719,7 +719,7 @@ def test_finish_error_fails_only_that_segment(env):
 	_, _, failed = env.speak()
 	record = env.strategy.wait_submitted()
 	env.host.begin(record)
-	for barrier in ("returned", "idle"):
+	for barrier in ("returned", "played_out"):
 		env.host.reach(record, barrier)
 
 	def finish():

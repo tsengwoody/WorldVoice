@@ -7,6 +7,7 @@ from synthDrivers import _espeak
 from synthDrivers.espeak import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
+from ...runtime.barriers import ENGINE_DONE, PLAYED_OUT, SYNTHESIZED
 from ...runtime.hostNames import host_names_ready
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
@@ -61,7 +62,7 @@ class _SegmentNative:
 			host.record_error(record, error)
 			raise
 		finally:
-			host.reach(record, "returned")
+			host.reach(record, SYNTHESIZED)
 
 
 class _EspeakPort:
@@ -106,7 +107,7 @@ class _EspeakPort:
 class _EspeakStrategy(NativeStrategy):
 	"""eSpeak's native queue: NVDA's FIFO with begin and retire markers."""
 
-	barriers = frozenset({"returned", "ended", "idle"})
+	barriers = frozenset({SYNTHESIZED, ENGINE_DONE, PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
@@ -179,7 +180,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			if admitted is None:
 				return
 			if index is None:
-				host.reach(admitted, "ended")
+				host.reach(admitted, ENGINE_DONE)
 			else:
 				super()._onIndexReached(index)
 
