@@ -491,31 +491,43 @@ def record_notifications(engine_harness, monkeypatch):
 	return indexes, dones
 
 
-def test_done_of_never_spoken_request_skips_idle(engine_harness, monkeypatch):
-	# A request whose token is cancelled before its turn never begins: its DONE
-	# idle has nothing to wait for, and its DONE stays silent.
-	core, token = ready_core(engine_harness), Token()
-	indexes, dones = record_notifications(engine_harness, monkeypatch)
+def speak_live_request(engine_harness, monkeypatch, core):
+	# A finished live request must leave no running request behind it.
 	called = []
 	monkeypatch.setattr(
 		engine_harness.native,
 		"processText2Speech",
 		lambda instance, text: called.append(text),
 	)
+	speak_now(core, ["live"])
+	assert len(called) == 1
+	assert real_player(core).idles == 1
+	return called
+
+
+def test_done_of_never_spoken_request_skips_idle(engine_harness, monkeypatch):
+	# A request whose token is cancelled before its turn never begins: its DONE
+	# idle has nothing to wait for, and its DONE stays silent.
+	core, token = ready_core(engine_harness), Token()
+	indexes, dones = record_notifications(engine_harness, monkeypatch)
+	called = speak_live_request(engine_harness, monkeypatch, core)
+	assert dones == [core]
 	token.cancel()
 	speak_now(core, ["old"], cancellationToken=token)
-	assert called == []
-	assert real_player(core).idles == 0
-	assert dones == []
+	assert len(called) == 1
+	assert real_player(core).idles == 1
+	assert dones == [core]
 	assert indexes == []
 
 
 def test_index_without_running_request_is_dropped(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	indexes, dones = record_notifications(engine_harness, monkeypatch)
+	speak_live_request(engine_harness, monkeypatch, core)
+	assert dones == [core]
 	core._onIndexReached(5)
 	assert indexes == []
-	assert dones == []
+	assert dones == [core]
 
 
 def send(core, types, instance, message_type, out_data):
