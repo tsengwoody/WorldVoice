@@ -487,3 +487,9 @@ Linux 上不能跑 NVDA 或 SAPI5，以下都沒有驗證：
   - log 等級是 `info`，每次載入 WorldVoice 寫一行。
 - **觀察（不是本 phase 的範圍）：** eSpeak、OneCore、RHVoice、VE、Cerence 的分段 drain 也是 6.2 之後才有的（6.2 的 Espeak wrapper 沒有 drain／segment），但「下一版更新」只有 SAPI5 這一條提到「等待播放完畢」。讀者可能誤以為只有 SAPI5 會等。日後可以考慮補一條整體的變更紀錄。
 - Windows／NVDA 手動項目和第二輪修正記錄列的相同，沒有新增。
+
+## 修正記錄（第二輪修正 review 的 Minor）
+
+- **NM3 已修**：`958f65c` 俄文 readme 兩處「часть речи」（文法術語「詞類」）改成「фрагмент речи … следующий фрагмент」。
+- **NM4 已修**：`3fb7b80` `hostNames.py`、`tests/nvda_releases.py`、spec §4.2 的說明補上 classmethod。
+- 只有 Minor，照 §3.4 不再做修正 review。
