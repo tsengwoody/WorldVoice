@@ -10,8 +10,8 @@ BARRIERS = WORLDVOICE / "runtime/barriers.py"
 def test_shared_barrier_values():
 	module = load_source(None, "segment_barriers_under_test", BARRIERS, register=False)
 	# The values are the meanings, so a missing-barrier error reads the same for every engine.
-	assert (module.SYNTHESIZED, module.ENGINE_DONE, module.PLAYED_OUT) == (
-		"synthesized",
+	assert (module.AUDIO_FED, module.ENGINE_DONE, module.PLAYED_OUT) == (
+		"audio_fed",
 		"engine_done",
 		"played_out",
 	)
@@ -20,7 +20,8 @@ def test_shared_barrier_values():
 def test_shared_barriers_are_the_only_public_names():
 	module = load_source(None, "segment_barriers_under_test", BARRIERS, register=False)
 	public = {name for name in vars(module) if not name.startswith("_")}
-	assert public == {"SYNTHESIZED", "ENGINE_DONE", "PLAYED_OUT"}
+	# SYNTHESIZED stays only until every wrapper names AUDIO_FED (phase 52 fix round).
+	assert public == {"AUDIO_FED", "SYNTHESIZED", "ENGINE_DONE", "PLAYED_OUT"}
 
 
 def test_barrier_module_imports_nothing():
