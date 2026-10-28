@@ -185,3 +185,14 @@ Each rewritten test of §7 is also proved by at least one mutant it kills. Survi
 ## 9. Open questions
 
 None blocking. Defaults the user may override: D0 (no restoration step), D1 (no idle without a running record), D2 (no index without a running record), and the stand-in name `_WavePlayer`.
+
+## 10. Implementation notes (mutation results)
+
+Targeted mutants (spec §8 plus a few more) on each wrapper, run on a scratch copy against `tests/test_worldvoice_cancel_wrappers.py`, `tests/test_vocalizer_segment_drain.py`, `tests/test_runtime_legacy_adapter.py` and `tests/test_runtime_drain_integration.py`: 24 per wrapper, VE and Cerence alike. Killed: idle no-record and validity returns, index no-record and validity drops, the DONE token check, both `_runNative` checks together, the re-check under the lock alone (after `test_cancel_before_native_call_starts_skips_it` was added for it), the stand-in idle redirect, both install variants, the install failure path, the skipped availability check, admission left open on cancel, callback-admission validity, the final stop in `_process`, `_recordValid`'s token check, a cancel that sets the inner flag, and a native call kept after return.
+
+Survivors, each with its reason:
+
+- `_runNative` without its first validity check: the re-check under the lock decides the same; the first check only saves a wait.
+- `_VEStrategy.drain` reaching `idle` for an invalid record: the host never publishes a cancelled segment (`segmentHost.py:570-572`, `:634`), so the reach has no effect. It also survives on `ea0d197` with the gate check removed as well.
+- `_beginRecord` without its validity skip, `_feedCallback` without its validity check: later checks (`_runNative`, `_process`) decide the same. Both also survive on `ea0d197`; neither line changed in this phase.
+- `_WavePlayer.idle` idling the real player when the driver is gone: unreachable (§3.2).
