@@ -747,3 +747,39 @@ def test_guarded_speech_never_touches_inner_stop_flag(engine_harness, monkeypatc
 	speak_now(core, ["second"])
 	assert flag.calls == []
 	assert real_player(core).fed == [b"first", b"second"]
+
+
+@pytest.mark.parametrize("cancel_kind", ["core", "token"])
+def test_cancel_before_native_call_starts_skips_it(engine_harness, monkeypatch, cancel_kind):
+	# A cancel after the piece's first validity check, before its native call is
+	# installed, must still keep the SDK call from starting.
+	core, token = ready_core(engine_harness), Token()
+	module = engine_harness.module
+	entered, release = threading.Event(), threading.Event()
+	native_call_type = module._NativeCall
+
+	def paused_call(record, instance):
+		entered.set()
+		assert release.wait(HOLD_TIMEOUT)
+		return native_call_type(record, instance)
+
+	monkeypatch.setattr(module, "_NativeCall", paused_call)
+	called = []
+	monkeypatch.setattr(
+		engine_harness.native,
+		"processText2Speech",
+		lambda instance, text: called.append(text),
+	)
+	worker = threading.Thread(target=speak_now, args=(core, ["old"]), kwargs={"cancellationToken": token})
+	worker.start()
+	assert entered.wait(WAIT_TIMEOUT)
+	if cancel_kind == "core":
+		core.cancel()
+	else:
+		token.cancel()
+	release.set()
+	worker.join(WAIT_TIMEOUT)
+	assert not worker.is_alive()
+	assert called == []
+	assert real_player(core).fed == []
+	assert real_player(core).idles == 0
