@@ -35,7 +35,10 @@ AGREEMENT_SOURCE = textwrap.dedent(
 		pass
 
 	class Other:
-		pass
+		_elsewhere = 1
+
+		def __init__(self):
+			self._elsewhereStore = 1
 
 	if True:
 		conditional = 2
@@ -89,6 +92,9 @@ CLASS_NAMES = {
 	"_get_rate",
 	"rate",
 	"_absent",
+	# Bound only in Other: neither view may count another class's names.
+	"_elsewhere",
+	"_elsewhereStore",
 }
 
 
@@ -115,7 +121,15 @@ def test_static_and_live_views_agree_on_synthetic_source():
 		module_names=MODULE_NAMES,
 		class_names=CLASS_NAMES,
 	)
-	assert static == live == ("m.Cls.__hidden", "m.Cls._absent", "m.absent", "m.path")
+	expected = (
+		"m.Cls.__hidden",
+		"m.Cls._absent",
+		"m.Cls._elsewhere",
+		"m.Cls._elsewhereStore",
+		"m.absent",
+		"m.path",
+	)
+	assert static == live == expected
 
 
 def test_static_view_does_not_see_out_of_file_bases():
