@@ -282,6 +282,7 @@ class SynthDriver(BaseSynthDriver):
 			self._teardown.run()
 		finally:
 			self._taskManager = self._eventBridge = self._voiceManager = self._indexLedger = None
+			self._numberLanguageChoice = None
 
 	def loadSettings(self, *args, **kwargs):
 		super().loadSettings(*args, **kwargs)

@@ -255,6 +255,15 @@ def test_entry_points_are_silent_after_terminate():
 	driver.pause(True)
 
 
+def test_terminate_drops_the_number_language_choice():
+	# Phase 40 review M1: the choice holds the voice manager, which terminate drops with the rest.
+	driver = load_synth_class(_construction_environment(None, []).environment)()
+	assert driver._numberLanguageChoice is not None
+	driver.terminate()
+	assert driver._voiceManager is None
+	assert driver._numberLanguageChoice is None
+
+
 def test_the_detector_reads_the_drivers_number_language():
 	# Spelling follows the number language (phase 35 spec §5): the detector asks the driver each time.
 	built = _construction_environment(None, [])
