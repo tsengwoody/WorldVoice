@@ -38,20 +38,20 @@ Running the existence check of §4 over every NVDA feature release (§5) gives:
 | 2025.2 | complete | **15 names missing** | complete |
 | 2025.3, 2026.1, 2026.2, 2026.3beta6, 2027.1 dev | complete | complete | complete |
 
-SAPI5's wrapper re-implements the request-queue worker that NVDA 2025.3 introduced (`_speakThread`, `_threadCond`, `_speakRequests`, `_SapiEvent`, … are absent from `git -C ref/nvda show release-2025.2:source/synthDrivers/sapi5.py`). So **on NVDA 2024.1–2025.2 the SAPI5 engine does not work today**: on 2024.x the wrapper module fails to import (`SynthDriverAudioStream` is new in 2025.1), on 2025.1–2025.2 its constructor raises. The add-on still declares 2024.1 as its minimum. This phase does not change which versions SAPI5 runs on (option A, a per-entry fallback to NVDA's own behaviour, was not chosen); it turns the failure into a clean, logged skip and pins the boundary in tests. Whether to raise the add-on minimum, or say so in the readme, is a user decision (§9 Q1).
+SAPI5's wrapper re-implements the request-queue worker that NVDA 2025.3 introduced (`_speakThread`, `_threadCond`, `_speakRequests`, `_SapiEvent`, … are absent from `git -C ref/nvda show release-2025.2:source/synthDrivers/sapi5.py`). So **on NVDA 2024.1–2025.2 the SAPI5 engine does not work on `master`** (released 6.2 ran SAPI5 there through NVDA's own driver; the break came with the unreleased `2b3b159`, fix review NI1): on 2024.x the wrapper module fails to import (`SynthDriverAudioStream` is new in 2025.1), on 2025.1–2025.2 its constructor raises. The add-on still declares 2024.1 as its minimum. ~~This phase does not change which versions SAPI5 runs on (option A, a per-entry fallback to NVDA's own behaviour, was not chosen); it turns the failure into a clean, logged skip and pins the boundary in tests.~~ *Correction, decided by the user (2026-10-28):* on these versions SAPI5 uses NVDA's own `sapi5.SynthDriver` as the whole core, as 6.2 did (§4.4); the boundary is pinned in tests. Whether to raise the add-on minimum, or say so in the readme, is a user decision (§9 Q1).
 
 ## 2. Goals, non-goals, anti-goals
 
 Goals:
 
-- Each of the three wrappers lists every NVDA name it relies on (§3), and `Voice.ready()` checks that list against the running NVDA. When a name is missing, `ready()` returns `False` (discovery skips the engine) and logs one warning naming the engine, the NVDA version and every missing name.
+- Each of the three wrappers lists every NVDA name it relies on (§3), and `Voice.ready()` checks that list against the running NVDA. When a name is missing, `ready()` returns `False` (discovery skips the engine) and logs one warning naming the engine, the NVDA version and every missing name. (SAPI5 instead uses NVDA's own driver, §4.4.)
 - The same lists, with the same definition of "exists", are checked in tests against `ref/nvda` and against every NVDA feature release from 2024.1 to the newest tag (§5).
 - eSpeak gets a list and an existence check like SAPI5 and OneCore.
 - The SAPI5 wrapper module imports on every NVDA version, so `ready()` can report instead of discovery logging an import error.
 
 Non-goals:
 
-- No fallback to NVDA's original behaviour (option A). No per-entry branches.
+- ~~No fallback to NVDA's original behaviour (option A).~~ No per-entry branches. *Correction, decided by the user (2026-10-28):* SAPI5 falls back to NVDA's own driver as one whole class, not per entry (§4.4).
 - VE, Cerence and RHVoice (their inner driver is vendored and pinned by `tests/test_native_strategy_guards.py:130-143`, `:236-264`).
 - Members of NVDA classes other than the synth driver class (SAPI5's subclasses of `sapi5.SapiSink` and `sapi5.SynthDriverAudioStream` override `StartStream`, `ISequentialStream_RemoteWrite`, …), public instance attributes (`self.tts`, `self.player`, `self.sonicStream`, `self.useWasapi`), and the eSpeak DLL exports NVDA calls (`espeak_Synth`, `espeak_ng_Cancel`, proxied at `driver/Espeak/__init__.py:27-56`). See §9 Q2.
 - No change to discovery, the voice manager, the plugin contract or the base `Voice`.
@@ -116,7 +116,7 @@ with a module-level `_nvdaLabel()` that imports NVDA's `versionInfo` inside the 
 
 Why not elsewhere: drivers must not import each other, so shared code goes to core; `driver/__init__.py` is public plugin API and the drain harnesses stub it with only `Voice` (`tests/espeak_drain_harness.py:223`), so a helper there would break every wrapper load in tests. The three `_nvdaLabel` copies (3 lines each) are the price of independent drivers, as with VE/Cerence.
 
-Log level *Decided by orchestrator with the recommended default*: `warning`. It is a permanent property of the user's environment, not a fault at run time; discovery's other "Skipping … engine candidate" lines are warnings (`engineRegistry/discovery.py:179`, `:183-188`); an error would make NVDA's error sound play at every start on NVDA 2024.1–2025.2 (SAPI5) where logged errors are audible. The prefix matches discovery's lines so one search finds every skip.
+Log level *Decided by orchestrator with the recommended default*: `warning`. It is a permanent property of the user's environment, not a fault at run time; discovery's other "Skipping … engine candidate" lines are warnings (`engineRegistry/discovery.py:179`, `:183-188`); an error would make NVDA's error sound play at every start on NVDA 2024.1–2025.2 (SAPI5) where logged errors are audible. The prefix matches discovery's lines so one search finds every skip. (SAPI5 no longer skips; its line is `info`, §4.4.)
 
 Interplay: discovery calls `voice.ready()` only for enabled engines, after import (`engineRegistry/discovery.py:162-225`); `False` makes it `continue` without its own log (`:220-221`), so our warning is the only line. An exception in the check would still be caught and logged by discovery (`:223-224`). Nothing else calls `ready()`. A skipped engine contributes no voices, as an uninstalled one does.
 
@@ -152,7 +152,26 @@ def _nvdaBase(name):
 
 On every NVDA that has the class this is the same class as today. A guard checks that none of the three wrappers reads an NVDA module attribute at import time (outside function bodies) except as the argument of `_nvdaBase`; today only these two class statements do.
 
-*Decided by orchestrator with the recommended default:* the placeholder base, rather than leaving 2024.x to discovery's import error. It is not a behaviour fallback: the class is never instantiated, because `ready()` is false.
+*Decided by orchestrator with the recommended default:* the placeholder base, rather than leaving 2024.x to discovery's import error. It is not a behaviour fallback: the class is never instantiated, because ~~`ready()` is false~~ `ready()` then chooses NVDA's own driver (§4.4).
+
+### 4.4 SAPI5 on NVDA without the wrapper's names (correction)
+
+*Decided by the user (2026-10-28).* `Voice.ready()` of SAPI5 always returns `True` and chooses the whole core from the same check (`missing_host_names` over `_Sapi5Port`'s three lists; eSpeak and OneCore keep `host_names_ready` and the skip):
+
+| Running NVDA | `Voice.synthDriverClass` | `Voice.drainProfile` | Log |
+| --- | --- | --- | --- |
+| every listed name exists (2025.3 and later) | the wrapper `SynthDriver` | `DrainProfile(wasapi_dependent=True)` | none |
+| a name is missing (2024.1–2025.2) | NVDA's `synthDrivers.sapi5.SynthDriver` | `None` | one `info` line |
+
+`ready()` sets both attributes on every call, so a later check on a complete NVDA restores the wrapper. Everything downstream already handles a plain core: `Voice.createCore()` builds `synthDriverClass()`; `supportedSettings()` reads its settings; `CompletionPolicy.contractFor` returns `CompletionContract()` (LEGACY_DONE) without asking the core and without the fallback warning, because the drain profile is `None`; `VoiceClassAdapter` calls `speak(commands)` without a token, because NVDA's driver has no `supportsCancellationToken`; `voices()`, `voiceInfoToMetadata()` and `applyEngineSettings()` are the base `Voice`'s. No wrapper code runs on this path; `_nvdaBase` only lets the module import on 2024.x.
+
+Log line (`info`: SAPI5 works and nothing needs fixing; an upgrade to 2025.3 or later is the only way to get the drain):
+
+```
+SAPI5 engine uses NVDA's own SAPI5 driver, without WorldVoice's segment drain: NVDA 2025.1.0 lacks 16 of the names WorldVoice's SAPI5 driver needs: synthDrivers.sapi5.ISpVoice, …
+```
+
+`tests/test_sapi5_old_nvda.py` loads each release's `sapi5.py` from `ref/nvda` behind the SAPI5 harness stubs: 2024.1–2025.2 choose NVDA's driver, which constructs, lists voices, applies settings, speaks, cancels and closes through `VoiceClassAdapter` as a LEGACY_DONE core; 2025.3 and later choose the wrapper with no log line.
 
 ## 5. Multi-version tests
 
@@ -172,9 +191,11 @@ Missing tag *Decided by orchestrator with the recommended default*: the test fai
 
 On NVDA 2025.3 and later (every engine complete): no change; no log line.
 
-On NVDA 2024.1–2025.2: SAPI5 voices were already missing (import error or constructor traceback); now the log has one warning naming the NVDA version and the missing names, and no traceback. eSpeak and OneCore are unaffected.
+~~On NVDA 2024.1–2025.2: SAPI5 voices were already missing (import error or constructor traceback); now the log has one warning naming the NVDA version and the missing names, and no traceback. eSpeak and OneCore are unaffected.~~
 
-No new translatable strings (log lines are not translated), no settings, no UI, no migration. Readme and changelog: the user chose (a) plus (c) (§9 Q1), so the Notes section of the root readme and of `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` states that the SAPI5 engine needs NVDA 2025.3 or later, and each "Next update" changelog has an entry for it.
+*Correction, decided by the user (2026-10-28):* on NVDA 2024.1–2025.2, SAPI5 voices are offered and speak through NVDA's own SAPI5 driver, as in WorldVoice 6.2, without WorldVoice's segment drain; the log has one info line naming the NVDA version and the missing names. eSpeak and OneCore are unaffected.
+
+No new translatable strings (log lines are not translated), no settings, no UI, no migration. Readme and changelog: the user chose (a) plus (c) (§9 Q1), so the Notes section of the root readme and of `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` ~~states that the SAPI5 engine needs NVDA 2025.3 or later, and each "Next update" changelog has an entry for it~~ (*correction, decided by the user 2026-10-28:* states that on NVDA 2024.1–2025.2 SAPI5 uses NVDA's own driver as in 6.2, without waiting for each part to finish playing, and WorldVoice's own SAPI5 driver only on 2025.3 or later; each "Next update" changelog has an entry for it).
 
 ## 7. Test plan
 
@@ -182,11 +203,11 @@ No new translatable strings (log lines are not translated), no settings, no UI, 
 - Agreement: synthetic sources executed into a module (live) and compiled (static) give the same missing tuple; the documented asymmetry (a name inherited from a base outside the file) is pinned.
 - `tests/test_native_strategy_guards.py`: eSpeak list test (module names equal the `_espeak.X` reads; overrides equal the overridden NVDA methods); SAPI5 and OneCore tests read the three constants; module names equal the `sapi5.X`/`oneCore.X` reads; the import-time guard.
 - `tests/test_nvda_release_names.py` (new): parametrized over engine × version (§5) with the static view; a missing tag fails with the message.
-- Live `ready()` on `ref/nvda` through the drain harnesses (`tests/espeak_drain_harness.py`, `sapi5_drain_harness.py`, `onecore_drain_harness.py`): `ready()` is `True` with no warning; with one listed name deleted from the live module or class it is `False` with one warning naming the NVDA version and that name; live and static views agree on `ref/nvda`.
+- Live `ready()` on `ref/nvda` through the drain harnesses (`tests/espeak_drain_harness.py`, `sapi5_drain_harness.py`, `onecore_drain_harness.py`): `ready()` is `True` with no warning; with one listed name deleted from the live module or class it is `False` with one warning naming the NVDA version and that name (SAPI5: `True`, NVDA's own driver, one `info` line, §4.4); live and static views agree on `ref/nvda`.
 
 Mutation: `runtime/hostNames.py` is a new core decision module, so it gets a mutation run (scratch copy, textual mutants, bytecode off, per-run timeout); survivors and reasons go in §10.
 
-Windows: nothing here runs on Windows or a real NVDA. Manual items for the user: on NVDA 2025.3+ all three engines list voices and speak, with no "Skipping … engine candidate" line in the log; on an NVDA 2024.x or 2025.1/2025.2 install (if available), the log shows one SAPI5 skip line and eSpeak/OneCore work.
+Windows: nothing here runs on Windows or a real NVDA. Manual items for the user: on NVDA 2025.3+ all three engines list voices and speak, with no "Skipping … engine candidate" line in the log; on an NVDA 2024.x or 2025.1/2025.2 install (if available), ~~the log shows one SAPI5 skip line~~ SAPI5 voices are listed, speak and stop on cancel, the log shows one SAPI5 info line ("SAPI5 engine uses NVDA's own SAPI5 driver …"), and eSpeak/OneCore work.
 
 ## 8. Risks
 
@@ -195,7 +216,7 @@ Windows: nothing here runs on Windows or a real NVDA. Manual items for the user:
 
 ## 9. Open questions (for the user)
 
-1. **SAPI5 on NVDA 2024.1–2025.2** (§1.1). Today it is broken there; after this phase it is cleanly skipped with a log line. Options: (a) keep it so (recommended for this phase; no behaviour change); (b) raise `addon_minimumNVDAVersion` to 2025.3 (affects eSpeak/OneCore users on older NVDA too); (c) note in the readme that SAPI5 needs NVDA 2025.3+; (d) support the pre-2025.3 SAPI5 driver separately (a large phase). *Decided by the user (2026-10-28): (a) and (c) — SAPI5 stays skipped on NVDA < 2025.3 with the minimum at 2024.1, and the readmes say SAPI5 needs NVDA 2025.3 or later.*
+1. **SAPI5 on NVDA 2024.1–2025.2** (§1.1). Today it is broken there; after this phase it is cleanly skipped with a log line. Options: (a) keep it so (recommended for this phase; no behaviour change); (b) raise `addon_minimumNVDAVersion` to 2025.3 (affects eSpeak/OneCore users on older NVDA too); (c) note in the readme that SAPI5 needs NVDA 2025.3+; (d) support the pre-2025.3 SAPI5 driver separately (a large phase). ~~*Decided by the user (2026-10-28): (a) and (c) — SAPI5 stays skipped on NVDA < 2025.3 with the minimum at 2024.1, and the readmes say SAPI5 needs NVDA 2025.3 or later.*~~ *Decided by the user (2026-10-28), replacing the line above after fix review NI1 showed that 6.2 ran SAPI5 on these versions:* on NVDA < 2025.3, SAPI5 uses NVDA's own `synthDrivers.sapi5.SynthDriver` as the whole core, like 6.2 (§4.4); the minimum stays 2024.1; the readmes say so.
 2. Coverage beyond the synth class (§2 non-goals): members of `sapi5.SapiSink`/`SynthDriverAudioStream` the wrapper overrides, public instance attributes, and the eSpeak DLL calls NVDA makes. All exist on every version where the lists are complete; a follow-up could add them. *Decided by orchestrator with the recommended default: out of scope.*
 
 ## 10. Implementation notes
