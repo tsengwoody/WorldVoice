@@ -147,3 +147,20 @@ Windows/NVDA: nothing here can be checked on Windows; a manual check (VE and Cer
 ## 7. Open questions
 
 None blocking. Defaults the user may override: D1 (no runtime check; install failure propagates from the constructor), D2 (keep `supportsCancellationToken` as a class constant), D4 (drop the dead `callback_proxy` harness parameter along with `missing`).
+
+## 8. Implementation notes
+
+Commits: `636ce14` (install without a check, fallback tests and harness parameters removed), `3909886` (flag and branches removed, class constant, structural test), followed by the structural-test strengthening and these notes.
+
+Line delta: `driver/VE/__init__.py` +4/−46 (953 → 911), `driver/Cerence/__init__.py` +4/−46 (963 → 921); tests +22/−89 net across `tests/test_worldvoice_cancel_wrappers.py`, `tests/worldvoice_cancel_wrapper_harness.py`, `tests/test_native_strategy_guards.py`. `tests/test_vocalizer_drift.py` `ALLOWED` unchanged.
+
+Tests: 3361 passed, 0 skipped (baseline 3379 − 20 fallback items + 2 structural items).
+
+Mutation (§6, scratch copy, bytecode off, `__pycache__` cleared, 600 s per run; files `tests/test_worldvoice_cancel_wrappers.py`, `tests/test_vocalizer_segment_drain.py`, `tests/test_native_strategy_guards.py`, `tests/test_runtime_legacy_adapter.py`; unmutated control 279 passed), per wrapper, VE and Cerence alike:
+
+- M1 install wrapped in `try/except: return` — killed by `test_install_failure_raises_from_the_constructor`.
+- M2 `supportsCancellationToken = False` — killed by `test_installs_player_stand_in_and_keeps_inner_stop_flag` and `test_vocalizer_wrapper_has_no_guard_fallback`.
+- M3 drain support `DrainSupport(False, …)` — killed by both `test_guarded_native_profiles_are_enabled_with_unverified_evidence` cases.
+- M4 `if not getattr(self, "_guardInstalled", True): return super().cancel()` in `cancel` — **survived** the first structural test, which looked only at attribute nodes; the branch itself is behaviourally inert (its default makes it unreachable), so no behaviour test can kill it. The structural test now checks the source text (`"_guardInstalled" not in source`); M4 is then killed by `test_vocalizer_wrapper_has_no_guard_fallback`. (Ruling recorded in the ledger.)
+
+Not checked on Windows: no VE/Cerence SDK, NVDA or audio device here; the shipped path is unchanged, so no manual item is added.
