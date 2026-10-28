@@ -22,7 +22,8 @@ ENGINE_DONE = "engine_done"
 
 # The player has played all of this record's audio, proven by WavePlayer.idle() returning, or
 # by sync() returning plus the engine's own unpause wait. Only idle() also closes the
-# continuous segment (re-arms leading-silence trimming, releases ducking); OneCore's segment
-# mode only calls sync() and never closes it (see its drain). This barrier does not guarantee
-# those side effects.
+# continuous segment (re-arms leading-silence trimming, releases ducking). OneCore's segment
+# drain only calls sync(), so draining a segment does not close it; ordinary speech in
+# segment mode still calls idle() once the queue empties (its _legacyCallback). This barrier
+# does not guarantee those side effects.
 PLAYED_OUT = "played_out"
