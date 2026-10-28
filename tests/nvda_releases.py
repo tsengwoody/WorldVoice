@@ -31,7 +31,7 @@ from addon_loader import REF, WORLDVOICE, load_source
 NVDA = REF / "nvda"
 # One tag per NVDA feature release in the supported range, then the newest tag. Point releases
 # never change the synth driver files (phase 51 spec §5). Add each new release here when ref/nvda
-# is updated.
+# is updated; a test fails while the newest feature release in ref/nvda's tags is not here.
 RELEASES = (
 	"2024.1",
 	"2024.2",

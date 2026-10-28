@@ -1,6 +1,7 @@
 """The NVDA names the eSpeak, SAPI5 and OneCore wrappers list, checked on each NVDA release (phase 51)."""
 
 import re
+import subprocess
 import textwrap
 from types import ModuleType
 
@@ -8,6 +9,7 @@ import pytest
 from addon_loader import ROOT
 from nvda_releases import (
 	ENGINES,
+	NVDA,
 	RELEASES,
 	WORKING_TREE,
 	host_names,
@@ -228,3 +230,29 @@ def test_release_table_covers_the_supported_range():
 	]
 	assert years_and_releases == sorted(set(years_and_releases))
 	assert set(FIRST_COMPLETE.values()) <= set(RELEASES)
+
+
+def _feature_release(version):
+	return tuple(int(part) for part in re.match(r"(\d+)\.(\d+)", version).groups())
+
+
+def test_release_table_includes_the_newest_ref_nvda_release():
+	# RELEASES is kept by hand (spec §5); this only reminds whoever updates ref/nvda to extend it.
+	tags = subprocess.run(
+		["git", "-C", str(NVDA), "tag", "-l", "release-*"],
+		capture_output=True,
+		text=True,
+		check=False,
+	).stdout.split()
+	features = {
+		_feature_release(tag.removeprefix("release-"))
+		for tag in tags
+		if re.fullmatch(r"release-\d+\.\d+(\.\d+)*((beta|rc)\d+)?", tag)
+	}
+	if not features:
+		pytest.fail("ref/nvda has no release-* tags: fetch them with `git -C ref/nvda fetch --tags`.")
+	newest = max(features)
+	assert newest in {_feature_release(version) for version in RELEASES}, (
+		f"ref/nvda has NVDA {newest[0]}.{newest[1]} (release-{newest[0]}.{newest[1]}…): add its newest "
+		"tag to RELEASES in tests/nvda_releases.py"
+	)
