@@ -168,3 +168,8 @@ Nothing can be checked on Windows here: no NVDA, no audio device, no engine SDK.
 
 - §3.2 classification default (above).
 - Whether `tests/test_segment_host.py`'s fake should also rename `"returned"` → `"synthesized"` for readability (default: no, the host test uses opaque labels and the minimal rename keeps the token proof small).
+
+## 9. Implementation notes
+
+- §3.3 missed one test string table: `tests/test_segment_host.py:323` checks the missing-barrier message with the substrings `"returned, idle"` / `"idle, returned"`. The full run caught it in G1 and both strings were added to that commit's `OLD=NEW` list (now `"returned, played_out"` / `"played_out, returned"`). A scan of every string token in `tests/` for barrier words inside longer strings found no other label use (SAPI5's `"... no owned player idle barrier"` drain-support reason is prose, kept).
+- Mutation survivors (§7.3): RHVoice's worker read `record.barriers[ENGINE_DONE]` → `[SYNTHESIZED]` survives the behaviour tests, as the same mutant does on `master`: when the done callback never comes the record still fails, the only difference is one extra final `player.idle()`. VE/Cerence `_retireRecord`'s `SYNTHESIZED in record.barriers` → `PLAYED_OUT in …` is equivalent (segment records declare both, ordinary records neither).
