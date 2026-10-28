@@ -144,6 +144,8 @@ class _NativeLibrary:
 			if not result:
 				host.record_error(self._record, RuntimeError("RHVoice synthesis failed"))
 			else:
+				# No further audio callback will come, but the inner player still holds back the
+				# last chunk until the done callback feeds it: only with ENGINE_DONE is all audio fed.
 				host.reach(self._record, AUDIO_FED)
 			return result
 		except Exception as error:
