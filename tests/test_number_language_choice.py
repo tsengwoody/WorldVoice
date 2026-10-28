@@ -38,6 +38,14 @@ def test_a_refused_value_stores_follow(choice, value):
 	assert choice.stored == "default"
 
 
+def test_a_refused_locale_stays_refused_when_its_voice_is_installed_later(choice, manager):
+	# Phase 40 review M2: store keeps FOLLOW, not the refused value, so a later install of a
+	# voice speaking it does not revive it.
+	assert choice.store("fr") is False
+	manager.all_languages = manager.languages = ("en", "zh_TW", "ja", "fr")
+	assert choice.stored == choice.spoken == "default"
+
+
 def test_a_hidden_locale_is_kept_and_listed_last(choice):
 	# An installed voice speaks ja, but no offered one: the choice stays, speech follows the text.
 	choice.store("ja")
