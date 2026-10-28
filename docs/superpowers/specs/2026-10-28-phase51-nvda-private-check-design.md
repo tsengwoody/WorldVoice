@@ -200,4 +200,18 @@ Windows: nothing here runs on Windows or a real NVDA. Manual items for the user:
 
 ## 10. Implementation notes
 
-(Filled in during implementation: rulings, mutation results, final counts.)
+Commits `94445d6`..`a81967e` on top of the spec/plan. Full suite 3363 → 3428 passed, 0 skipped. `prek run --all-files` Passed; `git diff --check` clean; protected paths and Neural empty.
+
+Rulings (deviations from §4 and the plan):
+
+- The static module view counts top-level `STORE_GLOBAL` as well as `STORE_NAME`: Python 3.14 compiles `_espeak.py`'s module globals (declared `global` in its functions) to `STORE_GLOBAL` at module level. Both bind a module attribute; the synthetic agreement source pins it.
+- `_OneCorePort.NVDA_MODULE_NAMES` also lists `SynthDriver`: `ready()` reads `oneCore.SynthDriver`, and the module-read guard is exact. If it were missing, the argument would raise before the check, but the vendored inner imports it at module load, so that cannot happen first.
+- The module-read guard counts SAPI5's `_nvdaBase("X")` as a read of `sapi5.X`.
+- Missing names are sorted as plain strings, so class entries (`…SynthDriver._x`) come before lowercase module entries.
+- The engine table and the port reader moved into `tests/nvda_releases.py` in Task 4, because the `ref/nvda` agreement test needs them.
+- `object` is no longer skipped in the live MRO walk (an equivalent mutant: it has no code).
+- Mutation run: hand-written textual mutants on a scratch copy (as in phase 49), not mutmut. The targeted test files run in seconds, where mutmut would run the whole suite per mutant.
+
+Results per NVDA version: exactly §1.1. Missing on SAPI5: 2024.1–2024.4: `ISpEventSource`, `ISpNotifySource`, `ISpVoice`, `SonicStream`, `SynthDriverAudioStream`, `_SPEventEnum`, `_SapiEvent`, `hresult`, `sonicInitialize` and `SynthDriver.` `_bookmarkLists`, `_initWasapiAudio`, `_isCancelling`, `_isCompleted`, `_isSpeaking`, `_isStoppingThread`, `_onEndStream`, `_requestCompleted`, `_requestsAvailable`, `_speakRequests`, `_speakThread`, `_thread`, `_threadCond` (22); 2025.1: `ISpVoice`, `_SPEventEnum`, `_SapiEvent` and the same 13 class names (16); 2025.2: the same without `_initWasapiAudio` (15). eSpeak and OneCore: nothing missing on any version.
+
+Mutation (`runtime/hostNames.py` and two wrapper mutants; tests `test_runtime_host_names.py`, `test_nvda_release_names.py`, `test_nvda_ready.py`, `timeout 300`, bytecode off): 18 mutants, 18 killed after three tests were added for the first run's survivors (decorated property setter/deleter: `fset`, `fdel`; `__qualname__` vs `__name__` for a nested class). Mutants: MRO walk reduced to the class itself; no nested-code recursion; `STORE_ATTR`→`LOAD_ATTR`; no `__func__`; no `fget`/`fset`/`fdel`; module `hasattr` negated; no sorting; `error` instead of `warning`; label read eagerly; `True` on missing; class `hasattr` skipped; stored names ignored; `__qualname__`→`__name__`; `", "`→`" "`; SAPI5 `ready()` without overrides; `_nvdaBase` without the default.
