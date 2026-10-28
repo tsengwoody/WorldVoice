@@ -162,3 +162,30 @@ SAPI5 和 OneCore 列的 instance 屬性（`_threadCond`、`_dll`…）永遠不
 2. NVDA 2024.x 或 2025.1／2025.2（有的話）＋WorldVoice：log 恰好一行 `Skipping SAPI5 engine candidate: NVDA 2024.4.0 lacks names this engine needs: synthDrivers.sapi5.ISpEventSource, …`（2024.x 22 個、2025.1 16 個、2025.2 15 個），沒有 traceback、沒有 `Failed to load ready state for SAPI5`；eSpeak、OneCore 正常。
 3. 2024.x 上 wrapper 模組 import 成功這件事只在 Linux 用刪掉 `SynthDriverAudioStream` 的 `ref/nvda` 模擬；真 2024.x 的 `comtypes`／`AutoPropertyType` 環境下 `class SynthDriver(BaseSynthDriver, SegmentDrainCore)` 的建立沒有驗證（分析上沒有問題，見驗證表）。
 4. NVDA 真實 MRO 下 `ready()` 的實際耗時（M6）。
+
+## 修正記錄
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4）。範圍 `10da13a..50861ac`，10 個 commit。完整套件（序列，記憶體看門狗 3 GB）**3435 passed，0 skipped**（3428＋7：I1 1、I2 4、M1 1、M5 1）；`prek run --all-files` 8 個 hook 全 Passed；`git diff --check master` 乾淨；受保護路徑（內層驅動、`driver/sonic/`、兩個 Unicode 資料檔）與 Neural 沒有輸出。
+
+突變驗證：暫時複本 `scratchpad/p51fix/wt`（已移除），`PYTHONDONTWRITEBYTECODE=1 -p no:cacheprovider`，先清 `__pycache__`，每個 300 s timeout，跑本檔列的四個測試檔，輸出寫到 `scratchpad/p51fix/*.log`。
+
+| 項目 | commit | 修法 | red／green 證據 |
+| --- | --- | --- | --- |
+| I1 | `38d440f` | `PROBE` 的 `Base` 加 method `_inherited` 與 class 屬性 `_inheritedFlag`；新測試 `test_inherited_class_attributes_are_present_live` 先斷言兩者不在 `_class_stored_names` 裡（證明是 `hasattr` 在扛），再斷言 live 不缺 | H1（`name in vars(host_class)`）：修前存活 → 修後**殺**（1 failed，正是新測試） |
+| I2 | `06623d7` | `test_sapi5_names_missing_before_2025_3_are_exact[2024.1/2024.4/2025.1/2025.2]` 釘住 spec §10 的完整限定名稱集合：22／22／16／15 個（含 overrides `_onEndStream`、`_speakThread`、`_initWasapiAudio`） | N1（`class_names=()`）、N2（`port_names` 丟掉 `NVDA_OVERRIDES`）：修前存活 → 修後都**殺**（各 4 failed） |
+| M2 | `b0bdb36` | 合成原始碼的 `Other` 加 `_elsewhere = 1` 與 `self._elsewhereStore = 1`，兩個名稱列入 `CLASS_NAMES`，預期 live 與 static 都回報 `m.Cls._elsewhere`、`m.Cls._elsewhereStore` | N6（聯集所有大寫開頭的 class）：修前存活 → 修後**殺** |
+| M3 | `e7bc862` | `tests/nvda_releases.py` docstring 與 `static_missing` 的註解改成「函式宣告 `global` 的名稱在模組層也編成 `STORE_GLOBAL`（`_espeak.py` 的 `player`、`isSpeaking` 等）；模組層 `global` 陳述式效果相同」 | 只改註解，無測試 |
+| M1 | `bc254a1`、`6777b5e`、`50861ac` | `_function_code` 加 `getattr(value, "__wrapped__", None)` 候選（先寫 `test_stores_under_a_wrapping_decorator_are_present`，修前 red：`1 failed, 13 passed`，修後 green）；`hostNames.py` docstring 寫明讀哪些函式；`nvda_releases.py` docstring 寫出兩個例外（`if`／`try` 裡綁定的模組名稱、沒有保留 `__wrapped__` 的包裝）並註明本次 review 逐版人工確認、新名稱不會自動檢查；spec §4.2 加註 | 反向突變 W1（拿掉 `__wrapped__` 候選）：**殺** |
+| M4 | `a39d79c` | `test_wrappers_read_no_nvda_module_attribute_at_import` 也列出 import 時期的 `from synthDrivers.<mod> import X`（`level == 0`，排除 `synthDrivers.WorldVoice…`，只容許 `SynthDriver`） | G7（SAPI5 加 `from synthDrivers.sapi5 import SapiSink`）：修前存活 → 修後**殺** |
+| M5 | `6d88655` | 新測試 `test_release_table_includes_the_newest_ref_nvda_release`：讀 `git -C ref/nvda tag -l 'release-*'`，取最新 feature release 的 year.minor（含 beta／rc tag），不在 `RELEASES` 時失敗並提示「add its newest tag to RELEASES」；沒有任何 tag 時 `pytest.fail`（附 fetch 提示），不 skip。`RELEASES` 上方註解同步說明 | R1（`RELEASES` 拿掉 `2026.3beta6`）：修前存活 → 修後**殺** |
+| M6 | 不修 | 量到 harness 中 SAPI5 約 14 ms、OneCore 約 10 ms，每次啟動一次；真 NVDA 的 MRO 較長，列入 Windows 手動項目 4（`ready check … voice.ready` 計時）觀察。日後要省再只對 `absent` 走訪或以 class 為 key 快取 | — |
+| 使用者決定（2026-10-28） | `ddd9c55` | SAPI5 在 NVDA < 2025.3 維持略過、最低版本維持 2024.1，並在文件寫明 SAPI5 需要 NVDA 2025.3 以上：根目錄 `readme.md` 與 `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` 的「Notes／注意」各加一點、「Next update／下一版更新」各加一條變更紀錄；spec §6、§9 Q1 標註 `Decided by the user (2026-10-28)` | 文件；完整套件不變 |
+
+`Ruling:`（已寫入進度帳本）：
+
+- M1 採用 `__wrapped__` 候選：有 red→green 測試，只會讓 live 視圖多認得名稱、和靜態視圖一致；今天 NVDA 沒有這樣包裝的 method。
+- M5 比對的是最新 tag 的 year.minor，不是逐字的最新 tag：同一個 feature release 出新的 beta／rc 不會紅，套件只在使用者更新 `ref/nvda` 時才可能變動。
+- M6 不修（理由如上）。
+- 使用者決定覆蓋 spec §6 原本的「readme 不改」。
+
+本輪有 Important（I1、I2），依 §3.4 由協調者另派修正 review。
