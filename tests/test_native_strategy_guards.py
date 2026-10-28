@@ -400,7 +400,7 @@ def test_wrappers_read_no_nvda_module_attribute_at_import():
 # something no shared kind describes (docs/superpowers/specs/2026-10-28-phase52-shared-barriers-design.md §3.2).
 ENGINE_SPECIFIC_BARRIERS = {
 	"Espeak": set(),
-	"SAPI5": {"processed"},  # post-EndStream worker processing; SAPI5 speaks asynchronously
+	"SAPI5": set(),
 	"RHVoice": {"message"},  # RHVoice_new_message succeeded: a precondition, not completion
 	"OneCore": {"callback", "synced"},  # async delivery callback fed all audio; sync() is not idle()
 	"VE": set(),
@@ -410,7 +410,7 @@ ENGINE_SPECIFIC_BARRIERS = {
 DECLARED_BARRIERS = {
 	"Espeak": ({"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}, None),
 	"RHVoice": ({"message", "ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, None),
-	"SAPI5": ({"ENGINE_DONE", "processed", "PLAYED_OUT"}, {"ENGINE_DONE", "processed"}),
+	"SAPI5": ({"ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, {"ENGINE_DONE", "AUDIO_FED"}),
 	"OneCore": ({"callback", "synced"}, {"callback"}),
 	"VE": ({"AUDIO_FED", "PLAYED_OUT"}, set()),
 	"Cerence": ({"AUDIO_FED", "PLAYED_OUT"}, set()),
