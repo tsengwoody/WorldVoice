@@ -370,6 +370,18 @@ def test_wrappers_read_no_nvda_module_attribute_at_import():
 			for n in _import_time_nodes(tree)
 			if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == alias
 		]
+		# from synthDrivers.sapi5 import X reads sapi5.X at import too; only the synth class itself,
+		# which every NVDA release has, may be imported that way.
+		found += [
+			f"{engine}:{n.lineno} from {n.module} import {name.name}"
+			for n in _import_time_nodes(tree)
+			if isinstance(n, ast.ImportFrom)
+			and n.level == 0
+			and (n.module or "").startswith("synthDrivers.")
+			and not n.module.startswith("synthDrivers.WorldVoice")
+			for name in n.names
+			if name.name != "SynthDriver"
+		]
 	assert found == []
 	tree = _sapi5_tree()
 	bases = {
