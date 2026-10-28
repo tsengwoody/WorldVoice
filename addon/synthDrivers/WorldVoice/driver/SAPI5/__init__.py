@@ -8,6 +8,7 @@ from synthDrivers import sapi5
 from synthDrivers.sapi5 import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
+from ...runtime.barriers import ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
 from ...runtime.hostNames import missing_host_names
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
@@ -16,7 +17,7 @@ from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCor
 from ...runtime.session import CancellationView
 
 # Ordinary requests keep the parent's queue-empty idle, so they prove no idle.
-_ORDINARY_BARRIERS = frozenset({"ended", "processed"})
+_ORDINARY_BARRIERS = frozenset({ENGINE_DONE, "processed"})
 
 
 @dataclass(eq=False)
@@ -99,7 +100,7 @@ class _Sapi5Port:
 class _Sapi5Strategy(NativeStrategy):
 	"""SAPI5's native queue: the parent's request deque and the outer worker."""
 
-	barriers = frozenset({"ended", "processed", "idle"})
+	barriers = frozenset({ENGINE_DONE, "processed", PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
@@ -162,7 +163,7 @@ class _Sapi5Strategy(NativeStrategy):
 			except Exception as controlError:  # noqa: BLE001 - latched: the player or engine state is unknown
 				self._driver()._failSegmentControl(controlError)
 			return
-		host.reach(record, "idle")
+		host.reach(record, PLAYED_OUT)
 
 
 class _SegmentAudioStream(_nvdaBase("SynthDriverAudioStream")):
@@ -374,7 +375,7 @@ class _SegmentSapiSink(_nvdaBase("SapiSink")):
 				return
 			# A cancelled token still consumes its native terminal notification
 			# so the worker can retire this identity without publishing success.
-			driver._segmentHost.reach(record, "ended")
+			driver._segmentHost.reach(record, ENGINE_DONE)
 			if driver._isCancelling:
 				driver._bookmarkLists.clear()
 				return
@@ -512,7 +513,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			result = super()._onEndStream()
 			host.reach(record, "processed")
 			return result
-		if not record.barriers["ended"]:
+		if not record.barriers[ENGINE_DONE]:
 			raise RuntimeError("SAPI5 request completed without its stream end marker")
 		# Preserve ordinary source notifications, including untriggered tail
 		# bookmarks, without publishing the parent's pre-idle anonymous DONE.
