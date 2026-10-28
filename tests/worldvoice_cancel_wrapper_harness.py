@@ -335,7 +335,7 @@ def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
 
 
 def real_player(core):
-	"""The fake WavePlayer behind the wrapper's guarded player."""
+	"""The fake WavePlayer behind the wrapper's player stand-in."""
 	return core._realPlayer
 
 
@@ -349,24 +349,19 @@ def native_callback(core):
 	return core._veCallback
 
 
-def silence_gate(owner):
-	"""The silence gate the core or its callback handler checks before audio."""
+def inner_stop_flag(owner):
+	"""The inner driver's stop Event on the core or its callback handler (the guard never uses it)."""
 	return owner._isSilence
 
 
 def player_of(owner):
-	"""The player the core or its callback handler feeds."""
+	"""The player the core or its callback handler holds."""
 	return owner._player
 
 
-def guarded_real_player(player):
-	"""The real player a guarded player forwards to."""
-	return player._real
-
-
-def inside_native_call(core):
-	"""Whether the wrapper's silence gate marks a native call in progress."""
-	return core._isSilence._insideNativeCall
+def stand_in_real_player(player):
+	"""The real player behind the wrapper's player stand-in."""
+	return player._player
 
 
 def buffered_audio(handler):

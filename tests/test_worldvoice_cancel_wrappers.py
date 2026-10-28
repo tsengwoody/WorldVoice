@@ -10,17 +10,16 @@ from worldvoice_cancel_wrapper_harness import (
 	buffered_audio,
 	cached_instances,
 	callback_handler,
-	guarded_real_player,
 	has_segment_host,
-	inside_native_call,
+	inner_stop_flag,
 	load_real_driver_with_native_stubs,
 	native_call,
 	native_callback,
 	native_message,
 	player_of,
 	real_player,
-	silence_gate,
 	sonic_state,
+	stand_in_real_player,
 )
 
 
@@ -60,14 +59,17 @@ def emit_audio(core, types, payload=b"new", done_result=None):
 	assert callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, out_data)) == types.NUAN_OK
 
 
-def test_installs_gate_on_core_and_existing_callback(engine_harness):
+def test_installs_player_stand_in_and_keeps_inner_stop_flag(engine_harness):
 	core = engine_harness.new_core()
 	assert core.supportsCancellationToken is True
 	handler = callback_handler(core)
-	assert silence_gate(core) is silence_gate(handler)
-	assert player_of(core) is player_of(handler)
-	assert isinstance(silence_gate(core), engine_harness.module._SilenceGate)
-	assert guarded_real_player(player_of(core)) is real_player(core)
+	assert isinstance(player_of(core), engine_harness.module._WavePlayer)
+	assert stand_in_real_player(player_of(core)) is real_player(core)
+	# The guard leaves the callback's player and the inner stop Event as created.
+	assert player_of(handler) is real_player(core)
+	assert inner_stop_flag(core) is inner_stop_flag(handler)
+	assert type(inner_stop_flag(core)) is threading.Event
+	assert not inner_stop_flag(core).is_set()
 	assert engine_harness.module.Voice.synthDriverClass is engine_harness.module.SynthDriver
 
 
@@ -94,16 +96,15 @@ def test_missing_private_field_falls_back_without_partial_install(engine_harness
 			owner is core._veCallbackHandler and missing == f"callback.{field}"
 		)
 		if not missing_here:
-			assert not isinstance(
-				getattr(owner, field),
-				(engine_harness.module._SilenceGate, engine_harness.module._GuardedPlayer),
-			)
+			assert not isinstance(getattr(owner, field), engine_harness.module._WavePlayer)
+			if field == "_isSilence":
+				assert type(getattr(owner, field)) is threading.Event
 
 
 def test_missing_callback_falls_back_without_partial_install(engine_harness):
 	core = engine_harness.new_core(missing="_veCallbackHandler")
 	assert core.supportsCancellationToken is False
-	assert type(silence_gate(core)) is threading.Event
+	assert type(inner_stop_flag(core)) is threading.Event
 	assert player_of(core) is not None
 
 
@@ -128,76 +129,20 @@ def test_fallback_delegates_each_original_method(engine_harness, monkeypatch, me
 	assert calls == [args]
 
 
-def test_assignment_failure_restores_all_four_references(engine_harness):
-	original = {}
+def test_assignment_failure_falls_back_unchanged(engine_harness, monkeypatch):
+	module = engine_harness.module
+	setter = module.SynthDriver.__setattr__
 
-	class FailOnceProxy:
-		def __init__(self, real):
-			original["core_gate"] = real._isSilence
-			original["core_player"] = real._player
-			real._isSilence = threading.Event()
-			real._player = type(real._player)()
-			original["callback_gate"] = real._isSilence
-			original["callback_player"] = real._player
-			object.__setattr__(self, "real", real)
-			object.__setattr__(self, "failed", False)
+	def fail_stand_in(self, name, value):
+		if name == "_player" and isinstance(value, module._WavePlayer):
+			raise RuntimeError("injected install failure")
+		setter(self, name, value)
 
-		def __getattr__(self, name):
-			return getattr(self.real, name)
-
-		def __setattr__(self, name, value):
-			if name == "_player" and not self.failed:
-				object.__setattr__(self, "failed", True)
-				raise RuntimeError("injected install failure")
-			setattr(self.real, name, value)
-
-	core = engine_harness.new_core(callback_proxy=FailOnceProxy)
+	monkeypatch.setattr(module.SynthDriver, "__setattr__", fail_stand_in)
+	core = engine_harness.new_core()
 	assert core.supportsCancellationToken is False
-	handler = callback_handler(core)
-	assert silence_gate(core) is original["core_gate"]
-	assert player_of(core) is original["core_player"]
-	assert silence_gate(handler) is original["callback_gate"]
-	assert player_of(handler) is original["callback_player"]
-
-
-def test_restoration_failure_raises_instead_of_returning_partial_core(engine_harness):
-	created = []
-
-	class FailInstallAndRestoreProxy:
-		def __init__(self, real):
-			object.__setattr__(self, "real", real)
-			created.append(self)
-
-		def __getattr__(self, name):
-			return getattr(self.real, name)
-
-		def __setattr__(self, name, value):
-			if name == "_player":
-				raise RuntimeError("installation setter failed")
-			if name == "_isSilence" and type(value) is threading.Event:
-				raise RuntimeError("restoration setter failed")
-			setattr(self.real, name, value)
-
-	with pytest.raises(RuntimeError, match="restoration"):
-		engine_harness.new_core(callback_proxy=FailInstallAndRestoreProxy)
-	assert isinstance(silence_gate(created[0].real), engine_harness.module._SilenceGate)
-
-
-def test_gate_checks_token_only_during_native_call(engine_harness):
-	gate = engine_harness.module._SilenceGate()
-	token = type("Token", (), {"is_cancelled": lambda self: False})()
-	gate.begin(token)
-	assert gate.cancelled() is False
-	assert gate.is_set() is True
-	gate._insideNativeCall = True
-	assert gate.isSet() is False
-	gate.set()
-	gate.clear()
-	assert gate.cancelled() is True
-	gate.begin(token)
-	assert gate.cancelled() is False
-	token.is_cancelled = lambda: True
-	assert gate.cancelled() is True
+	assert player_of(core) is player_of(callback_handler(core))
+	assert type(inner_stop_flag(core)) is threading.Event
 
 
 def test_callback_rejects_audio_outside_native_call(engine_harness):
@@ -207,77 +152,6 @@ def test_callback_rejects_audio_outside_native_call(engine_harness):
 	message = native_message(types, types.VE_MSG_OUTBUFREQ, out_data)
 	assert callback_handler(core)(None, None, message) == types.NUAN_E_TTS_USERSTOP
 	assert real_player(core).fed == []
-
-
-def test_player_stops_after_feed_when_cancelled_mid_feed(engine_harness):
-	core = engine_harness.new_core()
-	gate = silence_gate(core)
-	gate.begin(None)
-	real_player(core).feed = lambda data: gate.set()
-	player_of(core).feed(b"sound")
-	assert real_player(core).stops == 1
-	player_of(core).idle()
-	assert real_player(core).idles == 0
-
-
-def test_player_skips_feed_when_already_cancelled(engine_harness):
-	core = engine_harness.new_core()
-	silence_gate(core).set()
-	player_of(core).feed(b"discard")
-	assert real_player(core).fed == []
-
-
-def test_cancel_between_token_check_and_clear_stays_stopped(engine_harness, monkeypatch):
-	core, token = ready_core(engine_harness), Token()
-	entry_paused, release_entry = threading.Event(), threading.Event()
-	gate = silence_gate(core)
-	begin = gate.begin
-
-	def paused_begin(received):
-		entry_paused.set()
-		assert release_entry.wait(HOLD_TIMEOUT)
-		return begin(received)
-
-	monkeypatch.setattr(gate, "begin", paused_begin)
-	called = []
-	monkeypatch.setattr(
-		engine_harness.native,
-		"processText2Speech",
-		lambda instance, text: called.append(text),
-	)
-	worker = threading.Thread(
-		target=speak_now,
-		args=(core, ["old"]),
-		kwargs={"cancellationToken": token},
-	)
-	worker.start()
-	assert entry_paused.wait(WAIT_TIMEOUT)
-	token.cancel()
-	stopper = threading.Thread(target=core.cancel)
-	stopper.start()
-	release_entry.set()
-	worker.join(WAIT_TIMEOUT)
-	stopper.join(WAIT_TIMEOUT)
-	assert not worker.is_alive() and not stopper.is_alive()
-	assert gate.cancelled()
-	assert called == []
-	assert real_player(core).fed == []
-
-
-def test_native_call_marker_clears_after_exception(engine_harness, monkeypatch):
-	core = ready_core(engine_harness)
-
-	def fail(instance, text):
-		raise RuntimeError("native failed")
-
-	monkeypatch.setattr(engine_harness.native, "processText2Speech", fail)
-	if has_segment_host(core):
-		# Asynchronous speech: the native error stays with the worker's record.
-		speak_now(core, ["old"], cancellationToken=Token())
-	else:
-		with pytest.raises(RuntimeError, match="native failed"):
-			speak_now(core, ["old"], cancellationToken=Token())
-	assert inside_native_call(core) is False
 
 
 def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harness, monkeypatch):
@@ -835,3 +709,41 @@ def test_endprocess_after_cancel_feeds_no_sonic_tail(engine_harness, monkeypatch
 	assert results == [types.NUAN_OK, types.NUAN_OK, last]
 	assert flushed == []
 	assert real_player(core).fed == []
+
+
+class RecordingEvent(threading.Event):
+	def __init__(self):
+		super().__init__()
+		self.calls = []
+
+	def set(self):
+		self.calls.append("set")
+		super().set()
+
+	def clear(self):
+		self.calls.append("clear")
+		super().clear()
+
+	def is_set(self):
+		self.calls.append("is_set")
+		return super().is_set()
+
+	isSet = is_set
+
+
+def test_guarded_speech_never_touches_inner_stop_flag(engine_harness, monkeypatch):
+	# Like RHVoice's wrapper, the guard leaves the inner stop Event to the inner driver.
+	core = ready_core(engine_harness)
+	flag = RecordingEvent()
+	core._isSilence = callback_handler(core)._isSilence = flag
+	callback_handler(core)._ensureSonicStream = lambda: False
+	monkeypatch.setattr(
+		engine_harness.native,
+		"processText2Speech",
+		lambda instance, text: emit_audio(core, engine_harness.types, text.encode()),
+	)
+	speak_now(core, ["first"], cancellationToken=Token())
+	core.cancel()
+	speak_now(core, ["second"])
+	assert flag.calls == []
+	assert real_player(core).fed == [b"first", b"second"]

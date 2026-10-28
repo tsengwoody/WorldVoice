@@ -93,57 +93,26 @@ class _ThreadState(threading.local):
 	cleaning = False
 
 
-class _SilenceGate(threading.Event):
-	def __init__(self):
-		super().__init__()
-		self._token = None
-		self._insideNativeCall = False
+class _WavePlayer:
+	"""The inner driver's player, as its DoneSpeaking sees it: idle goes to the wrapper.
 
-	def cancelled(self):
-		return super().is_set() or self.tokenCancelled()
+	Indexes come from SDK bookmarks in the callback and audio is fed by the
+	wrapper, so this stand-in only routes the final idle; pause, stop and
+	close reach the real player.
+	"""
 
-	def tokenCancelled(self):
-		return bool(self._token and self._token.is_cancelled())
-
-	def is_set(self):
-		if not self._insideNativeCall:
-			log.debug("VE callback outside native call")
-		return self.cancelled() or not self._insideNativeCall
-
-	def isSet(self):
-		return self.is_set()
-
-	def clear(self):
-		log.debug("VE driver clear blocked by WorldVoice guard")
-
-	def begin(self, token):
-		self._token = token
-		threading.Event.clear(self)
-
-
-class _GuardedPlayer:
-	def __init__(self, realPlayer, gate, driver=None):
-		self._real = realPlayer
-		self._gate = gate
-		self._driver = weakref.ref(driver) if driver is not None else None
-
-	def feed(self, *args, **kwargs):
-		if self._gate.cancelled():
-			return
-		try:
-			return self._real.feed(*args, **kwargs)
-		finally:
-			if self._gate.cancelled():
-				self._real.stop()
+	def __init__(self, player, driver):
+		self._player = player
+		self._driver = weakref.ref(driver)
 
 	def idle(self):
-		driver = self._driver() if self._driver is not None else None
+		driver = self._driver()
 		if driver is not None:
 			return driver._idlePlayer()
 		return None
 
 	def __getattr__(self, name):
-		return getattr(self._real, name)
+		return getattr(self._player, name)
 
 
 @dataclass(eq=False)
@@ -376,7 +345,7 @@ class _VEStrategy(NativeStrategy):
 				host.record_error(record, error)
 				host.latch_control_error(error)
 				return
-			if driver._recordValid(record) and not driver._isSilence.cancelled():
+			if driver._recordValid(record):
 				host.reach(record, "idle")
 
 
@@ -453,32 +422,15 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		):
 			log.warning("VE cancellation guard unavailable; using original driver")
 			return
-		original = (self._isSilence, self._player, callback._isSilence, callback._player)
-		gate = _SilenceGate()
-		player = _GuardedPlayer(self._player, gate, self)
+		# The inner stop Event and the callback's player stay as created: the
+		# guarded callback decides by record validity and feeds _realPlayer.
+		real = self._player
 		try:
-			self._isSilence = gate
-			callback._isSilence = gate
-			self._player = player
-			callback._player = player
+			self._player = _WavePlayer(real, self)
 		except Exception:
-			restorationErrors = []
-			for obj, name, value in (
-				(self, "_isSilence", original[0]),
-				(self, "_player", original[1]),
-				(callback, "_isSilence", original[2]),
-				(callback, "_player", original[3]),
-			):
-				try:
-					setattr(obj, name, value)
-				except Exception as error:
-					restorationErrors.append(error)
-					log.warning("VE cancellation guard restoration failed", exc_info=True)
 			log.warning("VE cancellation guard installation failed", exc_info=True)
-			if restorationErrors:
-				raise RuntimeError("VE cancellation guard restoration failed") from restorationErrors[0]
 			return
-		self._realPlayer = original[1]
+		self._realPlayer = real
 		self._guardInstalled = True
 
 	@property
@@ -554,8 +506,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			else:
 				self._currentRecord = record
 				host.begin(record)
-				token = record.work.token if record.work is not None else record.native.token
-				self._isSilence.begin(token)
 		if record.native.skipped:
 			host.abandon(record)
 			return
@@ -564,7 +514,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def _retireRecord(self, record):
 		host = self._segmentHost
 		if not record.native.skipped:
-			self._isSilence._insideNativeCall = False
 			if "spoken" in record.barriers and self._recordValid(record):
 				host.reach(record, "spoken")
 			with self._speechStateLock:
@@ -577,7 +526,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				self._currentRecord = None
 			if self._doneOwner is record:
 				self._doneOwner = None
-			self._isSilence._token = None
 			self._speechStateLock.notify_all()
 
 	def _resetCallbackAudio(self):
@@ -617,13 +565,12 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 	def _runNative(self, record, voiceInstance, piece):
 		host = self._segmentHost
-		if record is not self._currentRecord or not self._recordValid(record) or self._isSilence.cancelled():
+		if record is not self._currentRecord or not self._recordValid(record):
 			return
 		call = _NativeCall(record, voiceInstance)
 		with self._speechStateLock:
 			self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			self._nativeCall = call
-			self._isSilence._insideNativeCall = True
 		invoked = False
 		try:
 			if self._recordValid(record):
@@ -636,7 +583,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			host.record_error(record, error)
 		finally:
 			self._closeAdmission(call)
-			self._isSilence._insideNativeCall = False
 			# Every callback admitted to this call returns before the next one.
 			host.wait_consumers(record)
 			blocked = None
@@ -694,7 +640,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		if record is not None and record.operation is not None:
 			return
 		# A request that never began (skipped or dropped) fed nothing to wait for.
-		if record is None or self._isSilence.cancelled() or not self._recordValid(record):
+		if record is None or not self._recordValid(record):
 			return
 		with self._playerOperation():
 			self._realPlayer.idle()
@@ -734,7 +680,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 						return
 				host.cancel()
 				with self._speechStateLock:
-					self._isSilence.set()
 					# WavePlayer.stop clears its own pause state. Keep the final idle
 					# predicate in sync so fresh speech does not await a stale pause.
 					self._paused = False
@@ -812,9 +757,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			# speak() no longer raises, so a failed request still releases its
 			# DONE waiter, as the add-on's DoneSpeaking does; only a cancelled
 			# token silences it.
-			if self._isSilence.tokenCancelled() or (token is not None and token.is_cancelled()):
+			if token is not None and token.is_cancelled():
 				return
-		elif record is None or self._isSilence.cancelled() or not self._recordValid(record):
+		elif record is None or not self._recordValid(record):
 			# An index belongs to the running request; none runs, or it is no longer valid.
 			return
 		return super()._onIndexReached(index)

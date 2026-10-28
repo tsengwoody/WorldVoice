@@ -91,9 +91,6 @@ UPPER_CASE = re.compile(r"_*[A-Z][A-Z0-9_]*")
 
 # Names from interfaces outside the add-on: {module path: {qualified name: the interface}}.
 INTERFACE_NAMES = {
-	SYNTH + "driver/Cerence/__init__.py": {
-		"_SilenceGate.is_set": "threading.Event.is_set, to which the vendored callback's _isSilence.isSet() forwards",
-	},
 	SYNTH + "driver/Espeak/__init__.py": {
 		"_SegmentNative.espeak_Synth": "the eSpeak NG DLL export, proxied for NVDA's _espeak.espeakDLL",
 		"_SegmentNative.espeak_ng_Cancel": "the eSpeak NG DLL export, proxied for NVDA's _espeak.espeakDLL",
@@ -111,9 +108,6 @@ INTERFACE_NAMES = {
 		"_SegmentSapiSink.ISpNotifySink_Notify": "NVDA synthDrivers.sapi5.SapiSink.ISpNotifySink_Notify, the COM "
 		"method comtypes calls by name",
 		"_SegmentSapiSink.StartStream": "NVDA sapi5.SapiSink.StartStream, the SAPI event comtypes calls by name",
-	},
-	SYNTH + "driver/VE/__init__.py": {
-		"_SilenceGate.is_set": "threading.Event.is_set, to which the vendored callback's _isSilence.isSet() forwards",
 	},
 	SYNTH + "runtime/models.py": {
 		"VoiceSnapshot.rateBoost": "the voice setting id rateBoost (runtime/voiceSettings.VOICE_PARAMETERS), "

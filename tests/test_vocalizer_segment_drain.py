@@ -13,13 +13,13 @@ from worldvoice_cancel_wrapper_harness import (
 	buffered_audio,
 	callback_handler,
 	emit,
+	inner_stop_flag,
 	load_real_driver_with_native_stubs,
 	native_call,
 	native_callback,
 	native_message,
 	queued_begins,
 	real_player,
-	silence_gate,
 	sonic_state,
 	stop_gate_clear,
 	termination_done,
@@ -743,7 +743,7 @@ def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
 	assert real_player(env.core).idles == 1
 
 
-@pytest.mark.parametrize("cancel_kind", ["token", "direct", "clear"])
+@pytest.mark.parametrize("cancel_kind", ["token", "direct", "inner-clear"])
 def test_cancelled_idle_cannot_complete_segment(env, monkeypatch, cancel_kind):
 	prove_fake_quiescence(env, monkeypatch)
 	entered, release = Event(), Event()
@@ -756,8 +756,9 @@ def test_cancelled_idle_cannot_complete_segment(env, monkeypatch, cancel_kind):
 		token.cancel()
 	else:
 		env.core.cancel()
-		if cancel_kind == "clear":
-			silence_gate(env.core).clear()
+		if cancel_kind == "inner-clear":
+			# The inner driver's queued clear of its own stop flag revives nothing.
+			inner_stop_flag(callback_handler(env.core)).clear()
 	release.set()
 	finish(call)
 	assert env.events == []
