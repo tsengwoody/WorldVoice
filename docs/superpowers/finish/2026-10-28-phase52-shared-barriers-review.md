@@ -150,3 +150,80 @@ worker 只在 `record.barriers[ENGINE_DONE] and record.barriers[SYNTHESIZED] and
 ## 未在 Linux 驗證的項目（Windows／NVDA 手動）
 
 本 phase 沒有行為改變，不需要新的手動項目；照常的 smoke test 即可：每個引擎各說一段話、取消 VE／Cerence 的語音，並看 NVDA log 沒有 `synthesis retired without its … barriers`。
+
+## 修正記錄
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4）。基準 `a583ea3`（3485 passed／0 skipped）。本輪除了 M1–M3，也落實使用者 2026-10-28 的決定：關卡採用**選項 B′**——依證據證明了什麼來分類、改名定義有變的常數、由 host 強制唯一重要的不變量。只有 Minor，依 §3.4 不需要修正 review。
+
+### 選項 B′（使用者決定）
+
+| commit | 內容 |
+| --- | --- |
+| `0c0db4e` | `feat`：`runtime/barriers.py` 新增 `AUDIO_FED = "audio_fed"`（這筆的音訊已全部餵進播放器，之後不會再有它的音訊 callback；各引擎證據寫在註解裡）；`ENGINE_DONE` 註明是選用的；`PLAYED_OUT` 改寫為「`idle()` 回來，或 `sync()` 回來加上引擎自己的 unpause 等待；只有 `idle()` 會關閉連續段，本關卡不保證那些副作用」。`SYNTHESIZED` 暫時保留，讓每個 wrapper 各自一個改名 commit。 |
+| `a84daed` | 改名：eSpeak `SYNTHESIZED`→`AUDIO_FED`（2 個 token） |
+| `f905660` | 改名：RHVoice `SYNTHESIZED`→`AUDIO_FED`（3 個 token；`"message"` 保留） |
+| `6d4bbcf` | 改名：VE＋Cerence `SYNTHESIZED`→`AUDIO_FED`（各 3 個 token，同一個 commit；`tests/test_vocalizer_drift.py` 的 `ALLOWED` 未動） |
+| `52dd913` | 改名：SAPI5 `"processed"`→`AUDIO_FED`（5 個 token） |
+| `53d64f5` | 改名：OneCore `"callback"`→`AUDIO_FED`（4）、`"synced"`→`PLAYED_OUT`（2） |
+| `c9d58f1` | 移除過渡用的 `SYNTHESIZED` |
+| `a66ca27` | 只加註解：OneCore drain「`sync()` 不是 `idle()`，不會關閉連續段」、交付 callback「也是 OneCore 唯一的終止通知，沒有 `ENGINE_DONE`」；SAPI5 在要求 `ENGINE_DONE` 的 raise 前「`AUDIO_FED` 必須在 `ENGINE_DONE` 之後」 |
+| `dc03a46` | eSpeak 把 `AUDIO_FED` 的 reach 從 `finally` 移到成功路徑（見 Ruling） |
+| `c9070e2` | `SegmentHost.__init__` 改成要求 strategy 的 `barriers` 含 `PLAYED_OUT`：`ValueError(f"{engine} strategy declares no played-out barrier")`；ordinary 的 `enqueue(barriers=…)` 不受限制（VE 的是空集合） |
+| `e89fced` | 守門：`ENGINES` 改為從 `driver/` 列舉（`__init__.py` 定義 `*Strategy` 類別的套件；`sonic` 列為非引擎套件，本機還原、未追蹤的 `Neural` 略過）；引擎特有名稱只剩 `RHVoice: {"message"}`；每個引擎都要有宣告集合列；新增「每個 strategy 的 barriers ⊇ {`AUDIO_FED`, `PLAYED_OUT`}」 |
+| `0b4225f` | OneCore 順序斷言：`PLAYED_OUT` 只在 `sync()` 回來之後才 reach |
+| `f0f000e` | spec §3：舊分類與協調者預設加刪除線，標註「Decided by the user (2026-10-28): option B′」，新增 §3.5（新定義、逐引擎變更、宣告表、host 檢查、守門） |
+
+新的分類（宣告集合的成員不變，只換拼法）：
+
+| 引擎 | Strategy `barriers` | Ordinary | 各關卡的證據 |
+| --- | --- | --- | --- |
+| eSpeak | `{AUDIO_FED, ENGINE_DONE, PLAYED_OUT}` | （同 strategy） | 同步 `espeak_Synth` 成功回來；`onIndexReached(None)`；`LeasedPlayer` 的 `idle()` |
+| RHVoice | `{"message", ENGINE_DONE, AUDIO_FED, PLAYED_OUT}` | （同 strategy） | `RHVoice_new_message`（前置條件，引擎特有）；done callback；同步 `RHVoice_speak`；worker 最後的 `idle()` |
+| SAPI5 | `{ENGINE_DONE, AUDIO_FED, PLAYED_OUT}` | `{ENGINE_DONE, AUDIO_FED}` | `EndStream`；EndStream 後 worker flush Sonic、餵完尾音；drain 的 `idle()` |
+| OneCore | `{AUDIO_FED, PLAYED_OUT}` | `{AUDIO_FED}` | 非同步交付 callback 餵完全部 chunk（也是唯一的終止通知）；`sync()`＋unpause 等待（不關閉連續段） |
+| VE／Cerence | `{AUDIO_FED, PLAYED_OUT}` | `frozenset()` | `_Retire` 排在每個同步 `ve_ttsProcessText2Speech` 之後；drain 的 `idle()` |
+
+**改名的 token 比對。** 用 `tokcheck2.py`（順序敏感、分辨字串；含 COMMENT／NL／INDENT；`--map` 全檔替換、`--at` 限定舊檔某一行、`--drop-old-line`／`--drop-new-line` 各自只能剛好吻合一行），對每個 commit 的 `sha^` 與 `sha` 重跑，全部 **OK**：上表的替換數；每個 wrapper 唯一多出的差異是排序後的 import 行（OneCore 是新增的 import 行）；守門檔只有該引擎那一列（SAPI5、OneCore 的 `ENGINE_SPECIFIC_BARRIERS` 列以完整舊行／新行列出）。比對腳本本身先驗證過：空對照表、或對照表套到守門檔全檔，都會報 FAIL。腳本與輸出在 `.superpowers/sdd/2026-10-28-phase52-shared-barriers/`（`tokcheck2.py`、`tokchecks-committed.txt`）。
+
+### Minor
+
+| 項目 | commit | 證據 |
+| --- | --- | --- |
+| M1 | `0745426` | `test_missing_done_does_not_drain_after_native_return` 在 `SEGMENT_FAILED` 之後斷言錯誤提到 `engine_done`，且 harness 播放器的 `idle_count == 1`（只有內層 `SpeakText` 自己那次）。突變 R1（`barriers[ENGINE_DONE]`→`[AUDIO_FED]`）與 R1b（`True and …`）都被這個測試殺掉。 |
+| M2 | `32a4123` | `_voice_reassigns_core_class` 也認得 `ast.AnnAssign` 與 `setattr(cls, "synthDriverClass", …)`，docstring 說明只走訪 `Voice` 類別，並在精確集合 `{VE, Cerence}` 那一行註明它才是真正的防線；新增 6 個偵測案例的直接測試。 |
+| M3 | `012f02a` | `tests/test_segment_host.py` 在模組層載入 `runtime/barriers.py` 讀 `PLAYED_OUT`，取代 11 處手抄的 `"played_out"`（含兩個缺關卡訊息改用 f-string）；`"returned"` 維持 fake 自己的標籤。host 檢查的 commit（`c9070e2`）另加「沒有 `PLAYED_OUT` 的 strategy → ValueError」、保留空集合案例（改比對新訊息）、「ordinary 空集合仍可 enqueue」。 |
+
+### 突變測試
+
+暫時的 scratch 複本（`git ls-files` 複製、`ref` 用 symlink），`PYTHONDONTWRITEBYTECODE=1`、`-p no:cacheprovider`，每次先清 `__pycache__`、每個 600 s timeout，輸出寫成檔案（`mutants-out.txt`）。
+
+| # | 突變 | 結果 |
+| --- | --- | --- |
+| H1 | host 檢查改回「非空即可」 | killed（`test_a_strategy_without_played_out_is_rejected`） |
+| O1 | OneCore drain 在 `sync()` 之前就 reach `PLAYED_OUT` | killed（`test_onecore_waits_for_tail_sync_before_drain`） |
+| S1 | 拿掉 SAPI5 `_onEndStream` 的 `ENGINE_DONE` 檢查 | killed（`test_worker_completion_without_end_marker_fails_exact_work`） |
+| P1／P1g | VE strategy 沒有 `PLAYED_OUT`（行為測試／守門） | killed（host 建構時 ValueError；守門 `[VE]`） |
+| P2 | OneCore strategy 沒有 `PLAYED_OUT` | killed（host 建構時 ValueError） |
+| E1 | `ENGINES` 改回少一個引擎（Cerence）的固定 tuple | killed（`test_every_driver_package_is_an_engine_or_listed`、`test_every_engine_has_a_declared_barriers_row`） |
+| E2 | 固定 tuple 含全部六個（對照組） | 存活：等價，今天的列舉結果就是這六個 |
+| N1 | 新增一個定義 `*Strategy` 的 wrapper 套件 | killed（5 個守門，含缺宣告列與缺 `AUDIO_FED`／`PLAYED_OUT`）→ 新 wrapper 會被自動納入 |
+| N2 | 新增一個沒有 strategy 的套件 | killed（必須明確列為非引擎套件） |
+| R1／R1b | RHVoice worker 的 `ENGINE_DONE` 閘門換成 `AUDIO_FED`／`True` | killed（M1） |
+| ES1 | eSpeak 的 reach 放回 `finally` | killed（`test_failed_native_synthesis_does_not_reach_audio_fed`） |
+| M2 | 偵測函式不看 `setattr` | killed |
+
+### Ruling
+
+- Ruling: `0c0db4e`..`c9d58f1` 之間暫時保留 `SYNTHESIZED`，讓每個 wrapper 的改名各自是一個綠的 commit — 理由：使用者要求逐 wrapper 改名（VE＋Cerence 一起）— 錯了的代價：無（`c9d58f1` 已移除，測試釘住三個公開名稱）。
+- Ruling: 每個改名 commit 一併修改守門表裡該引擎那一列 — 理由：維持每個 commit 套件全綠 — 錯了的代價：無（測試檔的列，用 `--at`／整行比對證明沒有夾帶）。
+- Ruling: eSpeak 的 `AUDIO_FED` 移到成功路徑（選用項目，決定做）— 理由：失敗的 `espeak_Synth` 並未證明音訊全部餵完；行為不變，因為錯誤在 raise 之前就記在 record 上，retire 與 drain 檢查都先看 `record.error` 再看缺的關卡；新測試同時釘住「不 reach」與「失敗原因是合成錯誤而不是缺關卡」— 錯了的代價：失敗會被報成缺關卡，由該測試抓到。
+- Ruling: `test_default_hooks_finish_a_segment` 的 `Bare` strategy 改宣告 `PLAYED_OUT`（原本 `"done"`）— 理由：更嚴格的 host 檢查要求 — 錯了的代價：無。
+- Ruling: 列舉 `ENGINES` 時略過未追蹤的 `Neural`（與 `tests/test_engine_interface_guards.py` 相同慣例），`sonic` 是唯一列出的非引擎套件 — 錯了的代價：本機還原的 Neural 不受這組守門檢查（它本來就保留舊介面）。
+- Ruling: M1 測試以子字串檢查錯誤訊息提到 `engine_done`，不比對整句 — 理由：`frozenset` 的迭代順序隨 hash seed 變動，整句比對會不穩定 — 錯了的代價：無。
+
+### 驗證
+
+- 完整套件：**3503 passed／0 skipped**（+18：eSpeak 2、host 2、守門 14［套件列舉 1、宣告列 1、⊇ 檢查 6、偵測案例 6］）。
+- `prek run --all-files`：全部 Passed。`git diff --check master`：乾淨。
+- 受保護路徑（內層驅動、`sonic/`、兩個 Unicode 資料檔）、`git ls-files …/driver/Neural`、`ref/`、`tests/test_vocalizer_drift.py` 相對 `master`：都沒有輸出。
+- 使用者可見的變化：只有 NVDA log 的缺關卡訊息用字（`synthesized` → `audio_fed`；OneCore 的 `callback`／`synced`、SAPI5 的 `processed` 變成 `audio_fed`／`played_out`），不進設定、不翻譯、readme 沒提。Windows 上的 NVDA、實際音訊裝置、引擎 SDK 沒有在 Linux 驗證到；手動 smoke test 同 review 原本所列。
