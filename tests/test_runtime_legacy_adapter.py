@@ -552,3 +552,25 @@ def test_and_mode_uses_segment_entry_and_keeps_terminal_marker(drain_env):
 	assert [c.index for c in commands if isinstance(c, env.commands.IndexCommand)] == [1, 2]
 	assert isinstance(commands[-1], env.support.commands.WorldVoiceIndexCommand)
 	assert env.core.spoken == []
+
+
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
+def test_bridge_passes_the_token_to_the_real_vocalizer_wrapper(bridge_modules, rt, monkeypatch, engine):
+	# Phase 50 review M3: the wrapper's class-level claim reaches the plain speak path.
+	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
+	cls = harness.module.Voice
+	core = harness.new_core()
+	monkeypatch.setattr(cls, "createCore", classmethod(lambda cls: core), raising=False)
+	monkeypatch.setattr(cls, "supportedSettings", classmethod(lambda cls: ["rate"]), raising=False)
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: None)
+	adapter.open()
+	assert adapter.capabilities.supports_cancellation_token is True
+	calls = []
+	monkeypatch.setattr(
+		core,
+		"speak",
+		lambda commands, cancellationToken=None: calls.append((commands, cancellationToken)),
+	)
+	token = object()
+	bridge_modules.adapter._speakPlain(adapter, ["hi"], token, None, None)
+	assert calls == [(["hi"], token)]
