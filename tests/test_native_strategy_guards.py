@@ -408,7 +408,7 @@ ENGINE_SPECIFIC_BARRIERS = {
 }
 # Each strategy's declared set and its ordinary set (None: ordinary records take the strategy's).
 DECLARED_BARRIERS = {
-	"Espeak": ({"SYNTHESIZED", "ENGINE_DONE", "PLAYED_OUT"}, None),
+	"Espeak": ({"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}, None),
 	"RHVoice": ({"message", "ENGINE_DONE", "SYNTHESIZED", "PLAYED_OUT"}, None),
 	"SAPI5": ({"ENGINE_DONE", "processed", "PLAYED_OUT"}, {"ENGINE_DONE", "processed"}),
 	"OneCore": ({"callback", "synced"}, {"callback"}),
