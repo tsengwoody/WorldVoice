@@ -11,7 +11,7 @@ the live check sees the whole MRO, so the static view is the stricter one, with 
   here even when that branch does not run on the user's machine, where the live check misses it;
 - the live check reads functions only one level below a class attribute (hostNames.py), so a
   method under a decorator that keeps no __wrapped__, under two wrapping decorators, or under
-  staticmethod or property over a wrapping decorator hides its stores from the live check, not
+  staticmethod, classmethod or property over a wrapping decorator hides its stores from the live check, not
   from the compiled source.
 
 The phase 51 review checked every release in RELEASES by hand: no name the wrappers list is bound

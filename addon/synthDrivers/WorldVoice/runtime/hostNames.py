@@ -18,8 +18,8 @@ The functions read are one level below each attribute in the dict of a class in 
 attribute itself when it is a function, the function under staticmethod, classmethod or property
 (fget, fset, fdel), and the attribute's own __wrapped__ (one functools.wraps decorator). Nothing
 deeper is followed, so stores are not seen in a function under a decorator that keeps no
-__wrapped__, under two wrapping decorators, or under staticmethod or property over a wrapping
-decorator (there the wrapper's own code is read).
+__wrapped__, under two wrapping decorators, or under staticmethod, classmethod or property over a
+wrapping decorator (there the wrapper's own code is read).
 """
 
 import dis
