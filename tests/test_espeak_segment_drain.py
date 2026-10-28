@@ -80,6 +80,33 @@ def test_observable_callback_or_native_failure_fails_exact_context_after_return(
 	assert env.dones == []
 
 
+@pytest.mark.parametrize("failure", ["native", "native_result"])
+def test_failed_native_synthesis_does_not_reach_audio_fed(env, monkeypatch, failure):
+	# AUDIO_FED means all of the record's audio was fed; a failed espeak_Synth proves no such
+	# thing. The record still fails with the synthesis error, not a missing-barrier error.
+	host = env.driver._segmentHost
+	reach, reached = host.reach, []
+
+	def recording_reach(record, barrier):
+		reached.append(barrier)
+		reach(record, barrier)
+
+	monkeypatch.setattr(host, "reach", recording_reach)
+	env.native.next_scripts.append({"error": True} if failure == "native" else {"result": -1})
+	_, context, events = speak(env)
+	call = env.native.wait_calls(1)
+	env.player.idle_release.set()
+	call.return_release.set()
+	event = wait_event(events)
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert event.source_id is context.source_id
+	assert env.outer.AUDIO_FED not in reached
+	if failure == "native":
+		assert isinstance(event.error, OSError)
+	else:
+		assert str(event.error) == "eSpeak synthesis failed with code -1"
+
+
 def test_espeak_shared_lifecycle_waits_for_fifo_and_empty_audio_idle(env):
 	env.native.next_scripts.append({"empty": True})
 	_, context, events = speak(env, commands=("",))

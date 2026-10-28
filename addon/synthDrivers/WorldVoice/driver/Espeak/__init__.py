@@ -57,12 +57,12 @@ class _SegmentNative:
 			result = self._native.espeak_Synth(*args)
 			if result != self._ok:
 				raise RuntimeError(f"eSpeak synthesis failed with code {result}")
-			return result
 		except Exception as error:
 			host.record_error(record, error)
 			raise
-		finally:
-			host.reach(record, AUDIO_FED)
+		# Only a successful call proves the audio was fed; a failed one fails the record by its error.
+		host.reach(record, AUDIO_FED)
+		return result
 
 
 class _EspeakPort:
