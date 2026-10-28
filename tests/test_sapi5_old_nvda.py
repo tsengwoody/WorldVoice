@@ -192,6 +192,8 @@ def test_old_nvda_sapi5_driver_runs_through_the_bridge_as_a_legacy_done_core(mon
 	env = load_release(monkeypatch, tmp_path, version)
 	voice = env.outer.Voice
 	assert voice.ready() is True
+	# NVDA's own core takes no token, so this Voice must not declare it (phase 52).
+	assert "cancellationToken" not in voice.extraCapabilities
 	warnings = []
 	policy = env.policies.CompletionPolicy(
 		nvdaVersion=version,

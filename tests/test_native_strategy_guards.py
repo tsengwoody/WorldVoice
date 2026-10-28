@@ -536,3 +536,42 @@ def test_leased_player_reaches_played_out_by_default():
 	defaults = dict(zip((a.arg for a in init.args.kwonlyargs), init.args.kw_defaults, strict=True))
 	assert ast.unparse(defaults["idle_barrier"]) == "PLAYED_OUT"
 	assert "from .barriers import PLAYED_OUT" in ast.unparse(host_tree)
+
+
+def _voice_extra_capabilities(tree):
+	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
+	assigned = [
+		n.value
+		for n in voice.body
+		if isinstance(n, ast.Assign) and [ast.unparse(t) for t in n.targets] == ["extraCapabilities"]
+	]
+	return {_barrier_label(node) for node in _frozenset_elements(assigned[0])} if assigned else set()
+
+
+def _voice_reassigns_core_class(tree):
+	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
+	targets = [
+		target
+		for node in ast.walk(voice)
+		if isinstance(node, ast.Assign)
+		for assigned in node.targets
+		for target in (assigned.elts if isinstance(assigned, ast.Tuple) else [assigned])
+	]
+	return any(isinstance(t, ast.Attribute) and t.attr == "synthDriverClass" for t in targets)
+
+
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_token_capability_needs_a_fixed_core_that_takes_the_token(engine):
+	# The bridge passes speak(commands, cancellationToken=token) on the Voice's word alone, so
+	# the core class must be fixed and take the keyword. SAPI5 swaps in NVDA's own driver before
+	# NVDA 2025.3, whose speak(speechSequence) would raise TypeError on a token.
+	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+	declared = "cancellationToken" in _voice_extra_capabilities(tree)
+	assert declared is (engine in {"VE", "Cerence"})
+	if _voice_reassigns_core_class(tree):
+		assert not declared
+	if declared:
+		assert not _voice_reassigns_core_class(tree)
+		synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
+		speak = next(n for n in synth.body if isinstance(n, ast.FunctionDef) and n.name == "speak")
+		assert "cancellationToken" in {a.arg for a in speak.args.args + speak.args.kwonlyargs}
