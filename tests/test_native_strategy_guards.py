@@ -586,15 +586,44 @@ def _voice_extra_capabilities(tree):
 
 
 def _voice_reassigns_core_class(tree):
+	"""Whether Voice sets synthDriverClass, by plain or annotated assignment or by setattr.
+
+	Only the Voice class is walked: a helper elsewhere that swaps the class is not seen. The
+	exact set of token-declaring engines asserted below is the guard that does not depend on it.
+	"""
 	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
 	targets = [
 		target
 		for node in ast.walk(voice)
-		if isinstance(node, ast.Assign)
-		for assigned in node.targets
+		if isinstance(node, ast.Assign | ast.AnnAssign)
+		for assigned in (node.targets if isinstance(node, ast.Assign) else [node.target])
 		for target in (assigned.elts if isinstance(assigned, ast.Tuple) else [assigned])
 	]
-	return any(isinstance(t, ast.Attribute) and t.attr == "synthDriverClass" for t in targets)
+	set_by_name = any(
+		isinstance(node, ast.Call)
+		and ast.unparse(node.func) == "setattr"
+		and len(node.args) >= 2
+		and isinstance(node.args[1], ast.Constant)
+		and node.args[1].value == "synthDriverClass"
+		for node in ast.walk(voice)
+	)
+	return set_by_name or any(isinstance(t, ast.Attribute) and t.attr == "synthDriverClass" for t in targets)
+
+
+@pytest.mark.parametrize(
+	("body", "reassigns"),
+	[
+		("cls.synthDriverClass = Other", True),
+		("cls.synthDriverClass, cls.drainProfile = Other, None", True),
+		("cls.synthDriverClass: type = Other", True),
+		('setattr(cls, "synthDriverClass", Other)', True),
+		("cls.drainProfile = None", False),
+		('setattr(cls, "drainProfile", None)', False),
+	],
+)
+def test_core_class_reassignment_detection(body, reassigns):
+	source = f"class Voice:\n\t@classmethod\n\tdef ready(cls):\n\t\t{body}\n"
+	assert _voice_reassigns_core_class(ast.parse(source)) is reassigns
 
 
 @pytest.mark.parametrize("engine", ENGINES)
@@ -604,6 +633,7 @@ def test_a_token_capability_needs_a_fixed_core_that_takes_the_token(engine):
 	# NVDA 2025.3, whose speak(speechSequence) would raise TypeError on a token.
 	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
 	declared = "cancellationToken" in _voice_extra_capabilities(tree)
+	# The real guard: widening this set leaves only _voice_reassigns_core_class's view.
 	assert declared is (engine in {"VE", "Cerence"})
 	if _voice_reassigns_core_class(tree):
 		assert not declared
