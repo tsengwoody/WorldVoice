@@ -140,8 +140,7 @@ class _GuardedPlayer:
 		driver = self._driver() if self._driver is not None else None
 		if driver is not None:
 			return driver._idlePlayer()
-		if not self._gate.cancelled():
-			self._real.idle()
+		return None
 
 	def __getattr__(self, name):
 		return getattr(self._real, name)
@@ -694,7 +693,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		record = self._currentRecord
 		if record is not None and record.operation is not None:
 			return
-		if self._isSilence.cancelled() or (record is not None and not self._recordValid(record)):
+		# A request that never began (skipped or dropped) fed nothing to wait for.
+		if record is None or self._isSilence.cancelled() or not self._recordValid(record):
 			return
 		with self._playerOperation():
 			self._realPlayer.idle()
@@ -814,7 +814,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			# token silences it.
 			if self._isSilence.tokenCancelled() or (token is not None and token.is_cancelled()):
 				return
-		elif self._isSilence.cancelled() or (record is not None and not self._recordValid(record)):
+		elif record is None or self._isSilence.cancelled() or not self._recordValid(record):
+			# An index belongs to the running request; none runs, or it is no longer valid.
 			return
 		return super()._onIndexReached(index)
 
