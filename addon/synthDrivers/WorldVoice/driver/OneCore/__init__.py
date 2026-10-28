@@ -10,6 +10,7 @@ from synthDriverHandler import synthDoneSpeaking, synthIndexReached
 from synthDrivers import oneCore
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
+from ...runtime.barriers import AUDIO_FED, PLAYED_OUT
 from ...runtime.engineControl import StopGate
 from ...runtime.hostNames import host_names_ready
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
@@ -25,7 +26,7 @@ _TERMINATED_CALLBACKS = []
 
 # Ordinary (legacy) text proves only that its callback returned; the parent
 # owns its queue-empty sync, idle and DONE.
-_ORDINARY_BARRIERS = frozenset({"callback"})
+_ORDINARY_BARRIERS = frozenset({AUDIO_FED})
 
 
 def _nvdaLabel():
@@ -121,7 +122,7 @@ class _SpeechJob:
 class _OneCoreStrategy(NativeStrategy):
 	"""OneCore's native queue: the parent's _queuedSpeech and the outer worker."""
 
-	barriers = frozenset({"callback", "synced"})
+	barriers = frozenset({AUDIO_FED, PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
@@ -187,7 +188,7 @@ class _OneCoreStrategy(NativeStrategy):
 				host.record_error(record, error)
 				driver._failSegmentControl(error)
 				return
-		host.reach(record, "synced")
+		host.reach(record, PLAYED_OUT)
 
 
 class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
@@ -436,7 +437,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 				previous = position
 			if not self._feedSegment(record, player, data + previous, dataLen - previous):
 				return
-			host.reach(record, "callback")
+			host.reach(record, AUDIO_FED)
 		except Exception as error:
 			log.error("OneCore segment playback failed", exc_info=True)
 			host.record_error(record, error)
@@ -449,7 +450,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 	def _legacyCallback(self, record, audio, length, markers):
 		try:
 			super()._callback(audio, length, markers)
-			self._segmentHost.reach(record, "callback")
+			self._segmentHost.reach(record, AUDIO_FED)
 			# The parent's callback schedules our worker instead of recursively
 			# running its queue. Preserve the parent's legacy queue-empty DONE.
 			with self._segmentCondition:

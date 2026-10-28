@@ -402,7 +402,7 @@ ENGINE_SPECIFIC_BARRIERS = {
 	"Espeak": set(),
 	"SAPI5": set(),
 	"RHVoice": {"message"},  # RHVoice_new_message succeeded: a precondition, not completion
-	"OneCore": {"callback", "synced"},  # async delivery callback fed all audio; sync() is not idle()
+	"OneCore": set(),
 	"VE": set(),
 	"Cerence": set(),
 }
@@ -411,7 +411,7 @@ DECLARED_BARRIERS = {
 	"Espeak": ({"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}, None),
 	"RHVoice": ({"message", "ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, None),
 	"SAPI5": ({"ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, {"ENGINE_DONE", "AUDIO_FED"}),
-	"OneCore": ({"callback", "synced"}, {"callback"}),
+	"OneCore": ({"AUDIO_FED", "PLAYED_OUT"}, {"AUDIO_FED"}),
 	"VE": ({"AUDIO_FED", "PLAYED_OUT"}, set()),
 	"Cerence": ({"AUDIO_FED", "PLAYED_OUT"}, set()),
 }
