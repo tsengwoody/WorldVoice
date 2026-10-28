@@ -405,28 +405,10 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._rateBoost = False
 
 	def _installGuard(self):
-		callback = getattr(self, "_veCallbackHandler", None)
-		if callback is None or not all(
-			hasattr(obj, name)
-			for obj, name in (
-				(self, "_isSilence"),
-				(self, "_player"),
-				(callback, "_isSilence"),
-				(callback, "_player"),
-				(callback, "_feedBuf"),
-			)
-		):
-			log.warning("VE cancellation guard unavailable; using original driver")
-			return
 		# The inner stop Event and the callback's player stay as created: the
 		# guarded callback decides by record validity and feeds _realPlayer.
-		real = self._player
-		try:
-			self._player = _IdleRoutingPlayer(real, self)
-		except Exception:
-			log.warning("VE cancellation guard installation failed", exc_info=True)
-			return
-		self._realPlayer = real
+		self._realPlayer = self._player
+		self._player = _IdleRoutingPlayer(self._realPlayer, self)
 		self._guardInstalled = True
 
 	@property

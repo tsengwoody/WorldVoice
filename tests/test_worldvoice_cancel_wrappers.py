@@ -73,63 +73,8 @@ def test_installs_player_stand_in_and_keeps_inner_stop_flag(engine_harness):
 	assert engine_harness.module.Voice.synthDriverClass is engine_harness.module.SynthDriver
 
 
-@pytest.mark.parametrize(
-	"missing",
-	[
-		"_isSilence",
-		"_player",
-		"callback._isSilence",
-		"callback._player",
-		"_feedBuf",
-	],
-)
-def test_missing_private_field_falls_back_without_partial_install(engine_harness, missing):
-	core = engine_harness.new_core(missing=missing)
-	assert core.supportsCancellationToken is False
-	for owner, field in (
-		(core, "_isSilence"),
-		(core, "_player"),
-		(core._veCallbackHandler, "_isSilence"),
-		(core._veCallbackHandler, "_player"),
-	):
-		missing_here = (owner is core and field == missing) or (
-			owner is core._veCallbackHandler and missing == f"callback.{field}"
-		)
-		if not missing_here:
-			assert not isinstance(getattr(owner, field), engine_harness.module._IdleRoutingPlayer)
-			if field == "_isSilence":
-				assert type(getattr(owner, field)) is threading.Event
-
-
-def test_missing_callback_falls_back_without_partial_install(engine_harness):
-	core = engine_harness.new_core(missing="_veCallbackHandler")
-	assert core.supportsCancellationToken is False
-	assert type(inner_stop_flag(core)) is threading.Event
-	assert player_of(core) is not None
-
-
-@pytest.mark.parametrize(
-	"method,args",
-	[
-		("speak", (["text"],)),
-		("_speak", ("voice", ["text"])),
-		("cancel", ()),
-		("_onIndexReached", (7,)),
-	],
-)
-def test_fallback_delegates_each_original_method(engine_harness, monkeypatch, method, args):
-	calls = []
-	monkeypatch.setattr(
-		engine_harness.original_driver.SynthDriver,
-		method,
-		lambda self, *received: calls.append(received) or "parent result",
-	)
-	core = engine_harness.new_core(missing="_feedBuf")
-	assert getattr(core, method)(*args) == "parent result"
-	assert calls == [args]
-
-
-def test_assignment_failure_falls_back_unchanged(engine_harness, monkeypatch):
+def test_install_failure_raises_from_the_constructor(engine_harness, monkeypatch):
+	# No fallback to the original driver: createCore fails and the engine is skipped.
 	module = engine_harness.module
 	setter = module.SynthDriver.__setattr__
 
@@ -139,10 +84,8 @@ def test_assignment_failure_falls_back_unchanged(engine_harness, monkeypatch):
 		setter(self, name, value)
 
 	monkeypatch.setattr(module.SynthDriver, "__setattr__", fail_stand_in)
-	core = engine_harness.new_core()
-	assert core.supportsCancellationToken is False
-	assert player_of(core) is player_of(callback_handler(core))
-	assert type(inner_stop_flag(core)) is threading.Event
+	with pytest.raises(RuntimeError, match="injected install failure"):
+		engine_harness.new_core()
 
 
 def test_callback_rejects_audio_outside_native_call(engine_harness):
