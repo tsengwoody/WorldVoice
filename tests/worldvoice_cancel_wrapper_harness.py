@@ -165,6 +165,9 @@ def load_real_driver_with_native_stubs(
 		engine_path / "__init__.py",
 	)
 
+	# The harness stands in for an installed engine; the real lookup stays reachable for its tests.
+	get_resource_paths = original.getResourcePaths
+	monkeypatch.setattr(original, "getResourcePaths", lambda: [str(engine_path)])
 	native = getattr(original, native_name)
 	opened = []
 	monkeypatch.setattr(native, "initialize", lambda resources: None)
@@ -262,6 +265,7 @@ def load_real_driver_with_native_stubs(
 		engine=engine,
 		module=wrapped,
 		original_driver=original,
+		get_resource_paths=get_resource_paths,
 		native=native,
 		types=native.veTypes,
 		rt=rt,

@@ -42,7 +42,8 @@ def getResourcePaths():
 
 	user_folder = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))))))
 	WVW_PATH = os.path.join(user_folder, "WorldVoice-workspace", "VE")
-	resourcePaths.append(WVW_PATH)
+	if os.path.isdir(WVW_PATH):
+		resourcePaths.append(WVW_PATH)
 
 	programdata = os.getenv("PROGRAMDATA")
 	if programdata:
