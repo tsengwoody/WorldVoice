@@ -149,6 +149,53 @@ def test_nvda_names_exist_from_the_first_complete_release(engine, version):
 		assert missing, f"NVDA {version} now has every {engine} name: move FIRST_COMPLETE[{engine!r}]"
 
 
+# What NVDA lacks before 2025.3 for SAPI5, exactly (phase 51 spec §10). Both halves count: a class
+# name includes the overrides (_onEndStream, _speakThread, _initWasapiAudio) as well as the privates.
+SAPI5_MODULE_MISSING_2025 = {"ISpVoice", "_SPEventEnum", "_SapiEvent"}
+SAPI5_MODULE_MISSING_2024 = SAPI5_MODULE_MISSING_2025 | {
+	"ISpEventSource",
+	"ISpNotifySource",
+	"SonicStream",
+	"SynthDriverAudioStream",
+	"hresult",
+	"sonicInitialize",
+}
+SAPI5_CLASS_MISSING_2025_2 = {
+	"_bookmarkLists",
+	"_isCancelling",
+	"_isCompleted",
+	"_isSpeaking",
+	"_isStoppingThread",
+	"_onEndStream",
+	"_requestCompleted",
+	"_requestsAvailable",
+	"_speakRequests",
+	"_speakThread",
+	"_thread",
+	"_threadCond",
+}
+SAPI5_CLASS_MISSING_2025_1 = SAPI5_CLASS_MISSING_2025_2 | {"_initWasapiAudio"}
+
+
+@pytest.mark.parametrize(
+	("version", "module_names", "class_names", "count"),
+	[
+		("2024.1", SAPI5_MODULE_MISSING_2024, SAPI5_CLASS_MISSING_2025_1, 22),
+		("2024.4", SAPI5_MODULE_MISSING_2024, SAPI5_CLASS_MISSING_2025_1, 22),
+		("2025.1", SAPI5_MODULE_MISSING_2025, SAPI5_CLASS_MISSING_2025_1, 16),
+		("2025.2", SAPI5_MODULE_MISSING_2025, SAPI5_CLASS_MISSING_2025_2, 15),
+	],
+	ids=["2024.1", "2024.4", "2025.1", "2025.2"],
+)
+def test_sapi5_names_missing_before_2025_3_are_exact(version, module_names, class_names, count):
+	expected = sorted(
+		[f"synthDrivers.sapi5.{name}" for name in module_names]
+		+ [f"synthDrivers.sapi5.SynthDriver.{name}" for name in class_names],
+	)
+	assert len(expected) == count
+	assert release_missing("SAPI5", version) == tuple(expected)
+
+
 def test_missing_release_tag_fails_with_fetch_hint():
 	with pytest.raises(pytest.fail.Exception) as failure:
 		release_source("1999.1", "sapi5.py")
