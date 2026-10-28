@@ -12,6 +12,7 @@ from synthDrivers.WorldVoice.driver import Voice as BaseVoice, getVoiceKey
 from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
+from ...runtime.barriers import PLAYED_OUT, SYNTHESIZED
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
@@ -295,7 +296,7 @@ class _ContextualCerenceCallback(base.VECallback):
 class _CerenceStrategy(NativeStrategy):
 	"""Cerence's native queue: the inner BgThread, each record's tasks queued around speak()."""
 
-	barriers = frozenset({"spoken", "idle"})
+	barriers = frozenset({SYNTHESIZED, PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
@@ -340,7 +341,7 @@ class _CerenceStrategy(NativeStrategy):
 				host.latch_control_error(error)
 				return
 			if driver._recordValid(record):
-				host.reach(record, "idle")
+				host.reach(record, PLAYED_OUT)
 
 
 class SynthDriver(BaseSynthDriver, SegmentDrainCore):
@@ -503,8 +504,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def _retireRecord(self, record):
 		host = self._segmentHost
 		if not record.native.skipped:
-			if "spoken" in record.barriers and self._recordValid(record):
-				host.reach(record, "spoken")
+			if SYNTHESIZED in record.barriers and self._recordValid(record):
+				host.reach(record, SYNTHESIZED)
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			host.retire(record)
