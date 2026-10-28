@@ -131,3 +131,9 @@ spec 的三個「*Decided by orchestrator with the recommended default*」（D1 
 ## 未在 Linux 驗證的項目（Windows／NVDA 手動）
 
 這個 phase 沒有新增必要的手動項目：發布版本的程式路徑逐行與 master 相同（只少了永遠為假的分支）。Linux 上沒有 VE／Cerence SDK、NVDA 與音訊裝置。若之後為別的 phase 打包，可順手用 VE 與 Cerence 各做一次「朗讀、Ctrl 取消、Shift 暫停／恢復、切換合成器」確認沒有回歸，但不是這個 phase 的 merge 條件。
+
+## 修正記錄
+
+- **M1 不修**：`_initializeNative` 中途失敗會留下背景執行緒等資源，這是本 phase 之前就存在的問題，也是 spec 明列的非目標；`_installGuard` 已不會丟例外，本 phase 沒有新增觸發點。列為未確認的已知問題，之後需要時再處理。
+- **M2 不修**：審閱者也判斷 Ruling 合理（`getattr` 字串形式的突變在行為上無差異，只有結構檢查抓得到）；代價只是這兩個檔案的註解不能再提舊旗標名稱。
+- **M3 已修**：`98d2273` 新增 `test_bridge_passes_the_token_to_the_real_vocalizer_wrapper`（VE、Cerence），用真正的 wrapper core 經過 `VoiceClassAdapter` 與 `_speakPlain`；把類別常數改成 False 時兩個案例都會失敗。P52 會把這個能力搬到 `extraCapabilities`，屆時這個測試照樣檢查行為。
