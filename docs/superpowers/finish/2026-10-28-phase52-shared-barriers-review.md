@@ -359,3 +359,40 @@ assert set(missing.split(", ")) == {env.outer.ENGINE_DONE, env.outer.PLAYED_OUT}
 ### 未在 Linux 驗證的項目
 
 和原 review 相同：Windows 上的 NVDA、實際音訊裝置、引擎 SDK 都沒有驗證到。OneCore 的 `PLAYED_OUT` 現在由 `sync()`＋unpause 等待證明，屬於改名，行為沒變；手動 smoke test 照原 review 所列即可。
+
+## 修正記錄（修正 review 的 Minor）
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4、§8）。範圍：`287f28c` 之後的 4 個 commit。只有 Minor，依 §3.4 不再做修正 review。行為不變；內層驅動、`ref/`、Neural 都沒有動。暫存檔在 scratchpad 的 `m52/`（`m4-out.txt`、`m3-red.txt`、`m3-green.txt`、`m3-out.txt`、`full.txt`）；突變用 `git ls-files` 複製的 scratch 複本（`ref` 用 symlink），沒有建立 worktree，沒有用 `git stash`。
+
+| 發現 | commit | 修正 |
+| --- | --- | --- |
+| m1 | `e35a3b1` | `runtime/barriers.py` 的 `PLAYED_OUT` 註解與 spec §3.5：改成「OneCore 的 segment `drain` 只呼叫 `sync()`，所以 drain 一個 segment 不會關閉連續段；segment mode 下的 ordinary 句子在佇列清空時仍會呼叫 `idle()`（`_legacyCallback`）」。只改註解，沒有可寫的測試。 |
+| m2 | `bd74bc3` | `AUDIO_FED` 註解、RHVoice 的 reach 點（`driver/RHVoice/__init__.py`，外層 wrapper）與 spec §3.5 都註明：RHVoice 內層播放器留住最後一塊，要等 done callback 才餵出，所以 RHVoice 的 `AUDIO_FED` 只有和 `ENGINE_DONE` 一起才代表「全部音訊都餵了」。模組 docstring 改成「SegmentHost 只要求 `PLAYED_OUT`；守門測試另外要求每個 strategy 都宣告 `AUDIO_FED`」。只改註解。 |
+| m4 | `a40daf7` | `tests/test_rhvoice_segment_drain.py` 的 M1 測試把缺少的關卡名稱拆成集合，和 `{ENGINE_DONE, PLAYED_OUT}` 比對。 |
+| m3 | `f741c91` | `_driver_packages()` 不再用名字去掉 Neural；定義了 `*Strategy` 的 Neural 就進 `ENGINES`，套用所有通用守門，只免除宣告列（`DECLARED_BARRIERS`）、列舉檢查（`- UNTRACKED_PACKAGES`）與 token 引擎名單。新測試 `test_a_local_neural_is_guarded_when_it_defines_a_strategy[strategy|snapshot]` 在 `tmp_path` 放一個合成的 Neural、把 `ROOT` 指過去。spec §3.5 的 Guards 段同步改。 |
+
+### 紅／綠證據
+
+- **m4**（`PYTHONDONTWRITEBYTECODE=1`、`-p no:cacheprovider`、每次先清 `__pycache__`、600 s timeout、輸出寫檔、記憶體監控、序列執行）：突變 R2＝RHVoice worker 在閘門不成立時仍 `reach(PLAYED_OUT)`（跳過最後的 `idle()`）。`PYTHONHASHSEED` 0、1、7：R2＋舊測試 35 passed（存活）；R2＋新測試 1 failed（`test_missing_done_does_not_drain_after_native_return`，`retired without its engine_done barriers`，被殺）；head＋新測試 35 passed。head＋新測試另在 seed 2、123、4242 都 35 passed。
+- **m3**：先只加 `_engines()`（純重構）與新測試、保留名字略過：`[strategy]` 失敗（`assert () == ('Neural',)`），`[snapshot]` 通過；修正後守門檔 48 passed。scratch 複本放真的 `driver/Neural/__init__.py` 比較守門檔新舊版：
+
+  | `driver/Neural` | 舊守門（`287f28c`） | 新守門 |
+  | --- | --- | --- |
+  | 沒有 | 46 passed | 48 passed |
+  | `storage/Neural-snapshot-2026-10-01.zip` 的 `__init__.py`（沒有 `*Strategy`） | 46 passed | 48 passed |
+  | N3：`_NeuralStrategy`，`barriers = frozenset()` | 46 passed（存活） | 3 failed（`feeds_and_plays_out[Neural]`、`segment_drain_entries`、`token_capability[Neural]`；被殺） |
+  | 合格的 Neural（`AUDIO_FED`＋`PLAYED_OUT`、`SynthDriver(…, SegmentDrainCore)`、`Voice`） | 46 passed | 51 passed（免除宣告列與名單，沒有 KeyError） |
+
+### Ruling
+
+- **Ruling（m3）：** token 引擎名單那一句（`declared is (engine in {"VE", "Cerence"})`）也算「逐引擎的名單」，對未追蹤套件免除；同一個測試裡的通用部分（換掉 core class 就不能宣告 token、宣告了就要固定 core 且 `speak` 收 token）仍然套用。理由：名單只列追蹤中的引擎，和 `DECLARED_BARRIERS` 同性質。
+- **Ruling（m3 測試）：** 合成 Neural 的測試直接呼叫 `test_every_strategy_feeds_and_plays_out_its_audio("Neural")` 並用 `monkeypatch.setitem(globals(), "ROOT", tmp_path)`，證明真正的守門會擋下，而不是另寫一份平行的判斷。
+
+### 驗證
+
+| 項目 | 結果 |
+| --- | --- |
+| 完整套件（`f741c91`，記憶體監控） | **3505 passed／0 skipped**（102.93 s；3503＋m3 的 2 個參數） |
+| `prek run --all-files` | 8 個 hook 全 Passed |
+| `git diff --check master` | 乾淨 |
+| 受保護路徑、`git ls-files …/driver/Neural`、`git diff --stat master -- ref`、`tests/test_vocalizer_drift.py` | 都沒有輸出 |
