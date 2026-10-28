@@ -8,18 +8,16 @@ import pytest
 from addon_loader import REF
 
 ROOT = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice"
-# Packages under driver/ that are not engine wrappers. Neural restored locally from
-# storage/Neural-snapshot-*.zip is untracked and keeps the old interface.
+# Packages under driver/ that are not engine wrappers.
 NON_ENGINE_PACKAGES = {"sonic"}
+# Untracked packages that may exist locally. Like any package, one that defines a *Strategy is
+# an engine and gets the generic guards; it is exempt only from the per-engine rows and listings
+# below. Neural restored from storage/Neural-snapshot-*.zip keeps the old interface (no strategy).
 UNTRACKED_PACKAGES = {"Neural"}
 
 
 def _driver_packages():
-	return sorted(
-		path.parent.name
-		for path in (ROOT / "driver").glob("*/__init__.py")
-		if path.parent.name not in UNTRACKED_PACKAGES
-	)
+	return sorted(path.parent.name for path in (ROOT / "driver").glob("*/__init__.py"))
 
 
 def _defines_strategy(package):
@@ -27,14 +25,46 @@ def _defines_strategy(package):
 	return any(isinstance(n, ast.ClassDef) and n.name.endswith("Strategy") for n in tree.body)
 
 
+def _engines():
+	return tuple(package for package in _driver_packages() if _defines_strategy(package))
+
+
 # Every wrapper that defines a *Strategy, so a new one is checked without being listed here.
-ENGINES = tuple(package for package in _driver_packages() if _defines_strategy(package))
+ENGINES = _engines()
 
 
 def test_every_driver_package_is_an_engine_or_listed():
 	# A new wrapper without a strategy, or a helper package, must be named on purpose.
-	assert set(_driver_packages()) - set(ENGINES) == NON_ENGINE_PACKAGES
+	assert set(_driver_packages()) - set(ENGINES) - UNTRACKED_PACKAGES == NON_ENGINE_PACKAGES
 	assert {"Cerence", "Espeak", "OneCore", "RHVoice", "SAPI5", "VE"} <= set(ENGINES)
+
+
+NEURAL_WITH_STRATEGY = """from ...runtime.barriers import AUDIO_FED
+from ...runtime.segmentHost import NativeStrategy
+
+
+class _NeuralStrategy(NativeStrategy):
+	barriers = frozenset({AUDIO_FED})
+"""
+NEURAL_SNAPSHOT = "class SynthDriver:\n\tpass\n"
+
+
+@pytest.mark.parametrize(
+	("source", "engines"),
+	[(NEURAL_WITH_STRATEGY, ("Neural",)), (NEURAL_SNAPSHOT, ())],
+	ids=["strategy", "snapshot"],
+)
+def test_a_local_neural_is_guarded_when_it_defines_a_strategy(tmp_path, monkeypatch, source, engines):
+	# Neural is untracked, but a local one with a strategy gets the generic guards; the old
+	# snapshot in storage/ defines none and stays an allowed non-engine package.
+	(tmp_path / "driver/Neural").mkdir(parents=True)
+	(tmp_path / "driver/Neural/__init__.py").write_text(source, encoding="utf-8")
+	monkeypatch.setitem(globals(), "ROOT", tmp_path)
+	assert _engines() == engines
+	assert set(_driver_packages()) - set(engines) - UNTRACKED_PACKAGES == set()
+	if engines:
+		with pytest.raises(AssertionError):
+			test_every_strategy_feeds_and_plays_out_its_audio("Neural")
 
 
 def test_every_strategy_subclasses_native_strategy():
@@ -536,6 +566,8 @@ def test_strategy_barriers_use_shared_or_listed_names(engine):
 		else:
 			assert isinstance(node, ast.Constant), (engine, ast.unparse(node), node.lineno)
 			assert node.value in specific, (engine, node.value, node.lineno)
+	if engine in UNTRACKED_PACKAGES:
+		return  # No declared-set row for an untracked package.
 	declared, ordinary = _declared_barriers(tree)
 	expected_declared, expected_ordinary = DECLARED_BARRIERS[engine]
 	assert {_barrier_label(node) for node in declared} == expected_declared
@@ -544,7 +576,7 @@ def test_strategy_barriers_use_shared_or_listed_names(engine):
 
 
 def test_every_engine_has_a_declared_barriers_row():
-	assert set(DECLARED_BARRIERS) == set(ENGINES)
+	assert set(DECLARED_BARRIERS) == set(ENGINES) - UNTRACKED_PACKAGES
 	assert set(ENGINE_SPECIFIC_BARRIERS) <= set(ENGINES)
 
 
@@ -634,7 +666,8 @@ def test_a_token_capability_needs_a_fixed_core_that_takes_the_token(engine):
 	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
 	declared = "cancellationToken" in _voice_extra_capabilities(tree)
 	# The real guard: widening this set leaves only _voice_reassigns_core_class's view.
-	assert declared is (engine in {"VE", "Cerence"})
+	if engine not in UNTRACKED_PACKAGES:
+		assert declared is (engine in {"VE", "Cerence"})
 	if _voice_reassigns_core_class(tree):
 		assert not declared
 	if declared:

@@ -153,7 +153,7 @@ Resulting declarations (membership unchanged; only spelling):
 
 **Host check.** `SegmentHost.__init__` no longer refuses only an empty set: it refuses a strategy whose `barriers` lack `PLAYED_OUT` (`ValueError(f"{engine} strategy declares no played-out barrier")`), because a segment must not drain before its audio has played. Ordinary `enqueue(barriers=…)` sets are not subject to it (VE's is empty). Every strategy satisfies it after the renames, so this is the only behaviour change and no engine is affected.
 
-**Guards.** `tests/test_native_strategy_guards.py` reads the engines from `driver/` (every package whose `__init__.py` defines a `*Strategy` class; `sonic` is listed as a non-engine package, and a locally restored untracked `Neural` is skipped), requires a declared-set row for each, lists only `RHVoice: {"message"}` as engine-specific, and asserts every strategy declares `AUDIO_FED` and `PLAYED_OUT` by their constants.
+**Guards.** `tests/test_native_strategy_guards.py` reads the engines from `driver/` (every package whose `__init__.py` defines a `*Strategy` class; `sonic` is listed as a non-engine package; an untracked local `Neural` is an engine only if it defines a `*Strategy`, then gets every generic guard but no declared-set row or listing — the `storage/` snapshot defines none), requires a declared-set row for each tracked engine, lists only `RHVoice: {"message"}` as engine-specific, and asserts every strategy declares `AUDIO_FED` and `PLAYED_OUT` by their constants.
 
 ## 4. Part 2 — `"cancellationToken"` in `Voice.extraCapabilities`
 
