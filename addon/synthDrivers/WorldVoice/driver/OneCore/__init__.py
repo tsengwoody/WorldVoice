@@ -188,6 +188,7 @@ class _OneCoreStrategy(NativeStrategy):
 				host.record_error(record, error)
 				driver._failSegmentControl(error)
 				return
+		# sync() is not idle(): it does not close the continuous segment.
 		host.reach(record, PLAYED_OUT)
 
 
@@ -437,6 +438,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 				previous = position
 			if not self._feedSegment(record, player, data + previous, dataLen - previous):
 				return
+			# Also OneCore's only terminal notification; there is no ENGINE_DONE.
 			host.reach(record, AUDIO_FED)
 		except Exception as error:
 			log.error("OneCore segment playback failed", exc_info=True)

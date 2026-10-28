@@ -513,6 +513,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			result = super()._onEndStream()
 			host.reach(record, AUDIO_FED)
 			return result
+		# AUDIO_FED must follow ENGINE_DONE.
 		if not record.barriers[ENGINE_DONE]:
 			raise RuntimeError("SAPI5 request completed without its stream end marker")
 		# Preserve ordinary source notifications, including untriggered tail
