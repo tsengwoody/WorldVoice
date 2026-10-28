@@ -13,7 +13,7 @@ Paths are under `addon/synthDrivers/WorldVoice/` unless stated; guard paths are 
 
 ## 2. Goals
 
-1. Rename the six contract names to mixedCase with no alias and no compatibility layer (user decision 2026-10-27):
+1. Rename the six contract names to mixedCase with ~~no alias and no compatibility layer~~ no alias (user decision 2026-10-27; see the correction in item 3):
 
    | Old | New | Defined at |
    | --- | --- | --- |
@@ -25,7 +25,7 @@ Paths are under `addon/synthDrivers/WorldVoice/` unless stated; guard paths are 
    | `VoiceFacade.update_settings` | `updateSettings` | `bridge/voiceFacade.py:52` |
 
 2. Every caller follows: `bridge/engineAdapter.py` (`VoiceClassAdapter.open` `:72`, `close` `:108`, `capabilities` `:112`), `bridge/completionPolicies.py` (`:8`, `:60`, `:80`, `:82`, `:120`), the six wrappers' `Voice` subclasses (`driver/Cerence/__init__.py:961-964`, `driver/Espeak/__init__.py:210-211`, `driver/OneCore/__init__.py:631-632`, `driver/RHVoice/__init__.py:431-432`, `driver/SAPI5/__init__.py:654-656`, `driver/VE/__init__.py:954-957`), `globalPlugins/WorldVoice/rolePresenter.py:76`, and the tests. `voices/` has no caller of these names (`git grep -w` over `voices/` finds none); the core reaches them only through `bridge/`.
-3. Engine discovery skips a plugin whose `Voice` still has a pre-rename name and logs a clear error naming the plugin, the old name and its new name (§5).
+3. ~~Engine discovery skips a plugin whose `Voice` still has a pre-rename name and logs a clear error naming the plugin, the old name and its new name (§5).~~ **Corrected by `fix/compat-synth-driver-class` (user decision 2026-10-28):** when `synth_driver_class` is a `Voice`'s only pre-rename name, discovery maps it onto `synthDriverClass` with a warning and loads the engine; any other pre-rename name is still skipped.
 4. `TRANSITIONAL_47C` is deleted; the guard keeps only `INTERFACE_NAMES` and `TRANSITIONAL_47D` (§6).
 5. `tests/test_plugin_voice_contract.py` describes the renamed contract, and its real-Neural test passes against Neural with the one-line change of §7.
 
@@ -100,6 +100,6 @@ Scripts in the session scratchpad `p47c/` (copied from phase 47b's `p47b/` and r
 
 None blocking. Defaults taken (user may override before merge):
 
-1. Discovery skips a pre-rename plugin with an error log rather than loading it (§5). *Decided with the recommended default; user may override before merge.*
+1. ~~Discovery skips a pre-rename plugin with an error log rather than loading it (§5). *Decided with the recommended default; user may override before merge.*~~ **Corrected by `fix/compat-synth-driver-class` (user decision 2026-10-28):** when `synth_driver_class` is a `Voice`'s only pre-rename name, discovery maps it onto `synthDriverClass` with a warning and loads the engine; any other pre-rename name is still skipped.
 2. Test function names containing an old name as prose are not renamed (§3). *Decided with the recommended default; user may override before merge.*
 3. No readme or changelog edit (§8). *Decided with the recommended default; user may override before merge.*
