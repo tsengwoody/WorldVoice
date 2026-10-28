@@ -246,7 +246,21 @@ def test_onecore_successor_player_open_waits_for_old_feed_and_stop(env):
 	env.native.respond(markers="")
 
 
-def test_onecore_waits_for_tail_sync_before_drain(env):
+def test_onecore_waits_for_tail_sync_before_drain(env, monkeypatch):
+	# PLAYED_OUT is OneCore's sync() returning: it must be reached only after sync() returns.
+	synced, reached = [], []
+	sync, reach = env.player.sync, env.driver._segmentHost.reach
+
+	def tracked_sync():
+		sync()
+		synced.append(True)
+
+	def tracked_reach(record, barrier):
+		reached.append((barrier, bool(synced)))
+		reach(record, barrier)
+
+	monkeypatch.setattr(env.player, "sync", tracked_sync)
+	monkeypatch.setattr(env.driver._segmentHost, "reach", tracked_reach)
 	_token, context, events = speak(env)
 	env.native.wait_calls(1)
 	call = in_thread(env.native.respond)
@@ -254,9 +268,11 @@ def test_onecore_waits_for_tail_sync_before_drain(env):
 	assert env.indexes == [1]
 	assert sum(map(len, env.player.fed)) == 16
 	assert events == []
+	assert env.outer.PLAYED_OUT not in {barrier for barrier, _ in reached}
 	env.player.sync_release.set()
 	finish(call)
 	wait_events(events)
+	assert reached == [(env.outer.AUDIO_FED, False), (env.outer.PLAYED_OUT, True)]
 	assert len(events) == 1
 	assert events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert events[0].source_id is context.source_id
