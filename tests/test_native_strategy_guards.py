@@ -412,8 +412,8 @@ DECLARED_BARRIERS = {
 	"RHVoice": ({"message", "ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, None),
 	"SAPI5": ({"ENGINE_DONE", "processed", "PLAYED_OUT"}, {"ENGINE_DONE", "processed"}),
 	"OneCore": ({"callback", "synced"}, {"callback"}),
-	"VE": ({"SYNTHESIZED", "PLAYED_OUT"}, set()),
-	"Cerence": ({"SYNTHESIZED", "PLAYED_OUT"}, set()),
+	"VE": ({"AUDIO_FED", "PLAYED_OUT"}, set()),
+	"Cerence": ({"AUDIO_FED", "PLAYED_OUT"}, set()),
 }
 
 

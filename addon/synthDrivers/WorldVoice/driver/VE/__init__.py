@@ -12,7 +12,7 @@ from synthDrivers.WorldVoice.driver import Voice as BaseVoice, getVoiceKey
 from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
-from ...runtime.barriers import PLAYED_OUT, SYNTHESIZED
+from ...runtime.barriers import AUDIO_FED, PLAYED_OUT
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
@@ -296,7 +296,7 @@ class _ContextualVECallback(base.VECallback):
 class _VEStrategy(NativeStrategy):
 	"""VE's native queue: the inner BgThread, each record's tasks queued around speak()."""
 
-	barriers = frozenset({SYNTHESIZED, PLAYED_OUT})
+	barriers = frozenset({AUDIO_FED, PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
@@ -500,8 +500,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def _retireRecord(self, record):
 		host = self._segmentHost
 		if not record.native.skipped:
-			if SYNTHESIZED in record.barriers and self._recordValid(record):
-				host.reach(record, SYNTHESIZED)
+			if AUDIO_FED in record.barriers and self._recordValid(record):
+				host.reach(record, AUDIO_FED)
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			host.retire(record)
