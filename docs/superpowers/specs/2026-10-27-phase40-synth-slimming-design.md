@@ -89,7 +89,7 @@ Starting value `FOLLOW`, as `self._numlan = FOLLOW` today (`__init__.py:183`).
 - `__init__` sets `self._numberLanguageChoice = None` where it set `self._numlan`; `_initialize` builds `NumberLanguageChoice(self._voiceManager)` right after the `VoiceManager`, inside the same `timed(nvdaLog, "VoiceManager")` block, before the `LanguageDetector` that reads it (`:266-272`). NVDA sets `numlan` only after construction (`loadSettings`, `synthDriverHandler.py:402-408`), so nothing reads the choice earlier.
 - `_get_numlan` returns `choice.stored`; `_numberLanguage` returns `choice.spoken`; `_set_numlan` calls `choice.store(value)` and, when it returns False, logs `nvdaLog.debugWarning("WorldVoice: unknown number language %r, using %r", value, FOLLOW)` with the same text and arguments as today. `_get_availableNumlans` builds the same dict from `NUMBER_LANGUAGE_CHOICES` and `choice.listed_locales()` with `_numlanDisplayName`.
 - `_isStoredNumberLanguage` leaves the driver (its only callers were `_get_numlan`, `_set_numlan` and `_get_availableNumlans` via `_get_numlan`).
-- The choice is not cleared on `terminate`: it holds no resource, and `speechContext()` already answers `GENERIC_CONTEXT` once `_voiceManager` is None (`:361-364`). Before, reading `numlan` after terminate raised `AttributeError` on the cleared manager; now it answers from the last language lists. No caller depends on either. *Decided by orchestrator with the recommended default; user may override before merge.*
+- ~~The choice is not cleared on `terminate`: it holds no resource, and `speechContext()` already answers `GENERIC_CONTEXT` once `_voiceManager` is None (`:361-364`). Before, reading `numlan` after terminate raised `AttributeError` on the cleared manager; now it answers from the last language lists. No caller depends on either. *Decided by orchestrator with the recommended default; user may override before merge.*~~ **Corrected by the review fix (M1):** `terminate` drops the choice with the voice manager it holds, so reading `numlan` after terminate fails as on master.
 
 ## 6. Settings, compatibility, errors
 
@@ -122,4 +122,4 @@ Full suite (baseline 3346 passed / 0 skipped; new tests add to it), `prek run --
 
 ## 8. Open questions
 
-None that block. Defaults the user may override: §5.1 call site and `installConfspec` name/layer, §5.2 module name and the choice surviving `terminate`.
+None that block. Defaults the user may override: §5.1 call site and `installConfspec` name/layer, §5.2 module name ~~and the choice surviving `terminate`~~ (corrected by review M1).

@@ -144,3 +144,8 @@
 ## 未在 Linux 驗證的項目
 
 - NVDA 本身、Windows、實際音訊裝置、引擎 SDK 都沒有載入；NVDA 真正的 `config.conf.spec` 與 Voice panel 沒有實跑，依原始碼時序判斷。Python 3.11 沒有實跑（容器只有 3.14）。本 phase 沒有使用者可見的行為變更，不需要打包；未打包、未在 Windows 驗證。
+
+## 修正記錄
+
+- **M1 已修**：`b9593b4` `terminate` 的 `finally` 一併清掉 `_numberLanguageChoice`；先加的 `test_terminate_drops_the_number_language_choice` 修正前失敗、修正後通過。terminate 之後讀 `numlan` 恢復成和 master 一樣會失敗；spec §5.2 的對應預設已加刪除線並標註。
+- **M2 已修**：`e0191e8` 新增 `test_a_refused_locale_stays_refused_when_its_voice_is_installed_later`；把 `store()` 改成保留被拒的值（m06）時這個測試會失敗。
