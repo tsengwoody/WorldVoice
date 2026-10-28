@@ -2,16 +2,19 @@
 
 The runtime check (runtime/hostNames.py) looks at the live NVDA module and class. Old releases
 cannot be imported here, so static_missing builds the same view from a release's compiled source:
-a module name exists when the module body stores it at top level; a class name exists when the
+a module name exists when the module body stores it at top level (STORE_NAME, or STORE_GLOBAL
+after a top-level `global` statement); a class name exists when the
 class body stores it or the code nested in the body stores it as an attribute. It sees one class
 and one file, where the live check sees the whole MRO, so the runtime is never the stricter one.
 """
 
+import ast
 import dis
 import functools
 import subprocess
 import warnings
 from collections.abc import Iterable
+from dataclasses import dataclass
 from types import CodeType
 
 import pytest
@@ -60,10 +63,8 @@ def release_source(version: str, file: str) -> str:
 	return result.stdout
 
 
-def _stored_names(code: CodeType) -> set[str]:
-	return {
-		instruction.argval for instruction in dis.get_instructions(code) if instruction.opname == "STORE_NAME"
-	}
+def _stored_names(code: CodeType, opnames=frozenset({"STORE_NAME"})) -> set[str]:
+	return {instruction.argval for instruction in dis.get_instructions(code) if instruction.opname in opnames}
 
 
 def static_missing(
@@ -80,11 +81,91 @@ def static_missing(
 		# Old sources may hold escapes a newer Python warns about.
 		warnings.simplefilter("ignore", SyntaxWarning)
 		module_code = compile(source, module_label, "exec")
-	module_bound = _stored_names(module_code)
+	# A top-level `global name` (NVDA's _espeak.py has some) makes the body store with STORE_GLOBAL.
+	module_bound = _stored_names(module_code, frozenset({"STORE_NAME", "STORE_GLOBAL"}))
 	class_bound = set()
 	for const in module_code.co_consts:
 		if isinstance(const, CodeType) and const.co_name == class_name:
 			class_bound |= _stored_names(const) | host_names.stored_attribute_names(const)
 	missing = [f"{module_label}.{name}" for name in module_names if name not in module_bound]
 	missing += [f"{class_label}.{name}" for name in class_names if name not in class_bound]
+	return tuple(sorted(missing))
+
+
+@dataclass(frozen=True)
+class EngineNames:
+	"""Where one wrapper's NVDA names live: its port, NVDA's module and NVDA's synth class."""
+
+	port: str
+	module_file: str
+	module_label: str
+	class_file: str
+	class_name: str
+	class_label: str
+
+
+ENGINES = {
+	"Espeak": EngineNames(
+		"_EspeakPort",
+		"_espeak.py",
+		"synthDrivers._espeak",
+		"espeak.py",
+		"SynthDriver",
+		"synthDrivers.espeak.SynthDriver",
+	),
+	"SAPI5": EngineNames(
+		"_Sapi5Port",
+		"sapi5.py",
+		"synthDrivers.sapi5",
+		"sapi5.py",
+		"SynthDriver",
+		"synthDrivers.sapi5.SynthDriver",
+	),
+	"OneCore": EngineNames(
+		"_OneCorePort",
+		"oneCore.py",
+		"synthDrivers.oneCore",
+		"oneCore.py",
+		"OneCoreSynthDriver",
+		"synthDrivers.oneCore.OneCoreSynthDriver",
+	),
+}
+
+
+@functools.cache
+def port_names(engine: str) -> tuple[frozenset[str], frozenset[str]]:
+	"""(module names, class names) the wrapper's port lists, read from its source."""
+	tree = ast.parse((WORLDVOICE / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+	port = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == ENGINES[engine].port)
+	constants = {}
+	for node in port.body:
+		if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+			args = node.value.args
+			constants[node.targets[0].id] = frozenset(ast.literal_eval(args[0]) if args else ())
+	return (
+		constants["NVDA_MODULE_NAMES"],
+		constants["NVDA_PRIVATES"] | constants["NVDA_OVERRIDES"],
+	)
+
+
+def release_missing(engine: str, version: str) -> tuple[str, ...]:
+	"""The engine's listed names that NVDA <version> lacks (static view)."""
+	names = ENGINES[engine]
+	module_names, class_names = port_names(engine)
+	missing = static_missing(
+		release_source(version, names.module_file),
+		names.module_label,
+		"",
+		"",
+		module_names=module_names,
+		class_names=(),
+	)
+	missing += static_missing(
+		release_source(version, names.class_file),
+		"",
+		names.class_name,
+		names.class_label,
+		module_names=(),
+		class_names=class_names,
+	)
 	return tuple(sorted(missing))

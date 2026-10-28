@@ -11,6 +11,7 @@ from synthDrivers import oneCore
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.engineControl import StopGate
+from ...runtime.hostNames import host_names_ready
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import NativeStrategy, SegmentDrainCore, SegmentHost
@@ -27,6 +28,13 @@ _TERMINATED_CALLBACKS = []
 _ORDINARY_BARRIERS = frozenset({"callback"})
 
 
+def _nvdaLabel():
+	# Imported here: the NVDA version is read only to name it in a skip log.
+	import versionInfo
+
+	return f"NVDA {versionInfo.version}"
+
+
 class _OneCorePort:
 	"""Parent private names (vendored OneCoreSynthDriver and NVDA oneCore) this wrapper uses.
 
@@ -35,9 +43,15 @@ class _OneCorePort:
 	them against the running NVDA. Compare these lists with both parents on upgrade.
 	"""
 
-	# Read through the synthDrivers.oneCore module.
+	# Read through the synthDrivers.oneCore module (SynthDriver: the class ready() checks).
 	NVDA_MODULE_NAMES = frozenset(
-		{"HUNDRED_NS_PER_SEC", "WAVE_HEADER_LENGTH", "_OcPreAPI5SsmlConverter", "_OcSsmlConverter"},
+		{
+			"HUNDRED_NS_PER_SEC",
+			"SynthDriver",
+			"WAVE_HEADER_LENGTH",
+			"_OcPreAPI5SsmlConverter",
+			"_OcSsmlConverter",
+		},
 	)
 	# Members of NVDA's oneCore.SynthDriver used in place, and the ones overridden.
 	NVDA_PRIVATES = frozenset(
@@ -637,6 +651,19 @@ class Voice(BaseVoice):
 
 	def applyEngineSettings(self, core, snapshot):
 		core.language = snapshot.language
+
+	@classmethod
+	def ready(cls):
+		# Skip the engine, with one log line, when the running NVDA lacks a name the wrapper uses.
+		return host_names_ready(
+			cls.engine,
+			oneCore,
+			oneCore.SynthDriver,
+			module_names=_OneCorePort.NVDA_MODULE_NAMES,
+			class_names=_OneCorePort.NVDA_PRIVATES | _OneCorePort.NVDA_OVERRIDES,
+			host_label=_nvdaLabel,
+			logger=log,
+		)
 
 	@classmethod
 	def supportedSettings(cls):

@@ -85,11 +85,18 @@ def _class_constant(tree, class_name, constant):
 
 
 def _module_reads(tree, alias):
-	"""Every attribute the wrapper reads through the NVDA module object called alias."""
+	"""Every attribute the wrapper reads through the NVDA module object called alias.
+
+	SAPI5's _nvdaBase("X") reads sapi5.X by name.
+	"""
 	return {
 		n.attr
 		for n in ast.walk(tree)
 		if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == alias
+	} | {
+		n.args[0].value
+		for n in ast.walk(tree)
+		if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "_nvdaBase"
 	}
 
 
@@ -336,3 +343,42 @@ def test_wrappers_do_not_shadow_their_bases():
 		and any(isinstance(base, ast.Name) and base.id == node.name for base in node.bases)
 	]
 	assert shadowing == []
+
+
+NVDA_MODULE_ALIASES = {"Espeak": "_espeak", "SAPI5": "sapi5", "OneCore": "oneCore"}
+
+
+def _import_time_nodes(node):
+	"""The nodes Python evaluates when the module loads: not function or lambda bodies."""
+	yield node
+	if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+		children = [*node.decorator_list, node.args, *([node.returns] if node.returns else [])]
+	elif isinstance(node, ast.Lambda):
+		children = [node.args]
+	else:
+		children = list(ast.iter_child_nodes(node))
+	for child in children:
+		yield from _import_time_nodes(child)
+
+
+def test_wrappers_read_no_nvda_module_attribute_at_import():
+	# Voice.ready() can only report a missing NVDA name if the wrapper module imports first.
+	found = []
+	for engine, alias in NVDA_MODULE_ALIASES.items():
+		tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+		found += [
+			f"{engine}:{n.lineno} {alias}.{n.attr}"
+			for n in _import_time_nodes(tree)
+			if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == alias
+		]
+	assert found == []
+	tree = _sapi5_tree()
+	bases = {
+		n.name: [ast.unparse(base) for base in n.bases]
+		for n in tree.body
+		if isinstance(n, ast.ClassDef) and n.name in {"_SegmentAudioStream", "_SegmentSapiSink"}
+	}
+	assert bases == {
+		"_SegmentAudioStream": ["_nvdaBase('SynthDriverAudioStream')"],
+		"_SegmentSapiSink": ["_nvdaBase('SapiSink')"],
+	}

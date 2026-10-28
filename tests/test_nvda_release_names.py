@@ -12,6 +12,9 @@ AGREEMENT_SOURCE = textwrap.dedent(
 
 	top = 1
 
+	global declared
+	declared = 4
+
 	def helper():
 		pass
 
@@ -47,7 +50,18 @@ AGREEMENT_SOURCE = textwrap.dedent(
 		rate = property(_get_rate)
 	""",
 )
-MODULE_NAMES = {"os", "Namespace", "top", "helper", "Other", "conditional", "guarded", "absent", "path"}
+MODULE_NAMES = {
+	"declared",
+	"os",
+	"Namespace",
+	"top",
+	"helper",
+	"Other",
+	"conditional",
+	"guarded",
+	"absent",
+	"path",
+}
 CLASS_NAMES = {
 	"_flag",
 	"_made",

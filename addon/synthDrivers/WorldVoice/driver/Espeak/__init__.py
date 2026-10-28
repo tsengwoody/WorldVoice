@@ -7,10 +7,18 @@ from synthDrivers import _espeak
 from synthDrivers.espeak import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
+from ...runtime.hostNames import host_names_ready
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentDrainCore, SegmentHost
 from ...runtime.session import CancellationView
+
+
+def _nvdaLabel():
+	# Imported here: the NVDA version is read only to name it in a skip log.
+	import versionInfo
+
+	return f"NVDA {versionInfo.version}"
 
 
 class _SegmentNative:
@@ -219,3 +227,16 @@ class Voice(BaseVoice):
 	engine = "Espeak"
 	drainProfile = DrainProfile()
 	synthDriverClass = SynthDriver
+
+	@classmethod
+	def ready(cls):
+		# Skip the engine, with one log line, when the running NVDA lacks a name the wrapper uses.
+		return host_names_ready(
+			cls.engine,
+			_espeak,
+			BaseSynthDriver,
+			module_names=_EspeakPort.NVDA_MODULE_NAMES,
+			class_names=_EspeakPort.NVDA_PRIVATES | _EspeakPort.NVDA_OVERRIDES,
+			host_label=_nvdaLabel,
+			logger=log,
+		)

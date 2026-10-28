@@ -9,6 +9,7 @@ from synthDrivers.sapi5 import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
+from ...runtime.hostNames import host_names_ready
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
@@ -34,6 +35,19 @@ class _SapiRequest:
 
 def _purgeFlags():
 	return sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak
+
+
+def _nvdaLabel():
+	# Imported here: the NVDA version is read only to name it in a skip log.
+	import versionInfo
+
+	return f"NVDA {versionInfo.version}"
+
+
+def _nvdaBase(name):
+	# ready() refuses the engine when NVDA lacks the class (it is in NVDA_MODULE_NAMES);
+	# object only lets this module import so ready() can say so.
+	return getattr(sapi5, name, object)
 
 
 class _Sapi5Port:
@@ -150,7 +164,7 @@ class _Sapi5Strategy(NativeStrategy):
 		host.reach(record, "idle")
 
 
-class _SegmentAudioStream(sapi5.SynthDriverAudioStream):
+class _SegmentAudioStream(_nvdaBase("SynthDriverAudioStream")):
 	"""Own the complete COM PCM callback, including Sonic before feed."""
 
 	def ISequentialStream_RemoteWrite(self, this, pv, cb, pcbWritten):
@@ -256,7 +270,7 @@ class _SegmentPlayer(LeasedPlayer):
 			raise
 
 
-class _SegmentSapiSink(sapi5.SapiSink):
+class _SegmentSapiSink(_nvdaBase("SapiSink")):
 	"""Reject old stream events, retaining bookmark closures' original work."""
 
 	def __init__(self, synthRef, eventSource):
@@ -672,3 +686,16 @@ class Voice(BaseVoice):
 	drainProfile = DrainProfile(wasapi_dependent=True)
 
 	synthDriverClass = SynthDriver
+
+	@classmethod
+	def ready(cls):
+		# Skip the engine, with one log line, when the running NVDA lacks a name the wrapper uses.
+		return host_names_ready(
+			cls.engine,
+			sapi5,
+			BaseSynthDriver,
+			module_names=_Sapi5Port.NVDA_MODULE_NAMES,
+			class_names=_Sapi5Port.NVDA_PRIVATES | _Sapi5Port.NVDA_OVERRIDES,
+			host_label=_nvdaLabel,
+			logger=log,
+		)
