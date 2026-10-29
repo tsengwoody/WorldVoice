@@ -228,3 +228,23 @@ def test_release_newest_first_runs_every_release_in_reverse_and_logs_failures(co
 	assert logged == [(("cleanup failed",), {"exc_info": True})]
 	control.release_newest_first([], logger=Logger(), message="cleanup failed")
 	assert len(logged) == 1
+
+
+def test_release_newest_first_lets_a_base_exception_escape(control):
+	# Only Exception is caught: a KeyboardInterrupt in a release escapes at once, the older
+	# releases do not run and nothing is logged, as with the wrappers' own loops before.
+	calls, logged = [], []
+
+	class Logger:
+		def error(self, *args, **kwargs):
+			logged.append((args, kwargs))
+
+	def interrupted():
+		calls.append("b")
+		raise KeyboardInterrupt
+
+	releases = [lambda: calls.append("a"), interrupted, lambda: calls.append("c")]
+	with pytest.raises(KeyboardInterrupt):
+		control.release_newest_first(releases, logger=Logger(), message="cleanup failed")
+	assert calls == ["c", "b"]
+	assert logged == []
