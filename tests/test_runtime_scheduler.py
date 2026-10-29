@@ -1087,3 +1087,22 @@ def test_cancelled_future_releases_start_hold(manager, port, output):
 	assert output.wait_done() == 1, "a cancelled Future stayed held by the pause"
 	assert not port.entered.is_set()
 	manager.pause_current(False)
+
+
+def test_resume_reaches_a_pause_target_that_is_falsy(manager, rt):
+	# PlaybackPort is a Protocol: a port with __len__ == 0 is still the pause target.
+	models = rt.models
+
+	class EmptyLookingPlayback(FakePlayback):
+		def __len__(self):
+			return 0
+
+	port = EmptyLookingPlayback(
+		models.CompletionContract(models.CompletionMode.DRAIN, models.IndexRange(1, 1000)),
+	)
+	_request, future = drain_speech(manager, port)
+	manager.pause_current(True)
+	drained(manager, rt, port)
+	manager.pause_current(False)
+	assert port.paused == [True, False]
+	assert future.result(WAIT_TIMEOUT) is True
