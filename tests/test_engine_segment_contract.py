@@ -228,37 +228,24 @@ def test_segment_after_player_stop_failure_fails(engine):
 	assert str(event.error) == "player stop failed"
 
 
-ORDINARY_THEN_SEGMENT = {
-	"VE": "SEGMENT_FAILED",
-	"Cerence": "SEGMENT_FAILED",
-	"OneCore": "SEGMENT_DRAINED",
-	"RHVoice": "SEGMENT_DRAINED",
-	"SAPI5": "SEGMENT_DRAINED",
-	"Espeak": "SEGMENT_DRAINED",
-}
-
-
 @pytest.mark.parametrize("engine", _engines(), indirect=True)
-def test_segment_after_ordinary_speech_follows_the_engine_mode_rule(engine):
-	# VE/Cerence refuse correlated mode once legacy speech ran: its callback
-	# lifetimes are unproven. Every other engine runs the segment after it.
+def test_segment_after_ordinary_speech_drains(engine):
+	# A direct caller may speak ordinary speech and then a segment on one core; every engine runs
+	# the segment after it. Production never mixes the two on one core: the engine adapter's
+	# completion contract is fixed before it speaks (bridge/engineAdapter.py configureCompletion).
 	engine.speak_ordinary(("first",))
 	engine.complete_ordinary()
-	expected = getattr(engine.EventKind, ORDINARY_THEN_SEGMENT[engine.engine])
 	ordinary_calls = engine.native_call_count()
 	context = engine.PlaybackContext(object(), 27)
 	events = Events(engine)
 	caller, errors = _start_speak(engine, engine.new_token(), context, events)
-	if expected is engine.EventKind.SEGMENT_DRAINED:
-		eventually(
-			lambda: engine.native_call_count() > ordinary_calls,
-			message="the segment never reached native synthesis",
-		)
-		engine.complete()
+	eventually(
+		lambda: engine.native_call_count() > ordinary_calls,
+		message="the segment never reached native synthesis",
+	)
+	engine.complete()
 	event = events.wait_one()
 	caller.join(WAIT_TIMEOUT)
 	assert not caller.is_alive() and errors == []
-	assert event.kind is expected
+	assert event.kind is engine.EventKind.SEGMENT_DRAINED
 	assert event.segment_id == 27
-	if event.kind is engine.EventKind.SEGMENT_FAILED:
-		assert "Legacy" in str(event.error)

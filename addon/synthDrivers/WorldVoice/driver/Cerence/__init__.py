@@ -330,10 +330,6 @@ class _CerenceStrategy(NativeStrategy):
 		with driver._speechStateLock:
 			if driver._terminationRequested:
 				return RuntimeError("Cerence driver has terminated")
-			if driver._legacyUsed:
-				return RuntimeError(
-					"Legacy Cerence callback lifetimes are unproven; cannot enter correlated mode",
-				)
 		return None
 
 	def submit(self, host, record, commands):
@@ -380,7 +376,6 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 		self._currentRecord = None
 		self._doneOwner = None
 		self._nativeCall = None
-		self._legacyUsed = False
 		self._stopGate = StopGate(self._speechStateLock)
 		# Queued records need no drop: _beginRecord abandons them once an error is latched.
 		self._controlFault = ControlFaultPolicy(self._segmentHost, self._speechStateLock)
@@ -470,9 +465,6 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 		with self._speechStateLock:
 			if self._terminationRequested:
 				raise RuntimeError("Cerence driver has terminated")
-			# Legacy callback lifetimes are unproven: correlated mode stays off
-			# from the moment ordinary speech is requested.
-			self._legacyUsed = True
 		# Like the original add-on's BgThread queue: return once queued.
 		self._segmentHost.enqueue(
 			speechSequence,
