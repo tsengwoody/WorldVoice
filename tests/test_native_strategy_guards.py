@@ -365,7 +365,6 @@ def test_vocalizer_wrapper_has_no_guard_fallback(engine):
 	# (its SegmentHost), never by the request's token (fix/ve-drop-cancellation-token).
 	source = (ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
 	assert "_guardInstalled" not in source
-	assert "supportsCancellationToken" not in source
 	tree = ast.parse(source)
 	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
 	assert _class_constant(tree, "Voice", "extraCapabilities") == {"waitfactor", "variant"}, voice.name
@@ -608,7 +607,8 @@ _TOKEN_NAMES = frozenset({"cancellationToken", "supportsCancellationToken"})
 def _token_names(tree):
 	"""Where code names the old token keyword or trait: parameters, keyword arguments, attributes,
 	plain names and string constants (so "cancellationToken" in extraCapabilities counts).
-	Comments and docstrings are not code and do not count."""
+	A string constant counts only when it equals a token name; comments and docstrings (even one
+	that is exactly a token name) are not code and do not count."""
 	docstrings = {
 		id(node.body[0].value)
 		for node in ast.walk(tree)
@@ -634,7 +634,7 @@ def _token_names(tree):
 
 def test_token_name_detection():
 	source = (
-		'"""cancellationToken in a docstring."""\n'
+		'"""cancellationToken"""\n'
 		"# cancellationToken in a comment\n"
 		"def speak(commands, cancellationToken=None): pass\n"
 		"core.speak(commands, cancellationToken=token)\n"
