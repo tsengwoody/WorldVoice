@@ -129,9 +129,7 @@ class _NativeLibrary:
 		try:
 			message = self._native.RHVoice_new_message(*args[:-1], self._record.native.identity)
 			self._message = message
-			if message:
-				host.reach(self._record, "message")
-			else:
+			if not message:
 				host.record_error(self._record, RuntimeError("RHVoice did not create a message"))
 			return message
 		except Exception as error:
@@ -266,7 +264,7 @@ class _QueuedSpeech:
 class _RHVoiceStrategy(NativeStrategy):
 	"""RHVoice's native queue: the inner tts queue and its single worker."""
 
-	barriers = frozenset({"message", ENGINE_DONE, AUDIO_FED, PLAYED_OUT})
+	barriers = frozenset({ENGINE_DONE, AUDIO_FED, PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)

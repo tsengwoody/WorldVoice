@@ -3,10 +3,11 @@
 A barrier is a label a wrapper declares on each NativeRecord and marks reached once its
 evidence arrives; SegmentHost fails a record that retires with one unreached. A barrier is
 classified by what its evidence proves, not by how the engine delivers it: wrappers name a
-barrier by one of these kinds when its evidence proves exactly that. Evidence that proves
-something else keeps an engine-specific name in its wrapper (tests/test_native_strategy_guards.py
-lists them, with the reasons in the phase 52 spec). SegmentHost requires only that every
-strategy declares PLAYED_OUT; the guard tests also require every strategy to declare AUDIO_FED.
+barrier by one of these kinds when its evidence proves exactly that. No engine-specific barrier
+name exists now. Evidence that proves something else would get one in its wrapper, and that name
+must be listed, with its reason, in ENGINE_SPECIFIC_BARRIERS in tests/test_native_strategy_guards.py.
+SegmentHost requires only that every strategy declares PLAYED_OUT; the guard tests also require
+every strategy to declare AUDIO_FED.
 """
 
 # All of this record's audio has been fed to the player, and no further audio callback for

@@ -452,16 +452,15 @@ def test_wrappers_read_no_nvda_module_attribute_at_import():
 
 
 # Barrier names (phase 52, option B'). A barrier of a shared kind is named by its
-# runtime/barriers.py constant; these are the only engine-specific names, each because its
-# evidence proves something no shared kind describes
-# (docs/superpowers/specs/2026-10-28-phase52-shared-barriers-design.md §3). Other engines have none.
-ENGINE_SPECIFIC_BARRIERS = {
-	"RHVoice": {"message"},  # RHVoice_new_message succeeded: a precondition, not completion
-}
+# runtime/barriers.py constant. No engine has an engine-specific name now: RHVoice's "message"
+# was dropped, as AUDIO_FED already implies it and a failed message fails the record. A new
+# engine-specific name, needed only when its evidence proves something no shared kind
+# describes, must be listed here as {engine: {name}} with its reason.
+ENGINE_SPECIFIC_BARRIERS = {}
 # Each strategy's declared set and its ordinary set (None: ordinary records take the strategy's).
 DECLARED_BARRIERS = {
 	"Espeak": ({"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}, None),
-	"RHVoice": ({"message", "ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, None),
+	"RHVoice": ({"ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, None),
 	"SAPI5": ({"ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, {"ENGINE_DONE", "AUDIO_FED"}),
 	"OneCore": ({"AUDIO_FED", "PLAYED_OUT"}, {"AUDIO_FED"}),
 	"VE": ({"AUDIO_FED", "PLAYED_OUT"}, set()),

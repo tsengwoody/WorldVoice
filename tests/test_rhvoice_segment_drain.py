@@ -7,7 +7,7 @@ import weakref
 from threading import Event, Thread, current_thread, get_ident
 
 import pytest
-from rhvoice_drain_harness import finish, load_rhvoice, speak, tracked_segments, tts_thread
+from rhvoice_drain_harness import NativeFunction, finish, load_rhvoice, speak, tracked_segments, tts_thread
 from runtime_harness import accepted_operations, delivery_thread, segment_host, segment_lifecycle
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, quiet_period
 
@@ -48,6 +48,17 @@ def test_done_before_native_return_waits_for_final_idle_and_retirement(env):
 	assert env.indexes == [7]
 	assert env.driver.lastIndex is None  # The inner callback's existing state.
 	assert len(events) == 1
+
+
+def test_a_message_rhvoice_did_not_create_fails_the_segment_without_speaking(env):
+	# The inner SpeakText calls RHVoice_speak only for a created message, so AUDIO_FED
+	# already implies one; the wrapper fails the record by the null message itself.
+	env.native.RHVoice_new_message = NativeFunction(lambda *args: 0)
+	_, _, events = speak(env)
+	event = events.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert str(event.error) == "RHVoice did not create a message"
+	assert env.native.calls == []
 
 
 def test_missing_done_does_not_drain_after_native_return(env):
