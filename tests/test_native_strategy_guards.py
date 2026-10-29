@@ -385,6 +385,15 @@ def test_every_wrapper_core_declares_the_segment_drain_entries():
 		assert ("speak_segment" in own) == (base == "SegmentDrainCore"), engine
 
 
+def test_every_bundled_wrapper_uses_the_segment_host_speaker():
+	# The bundled wrappers have no speak_segment of their own (refactor9 P45'); a local engine may
+	# still name SegmentDrainCore.
+	for engine in ("Cerence", "Espeak", "OneCore", "RHVoice", "SAPI5", "VE"):
+		tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+		synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
+		assert ast.unparse(synth.bases[-1]) == "SegmentHostSpeaker", engine
+
+
 def test_wrappers_do_not_shadow_their_bases():
 	# class Voice(Voice) or class SynthDriver(SynthDriver) hides which class is the base; the
 	# modules import their bases under their own names (BaseVoice, BaseSynthDriver).

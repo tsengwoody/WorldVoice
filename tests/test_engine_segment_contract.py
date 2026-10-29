@@ -5,6 +5,7 @@ gaps are strict xfails: fixing one turns it into XPASS, which fails the run
 until the mark is removed.
 """
 
+import sys
 from contextlib import suppress
 from threading import Condition, Thread, get_ident
 
@@ -163,6 +164,13 @@ def test_speak_segment_returns_before_delivery(engine):
 	# Checked last so every other assertion still applies to the C3 engines.
 	if not returned_early:
 		raise C3Blocking("speak_segment did not return before the segment completed")
+
+
+@pytest.mark.parametrize("engine", _engines(), indirect=True)
+def test_every_core_speaks_segments_through_the_shared_mixin(engine):
+	# Nothing in a loaded wrapper's MRO shadows the shared entry (a parent driver gaining one would).
+	core = type(engine.core)
+	assert core.speak_segment is sys.modules[core.__module__].SegmentHostSpeaker.speak_segment
 
 
 @pytest.mark.parametrize("engine", _engines(), indirect=True)
