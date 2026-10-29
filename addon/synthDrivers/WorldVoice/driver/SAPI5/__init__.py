@@ -11,10 +11,8 @@ from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
 from ...runtime.hostNames import missing_host_names
-from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
-from ...runtime.session import CancellationView
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost, SegmentHostSpeaker
 
 # Ordinary requests keep the parent's queue-empty idle, so they prove no idle.
 _ORDINARY_BARRIERS = frozenset({ENGINE_DONE, AUDIO_FED})
@@ -383,7 +381,7 @@ class _SegmentSapiSink(_nvdaBase("SapiSink")):
 			driver._threadCond.notify()
 
 
-class SynthDriver(BaseSynthDriver, SegmentDrainCore):
+class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 	"""Correlate each WASAPI request with its final real idle barrier."""
 
 	def __init__(self, *args, **kwargs):
@@ -430,16 +428,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			"sapi5-wasapi",
 			"callback retirement, loaded profile provenance and physical playback are",
 		)
-
-	def speak_segment(
-		self,
-		commands: SpeechCommands,
-		token: CancellationView,
-		*,
-		context: PlaybackContext,
-		on_event: SegmentEventSink,
-	) -> None:
-		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
 	def _checkWorker(self):
 		if self.useWasapi and (self._thread is None or not self._thread.is_alive()):
