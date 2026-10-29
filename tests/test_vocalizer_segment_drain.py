@@ -1901,6 +1901,9 @@ def test_segment_without_native_call_reaches_engine_done(env, monkeypatch):
 # published DONE; the host's failure handling only stops the player. A record whose request
 # token was cancelled is withdrawn instead: reported cancelled, with the player left exactly as
 # the wrapper leaves it today (the callback's own stop, nothing at retire).
+# The player (fed/idles/stops) and DONE assertions of the token tests below also pass on master's
+# wrapper and host, before the barriers (verified in the 2026-10-29 review); only withdrawn,
+# barriers and the retire outcome are new. Keep the former fixed when changing the wrapper.
 
 
 def record_retires(env, monkeypatch):
@@ -2090,7 +2093,9 @@ def test_token_cancelled_after_the_last_call_is_withdrawn(env, monkeypatch, nvda
 		idle()
 		token.cancel()
 		if nvda_cancel:
-			# The scheduler cancels the request's token, then the playback (core.cancel()).
+			# The scheduler cancels the request's token, then the playback (core.cancel()):
+			# runtime/scheduler.py _cancel_request_locked (:386-395) inside cancel(), whose
+			# _stop_all follows (:419-441). A token-only cancel is therefore short-lived on NVDA.
 			env.core.cancel()
 
 	monkeypatch.setattr(player, "idle", cancelling_idle)
