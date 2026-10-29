@@ -491,8 +491,10 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			if record.operation is None:
 				# The inner speak() queues its DoneSpeaking last, so this record has no final idle
 				# to prove PLAYED_OUT. Undeclare it: the record still runs what was queued and
-				# retires as before PLAYED_OUT, while the caller gets the exception.
-				record.barriers.pop(PLAYED_OUT)
+				# retires as before PLAYED_OUT, while the caller gets the exception. This runs
+				# before _Retire is queued, and the BgThread reads barriers only in _Retire (and
+				# in a DoneSpeaking, which this record has none of), so no reach races it.
+				record.barriers.pop(PLAYED_OUT, None)
 			raise
 		finally:
 			self._player = player

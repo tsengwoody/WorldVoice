@@ -2351,6 +2351,23 @@ def test_inner_speak_failure_after_begin_keeps_todays_outcome(env, monkeypatch, 
 	assert (outcome.cancelled, outcome.error) == (False, None)
 
 
+def test_inner_speak_failure_keeps_its_error_for_a_set_without_played_out(env, monkeypatch):
+	# SegmentHost.enqueue takes any ordinary set; a caller's set without PLAYED_OUT has nothing
+	# to undeclare, and the inner speak()'s own exception reaches the caller.
+	outcomes = record_retires(env, monkeypatch)
+
+	def failing_speak(instance, chunks):
+		raise RuntimeError("inner speak failed")
+
+	monkeypatch.setattr(env.core, "_speak", failing_speak)
+	with pytest.raises(RuntimeError, match="inner speak failed"):
+		segment_host(env.core).enqueue(("ordinary",), barriers=frozenset({"audio_fed"}))
+	settle_worker(env)
+	[(record, outcome)] = outcomes
+	assert record.barriers == {"audio_fed": True}
+	assert (outcome.cancelled, outcome.error) == (False, None)
+
+
 def test_failed_final_idle_fails_the_record(env, monkeypatch, caplog):
 	# Today a raising idle() is only logged by the BgThread. It is recorded on the record now,
 	# so the record fails instead of silently missing PLAYED_OUT; the inner DoneSpeaking still
