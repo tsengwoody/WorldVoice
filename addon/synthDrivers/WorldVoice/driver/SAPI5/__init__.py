@@ -641,9 +641,10 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 						try:
 							player.stop()
 						finally:
-							# Token-only cancellation does not enter the parent's purge
-							# path. Retire this exact bookmark deque and discard Sonic
-							# only after all its admitted PCM callbacks have returned.
+							# A request whose work was cancelled before cancel() reached
+							# this driver does not enter the parent's purge path. Retire
+							# this exact bookmark deque and discard Sonic only after all
+							# its admitted PCM callbacks have returned.
 							with native.indexLock:
 								request.bookmarks.clear()
 								for index, bookmarks in enumerate(self._bookmarkLists):

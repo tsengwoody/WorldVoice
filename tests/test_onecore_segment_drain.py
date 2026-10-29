@@ -335,8 +335,8 @@ def test_ordinary_speech_and_settings_keep_call_order(env):
 
 
 def test_failed_setting_change_is_logged_and_later_speech_continues(env):
-	# As on master, a native setting that fails is logged; it does not latch a
-	# control error that would reject all later speech.
+	# A native setting that fails is logged; it does not latch a control error
+	# that would reject all later speech.
 	def failing_set(token, value):
 		raise OSError("set rate failed")
 

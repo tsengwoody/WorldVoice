@@ -345,7 +345,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentHostSpeaker):
 				try:
 					func(self._ocSpeechToken, ctypes.c_double(value))
 				except Exception:
-					# As on master: a failed setting is logged; speech continues.
+					# A failed setting is logged; speech continues.
 					log.error("OneCore setting change failed", exc_info=True)
 				continue
 			self._speakRecord(record)
