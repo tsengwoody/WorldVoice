@@ -328,7 +328,7 @@ class _CerenceStrategy(NativeStrategy):
 	def admission_error(self, host):
 		driver = self._driver()
 		with driver._speechStateLock:
-			if driver._terminated:
+			if driver._terminationRequested:
 				return RuntimeError("Cerence driver has terminated")
 			if driver._legacyUsed:
 				return RuntimeError(
@@ -387,7 +387,6 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 		self._paused = False
 		self._pauseRevision = 0
 		self._pauses = 0
-		self._terminated = False
 		self._callbackLocal = _ThreadState()
 		self._playerLocal = _ThreadState()
 		self._terminationLocal = _ThreadState()
@@ -469,7 +468,7 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 
 	def speak(self, speechSequence):
 		with self._speechStateLock:
-			if self._terminated:
+			if self._terminationRequested:
 				raise RuntimeError("Cerence driver has terminated")
 			# Legacy callback lifetimes are unproven: correlated mode stays off
 			# from the moment ordinary speech is requested.
@@ -805,7 +804,7 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 	def pause(self, switch):
 		host = self._segmentHost
 		with self._speechStateLock:
-			if self._terminated:
+			if self._terminationRequested:
 				raise RuntimeError("Cerence driver has terminated")
 			self._paused = switch
 			self._pauseRevision += 1
@@ -816,7 +815,7 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 			while True:
 				with self._speechStateLock:
 					self._speechStateLock.wait_for(lambda: self._stopGate.clear)
-					if self._terminated:
+					if self._terminationRequested:
 						break
 					revision, target = self._pauseRevision, self._paused
 				# Cancel can stop immediately while this player operation runs.
@@ -876,7 +875,6 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 		with self._speechStateLock:
 			first = not self._terminationRequested
 			self._terminationRequested = True
-			self._terminated = True
 		if first:
 			self._segmentHost.terminate()
 			try:
