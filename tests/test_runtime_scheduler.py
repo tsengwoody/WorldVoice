@@ -1005,11 +1005,26 @@ def test_pause_during_break_holds_following_speech(manager, port):
 
 
 def test_resume_reaches_paused_engine_before_successor_starts(manager, rt):
+	# The forwarded pause(False) blocks: the successor must not start before it returns.
 	port = drain_port(rt)
+	release, second_speak = Event(), Event()
 	calls = []
 	original = port.pause
-	port.pause = lambda switch: (calls.append(("pause", switch)), original(switch))
-	port.on_speak = lambda: calls.append("speak")
+
+	def pause(switch):
+		original(switch)
+		if not switch:
+			calls.append("resume-entered")
+			assert release.wait(HOLD_TIMEOUT)
+			calls.append("resume-returned")
+
+	def on_speak():
+		calls.append("speak")
+		if calls.count("speak") == 2:
+			second_speak.set()
+
+	port.pause = pause
+	port.on_speak = on_speak
 	request = manager.new_request()
 	manager.append_speech(request, port, "Fake:a", ("one",))
 	manager.append_speech(request, port, "Fake:a", ("two",))
@@ -1017,9 +1032,16 @@ def test_resume_reaches_paused_engine_before_successor_starts(manager, rt):
 	assert port.entered.wait(WAIT_TIMEOUT)
 	manager.pause_current(True)
 	drained(manager, rt, port)
-	manager.pause_current(False)
-	eventually(lambda: calls.count("speak") == 2)
-	assert calls == ["speak", ("pause", True), ("pause", False), "speak"]
+	resuming = Thread(target=lambda: manager.pause_current(False), daemon=True)
+	resuming.start()
+	try:
+		eventually(lambda: "resume-entered" in calls)
+		stays_unset(second_speak, message="the successor started before the forwarded resume returned")
+	finally:
+		release.set()
+	resuming.join(WAIT_TIMEOUT)
+	assert second_speak.wait(WAIT_TIMEOUT)
+	assert calls == ["speak", "resume-entered", "resume-returned", "speak"]
 
 
 def test_cancel_releases_start_hold(manager, port, rt):
