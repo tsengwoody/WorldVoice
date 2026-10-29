@@ -124,3 +124,13 @@ log 的開頭兩行：`VE … lib …\VE\lib\AMD64 Python 3.14.6 64-bit`、`Cere
 | M4 | `runtime/barriers.py` 的 `ENGINE_DONE` 註解和 `end_process` 的 docstring 註明證據來自 64 位元程式庫（VE SDK 2.2.0 `lib\AMD64`、Cerence SDK 21.6.0 `lib\x64`）。32 位元結果出來後再改成兩種位元數都測過。既有的 commit message（`5add7e0`）不改寫。 | `1a52b68` |
 
 VE／Cerence 保持同步：`tests/test_vocalizer_drift.py` 的 `ALLOWED` 沒有變動，drift 測試通過。
+
+### 32 位元 probe 之後（2026-10-29）
+
+使用者在 Windows 上以擴充後的 probe（分支 `SDKTest`，`eb1a92f`）分別用 32 位元與 64 位元 Python 各跑一次，log 在主 checkout 的 `docs/superpowers/handoff/ve_endprocess_probe-32bit.log` 與 `ve_endprocess_probe-64bit.log`。
+
+| 發現 | 處理 | commit |
+| --- | --- | --- |
+| I1 | **已解決。** 32 位元：Python 3.11.9 32-bit，VE SDK 2.2.0 `lib\x86`（40 個語音，2440 pass／120 info）、Cerence SDK 21.6.0 `lib\x32`（161 個語音，9499 pass／805 info）。64 位元（Python 3.14.6，`lib\AMD64`／`lib\x64`）用同一組擴充片段重跑，數字相同，逐筆判定和 32 位元一致。兩次都是 0 筆 FAIL／WARN／ERROR、0 個呼叫外的 callback、0 筆 `sameThread=False`；每次 11939 筆成功呼叫都恰好一次 `ENDPROCESS` 且在最後（`BEGINPROCESS,(OUTBUFREQ,OUTBUFDONE)+,ENDPROCESS`），其中 4813 筆不產生音訊。「32 位元 NVDA（2024.1–2025.3）上未實測」不再是未確認的預設。 | — |
+| M3 | **已解決。** 擴充片段涵蓋：控制字元（BEL、DEL、C0、C1）、零寬字元（ZWSP、ZWNJ、ZWJ、word joiner、BOM、LRM、RLM、soft hyphen）、孤立 surrogate、拼字模式（含 chunker 切出的三段各 250 個拼字字元加 bookmark）、只有 100 個 bookmark、同一個 instance 在 `USERSTOP` 之後的下一次呼叫、rate／pitch／volume／waitfactor 的最小與最大參數，全部 pass。只列為 info：空字串（`0x80000007`，無訊息）、NUL、`USERSTOP` 那次呼叫本身（之後仍有 `ENDPROCESS`）、Cerence 的 `\rate=`／`\vol=`（內層驅動不會送；結果仍是 `OK` 且有 `ENDPROCESS`）。 | — |
+| M4 | `runtime/barriers.py` 的 `ENGINE_DONE` 註解、`end_process` 的 docstring、VE／Cerence 的 `_runNative` 註解改成 32 位元（`lib\x86`／`lib\x32`）與 64 位元（`lib\AMD64`／`lib\x64`）程式庫都測過。VE 與 Cerence 保持相同，`tests/test_vocalizer_drift.py` 的 `ALLOWED` 沒有變動。 | `bdbbf91` |
