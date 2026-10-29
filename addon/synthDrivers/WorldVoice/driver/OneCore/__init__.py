@@ -193,11 +193,9 @@ class _OneCoreStrategy(NativeStrategy):
 		player = driver._player
 		if player:
 			try:
+				# sync() waits while the player is paused; a pause after it returned
+				# is the scheduler's to hold.
 				player.sync()
-				with driver._segmentCondition:
-					driver._segmentCondition.wait_for(
-						lambda: not driver._segmentPaused or not record.work.is_valid(),
-					)
 			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				# A failed sync fails only this segment (engineControl's latch rule):
 				# stop the player for its successor; only a failed stop latches.

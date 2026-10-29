@@ -879,18 +879,18 @@ def test_empty_index_and_break_segments_drain_at_known_end(env, commands, frames
 	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
-def test_pause_holds_completion_until_resume(env):
+def test_segment_drain_does_not_wait_for_resume(env):
+	# A pause after the audio played out is the scheduler's to hold (phase 54).
 	_, _, events = speak(env)
 	env.native.wait_calls(1)
 	env.driver.pause(True)
 	env.player.sync_release.set()
 	call = in_thread(lambda: env.native.respond(frames=8, markers=""))
-	assert env.player.sync_entered.wait(WAIT_TIMEOUT)
-	assert events == []
-	env.driver.pause(False)
 	finish(call)
 	wait_events(events)
 	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+	assert env.driver._segmentPaused
+	env.driver.pause(False)
 
 
 def test_pause_before_first_wav_also_pauses_new_player(env):
@@ -1005,7 +1005,7 @@ def test_capability_rejects_partial_initialization(env, missing):
 	assert not support.supported and support.reason
 
 
-def test_pause_resume_reaches_real_player_before_success_event(env):
+def test_drain_reports_while_a_resume_is_in_flight(env):
 	_, _, events = speak(env)
 	env.native.wait_calls(1)
 	env.driver.pause(True)
@@ -1024,13 +1024,14 @@ def test_pause_resume_reaches_real_player_before_success_event(env):
 
 	env.player.pause = blocking_resume
 	resume = in_thread(lambda: env.driver.pause(False))
-	assert resumed.wait(WAIT_TIMEOUT)
-	assert events == []
-	release.set()
+	try:
+		assert resumed.wait(WAIT_TIMEOUT)
+		finish(call)
+		wait_events(events)
+		assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+	finally:
+		release.set()
 	finish(resume)
-	finish(call)
-	wait_events(events)
-	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
 def start_controlled_playback(env, mode):
