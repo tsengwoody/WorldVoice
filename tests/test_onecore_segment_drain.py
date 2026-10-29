@@ -420,7 +420,7 @@ def test_cancel_after_control_fault_capture_suppresses_pending_failure(env, monk
 	captured, release_delivery = Event(), Event()
 	converter = env.outer.oneCore._OcSsmlConverter
 	original_convert = converter.convertToXml
-	original_delivery = env.driver._deliverSegmentControlFailure
+	original_delivery = env.driver._controlFault.deliver
 
 	def held_convert(self, commands):
 		converting.set()
@@ -433,7 +433,7 @@ def test_cancel_after_control_fault_capture_suppresses_pending_failure(env, monk
 		return original_delivery(failure)
 
 	monkeypatch.setattr(converter, "convertToXml", held_convert)
-	monkeypatch.setattr(env.driver, "_deliverSegmentControlFailure", held_delivery)
+	monkeypatch.setattr(env.driver._controlFault, "deliver", held_delivery)
 	token = env.scheduler.CancellationToken()
 	context = env.rt.models.PlaybackContext(object(), 17)
 	events = []
@@ -1325,14 +1325,14 @@ def _wait_gate_held(env):
 
 def test_pause_between_fault_capture_and_delivery_does_not_reach_the_player(env, monkeypatch):
 	captured, release_delivery = Event(), Event()
-	original_delivery = env.driver._deliverSegmentControlFailure
+	original_delivery = env.driver._controlFault.deliver
 
 	def held_delivery(failure):
 		captured.set()
 		assert release_delivery.wait(HOLD_TIMEOUT)
 		return original_delivery(failure)
 
-	monkeypatch.setattr(env.driver, "_deliverSegmentControlFailure", held_delivery)
+	monkeypatch.setattr(env.driver._controlFault, "deliver", held_delivery)
 	speak(env)
 	env.native.wait_calls(1)
 	pauses = []
@@ -1561,3 +1561,39 @@ def test_cancelled_segment_feed_is_stopped_by_the_lease_before_successor(env):
 	assert stopped, "The segment feed queued audio after cancel without a final stop"
 	assert not advanced, "New native work started before the cancelled feed's final stop"
 	env.native.wait_calls(2)
+
+
+def test_cancel_pause_lock_stop_failure_delivers_after_lock_release(env, monkeypatch):
+	speak(env)
+	env.native.wait_calls(1)
+	error = OSError("stop failed under the pause lock")
+	stops = []
+	original_stop = env.player.stop
+
+	def second_stop_fails():
+		# cancel's first stop succeeds; the one under the pause lock fails.
+		stops.append(True)
+		if len(stops) == 2:
+			raise error
+		original_stop()
+
+	pause_lock_free = []
+	original_delivery = env.driver._controlFault.deliver
+
+	def observed_delivery(fault):
+		if fault is not None:
+			lock = env.driver._segmentPauseLock
+			acquired = lock.acquire(blocking=False)
+			pause_lock_free.append(acquired)
+			if acquired:
+				lock.release()
+		return original_delivery(fault)
+
+	monkeypatch.setattr(env.driver._controlFault, "deliver", observed_delivery)
+	env.player.stop = second_stop_fails
+	with pytest.raises(OSError) as raised:
+		env.driver.cancel()
+	assert raised.value is error
+	assert pause_lock_free == [True]
+	assert segment_host(env.driver).control_error is error
+	assert stop_gate_clear(env.driver)

@@ -11,7 +11,7 @@ from synthDrivers import oneCore
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, PLAYED_OUT
-from ...runtime.engineControl import StopGate
+from ...runtime.engineControl import ControlFaultPolicy, StopGate
 from ...runtime.hostNames import host_names_ready
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
@@ -231,6 +231,13 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 			self._segmentPaused = False
 			self._segmentControlGeneration = 0
 			self._stopGate = StopGate(self._segmentCondition)
+			self._controlFaultLegacy = False
+			self._controlFault = ControlFaultPolicy(
+				self._segmentHost,
+				self._segmentCondition,
+				self._dropForControlFault,
+				after=self._afterControlFault,
+			)
 			self._segmentWorker = None
 			self._segmentNative = None
 			self._segmentCallback = _DetachableCallback(self)
@@ -531,39 +538,28 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 		player.feed(ctypes.c_void_p(address), size=size, onDone=onDone)
 		return record.is_valid()
 
-	def _captureSegmentControlFailure(self, error):
-		# Capture while the pause lock is still owned, before cancellation can
-		# retire that operation and admit a successor. Delivery happens later.
-		host = self._segmentHost
-		with self._segmentCondition:
-			if host.control_error is not None:
-				return None
-			host.latch_control_error(error)
-			self._segmentControlGeneration += 1
-			self._wasCancelled = True
-			self._stopGate.enter()
-			dropped = [item.record for item in self._queuedSpeech if isinstance(item, _SpeechJob)]
-			legacy = any(record.operation is None for record in dropped) or (
-				self._segmentNative is not None and self._segmentNative.operation is None
-			)
-			self._queuedSpeech.clear()
-			self._segmentCondition.notify_all()
-			return error, dropped, legacy
+	def _dropForControlFault(self):
+		# Under the condition, right after the latch: stop the worker taking
+		# anything queued and hold the stop gate until the fault is delivered.
+		self._segmentControlGeneration += 1
+		self._wasCancelled = True
+		self._stopGate.enter()
+		dropped = [item.record for item in self._queuedSpeech if isinstance(item, _SpeechJob)]
+		self._controlFaultLegacy = any(record.operation is None for record in dropped) or (
+			self._segmentNative is not None and self._segmentNative.operation is None
+		)
+		self._queuedSpeech.clear()
+		return dropped
 
-	def _deliverSegmentControlFailure(self, failure):
-		if failure is None:
-			return
-		_error, dropped, legacy = failure
+	def _afterControlFault(self, fault):
+		# Delivered with no lock held, after the dropped records were abandoned.
 		try:
-			# Queued records never reach the worker; they fail with the latched error.
-			for record in dropped:
-				self._segmentHost.abandon(record)
 			if self._player:
 				try:
 					self._player.stop()
 				except Exception:
 					log.error("OneCore failed player could not be stopped", exc_info=True)
-			if legacy and not self._segmentTerminated:
+			if self._controlFaultLegacy and not self._segmentTerminated:
 				# Legacy has no failure event; release its speaking wait once.
 				try:
 					synthDoneSpeaking.notify(synth=self)
@@ -575,24 +571,22 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 				self._stopGate.leave()
 
 	def _failSegmentControl(self, error):
-		self._deliverSegmentControlFailure(self._captureSegmentControlFailure(error))
+		# Under the pause lock (inside _controlFault.deferred()), the fault is captured
+		# there, before cancellation can retire that operation and admit a successor,
+		# and delivered once the lock is released.
+		return self._controlFault.fail(error)
 
 	def _maybeInitPlayer(self, wav):
-		failure = None
-		try:
-			with self._segmentPauseLock:
-				try:
-					with self._segmentCondition:
-						self._checkSegmentAdmission()
-					super()._maybeInitPlayer(wav)
-					if self._segmentPaused and self._stopGate.clear:
-						self._player.pause(True)
-				except Exception as error:
-					failure = self._captureSegmentControlFailure(error)
-					raise
-		except Exception:
-			self._deliverSegmentControlFailure(failure)
-			raise
+		with self._controlFault.deferred(), self._segmentPauseLock:
+			try:
+				with self._segmentCondition:
+					self._checkSegmentAdmission()
+				super()._maybeInitPlayer(wav)
+				if self._segmentPaused and self._stopGate.clear:
+					self._player.pause(True)
+			except Exception as error:
+				self._failSegmentControl(error)
+				raise
 
 	def cancel(self):
 		host = self._segmentHost
@@ -618,7 +612,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 					# Stop first to release callback/player waits. Keep cancellation
 					# admission reserved until every older control operation exits;
 					# then undo a late pause before letting a successor use the player.
-					with self._segmentPauseLock:
+					with self._controlFault.deferred(), self._segmentPauseLock:
 						if self._player:
 							if host.control_error is None:
 								self._player.pause(False)
@@ -633,31 +627,26 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 				return
 			self._checkSegmentAdmission()
 			generation = self._segmentControlGeneration
-		failure = None
-		try:
-			with self._segmentPauseLock:
-				try:
+		with self._controlFault.deferred(), self._segmentPauseLock:
+			try:
+				with self._segmentCondition:
+					if (
+						generation != self._segmentControlGeneration
+						or self._segmentTerminated
+						or not self._stopGate.clear
+					):
+						return
+					self._checkSegmentAdmission()
+					if switch:
+						self._segmentPaused = True
+				super().pause(switch)
+				if not switch:
 					with self._segmentCondition:
-						if (
-							generation != self._segmentControlGeneration
-							or self._segmentTerminated
-							or not self._stopGate.clear
-						):
-							return
-						self._checkSegmentAdmission()
-						if switch:
-							self._segmentPaused = True
-					super().pause(switch)
-					if not switch:
-						with self._segmentCondition:
-							self._segmentPaused = False
-							self._segmentCondition.notify_all()
-				except Exception as error:
-					failure = self._captureSegmentControlFailure(error)
-					raise
-		except Exception:
-			self._deliverSegmentControlFailure(failure)
-			raise
+						self._segmentPaused = False
+						self._segmentCondition.notify_all()
+			except Exception as error:
+				self._failSegmentControl(error)
+				raise
 
 	def terminate(self):
 		host = self._segmentHost

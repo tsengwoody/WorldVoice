@@ -167,4 +167,5 @@ class ControlFaultPolicy:
 			local.depth = depth
 			if depth == 0:
 				fault, local.fault = local.fault, None
-				self.deliver(fault)
+				if fault is not None:
+					self.deliver(fault)

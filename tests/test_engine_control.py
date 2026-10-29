@@ -198,3 +198,12 @@ def test_fail_without_drop_only_latches(control):
 	assert policy.fail(error) is True
 	assert host.latched == [error] and host.abandoned == []
 	assert policy.fail(OSError("again")) is False
+
+
+def test_deferred_block_without_a_fault_delivers_nothing(control, monkeypatch):
+	policy = control.ControlFaultPolicy(_FaultHost(), Condition())
+	delivered = []
+	monkeypatch.setattr(policy, "deliver", delivered.append)
+	with policy.deferred():
+		pass
+	assert delivered == []
