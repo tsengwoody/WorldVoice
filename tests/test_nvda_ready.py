@@ -211,3 +211,28 @@ def test_sapi5_imports_and_uses_nvdas_driver_without_audio_stream_class(monkeypa
 		assert logger.records == [("info", message)]
 	finally:
 		adapter.close()
+
+
+def _label_definitions():
+	"""(file, line) of every NVDA label function and versionInfo import in the wrappers and bridge."""
+	import ast
+
+	found = []
+	paths = sorted((WORLDVOICE / "driver").glob("*/__init__.py")) + sorted(
+		(WORLDVOICE / "bridge").glob("*.py"),
+	)
+	for path in paths:
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+			if isinstance(node, ast.FunctionDef) and node.name in {"nvdaLabel", "_nvdaLabel"}:
+				found.append((path.relative_to(WORLDVOICE).as_posix(), "def"))
+			elif isinstance(node, ast.Import) and any(alias.name == "versionInfo" for alias in node.names):
+				found.append((path.relative_to(WORLDVOICE).as_posix(), "import"))
+	return found
+
+
+def test_one_nvda_label_names_the_running_nvda(monkeypatch):
+	# One function names NVDA in the ready() log lines; it reads versionInfo only when called.
+	assert _label_definitions() == [("bridge/nvdaVersion.py", "def"), ("bridge/nvdaVersion.py", "import")]
+	module = load_source(monkeypatch, "worldvoice_nvda_version", WORLDVOICE / "bridge/nvdaVersion.py")
+	monkeypatch.setitem(sys.modules, "versionInfo", SimpleNamespace(version="2026.1.0"))
+	assert module.nvdaLabel() == "NVDA 2026.1.0"
