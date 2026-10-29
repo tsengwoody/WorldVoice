@@ -522,6 +522,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			# Only this worker sees an ordinary request's token. Read it after the reaches: a
 			# token that blocked one stays cancelled, so the record is withdrawn, and retire
 			# neither fails its unreached barriers nor stops the player (as before the barriers).
+			# test_token_cancelled_during_the_audio_fed_reach_is_withdrawn pins this order.
 			token = record.native.token
 			if token is not None and token.is_cancelled():
 				host.withdraw(record)

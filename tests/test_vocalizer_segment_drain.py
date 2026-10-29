@@ -2106,3 +2106,30 @@ def test_token_cancelled_after_the_last_call_is_withdrawn(env, monkeypatch, nvda
 	# the host's cancelled-path stop at retire, as before.
 	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 1, 2 if nvda_cancel else 0)
 	assert env.dones == []
+
+
+def test_token_cancelled_during_the_audio_fed_reach_is_withdrawn(env, monkeypatch):
+	# _retireRecord reads the token after both reaches. Cancelled inside the first reach, the
+	# second reach is refused; only that late read withdraws the record instead of failing it
+	# for engine_done and stopping the player once more.
+	token = Token()
+	host = segment_host(env.core)
+	reach = host.reach
+
+	def cancelling_reach(record, barrier):
+		reach(record, barrier)
+		if barrier == "audio_fed":
+			token.cancel()
+
+	monkeypatch.setattr(host, "reach", cancelling_reach)
+	calls, native = ending_calls(env, [True])
+	outcomes = speak_ordinary_pieces(env, monkeypatch, ["a"], native, token)
+	assert calls == ["a"]
+	[(record, outcome)] = outcomes
+	assert record.barriers == {"audio_fed": True, "engine_done": False}
+	assert record.withdrawn
+	assert (outcome.cancelled, outcome.error) == (True, None)
+	player = real_player(env.core)
+	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 1, 0)
+	# DoneSpeaking ran before _Retire, while the token was still live, so DONE was published.
+	assert len(env.dones) == 1
