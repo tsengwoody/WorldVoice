@@ -165,3 +165,63 @@
 | VE／Cerence 同步 | Cerence 換名後和 VE 的 `diff` 與 `7692ee4` 時完全相同；`tests/test_vocalizer_drift.py` 沒有 diff |
 
 依 §3.4，本輪有 Important（I1、I2），修正的 diff（`7692ee4..` 之後的 commit）待協調者另派 Opus 5.5 做修正 review。
+
+### 修正 review（Opus 5.5 xHigh，2026-10-29）
+
+審閱者：Opus 5.5（effort xHigh；DEVELOPMENT_WORKFLOW.md §3.4 的修正 review）。範圍：只看修正的 diff `7692ee4..1ce666c`（`6acda3d` I1、`794ac80` I2、`05ee8cf` M1、`206ec97` M2、`1ce666c` 修正記錄），對照上面的 I1、I2、M1、M2 與修正記錄。唯讀，只新增本節。突變都在 scratch 複本（`git archive HEAD`，`ref` symlink）上做，VE 與 Cerence 同時突變，`PYTHONDONTWRITEBYTECODE=1 pytest -q -p no:cacheprovider`，每次前後清 `__pycache__`、跑完還原（腳本 `scratchpad/fixreview/mutrun.py`）；worktree 的追蹤檔沒有動過，沒有用 `git stash`。行號以 head `1ce666c` 為準，路徑省略 `addon/synthDrivers/WorldVoice/`。
+
+**結論：四項都真的修好，可以 merge。** 新的 Critical 0、Important 0、Minor 1（N1，可選，不擋 merge）。沒有新的 Critical／Important，依 §3.4 不需要再一輪修正 review。
+
+#### 逐項判定
+
+- **I1 — 已修好。**
+  - 程式碼：`runtime/segmentHost.py:552-556` 的 `log.error` 只在合成缺關卡錯誤的分支（`:548-549`）裡，排在 host cancel（`:536-544`）、已記錄的錯誤、`withdrawn`（`:546-547`）之後，所以 host 取消、已有錯誤、被 withdraw 的 record 都不會寫；呼叫時沒有持有 `_condition`，不影響鎖順序。diff 只加一個 log 呼叫，`outcome` 和 `stop_player` 的條件與次數都沒變（完整套件裡所有 stop 次數的斷言照常通過）。
+  - 措辭與層級：用模組既有的 stdlib `log`，維持 NVDA-free；NVDA 的 `logHandler` 把 handler 掛在 root（`ref/nvda/source/logHandler.py:673`），所以在 NVDA 上會寫進 NVDA log。ERROR 和同檔其他失敗（`:543`、`:561`）一致；訊息「`VE ordinary speech retired without its engine_done barriers`」對應 `_missing_barriers_error` 的 `RuntimeError` 文字，有引擎名和缺的關卡。
+  - 測試抓得到：在 head 拿掉這筆 log（還原 I1），`test_segment_host.py`＋`test_vocalizer_segment_drain.py` **9 failed**／272 passed（host 的 `test_ordinary_record_outcomes[missing]`，加上 drain 的 8 個 `test_ordinary_last_call_without_endprocess_fails_the_record` 案例）；換回 `7692ee4` 的兩個測試檔則 271 passed，也就是修正前的測試抓不到，和 review 一致。我另外做了四個 log 位置的突變：L2（log 搬到 `withdrawn` 分支之前）被 `test_withdrawn_ordinary_record_outcomes[missing]` 殺掉；L3（已記錄的錯誤也 log）被兩個 `[error]` 案例殺掉；L4（改成 `log.warning`）被 `test_ordinary_record_outcomes[missing]` 殺掉；L5（只在沒有 control error 時 log）存活，但實務上等價：latch 時 pending 的 record 都會被寫入 error（`:442-452`），之後的一般 `enqueue` 直接丟出 control error（`:265-268`），所以「有 control error、沒有 record error、關卡沒到齊」的 record 走不到這個分支，不計。
+  - 不增加雜訊：我自己寫了一個 pytest plugin（在 root logger 掛 handler，記下每筆含 `ordinary speech retired without its` 的訊息和當時的測試，`scratchpad/fixreview/plugin/logprobe.py`），跑完整套件（3569 passed）。總共 11 筆，全部來自刻意缺關卡的測試：host 的 `test_ordinary_record_outcomes[missing]`、`test_retire_waits_for_admitted_consumers[0]`／`[0.1]`（fake record 沒有 reach 就 retire），以及 VE、Cerence 各 4 個 `test_ordinary_last_call_without_endprocess_fails_the_record`。六個引擎的一般語音正確執行一筆都沒有，和修正記錄的說法逐筆相同。程式碼面：這個分支在 `master` 本來就判為失敗（合成錯誤、stop），log 只是讓它被看見，沒有新增任何判定。eSpeak 的一般語音一律經過 `_speak`→`espeak_Synth`，NVDA callback 最後一次 `wav=None` 時會 `idle()` 和 `onIndexReached(None)`，三個關卡都會到；SAPI5 legacy audio 不經過 host（`driver/SAPI5/__init__.py:459-461`）；OneCore 開 player 失敗時先 `record_error`（`driver/OneCore/__init__.py:335`），不會多一筆 log。
+- **I2 — 已修好。** 突變 W6（`if token is not None:`）：用 `7692ee4` 的測試檔跑 5 個檔案，328 passed（存活，重現 review 的結果）；在 head 上 **8 failed**／330 passed，失敗的正好是兩個測試 × 兩種 `ends` × VE、Cerence 的全部 `live-token` 案例，`no-token` 照常通過。`request_token` 的註解（production 一律傳 token、`None` 是直接呼叫 core 的形狀）正確：`bridge/engineAdapter.py:33-35` 的 `_speakPlain` 在宣告 `cancellationToken` 時一律傳 token。缺 `ENDPROCESS` 測試後半的第二個請求也用同一種 token，並斷言沒有被 withdraw，同樣沒問題。
+- **M1 — 已修好（就 review 指定的 W3b 而言）。** 突變 W3b（兩次 reach 之前讀 token）：用 `7692ee4` 的測試檔 328 passed（存活）；在 head 上 **2 failed**／336 passed，失敗的就是新測試 `test_token_cancelled_during_the_audio_fed_reach_is_withdrawn[VE]`、`[Cerence]`。新測試是確定性的（monkeypatch 實例的 `reach`，`_retireRecord` 透過 `host.reach` 呼叫，會被攔到），未突變時兩個引擎都通過。殘留的較窄變體見 N1。
+- **M2 — 已修好。** 只改註解，內容正確：
+  - `runtime/scheduler.py` 的行號已核對：`_cancel_request_locked` 是 `:386-395`（`token.cancel()` 在 `:391`）；`:419-441` 涵蓋 `_stop_all`（`:419-426`）和 `cancel()`（`:428-441`，在 `:435` 取消 token、`:439` 呼叫 `_stop_all`），和 review 建議的出處一致。「token-only 的取消在 NVDA 上只會短暫存在」這句，我另外看了只取消 token 的路徑：`abort_request`（`:265-266`）只發生在 BUILDING，這時任務還沒送出；`_run_one` 失敗（`:497-499`）時 `_settle` 會 stop 失敗任務自己的 playback（`:569-570`），而 scheduler 會等每個任務的 done（`_execute` `:554`）才跑下一個，所以前一個 VE 任務最多只剩 `_Retire` 的窗口，會被 withdraw，不會多 stop。這句在實務上成立。
+  - 「token 測試的 player／DONE 斷言在 `master` 上也通過」，我獨立重做了一次：`master` 的 scratch 複本，放入 head 的 drain 測試檔，刪掉 27 個 `withdrawn`／`record.barriers`／`outcome`／`lastCallEnded`／log 斷言，跑 `-k "token_cancelled or legacy_endprocess_after_token"`，**16 passed**（M2 註解涵蓋的 7 個 token 測試，加上既有的 `test_token_cancelled_ordinary_leaves_contextual_final_idle_untouched`，各兩個引擎）。M1 的新測試也在其中：`master` 的一般語音沒有 reach，所以它的取消 hook 不會觸發，數字等於一次正常執行，和 review 表中「第一次 reach 之後、讀 token 之前」那一列的 `master` 數字（0／1／1）相同。
+
+#### 新發現
+
+Critical：無。Important：無。
+
+##### N1（Minor）. M1 的測試只釘住「在 `AUDIO_FED` 的 reach 之後才讀 token」，沒有釘住「在兩次 reach 之後」：把讀取放在兩次 reach 之間的突變 W3c 存活（`tests/test_vocalizer_segment_drain.py:2116-2140`；VE `:513-526`、Cerence `:515-528`）
+
+突變 W3c：在 `AUDIO_FED` 的 reach（VE `:513`）之後、`ENGINE_DONE` 的條件（`:516`）之前先讀 `_early = token.is_cancelled()`，withdraw 改用這個值。5 個檔案 **338 passed**，存活（`7692ee4` 的測試檔也是 328 passed）。M1 的新測試是在 `AUDIO_FED` 的 reach 返回時取消 token，這時 W3c 的讀取還沒發生，所以讀到的是已取消，照樣 withdraw。但 wrapper 註解寫的是「Read it after the reaches」和「pins this order」，實際上只釘住了一半。失敗情境：token 在 W3c 的讀取之後、`:516` 的 `_recordValid` 之前被取消，`ENGINE_DONE` 不會 reach，record 也沒有被 withdraw，結果被合成缺 `engine_done` 的錯誤，多一次 `stop_player()`。有了 I1 之後，NVDA log 還會多一筆假的 ERROR。窗口很窄，性質和 M1 相同，所以列為 Minor。
+
+建議修法（確定性，不靠時序）：在 M1 的測試旁加一個案例，monkeypatch `env.core._recordValid`，在「`audio_fed` 已到、`engine_done` 還沒到」時先 `token.cancel()` 再回傳原本的判斷（也就是 `_retireRecord` 的 `ENGINE_DONE` 檢查），斷言和 M1 的測試相同：`barriers == {"audio_fed": True, "engine_done": False}`、`withdrawn`、`(True, None)`、`([b"pcm"], 1, 0)`、1 個 DONE。我寫的 scratch 版本 `test_token_cancelled_in_the_engine_done_check_is_withdrawn`（`scratchpad/fixreview/test_fixreview_extra.py`）未突變時兩個引擎都通過，W3c 和 W3b 都被殺掉（各 2 failed）。也可以把 M1 的測試參數化成兩個取消點。不修也可以 merge；要修的話，wrapper 註解指向的測試名稱要一起更新。
+
+#### 突變結果
+
+W 系列跑 `test_vocalizer_segment_drain.py`、`test_native_strategy_guards.py`、`test_vocalizer_drift.py`、`test_worldvoice_cancel_wrappers.py`、`test_worldvoice_request_manager.py`；I1／L 系列跑 `test_segment_host.py`＋`test_vocalizer_segment_drain.py`。「修正前」是把 `test_vocalizer_segment_drain.py`、`test_segment_host.py` 換成 `7692ee4` 的版本，其餘程式碼都是 head。
+
+| # | 突變 | 修正前的測試 | 修正後（head） |
+| --- | --- | --- | --- |
+| I1 還原 | 拿掉 `retire` 的 `log.error` | 271 passed（存活） | **killed**：9 failed／272 passed |
+| W6 | `if token is not None:`（有 token 就 withdraw） | 328 passed（存活） | **killed**：8 failed／330 passed（全部 `live-token` 案例） |
+| W3b | 兩次 reach 之前讀 token | 328 passed（存活） | **killed**：2 failed／336 passed（M1 新測試的 `[VE]`、`[Cerence]`） |
+| W3c | 兩次 reach 之間讀 token | 328 passed（存活） | **存活**：338 passed → N1；加上 scratch 測試後 killed |
+| L2 | log 搬到 `withdrawn` 分支之前 | – | killed（`test_withdrawn_ordinary_record_outcomes[missing]`） |
+| L3 | 已記錄的錯誤也 log | – | killed（`test_ordinary_record_outcomes[error]`、`test_withdrawn_ordinary_record_outcomes[error]`） |
+| L4 | `log.warning` 取代 `log.error` | – | killed（`test_ordinary_record_outcomes[missing]`） |
+| L5 | 只在沒有 control error 時 log | – | 存活，實務上等價（見 I1），不計 |
+
+#### 驗證（head `1ce666c`）
+
+| 項目 | 指令／方法 | 結果 |
+| --- | --- | --- |
+| 完整套件（序列） | `python3 -m pytest -q tests`，背景 watchdog 每 2 秒讀 `/proc/meminfo`，MemAvailable < 3 GB 就 kill pytest（`scratchpad/fixreview/run_full.sh`） | **3569 passed／0 skipped**（104.27 s）；watchdog 沒有觸發（最低 MemAvailable 約 5.86 GB）；和修正記錄的數字相同 |
+| log 雜訊探測 | 同一套件加 `-p logprobe`（`scratchpad/fixreview/run_probe.sh`） | 3569 passed；11 筆，全部是刻意缺關卡的測試（見 I1） |
+| prek | `prek run --all-files` | 8 個 hook 全 Passed |
+| 空白 | `git diff --check`、`git diff --check 7692ee4..HEAD`、`git diff --check master..HEAD` | 乾淨 |
+| 受保護路徑 | §7 的 `git diff --stat master -- 'addon/synthDrivers/WorldVoice/driver/*/driver/*' …/driver/sonic/ …script_data.py …unspaced_common_data.py`；`git ls-files addon/synthDrivers/WorldVoice/driver/Neural` | 都沒有輸出 |
+| VE／Cerence 同步 | `sed 's/Cerence/VE/g; s/cerence/vocalizer/g; s/ttsapi/ve2/g'` 後和 VE `diff`，比較 `7692ee4` 和 head；`git diff 7692ee4..HEAD -- tests/test_vocalizer_drift.py` | 兩個版本的差異行完全相同（44 行），兩個 wrapper 各只多同一行註解；drift 測試沒有 diff，`ALLOWED` 不變 |
+| commit | `git log --format=%B 7692ee4..1ce666c` | 5 個都是英文 `fix:`／`test:`／`docs:`，內文說明原因；沒有 `Co-Authored-By` |
+| M2 的 `master` 中立說法 | `master` 的 scratch 複本＋head 的 drain 測試檔（刪掉 27 個新斷言），`-k "token_cancelled or legacy_endprocess_after_token"` | 16 passed |
+| 未突變的 scratch 複本 | 6 個相關測試檔 | 410 passed |
+
+Windows／NVDA 上的實際 log 輸出和音訊裝置都沒有驗證（Linux 只驗證受控的邊界）。
