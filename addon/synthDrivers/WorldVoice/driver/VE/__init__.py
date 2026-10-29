@@ -14,10 +14,8 @@ from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import ControlFaultPolicy, StopGate
-from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
-from ...runtime.session import CancellationView
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost, SegmentHostSpeaker
 from . import driver as base
 from .driver import (
 	ProcessText2Speech as BaseProcessText2Speech,
@@ -372,7 +370,7 @@ class _VEStrategy(NativeStrategy):
 				host.reach(record, PLAYED_OUT)
 
 
-class SynthDriver(BaseSynthDriver, SegmentDrainCore):
+class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 	def __init__(self):
 		self._speechStateLock = threading.Condition()
 		self._segmentHost = SegmentHost("VE", _VEStrategy(self))
@@ -466,16 +464,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def _confirmNativeQuiescence(self, call):
 		# Explicit activation override; retain the callback guard and idle barrier.
 		return None
-
-	def speak_segment(
-		self,
-		commands: SpeechCommands,
-		token: CancellationView,
-		*,
-		context: PlaybackContext,
-		on_event: SegmentEventSink,
-	) -> None:
-		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
 	def speak(self, speechSequence):
 		with self._speechStateLock:
