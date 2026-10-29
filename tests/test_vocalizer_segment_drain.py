@@ -1925,6 +1925,10 @@ def speak_ordinary_pieces(env, monkeypatch, pieces, native, token=None):
 	return outcomes
 
 
+def missing_barrier_logs(caplog):
+	return [record.getMessage() for record in caplog.records if "retired without its" in record.getMessage()]
+
+
 def ending_calls(env, ends):
 	calls = []
 
@@ -1936,7 +1940,7 @@ def ending_calls(env, ends):
 
 
 @pytest.mark.parametrize("ends", [[True], [True, False, True]], ids=["one-call", "middle-call-unended"])
-def test_ordinary_speech_reaches_audio_fed_and_engine_done(env, monkeypatch, ends):
+def test_ordinary_speech_reaches_audio_fed_and_engine_done(env, monkeypatch, caplog, ends):
 	calls, native = ending_calls(env, ends)
 	outcomes = speak_ordinary_pieces(env, monkeypatch, [str(i) for i in range(len(ends))], native)
 	assert len(calls) == len(ends)
@@ -1947,10 +1951,11 @@ def test_ordinary_speech_reaches_audio_fed_and_engine_done(env, monkeypatch, end
 	assert player.fed == [b"pcm"] * len(ends)
 	assert (player.idles, player.stops) == (1, 0)
 	assert len(env.dones) == 1
+	assert missing_barrier_logs(caplog) == []
 
 
 @pytest.mark.parametrize("ends", [[False], [True, False]], ids=["one-call", "last-of-two"])
-def test_ordinary_last_call_without_endprocess_fails_the_record(env, monkeypatch, ends):
+def test_ordinary_last_call_without_endprocess_fails_the_record(env, monkeypatch, caplog, ends):
 	ends = list(ends)  # changed below; the parametrized list is shared by both engines
 	calls, native = ending_calls(env, ends)
 	outcomes = speak_ordinary_pieces(env, monkeypatch, [str(i) for i in range(len(ends))], native)
@@ -1959,6 +1964,9 @@ def test_ordinary_last_call_without_endprocess_fails_the_record(env, monkeypatch
 	assert record.barriers == {"audio_fed": True, "engine_done": False}
 	assert outcome.cancelled is False
 	assert "engine_done" in str(outcome.error)
+	# The wrapper drops the outcome; the host's log is what makes the failure visible.
+	[logged] = missing_barrier_logs(caplog)
+	assert env.engine in logged and "engine_done" in logged
 	player = real_player(env.core)
 	# DoneSpeaking idled and published DONE before _Retire; the host then discards queued audio.
 	assert (player.idles, player.stops) == (1, 1)

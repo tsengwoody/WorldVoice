@@ -1,5 +1,6 @@
 """SegmentHost and LeasedPlayer against a fake engine strategy."""
 
+import logging
 from threading import Condition, Event, Thread, get_ident
 from types import SimpleNamespace
 
@@ -304,8 +305,17 @@ def test_a_retired_ordinary_record_stays_cancellable_until_forgotten(env):
 	assert record not in pending_records(env.host)
 
 
+def host_errors(env, caplog):
+	return [
+		record
+		for record in caplog.records
+		if record.name == env.module.log.name and record.levelno >= logging.ERROR
+	]
+
+
 @pytest.mark.parametrize("case", ["complete", "missing", "error", "cancelled"])
-def test_ordinary_record_outcomes(env, case):
+def test_ordinary_record_outcomes(env, caplog, case):
+	caplog.set_level(logging.ERROR, logger=env.module.log.name)
 	env.host.enqueue(("ordinary",))
 	record = env.strategy.wait_submitted()
 	assert record.operation is None and record.work is None
@@ -326,16 +336,22 @@ def test_ordinary_record_outcomes(env, case):
 		missing = str(outcome.error)
 		assert f"returned, {PLAYED_OUT}" in missing or f"{PLAYED_OUT}, returned" in missing
 		assert env.strategy.player_stops == 1
+		# The engines do not read the outcome, so the host's log is the only trace of it.
+		[logged] = host_errors(env, caplog)
+		message = logged.getMessage()
+		assert "Fake" in message and "returned" in message and PLAYED_OUT in message
 	elif case == "error":
 		assert isinstance(outcome.error, OSError)
 		assert env.strategy.player_stops == 1
 	else:
 		assert outcome.error is None
 		assert env.strategy.player_stops == 1
+	if case != "missing":
+		assert host_errors(env, caplog) == []
 
 
 @pytest.mark.parametrize("case", ["missing", "complete", "error", "cancelled"])
-def test_withdrawn_ordinary_record_outcomes(env, case):
+def test_withdrawn_ordinary_record_outcomes(env, caplog, case):
 	# The engine honoured the request's own token, which the host never sees: retire reports
 	# the record cancelled without a barrier check or a player stop. A recorded error and a
 	# host cancel keep their own handling, including the stop.
@@ -350,7 +366,10 @@ def test_withdrawn_ordinary_record_outcomes(env, case):
 	env.host.withdraw(record)
 	if case == "cancelled":
 		env.host.cancel()
+	caplog.set_level(logging.ERROR, logger=env.module.log.name)
 	outcome = env.host.retire(record)
+	# A withdrawn record is not a failure: nothing is logged for its unreached barriers.
+	assert host_errors(env, caplog) == []
 	if case == "error":
 		assert outcome.cancelled is False
 		assert isinstance(outcome.error, OSError)

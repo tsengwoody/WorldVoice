@@ -547,6 +547,13 @@ class SegmentHost:
 			return OrdinaryOutcome(cancelled=True, error=None)
 		if error is None and not record.barriers_met():
 			error = self._missing_barriers_error(record)
+			# Engines do not read the ordinary outcome, and the stop below may hit an idle
+			# player: without this log the failure leaves no trace.
+			log.error(
+				"%s ordinary speech retired without its %s barriers",
+				self.engine,
+				", ".join(record.missing_barriers()),
+			)
 		if error is not None and self.control_error is None:
 			try:
 				self._strategy.stop_player(self)
