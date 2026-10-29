@@ -1210,8 +1210,10 @@ def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):
 	final_stop = Event()
 	release_stop = Event()
 	original_stop = env.player.stop
+	stop_threads = []
 
 	def blocked_final_stop():
+		stop_threads.append(current_thread())
 		final_stop.set()
 		assert release_stop.wait(HOLD_TIMEOUT)
 		original_stop()
@@ -1224,6 +1226,9 @@ def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):
 	finish(call)
 	assert stopped, "The legacy feed queued audio after cancel without a final stop"
 	assert not advanced, "New native work started before the cancelled legacy feed's final stop"
+	# The worker's retire also stops the cancelled sentence; the lease's stop is the one on the
+	# callback thread that fed, before the callback returns.
+	assert call.thread in stop_threads, "The lease did not stop again after the late legacy feed"
 	env.native.wait_calls(3)
 	assert env.dones == []
 
