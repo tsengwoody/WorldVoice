@@ -15,7 +15,7 @@ class SpeakEntry(Enum):
 	"""Which core entry the adapter calls; runtime never calls a core itself."""
 
 	SEGMENT = "segment"  # speak_segment(commands, token, context=, on_event=)
-	PLAIN = "plain"  # speak(commands[, cancellationToken=])
+	PLAIN = "plain"  # speak(commands)
 
 
 class Signal(Enum):

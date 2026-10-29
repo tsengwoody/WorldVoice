@@ -161,4 +161,3 @@ def test_runtime_values_are_immutable_and_preserve_event_source(rt):
 	capabilities = values[3][0]
 	assert not capabilities.supports_waitfactor
 	assert not capabilities.supports_variants
-	assert not capabilities.supports_cancellation_token

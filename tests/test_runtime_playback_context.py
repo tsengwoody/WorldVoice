@@ -59,12 +59,13 @@ def test_legacy_completion_rejects_range(rt):
 
 
 def test_engine_capabilities_preserve_old_positional_arguments(rt):
-	capabilities = rt.models.EngineCapabilities(frozenset({"rate"}), True, True, True)
+	capabilities = rt.models.EngineCapabilities(frozenset({"rate"}), True, True)
 	assert capabilities.settings == frozenset({"rate"})
 	assert capabilities.supports_waitfactor is True
 	assert capabilities.supports_variants is True
-	assert capabilities.supports_cancellation_token is True
 	assert capabilities.completion == rt.models.CompletionContract()
+	# fix/ve-drop-cancellation-token removed the token trait; nothing else names it.
+	assert not hasattr(capabilities, "supports_cancellation_token")
 	contract = rt.models.CompletionContract(rt.models.CompletionMode.END_INDEX, rt.models.IndexRange(1, 502))
 	assert rt.models.EngineCapabilities(frozenset(), completion=contract).completion is contract
 

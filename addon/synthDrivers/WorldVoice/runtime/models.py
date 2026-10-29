@@ -88,7 +88,6 @@ class EngineCapabilities:
 	settings: frozenset[str]
 	supports_waitfactor: bool = False
 	supports_variants: bool = False
-	supports_cancellation_token: bool = False
 	completion: CompletionContract = CompletionContract()
 
 

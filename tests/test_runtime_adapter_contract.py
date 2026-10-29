@@ -97,14 +97,12 @@ def test_cancel_suppresses_completion_and_allows_following_request(contract):
 	assert request.state is c.scheduler.RequestState.CANCELLED
 	assert c.output.done_count == 0
 	assert c.core.cancel_count >= 1
-	assert c.core.tokens[0].is_cancelled()
 	c.core.complete_synchronously = True
 	following, futures = submit(c, "Contract:b")
 	assert futures[0].result(WAIT_TIMEOUT) is True
 	assert c.output.wait_done() == 1
 	assert following.state is c.scheduler.RequestState.COMPLETED
 	assert [entry[1] for entry in c.core.spoken] == ["a", "b"]
-	assert not c.core.tokens[1].is_cancelled()
 
 
 def test_repeated_shutdown_closes_engine_once(contract):
@@ -347,7 +345,7 @@ def test_synchronous_terminal_marker_output_cancel_wins(marker_contract):
 	assert c.output.indexes == [123]
 	assert c.output.done_count == 0
 	assert len(c.core.spoken) == 1
-	assert c.core.tokens[0].is_cancelled()
+	assert request.token.is_cancelled()
 
 
 def test_cancelled_token_prevents_core_entry(marker_contract):

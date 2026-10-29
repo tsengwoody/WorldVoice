@@ -71,11 +71,11 @@ def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge_modules, rt)
 
 
 @pytest.mark.parametrize(("declared", "core_claim"), [(True, None), (False, True), (False, None)])
-def test_token_support_comes_from_the_voice_class(bridge_modules, declared, core_claim):
-	# Phase 52 rule change: token support is a fixed engine trait declared in the plugin
-	# contract's Voice.extraCapabilities, like waitfactor and variant. Before phase 50 the
-	# VE/Cerence core decided per instance (a failed guard fell back to the original driver);
-	# a supportsCancellationToken attribute on the core is now ignored.
+def test_plain_speak_never_passes_the_request_token(bridge_modules, declared, core_claim):
+	# fix/ve-drop-cancellation-token dropped the "cancellationToken" trait (phase 52 had made it
+	# a Voice.extraCapabilities value; before phase 50 the core claimed it): every core is
+	# stopped through cancel(), so neither a Voice declaring the old value nor a core claiming
+	# it gets the token.
 	core = Core()
 	if core_claim is not None:
 		core.supportsCancellationToken = core_claim
@@ -86,8 +86,8 @@ def test_token_support_comes_from_the_voice_class(bridge_modules, declared, core
 	adapter.open()
 	token = SimpleNamespace(is_cancelled=lambda: False)
 	adapter.speak(("hello",), token)
-	assert core.spoken == [(("hello",), {"cancellationToken": token} if declared else {})]
-	assert adapter.capabilities.supports_cancellation_token is declared
+	assert core.spoken == [(("hello",), {})]
+	assert not hasattr(adapter.capabilities, "supports_cancellation_token")
 	assert adapter.capabilities.supports_variants is False
 	assert adapter.capabilities.supports_waitfactor is False
 
@@ -571,7 +571,6 @@ def test_bridge_speaks_the_real_vocalizer_wrapper_without_a_token(bridge_modules
 	monkeypatch.setattr(cls, "supportedSettings", classmethod(lambda cls: ["rate"]), raising=False)
 	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: None)
 	adapter.open()
-	assert adapter.capabilities.supports_cancellation_token is False
 	calls = []
 	monkeypatch.setattr(core, "speak", lambda commands: calls.append(commands))
 	bridge_modules.adapter._speakPlain(adapter, ["hi"], object(), None, None)

@@ -264,7 +264,6 @@ class ContractCore:
 	def __init__(self):
 		self.open_count = self.close_count = self.cancel_count = 0
 		self.spoken = []
-		self.tokens = []
 		self.entered = Event()
 		self.complete_synchronously = True
 		self.emit = None
@@ -275,7 +274,7 @@ class ContractCore:
 		self.marker_mode = False
 		self.end_only = False
 
-	def speak(self, commands, cancellationToken):
+	def speak(self, commands):
 		self.spoken.append(
 			(
 				commands,
@@ -286,7 +285,6 @@ class ContractCore:
 				self.volume,
 			),
 		)
-		self.tokens.append(cancellationToken)
 		if self.marker_mode:
 			self.internal_wire_indexes.extend(
 				command.index for command in commands if isinstance(command, self.marker_type)
@@ -381,11 +379,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 
 		class NativeAdapter:
 			notificationSource = core
-			capabilities = rt.models.EngineCapabilities(
-				supported,
-				supports_cancellation_token=True,
-				completion=completion,
-			)
+			capabilities = rt.models.EngineCapabilities(supported, completion=completion)
 
 			def open(self):
 				core.open_count += 1
@@ -421,7 +415,7 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 						if allocation.wireIndexes or not isinstance(command, NativeIndex)
 					) + (NativeMarker(allocation.endIndex),)
 				if not token.is_cancelled():
-					core.speak(commands, cancellationToken=token)
+					core.speak(commands)
 
 			def finish_segment(self, context):
 				ledger.retireSegment(context)
@@ -439,9 +433,6 @@ def assemble_adapter_contract(monkeypatch, adapter_kind, *, completion_mode="LEG
 			core.marker_type = importlib.import_module(name + ".speechCommands").WorldVoiceIndexCommand
 
 		class LegacyVoice:
-			# ContractCore.speak requires the token.
-			extraCapabilities = frozenset({"cancellationToken"})
-
 			@classmethod
 			def createCore(cls):
 				core.open_count += 1

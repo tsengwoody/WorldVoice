@@ -192,8 +192,6 @@ def test_old_nvda_sapi5_driver_runs_through_the_bridge_as_a_legacy_done_core(mon
 	env = load_release(monkeypatch, tmp_path, version)
 	voice = env.outer.Voice
 	assert voice.ready() is True
-	# NVDA's own core takes no token, so this Voice must not declare it (phase 52).
-	assert "cancellationToken" not in voice.extraCapabilities
 	warnings = []
 	policy = env.policies.CompletionPolicy(
 		nvdaVersion=version,
@@ -214,7 +212,6 @@ def test_old_nvda_sapi5_driver_runs_through_the_bridge_as_a_legacy_done_core(mon
 		assert warnings == []
 		adapter.configureCompletion(contract)
 		capabilities = adapter.capabilities
-		assert capabilities.supports_cancellation_token is False
 		assert capabilities.settings == frozenset(
 			setting.id for setting in env.base.SynthDriver.supportedSettings
 		)
@@ -236,7 +233,7 @@ def test_old_nvda_sapi5_driver_runs_through_the_bridge_as_a_legacy_done_core(mon
 		spVoice = env.spVoices[-1]
 		assert (spVoice.Rate, spVoice.Volume) == (core._percentToRate(70), 40)
 		token = SimpleNamespace(is_cancelled=lambda: False, add_callback=lambda callback: lambda: None)
-		# NVDA's speak(speechSequence) takes no cancellationToken: a token here would raise.
+		# NVDA's speak(speechSequence) takes the sequence only, as the bridge passes it.
 		adapter.speak(["hello", env.commands.IndexCommand(3)], token)
 		[text] = spVoice.calls
 		assert "hello" in text and '<Bookmark Mark="3" />' in text

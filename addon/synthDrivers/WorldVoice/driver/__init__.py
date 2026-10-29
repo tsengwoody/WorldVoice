@@ -24,8 +24,8 @@ class Voice(VoiceFacade):
 	engine = ""
 	synthDriverClass = None
 	# Optional engine traits the bridge looks for: "waitfactor" and "variant" (settings the
-	# engine supports), "cancellationToken" (the core's speak(commands, cancellationToken=token)
-	# takes the request's token; without it the bridge calls speak(commands)).
+	# engine supports). The bridge calls a core's plain speak(commands) without the request's
+	# token: every core is stopped through cancel().
 	extraCapabilities = frozenset()
 	drainProfile = None
 

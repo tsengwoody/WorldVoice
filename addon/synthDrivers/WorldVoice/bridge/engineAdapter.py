@@ -31,10 +31,8 @@ def _speakSegment(adapter, commands, token, context, onEvent):
 
 
 def _speakPlain(adapter, commands, token, context, onEvent):
-	if adapter.capabilities.supports_cancellation_token:
-		adapter._core.speak(commands, cancellationToken=token)
-	else:
-		adapter._core.speak(commands)
+	# The scheduler stops a cancelled request's core through cancel(); the core never sees its token.
+	adapter._core.speak(commands)
 
 
 # The completion rule names the core entry; each entry has its own signature.
@@ -114,7 +112,6 @@ class VoiceClassAdapter(EngineAdapter):
 			settings=frozenset(self._voiceClass.supportedSettings()),
 			supports_waitfactor="waitfactor" in extra,
 			supports_variants="variant" in extra,
-			supports_cancellation_token="cancellationToken" in extra,
 			completion=self._completion,
 		)
 

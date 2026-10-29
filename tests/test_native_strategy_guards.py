@@ -603,71 +603,13 @@ def test_leased_player_reaches_played_out_by_default():
 	assert "from .barriers import PLAYED_OUT" in ast.unparse(host_tree)
 
 
-def _voice_extra_capabilities(tree):
-	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
-	assigned = [
-		n.value
-		for n in voice.body
-		if isinstance(n, ast.Assign) and [ast.unparse(t) for t in n.targets] == ["extraCapabilities"]
-	]
-	return {_barrier_label(node) for node in _frozenset_elements(assigned[0])} if assigned else set()
-
-
-def _voice_reassigns_core_class(tree):
-	"""Whether Voice sets synthDriverClass, by plain or annotated assignment or by setattr.
-
-	Only the Voice class is walked: a helper elsewhere that swaps the class is not seen. The
-	exact set of token-declaring engines asserted below is the guard that does not depend on it.
-	"""
-	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
-	targets = [
-		target
-		for node in ast.walk(voice)
-		if isinstance(node, ast.Assign | ast.AnnAssign)
-		for assigned in (node.targets if isinstance(node, ast.Assign) else [node.target])
-		for target in (assigned.elts if isinstance(assigned, ast.Tuple) else [assigned])
-	]
-	set_by_name = any(
-		isinstance(node, ast.Call)
-		and ast.unparse(node.func) == "setattr"
-		and len(node.args) >= 2
-		and isinstance(node.args[1], ast.Constant)
-		and node.args[1].value == "synthDriverClass"
-		for node in ast.walk(voice)
+def test_no_core_takes_the_request_token():
+	# Every core is stopped through cancel(); the bridge's plain speak passes no token and no
+	# Voice declares one (fix/ve-drop-cancellation-token). The vendored inner drivers never had it.
+	mentions = sorted(
+		str(path.relative_to(ROOT))
+		for path in ROOT.rglob("*.py")
+		if not set(path.relative_to(ROOT).parts[:2]) & UNTRACKED_PACKAGES
+		and "cancellationToken" in path.read_text(encoding="utf-8")
 	)
-	return set_by_name or any(isinstance(t, ast.Attribute) and t.attr == "synthDriverClass" for t in targets)
-
-
-@pytest.mark.parametrize(
-	("body", "reassigns"),
-	[
-		("cls.synthDriverClass = Other", True),
-		("cls.synthDriverClass, cls.drainProfile = Other, None", True),
-		("cls.synthDriverClass: type = Other", True),
-		('setattr(cls, "synthDriverClass", Other)', True),
-		("cls.drainProfile = None", False),
-		('setattr(cls, "drainProfile", None)', False),
-	],
-)
-def test_core_class_reassignment_detection(body, reassigns):
-	source = f"class Voice:\n\t@classmethod\n\tdef ready(cls):\n\t\t{body}\n"
-	assert _voice_reassigns_core_class(ast.parse(source)) is reassigns
-
-
-@pytest.mark.parametrize("engine", ENGINES)
-def test_a_token_capability_needs_a_fixed_core_that_takes_the_token(engine):
-	# The bridge passes speak(commands, cancellationToken=token) on the Voice's word alone, so
-	# the core class must be fixed and take the keyword. SAPI5 swaps in NVDA's own driver before
-	# NVDA 2025.3, whose speak(speechSequence) would raise TypeError on a token.
-	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
-	declared = "cancellationToken" in _voice_extra_capabilities(tree)
-	# The real guard: widening this set leaves only _voice_reassigns_core_class's view.
-	if engine not in UNTRACKED_PACKAGES:
-		assert declared is False
-	if _voice_reassigns_core_class(tree):
-		assert not declared
-	if declared:
-		assert not _voice_reassigns_core_class(tree)
-		synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
-		speak = next(n for n in synth.body if isinstance(n, ast.FunctionDef) and n.name == "speak")
-		assert "cancellationToken" in {a.arg for a in speak.args.args + speak.args.kwonlyargs}
+	assert mentions == []

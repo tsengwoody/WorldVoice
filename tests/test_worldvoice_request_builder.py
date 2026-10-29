@@ -68,7 +68,7 @@ def assembly(modules):
 	store = modules.voice_settings.VoiceSettingsStore(MemoryRepository())
 	ports, voices = {}, {}
 
-	def voice(key, *, supports_token=None, on_speak=None):
+	def voice(key, *, on_speak=None):
 		engine, voice_id = key.split(":")
 
 		class Core:
@@ -95,8 +95,6 @@ def assembly(modules):
 			synthDriverClass = Core
 
 		Voice.engine = engine
-		if supports_token:
-			Voice.extraCapabilities = frozenset({"cancellationToken"})
 		spec = modules.models.VoiceSpec(voice_id, key, key, "en", engine, "en")
 		adapter = modules.adapter.VoiceClassAdapter(Voice, voices.__getitem__)
 		session = modules.session.EngineSession(adapter, store)
@@ -194,7 +192,6 @@ def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_brea
 		voices.append(
 			a.voice(
 				f"{engine}:{number}",
-				supports_token=engine in ("VE", "Cerence"),
 				on_speak=speak,
 			),
 		)
@@ -211,10 +208,8 @@ def test_ordered_engines_forward_only_live_events_and_finish_after_trailing_brea
 		assert a.done_calls == []
 		assert len(requests) == 1
 		assert [task.seconds for task in requests[0].tasks] == [None] * len(voices) + [0.2]
-		for voice, (_, _, kwargs) in zip(voices, calls, strict=True):
-			assert kwargs == (
-				{"cancellationToken": requests[0].token} if voice.engine in ("VE", "Cerence") else {}
-			)
+		# Plain speak passes no token to any core (fix/ve-drop-cancellation-token).
+		assert [kwargs for _, _, kwargs in calls] == [{}] * len(voices)
 	finally:
 		release.set()
 	assert a.done_seen.wait(WAIT_TIMEOUT)
