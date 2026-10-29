@@ -193,4 +193,17 @@ Failure paths need a real device fault and are not practical to provoke by hand;
 
 ## 9. Implementation notes
 
-(Filled in during implementation.)
+Plan: `docs/superpowers/plans/2026-10-29-phase53-player-control-fault.md` (8 tasks, one run). Ledger rulings (`.superpowers/sdd/2026-10-29-phase53-player-control-fault/progress.md`) in short:
+
+- `ControlFaultPolicy.deferred()` delivers only a captured fault at the end of the block; delivering `None` there ran a patched `deliver` on every fault-free cancel (Task 3; one more unit test).
+- `LeasedPlayer._feed_admitted` passes `size` and `onDone` only when its caller did (`host:702-716`). The inner VE callback feeds bare data (`player.feed(data)`), and the lease used to add `onDone=None`; real `nvwave.WavePlayer.feed` accepts both forms (Task 5).
+- VE/Cerence `_CallbackPlayer` keeps `LeasedPlayer`'s default feed admission (the current record) instead of admitting `host.callback_record()` as §3.4 says: the callback's record is the current one (`_callbackAdmission` enters `host.consumer(record)`, which requires it to be current), and an override would call `LeasedPlayer`'s private `_feed_admitted`, which the VE inner-privates guard counts (Task 5).
+- After a failed drain wait the lifecycle stops the player as well (`request_stop` → `stop_native`, then a second `wait_playback_drained` → `stop_player`), so the drain's own stop is the earliest of several; it is kept to match SAPI5 and §3.1 (Task 6; mutant M2a below).
+- When the drain's stop also fails, the failed segment's event carries the stop error: `latch_control_error` fails accepted operations first (`host:451-452`) (Task 6).
+- `tests/test_hygiene_guards.py` `_REASONS`: the `latch_control_error` keys became `_failSegmentControl` keys as the handlers moved (Tasks 4, 6, 7).
+
+Mutants (§7.2, swapped into the worktree file and restored): M1, M4, M5, M6, M7 (OneCore), M2b and M8 (VE) killed by the named tests. M2a (OneCore drain without its own stop) survives: the lifecycle's own stops cover it. M3 (`LeasedPlayer` without the late-feed stop) survives the OneCore and VE/Cerence files and is killed by `tests/test_espeak_segment_drain.py::test_cancelled_feed_final_stop_finishes_before_successor_native_call`: for OneCore and VE/Cerence the host also stops a cancelled record before its successor (`retire` for ordinary speech, `wait_playback_drained` for segments), so the lease's late stop is the earliest one there, not the only one.
+
+`mutmut` 3.8.0 on `runtime/engineControl.py` (scratch clone, `source_paths` narrowed to that file, tests narrowed to `test_engine_control.py` and the five engine drain files, 2 children, memory watchdog): 53 mutants, 52 killed, 1 survived — `ControlFaultPolicy.fail` with `getattr(local, "depth", None)` instead of `0`, an equivalent mutant (both defaults are falsy). With the whole suite selected, mutmut's stats run fails on an unrelated test (`test_config_stub.py::test_pipeline_defaults_match_the_confspec_the_add_on_registers`, `NameError: _mutmut_mutated`), and a `ref` symlink in the clone stalls mutant generation; the narrowed run links `ref` only after generation.
+
+Verification at the last commit: 3596 passed, 0 skipped (baseline 3566 + 30 new tests); `prek run --all-files` all Passed; `git diff --check` clean; protected-path commands empty. Linux tests exercise only the controlled native and audio boundaries; Windows/NVDA not verified.
