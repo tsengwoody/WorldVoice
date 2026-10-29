@@ -107,3 +107,24 @@
 | M3 | `LeasedPlayer._feed_admitted` 沒有 late stop（`host:712-716`） | killed（eSpeak，見上表） |
 
 Linux 上的測試只驗證受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置與引擎 SDK 沒有驗證到（spec §7.3 的 OneCore／VE／Cerence／RHVoice 正確路徑 smoke 仍待手動）。
+
+## 修正記錄
+
+修正者：Opus 5.5，DEVELOPMENT_WORKFLOW §3.4。每項先寫測試（或先在 scratch 複本確認測試抓得到突變），再修；突變都在 scratchpad 的 `git clone --shared` 複本（`scratchpad/p53fix/mut`，`ref` symlink）上做，沒有改 worktree、沒有用 `git stash`。
+
+| 項目 | commit | 內容與驗證 |
+| --- | --- | --- |
+| I1 | `32f025e` | `test_ordinary_callback_failure_fails_only_its_sentence` 參數化為 `("feed", "sync")`。突變 MA（刪掉 `_legacyCallback` 的 `record_error`）：分支上 2 passed；突變後 `[sync]` 失敗（`the failed sentence never completed`），1 failed／84 passed。程式不需修改。 |
+| M1 | `ebae5f0` | 兩個 late-feed 測試改為釘住 lease 的 stop：OneCore 要求有一次 stop 發生在送 feed 的 callback 執行緒（`call.thread in stop_threads`）；VE／Cerence 只讓 feed 執行緒上的 stop 失敗一次，並要求它被用掉且 latch。突變 M3（拿掉 `host:712-716`）：三個測試（OneCore、VE、Cerence）連跑 5 次都失敗；分支上連跑 15 次都通過（第一版 VE 測試以「第一次 stop 失敗」判定，lifecycle 的 `stop_native` 偶爾先到，已改成只認 feed 執行緒）。 |
+| M2 | `31f503c` | 保留 OneCore drain 自己的 stop；OneCore 與 VE 測試的註解改為「drain 或 lifecycle 停了 player」，並在 OneCore 註明 lifecycle 的 stop 單獨就能讓測試通過（M2a 仍存活，屬預期）。 |
+| M3 | `49dd4a0` | `ControlFaultPolicy.fail`／`deferred` 的區域變數 `local` 改名為 `state`，不再遮蔽 `threading.local`。純改名，`test_engine_control.py`＋OneCore 95 passed。 |
+| M4 | `adb25f8` | spec §3.4 改寫為實作的行為：`_CallbackPlayer` 用 `LeasedPlayer` 自己的 `feed`（准入 current record，即 callback 已持有的那筆），並指向 §9 的 ruling。 |
+| M5 | `adb25f8` | spec §3.1 的「已知後果」分引擎寫：只有 VE／Cerence 會在 NVDA 顯示暫停時播放後繼；OneCore 每次 callback 的 `_maybeInitPlayer` 會在 `_segmentPaused` 且沒有進行中的 stop 時重新暫停（`OneCore:592-597`），聽不到聲音。§9 的突變說明同步更新（M3 現在也被 OneCore／VE 測試殺掉）。 |
+
+修正後驗證（HEAD `adb25f8`）：
+
+- 完整測試（序列，記憶體監控）：**3597 passed／0 skipped**（3596 + I1 新增的 `[sync]` 一例）。
+- `prek run --all-files`：8 個 hook 全 Passed。
+- `git diff --check master`：乾淨。
+- 受保護路徑兩個指令都沒有輸出。
+- VE／Cerence 仍逐字同步：`test_vocalizer_drift.py` 通過，`ALLOWED` 未改。
