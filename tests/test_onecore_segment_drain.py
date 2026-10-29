@@ -600,7 +600,8 @@ def test_sync_failure_fails_only_its_segment(env):
 		(env.rt.models.EventKind.SEGMENT_FAILED, original.source_id),
 	]
 	assert str(failed[0].error) == "sync failed"
-	# The drain stopped the player before reporting; a successor may use it.
+	# The drain (and the lifecycle after it) stopped the player before reporting; a successor
+	# may use it. The drain's own stop is defensive: the lifecycle's stops alone pass this test.
 	assert env.player.stops >= 1
 	assert segment_host(env.driver).control_error is None
 	env.player.error = None

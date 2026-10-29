@@ -431,7 +431,7 @@ def test_drain_idle_failure_fails_only_its_segment(env, monkeypatch):
 	assert [(event.kind, event.source_id, event.error) for event in env.events] == [
 		(env.rt.models.EventKind.SEGMENT_FAILED, first_context.source_id, error),
 	]
-	# The player was stopped for the successor instead of latching.
+	# The drain or the lifecycle stopped the player for the successor instead of latching.
 	assert player.stops >= 1
 	assert segment_host(env.core).control_error is None
 	_, second_context, second = speak(env, segment=18)
