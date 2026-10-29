@@ -685,7 +685,9 @@ def test_direct_wrapper_stop_mid_speech_lets_next_segment_run(manager, buses, mo
 	def native(instance, text):
 		spoken.append(text)
 		if text == "first":
-			# Like SynthDriver._set_voice(): stop the core without cancelling the request.
+			# A direct core stop that bypasses the scheduler. No production caller since
+			# fix/set-voice-no-stop (the hygiene guard forbids one); kept as the wrappers'
+			# plain-path contract until that contract is dropped.
 			core.cancel()
 		else:
 			# The VE_MSG_ENDPROCESS the SDK sends last on every successful call.
