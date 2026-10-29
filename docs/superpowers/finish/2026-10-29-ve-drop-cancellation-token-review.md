@@ -226,3 +226,19 @@ Linux 上只驗證了受控的 native 與音訊邊界；Windows 上的 NVDA、�
 | 殘留引用 | `grep -rn "cancellationToken\|supportsCancellationToken\|supports_cancellation_token" addon`；`grep -rn withdraw docs/superpowers/specs` | `addon/` 0；spec 裡沒有劃掉、也沒有更正的只剩 N2 的 `:152`（3d-1 `:97`、`:162` 的 `withdraw` 都在刪除線內並附更正） |
 
 Linux 上只驗證了受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置與 VE／Cerence SDK 都沒有驗證到。沒有打包。
+
+### 第一輪修正的驗證結果（補記）
+
+head `3f86812` 的完整套件 3564 passed／0 skipped 已記在上面；同一個 head 在 `9065aa4` 提交後重跑：`prek run --all-files` 8 個 hook 全部 Passed；`git diff --check master` 沒有輸出；§7 受保護路徑的兩個指令（`git diff --stat master -- 'addon/synthDrivers/WorldVoice/driver/*/driver/*' …` 與 `git ls-files addon/synthDrivers/WorldVoice/driver/Neural`）都沒有輸出；完整套件 3564 passed／0 skipped。
+
+### N1–N3 修正（Opus 5.5，2026-10-29）
+
+突變這次在 scratch 複本上做（`scratchpad/n1mut/`：從 worktree `cp` 出 `addon`、`tests`、`pyproject.toml`，`ref` symlink 到主 checkout），worktree 沒有被改動。
+
+| 項目 | commit | 修法 | 突變結果 |
+| --- | --- | --- | --- |
+| N1 | `c07986d` | 新增 `test_legacy_endprocess_in_the_cancel_window_is_acknowledged_but_does_not_count`：把 `segment_host(env.core).cancel` 換成「先跑原本的 host cancel，再送 ENDPROCESS」，native 內先 `emit(end=False)` 再 `env.core.cancel()`，依序重現「`host.cancel()` 已執行、`cancel()` 還沒關掉 `call.admitting`」的空檔；斷言 `[NUAN_OK]`、`record.cancelled`、`lastCallEnded is False`、三個 barrier 都沒到、`(True, None)`、player `([b"pcm"], 0, 2)`、DONE 0、沒有缺 barrier 的 log。原本的 record_error 版本保留，註解改成說明它是合成的狀態（production 只會從 cancel 空檔走到這條分支）。 | scratch 複本上兩個 wrapper 同時把 legacy ENDPROCESS 的 `return NUAN_OK` 改成 `NUAN_E_TTS_USERSTOP`：新舊兩個測試在 VE／Cerence 都失敗（4 failed），**被殺**。 |
+| N3 | `d4208dd` | `test_token_name_detection` 的樣本 docstring 改成剛好是 `"""cancellationToken"""`，讓排除邏輯有釘子；`_token_names` 的 docstring 寫明字串常數只在「等於」關鍵字時才算；刪掉 `test_vocalizer_wrapper_has_no_guard_fallback` 裡 `"supportsCancellationToken"` 的子字串 assert（AST guard 已涵蓋）。 | scratch 複本拿掉 `and id(node) not in docstrings`：`test_token_name_detection` 失敗（多出第 1 行），**被殺**。 |
+| N2 | `27d3dbb` | phase 52 spec：VE／Cerence barrier 表格中 `withdraw` 那句加刪除線並更正為 host 取消的路徑；SAPI5 段落裡先前的 guard 更正（子字串掃描）再劃掉，改寫成 AST guard 的實際範圍。`git add -f`。 | 不適用。 |
+
+驗證（head `27d3dbb`，序列＋MemAvailable < 3 GB 即終止的 watchdog）：完整套件 **3566 passed／0 skipped**（3564＋N1 兩個）；`prek run --all-files` 8 個 hook 全部 Passed；`git diff --check master` 沒有輸出；§7 受保護路徑的兩個指令都沒有輸出。Linux 上只驗證受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置與 SDK 沒有驗證到。
