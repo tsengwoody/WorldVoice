@@ -127,8 +127,11 @@ def test_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
 	real_player(env.core).idle = lambda: (idle_entered.set(), idle_release.wait(HOLD_TIMEOUT))
 
 	def native(instance, text):
-		# The call's own ENDPROCESS comes on this thread; the chunk callback runs on
-		# another and is still feeding when the call returns.
+		# Artificial order: the real SDK sends ENDPROCESS last, on the calling thread.
+		# Sending it first lets a chunk callback on another thread still be feeding when
+		# the call returns, which is the only way to prove the BgThread waits for it
+		# (wait_consumers) before retire and idle; ENDPROCESS sent after the return
+		# would be refused.
 		end_process(env, instance)
 		callbacks.append(run_thread(lambda: emit(env, instance, index=31, end=False)))
 		assert feed_entered.wait(WAIT_TIMEOUT)
