@@ -2138,3 +2138,30 @@ def test_token_cancelled_during_the_audio_fed_reach_is_withdrawn(env, monkeypatc
 	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 1, 0)
 	# DoneSpeaking ran before _Retire, while the token was still live, so DONE was published.
 	assert len(env.dones) == 1
+
+
+def test_token_cancelled_in_the_engine_done_check_is_withdrawn(env, monkeypatch, caplog):
+	# The second half of the order: a token read between the reaches would miss a cancel that
+	# lands in the engine_done check, fail the record for engine_done, stop the player once more
+	# and log a spurious error.
+	token = Token()
+	valid = env.core._recordValid
+
+	def cancelling_valid(record):
+		# Only _retireRecord's engine_done check sees audio_fed reached and engine_done not yet.
+		if record.barriers.get("audio_fed") and not record.barriers.get("engine_done"):
+			token.cancel()
+		return valid(record)
+
+	monkeypatch.setattr(env.core, "_recordValid", cancelling_valid)
+	calls, native = ending_calls(env, [True])
+	outcomes = speak_ordinary_pieces(env, monkeypatch, ["a"], native, token)
+	assert calls == ["a"]
+	[(record, outcome)] = outcomes
+	assert record.barriers == {"audio_fed": True, "engine_done": False}
+	assert record.withdrawn
+	assert (outcome.cancelled, outcome.error) == (True, None)
+	player = real_player(env.core)
+	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 1, 0)
+	assert len(env.dones) == 1
+	assert missing_barrier_logs(caplog) == []
