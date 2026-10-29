@@ -587,9 +587,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			if invoked:
 				# The BgThread runs a record's tasks in order: the last call to get here before
 				# _Retire is the record's last native call. ENGINE_DONE relies on the SDK running
-				# callbacks on the calling thread inside the call (a Windows probe saw
-				# sameThread=True for every call), so an ENDPROCESS after the return is refused
-				# and does not count.
+				# callbacks on the calling thread inside the call (a Windows probe of the 32- and
+				# 64-bit libraries saw sameThread=True for every call), so an ENDPROCESS after the
+				# return is refused and does not count.
 				record.native.lastCallEnded = returned and call.ended
 				try:
 					self._confirmNativeQuiescence(call)

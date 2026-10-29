@@ -22,10 +22,10 @@ AUDIO_FED = "audio_fed"
 # The engine's own end-of-utterance notification for the record arrived. For VE/Cerence it is
 # the VE_MSG_ENDPROCESS of the record's last ve_ttsProcessText2Speech call, admitted while the
 # record was valid, after which the wrapper has flushed Sonic and fed the tail (a Windows SDK
-# probe of the 64-bit libraries, VE SDK 2.2.0 lib\AMD64 and Cerence SDK 21.6.0 lib\x64, saw
-# exactly one ENDPROCESS, always last, on every successful call). Optional: OneCore
-# has no separate terminal notification (its delivery callback is also its terminal
-# notification, so it proves AUDIO_FED only).
+# probe of VE SDK 2.2.0 and Cerence SDK 21.6.0, both the 32-bit lib\x86 / lib\x32 and the 64-bit
+# lib\AMD64 / lib\x64 libraries, saw exactly one ENDPROCESS, always last, on every successful
+# call). Optional: OneCore has no separate terminal notification (its delivery callback is
+# also its terminal notification, so it proves AUDIO_FED only).
 ENGINE_DONE = "engine_done"
 
 # The player has played all of this record's audio, proven by WavePlayer.idle() returning, or

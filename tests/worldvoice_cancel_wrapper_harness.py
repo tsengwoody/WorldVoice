@@ -306,9 +306,10 @@ def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
 def end_process(env, instance):
 	"""Deliver the VE_MSG_ENDPROCESS the SDK sends last on every successful native call.
 
-	A Windows probe of the 64-bit libraries (VE SDK 2.2.0 lib\\AMD64, Cerence SDK 21.6.0
-	lib\\x64) saw exactly one, as the last message, on every successful call, including calls
-	that produce no audio; a stub that stands in for such a call delivers it too.
+	A Windows probe of VE SDK 2.2.0 and Cerence SDK 21.6.0, on both the 32-bit (lib\\x86 /
+	lib\\x32) and the 64-bit (lib\\AMD64 / lib\\x64) libraries, saw exactly one, as the last
+	message, on every successful call, including calls that produce no audio; a stub that
+	stands in for such a call delivers it too.
 	"""
 	callback, types = env.core._veCallbackHandler, env.types
 	return callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, types.VE_OUTDATA()))
