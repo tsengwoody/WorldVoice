@@ -149,3 +149,19 @@ Linux 上只驗證了受控的 fake player／native；Windows 上 NVDA、WASAPI�
 3. **break（WorldVoice 自己的停頓）在暫停期間繼續計時**（spec 非目標）：暫停落在長停頓中，恢復時停頓已過、直接播下一段。
 4. **C4 選項 A 的副作用：OneCore 每段都重新啟用開頭靜音修剪**（spec §3.6）：OneCore 段落之間的銜接會略緊；使用者已選 A，但「段落開頭沒有被剪到字」要在 Windows 聽過才算確認。
 5. **readme 條目用粗體標題＋「part of speech」**（Ruling），而不是 plan 的一句話；spec 已同步。
+
+## 修正記錄
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW §3.4，先寫會失敗的測試再修）。突變都在 scratchpad 的 `git clone --shared` 複本上做，worktree 沒有被突變；沒有用 `git stash`。修正後完整驗證：**3631 passed、0 skipped**（3630 − 0 ＋ 1：I1 取代原測試，M1 新增 1 個）；`prek run --all-files` 全部 Passed；`git diff --check master..HEAD` 乾淨；受保護路徑兩個指令都沒有輸出。
+
+| 項目 | 處理 | commit | 驗證 |
+| --- | --- | --- | --- |
+| I1 | 以審閱者的確定性版本取代 `test_resume_reaches_paused_engine_before_successor_starts`（名稱保留）：轉發的 `pause(False)` 會阻塞，`stays_unset` 確認後繼的 `speak` 在它返回前不會發生；加上 `try/finally` 確保失敗時也會放行 | `04348b3` | 分支上通過；scratch 套用 S3（先清 `_paused`／`_pause_target` 並 `notify_all` 再轉發）→ 該測試失敗（1 failed） |
+| M1 | 修正而非只加註解：喚醒用的 done-callback（`_wake_if_cancelled`，只在 Future 被取消時 `notify_all`）改在 `_acquire` 進入開始保留之前註冊，同時服務開始保留與完成保留；`_execute` 的 callback 回到只 `done.set()`。新增 `test_cancelled_future_releases_start_hold`（暫停、送出、`future.cancel()`、`output.wait_done() == 1`、`port.entered` 未設定） | `c3e4958` | 修正前新測試失敗（等不到 DONE）；scratch 套用 S12（開始保留不看 `_valid_locked`）→ 新測試失敗，其餘 102 passed（S12 被殺）；scratch 拿掉 `_acquire` 的註冊 → `test_cancelled_future_releases_start_hold` 與 `test_cancelled_future_releases_completion_hold` 都失敗 |
+| M2 | `self._pause_target or …` 改成 `is not None` 判斷 | `ba0c7aa` | scheduler＋整合測試 103 passed |
+| M3 | phase 3c spec `:44` 與 phase 53 spec `:69-74`「Known consequence」整段加刪除線並標 `Corrected by \`phase54-drain-semantics\``，補一句現況（失敗的段落停在完成保留、同請求的其餘部分略過、之後的語音停在開始保留、引擎 drain 不再等待恢復） | `7225ead` | 文件修改，`git add -f` |
+| M4 | 不改（只記錄；不重寫歷史） | — | — |
+| M5 | spec §2 的「不轉發給已完成段落」段落補一句：兩個既有（master 也有）的 ducker 空轉窗口——音訊播完但 `SEGMENT_DRAINED` 尚未送到 scheduler 時的轉發，以及 P53 情境中失敗路徑的 `stop()` 之後轉發的恢復 | `7225ead` | 文件修改 |
+| M6 | OneCore `test_segment_drain_does_not_wait_for_resume` 結尾的 `pause(False)` 改放 `finally` | `98cb1d6` | 該測試通過 |
+
+Linux 上只驗證了受控的 fake player／native；Windows 上的 NVDA、WASAPI、引擎 SDK 仍未驗證。
