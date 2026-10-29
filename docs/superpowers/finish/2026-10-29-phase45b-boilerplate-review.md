@@ -113,4 +113,3 @@ NVDA 使用者看得到的行為沒有改變（沒有設定、字串、log 文�
 | M3 runtime mixin 讀 camelCase `self._segmentHost`、helper docstring 指名 bridge 類別 | — | 依協調者指示不改，維持 review 所述的文件化說明 | — |
 
 驗證（最後一個 commit 之後，§7）：完整測試 **3617 passed、0 skipped**（3614 + 3 個新測試：M1 的 VE、Cerence 兩個參數化案例，M2 一個）；`prek run --all-files` 全部 Passed；`git diff --check master` 無輸出；受保護路徑兩個指令都無輸出。Linux 測試只涵蓋受控的 native 與音訊邊界，Windows／NVDA 未驗證。
-
