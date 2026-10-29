@@ -486,6 +486,32 @@ def test_terminate_waits_for_coordinator_stop(env, monkeypatch):
 	assert closed.is_set()
 
 
+def test_speech_is_rejected_while_terminate_waits_for_host_admission(env, monkeypatch):
+	# terminate() sets the wrapper's flag before host.terminate() can take host admission, which an
+	# enqueue holds while the inner speak() converts text (held here). In that window only the
+	# wrapper's own checks reject speak() and speak_segment(): the host would still accept both.
+	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+	monkeypatch.setattr(env.native, "close", lambda instance: None)
+	monkeypatch.setattr(env.native, "terminate", lambda: None)
+	host = segment_host(env.core)
+	message = f"^{env.engine} driver has terminated$"
+	with host.admission():
+		terminating = run_thread(env.core.terminate)
+		wait_for(lambda: env.core._terminationRequested)
+		stays_unset(terminating[1])
+		assert not host.terminated
+		with pytest.raises(RuntimeError, match=message):
+			env.core.speak(("ordinary",))
+		context = env.rt.models.PlaybackContext(object(), 31)
+		env.core.speak_segment(("segment",), Token(), context=context, on_event=env.events.append)
+		wait_for(lambda: len(env.events) == 1)
+	finish(terminating)
+	(event,) = env.events
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert event.segment_id == 31
+	assert str(event.error) == f"{env.engine} driver has terminated"
+
+
 @pytest.mark.parametrize("cancel_kind", ["token", "direct"])
 def test_speak_segment_returns_while_a_previous_sink_runs(env, monkeypatch, cancel_kind):
 	# C3: speak_segment no longer waits for delivery, so a blocked sink of the
