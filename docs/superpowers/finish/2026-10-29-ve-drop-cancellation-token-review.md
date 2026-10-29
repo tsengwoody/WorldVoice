@@ -136,3 +136,93 @@ Linux 上只驗證了受控的 native 與音訊邊界；Windows 上的 NVDA、�
 | M5 | `227218a` | `tests/test_vocalizer_segment_drain.py` 區段註解改成：cancel 落在 DoneSpeaking 之前才不發 DONE；落在之後，DONE 已經發出。 | 不適用。 |
 
 驗證（head `3f86812`，序列＋MemAvailable < 3 GB 即終止的 watchdog）：完整套件 **3564 passed／0 skipped**（3559＋I1 兩個＋M3 兩個＋`test_token_name_detection` 一個）；`prek run --all-files`、`git diff --check`、§7 受保護路徑的兩個指令，結果見下一個 commit 後的重跑。Linux 上只驗證受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置與 SDK 沒有驗證到。
+
+### 修正 review（Opus 5.5 xHigh，2026-10-29）
+
+範圍：`7dba02b..9065aa4` 的 7 個 commit（`5f22563`、`dbed6c6`、`86399d4`、`987a66c`、`227218a`、`3f86812`、`9065aa4`），只看修正的 diff，對照上面的發現與修正記錄。行號以 `9065aa4` 為準，路徑省略 `addon/synthDrivers/WorldVoice/`。審閱者沒有改動 worktree。突變與探針都在 scratch 複本上做：用 `cp` 從 worktree 複製出 `scratchpad/fixrev/`，`ref` 以 symlink 指向主 checkout。每次突變後都用 `diff -q` 確認兩個 wrapper 已和 worktree 相同。
+
+**結論：可以 merge。** 六項都已處理。I1 與 M3 的新測試在 VE 和 Cerence 上都殺掉了 review 留下的存活突變。沒有新的 Critical 或 Important。新的 Minor 有 3 項（N1–N3），都只是測試註解、spec 文字或 guard 內部的小地方，不擋 merge，修起來也便宜。因為只有 Minor，依 §3.4 不需要再做一輪修正 review。
+
+#### 逐項判定
+
+| 項目 | 判定 | 依據 |
+| --- | --- | --- |
+| I1 | **已修**，附註見 N1 | 新測試（`tests/test_vocalizer_segment_drain.py:2002`）走到 `_callbackAdmission` 的 `(None, call)` → legacy ENDPROCESS 回 `NUAN_OK`（VE／Cerence `:226-235`）這條分支，突變 M4 在兩個引擎上都被殺，結果見下表。斷言的數字（`[NUAN_OK]`、`lastCallEnded is False`、三個 barrier 都沒到、`(False, error)`、player `([b"pcm"], 0, 1)`、1 個 DONE、沒有缺 barrier 的 log）確實是程式碼在這個注入狀態下的行為，未突變時兩個引擎都通過。但這個注入狀態在 production 不會單獨出現，見 N1。 |
+| M3 | **已修** | 新測試（`:2033`）把 cancel 放在 BgThread 已取出 `_Begin`、`_beginRecord` 還沒執行的空檔。這個狀態在 production 可以走到：從別的執行緒呼叫 `cancel()` 時，`_dropQueuedSpeech` 看不到已取出的 `_Begin`，這筆紀錄的 NativeTask、DoneSpeaking、`_Retire` 都會被保留；`_beginRecord` 先等 stop gate 清空，再看到紀錄無效而略過。測試在 BgThread 上同步 `cancel()`，得到的結果和上面相同。斷言的數字我逐一推演過，也實際跑過：abandon 不經 `retire`，所以 `outcomes == []`，只有 `cancel()` 自己停一次 player，DoneSpeaking 不發 DONE。突變 M11 在兩個引擎上都被殺。我另外拿掉 `assert record.native.skipped`，突變仍被 `outcomes == []` 殺掉（突變下會多一筆 `OrdinaryOutcome(cancelled=True)`，player 也會多停一次），所以測試釘住的是看得到的行為，不只是內部旗標。 |
+| M1 | **已修**，小瑕疵見 N3 | `_token_names`（`tests/test_native_strategy_guards.py:608-632`）在現有程式碼上沒有誤報。我在 scratch 注入 10 種寫法，結果見下表：7 種重新引入的寫法都被抓到，3 種只在註解或文字裡提到的寫法都沒有誤觸。`test_token_name_detection` 釘住參數、關鍵字引數、屬性、名稱、字串常數五種節點，我逐一拿掉 arg、keyword、Attribute、Name、Constant，它分別少了第 3、4、5、7、6 行而失敗。順便把 `supportsCancellationToken` 納入全套件 guard，範圍比舊的子字串掃描更大（舊掃描找小寫開頭的 `cancellationToken`，抓不到 `supportsCancellationToken`）。`test_vocalizer_wrapper_has_no_guard_fallback` 裡重複的 `"cancellationToken"` 子字串 assert 已刪。 |
+| M2 | **已修** | 兩段註解（VE `:655-656`、`:782-784`；Cerence `:662-663`、`:789-791`）都正確。內層 `DoneSpeaking.__call__` 先 `self._player.idle()`，再 `self._onIndexReached(None)`；`_IdleRoutingPlayer.idle()` 只要 driver 還在，就一定先呼叫 `_idlePlayer`，而 DoneSpeaking 持有的 `_onIndexReached` 是綁定方法，會讓 driver 一直存在。所以「每個 DoneSpeaking 都先 idle」成立，清除 `_doneOwner` 和提早設定它，今天都看不出差別。這次只改註解，沒有動到行為。 |
+| M5 | **已修** | 區段註解（`tests/test_vocalizer_segment_drain.py:1860-1865`）改得正確。可選的細修：`test_cancel_after_the_last_call_retires_cancelled` 的 cancel 落在 DoneSpeaking 的 idle「之中」，既不算之前也不算之後；寫成「before its DoneSpeaking publishes the DONE (its final idle included)」會更精確。不修也可以。 |
+| M4 | **已修**（列出的五處） | 五份 spec 的刪除線與「Corrected by `fix/ve-drop-cancellation-token`（2026-10-29）」內容都和實作一致，word diff 沒有其他改動（5 個檔，+7／−5）。3d-1 的 Begin 在 code block 內無法顯示刪除線，所以保留字面上的 `~~` 並在區塊後補一行說明，這樣處理可以接受。不過 phase 52 還有兩處沒對上，見 N2。 |
+
+#### 突變與探針（scratch 複本；每次只跑一個 pytest 程序，和完整套件重疊時最多兩個）
+
+| 項目 | 方法 | 結果 |
+| --- | --- | --- |
+| M4：legacy ENDPROCESS 的 `return NUAN_OK` → `NUAN_E_TTS_USERSTOP`（`:234`） | 兩個 wrapper 同時改；另外各自只改一個 | 同時改：`test_legacy_endprocess_after_a_recorded_error_…[VE]`、`[Cerence]` 都失敗。只改 VE 時只有 `[VE]` 失敗，只改 Cerence 時只有 `[Cerence]` 失敗，表示各引擎的參數化測的確實是自己的 wrapper。五個 vocalizer 測試檔加上探針：4 failed／314 passed，被殺的只有新測試和 N1 的探針。 |
+| M11：`_beginRecord` 的 skip 條件改成 `if False:` | 同上 | 同時改：`test_cancel_before_begin_skips_the_record[VE]`、`[Cerence]` 都失敗；分別改時只有對應的引擎失敗；拿掉 `skipped` 斷言後仍然失敗。 |
+| guard 注入 | VE `speak` 加 `cancellationToken=None`；bridge `_speakPlain` 改成 `speak(commands, cancellationToken=token)`；Cerence `SynthDriver` 加 `supportsCancellationToken = True`；bridge 讀 `adapter._core.supportsCancellationToken`；`getattr(core, "supportsCancellationToken", False)`；VE `extraCapabilities` 加 `"cancellationToken"`；`speak(commands, **{"cancellationToken": token})`；只加註解；只加 docstring；只加含該字的 log 字串 | 前 7 種都被抓到，例如 `['driver/VE/__init__.py:462']`、`['bridge/engineAdapter.py:35']`，`supportsCancellationToken` 類別屬性與 `extraCapabilities` 兩種也讓 `test_vocalizer_wrapper_has_no_guard_fallback[Cerence]`／`[VE]` 一起失敗。後 3 種都通過。 |
+| guard 的 docstring 排除 | 拿掉 `and id(node) not in docstrings` | `test_token_name_detection` 和全套件 guard 都仍然通過，見 N3 |
+| 探針：cancel 空檔裡的 legacy ENDPROCESS | 把 `segment_host(env.core).cancel` 換成「先跑原本的 cancel，再 `end_process`」，並在 native 內 `emit(end=False)` 之後呼叫 `env.core.cancel()`。這等於把「`host.cancel()` 已執行、`cancel()` 還沒在 `_speechStateLock` 下關掉 `call.admitting`（VE `:711`→`:720`／Cerence `:718`→`:727`）」這段空檔依序重現 | 兩個引擎都是 `[NUAN_OK]`、`lastCallEnded False`、`(True, None)`、player `([b"pcm"], 0, 2)`、DONE 0。M4 下會失敗。 |
+| 探針：feed 拋出後的 ENDPROCESS | 真 player 的 `feed` 拋出 `OSError`，接著送 ENDPROCESS | 兩個引擎的 ENDPROCESS 都回 `NUAN_E_TTS_USERSTOP`。原因是 `_process` 的 except 先 `record_error` 再 `_closeAdmission(call)`（`:291-292`），ENDPROCESS 因此拿到 `call is None`，不會進 legacy 分支。結果是 `(False, OSError)`。 |
+
+#### 新發現
+
+**Critical：無。Important：無。**
+
+**N1（Minor）I1 測試注入的「錯誤已記錄、但呼叫仍在准入」狀態在 production 不會單獨出現，註解卻把它寫成可達的路徑**（`tests/test_vocalizer_segment_drain.py:2007-2010`；commit `5f22563` 的訊息也這樣寫）
+
+一般紀錄在 native 呼叫仍准入時被記錄錯誤、但沒有被取消，這個狀態目前的程式碼走不到。逐一檢查 `record_error` 的呼叫點：
+
+- callback 的 except 在同一條執行緒上，先記錄錯誤，緊接著關掉准入（`:291-292`）。SDK 的 callback 都在呼叫它的執行緒上執行（`_runNative` 註解引用的 Windows 探測：每次呼叫都是 `sameThread=True`），所以兩步之間不會插入別的 callback。上面的 feed 探針證實，之後的 ENDPROCESS 會回 USERSTOP。
+- callback `finally` 裡 stop 失敗（`:302`）的前提是紀錄已經無效。
+- `_runNative` 的 except 與 quiescence（`:591`、`:607`、`:618`）在 native 返回之後才執行。
+- `_idlePlayer`（`:675`）不在 native 呼叫之內。
+- pause 失敗（`:828` → `:833`）先在鎖內關掉准入，才記錄錯誤。
+- host 的 `retire` 與 `drain` 不在呼叫之內，`drain` 也只處理 segment。
+
+所以這條分支在 production 只有一個入口：host 的 `_invalidate` 已經把紀錄標成 cancelled，而 `cancel()` 還沒關掉 `call.admitting`。`cancel()` 從別的執行緒呼叫時，持有的是 `host.admission()` 這把獨立的 RLock，BgThread 的 callback 只需要 `_speechStateLock` 和 host 的 `_condition`，因此可以插進這段空檔。這也表示原 review I1 舉的例子「`_process` 的 except」並不成立。另外，在這條入口上紀錄一定已經無效，所以 `_runNative` 不會把 USERSTOP 記成錯誤（`:587`）。突變 M4 在 production 唯一的影響，是一個已被取消的呼叫拿到的 SDK 回傳值。原 review 描述的失敗情境因此說得太重了，但這條分支仍值得一個釘子。
+
+影響：測試確實殺掉 M4，因為分支條件不在乎紀錄是「為什麼」無效，所以 I1 仍算修好。不過它斷言的 DONE 1、stop 1、`(False, error)` 這組數字，對應不到任何 production 的事件順序。真正可達的順序得到的是 DONE 0、stop 2、`(True, None)`，見上面的探針。讀者可能會以為「失敗的記錄仍在准入、還發了 DONE」是 NVDA 上會發生的情境。
+
+建議修法（二擇一，都很便宜）：
+- (a) 改註解：說明錯誤是為了穩定地成立分支前提而注入的，production 只會在 cancel 的空檔走到這條分支。
+- (b) 再加一個 cancel 空檔版本。做法和上面的探針相同：monkeypatch `segment_host(env.core).cancel`，在原本的 cancel 之後呼叫 `end_process(env, instance)`；native 內先 `emit(env, instance, end=False)`，再 `env.core.cancel()`；斷言 `[NUAN_OK]`、`lastCallEnded is False`、`(True, None)`、player `([b"pcm"], 0, 2)`、`env.dones == []`。這個版本也會殺掉 M4。
+
+**N2（Minor）phase 52 spec 還有兩處和現況不符**（`docs/superpowers/specs/2026-10-28-phase52-shared-barriers-design.md:152`、`:171`）
+
+- `:152`：VE／Cerence barrier 表格的最後一句「a record whose request token was cancelled is withdrawn (`SegmentHost.withdraw`) and retires cancelled, without a barrier check or a player stop」沒有加刪除線，仍把已移除的 `withdraw` 寫成現況。原 review 的 M4 和 `46cd7ce`／`3f86812` 都漏了這一處；`master` 上也是這樣。
+- `:171`：`46cd7ce` 加的「the guard is now that no tracked source file under `addon/synthDrivers/WorldVoice` mentions `cancellationToken`」在 `86399d4` 之後已經不準。現在的 guard 是 AST 版的 `test_no_add_on_code_names_the_request_token`，允許註解和 docstring 提到這個字，並且也涵蓋 `supportsCancellationToken`。
+
+建議修法：
+- `:152` 那句加刪除線，並補上「Corrected by `fix/ve-drop-cancellation-token`（2026-10-29）：VE／Cerence 不再收到 token，也沒有 `withdraw`；被 host 取消的紀錄走 `retire` 的取消路徑（回報取消、不檢查 barrier、停止 player、不發 DONE）」。
+- `:171` 改寫成「no add-on code names `cancellationToken` or `supportsCancellationToken` as a parameter, keyword argument, attribute, name or string constant (`tests/test_native_strategy_guards.py::test_no_add_on_code_names_the_request_token`); comments and docstrings may mention it」。
+
+**N3（Minor）guard 的 docstring 排除沒有測到，實際上也幾乎不會發揮作用**（`tests/test_native_strategy_guards.py:612-619`、`:627`、`:637`；另外 `:368`）
+
+字串常數只有在「整個值等於」關鍵字時才算數，所以不論 `docstrings` 集合存不存在，提到這個字的 docstring 或說明文字本來就不會比對成功。拿掉 `id(node) not in docstrings` 之後，兩個測試都還是通過。`test_token_name_detection` 第 1 行的 docstring 是 `"cancellationToken in a docstring."`，它根本不會比對成功，所以測不到這段排除。
+
+另外，`test_vocalizer_wrapper_has_no_guard_fallback:368` 還留著 `assert "supportsCancellationToken" not in source` 的子字串檢查。全套件 guard 已經涵蓋這件事，而這行和 M1 描述的問題一樣，碰到註解就會誤觸。
+
+建議修法（可選）：
+- 把偵測測試的 docstring 改成剛好是 `"""cancellationToken"""`，這樣排除邏輯就有釘子；或者刪掉 `docstrings` 集合，並在 helper 的 docstring 寫明「string constants count only when they equal a token name」。
+- 刪掉 `:368` 那行。
+
+#### 流程附註
+
+- 修正記錄最後寫「`prek run --all-files`、`git diff --check`、§7 受保護路徑的兩個指令，結果見下一個 commit 後的重跑」，但 `9065aa4` 之後沒有任何紀錄。結果補在下表。
+- 修正者的突變是直接在 worktree 上改 wrapper，再用 `git checkout --` 還原。§3.3 與 §8 偏好用 scratch 複本或暫時的 worktree。目前 worktree 是乾淨的（`git status` 無改動），沒有造成影響。
+
+#### 審閱者自行驗證的項目（head `9065aa4`）
+
+| 項目 | 指令／方法 | 結果 |
+| --- | --- | --- |
+| 完整套件（序列） | `cd /workspace/WorldVoice-droptoken; python3 -m pytest -q tests -p no:cacheprovider`，背景 watchdog 每 2 秒讀 `/proc/meminfo`，MemAvailable < 3 GB 就 kill pytest（`scratchpad/fixrev-verify/run.sh`） | **3564 passed／0 skipped**（106.23 s），和修正記錄的 3564 相同；watchdog 沒有觸發，期間 MemAvailable 最低約 5.6 GB |
+| hooks | `prek run --all-files` | 8 個 hook 都 Passed；執行後 `git status` 仍然乾淨 |
+| 空白 | `git diff --check master..HEAD`；`git diff --check` | 都沒有輸出 |
+| 受保護路徑 | §7 的 `git diff --stat master -- 'addon/synthDrivers/WorldVoice/driver/*/driver/*' …/driver/sonic/ …/script_data.py …/unspaced_common_data.py` 與 `git ls-files addon/synthDrivers/WorldVoice/driver/Neural` | 兩個都沒有輸出 |
+| VE／Cerence 同步 | `git diff 7dba02b..9065aa4` 的兩個 wrapper 經 `sed 's/Cerence/X/g;s/VE/X/g'` 後比較 `+`／`-` 行 | 完全相同；`tests/test_vocalizer_drift.py` 沒有改動，`ALLOWED` 不變 |
+| 修正範圍 | `git diff --name-only 7dba02b..9065aa4` | 兩個 wrapper（只改註解）、兩個測試檔、五份 spec、本檔；沒有 Neural，wrapper 之間也沒有互相 import |
+| commit 格式 | `git log --format=%B 7dba02b..9065aa4 \| grep -ci co-authored` | 0；7 個 commit 都是英文 `test:`／`docs:`，內文說明原因 |
+| 殘留引用 | `grep -rn "cancellationToken\|supportsCancellationToken\|supports_cancellation_token" addon`；`grep -rn withdraw docs/superpowers/specs` | `addon/` 0；spec 裡沒有劃掉、也沒有更正的只剩 N2 的 `:152`（3d-1 `:97`、`:162` 的 `withdraw` 都在刪除線內並附更正） |
+
+Linux 上只驗證了受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置與 VE／Cerence SDK 都沒有驗證到。沒有打包。
