@@ -95,7 +95,7 @@ Resulting declarations (sets unchanged in size and membership up to spelling):
 | RHVoice | `{"message", ENGINE_DONE, SYNTHESIZED, PLAYED_OUT}` | (strategy) |
 | SAPI5 | `{ENGINE_DONE, "processed", PLAYED_OUT}` | `{ENGINE_DONE, "processed"}` |
 | OneCore | `{"callback", "synced"}` | `{"callback"}` |
-| VE / Cerence | `{SYNTHESIZED, PLAYED_OUT}` | ~~`frozenset()`~~ Corrected by `fix/ve-ordinary-barriers` (2026-10-29): `{AUDIO_FED, ENGINE_DONE}` |
+| VE / Cerence | `{SYNTHESIZED, PLAYED_OUT}` | ~~`frozenset()`~~ Corrected by `fix/ve-ordinary-barriers` (2026-10-29): ~~`{AUDIO_FED, ENGINE_DONE}`~~ Corrected by `fix/ve-ordinary-played-out` (2026-10-29): `{AUDIO_FED, ENGINE_DONE, PLAYED_OUT}` |
 
 ~~OneCore uses no shared constant: both its barriers differ in meaning (above). It is still covered by the guard.~~
 
@@ -149,9 +149,9 @@ Resulting declarations (membership unchanged; only spelling):
 | RHVoice | `{"message", ENGINE_DONE, AUDIO_FED, PLAYED_OUT}` | (strategy) |
 | SAPI5 | `{ENGINE_DONE, AUDIO_FED, PLAYED_OUT}` | `{ENGINE_DONE, AUDIO_FED}` |
 | OneCore | `{AUDIO_FED, PLAYED_OUT}` | `{AUDIO_FED}` |
-| VE / Cerence | ~~`{AUDIO_FED, PLAYED_OUT}`~~ Corrected by `fix/ve-endprocess-engine-done` (2026-10-29): `{AUDIO_FED, ENGINE_DONE, PLAYED_OUT}` | ~~`frozenset()`~~ Corrected by `fix/ve-ordinary-barriers` (2026-10-29): `{AUDIO_FED, ENGINE_DONE}`; a record whose request token was cancelled is withdrawn (`SegmentHost.withdraw`) and retires cancelled, without a barrier check or a player stop |
+| VE / Cerence | ~~`{AUDIO_FED, PLAYED_OUT}`~~ Corrected by `fix/ve-endprocess-engine-done` (2026-10-29): `{AUDIO_FED, ENGINE_DONE, PLAYED_OUT}` | ~~`frozenset()`~~ Corrected by `fix/ve-ordinary-barriers` (2026-10-29): ~~`{AUDIO_FED, ENGINE_DONE}`~~ Corrected by `fix/ve-ordinary-played-out` (2026-10-29): `{AUDIO_FED, ENGINE_DONE, PLAYED_OUT}`, `PLAYED_OUT` reached by the final idle (and unpause wait) of the inner `DoneSpeaking`, which is bound to its record at submit; a record whose inner `speak()` raised queued no `DoneSpeaking` and undeclares `PLAYED_OUT`; a record whose request token was cancelled is withdrawn (`SegmentHost.withdraw`) and retires cancelled, without a barrier check or a player stop |
 
-**Host check.** `SegmentHost.__init__` no longer refuses only an empty set: it refuses a strategy whose `barriers` lack `PLAYED_OUT` (`ValueError(f"{engine} strategy declares no played-out barrier")`), because a segment must not drain before its audio has played. Ordinary `enqueue(barriers=…)` sets are not subject to it (~~VE's is empty~~ Corrected by `fix/ve-ordinary-barriers` (2026-10-29): VE's is `{AUDIO_FED, ENGINE_DONE}`, and it still lacks `PLAYED_OUT`). Every strategy satisfies it after the renames, so this is the only behaviour change and no engine is affected.
+**Host check.** `SegmentHost.__init__` no longer refuses only an empty set: it refuses a strategy whose `barriers` lack `PLAYED_OUT` (`ValueError(f"{engine} strategy declares no played-out barrier")`), because a segment must not drain before its audio has played. Ordinary `enqueue(barriers=…)` sets are not subject to it (~~VE's is empty~~ Corrected by `fix/ve-ordinary-barriers` (2026-10-29): ~~VE's is `{AUDIO_FED, ENGINE_DONE}`, and it still lacks `PLAYED_OUT`~~ Corrected by `fix/ve-ordinary-played-out` (2026-10-29): VE's is `{AUDIO_FED, ENGINE_DONE, PLAYED_OUT}`). Every strategy satisfies it after the renames, so this is the only behaviour change and no engine is affected.
 
 **Guards.** `tests/test_native_strategy_guards.py` reads the engines from `driver/` (every package whose `__init__.py` defines a `*Strategy` class; `sonic` is listed as a non-engine package; an untracked local `Neural` is an engine only if it defines a `*Strategy`, then gets every generic guard but no declared-set row or listing — the `storage/` snapshot defines none), requires a declared-set row for each tracked engine, lists only `RHVoice: {"message"}` as engine-specific, and asserts every strategy declares `AUDIO_FED` and `PLAYED_OUT` by their constants.
 
