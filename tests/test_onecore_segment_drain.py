@@ -1507,13 +1507,16 @@ def test_player_replacement_failure_fails_only_its_segment(env, monkeypatch):
 	assert segment_host(env.driver).control_error is None
 
 
-def test_ordinary_callback_failure_fails_only_its_sentence(env):
+@pytest.mark.parametrize("failure", ["feed", "sync"])
+def test_ordinary_callback_failure_fails_only_its_sentence(env, failure):
+	# A failed feed is recorded by the lease; a failed sync() reaches the raw player, so only
+	# _legacyCallback records it. Unrecorded, the sentence would never publish its DONE.
 	speak(env)
 	env.native.wait_calls(1)
 	env.player.sync_release.set()
 	env.native.respond()
 	stops = env.player.stops
-	env.player.error = "feed"
+	env.player.error = failure
 	env.driver.speak(("first",))
 	env.native.wait_calls(2)
 	env.native.respond(markers="")
