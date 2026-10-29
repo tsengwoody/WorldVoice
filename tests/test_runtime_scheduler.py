@@ -829,3 +829,141 @@ def test_callback_removed_during_dispatch_is_not_called(scheduler):
 	removers["second"] = token.add_callback(lambda: calls.append("second"))
 	token.cancel()
 	assert calls == ["first"]
+
+
+# Pause at segment boundaries: the scheduler holds a completed segment and
+# the next task while the session is paused (phase 54, C3).
+
+
+def drain_port(rt):
+	models = rt.models
+	return FakePlayback(models.CompletionContract(models.CompletionMode.DRAIN, models.IndexRange(1, 1000)))
+
+
+def drain_event(rt, port, kind="SEGMENT_DRAINED"):
+	context = port.contexts[-1]
+	return rt.models.PlaybackEvent(
+		getattr(rt.models.EventKind, kind),
+		port.source_id,
+		segment_id=context.segment_id,
+	)
+
+
+def drained(manager, rt, port, *, then=None):
+	"""Deliver the port's drain; ``then`` runs after it is processed, inside the same batch."""
+
+	def events():
+		yield drain_event(rt, port)
+		if then is not None:
+			then()
+
+	manager.on_events(events)
+
+
+def done_event(future):
+	event = Event()
+	future.add_done_callback(lambda _future: event.set())
+	return event
+
+
+def drain_speech(manager, port, text="hello"):
+	request = manager.new_request()
+	future = manager.append_speech(request, port, "Fake:a", (text,))
+	assert manager.submit_request(request)
+	assert port.entered.wait(WAIT_TIMEOUT)
+	return request, future
+
+
+def test_pause_after_drain_holds_next_engine_until_resume(manager, rt, output):
+	first, second = drain_port(rt), drain_port(rt)
+	request = manager.new_request()
+	first_future = manager.append_speech(request, first, "Fake:a", ("one",))
+	manager.append_speech(request, second, "Fake:b", ("two",))
+	assert manager.submit_request(request)
+	assert first.entered.wait(WAIT_TIMEOUT)
+	drained(manager, rt, first, then=lambda: manager.pause_current(True))
+	stays_unset(done_event(first_future))
+	assert not second.entered.is_set()
+	assert first.paused == []
+	manager.pause_current(False)
+	assert second.entered.wait(WAIT_TIMEOUT)
+	assert first_future.result(WAIT_TIMEOUT) is True
+	drained(manager, rt, second)
+	assert output.wait_done() == 1
+
+
+def test_pause_during_segment_is_forwarded_and_resume_returns_to_it(manager, rt):
+	port = drain_port(rt)
+	_request, future = drain_speech(manager, port)
+	manager.pause_current(True)
+	assert port.paused == [True]
+	drained(manager, rt, port)
+	stays_unset(done_event(future))
+	manager.pause_current(False)
+	assert port.paused == [True, False]
+	assert future.result(WAIT_TIMEOUT) is True
+
+
+def test_failed_pause_restores_unpaused_state(manager, rt):
+	port = drain_port(rt)
+	_request, future = drain_speech(manager, port)
+
+	def pause(switch):
+		raise RuntimeError("pause failed")
+
+	port.pause = pause
+	with pytest.raises(RuntimeError, match="pause failed"):
+		manager.pause_current(True)
+	drained(manager, rt, port)
+	assert future.result(WAIT_TIMEOUT) is True
+
+
+def test_failed_resume_keeps_the_pause(manager, rt):
+	port = drain_port(rt)
+	_request, future = drain_speech(manager, port)
+	manager.pause_current(True)
+	original = port.pause
+
+	def pause(switch):
+		if not switch:
+			raise RuntimeError("resume failed")
+		original(switch)
+
+	port.pause = pause
+	with pytest.raises(RuntimeError, match="resume failed"):
+		manager.pause_current(False)
+	drained(manager, rt, port)
+	done = done_event(future)
+	stays_unset(done)
+	manager.cancel([port])
+	assert done.wait(WAIT_TIMEOUT)
+	assert future.cancelled()
+
+
+def test_cancel_releases_completion_hold_and_clears_pause(manager, rt, output):
+	port = drain_port(rt)
+	_request, future = drain_speech(manager, port)
+	manager.pause_current(True)
+	drained(manager, rt, port)
+	done = done_event(future)
+	stays_unset(done)
+	manager.cancel([port])
+	assert done.wait(WAIT_TIMEOUT)
+	assert future.cancelled()
+	fresh = drain_port(rt)
+	_request, fresh_future = drain_speech(manager, fresh)
+	drained(manager, rt, fresh)
+	assert fresh_future.result(WAIT_TIMEOUT) is True
+	assert output.wait_done() == 1
+
+
+def test_cancelled_future_releases_completion_hold(manager, rt):
+	port = drain_port(rt)
+	_request, future = drain_speech(manager, port)
+	finished = Event()
+	port.finish_segment = lambda context: finished.set()
+	manager.pause_current(True)
+	drained(manager, rt, port)
+	stays_unset(finished)
+	assert future.cancel()
+	assert finished.wait(WAIT_TIMEOUT), "a cancelled Future stayed held by the pause"

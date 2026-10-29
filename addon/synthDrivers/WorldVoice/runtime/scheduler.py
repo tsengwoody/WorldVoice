@@ -184,6 +184,11 @@ class TaskManager:
 		self._current_phase = None
 		self._current_done_event = None
 		self._current_indexes = set()
+		# The session's pause state (NVDA's isPaused), and the playback that
+		# accepted the last forwarded pause(True). While paused, a completed
+		# task does not finish and no task starts.
+		self._paused = False
+		self._pause_target = None
 		self._thread = threading.Thread(target=self._worker, daemon=True)
 		self._thread.start()
 
@@ -431,6 +436,9 @@ class TaskManager:
 		futures = []
 		with self._delivery_lock, self._state_cond:
 			self._epoch += 1
+			# NVDA clears its pause when it cancels; each engine's cancel resets its own.
+			self._paused = False
+			self._pause_target = None
 			for request in tuple(self._requests.values()):
 				futures.extend(self._cancel_request_locked(request))
 			self._wake_current_locked()
@@ -451,18 +459,54 @@ class TaskManager:
 			self._stops_in_flight += 1
 		self._stop_all(ordered)
 
+	def _pausable_playback_locked(self):
+		"""The current task's playback, while it can still play audio."""
+		current = self._current_task
+		if (
+			current is None
+			or current.playback is None
+			or not self._valid_locked(current)
+			or self._current_phase not in (TaskPhase.STARTING, TaskPhase.AWAITING_COMPLETION)
+		):
+			return None
+		if current.rule is not None and self._completion_ready_locked(current):
+			# Its engine is idle; the scheduler holds the boundary instead.
+			return None
+		return current.playback
+
 	def pause_current(self, switch: bool) -> None:
+		"""Pause or resume the session; engine calls run outside the state lock.
+
+		Like NVDA's isPaused, the state changes only when the engine call
+		succeeds: a failed pause restores the previous state, a failed resume
+		stays paused. A resume reaches the paused engine before any task can
+		continue.
+		"""
 		with self._state_cond:
-			current = self._current_task
-			playback = (
-				current.playback
-				if current
-				and self._valid_locked(current)
-				and self._current_phase in (TaskPhase.STARTING, TaskPhase.AWAITING_COMPLETION)
-				else None
-			)
-		if playback is not None:
-			playback.pause(switch)
+			if self._closed:
+				return
+			if switch:
+				previous = (self._paused, self._pause_target)
+				self._paused = True
+				playback = self._pausable_playback_locked()
+				if playback is not None:
+					self._pause_target = playback
+			else:
+				playback = self._pause_target or self._pausable_playback_locked()
+		try:
+			if playback is not None:
+				playback.pause(switch)
+		except BaseException:
+			if switch:
+				with self._state_cond:
+					if self._paused:  # unless a cancel cleared it meanwhile
+						self._paused, self._pause_target = previous
+			raise
+		if not switch:
+			with self._state_cond:
+				self._paused = False
+				self._pause_target = None
+				self._state_cond.notify_all()
 
 	def shutdown(self, playbacks: Iterable[PlaybackPort] = ()) -> None:
 		# Close admission before resolving ports or calling native cancellation;
@@ -542,7 +586,7 @@ class TaskManager:
 		# cancellation races the validity check or an active done wait.
 		# Registration is outside state: an already-settled Future invokes
 		# its callback immediately. The callback never finishes the task.
-		task.future.add_done_callback(lambda future: done.set() if future.cancelled() else None)
+		task.future.add_done_callback(lambda future: self._wake_cancelled(future, done))
 		task.playback.speak(task.commands, task.request.token, context=task.context)
 		if task.request.token.is_cancelled():
 			# A non-token-aware synchronous speak may outlive the first stop.
@@ -552,6 +596,11 @@ class TaskManager:
 			if not self._valid_locked(task):
 				return None
 		done.wait()
+		with self._state_cond:
+			# Paused right at the boundary: finish (and start the next task) only
+			# after resume. Never wait holding the delivery lock: cancel() takes it.
+			while self._paused and self._valid_locked(task):
+				self._state_cond.wait()
 		# A wake is only a signal. Wait for the complete delivery batch and
 		# then validate after speak returned; errors/cancellation beat completion.
 		with self._delivery_lock, self._state_cond:
@@ -563,6 +612,12 @@ class TaskManager:
 				return None
 			self._current_phase = TaskPhase.FINISHING
 			return True
+
+	def _wake_cancelled(self, future, done):
+		if future.cancelled():
+			done.set()
+			with self._state_cond:
+				self._state_cond.notify_all()
 
 	def _settle(self, task, result, error, failed):
 		"""Release the task's resources, then settle its Future and the request."""
