@@ -303,6 +303,17 @@ def emit(env, instance, *, payload=b"pcm", index=_NO_BOOKMARK, end=True):
 	return results
 
 
+def end_process(env, instance):
+	"""Deliver the VE_MSG_ENDPROCESS the SDK sends last on every successful native call.
+
+	A Windows probe (VE 2.2.0, Cerence 21.6.0) saw exactly one, as the last message, on every
+	successful call, including calls that produce no audio; a stub that stands in for such a
+	call delivers it too.
+	"""
+	callback, types = env.core._veCallbackHandler, env.types
+	return callback(instance, None, native_message(types, types.VE_MSG_ENDPROCESS, types.VE_OUTDATA()))
+
+
 # Named views of VE/Cerence wrapper and inner driver state that tests check but no public
 # API exposes; each private name is read here only. They read without a lock, as the tests
 # did, except where they replaced a check made under the wrapper's lock.

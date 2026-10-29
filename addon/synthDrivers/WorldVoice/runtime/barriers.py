@@ -14,13 +14,17 @@ every strategy to declare AUDIO_FED.
 # it will come. The evidence differs by engine: a synchronous synthesis call returned
 # (eSpeak, RHVoice, VE/Cerence); the asynchronous delivery callback fed every chunk
 # (OneCore); the SAPI5 worker flushed Sonic and fed the tail after EndStream (SAPI5).
-# RHVoice's proves "all audio fed" only together with ENGINE_DONE: its inner player holds
-# back the last chunk until the done callback feeds it.
+# RHVoice's and VE/Cerence's prove "all audio fed" only together with ENGINE_DONE: RHVoice's
+# inner player holds back the last chunk until the done callback feeds it, and the VE/Cerence
+# wrapper feeds the Sonic and buffered tail only at the last call's VE_MSG_ENDPROCESS.
 AUDIO_FED = "audio_fed"
 
-# The engine's own end-of-utterance notification for the record arrived. Optional: VE/Cerence
-# and OneCore have no separate terminal notification (OneCore's delivery callback is also its
-# terminal notification, so it proves AUDIO_FED only).
+# The engine's own end-of-utterance notification for the record arrived. For VE/Cerence it is
+# the VE_MSG_ENDPROCESS of the record's last ve_ttsProcessText2Speech call, admitted while the
+# record was valid, after which the wrapper has flushed Sonic and fed the tail (a Windows SDK
+# probe saw exactly one ENDPROCESS, always last, on every successful call). Optional: OneCore
+# has no separate terminal notification (its delivery callback is also its terminal
+# notification, so it proves AUDIO_FED only).
 ENGINE_DONE = "engine_done"
 
 # The player has played all of this record's audio, proven by WavePlayer.idle() returning, or

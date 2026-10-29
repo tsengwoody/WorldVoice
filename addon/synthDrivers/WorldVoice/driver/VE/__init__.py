@@ -12,7 +12,7 @@ from synthDrivers.WorldVoice.driver import Voice as BaseVoice, getVoiceKey
 from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
-from ...runtime.barriers import AUDIO_FED, PLAYED_OUT
+from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
@@ -121,6 +121,9 @@ class _VERequest:
 	# Set on the inner BgThread when its Begin task ran (skipped: never spoken).
 	began: bool = False
 	skipped: bool = False
+	# Whether the record's last native call saw an admitted VE_MSG_ENDPROCESS; overwritten by
+	# each call on the BgThread. A record that makes no native call has no tail to flush.
+	lastCallEnded: bool = True
 
 
 @dataclass(eq=False)
@@ -130,6 +133,8 @@ class _NativeCall:
 	record: object
 	instance: object
 	admitting: bool = True
+	# Set by an admitted, valid VE_MSG_ENDPROCESS once its Sonic flush and tail feed finished.
+	ended: bool = False
 
 
 class _RecordTask:
@@ -262,7 +267,9 @@ class _ContextualVECallback(base.VECallback):
 							self._onIndexReached(data.pMrkList[i].ulMrkId)
 				elif messageType == VE_MSG_ENDPROCESS:
 					# ENDPROCESS flushes this chunk only. It supplies no drain
-					# or native callback-exclusion evidence.
+					# or native callback-exclusion evidence. The tail is handed
+					# over only here, so the call's ENGINE_DONE evidence is set
+					# after it, and only while the record is still valid.
 					if self._sonicEnabled and self.sonicStream is not None:
 						self.sonicStream.flush()
 						output = self.sonicStream.readShort()
@@ -271,6 +278,8 @@ class _ContextualVECallback(base.VECallback):
 					if self._feedBuf.tell() and driver._recordValid(record):
 						driver._feedCallback(record, self._feedBuf.getvalue())
 					self._feedBuf = BytesIO()
+					if driver._recordValid(record):
+						call.ended = True
 				return NUAN_OK if driver._recordValid(record) else NUAN_E_TTS_USERSTOP
 		except Exception as error:
 			host.record_error(record, error)
@@ -296,7 +305,7 @@ class _ContextualVECallback(base.VECallback):
 class _VEStrategy(NativeStrategy):
 	"""VE's native queue: the inner BgThread, each record's tasks queued around speak()."""
 
-	barriers = frozenset({AUDIO_FED, PLAYED_OUT})
+	barriers = frozenset({AUDIO_FED, ENGINE_DONE, PLAYED_OUT})
 
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
@@ -502,6 +511,10 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		if not record.native.skipped:
 			if AUDIO_FED in record.barriers and self._recordValid(record):
 				host.reach(record, AUDIO_FED)
+			# Only the last native call's ENDPROCESS matters: a middle call's tail stays in
+			# Sonic and the feed buffer (reset only per record) and goes out with the next call.
+			if ENGINE_DONE in record.barriers and self._recordValid(record) and record.native.lastCallEnded:
+				host.reach(record, ENGINE_DONE)
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			host.retire(record)
@@ -553,11 +566,12 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		with self._speechStateLock:
 			self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			self._nativeCall = call
-		invoked = False
+		invoked = returned = False
 		try:
 			if self._recordValid(record):
 				invoked = True
 				result = ProcessText2Speech(voiceInstance, piece)()
+				returned = True
 				if result == NUAN_E_TTS_USERSTOP and self._recordValid(record):
 					raise RuntimeError("VE native synthesis returned USERSTOP")
 		except Exception as error:
@@ -569,6 +583,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			host.wait_consumers(record)
 			blocked = None
 			if invoked:
+				# The BgThread runs a record's tasks in order: the last call to get here before
+				# _Retire is the record's last native call.
+				record.native.lastCallEnded = returned and call.ended
 				try:
 					self._confirmNativeQuiescence(call)
 				except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected

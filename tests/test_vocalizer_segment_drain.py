@@ -13,6 +13,7 @@ from worldvoice_cancel_wrapper_harness import (
 	buffered_audio,
 	callback_handler,
 	emit,
+	end_process,
 	inner_stop_flag,
 	load_real_driver_with_native_stubs,
 	native_call,
@@ -126,7 +127,10 @@ def test_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
 	real_player(env.core).idle = lambda: (idle_entered.set(), idle_release.wait(HOLD_TIMEOUT))
 
 	def native(instance, text):
-		callbacks.append(run_thread(lambda: emit(env, instance, index=31)))
+		# The call's own ENDPROCESS comes on this thread; the chunk callback runs on
+		# another and is still feeding when the call returns.
+		end_process(env, instance)
+		callbacks.append(run_thread(lambda: emit(env, instance, index=31, end=False)))
 		assert feed_entered.wait(WAIT_TIMEOUT)
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
@@ -346,7 +350,11 @@ def test_parameter_read_never_reorders_queued_speech(env, monkeypatch):
 	# the queue there moved Begin behind Retire: a silent "drained" segment.
 	prove_fake_quiescence(env, monkeypatch)
 	spoken = []
-	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: spoken.append(text))
+	monkeypatch.setattr(
+		env.native,
+		"processText2Speech",
+		lambda instance, text: (spoken.append(text), end_process(env, instance)),
+	)
 	monkeypatch.setattr(env.native, "getParamList", lambda instance, *ids: [50] * len(ids))
 	core, bg = env.core, env.core._bgQueue
 	hold = Event()
@@ -820,7 +828,11 @@ def test_processing_errors_latch_failure_on_original_context(env, monkeypatch, f
 
 def test_explicit_activation_override_allows_successor_after_idle(env, monkeypatch):
 	calls = []
-	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: calls.append(text))
+	monkeypatch.setattr(
+		env.native,
+		"processText2Speech",
+		lambda instance, text: (calls.append(text), end_process(env, instance)),
+	)
 	_, _, first = speak(env)
 	finish(first)
 	assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
@@ -1047,7 +1059,8 @@ def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 		sequence = (pause,)
 	entered, release = Event(), Event()
 	real_player(env.core).idle = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
-	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+	# A call that produces no audio still ends with ENDPROCESS.
+	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: end_process(env, instance))
 	_, _, call = speak(env, sequence)
 	assert entered.wait(WAIT_TIMEOUT)
 	assert env.events == []
@@ -1361,7 +1374,7 @@ def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
 
 	player.pause = pause
 	player.idle = idle_entered.set
-	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: end_process(env, instance))
 	_, _, speech = speak(env)
 	resuming = None
 	try:
@@ -1800,3 +1813,103 @@ def test_cancel_releases_the_stop_gate_when_abandon_fails(env, monkeypatch):
 	finish(first)
 	settle_segment(env, context)
 	settle_worker(env)
+
+
+# ENGINE_DONE: the wrapper flushes Sonic and the pending feed buffer (the record's audio tail)
+# only at VE_MSG_ENDPROCESS, so a segment record reaches ENGINE_DONE only when its last native
+# call saw an admitted ENDPROCESS. A Windows SDK probe (VE 2.2.0, Cerence 21.6.0; branch SDKTest,
+# ec53410) saw exactly one ENDPROCESS, always last, on every successful call.
+
+
+def speak_pieces(env, monkeypatch, pieces, ends):
+	"""Speak one segment of ``pieces``; native call i delivers ENDPROCESS when ends[i] says so."""
+	prove_fake_quiescence(env, monkeypatch)
+	monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: list(pieces))
+	calls = []
+
+	def native(instance, text):
+		calls.append(text)
+		emit(env, instance, end=ends[len(calls) - 1])
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	_, _, call = speak(env)
+	finish(call)
+	wait_for(lambda: len(env.events) == 1)
+	return calls
+
+
+def test_segment_whose_every_call_ends_reaches_engine_done(env, monkeypatch):
+	calls = speak_pieces(env, monkeypatch, ["a", "b", "c"], [True, True, True])
+	assert calls == ["a", "b", "c"]
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_last_call_without_endprocess_fails_the_segment(env, monkeypatch):
+	calls = speak_pieces(env, monkeypatch, ["a", "b"], [True, False])
+	assert calls == ["a", "b"]
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
+	assert "engine_done" in str(env.events[0].error)
+
+
+def test_only_the_last_call_needs_endprocess(env, monkeypatch):
+	# A middle call's tail stays in Sonic and the feed buffer and goes out with the next call.
+	calls = speak_pieces(env, monkeypatch, ["a", "b", "c"], [True, False, True])
+	assert calls == ["a", "b", "c"]
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_refused_endprocess_does_not_reach_engine_done(env, monkeypatch):
+	prove_fake_quiescence(env, monkeypatch)
+	results = []
+
+	def native(instance, text):
+		emit(env, instance, end=False)
+		# Admission refuses a callback for another instance: it proves nothing for this call.
+		foreign = env.types.VE_HSAFE()
+		foreign.pHandleData = 123
+		results.append(end_process(env, foreign))
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	_, _, call = speak(env)
+	finish(call)
+	wait_for(lambda: len(env.events) == 1)
+	assert results == [env.types.NUAN_E_TTS_USERSTOP]
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
+	assert "engine_done" in str(env.events[0].error)
+
+
+def test_segment_without_native_call_reaches_engine_done(env, monkeypatch):
+	prove_fake_quiescence(env, monkeypatch)
+	monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: [])
+	calls = []
+	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: calls.append(args))
+	_, _, call = speak(env)
+	finish(call)
+	wait_for(lambda: len(env.events) == 1)
+	assert calls == []
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_ordinary_speech_needs_no_endprocess(env, monkeypatch):
+	monkeypatch.setattr(
+		env.native,
+		"processText2Speech",
+		lambda instance, text: emit(env, instance, end=False),
+	)
+	host = segment_host(env.core)
+	retire, outcomes = host.retire, []
+
+	def recording_retire(record, **kwargs):
+		outcome = retire(record, **kwargs)
+		outcomes.append((record, outcome))
+		return outcome
+
+	monkeypatch.setattr(host, "retire", recording_retire)
+	speak_ordinary(env, ("ordinary",))
+	assert len(outcomes) == 1
+	record, outcome = outcomes[0]
+	assert "engine_done" not in record.barriers
+	assert outcome.error is None
+	assert real_player(env.core).fed == [b"pcm"]
+	assert real_player(env.core).idles == 1
+	assert len(env.dones) == 1
