@@ -109,7 +109,7 @@ The `_installGuard` method stays (rather than inlining into `__init__`) because 
 
 ### D2. `supportsCancellationToken` becomes a class constant
 
-`supportsCancellationToken = True` as a `SynthDriver` class attribute, replacing the property. The bridge reads it via `getattr` on the instance, which finds the class attribute. Kept rather than removed because the bridge needs it to pass the token (§3). *Decided by orchestrator with the recommended default; user may override before merge.*
+`supportsCancellationToken = True` as a `SynthDriver` class attribute, replacing the property. The bridge reads it via `getattr` on the instance, which finds the class attribute. ~~Kept rather than removed because the bridge needs it to pass the token (§3).~~ Corrected by `fix/ve-drop-cancellation-token` (2026-10-29): phase 52 moved the trait to `Voice.extraCapabilities`; this branch removes it and the bridge's token pass-through, so VE/Cerence take no token and stop through `cancel()` (their `SegmentHost`) like every engine. *Decided by orchestrator with the recommended default; user may override before merge.*
 
 ### D3. Drain support
 

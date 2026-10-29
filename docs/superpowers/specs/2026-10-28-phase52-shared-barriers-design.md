@@ -34,12 +34,12 @@ The bridge decides whether the plain entry passes the request's token from a pro
 Goals:
 
 - **Part 1.** Meaning-named shared barrier constants in a new core module `runtime/barriers.py`; every wrapper declares and reaches a barrier of a shared kind through the constant. Barriers whose meaning differs from every shared kind keep an engine-specific name, listed in a guard test with the reason.
-- **Part 2.** Token support becomes the optional plugin-contract value `"cancellationToken"` in `Voice.extraCapabilities`; the bridge reads it from there; VE/Cerence drop `supportsCancellationToken`.
+- **Part 2.** ~~Token support becomes the optional plugin-contract value `"cancellationToken"` in `Voice.extraCapabilities`; the bridge reads it from there;~~ Corrected by `fix/ve-drop-cancellation-token` (2026-10-29): the token trait is removed entirely; plain speak calls `core.speak(commands)` for every core, and VE/Cerence stop through `cancel()` (their `SegmentHost`) like every engine. VE/Cerence drop `supportsCancellationToken`.
 
 Non-goals:
 
 - No change to which barriers a record carries (only their spelling), to where they are reached, or to `SegmentHost`'s handling.
-- No change to `EngineCapabilities.supports_cancellation_token` (`runtime/models.py:91`) or to the completion policy.
+- No change to ~~`EngineCapabilities.supports_cancellation_token` (`runtime/models.py:91`) or to~~ the completion policy. (Corrected by `fix/ve-drop-cancellation-token` (2026-10-29): `EngineCapabilities.supports_cancellation_token` is removed.)
 - The engine-specific names keep their current spelling (`"message"`, `"processed"`, `"callback"`, `"synced"`) and stay literals in their wrappers: one wrapper uses each, and the guard lists them.
 
 Anti-goals (a failure even if tests pass):
@@ -157,16 +157,18 @@ Resulting declarations (membership unchanged; only spelling):
 
 ## 4. Part 2 — `"cancellationToken"` in `Voice.extraCapabilities`
 
-- `driver/__init__.py`: `Voice.extraCapabilities` stays `frozenset()`; a comment names the recognized optional values: `"waitfactor"`, `"variant"`, `"cancellationToken"` (the core's `speak(commands, cancellationToken=token)` accepts the request's token).
-- `bridge/engineAdapter.py:117`: `supports_cancellation_token="cancellationToken" in extra`.
-- `driver/VE/__init__.py:873`, `driver/Cerence/__init__.py:880`: `extraCapabilities = frozenset({"waitfactor", "variant", "cancellationToken"})`; delete `supportsCancellationToken = True` (`:345`, `:347`). Both `speak` methods already take `cancellationToken=None` (`:448`, `:450`).
+Corrected by `fix/ve-drop-cancellation-token` (2026-10-29): no external plugin used the value and VE/Cerence no longer take the token, so the value, `supports_cancellation_token` and `_speakPlain`'s token branch are removed. A Voice declaring `"cancellationToken"` gets nothing special; the request token stays with the scheduler and the segment path's `CancellationView`. The struck parts below record the phase 52 design.
+
+- ~~`driver/__init__.py`: `Voice.extraCapabilities` stays `frozenset()`; a comment names the recognized optional values: `"waitfactor"`, `"variant"`, `"cancellationToken"` (the core's `speak(commands, cancellationToken=token)` accepts the request's token).~~
+- ~~`bridge/engineAdapter.py:117`: `supports_cancellation_token="cancellationToken" in extra`.~~
+- ~~`driver/VE/__init__.py:873`, `driver/Cerence/__init__.py:880`: `extraCapabilities = frozenset({"waitfactor", "variant", "cancellationToken"})`;~~ delete `supportsCancellationToken = True` (`:345`, `:347`). ~~Both `speak` methods already take `cancellationToken=None` (`:448`, `:450`).~~
 - Value spelling: `"cancellationToken"`, the keyword it governs (the brief's example). Host-layer string; not a Python identifier, so the naming guard (`tests/test_naming_layers.py`) is unaffected.
 
-**Rule change, made deliberately.** `tests/test_runtime_legacy_adapter.py:73-88` pins "class claims are not authoritative, the core instance is" (`:79`). That rule protected the pre-phase-50 VE/Cerence fallback core, whose token support depended on the instance. With the fallback gone (phase 50) token support is a fixed trait of the engine class, like `waitfactor` and `variant`. The new rule: **the Voice class's `extraCapabilities` is authoritative; a `supportsCancellationToken` attribute on the core is ignored.** The test is rewritten to pin that (declared → token passed; not declared → plain `speak(commands)` even when the core carries `supportsCancellationToken = True`).
+**Rule change, made deliberately.** `tests/test_runtime_legacy_adapter.py:73-88` pins "class claims are not authoritative, the core instance is" (`:79`). That rule protected the pre-phase-50 VE/Cerence fallback core, whose token support depended on the instance. With the fallback gone (phase 50) token support is a fixed trait of the engine class, like `waitfactor` and `variant`. ~~The new rule: **the Voice class's `extraCapabilities` is authoritative; a `supportsCancellationToken` attribute on the core is ignored.** The test is rewritten to pin that (declared → token passed; not declared → plain `speak(commands)` even when the core carries `supportsCancellationToken = True`).~~ Corrected by `fix/ve-drop-cancellation-token` (2026-10-29): no core receives the token, whatever its Voice declares or the core claims; the test pins plain `speak(commands)` in every case.
 
 Compatibility: old plugins (`ref/Neural`, `ref/IBM`, `ref/Aisound`) declare neither `extraCapabilities` nor `supportsCancellationToken` (grep of `ref/` outside `ref/nvda`), so they keep `speak(commands)`. The only reader of `supports_cancellation_token` is `_speakPlain` (grep of `addon/`), which runs only on an opened adapter, so the value now also being `True` before `open()` changes nothing.
 
-**SAPI5 on NVDA < 2025.3** (phase 51): `Voice.ready()` swaps `synthDriverClass` to NVDA's own `sapi5.SynthDriver` (`driver/SAPI5/__init__.py:694-719`), whose `speak` takes no token. SAPI5's `Voice` declares no `extraCapabilities` (inherits `frozenset()`), so neither core receives a token. Guard: a wrapper `Voice` that declares `"cancellationToken"` must have its own `SynthDriver.speak` accepting `cancellationToken`, and must not reassign `synthDriverClass` (only SAPI5 does); `tests/test_sapi5_old_nvda.py:191-244` additionally asserts `"cancellationToken" not in voice.extraCapabilities` on every old release.
+**SAPI5 on NVDA < 2025.3** (phase 51): `Voice.ready()` swaps `synthDriverClass` to NVDA's own `sapi5.SynthDriver` (`driver/SAPI5/__init__.py:694-719`), whose `speak` takes no token. SAPI5's `Voice` declares no `extraCapabilities` (inherits `frozenset()`), so neither core receives a token. ~~Guard: a wrapper `Voice` that declares `"cancellationToken"` must have its own `SynthDriver.speak` accepting `cancellationToken`, and must not reassign `synthDriverClass` (only SAPI5 does); `tests/test_sapi5_old_nvda.py:191-244` additionally asserts `"cancellationToken" not in voice.extraCapabilities` on every old release.~~ Corrected by `fix/ve-drop-cancellation-token` (2026-10-29): the guard is now that no tracked source file under `addon/synthDrivers/WorldVoice` mentions `cancellationToken`.
 
 ## 5. NVDA user-visible changes
 

@@ -61,7 +61,7 @@
 class SpeakEntry(Enum):
 	SEGMENT = "segment"            # core.speak_segment(commands, token, context=, on_event=)
 	LEGACY_SEGMENT = "legacy_segment"  # core.speak_legacy_segment(...)
-	PLAIN = "plain"                # core.speak(commands[, cancellationToken=])
+	PLAIN = "plain"                # core.speak(commands[, cancellationToken=])  (corrected below: core.speak(commands))
 
 @dataclass(frozen=True)
 class CompletionRule:
@@ -156,7 +156,7 @@ class CompletionRule:
   檢查順序與原碼相同。
 - marker 編碼依 `rule.correlated`。
 - 事件 sink 依 `entry` 選擇：`SEGMENT` 用 segment 事件 factory，`LEGACY_SEGMENT` 用 legacy 事件 factory。
-- 最後依 `rule.entry` 查表呼叫 core。`PLAIN` 仍依 `supports_cancellation_token` 決定是否傳入 token。
+- 最後依 `rule.entry` 查表呼叫 core。~~`PLAIN` 仍依 `supports_cancellation_token` 決定是否傳入 token。~~ Corrected by `fix/ve-drop-cancellation-token`（2026-10-29）：`PLAIN` 一律呼叫 `core.speak(commands)`，不傳 token；`supports_cancellation_token` 已移除。
 - 原碼中「`legacy_contextual` 但 context 為 None」會先 raise，所以 contextual legacy 一定帶 context，規則表不需要另一列。
 
 ### 4. 測試環境：`tests/conftest.py`
