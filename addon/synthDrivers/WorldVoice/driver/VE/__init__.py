@@ -13,7 +13,7 @@ from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
-from ...runtime.engineControl import ControlFaultPolicy, StopGate
+from ...runtime.engineControl import ControlFaultPolicy, StopGate, release_newest_first
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost, SegmentHostSpeaker
 from . import driver as base
@@ -401,11 +401,7 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 		except BaseException:
 			# VoiceClassAdapter.open gets no core to terminate when the
 			# constructor raises: release what was built, newest first.
-			for release in reversed(releases):
-				try:
-					release()
-				except Exception:
-					log.error("WorldVoice VE initialization cleanup failed", exc_info=True)
+			release_newest_first(releases, logger=log, message="WorldVoice VE initialization cleanup failed")
 			raise
 
 	def _initializeNative(self, releases):

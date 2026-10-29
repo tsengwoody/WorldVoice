@@ -8,6 +8,7 @@ from synthDrivers.espeak import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
+from ...runtime.engineControl import release_newest_first
 from ...runtime.hostNames import host_names_ready
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentHost, SegmentHostSpeaker
@@ -145,11 +146,11 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 		except BaseException:
 			# VoiceClassAdapter.open gets no core to terminate when the
 			# constructor raises: release what was built, newest first.
-			for release in reversed(releases):
-				try:
-					release()
-				except Exception:
-					log.error("WorldVoice eSpeak initialization cleanup failed", exc_info=True)
+			release_newest_first(
+				releases,
+				logger=log,
+				message="WorldVoice eSpeak initialization cleanup failed",
+			)
 			raise
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:

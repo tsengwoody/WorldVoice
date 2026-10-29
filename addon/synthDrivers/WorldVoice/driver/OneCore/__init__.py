@@ -11,7 +11,7 @@ from synthDrivers import oneCore
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, PLAYED_OUT
-from ...runtime.engineControl import ControlFaultPolicy, StopGate
+from ...runtime.engineControl import ControlFaultPolicy, StopGate, release_newest_first
 from ...runtime.hostNames import host_names_ready
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost, SegmentHostSpeaker
@@ -256,10 +256,11 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentHostSpeaker):
 			# VoiceClassAdapter.open gets no core to terminate when the
 			# constructor raises. Only the segment host is the wrapper's to
 			# release: a native token NVDA's constructor left cannot be.
-			try:
-				self._segmentHost.terminate()
-			except Exception:
-				log.error("WorldVoice OneCore initialization cleanup failed", exc_info=True)
+			release_newest_first(
+				[self._segmentHost.terminate],
+				logger=log,
+				message="WorldVoice OneCore initialization cleanup failed",
+			)
 			raise
 
 	@property

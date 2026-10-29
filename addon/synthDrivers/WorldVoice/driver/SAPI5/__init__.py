@@ -9,7 +9,7 @@ from synthDrivers.sapi5 import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
-from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate
+from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate, release_newest_first
 from ...runtime.hostNames import missing_host_names
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost, SegmentHostSpeaker
@@ -404,11 +404,11 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 			if getattr(self, "player", None) is not None:
 				releases.append(super().terminate)
 			releases.append(self._releaseSink)
-			for release in reversed(releases):
-				try:
-					release()
-				except Exception:
-					log.error("WorldVoice SAPI5 initialization cleanup failed", exc_info=True)
+			release_newest_first(
+				releases,
+				logger=log,
+				message="WorldVoice SAPI5 initialization cleanup failed",
+			)
 			raise
 
 	def _ensureEngineControl(self):

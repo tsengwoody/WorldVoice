@@ -8,7 +8,7 @@ from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
-from ...runtime.engineControl import ControlFaultPolicy, StopGate
+from ...runtime.engineControl import ControlFaultPolicy, StopGate, release_newest_first
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost, SegmentHostSpeaker
 from . import driver as rhvoice
@@ -336,11 +336,11 @@ class SynthDriver(rhvoice.SynthDriver, SegmentHostSpeaker):
 		except BaseException:
 			# VoiceClassAdapter.open gets no core to terminate when the
 			# constructor raises: release what was built, newest first.
-			for release in reversed(releases):
-				try:
-					release()
-				except Exception:
-					log.error("WorldVoice RHVoice initialization cleanup failed", exc_info=True)
+			release_newest_first(
+				releases,
+				logger=log,
+				message="WorldVoice RHVoice initialization cleanup failed",
+			)
 			raise
 
 	def _wrapPlayer(self):
