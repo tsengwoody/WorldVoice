@@ -95,3 +95,13 @@ NVDA 的 eSpeak（`espeak.py:327-339`）與 OneCore（`oneCore.py:620-627`）換
 - readme 的措辭（M5）是可選的修辭，沿用現有文字也正確。
 
 未打包、未在 Windows 驗證；Linux 只驗證受控的 native 與音訊邊界。
+
+## 修正記錄
+
+五項 Minor 都在本分支修正（基準 `master` `c6b5a73`，接在 review commit `78a69d8` 之後）：
+
+- **M1**：`cca6d2b` docs: correct the phase 10a spec on VoiceFacade.stop。`2026-10-05-phase10a-voice-manager-design.md:108` 的 `stop()` 保留刪除線，標註「Corrected by `fix/set-voice-no-stop`（2026-10-29）」並說明刪除原因。依協調者指示在本分支補，沒有等 merge 後在 `master` 補；沒有動 `storage/`。
+- **M2**：`ede6430` test: describe the direct core stop test without _set_voice。`tests/test_worldvoice_request_manager.py:688` 的註解改為：繞過 scheduler 的直接 core stop；自 `fix/set-voice-no-stop` 起正式程式碼沒有呼叫者（守門測試禁止）；保留為 wrapper plain 路徑的契約，直到該契約被拿掉。
+- **M3**：`618194f` test: catch engine stops through driver, engine and synth aliases。`_ENGINE_ENDPOINTS` 加上 `driver`、`engine`、`synth`，註解補上這三個例子。現有程式碼沒有任何 receiver 末字是這三個詞的 `stop()`／`cancel()`，乾淨的分支上守門測試 16 passed。突變結果：在 `_set_voice` 加入 `engine = self._voiceManager.default_voice_instance.core; engine.cancel()`，舊詞表下 `test_engines_are_stopped_only_through_the_scheduler` **通過（存活）**；新詞表下 **失敗（killed）**，指出 `synthDrivers/WorldVoice/__init__.py:407 SynthDriver._set_voice: engine.cancel()`。突變只在工作目錄暫時加入，已還原，沒有 commit。
+- **M4**：`26c9c37` test: run the voice change regression with the default role following。組合測試對 `keepMainLocaleVoiceConsistent` 參數化 `True`／`False`（`True` 是 production 預設），並斷言主要語言的角色只在開啟時跟著新語音；OneCore／VE／Cerence 的組合案例從 6 個變成 12 個，加上 eSpeak 2 個共 14 個，全部通過。
+- **M5**：`999d48a` docs: shorten the voice change changelog entry。六份 readme 改用審閱者建議的較短文字，拿掉「與 NVDA 內建的語音合成器相同」（NVDA 的 SAPI5 換語音會重建 tts、切斷語音）與和標題重複的句子；zh_HK 用「組態設定」、zh_CN 用「配置」、ru／uk 沿用「профиль конфигурации」／「конфігураційний профіль」。沒有動 `addon/doc/en/` 和 `.html`。
