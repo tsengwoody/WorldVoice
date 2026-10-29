@@ -9,7 +9,7 @@ Status of the three items:
 | Item | Decision | This phase |
 |---|---|---|
 | C3 + B10: the unpause wait at segment boundaries | Decided by the user (2026-10-29): move the wait into the runtime, remove OneCore's and VE/Cerence's own waits | Implemented (§2) |
-| C4: OneCore segment drain never `idle()`s, so ducking is not released | Decided by the user (2026-10-29), first round: OneCore drain calls `idle()` per segment. **Withdrawn by the user (2026-10-29), second round:** do not release ducking between segments; investigate releasing it only when speech ends | Open question, not implemented (§3) |
+| C4: OneCore segment drain never `idle()`s, so ducking is not released | Decided by the user (2026-10-29), first round: OneCore drain calls `idle()` per segment. **Withdrawn by the user (2026-10-29), second round:** do not release ducking between segments; investigate releasing it only when speech ends. **Decided by the user (2026-10-29), third round: option A** (§3.5) | Implemented (§3.6) |
 | B9: drain-support profile naming | Unify only if a pure rename | Dropped: not a rename (§4) |
 
 Line conventions: `OneCore:191` is `addon/synthDrivers/WorldVoice/driver/OneCore/__init__.py` line 191 (likewise `VE:`, `Cerence:`, `SAPI5:`, `Espeak:`, `RHVoice:`); `scheduler:` is `runtime/scheduler.py`; `host:` is `runtime/segmentHost.py`; `lifecycle:` is `runtime/_segmentLifecycle.py`; `inner-RHVoice:` / `inner-VE:` are `driver/<Engine>/driver/__init__.py`; NVDA paths are under `ref/nvda/`.
@@ -106,9 +106,9 @@ Windows manual checks (not verifiable on Linux):
 
 User-visible: one entry in the next-version changelog of all six readmes (root `readme.md`, `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md`). zh_TW: 「**在兩段語音之間暫停：** 修正在一段語音剛播完時暫停，下一段語音（另一個語音或語言）仍會繼續播放的問題。現在會保持暫停，直到恢復。」 English: "**Pausing between two parts of speech:** Fixed speech continuing with the next part (another voice or language) when you paused just as one part finished. Speech now stays paused until you resume." ("part of speech" follows the existing next-version entry.)
 
-## 3. C4: OneCore ducking — open question (not implemented)
+## 3. C4: OneCore ducking
 
-The user's second-round decision (2026-10-29): do not release ducking between segments; release it only when speech actually ends. This section is the investigation the user asked for. Nothing in §3 is implemented in this phase.
+The user's second-round decision (2026-10-29): do not release ducking between segments; release it only when speech actually ends. §3.1–§3.5 are the investigation the user asked for; after it the user chose option A (§3.6).
 
 ### 3.1 What `idle()` and `sync()` do in NVDA
 
@@ -153,7 +153,18 @@ So no engine is blocked by a protected inner driver: all idle calls reach a wrap
 
 Implementation note for any option that idles from a drain or an end-of-speech hook: OneCore's `_player` is a `LeasedPlayer` with `idle_barrier=None` (`OneCore:101-110`), and `LeasedPlayer.idle()` first enters `host.consumer()` and returns `None` without calling the real `idle()` when no record is admitted (`host:758-762`). The drain runs on the lifecycle thread after the record retired (`host:510-533`, `host:591-601`), so `self._player.idle()` there would silently do nothing while the drain still reaches `PLAYED_OUT` (`OneCore:211`). The call must go to the underlying player (`player._player.idle()`, as SAPI5's final feed does at `SAPI5:602`, or VE's `driver._realPlayer.idle()` at `VE:351`), and its test must prove the real `idle()` ran (e.g. the fake player records the call).
 
-**Recommendation: A.** The concern behind the second-round decision — ducking released between segments — does not happen with `idle()` because NVDA delays unducking by one second (`audioDucking.py:123-146`); A gives exactly "release only when speech actually ends" (plus one second) with a one-line change, and matches the other five engines and NVDA's per-utterance eSpeak. B gives the same ducking result with a new interface; C changes every engine's transitions. Stop-and-ask: the user decides between A–D before any C4 change.
+**Recommendation: A.** The concern behind the second-round decision — ducking released between segments — does not happen with `idle()` because NVDA delays unducking by one second (`audioDucking.py:123-146`); A gives exactly "release only when speech actually ends" (plus one second) with a one-line change, and matches the other five engines and NVDA's per-utterance eSpeak. B gives the same ducking result with a new interface; C changes every engine's transitions. Decided by the user (2026-10-29): option A.
+
+### 3.6 Design (option A, decided by the user 2026-10-29)
+
+- `_OneCoreStrategy.drain` calls the **real** player's `idle()` once per segment instead of `sync()`: `player._player.idle()` on the `_OneCorePlayer` lease (the lease's own `idle()` admits only the current record and would do nothing in the drain, `host:758-762`). `PLAYED_OUT` is reached after it returns, as before.
+- Failure (P53 rule, unchanged): a failed `idle()` is recorded on the record, then the drain stops the player; only a failed stop latches (`_failSegmentControl`).
+- The ordinary path is unchanged: `_legacyCallback` still `sync()`s, then `idle()`s when its queue is empty (`OneCore:490-502`).
+- `runtime/barriers.py` `PLAYED_OUT`: every segment drain now idles; OneCore's `sync()` note goes. Older specs that state OneCore's segment drain only syncs are corrected with strikethrough and "Corrected by `phase54-drain-semantics`" (phase 3c `docs/superpowers/specs/2026-10-02-phase3c-onecore-design.md:93`, phase 52 `docs/superpowers/specs/2026-10-28-phase52-shared-barriers-design.md:85`, `:129`, `:140`).
+- What NVDA users hear: with "audio ducking" on, other audio returns to its volume about one second after OneCore stops speaking (before: only at the next cancel or pause); it stays lowered between segments less than a second apart. Each OneCore segment's leading silence is trimmed like the other engines' (slightly tighter transitions).
+- Tests (`tests/test_onecore_segment_drain.py`; the fake player counts real `idle()` calls): a segment drain runs the real `idle()` exactly once and still drains — this fails both on master (sync only) and with the lease's `idle()`; a failed real `idle()` fails only its segment, stops the player and latches nothing; an ordinary sentence still idles exactly once when its queue empties.
+- Windows: with audio ducking on ("Duck when outputting speech and sounds"), play music, read multi-language text with OneCore: the music stays lowered across segments and returns about a second after speech ends; OneCore segment starts are not clipped.
+- Readme: one more entry in the six changelogs, using NVDA's own term for audio ducking (`ref/nvda/source/locale/<lang>/LC_MESSAGES/nvda.po`, "Audio d&ucking mode:": zh_TW 自動音量調整, zh_HK 自動調整其他音量, zh_CN 音频闪避, ru приглушение аудио, uk приглушування). zh_TW 「**OneCore 說完後恢復其他音訊的音量：** 開啟自動音量調整時，OneCore 說完後其他音訊的音量現在會恢復。」 English "**Other audio returns after OneCore speaks:** With audio ducking on, other audio now returns to its normal volume after OneCore finishes speaking."
 
 ## 4. B9: drain-support profile naming — dropped
 
@@ -166,5 +177,5 @@ Implementation note for any option that idles from a drain or an end-of-speech h
 
 ## 6. Open questions
 
-1. C4: option A, B, C or D (§3.5). Stop-and-ask; recommended A.
+1. ~~C4: option A, B, C or D (§3.5).~~ Decided by the user (2026-10-29): option A.
 2. The completion hold also delays a failure report until resume or cancel (§2). Decided by orchestrator with the recommended default; user may override before merge.

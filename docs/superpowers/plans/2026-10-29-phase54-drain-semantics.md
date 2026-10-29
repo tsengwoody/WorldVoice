@@ -6,7 +6,7 @@
 
 **Goal:** The scheduler keeps the session's pause state and holds segment boundaries while paused, replacing OneCore's and VE/Cerence's own drain unpause waits.
 
-**Architecture:** `TaskManager` (runtime, NVDA-free) records `_paused` and the playback that accepted the last forwarded pause; a completed task does not finish and no task starts while paused; resume is forwarded to the paused engine before the state clears. The two engine drains stop waiting for unpause. C4 (OneCore ducking) is an open question in the spec and has no task here; B9 is dropped.
+**Architecture:** `TaskManager` (runtime, NVDA-free) records `_paused` and the playback that accepted the last forwarded pause; a completed task does not finish and no task starts while paused; resume is forwarded to the paused engine before the state clears. The two engine drains stop waiting for unpause. C4 option A (decided by the user 2026-10-29, after Tasks 1–5): OneCore's segment drain idles the real player (Tasks 6–7); B9 is dropped.
 
 **Tech Stack:** Python 3 (NVDA add-on), pytest, threading; ruff 0.16.3 via prek.
 
@@ -21,7 +21,7 @@
 - Scheduler lock order stays delivery lock → state condition; no wait while holding `_delivery_lock`.
 - A raised forwarded `pause(True)` restores the previous pause state; a raised `pause(False)` keeps the scheduler paused (NVDA's `isPaused` behaves the same, `speech.py:236-240`).
 - ruff pinned `0.16.3`; prek hooks run on commit; commits: explicit paths, English `<type>: <summary>` + why-body, no `Co-Authored-By`.
-- No C4 change: OneCore's drain keeps `sync()`.
+- C4 (Tasks 6–7 only): the drain calls the real player's `idle()` (`player._player.idle()`), never the lease's; the ordinary `_legacyCallback` path is unchanged.
 - Readme: one changelog entry in the six readmes; zh_TW 「修正在語言段落交界時暫停，下一段語音仍會繼續播放的問題。」; English "Fixed speech continuing with the next language segment when paused right at a segment boundary."; never edit `addon/doc/en/` or `.html`.
 
 ## Review Focus
@@ -119,3 +119,33 @@
 - [ ] **Step 2:** Add the Global Constraints changelog entry to each readme's next-version section (ru/uk/zh_CN/zh_HK in their language, matching the neighbouring entries).
 - [ ] **Step 3: Run** full suite → 3628 passed, 0 skipped; `prek run --all-files` all Passed; `git diff --check` clean; protected-path commands print nothing.
 - [ ] **Step 4: Commit**: `docs: record the scheduler pause hold at segment ends`.
+
+### Task 6: OneCore segment drain idles the real player (C4 option A)
+
+**Files:**
+- Modify: `addon/synthDrivers/WorldVoice/driver/OneCore/__init__.py` (`_OneCoreStrategy.drain`)
+- Modify: `tests/onecore_drain_harness.py` (`Player`: `idles` counter; error mode `"idle"` raises `OSError("idle failed")` after the sync wait)
+- Test: `tests/test_onecore_segment_drain.py`
+
+**Interfaces:**
+- Consumes: `_OneCorePlayer` (`LeasedPlayer`, real player in `._player`).
+- Produces: `_OneCoreStrategy.drain(host, record)` calls `player._player.idle()`; failure path as before.
+
+- [ ] **Step 1: Write the failing tests**
+  - `test_segment_drain_idles_the_real_player`: speak, release sync, respond → `[SEGMENT_DRAINED]` and `env.player.idles == 1`.
+  - `test_idle_failure_fails_only_its_segment`: `env.player.error = "idle"` → `[SEGMENT_FAILED]` with `str(error) == "idle failed"`, `env.player.stops >= 1`, `control_error is None`; a successor drains.
+  - Extend `test_legacy_speak_still_uses_parent_interface`: `env.player.idles == 1` (ordinary queue-empty idle unchanged).
+- [ ] **Step 2: Run** `python3 -m pytest -q tests/test_onecore_segment_drain.py` → the two new tests FAIL (`idles == 0`; no idle error). Red proofs in scratch: the same tests also fail with the drain calling the lease's `player.idle()`.
+- [ ] **Step 3: Implement**: replace `player.sync()` by `player._player.idle()` with a comment why the lease is bypassed.
+- [ ] **Step 4: Run** → PASS; full suite → 3630 passed, 0 skipped.
+- [ ] **Step 5: Commit**: `fix: idle OneCore's real player at the end of each segment`.
+
+### Task 7: C4 documentation and changelog
+
+**Files:** `addon/synthDrivers/WorldVoice/runtime/barriers.py`; spec corrections (strikethrough + "Corrected by `phase54-drain-semantics`") in `docs/superpowers/specs/2026-10-02-phase3c-onecore-design.md:93`, `docs/superpowers/specs/2026-10-28-phase52-shared-barriers-design.md:85`, `:129`, `:140`; the six readmes.
+
+- [ ] **Step 1:** `PLAYED_OUT` comment: every segment drain ends with `idle()`, which also closes the continuous segment; OneCore's ordinary speech idles once its queue empties.
+- [ ] **Step 2:** Spec corrections (keep old text struck through).
+- [ ] **Step 3:** Readme entry per spec §3.6 in all six readmes.
+- [ ] **Step 4:** Full §7 verification: 3630 passed / 0 skipped, prek Passed, `git diff --check` clean, protected paths empty.
+- [ ] **Step 5: Commit**: `docs: record OneCore's per-segment idle`.
