@@ -125,3 +125,43 @@
 | H6 | `withdraw` 不設旗標 | killed（同上） |
 | H7 | 拿掉 withdrawn 分支（關卡檢查勝出） | killed（同上） |
 | W3 | （無效突變：早讀但仍用晚讀的值；等價） | 存活，不計 |
+
+## 修正記錄
+
+日期：2026-10-29。修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4）。四項都修，每項先寫測試、看它失敗，再修正。突變測試在 scratch 複本（`git archive HEAD`，`ref` symlink）上做，VE 與 Cerence 同時突變，`PYTHONDONTWRITEBYTECODE=1 pytest -p no:cacheprovider`，每次先清 `__pycache__`，跑完還原成未突變的複本。
+
+### I1 — `6acda3d` `fix: log an ordinary record retired without its barriers`
+
+- 修法：照 review 的建議，在 `SegmentHost.retire` 合成缺關卡錯誤的地方加一筆 `log.error("%s ordinary speech retired without its %s barriers", self.engine, ", ".join(record.missing_barriers()))`（模組既有的 `log`）。不改 `outcome`、不改 stop 次數。
+- 測試：`test_segment_host.py::test_ordinary_record_outcomes` 加 `caplog`，`[missing]` 斷言 host logger 恰好一筆 ERROR，含引擎名、`returned`、`played_out`；其他三種情況斷言沒有 ERROR。`test_withdrawn_ordinary_record_outcomes` 四種情況都斷言 `retire` 不寫 ERROR（withdrawn 不是失敗）。`test_vocalizer_segment_drain.py` 的正確路徑測試斷言沒有這筆 log，缺 `ENDPROCESS` 的測試斷言恰好一筆、含引擎名與 `engine_done`。
+- 紅／綠：把 `segmentHost.py` 暫時換回 `7692ee4` 的版本，新斷言 5 個失敗（host `[missing]`＋VE／Cerence 各 2 個缺 `ENDPROCESS` 案例）；換回修正後全過。
+- 不增加 log 雜訊：用 scratch pytest plugin（root logger 上的 handler，記下每個寫出這筆訊息的測試）跑完整套件。最終 head 上寫出這筆 log 的只有：host 的 `test_ordinary_record_outcomes[missing]`、VE／Cerence 的 8 個 `test_ordinary_last_call_without_endprocess_fails_the_record` 案例（都是刻意缺關卡），以及 `test_retire_waits_for_admitted_consumers[0]`／`[0.1]`（fake strategy 刻意不 reach 就 retire 一般 record，測的是 consumer 等待，不是引擎的正常執行）。eSpeak、RHVoice、SAPI5、OneCore、VE、Cerence 的一般語音正確執行沒有任何一個測試走到這個分支。
+
+### I2 — `794ac80` `test: run the VE/Cerence ordinary barrier tests with a live token`
+
+- 修法：`test_ordinary_speech_reaches_audio_fed_and_engine_done` 和 `test_ordinary_last_call_without_endprocess_fails_the_record` 加 `@pytest.mark.parametrize("token", ["live-token", "no-token"])`，`live-token` 傳未取消的 `Token()`，兩個測試都多斷言 `record.withdrawn is False`；缺 `ENDPROCESS` 測試後半的第二個請求也用同一種 token，並斷言它沒有被 withdraw。
+- 突變 W6（`if token is not None and token.is_cancelled():` → `if token is not None:`，VE＋Cerence）：
+  - 修正前的測試檔（`6acda3d`）：`test_vocalizer_segment_drain.py`、`test_native_strategy_guards.py`、`test_vocalizer_drift.py`、`test_worldvoice_cancel_wrappers.py`、`test_worldvoice_request_manager.py` **328 passed**——存活，和 review 一致。
+  - 修正後：**8 failed**（兩個測試 × 兩種 `ends` × VE／Cerence 的全部 `live-token` 案例），`no-token` 案例照常通過——**killed**。
+  - 未突變的複本：`test_vocalizer_segment_drain.py` 207 passed。
+
+### M1 — `05ee8cf` `test: pin reading the token after the VE/Cerence ordinary reaches`
+
+- 修法：新增 `test_token_cancelled_during_the_audio_fed_reach_is_withdrawn`（monkeypatch `segment_host(env.core).reach`，`audio_fed` 的 reach 完成後 `token.cancel()`），斷言 `record.barriers == {"audio_fed": True, "engine_done": False}`、`record.withdrawn`、`(outcome.cancelled, outcome.error) == (True, None)`、`(player.fed, player.idles, player.stops) == ([b"pcm"], 1, 0)`、`len(env.dones) == 1`。VE 與 Cerence 的 `_retireRecord` 註解加一行指向這個測試（兩邊同一行，`ALLOWED` 不變）。
+- 突變 W3b（在 `AUDIO_FED` 的 reach 之前先讀 `_early = token.is_cancelled()`，withdraw 改用 `_early`，VE＋Cerence）：同上五個檔案 **2 failed／336 passed**，失敗的正是新測試的 `[VE]`、`[Cerence]`（`record.withdrawn` 為 False，記錄成缺 `engine_done`）——**killed**；其他 336 個在突變下全過，表示只有這個測試釘住順序。未突變的分支上新測試 2 passed。
+
+### M2 — `206ec97` `test: say what the VE/Cerence token tests' neutrality rests on`
+
+- 修法（只改註解，沒有可失敗的測試）：`test_vocalizer_segment_drain.py` 一般語音段落的開頭註解補上「token 測試的 player（`fed`／`idles`／`stops`）與 DONE 斷言在 `master` 的 wrapper＋host 上也通過（本 review 已驗證），只有 `withdrawn`／`barriers`／`retire` 的回傳是新的，改 wrapper 時前者要保持不變」；`token-then-cancel` 的註解補上出處 `runtime/scheduler.py` `_cancel_request_locked`（`:386-395`）在 `cancel()` 裡，之後是 `_stop_all`（`:419-441`），行號已在本分支核對。
+
+### 驗證（最後一個修正 commit `206ec97` 之後，DEVELOPMENT_WORKFLOW.md §7）
+
+| 項目 | 結果 |
+| --- | --- |
+| `python3 -m pytest -q tests`（序列，watchdog：MemAvailable < 3 GB 就 kill） | **3569 passed／0 skipped**（105.10 s）；watchdog 沒有觸發；3559 ＋ I2 的 8 個 `live-token` 案例 ＋ M1 的 2 個 |
+| `prek run --all-files` | 8 個 hook 全 Passed |
+| `git diff --check master..HEAD`、`git diff --check` | 乾淨 |
+| 受保護路徑（`driver/*/driver/*`、`driver/sonic/`、兩個 Unicode 資料檔；`git ls-files …/driver/Neural`） | 都沒有輸出 |
+| VE／Cerence 同步 | Cerence 換名後和 VE 的 `diff` 與 `7692ee4` 時完全相同；`tests/test_vocalizer_drift.py` 沒有 diff |
+
+依 §3.4，本輪有 Important（I1、I2），修正的 diff（`7692ee4..` 之後的 commit）待協調者另派 Opus 5.5 做修正 review。
