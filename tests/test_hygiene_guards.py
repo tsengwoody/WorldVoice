@@ -148,7 +148,7 @@ def test_the_ignore_numbers_option_is_gone():
 _LATCHED = "recorded on the record and latched: later speech is rejected"
 _REASONS = (
 	(("record_error", "_failSegmentControl"), _LATCHED),
-	(("latch_control_error", "error = exc"), "latched, and kept to raise after the remaining cleanup"),
+	(("_failSegmentControl", "error = exc"), "latched, and kept to raise after the remaining cleanup"),
 	(("record_error",), "recorded on the record; the segment fails"),
 	(("_failSegmentControl",), "latched: the player or engine state is unknown"),
 	(("_latch_fault",), "latched as a lifecycle fault"),

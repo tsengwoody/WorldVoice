@@ -866,3 +866,29 @@ def test_native_callback_after_owner_collection_refuses(env):
 	assert done(1, 2, 7) is None
 	assert speech(1, 2, 7) == 0
 	assert calls == []
+
+
+def test_player_stop_failure_goes_through_the_control_fault_policy(env, monkeypatch):
+	speak(env, text="old")
+	call = env.native.wait_call()
+	assert call.done.wait(WAIT_TIMEOUT)
+	player = env.players[0]
+	error = OSError("stop failed")
+	player.stop_error = error
+	policy = env.driver._controlFault
+	failed = []
+	original_fail = policy.fail
+
+	def recorded_fail(failure):
+		failed.append(failure)
+		return original_fail(failure)
+
+	monkeypatch.setattr(policy, "fail", recorded_fail)
+	Thread(
+		target=lambda: player.stop_entered.wait(WAIT_TIMEOUT) and call.return_release.set(),
+		daemon=True,
+	).start()
+	with pytest.raises(OSError, match="stop failed"):
+		env.driver.cancel()
+	assert failed and failed[0] is error
+	assert segment_host(env.driver).control_error is error

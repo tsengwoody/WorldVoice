@@ -8,7 +8,7 @@ from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
-from ...runtime.engineControl import StopGate
+from ...runtime.engineControl import ControlFaultPolicy, StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
@@ -115,10 +115,12 @@ class _NativeCallback:
 class _NativeLibrary:
 	"""Observe synchronous native outcomes that SpeakText does not inspect."""
 
-	def __init__(self, host, native, record):
+	def __init__(self, host, native, record, fail):
 		self._host = host
 		self._native = native
 		self._record = record
+		# The driver's control-fault entry (ControlFaultPolicy.fail).
+		self._fail = fail
 		self._message = None
 
 	def __getattr__(self, name):
@@ -164,15 +166,22 @@ class _NativeLibrary:
 			except Exception as error:
 				# The native message may still own resources after a failed delete.
 				# Stop reusing this engine and player, even if stop succeeds.
-				self._host.latch_control_error(error)
+				self._fail(error)
 				raise
 
 
 class _WavePlayer(LeasedPlayer):
 	"""Keep a queued index callback tied to its originating native message."""
 
-	def __init__(self, host, player):
-		super().__init__(host, player)
+	def __init__(self, driver, player):
+		super().__init__(driver._segmentHost, player)
+		self._driver = weakref.ref(driver)
+
+	def _stop_failed(self, error):
+		driver = self._driver()
+		if driver is None:
+			return super()._stop_failed(error)
+		driver._failSegmentControl(error)
 
 	def feed(self, data, onDone=None):
 		host = self._host
@@ -280,7 +289,12 @@ class _RHVoiceStrategy(NativeStrategy):
 			converter = rhvoice.SsmlConverter(driver, driver.language)
 			text = converter.convertToXml(commands)
 			inner = driver._inner
-			library = record.native.library = _NativeLibrary(host, inner.lib, record)
+			library = record.native.library = _NativeLibrary(
+				host,
+				inner.lib,
+				record,
+				driver._failSegmentControl,
+			)
 			task = rhvoice.SpeakText(library, inner.ttsEngine, text, inner.cancelFlag, inner.player)
 			task.set_voice_profile(inner.profile)
 			task.set_rate(inner.rate)
@@ -311,6 +325,8 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 		try:
 			self._segmentCondition = Condition(RLock())
 			self._stopGate = StopGate(self._segmentCondition)
+			# Queued records need no drop: each skips its task once an error is latched.
+			self._controlFault = ControlFaultPolicy(self._segmentHost, self._segmentCondition)
 			self._segmentById = {}
 			self._segmentNextId = 1
 			self._inner = _RHVoiceInner(self)
@@ -339,10 +355,13 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 			if real is None:
 				return None
 			if real not in wrapped:
-				wrapped[real] = _WavePlayer(self._segmentHost, real)
+				wrapped[real] = _WavePlayer(self, real)
 			return wrapped[real]
 
 		player.get_player = getPlayer
+
+	def _failSegmentControl(self, error):
+		return self._controlFault.fail(error)
 
 	def __setattr__(self, name, value):
 		# Inner init creates C callbacks just after assigning Python callables.
@@ -411,13 +430,13 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 				try:
 					super().cancel()
 				except Exception as exc:  # noqa: BLE001 - latched, and kept to raise after the remaining cleanup
-					host.latch_control_error(exc)
+					self._failSegmentControl(exc)
 					error = exc
 			host.wait_settled(current)
 			try:
 				self._inner.player.stop()
 			except Exception as exc:  # noqa: BLE001 - latched, and kept to raise after the remaining cleanup
-				host.latch_control_error(exc)
+				self._failSegmentControl(exc)
 				if error is None:
 					error = exc
 		if error is not None:
