@@ -100,3 +100,17 @@ NVDA 使用者看得到的行為沒有改變（沒有設定、字串、log 文�
 5. Minor M1／M2 是否補測試（不改程式）：建議 merge 前順手補，兩個都很小。
 
 未在 Linux 上驗證：Windows／NVDA 實機、實際音訊裝置與引擎 SDK；spec §6.3 建議下一個測試版本做六個引擎的 smoke run（say all、取消、暫停／恢復）。沒有打包。
+
+## 修正記錄
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW §3.4）。只改測試與文件，沒有改產品程式；VE／Cerence 同步，`tests/test_vocalizer_drift.py` 的 `ALLOWED` 未改。突變都在 scratch 複本（`scratchpad/p45b/mut/`）上做，沒有動 worktree，沒有用 `git stash`。
+
+| 項目 | commit | 修法 | 突變結果 |
+| --- | --- | --- | --- |
+| M1 VE／Cerence 自有的 terminate 檢查沒有測試 | `aef0387` | 新增 `tests/test_vocalizer_segment_drain.py::test_speech_is_rejected_while_terminate_waits_for_host_admission`（VE、Cerence）。測試執行緒握住 host admission（模擬 `enqueue` 在 inner `speak()` 轉換文字時握著它），另一執行緒呼叫 `terminate()`；等到 `_terminationRequested` 為 True、`terminate` 仍卡在 `host.terminate()`、`host.terminated` 仍為 False 時，斷言 `speak()` 立刻 raise「<engine> driver has terminated」，而 `speak_segment()` 收到 `SEGMENT_FAILED`（segment 31、同樣訊息）。admission 是 RLock，所以同一執行緒的重入呼叫不會卡住，測試是決定性的 | M5（兩份 `admission_error` 的檢查改 `if False:`）：2 failed（VE、Cerence，等不到事件）；M7（兩份 `speak` 的檢查改 `if False:`）：2 failed（沒有 raise）。兩個突變都被殺 |
+| M2 `release_newest_first` 的 `except Exception` 沒有釘住 | `44cc168` | 新增 `tests/test_engine_control.py::test_release_newest_first_lets_a_base_exception_escape`：某一步丟 `KeyboardInterrupt` 時立刻逃逸，較舊的步驟不執行（呼叫順序 `["c", "b"]`），也不記錄 log——和各 wrapper 原本的迴圈相同 | M3（`except BaseException`）：`test_engine_control.py`＋兩個 init-cleanup 檔 1 failed／42 passed，新測試失敗（殺） |
+| 預設 4：39 個測試留下沒用到的 `monkeypatch` | `ed14863` | 逐一以 AST 檢查：39 個原本呼叫 `prove_fake_quiescence` 的測試中，只有 `test_cancel_resets_pause_before_next_legacy_speech` 與 `test_resume_failure_faults_active_work_and_suppresses_drain` 真的不再用到 `monkeypatch`，拿掉這兩個參數；其餘 37 個仍用它 patch 其他東西（review 的「39 個」是呼叫者數，不是未使用數）。spec §8 的對應備註以刪除線更正 | 不適用（純測試整理）；`test_vocalizer_segment_drain.py` 219 passed |
+| M3 runtime mixin 讀 camelCase `self._segmentHost`、helper docstring 指名 bridge 類別 | — | 依協調者指示不改，維持 review 所述的文件化說明 | — |
+
+驗證（最後一個 commit 之後，§7）：完整測試 **3617 passed、0 skipped**（3614 + 3 個新測試：M1 的 VE、Cerence 兩個參數化案例，M2 一個）；`prek run --all-files` 全部 Passed；`git diff --check master` 無輸出；受保護路徑兩個指令都無輸出。Linux 測試只涵蓋受控的 native 與音訊邊界，Windows／NVDA 未驗證。
+
