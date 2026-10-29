@@ -104,3 +104,16 @@ production 的一般紀錄永遠用 `_ORDINARY_BARRIERS`，所以今天到不了
 | M8 | `finally` 不還原 `self._player` | **survived**（行為等價，只多抓著最後一筆紀錄：見 M2） |
 | M9 | 暫停等待之後不看有效性、一律 reach | killed（`test_token_cancelled_after_the_last_call_is_withdrawn[token-only]`） |
 | M10 | 內層 `speak()` 拋出時對 segment 也 `pop` | **survived**（等價：segment 的 submit 拋出走 `abandon`，沒有 drain） |
+
+## 修正記錄
+
+分支先 rebase 到 `master` `faabf12`（只有 docs，沒有衝突），原本的三個 commit 變成 `d6133e1`（wrapper＋測試）、`946c8d9`（spec 修正）、`e646afb`（本檔）。四個 Minor 各一個 commit，VE 與 Cerence 的改動逐行相同，`tests/test_vocalizer_drift.py` 的 `ALLOWED` 沒有改。
+
+| 發現 | commit | 修正 | 驗證 |
+| --- | --- | --- | --- |
+| M1 | `d99ee2e` | `record.barriers.pop(PLAYED_OUT, None)`；註解補上「pop 在 `_Retire` 入列之前，BgThread 只在 `_Retire`（以及這筆紀錄沒有的 `DoneSpeaking`）讀 barriers，所以沒有 reach 和它競爭」 | 先寫 `test_inner_speak_failure_keeps_its_error_for_a_set_without_played_out`（用 `SegmentHost.enqueue(…, barriers=frozenset({"audio_fed"}))`）：修正前兩個引擎都失敗，`KeyError: 'played_out'` 蓋掉了內層 `speak()` 的例外；修正後通過 |
+| M2 | `de8cf8c` | `test_ordinary_speech_reaches_every_barrier` 和 `test_inner_speak_failure_after_begin_keeps_todays_outcome` 斷言送出後（包括內層 `speak()` 拋出時）`self._player` 回到原本的共用 proxy（harness 的 `player_of`）；`_idlePlayer` 的 `record is not self._currentRecord` 註解補上「這種紀錄也已經無效（`cancel()` 標成 cancelled），這個判斷是防禦」 | 突變 M8（拿掉 `finally` 的 `self._player = player`）現在被殺：`tests/test_vocalizer_segment_drain.py tests/test_native_strategy_guards.py -k VE` **6 failed／192 passed**（`reaches_every_barrier` 4 個、`inner_speak_failure_after_begin` 2 個），還原後全部通過 |
+| M3 | `a1730aa` | `_idlePlayer` 的註解寫下為什麼一般語音最後 idle 失敗只 `record_error`、不 latch：segment 的 drain latch 是為了不讓後繼在 player 狀態不明時開始；一般紀錄由 `retire` 的 error 分支 `stop()` 一次復位 player，`stop()` 失敗時 `_stopPlayer` 仍會 latch。spec 3d-1 的 `drain` 項目下補一段，標「Added by `fix/ve-ordinary-played-out`」 | 只有註解與文件；行為由既有的 `test_failed_final_idle_fails_the_record`（`control_error is None`、下一句正常）釘住 |
+| M4 | `4025f83` | `test_kept_done_of_a_dropped_request_never_plays_out_another` 的註解改成防禦性的說法：production 中 `_dropQueuedSpeech` 保序、下一筆的 `_Begin` 在 `cancel()` 釋放 admission 之後才入列，所以被保留的 `DoneSpeaking` 會在下一筆 `_Begin` 之前、沒有 current 紀錄時執行；測試是手動執行那個 task 來重現，並註明它和本區其他測試不同，在 master 上差一次 idle 而失敗 | 只有註解；已入歷史的 `d6133e1` commit message 不改 |
+
+修正後的完整驗證（§7）結果記在交接回報。
