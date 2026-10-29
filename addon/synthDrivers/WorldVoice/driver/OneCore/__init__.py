@@ -193,11 +193,13 @@ class _OneCoreStrategy(NativeStrategy):
 		player = driver._player
 		if player:
 			try:
-				# sync() waits while the player is paused; a pause after it returned
-				# is the scheduler's to hold.
-				player.sync()
+				# The real player's idle(): the lease admits only the current record,
+				# and this record already retired. idle() also closes the continuous
+				# segment (trimming, ducking). It waits while the player is paused; a
+				# pause after it returned is the scheduler's to hold.
+				player._player.idle()
 			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
-				# A failed sync fails only this segment (engineControl's latch rule):
+				# A failed idle fails only this segment (engineControl's latch rule):
 				# stop the player for its successor; only a failed stop latches.
 				host.record_error(record, error)
 				try:
@@ -205,7 +207,6 @@ class _OneCoreStrategy(NativeStrategy):
 				except Exception as stopError:  # noqa: BLE001 - latched: the player or engine state is unknown
 					driver._failSegmentControl(stopError)
 				return
-		# sync() is not idle(): it does not close the continuous segment.
 		host.reach(record, PLAYED_OUT)
 
 

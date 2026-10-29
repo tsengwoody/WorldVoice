@@ -101,6 +101,7 @@ class Player:
 		self.feed_release = Event()
 		self.feed_release.set()
 		self.stops = 0
+		self.idles = 0
 		self.error = None
 		self.pause_switch = False
 
@@ -123,7 +124,11 @@ class Player:
 			raise OSError("sync failed")
 
 	def idle(self):
+		# Counts only the real player's idle; a lease that skips it leaves this unchanged.
 		self.sync()
+		self.idles += 1
+		if self.error == "idle":
+			raise OSError("idle failed")
 
 	def stop(self):
 		self.stops += 1

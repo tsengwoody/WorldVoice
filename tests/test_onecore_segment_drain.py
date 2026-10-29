@@ -614,6 +614,41 @@ def test_sync_failure_fails_only_its_segment(env):
 	]
 
 
+def test_segment_drain_idles_the_real_player(env):
+	# C4 (phase 54): the drain idles the real player, not the lease, whose idle
+	# admits only the current record and would skip it after retirement.
+	_, _, events = speak(env)
+	env.native.wait_calls(1)
+	env.player.sync_release.set()
+	env.native.respond(markers="")
+	wait_events(events)
+	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+	assert env.player.idles == 1
+
+
+def test_idle_failure_fails_only_its_segment(env):
+	_, original, failed = speak(env)
+	env.native.wait_calls(1)
+	env.player.error = "idle"
+	env.player.sync_release.set()
+	env.native.respond(markers="")
+	wait_events(failed)
+	assert [(event.kind, event.source_id) for event in failed] == [
+		(env.rt.models.EventKind.SEGMENT_FAILED, original.source_id),
+	]
+	assert str(failed[0].error) == "idle failed"
+	assert env.player.stops >= 1
+	assert segment_host(env.driver).control_error is None
+	env.player.error = None
+	_, successor, drained = speak(env, segment=18)
+	env.native.wait_calls(2)
+	env.native.respond(markers="")
+	wait_events(drained)
+	assert [(event.kind, event.source_id) for event in drained] == [
+		(env.rt.models.EventKind.SEGMENT_DRAINED, successor.source_id),
+	]
+
+
 def test_sync_failure_lets_a_queued_segment_drain(env):
 	_, first, failed = speak(env)
 	env.native.wait_calls(1)
@@ -1320,6 +1355,8 @@ def test_legacy_speak_still_uses_parent_interface(env):
 	env.native.respond()
 	assert env.indexes == [1]
 	assert env.dones == [env.driver]
+	# The ordinary path still idles once, when its queue is empty.
+	assert env.player.idles == 1
 
 
 def test_ordinary_speech_waits_for_contextual_final_sync(env):
