@@ -677,7 +677,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		if record is None or record.operation is not None:
 			return
 		# A request that never began (skipped or dropped) fed nothing to wait for; a kept
-		# DoneSpeaking of a dropped request runs while its record is not the current one.
+		# DoneSpeaking of a dropped request runs while its record is not the current one. Such a
+		# record is also already invalid (cancel() marked it cancelled), so the identity check
+		# is defensive.
 		if record is not self._currentRecord or not self._recordValid(record):
 			return
 		host = self._segmentHost

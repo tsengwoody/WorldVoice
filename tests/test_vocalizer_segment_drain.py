@@ -19,6 +19,7 @@ from worldvoice_cancel_wrapper_harness import (
 	native_call,
 	native_callback,
 	native_message,
+	player_of,
 	queued_begins,
 	queued_done_speaking,
 	real_player,
@@ -1955,7 +1956,10 @@ def request_token(kind):
 def test_ordinary_speech_reaches_every_barrier(env, monkeypatch, caplog, ends, token):
 	calls, native = ending_calls(env, ends)
 	pieces = [str(i) for i in range(len(ends))]
+	shared = player_of(env.core)
 	outcomes = speak_ordinary_pieces(env, monkeypatch, pieces, native, request_token(token))
+	# The player bound to the record is the inner speak()'s only: the shared one is back.
+	assert player_of(env.core) is shared
 	assert len(calls) == len(ends)
 	[(record, outcome)] = outcomes
 	assert record.withdrawn is False
@@ -2330,8 +2334,10 @@ def test_inner_speak_failure_after_begin_keeps_todays_outcome(env, monkeypatch, 
 		raise RuntimeError("inner speak failed")
 
 	monkeypatch.setattr(env.core, "_speak", failing_speak)
+	shared = player_of(env.core)
 	with pytest.raises(RuntimeError, match="inner speak failed"):
 		env.core.speak(("ordinary",), cancellationToken=Token())
+	assert player_of(env.core) is shared
 	settle_worker(env)
 	assert calls == (["ordinary"] if native_queued else [])
 	[(record, outcome)] = outcomes
