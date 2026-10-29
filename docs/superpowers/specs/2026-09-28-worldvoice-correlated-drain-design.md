@@ -30,7 +30,7 @@
 | `driver/Neural/driver/speechapi/__init__.py` | 同步 `speak_ssml` 送音訊至共用 audio callback；bookmark callback 可替換；`stop_async` 非同步停止 SDK | 保存 native 工作及取消身分，控制 callback 與資源的存活期 |
 | `driver/VE/__init__.py`、`driver/Cerence/__init__.py` | 已有 CancellableSynthDriver、SilenceGate、GuardedPlayer；同步切塊合成，取消時 guarded idle 可能略過等待 | 擴充既有 guard，保存 segment／native 工作身分，確認真正排空及成功後才發 drain |
 | VE／Cerence 的 `driver/__init__.py` | ENDPROCESS flush Sonic／尾端音訊，整次 speak 最後呼叫 DoneSpeaking.idle；callback 例外只記錄後返回 NUAN_OK | 安裝能鎖存 callback 失敗的自有處理器；不能把 native 呼叫正常返回或匿名 done 視為成功證據 |
-| `compat/engineAdapter.py` | 已收到 context，但目前只傳 commands／既有 cancellationToken 給 core | 增加明確的 segment 播放入口 |
+| `compat/engineAdapter.py` | 已收到 context，但目前只傳 commands／~~既有 cancellationToken~~ 給 core（Corrected by `fix/ve-drop-cancellation-token`（2026-10-29）：plain 入口不再傳 token） | 增加明確的 segment 播放入口 |
 | `runtime/scheduler.py` | 已檢查非 legacy 事件的 source／segment，已有 drain_seen | 增加 DRAIN-only 完成判斷與完成後 index 邊界 |
 
 `WavePlayer.feed()` 返回不代表音訊播完；`sync()`／`idle()` 或最後音訊區塊的播放完成 callback 才是可使用的播放屏障。屏障因 `stop()` 返回時，必須再次檢查取消身分，不能報成功。

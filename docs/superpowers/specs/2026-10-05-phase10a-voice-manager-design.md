@@ -143,7 +143,7 @@ class Voice(WorldVoice):
 - **`SegmentCore` Protocol 評估後不採用**（原 10b-1 的一項）。逐處檢查 `refactor.md` §2.3 所列的 `getattr` 探測後：
   - `engineAdapter.configure_segment_events` 只需要 `speak_segment`；
   - `CompletionPolicy.drain_support` 需要 `speak_segment` 與 `get_segment_drain_support`，並對缺哪一個回報不同理由（`tests/test_runtime_completion_policies.py:102-103` 固定這兩句）；
-  - `supportsCancellationToken` 是可選的布林能力，不是方法。
+  - ~~`supportsCancellationToken` 是可選的布林能力，不是方法。~~ Corrected by `fix/ve-drop-cancellation-token`（2026-10-29）：這項能力已移除，任何 core 的 plain `speak` 都不收 token。
   - Python 3.11 的 `@runtime_checkable` `isinstance` 只檢查屬性是否存在、不檢查 callable，會放寬現有檢查，並失去分項的診斷理由。
   - `session.py:174` 對 token 的 `callable(add_callback)` 檢查同理：換成 `isinstance(token, CancellationView)` 只會從「可呼叫」放寬為「存在」。
   - 所以五處探測維持原樣。它們是各層邊界上的能力檢查，不是型別重複。

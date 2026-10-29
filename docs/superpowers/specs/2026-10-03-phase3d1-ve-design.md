@@ -84,12 +84,14 @@ submit（segment 與一般語音共用，在 host admission 下；只轉換與�
     （在外層佇列鎖內完成，兩筆紀錄的工作不會交錯）
 BgThread：
     Begin      → 等停止／暫停歸零；紀錄無效或已有控制錯誤時略過並 abandon；
-                 否則 host.begin、silence gate 換成這筆的 token、重置 callback 緩衝
+                 否則 host.begin、~~silence gate 換成這筆的 token~~、重置 callback 緩衝
     NativeTask → 開放 callback 准入 → ve_ttsProcessText2Speech（保留原始 status）
                  → 關閉准入、等 consumer 歸零、啟用覆寫檢查
     DoneSpeaking（內層）→ 一般語音：idle（含暫停等待）＋ DONE；segment：略過
     Retire     → reach("spoken")、等停止／暫停歸零、host.retire（segment 等 drain 完成）、一般語音 forget
 ```
+
+Corrected by `fix/ve-drop-cancellation-token`（2026-10-29）：Begin 不再換 silence gate 的 token（gate 在 P49 已移除，一般語音也不再收到 token），只做 `host.begin` 與重置 callback 緩衝。
 
 - **`_VEStrategy`**：
   - `barriers = {"spoken", "idle"}`；~~一般語音不設 barrier。~~ Corrected by `fix/ve-ordinary-barriers`（2026-10-29）：一般語音宣告 ~~`{AUDIO_FED, ENGINE_DONE}`~~（Corrected by `fix/ve-ordinary-played-out`（2026-10-29）：`{AUDIO_FED, ENGINE_DONE, PLAYED_OUT}`；`PLAYED_OUT` 由內層 DoneSpeaking 的最後 idle 在暫停等待結束、紀錄仍有效時到達，DoneSpeaking 在提交時就綁定到自己的紀錄；內層 `speak()` 拋出例外時沒有 DoneSpeaking，該紀錄取消宣告 `PLAYED_OUT`，照舊退役；idle 拋出例外時記錄在紀錄上，紀錄失敗）（phase 52 的共用常數；最後一次 native 呼叫要有被准入的 `VE_MSG_ENDPROCESS`），缺少時依 host 規則失敗並停止 player。真正的錯誤記錄在紀錄上，依 host 規則停止 player；~~被 token 取消不算失敗（Corrected by `fix/ve-ordinary-barriers`（2026-10-29）：`_retireRecord` 在 reach 之後讀 token，已取消就 `host.withdraw(record)`，`retire` 回報取消、不檢查 barrier、也不停止 player）。~~ Corrected by `fix/ve-drop-cancellation-token`（2026-10-29）：一般語音不再收到請求的 token，也沒有 `SegmentHost.withdraw`；和其他引擎一樣只經 `cancel()`（host）取消，被 host 取消的紀錄走 `retire` 的取消路徑：回報取消、不檢查 barrier、停止 player，也不發 DONE。
