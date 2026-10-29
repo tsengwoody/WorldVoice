@@ -121,3 +121,18 @@
 | 09-24 spec | 讀主 checkout 的未追蹤檔（唯讀） | 需要註記的段落見上一節 |
 
 Linux 上只驗證了受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置與 VE／Cerence SDK 沒有驗證到。沒有打包。
+
+## 修正記錄
+
+日期：2026-10-29。修正者：Opus 5.5（依 §3.4，先寫測試再改）。VE 與 Cerence 同步修改，`tests/test_vocalizer_drift.py` 的 `ALLOWED` 沒動。突變在 worktree 上以腳本同時改兩個 wrapper、跑指定測試、再用 `git checkout --` 還原（當時兩個 wrapper 沒有未提交的改動）。
+
+| 項目 | commit | 修法 | 突變結果 |
+| --- | --- | --- | --- |
+| I1 | `5f22563` | 新增 `test_legacy_endprocess_after_a_recorded_error_is_acknowledged_but_does_not_count`（`tests/test_vocalizer_segment_drain.py`）：native 內先送不含 ENDPROCESS 的音訊，再 `host.record_error(host.current(), …)`，接著送 ENDPROCESS；斷言回 `NUAN_OK`、`lastCallEnded is False`、三個 barrier 都沒到、retire 走 error 分支（`(False, error)`）、player `(fed, idles, stops) == ([b"pcm"], 0, 1)`、失敗的請求仍發一次 DONE、沒有缺 barrier 的 log。 | 突變 M4（legacy ENDPROCESS 的 `return NUAN_OK` → `NUAN_E_TTS_USERSTOP`，兩個 wrapper）：新測試 VE／Cerence 都失敗，**被殺**。 |
+| M3 | `dbed6c6` | 新增 `test_cancel_before_begin_skips_the_record`：把 `_beginRecord` 換成「先 `cancel()` 再呼叫原本的 begin」；斷言 `record.native.skipped`、`abandoned`、`cancelled`，沒有 native 呼叫，`outcomes == []`（abandon 不經 `retire`），player `([], 0, 1)`（只有 `cancel()` 自己的 stop），沒有 DONE、沒有缺 barrier 的 log。 | 突變 M11（`_beginRecord` 的 skip 條件改成 `if False:`，兩個 wrapper）：新測試 VE／Cerence 都失敗，**被殺**。 |
+| M1 | `86399d4` | 子字串掃描改成 AST：`_token_names` 找名為 `cancellationToken`／`supportsCancellationToken` 的參數、關鍵字引數、屬性、名稱與非 docstring 的字串常數（`extraCapabilities` 裡的 `"cancellationToken"` 也算），註解與 docstring 不算；測試改名 `test_no_add_on_code_names_the_request_token`，另加 `test_token_name_detection` 釘住偵測範圍；刪掉 `test_vocalizer_wrapper_has_no_guard_fallback` 裡重複的子字串 assert。 | 在 VE 的 `speak` 加回 `cancellationToken=None` 參數：guard 失敗（`driver/VE/__init__.py:462`），**被殺**；只在同一行加含 `cancellationToken` 的註解：guard 通過（不再誤觸）。 |
+| M2 | `987a66c` | 在 `_idlePlayer` 的 `self._doneOwner = record` 與 `_onIndexReached` 的清除處各補註解，說明兩者今天是等價的防禦（segment 的 DONE 本來就被 operation 擋下；每個 DoneSpeaking 都先 idle）。只改註解。 | 不適用（突變 M8／M10 依舊等價存活，已在註解說明）。 |
+| M4 | `3f86812` | 已追蹤的 spec 加刪除線與「Corrected by `fix/ve-drop-cancellation-token`」：3d-1 的 Begin 圖（程式碼區塊內標 `~~…~~`，區塊後補一行說明）、phase 51 不傳 token 的理由、phase 10a 的 `supportsCancellationToken` 能力、2026-09-28 correlated-drain 的 adapter 表格列、phase 52 相容性段落的 `supports_cancellation_token` 讀者句。主 checkout 未追蹤的 09-24 spec 依協調者指示不動。 | 不適用。 |
+| M5 | `227218a` | `tests/test_vocalizer_segment_drain.py` 區段註解改成：cancel 落在 DoneSpeaking 之前才不發 DONE；落在之後，DONE 已經發出。 | 不適用。 |
+
+驗證（head `3f86812`，序列＋MemAvailable < 3 GB 即終止的 watchdog）：完整套件 **3564 passed／0 skipped**（3559＋I1 兩個＋M3 兩個＋`test_token_name_detection` 一個）；`prek run --all-files`、`git diff --check`、§7 受保護路徑的兩個指令，結果見下一個 commit 後的重跑。Linux 上只驗證受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置與 SDK 沒有驗證到。
