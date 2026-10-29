@@ -53,12 +53,6 @@ def env(request, monkeypatch):
 	return result
 
 
-def prove_fake_quiescence(env, monkeypatch):
-	# A test-only contract promises this native call will not start callbacks
-	# after return. It never changes the production capability result.
-	monkeypatch.setattr(env.core, "_confirmNativeQuiescence", lambda native: None)
-
-
 def run_thread(action):
 	errors, done = [], Event()
 
@@ -122,7 +116,6 @@ def speak(env, commands=("hello",), *, token=None, segment=17):
 
 
 def test_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	feed_entered, feed_release, idle_entered, idle_release = Event(), Event(), Event(), Event()
 	callbacks = []
 	real_player(env.core).feed = lambda data: (feed_entered.set(), feed_release.wait(HOLD_TIMEOUT))
@@ -159,7 +152,6 @@ def test_shared_lifecycle_waits_for_chunk_callback_and_idle(env, monkeypatch):
 
 
 def test_shared_cancel_retires_guarded_feed_before_successor(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	feed_entered, feed_release, stop_entered, stop_release = Event(), Event(), Event(), Event()
 	calls, callbacks = [], []
 	real_player(env.core).feed = lambda data: (feed_entered.set(), feed_release.wait(HOLD_TIMEOUT))
@@ -279,7 +271,6 @@ def test_settings_apply_in_call_order_with_speech(env, monkeypatch):
 def test_cancel_drops_a_segment_queued_behind_the_worker(env, monkeypatch):
 	# After a handoff the next segment can queue while the BgThread finishes
 	# the previous retirement; cancel must retire it without a DONE.
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
 	host = segment_host(env.core)
 	retire = host.retire
@@ -356,7 +347,6 @@ def test_parameter_read_never_reorders_queued_speech(env, monkeypatch):
 	# A settings read on the main thread (synth.rate etc.) may overlap a
 	# segment being queued on its lifecycle thread. Draining and re-putting
 	# the queue there moved Begin behind Retire: a silent "drained" segment.
-	prove_fake_quiescence(env, monkeypatch)
 	spoken = []
 	monkeypatch.setattr(
 		env.native,
@@ -421,7 +411,6 @@ def _fails_once(errors, original=None):
 
 
 def test_drain_idle_failure_fails_only_its_segment(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	_ending_native(env, monkeypatch)
 	player = real_player(env.core)
 	error = OSError("idle failed")
@@ -442,7 +431,6 @@ def test_drain_idle_failure_fails_only_its_segment(env, monkeypatch):
 
 
 def test_drain_stop_failure_after_idle_failure_latches(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	calls = []
 
 	def native(instance, text):
@@ -582,7 +570,6 @@ def test_guarded_native_profiles_are_enabled_with_unverified_evidence(env, versi
 
 
 def test_vocalizer_endprocess_is_not_segment_drain(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	entered, release = Event(), Event()
 
 	def idle():
@@ -636,7 +623,6 @@ class WaitObservingCondition:
 
 def hold_contextual_final_idle(env, monkeypatch):
 	"""Start a contextual segment and hold it inside its final player idle."""
-	prove_fake_quiescence(env, monkeypatch)
 	held = type("Held", (), {})()
 	held.entered, held.release, held.finished = Event(), Event(), Event()
 	held.native_calls = []
@@ -761,7 +747,6 @@ def test_terminate_during_contextual_final_idle_with_waiting_ordinary(
 
 
 def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	change = __import__("speech.commands", fromlist=["LangChangeCommand"]).LangChangeCommand()
 	change.lang = "fr"
 	monkeypatch.setattr(env.core, "getVoiceNameForLanguage", lambda language: "fr", raising=False)
@@ -788,7 +773,6 @@ def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
 
 @pytest.mark.parametrize("cancel_kind", ["token", "direct", "inner-clear"])
 def test_cancelled_idle_cannot_complete_segment(env, monkeypatch, cancel_kind):
-	prove_fake_quiescence(env, monkeypatch)
 	entered, release = Event(), Event()
 	real_player(env.core).idle = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
 	real_player(env.core).stop = release.set
@@ -809,7 +793,6 @@ def test_cancelled_idle_cannot_complete_segment(env, monkeypatch, cancel_kind):
 
 @pytest.mark.parametrize("fault", ["feed", "idle", "write", "read", "flush", "marker", "native"])
 def test_processing_errors_latch_failure_on_original_context(env, monkeypatch, fault):
-	prove_fake_quiescence(env, monkeypatch)
 
 	def fail(*args, **kwargs):
 		raise OSError(f"{fault} failed")
@@ -881,7 +864,6 @@ def test_explicit_activation_override_allows_successor_after_idle(env, monkeypat
 
 
 def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	entered, release = Event(), Event()
 	real_player(env.core).stop = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
 	cancelling = run_thread(env.core.cancel)
@@ -897,7 +879,6 @@ def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
 
 
 def test_foreign_instance_endprocess_does_not_touch_current_buffer(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	callback = callback_handler(env.core)
 
 	def native(instance, text):
@@ -919,7 +900,6 @@ def test_foreign_instance_endprocess_does_not_touch_current_buffer(env, monkeypa
 
 
 def test_anonymous_done_never_completes_context(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 
 	def native(instance, text):
 		env.core._onIndexReached(None)
@@ -933,7 +913,6 @@ def test_anonymous_done_never_completes_context(env, monkeypatch):
 
 
 def test_native_userstop_without_cancel_is_failure(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: env.types.NUAN_E_TTS_USERSTOP)
 	_, _, call = speak(env)
 	finish(call)
@@ -943,7 +922,6 @@ def test_native_userstop_without_cancel_is_failure(env, monkeypatch):
 
 
 def test_direct_cancel_after_idle_return_still_invalidates_original_work(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
 	returned, release = Event(), Event()
 	retire = env.core._segmentHost.retire
@@ -963,7 +941,6 @@ def test_direct_cancel_after_idle_return_still_invalidates_original_work(env, mo
 
 
 def test_cancel_discards_sonic_internal_tail_before_next_segment(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 
 	class Sonic:
 		def __init__(self, tail):
@@ -1007,7 +984,6 @@ def test_cancel_discards_sonic_internal_tail_before_next_segment(env, monkeypatc
 
 
 def test_real_sonic_initialization_failure_uses_native_pcm_fallback(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	callback = callback_handler(env.core)
 	callback._ensureSonicStream = env.original_driver.VECallback._ensureSonicStream.__get__(callback)
 	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance))
@@ -1020,7 +996,6 @@ def test_real_sonic_initialization_failure_uses_native_pcm_fallback(env, monkeyp
 
 
 def test_late_endprocess_outside_call_preserves_next_buffer(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance))
 	_, _, call = speak(env)
 	finish(call)
@@ -1047,7 +1022,6 @@ def test_cancelled_native_userstop_is_silent_and_publishes_no_done(env, monkeypa
 
 
 def test_callback_lease_holds_bookmark_handler_before_next_call(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	entered, release, callback_ready = Event(), Event(), Event()
 
 	def index(**kwargs):
@@ -1080,7 +1054,6 @@ def test_callback_lease_holds_bookmark_handler_before_next_call(env, monkeypatch
 
 @pytest.mark.parametrize("kind", ["empty", "index", "break"])
 def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
-	prove_fake_quiescence(env, monkeypatch)
 	from speech import commands
 
 	sequence = ()
@@ -1105,7 +1078,6 @@ def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 
 
 def test_pause_holds_completion_after_real_idle(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	env.core.pause(True)
 	entered = Event()
 	real_player(env.core).idle = entered.set
@@ -1203,7 +1175,6 @@ def test_done_listener_can_terminate_without_deadlocking_speech(env, monkeypatch
 
 
 def test_index_listener_can_terminate_and_retire_native_before_close(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.native, "close", lambda instance: None)
 	monkeypatch.setattr(env.native, "terminate", lambda: None)
 	listener_returned, native_returned, closed = Event(), Event(), Event()
@@ -1241,7 +1212,6 @@ def test_index_listener_can_terminate_and_retire_native_before_close(env, monkey
 
 
 def test_native_error_status_fails_context_through_installed_errcheck(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	# Exercise the real ve2 checker, not a Python exception from the stub.
 	env.native.veDll.ve_ttsProcessText2Speech.errcheck = env.native.veCheckForError
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: 0xFFFFFFFF)
@@ -1257,7 +1227,6 @@ def test_native_error_status_fails_context_through_installed_errcheck(env, monke
 @pytest.mark.parametrize("env", ["Cerence"], indirect=True)
 @pytest.mark.parametrize("bookmark", [b"23", b"-17", b"0"])
 def test_cerence_bookmark_decodes_szvalue(env, monkeypatch, bookmark):
-	prove_fake_quiescence(env, monkeypatch)
 	results = []
 
 	def native(instance, text):
@@ -1274,7 +1243,6 @@ def test_cerence_bookmark_decodes_szvalue(env, monkeypatch, bookmark):
 @pytest.mark.parametrize("env", ["Cerence"], indirect=True)
 @pytest.mark.parametrize("bookmark", [b"bad", b"", None])
 def test_cerence_bookmark_decode_fault_fails_work(env, monkeypatch, bookmark):
-	prove_fake_quiescence(env, monkeypatch)
 	results, idle_calls = [], []
 	real_player(env.core).idle = lambda: idle_calls.append(True)
 
@@ -1299,7 +1267,6 @@ def test_cerence_bookmark_decode_fault_fails_work(env, monkeypatch, bookmark):
 
 @pytest.mark.parametrize("env", ["Cerence"], indirect=True)
 def test_callback_rejects_missing_instance_without_touching_current_buffer(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	callback = callback_handler(env.core)
 
 	def native(instance, text):
@@ -1395,7 +1362,6 @@ def test_pause_requested_during_cancel_waits_for_player_stop(env):
 
 
 def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	idle_entered, resume_entered, resume_release = Event(), Event(), Event()
 	player = real_player(env.core)
 	pause_player = player.pause
@@ -1444,7 +1410,6 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(
 	speech_path,
 	fresh_during_pause,
 ):
-	prove_fake_quiescence(env, monkeypatch)
 	entered, release = Event(), Event()
 	player = real_player(env.core)
 	pause_player = player.pause
@@ -1518,7 +1483,6 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(
 
 @pytest.mark.parametrize("speech_path", ["legacy", "segment"])
 def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch, speech_path):
-	prove_fake_quiescence(env, monkeypatch)
 	idle_entered, idle_release = Event(), Event()
 	player = real_player(env.core)
 	env.core.pause(True)
@@ -1729,7 +1693,6 @@ def assert_not_polled(read_count, window=0.2):
 
 
 def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: emit(env, instance))
 	entered, release = Event(), Event()
 
@@ -1753,7 +1716,6 @@ def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):
 
 
 def test_cancel_player_stop_failure_rejects_successor(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	failures = [OSError("stop failed")]
 
 	def stop():
@@ -1772,7 +1734,6 @@ def test_cancel_player_stop_failure_rejects_successor(env, monkeypatch):
 
 
 def test_stop_player_failure_rejects_successor(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	failures = [OSError("stop failed")]
 
 	def stop():
@@ -1790,7 +1751,6 @@ def test_stop_player_failure_rejects_successor(env, monkeypatch):
 
 
 def test_cancel_releases_the_stop_gate_when_abandon_fails(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
 	host = segment_host(env.core)
 	retire = host.retire
@@ -1839,7 +1799,6 @@ def test_cancel_releases_the_stop_gate_when_abandon_fails(env, monkeypatch):
 
 def speak_pieces(env, monkeypatch, pieces, ends):
 	"""Speak one segment of ``pieces``; native call i delivers ENDPROCESS when ends[i] says so."""
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: list(pieces))
 	calls = []
 
@@ -1875,7 +1834,6 @@ def test_only_the_last_call_needs_endprocess(env, monkeypatch):
 
 
 def test_refused_endprocess_does_not_reach_engine_done(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	results = []
 
 	def native(instance, text):
@@ -1895,7 +1853,6 @@ def test_refused_endprocess_does_not_reach_engine_done(env, monkeypatch):
 
 
 def test_segment_without_native_call_reaches_engine_done(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: [])
 	calls = []
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: calls.append(args))
@@ -2424,7 +2381,6 @@ def test_failed_final_idle_fails_the_record(env, monkeypatch, caplog):
 
 
 def test_feeds_go_through_the_lease(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	leased = sys.modules[type(segment_host(env.core)).__module__].LeasedPlayer
 	assert isinstance(leased_player(env.core), leased)
 	assert leased_player(env.core)._player is real_player(env.core)
@@ -2440,7 +2396,6 @@ def test_feeds_go_through_the_lease(env, monkeypatch):
 
 
 def test_late_feed_after_cancel_is_stopped_and_stop_failure_latches(env, monkeypatch):
-	prove_fake_quiescence(env, monkeypatch)
 	player = real_player(env.core)
 	entered, release = Event(), Event()
 	original_feed, original_stop = player.feed, player.stop

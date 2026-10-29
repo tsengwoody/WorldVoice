@@ -144,10 +144,8 @@ def test_the_ignore_numbers_option_is_gone():
 
 # The spec's reason table: the first entry whose calls all appear in a handler's
 # own body names where its error goes. Combined entries come first, so a handler
-# that both records and latches says both.
-_LATCHED = "recorded on the record and latched: later speech is rejected"
+# that both latches and keeps its error says both.
 _REASONS = (
-	(("record_error", "_failSegmentControl"), _LATCHED),
 	(("_failSegmentControl", "error = exc"), "latched, and kept to raise after the remaining cleanup"),
 	(("record_error",), "recorded on the record; the segment fails"),
 	(("_failSegmentControl",), "latched: the player or engine state is unknown"),

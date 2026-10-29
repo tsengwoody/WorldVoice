@@ -1,8 +1,4 @@
-"""Real runtime composition and wrappers over controllable native/audio ports.
-
-The explicit quiescence promise applies only to these controlled native fakes.
-It does not change a wrapper's production capability inspection.
-"""
+"""Real runtime composition and wrappers over controllable native/audio ports."""
 
 import importlib
 import sys
@@ -284,8 +280,6 @@ def assemble(monkeypatch, tmp_path, *, supported=True, index_range=(1, 9999)):
 			raising=False,
 		)
 		monkeypatch.setattr(outer.Voice, "createCore", classmethod(lambda cls, core=control.core: core))
-		if engine != "OneCore":
-			monkeypatch.setattr(control.core, "_confirmNativeQuiescence", lambda native: None)
 
 	handler = sys.modules["synthDriverHandler"]
 	monkeypatch.setattr(

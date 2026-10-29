@@ -457,10 +457,6 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		return unverified_drain_support(_PROFILE, "SDK callback quiescence and physical playback are")
 
-	def _confirmNativeQuiescence(self, call):
-		# Explicit activation override; retain the callback guard and idle barrier.
-		return None
-
 	def speak(self, speechSequence):
 		with self._speechStateLock:
 			if self._terminationRequested:
@@ -592,7 +588,6 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 			self._closeAdmission(call)
 			# Every callback admitted to this call returns before the next one.
 			host.wait_consumers(record)
-			blocked = None
 			if invoked:
 				# The BgThread runs a record's tasks in order: the last call to get here before
 				# _Retire is the record's last native call. ENGINE_DONE relies on the SDK running
@@ -600,21 +595,9 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 				# 64-bit libraries saw sameThread=True for every call), so an ENDPROCESS after the
 				# return is refused and does not count.
 				record.native.lastCallEnded = returned and call.ended
-				try:
-					self._confirmNativeQuiescence(call)
-				except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
-					host.record_error(record, error)
-					self._failSegmentControl(error)
-					blocked = error
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
-				if blocked is None:
-					self._nativeCall = None
-			if blocked is not None:
-				try:
-					self._leasedPlayer.stop()
-				except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
-					host.record_error(record, error)
+				self._nativeCall = None
 
 	def _closeAdmission(self, call):
 		with self._speechStateLock:
