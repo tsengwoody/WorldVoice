@@ -1,6 +1,6 @@
 """Shared engine control parts: stop gate, queued records, control-fault policy."""
 
-from threading import Condition, Event, Thread
+from threading import Condition, Event, Lock, Thread
 
 import pytest
 from addon_loader import load_source
@@ -114,3 +114,87 @@ def test_stop_gate_two_phase_enter_and_leave(control):
 	with condition:
 		gate.leave()
 	assert woke.wait(WAIT_TIMEOUT)
+
+
+class _FaultHost:
+	"""A host that records latches and abandons."""
+
+	def __init__(self, abandon=None):
+		self.control_error = None
+		self.latched, self.abandoned = [], []
+		self._abandon = abandon
+
+	def latch_control_error(self, error):
+		self.latched.append(error)
+		self.control_error = error
+
+	def abandon(self, record):
+		if self._abandon is not None:
+			self._abandon(record)
+		self.abandoned.append(record)
+
+
+def test_capture_drops_under_the_lock_and_returns_none_once_latched(control):
+	condition = Condition()
+	host = _FaultHost()
+	records = [object(), object()]
+	owned = []
+
+	def drop():
+		owned.append(condition._is_owned())
+		return list(records)
+
+	policy = control.ControlFaultPolicy(host, condition, drop)
+	error = OSError("stop failed")
+	fault = policy.capture(error)
+	assert fault.error is error and fault.dropped == tuple(records)
+	assert owned == [True] and host.latched == [error] and host.abandoned == []
+	assert policy.capture(OSError("again")) is None
+	assert owned == [True]
+
+
+def test_deliver_runs_after_even_when_an_abandon_raises(control):
+	def abandon(record):
+		raise OSError("abandon failed")
+
+	host = _FaultHost(abandon)
+	afters = []
+	policy = control.ControlFaultPolicy(host, Condition(), lambda: [object()], after=afters.append)
+	fault = policy.capture(OSError("stop failed"))
+	with pytest.raises(OSError, match="abandon failed"):
+		policy.deliver(fault)
+	assert afters == [fault]
+	policy.deliver(None)
+	assert afters == [fault]
+
+
+def test_deferred_delivers_after_the_outermost_block_outside_a_lock(control):
+	lock = Lock()
+	host = _FaultHost()
+	records = [object()]
+	free = []
+
+	def after(fault):
+		acquired = lock.acquire(blocking=False)
+		free.append(acquired)
+		if acquired:
+			lock.release()
+
+	policy = control.ControlFaultPolicy(host, Condition(), lambda: list(records), after=after)
+	error = OSError("stop failed")
+	with policy.deferred(), lock:
+		with policy.deferred():
+			assert policy.fail(error) is True
+		assert host.abandoned == [] and free == []
+		assert policy.fail(OSError("again")) is False
+	assert host.abandoned == records and free == [True]
+	assert host.latched == [error]
+
+
+def test_fail_without_drop_only_latches(control):
+	host = _FaultHost()
+	policy = control.ControlFaultPolicy(host, Condition())
+	error = OSError("stop failed")
+	assert policy.fail(error) is True
+	assert host.latched == [error] and host.abandoned == []
+	assert policy.fail(OSError("again")) is False
