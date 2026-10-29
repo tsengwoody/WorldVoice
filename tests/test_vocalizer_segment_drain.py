@@ -2004,10 +2004,11 @@ def test_legacy_endprocess_after_a_recorded_error_is_acknowledged_but_does_not_c
 	monkeypatch,
 	caplog,
 ):
-	# A record that failed inside a native call whose admission is still open (here a recorded
-	# error; also a host cancel before cancel() closes the call) gets the legacy ENDPROCESS
-	# acknowledgement, NUAN_OK, like the original add-on. It is not an admitted ENDPROCESS, so it
-	# proves nothing for ENGINE_DONE, and the record retires with its own error.
+	# Synthetic: production never records an error on a record whose native call still admits
+	# (the callback's except closes the admission at once); its only way into this branch is the
+	# cancel window below. Injecting the error holds the branch's precondition without a cancel,
+	# so the acknowledgement is pinned for a failed record too: NUAN_OK, like the original add-on,
+	# yet not an admitted ENDPROCESS, so it proves nothing for ENGINE_DONE.
 	error, results = OSError("feed failed"), []
 	host = segment_host(env.core)
 
@@ -2027,6 +2028,43 @@ def test_legacy_endprocess_after_a_recorded_error_is_acknowledged_but_does_not_c
 	# releases its DONE waiter.
 	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 0, 1)
 	assert len(env.dones) == 1
+	assert missing_barrier_logs(caplog) == []
+
+
+def test_legacy_endprocess_in_the_cancel_window_is_acknowledged_but_does_not_count(
+	env,
+	monkeypatch,
+	caplog,
+):
+	# The production way into the legacy acknowledgement: cancel() from another thread has run
+	# host.cancel() (the record is cancelled) but has not yet closed the call's admission under
+	# _speechStateLock, and the SDK's ENDPROCESS arrives in between. Replayed in order here: the
+	# ENDPROCESS is sent right after host.cancel() returns, inside cancel().
+	host, results, instances = segment_host(env.core), [], []
+	cancel = host.cancel
+
+	def cancel_then_endprocess():
+		cancel()
+		results.append(end_process(env, instances[0]))
+
+	monkeypatch.setattr(host, "cancel", cancel_then_endprocess)
+
+	def native(instance, text):
+		instances.append(instance)
+		emit(env, instance, end=False)
+		env.core.cancel()
+
+	outcomes = speak_ordinary_pieces(env, monkeypatch, ["a"], native)
+	assert results == [env.types.NUAN_OK]
+	[(record, outcome)] = outcomes
+	assert record.cancelled
+	assert record.native.lastCallEnded is False
+	assert record.barriers == {"audio_fed": False, "engine_done": False, "played_out": False}
+	assert (outcome.cancelled, outcome.error) == (True, None)
+	player = real_player(env.core)
+	# cancel()'s own stop plus the host's cancelled-path stop at retire; no DONE.
+	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 0, 2)
+	assert env.dones == []
 	assert missing_barrier_logs(caplog) == []
 
 
