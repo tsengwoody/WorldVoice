@@ -492,7 +492,9 @@ class TaskManager:
 				if playback is not None:
 					self._pause_target = playback
 			else:
-				playback = self._pause_target or self._pausable_playback_locked()
+				playback = (
+					self._pause_target if self._pause_target is not None else self._pausable_playback_locked()
+				)
 		try:
 			if playback is not None:
 				playback.pause(switch)
