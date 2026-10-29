@@ -9,10 +9,8 @@ from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import ControlFaultPolicy, StopGate
-from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
-from ...runtime.session import CancellationView
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost, SegmentHostSpeaker
 from . import driver as rhvoice
 
 
@@ -316,7 +314,7 @@ class _RHVoiceStrategy(NativeStrategy):
 		self._driver()._inner.player.stop()
 
 
-class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
+class SynthDriver(rhvoice.SynthDriver, SegmentHostSpeaker):
 	"""Retain RHVoice's single worker and observe its actual completion barriers."""
 
 	def __init__(self):
@@ -397,16 +395,6 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 			runtime_profile("RHVoice", nvda_version, audio_mode),
 			"callback retirement and physical playback are",
 		)
-
-	def speak_segment(
-		self,
-		commands: SpeechCommands,
-		token: CancellationView,
-		*,
-		context: PlaybackContext,
-		on_event: SegmentEventSink,
-	):
-		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
 	def speak(self, speechSequence):
 		self._segmentHost.enqueue(speechSequence)
