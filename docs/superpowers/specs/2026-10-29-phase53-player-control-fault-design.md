@@ -66,10 +66,12 @@ Decided by orchestrator with the recommended default; user may override before m
 
 Why this is safe for the successor: the latch protected successors from a player in an unknown state, but every progress failure is followed by a stop before the successor's first feed (FIFO retirement: `host:513-516`, `lifecycle:311-314`), and a stop that fails still latches. The rule changes only failure paths.
 
-Known consequence (no change in this phase): a stop clears the player's pause (`nvwave.py:385-392`). If a drain wait fails while the user holds speech paused, the stop unpauses the player. The engines differ after that:
+~~Known consequence (no change in this phase): a stop clears the player's pause (`nvwave.py:385-392`). If a drain wait fails while the user holds speech paused, the stop unpauses the player. The engines differ after that:~~
 
-- **VE/Cerence:** a successor segment of the same utterance plays although NVDA still shows speech paused; the wrapper's pause flag (`_paused`) stays set, so that successor's drain waits for a resume. SAPI5's drain and VE's ordinary idle already behave this way today.
-- **OneCore:** not affected. Each callback's `_maybeInitPlayer` pauses the player again while `_segmentPaused` is set and no stop is in flight (`OneCore:592-597`), before the successor's first feed, and that successor's drain waits for a resume; nothing is heard.
+- ~~**VE/Cerence:** a successor segment of the same utterance plays although NVDA still shows speech paused; the wrapper's pause flag (`_paused`) stays set, so that successor's drain waits for a resume. SAPI5's drain and VE's ordinary idle already behave this way today.~~
+- ~~**OneCore:** not affected. Each callback's `_maybeInitPlayer` pauses the player again while `_segmentPaused` is set and no stop is in flight (`OneCore:592-597`), before the successor's first feed, and that successor's drain waits for a resume; nothing is heard.~~
+
+Corrected by `phase54-drain-semantics`: the scheduler now keeps the session's pause state. A segment that fails while paused is held until resume or cancel, so the rest of its request is skipped without playing; any later speech waits in the scheduler's start hold until resume or cancel; no engine drain waits for a resume any more.
 
 NVDA cancels a pause before any new utterance (`speech.py:1159-1160`). Pause semantics belong to P54.
 

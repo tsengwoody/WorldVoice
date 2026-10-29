@@ -41,7 +41,7 @@
 - native `ocSpeech_speak` 是非同步的，結果由另一條 thread 上的 `_callback` 一次送回整段 WAV 與 markers。
 - 自己的 `CallbackGate`、子 lease、`_segmentAccepted`、`_segmentActiveOperation` 簿記。
 - `request_stop` 無條件停止 player（3b-1 記錄的問題）。
-- 暫停：pause lock、`_segmentPaused`、`_segmentControlGeneration`，drain 時暫停中要等待恢復。
+- 暫停：pause lock、`_segmentPaused`、`_segmentControlGeneration`~~，drain 時暫停中要等待恢復~~；drain 返回後才落下的暫停由 scheduler 保留（Corrected by `phase54-drain-semantics`）。
 - 控制錯誤：兩段式 capture（在 pause lock 下）與 deliver（讓已接受與佇列中的工作失敗、停止 player、legacy DONE）。
 
 **為何前三家不需要新模式**：eSpeak、SAPI5 的設定立即生效；RHVoice 在 `submit` 時才把設定抄進語音工作。它們在遷移前，segment 也是 lifecycle 輪到時才送進引擎，遷移沒有改變行為。只有 OneCore 把設定 tuple 和語音放在同一個佇列。
