@@ -43,10 +43,10 @@ from .driver.ttsapi.veTypes import (
 
 _PROFILE = "cerence-ttsapi-0x0520-unverified"
 _RETAINED_CALLBACKS = []
-# Ordinary speech proves no barrier: its idle and DONE stay with the inner
-# driver's DoneSpeaking, its failures are recorded errors, and its token is
-# the worker's to honour (a token-cancelled request is not a failure).
-_ORDINARY_BARRIERS = frozenset()
+# Ordinary speech proves what its calls prove: all audio fed and the last call's admitted
+# ENDPROCESS. Its idle and DONE stay with the inner driver's DoneSpeaking. Its token is the
+# worker's to honour: _retireRecord withdraws a token-cancelled record, which is not a failure.
+_ORDINARY_BARRIERS = frozenset({AUDIO_FED, ENGINE_DONE})
 
 
 def _stripBytesRepr(text):
@@ -519,6 +519,12 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				host.reach(record, ENGINE_DONE)
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
+			# Only this worker sees an ordinary request's token. Read it after the reaches: a
+			# token that blocked one stays cancelled, so the record is withdrawn, and retire
+			# neither fails its unreached barriers nor stops the player (as before the barriers).
+			token = record.native.token
+			if token is not None and token.is_cancelled():
+				host.withdraw(record)
 			host.retire(record)
 			if record.operation is None:
 				host.forget(record)

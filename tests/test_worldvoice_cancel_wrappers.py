@@ -1,6 +1,7 @@
 import ctypes
 import threading
 from io import BytesIO
+from types import SimpleNamespace
 
 import pytest
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually
@@ -10,6 +11,7 @@ from worldvoice_cancel_wrapper_harness import (
 	buffered_audio,
 	cached_instances,
 	callback_handler,
+	end_process as harness_end_process,
 	has_segment_host,
 	inner_stop_flag,
 	load_real_driver_with_native_stubs,
@@ -42,6 +44,11 @@ def ready_core(engine_harness):
 	core.language = "en"
 	core._normalization = "OFF"
 	return core
+
+
+def end_process(engine_harness, core, instance):
+	# The VE_MSG_ENDPROCESS the SDK sends last on every successful call (see the harness's end_process).
+	return harness_end_process(SimpleNamespace(core=core, types=engine_harness.types), instance)
 
 
 def emit_audio(core, types, payload=b"new", done_result=None):
@@ -253,6 +260,7 @@ def test_cancelled_request_drops_index_and_done_notifications(engine_harness, mo
 	def native(instance, text):
 		if text == "live":
 			core._onIndexReached(6)
+			end_process(engine_harness, core, instance)
 		else:
 			cancelled.cancel()
 			core._onIndexReached(7)
@@ -359,6 +367,7 @@ def test_failed_sonic_init_is_not_retried_on_next_speak(engine_harness, monkeypa
 	def native(instance, text):
 		state = sonic_state(callback)
 		seen.append((state.init_tried, state.enabled, buffered_audio(callback)))
+		end_process(engine_harness, core, instance)
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
 	speak_now(core, ["first"], cancellationToken=Token())
@@ -441,7 +450,7 @@ def speak_live_request(engine_harness, monkeypatch, core):
 	monkeypatch.setattr(
 		engine_harness.native,
 		"processText2Speech",
-		lambda instance, text: called.append(text),
+		lambda instance, text: (called.append(text), end_process(engine_harness, core, instance)),
 	)
 	speak_now(core, ["live"])
 	assert len(called) == 1

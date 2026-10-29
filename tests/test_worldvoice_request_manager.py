@@ -670,7 +670,7 @@ def test_pending_speech_is_cancelled_but_new_request_runs(manager, voice, buses)
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
 def test_direct_wrapper_stop_mid_speech_lets_next_segment_run(manager, buses, monkeypatch, engine):
-	from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
+	from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs, native_message
 
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 	monkeypatch.setattr(harness.original_driver, "synthDoneSpeaking", buses.done)
@@ -688,6 +688,12 @@ def test_direct_wrapper_stop_mid_speech_lets_next_segment_run(manager, buses, mo
 			# Like SynthDriver._set_voice(): stop the core without cancelling the request.
 			core.cancel()
 		else:
+			# The VE_MSG_ENDPROCESS the SDK sends last on every successful call.
+			core._veCallbackHandler(
+				instance,
+				None,
+				native_message(harness.types, harness.types.VE_MSG_ENDPROCESS, harness.types.VE_OUTDATA()),
+			)
 			second_spoken.set()
 
 	monkeypatch.setattr(harness.native, "processText2Speech", native)
