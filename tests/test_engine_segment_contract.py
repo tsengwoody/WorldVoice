@@ -182,6 +182,33 @@ def test_ordinary_speak_after_terminate_raises(engine):
 	assert engine.native_call_count() == calls
 
 
+# pause() after terminate differs by engine (cons.md B15). Unifying it would change a shutdown race,
+# so phase 45' keeps it; the table makes a later change deliberate. eSpeak's comes from NVDA's
+# _espeak.pause on the player that terminate set to None.
+POST_TERMINATE_PAUSE = {
+	"VE": RuntimeError,
+	"Cerence": RuntimeError,
+	"Espeak": AttributeError,
+	"OneCore": None,
+	"RHVoice": None,
+	"SAPI5": None,
+}
+
+
+@pytest.mark.parametrize("engine", _engines(), indirect=True)
+def test_pause_after_terminate_keeps_each_engine_behaviour(engine):
+	engine.terminate()
+	expected = POST_TERMINATE_PAUSE[engine.engine]
+	if expected is None:
+		assert engine.core.pause(True) is None
+	elif expected is RuntimeError:
+		with pytest.raises(RuntimeError, match=f"^{engine.engine} driver has terminated$"):
+			engine.core.pause(True)
+	else:
+		with pytest.raises(expected):
+			engine.core.pause(True)
+
+
 @pytest.mark.parametrize("engine", _engines(), indirect=True)
 def test_segment_after_player_stop_failure_fails(engine):
 	engine.fail_next_stop()
