@@ -170,7 +170,7 @@ Scripts in the scratchpad (`p45b/tokcheck.py`, `p45b/movecheck.py`); commands an
 - **B1 move**, one commit per group (eSpeak, RHVoice, SAPI5, OneCore, VE+Cerence — VE and Cerence move together or the drift guard fails): every removed `speak_segment` is token-identical, in order, to `SegmentHostSpeaker.speak_segment` (modulo the `-> None` annotation two copies lack); the rest of each wrapper is token-identical in order to its old text except the listed import changes (`SegmentDrainCore` → `SegmentHostSpeaker`; `PlaybackContext`, `SegmentEventSink`, `SpeechCommands`, `CancellationView` removed) and the base-class token `SegmentDrainCore` → `SegmentHostSpeaker`.
 - **B2 convergence**: each removed loop is token-identical to the helper body with `log` → `logger` and its string → `message`; the rest of each wrapper is unchanged but for the call and the import.
 - **B3 move**: each removed `_nvdaLabel` body is token-identical to `nvdaLabel`'s; elsewhere only `_nvdaLabel` → `nvdaLabel` and one import line change.
-- **B6 rename** (VE+Cerence): with `_terminated` → `_terminationRequested` applied to the old text and its two now-duplicate assignments dropped, old and new token streams are identical in order; `_terminationRequested` occurrences: 3 before, 7 after per file.
+- **B6 rename** (VE+Cerence): with `_terminated` → `_terminationRequested` applied to the old text and its two now-duplicate assignments dropped, old and new token streams are identical in order; `_terminationRequested` occurrences: 4 before, 8 after per file.
 - **B7/B16 deletions**: each commit's token diff contains only the deleted ranges listed in its plan task (plus the comment replacements of §3.8 in their own commit).
 
 ### 6.3 Windows / NVDA
@@ -182,3 +182,18 @@ Not needed for correctness (no behaviour change); a smoke run of each engine (sa
 - §3.5 changes a direct-call behaviour that production never reaches (VE/Cerence accept a segment after ordinary speech). Decided by orchestrator with the recommended default (the coordinator's brief lists `_legacyUsed` for removal when unreachable); user may override before merge.
 - B11 and B15 are left as they are (§4); unifying them needs a user decision on the post-terminate behaviour.
 - `nvdaLabel` lives in `bridge/` (§3.3) rather than `driver/__init__.py`, the public plugin module the audit also suggested, so the plugin API does not grow. Decided by orchestrator with the recommended default; user may override before merge.
+
+## 8. Implementation notes
+
+Plan: `docs/superpowers/plans/2026-10-29-phase45b-boilerplate.md` (9 tasks, one run). Ledger: `.superpowers/sdd/2026-10-29-phase45b-boilerplate/progress.md`.
+
+- Commits: mixin `df98a6e`; B1 moves `ab9d6b5` (eSpeak), `08d43b4` (RHVoice), `cac6170` (SAPI5), `ebd4d84` (OneCore), `d216228` (VE+Cerence), guard tests `5e55531`; B2 log-text pin `0ebfbcf`, helper `55d4d6c`, convergence `ee45d09`; B3 move `d8844b9`, guard test `8fb207a`; B15 pin `4a348fa`; B6 `295fd88`; B7 OneCore `efec925`, VE/Cerence `d6ea62f`; B16 quiescence `a3f7f80`, comments `9448ccc`.
+- Proofs (scratch `p45b/tokcheck.py`, `p45b/movecheck.py`, `p45b/nocomment.py`, all run against `HEAD:<path>` before each commit): every B1, B2, B3, B6, B7 and B16 commit passed its order-sensitive token check with exactly the listed drops, substitutions and import changes; every moved block (six `speak_segment`, five cleanup loops, three `_nvdaLabel`) matched its new home token for token (`-> None`, `log`→`logger`, the message literal→`message`, and the `_nvdaLabel` comment wording excepted, as listed). A negative control (the eSpeak check without the dropped range) fails at the method.
+- OneCore `_segmentMode` (§3.6), extra evidence: with the old wrapper restored temporarily, the full suite under coverage never executed the three False-branch bodies (old lines 153, 311, 432).
+- Ruling: the B3 move and its guard test are separate commits — keeps the move commit free of other changes.
+- Ruling: the comment "As on master" also appeared in `tests/test_onecore_segment_drain.py:338`; fixed with the wrapper comments (`9448ccc`).
+- Ruling: `tests/test_hygiene_guards.py`'s table comment named the removed combined entry ("records and latches"); it now names the remaining one.
+- Review Focus 5 mutant: replacing the now-unconditional `self._nativeCall = None` in `_runNative` with `pass` survives the VE and contract tests — `_closeAdmission` already closed that call, so a stale `_nativeCall` refuses callbacks as None does. The clear is defensive; equivalent mutant.
+- `tests/test_vocalizer_segment_drain.py` tests that took `monkeypatch` only for the removed helper keep the unused fixture parameter (no lint rule flags it; changing 39 signatures would only add churn).
+
+Verification at the last commit: 3614 passed, 0 skipped (baseline 3597 + 17 new tests: 2 mixin, 1 + 6 shared-entry guards, 1 cleanup helper, 1 NVDA label, 6 post-terminate pause); `prek run --all-files` all Passed; `git diff --check master` clean; protected-path commands empty. Linux tests exercise only the controlled native and audio boundaries; Windows/NVDA not verified.
