@@ -128,3 +128,65 @@ Linux 上的測試只驗證受控的 native 與音訊邊界；Windows 上的 NVD
 - `git diff --check master`：乾淨。
 - 受保護路徑兩個指令都沒有輸出。
 - VE／Cerence 仍逐字同步：`test_vocalizer_drift.py` 通過，`ALLOWED` 未改。
+
+### 修正 review（Opus 5.5 xHigh，2026-10-29）
+
+審閱：Opus 5.5（xHigh），DEVELOPMENT_WORKFLOW §3.4「修正 review」，唯讀。範圍是 review commit `5defef3` 之後的 `5defef3..9ea21f6`（`32f025e`、`ebae5f0`、`31f503c`、`49dd4a0`、`adb25f8`、`9ea21f6`），對照上面的 I1、M1–M5 與修正記錄。突變和重複執行都在 scratchpad 的 `git clone --shared` 複本（`scratchpad/p53fixrev/clone`，`ref` symlink）上做，每個突變跑完用 `git checkout --` 還原；沒有改 worktree，沒有用 `git stash`。行號以分支 HEAD 為準。
+
+**結論：可以 merge。** 六項都已修好。新發現：Critical 0、Important 0、Minor 1（N1，可選）。只有 Minor，依 §3.4 不需要再做一輪修正 review。
+
+#### 逐項判定
+
+| 項目 | 判定 | 依據 |
+| --- | --- | --- |
+| I1 | 已修 | `[sync]` 讓 `_legacyCallback` 的 `self._player.sync()`（`OneCore:516`，經 `__getattr__` 直接到 raw player）raise，這時只有 `OneCore:534` 的 `record_error` 記得到錯誤。突變 MA 讓 `[sync]` 失敗（`the failed sentence never completed`），整檔 1 failed／84 passed；單獨連跑 5 次都是 `[sync]` 失敗、`[feed]` 通過（`[feed]` 由 lease 記錄，本來就通過）。分支上兩例都通過，測試註解也正確。 |
+| M1 | 已修 | **OneCore：** `call.thread` 是 `respond` 的執行緒，也就是 callback 和 feed 所在的執行緒，測試要求它出現在 stop 的呼叫者裡。lifecycle 的 `stop_native` 跑在 `WorldVoice OneCore lifecycle` 執行緒，所以只有 lease 的 stop 符合。這個斷言在 `finish(call)` join 之後才檢查，和 stop 的先後順序無關。**VE／Cerence：** 只有 feed 執行緒（BgThread）上的 stop 會失敗。BgThread 上不會有其他 stop：segment record 的 `host.retire` 只等 handoff、不 stop（`host:508-516`）；`_runNative` 的 blocked stop 在這個測試不會發生（`prove_fake_quiescence`）；從換掉 `player.stop` 到 `release.set()` 之間，BgThread 停在 `held_feed`。所以分支上被用掉的那次失敗一定屬於 lease 的 stop，結果是確定的，不再看 lifecycle 的 stop 先到還是後到。**突變 M3：** 三個測試連跑 20 輪，每輪都失敗；OneCore 的失敗訊息顯示 stop 只來自 lifecycle 執行緒。OneCore、vocalizer、eSpeak 三檔一起跑是 4 failed／326 passed，多出來的是 eSpeak 原本就殺得掉 M3 的那個測試。**另外**重跑 MO（VE／Cerence `_CallbackPlayer._stop_failed` → `return None`）：改寫後的測試仍殺得掉（`assert None is OSError('late stop failed')`），所以改寫沒有讓「失敗的 stop 會 latch」這點變弱。 |
+| M2 | 已修 | 只改註解，內容正確。drain 記下錯誤後，`wait_playback_drained`（`host:590-593`）呼叫 `lifecycle.fail`，`_start_stop`（`lifecycle:471-495`）的 stop 執行緒接著跑 `request_stop` → `stop_native`。失敗事件要等 `stop_done` 設好才會排入交付（`lifecycle:297-301`），所以 lifecycle 的 stop 也發生在回報之前。OneCore 註解說「The drain (and the lifecycle after it) stopped the player before reporting」，和這個順序一致；「the lifecycle's stops alone pass this test」也和 M2a 存活的結果一致。 |
+| M3 | 已修，純改名 | 用自己寫的 order-sensitive token 比對（`tokenize`，略過註解與 NL），比較 `31f503c` 和 `49dd4a0` 的 `engineControl.py`：兩邊都是 823 個 token，只有 10 個位置不同，全部是 `local` 改成 `state`，都在 `fail`／`deferred` 的第 148–169 行。新版剩下的 `local` 只在 `:29`（import）和 `:119`（`self._local = local()`）。舊版沒有叫 `state` 的名稱，不會撞名。HEAD 的這個檔和 `49dd4a0` 逐位元組相同。 |
+| M4 | 已修 | spec §3.4 的新句子和程式一致。`_CallbackPlayer`（`VE:122-139`）只覆寫 `__init__` 和 `_stop_failed`，feed 用的是 `LeasedPlayer.feed`（`host:696-700`，`consumer()` 取 current record）。`consumer` 只准入 `record is self._current` 的 record（`host:376-383`，這段在 master 和分支的行號相同）。 |
+| M5 | 已修 | spec §3.1 的 OneCore 段落和程式一致。`OneCore:592-597` 正是 `if self._segmentPaused and self._stopGate.clear:` 後接 `self._player.pause(True)`。segment callback 在 feed 之前呼叫 `_maybeInitPlayer`（`OneCore:475`）；legacy 路徑透過 NVDA 的 `_callback`（`oneCore.py:497`）也會呼叫。drain 失敗的路徑不會清掉 `_segmentPaused`，drain 和 lifecycle 的 stop 也不經過 stop gate，所以後繼的第一個 callback 會把 player 重新暫停。後繼要等 handoff 才開始 native，lifecycle 第二次的 `stop_player` 不會排在重新暫停之後。§9 對 M3 突變的新說明也和我的結果一致。 |
+
+#### 是否 flaky
+
+| 執行 | 結果 |
+| --- | --- |
+| 分支上連跑 30 輪（每輪一個 pytest 行程）：OneCore segment late-feed、VE／Cerence late-feed、I1 的 `[feed]`／`[sync]` | 150/150 passed，每輪平均 0.88 s |
+| 同樣 30 輪，另外開 6 個 `while True: pass` 行程把 4 核心佔滿 | 150/150 passed，每輪平均 1.81 s，最慢 2.06 s |
+
+不依賴時序的理由：新加的斷言都在 join 之後才檢查（OneCore 在 `finish(call)` 之後，VE 在 `finish(first)` 之後），檢查的是「哪個執行緒呼叫過 stop」，不是某段時間內有沒有發生。VE 的失敗注入用執行緒身分篩選，不靠哪一次 stop 先到。修正沒有新增 sleep 或 timeout；機器較慢時，只會碰到修正前就有的 `WAIT_TIMEOUT`（3 s）和 `HOLD_TIMEOUT`（6 s）。
+
+#### 突變（scratch 複本，跑完還原）
+
+| 突變 | 結果 |
+| --- | --- |
+| MA：刪掉 `_legacyCallback` 的 `record_error`（`OneCore:534`） | killed：`[sync]` 單獨跑 5/5 失敗，整檔 1 failed／84 passed |
+| M3：`LeasedPlayer._feed_admitted` 拿掉 late stop（`host:712-716`） | killed：OneCore segment、VE、Cerence 的 late-feed 測試 20/20 輪都失敗；OneCore legacy 變體通過（見 N1） |
+| MO：VE／Cerence `_CallbackPlayer._stop_failed` → `return None` | killed（VE、Cerence 兩例） |
+| N1 探針：legacy 測試加上 `call.thread in stop_threads` | 分支上通過；在 M3 下 3/3 失敗 |
+
+#### 新發現
+
+##### N1（Minor）OneCore legacy 的 late-feed 測試也釘不住 lease 的 stop（`tests/test_onecore_segment_drain.py:1196-1228`；spec §7.1 `:168`）
+
+- 和 M1 同一類問題，review 沒有點名。spec §7.1 把 `test_cancelled_legacy_feed_retires_only_after_its_final_stop` 列為證明「a feed admitted before `cancel` is stopped once more by the lease」的測試之一，但在 M3 下它照樣通過。原因是一般語音被取消後，`host.retire` 會在 worker 執行緒上呼叫 `stop_player`（`host:517-525`），在後繼之前也 stop 了一次，所以 `stopped` 和 `not advanced` 都成立。
+- 修法很便宜，只改測試：照 `ebae5f0` 的 segment 版本，記下呼叫 stop 的執行緒，再斷言 `call.thread in stop_threads`。我在 scratch 複本試過：分支上通過，M3 下 3/3 失敗（訊息 `no lease stop on the legacy callback thread`）。另一個做法是把 spec §7.1 那句改成只算 segment 版本。不修也不影響 merge，因為 OneCore segment、VE、Cerence、eSpeak 已經有四個測試殺得掉 M3。
+
+##### 觀察（不需處理）
+
+- spec §3.1 新的 OneCore 段落用分支行號（`OneCore:592-597`），而 §1–§3 其他 wrapper 行號是 master 的（例如 §3.3 的 `OneCore:457-460`）。merge 之後，反而是新段落的行號對得上。這不影響內容正確。
+- spec §9 的 mutmut 記錄仍寫 `getattr(local, "depth", None)`，那是改名前跑的結果，現在變數叫 `state`。「Verification at the last commit: 3596 passed」是實作完成時的數字，修正後的 3597 記在本檔。兩者都是歷史紀錄，可以不改。
+
+#### 審閱者自行驗證的項目
+
+| 項目 | 指令／方法 | 結果 |
+| --- | --- | --- |
+| 完整套件（HEAD `9ea21f6`，序列） | `scratchpad/p53fixrev/run.sh /workspace/WorldVoice-phase53 … tests`（`-p no:cacheprovider`、`PYTHONDONTWRITEBYTECODE=1`；背景 watchdog 每 2 秒讀 `/proc/meminfo`，MemAvailable 低於 3 GB 就停掉 pytest） | **3597 passed／0 skipped**（107.54 s），watchdog 沒有觸發；等於 3596 加上 I1 的 `[sync]` |
+| prek | `prek run --all-files` | 8 個 hook 全部 Passed；worktree 沒有被改 |
+| 空白 | `git diff --check`、`git diff --check master..HEAD`、`git diff --check 5defef3..9ea21f6` | 乾淨 |
+| 受保護路徑 | §7 的兩個指令 | 都沒有輸出 |
+| 修正範圍 | `git diff --stat 5defef3..9ea21f6` | 只動了 `runtime/engineControl.py`、兩個測試檔、spec 和本檔；沒有動任何 wrapper、`driver/*/driver/*`、`driver/sonic/`、Unicode 資料、readme 或翻譯 |
+| VE／Cerence 同步 | `git diff master..HEAD -- tests/test_vocalizer_drift.py` | 空，`ALLOWED` 沒有改。修正沒有動 VE／Cerence wrapper；改過的 VE 測試透過 `env` fixture 對兩個引擎參數化 |
+| commit | `git log 5defef3..9ea21f6` | 6 個 commit，都是英文 `<type>: <summary>` 並有內文說明原因；沒有 `Co-Authored-By` |
+| 測試名稱引用 | 在 `docs`、`tests`、`.superpowers` 搜尋改過的測試名 | 只出現在 spec、plan、本檔、帳本和測試本身；沒有 guard 依賴這些測試 id，參數化不會讓任何引用失效 |
+
+Linux 上的測試只驗證受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置和引擎 SDK 都沒有驗證。
