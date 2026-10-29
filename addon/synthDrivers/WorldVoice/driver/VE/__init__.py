@@ -652,7 +652,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		# to at submit. Segments drain on the lifecycle thread; ordinary speech keeps the
 		# add-on's final idle, which proves its PLAYED_OUT.
 		# The DoneSpeaking publishes its DONE right after this idle, on this thread: name its record
-		# for _onIndexReached, even when the idle is skipped below or raises.
+		# for _onIndexReached, even when the idle is skipped below or raises. Set before the segment
+		# return as a defence: a segment's DONE is refused by its operation either way today.
 		self._doneOwner = record
 		if record is None or record.operation is not None:
 			return
@@ -778,7 +779,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def _onIndexReached(self, index):
 		record = self._currentRecord
 		if index is None:
-			# Only the inner DoneSpeaking publishes DONE, after its idle named its record.
+			# Only the inner DoneSpeaking publishes DONE, after its idle named its record. Cleared on
+			# read as a defence: a DONE without a preceding idle names nothing (every DoneSpeaking
+			# idles first today, so no current path tells the difference).
 			record, self._doneOwner = self._doneOwner, None
 			# Segments never publish DONE. Nor does ordinary speech the host cancelled: a LEGACY_DONE
 			# DONE names no request, and cancel() keeps a cancelled request's DoneSpeaking, which may
