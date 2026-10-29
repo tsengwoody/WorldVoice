@@ -2,6 +2,8 @@
 
 Each part is guarded by the engine's own condition (its queue lock), which
 comes after host admission and before the host condition in the lock order.
+release_newest_first, which needs no lock, releases what a failed wrapper
+constructor built.
 
 The latch rule, for every engine:
 
@@ -23,7 +25,7 @@ A wrapper with its own native queue latches only through its ControlFaultPolicy.
 eSpeak, whose queue is NVDA's, latches through LeasedPlayer's default stop hook.
 """
 
-from collections.abc import Callable, Hashable, Iterable, Iterator
+from collections.abc import Callable, Hashable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from threading import Condition, local
@@ -169,3 +171,16 @@ class ControlFaultPolicy:
 				fault, state.fault = state.fault, None
 				if fault is not None:
 					self.deliver(fault)
+
+
+def release_newest_first(releases: Sequence[Callable[[], object]], *, logger, message: str) -> None:
+	"""Call every release, newest first; log a failed one with ``message`` and go on.
+
+	A wrapper constructor that raises gets no core to terminate (VoiceClassAdapter.open), so it
+	releases what it built with this and then re-raises its own error.
+	"""
+	for release in reversed(releases):
+		try:
+			release()
+		except Exception:
+			logger.error(message, exc_info=True)

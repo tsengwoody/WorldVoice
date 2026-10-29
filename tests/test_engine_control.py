@@ -207,3 +207,24 @@ def test_deferred_block_without_a_fault_delivers_nothing(control, monkeypatch):
 	with policy.deferred():
 		pass
 	assert delivered == []
+
+
+def test_release_newest_first_runs_every_release_in_reverse_and_logs_failures(control):
+	# A constructor that raises releases what it built, newest first; a failed step is logged with
+	# the wrapper's message and the older ones still run.
+	calls, logged = [], []
+
+	class Logger:
+		def error(self, *args, **kwargs):
+			logged.append((args, kwargs))
+
+	def failing():
+		calls.append("b")
+		raise OSError("release failed")
+
+	releases = [lambda: calls.append("a"), failing, lambda: calls.append("c")]
+	assert control.release_newest_first(releases, logger=Logger(), message="cleanup failed") is None
+	assert calls == ["c", "b", "a"]
+	assert logged == [(("cleanup failed",), {"exc_info": True})]
+	control.release_newest_first([], logger=Logger(), message="cleanup failed")
+	assert len(logged) == 1
