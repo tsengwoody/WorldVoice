@@ -2268,9 +2268,12 @@ def test_ordinary_cancelled_during_the_final_pause_never_plays_out(env, monkeypa
 
 
 def test_kept_done_of_a_dropped_request_never_plays_out_another(env, monkeypatch, caplog):
-	# cancel() keeps a dropped request's DoneSpeaking. Run it again while a later request is
-	# current, the hazard a _currentRecord lookup would have: it must neither idle for that
-	# request nor reach its PLAYED_OUT.
+	# Defensive: cancel() keeps a dropped request's DoneSpeaking, and in production it still runs
+	# before the next request's _Begin (_dropQueuedSpeech keeps the order, and that _Begin is
+	# queued only after cancel() releases admission), while no record is current. Run it by hand
+	# while a later request is current to prove the binding alone keeps it from idling or
+	# reaching PLAYED_OUT for that request. Master's _currentRecord lookup idles once here, so
+	# unlike the section's other tests this one fails on master by that idle.
 	held, release, inside = Event(), Event(), []
 	host = segment_host(env.core)
 	player = real_player(env.core)
