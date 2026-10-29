@@ -165,3 +165,66 @@ Linux 上只驗證了受控的 fake player／native；Windows 上 NVDA、WASAPI�
 | M6 | OneCore `test_segment_drain_does_not_wait_for_resume` 結尾的 `pause(False)` 改放 `finally` | `98cb1d6` | 該測試通過 |
 
 Linux 上只驗證了受控的 fake player／native；Windows 上的 NVDA、WASAPI、引擎 SDK 仍未驗證。
+
+### 修正 review（Opus 5.5 xHigh，2026-10-29）
+
+審閱者：Opus 5.5（effort xHigh；DEVELOPMENT_WORKFLOW §3.4 的修正 review，唯讀，只新增本段）。範圍：review commit `c25fab6` 之後的修正 `c25fab6..c039acb`（`04348b3`、`c3e4958`、`ba0c7aa`、`98cb1d6`、`7225ead`、`c039acb`），對照上面的 I1、M1–M6 與修正記錄。突變與探針都在 scratchpad 的 `git clone --shared` 複本（symlink `ref`）上做；worktree 沒有被修改，沒有用 `git stash`。行號以 `c039acb` 為準。
+
+**結論：可以 merge。** 每一項都真的修好，或不修的理由成立；新測試抓得到原本的錯誤；M1 的程式修改正確，沒有引入並行問題。新發現 Critical 0、Important 0、Minor 2（N1、N2，都不擋 merge；只有 Minor，依 §3.4 不再做下一輪修正 review）。
+
+逐項判定：
+
+| 項目 | 判定 | 依據 |
+| --- | --- | --- |
+| I1 | 已修 | 新版 `test_resume_reaches_paused_engine_before_successor_starts`（`tests/test_runtime_scheduler.py:1007`）讓轉發的 `pause(False)` 阻塞，用 `stays_unset(second_speak)` 確認後繼在它返回前不會 `speak`。S3（恢復時先清 `_paused`／`_pause_target` 並 `notify_all`，再轉發）單跑這個測試 26 次、26 次被殺，失敗訊息是 `the successor started before the forwarded resume returned`，原因正確；在 scheduler＋整合測試下，S3 被它和 `test_failed_resume_keeps_the_pause` 一起殺（2 failed、101 passed）。這個測試也會殺 S8（恢復沒送到 `_pause_target` 時，`resume-entered` 永遠不出現）。舊版斷言裡的 `("pause", True)` 不再記錄，但 `test_pause_during_segment_is_forwarded_and_resume_returns_to_it` 仍守著暫停的轉發。`try/finally` 放行加上 daemon thread，失敗時不會卡住。 |
+| M1 | 已修；程式修改正確 | 並行分析見下。修正前（`04348b3` 的 scheduler 配 `c3e4958` 的測試），新測試失敗：`a cancelled Future stayed held by the pause`。S12（開始保留不看 `_valid_locked`）被新測試殺（1 failed、102 passed）。拿掉 `_acquire` 的註冊（NOREG），以及讓 `_wake_if_cancelled` 不 notify（NOWAKE），都會讓兩個 cancelled-Future 測試失敗。把註冊移回 `_execute`（LATEREG，等於修正前的安排）會讓新測試失敗。拿掉 `_execute` 只 `done.set()` 的 callback（NOEXECCB），被既有的 `test_cancelled_speech_future_does_not_stall_following_tasks[awaiting_done]` 殺。S10（完成保留不看 `_valid_locked`）仍被 `test_cancelled_future_releases_completion_hold` 殺。 |
+| M2 | 已修；沒有測試 | 改成 `is not None`（`runtime/scheduler.py:495-497`），正確。但改回 `or`（M2OR）時，scheduler＋整合測試 103 passed，突變存活，見 N2。 |
+| M3 | 已修 | phase 3c `:44` 保留原文刪除線，補上「drain 返回後才落下的暫停由 scheduler 保留（Corrected by `phase54-drain-semantics`）」，和同檔 `:93`、phase 52 `:129` 的說法一致。phase 53 `:69-74` 整段（含兩個 bullet）保留刪除線，新的一句我逐條對過程式：失敗的 task 因為 `task.error` 讓 `done` 成立，之後停在完成保留（`_paused and _valid_locked`；error 不影響有效性）；恢復後 raise，request 變成 FAILED、token 被 cancel，其餘 task 在 `_acquire` 被略過；之後的請求停在開始保留。OneCore、VE、Cerence 的 drain 都已拿掉等待，SAPI5、RHVoice 的 drain 本來就沒有等待，所以「no engine drain waits for a resume any more」屬實。 |
+| M4 | 不修，理由成立 | 那是歷史的切法，不重寫歷史。我另外確認了 4 個改程式或測試的修正 commit 各自 checkout 時，scheduler＋整合＋OneCore drain 測試都全過（`04348b3` 189 passed；`c3e4958`、`ba0c7aa`、`98cb1d6` 各 190 passed），修正本身 bisect-clean。 |
+| M5 | 已修 | spec §2 補的那句，我對照了 `nvwave.py:396-404`（`pause(False)` 無條件呼叫 `_audioDucker.enable()`）、`:384-392`（`stop()` 先 `disable()`）與 `wasapi.cpp:661-664`（`playState != playing` 時 `resume` 直接回 `S_OK`）：兩個窗口的描述正確，也寫明是 master 原本就有的。 |
+| M6 | 已修 | `pause(False)` 放進 `finally`；放在 `try` 前面的 `sync_release.set()` 不會丟例外。 |
+
+M1 的並行分析（`runtime/scheduler.py:551-570`、`:597`、`:624-627`）：
+
+- **註冊時機。** `_acquire` 在進入 `_state_cond` 之前註冊（`:557`）。如果 Future 在註冊前就已經取消，`Future.add_done_callback` 會立刻在 worker thread 上呼叫 callback；這時 worker 沒有持任何 scheduler 鎖，callback 拿 `_state_cond` 做一次無害的 `notify_all`，接著 `_valid_locked` 看到 `future.cancelled()`，直接略過這個 task。探針（暫停、送出兩個 task，先取消第二個、再取消第一個）通過，`concurrent.futures` 沒有記錄 callback 例外，之後的新請求照常播放。
+- **不會遺失喚醒。** `Future.cancel()` 先在 Future 自己的 `_condition` 下把狀態改成 CANCELLED，釋放後才呼叫 callback；callback 要拿到 `_state_cond` 才 notify。worker 如果在狀態改變前就檢查了 `_valid_locked`，那它要嘛還持有 `_state_cond`（callback 會等它 `wait()` 釋放鎖之後才 notify），要嘛已經在 wait；兩種情況都會被喚醒。鎖序上，worker 持 `_state_cond` 時經 `future.cancelled()` 拿 Future 的 `_condition`；取消的 thread 則是先釋放 Future 的 `_condition` 才拿 `_state_cond`，沒有反向持鎖。
+- **重複註冊。** 每個 task 只經過 `_run_one` 一次，所以 `_acquire` 只註冊一次 `_wake_if_cancelled`；`_execute` 註冊的是另一個只做 `done.set()` 的 callback（`:597`）。取消時兩個都會跑，順序是先 notify 再 set，和修正前相反；但完成保留在 `done.wait()` 之後才檢查，兩種順序都會醒。
+- **callback 在哪個 thread 跑。** 在呼叫 `Future.cancel()` 或 `set_result` 的 thread 上跑；如果註冊時 Future 已經完成，就在 worker 上跑。notify 都在 `with self._state_cond` 裡。`_state_cond` 是 `RLock`：探針在已經持有 `_state_cond` 的 thread 上呼叫 `future.cancel()`，也沒有死鎖。scheduler 自己呼叫 `future.cancel()` 的地方（`submit_request`、`cancel`、`_settle`）都在鎖外。
+- **沒有取消的 task 行為不變。** `_wake_if_cancelled` 先看 `future.cancelled()`，正常 settle 時不拿鎖。`_settle` 對無效 task 呼叫 `future.cancel()` 時會多一次 notify，只會喚醒本來就會重新檢查條件的 `while` 迴圈。
+- **和 `_stops_in_flight`、`cancel()`、`shutdown()` 的互動。** 取消的 Future 仍然先等 in-flight 的 stop 結束（和 master 一樣），`_stop_all` 的 notify 讓它接著被略過。探針「stop 進行中＋暫停＋`future.cancel()`」與「`future.cancel()` 和 `manager.cancel()` 同時發生」都通過，之後的新請求照常播放。`shutdown()` 經 `cancel()` 走同一條路，不受影響（完整測試全綠）。
+
+新發現：
+
+#### N1（Minor）phase 54 spec 的 Wake-ups 那句沒有跟著 M1 更新，帳本也沒有 `Ruling:`
+
+`docs/superpowers/specs/2026-10-29-phase54-drain-semantics-design.md:66` 寫：「A public `Future.cancel()` of the waiting task must also wake the completion hold: its done-callback (`scheduler:545`) additionally notifies `_state_cond`」。`c3e4958` 之後，負責 notify 的 callback 是 `_acquire` 註冊的 `_wake_if_cancelled`（`scheduler.py:557`、`:624-627`），同時服務開始保留與完成保留；`_execute` 的 callback 只做 `done.set()`。spec 對機制的描述已經不對，也沒寫到開始保留的喚醒。這是修正時偏離 spec 的地方，§3.4 要求記成 `Ruling:`，但進度帳本 `.superpowers/sdd/2026-10-29-phase54-drain-semantics/progress.md` 只有一行「Review fixes: …」。建議：把這句加刪除線並標 `Corrected by` review 修正 `c3e4958`（這是本 phase 自己的 spec，直接改也可以），寫明喚醒用的 callback 在 `_acquire` 註冊、涵蓋兩種保留；帳本補一行 `Ruling:`。
+
+#### N2（Minor）M2 沒有會失敗的測試
+
+把 `ba0c7aa` 改回 `self._pause_target or …`（M2OR）時，scheduler＋整合測試 103 passed，突變存活。§3.4 要求每一項先寫會失敗的測試。補起來很便宜：寫一個 `__len__` 回傳 0 的 `FakePlayback` 子類別當 drain port，在段落中暫停（讓它成為 `_pause_target`），送 `drained`，再恢復，斷言恢復有送到它（`port.paused == [True, False]`）。我在 scratch 寫了這個探針：分支上通過；M2OR 時失敗，因為 `or` 會落到 `_pausable_playback_locked()`，而 completion 已經 ready，它回傳 `None`，恢復送不到。不補也不影響正確性，因為目前所有 port 都沒有定義 `__len__`／`__bool__`。
+
+不穩定性（每次都是獨立的 pytest process，加 `-p no:cacheprovider`，MemAvailable 低於 3 GB 就停）：
+
+| 範圍 | 次數 | 結果 |
+| --- | --- | --- |
+| I1、M1 的新測試、`test_cancelled_future_releases_completion_hold`，加上審閱者的 4 個探針 | 30 | 30／30 全過（每次 7 passed） |
+| OneCore `test_segment_drain_does_not_wait_for_resume`（和上一列同時跑） | 30 | 30／30 全過 |
+| 整個 `test_runtime_scheduler.py`＋`test_runtime_drain_integration.py`＋`test_onecore_segment_drain.py` | 30 | 30／30 全過（每次 190 passed） |
+| I1、M1 的新測試、OneCore 測試（和上一列同時跑，增加負載） | 30 | 30／30 全過（每次 3 passed） |
+
+時序依賴：三個改過的測試，正向等待都是 `eventually`、`Event.wait(WAIT_TIMEOUT)` 或 `wait_done()`，條件一成立就返回；負向檢查都是 `stays_unset`（50 ms），只會漏抓、不會誤報。I1 最後的順序斷言是確定的：`resume-returned` 在 `pause_current` 清狀態之前就 append，而後繼要等狀態清掉之後才會 `speak`。M1 的新測試如果 worker 在 50 ms 內還沒進入開始保留，只會變成沒測到，不會失敗；S12、NOREG、LATEREG 每次執行都被殺。
+
+驗證：
+
+| 項目 | 結果 |
+| --- | --- |
+| 完整測試（序列、記憶體看門狗） | **3631 passed、0 skipped**，109 s；看門狗沒有觸發 |
+| prek | `prek run --all-files` 8 個 hook 全部 Passed |
+| 空白 | `git diff --check master..HEAD` 與 worktree 的 `git diff --check` 都乾淨 |
+| 受保護路徑 | §7 兩個指令都沒有輸出 |
+| VE／Cerence | 修正沒有碰任何 driver；`tests/test_vocalizer_drift.py` 對 master 沒有 diff，`ALLOWED` 不變 |
+| runtime NVDA-free | `scheduler.py` 沒有新的 import；scheduler fixture 的 import 守門有在跑 |
+| commit | 6 個修正 commit 都是英文 `<type>: <summary>` 加原因，沒有 `Co-Authored-By` |
+| 修正 commit 各自 checkout | scheduler＋整合＋OneCore drain：`04348b3` 189 passed；`c3e4958`、`ba0c7aa`、`98cb1d6` 各 190 passed |
+
+Linux 上只驗證了受控的 fake player；Windows 上的 NVDA、WASAPI、引擎 SDK 仍然沒有驗證（review 列的手動項目不變）。
