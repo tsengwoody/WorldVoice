@@ -105,7 +105,7 @@ def group_by_primary_locale(specs: Iterable[VoiceSpec]) -> dict[str, list[str]]:
 - 刪除 `taskManager` 建構子參數與欄位。它只為 `speak`／`breaks` 存在。建構子改為 `VoiceFacade(spec, binding)`，`VoiceManager._createVoiceInstance` 對應改為 `resource.voice_class(spec, resource.binding)`。
 - 保留：
   - 七個設定 property（`rate`、`pitch`、`volume`、`variant`、`inflection`、`rateBoost`、`waitfactor`）；
-  - `snapshot()`、`update_settings()`、`loadParameter()`、`commit()`、`stop()`；
+  - `snapshot()`、`update_settings()`、`loadParameter()`、`commit()`、~~`stop()`~~；Corrected by `fix/set-voice-no-stop`（2026-10-29）：`stop()` 已刪除。它不取消 request 就直接停止引擎，在逐段語音模式會讓 request 等不到 drain；引擎只經 `TaskManager.cancel` 停止，`tests/test_hygiene_guards.py` 守門；
   - `core` property；
   - `id`、`name`、`language`。
 - `driver.Voice.create_core` 刪除 `core.wv = cls.engine`（C5），不再對外部 core 物件打標。
