@@ -1075,3 +1075,15 @@ def test_failed_paused_task_holds_next_request_and_resume_reaches_failed_engine(
 	with pytest.raises(RuntimeError):
 		future.result(WAIT_TIMEOUT)
 	assert other.entered.wait(WAIT_TIMEOUT)
+
+
+def test_cancelled_future_releases_start_hold(manager, port, output):
+	manager.pause_current(True)
+	request = manager.new_request()
+	future = manager.append_speech(request, port, "Fake:a", ("held",))
+	assert manager.submit_request(request)
+	stays_unset(port.entered)
+	assert future.cancel()
+	assert output.wait_done() == 1, "a cancelled Future stayed held by the pause"
+	assert not port.entered.is_set()
+	manager.pause_current(False)

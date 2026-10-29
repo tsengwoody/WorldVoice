@@ -549,6 +549,10 @@ class TaskManager:
 	def _acquire(self, task):
 		"""Wait out in-flight stops and a pause, then make a still-valid task current."""
 		source = task.playback.source_id if task.playback is not None else None
+		# Future.cancel is public: wake both pause holds (here and in _execute)
+		# when it cancels a waiting task. Registered outside state: an already
+		# settled Future runs the callback at once.
+		task.future.add_done_callback(self._wake_if_cancelled)
 		with self._state_cond:
 			# No task starts while paused: not after a break, between tasks, or
 			# after a failed segment whose request ended during the pause.
@@ -588,7 +592,7 @@ class TaskManager:
 		# cancellation races the validity check or an active done wait.
 		# Registration is outside state: an already-settled Future invokes
 		# its callback immediately. The callback never finishes the task.
-		task.future.add_done_callback(lambda future: self._wake_cancelled(future, done))
+		task.future.add_done_callback(lambda future: done.set() if future.cancelled() else None)
 		task.playback.speak(task.commands, task.request.token, context=task.context)
 		if task.request.token.is_cancelled():
 			# A non-token-aware synchronous speak may outlive the first stop.
@@ -615,9 +619,8 @@ class TaskManager:
 			self._current_phase = TaskPhase.FINISHING
 			return True
 
-	def _wake_cancelled(self, future, done):
+	def _wake_if_cancelled(self, future):
 		if future.cancelled():
-			done.set()
 			with self._state_cond:
 				self._state_cond.notify_all()
 
