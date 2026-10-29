@@ -32,14 +32,23 @@ def _synth_driver(manager):
 	return synth
 
 
+# keepMainLocaleVoiceConsistent is on by default: the voice setter then also reassigns the
+# main locale's role, which must not touch the engine either.
+@pytest.mark.parametrize("follow_main_locale", [True, False])
 @pytest.mark.parametrize("when", ["during_native", "during_playback"])
 @pytest.mark.parametrize("engine", ENGINES)
-def test_choosing_another_voice_mid_segment_lets_the_request_finish(monkeypatch, tmp_path, engine, when):
+def test_choosing_another_voice_mid_segment_lets_the_request_finish(
+	monkeypatch,
+	tmp_path,
+	engine,
+	when,
+	follow_main_locale,
+):
 	c = assemble(monkeypatch, tmp_path)
 	try:
 		control = c.controls[engine]
 		switching = sys.modules["config"].conf["WorldVoice"]["autoLanguageSwitching"]
-		switching["keepMainLocaleVoiceConsistent"] = False
+		switching["keepMainLocaleVoiceConsistent"] = follow_main_locale
 		c.manager.default_voice_name = c.key(engine)
 		other = next(spec for spec in c.manager.table if spec.engine != engine)
 		synth = _synth_driver(c.manager)
@@ -57,6 +66,8 @@ def test_choosing_another_voice_mid_segment_lets_the_request_finish(monkeypatch,
 			barrier = control.tail(1)
 			synth._set_voice(other.name)
 		assert c.manager.default_voice_name == other.name
+		main_locale = c.manager.voice_consistency.main_locale(c.manager.default_voice_instance)
+		assert (c.manager.roles.voice_for(main_locale) == other.name) is follow_main_locale
 		assert c.output.dones == []
 		barrier.release.set()
 		# The second segment keeps the voice it was queued with.
