@@ -256,9 +256,22 @@ _ENGINE_CANCEL_HOPS = {
 	("synthDrivers/WorldVoice/bridge/engineAdapter.py", "VoiceClassAdapter.cancel"),
 }
 # The last word of a receiver's name that marks it as a voice or an engine playback endpoint:
-# default_voice_instance, get_voice_instance(...), session, playback, port, _adapter, _core.
+# default_voice_instance, get_voice_instance(...), session, playback, port, _adapter, _core,
+# and the usual aliases for a wrapper's SynthDriver core: driver, engine, synth.
 _ENGINE_ENDPOINTS = frozenset(
-	{"voice", "instance", "facade", "session", "playback", "port", "adapter", "core"},
+	{
+		"voice",
+		"instance",
+		"facade",
+		"session",
+		"playback",
+		"port",
+		"adapter",
+		"core",
+		"driver",
+		"engine",
+		"synth",
+	},
 )
 
 
