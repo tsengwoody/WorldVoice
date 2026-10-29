@@ -228,3 +228,12 @@ M1 的並行分析（`runtime/scheduler.py:551-570`、`:597`、`:624-627`）：
 | 修正 commit 各自 checkout | scheduler＋整合＋OneCore drain：`04348b3` 189 passed；`c3e4958`、`ba0c7aa`、`98cb1d6` 各 190 passed |
 
 Linux 上只驗證了受控的 fake player；Windows 上的 NVDA、WASAPI、引擎 SDK 仍然沒有驗證（review 列的手動項目不變）。
+
+### 第二輪修正（N1、N2）
+
+| 項目 | 處理 | commit | 驗證 |
+| --- | --- | --- | --- |
+| N1 | spec §2 的 Wake-ups 句子改成實作：`_acquire` 在開始保留之前註冊 `_wake_if_cancelled`，Future 被取消時 `notify_all`，同時喚醒開始保留與完成保留；`_execute` 自己的 callback 只 `done.set()`（舊句加刪除線）。進度帳本補上對應的 `Ruling:` | `0b651ac` | 文件修改，`git add -f` |
+| N2 | 新增 `test_resume_reaches_a_pause_target_that_is_falsy`：`__len__` 回傳 0 的 `FakePlayback` 子類別在段落中被暫停（成為 `_pause_target`）、送 `drained`、恢復，斷言 `port.paused == [True, False]` 且 future 完成 | `94dd85f` | 分支上通過；scratch 複本把 `ba0c7aa` 改回 `self._pause_target or …`（M2OR）→ 該測試失敗，其餘 103 passed（突變被殺） |
+
+第二輪修正後完整驗證：**3632 passed、0 skipped**；`prek run --all-files` 全部 Passed；`git diff --check master..HEAD` 乾淨；受保護路徑兩個指令都沒有輸出。
