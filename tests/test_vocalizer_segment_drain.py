@@ -1939,12 +1939,21 @@ def ending_calls(env, ends):
 	return calls, native
 
 
+def request_token(kind):
+	# Production always passes the request's token (VE/Cerence take "cancellationToken");
+	# None is the direct-core shape. A live token must not withdraw the record.
+	return Token() if kind == "live-token" else None
+
+
+@pytest.mark.parametrize("token", ["live-token", "no-token"])
 @pytest.mark.parametrize("ends", [[True], [True, False, True]], ids=["one-call", "middle-call-unended"])
-def test_ordinary_speech_reaches_audio_fed_and_engine_done(env, monkeypatch, caplog, ends):
+def test_ordinary_speech_reaches_audio_fed_and_engine_done(env, monkeypatch, caplog, ends, token):
 	calls, native = ending_calls(env, ends)
-	outcomes = speak_ordinary_pieces(env, monkeypatch, [str(i) for i in range(len(ends))], native)
+	pieces = [str(i) for i in range(len(ends))]
+	outcomes = speak_ordinary_pieces(env, monkeypatch, pieces, native, request_token(token))
 	assert len(calls) == len(ends)
 	[(record, outcome)] = outcomes
+	assert record.withdrawn is False
 	assert record.barriers == {"audio_fed": True, "engine_done": True}
 	assert (outcome.cancelled, outcome.error) == (False, None)
 	player = real_player(env.core)
@@ -1954,13 +1963,16 @@ def test_ordinary_speech_reaches_audio_fed_and_engine_done(env, monkeypatch, cap
 	assert missing_barrier_logs(caplog) == []
 
 
+@pytest.mark.parametrize("token", ["live-token", "no-token"])
 @pytest.mark.parametrize("ends", [[False], [True, False]], ids=["one-call", "last-of-two"])
-def test_ordinary_last_call_without_endprocess_fails_the_record(env, monkeypatch, caplog, ends):
+def test_ordinary_last_call_without_endprocess_fails_the_record(env, monkeypatch, caplog, ends, token):
 	ends = list(ends)  # changed below; the parametrized list is shared by both engines
 	calls, native = ending_calls(env, ends)
-	outcomes = speak_ordinary_pieces(env, monkeypatch, [str(i) for i in range(len(ends))], native)
+	pieces = [str(i) for i in range(len(ends))]
+	outcomes = speak_ordinary_pieces(env, monkeypatch, pieces, native, request_token(token))
 	assert len(calls) == len(ends)
 	[(record, outcome)] = outcomes
+	assert record.withdrawn is False
 	assert record.barriers == {"audio_fed": True, "engine_done": False}
 	assert outcome.cancelled is False
 	assert "engine_done" in str(outcome.error)
@@ -1976,8 +1988,9 @@ def test_ordinary_last_call_without_endprocess_fails_the_record(env, monkeypatch
 	outcomes.clear()
 	calls.clear()
 	ends[:] = [True] * len(ends)
-	speak_ordinary(env, ("again",))
-	[(_, outcome)] = outcomes
+	speak_ordinary(env, ("again",), cancellationToken=request_token(token))
+	[(again, outcome)] = outcomes
+	assert again.withdrawn is False
 	assert (outcome.cancelled, outcome.error) == (False, None)
 	assert len(env.dones) == 2
 
