@@ -13,10 +13,8 @@ from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 from ...runtime.barriers import AUDIO_FED, PLAYED_OUT
 from ...runtime.engineControl import ControlFaultPolicy, StopGate
 from ...runtime.hostNames import host_names_ready
-from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
-from ...runtime.session import CancellationView
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentHost, SegmentHostSpeaker
 from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 
 # The reviewed helper can time out of terminate without invalidating the native
@@ -222,7 +220,7 @@ class _OneCoreStrategy(NativeStrategy):
 		host.reach(record, PLAYED_OUT)
 
 
-class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
+class SynthDriver(BaseOneCoreSynthDriver, SegmentHostSpeaker):
 	"""Retain terminal callback ownership and drain each correlated utterance."""
 
 	def __init__(self):
@@ -291,16 +289,6 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 			runtime_profile("OneCore", nvda_version, audio_mode),
 			"loaded native helper provenance is",
 		)
-
-	def speak_segment(
-		self,
-		commands: SpeechCommands,
-		token: CancellationView,
-		*,
-		context: PlaybackContext,
-		on_event: SegmentEventSink,
-	) -> None:
-		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
 	def _checkSegmentAdmission(self):
 		# Called under the condition; a control fault requires resource replacement.
