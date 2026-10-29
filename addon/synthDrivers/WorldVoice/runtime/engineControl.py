@@ -145,10 +145,10 @@ class ControlFaultPolicy:
 	def fail(self, error: Exception) -> bool:
 		"""Return False when a control error was already latched."""
 		fault = self.capture(error)
-		local = self._local
-		if getattr(local, "depth", 0):
+		state = self._local
+		if getattr(state, "depth", 0):
 			if fault is not None:
-				local.fault = fault
+				state.fault = fault
 		else:
 			self.deliver(fault)
 		return fault is not None
@@ -156,16 +156,16 @@ class ControlFaultPolicy:
 	@contextmanager
 	def deferred(self) -> Iterator[None]:
 		"""Deliver a fault this thread captures inside the block when the outermost block ends."""
-		local = self._local
-		depth = getattr(local, "depth", 0)
+		state = self._local
+		depth = getattr(state, "depth", 0)
 		if depth == 0:
-			local.fault = None
-		local.depth = depth + 1
+			state.fault = None
+		state.depth = depth + 1
 		try:
 			yield
 		finally:
-			local.depth = depth
+			state.depth = depth
 			if depth == 0:
-				fault, local.fault = local.fault, None
+				fault, state.fault = state.fault, None
 				if fault is not None:
 					self.deliver(fault)
