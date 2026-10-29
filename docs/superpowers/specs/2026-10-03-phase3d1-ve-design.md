@@ -92,14 +92,14 @@ BgThread：
 ```
 
 - **`_VEStrategy`**：
-  - `barriers = {"spoken", "idle"}`；一般語音不設 barrier。真正的錯誤記錄在紀錄上，依 host 規則停止 player；被 token 取消不算失敗。
+  - `barriers = {"spoken", "idle"}`；~~一般語音不設 barrier。~~ Corrected by `fix/ve-ordinary-barriers`（2026-10-29）：一般語音宣告 `{AUDIO_FED, ENGINE_DONE}`（phase 52 的共用常數；最後一次 native 呼叫要有被准入的 `VE_MSG_ENDPROCESS`），缺少時依 host 規則失敗並停止 player。真正的錯誤記錄在紀錄上，依 host 規則停止 player；被 token 取消不算失敗（Corrected by `fix/ve-ordinary-barriers`（2026-10-29）：`_retireRecord` 在 reach 之後讀 token，已取消就 `host.withdraw(record)`，`retire` 回報取消、不檢查 barrier、也不停止 player）。
   - `admission_error`：guard 未安裝、已終止、曾使用 legacy 語音時拒絕 segment（沿用現有規則）。
   - `submit`：如上排隊。
   - `stop_native`／`stop_player`：停止 player，期間以 `_stops` 擋住下一次 native 呼叫。
   - `drain`：`player.idle()` 加暫停等待後 `reach("idle")`；idle 失敗時 `record_error` 並 `latch_control_error`（沿用現行「後續拒絕」）。
 - **callback 准入**：每次 native 呼叫建立 `_NativeCall(record, instance)`；callback 必須符合 instance 且仍在准入中，才以 `host.consumer` 與 `bound_callback` 進入。取代 `CallbackGate` 與子 lease。
 - **保留**：`_SilenceGate`、`_GuardedPlayer`、`ProcessText2Speech`（保留原始 status）、`_ContextualVECallback` 的 Sonic 處理、`_confirm_native_quiescence` 啟用覆寫、暫停版本號與 `_stops`／`_pauses`、`Voice` 類別。
-- **`speak()`**：已終止時拋出例外；呼叫當下標記 legacy 使用；以 `host.enqueue(speech, barriers=frozenset(), native=_VERequest(speech, token))` 排隊後返回。
+- **`speak()`**：已終止時拋出例外；呼叫當下標記 legacy 使用；以 ~~`host.enqueue(speech, barriers=frozenset(), native=_VERequest(speech, token))`~~（Corrected by `fix/ve-ordinary-barriers`（2026-10-29）：`barriers=_ORDINARY_BARRIERS`，即 `frozenset({AUDIO_FED, ENGINE_DONE})`）排隊後返回。
 - **`cancel()`**（外層覆寫，不呼叫原版會 `join` 的 cancel）：
   - 在 host admission 下：`host.cancel()`；在佇列鎖與狀態鎖下設定 silence、清除暫停狀態、整理佇列。
   - 整理佇列的規則：丟掉 `Begin`；保留設定、已開始那筆的 `Retire`、一般語音的 `DoneSpeaking`；丟掉 segment 的 `DoneSpeaking`。`NativeTask` 留在佇列中也不會執行（紀錄已非目前紀錄或已取消）。
@@ -155,7 +155,8 @@ BgThread：
 原型與乾淨重播後，對原設計做了以下修訂；plan 依修訂後的內容撰寫：
 
 1. **`_record_valid` 不看「已封閉」**：`retire()` 會封閉紀錄，若以 `record.is_valid()` 判斷，drain 永遠不會到達 `idle`。改為只看取消、錯誤、work 與 token；callback 准入本身已拒絕封閉的紀錄。
-2. **一般語音紀錄不設 barrier**：原設計用 `{"spoken"}`，但被 token 取消的一般語音會因缺屏障被 host 判為失敗而多停止一次 player；真正的錯誤本來就記錄在紀錄上。
+2. ~~**一般語音紀錄不設 barrier**：原設計用 `{"spoken"}`，但被 token 取消的一般語音會因缺屏障被 host 判為失敗而多停止一次 player；真正的錯誤本來就記錄在紀錄上。~~
+   Corrected by `fix/ve-ordinary-barriers`（2026-10-29）：一般語音紀錄宣告 `{AUDIO_FED, ENGINE_DONE}`。原本的顧慮仍成立（host 看不到請求的 token），改用新的 `SegmentHost.withdraw(record)` 解決：`_retireRecord` 在 reach 之後讀 token，已取消就 withdraw，`retire` 回報 `OrdinaryOutcome(cancelled=True, error=None)`，不檢查 barrier、也不停止 player，所以 token 取消時 player 的行為和以前相同；已記錄的錯誤與 host 的 cancel 仍走原本的路徑（含停止 player）。最後一次呼叫沒有被准入的 ENDPROCESS 時，紀錄以缺少 `engine_done` 失敗、host 停止 player；DONE 已由內層 DoneSpeaking 在 `_Retire` 之前發出，不受影響。
 3. **legacy 使用在 `speak()` 當下標記**：非同步後若等 BgThread 開始才標記，緊接著的 segment 可能先被接受。
 4. **cancel／pause 內重入的 terminate**：在該操作結束時同步完成關閉（與現行相同），關閉者 thread 只用於其他重入情況。
 5. **cancel 不再特別丟掉 `NativeTask`**：變異證明它與保留等價（`_run_native` 會略過非目前紀錄），刪除該分支。
