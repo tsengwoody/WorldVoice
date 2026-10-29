@@ -104,7 +104,7 @@ Windows manual checks (not verifiable on Linux):
 
 ### Readme
 
-User-visible: one entry in the next-version changelog of all six readmes (root `readme.md`, `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md`). zh_TW: 「修正在語言段落交界時暫停，下一段語音仍會繼續播放的問題。」 English: "Fixed speech continuing with the next language segment when paused right at a segment boundary."
+User-visible: one entry in the next-version changelog of all six readmes (root `readme.md`, `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md`). zh_TW: 「**在兩段語音之間暫停：** 修正在一段語音剛播完時暫停，下一段語音（另一個語音或語言）仍會繼續播放的問題。現在會保持暫停，直到恢復。」 English: "**Pausing between two parts of speech:** Fixed speech continuing with the next part (another voice or language) when you paused just as one part finished. Speech now stays paused until you resume." ("part of speech" follows the existing next-version entry.)
 
 ## 3. C4: OneCore ducking — open question (not implemented)
 
