@@ -1890,11 +1890,14 @@ def test_segment_without_native_call_reaches_engine_done(env, monkeypatch):
 	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
-def test_ordinary_speech_needs_no_endprocess(env, monkeypatch):
+# end=True is what the SDK does: then only the ENGINE_DONE-in-barriers check in _retireRecord
+# keeps ordinary speech from reaching a barrier it never declared.
+@pytest.mark.parametrize("end", [True, False], ids=["endprocess", "no-endprocess"])
+def test_ordinary_speech_needs_no_endprocess(env, monkeypatch, end):
 	monkeypatch.setattr(
 		env.native,
 		"processText2Speech",
-		lambda instance, text: emit(env, instance, end=False),
+		lambda instance, text: emit(env, instance, end=end),
 	)
 	host = segment_host(env.core)
 	retire, outcomes = host.retire, []
