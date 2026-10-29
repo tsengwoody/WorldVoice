@@ -350,11 +350,12 @@ def test_ordinary_record_outcomes(env, caplog, case):
 		assert host_errors(env, caplog) == []
 
 
-@pytest.mark.parametrize("case", ["missing", "complete", "error", "cancelled"])
-def test_withdrawn_ordinary_record_outcomes(env, caplog, case):
-	# The engine honoured the request's own token, which the host never sees: retire reports
-	# the record cancelled without a barrier check or a player stop. A recorded error and a
-	# host cancel keep their own handling, including the stop.
+@pytest.mark.parametrize("case", ["missing", "complete", "error"])
+def test_a_host_cancelled_ordinary_record_retires_cancelled(env, caplog, case):
+	# Every engine cancels ordinary speech through the host: whatever barriers the record
+	# reached, and even after a recorded error, retire reports it cancelled, logs nothing for
+	# its unreached barriers and discards queued audio.
+	caplog.set_level(logging.ERROR, logger=env.module.log.name)
 	env.host.enqueue(("ordinary",))
 	record = env.strategy.wait_submitted()
 	env.host.begin(record)
@@ -363,42 +364,12 @@ def test_withdrawn_ordinary_record_outcomes(env, caplog, case):
 		env.host.reach(record, PLAYED_OUT)
 	if case == "error":
 		env.host.record_error(record, OSError("feed failed"))
-	env.host.withdraw(record)
-	if case == "cancelled":
-		env.host.cancel()
-	caplog.set_level(logging.ERROR, logger=env.module.log.name)
-	outcome = env.host.retire(record)
-	# A withdrawn record is not a failure: nothing is logged for its unreached barriers.
-	assert host_errors(env, caplog) == []
-	if case == "error":
-		assert outcome.cancelled is False
-		assert isinstance(outcome.error, OSError)
-		assert env.strategy.player_stops == 1
-	else:
-		assert outcome == env.module.OrdinaryOutcome(cancelled=True, error=None)
-		assert env.strategy.player_stops == (1 if case == "cancelled" else 0)
-
-
-def test_a_withdrawn_record_stays_cancellable_until_forgotten(env):
-	env.host.enqueue(("ordinary",))
-	record = env.strategy.wait_submitted()
-	env.host.begin(record)
-	env.host.withdraw(record)
-	assert env.host.retire(record).cancelled is True
-	assert record in pending_records(env.host)
 	env.host.cancel()
-	assert record.cancelled
-	env.host.forget(record)
+	outcome = env.host.retire(record)
+	assert outcome == env.module.OrdinaryOutcome(cancelled=True, error=None)
+	assert host_errors(env, caplog) == []
+	assert env.strategy.player_stops == 1
 	assert record not in pending_records(env.host)
-
-
-def test_a_segment_record_cannot_be_withdrawn(env):
-	env.speak()
-	record = env.strategy.wait_submitted()
-	assert record.operation is not None
-	with pytest.raises(ValueError, match="ordinary"):
-		env.host.withdraw(record)
-	assert record.withdrawn is False
 
 
 def test_ordinary_speech_raises_after_a_control_error(env):

@@ -54,9 +54,6 @@ class NativeRecord:
 	# Set by abandon(): the record retired without native work, so a stop
 	# has nothing to reach and engine data may never have been bound.
 	abandoned: bool = False
-	# Set by withdraw(): the engine honoured an ordinary request's own cancellation
-	# token, which the host does not see; the record stays valid to the host.
-	withdrawn: bool = False
 
 	def barriers_met(self) -> bool:
 		return all(self.barriers.values())
@@ -470,21 +467,6 @@ class SegmentHost:
 				running = set(self._delivering)
 				self._condition.wait_for(lambda: not (running & self._delivering))
 
-	def withdraw(self, record: NativeRecord) -> None:
-		"""Mark an ordinary record cancelled by the request's own token, before retire().
-
-		Only engines whose core takes the request's cancellation token see it; the host
-		does not. retire() then reports the record cancelled without checking its
-		barriers, which a token-cancelled record may never reach. Unlike a host cancel,
-		it neither invalidates the record nor stops the player: the engine has already
-		acted on the token, and the token's owner stops playback through cancel(). A
-		recorded error or a host cancel still takes its own retire path.
-		"""
-		if record.operation is not None:
-			raise ValueError("only an ordinary record can be withdrawn")
-		with self._condition:
-			record.withdrawn = True
-
 	def forget(self, record: NativeRecord) -> None:
 		with self._condition:
 			if record in self._pending:
@@ -505,8 +487,7 @@ class SegmentHost:
 
 		A still-valid ordinary record stays pending, so a cancel that arrives
 		before the caller reports completion still marks it cancelled; the
-		caller must ``forget`` it once that report is done. A withdrawn record is
-		such a record too, reported cancelled (see withdraw()).
+		caller must ``forget`` it once that report is done.
 		"""
 		with self._condition:
 			valid = record.is_valid()
@@ -534,7 +515,7 @@ class SegmentHost:
 			record.handoff.wait()
 			return None
 		if not valid:
-			# Token-only cancellation can skip the terminal idle; discard queued audio.
+			# A cancelled record can skip the terminal idle; discard queued audio.
 			# Ordinary speech only logs a failed stop here; a segment's drain path
 			# latches it as a lifecycle fault, because its successor waits on the drain.
 			try:
@@ -543,8 +524,6 @@ class SegmentHost:
 				log.error("Error stopping cancelled %s playback", self.engine, exc_info=True)
 			return OrdinaryOutcome(cancelled=True, error=None)
 		error = record.error
-		if error is None and record.withdrawn:
-			return OrdinaryOutcome(cancelled=True, error=None)
 		if error is None and not record.barriers_met():
 			error = self._missing_barriers_error(record)
 			# Engines do not read the ordinary outcome, and the stop below may hit an idle
