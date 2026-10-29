@@ -366,7 +366,6 @@ def test_vocalizer_wrapper_has_no_guard_fallback(engine):
 	source = (ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
 	assert "_guardInstalled" not in source
 	assert "supportsCancellationToken" not in source
-	assert "cancellationToken" not in source
 	tree = ast.parse(source)
 	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
 	assert _class_constant(tree, "Voice", "extraCapabilities") == {"waitfactor", "variant"}, voice.name
@@ -603,13 +602,58 @@ def test_leased_player_reaches_played_out_by_default():
 	assert "from .barriers import PLAYED_OUT" in ast.unparse(host_tree)
 
 
-def test_no_core_takes_the_request_token():
-	# Every core is stopped through cancel(); the bridge's plain speak passes no token and no
-	# Voice declares one (fix/ve-drop-cancellation-token). The vendored inner drivers never had it.
-	mentions = sorted(
-		str(path.relative_to(ROOT))
+_TOKEN_NAMES = frozenset({"cancellationToken", "supportsCancellationToken"})
+
+
+def _token_names(tree):
+	"""Where code names the old token keyword or trait: parameters, keyword arguments, attributes,
+	plain names and string constants (so "cancellationToken" in extraCapabilities counts).
+	Comments and docstrings are not code and do not count."""
+	docstrings = {
+		id(node.body[0].value)
+		for node in ast.walk(tree)
+		if isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
+		and node.body
+		and isinstance(node.body[0], ast.Expr)
+		and isinstance(node.body[0].value, ast.Constant)
+	}
+	for node in ast.walk(tree):
+		if isinstance(node, ast.arg | ast.keyword):
+			name = node.arg
+		elif isinstance(node, ast.Attribute):
+			name = node.attr
+		elif isinstance(node, ast.Name):
+			name = node.id
+		elif isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
+			name = node.value
+		else:
+			continue
+		if name in _TOKEN_NAMES:
+			yield node.lineno
+
+
+def test_token_name_detection():
+	source = (
+		'"""cancellationToken in a docstring."""\n'
+		"# cancellationToken in a comment\n"
+		"def speak(commands, cancellationToken=None): pass\n"
+		"core.speak(commands, cancellationToken=token)\n"
+		"core.supportsCancellationToken\n"
+		'extra = frozenset({"cancellationToken"})\n'
+		"cancellationToken = None\n"
+	)
+	assert sorted(_token_names(ast.parse(source))) == [3, 4, 5, 6, 7]
+
+
+def test_no_add_on_code_names_the_request_token():
+	# Every core is stopped through cancel(); plain speak passes no token and no Voice declares
+	# one (fix/ve-drop-cancellation-token). The bridge behaviour itself is pinned by
+	# test_plain_speak_never_passes_the_request_token; this keeps the keyword and the trait from
+	# coming back in any add-on source, vendored inner drivers included.
+	found = sorted(
+		f"{path.relative_to(ROOT)}:{line}"
 		for path in ROOT.rglob("*.py")
 		if not set(path.relative_to(ROOT).parts[:2]) & UNTRACKED_PACKAGES
-		and "cancellationToken" in path.read_text(encoding="utf-8")
+		for line in _token_names(ast.parse(path.read_text(encoding="utf-8")))
 	)
-	assert mentions == []
+	assert found == []
