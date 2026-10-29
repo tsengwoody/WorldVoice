@@ -1998,6 +1998,37 @@ def test_cancel_mid_feed_retires_cancelled(env, monkeypatch, caplog):
 	assert missing_barrier_logs(caplog) == []
 
 
+def test_legacy_endprocess_after_a_recorded_error_is_acknowledged_but_does_not_count(
+	env,
+	monkeypatch,
+	caplog,
+):
+	# A record that failed inside a native call whose admission is still open (here a recorded
+	# error; also a host cancel before cancel() closes the call) gets the legacy ENDPROCESS
+	# acknowledgement, NUAN_OK, like the original add-on. It is not an admitted ENDPROCESS, so it
+	# proves nothing for ENGINE_DONE, and the record retires with its own error.
+	error, results = OSError("feed failed"), []
+	host = segment_host(env.core)
+
+	def native(instance, text):
+		emit(env, instance, end=False)
+		host.record_error(host.current(), error)
+		results.append(end_process(env, instance))
+
+	outcomes = speak_ordinary_pieces(env, monkeypatch, ["a"], native)
+	assert results == [env.types.NUAN_OK]
+	[(record, outcome)] = outcomes
+	assert record.native.lastCallEnded is False
+	assert record.barriers == {"audio_fed": False, "engine_done": False, "played_out": False}
+	assert (outcome.cancelled, outcome.error) == (False, error)
+	player = real_player(env.core)
+	# The host's failure path discards queued audio; the failed (not cancelled) request still
+	# releases its DONE waiter.
+	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 0, 1)
+	assert len(env.dones) == 1
+	assert missing_barrier_logs(caplog) == []
+
+
 def test_cancel_after_the_last_call_retires_cancelled(env, monkeypatch, caplog):
 	# The terminal idle runs after the last native call and before _Retire.
 	player = real_player(env.core)
