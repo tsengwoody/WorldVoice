@@ -6,7 +6,7 @@ from threading import Event, Lock, Thread
 
 import pytest
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler, tracked_requests, worker_alive
-from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_unset
 
 
 @pytest.fixture
@@ -474,13 +474,15 @@ def test_cancel_current_preserves_queued_request_and_gates_stop(manager, port, r
 	assert output.wait_done() == 1
 
 
-def test_pause_current_uses_valid_playback(manager, port):
+def test_pause_forwarding_follows_the_current_segment(manager, port):
 	manager.pause_current(True)
+	manager.pause_current(False)
 	speech(manager, port)
 	manager.pause_current(True)
 	manager.pause_current(False)
 	manager.cancel([port])
 	manager.pause_current(True)
+	manager.pause_current(False)
 	assert port.paused == [True, False]
 
 
@@ -967,3 +969,87 @@ def test_cancelled_future_releases_completion_hold(manager, rt):
 	stays_unset(finished)
 	assert future.cancel()
 	assert finished.wait(WAIT_TIMEOUT), "a cancelled Future stayed held by the pause"
+
+
+def test_pause_without_current_task_holds_next_task(manager, port):
+	manager.pause_current(True)
+	request = manager.new_request()
+	manager.append_speech(request, port, "Fake:a", ("hello",))
+	assert manager.submit_request(request)
+	stays_unset(port.entered)
+	assert port.paused == []
+	manager.pause_current(False)
+	assert port.entered.wait(WAIT_TIMEOUT)
+	assert port.paused == []
+
+
+def test_pause_during_break_holds_following_speech(manager, port):
+	entered, release = Event(), Event()
+	request = manager.new_request()
+	manager.append_break(request, 60)
+	manager.append_speech(request, port, "Fake:a", ("hello",))
+
+	def wait(seconds):
+		entered.set()
+		assert release.wait(HOLD_TIMEOUT)
+		return False
+
+	request.token.wait = wait
+	assert manager.submit_request(request)
+	assert entered.wait(WAIT_TIMEOUT)
+	manager.pause_current(True)
+	release.set()
+	stays_unset(port.entered)
+	manager.pause_current(False)
+	assert port.entered.wait(WAIT_TIMEOUT)
+
+
+def test_resume_reaches_paused_engine_before_successor_starts(manager, rt):
+	port = drain_port(rt)
+	calls = []
+	original = port.pause
+	port.pause = lambda switch: (calls.append(("pause", switch)), original(switch))
+	port.on_speak = lambda: calls.append("speak")
+	request = manager.new_request()
+	manager.append_speech(request, port, "Fake:a", ("one",))
+	manager.append_speech(request, port, "Fake:a", ("two",))
+	assert manager.submit_request(request)
+	assert port.entered.wait(WAIT_TIMEOUT)
+	manager.pause_current(True)
+	drained(manager, rt, port)
+	manager.pause_current(False)
+	eventually(lambda: calls.count("speak") == 2)
+	assert calls == ["speak", ("pause", True), ("pause", False), "speak"]
+
+
+def test_cancel_releases_start_hold(manager, port, rt):
+	manager.pause_current(True)
+	request = manager.new_request()
+	future = manager.append_speech(request, port, "Fake:a", ("held",))
+	assert manager.submit_request(request)
+	stays_unset(port.entered)
+	manager.cancel([port])
+	assert done_event(future).wait(WAIT_TIMEOUT)
+	assert future.cancelled()
+	fresh = FakePlayback()
+	fresh.on_speak = lambda: event(manager, rt, fresh)
+	_request, fresh_future = speech(manager, fresh)
+	assert fresh_future.result(WAIT_TIMEOUT) is True
+	assert not port.entered.is_set()
+
+
+def test_failed_paused_task_holds_next_request_and_resume_reaches_failed_engine(manager, rt):
+	port, other = drain_port(rt), drain_port(rt)
+	_request, future = drain_speech(manager, port)
+	manager.pause_current(True)
+	manager.on_event(drain_event(rt, port, "SEGMENT_FAILED"))
+	request = manager.new_request()
+	manager.append_speech(request, other, "Fake:b", ("next",))
+	assert manager.submit_request(request)
+	stays_unset(other.entered)
+	assert not future.done()
+	manager.pause_current(False)
+	assert port.paused == [True, False]
+	with pytest.raises(RuntimeError):
+		future.result(WAIT_TIMEOUT)
+	assert other.entered.wait(WAIT_TIMEOUT)

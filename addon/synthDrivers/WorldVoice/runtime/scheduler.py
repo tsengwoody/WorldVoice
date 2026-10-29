@@ -547,10 +547,12 @@ class TaskManager:
 			self._settle(task, result, error, failed)
 
 	def _acquire(self, task):
-		"""Wait out in-flight stops, then make a still-valid task current."""
+		"""Wait out in-flight stops and a pause, then make a still-valid task current."""
 		source = task.playback.source_id if task.playback is not None else None
 		with self._state_cond:
-			while self._stops_in_flight:
+			# No task starts while paused: not after a break, between tasks, or
+			# after a failed segment whose request ended during the pause.
+			while self._stops_in_flight or (self._paused and self._valid_locked(task)):
 				self._state_cond.wait()
 			if not self._valid_locked(task):
 				return False
