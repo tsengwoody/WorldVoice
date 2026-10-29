@@ -16,7 +16,7 @@ from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
-from ...runtime.segmentHost import NativeStrategy, SegmentDrainCore, SegmentHost
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
 from ...runtime.session import CancellationView
 from . import driver as base
 from .driver import (
@@ -97,7 +97,7 @@ class _ThreadState(threading.local):
 
 class _IdleRoutingPlayer:
 	"""Routes only the inner DoneSpeaking idle to `_idlePlayer`, passing the rest to the real player;
-	it is not a `LeasedPlayer` like RHVoice's `_WavePlayer`.
+	the wrapper's own feeds and stops go through `_CallbackPlayer`.
 
 	A DoneSpeaking keeps the player the inner speak() gave it: _enqueue makes that one bound to
 	the record being submitted, so the final idle names its record instead of asking which runs.
@@ -117,6 +117,19 @@ class _IdleRoutingPlayer:
 
 	def __getattr__(self, name):
 		return getattr(self._player, name)
+
+
+class _CallbackPlayer(LeasedPlayer):
+	"""The real player's lease: the native callback's feeds and every wrapper stop.
+
+	A feed is admitted for the current record, which is the one the callback already
+	holds; a feed that returns after a cancel is stopped again before the callback
+	leaves, and a failed stop latches the control error.
+	"""
+
+	def __init__(self, driver, player):
+		super().__init__(driver._segmentHost, player, idle_barrier=None)
+		self._driver = weakref.ref(driver)
 
 
 @dataclass(eq=False)
@@ -292,14 +305,6 @@ class _ContextualCerenceCallback(base.VECallback):
 			driver._closeAdmission(call)
 			log.error("WorldVoice Cerence callback failed", exc_info=True)
 			return NUAN_E_TTS_USERSTOP
-		finally:
-			# The callback keeps its admission through the final stop; the
-			# worker cannot start another call until this consumer leaves.
-			try:
-				if not driver._recordValid(record):
-					driver._realPlayer.stop()
-			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
-				host.record_error(record, error)
 
 	def detach(self):
 		self._driver = None
@@ -443,6 +448,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		# guarded callback decides by record validity and feeds _realPlayer.
 		self._realPlayer = self._player
 		self._player = _IdleRoutingPlayer(self._realPlayer, self)
+		self._leasedPlayer = _CallbackPlayer(self, self._realPlayer)
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		return unverified_drain_support(_PROFILE, "SDK callback quiescence and physical playback are")
@@ -615,7 +621,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 					self._nativeCall = None
 			if blocked is not None:
 				try:
-					self._realPlayer.stop()
+					self._leasedPlayer.stop()
 				except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 					host.record_error(record, error)
 
@@ -652,7 +658,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 	def _feedCallback(self, record, data):
 		if self._recordValid(record):
-			self._realPlayer.feed(data)
+			self._leasedPlayer.feed(data)
 
 	def _idlePlayer(self, record):
 		# Called by the inner DoneSpeaking on the worker, for the record its player was bound
@@ -701,7 +707,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		with self._stopGate.hold():
 			try:
 				with self._playerOperation():
-					self._realPlayer.stop()
+					self._leasedPlayer.stop()
 			except Exception as error:
 				# A failed stop leaves the player state unknown: reject successors.
 				self._segmentHost.latch_control_error(error)
@@ -732,7 +738,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				for record in dropped:
 					host.abandon(record)
 			try:
-				self._realPlayer.stop()
+				self._leasedPlayer.stop()
 			except Exception as error:
 				host.latch_control_error(error)
 				raise
@@ -840,7 +846,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				host.record_error(record, error)
 			try:
 				# Release a real idle/feed blocked by the uncertain pause state.
-				self._realPlayer.stop()
+				self._leasedPlayer.stop()
 			except Exception:
 				log.error("WorldVoice pause failure cleanup failed", exc_info=True)
 			finally:

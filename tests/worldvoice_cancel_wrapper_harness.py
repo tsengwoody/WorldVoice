@@ -325,6 +325,11 @@ def real_player(core):
 	return core._realPlayer
 
 
+def leased_player(core):
+	"""The LeasedPlayer the wrapper feeds and stops its real player through."""
+	return core._leasedPlayer
+
+
 def callback_handler(core):
 	"""The inner driver's native callback handler (VECallback)."""
 	return core._veCallbackHandler

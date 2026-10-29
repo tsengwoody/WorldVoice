@@ -15,6 +15,7 @@ from worldvoice_cancel_wrapper_harness import (
 	emit,
 	end_process,
 	inner_stop_flag,
+	leased_player,
 	load_real_driver_with_native_stubs,
 	native_call,
 	native_callback,
@@ -2372,3 +2373,60 @@ def test_failed_final_idle_fails_the_record(env, monkeypatch, caplog):
 	[(_, outcome)] = outcomes
 	assert (outcome.cancelled, outcome.error) == (False, None)
 	assert len(env.dones) == 1
+
+
+def test_feeds_go_through_the_lease(env, monkeypatch):
+	prove_fake_quiescence(env, monkeypatch)
+	leased = sys.modules[type(segment_host(env.core)).__module__].LeasedPlayer
+	assert isinstance(leased_player(env.core), leased)
+	assert leased_player(env.core)._player is real_player(env.core)
+
+	def native(instance, text):
+		emit(env, instance)
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	_, _, call = speak(env)
+	finish(call)
+	assert real_player(env.core).fed == [b"pcm"]
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_late_feed_after_cancel_is_stopped_and_stop_failure_latches(env, monkeypatch):
+	prove_fake_quiescence(env, monkeypatch)
+	player = real_player(env.core)
+	entered, release = Event(), Event()
+	original_feed, original_stop = player.feed, player.stop
+
+	def held_feed(data):
+		entered.set()
+		assert release.wait(HOLD_TIMEOUT)
+		original_feed(data)
+
+	def native(instance, text):
+		emit(env, instance)
+
+	player.feed = held_feed
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	_, _, first = speak(env)
+	assert entered.wait(WAIT_TIMEOUT)
+	env.core.cancel()
+	error = OSError("late stop failed")
+	failures = [error]
+
+	def stop():
+		# The stop after the late feed fails once.
+		if failures:
+			raise failures.pop()
+		original_stop()
+
+	player.stop = stop
+	release.set()
+	finish(first)
+	assert failures == [], "the feed that returned after cancel was not stopped again"
+	assert segment_host(env.core).control_error is error
+	player.feed, player.stop = original_feed, original_stop
+	_, context, second = speak(env, segment=18)
+	finish(second)
+	assert [(event.kind, event.source_id) for event in env.events] == [
+		(env.rt.models.EventKind.SEGMENT_FAILED, context.source_id),
+	]

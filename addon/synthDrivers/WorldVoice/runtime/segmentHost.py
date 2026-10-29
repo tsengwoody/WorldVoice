@@ -701,11 +701,11 @@ class LeasedPlayer:
 
 	def _feed_admitted(self, record: NativeRecord, data, size, on_done):
 		"""Feed while ``record`` is admitted; subclasses choose which record to admit."""
-		callback = None if on_done is None else self._callback(record, on_done)
+		# Pass on only what the caller passed: VE's inner feeds the bare data.
+		args = (data,) if size is None else (data, size)
+		kwargs = {} if on_done is None else {"onDone": self._callback(record, on_done)}
 		try:
-			if size is None:
-				return self._player.feed(data, onDone=callback)
-			return self._player.feed(data, size, onDone=callback)
+			return self._player.feed(*args, **kwargs)
 		except Exception as error:
 			self._record_error(record, error)
 			raise
