@@ -197,24 +197,34 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 
 	def __init__(self):
 		self._segmentHost = SegmentHost("OneCore", _OneCoreStrategy(self))
-		self._segmentCondition = Condition()
-		self._segmentPauseLock = Lock()
-		self._segmentMode = False
-		self._segmentTerminated = False
-		self._segmentPaused = False
-		self._segmentControlGeneration = 0
-		self._stopGate = StopGate(self._segmentCondition)
-		self._segmentWorker = None
-		self._segmentNative = None
-		self._segmentCallback = _DetachableCallback(self)
-		# The parent installs CFUNCTYPE(self._callback) once. Intercept only
-		# that instance lookup; its native pointer owns the trampoline rather
-		# than a bound method retaining this whole driver.
-		self._callback = self._segmentCallback
 		try:
-			super().__init__()
-		finally:
-			del self._callback
+			self._segmentCondition = Condition()
+			self._segmentPauseLock = Lock()
+			self._segmentMode = False
+			self._segmentTerminated = False
+			self._segmentPaused = False
+			self._segmentControlGeneration = 0
+			self._stopGate = StopGate(self._segmentCondition)
+			self._segmentWorker = None
+			self._segmentNative = None
+			self._segmentCallback = _DetachableCallback(self)
+			# The parent installs CFUNCTYPE(self._callback) once. Intercept only
+			# that instance lookup; its native pointer owns the trampoline rather
+			# than a bound method retaining this whole driver.
+			self._callback = self._segmentCallback
+			try:
+				super().__init__()
+			finally:
+				del self._callback
+		except BaseException:
+			# VoiceClassAdapter.open gets no core to terminate when the
+			# constructor raises. Only the segment host is the wrapper's to
+			# release: a native token NVDA's constructor left cannot be.
+			try:
+				self._segmentHost.terminate()
+			except Exception:
+				log.error("WorldVoice OneCore initialization cleanup failed", exc_info=True)
+			raise
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		if self._segmentTerminated or not self._ocSpeechToken or not self._ocSpeechToken.value:

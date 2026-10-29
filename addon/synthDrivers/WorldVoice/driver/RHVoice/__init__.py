@@ -4,6 +4,7 @@ import weakref
 from dataclasses import dataclass
 from threading import Condition, RLock
 
+from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
@@ -308,12 +309,29 @@ class SynthDriver(rhvoice.SynthDriver, SegmentDrainCore):
 
 	def __init__(self):
 		self._segmentHost = SegmentHost("RHVoice", _RHVoiceStrategy(self))
-		self._segmentCondition = Condition(RLock())
-		self._stopGate = StopGate(self._segmentCondition)
-		self._segmentById = {}
-		self._segmentNextId = 1
-		self._inner = _RHVoiceInner(self)
-		super().__init__()
+		releases = [self._segmentHost.terminate]
+		try:
+			self._segmentCondition = Condition(RLock())
+			self._stopGate = StopGate(self._segmentCondition)
+			self._segmentById = {}
+			self._segmentNextId = 1
+			self._inner = _RHVoiceInner(self)
+			super().__init__()
+			# The inner driver is whole once its constructor returns; its terminate
+			# stops the tts thread, closes the player and deletes the engine.
+			releases.append(super().terminate)
+			self._wrapPlayer()
+		except BaseException:
+			# VoiceClassAdapter.open gets no core to terminate when the
+			# constructor raises: release what was built, newest first.
+			for release in reversed(releases):
+				try:
+					release()
+				except Exception:
+					log.error("WorldVoice RHVoice initialization cleanup failed", exc_info=True)
+			raise
+
+	def _wrapPlayer(self):
 		player = self._inner.player
 		originalGetPlayer = player.get_player
 		wrapped = {}

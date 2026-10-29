@@ -394,8 +394,24 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._segmentSeenStreams = set()
 		self._segmentSink = None
 		self._segmentAudio = None
-		super().__init__(*args, **kwargs)
-		self._ensureEngineControl()
+		try:
+			super().__init__(*args, **kwargs)
+			self._ensureEngineControl()
+		except BaseException:
+			# VoiceClassAdapter.open gets no core to terminate when the
+			# constructor raises: release what was built, newest first. Once
+			# _initWasapiAudio built a player, NVDA's terminate stops the worker
+			# and closes the player.
+			releases = [self._segmentHost.terminate]
+			if getattr(self, "player", None) is not None:
+				releases.append(super().terminate)
+			releases.append(self._releaseSink)
+			for release in reversed(releases):
+				try:
+					release()
+				except Exception:
+					log.error("WorldVoice SAPI5 initialization cleanup failed", exc_info=True)
+			raise
 
 	def _ensureEngineControl(self):
 		# NVDA creates _threadCond in its __init__ and may start the worker there.
@@ -459,12 +475,15 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			for record in dropped:
 				self._segmentHost.abandon(record)
 
-	def _initTts(self, voice=None):
-		self._invalidateSegments()
+	def _releaseSink(self):
 		if self._segmentSink is not None:
 			self._segmentSink.detach()
 		self._segmentSink = None
 		self._segmentAudio = None
+
+	def _initTts(self, voice=None):
+		self._invalidateSegments()
+		self._releaseSink()
 		super()._initTts(voice)
 		self._segmentSeenStreams.clear()
 		if not self.useWasapi:
@@ -677,10 +696,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def terminate(self):
 		self._invalidateSegments()
 		self._segmentHost.terminate()
-		if self._segmentSink is not None:
-			self._segmentSink.detach()
-		self._segmentSink = None
-		self._segmentAudio = None
+		self._releaseSink()
 		return super().terminate()
 
 

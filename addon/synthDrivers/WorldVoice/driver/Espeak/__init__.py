@@ -137,8 +137,22 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def __init__(self):
 		self._port = _EspeakPort()
 		self._segmentHost = SegmentHost("eSpeak", _EspeakStrategy(self))
-		super().__init__()
-		self._port.install(self._segmentHost, self)
+		releases = [self._segmentHost.terminate]
+		try:
+			super().__init__()
+			# NVDA's driver is whole once its constructor returns; its terminate
+			# stops eSpeak's thread, closes the player and terminates the DLL.
+			releases.append(super().terminate)
+			self._port.install(self._segmentHost, self)
+		except BaseException:
+			# VoiceClassAdapter.open gets no core to terminate when the
+			# constructor raises: release what was built, newest first.
+			for release in reversed(releases):
+				try:
+					release()
+				except Exception:
+					log.error("WorldVoice eSpeak initialization cleanup failed", exc_info=True)
+			raise
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		return unverified_drain_support(
