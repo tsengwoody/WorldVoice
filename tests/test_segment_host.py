@@ -334,6 +334,54 @@ def test_ordinary_record_outcomes(env, case):
 		assert env.strategy.player_stops == 1
 
 
+@pytest.mark.parametrize("case", ["missing", "complete", "error", "cancelled"])
+def test_withdrawn_ordinary_record_outcomes(env, case):
+	# The engine honoured the request's own token, which the host never sees: retire reports
+	# the record cancelled without a barrier check or a player stop. A recorded error and a
+	# host cancel keep their own handling, including the stop.
+	env.host.enqueue(("ordinary",))
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	if case == "complete":
+		env.host.reach(record, "returned")
+		env.host.reach(record, PLAYED_OUT)
+	if case == "error":
+		env.host.record_error(record, OSError("feed failed"))
+	env.host.withdraw(record)
+	if case == "cancelled":
+		env.host.cancel()
+	outcome = env.host.retire(record)
+	if case == "error":
+		assert outcome.cancelled is False
+		assert isinstance(outcome.error, OSError)
+		assert env.strategy.player_stops == 1
+	else:
+		assert outcome == env.module.OrdinaryOutcome(cancelled=True, error=None)
+		assert env.strategy.player_stops == (1 if case == "cancelled" else 0)
+
+
+def test_a_withdrawn_record_stays_cancellable_until_forgotten(env):
+	env.host.enqueue(("ordinary",))
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	env.host.withdraw(record)
+	assert env.host.retire(record).cancelled is True
+	assert record in pending_records(env.host)
+	env.host.cancel()
+	assert record.cancelled
+	env.host.forget(record)
+	assert record not in pending_records(env.host)
+
+
+def test_a_segment_record_cannot_be_withdrawn(env):
+	env.speak()
+	record = env.strategy.wait_submitted()
+	assert record.operation is not None
+	with pytest.raises(ValueError, match="ordinary"):
+		env.host.withdraw(record)
+	assert record.withdrawn is False
+
+
 def test_ordinary_speech_raises_after_a_control_error(env):
 	error = OSError("stop failed")
 	env.host.latch_control_error(error)
