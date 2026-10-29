@@ -7,18 +7,12 @@ from synthDrivers import _espeak
 from synthDrivers.espeak import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
+from ...bridge.nvdaVersion import nvdaLabel
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import release_newest_first
 from ...runtime.hostNames import host_names_ready
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentHost, SegmentHostSpeaker
-
-
-def _nvdaLabel():
-	# Imported here: the NVDA version is read only to name it in a skip log.
-	import versionInfo
-
-	return f"NVDA {versionInfo.version}"
 
 
 class _SegmentNative:
@@ -241,6 +235,6 @@ class Voice(BaseVoice):
 			BaseSynthDriver,
 			module_names=_EspeakPort.NVDA_MODULE_NAMES,
 			class_names=_EspeakPort.NVDA_PRIVATES | _EspeakPort.NVDA_OVERRIDES,
-			host_label=_nvdaLabel,
+			host_label=nvdaLabel,
 			logger=log,
 		)

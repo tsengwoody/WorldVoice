@@ -10,6 +10,7 @@ from synthDriverHandler import synthDoneSpeaking, synthIndexReached
 from synthDrivers import oneCore
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
+from ...bridge.nvdaVersion import nvdaLabel
 from ...runtime.barriers import AUDIO_FED, PLAYED_OUT
 from ...runtime.engineControl import ControlFaultPolicy, StopGate, release_newest_first
 from ...runtime.hostNames import host_names_ready
@@ -25,13 +26,6 @@ _TERMINATED_CALLBACKS = []
 # Ordinary (legacy) text proves only that its callback returned; the parent
 # owns its queue-empty sync, idle and DONE.
 _ORDINARY_BARRIERS = frozenset({AUDIO_FED})
-
-
-def _nvdaLabel():
-	# Imported here: the NVDA version is read only to name it in a skip log.
-	import versionInfo
-
-	return f"NVDA {versionInfo.version}"
 
 
 class _OneCorePort:
@@ -685,7 +679,7 @@ class Voice(BaseVoice):
 			oneCore.SynthDriver,
 			module_names=_OneCorePort.NVDA_MODULE_NAMES,
 			class_names=_OneCorePort.NVDA_PRIVATES | _OneCorePort.NVDA_OVERRIDES,
-			host_label=_nvdaLabel,
+			host_label=nvdaLabel,
 			logger=log,
 		)
 

@@ -8,6 +8,7 @@ from synthDrivers import sapi5
 from synthDrivers.sapi5 import SynthDriver as BaseSynthDriver
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
+from ...bridge.nvdaVersion import nvdaLabel
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import ControlFaultPolicy, QueuedRecords, StopGate, release_newest_first
 from ...runtime.hostNames import missing_host_names
@@ -34,13 +35,6 @@ class _SapiRequest:
 
 def _purgeFlags():
 	return sapi5.SpeechVoiceSpeakFlags.Async | sapi5.SpeechVoiceSpeakFlags.PurgeBeforeSpeak
-
-
-def _nvdaLabel():
-	# Imported here: the NVDA version is read only to name it in the log line of ready().
-	import versionInfo
-
-	return f"NVDA {versionInfo.version}"
 
 
 def _nvdaBase(name):
@@ -718,7 +712,7 @@ class Voice(BaseVoice):
 		log.info(
 			"SAPI5 engine uses NVDA's own SAPI5 driver, without WorldVoice's segment drain: "
 			"%s lacks %d of the names WorldVoice's SAPI5 driver needs: %s",
-			_nvdaLabel(),
+			nvdaLabel(),
 			len(missing),
 			", ".join(missing),
 		)
