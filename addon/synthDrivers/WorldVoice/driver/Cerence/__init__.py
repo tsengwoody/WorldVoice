@@ -13,7 +13,7 @@ from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
 from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
-from ...runtime.engineControl import StopGate
+from ...runtime.engineControl import ControlFaultPolicy, StopGate
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, unverified_drain_support
 from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
@@ -130,6 +130,12 @@ class _CallbackPlayer(LeasedPlayer):
 	def __init__(self, driver, player):
 		super().__init__(driver._segmentHost, player, idle_barrier=None)
 		self._driver = weakref.ref(driver)
+
+	def _stop_failed(self, error):
+		driver = self._driver()
+		if driver is None:
+			return super()._stop_failed(error)
+		driver._failSegmentControl(error)
 
 
 @dataclass(eq=False)
@@ -355,10 +361,14 @@ class _CerenceStrategy(NativeStrategy):
 							(driver._pauses == 0 and not driver._paused) or not driver._recordValid(record)
 						),
 					)
-			except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
-				# The player state is uncertain after a failed idle: reject successors.
+			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
+				# A failed idle fails only this segment (engineControl's latch rule): stop
+				# the player for its successor; only a failed stop latches.
 				host.record_error(record, error)
-				host.latch_control_error(error)
+				try:
+					driver._stopPlayer()
+				except Exception as stopError:  # noqa: BLE001 - latched: the player or engine state is unknown
+					driver._failSegmentControl(stopError)
 				return
 			if driver._recordValid(record):
 				host.reach(record, PLAYED_OUT)
@@ -374,6 +384,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._nativeCall = None
 		self._legacyUsed = False
 		self._stopGate = StopGate(self._speechStateLock)
+		# Queued records need no drop: _beginRecord abandons them once an error is latched.
+		self._controlFault = ControlFaultPolicy(self._segmentHost, self._speechStateLock)
 		self._paused = False
 		self._pauseRevision = 0
 		self._pauses = 0
@@ -613,7 +625,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 					self._confirmNativeQuiescence(call)
 				except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
 					host.record_error(record, error)
-					host.latch_control_error(error)
+					self._failSegmentControl(error)
 					blocked = error
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
@@ -703,15 +715,13 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		finally:
 			self._playerLocal.depth -= 1
 
+	def _failSegmentControl(self, error):
+		return self._controlFault.fail(error)
+
 	def _stopPlayer(self):
-		with self._stopGate.hold():
-			try:
-				with self._playerOperation():
-					self._leasedPlayer.stop()
-			except Exception as error:
-				# A failed stop leaves the player state unknown: reject successors.
-				self._segmentHost.latch_control_error(error)
-				raise
+		# A failed stop leaves the player state unknown: the lease latches it and raises.
+		with self._stopGate.hold(), self._playerOperation():
+			self._leasedPlayer.stop()
 
 	def cancel(self):
 		host = self._segmentHost
@@ -737,11 +747,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 					self._speechStateLock.notify_all()
 				for record in dropped:
 					host.abandon(record)
-			try:
-				self._leasedPlayer.stop()
-			except Exception as error:
-				host.latch_control_error(error)
-				raise
+			# A failed stop latches through the lease and raises.
+			self._leasedPlayer.stop()
 		finally:
 			if entered:
 				with self._speechStateLock:
@@ -833,7 +840,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		except Exception as error:
 			# A raised pause/resume may have partially changed the player.
 			# Block this core permanently instead of guessing its state.
-			host.latch_control_error(error)
+			self._failSegmentControl(error)
 			with self._speechStateLock:
 				record = self._currentRecord
 				call = self._nativeCall

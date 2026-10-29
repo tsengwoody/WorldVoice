@@ -404,22 +404,70 @@ def test_parameter_read_never_reorders_queued_speech(env, monkeypatch):
 	assert env.dones == []
 
 
-def test_player_failure_rejects_successor_with_context(env, monkeypatch):
+def _ending_native(env, monkeypatch):
+	def native(instance, text):
+		end_process(env, instance)
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+
+
+def _fails_once(errors, original=None):
+	def call(*args):
+		if errors:
+			raise errors.pop()
+		return original(*args) if original is not None else None
+
+	return call
+
+
+def test_drain_idle_failure_fails_only_its_segment(env, monkeypatch):
 	prove_fake_quiescence(env, monkeypatch)
-	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
+	_ending_native(env, monkeypatch)
+	player = real_player(env.core)
 	error = OSError("idle failed")
-	real_player(env.core).idle = lambda: (_ for _ in ()).throw(error)
+	player.idle = _fails_once([error])
 	_, first_context, first = speak(env)
 	finish(first)
-	assert len(env.events) == 1
-	assert env.events[0].source_id is first_context.source_id
-	assert env.events[0].error is error
+	assert [(event.kind, event.source_id, event.error) for event in env.events] == [
+		(env.rt.models.EventKind.SEGMENT_FAILED, first_context.source_id, error),
+	]
+	# The player was stopped for the successor instead of latching.
+	assert player.stops >= 1
+	assert segment_host(env.core).control_error is None
 	_, second_context, second = speak(env, segment=18)
 	finish(second)
-	assert len(env.events) == 2
-	assert env.events[1].kind is env.rt.models.EventKind.SEGMENT_FAILED
-	assert env.events[1].source_id is second_context.source_id
-	assert env.events[1].segment_id == 18
+	assert [(event.kind, event.source_id) for event in env.events[1:]] == [
+		(env.rt.models.EventKind.SEGMENT_DRAINED, second_context.source_id),
+	]
+
+
+def test_drain_stop_failure_after_idle_failure_latches(env, monkeypatch):
+	prove_fake_quiescence(env, monkeypatch)
+	calls = []
+
+	def native(instance, text):
+		calls.append(text)
+		end_process(env, instance)
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	player = real_player(env.core)
+	idle_error, stop_error = OSError("idle failed"), OSError("stop failed")
+	player.idle = _fails_once([idle_error])
+	player.stop = _fails_once([stop_error], player.stop)
+	_, _, first = speak(env)
+	finish(first)
+	# The latch fails the accepted segment with the stop error before its idle error.
+	assert [(event.kind, event.error) for event in env.events] == [
+		(env.rt.models.EventKind.SEGMENT_FAILED, stop_error),
+	]
+	assert segment_host(env.core).control_error is stop_error
+	spoken = len(calls)
+	_, context, second = speak(env, segment=18)
+	finish(second)
+	assert [(event.kind, event.source_id, event.error) for event in env.events[1:]] == [
+		(env.rt.models.EventKind.SEGMENT_FAILED, context.source_id, stop_error),
+	]
+	assert len(calls) == spoken
 
 
 def test_terminate_waits_for_coordinator_stop(env, monkeypatch):
