@@ -149,8 +149,6 @@ class _OneCoreStrategy(NativeStrategy):
 		with driver._segmentCondition:
 			if driver._segmentTerminated:
 				return RuntimeError("OneCore driver has terminated")
-			if not driver._segmentMode and driver._isProcessing:
-				return RuntimeError("Cannot switch to correlated playback while legacy synthesis is active")
 		return None
 
 	def prepare(self, host, commands, operation):
@@ -177,7 +175,6 @@ class _OneCoreStrategy(NativeStrategy):
 		with driver._segmentCondition:
 			driver._checkSegmentAdmission()
 			record.native = _OneCoreNative(text)
-			driver._segmentMode = True
 			driver._queuedSpeech.append(_SpeechJob(record))
 		driver._processQueue()
 
@@ -223,7 +220,6 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentHostSpeaker):
 		try:
 			self._segmentCondition = Condition()
 			self._segmentPauseLock = Lock()
-			self._segmentMode = False
 			self._segmentTerminated = False
 			self._segmentPaused = False
 			self._segmentControlGeneration = 0
@@ -307,8 +303,6 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentHostSpeaker):
 		self._segmentHost.enqueue(item, barriers=_ORDINARY_BARRIERS)
 
 	def _processQueue(self):
-		if not self._segmentMode:
-			return super()._processQueue()
 		with self._segmentCondition:
 			if self._segmentTerminated or self._segmentHost.control_error is not None:
 				return
@@ -428,8 +422,6 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentHostSpeaker):
 			self._segmentCondition.notify_all()
 
 	def _callback(self, audio, length, markers):
-		if not self._segmentMode:
-			return super()._callback(audio, length, markers)
 		host = self._segmentHost
 		with self._segmentCondition:
 			record = self._segmentNative
