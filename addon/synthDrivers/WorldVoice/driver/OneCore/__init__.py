@@ -209,9 +209,14 @@ class _OneCoreStrategy(NativeStrategy):
 					driver._segmentCondition.wait_for(
 						lambda: not driver._segmentPaused or not record.work.is_valid(),
 					)
-			except Exception as error:  # noqa: BLE001 - recorded on the record and latched: later speech is rejected
+			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
+				# A failed sync fails only this segment (engineControl's latch rule):
+				# stop the player for its successor; only a failed stop latches.
 				host.record_error(record, error)
-				driver._failSegmentControl(error)
+				try:
+					player.stop()
+				except Exception as stopError:  # noqa: BLE001 - latched: the player or engine state is unknown
+					driver._failSegmentControl(stopError)
 				return
 		# sync() is not idle(): it does not close the continuous segment.
 		host.reach(record, PLAYED_OUT)
@@ -376,13 +381,11 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 				if self._player:
 					self._player.open()
 			except Exception as error:
+				# Fails only this record (engineControl's latch rule); the next one opens
+				# the player again. A segment's failure path stops the player.
 				host.record_error(record, error)
-				if record.operation is not None:
-					# Under a drain contract the player state is now unknown: latch.
-					self._failSegmentControl(error)
-				else:
-					# Ordinary speech skips only this sentence; the next one opens the
-					# player again. It still completes below, or its speaking wait hangs.
+				if record.operation is None:
+					# Ordinary speech still completes below, or its speaking wait hangs.
 					log.error(
 						"OneCore could not open the audio player; skipping this sentence",
 						exc_info=True,
@@ -412,7 +415,8 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 			host.retire(record)
 			if record.operation is None:
 				host.forget(record)
-				if skipped:
+				# A sentence that failed in its callback completes like a skipped one.
+				if skipped or record.error is not None:
 					self._completeSkippedSentence()
 		finally:
 			with self._segmentCondition:
@@ -524,8 +528,10 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 					if not self._wasCancelled and not self._segmentTerminated:
 						synthDoneSpeaking.notify(synth=self)
 		except Exception as error:
+			# Fails only this sentence (engineControl's latch rule): the worker completes
+			# it, and retire's stop resets the player.
 			log.error("OneCore legacy playback failed", exc_info=True)
-			self._failSegmentControl(error)
+			self._segmentHost.record_error(record, error)
 
 	def _segmentIndex(self, record, index):
 		if record.work.is_valid():
@@ -578,15 +584,17 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 
 	def _maybeInitPlayer(self, wav):
 		with self._controlFault.deferred(), self._segmentPauseLock:
-			try:
-				with self._segmentCondition:
-					self._checkSegmentAdmission()
-				super()._maybeInitPlayer(wav)
-				if self._segmentPaused and self._stopGate.clear:
+			with self._segmentCondition:
+				self._checkSegmentAdmission()
+			# A failed replacement fails only the record whose callback raised it
+			# (engineControl's latch rule); a failed pause of the new player latches.
+			super()._maybeInitPlayer(wav)
+			if self._segmentPaused and self._stopGate.clear:
+				try:
 					self._player.pause(True)
-			except Exception as error:
-				self._failSegmentControl(error)
-				raise
+				except Exception as error:
+					self._failSegmentControl(error)
+					raise
 
 	def cancel(self):
 		host = self._segmentHost

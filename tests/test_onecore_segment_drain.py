@@ -589,23 +589,31 @@ def test_observable_player_errors_fail_without_drain(env):
 	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_FAILED]
 
 
-def test_onecore_shared_sync_fault_rejects_successor_without_native_call(env):
+def test_sync_failure_fails_only_its_segment(env):
 	_, original, failed = speak(env)
 	env.native.wait_calls(1)
 	env.player.error = "sync"
 	env.player.sync_release.set()
 	env.native.respond()
 	wait_events(failed)
-	assert failed[0].source_id is original.source_id
-	assert failed[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
-	_, successor, rejected = speak(env, segment=18)
-	wait_events(rejected)
-	assert rejected[0].source_id is successor.source_id
-	assert rejected[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
-	assert len(env.native.calls) == 1
+	assert [(event.kind, event.source_id) for event in failed] == [
+		(env.rt.models.EventKind.SEGMENT_FAILED, original.source_id),
+	]
+	assert str(failed[0].error) == "sync failed"
+	# The drain stopped the player before reporting; a successor may use it.
+	assert env.player.stops >= 1
+	assert segment_host(env.driver).control_error is None
+	env.player.error = None
+	_, successor, drained = speak(env, segment=18)
+	env.native.wait_calls(2)
+	env.native.respond(markers="")
+	wait_events(drained)
+	assert [(event.kind, event.source_id) for event in drained] == [
+		(env.rt.models.EventKind.SEGMENT_DRAINED, successor.source_id),
+	]
 
 
-def test_onecore_sync_fault_fails_accepted_queued_segment(env):
+def test_sync_failure_lets_a_queued_segment_drain(env):
 	_, first, failed = speak(env)
 	env.native.wait_calls(1)
 	_, queued, queued_events = speak(env, segment=18)
@@ -613,13 +621,41 @@ def test_onecore_sync_fault_fails_accepted_queued_segment(env):
 	env.player.sync_release.set()
 	env.native.respond(markers="")
 	wait_events(failed)
-	wait_events(queued_events)
 	assert [(event.kind, event.source_id, event.segment_id) for event in failed] == [
 		(env.rt.models.EventKind.SEGMENT_FAILED, first.source_id, 17),
 	]
+	env.player.error = None
+	env.native.wait_calls(2)
+	env.native.respond(markers="")
+	wait_events(queued_events)
 	assert [(event.kind, event.source_id, event.segment_id) for event in queued_events] == [
-		(env.rt.models.EventKind.SEGMENT_FAILED, queued.source_id, 18),
+		(env.rt.models.EventKind.SEGMENT_DRAINED, queued.source_id, 18),
 	]
+
+
+def test_drain_stop_failure_after_sync_failure_latches(env):
+	_, _, failed = speak(env)
+	env.native.wait_calls(1)
+	error = OSError("stop failed after sync")
+
+	def failing_stop():
+		raise error
+
+	original_stop = env.player.stop
+	env.player.error = "sync"
+	env.player.sync_release.set()
+	env.player.stop = failing_stop
+	try:
+		env.native.respond()
+		wait_events(failed)
+		assert segment_host(env.driver).control_error is error
+	finally:
+		env.player.stop = original_stop
+	env.player.error = None
+	_, _, rejected = speak(env, segment=18)
+	wait_events(rejected)
+	assert rejected[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert rejected[0].error is error
 	assert len(env.native.calls) == 1
 
 
@@ -630,9 +666,13 @@ def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env, terminated)
 	else:
 		speak(env)
 		env.native.wait_calls(1)
-		env.player.error = "sync"
-		env.player.sync_release.set()
-		env.native.respond(markers="")
+		original_stop = env.player.stop
+		env.player.stop = lambda: (_ for _ in ()).throw(OSError("stop failed"))
+		try:
+			with pytest.raises(OSError):
+				env.driver.cancel()
+		finally:
+			env.player.stop = original_stop
 		eventually(lambda: segment_host(env.driver).control_error is not None)
 	caller = get_ident()
 	received, events, threads = Event(), [], []
@@ -1426,8 +1466,9 @@ def test_ordinary_player_open_failure_fails_only_its_sentence(env):
 	assert len(env.native.calls) == 1 and "second" in env.native.calls[0]
 
 
-def test_segment_player_open_failure_still_latches(env):
+def test_segment_player_open_failure_fails_only_its_segment(env):
 	error = OSError("audio device gone")
+	original_open = env.player.open
 
 	def fail_open():
 		raise error
@@ -1435,8 +1476,56 @@ def test_segment_player_open_failure_still_latches(env):
 	env.player.open = fail_open
 	_, _, events = speak(env)
 	wait_events(events)
+	assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
 	assert events[0].error is error
-	assert segment_host(env.driver).control_error is error
+	assert segment_host(env.driver).control_error is None
+	env.player.open = original_open
+	_, _, drained = speak(env, segment=18)
+	env.native.wait_calls(1)
+	env.player.sync_release.set()
+	env.native.respond(markers="")
+	wait_events(drained)
+	assert [event.kind for event in drained] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_player_replacement_failure_fails_only_its_segment(env, monkeypatch):
+	error = OSError("no device for this rate")
+
+	def failing_player(**kwargs):
+		raise error
+
+	monkeypatch.setattr(env.base.nvwave, "WavePlayer", failing_player)
+	_, _, events = speak(env)
+	env.native.wait_calls(1)
+	# The old player's idle before the replacement must not wait.
+	env.player.sync_release.set()
+	env.player.samplesPerSec = 2000
+	env.native.respond(markers="")
+	wait_events(events)
+	assert events[0].kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert events[0].error is error
+	assert segment_host(env.driver).control_error is None
+
+
+def test_ordinary_callback_failure_fails_only_its_sentence(env):
+	speak(env)
+	env.native.wait_calls(1)
+	env.player.sync_release.set()
+	env.native.respond()
+	stops = env.player.stops
+	env.player.error = "feed"
+	env.driver.speak(("first",))
+	env.native.wait_calls(2)
+	env.native.respond(markers="")
+	eventually(lambda: env.dones == [env.driver], message="the failed sentence never completed")
+	quiet_period()
+	assert env.dones == [env.driver]
+	assert segment_host(env.driver).control_error is None
+	assert env.player.stops > stops
+	env.player.error = None
+	env.driver.speak(("second",))
+	env.native.wait_calls(3)
+	assert "second" in env.native.calls[-1]
 
 
 def test_ordinary_native_speak_failure_fails_only_its_sentence(env):
