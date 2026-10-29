@@ -1,10 +1,12 @@
 """Correlated drains across the real manager, adapters, bridge and wrappers."""
 
 from concurrent.futures import TimeoutError
+from threading import Event
 
 import pytest
 from runtime_drain_integration_harness import ENGINES, assemble
-from waiting import WAIT_TIMEOUT, stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_unset
+from worldvoice_cancel_wrapper_harness import queued_begins
 
 
 @pytest.fixture
@@ -440,5 +442,80 @@ def test_unsupported_profile_uses_legacy_from_first_segment(monkeypatch, tmp_pat
 		assert c.output.drains == []
 		assert request.state is c.scheduler.RequestState.COMPLETED
 		assert len(c.output.dones) == 1
+	finally:
+		c.close()
+
+
+def hold_first_retire(monkeypatch, core):
+	"""Hold the first record's _Retire on the inner BgThread until the returned Event is set."""
+	retire, entered, release = core._retireRecord, Event(), Event()
+
+	def held(record):
+		if not entered.is_set():
+			entered.set()
+			assert release.wait(HOLD_TIMEOUT), "Vocalizer retire was never released"
+		return retire(record)
+
+	monkeypatch.setattr(core, "_retireRecord", held)
+	return entered, release
+
+
+@pytest.mark.parametrize("cancelled", ["mid-native-call", "queued-behind-a-retire"])
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
+def test_cancelled_vocalizer_done_cannot_start_the_next_engine_early(
+	monkeypatch,
+	tmp_path,
+	caplog,
+	engine,
+	cancelled,
+):
+	# LEGACY_DONE DONEs carry no request identity. cancel() keeps a cancelled request's
+	# DoneSpeaking (like the add-on's own cancel), and it runs after the scheduler has started
+	# the next request on the same core. Its DONE must stay silent: it would end that request's
+	# task on this core, and the request's next engine would start while this core still has
+	# the request to speak.
+	c = assemble(monkeypatch, tmp_path, supported=False)
+	try:
+		control = c.controls[engine]
+		other = c.controls["Cerence" if engine == "VE" else "VE"]
+		earlier = 0
+		if cancelled == "queued-behind-a-retire":
+			# An earlier request published its DONE; its _Retire still holds the BgThread, so
+			# the old request is queued and never begins.
+			retiring, release_retire = hold_first_retire(monkeypatch, control.core)
+			c.submit(("earlier",), engine)
+			control.tail(1).release.set()
+			c.wait_done(1)
+			assert retiring.wait(WAIT_TIMEOUT)
+			earlier = 1
+		old = c.submit(("old",), engine)
+		if cancelled == "mid-native-call":
+			held = control.wait_call(1)
+		else:
+			eventually(lambda: queued_begins(control.core))
+		c.tasks.cancel(c.manager.playback_ports)
+		fresh = c.submit(("fresh", c.rt.models.SelectVoice(c.key(other.engine)), "other"), engine)
+		# The fresh request's first task waits on this core, queued behind the old request's
+		# kept DoneSpeaking.
+		eventually(lambda: queued_begins(control.core))
+		if cancelled == "mid-native-call":
+			held.release.set()
+		else:
+			release_retire.set()
+		# Either the old or the earlier request made the first native call.
+		spoken = control.wait_call(2)
+		assert "fresh" in str(spoken.text)
+		# The old request's DONE stayed silent: nothing ended the fresh request's first task.
+		assert not fresh.tasks[0].end_seen
+		stays_unset(other.started)
+		assert other.calls == []
+		control.tail(2, idle_number=earlier + 1).release.set()
+		other.tail(1).release.set()
+		c.wait_done(earlier + 1)
+		assert old.state is c.scheduler.RequestState.CANCELLED
+		assert fresh.state is c.scheduler.RequestState.COMPLETED
+		assert [len(control.calls), len(other.calls)] == [2, 1]
+		assert len(c.output.dones) == earlier + 1
+		assert not [record for record in caplog.records if "retired without its" in record.getMessage()]
 	finally:
 		c.close()

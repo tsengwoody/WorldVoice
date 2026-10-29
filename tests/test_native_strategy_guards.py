@@ -361,18 +361,15 @@ def test_vocalizer_inner_privates_are_listed_and_exist(engine):
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
 def test_vocalizer_wrapper_has_no_guard_fallback(engine):
 	# The vendored inner is pinned above, so the guard always installs: no flag, no
-	# "original driver" branch, and token support is a fixed trait declared on the Voice
-	# (phase 52), not a claim of the core.
+	# "original driver" branch. Like every engine, the core is cancelled through cancel()
+	# (its SegmentHost), never by the request's token (fix/ve-drop-cancellation-token).
 	source = (ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
 	assert "_guardInstalled" not in source
 	assert "supportsCancellationToken" not in source
+	assert "cancellationToken" not in source
 	tree = ast.parse(source)
 	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
-	assert _class_constant(tree, "Voice", "extraCapabilities") == {
-		"waitfactor",
-		"variant",
-		"cancellationToken",
-	}, voice.name
+	assert _class_constant(tree, "Voice", "extraCapabilities") == {"waitfactor", "variant"}, voice.name
 
 
 def test_every_wrapper_core_declares_the_segment_drain_entries():
@@ -666,7 +663,7 @@ def test_a_token_capability_needs_a_fixed_core_that_takes_the_token(engine):
 	declared = "cancellationToken" in _voice_extra_capabilities(tree)
 	# The real guard: widening this set leaves only _voice_reassigns_core_class's view.
 	if engine not in UNTRACKED_PACKAGES:
-		assert declared is (engine in {"VE", "Cerence"})
+		assert declared is False
 	if _voice_reassigns_core_class(tree):
 		assert not declared
 	if declared:

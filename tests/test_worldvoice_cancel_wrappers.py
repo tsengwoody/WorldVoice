@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import pytest
 from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually
 from worldvoice_cancel_wrapper_harness import (
-	Token,
 	background_idle,
 	buffered_audio,
 	cached_instances,
@@ -68,7 +67,8 @@ def emit_audio(core, types, payload=b"new", done_result=None):
 
 def test_installs_player_stand_in_and_keeps_inner_stop_flag(engine_harness):
 	core = engine_harness.new_core()
-	assert "cancellationToken" in engine_harness.module.Voice.extraCapabilities
+	# Ordinary speech is cancelled through cancel(), like every engine's: the core takes no token.
+	assert "cancellationToken" not in engine_harness.module.Voice.extraCapabilities
 	assert not hasattr(core, "supportsCancellationToken")
 	handler = callback_handler(core)
 	assert isinstance(player_of(core), engine_harness.module._IdleRoutingPlayer)
@@ -105,8 +105,8 @@ def test_callback_rejects_audio_outside_native_call(engine_harness):
 	assert real_player(core).fed == []
 
 
-def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harness, monkeypatch):
-	core, token = ready_core(engine_harness), Token()
+def test_core_cancel_rejects_real_callbacks_of_the_held_native_call(engine_harness, monkeypatch):
+	core = ready_core(engine_harness)
 	results = []
 	native_entered, release_native = threading.Event(), threading.Event()
 
@@ -127,14 +127,10 @@ def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harn
 			)
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	worker = threading.Thread(
-		target=speak_now,
-		args=(core, ["old"]),
-		kwargs={"cancellationToken": token},
-	)
+	worker = threading.Thread(target=speak_now, args=(core, ["old"]))
 	worker.start()
 	assert native_entered.wait(WAIT_TIMEOUT)
-	token.cancel()
+	core.cancel()
 	release_native.set()
 	worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive()
@@ -144,7 +140,7 @@ def test_token_cancellation_rejects_real_callback_before_core_cancel(engine_harn
 
 
 def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(engine_harness, monkeypatch):
-	core, token = ready_core(engine_harness), Token()
+	core, cancelled = ready_core(engine_harness), threading.Event()
 	native_entered = threading.Event()
 	release_native = threading.Event()
 	spoken_after_cancel = []
@@ -157,7 +153,7 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 	)
 
 	def native(instance, text):
-		if token.is_cancelled():
+		if cancelled.is_set():
 			spoken_after_cancel.append(text)
 		native_entered.set()
 		assert release_native.wait(HOLD_TIMEOUT)
@@ -175,14 +171,11 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 		)
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	worker = threading.Thread(
-		target=speak_now,
-		args=(core, ["old"]),
-		kwargs={"cancellationToken": token},
-	)
+	worker = threading.Thread(target=speak_now, args=(core, ["old"]))
 	worker.start()
 	assert native_entered.wait(WAIT_TIMEOUT)
-	token.cancel()
+	core.cancel()
+	cancelled.set()
 	release_native.set()
 	worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive()
@@ -192,46 +185,8 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 	assert real_player(core).idles == 0
 
 
-def test_cancel_during_real_callback_feed_stops_after_feed(engine_harness, monkeypatch):
-	core, token = ready_core(engine_harness), Token()
-	feed_entered, release_feed = threading.Event(), threading.Event()
-
-	def slow_feed(data):
-		feed_entered.set()
-		assert release_feed.wait(HOLD_TIMEOUT)
-		real_player(core).fed.append(data)
-
-	real_player(core).feed = slow_feed
-	callback_handler(core)._ensureSonicStream = lambda: False
-	monkeypatch.setattr(
-		engine_harness.native,
-		"processText2Speech",
-		lambda instance, text: emit_audio(
-			core,
-			engine_harness.types,
-			b"sound",
-			engine_harness.types.NUAN_E_TTS_USERSTOP,
-		),
-	)
-	worker = threading.Thread(
-		target=speak_now,
-		args=(core, ["old"]),
-		kwargs={"cancellationToken": token},
-	)
-	worker.start()
-	assert feed_entered.wait(WAIT_TIMEOUT)
-	token.cancel()
-	assert real_player(core).stops == 0
-	release_feed.set()
-	worker.join(WAIT_TIMEOUT)
-	assert not worker.is_alive()
-	assert real_player(core).fed == [b"sound"]
-	assert real_player(core).stops == 1
-	assert real_player(core).idles == 0
-
-
 def test_cancellation_does_not_restart_at_next_piece(engine_harness, monkeypatch):
-	core, token = ready_core(engine_harness), Token()
+	core = ready_core(engine_harness)
 	called = []
 	monkeypatch.setattr(
 		engine_harness.module,
@@ -245,7 +200,7 @@ def test_cancellation_does_not_restart_at_next_piece(engine_harness, monkeypatch
 		core.cancel()
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["old"], cancellationToken=token)
+	speak_now(core, ["old"])
 	assert called == ["first"]
 	assert real_player(core).idles == 0
 	core._speak("voice", ["later chunk"])
@@ -255,73 +210,36 @@ def test_cancellation_does_not_restart_at_next_piece(engine_harness, monkeypatch
 def test_cancelled_request_drops_index_and_done_notifications(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	indexes, dones = record_notifications(engine_harness, monkeypatch)
-	live, cancelled = Token(), Token()
 
 	def native(instance, text):
 		if text == "live":
 			core._onIndexReached(6)
 			end_process(engine_harness, core, instance)
 		else:
-			cancelled.cancel()
+			core.cancel()
 			core._onIndexReached(7)
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["live"], cancellationToken=live)
+	speak_now(core, ["live"])
 	assert indexes == [6]
 	assert dones == [core]
-	speak_now(core, ["cancelled"], cancellationToken=cancelled)
+	speak_now(core, ["cancelled"])
 	assert indexes == [6]
 	assert dones == [core]
 
 
-@pytest.mark.parametrize("use_token", [True, False])
-def test_direct_core_cancel_still_reports_done(engine_harness, monkeypatch, use_token):
+def test_core_cancel_reports_neither_index_nor_done(engine_harness, monkeypatch):
+	# A LEGACY_DONE DONE names no request: the scheduler cancels a request before it stops the
+	# core, so a DONE published after that stop could only end the next request's task.
 	core = ready_core(engine_harness)
-	token = Token() if use_token else None
-	indexes, dones = [], []
-	monkeypatch.setattr(
-		engine_harness.original_driver.synthIndexReached,
-		"notify",
-		lambda **kwargs: indexes.append(kwargs),
-	)
-	monkeypatch.setattr(
-		engine_harness.original_driver.synthDoneSpeaking,
-		"notify",
-		lambda **kwargs: dones.append(kwargs),
-	)
+	indexes, dones = record_notifications(engine_harness, monkeypatch)
 
 	def native(instance, text):
 		core.cancel()
 		core._onIndexReached(7)
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["old"], cancellationToken=token)
-	assert indexes == []
-	assert dones == [{"synth": core}]
-	assert real_player(core).idles == 0
-
-
-def test_cancelled_token_before_core_cancel_reports_nothing(engine_harness, monkeypatch):
-	core, token = ready_core(engine_harness), Token()
-	indexes, dones = [], []
-	monkeypatch.setattr(
-		engine_harness.original_driver.synthIndexReached,
-		"notify",
-		lambda **kwargs: indexes.append(kwargs),
-	)
-	monkeypatch.setattr(
-		engine_harness.original_driver.synthDoneSpeaking,
-		"notify",
-		lambda **kwargs: dones.append(kwargs),
-	)
-
-	def native(instance, text):
-		token.cancel()
-		core._onIndexReached(7)
-		core.cancel()
-
-	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["old"], cancellationToken=token)
+	speak_now(core, ["old"])
 	assert indexes == []
 	assert dones == []
 	assert real_player(core).idles == 0
@@ -350,7 +268,7 @@ def test_new_request_drops_old_callback_buffer_and_sonic_tail(engine_harness, mo
 		emit_audio(core, engine_harness.types, b"new")
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["fresh"], cancellationToken=Token())
+	speak_now(core, ["fresh"])
 	assert sonic_state(callback).speed == 1.4
 	assert real_player(core).fed == [b"new"]
 
@@ -370,13 +288,13 @@ def test_failed_sonic_init_is_not_retried_on_next_speak(engine_harness, monkeypa
 		end_process(engine_harness, core, instance)
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["first"], cancellationToken=Token())
-	speak_now(core, ["second"], cancellationToken=Token())
+	speak_now(core, ["first"])
+	speak_now(core, ["second"])
 	assert seen == [(True, False, b"")] * 2
 	assert callback._ensureSonicStream() is False
 
 
-def test_untokened_speech_and_cancel_remain_usable(engine_harness, monkeypatch):
+def test_speech_and_cancel_remain_usable(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	callback_handler(core)._ensureSonicStream = lambda: False
 	monkeypatch.setattr(
@@ -458,21 +376,6 @@ def speak_live_request(engine_harness, monkeypatch, core):
 	return called
 
 
-def test_done_of_never_spoken_request_skips_idle(engine_harness, monkeypatch):
-	# A request whose token is cancelled before its turn never begins: its DONE
-	# idle has nothing to wait for, and its DONE stays silent.
-	core, token = ready_core(engine_harness), Token()
-	indexes, dones = record_notifications(engine_harness, monkeypatch)
-	called = speak_live_request(engine_harness, monkeypatch, core)
-	assert dones == [core]
-	token.cancel()
-	speak_now(core, ["old"], cancellationToken=token)
-	assert len(called) == 1
-	assert real_player(core).idles == 1
-	assert dones == [core]
-	assert indexes == []
-
-
 def test_index_without_running_request_is_dropped(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	indexes, dones = record_notifications(engine_harness, monkeypatch)
@@ -550,10 +453,12 @@ def test_callback_after_core_cancel_feeds_nothing(engine_harness, monkeypatch):
 
 
 def test_cancel_while_request_begins_stays_stopped(engine_harness, monkeypatch):
-	core, token = ready_core(engine_harness), Token()
+	# cancel() waits for the begin task's lock, so the request still begins; whether its native
+	# call starts before the cancel lands is a race, but either way nothing it makes is admitted.
+	core, types = ready_core(engine_harness), engine_harness.types
 	host = core._segmentHost
-	entry_paused, release_entry = threading.Event(), threading.Event()
-	begin = host.begin
+	entry_paused, release_entry, cancelled = threading.Event(), threading.Event(), threading.Event()
+	begin, results = host.begin, []
 
 	def paused_begin(record):
 		# host.begin runs in the worker's begin task, after its validity check.
@@ -561,26 +466,26 @@ def test_cancel_while_request_begins_stays_stopped(engine_harness, monkeypatch):
 		assert release_entry.wait(HOLD_TIMEOUT)
 		return begin(record)
 
+	def native(instance, text):
+		assert cancelled.wait(HOLD_TIMEOUT)
+		results.append(send(core, types, instance, types.VE_MSG_OUTBUFREQ, types.VE_OUTDATA()))
+
 	monkeypatch.setattr(host, "begin", paused_begin)
-	called = []
-	monkeypatch.setattr(
-		engine_harness.native,
-		"processText2Speech",
-		lambda instance, text: called.append(text),
-	)
-	worker = threading.Thread(target=speak_now, args=(core, ["old"]), kwargs={"cancellationToken": token})
+	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
+	indexes, dones = record_notifications(engine_harness, monkeypatch)
+	worker = threading.Thread(target=speak_now, args=(core, ["old"]))
 	worker.start()
 	assert entry_paused.wait(WAIT_TIMEOUT)
-	token.cancel()
-	stopper = threading.Thread(target=core.cancel)
+	stopper = threading.Thread(target=lambda: (core.cancel(), cancelled.set()))
 	stopper.start()
 	release_entry.set()
 	worker.join(WAIT_TIMEOUT)
 	stopper.join(WAIT_TIMEOUT)
 	assert not worker.is_alive() and not stopper.is_alive()
-	assert called == []
+	assert results in ([], [types.NUAN_E_TTS_USERSTOP])
 	assert real_player(core).fed == []
 	assert real_player(core).idles == 0
+	assert (indexes, dones) == ([], [])
 
 
 def test_native_call_admission_closes_after_exception(engine_harness, monkeypatch):
@@ -593,7 +498,7 @@ def test_native_call_admission_closes_after_exception(engine_harness, monkeypatc
 		raise RuntimeError("native failed")
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", fail)
-	speak_now(core, ["old"], cancellationToken=Token())
+	speak_now(core, ["old"])
 	assert results == [types.NUAN_OK]
 	assert native_call(core) is None
 	assert (
@@ -602,7 +507,7 @@ def test_native_call_admission_closes_after_exception(engine_harness, monkeypatc
 	)
 
 
-def test_dropped_request_done_skips_idle_and_reports_done(engine_harness, monkeypatch):
+def test_dropped_request_done_skips_idle_and_publishes_no_done(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	indexes, dones = record_notifications(engine_harness, monkeypatch)
 	entered, release = threading.Event(), threading.Event()
@@ -621,16 +526,16 @@ def test_dropped_request_done_skips_idle_and_reports_done(engine_harness, monkey
 	release.set()
 	eventually(lambda: background_idle(core))
 	assert called == ["first"]
-	# Like the add-on's cancel: queued speech is dropped, its DONE kept.
-	assert dones == [core, core]
+	# Like the add-on's cancel, queued speech is dropped and its DoneSpeaking kept; neither
+	# cancelled request publishes DONE: the second one's runs after the first's _Retire.
+	assert dones == []
 	assert indexes == []
 	assert real_player(core).idles == 0
 	assert real_player(core).fed == []
 
 
-@pytest.mark.parametrize("cancel_kind", ["core", "token"])
-def test_endprocess_after_cancel_feeds_no_sonic_tail(engine_harness, monkeypatch, cancel_kind):
-	core, types, token = ready_core(engine_harness), engine_harness.types, Token()
+def test_endprocess_after_cancel_feeds_no_sonic_tail(engine_harness, monkeypatch):
+	core, types = ready_core(engine_harness), engine_harness.types
 	callback = callback_handler(core)
 	flushed, results = [], []
 
@@ -660,18 +565,13 @@ def test_endprocess_after_cancel_feeds_no_sonic_tail(engine_harness, monkeypatch
 		out_data.cntPcmBufLen = 4
 		out_data.cntMrkListLen = 0
 		results.append(send(core, types, instance, types.VE_MSG_OUTBUFDONE, out_data))
-		if cancel_kind == "core":
-			core.cancel()
-		else:
-			token.cancel()
+		core.cancel()
 		results.append(send(core, types, instance, types.VE_MSG_ENDPROCESS, out_data))
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["old"], cancellationToken=token)
-	# Core cancel closes the call's admission; a token cancel keeps the legacy
-	# ENDPROCESS acknowledgement. Neither flushes or feeds the buffered tail.
-	last = types.NUAN_E_TTS_USERSTOP if cancel_kind == "core" else types.NUAN_OK
-	assert results == [types.NUAN_OK, types.NUAN_OK, last]
+	speak_now(core, ["old"])
+	# Cancel closes the call's admission: the ENDPROCESS neither flushes nor feeds the tail.
+	assert results == [types.NUAN_OK, types.NUAN_OK, types.NUAN_E_TTS_USERSTOP]
 	assert flushed == []
 	assert real_player(core).fed == []
 
@@ -707,7 +607,7 @@ def test_guarded_speech_never_touches_inner_stop_flag(engine_harness, monkeypatc
 		"processText2Speech",
 		lambda instance, text: emit_audio(core, engine_harness.types, text.encode()),
 	)
-	speak_now(core, ["first"], cancellationToken=Token())
+	speak_now(core, ["first"])
 	core.cancel()
 	speak_now(core, ["second"])
 	assert flag.calls == []
@@ -724,11 +624,10 @@ def test_guarded_speech_never_touches_inner_stop_flag(engine_harness, monkeypatc
 	assert flag.calls == []
 
 
-@pytest.mark.parametrize("cancel_kind", ["core", "token"])
-def test_cancel_before_native_call_starts_skips_it(engine_harness, monkeypatch, cancel_kind):
+def test_cancel_before_native_call_starts_skips_it(engine_harness, monkeypatch):
 	# A cancel after the piece's first validity check, before its native call is
 	# installed, must still keep the SDK call from starting.
-	core, token = ready_core(engine_harness), Token()
+	core = ready_core(engine_harness)
 	module = engine_harness.module
 	entered, release = threading.Event(), threading.Event()
 	native_call_type = module._NativeCall
@@ -745,13 +644,10 @@ def test_cancel_before_native_call_starts_skips_it(engine_harness, monkeypatch, 
 		"processText2Speech",
 		lambda instance, text: called.append(text),
 	)
-	worker = threading.Thread(target=speak_now, args=(core, ["old"]), kwargs={"cancellationToken": token})
+	worker = threading.Thread(target=speak_now, args=(core, ["old"]))
 	worker.start()
 	assert entered.wait(WAIT_TIMEOUT)
-	if cancel_kind == "core":
-		core.cancel()
-	else:
-		token.cancel()
+	core.cancel()
 	release.set()
 	worker.join(WAIT_TIMEOUT)
 	assert not worker.is_alive()

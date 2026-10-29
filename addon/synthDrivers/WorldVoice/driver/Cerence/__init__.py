@@ -45,8 +45,8 @@ _PROFILE = "cerence-ttsapi-0x0520-unverified"
 _RETAINED_CALLBACKS = []
 # Ordinary speech proves what its calls prove (all audio fed, the last call's admitted ENDPROCESS)
 # and what its final idle proves (played out). That idle and DONE stay with the inner driver's
-# DoneSpeaking, bound to its record at submit (_enqueue). Its token is the worker's to honour:
-# _retireRecord withdraws a token-cancelled record, which is not a failure.
+# DoneSpeaking, bound to its record at submit (_enqueue). Like every engine's, ordinary speech is
+# cancelled through cancel() (the host), never by the request's token.
 _ORDINARY_BARRIERS = frozenset({AUDIO_FED, ENGINE_DONE, PLAYED_OUT})
 
 
@@ -101,7 +101,7 @@ class _IdleRoutingPlayer:
 
 	A DoneSpeaking keeps the player the inner speak() gave it: _enqueue makes that one bound to
 	the record being submitted, so the final idle names its record instead of asking which runs.
-	The shared one, bound to no record, idles nothing.
+	The shared one, bound to no record, idles nothing and publishes no DONE.
 	"""
 
 	def __init__(self, player, driver, record=None):
@@ -121,10 +121,9 @@ class _IdleRoutingPlayer:
 
 @dataclass(eq=False)
 class _CerenceRequest:
-	"""Cerence data carried on a NativeRecord: its speech sequence and ordinary token."""
+	"""Cerence data carried on a NativeRecord: its speech sequence."""
 
 	commands: object
-	token: object = None
 	# Set on the inner BgThread when its Begin task ran (skipped: never spoken).
 	began: bool = False
 	skipped: bool = False
@@ -462,7 +461,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	) -> None:
 		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
-	def speak(self, speechSequence, cancellationToken=None):
+	def speak(self, speechSequence):
 		with self._speechStateLock:
 			if self._terminated:
 				raise RuntimeError("Cerence driver has terminated")
@@ -473,7 +472,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		self._segmentHost.enqueue(
 			speechSequence,
 			barriers=_ORDINARY_BARRIERS,
-			native=_CerenceRequest(speechSequence, cancellationToken),
+			native=_CerenceRequest(speechSequence),
 		)
 
 	def _enqueue(self, record, commands):
@@ -504,12 +503,8 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def _recordValid(self, record):
 		# Sealing (retire) does not invalidate the work; callback admission
 		# already refuses sealed records.
-		token = record.native.token if record.native is not None else None
 		return (
-			not record.cancelled
-			and record.error is None
-			and (record.work is None or record.work.is_valid())
-			and not (token and token.is_cancelled())
+			not record.cancelled and record.error is None and (record.work is None or record.work.is_valid())
 		)
 
 	def _beginRecord(self, record):
@@ -517,7 +512,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		with self._speechStateLock:
 			self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
 			record.native.began = True
-			self._doneOwner = record
 			if not self._recordValid(record) or record.abandoned or host.control_error is not None:
 				record.native.skipped = True
 			else:
@@ -539,22 +533,12 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				host.reach(record, ENGINE_DONE)
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(lambda: self._stopGate.clear and self._pauses == 0)
-			# Only this worker sees an ordinary request's token. Read it after the reaches: a
-			# token that blocked one stays cancelled, so the record is withdrawn, and retire
-			# neither fails its unreached barriers nor stops the player (as before the barriers).
-			# test_token_cancelled_during_the_audio_fed_reach_is_withdrawn and
-			# test_token_cancelled_in_the_engine_done_check_is_withdrawn pin this order.
-			token = record.native.token
-			if token is not None and token.is_cancelled():
-				host.withdraw(record)
 			host.retire(record)
 			if record.operation is None:
 				host.forget(record)
 		with self._speechStateLock:
 			if self._currentRecord is record:
 				self._currentRecord = None
-			if self._doneOwner is record:
-				self._doneOwner = None
 			self._speechStateLock.notify_all()
 
 	def _resetCallbackAudio(self):
@@ -674,6 +658,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		# Called by the inner DoneSpeaking on the worker, for the record its player was bound
 		# to at submit. Segments drain on the lifecycle thread; ordinary speech keeps the
 		# add-on's final idle, which proves its PLAYED_OUT.
+		# The DoneSpeaking publishes its DONE right after this idle, on this thread: name its record
+		# for _onIndexReached, even when the idle is skipped below or raises.
+		self._doneOwner = record
 		if record is None or record.operation is not None:
 			return
 		# A request that never began (skipped or dropped) fed nothing to wait for; a kept
@@ -755,9 +742,10 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				self._retirePlayerOperation()
 
 	def _dropQueuedSpeech(self):
-		"""Like the add-on's cancel: drop queued speech, keep settings and DONE.
+		"""Like the add-on's cancel: drop queued speech, keep settings and DoneSpeaking.
 
-		A kept NativeTask of a dropped or cancelled record is a no-op.
+		A kept NativeTask of a dropped or cancelled record is a no-op; a kept DoneSpeaking of
+		one skips its idle and publishes no DONE (_onIndexReached).
 
 		Unlike it, never join the BgThread: cancel may run on it, on a callback,
 		a listener or a lifecycle thread. Returns records that will never begin.
@@ -797,14 +785,13 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 	def _onIndexReached(self, index):
 		record = self._currentRecord
 		if index is None:
-			record = self._doneOwner
-			if record is not None and record.operation is not None:
-				return
-			token = record.native.token if record is not None else None
-			# speak() no longer raises, so a failed request still releases its
-			# DONE waiter, as the add-on's DoneSpeaking does; only a cancelled
-			# token silences it.
-			if token is not None and token.is_cancelled():
+			# Only the inner DoneSpeaking publishes DONE, after its idle named its record.
+			record, self._doneOwner = self._doneOwner, None
+			# Segments never publish DONE. Nor does ordinary speech the host cancelled: a LEGACY_DONE
+			# DONE names no request, and cancel() keeps a cancelled request's DoneSpeaking, which may
+			# run once the next request already waits on this core. A failed request still releases
+			# its DONE waiter, as the add-on's DoneSpeaking does.
+			if record is None or record.operation is not None or record.cancelled:
 				return
 		elif record is None or not self._recordValid(record):
 			# An index belongs to the running request; none runs, or it is no longer valid.
@@ -939,7 +926,7 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 
 
 class Voice(BaseVoice):
-	extraCapabilities = frozenset({"waitfactor", "variant", "cancellationToken"})
+	extraCapabilities = frozenset({"waitfactor", "variant"})
 	engine = "Cerence"
 	drainProfile = DrainProfile()
 	synthDriverClass = SynthDriver

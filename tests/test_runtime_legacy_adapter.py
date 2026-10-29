@@ -560,25 +560,19 @@ def test_and_mode_uses_segment_entry_and_keeps_terminal_marker(drain_env):
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
-def test_bridge_passes_the_token_to_the_real_vocalizer_wrapper(bridge_modules, rt, monkeypatch, engine):
-	# Phase 50 review M3, phase 52: the wrapper Voice's declared capability reaches the plain
-	# speak path of the real core, which no longer carries a claim of its own.
+def test_bridge_speaks_the_real_vocalizer_wrapper_without_a_token(bridge_modules, rt, monkeypatch, engine):
+	# fix/ve-drop-cancellation-token: the wrappers no longer take the request's token; their
+	# ordinary speech is cancelled through cancel(), like every engine's.
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 	cls = harness.module.Voice
-	assert "cancellationToken" in cls.extraCapabilities
+	assert "cancellationToken" not in cls.extraCapabilities
 	core = harness.new_core()
-	assert not hasattr(core, "supportsCancellationToken")
 	monkeypatch.setattr(cls, "createCore", classmethod(lambda cls: core), raising=False)
 	monkeypatch.setattr(cls, "supportedSettings", classmethod(lambda cls: ["rate"]), raising=False)
 	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: None)
 	adapter.open()
-	assert adapter.capabilities.supports_cancellation_token is True
+	assert adapter.capabilities.supports_cancellation_token is False
 	calls = []
-	monkeypatch.setattr(
-		core,
-		"speak",
-		lambda commands, cancellationToken=None: calls.append((commands, cancellationToken)),
-	)
-	token = object()
-	bridge_modules.adapter._speakPlain(adapter, ["hi"], token, None, None)
-	assert calls == [(["hi"], token)]
+	monkeypatch.setattr(core, "speak", lambda commands: calls.append(commands))
+	bridge_modules.adapter._speakPlain(adapter, ["hi"], object(), None, None)
+	assert calls == [["hi"]]
