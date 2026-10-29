@@ -1161,7 +1161,7 @@ def test_raw_status_call_does_not_mutate_shared_errcheck_concurrently(env, monke
 	assert results == [0]
 
 
-def test_cancel_resets_pause_before_next_legacy_speech(env, monkeypatch):
+def test_cancel_resets_pause_before_next_legacy_speech(env):
 	# Empty speech reaches idle without the native ABI, isolating pause state.
 	env.core.pause(True)
 	env.core.cancel()
@@ -1508,7 +1508,7 @@ def test_failed_cancelled_pause_reconciliation_blocks_fresh_speech(
 
 
 @pytest.mark.parametrize("speech_path", ["legacy", "segment"])
-def test_resume_failure_faults_active_work_and_suppresses_drain(env, monkeypatch, speech_path):
+def test_resume_failure_faults_active_work_and_suppresses_drain(env, speech_path):
 	idle_entered, idle_release = Event(), Event()
 	player = real_player(env.core)
 	env.core.pause(True)
