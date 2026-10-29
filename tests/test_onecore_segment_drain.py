@@ -920,12 +920,14 @@ def test_segment_drain_does_not_wait_for_resume(env):
 	env.native.wait_calls(1)
 	env.driver.pause(True)
 	env.player.sync_release.set()
-	call = in_thread(lambda: env.native.respond(frames=8, markers=""))
-	finish(call)
-	wait_events(events)
-	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
-	assert env.driver._segmentPaused
-	env.driver.pause(False)
+	try:
+		call = in_thread(lambda: env.native.respond(frames=8, markers=""))
+		finish(call)
+		wait_events(events)
+		assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+		assert env.driver._segmentPaused
+	finally:
+		env.driver.pause(False)
 
 
 def test_pause_before_first_wav_also_pauses_new_player(env):
