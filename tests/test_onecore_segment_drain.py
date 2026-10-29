@@ -1638,8 +1638,10 @@ def test_cancelled_segment_feed_is_stopped_by_the_lease_before_successor(env):
 	assert len(env.native.calls) == 1
 	final_stop, release_stop = Event(), Event()
 	original_stop = env.player.stop
+	stop_threads = []
 
 	def blocked_final_stop():
+		stop_threads.append(current_thread())
 		final_stop.set()
 		assert release_stop.wait(HOLD_TIMEOUT)
 		original_stop()
@@ -1652,6 +1654,9 @@ def test_cancelled_segment_feed_is_stopped_by_the_lease_before_successor(env):
 	finish(call)
 	assert stopped, "The segment feed queued audio after cancel without a final stop"
 	assert not advanced, "New native work started before the cancelled feed's final stop"
+	# The lifecycle also stops the cancelled segment; the lease's stop is the one on the
+	# callback thread that fed, before the callback returns.
+	assert call.thread in stop_threads, "The lease did not stop again after the late feed"
 	env.native.wait_calls(2)
 
 

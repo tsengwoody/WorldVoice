@@ -2444,8 +2444,10 @@ def test_late_feed_after_cancel_is_stopped_and_stop_failure_latches(env, monkeyp
 	player = real_player(env.core)
 	entered, release = Event(), Event()
 	original_feed, original_stop = player.feed, player.stop
+	feed_threads = []
 
 	def held_feed(data):
+		feed_threads.append(current_thread())
 		entered.set()
 		assert release.wait(HOLD_TIMEOUT)
 		original_feed(data)
@@ -2462,15 +2464,17 @@ def test_late_feed_after_cancel_is_stopped_and_stop_failure_latches(env, monkeyp
 	failures = [error]
 
 	def stop():
-		# The stop after the late feed fails once.
-		if failures:
+		# The lifecycle's stop_native also stops the cancelled segment, on its own thread. The
+		# lease's stop runs on the callback thread that fed, before the callback returns: fail
+		# that one, once.
+		if failures and current_thread() in feed_threads:
 			raise failures.pop()
 		original_stop()
 
 	player.stop = stop
 	release.set()
 	finish(first)
-	assert failures == [], "the feed that returned after cancel was not stopped again"
+	assert failures == [], "the lease did not stop again after the late feed"
 	assert segment_host(env.core).control_error is error
 	player.feed, player.stop = original_feed, original_stop
 	_, context, second = speak(env, segment=18)
