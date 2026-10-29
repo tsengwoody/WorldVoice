@@ -186,10 +186,11 @@ def test_pause_resume_holds_request_after_actual_idle_returns(composition, engin
 	c.tasks.pause_current(True)
 	barrier.release.set()
 	assert barrier.returned.wait(WAIT_TIMEOUT)
+	# The engine reports the drain; the scheduler holds the request until resume (phase 54).
+	eventually(lambda: len(c.output.drains) == 1)
 	with pytest.raises(TimeoutError):
 		request.tasks[0].future.result(timeout=0.03)
 	assert c.output.dones == []
-	assert c.output.drains == []
 	c.tasks.pause_current(False)
 	c.wait_done()
 	assert request.tasks[0].future.result(timeout=WAIT_TIMEOUT) is True

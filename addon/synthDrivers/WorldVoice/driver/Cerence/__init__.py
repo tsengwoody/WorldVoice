@@ -348,13 +348,9 @@ class _CerenceStrategy(NativeStrategy):
 		driver = self._driver()
 		with driver._playerOperation():
 			try:
+				# idle() waits while the player is paused; a pause after it returned
+				# is the scheduler's to hold.
 				driver._realPlayer.idle()
-				with driver._speechStateLock:
-					driver._speechStateLock.wait_for(
-						lambda: (
-							(driver._pauses == 0 and not driver._paused) or not driver._recordValid(record)
-						),
-					)
 			except Exception as error:  # noqa: BLE001 - recorded on the record; the segment fails
 				# A failed idle fails only this segment (engineControl's latch rule): stop
 				# the player for its successor; only a failed stop latches.

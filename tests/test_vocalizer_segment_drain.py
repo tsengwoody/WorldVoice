@@ -1103,17 +1103,19 @@ def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 	assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
 
 
-def test_pause_holds_completion_after_real_idle(env, monkeypatch):
+def test_segment_drain_does_not_wait_for_resume(env, monkeypatch):
+	# A pause after the real idle returned is the scheduler's to hold (phase 54).
 	env.core.pause(True)
 	entered = Event()
 	real_player(env.core).idle = entered.set
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
 	_, _, call = speak(env)
-	assert entered.wait(WAIT_TIMEOUT)
-	stays_unset(call[1])
-	env.core.pause(False)
-	finish(call)
-	assert len(env.events) == 1
+	try:
+		assert entered.wait(WAIT_TIMEOUT)
+		finish(call)
+		assert len(env.events) == 1
+	finally:
+		env.core.pause(False)
 
 
 @pytest.mark.parametrize("status", [0, 0x80000807, 0xFFFFFFFF])
@@ -1387,7 +1389,7 @@ def test_pause_requested_during_cancel_waits_for_player_stop(env):
 		env.core.pause(False)
 
 
-def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
+def test_segment_drain_does_not_wait_for_an_inflight_resume(env, monkeypatch):
 	idle_entered, resume_entered, resume_release = Event(), Event(), Event()
 	player = real_player(env.core)
 	pause_player = player.pause
@@ -1408,12 +1410,7 @@ def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
 		assert idle_entered.wait(WAIT_TIMEOUT)
 		resuming = run_thread(lambda: env.core.pause(False))
 		assert resume_entered.wait(WAIT_TIMEOUT)
-		stays_unset(speech[1])
-		assert env.events == []
-		resume_release.set()
-		finish(resuming)
 		finish(speech)
-		assert not player.isPaused
 		assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 	finally:
 		resume_release.set()
@@ -1421,6 +1418,7 @@ def test_segment_drain_waits_for_real_resume_return(env, monkeypatch):
 			resuming[0].join(1)
 		env.core.pause(False)
 		speech[0].join(1)
+	assert not player.isPaused
 
 
 def assert_operation_failed(call, error):
