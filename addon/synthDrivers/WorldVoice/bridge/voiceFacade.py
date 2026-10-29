@@ -57,6 +57,3 @@ class VoiceFacade:
 
 	def commit(self):
 		self._binding.settings.commit(self.name)
-
-	def stop(self):
-		self._binding.session.cancel()

@@ -104,13 +104,6 @@ def test_failed_commit_does_not_advance_the_baseline(setup):
 	assert setup.voice.rate == 50
 
 
-def test_stop_cancels_the_shared_session_without_closing_it(setup):
-	setup.voice.stop()
-	assert setup.adapter.cancel_count == 1
-	assert setup.adapter.close_count == 0
-	assert setup.repo.saves == []
-
-
 def test_facade_reads_its_engine_core_from_the_binding(setup, bridge_modules):
 	core = object()
 	binding = bridge_modules.facade.VoiceBinding(setup.store, setup.session, core)

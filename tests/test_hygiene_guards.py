@@ -243,3 +243,85 @@ def test_no_test_module_imports_another(test_sources):
 				f"{path.name}:{node.lineno}" for name in names if name.split(".")[0].startswith("test_")
 			)
 	assert imports == []
+
+
+# An engine is stopped only through the scheduler: TaskManager cancels the request token and
+# then stops each playback port, EngineSession.cancel forwards to its adapter and
+# VoiceClassAdapter.cancel to the engine core. In segment (drain) mode a stop that skips the
+# scheduler silences the segment in flight without failing it, so the request waits for a
+# drain that never comes; SynthDriver._set_voice once did that through a VoiceFacade.stop.
+_ENGINE_CANCEL_HOPS = {
+	("synthDrivers/WorldVoice/runtime/scheduler.py", "TaskManager._stop_playback"),
+	("synthDrivers/WorldVoice/runtime/session.py", "EngineSession.cancel"),
+	("synthDrivers/WorldVoice/bridge/engineAdapter.py", "VoiceClassAdapter.cancel"),
+}
+# The last word of a receiver's name that marks it as a voice or an engine playback endpoint:
+# default_voice_instance, get_voice_instance(...), session, playback, port, _adapter, _core.
+_ENGINE_ENDPOINTS = frozenset(
+	{"voice", "instance", "facade", "session", "playback", "port", "adapter", "core"},
+)
+
+
+def _last_word(node):
+	"""The last word of the name an expression ends in: ``self._voiceManager`` -> ``manager``."""
+	while isinstance(node, ast.Call | ast.Subscript):
+		node = node.func if isinstance(node, ast.Call) else node.value
+	name = node.attr if isinstance(node, ast.Attribute) else getattr(node, "id", "")
+	words = re.findall(r"[a-z]+", re.sub(r"([a-z])([A-Z])", r"\1_\2", name).lower())
+	return words[-1] if words else ""
+
+
+def _engine_stops():
+	"""(file, enclosing qualified name, line, call) for every stop()/cancel() on a voice or engine endpoint."""
+	for path in _addon_sources():
+		name = path.relative_to(ADDON).as_posix()
+		if name.startswith("synthDrivers/WorldVoice/driver/Neural/"):
+			# A locally restored, untracked Neural engine is not the add-on's own source.
+			continue
+		found = []
+
+		def visit(node, scope, found=found):
+			for child in ast.iter_child_nodes(node):
+				inner = scope
+				if isinstance(child, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+					inner = (*scope, child.name)
+				elif (
+					isinstance(child, ast.Call)
+					and isinstance(child.func, ast.Attribute)
+					and child.func.attr in ("stop", "cancel")
+					and _last_word(child.func.value) in _ENGINE_ENDPOINTS
+				):
+					found.append((".".join(scope), child.lineno, ast.unparse(child)))
+				visit(child, inner)
+
+		visit(ast.parse(path.read_text(encoding="utf-8")), ())
+		for scope, line, call in found:
+			yield name, scope, line, call
+
+
+def test_engines_are_stopped_only_through_the_scheduler():
+	stray = [
+		f"{name}:{line} {scope}: {call}"
+		for name, scope, line, call in _engine_stops()
+		if (name, scope) not in _ENGINE_CANCEL_HOPS
+	]
+	assert stray == []
+
+
+def test_every_engine_cancel_hop_is_still_in_place():
+	# A hop no call matches checks nothing: a rename would let a new direct stop through.
+	found = {(name, scope) for name, scope, _line, _call in _engine_stops()}
+	assert sorted(_ENGINE_CANCEL_HOPS - found) == []
+
+
+def test_voices_offer_no_stop_or_cancel():
+	# Voice objects are what callers outside the runtime hold; a stop there bypasses the scheduler.
+	methods = [
+		f"{path.relative_to(ADDON).as_posix()}:{item.lineno} {node.name}.{item.name}"
+		for path in _addon_sources()
+		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+		if isinstance(node, ast.ClassDef) and node.name in ("Voice", "VoiceFacade")
+		for item in node.body
+		if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef) and item.name in ("stop", "cancel")
+	]
+	assert methods == []
