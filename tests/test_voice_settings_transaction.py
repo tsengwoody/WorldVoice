@@ -105,6 +105,9 @@ def test_main_synth_records_a_chosen_voice_only_once_it_is_set(monkeypatch):
 	synth = _synth_settings_class(config)()
 	synth._voiceManager = manager
 	synth._voice = None
+	cancels = []
+	# a and b share one engine session; choosing a voice must not cancel it behind the scheduler.
+	monkeypatch.setattr(a._binding.session, "cancel", lambda: cancels.append(True))
 	with pytest.raises(LookupError):
 		synth._set_voice("Missing:x")
 	assert chosen_voice(synth) is None
@@ -112,3 +115,4 @@ def test_main_synth_records_a_chosen_voice_only_once_it_is_set(monkeypatch):
 	synth._set_voice(b.name)
 	assert chosen_voice(synth) == b.name
 	assert manager.default_voice_name == b.name
+	assert cancels == []

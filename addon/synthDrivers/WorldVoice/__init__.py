@@ -400,10 +400,9 @@ class SynthDriver(BaseSynthDriver):
 
 	def _set_voice(self, voiceName):
 		if voiceName != self._voiceManager.default_voice_name:
-			# Stop speech before setting a new voice to avoid voice instances
-			# continuing speaking when changing voices for, e.g., say-all
-			# See NVDA ticket #3540
-			self._voiceManager.default_voice_instance.stop()
+			# No stop: like NVDA's own drivers, speech already queued keeps its voice, and NVDA
+			# cancels speech itself before an interactive voice change. A direct engine stop
+			# would leave the scheduler waiting for a segment drain that never comes.
 			# Raises LookupError for an unavailable voice, before the choice is recorded.
 			self._voiceManager.default_voice_name = voiceName
 		self._voice = voiceName

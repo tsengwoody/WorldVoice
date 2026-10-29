@@ -276,14 +276,52 @@ def test_number_languages_list_every_voice_language_by_its_description(monkeypat
 	assert synth.speechContext().number_language == "zh_TW"
 
 
-def test_choosing_the_current_voice_records_it_without_stopping_speech(monkeypatch):
+class _CheckedVoices(VoiceManager):
+	"""The real manager's voice setter: an unavailable voice raises LookupError."""
+
+	@property
+	def default_voice_name(self):
+		return self.default_voice_instance.name
+
+	@default_voice_name.setter
+	def default_voice_name(self, name):
+		if name not in VOICES.values():
+			raise LookupError(name)
+		self.default_voice_instance = SimpleNamespace(name=name, stop=self.default_voice_instance.stop)
+
+
+def _voice_choice_synth(monkeypatch):
 	synth, _ = _synth(monkeypatch)
 	stops = []
-	synth._voiceManager.default_voice_instance = SimpleNamespace(stop=lambda: stops.append(True))
-	synth._set_voice("A:en")
+	manager = _CheckedVoices(synth._voiceManager.ports)
+	manager.default_voice_instance = SimpleNamespace(name=VOICES["en"], stop=lambda: stops.append(True))
+	synth._voiceManager = manager
+	synth._voice = VOICES["en"]
+	return synth, stops
+
+
+@pytest.mark.parametrize("voice", [VOICES["en"], VOICES["zh"]])
+def test_choosing_a_voice_records_it_without_stopping_speech(monkeypatch, voice):
+	# A profile switch can change the voice while speech is in flight. Queued speech keeps its
+	# voice, as with NVDA's own drivers; a direct stop would leave the request waiting forever.
+	synth, stops = _voice_choice_synth(monkeypatch)
+	synth._set_voice(voice)
 	assert stops == []
-	assert chosen_voice(synth) == "A:en"
-	assert synth._get_voice() == "A:en"
+	assert voice_manager(synth).cancels == 0
+	assert synth._taskManager.calls == []
+	assert chosen_voice(synth) == voice
+	assert synth._get_voice() == voice
+
+
+def test_choosing_an_unavailable_voice_raises_and_changes_nothing(monkeypatch):
+	synth, stops = _voice_choice_synth(monkeypatch)
+	with pytest.raises(LookupError):
+		synth._set_voice("Missing:x")
+	assert stops == []
+	assert voice_manager(synth).cancels == 0
+	assert synth._taskManager.calls == []
+	assert chosen_voice(synth) == VOICES["en"]
+	assert synth._get_voice() == VOICES["en"]
 
 
 def test_pause_and_cancel_reach_the_runtime_until_the_synth_terminates(monkeypatch):
