@@ -15,7 +15,7 @@ from ...runtime.engineControl import StopGate
 from ...runtime.hostNames import host_names_ready
 from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import NativeStrategy, SegmentDrainCore, SegmentHost
+from ...runtime.segmentHost import LeasedPlayer, NativeStrategy, SegmentDrainCore, SegmentHost
 from ...runtime.session import CancellationView
 from .driver import OneCoreSynthDriver as BaseOneCoreSynthDriver
 
@@ -104,6 +104,31 @@ class _DetachableCallback:
 	def detach(self):
 		with self._lock:
 			self._driver = None
+
+
+class _OneCorePlayer(LeasedPlayer):
+	"""OneCore's WavePlayer lease: index callbacks outlive admission, stop failures latch.
+
+	Every player the driver holds is one (SynthDriver._player), so NVDA's own feeds
+	and the wrapper's are admitted for the current record, a feed admitted before a
+	cancel is stopped again, and a failed stop latches the driver's control error.
+	"""
+
+	def __init__(self, driver, player):
+		super().__init__(driver._segmentHost, player, idle_barrier=None)
+		self._driver = weakref.ref(driver)
+
+	def _callback(self, record, on_done):
+		# Indexes fire while the audio plays, after the callback closed and the
+		# worker retired the record. A segment's own callback checks its work;
+		# an ordinary one is NVDA's, as before.
+		return on_done
+
+	def _stop_failed(self, error):
+		driver = self._driver()
+		if driver is None:
+			return super()._stop_failed(error)
+		driver._failSegmentControl(error)
 
 
 @dataclass(eq=False)
@@ -197,6 +222,7 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 
 	def __init__(self):
 		self._segmentHost = SegmentHost("OneCore", _OneCoreStrategy(self))
+		self._leasedPlayer = None
 		try:
 			self._segmentCondition = Condition()
 			self._segmentPauseLock = Lock()
@@ -225,6 +251,17 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 			except Exception:
 				log.error("WorldVoice OneCore initialization cleanup failed", exc_info=True)
 			raise
+
+	@property
+	def _player(self):
+		return self._leasedPlayer
+
+	@_player.setter
+	def _player(self, player):
+		# NVDA sets its player in __init__ and _maybeInitPlayer; lease each one.
+		if player is not None and not isinstance(player, LeasedPlayer):
+			player = _OneCorePlayer(self, player)
+		self._leasedPlayer = player
 
 	def get_segment_drain_support(self, *, nvda_version: str, audio_mode: str) -> DrainSupport:
 		if self._segmentTerminated or not self._ocSpeechToken or not self._ocSpeechToken.value:
@@ -455,9 +492,6 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 			host.record_error(record, error)
 			if self._player:
 				self._player.stop()
-		finally:
-			if not record.is_valid() and self._player:
-				self._player.stop()
 
 	def _legacyCallback(self, record, audio, length, markers):
 		try:
@@ -485,12 +519,6 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 		except Exception as error:
 			log.error("OneCore legacy playback failed", exc_info=True)
 			self._failSegmentControl(error)
-		finally:
-			# The parent can return from an admitted feed after cancel's stop has
-			# run. Keep this record current until a final stop removes anything
-			# that feed queued.
-			if (self._wasCancelled or self._segmentTerminated) and self._player:
-				self._player.stop()
 
 	def _segmentIndex(self, record, index):
 		if record.work.is_valid():
@@ -499,11 +527,8 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentDrainCore):
 	def _feedSegment(self, record, player, address, size, onDone=None):
 		if not record.is_valid():
 			return False
-		try:
-			player.feed(ctypes.c_void_p(address), size=size, onDone=onDone)
-		finally:
-			if not record.is_valid():
-				player.stop()
+		# The lease stops again after a feed that returns past a cancel.
+		player.feed(ctypes.c_void_p(address), size=size, onDone=onDone)
 		return record.is_valid()
 
 	def _captureSegmentControlFailure(self, error):

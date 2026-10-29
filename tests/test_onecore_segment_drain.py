@@ -1460,3 +1460,104 @@ def test_ordinary_native_speak_failure_fails_only_its_sentence(env):
 	env.driver.speak(("second",))
 	env.native.wait_calls(1)
 	assert "second" in env.native.calls[-1]
+
+
+def _leased_player_class(env):
+	return sys.modules[type(segment_host(env.driver)).__module__].LeasedPlayer
+
+
+def test_stop_failure_latches_and_rejects_ordinary_speech(env):
+	token, _, _ = speak(env)
+	env.native.wait_calls(1)
+	error = OSError("stop failed")
+
+	def failing_stop():
+		raise error
+
+	original_stop = env.player.stop
+	env.player.stop = failing_stop
+	try:
+		# A token cancelled before core.cancel(): the drain path discards its audio
+		# through the strategy's stop_player.
+		token.cancel()
+		env.native.respond(markers="")
+		eventually(lambda: segment_host(env.driver).control_error is not None)
+	finally:
+		env.player.stop = original_stop
+	assert segment_host(env.driver).control_error is error
+	with pytest.raises(OSError) as rejected:
+		env.driver.speak(("next",))
+	assert rejected.value is error
+	assert len(env.native.calls) == 1
+
+
+def test_player_is_leased_after_seed_construction_and_replacement(env):
+	leased = _leased_player_class(env)
+	assert isinstance(env.driver._player, leased)
+	assert env.driver._player._player is env.player
+	_, _, events = speak(env)
+	env.native.wait_calls(1)
+	env.player.sync_release.set()
+	# A WAV at another rate makes NVDA build a replacement player.
+	env.player.samplesPerSec = 2000
+	env.native.respond(markers="")
+	wait_events(events)
+	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+	assert isinstance(env.driver._player, leased)
+	assert env.driver._player._player is env.player
+	env.driver._player = None
+	assert env.driver._player is None
+
+
+def test_index_fires_after_the_record_retired(env):
+	_, _, events = speak(env)
+	env.native.wait_calls(1)
+	record = native_call(env.driver)
+	held = []
+	original_feed = env.player.feed
+
+	def deferred_index_feed(data, size=None, onDone=None):
+		# Like the real player: the index callback fires when that audio plays, later.
+		original_feed(data, size)
+		if onDone:
+			held.append(onDone)
+
+	env.player.feed = deferred_index_feed
+	env.native.respond(markers="1:2000")
+	eventually(lambda: record.closed, message="The worker did not retire the record")
+	assert held and env.indexes == []
+	for onDone in held:
+		onDone()
+	assert env.indexes == [1]
+	env.player.sync_release.set()
+	wait_events(events)
+	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_cancelled_segment_feed_is_stopped_by_the_lease_before_successor(env):
+	speak(env)
+	env.native.wait_calls(1)
+	env.player.feed_entered.clear()
+	env.player.feed_release.clear()
+	call = in_thread(lambda: env.native.respond(markers=""))
+	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
+	env.driver.cancel()
+	speak(env, segment=18)
+	assert len(env.native.calls) == 1
+	final_stop, release_stop = Event(), Event()
+	original_stop = env.player.stop
+
+	def blocked_final_stop():
+		final_stop.set()
+		assert release_stop.wait(HOLD_TIMEOUT)
+		original_stop()
+
+	env.player.stop = blocked_final_stop
+	env.player.feed_release.set()
+	stopped = final_stop.wait(WAIT_TIMEOUT)
+	advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 2)
+	release_stop.set()
+	finish(call)
+	assert stopped, "The segment feed queued audio after cancel without a final stop"
+	assert not advanced, "New native work started before the cancelled feed's final stop"
+	env.native.wait_calls(2)
