@@ -657,3 +657,82 @@ def test_no_add_on_code_names_the_request_token():
 		for line in _token_names(ast.parse(path.read_text(encoding="utf-8")))
 	)
 	assert found == []
+
+
+# The latch rule lives in runtime/engineControl.py. Wrappers with their own native queue latch
+# only through one ControlFaultPolicy; eSpeak, whose queue is NVDA's, only through
+# LeasedPlayer's default stop hook.
+QUEUE_OWNING_ENGINES = {"Cerence", "OneCore", "RHVoice", "SAPI5", "VE"}
+# Each engine's own LeasedPlayer subclass (eSpeak uses LeasedPlayer itself).
+LEASED_PLAYERS = {
+	"Cerence": "_CallbackPlayer",
+	"OneCore": "_OneCorePlayer",
+	"RHVoice": "_WavePlayer",
+	"SAPI5": "_SegmentPlayer",
+	"VE": "_CallbackPlayer",
+}
+
+
+def _wrapper_tree(engine):
+	return ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
+
+
+def test_no_wrapper_calls_latch_control_error():
+	offenders = [
+		f"{engine}:{node.lineno}"
+		for engine in ENGINES
+		for node in ast.walk(_wrapper_tree(engine))
+		if isinstance(node, ast.Attribute) and node.attr == "latch_control_error"
+	]
+	assert offenders == []
+
+
+def test_queue_owning_wrappers_build_one_control_fault_policy():
+	counts = {
+		engine: sum(
+			isinstance(node, ast.Call) and ast.unparse(node.func) == "ControlFaultPolicy"
+			for node in ast.walk(_wrapper_tree(engine))
+		)
+		for engine in ENGINES
+		if engine not in UNTRACKED_PACKAGES
+	}
+	assert counts == {engine: int(engine in QUEUE_OWNING_ENGINES) for engine in counts}
+
+
+@pytest.mark.parametrize("engine", sorted(LEASED_PLAYERS))
+def test_engine_players_are_leased(engine):
+	tree = _wrapper_tree(engine)
+	player = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == LEASED_PLAYERS[engine])
+	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]
+
+
+@pytest.mark.parametrize("engine", ["OneCore", "VE", "Cerence"])
+def test_wrapper_feeds_and_stops_only_through_the_lease(engine):
+	# OneCore holds only leased players (its _player property); VE/Cerence keep the raw player in
+	# _realPlayer for the inner driver and their idles, but feed and stop it through the lease.
+	raw = {
+		"OneCore": ("_player._player", "_leasedPlayer._player"),
+		"VE": ("_realPlayer",),
+		"Cerence": ("_realPlayer",),
+	}
+	offenders = [
+		f"{engine}:{node.lineno} {ast.unparse(node.func)}"
+		for node in ast.walk(_wrapper_tree(engine))
+		if isinstance(node, ast.Call)
+		and isinstance(node.func, ast.Attribute)
+		and node.func.attr in {"feed", "stop"}
+		and ast.unparse(node.func.value).endswith(raw[engine])
+	]
+	assert offenders == []
+	if engine == "OneCore":
+		# Every player NVDA or the wrapper assigns is wrapped by the _player setter.
+		synth = next(
+			n for n in _wrapper_tree(engine).body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver"
+		)
+		decorators = {
+			ast.unparse(decorator)
+			for n in synth.body
+			if isinstance(n, ast.FunctionDef) and n.name == "_player"
+			for decorator in n.decorator_list
+		}
+		assert decorators == {"property", "_player.setter"}
