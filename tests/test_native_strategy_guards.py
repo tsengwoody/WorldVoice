@@ -372,13 +372,17 @@ def test_vocalizer_wrapper_has_no_guard_fallback(engine):
 
 def test_every_wrapper_core_declares_the_segment_drain_entries():
 	# The bridge looks both entries up by name; the base makes them one interface, and it comes
-	# last so it never shadows an implementation from another base.
+	# last so it never shadows an implementation from another base. SegmentHostSpeaker is a
+	# SegmentDrainCore that supplies speak_segment from the wrapper's SegmentHost, so a wrapper on
+	# it defines only get_segment_drain_support (and must not override speak_segment).
 	for engine in ENGINES:
 		tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
 		synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
-		assert ast.unparse(synth.bases[-1]) == "SegmentDrainCore", engine
+		base = ast.unparse(synth.bases[-1])
 		own = {n.name for n in synth.body if isinstance(n, ast.FunctionDef)}
-		assert {"speak_segment", "get_segment_drain_support"} <= own, engine
+		assert base in {"SegmentDrainCore", "SegmentHostSpeaker"}, engine
+		assert "get_segment_drain_support" in own, engine
+		assert ("speak_segment" in own) == (base == "SegmentDrainCore"), engine
 
 
 def test_wrappers_do_not_shadow_their_bases():

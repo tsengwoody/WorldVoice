@@ -148,6 +148,24 @@ class SegmentDrainCore(ABC):
 		"""Speak one segment and report its drain or failure to on_event."""
 
 
+class SegmentHostSpeaker(SegmentDrainCore):
+	"""A SegmentDrainCore whose segments go to the SegmentHost the core keeps in self._segmentHost.
+
+	A wrapper's SynthDriver names this class as its last base instead of SegmentDrainCore and
+	sets self._segmentHost before it can speak; it still decides get_segment_drain_support itself.
+	"""
+
+	def speak_segment(
+		self,
+		commands: SpeechCommands,
+		token: CancellationView,
+		*,
+		context: PlaybackContext,
+		on_event: SegmentEventSink,
+	) -> None:
+		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
+
+
 class SegmentHost:
 	def __init__(self, engine: str, strategy: NativeStrategy):
 		if PLAYED_OUT not in strategy.barriers:

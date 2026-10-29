@@ -1187,3 +1187,35 @@ def test_nvda_driver_metaclass_is_an_abcmeta():
 	tree = ast.parse((REF / "nvda/source/baseObject.py").read_text(encoding="utf-8"))
 	meta = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "AutoPropertyType")
 	assert [ast.unparse(base) for base in meta.bases] == ["ABCMeta"]
+
+
+def test_segment_host_speaker_forwards_to_the_core_host(env):
+	# Every bundled wrapper takes speak_segment from this mixin: the call reaches its own host unchanged.
+	calls = []
+
+	class Host:
+		def speak_segment(self, *args, **kwargs):
+			calls.append((args, kwargs))
+
+	class Core(env.module.SegmentHostSpeaker):
+		def __init__(self):
+			self._segmentHost = Host()
+
+		def get_segment_drain_support(self, *, nvda_version, audio_mode):
+			return None
+
+	commands, token, context, sink = ("text",), object(), object(), object()
+	assert Core().speak_segment(commands, token, context=context, on_event=sink) is None
+	assert calls == [((commands, token), {"context": context, "on_event": sink})]
+
+
+def test_segment_host_speaker_leaves_drain_support_abstract(env):
+	# The mixin is the bridge's SegmentDrainCore; each wrapper still decides drain support itself.
+	speaker = env.module.SegmentHostSpeaker
+	assert issubclass(speaker, env.module.SegmentDrainCore)
+
+	class Bare(speaker):
+		pass
+
+	with pytest.raises(TypeError):
+		Bare()
