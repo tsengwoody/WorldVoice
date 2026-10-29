@@ -110,3 +110,17 @@ log 的開頭兩行：`VE … lib …\VE\lib\AMD64 Python 3.14.6 64-bit`、`Cere
 | M9 | 在 `OUTBUFDONE` 分支也設 `call.ended = True` | killed（`test_last_call_without_endprocess_fails_the_segment`） |
 | M10 | `lastCallEnded = call.ended`（不看 `returned`） | **存活**：等價——呼叫丟例外時已 `record_error` |
 | M11 | 只有 Cerence 拿掉 `ENGINE_DONE` 宣告 | killed（`test_vocalizer_drift.py::test_cerence_differs_from_ve_only_where_allowed`） |
+
+## 修正記錄
+
+修正者：Opus 5.5（簡化流程，依 §3.4）。只有 Minor 需要在本分支修，沒有 Critical／Important 的程式碼修正，所以不做修正 review。
+
+| 發現 | 處理 | commit |
+| --- | --- | --- |
+| I1 | 不在本分支處理：probe 在 `SDKTest` 分支擴充中，使用者會在 Windows 上用 32 位元 Python 執行。在 32 位元結果出來之前，「32 位元 NVDA（2024.1–2025.3）上未實測」仍是未確認的使用者可見預設。 | — |
+| M1 | `test_ordinary_speech_needs_no_endprocess` 改成 `parametrize("end", [True, False])`，`end=True`（SDK 的實際順序）讓 `lastCallEnded` 為 `True`，此時只剩 `_retireRecord` 的 `ENGINE_DONE in record.barriers` 擋住 reach。突變驗證：scratch 複本中 VE、Cerence 兩個 wrapper 同時拿掉這個 `in` 檢查，`[VE-endprocess]`、`[Cerence-endprocess]` 失敗（`outcomes` 為空，record 沒有 retire），`no-endprocess` 兩個仍通過；還原後 4 個都通過。 | `bb5b188` |
+| M2 | 測試註解改成明說訊息順序是人造的（SDK 的 `ENDPROCESS` 一定最後、同執行緒），並說明為什麼這是證明 `wait_consumers` 的唯一方式；VE 與 Cerence 的 `_runNative` 加上相同註解：`ENGINE_DONE` 依賴 SDK 在呼叫內、同一條執行緒跑 callback（probe 每次呼叫都 `sameThread=True`），呼叫返回後才到的 `ENDPROCESS` 會被拒收、不算數。 | `39cadcd` |
+| M3 | 不在本分支處理：probe 在 `SDKTest` 分支擴充中（片段清單、`USERSTOP` 之後的呼叫等），使用者會在 Windows 上用 32 位元 Python 執行。 | — |
+| M4 | `runtime/barriers.py` 的 `ENGINE_DONE` 註解和 `end_process` 的 docstring 註明證據來自 64 位元程式庫（VE SDK 2.2.0 `lib\AMD64`、Cerence SDK 21.6.0 `lib\x64`）。32 位元結果出來後再改成兩種位元數都測過。既有的 commit message（`5add7e0`）不改寫。 | `1a52b68` |
+
+VE／Cerence 保持同步：`tests/test_vocalizer_drift.py` 的 `ALLOWED` 沒有變動，drift 測試通過。
