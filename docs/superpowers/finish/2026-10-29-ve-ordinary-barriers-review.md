@@ -225,3 +225,16 @@ W 系列跑 `test_vocalizer_segment_drain.py`、`test_native_strategy_guards.py`
 | 未突變的 scratch 複本 | 6 個相關測試檔 | 410 passed |
 
 Windows／NVDA 上的實際 log 輸出和音訊裝置都沒有驗證（Linux 只驗證受控的邊界）。
+
+### N1 — `f828b7a` `test: pin reading the token after both VE/Cerence ordinary reaches`
+
+- 修法：沿用修正 review 的 scratch 測試，新增 `test_token_cancelled_in_the_engine_done_check_is_withdrawn`（monkeypatch `env.core._recordValid`：`audio_fed` 已到、`engine_done` 還沒到時先 `token.cancel()` 再回傳原本的判斷，也就是 `_retireRecord` 的 `ENGINE_DONE` 檢查），斷言 `barriers == {"audio_fed": True, "engine_done": False}`、`withdrawn`、`(outcome.cancelled, outcome.error) == (True, None)`、`(player.fed, player.idles, player.stops) == ([b"pcm"], 1, 0)`、1 個 DONE，另外加上 `caplog` 斷言沒有缺關卡的 ERROR log。VE 與 Cerence `_retireRecord` 的註解改成同時指向 M1 和這個測試（兩邊同樣的兩行，`ALLOWED` 不變）。
+- 突變（scratch 複本，`git archive HEAD`＋工作樹的新測試與 wrapper，`ref` symlink；VE＋Cerence 同時突變；跑 `test_vocalizer_segment_drain.py`、`test_native_strategy_guards.py`、`test_vocalizer_drift.py`、`test_worldvoice_cancel_wrappers.py`、`test_worldvoice_request_manager.py`；每次先清 `__pycache__`，跑完還原）：
+
+  | # | 突變 | 修正前的測試（`72f82e3` 的測試檔） | 修正後 |
+  | --- | --- | --- | --- |
+  | W3c | `AUDIO_FED` 的 reach 之後、`ENGINE_DONE` 的檢查之前讀 token，withdraw 用早讀的值 | 338 passed（存活） | **killed**：2 failed／338 passed（新測試的 `[VE]`、`[Cerence]`） |
+  | W3b | 兩次 reach 之前讀 token | 2 failed／336 passed（M1） | **killed**：4 failed／336 passed（M1＋新測試，各 VE／Cerence） |
+  | 未突變 | – | – | 340 passed；還原後再跑一次 340 passed |
+
+- 驗證（head `f828b7a`，§7）：`python3 -m pytest -q tests`（序列，watchdog：MemAvailable < 3 GB 就 kill）**3571 passed／0 skipped**（104.94 s；3569 ＋ 新測試 2 個；watchdog 沒有觸發，最低 MemAvailable 約 5.88 GB）；`prek run --all-files` 8 個 hook 全 Passed；`git diff --check`、`git diff --check master..HEAD` 乾淨；§7 的受保護路徑兩個指令都沒有輸出；Cerence 換名後和 VE 的差異行與 `7692ee4` 完全相同，`tests/test_vocalizer_drift.py` 沒有 diff。
