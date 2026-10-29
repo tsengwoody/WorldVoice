@@ -136,8 +136,11 @@ def test_a_failing_cleanup_step_is_logged_and_the_rest_still_run(built, monkeypa
 	with pytest.raises(RuntimeError, match="no voices available"):
 		harness.new_core()
 	_assert_released(record, native=True, player=True)
-	((_, kwargs),) = record.logged
-	assert kwargs == {"exc_info": True}
+	((args, kwargs),) = record.logged
+	assert (args, kwargs) == (
+		(f"WorldVoice {harness.engine} initialization cleanup failed",),
+		{"exc_info": True},
+	)
 
 
 def test_a_built_core_keeps_its_resources(built):

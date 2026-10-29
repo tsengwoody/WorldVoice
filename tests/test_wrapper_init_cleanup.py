@@ -55,9 +55,13 @@ def _assert_host_released(record):
 	assert not delivery_thread(segment_lifecycle(host)).is_alive()
 
 
-def _assert_one_cleanup_error_logged(record):
-	((level, _, kwargs),) = record.logged
-	assert (level, kwargs) == ("error", {"exc_info": True})
+def _assert_one_cleanup_error_logged(record, engine):
+	((level, args, kwargs),) = record.logged
+	assert (level, args, kwargs) == (
+		"error",
+		(f"WorldVoice {engine} initialization cleanup failed",),
+		{"exc_info": True},
+	)
 
 
 # RHVoice --------------------------------------------------------------------
@@ -150,7 +154,7 @@ def test_rhvoice_a_failing_cleanup_step_is_logged_and_the_host_still_released(rh
 		env.outer.SynthDriver()
 	_assert_host_released(record)
 	assert record.calls == ["thread", "player", "engine", "host"]
-	_assert_one_cleanup_error_logged(record)
+	_assert_one_cleanup_error_logged(record, "RHVoice")
 
 
 def test_rhvoice_a_built_core_keeps_its_resources(rhvoice):
@@ -249,7 +253,7 @@ def test_espeak_a_failing_cleanup_step_is_logged_and_the_host_still_released(esp
 		env.outer.SynthDriver()
 	_assert_host_released(record)
 	assert record.calls == ["thread", "native", "host"]
-	_assert_one_cleanup_error_logged(record)
+	_assert_one_cleanup_error_logged(record, "eSpeak")
 
 
 def test_espeak_a_built_core_keeps_its_resources(espeak):
@@ -318,7 +322,7 @@ def test_onecore_a_failing_host_release_is_logged_and_the_original_error_raised(
 	with pytest.raises(Boom, match="ocSpeech_initialize failed"):
 		env.outer.SynthDriver()
 	_assert_host_released(record)
-	_assert_one_cleanup_error_logged(record)
+	_assert_one_cleanup_error_logged(record, "OneCore")
 
 
 def test_onecore_a_built_core_keeps_its_host(onecore):
@@ -447,7 +451,7 @@ def test_sapi5_a_failing_cleanup_step_is_logged_and_the_host_still_released(sapi
 	(thread,) = record.threads
 	assert not thread.is_alive()
 	assert record.calls == ["sink", "thread", "player", "host"]
-	_assert_one_cleanup_error_logged(record)
+	_assert_one_cleanup_error_logged(record, "SAPI5")
 
 
 def test_sapi5_a_built_core_keeps_its_resources(sapi5):
