@@ -190,3 +190,11 @@ Linux 上的測試只驗證受控的 native 與音訊邊界；Windows 上的 NVD
 | 測試名稱引用 | 在 `docs`、`tests`、`.superpowers` 搜尋改過的測試名 | 只出現在 spec、plan、本檔、帳本和測試本身；沒有 guard 依賴這些測試 id，參數化不會讓任何引用失效 |
 
 Linux 上的測試只驗證受控的 native 與音訊邊界；Windows 上的 NVDA、實際音訊裝置和引擎 SDK 都沒有驗證。
+
+#### N1 修正
+
+| 項目 | commit | 內容與驗證 |
+| --- | --- | --- |
+| N1 | `d4b38e3` | `test_cancelled_legacy_feed_retires_only_after_its_final_stop` 加上 `call.thread in stop_threads`：要求有一次 stop 發生在送 feed 的 callback 執行緒（只有 lease 會在那裡 stop；worker 的 `retire` 在 worker 執行緒）。分支上連跑 10 次都通過；scratch 複本（`git clone --shared`，`ref` symlink，跑完已刪除；worktree 未改、未用 `git stash`）拿掉 `host:712-716` 的 late stop（M3）後連跑 5 次都失敗。 |
+
+N1 之後驗證（HEAD `d4b38e3`）：完整測試（序列，記憶體監控未觸發）**3597 passed／0 skipped**（只加斷言，數量不變）；`prek run --all-files` 8 個 hook 全 Passed；`git diff --check master` 乾淨；受保護路徑兩個指令都沒有輸出。
