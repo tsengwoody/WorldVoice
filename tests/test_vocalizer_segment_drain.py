@@ -2029,6 +2029,32 @@ def test_legacy_endprocess_after_a_recorded_error_is_acknowledged_but_does_not_c
 	assert missing_barrier_logs(caplog) == []
 
 
+def test_cancel_before_begin_skips_the_record(env, monkeypatch, caplog):
+	# A cancel that lands after the BgThread took the record's _Begin off the queue (so
+	# _dropQueuedSpeech cannot drop it) and before it runs: the record is skipped and abandoned.
+	begin, begun = env.core._beginRecord, []
+
+	def cancelling_begin(record):
+		env.core.cancel()
+		begun.append(record)
+		begin(record)
+
+	monkeypatch.setattr(env.core, "_beginRecord", cancelling_begin)
+	calls, native = ending_calls(env, [True])
+	outcomes = speak_ordinary_pieces(env, monkeypatch, ["a"], native)
+	[record] = begun
+	assert record.native.skipped
+	assert record.abandoned and record.cancelled
+	assert calls == []
+	# abandon() retires the record without retire().
+	assert outcomes == []
+	player = real_player(env.core)
+	# Only cancel()'s own stop.
+	assert (player.fed, player.idles, player.stops) == ([], 0, 1)
+	assert env.dones == []
+	assert missing_barrier_logs(caplog) == []
+
+
 def test_cancel_after_the_last_call_retires_cancelled(env, monkeypatch, caplog):
 	# The terminal idle runs after the last native call and before _Retire.
 	player = real_player(env.core)
