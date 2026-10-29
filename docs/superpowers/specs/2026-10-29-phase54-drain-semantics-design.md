@@ -69,7 +69,7 @@ Engine changes:
 
 - OneCore drain: drop the `_segmentPaused` wait (`OneCore:197-200`). `_segmentPaused` stays for re-pausing a new player (`OneCore:567-572`) and the ordinary path (`OneCore:490-502`).
 - VE and Cerence drain: drop the `_pauses`/`_paused` wait (`VE:352-357`, `Cerence:352-357`), identically in both files, so `tests/test_vocalizer_drift.py` `ALLOWED` is unchanged. `_paused`/`_pauses` stay for the ordinary `_idlePlayer` (`VE:653-658`) and the record waits (`VE:502`, `:524`, `:570`, `:595`).
-- `runtime/barriers.py`: `PLAYED_OUT` is proven by `idle()` (or OneCore's `sync()`) returning; a pause after that is the scheduler's.
+- `runtime/barriers.py`: `PLAYED_OUT` is proven by `idle()` ~~(or OneCore's `sync()`)~~ returning (OneCore idles too since §3.6); a pause after that is the scheduler's.
 
 Non-goals: the ordinary-speech unpause waits (OneCore `_legacyCallback`, VE/Cerence `_idlePlayer`) are not drains and stay (the ordinary path is unreachable in production, cons.md §4; the scheduler's hold also covers `LEGACY_DONE` tasks). Pausing a break task's timer (a break keeps counting during a pause; the next task then waits).
 

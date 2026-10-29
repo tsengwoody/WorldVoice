@@ -90,7 +90,7 @@
 - `prepare`：segment 做 SSML 轉換（API5 以上用 `_OcSsmlConverter`，否則 `_OcPreAPI5SsmlConverter`）；一般語音原樣返回。
 - `submit`：建立 `_OneCoreNative(text)`，放進 `_queuedSpeech`，喚醒 worker。
 - `stop_native`／`stop_player`：停止 player。
-- `drain`：`player.sync()`，暫停中等待恢復，然後 `reach("synced")`；失敗時 `record_error` 並走控制錯誤流程。
+- `drain`：~~`player.sync()`，暫停中等待恢復，然後 `reach("synced")`；~~ 真正 player 的 `idle()`（每段一次），然後 `reach(PLAYED_OUT)`；暫停後的等待由 scheduler 處理（Corrected by `phase54-drain-semantics`）；失敗時 `record_error` 並走控制錯誤流程。
 
 保留的名稱（測試會讀取）：`_segmentNative`、`_callback`、`_retireSegmentNative`、`_failSegmentControl`、`_deliverSegmentControlFailure`、`_segmentWorker`、`_queuedSpeech`、`_segmentCondition`。
 

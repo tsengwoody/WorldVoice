@@ -101,6 +101,7 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 * **WorldVoice waits for each part of speech to finish playing:** With eSpeak, OneCore, RHVoice, VE and Cerence, WorldVoice now waits until each part of speech has finished playing before the next part (another voice or a pause) starts, so the next voice or pause no longer begins while the previous part is still playing. With SAPI5 it does the same on NVDA 2025.3 or later, where WorldVoice's SAPI5 engine uses WorldVoice's own SAPI5 driver, built on the speech queue NVDA 2025.3 introduced. On NVDA 2024.1 to 2025.2, SAPI5 keeps using NVDA's own SAPI5 driver, as in WorldVoice 6.2, without this wait, and WorldVoice writes one line about it to the NVDA log.
 * **Changing the voice while speaking no longer cuts off speech:** For example, when a configuration profile with another voice becomes active as you switch applications, the speech under way finishes in the previous voice and later speech uses the new voice. Earlier versions cut off the speech under way.
 * **Pausing between two parts of speech:** Fixed speech continuing with the next part (another voice or language) when you paused just as one part finished. Speech now stays paused until you resume.
+* **Other audio returns after OneCore speaks:** With audio ducking on, other audio now returns to its normal volume after OneCore finishes speaking.
 
 ## WorldVoice 6 Update
 
