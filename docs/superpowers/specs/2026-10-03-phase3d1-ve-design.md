@@ -97,6 +97,7 @@ BgThread：
   - `submit`：如上排隊。
   - `stop_native`／`stop_player`：停止 player，期間以 `_stops` 擋住下一次 native 呼叫。
   - `drain`：`player.idle()` 加暫停等待後 `reach("idle")`；idle 失敗時 `record_error` 並 `latch_control_error`（沿用現行「後續拒絕」）。
+    Added by `fix/ve-ordinary-played-out`（2026-10-29）：一般語音的最後 idle（內層 DoneSpeaking 經 `_idlePlayer`）失敗時只 `record_error` 再拋出，不 `latch_control_error`。segment 的 drain 要 latch，是因為它的後繼會在 player 狀態不明時開始；一般紀錄失敗後由 `retire` 的 error 分支 `stop()` 一次，把 player 復位，之後的語音照常接受；`stop()` 也失敗時 `_stopPlayer` 仍會 latch。
 - **callback 准入**：每次 native 呼叫建立 `_NativeCall(record, instance)`；callback 必須符合 instance 且仍在准入中，才以 `host.consumer` 與 `bound_callback` 進入。取代 `CallbackGate` 與子 lease。
 - **保留**：`_SilenceGate`、`_GuardedPlayer`、`ProcessText2Speech`（保留原始 status）、`_ContextualVECallback` 的 Sonic 處理、`_confirm_native_quiescence` 啟用覆寫、暫停版本號與 `_stops`／`_pauses`、`Voice` 類別。
 - **`speak()`**：已終止時拋出例外；呼叫當下標記 legacy 使用；以 ~~`host.enqueue(speech, barriers=frozenset(), native=_VERequest(speech, token))`~~（Corrected by `fix/ve-ordinary-barriers`（2026-10-29）：`barriers=_ORDINARY_BARRIERS`，即 ~~`frozenset({AUDIO_FED, ENGINE_DONE})`~~ Corrected by `fix/ve-ordinary-played-out`（2026-10-29）：`frozenset({AUDIO_FED, ENGINE_DONE, PLAYED_OUT})`）排隊後返回。

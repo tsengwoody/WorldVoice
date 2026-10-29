@@ -688,7 +688,9 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 				self._realPlayer.idle()
 			except Exception as error:
 				# Fail the record instead of letting it retire silently without PLAYED_OUT. Raised
-				# on, so the inner DoneSpeaking publishes no DONE, as before.
+				# on, so the inner DoneSpeaking publishes no DONE, as before. Unlike the segment
+				# drain, which latches so no successor starts on an uncertain player, no control
+				# error is latched: retire's stop resets the player, and a failed stop latches.
 				host.record_error(record, error)
 				raise
 			with self._speechStateLock:
