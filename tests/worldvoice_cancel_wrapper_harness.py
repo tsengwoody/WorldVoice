@@ -404,3 +404,9 @@ def stop_gate_clear(core):
 def native_call(core):
 	"""The native call the wrapper has in flight, or None."""
 	return getattr(core, "_nativeCall", None)
+
+
+def queued_done_speaking(core):
+	"""The inner driver's DoneSpeaking tasks still queued for the inner BgThread, in order."""
+	done = sys.modules[f"{type(core).__module__}.driver"].DoneSpeaking
+	return [task for task in tuple(core._bgQueue.queue) if isinstance(task, done)]

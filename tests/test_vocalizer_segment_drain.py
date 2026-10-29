@@ -20,6 +20,7 @@ from worldvoice_cancel_wrapper_harness import (
 	native_callback,
 	native_message,
 	queued_begins,
+	queued_done_speaking,
 	real_player,
 	sonic_state,
 	stop_gate_clear,
@@ -1896,9 +1897,10 @@ def test_segment_without_native_call_reaches_engine_done(env, monkeypatch):
 	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
-# Ordinary speech declares AUDIO_FED and ENGINE_DONE like a segment record. Its idle and DONE
-# stay with the inner DoneSpeaking, which runs before _Retire, so a failed record still has
-# published DONE; the host's failure handling only stops the player. A record whose request
+# Ordinary speech declares AUDIO_FED, ENGINE_DONE and PLAYED_OUT like a segment record. Its idle
+# and DONE stay with the inner DoneSpeaking, which runs before _Retire and proves PLAYED_OUT for
+# the record it was bound to at submit, so a failed record still has published DONE; the host's
+# failure handling only stops the player. A record whose request
 # token was cancelled is withdrawn instead: reported cancelled, with the player left exactly as
 # the wrapper leaves it today (the callback's own stop, nothing at retire).
 # The player (fed/idles/stops) and DONE assertions of the token tests below also pass on master's
@@ -1950,14 +1952,14 @@ def request_token(kind):
 
 @pytest.mark.parametrize("token", ["live-token", "no-token"])
 @pytest.mark.parametrize("ends", [[True], [True, False, True]], ids=["one-call", "middle-call-unended"])
-def test_ordinary_speech_reaches_audio_fed_and_engine_done(env, monkeypatch, caplog, ends, token):
+def test_ordinary_speech_reaches_every_barrier(env, monkeypatch, caplog, ends, token):
 	calls, native = ending_calls(env, ends)
 	pieces = [str(i) for i in range(len(ends))]
 	outcomes = speak_ordinary_pieces(env, monkeypatch, pieces, native, request_token(token))
 	assert len(calls) == len(ends)
 	[(record, outcome)] = outcomes
 	assert record.withdrawn is False
-	assert record.barriers == {"audio_fed": True, "engine_done": True}
+	assert record.barriers == {"audio_fed": True, "engine_done": True, "played_out": True}
 	assert (outcome.cancelled, outcome.error) == (False, None)
 	player = real_player(env.core)
 	assert player.fed == [b"pcm"] * len(ends)
@@ -1976,7 +1978,7 @@ def test_ordinary_last_call_without_endprocess_fails_the_record(env, monkeypatch
 	assert len(calls) == len(ends)
 	[(record, outcome)] = outcomes
 	assert record.withdrawn is False
-	assert record.barriers == {"audio_fed": True, "engine_done": False}
+	assert record.barriers == {"audio_fed": True, "engine_done": False, "played_out": True}
 	assert outcome.cancelled is False
 	assert "engine_done" in str(outcome.error)
 	# The wrapper drops the outcome; the host's log is what makes the failure visible.
@@ -2023,7 +2025,7 @@ def test_token_cancelled_before_the_native_call_is_withdrawn(env, monkeypatch):
 	assert calls == []
 	[(record, outcome)] = outcomes
 	assert record.withdrawn
-	assert record.barriers == {"audio_fed": False, "engine_done": False}
+	assert record.barriers == {"audio_fed": False, "engine_done": False, "played_out": False}
 	assert (outcome.cancelled, outcome.error) == (True, None)
 	# As before the barriers: nothing was fed, nothing stopped, DONE stays silent.
 	player = real_player(env.core)
@@ -2053,7 +2055,7 @@ def test_token_cancelled_mid_feed_keeps_only_the_callback_stop(env, monkeypatch)
 	[(record, outcome)] = outcomes
 	assert record.withdrawn
 	assert record.native.lastCallEnded is False
-	assert record.barriers == {"audio_fed": False, "engine_done": False}
+	assert record.barriers == {"audio_fed": False, "engine_done": False, "played_out": False}
 	assert (outcome.cancelled, outcome.error) == (True, None)
 	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 0, 1)
 	assert env.dones == []
@@ -2074,7 +2076,7 @@ def test_legacy_endprocess_after_token_cancel_does_not_count(env, monkeypatch):
 	assert results == [env.types.NUAN_OK]
 	[(record, outcome)] = outcomes
 	assert record.native.lastCallEnded is False
-	assert record.barriers == {"audio_fed": False, "engine_done": False}
+	assert record.barriers == {"audio_fed": False, "engine_done": False, "played_out": False}
 	assert record.withdrawn
 	assert (outcome.cancelled, outcome.error) == (True, None)
 	player = real_player(env.core)
@@ -2104,7 +2106,7 @@ def test_token_cancelled_after_the_last_call_is_withdrawn(env, monkeypatch, nvda
 	assert calls == ["a"]
 	[(record, outcome)] = outcomes
 	assert record.native.lastCallEnded is True
-	assert record.barriers == {"audio_fed": False, "engine_done": False}
+	assert record.barriers == {"audio_fed": False, "engine_done": False, "played_out": False}
 	assert (outcome.cancelled, outcome.error) == (True, None)
 	assert record.cancelled is nvda_cancel
 	# Token only: no stop at retire, as before the barriers. With cancel(): its own stop plus
@@ -2131,7 +2133,7 @@ def test_token_cancelled_during_the_audio_fed_reach_is_withdrawn(env, monkeypatc
 	outcomes = speak_ordinary_pieces(env, monkeypatch, ["a"], native, token)
 	assert calls == ["a"]
 	[(record, outcome)] = outcomes
-	assert record.barriers == {"audio_fed": True, "engine_done": False}
+	assert record.barriers == {"audio_fed": True, "engine_done": False, "played_out": True}
 	assert record.withdrawn
 	assert (outcome.cancelled, outcome.error) == (True, None)
 	player = real_player(env.core)
@@ -2158,10 +2160,225 @@ def test_token_cancelled_in_the_engine_done_check_is_withdrawn(env, monkeypatch,
 	outcomes = speak_ordinary_pieces(env, monkeypatch, ["a"], native, token)
 	assert calls == ["a"]
 	[(record, outcome)] = outcomes
-	assert record.barriers == {"audio_fed": True, "engine_done": False}
+	assert record.barriers == {"audio_fed": True, "engine_done": False, "played_out": True}
 	assert record.withdrawn
 	assert (outcome.cancelled, outcome.error) == (True, None)
 	player = real_player(env.core)
 	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 1, 0)
 	assert len(env.dones) == 1
 	assert missing_barrier_logs(caplog) == []
+
+
+# The final idle that proves PLAYED_OUT runs in the inner DoneSpeaking, before _Retire. The
+# player (fed/idles/stops) and DONE assertions below also pass on master's wrapper, before
+# PLAYED_OUT (verified 2026-10-29), except where a test says otherwise.
+
+
+def played_out_reaches(env, monkeypatch):
+	"""An Event set when PLAYED_OUT is reached on any record, and the records it was reached on."""
+	host = segment_host(env.core)
+	reach, reached, records = host.reach, Event(), []
+
+	def recording_reach(record, barrier):
+		reach(record, barrier)
+		if barrier == "played_out":
+			records.append(record)
+			reached.set()
+
+	monkeypatch.setattr(host, "reach", recording_reach)
+	return reached, records
+
+
+def idle_entered(env, monkeypatch):
+	player = real_player(env.core)
+	idle, entered = player.idle, Event()
+
+	def entering_idle():
+		idle()
+		entered.set()
+
+	monkeypatch.setattr(player, "idle", entering_idle)
+	return entered
+
+
+def test_ordinary_played_out_waits_for_resume_after_the_final_idle(env, monkeypatch, caplog):
+	calls, native = ending_calls(env, [True])
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	outcomes = record_retires(env, monkeypatch)
+	reached, _ = played_out_reaches(env, monkeypatch)
+	entered = idle_entered(env, monkeypatch)
+	env.core.pause(True)
+	try:
+		env.core.speak(("ordinary",), cancellationToken=Token())
+		assert entered.wait(WAIT_TIMEOUT)
+		# The idle returned while paused: the pause wait holds PLAYED_OUT back.
+		stays_unset(reached)
+		assert outcomes == []
+	finally:
+		env.core.pause(False)
+	settle_worker(env)
+	assert calls == ["ordinary"]
+	[(record, outcome)] = outcomes
+	assert record.barriers == {"audio_fed": True, "engine_done": True, "played_out": True}
+	assert (outcome.cancelled, outcome.error) == (False, None)
+	player = real_player(env.core)
+	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 1, 0)
+	assert len(env.dones) == 1
+	assert missing_barrier_logs(caplog) == []
+
+
+@pytest.mark.parametrize("cancel_kind", ["cancel", "token"])
+def test_ordinary_cancelled_during_the_final_pause_never_plays_out(env, monkeypatch, caplog, cancel_kind):
+	calls, native = ending_calls(env, [True])
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	outcomes = record_retires(env, monkeypatch)
+	reached, _ = played_out_reaches(env, monkeypatch)
+	entered = idle_entered(env, monkeypatch)
+	token = Token()
+	env.core.pause(True)
+	try:
+		env.core.speak(("ordinary",), cancellationToken=token)
+		assert entered.wait(WAIT_TIMEOUT)
+		if cancel_kind == "cancel":
+			# cancel() clears the pause and wakes the wait with the record invalid.
+			env.core.cancel()
+		else:
+			# A token alone does not wake the wait; the resume does, with the record invalid.
+			token.cancel()
+	finally:
+		env.core.pause(False)
+	settle_worker(env)
+	assert calls == ["ordinary"]
+	assert not reached.is_set()
+	[(record, outcome)] = outcomes
+	assert record.barriers == {"audio_fed": False, "engine_done": False, "played_out": False}
+	assert (outcome.cancelled, outcome.error) == (True, None)
+	assert record.cancelled is (cancel_kind == "cancel")
+	assert record.withdrawn is (cancel_kind == "token")
+	player = real_player(env.core)
+	# cancel(): its own stop plus the host's cancelled-path stop at retire. Token: none.
+	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 1, 2 if cancel_kind == "cancel" else 0)
+	# A host cancel leaves the token live, so DoneSpeaking still publishes DONE.
+	assert len(env.dones) == (1 if cancel_kind == "cancel" else 0)
+	assert missing_barrier_logs(caplog) == []
+
+
+def test_kept_done_of_a_dropped_request_never_plays_out_another(env, monkeypatch, caplog):
+	# cancel() keeps a dropped request's DoneSpeaking. Run it again while a later request is
+	# current, the hazard a _currentRecord lookup would have: it must neither idle for that
+	# request nor reach its PLAYED_OUT.
+	held, release, inside = Event(), Event(), []
+	host = segment_host(env.core)
+	player = real_player(env.core)
+	kept = []
+
+	def native(instance, text):
+		if text == "first":
+			held.set()
+			assert release.wait(HOLD_TIMEOUT)
+			return
+		if text == "third":
+			current = host.current()
+			idles = player.idles
+			for done in kept:
+				done()
+			inside.append((current.barriers.get("played_out", False), player.idles - idles))
+		emit(env, instance)
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	outcomes = record_retires(env, monkeypatch)
+	_, records = played_out_reaches(env, monkeypatch)
+	try:
+		env.core.speak(("first",), cancellationToken=Token())
+		assert held.wait(WAIT_TIMEOUT)
+		env.core.speak(("second",), cancellationToken=Token())
+		dropped = host.current(), queued_done_speaking(env.core)
+		env.core.cancel()
+		# The second request never began: its DoneSpeaking is the one cancel() kept behind
+		# the first request's own.
+		kept.extend(task for task in queued_done_speaking(env.core) if task in dropped[1][1:])
+		assert len(kept) == 1
+		env.core.speak(("third",), cancellationToken=Token())
+	finally:
+		release.set()
+	settle_worker(env)
+	assert inside == [(False, 0)]
+	[(first, first_outcome), (third, third_outcome)] = outcomes
+	assert first is dropped[0]
+	assert (first_outcome.cancelled, first_outcome.error) == (True, None)
+	assert first.barriers["played_out"] is False
+	assert third.barriers == {"audio_fed": True, "engine_done": True, "played_out": True}
+	assert (third_outcome.cancelled, third_outcome.error) == (False, None)
+	assert records == [third]
+	assert player.idles == 1
+	assert missing_barrier_logs(caplog) == []
+
+
+@pytest.mark.parametrize("native_queued", [True, False], ids=["after-native", "before-native"])
+def test_inner_speak_failure_after_begin_keeps_todays_outcome(env, monkeypatch, caplog, native_queued):
+	# The inner speak() queues its DoneSpeaking last: when it raises, the record has its
+	# _Begin and _Retire but no final idle, so it cannot prove PLAYED_OUT. Today it retires
+	# without an error, a stop or a log; that stays so.
+	calls, native = ending_calls(env, [True])
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	outcomes = record_retires(env, monkeypatch)
+	speak_chunks = env.core._speak
+
+	def failing_speak(instance, chunks):
+		if native_queued:
+			speak_chunks(instance, chunks)
+		raise RuntimeError("inner speak failed")
+
+	monkeypatch.setattr(env.core, "_speak", failing_speak)
+	with pytest.raises(RuntimeError, match="inner speak failed"):
+		env.core.speak(("ordinary",), cancellationToken=Token())
+	settle_worker(env)
+	assert calls == (["ordinary"] if native_queued else [])
+	[(record, outcome)] = outcomes
+	assert record.barriers == {"audio_fed": True, "engine_done": True}
+	assert record.error is None
+	assert (outcome.cancelled, outcome.error) == (False, None)
+	player = real_player(env.core)
+	assert (player.fed, player.idles, player.stops) == ([b"pcm"] if native_queued else [], 0, 0)
+	assert env.dones == []
+	assert missing_barrier_logs(caplog) == []
+	# Later speech is unaffected.
+	monkeypatch.setattr(env.core, "_speak", speak_chunks)
+	outcomes.clear()
+	calls.clear()
+	speak_ordinary(env, ("again",), cancellationToken=Token())
+	[(_, outcome)] = outcomes
+	assert (outcome.cancelled, outcome.error) == (False, None)
+
+
+def test_failed_final_idle_fails_the_record(env, monkeypatch, caplog):
+	# Today a raising idle() is only logged by the BgThread. It is recorded on the record now,
+	# so the record fails instead of silently missing PLAYED_OUT; the inner DoneSpeaking still
+	# publishes no DONE, and only the host's failure path stops the player.
+	error = OSError("idle failed")
+	player = real_player(env.core)
+
+	def failing_idle():
+		player.idles += 1
+		raise error
+
+	monkeypatch.setattr(player, "idle", failing_idle)
+	calls, native = ending_calls(env, [True])
+	outcomes = speak_ordinary_pieces(env, monkeypatch, ["a"], native, Token())
+	[(record, outcome)] = outcomes
+	assert record.barriers == {"audio_fed": False, "engine_done": False, "played_out": False}
+	assert record.error is error
+	assert (outcome.cancelled, outcome.error) == (False, error)
+	assert (player.fed, player.idles, player.stops) == ([b"pcm"], 1, 1)
+	assert env.dones == []
+	# The recorded error is the failure; no missing-barrier failure is added.
+	assert missing_barrier_logs(caplog) == []
+	# Only that record fails: later speech is accepted and completes.
+	assert segment_host(env.core).control_error is None
+	monkeypatch.setattr(player, "idle", lambda: None)
+	outcomes.clear()
+	calls.clear()
+	speak_ordinary(env, ("again",), cancellationToken=Token())
+	[(_, outcome)] = outcomes
+	assert (outcome.cancelled, outcome.error) == (False, None)
+	assert len(env.dones) == 1

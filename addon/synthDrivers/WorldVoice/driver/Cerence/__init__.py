@@ -43,10 +43,11 @@ from .driver.ttsapi.veTypes import (
 
 _PROFILE = "cerence-ttsapi-0x0520-unverified"
 _RETAINED_CALLBACKS = []
-# Ordinary speech proves what its calls prove: all audio fed and the last call's admitted
-# ENDPROCESS. Its idle and DONE stay with the inner driver's DoneSpeaking. Its token is the
-# worker's to honour: _retireRecord withdraws a token-cancelled record, which is not a failure.
-_ORDINARY_BARRIERS = frozenset({AUDIO_FED, ENGINE_DONE})
+# Ordinary speech proves what its calls prove (all audio fed, the last call's admitted ENDPROCESS)
+# and what its final idle proves (played out). That idle and DONE stay with the inner driver's
+# DoneSpeaking, bound to its record at submit (_enqueue). Its token is the worker's to honour:
+# _retireRecord withdraws a token-cancelled record, which is not a failure.
+_ORDINARY_BARRIERS = frozenset({AUDIO_FED, ENGINE_DONE, PLAYED_OUT})
 
 
 def _stripBytesRepr(text):
@@ -96,16 +97,22 @@ class _ThreadState(threading.local):
 
 class _IdleRoutingPlayer:
 	"""Routes only the inner DoneSpeaking idle to `_idlePlayer`, passing the rest to the real player;
-	it is not a `LeasedPlayer` like RHVoice's `_WavePlayer`."""
+	it is not a `LeasedPlayer` like RHVoice's `_WavePlayer`.
 
-	def __init__(self, player, driver):
+	A DoneSpeaking keeps the player the inner speak() gave it: _enqueue makes that one bound to
+	the record being submitted, so the final idle names its record instead of asking which runs.
+	The shared one, bound to no record, idles nothing.
+	"""
+
+	def __init__(self, player, driver, record=None):
 		self._player = player
 		self._driver = weakref.ref(driver)
+		self._record = record
 
 	def idle(self):
 		driver = self._driver()
 		if driver is not None:
-			return driver._idlePlayer()
+			return driver._idlePlayer(self._record)
 		return None
 
 	def __getattr__(self, name):
@@ -475,9 +482,20 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		# Host admission (held by enqueue and by cancel) keeps the bracket whole.
 		self._bgQueue.put(_Begin(self, record))
 		self._submitting = record
+		# The inner speak() hands its DoneSpeaking the player it holds: hold one bound to this
+		# record meanwhile. Other readers (pause, close) reach the same real player through it.
+		player, self._player = self._player, _IdleRoutingPlayer(self._realPlayer, self, record)
 		try:
 			BaseSynthDriver.speak(self, commands)
+		except Exception:
+			if record.operation is None:
+				# The inner speak() queues its DoneSpeaking last, so this record has no final idle
+				# to prove PLAYED_OUT. Undeclare it: the record still runs what was queued and
+				# retires as before PLAYED_OUT, while the caller gets the exception.
+				record.barriers.pop(PLAYED_OUT)
+			raise
 		finally:
+			self._player = player
 			self._submitting = None
 			self._bgQueue.put(_Retire(self, record))
 
@@ -650,21 +668,32 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 		if self._recordValid(record):
 			self._realPlayer.feed(data)
 
-	def _idlePlayer(self):
-		# Called by the inner DoneSpeaking on the worker. Segments drain on the
-		# lifecycle thread; ordinary speech keeps the add-on's final idle.
-		record = self._currentRecord
-		if record is not None and record.operation is not None:
+	def _idlePlayer(self, record):
+		# Called by the inner DoneSpeaking on the worker, for the record its player was bound
+		# to at submit. Segments drain on the lifecycle thread; ordinary speech keeps the
+		# add-on's final idle, which proves its PLAYED_OUT.
+		if record is None or record.operation is not None:
 			return
-		# A request that never began (skipped or dropped) fed nothing to wait for.
-		if record is None or not self._recordValid(record):
+		# A request that never began (skipped or dropped) fed nothing to wait for; a kept
+		# DoneSpeaking of a dropped request runs while its record is not the current one.
+		if record is not self._currentRecord or not self._recordValid(record):
 			return
+		host = self._segmentHost
 		with self._playerOperation():
-			self._realPlayer.idle()
+			try:
+				self._realPlayer.idle()
+			except Exception as error:
+				# Fail the record instead of letting it retire silently without PLAYED_OUT. Raised
+				# on, so the inner DoneSpeaking publishes no DONE, as before.
+				host.record_error(record, error)
+				raise
 			with self._speechStateLock:
 				self._speechStateLock.wait_for(
 					lambda: (self._pauses == 0 and not self._paused) or not self._recordValid(record),
 				)
+		# Played out only once the idle returned and any pause ended with the record still valid.
+		if self._recordValid(record):
+			host.reach(record, PLAYED_OUT)
 
 	@contextmanager
 	def _playerOperation(self):

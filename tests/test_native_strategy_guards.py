@@ -463,8 +463,8 @@ DECLARED_BARRIERS = {
 	"RHVoice": ({"ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, None),
 	"SAPI5": ({"ENGINE_DONE", "AUDIO_FED", "PLAYED_OUT"}, {"ENGINE_DONE", "AUDIO_FED"}),
 	"OneCore": ({"AUDIO_FED", "PLAYED_OUT"}, {"AUDIO_FED"}),
-	"VE": ({"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}, {"AUDIO_FED", "ENGINE_DONE"}),
-	"Cerence": ({"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}, {"AUDIO_FED", "ENGINE_DONE"}),
+	"VE": ({"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}, {"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}),
+	"Cerence": ({"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}, {"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}),
 }
 
 
@@ -508,7 +508,7 @@ def _declared_barriers(tree):
 
 
 def _barrier_expressions(tree):
-	"""Every expression the wrapper uses as a barrier name, wherever it declares, reaches or reads one."""
+	"""Every expression the wrapper uses as a barrier name, wherever it declares, reaches, reads or drops one."""
 	declared, ordinary = _declared_barriers(tree)
 	found = declared + (ordinary or [])
 	for node in ast.walk(tree):
@@ -517,7 +517,7 @@ def _barrier_expressions(tree):
 				found.append(node.args[1])
 			if (
 				isinstance(node.func, ast.Attribute)
-				and node.func.attr == "get"
+				and node.func.attr in {"get", "pop"}
 				and isinstance(node.func.value, ast.Attribute)
 				and node.func.value.attr == "barriers"
 			):
