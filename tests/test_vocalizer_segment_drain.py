@@ -1861,7 +1861,8 @@ def test_segment_without_native_call_reaches_engine_done(env, monkeypatch):
 # and DONE stay with the inner DoneSpeaking, which runs before _Retire and proves PLAYED_OUT for
 # the record it was bound to at submit, so a failed record still has published DONE; the host's
 # failure handling only stops the player. A record cancelled through cancel() (the host) retires
-# cancelled: its unreached barriers are no failure, and it publishes no DONE.
+# cancelled: its unreached barriers are no failure. It publishes no DONE when the cancel lands
+# before its DoneSpeaking; a cancel after it leaves the DONE already published.
 
 
 def record_retires(env, monkeypatch):
