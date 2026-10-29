@@ -9,10 +9,8 @@ from synthDrivers.WorldVoice.driver import Voice as BaseVoice
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.hostNames import host_names_ready
-from ...runtime.models import PlaybackContext, SegmentEventSink, SpeechCommands
 from ...runtime.playbackWork import DrainProfile, DrainSupport, runtime_profile, unverified_drain_support
-from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentDrainCore, SegmentHost
-from ...runtime.session import CancellationView
+from ...runtime.segmentHost import LeasedPlayer, NativeRecord, NativeStrategy, SegmentHost, SegmentHostSpeaker
 
 
 def _nvdaLabel():
@@ -131,7 +129,7 @@ class _EspeakStrategy(NativeStrategy):
 		self._driver()._port.stopPlayer()
 
 
-class SynthDriver(BaseSynthDriver, SegmentDrainCore):
+class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 	"""Add correlated completion without changing NVDA's synthesis queue."""
 
 	def __init__(self):
@@ -159,16 +157,6 @@ class SynthDriver(BaseSynthDriver, SegmentDrainCore):
 			runtime_profile("espeak", nvda_version, audio_mode),
 			"callback retirement and physical playback are",
 		)
-
-	def speak_segment(
-		self,
-		commands: SpeechCommands,
-		token: CancellationView,
-		*,
-		context: PlaybackContext,
-		on_event: SegmentEventSink,
-	):
-		self._segmentHost.speak_segment(commands, token, context=context, on_event=on_event)
 
 	def speak(self, speechSequence):
 		self._segmentHost.enqueue(speechSequence)
