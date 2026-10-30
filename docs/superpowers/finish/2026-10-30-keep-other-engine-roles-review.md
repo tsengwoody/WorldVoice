@@ -119,3 +119,17 @@ spec §7 的 Windows／NVDA 手動清單 1–6（OneCore／eSpeak 來回、Cance
 
 - 審閱期間 scratchpad 內另有實作者留下的 `full_suite.txt`（3679 passed，03:08，早於本分支）與 `mutmut.log`；本表的數字都是審閱者自己重跑的。
 - 未在 worktree 執行任何會改檔案的指令；scratch 複本留在 scratchpad，沒有刪除任何 worktree、分支或他人檔案。
+
+## 修正記錄
+
+修正基準：review commit `73fbedd`。每一項都先寫會失敗的測試（M3、M4 是補強既有測試，改用暫時還原實作的方式確認測試會失敗，還原後以 `git checkout -- <檔案>` 復原，沒有用 `git stash`）。
+
+| 項目 | 處理 | commit | 測試 |
+| --- | --- | --- | --- |
+| I1 舊版完整地區鍵蓋過 `zh` 角色 | 依使用者決定（2026-10-30），不採 review 建議的寫入時清理，改為**安裝時清理一次**：更新安裝時 `addon/installTasks.py` 的 `onInstall()` 呼叫 `_removeLegacyRoleKeys()`，刪除 `config.conf["WorldVoice"]["role"]` 中鍵含 `_` 或 `-` 的 section（`zh_TW`、`pt-br`），保留所有主要語言鍵與非 section 的值；沒有舊鍵時不改寫；`WorldVoice` 或 `role` 不存在時什麼都不做；任何例外只記 log，安裝照常進行。NVDA 的 `AggregatedSection` 沒有 `__delitem__`，所以和 `ConfigRoleRepository.save` 一樣整段指定（`ref/nvda/source/config/__init__.py:1321-1345`，寫入目前的寫入設定檔），指定前把 `AggregatedSection` 轉成一般 dict。已知限制（使用者接受）：只清理安裝當下作用中的設定（通常是一般設定，其他設定檔不動），並仰賴 NVDA 結束時儲存設定。spec D4 已改為 `Decided by the user (2026-10-30)`。 | `ac5cc6f`（程式與測試）、本 commit（spec） | `tests/test_core_install.py`：`test_an_update_removes_legacy_full_locale_role_keys`、`test_legacy_role_cleanup_keeps_scalars_and_odd_sections`、`test_a_failing_role_cleanup_is_logged_and_the_install_goes_on` 修正前失敗、修正後通過；`test_roles_without_legacy_keys_are_not_rewritten`、`test_an_update_without_roles_adds_none` 鎖定既有行為 |
+| M1 `voice_name_for_engine` 沒套 D2 | `voice_for` 改帶「屬於目標引擎」的 predicate，完整地區鍵指向別的引擎時退回主要語言鍵 | `3183cf1` | `tests/test_runtime_composition.py::test_an_engine_switch_skips_a_full_locale_role_of_another_engine`：修正前 `'first:a' == 'first:b'` 失敗 |
+| M2 zh_TW readme 用語 | 第 27 行改為「主要語音角色切換到其他引擎時，原本引擎的地區語音角色會保留……」 | `0151bd7` | 文件，無測試 |
+| M3 `test_engine_setting.py` 只靠 `AttributeError` 失敗 | 假 `Manager` 同時提供 `get_voice_name_for_language`（回主要語音）與 `initial_voice_name`（回角色語音）；暫時把 `_get_voice` 改回 `get_voice_name_for_language`，測試以 `'A:a1' == 'B:b1'` 失敗 | `02fbcc3` | `test_before_load_settings_the_engine_follows_the_role_voice` |
+| M4 Hypothesis 性質恆真 | 改成獨立的模型：完整地區、主要語言兩個鍵中第一個「語音已安裝且（引擎一致開啟時）屬於主要語音引擎」的角色，否則主要語音；結果必須相等。暫時拿掉引擎檢查或 `voice_for` 的跳過，性質都會失敗 | `ddfc0c5` | `test_lookups_never_write_and_speak_only_admitted_voices` |
+
+驗證（修正後，worktree，序列）：`python3 -m pytest -q tests` **3698 passed, 0 skipped**（review 時 3692，+5 安裝清理、+1 M1）；`prek run --all-files` 8 個 hook 全部 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令無輸出。未打包、未在 Windows／NVDA 驗證；新增的手動項目：從帶有 `zh_TW` 角色鍵的舊設定更新安裝後重新啟動，`zh_TW` 鍵消失、`zh` 角色照常朗讀。

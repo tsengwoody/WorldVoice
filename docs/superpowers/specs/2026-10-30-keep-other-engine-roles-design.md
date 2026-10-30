@@ -13,8 +13,8 @@ Source: the voice engine filter's Q5/D10 (`docs/superpowers/specs/2026-10-30-voi
 | D1: the lookup reads the saved engine-consistency flag, not the Speech Role panel's unsaved checkbox (§3.2) | Decided by orchestrator with the recommended default; user may override before merge |
 | D2: a skipped role at the full-locale key (`zh_TW`) falls through to the primary-language key (`zh`), as an unassigned key does today (§3.2) | Decided by orchestrator with the recommended default; user may override before merge |
 | D3: the voice the synth reports before NVDA sets one (`_voice is None`) keeps today's rule: the interface language's available role voice of any engine (§3.4) | Decided by orchestrator with the recommended default; user may override before merge |
-| D4: nothing stored is cleaned up any more, also not roles at non-primary (pre-2026-07 legacy) keys or roles whose voice sits in another locale's list, which the old prune also dropped (§3.5) | Decided by orchestrator with the recommended default; user may override before merge |
-| D5: the engine switch's voice pick (`voice_name_for_engine`) is unchanged; with the roles kept it now brings back the interface language's role voice of the chosen engine (§3.3) | Decided by orchestrator with the recommended default; user may override before merge |
+| D4: ~~nothing stored is cleaned up any more, also not roles at non-primary (pre-2026-07 legacy) keys~~ (review I1). One-time install-time cleanup: on an update, `installTasks.onInstall` removes the role sections under keys with `_` or `-` (`zh_TW`, `pt-br`) and keeps primary keys and non-section values; roles whose voice sits in another locale's list are kept. Limits: only the configuration active at install time is cleaned (normally the normal configuration; other profiles are not touched), and it relies on NVDA saving the config on exit; a failure is logged and the install goes on (§3.5) | Decided by the user (2026-10-30): one-time install-time cleanup |
+| D5: the engine switch's voice pick (`voice_name_for_engine`) keeps its order; with the roles kept it now brings back the interface language's role voice of the chosen engine; like the lookup (D2) it skips a full-locale role of another engine to the primary role (review M1) (§3.3) | Decided by orchestrator with the recommended default; user may override before merge |
 | D6: `prune_assignments`, `ConfigRoleRepository.prune` and `VoiceManager.on_keep_engine_consistent` become unused and are removed (§3.6) | Decided by orchestrator with the recommended default; user may override before merge |
 
 Line conventions (all under `addon/synthDrivers/WorldVoice/` unless stated): `synth:` is `__init__.py`; `manager:` `voices/manager.py`; `roles:` `voices/roles.py`; `policy:` `voices/mainLocalePolicy.py`; `filter:` `voices/engineFilter.py`; `catalog:` `voices/catalog.py`; `presenter:` is `addon/globalPlugins/WorldVoice/rolePresenter.py`; `role.py:` `addon/globalPlugins/WorldVoice/panels/role.py`; `sdh:` `ref/nvda/source/synthDriverHandler.py`.
@@ -72,7 +72,7 @@ The engine filter's "Speech engine" combo box switches the main voice on every a
 
 ### 3.3 Main-voice change (`manager:189-196`, `:246-247`)
 
-The setter no longer calls `on_keep_engine_consistent`; the method is removed (D6). It still calls `on_keep_main_locale_voice_consistent` (U4). `voice_name_for_engine` is unchanged (D5).
+The setter no longer calls `on_keep_engine_consistent`; the method is removed (D6). It still calls `on_keep_main_locale_voice_consistent` (U4). `voice_name_for_engine` passes an engine check to `voice_for`, so a full-locale role of another engine falls through to the primary role, as in D2 (review M1).
 
 ### 3.4 Before NVDA sets a voice (`synth:455-458`)
 
@@ -80,7 +80,7 @@ New `VoiceManager.initial_voice_name(language) -> str`: `roles.voice_for(languag
 
 ### 3.5 Speech Role panel apply (`presenter:120-136`)
 
-`apply` saves the stored assignments with `_pending` applied (voice → set, `""` → remove) and nothing pruned; the `prune_assignments` import goes. Order otherwise unchanged (edit apply first; a failure leaves roles and flags unsaved, `tests/test_role_presenter.py:200-221`). No other cleanup runs anywhere (D4): the old prune also removed legacy full-locale keys and roles whose voice sits in another locale's list; these keep their today's lookup behaviour (D2 lets the panel's primary key speak when a legacy key's voice is skipped). Risk: a legacy key of the main engine keeps shadowing its primary key, as it does today until the next main-voice change.
+`apply` saves the stored assignments with `_pending` applied (voice → set, `""` → remove) and nothing pruned; the `prune_assignments` import goes. Order otherwise unchanged (edit apply first; a failure leaves roles and flags unsaved, `tests/test_role_presenter.py:200-221`). No cleanup runs at a main-voice change or on save. ~~No other cleanup runs anywhere (D4)~~: legacy full-locale keys, which the old prune removed and which would otherwise keep shadowing the panel's primary role (review I1), are removed once when the add-on is updated (`addon/installTasks.py` `_removeLegacyRoleKeys`, D4); roles whose voice sits in another locale's list are kept.
 
 ### 3.6 Dead code (D6)
 
@@ -151,7 +151,7 @@ Only `addon/doc/zh_TW/readme.md` (user's docs scope, 2026-10-30: root `readme.md
 
 - Q1 (D1) Lookup with the panel's unsaved engine checkbox: saved flag. Decided by orchestrator with the recommended default; user may override before merge.
 - Q2 (D3) Voice before NVDA sets one: today's rule, any engine. Decided by orchestrator with the recommended default; user may override before merge.
-- Q3 (D4) Legacy-key cleanup: none. Decided by orchestrator with the recommended default; user may override before merge.
+- Q3 (D4) Legacy-key cleanup: ~~none~~ one-time cleanup at install time (review I1). Decided by the user (2026-10-30).
 
 ## 11. Verification
 
