@@ -217,3 +217,21 @@ Critical：無。Important：無。
 | 舊版行為 | `git show 6.1.1:…/voiceManager.py`、`git show 78f3880^:…`、`git show v5.2.1:…/voiceManager.py`、`git grep '"role"' v5.2.1 6.0 6.1.1 6.2` | 6.1.1 的 follow 同時寫完整地區與主要語言；v5.2.1 面板列出完整地區；各版 `role` 的 confspec 都是 `{}`；各版 installTasks 都沒有 `onUninstall` |
 
 未在 Windows／NVDA 上驗證；探針只重現 NVDA 的設定聚合邏輯，沒有跑真正的安裝流程與重新啟動。scratch 複本與探針放在 scratchpad 的 `fixreview/`，還原用的複本跑完即刪。
+
+### 修正 review 新發現（N1–N3）的修正
+
+修正基準：修正 review commit `e6e93a1`。
+
+| 項目 | 處理 | commit | 測試 |
+| --- | --- | --- | --- |
+| N1 安裝時作用中的是其他設定檔 | 採建議修法 1：只在 `len(config.conf.profiles) == 1`（只有一般設定作用中，與 NVDA `_markWriteProfileDirty` 的判斷相同，`ref/nvda/source/config/__init__.py:708-712`）時清理；否則記一行 log「Legacy speech role keys not checked: a configuration profile is active」後略過，不寫任何設定。spec D4 的限制改為「作用中的不是一般設定時略過清理」。 | `a77347d`（程式與測試）、本表所在 commit（spec） | `tests/test_core_install.py::test_legacy_role_cleanup_is_skipped_while_another_profile_is_active`：修正前角色被改寫而失敗，修正後通過；測試 stub 的 `config.conf` 加上 `profiles`（預設只有一般設定） |
+| N2 舊版在重新啟動前寫回 `zh_TW` | 不改程式，記為已知限制（spec D4）：6.1.1 以前的 WorldVoice 在重新啟動前仍在執行，期間更換主要語音會把 `zh_TW` 寫回，要到下一次更新才會再清理。 | 本表所在 commit（spec） | 無 |
+| N3 `ConfigRoleRepository` docstring | 改為「執行期間唯一的讀寫者；`installTasks._removeLegacyRoleKeys` 在更新安裝時改寫一次以移除舊的完整地區鍵」；installTasks 的 `_isRoleSection` 註明對應 `roles._is_section`（因安裝時無法 import 而複製）。 | `7f0fae6`（docstring）、`a77347d`（註解） | 文件，無測試 |
+
+Windows／NVDA 手動項目（取代前一節的那一條）：
+
+1. 從帶有 `zh_TW` 角色鍵的舊設定更新安裝，沒有啟用其他設定檔，**安裝後立刻重新啟動**：`zh_TW` 鍵消失，`zh` 角色照常朗讀；NVDA log 有「Removed legacy speech role keys: ['zh_TW']」。
+2. 同上，但安裝時手動啟用了其他設定檔：log 有「Legacy speech role keys not checked: a configuration profile is active」，設定沒有改變。
+3. 同 1，但選「稍後重新啟動」，重新啟動前在 NVDA 語音面板換了主要語音（舊版 ≤ 6.1.1 仍在執行）：`zh_TW` 會被寫回，屬已知限制（N2），下一次更新時才會再清理。
+
+驗證（修正後，worktree，序列）：`python3 -m pytest -q tests` **3699 passed, 0 skipped**（+1 N1）；`prek run --all-files` 8 個 hook 全部 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令無輸出。未打包、未在 Windows／NVDA 驗證。
