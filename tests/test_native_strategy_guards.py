@@ -353,7 +353,7 @@ def _vocalizer_own_names(tree):
 	return own
 
 
-@pytest.mark.parametrize(("engine", "names"), [("VE", "_VEPort"), ("Cerence", "_CerencePort")])
+@pytest.mark.parametrize(("engine", "names"), [("VE", "_VEInnerNames"), ("Cerence", "_CerenceInnerNames")])
 def test_vocalizer_inner_privates_are_listed_and_exist(engine, names):
 	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
 	privates = _class_constant(tree, names, "INNER_PRIVATES")

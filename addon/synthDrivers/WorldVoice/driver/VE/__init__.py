@@ -55,7 +55,7 @@ def _stripBytesRepr(text):
 	return text
 
 
-class _VEPort:
+class _VEInnerNames:
 	"""Private names of the vendored inner VE driver this wrapper reads, writes or overrides.
 
 	Not used at runtime; tests/test_native_strategy_guards.py pins these lists
