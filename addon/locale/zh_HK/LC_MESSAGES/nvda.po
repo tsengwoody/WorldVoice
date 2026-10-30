@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '7.0'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
-"POT-Creation-Date: 2026-10-26 02:26+0000\n"
+"POT-Creation-Date: 2026-10-30 07:19+0000\n"
 "PO-Revision-Date: 2026-10-30 14:52+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -20,27 +20,75 @@ msgstr ""
 "X-Poedit-Basepath: ../../..\n"
 "X-Poedit-SearchPath-0: .\n"
 
-#: addon/globalPlugins/WorldVoice/utils.py:31
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:469
-#, python-brace-format
-msgid ""
-"An unexpected error occurred while processing your action.\n"
-"\n"
-"Details: {err}\n"
-"\n"
-"A full stack trace has been written to the NVDA log."
-msgstr ""
-"處理您的操作時發生未預期的錯誤。\n"
-"\n"
-"詳細資訊：{err}\n"
-"\n"
-"完整的追蹤記錄已寫入 NVDA 日誌。"
+#: addon/globalPlugins/WorldVoice/__init__.py:56
+msgid "&Settings"
+msgstr "設定(&S)"
 
-#. Caption
-#: addon/globalPlugins/WorldVoice/utils.py:36
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:473
-msgid "WorldVoice Setting Dialog - Error"
-msgstr "WorldVoice 設定 - 錯誤"
+#: addon/globalPlugins/WorldVoice/__init__.py:56
+msgid "Settings."
+msgstr "設定。"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:58
+msgid "&File Import"
+msgstr "檔案匯入(&F)"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:58
+msgid "Import File."
+msgstr "匯入檔案..."
+
+#. Translators: Title of a setting dialog.
+#. Add-on summary/title, usually the user visible name of the add-on
+#. Translators: Summary/title for this add-on
+#. to be shown on installation and add-on information found in add-on store
+#: addon/globalPlugins/WorldVoice/__init__.py:67
+#: addon/globalPlugins/WorldVoice/panels/base.py:25 buildVars.py:21
+msgid "WorldVoice"
+msgstr "WorldVoice"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:84
+msgid "Import file..."
+msgstr "匯入檔案..."
+
+#: addon/globalPlugins/WorldVoice/__init__.py:100
+msgid "Import fail"
+msgstr "匯入失敗"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:101
+#: addon/globalPlugins/WorldVoice/__init__.py:110
+msgid "Import File"
+msgstr "匯入檔案"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:108
+msgid ""
+"For the new file to import, NVDA must be restarted. Are you want to restart "
+"NVDA now ?"
+msgstr "為了讓新檔案匯入， NVDA 必需重新啟動。您要立即重新啟動 NVDA 嗎？"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:124
+msgid "popup speech settings dialog"
+msgstr "彈出語音設定對話框"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:131
+msgid "switch log record"
+msgstr "切換日誌紀錄"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:148
+msgid "turn on WorldVoice`s log record"
+msgstr "開啟 WorldVoice 的日誌紀錄"
+
+#: addon/globalPlugins/WorldVoice/__init__.py:154
+msgid "turn off WorldVoice`s log record"
+msgstr "關閉 WorldVoice 的日誌紀錄"
+
+#: addon/globalPlugins/WorldVoice/dialog.py:17
+msgid "Settings"
+msgstr "設定"
+
+#. 這時父類別會讀取 self.categoryClasses
+#: addon/globalPlugins/WorldVoice/dialog.py:37
+#, python-format
+msgid "WorldVoice - %s"
+msgstr "WorldVoice - %s"
 
 #. Translators: The title of the Export pipeline log file window
 #: addon/globalPlugins/WorldVoice/pipelineLog.py:47
@@ -98,208 +146,98 @@ msgstr ""
 "WorldVoice 語音流程日誌已啟用。此功能可能會降低語音回應速度。如非偵錯所需，建"
 "議停用。您現在要停用嗎？"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:56
-msgid "&Settings"
-msgstr "設定(&S)"
-
-#: addon/globalPlugins/WorldVoice/__init__.py:56
-msgid "Settings."
-msgstr "設定。"
-
-#: addon/globalPlugins/WorldVoice/__init__.py:58
-msgid "&File Import"
-msgstr "檔案匯入(&F)"
-
-#: addon/globalPlugins/WorldVoice/__init__.py:58
-msgid "Import File."
-msgstr "匯入檔案..."
-
-#. Translators: Title of a setting dialog.
-#. Add-on summary/title, usually the user visible name of the add-on
-#. Translators: Summary/title for this add-on
-#. to be shown on installation and add-on information found in add-on store
-#: addon/globalPlugins/WorldVoice/__init__.py:67
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:66 buildVars.py:21
-msgid "WorldVoice"
-msgstr "WorldVoice"
-
-#: addon/globalPlugins/WorldVoice/__init__.py:84
-msgid "Import file..."
-msgstr "匯入檔案..."
-
-#: addon/globalPlugins/WorldVoice/__init__.py:100
-msgid "Import fail"
-msgstr "匯入失敗"
-
-#: addon/globalPlugins/WorldVoice/__init__.py:101
-#: addon/globalPlugins/WorldVoice/__init__.py:110
-msgid "Import File"
-msgstr "匯入檔案"
-
-#: addon/globalPlugins/WorldVoice/__init__.py:108
+#: addon/globalPlugins/WorldVoice/utils.py:16
+#, python-brace-format
 msgid ""
-"For the new file to import, NVDA must be restarted. Are you want to restart "
-"NVDA now ?"
-msgstr "為了讓新檔案匯入， NVDA 必需重新啟動。您要立即重新啟動 NVDA 嗎？"
+"An unexpected error occurred while processing your action.\n"
+"\n"
+"Details: {err}\n"
+"\n"
+"A full stack trace has been written to the NVDA log."
+msgstr ""
+"處理您的操作時發生未預期的錯誤。\n"
+"\n"
+"詳細資訊：{err}\n"
+"\n"
+"完整的追蹤記錄已寫入 NVDA 日誌。"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:124
-msgid "popup speech settings dialog"
-msgstr "彈出語音設定對話框"
+#. Translators: The title of the dialog shown when a WorldVoice settings action fails.
+#: addon/globalPlugins/WorldVoice/utils.py:21
+msgid "WorldVoice Setting Dialog - Error"
+msgstr "WorldVoice 設定 - 錯誤"
 
-#: addon/globalPlugins/WorldVoice/__init__.py:131
-msgid "switch log record"
-msgstr "切換日誌紀錄"
-
-#: addon/globalPlugins/WorldVoice/__init__.py:148
-msgid "turn on WorldVoice`s log record"
-msgstr "開啟 WorldVoice 的日誌紀錄"
-
-#: addon/globalPlugins/WorldVoice/__init__.py:154
-msgid "turn off WorldVoice`s log record"
-msgstr "關閉 WorldVoice 的日誌紀錄"
-
-#. Translators: Label for the pipeline log switch of a speech pipeline stage.
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:42
-msgid "Apply speech dictionaries"
-msgstr "套用語音字典"
-
-#. Translators: Label for the pipeline log switch of a speech pipeline stage.
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:44
-msgid "Speech viewer"
-msgstr "語音檢視器"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:126
-msgid "Speech Pipeline"
-msgstr "語音流程"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:172
-msgid "Speech Role"
-msgstr "語音角色"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:181
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:489
+#. Translators: Shown in place of a settings panel that needs WorldVoice as the speech synthesizer.
+#: addon/globalPlugins/WorldVoice/panels/base.py:89
 msgid "Your current speech synthesizer is not WorldVoice."
 msgstr "您當前的語音合成器不是 WorldVoice。"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:210
-msgid "Select a language, and then configure the voice to be used:"
-msgstr "選擇一個地區，並為其設定一個語音："
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:215
-msgid "Locale Name:"
-msgstr "地區名稱:"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:220
-msgid "Voice Name:"
-msgstr "語音名稱:"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:222
-msgid "Variant:"
-msgstr "變聲："
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:226
-msgid "&Rate:"
-msgstr "速度(&R)"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:237
-msgid "Rate boost"
-msgstr "加快語速"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:243
-msgid "&Pitch:"
-msgstr "音調(&P)"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:253
-msgid "I&nflection:"
-msgstr "語調(&N)"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:263
-msgid "V&olume:"
-msgstr "音量(&O)"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:276
-msgid "Keep main engine and locale engine consistent"
-msgstr "保持主要語音引擎與地區語音引擎一致"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:284
-msgid "Keep main speech role and locale speech role consistent"
-msgstr "保持主要語音角色與地區語音角色一致"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:292
-msgid "Keep parameter settings consistent between different speech roles"
-msgstr "保持不同語音角色之間的參數一致"
-
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:481
+#: addon/globalPlugins/WorldVoice/panels/detection.py:17
 msgid "Unicode Detection"
 msgstr "Unicode 偵測"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:511
+#: addon/globalPlugins/WorldVoice/panels/detection.py:47
 msgid "Before NVDA processes speech commands"
 msgstr "在 NVDA 處理語音指令前"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:512
+#: addon/globalPlugins/WorldVoice/panels/detection.py:48
 msgid "After NVDA processes speech commands"
 msgstr "在 NVDA 處理語音指令後"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:516
+#: addon/globalPlugins/WorldVoice/panels/detection.py:52
 msgid "Language detection timing:"
 msgstr "語言偵測時間點："
 
 #. Translators: Label of the choice of the language assumed for Latin letters.
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:529
+#: addon/globalPlugins/WorldVoice/panels/detection.py:65
 msgid "Language assumed for latin characters:"
 msgstr "拉丁字元假設的語言："
 
-#. Translators: Label of the choice of the language assumed for Han characters
-#. (CJK ideographs).
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:531
+#. Translators: Label of the choice of the language assumed for Han characters (CJK ideographs).
+#: addon/globalPlugins/WorldVoice/panels/detection.py:67
 msgid "Language assumed for CJK characters:"
 msgstr "漢字字元假設的語言："
 
-#. Translators: Label of the choice of the language assumed for Arabic
-#. letters.
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:533
+#. Translators: Label of the choice of the language assumed for Arabic letters.
+#: addon/globalPlugins/WorldVoice/panels/detection.py:69
 msgid "Language assumed for arabic characters:"
 msgstr "阿拉伯字元假設的語言："
 
-#. Translators: Label of the choice of the language assumed for Cyrillic
-#. letters.
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:535
+#. Translators: Label of the choice of the language assumed for Cyrillic letters.
+#: addon/globalPlugins/WorldVoice/panels/detection.py:71
 msgid "Language assumed for cyrillic characters:"
 msgstr "西里爾字元假設的語言："
 
-#. Translators: Label of the choice of the language assumed for Devanagari
-#. letters.
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:537
+#. Translators: Label of the choice of the language assumed for Devanagari letters.
+#: addon/globalPlugins/WorldVoice/panels/detection.py:73
 msgid "Language assumed for devanagari characters:"
 msgstr "天城文字元假設的語言："
 
 #. Translators: Title of a setting dialog.
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:571
+#: addon/globalPlugins/WorldVoice/panels/engine.py:20
 msgid "Speech Engine"
 msgstr "語音引擎"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:577
+#: addon/globalPlugins/WorldVoice/panels/engine.py:26
 msgid "Please select one or more speech engines to enable."
 msgstr "請選擇一個或多個要啟用的語音引擎。"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:584
+#: addon/globalPlugins/WorldVoice/panels/engine.py:33
 msgid "Select Speech Engines to Enable"
 msgstr "選擇要啟用的語音引擎"
 
 #. Translators: The message displayed
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:610
+#: addon/globalPlugins/WorldVoice/panels/engine.py:59
 msgid ""
 "Changes to speech-engine settings can’t be saved because no speech engine is "
 "enabled."
 msgstr "語音引擎設定變更將無法儲存，因為未啟用任何語音引擎。"
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:612
+#: addon/globalPlugins/WorldVoice/panels/engine.py:61
 msgid "No Speech Engine Enabled"
 msgstr "未啟用任何語音引擎"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:621
+#: addon/globalPlugins/WorldVoice/panels/engine.py:70
 msgid ""
 "To enable or disable the speech engine, NVDA needs to save your "
 "configuration and restart. Would you like to restart now?"
@@ -307,32 +245,88 @@ msgstr ""
 "若要啟用或停用語音引擎，NVDA 需要先儲存設定並重新啟動。要立即重新啟動嗎？"
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:624
+#: addon/globalPlugins/WorldVoice/panels/engine.py:73
 msgid "Speech Engine Change"
 msgstr "語音引擎變更"
 
+#. Translators: Label for the pipeline log switch of a speech pipeline stage.
+#: addon/globalPlugins/WorldVoice/panels/log.py:19
+msgid "Apply speech dictionaries"
+msgstr "套用語音字典"
+
+#. Translators: Label for the pipeline log switch of a speech pipeline stage.
+#: addon/globalPlugins/WorldVoice/panels/log.py:21
+msgid "Speech viewer"
+msgstr "語音檢視器"
+
 #. Translators: Title of a setting dialog.
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:645
+#: addon/globalPlugins/WorldVoice/panels/log.py:31
 msgid "Log Record"
 msgstr "日誌紀錄"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:654
+#: addon/globalPlugins/WorldVoice/panels/log.py:40
 msgid "Enable logging of WorldVoice’s speech pipeline"
 msgstr "啟用 WorldVoice 的語音流程日誌"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:658
+#: addon/globalPlugins/WorldVoice/panels/log.py:44
 msgid "Select Speech Pipelines to Enable"
 msgstr "選擇要啟用的語音流程"
 
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:711
-msgid "Settings"
-msgstr "設定"
+#: addon/globalPlugins/WorldVoice/panels/pipeline.py:25
+msgid "Speech Pipeline"
+msgstr "語音流程"
 
-#. 這時父類別會讀取 self.categoryClasses
-#: addon/globalPlugins/WorldVoice/speechSettingsDialog.py:731
-#, python-format
-msgid "WorldVoice - %s"
-msgstr "WorldVoice - %s"
+#: addon/globalPlugins/WorldVoice/panels/role.py:27
+msgid "Speech Role"
+msgstr "語音角色"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:60
+msgid "Select a language, and then configure the voice to be used:"
+msgstr "選擇一個地區，並為其設定一個語音："
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:65
+msgid "Locale Name:"
+msgstr "地區名稱:"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:70
+msgid "Voice Name:"
+msgstr "語音名稱:"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:72
+msgid "Variant:"
+msgstr "變聲："
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:76
+msgid "&Rate:"
+msgstr "速度(&R)"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:87
+msgid "Rate boost"
+msgstr "加快語速"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:93
+msgid "&Pitch:"
+msgstr "音調(&P)"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:103
+msgid "I&nflection:"
+msgstr "語調(&N)"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:113
+msgid "V&olume:"
+msgstr "音量(&O)"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:126
+msgid "Keep main engine and locale engine consistent"
+msgstr "保持主要語音引擎與地區語音引擎一致"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:134
+msgid "Keep main speech role and locale speech role consistent"
+msgstr "保持主要語音角色與地區語音角色一致"
+
+#: addon/globalPlugins/WorldVoice/panels/role.py:142
+msgid "Keep parameter settings consistent between different speech roles"
+msgstr "保持不同語音角色之間的參數一致"
 
 #. Translators: Label for a setting in voice settings dialog: the speech engine whose voices
 #. the Voice list and the settings ring offer. Choosing one switches to a voice of that engine.
@@ -340,173 +334,149 @@ msgstr "WorldVoice - %s"
 msgid "Speec&h engine"
 msgstr "語音引擎(&H)"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:147
-#: addon/synthDrivers/WorldVoice/__init__.py:150
+#: addon/synthDrivers/WorldVoice/__init__.py:152
+#: addon/synthDrivers/WorldVoice/__init__.py:155
 msgid "Detect language based on Unicode characters"
 msgstr "根據 Unicode 字元偵測語言"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:428
+#: addon/synthDrivers/WorldVoice/__init__.py:470
 msgid "default"
 msgstr "預設"
 
-#. Translators: A choice of the Speech Pipeline panel's effect scope: every
-#. synthesizer.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:48
+#. Translators: A choice of the Speech Pipeline panel's effect scope: every synthesizer.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:37
 msgid "All Synthesizers (Global)"
 msgstr "所有合成器(全域)"
 
-#. Translators: A choice of the Speech Pipeline panel's effect scope:
-#. WorldVoice only.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:50
+#. Translators: A choice of the Speech Pipeline panel's effect scope: WorldVoice only.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:39
 msgid "Only WorldVoice Synthesizer"
 msgstr "僅 WorldVoice 合成器"
 
 #. Translators: A number mode: numbers are left as they are.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:56
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:45
 msgid "off"
 msgstr "不處理"
 
-#. Translators: A number mode: a number is read as a value, for example "one
-#. hundred twenty-three".
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:58
+#. Translators: A number mode: a number is read as a value, for example "one hundred twenty-three".
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:47
 msgid "value"
 msgstr "數值"
 
 #. Translators: A number mode: the digits of a number are read one by one.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:49
 msgid "number"
 msgstr "數字"
 
-#. Translators: A number mode: the digits of a number are read in groups of
-#. the chosen size, counted from the left.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:62
+#. Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:51
 msgid "group"
 msgstr "群組"
 
-#. Translators: A number language choice: numbers are read in the language of
-#. the text around them.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:68
+#. Translators: A number language choice: numbers are read in the language of the text around them.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:57
 msgid "Follow surrounding text language"
 msgstr "跟隨前後文語言"
 
-#. Translators: A number language choice: numbers are read in the main
-#. language, the language the
+#. Translators: A number language choice: numbers are read in the main language, the language the
 #. document marks or the main voice's language.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:71
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
 msgid "Follow main language"
 msgstr "跟隨主要語言"
 
 #. Translators: Label for a pipeline setting in the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:141
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:149
 msgid "Effect scope"
 msgstr "作用範圍"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:149
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:157
 msgid "Global wait factor"
 msgstr "全域停頓參數"
 
 #. Translators: Label for a pipeline setting in the voice settings panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:162
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:170
 msgid "Number &language"
 msgstr "數字語言(&L)"
 
-#. Translators: Label for a setting in synth settings ring; also the label of
-#. the setting's
+#. Translators: Label for a setting in synth settings ring; also the label of the setting's
 #. pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:165
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:173
 msgid "Number language"
 msgstr "數字語言"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:176
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:184
 msgid "Number &mode"
 msgstr "數字模式(&M)"
 
-#. Translators: Label for a setting in synth settings ring; also the label of
-#. the setting's
+#. Translators: Label for a setting in synth settings ring; also the label of the setting's
 #. pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:179
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:187
 msgid "Number mode"
 msgstr "數字模式"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:190
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:198
 msgid "Group size"
 msgstr "每組位數"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel;
-#. also the label of the setting's pipeline log switch in the Log Record
-#. panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:207
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:215
 msgid "Number wait factor"
 msgstr "數字停頓參數"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel;
-#. also the label of the setting's pipeline log switch in the Log Record
-#. panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:217
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:225
 msgid "Item wait factor"
 msgstr "項目停頓參數"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:226
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:234
 msgid "Say all wait factor"
 msgstr "讀出全部停頓參數"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel;
-#. also the label of the setting's pipeline log switch in the Log Record
-#. panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:236
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:244
 msgid "Space wait factor between CJK and Southeast Asian characters"
 msgstr "中日文及東南亞文字空白停頓參數"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:245
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:253
 msgid "Enable punctuation pause control"
 msgstr "啟用標點停頓控制"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:247
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:255
 msgid "Punctuation pauses"
 msgstr "標點停頓"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:256
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:264
 msgid "Remove configured punctuation at pause points"
 msgstr "移除停頓位置的指定標點符號"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:258
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:266
 msgid "Remove punctuation at pause points"
 msgstr "移除停頓位置的標點符號"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel;
-#. also the label of the setting's pipeline log switch in the Log Record
-#. panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:269
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:277
 msgid "Punctuation wait factor"
 msgstr "標點停頓參數"
 
-#. Translators: Label for a pipeline setting in the voice settings panel and
-#. the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:278
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:286
 msgid "Punctuation pause characters"
 msgstr "標點停頓字元"
 
 #. Add-on description
-#. Translators: Long description to be shown for this add-on on add-on
-#. information from add-on store
+#. Translators: Long description to be shown for this add-on on add-on information from add-on store
 #: buildVars.py:24
 msgid ""
 "Multilingual synthesizer add-on: auto-switches voices across eSpeak, "
@@ -516,8 +486,7 @@ msgstr ""
 "SAPI5 與 RHVoice。"
 
 #. Brief changelog for this version
-#. Translators: what's new content for the add-on version to be shown in the
-#. add-on store
+#. Translators: what's new content for the add-on version to be shown in the add-on store
 #: buildVars.py:29
 msgid "Improved language detection, speech segmentation, and number parsing."
 msgstr "改善語言偵測、語音分段與數字解析。"
