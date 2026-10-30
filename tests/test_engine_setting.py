@@ -62,6 +62,10 @@ class Manager:
 	def initial_voice_name(self, language):
 		return self.roles.get(language, self._default)
 
+	def get_voice_name_for_language(self, language):
+		# Engine consistency on: the role voice of engine B is skipped beside main voice A:a1.
+		return self._default
+
 	def cancel(self):
 		self.cancels += 1
 
