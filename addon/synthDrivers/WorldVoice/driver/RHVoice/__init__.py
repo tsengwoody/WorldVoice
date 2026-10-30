@@ -441,8 +441,10 @@ class SynthDriver(rhvoice.SynthDriver, SegmentHostSpeaker):
 			# returned. A feed admitted before the cancel can still queue audio after
 			# the stop above; its own re-stop (LeasedPlayer._feed_admitted) runs on
 			# the worker, so wait for the worker to leave the record. A successor on
-			# RHVoice is already ordered by the single worker. The wait is short:
-			# every callback is refused now. A callback bound to the record skips it.
+			# RHVoice is already ordered by the single worker. The wait is bounded:
+			# every callback is refused now, so RHVoice_speak aborts at its next
+			# callback (how soon it returns is unmeasured). A callback bound to the
+			# record skips the wait.
 			host.wait_settled(current)
 			# The only stop on this thread after the worker settled: if the inner
 			# cancel raised before or in its stop, queued audio is still playing.
