@@ -111,6 +111,14 @@ def test_lookups_never_write_and_speak_only_admitted_voices(monkeypatch, roles, 
 		before = copy.deepcopy(conf["WorldVoice"]["role"])
 		name = manager.get_voice_name_for_language(language)
 		assert conf["WorldVoice"]["role"] == before
-		assert name == main or name in manager.catalog.by_name
-		if engine:
-			assert manager.get_voice_spec(name).engine == spec.engine
+		# The model: the first of the full then primary locale's roles whose voice is installed
+		# and, with engine consistency on, of the main voice's engine; else the main voice.
+		engines = {"A:a": "A", "B:b": "B", "A:c": "A"}
+		speaking = [
+			roles[locale]
+			for locale in (language, language.split("_")[0])
+			if locale in roles
+			and roles[locale] in engines
+			and (not engine or engines[roles[locale]] == spec.engine)
+		]
+		assert name == (speaking[0] if speaking else main)
