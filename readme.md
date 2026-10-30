@@ -82,7 +82,7 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 
 ## Notes
 
-* In the NVDA voice settings panel, "Speech engine", right above "Voice", chooses which speech engine's voices the Voice list and the synth settings ring offer. Choosing an engine switches at once to that engine's voice for the NVDA interface language, or, if there is none, to the engine's first voice.
+* In the NVDA voice settings panel, "Engine", right above "Voice", chooses which speech engine's voices the Voice list and the synth settings ring offer. Choosing an engine switches at once to that engine's voice for the NVDA interface language, or, if there is none, to the engine's first voice.
 * If you want to disable a specific speech engine, clear the corresponding checkbox in the WorldVoice speech engine panel.
 * If you need to use a speech engine other than eSpeak, OneCore, RHVoice, or SAPI5, download the corresponding driver or voice package separately.
 
@@ -99,8 +99,8 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 * **Unicode data updated to 18.0.0:** Unicode detection and the space pause between CJK and Southeast Asian characters now know the characters Unicode 17.0 and 18.0 added, such as the ideographs of CJK Unified Ideographs Extension J and new kana. They are detected and get the space pause like the other Han and kana characters. Small seal script characters, new in 18.0, are a script of their own, not Han: Unicode detection does not switch language for them and they get no space pause.
 * **WorldVoice waits for each part of speech to finish playing:** With eSpeak, OneCore, RHVoice or SAPI5, WorldVoice now waits until each part of speech has finished playing before the next part (another voice or a pause) starts, so the next voice or pause no longer begins while the previous part is still playing (SAPI5 needs NVDA 2025.3 or later).
 * **Pausing between two parts of speech:** Fixed speech continuing with the next part (another voice or language) when you paused just as one part finished. Speech now stays paused until you resume.
-* **Speech engine list in the Voice settings panel:** In the NVDA voice settings panel, "Speech engine", right above "Voice", chooses which speech engine's voices the Voice list and the synth settings ring offer. Choosing an engine switches at once to that engine's voice for the NVDA interface language, or, if there is none, to the engine's first voice.
-* **Speech roles of other engines are kept:** With "Keep main engine and locale engine consistent" on, switching to another speech engine, for example with "Speech engine" in the voice settings panel, no longer deletes the locale speech roles of the original engine; they take effect again when you switch back, so browsing the engine list or pressing Cancel loses no settings. Locale speech roles of a disabled speech engine are kept too and take effect again when the engine is enabled again.
+* **Engine list in the Voice settings panel:** In the NVDA voice settings panel, "Engine", right above "Voice", chooses which speech engine's voices the Voice list and the synth settings ring offer. Choosing an engine switches at once to that engine's voice for the NVDA interface language, or, if there is none, to the engine's first voice.
+* **Speech roles of other engines are kept:** With "Keep main engine and locale engine consistent" on, switching to another speech engine, for example with "Engine" in the voice settings panel, no longer deletes the locale speech roles of the original engine; they take effect again when you switch back, so browsing the engine list or pressing Cancel loses no settings. Locale speech roles of a disabled speech engine are kept too and take effect again when the engine is enabled again.
 
 ## WorldVoice 6 Update
 
