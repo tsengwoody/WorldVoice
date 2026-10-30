@@ -94,7 +94,8 @@ class _RHVoiceInner:
 		"""Run the inner DoneCallback's player steps without its synthDoneSpeaking.
 
 		Mirrors DoneCallback.__call__: a set cancel flag skips the steps; on_done
-		feeds the held-back last chunk, then idle. Errors propagate to the caller.
+		feeds the held-back last chunk, then idle. Errors propagate to the caller,
+		including player creation failures, which the inner callback swallowed.
 		"""
 		if self.cancelFlag.is_set():
 			return
