@@ -1,21 +1,9 @@
 """Locale to voice assignments ("speech roles") stored in the WorldVoice config."""
 
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from ..locales import primary_language
-
-
-def prune_assignments(
-	assignments: Mapping[str, str],
-	available: Mapping[str, Collection[str]],
-) -> dict[str, str]:
-	"""Keep the assignments whose locale and voice are still available."""
-	return {
-		locale: voice
-		for locale, voice in assignments.items()
-		if locale in available and voice in available[locale]
-	}
 
 
 def _is_section(value: Any) -> bool:
@@ -66,6 +54,3 @@ class ConfigRoleRepository:
 
 	def assign(self, locale: str, voice: str) -> None:
 		self.save({**self.assignments(), locale: voice})
-
-	def prune(self, available: Mapping[str, Collection[str]]) -> None:
-		self.save(prune_assignments(self.assignments(), available))

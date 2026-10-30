@@ -70,9 +70,3 @@ def test_assign_adds_or_replaces_one_locale(roles):
 	_, _conf, repository = roles
 	repository.assign("zh", "C:zh")
 	assert repository.assignments() == {"en": "A:en", "zh": "C:zh"}
-
-
-def test_prune_keeps_only_available_assignments(roles):
-	_, conf, repository = roles
-	repository.prune({"en": ["A:en"], "zh": ["X:zh"]})
-	assert conf["WorldVoice"]["role"] == {"en": {"voice": "A:en"}, "legacy": "kept"}

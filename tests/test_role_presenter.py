@@ -26,12 +26,6 @@ def load_presenter(monkeypatch, voice_settings):
 	for package in ("synthDrivers", "synthDrivers.WorldVoice", "synthDrivers.WorldVoice.runtime"):
 		stub.module(package, __path__=[])
 	monkeypatch.setitem(sys.modules, "synthDrivers.WorldVoice.runtime.voiceSettings", voice_settings)
-	package = voice_settings.__name__.rsplit(".", 2)[0]
-	monkeypatch.setitem(
-		sys.modules,
-		"synthDrivers.WorldVoice.voices.roles",
-		sys.modules[f"{package}.voices.roles"],
-	)
 	return load_source(monkeypatch, "role_presenter_under_test", PRESENTER).RolePanelPresenter
 
 
