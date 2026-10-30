@@ -31,13 +31,17 @@ class ConfigRoleRepository:
 	def _section(self) -> Any:
 		return self._conf_provider()["WorldVoice"]["role"]
 
-	def voice_for(self, language: str) -> str | None:
+	def voice_for(self, language: str, usable: Callable[[str], bool] | None = None) -> str | None:
+		"""The stored voice of language's full locale, else of its primary language.
+
+		A locale whose voice usable rejects counts as unassigned, so the next locale is tried.
+		"""
 		section = self._section()
 		for locale in (language, primary_language(language)):
 			value = section.get(locale) if hasattr(section, "get") else None
 			if _is_section(value):
 				voice = value.get("voice")
-				if voice:
+				if voice and (usable is None or usable(voice)):
 					return voice
 		return None
 

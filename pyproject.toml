@@ -48,6 +48,7 @@ source_paths = [
 	"addon/synthDrivers/WorldVoice/bridge/indexCodec.py",
 	"addon/synthDrivers/WorldVoice/voices/settingsRepository.py",
 	"addon/synthDrivers/WorldVoice/voices/mainLocalePolicy.py",
+	"addon/synthDrivers/WorldVoice/voices/roles.py",
 	"addon/synthDrivers/WorldVoice/voices/engineFilter.py",
 	"addon/synthDrivers/WorldVoice/pipeline/registry.py",
 	"addon/synthDrivers/WorldVoice/pipeline/breaks.py",

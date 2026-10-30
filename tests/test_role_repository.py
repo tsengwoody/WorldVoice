@@ -38,6 +38,23 @@ def test_voice_for_prefers_exact_then_primary_locale(roles):
 	assert repository.voice_for("fr") is None
 
 
+def test_voice_for_skips_an_unusable_voice_to_the_primary_locale(roles):
+	_module, conf, repository = roles
+	conf["WorldVoice"]["role"]["zh_TW"] = Section(voice="C:tw")
+	assert repository.voice_for("zh_TW", lambda voice: voice != "C:tw") == "B:zh"
+	assert repository.voice_for("zh_TW", lambda voice: voice == "C:tw") == "C:tw"
+
+
+def test_voice_for_is_none_when_no_voice_is_usable(roles):
+	_module, conf, repository = roles
+	conf["WorldVoice"]["role"]["zh_TW"] = Section(voice="C:tw")
+	assert repository.voice_for("zh_TW", lambda voice: False) is None
+	asked = []
+	assert repository.voice_for("ja", asked.append) is None
+	# Only stored voices are asked about: ja has a section without a voice.
+	assert asked == []
+
+
 def test_assignments_ignore_scalars_and_voiceless_sections(roles):
 	_, _, repository = roles
 	assert repository.assignments() == {"en": "A:en", "zh": "B:zh"}
