@@ -3,8 +3,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '7.0'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
-"POT-Creation-Date: 2026-10-30 07:19+0000\n"
-"PO-Revision-Date: 2026-10-30 09:52+0300\n"
+"POT-Creation-Date: 2026-10-30 07:41+0000\n"
+"PO-Revision-Date: 2026-10-30 10:41+0300\n"
 "Last-Translator: \n"
 "Language-Team: Russian translation team <nvda.ru>, Danil Kostenkov "
 "<danilkostenkov38@gmail.com>\n"
@@ -361,18 +361,19 @@ msgstr "Синхронизировать параметры основной и 
 msgid "Keep parameter settings consistent between different speech roles"
 msgstr "Синхронизировать параметры между разными ролями речи"
 
-#. Translators: Label for a setting in voice settings dialog: the speech engine whose voices
-#. the Voice list and the settings ring offer. Choosing one switches to a voice of that engine.
-#: addon/synthDrivers/WorldVoice/__init__.py:130
-msgid "Speec&h engine"
-msgstr "Р&ечевой движок"
+#. Translators: Label for a setting in voice settings dialog, right above Voice: the speech engine
+#. whose voices the Voice list and the settings ring offer. Choosing one switches to a voice of
+#. that engine. Kept short like NVDA's own Voice and Variant labels.
+#: addon/synthDrivers/WorldVoice/__init__.py:131
+msgid "&Engine"
+msgstr "Дви&жок"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:152
-#: addon/synthDrivers/WorldVoice/__init__.py:155
+#: addon/synthDrivers/WorldVoice/__init__.py:153
+#: addon/synthDrivers/WorldVoice/__init__.py:156
 msgid "Detect language based on Unicode characters"
 msgstr "Определять язык текста на основе символов Unicode"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:470
+#: addon/synthDrivers/WorldVoice/__init__.py:471
 msgid "default"
 msgstr "по умолчанию"
 
