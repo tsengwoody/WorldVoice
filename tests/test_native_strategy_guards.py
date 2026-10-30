@@ -237,6 +237,32 @@ def test_rhvoice_reaches_inner_privates_only_through_its_port():
 		assert re.search(rf"self\.__{name}\b", inner), name
 
 
+# _RHVoiceInner.segmentDone() copies the player steps of the vendored DoneCallback.__call__
+# (everything but the notify), so it is pinned by its normalized source, not just its names.
+RHVOICE_DONE_CALLBACK_CALL = """def __call__(self, user_data):
+    try:
+        if self.__cancel_flag.is_set():
+            return
+        self.__player.on_done()
+        self.__player.idle()
+        if self.__cancel_flag.is_set():
+            return
+        synthDoneSpeaking.notify(synth=self.__synth)
+    except Exception:
+        log.error('RHVoice done callback', exc_info=True)"""
+
+
+def test_rhvoice_segment_done_mirrors_the_pinned_inner_done_callback():
+	tree = ast.parse(INNER_RHVOICE.read_text(encoding="utf-8"))
+	callback = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "DoneCallback")
+	call = next(n for n in callback.body if isinstance(n, ast.FunctionDef) and n.name == "__call__")
+	assert ast.unparse(call) == RHVOICE_DONE_CALLBACK_CALL, (
+		"The vendored RHVoice DoneCallback.__call__ changed: re-check _RHVoiceInner.segmentDone() "
+		"in driver/RHVoice/__init__.py, which mirrors its steps without the notify, then update "
+		"RHVOICE_DONE_CALLBACK_CALL."
+	)
+
+
 def test_rhvoice_uses_shared_player_and_stop_gate():
 	source = (ROOT / "driver/RHVoice/__init__.py").read_text(encoding="utf-8")
 	tree = ast.parse(source)
