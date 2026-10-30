@@ -125,7 +125,7 @@ ENGINES = {
 		"synthDrivers.espeak.SynthDriver",
 	),
 	"SAPI5": EngineNames(
-		"_Sapi5Port",
+		"_Sapi5HostNames",
 		"sapi5.py",
 		"synthDrivers.sapi5",
 		"sapi5.py",

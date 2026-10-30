@@ -158,9 +158,9 @@ def _module_reads(tree, alias):
 
 def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 	tree = _sapi5_tree()
-	privates = _class_constant(tree, "_Sapi5Port", "NVDA_PRIVATES")
-	overrides = _class_constant(tree, "_Sapi5Port", "NVDA_OVERRIDES")
-	assert _class_constant(tree, "_Sapi5Port", "NVDA_MODULE_NAMES") == _module_reads(tree, "sapi5")
+	privates = _class_constant(tree, "_Sapi5HostNames", "NVDA_PRIVATES")
+	overrides = _class_constant(tree, "_Sapi5HostNames", "NVDA_OVERRIDES")
+	assert _class_constant(tree, "_Sapi5HostNames", "NVDA_MODULE_NAMES") == _module_reads(tree, "sapi5")
 	own = set()
 	for node in tree.body:
 		if isinstance(node, ast.ClassDef):

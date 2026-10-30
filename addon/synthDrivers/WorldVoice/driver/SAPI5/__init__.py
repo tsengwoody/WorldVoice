@@ -43,7 +43,7 @@ def _nvdaBase(name):
 	return getattr(sapi5, name, object)
 
 
-class _Sapi5Port:
+class _Sapi5HostNames:
 	"""NVDA synthDrivers.sapi5 private names this wrapper reads, writes or overrides.
 
 	The worker (_speakThread) re-implements NVDA's own loop around these, so
@@ -703,8 +703,8 @@ class Voice(BaseVoice):
 		missing = missing_host_names(
 			sapi5,
 			BaseSynthDriver,
-			module_names=_Sapi5Port.NVDA_MODULE_NAMES,
-			class_names=_Sapi5Port.NVDA_PRIVATES | _Sapi5Port.NVDA_OVERRIDES,
+			module_names=_Sapi5HostNames.NVDA_MODULE_NAMES,
+			class_names=_Sapi5HostNames.NVDA_PRIVATES | _Sapi5HostNames.NVDA_OVERRIDES,
 		)
 		if not missing:
 			cls.synthDriverClass, cls.drainProfile = SynthDriver, _DRAIN_PROFILE
