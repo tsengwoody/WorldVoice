@@ -23,7 +23,13 @@ from speech.commands import (
 	VolumeCommand,
 )
 from speech.extensions import filter_speechSequence
-from synthDriverHandler import SynthDriver as BaseSynthDriver, getSynth, synthDoneSpeaking, synthIndexReached
+from synthDriverHandler import (
+	SynthDriver as BaseSynthDriver,
+	changeVoice,
+	getSynth,
+	synthDoneSpeaking,
+	synthIndexReached,
+)
 
 from .bridge.commands import normalizeNvdaCommands
 from .bridge.completionPolicies import CompletionPolicy
@@ -417,7 +423,34 @@ class SynthDriver(BaseSynthDriver):
 		self._setVoiceParameter("inflection", value)
 
 	def _getAvailableVoices(self):
-		return self._voiceManager.voice_infos
+		return self._voiceManager.voice_infos_for_engine(self.engine)
+
+	def _get_availableVoices(self):
+		# NVDA's property keeps the first list for good (synthDriverHandler.py:274-277); this one
+		# follows the current engine, so the Voice list and the settings ring offer only its voices.
+		return self._getAvailableVoices()
+
+	def _get_availableLanguages(self):
+		# Every engine's languages: NVDA's languageIsSupported reads this, and other engines' voices
+		# still speak their languages through the speech roles.
+		return {info.language for info in self._voiceManager.voice_infos.values()}
+
+	def _get_availableEngines(self):
+		return OrderedDict(
+			(engine, StringParameterInfo(engine, engine)) for engine in self._voiceManager.engines
+		)
+
+	def _get_engine(self):
+		return self._voiceManager.engine_of(self.voice)
+
+	def _set_engine(self, value):
+		if value == self.engine:
+			return
+		if value not in self.availableEngines:
+			raise LookupError(value)
+		# No stop, as in _set_voice: NVDA's panel cancels speech first. changeVoice also rebuilds the
+		# settings ring for the new voice list and loads the new voice's dictionary.
+		changeVoice(self, self._voiceManager.voice_name_for_engine(value, languageHandler.getLanguage()))
 
 	def _get_voice(self):
 		if self._voice is None:

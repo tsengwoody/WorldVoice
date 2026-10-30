@@ -612,6 +612,7 @@ def test_entry_point_imports_real_ledger_and_completion_policy(monkeypatch, nvda
 		synthIndexReached=EventStub(),
 		synthDoneSpeaking=EventStub(),
 		getSynth=lambda: None,
+		changeVoice=lambda synth, voice: None,
 	)
 	# Unrelated UI and pipeline modules need NVDA, but all changed composition
 	# boundaries below are imported from their actual files by __init__.py.

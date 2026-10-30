@@ -395,6 +395,17 @@ def load_synth(monkeypatch, conf):
 	return environment["SynthDriver"], settings_module
 
 
+def auto_properties(monkeypatch, cls, *names):
+	"""Map each name to _get_<name> and _set_<name> on cls, as NVDA's AutoPropertyType does.
+
+	load_synth runs the class over Base, which has no such metaclass.
+	"""
+	for name in names:
+		getter = getattr(cls, f"_get_{name}")
+		setter = getattr(cls, f"_set_{name}", None)
+		monkeypatch.setattr(cls, name, property(getter, setter), raising=False)
+
+
 def load_nvda_character_processing(monkeypatch, tmp_path):
 	"""NVDA's real characterProcessing over ref/nvda's symbol tables, with its built-in dictionaries."""
 	if not CHARACTER_PROCESSING.is_file():
