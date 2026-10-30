@@ -95,6 +95,24 @@ def test_a_voice_without_language_is_matched_only_as_fallback(pick, specs):
 	assert pick(specs, "B", "fr", None) == "B:x"
 
 
+def test_a_voice_without_language_never_matches_an_empty_request(pick, modules):
+	# Not in table order on purpose: the catalog sorts an empty language first, where the fallback
+	# would pick it anyway. Here only the language rule decides.
+	models = modules[1]
+	specs = tuple(
+		models.VoiceSpec(
+			id=voice_id,
+			name=f"C:{voice_id}",
+			description="",
+			language=language,
+			engine="C",
+			locale=language,
+		)
+		for voice_id, language in (("a", "en"), ("x", ""))
+	)
+	assert pick(specs, "C", "", None) == "C:a"
+
+
 def test_an_engine_without_voices_raises(pick, specs):
 	with pytest.raises(LookupError):
 		pick(specs, "C", "en", None)
