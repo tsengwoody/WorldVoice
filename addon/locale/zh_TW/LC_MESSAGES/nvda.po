@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: 'WorldVoice' '7.0'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
 "POT-Creation-Date: 2026-10-30 07:41+0000\n"
-"PO-Revision-Date: 2026-10-30 15:41+0800\n"
+"PO-Revision-Date: 2026-10-30 15:55+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: zh_TW\n"
@@ -333,7 +333,7 @@ msgstr "保持不同語音角色之間的參數一致"
 #. that engine. Kept short like NVDA's own Voice and Variant labels.
 #: addon/synthDrivers/WorldVoice/__init__.py:131
 msgid "&Engine"
-msgstr "引擎(&Y)"
+msgstr "引擎(&E)"
 
 #: addon/synthDrivers/WorldVoice/__init__.py:153
 #: addon/synthDrivers/WorldVoice/__init__.py:156
