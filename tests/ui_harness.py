@@ -35,6 +35,8 @@ class Control:
 		self.enabled = True
 		self.focused = False
 		self.bindings = []
+		# Each list SetItems gave, in order: a rebuilt choice list shows up here.
+		self.set_items = []
 		self.containing_sizer = None
 		self.destroyed = False
 		# A parent's children stay in creation order: the HWND sibling order NVDA's object
@@ -87,6 +89,7 @@ class Control:
 	def SetItems(self, items):
 		self.choices = list(items)
 		self.selection = NOT_FOUND
+		self.set_items.append(list(items))
 
 	# Value controls
 	def SetValue(self, value):

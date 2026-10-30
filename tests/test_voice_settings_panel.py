@@ -759,9 +759,14 @@ def test_the_engine_row_comes_first_and_before_voice_in_tab_order(monkeypatch):
 def test_choosing_an_engine_switches_the_voice_and_rebuilds_the_voice_list(monkeypatch):
 	env = open_panel(monkeypatch, driver := EngineDriver())
 	panel = env.panel
+	engine_rebuilds, voice_rebuilds = len(panel.engineList.set_items), len(panel.voiceList.set_items)
 	panel.engineList.Select(1)
 	event = fire(panel.engineList, "EVT_CHOICE")
 	assert event.skipped
+	# The refresh skips the changed setting (settingsDialogs.py:1564-1566): the focused engine list is
+	# not rebuilt while the user arrows through it; the Voice list is, once.
+	assert len(panel.engineList.set_items) == engine_rebuilds
+	assert panel.voiceList.set_items[voice_rebuilds:] == [["Bee [B]"]]
 	assert env.cancels == [True]
 	assert driver.engineSets == ["B"]
 	# The Voice list now holds the new engine's voices, texts unchanged, with the new voice selected.
