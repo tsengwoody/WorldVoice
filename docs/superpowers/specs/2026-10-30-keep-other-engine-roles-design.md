@@ -135,10 +135,10 @@ Every behaviour test is written red first. Baseline: 3680 passed, 0 skipped.
 
 ## 8. Readme
 
-Root `readme.md` and `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` (not `addon/doc/en/` or `.html`):
+Only `addon/doc/zh_TW/readme.md` (user's docs scope, 2026-10-30: root `readme.md` and `addon/doc/{ru,uk,zh_CN,zh_HK}/readme.md` are synced in a later translation pass once zh_TW is final; not `addon/doc/en/` or `.html`). Concise, user-facing:
 
-- Rewrite the "Keep main engine and locale engine consistent" bullet (`readme.md:27` and the same line in each translation): only the main engine's voices can be chosen and only its locale roles speak; other engines' locale roles are kept, not used while the main voice belongs to another engine (that locale shows no selection in the panel and is read by the main voice), and used again when switching back.
-- Changelog "Next update" (`readme.md:93-95`), right after the engine list bullet: **Speech roles of other engines are kept**: changing the main voice to another engine (e.g. with the engine list) no longer deletes the other engine's locale roles; they come back when switching back; roles of a disabled engine come back when it is enabled; with "keep main speech role and locale speech role consistent" on, the main locale still follows the main voice.
+- Rewrite the 「保持主要語音引擎與地區語音引擎一致」 bullet (`addon/doc/zh_TW/readme.md:27`): only the main engine's voices can be chosen and only its locale roles speak; other engines' locale roles are kept, read by the main voice and shown as unselected in the panel while another engine is the main one, and used again when switching back; OK in the panel changes only the locales the user changed.
+- 「下一版更新」 (`addon/doc/zh_TW/readme.md:93-95`), right after the engine list bullet: **保留其他語音引擎的語音角色**: switching engines no longer deletes the previous engine's locale roles; they come back when switching back; browsing the engine list or Cancel loses nothing; a disabled engine's roles are kept too.
 
 ## 9. Constraints
 

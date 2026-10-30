@@ -21,7 +21,7 @@
 - Never modify `driver/*/driver/*`, `driver/sonic/`, `unicodeScripts/script_data.py`, `unicodeScripts/unspaced_common_data.py`; never add Neural; `ref` is a symlink, never staged.
 - Engine drivers stay independently installable: no wrapper is touched; shared code only in core.
 - ruff pinned `==0.16.3`; prek hooks run on commit (re-stage and recommit if a hook rewrites files; never `--no-verify`); explicit `git add` paths, `git diff --cached --stat` before each commit; English `<type>: <summary>` + why-body; no `Co-Authored-By`; no push; no `git stash`; do not touch `/workspace/WorldVoice`; at most 3 pytest workers with a MemAvailable ≥ 3 GB guard (serial is fine).
-- Docs: root `readme.md` and `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` only (not `en/`, not `.html`).
+- Docs: only `addon/doc/zh_TW/readme.md` (user, 2026-10-30; the other readmes are synced in a later translation pass; never `en/` or `.html`).
 
 ## Review Focus
 
@@ -163,11 +163,11 @@ Baseline (worktree at `031ff3d`): **3680 passed, 0 skipped**; prek all Passed; p
 ### Task 8: Readmes
 
 **Files:**
-- Modify: `readme.md`, `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` (line 27 bullet; "Next update" second bullet)
+- Modify: `addon/doc/zh_TW/readme.md` (line 27 bullet; 「下一版更新」 second bullet)
 
-- [ ] **Step 1:** Rewrite the "Keep main engine and locale engine consistent" bullet (spec §8) and add the changelog bullet **Speech roles of other engines are kept** right after the engine list bullet, in each file's language with its existing terms.
+- [ ] **Step 1:** Rewrite the 「保持主要語音引擎與地區語音引擎一致」 bullet (spec §8) and add the changelog bullet **保留其他語音引擎的語音角色** right after the engine list bullet, concise and user-facing.
 - [ ] **Step 2:** `python3 -m pytest -q tests` → **3692 passed, 0 skipped**; `git diff --check` clean.
-- [ ] **Step 3: Commit** the six readmes: `docs: describe that other engines' speech roles are kept`.
+- [ ] **Step 3: Commit** the zh_TW readme: `docs: describe that other engines' speech roles are kept`.
 
 ### Task 9: Mutation run and full verification
 
