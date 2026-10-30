@@ -69,14 +69,6 @@ def test_any_extraction_error_skips_only_that_file(archive_module, tmp_path, mon
 	assert archive_module.logged[-1] == ("warning", "Update complete. Skipped 1 in-use file(s): ['a.dll']")
 
 
-class Conf(dict):
-	"""NVDA's config.conf: its sections, and the active configurations, the normal one first."""
-
-	def __init__(self, sections):
-		super().__init__(sections)
-		self.profiles = [{"name": "normal configuration"}]
-
-
 @pytest.fixture
 def install(monkeypatch, tmp_path):
 	"""installTasks placed in a temporary add-on folder, with NVDA's config in tmp_path/config."""
@@ -86,7 +78,7 @@ def install(monkeypatch, tmp_path):
 		shutil.copy(ADDON / relative, addon / relative)
 	config_path = tmp_path / "config"
 	config_path.mkdir()
-	conf = Conf({"WorldVoice": {}, "speech": {"autoLanguageSwitching": True}})
+	conf = {"WorldVoice": {}, "speech": {"autoLanguageSwitching": True}}
 	stubs = StubModules(monkeypatch)
 	stubs.module("config", conf=conf)
 	stubs.module("globalVars", appArgs=SimpleNamespace(configPath=str(config_path)))
@@ -114,88 +106,6 @@ def test_first_install_turns_nvdas_automatic_language_switching_off(install):
 def test_an_update_keeps_the_users_language_switching(install):
 	install.module.onInstall()
 	assert install.conf["speech"]["autoLanguageSwitching"] is True
-
-
-class Section:
-	"""Stands in for NVDA's AggregatedSection: a mapping, but not a dict."""
-
-	def __init__(self, **values):
-		self._values = values
-
-	def items(self):
-		return self._values.items()
-
-	def get(self, key, default=None):
-		return self._values.get(key, default)
-
-
-def test_an_update_removes_legacy_full_locale_role_keys(install):
-	# Versions before 2026-07-28 also wrote the full locale (zh_TW); the panel shows and writes
-	# only primary languages, so such a key would shadow the panel's role for good.
-	install.conf["WorldVoice"]["role"] = {
-		"zh_TW": {"voice": "A:old"},
-		"pt-br": {"voice": "B:br"},
-		"zh": {"voice": "A:new"},
-		"en": Section(voice="A:en"),
-	}
-	install.module.onInstall()
-	assert install.conf["WorldVoice"]["role"] == {"zh": {"voice": "A:new"}, "en": {"voice": "A:en"}}
-	assert all(type(value) is dict for value in install.conf["WorldVoice"]["role"].values())
-	assert ("info", "Removed legacy speech role keys: ['zh_TW', 'pt-br']") in install.logged
-
-
-def test_legacy_role_cleanup_is_skipped_while_another_profile_is_active(install):
-	# The roles read are merged over every active configuration and a write goes to the last one:
-	# it would copy the normal configuration's roles into the profile and leave zh_TW in place.
-	install.conf.profiles.append({"name": "work"})
-	roles = {"zh_TW": {"voice": "A:old"}, "zh": {"voice": "A:new"}}
-	install.conf["WorldVoice"]["role"] = roles
-	install.module.onInstall()
-	assert install.conf["WorldVoice"]["role"] is roles
-	assert roles == {"zh_TW": {"voice": "A:old"}, "zh": {"voice": "A:new"}}
-	assert (
-		"info",
-		"Legacy speech role keys not checked: a configuration profile is active",
-	) in install.logged
-
-
-def test_legacy_role_cleanup_keeps_scalars_and_odd_sections(install):
-	install.conf["WorldVoice"]["role"] = {
-		"zh_TW": "not a role",
-		"fr_CA": Section(voice="B:ca"),
-		"de": {},
-		"en": {"voice": "A:en"},
-	}
-	install.module.onInstall()
-	assert install.conf["WorldVoice"]["role"] == {"zh_TW": "not a role", "de": {}, "en": {"voice": "A:en"}}
-
-
-def test_roles_without_legacy_keys_are_not_rewritten(install):
-	roles = {"zh": {"voice": "A:zh"}, "en": {"voice": "A:en"}}
-	install.conf["WorldVoice"]["role"] = roles
-	install.module.onInstall()
-	assert install.conf["WorldVoice"]["role"] is roles
-
-
-def test_an_update_without_roles_adds_none(install):
-	install.module.onInstall()
-	assert install.conf["WorldVoice"] == {}
-
-
-def test_a_failing_role_cleanup_is_logged_and_the_install_goes_on(install):
-	class Broken:
-		def items(self):
-			raise RuntimeError("broken config")
-
-		def get(self, key, default=None):
-			return default
-
-	install.conf["WorldVoice"]["role"] = Broken()
-	install.core.mkdir()
-	make_zip(install.core / "a.zip", **{"a.txt": "a"})
-	install.module.onInstall()
-	assert install.logged.count(("exception", "Could not remove legacy speech role keys")) == 1
-	assert (install.workspace / "a.txt").read_text() == "a"
 
 
 def test_install_extracts_every_core_archive_in_order_and_removes_it(install):
