@@ -79,6 +79,24 @@ def test_a_skipped_full_locale_role_falls_back_to_the_primary_role(monkeypatch):
 	assert manager.get_voice_name_for_language("fr_CA") == "A:c"
 
 
+def test_a_main_voice_change_drops_a_legacy_full_locale_role_of_the_same_engine(monkeypatch):
+	# Versions before 2026-07-28 also stored the main voice's full locale (en_US); the lookup
+	# prefers it, so it would keep speaking instead of the role the main voice now follows.
+	module, conf, manager = make_manager(monkeypatch, engine=True, voice=True)
+	add_voice(module, manager, module.VoiceSpec("d", "A:d", "D", "en_US", "A", "en_US"))
+	conf["WorldVoice"]["role"]["en_US"] = {"voice": "A:a"}
+	assert manager.get_voice_name_for_language("en_US") == "A:a"
+
+	def instance(name):
+		spec = manager.get_voice_spec(name)
+		return types.SimpleNamespace(name=name, engine=spec.engine, language=spec.language)
+
+	manager.get_voice_instance = instance
+	manager.default_voice_name = "A:d"
+	assert conf["WorldVoice"]["role"] == {"en": {"voice": "A:d"}, "fr": {"voice": "B:b"}}
+	assert manager.get_voice_name_for_language("en_US") == "A:d"
+
+
 def test_initial_voice_is_the_available_role_of_any_engine(monkeypatch):
 	# Before NVDA sets a voice there is no main engine to keep consistent with (spec D3).
 	_, _conf, manager = make_manager(monkeypatch, engine=True)

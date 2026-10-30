@@ -130,6 +130,16 @@ def test_engine_consistency_preview_cancel_and_apply(env):
 	assert env.manager.engine_consistency.preview is None
 
 
+def test_apply_drops_a_legacy_full_locale_role(env):
+	# A full-locale key (en_US) from before 2026-07-28 is not shown in the panel and would
+	# shadow the panel's en role; OK writes the roles without it.
+	env.conf["WorldVoice"]["role"]["en_US"] = {"voice": env.c.name}
+	assert env.manager.get_voice_name_for_language("en_US") == env.c.name
+	env.presenter.apply()
+	assert env.conf["WorldVoice"]["role"] == {"en": {"voice": env.a.name}}
+	assert env.manager.get_voice_name_for_language("en_US") == env.a.name
+
+
 def keep_engine_saved(env):
 	env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleEngineConsistent"] = True
 	env.presenter.discard()  # re-read pending flags from config

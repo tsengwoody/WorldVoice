@@ -10,11 +10,17 @@ def _is_section(value: Any) -> bool:
 	return isinstance(value, Mapping) or (hasattr(value, "items") and hasattr(value, "get"))
 
 
-class ConfigRoleRepository:
-	"""The only runtime reader and writer of config["WorldVoice"]["role"].
+def _is_full_locale(locale: str) -> bool:
+	return "_" in locale or "-" in locale
 
-	installTasks._removeLegacyRoleKeys also rewrites it once, on an update, to drop legacy
-	full-locale keys.
+
+class ConfigRoleRepository:
+	"""The only reader and writer of config["WorldVoice"]["role"].
+
+	Roles are written under primary languages (zh, en) only. Versions before 2026-07-28 also
+	wrote the main voice's full locale (zh_TW, pt-br); the lookup prefers such a key, so it
+	would speak instead of the speech role panel's role, which cannot show or remove it.
+	Every save drops them from the configuration it writes to.
 	"""
 
 	def __init__(self, conf_provider: Callable[[], Any]):
@@ -47,12 +53,17 @@ class ConfigRoleRepository:
 		return result
 
 	def save(self, assignments: Mapping[str, str]) -> None:
+		"""Store assignments as the role sections, except under a full locale; keep other values."""
 		conf = self._conf_provider()
 		kept = {
 			locale: value for locale, value in conf["WorldVoice"]["role"].items() if not _is_section(value)
 		}
 		conf["WorldVoice"]["role"] = {
-			**{locale: {"voice": voice} for locale, voice in assignments.items()},
+			**{
+				locale: {"voice": voice}
+				for locale, voice in assignments.items()
+				if not _is_full_locale(locale)
+			},
 			**kept,
 		}
 
