@@ -39,12 +39,6 @@ def test_engine_filter_is_shared_by_every_locale_view(monkeypatch):
 	assert manager.locale_to_voices_map == {"en": ["A:a"], "fr": ["A:c", "B:b"]}
 
 
-def test_keep_engine_consistent_prunes_through_the_repository(monkeypatch):
-	_, conf, manager = make_manager(monkeypatch, engine=False)
-	manager.on_keep_engine_consistent()
-	assert conf["WorldVoice"]["role"] == {"fr": {"voice": "B:b"}}
-
-
 def test_main_locale_voice_follows_default_voice(monkeypatch):
 	_, conf, manager = make_manager(monkeypatch, voice=True)
 	manager.on_keep_main_locale_voice_consistent()

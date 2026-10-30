@@ -192,7 +192,6 @@ class VoiceManager:
 			# NVDA's SynthDriver.loadSettings repairs the saved voice only when this raises.
 			raise LookupError(name)
 		self._default_voice_instance = self.get_voice_instance(name)
-		self.on_keep_engine_consistent()
 		self.on_keep_main_locale_voice_consistent()
 
 	@property
@@ -242,9 +241,6 @@ class VoiceManager:
 		self.preview_voice_parameter_consistent(base_instance)
 		for key in self.settings.names():
 			self.settings.commit(key)
-
-	def on_keep_engine_consistent(self):
-		self.roles.prune(self.locale_to_voices_map)
 
 	def on_keep_main_locale_voice_consistent(self):
 		self.voice_consistency.follow(self.default_voice_instance)

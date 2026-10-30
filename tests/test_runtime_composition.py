@@ -1,5 +1,6 @@
 """Production manager, facade, adapter, session and bridge composition."""
 
+import copy
 import importlib
 import sys
 import threading
@@ -133,6 +134,42 @@ def test_voice_name_for_engine_uses_the_configured_role(composition):
 	# The role voice of another engine is ignored; the engine's own zh voice is picked.
 	assert manager.voice_name_for_engine("first", "zh") == "first:b"
 	assert manager.voice_name_for_engine("first", "en_US") == "first:a"
+
+
+def two_engines_keeping_the_engine(c, *, follow):
+	c.engine("first"), c.engine("second")
+	c.config.conf["WorldVoice"]["autoLanguageSwitching"].update(
+		keepMainLocaleEngineConsistent=True,
+		keepMainLocaleVoiceConsistent=follow,
+	)
+	manager = c.create()
+	assert manager.default_voice_name == "first:a"
+	return manager
+
+
+@pytest.mark.parametrize("follow", [False, True])
+def test_an_engine_round_trip_keeps_and_restores_the_roles(composition, follow):
+	c = composition
+	manager = two_engines_keeping_the_engine(c, follow=follow)
+	c.config.conf["WorldVoice"]["role"] = {"en": {"voice": "first:a"}, "zh": {"voice": "first:b"}}
+	before = copy.deepcopy(c.config.conf["WorldVoice"]["role"])
+	manager.default_voice_name = "second:a"
+	role = c.config.conf["WorldVoice"]["role"]
+	assert role["zh"] == {"voice": "first:b"}
+	assert role["en"] == {"voice": "second:a" if follow else "first:a"}
+	assert manager.get_voice_name_for_language("zh") == "second:a"
+	manager.default_voice_name = "first:a"
+	assert manager.get_voice_name_for_language("zh") == "first:b"
+	assert c.config.conf["WorldVoice"]["role"] == before
+
+
+def test_switching_back_picks_the_kept_role_voice_of_the_engine(composition):
+	c = composition
+	manager = two_engines_keeping_the_engine(c, follow=False)
+	c.config.conf["WorldVoice"]["role"] = {"en": {"voice": "first:b"}}
+	manager.default_voice_name = "second:a"
+	# The language step alone would pick first:a, the engine's en voice.
+	assert manager.voice_name_for_engine("first", "en") == "first:b"
 
 
 def test_after_terminate_nothing_resolves(composition):
