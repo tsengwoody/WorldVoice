@@ -312,23 +312,23 @@ def test_cancel_waits_for_admitted_feed_and_stops_late_audio_before_successor(en
 	# late feed must have returned and been stopped again by then.
 	created = Event()
 	original = env.inner.nvwave.WavePlayer
-	order, atReturn = [], []
+	order, at_return = [], []
 
 	def blocked_player(**kwargs):
 		player = original(**kwargs)
 		player.feed_release.clear()
 		feed, stop = player.feed, player.stop
 
-		def recordedFeed(*args, **kwargs):
+		def recorded_feed(*args, **kwargs):
 			result = feed(*args, **kwargs)
 			order.append("fed")
 			return result
 
-		def recordedStop():
+		def recorded_stop():
 			order.append("stop")
 			return stop()
 
-		player.feed, player.stop = recordedFeed, recordedStop
+		player.feed, player.stop = recorded_feed, recorded_stop
 		created.set()
 		return player
 
@@ -338,7 +338,7 @@ def test_cancel_waits_for_admitted_feed_and_stops_late_audio_before_successor(en
 	assert created.wait(WAIT_TIMEOUT)
 	player = env.players[0]
 	assert player.feed_entered.wait(WAIT_TIMEOUT)
-	stopper = Thread(target=lambda: (env.driver.cancel(), atReturn.extend(order)))
+	stopper = Thread(target=lambda: (env.driver.cancel(), at_return.extend(order)))
 	stopper.start()
 	assert player.stop_entered.wait(WAIT_TIMEOUT)
 	assert stopper.is_alive()
@@ -346,8 +346,8 @@ def test_cancel_waits_for_admitted_feed_and_stops_late_audio_before_successor(en
 	old_call.return_release.set()
 	stopper.join(WAIT_TIMEOUT)
 	assert not stopper.is_alive()
-	assert "fed" in atReturn
-	assert "stop" in atReturn[atReturn.index("fed") + 1 :]
+	assert "fed" in at_return
+	assert "stop" in at_return[at_return.index("fed") + 1 :]
 	assert player.stops >= 2
 	env.native.scripts.append({"auto_return": True})
 	_, _, next_events = speak(env, text="new")
@@ -363,22 +363,22 @@ def test_cancel_stops_again_after_settling_when_its_first_stop_failed(env):
 	assert call.done.wait(WAIT_TIMEOUT)
 	player = env.players[0]
 	canceller = current_thread()
-	stop, stops, firstStop = player.stop, [], Event()
+	stop, stops, first_stop = player.stop, [], Event()
 
-	def failingOnceStop():
+	def failing_once_stop():
 		# The lifecycle also stops from its own thread; only this thread's stops count.
 		if current_thread() is not canceller:
 			return stop()
 		stops.append(call.returned.is_set())
 		stop()
 		if len(stops) == 1:
-			firstStop.set()
+			first_stop.set()
 			raise OSError("stop failed")
 
-	player.stop = failingOnceStop
+	player.stop = failing_once_stop
 	# cancel() waits for the native call to settle; release the fake once its first stop ran.
 	Thread(
-		target=lambda: firstStop.wait(WAIT_TIMEOUT) and call.return_release.set(),
+		target=lambda: first_stop.wait(WAIT_TIMEOUT) and call.return_release.set(),
 		daemon=True,
 	).start()
 	with pytest.raises(OSError, match="stop failed"):
