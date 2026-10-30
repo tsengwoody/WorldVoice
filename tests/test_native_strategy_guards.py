@@ -295,9 +295,9 @@ def _own_names(tree):
 
 def test_onecore_parent_privates_are_listed_and_exist():
 	tree = ast.parse((ROOT / "driver/OneCore/__init__.py").read_text(encoding="utf-8"))
-	privates = _class_constant(tree, "_OneCorePort", "NVDA_PRIVATES")
-	overrides = _class_constant(tree, "_OneCorePort", "NVDA_OVERRIDES")
-	assert _class_constant(tree, "_OneCorePort", "NVDA_MODULE_NAMES") == _module_reads(tree, "oneCore")
+	privates = _class_constant(tree, "_OneCoreHostNames", "NVDA_PRIVATES")
+	overrides = _class_constant(tree, "_OneCoreHostNames", "NVDA_OVERRIDES")
+	assert _class_constant(tree, "_OneCoreHostNames", "NVDA_MODULE_NAMES") == _module_reads(tree, "oneCore")
 	accessed = {
 		n.attr
 		for n in ast.walk(tree)

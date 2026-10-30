@@ -28,7 +28,7 @@ _TERMINATED_CALLBACKS = []
 _ORDINARY_BARRIERS = frozenset({AUDIO_FED})
 
 
-class _OneCorePort:
+class _OneCoreHostNames:
 	"""Parent private names (vendored OneCoreSynthDriver and NVDA oneCore) this wrapper uses.
 
 	The worker and native callback re-implement the parent's flow around these,
@@ -688,8 +688,8 @@ class Voice(BaseVoice):
 			cls.engine,
 			oneCore,
 			oneCore.SynthDriver,
-			module_names=_OneCorePort.NVDA_MODULE_NAMES,
-			class_names=_OneCorePort.NVDA_PRIVATES | _OneCorePort.NVDA_OVERRIDES,
+			module_names=_OneCoreHostNames.NVDA_MODULE_NAMES,
+			class_names=_OneCoreHostNames.NVDA_PRIVATES | _OneCoreHostNames.NVDA_OVERRIDES,
 			host_label=nvdaLabel,
 			logger=log,
 		)

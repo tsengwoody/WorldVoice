@@ -133,7 +133,7 @@ ENGINES = {
 		"synthDrivers.sapi5.SynthDriver",
 	),
 	"OneCore": EngineNames(
-		"_OneCorePort",
+		"_OneCoreHostNames",
 		"oneCore.py",
 		"synthDrivers.oneCore",
 		"oneCore.py",
