@@ -308,12 +308,27 @@ def test_legacy_done_callback_can_cancel_without_deadlocking_worker(env):
 
 
 def test_cancel_waits_for_admitted_feed_and_stops_late_audio_before_successor(env):
+	# The scheduler starts a successor on any engine once cancel() returns, so the
+	# late feed must have returned and been stopped again by then.
 	created = Event()
 	original = env.inner.nvwave.WavePlayer
+	order, atReturn = [], []
 
 	def blocked_player(**kwargs):
 		player = original(**kwargs)
 		player.feed_release.clear()
+		feed, stop = player.feed, player.stop
+
+		def recordedFeed(*args, **kwargs):
+			result = feed(*args, **kwargs)
+			order.append("fed")
+			return result
+
+		def recordedStop():
+			order.append("stop")
+			return stop()
+
+		player.feed, player.stop = recordedFeed, recordedStop
 		created.set()
 		return player
 
@@ -323,7 +338,7 @@ def test_cancel_waits_for_admitted_feed_and_stops_late_audio_before_successor(en
 	assert created.wait(WAIT_TIMEOUT)
 	player = env.players[0]
 	assert player.feed_entered.wait(WAIT_TIMEOUT)
-	stopper = Thread(target=env.driver.cancel)
+	stopper = Thread(target=lambda: (env.driver.cancel(), atReturn.extend(order)))
 	stopper.start()
 	assert player.stop_entered.wait(WAIT_TIMEOUT)
 	assert stopper.is_alive()
@@ -331,11 +346,46 @@ def test_cancel_waits_for_admitted_feed_and_stops_late_audio_before_successor(en
 	old_call.return_release.set()
 	stopper.join(WAIT_TIMEOUT)
 	assert not stopper.is_alive()
+	assert "fed" in atReturn
+	assert "stop" in atReturn[atReturn.index("fed") + 1 :]
 	assert player.stops >= 2
 	env.native.scripts.append({"auto_return": True})
 	_, _, next_events = speak(env, text="new")
 	assert next_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert old_events == []
+
+
+def test_cancel_stops_again_after_settling_when_its_first_stop_failed(env):
+	# Audio already queued keeps playing after a failed stop; the stop cancel()
+	# makes once the worker settled is the one ordered before it returns.
+	speak(env, text="old")
+	call = env.native.wait_call()
+	assert call.done.wait(WAIT_TIMEOUT)
+	player = env.players[0]
+	canceller = current_thread()
+	stop, stops, firstStop = player.stop, [], Event()
+
+	def failingOnceStop():
+		# The lifecycle also stops from its own thread; only this thread's stops count.
+		if current_thread() is not canceller:
+			return stop()
+		stops.append(call.returned.is_set())
+		stop()
+		if len(stops) == 1:
+			firstStop.set()
+			raise OSError("stop failed")
+
+	player.stop = failingOnceStop
+	# cancel() waits for the native call to settle; release the fake once its first stop ran.
+	Thread(
+		target=lambda: firstStop.wait(WAIT_TIMEOUT) and call.return_release.set(),
+		daemon=True,
+	).start()
+	with pytest.raises(OSError, match="stop failed"):
+		env.driver.cancel()
+	# The inner cancel's stop ran before the native call returned; another followed after it.
+	assert stops[0] is False
+	assert True in stops[1:]
 
 
 def test_terminate_releases_engine_after_stop_failure(env):

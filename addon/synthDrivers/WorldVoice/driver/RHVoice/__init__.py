@@ -437,7 +437,15 @@ class SynthDriver(rhvoice.SynthDriver, SegmentHostSpeaker):
 				except Exception as exc:  # noqa: BLE001 - latched, and kept to raise after the remaining cleanup
 					self._failSegmentControl(exc)
 					error = exc
+			# The scheduler starts the next task, on any engine, once every cancel()
+			# returned. A feed admitted before the cancel can still queue audio after
+			# the stop above; its own re-stop (LeasedPlayer._feed_admitted) runs on
+			# the worker, so wait for the worker to leave the record. A successor on
+			# RHVoice is already ordered by the single worker. The wait is short:
+			# every callback is refused now. A callback bound to the record skips it.
 			host.wait_settled(current)
+			# The only stop on this thread after the worker settled: if the inner
+			# cancel raised before or in its stop, queued audio is still playing.
 			try:
 				self._inner.player.stop()
 			except Exception as exc:  # noqa: BLE001 - latched, and kept to raise after the remaining cleanup
