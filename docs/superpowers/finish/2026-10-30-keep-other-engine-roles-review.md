@@ -133,3 +133,87 @@ spec §7 的 Windows／NVDA 手動清單 1–6（OneCore／eSpeak 來回、Cance
 | M4 Hypothesis 性質恆真 | 改成獨立的模型：完整地區、主要語言兩個鍵中第一個「語音已安裝且（引擎一致開啟時）屬於主要語音引擎」的角色，否則主要語音；結果必須相等。暫時拿掉引擎檢查或 `voice_for` 的跳過，性質都會失敗 | `ddfc0c5` | `test_lookups_never_write_and_speak_only_admitted_voices` |
 
 驗證（修正後，worktree，序列）：`python3 -m pytest -q tests` **3698 passed, 0 skipped**（review 時 3692，+5 安裝清理、+1 M1）；`prek run --all-files` 8 個 hook 全部 Passed；`git diff --check master` 無輸出；兩個受保護路徑指令無輸出。未打包、未在 Windows／NVDA 驗證；新增的手動項目：從帶有 `zh_TW` 角色鍵的舊設定更新安裝後重新啟動，`zh_TW` 鍵消失、`zh` 角色照常朗讀。
+
+## 修正 review（Opus）
+
+日期：2026-10-30。範圍：`73fbedd..73b625f`（7 個 commit：`ac5cc6f`、`3183cf1`、`02fbcc3`、`ddfc0c5`、`0151bd7`、`28e4d2b`、`73b625f`），對照上方 I1、M1–M4 與「修正記錄」。依 §3.4 的修正 review，模型 Opus 5.5，原始碼唯讀。I1 的修法（安裝時清理一次）是使用者 2026-10-30 的決定，本節只評估實作，不評估決定本身。所有還原與探針都在 scratchpad 的複本上做（`cp -a` worktree 的 `addon tests tools pyproject.toml buildVars.py .pre-commit-config.yaml readme.md`，`ref` 為 symlink）；沒有用 `git stash`，任務 worktree 與主 checkout 沒有改動。
+
+### 結論
+
+I1、M1–M4 都已修好，測試都抓得到原本的錯誤。沒有新的 Critical 或 Important；新的 Minor 3 項（N1–N3），都不擋 merge，N1 建議 merge 前順手修，N2 記成已知限制即可。
+
+### 逐項確認
+
+| 項目 | 結果 | 證據 |
+| --- | --- | --- |
+| I1 | **已修好**（依使用者決定的安裝時清理） | `addon/installTasks.py:60-87`（`_removeLegacyRoleKeys`）、`:109-110`（只在更新時呼叫）。還原呼叫後 `tests/test_core_install.py` 3 failed（`test_an_update_removes_legacy_full_locale_role_keys`、`test_legacy_role_cleanup_keeps_scalars_and_odd_sections`、`test_a_failing_role_cleanup_is_logged_and_the_install_goes_on`），與修正記錄相符。另外逐一突變：不檢查 section（scalar 也刪）、不認 `-`、不轉成 dict、沒有舊鍵也改寫、拿掉 try/except，各自讓 1 個測試失敗；改成只在首次安裝時清理則 3 failed。以 NVDA 真實的 `AggregatedSection`（從 `ref/nvda/source/config/__init__.py` 以 ast 取出）加 configobj 5.0.9 的探針確認：只有一般設定作用時，寫出的 nvda.ini 中 `zh_TW` 消失，`zh`、`en` 與 scalar `legacy = kept` 保留，不需要標記 dirty（基本設定 `save()` 一定寫出，`config/__init__.py:708-726`）。`_plainSection` 是必要的：拿掉後探針寫出 `zh = <AggregatedSection object at …>`，會損壞 nvda.ini；`test_an_update_removes_legacy_full_locale_role_keys` 的 `type(value) is dict` 斷言抓得到。 |
+| M1 | **已修好** | `addon/synthDrivers/WorldVoice/voices/manager.py:284-295`。還原成 `voice_for(language)` 後 `test_an_engine_switch_skips_a_full_locale_role_of_another_engine` 以 `'first:a' == 'first:b'` 失敗。`of_engine` 用 `catalog.by_name`，與 `pick_engine_voice` 的 `own`（同一個 table）一致；未安裝的完整地區語音現在也會退回主要語言鍵，比修正前合理。 |
+| M2 | **已修好** | `addon/doc/zh_TW/readme.md:27`「主要語音角色切換到其他引擎時，原本引擎的地區語音角色會保留，這些地區暫時改由主要語音角色朗讀……」通順，和後半句「切換回原本的引擎後」對應，用詞與既有條目一致。 |
+| M3 | **已修好** | `tests/test_engine_setting.py:62-67` 假 `Manager` 同時提供兩個方法。還原 `_get_voice` 後失敗原因是斷言 `'A:a1' == 'B:b1'`（`tests/test_engine_setting.py:168`），不再是 `AttributeError`。 |
+| M4 | **已修好** | `tests/test_voice_manager_roles.py:101-124` 的模型獨立於實作。三種突變都讓性質失敗：`admits` 永遠 `True`、`voice_for` 忽略 `usable`、只查完整地區鍵不退回主要語言鍵。模型用 `language.split("_")[0]` 代替 `primary_language`，在這組取樣（全小寫、只有 `_`）下等價。 |
+
+### I1 對照 NVDA 原始碼的檢查
+
+- **onInstall 何時、在哪裡執行：** `addonHandler.installAddonBundle`（`ref/nvda/source/addonHandler/__init__.py:528-568`）在解壓後立刻呼叫 `onInstall`，由 `systemUtils.ExecAndPump` 在背景執行緒執行（`gui/addonGui.py:237`、`addonStore/install.py:85`），主執行緒同時 pump 訊息。此時舊版 WorldVoice 仍載入中，`config.conf` 可用，寫入落在 `profiles[-1]`（`_getUpdateSection`，`config/__init__.py:1443`；section 指定走 `__setitem__` 的 `updateSect[key] = val` 與 `cache.profiles[-1] = val`，`:1321-1345`）。`onInstall` 丟出例外會讓整個安裝失敗並移除（`addonHandler/__init__.py:556-563`），所以 try/except 是必要的。
+- **不會從 onInstall 丟出：** 函式本體全部在 `try` 裡，`except Exception` 只記 log；呼叫點沒有其他新程式。`test_a_failing_role_cleanup_is_logged_and_the_install_goes_on` 也確認核心壓縮檔照常解開。背景執行緒的副作用：主執行緒朗讀時查角色會在 `role._cache` 插入鍵，若剛好發生在 `roles.items()` 迭代中，會丟 `RuntimeError: dictionary changed size during iteration`，結果是記 log、這次不清理（下次更新會再清）。機率很低，不需要修。
+- **重新啟動時是否儲存：** `core.py:1101` 在主迴圈結束後呼叫 `config.saveOnExit()`，只有 `general.saveConfigurationOnExit`（預設開啟）時才存（`config/__init__.py:110-119`）；`speech`、`addonHandler` 等在其後才 terminate，舊版在 terminate 時寫的設定不會被存。「仰賴 NVDA 結束時儲存設定」的限制成立。
+- **值的形狀：** `ConfigRoleRepository` 讀寫的角色是 `{"voice": name}` section（`roles.py:22-34`、`:45-53`），非 section 值在 save 時原樣保留；6.1.1 的 follow 也寫 section（`role[locale] = {}` 再寫 `['voice']`）。v5.2.1 起 confspec 的 `role` 一直是 `{}`，沒有會被 `__iter__` 列出的 `__many__` 鍵。清理只刪 `_`／`-` 鍵下的 section，與 repository 的形狀一致。
+- **作用中的不是一般設定時**：見 N1。
+- **舊版在重新啟動前再寫入**：見 N2。
+- **無害的殘影：** 清理後，舊版這次執行期間 `role.items()` 仍會列出空的 `zh_TW: {}`，因為 `AggregatedSection.__getitem__` 第一次遇到該 section 時在 spec 建了 `zh_TW: {}`（`config/__init__.py:1237`），而 `__iter__` 也走訪 spec（`:1284`）。它沒有 `voice`，`voice_for` 與 `assignments` 都會略過；新版啟動時 spec 重建，不會帶過去。
+
+### 新發現
+
+Critical：無。Important：無。
+
+#### N1（Minor）安裝時作用中的是其他設定檔時，一般設定沒被清理，該設定檔反而多了一份凍結的角色副本
+
+- 位置：`addon/installTasks.py:71-84`。
+- 失敗情境（探針 B，真實 `AggregatedSection`）：一般設定有 `zh_TW → A:old`、`zh → A:old`、`en → B:en`，使用者手動啟用了設定檔 work（`en → C:en`）後更新 WorldVoice。`roles.items()` 是所有作用中設定的聚合值，指定時寫進 work：work 變成 `legacy = kept`、`en → C:en`、`zh → A:old`，被標記 dirty；一般設定的 `zh_TW` 原封不動，聚合後 `zh_TW → A:old` 仍然有效，I1 的問題在這個使用者身上沒有解決，但 log 寫著「Removed legacy speech role keys: ['zh_TW']」。之後在一般設定改 `zh`，切到 work 時仍是凍結的 `A:old`。（`ConfigRoleRepository.save` 在設定檔中寫入時也會這樣攤平，這是既有行為；新的地方是安裝時在使用者沒有操作的情況下觸發，而且觸發了也沒清到。）spec D4 寫的「只清理安裝當下作用中的設定（通常是一般設定，其他設定檔不動）」在這個情境並不成立。
+- 建議修法：
+  1. 最小修法：只在 `len(config.conf.profiles) == 1`（只有一般設定作用中，與 NVDA `_markWriteProfileDirty` 的判斷相同，`config/__init__.py:708-712`）時清理，否則記一行 log 後略過；加一個有兩個設定檔的測試（stub 加上 `profiles`）。
+  2. 或直接刪一般設定的 ConfigObj：`config.conf.profiles[0].get("WorldVoice", {}).get("role", {})` 中鍵含 `_`／`-` 的 section 用 `del` 刪掉（ConfigObj `Section` 是 dict 子類別，一般設定一定會被 `save()` 寫出），不會攤平，也不需要 `_plainSection`。缺點是舊版這次執行期間 `AggregatedSection` 的快取仍是舊值；若舊版是本分支的測試版，在重新啟動前跑到 follow 或面板確定，可能把快取中的 `zh_TW` 寫回。
+  - 建議第 1 種，並把 spec D4 的限制改成「只有一般設定作用中時才清理」。
+
+#### N2（Minor）舊版 ≤ 6.1.1 在重新啟動前更換主要語音，會把 `zh_TW` 寫回
+
+- 位置：`addon/installTasks.py:60-87`（只在安裝時執行一次）；舊版 `git show 6.1.1:addon/synthDrivers/WorldVoice/voiceManager.py` 248-257 行。
+- 失敗情境（探針 C）：6.1.1 以前的版本每次更換主要語音（包括在 NVDA 語音面板換語音，或切到語音不同的設定檔時 `loadSettings` 重設語音）都會寫 `role[<完整地區>]` 和 `role[<主要語言>]`。使用者安裝後選「稍後重新啟動」，在重新啟動前換了語音，`zh_TW` 就回來了，結束時存檔，新版啟動後 I1 的情境重現；要等下一次更新 WorldVoice 才會再清。受影響的正是這個清理要照顧的族群（跳過 6.2 的使用者），但需要在安裝與重新啟動之間更換主要語音。
+- 建議修法：不改程式，在 spec D4 的限制與修正記錄補上這一條，Windows 手動項目寫明「安裝後立刻重新啟動」與「稍後重新啟動且期間換語音」兩種情況的預期。若使用者要涵蓋這種情況，需要改成新版第一次啟動時清理，屬於使用者決定。
+
+#### N3（Minor）`ConfigRoleRepository` 的 docstring 已不正確
+
+- 位置：`addon/synthDrivers/WorldVoice/voices/roles.py:14`「The only reader and writer of config["WorldVoice"]["role"].」
+- 現在 `installTasks._removeLegacyRoleKeys` 也會寫這個 section（而且刻意複製了 `_is_section`，因為安裝時只能用路徑載入）。建議改成「執行期間唯一的讀寫者；`installTasks._removeLegacyRoleKeys` 在更新安裝時移除舊的完整地區鍵」，並在 installTasks 的 `_isRoleSection` 旁註明對應 `roles._is_section`。純文件修正，成本很低。
+
+### 修正記錄裡三個 Ruling 的評估
+
+| Ruling | 評估 |
+| --- | --- |
+| (1) 只刪 `_`／`-` 鍵下的 section，scalar 保留 | 合理。沒有任何版本在 `role` 下寫過 scalar；`voice_for` 與 `assignments` 都忽略非 section，`save` 原樣保留（`roles.py:45-53`），清理採相同規則才一致。突變「scalar 也刪」會讓 `test_legacy_role_cleanup_keeps_scalars_and_odd_sections` 失敗，規則有測試釘住。 |
+| (2) 只在更新時清理，首次安裝不清理 | 合理。`"WorldVoice" not in config.conf` 只有在沒有 confspec 且作用中的設定都沒有 `[WorldVoice]` 時才成立，那時沒有角色可清。解除安裝不會刪 nvda.ini 的 `[WorldVoice]`，所以重新安裝也會走更新分支、會被清理。探針 D 確認舊版停用（沒有 confspec）時清理照樣有效。 |
+| (3) 不加更新日誌 | 大致同意。`master` 的 prune 在第一次更換主要語音（包括啟動時 `loadSettings`）就刪掉這些鍵，6.x 的使用者察覺不到差異。但要補充一點：v5.2.1 的語音角色面板同時列出完整地區與主要語言（`git show v5.2.1:addon/synthDrivers/WorldVoice/voiceManager.py` 250-259 行），5.x 使用者可能刻意設了 `zh_HK`（粵語）、`en_GB` 這類角色；這些會在安裝時被刪（`master` 是在第一次更換主要語音時刪，6.0 的更新日誌也沒提）。相對 `master` 不是回歸，列為下方的使用者可見預設，由協調者告知使用者。 |
+
+### 新增的使用者還沒確認的使用者可見預設
+
+1. 從 5.x 直接更新的使用者，在舊面板刻意設定的完整地區角色（例如 `zh_HK`、`en_GB`）會在安裝時刪除，沒有更新日誌（與 `master` 在第一次更換主要語音時刪除相同）。
+2. N1：作用中的不是一般設定時的行為（建議改成略過）。
+3. N2：舊版 ≤ 6.1.1 在重新啟動前更換主要語音會讓清理失效，直到下一次更新。
+
+### 修正審閱者自行驗證的項目
+
+| 項目 | 指令 | 結果 |
+| --- | --- | --- |
+| 完整測試（`73b625f` 的 scratch 複本，序列，記憶體監控沒有觸發） | `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider tests` | **3698 passed**，0 skipped，與修正記錄相同 |
+| ruff | `ruff --version; ruff check --no-cache addon tests tools; ruff format --no-cache --check addon tests tools`（複本） | 0.16.3；All checks passed；246 files already formatted。沒有在 worktree 跑 `prek`，避免改到檔案 |
+| 空白、受保護路徑、Neural | `git diff --check 73fbedd 73b625f`；§7 的 `git diff --stat master -- …` 與 `git ls-files …/driver/Neural` | 都沒有輸出 |
+| commit 訊息 | `git log 73fbedd..73b625f --format=%B` | 7 個都是英文 `<type>: <summary>`，沒有 `Co-Authored-By` |
+| I1 還原與突變（複本，`reverts.py`） | 拿掉 `else: _removeLegacyRoleKeys()`；scalar 也刪；不認 `-`；不轉 dict；沒有舊鍵也改寫；拿掉 try/except；改成只在首次安裝清理 → `tests/test_core_install.py` | 依序 3、1、1、1、1、1、3 failed |
+| M1 還原 | `voice_for(language, of_engine)` → `voice_for(language)`，`tests/test_runtime_composition.py` | 1 failed：`'first:a' == 'first:b'` |
+| M3 還原 | `_get_voice` 改回 `get_voice_name_for_language`，`tests/test_engine_setting.py` | 1 failed：`'A:a1' == 'B:b1'`（斷言，不是 `AttributeError`） |
+| M4 突變 | `admits` 回 `True`；`voice_for` 忽略 `usable`；只查完整地區鍵 → Hypothesis 性質 | 三種都 1 failed |
+| I1 探針（真實 `AggregatedSection` + configobj 5.0.9） | scratchpad `fixreview/probe/aggregated_probe.py` | A 只有一般設定：`zh_TW` 從寫出的設定消失，其他保留；B 有作用中的設定檔：一般設定沒變、設定檔多了 `legacy` 與 `zh` 的副本（N1）；C 舊版 6.1.1 的 follow 在清理後把 `zh_TW` 寫回（N2）；D 沒有 confspec 時照樣清理。拿掉 `_plainSection` 時寫出 `zh = <AggregatedSection object …>` |
+| NVDA 安裝與儲存流程 | 讀 `addonHandler/__init__.py:528-568`、`gui/addonGui.py:237`、`addonStore/install.py:85`、`systemUtils.py:218-253`、`config/__init__.py:110-119, 708-738, 1155-1460`、`core.py:1085-1131` | 見上方「I1 對照 NVDA 原始碼的檢查」 |
+| 舊版行為 | `git show 6.1.1:…/voiceManager.py`、`git show 78f3880^:…`、`git show v5.2.1:…/voiceManager.py`、`git grep '"role"' v5.2.1 6.0 6.1.1 6.2` | 6.1.1 的 follow 同時寫完整地區與主要語言；v5.2.1 面板列出完整地區；各版 `role` 的 confspec 都是 `{}`；各版 installTasks 都沒有 `onUninstall` |
+
+未在 Windows／NVDA 上驗證；探針只重現 NVDA 的設定聚合邏輯，沒有跑真正的安裝流程與重新啟動。scratch 複本與探針放在 scratchpad 的 `fixreview/`，還原用的複本跑完即刪。
