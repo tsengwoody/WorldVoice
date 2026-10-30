@@ -49,7 +49,8 @@ def _extractCoreArchive(archivePath, workspacePath):
 
 
 def _isRoleSection(value):
-	# A dict here, NVDA's AggregatedSection (a mapping, but not a dict) in NVDA.
+	# As roles._is_section (copied: the add-on being installed is not importable). A dict here,
+	# NVDA's AggregatedSection (a mapping, but not a dict) in NVDA.
 	return hasattr(value, "items") and hasattr(value, "get")
 
 
@@ -63,10 +64,16 @@ def _removeLegacyRoleKeys():
 	Versions before 2026-07-28 also wrote the main voice's full locale; the speech role panel
 	shows and writes only primary languages (zh, en), and the lookup prefers a full-locale key,
 	so such a key would speak instead of the panel's role, with no way to remove it.
-	Only the configuration active now is cleaned; NVDA saves it on exit.
+	Only the normal configuration is cleaned, and only while no profile is active; NVDA saves
+	it on exit.
 	"""
 	try:
 		if "WorldVoice" not in config.conf or "role" not in config.conf["WorldVoice"]:
+			return
+		if len(config.conf.profiles) != 1:
+			# The roles read merge every active configuration and a write goes to the last one, so
+			# cleaning now would copy the normal configuration's roles into the profile instead.
+			log.info("Legacy speech role keys not checked: a configuration profile is active")
 			return
 		roles = config.conf["WorldVoice"]["role"]
 		legacy = [

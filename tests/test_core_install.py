@@ -69,6 +69,14 @@ def test_any_extraction_error_skips_only_that_file(archive_module, tmp_path, mon
 	assert archive_module.logged[-1] == ("warning", "Update complete. Skipped 1 in-use file(s): ['a.dll']")
 
 
+class Conf(dict):
+	"""NVDA's config.conf: its sections, and the active configurations, the normal one first."""
+
+	def __init__(self, sections):
+		super().__init__(sections)
+		self.profiles = [{"name": "normal configuration"}]
+
+
 @pytest.fixture
 def install(monkeypatch, tmp_path):
 	"""installTasks placed in a temporary add-on folder, with NVDA's config in tmp_path/config."""
@@ -78,7 +86,7 @@ def install(monkeypatch, tmp_path):
 		shutil.copy(ADDON / relative, addon / relative)
 	config_path = tmp_path / "config"
 	config_path.mkdir()
-	conf = {"WorldVoice": {}, "speech": {"autoLanguageSwitching": True}}
+	conf = Conf({"WorldVoice": {}, "speech": {"autoLanguageSwitching": True}})
 	stubs = StubModules(monkeypatch)
 	stubs.module("config", conf=conf)
 	stubs.module("globalVars", appArgs=SimpleNamespace(configPath=str(config_path)))
@@ -134,6 +142,21 @@ def test_an_update_removes_legacy_full_locale_role_keys(install):
 	assert install.conf["WorldVoice"]["role"] == {"zh": {"voice": "A:new"}, "en": {"voice": "A:en"}}
 	assert all(type(value) is dict for value in install.conf["WorldVoice"]["role"].values())
 	assert ("info", "Removed legacy speech role keys: ['zh_TW', 'pt-br']") in install.logged
+
+
+def test_legacy_role_cleanup_is_skipped_while_another_profile_is_active(install):
+	# The roles read are merged over every active configuration and a write goes to the last one:
+	# it would copy the normal configuration's roles into the profile and leave zh_TW in place.
+	install.conf.profiles.append({"name": "work"})
+	roles = {"zh_TW": {"voice": "A:old"}, "zh": {"voice": "A:new"}}
+	install.conf["WorldVoice"]["role"] = roles
+	install.module.onInstall()
+	assert install.conf["WorldVoice"]["role"] is roles
+	assert roles == {"zh_TW": {"voice": "A:old"}, "zh": {"voice": "A:new"}}
+	assert (
+		"info",
+		"Legacy speech role keys not checked: a configuration profile is active",
+	) in install.logged
 
 
 def test_legacy_role_cleanup_keeps_scalars_and_odd_sections(install):
