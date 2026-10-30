@@ -282,8 +282,17 @@ class VoiceManager:
 		return self.catalog.engine_voice_infos[engine]
 
 	def voice_name_for_engine(self, engine: str, language: str) -> str:
-		"""The voice a switch to engine picks for language: its role voice, else by language."""
-		return pick_engine_voice(self.table, engine, language, self.roles.voice_for(language))
+		"""The voice a switch to engine picks for language: its role voice, else by language.
+
+		As in the lookup, a full locale's role of another engine counts as unassigned, so the
+		primary language's role is tried next.
+		"""
+
+		def of_engine(name: str) -> bool:
+			spec = self.catalog.by_name.get(name)
+			return spec is not None and spec.engine == engine
+
+		return pick_engine_voice(self.table, engine, language, self.roles.voice_for(language, of_engine))
 
 	@property
 	def all_languages(self):

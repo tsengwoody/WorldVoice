@@ -172,6 +172,14 @@ def test_switching_back_picks_the_kept_role_voice_of_the_engine(composition):
 	assert manager.voice_name_for_engine("first", "en") == "first:b"
 
 
+def test_an_engine_switch_skips_a_full_locale_role_of_another_engine(composition):
+	c = composition
+	manager = two_engines_keeping_the_engine(c, follow=False)
+	c.config.conf["WorldVoice"]["role"] = {"en_US": {"voice": "second:a"}, "en": {"voice": "first:b"}}
+	# As in the lookup (spec D2): en_US's voice is not first's, so en's role decides.
+	assert manager.voice_name_for_engine("first", "en_US") == "first:b"
+
+
 def test_after_terminate_nothing_resolves(composition):
 	c = composition
 	c.engine("ok")
