@@ -125,9 +125,10 @@ class SynthDriver(BaseSynthDriver):
 		"""The speech engine whose voices availableVoices lists; it follows the voice, so nothing stores it."""
 		return DriverSetting(
 			"engine",
-			# Translators: Label for a setting in voice settings dialog: the speech engine whose voices
-			# the Voice list and the settings ring offer. Choosing one switches to a voice of that engine.
-			_("Speec&h engine"),
+			# Translators: Label for a setting in voice settings dialog, right above Voice: the speech engine
+			# whose voices the Voice list and the settings ring offer. Choosing one switches to a voice of
+			# that engine. Kept short like NVDA's own Voice and Variant labels.
+			_("&Engine"),
 			availableInSettingsRing=False,
 			useConfig=False,
 		)

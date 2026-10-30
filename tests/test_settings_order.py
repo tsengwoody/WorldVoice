@@ -63,7 +63,7 @@ def test_ring_follows_the_table_after_the_standard_settings(monkeypatch):
 def test_engine_setting_is_first_unstored_and_off_the_ring(monkeypatch):
 	synth, _table = synth_and_table(monkeypatch)
 	engine = synth.supportedSettings[0]
-	assert (engine.kind, engine.id, engine.label) == ("str", "engine", "Speec&h engine")
+	assert (engine.kind, engine.id, engine.label) == ("str", "engine", "&Engine")
 	assert engine.options["useConfig"] is False
 	assert engine.options["availableInSettingsRing"] is False
 	assert synth.allSupportedSettings[0].id == "engine"
