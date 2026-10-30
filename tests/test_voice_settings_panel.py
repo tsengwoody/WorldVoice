@@ -700,3 +700,105 @@ def test_another_synth_voice_switch_adds_no_control(monkeypatch):
 	assert panel.children == windows
 	assert list(panel.sizerDict) == ["voice", "rate"]
 	assert (panel.groupSizeSpin, panel.punctuationPauseCharactersEdit) == (None, None)
+
+
+ENGINE_VOICES = {"A": {"a1": "One [A]", "a2": "Two [A]"}, "B": {"b1": "Bee [B]"}}
+
+
+class EngineDriver(Driver):
+	"""WorldVoice with its engine setting: the engine follows the voice and filters the voices."""
+
+	def __init__(self, voice="a1"):
+		super().__init__(ALL | {"engine"}, settings=(DriverSetting("engine"), *SETTINGS), voice=voice)
+		self.saved = voice
+		self.engineSets = []
+
+	@property
+	def availableEngines(self):
+		return {engine: SimpleNamespace(id=engine, displayName=engine) for engine in ENGINE_VOICES}
+
+	@property
+	def engine(self):
+		(engine,) = [engine for engine, voices in ENGINE_VOICES.items() if self.voice in voices]
+		return engine
+
+	@engine.setter
+	def engine(self, value):
+		self.engineSets.append(value)
+		if value != self.engine:
+			self.voice = next(iter(ENGINE_VOICES[value]))
+
+	@property
+	def availableVoices(self):
+		return {
+			voice: SimpleNamespace(id=voice, displayName=text)
+			for voice, text in ENGINE_VOICES[self.engine].items()
+		}
+
+	@availableVoices.setter
+	def availableVoices(self, value):
+		pass  # Driver's constructor sets a fixed list; this driver derives it.
+
+	def loadSettings(self):
+		self.voice = self.saved
+
+
+def choice_handlers(control):
+	return [handler for event, handler in control.bindings if event == "EVT_CHOICE"]
+
+
+def test_the_engine_row_comes_first_and_before_voice_in_tab_order(monkeypatch):
+	panel = open_panel(monkeypatch, EngineDriver()).panel
+	assert list(panel.sizerDict)[:2] == ["engine", "voice"]
+	assert order(panel)[:2] == ["engine", "voice"]
+	assert before(panel.tab_order, panel.voiceList) is panel.engineList
+	assert panel.engineList.choices == ["A", "B"]
+	assert panel.engineList.selection == 0
+
+
+def test_choosing_an_engine_switches_the_voice_and_rebuilds_the_voice_list(monkeypatch):
+	env = open_panel(monkeypatch, driver := EngineDriver())
+	panel = env.panel
+	panel.engineList.Select(1)
+	event = fire(panel.engineList, "EVT_CHOICE")
+	assert event.skipped
+	assert env.cancels == [True]
+	assert driver.engineSets == ["B"]
+	# The Voice list now holds the new engine's voices, texts unchanged, with the new voice selected.
+	assert panel.voiceList.choices == ["Bee [B]"]
+	assert panel.voiceList.selection == 0
+	# The engine control itself is left alone: same list, the user's selection.
+	assert panel.engineList.choices == ["A", "B"]
+	assert panel.engineList.selection == 1
+
+
+def test_choosing_the_current_engine_keeps_the_voice(monkeypatch):
+	panel = open_panel(monkeypatch, driver := EngineDriver(voice="a2")).panel
+	panel.engineList.Select(0)
+	fire(panel.engineList, "EVT_CHOICE")
+	assert driver.voice == "a2"
+	assert panel.voiceList.selection == 1
+
+
+def test_the_engine_combo_box_has_exactly_one_choice_handler(monkeypatch):
+	env = open_panel(monkeypatch, EngineDriver())
+	(handler,) = choice_handlers(env.panel.engineList)
+	assert isinstance(handler, env.module._EngineSettingChanger)
+	(voice_handler,) = choice_handlers(env.panel.voiceList)
+	assert not isinstance(voice_handler, env.module._EngineSettingChanger)
+
+
+def test_cancel_unbinds_the_engine_handler_and_restores_voice_and_engine(monkeypatch):
+	panel = open_panel(monkeypatch, driver := EngineDriver()).panel
+	panel.engineList.Select(1)
+	fire(panel.engineList, "EVT_CHOICE")
+	panel.onDiscard()
+	assert choice_handlers(panel.engineList) == []
+	assert driver.voice == "a1"
+	assert driver.engine == "A"
+
+
+def test_another_synth_gets_no_engine_row(monkeypatch):
+	panel = open_panel(monkeypatch, Driver(ALL, name="espeak")).panel
+	assert "engine" not in panel.sizerDict
+	assert getattr(panel, "engineList", None) is None

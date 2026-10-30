@@ -1,8 +1,9 @@
 import addonHandler
+import speech
 import wx
 from autoSettingsUtils.driverSetting import BooleanDriverSetting, NumericDriverSetting
 from gui import guiHelper
-from gui.settingsDialogs import VoiceSettingsPanel
+from gui.settingsDialogs import StringDriverSettingChanger, VoiceSettingsPanel
 
 from ..pipeline.settings import PIPELINE_CONFIG_KEYS, PIPELINE_SETTINGS, pipeline_settings
 from .controls import (
@@ -32,6 +33,22 @@ def _moveSizer(settingsSizer, sizer, index):
 	proportion, flag, border = item.GetProportion(), item.GetFlag(), item.GetBorder()
 	settingsSizer.Detach(sizer)
 	settingsSizer.Insert(index, sizer, proportion, flag, border)
+
+
+class _EngineSettingChanger(StringDriverSettingChanger):
+	"""The engine combo box's handler: NVDA's voice-change treatment, for a speech engine.
+
+	NVDA's own changer cancels speech and refreshes the panel only for the voice setting
+	(settingsDialogs.py:1340-1356); an engine switch changes the voice too.
+	"""
+
+	def __call__(self, evt):
+		evt.Skip()
+		# Cancel first, so the new voice speaks at once instead of after the queued speech.
+		speech.cancelSpeech()
+		self.driver.engine = self.container._engines[evt.GetSelection()].id
+		# Rebuilds the Voice and Variant lists and the voice's controls; leaves the engine list alone.
+		self.container.updateDriverSettings(changedSetting="engine")
 
 
 class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
@@ -140,6 +157,15 @@ class WorldVoiceVoiceSettingsPanel(VoiceSettingsPanel):
 		self._makePipelineControls(followers.get(None, ()), values, previousRow, placements)
 		self._placePipelineRows(placements)
 		super().updateDriverSettings(changedSetting)
+
+	def _makeStringSettingControl(self, setting, settingsStorage):
+		sizer = super()._makeStringSettingControl(setting, settingsStorage)
+		if setting.id == "engine":
+			# NVDA's Cancel unbinds one change handler per combo box (settingsDialogs.py:1621-1628),
+			# so this one replaces NVDA's instead of joining it.
+			self.engineList.Unbind(wx.EVT_CHOICE)
+			self.engineList.Bind(wx.EVT_CHOICE, _EngineSettingChanger(settingsStorage, setting, self))
+		return sizer
 
 	def _makePipelineControls(self, specs, values, previousRow, placements):
 		"""Make the absent controls of specs, showing values (None: make none); return the last row.

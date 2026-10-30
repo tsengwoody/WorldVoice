@@ -10,9 +10,10 @@ panel's handlers after the control's own). A parent keeps its windows in creatio
 modules against these fakes, so module-level code and the real ``guardErrors`` take part.
 """
 
+import weakref
 from types import SimpleNamespace
 
-from addon_loader import ADDON, WORLDVOICE, alias_package, load_source
+from addon_loader import ADDON, REF, WORLDVOICE, alias_package, load_definitions, load_source
 from nvda_stubs import StubModules, configobj_stub, worldvoice_conf
 from pipeline_harness import LOG_SWITCH_ORDER
 
@@ -109,6 +110,14 @@ class Control:
 
 	def Bind(self, event, handler, source=None):
 		self.bindings.append((event, handler))
+
+	def Unbind(self, event):
+		"""Disconnect one handler of event, as wx's Unbind without a handler does; True if one was."""
+		for index, (bound, _handler) in enumerate(self.bindings):
+			if bound == event:
+				del self.bindings[index]
+				return True
+		return False
 
 	def SetFocus(self):
 		self.focused = True
@@ -361,6 +370,10 @@ class Event:
 	def IsChecked(self):
 		return bool(self.source.GetValue())
 
+	def GetSelection(self):
+		# wx.CommandEvent: a choice event carries the selection, which NVDA's changers read.
+		return self.source.GetSelection()
+
 	def Skip(self):
 		self.skipped = True
 
@@ -461,33 +474,42 @@ class VoiceSettingsPanel(SettingsPanel):
 			control = made = CheckBox(self, label=setting.displayName, value=value)
 			setattr(self, f"{setting.id}Checkbox", control)
 			control.Bind(EVT_CHECKBOX, lambda event: setattr(settingsStorage, setting.id, event.IsChecked()))
-		else:
+		elif isinstance(setting, NumericDriverSetting):
 			made = Sizer()
 			# NVDA's LabeledControlHelper makes the label first, in the same row.
 			made.Add(Label(self, label=f"{setting.displayName}:"))
-			if isinstance(setting, NumericDriverSetting):
-				control = Slider(self, label=setting.displayName, value=value)
-				setattr(self, f"{setting.id}Slider", control)
-			else:
-				options = list(getattr(self.getSettings(), f"available{setting.id.capitalize()}s").values())
-				setattr(self, f"_{setting.id}s", options)
-				control = Choice(self, label=setting.displayName, choices=[x.displayName for x in options])
-				control.Select([x.id for x in options].index(value))
-				setattr(self, f"{setting.id}List", control)
-
-				def write(event, id=setting.id):
-					# NVDA's StringDriverSettingChanger: the option at the selection, from the list in use.
-					options = getattr(self, f"_{id}s")
-					setattr(settingsStorage, id, options[event.GetEventObject().GetSelection()].id)
-
-				control.Bind(EVT_CHOICE, write)
+			control = Slider(self, label=setting.displayName, value=value)
+			setattr(self, f"{setting.id}Slider", control)
 			made.Add(control)
+		else:
+			# NVDA makes a choice row through _getSettingMaker, so a subclass can override the maker.
+			made = self._makeStringSettingControl(setting, settingsStorage)
+			control = getattr(self, f"{setting.id}List")
 		# NVDA moves each new driver control after the previous one (settingsDialogs.py:1457-1459).
 		if self.lastControl:
 			control.MoveAfterInTabOrder(self.lastControl)
 		self.lastControl = control
 		self.sizerDict[setting.id] = made
 		self.settingsSizer.Insert(len(self.sizerDict) - 1, made, border=10, flag=BOTTOM)
+
+	def _makeStringSettingControl(self, setting, settingsStorage):
+		"""NVDA's choice row: its label, then a wx.Choice over available<Id>s, bound to write the setting."""
+		made = Sizer()
+		made.Add(Label(self, label=f"{setting.displayName}:"))
+		options = list(getattr(self.getSettings(), f"available{setting.id.capitalize()}s").values())
+		setattr(self, f"_{setting.id}s", options)
+		control = Choice(self, label=setting.displayName, choices=[x.displayName for x in options])
+		control.Select([x.id for x in options].index(getattr(settingsStorage, setting.id)))
+		setattr(self, f"{setting.id}List", control)
+
+		def write(event, id=setting.id):
+			# NVDA's StringDriverSettingChanger: the option at the selection, from the list in use.
+			options = getattr(self, f"_{id}s")
+			setattr(settingsStorage, id, options[event.GetEventObject().GetSelection()].id)
+
+		control.Bind(EVT_CHOICE, write)
+		made.Add(control)
+		return made
 
 	def updateDriverSettings(self, changedSetting=None):
 		# NVDA's version: hide unsupported controls, then update or create the supported ones.
@@ -517,6 +539,14 @@ class VoiceSettingsPanel(SettingsPanel):
 
 	def onDiscard(self):
 		self.base_calls.append("onDiscard")
+		# NVDA's (settingsDialogs.py:1621-1628): wx closes combo boxes on cancel, so their one change
+		# handler goes first; then the driver reloads its saved settings.
+		for settingId in self.sizerDict:
+			if combo := getattr(self, f"{settingId}List", None):
+				combo.Unbind(EVT_CHOICE)
+		loadSettings = getattr(self.getSettings(), "loadSettings", None)
+		if loadSettings is not None:
+			loadSettings()
 
 	def refreshGui(self):
 		# NVDA's AutoSettingsMixin.refreshGui once the settings instance changed (a synth change):
@@ -838,6 +868,16 @@ def load_voice_panel(monkeypatch, *, conf=None):
 		NumericDriverSetting=NumericDriverSetting,
 		BooleanDriverSetting=BooleanDriverSetting,
 	)
+	env.cancels = []
+	speech = env.stubs.module("speech", cancelSpeech=lambda: env.cancels.append(True))
+	# NVDA's own setting changers, which the panel's engine changer derives from.
+	changers = load_definitions(
+		REF / "nvda/source/gui/settingsDialogs.py",
+		["DriverSettingChanger", "StringDriverSettingChanger"],
+		{"weakref": weakref, "speech": speech, "changeVoice": None},
+	)
+	env.gui.settingsDialogs.DriverSettingChanger = changers["DriverSettingChanger"]
+	env.gui.settingsDialogs.StringDriverSettingChanger = changers["StringDriverSettingChanger"]
 	env.module = load_source(
 		monkeypatch,
 		"synthDrivers.WorldVoice.ui.voicePanel",

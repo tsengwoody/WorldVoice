@@ -152,6 +152,8 @@ def voice_panel(monkeypatch, pipeline_settings, driver_name="WorldVoice"):
 	panel = object.__new__(module.WorldVoiceVoiceSettingsPanel)
 	panel._driver = types.SimpleNamespace(name=driver_name)
 	panel.base_calls = []
+	# No driver rows: NVDA's onDiscard unbinds the combo boxes it finds there.
+	panel.sizerDict = {}
 	return module, panel
 
 
