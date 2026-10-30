@@ -1,8 +1,10 @@
 """VoiceManager answers role and consistency questions through its repository and policies."""
 
+import copy
 import sys
 import types
 
+from hypothesis import HealthCheck, given, settings, strategies as st
 from worldvoice_harness import init_policies, load_f4_voice_manager
 
 
@@ -49,9 +51,64 @@ def test_main_locale_voice_follows_default_voice(monkeypatch):
 	assert conf["WorldVoice"]["role"]["en"] == {"voice": "A:a"}
 
 
-def test_configured_voice_comes_from_the_repository(monkeypatch):
-	module, _conf, manager = make_manager(monkeypatch)
-	manager.catalog = module.VoiceCatalog.from_specs([s for s in manager.table if s.name == "B:b"])
-	manager._default_voice_instance.name = "A:a"
+def add_voice(module, manager, *specs):
+	manager.catalog = module.VoiceCatalog.from_specs([*manager.table, *specs])
+
+
+def test_a_role_of_another_engine_is_kept_but_skipped(monkeypatch):
+	_, conf, manager = make_manager(monkeypatch, engine=True)
+	before = copy.deepcopy(conf["WorldVoice"]["role"])
+	# fr's role B:b belongs to engine B, the main voice A:a to engine A.
+	assert manager.get_voice_name_for_language("fr_CA") == "A:a"
+	assert conf["WorldVoice"]["role"] == before
+	conf["WorldVoice"]["role"]["fr"] = {"voice": "A:c"}
+	assert manager.get_voice_name_for_language("fr_CA") == "A:c"
+
+
+def test_without_engine_consistency_any_engines_role_speaks(monkeypatch):
+	_, _conf, manager = make_manager(monkeypatch, engine=False)
 	assert manager.get_voice_name_for_language("fr_CA") == "B:b"
+	assert manager.get_voice_name_for_language("en") == "A:a"  # X:gone is not available
+
+
+def test_a_missing_role_voice_is_kept_and_speaks_when_back(monkeypatch):
+	module, conf, manager = make_manager(monkeypatch, engine=True)
 	assert manager.get_voice_name_for_language("en") == "A:a"
+	assert conf["WorldVoice"]["role"]["en"] == {"voice": "X:gone"}
+	add_voice(module, manager, module.VoiceSpec("gone", "X:gone", "X", "en", "A", "en"))
+	assert manager.get_voice_name_for_language("en") == "X:gone"
+
+
+def test_a_skipped_full_locale_role_falls_back_to_the_primary_role(monkeypatch):
+	_, conf, manager = make_manager(monkeypatch, engine=True)
+	conf["WorldVoice"]["role"] = {"fr_CA": {"voice": "B:b"}, "fr": {"voice": "A:c"}}
+	assert manager.get_voice_name_for_language("fr_CA") == "A:c"
+
+
+ROLE_LOCALES = ("en", "fr", "fr_CA", "de")
+ROLE_VOICES = ("A:a", "B:b", "A:c", "X:gone")
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(
+	roles=st.dictionaries(st.sampled_from(ROLE_LOCALES), st.sampled_from(ROLE_VOICES)),
+	engine=st.booleans(),
+	main=st.sampled_from(("A:a", "B:b")),
+	language=st.sampled_from((*ROLE_LOCALES, "en_US")),
+)
+def test_lookups_never_write_and_speak_only_admitted_voices(monkeypatch, roles, engine, main, language):
+	with monkeypatch.context() as patch:
+		_, conf, manager = make_manager(patch, engine=engine)
+		spec = manager.get_voice_spec(main)
+		manager._default_voice_instance = types.SimpleNamespace(
+			name=main,
+			engine=spec.engine,
+			language=spec.language,
+		)
+		conf["WorldVoice"]["role"] = {locale: {"voice": voice} for locale, voice in roles.items()}
+		before = copy.deepcopy(conf["WorldVoice"]["role"])
+		name = manager.get_voice_name_for_language(language)
+		assert conf["WorldVoice"]["role"] == before
+		assert name == main or name in manager.catalog.by_name
+		if engine:
+			assert manager.get_voice_spec(name).engine == spec.engine

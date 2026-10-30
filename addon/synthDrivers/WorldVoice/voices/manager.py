@@ -309,8 +309,9 @@ class VoiceManager:
 		return {locale: self.catalog.readable_name(locale) for locale in self.locale_to_voices_map}
 
 	def get_voice_name_for_language(self, language):
+		"""The voice that speaks language: its role voice when that may speak now, else the main voice."""
 		configured = self._get_configured_voice_name_for_language(language)
-		if configured is not None and configured in self.voice_infos:
+		if configured is not None:
 			return configured
 		return self.default_voice_name
 
@@ -320,4 +321,15 @@ class VoiceManager:
 		return spec.locale if spec is not None else None
 
 	def _get_configured_voice_name_for_language(self, language):
-		return self.roles.voice_for(language)
+		return self.roles.voice_for(language, self._may_speak)
+
+	def _may_speak(self, name: str) -> bool:
+		"""A role voice speaks while it is available and engine consistency admits its engine.
+
+		A skipped role stays stored: it speaks again once its voice is back or its engine is the main one.
+		"""
+		spec = self.catalog.by_name.get(name)
+		return spec is not None and self.engine_consistency.admits(
+			spec.engine,
+			self._default_voice_instance.engine,
+		)
