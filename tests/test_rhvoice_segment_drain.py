@@ -957,3 +957,102 @@ def test_player_stop_failure_goes_through_the_control_fault_policy(env, monkeypa
 		env.driver.cancel()
 	assert failed and failed[0] is error
 	assert segment_host(env.driver).control_error is error
+
+
+def hold_conversion(env, monkeypatch):
+	"""Hold SsmlConverter.convertToXml until the returned release event is set."""
+	entered, release = Event(), Event()
+	convert = env.inner.SsmlConverter.convertToXml
+
+	def held(converter, commands):
+		entered.set()
+		assert release.wait(HOLD_TIMEOUT), "test did not release the conversion"
+		return convert(converter, commands)
+
+	monkeypatch.setattr(env.inner.SsmlConverter, "convertToXml", held)
+	return entered, release
+
+
+def returns_while_held(action, release):
+	"""Run action on a thread; True when it returned before the conversion was released."""
+	done = Event()
+	Thread(target=lambda: (action(), done.set()), daemon=True).start()
+	try:
+		return done.wait(WAIT_TIMEOUT)
+	finally:
+		release.set()
+
+
+def test_cancel_does_not_wait_for_a_segment_conversion(env, monkeypatch):
+	entered, release = hold_conversion(env, monkeypatch)
+	_, _, events = speak(env, text="held")
+	assert entered.wait(WAIT_TIMEOUT)
+	assert returns_while_held(env.driver.cancel, release), "cancel() waited for the SSML conversion"
+	quiet_period()
+	assert env.native.calls == []
+	assert events == []
+	assert tracked_segments(env.driver) == {}
+	# The cancelled segment's XML never reaches RHVoice; its successor speaks its own text.
+	env.native.scripts.append({"auto_return": True})
+	_, _, successor = speak(env, segment=2, text="next")
+	assert successor.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+	assert len(env.native.calls) == 1
+	assert env.native.calls[0].text == b"<speak>next</speak>"
+
+
+def test_terminate_does_not_wait_for_a_segment_conversion(env, monkeypatch):
+	entered, release = hold_conversion(env, monkeypatch)
+	speak(env, text="held")
+	assert entered.wait(WAIT_TIMEOUT)
+	assert returns_while_held(env.driver.terminate, release), "terminate() waited for the SSML conversion"
+	quiet_period()
+	assert env.native.calls == []
+	assert tracked_segments(env.driver) == {}
+
+
+def test_cancel_does_not_wait_for_an_ordinary_conversion(env, monkeypatch):
+	entered, release = hold_conversion(env, monkeypatch)
+	env.native.scripts.append({"auto_return": True})
+	speaking = Thread(target=lambda: env.driver.speak(("legacy",)), daemon=True)
+	speaking.start()
+	assert entered.wait(WAIT_TIMEOUT)
+	assert returns_while_held(env.driver.cancel, release), "cancel() waited for the SSML conversion"
+	speaking.join(WAIT_TIMEOUT)
+	assert not speaking.is_alive()
+	# The cancel returned before the utterance existed, so it is queued; production's second
+	# stop is the scheduler's after speak returns.
+	call = env.native.wait_call()
+	assert call.text == b"<speak>legacy</speak>"
+	assert call.returned.wait(WAIT_TIMEOUT)
+	env.driver.cancel()
+	eventually(lambda: tracked_segments(env.driver) == {})
+
+
+def failing_conversion(converter, commands):
+	raise ValueError("conversion failed")
+
+
+def test_a_failing_segment_conversion_fails_the_segment_and_leaks_nothing(env, monkeypatch):
+	monkeypatch.setattr(env.inner.SsmlConverter, "convertToXml", failing_conversion)
+	_, _, failed = speak(env)
+	event = failed.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert isinstance(event.error, ValueError)
+	assert env.native.calls == []
+	assert tracked_segments(env.driver) == {}
+	monkeypatch.undo()
+	env.native.scripts.append({"auto_return": True})
+	_, _, events = speak(env, segment=2)
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_a_failing_ordinary_conversion_raises_and_leaks_nothing(env, monkeypatch):
+	monkeypatch.setattr(env.inner.SsmlConverter, "convertToXml", failing_conversion)
+	with pytest.raises(ValueError, match="conversion failed"):
+		env.driver.speak(("bad",))
+	assert tracked_segments(env.driver) == {}
+	monkeypatch.undo()
+	env.native.scripts.append({"auto_return": True})
+	env.driver.speak(("good",))
+	assert env.native.wait_call().returned.wait(WAIT_TIMEOUT)
+	eventually(lambda: env.dones == [env.driver])

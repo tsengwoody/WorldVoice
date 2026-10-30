@@ -289,7 +289,12 @@ class _RHVoiceStrategy(NativeStrategy):
 	def __init__(self, driver):
 		self._driver = weakref.ref(driver)
 
-	def submit(self, host, record, commands):
+	def prepare(self, host, commands, operation):
+		# Segments and ordinary speech alike: RHVoice's speak() passes raw commands to enqueue().
+		driver = self._driver()
+		return rhvoice.SsmlConverter(driver, driver.language).convertToXml(commands)
+
+	def submit(self, host, record, text):
 		driver = self._driver()
 		with driver._segmentCondition:
 			identity = driver._segmentNextId
@@ -297,8 +302,6 @@ class _RHVoiceStrategy(NativeStrategy):
 			record.native = _RHVoiceMessage(identity)
 			driver._segmentById[identity] = record
 		try:
-			converter = rhvoice.SsmlConverter(driver, driver.language)
-			text = converter.convertToXml(commands)
 			inner = driver._inner
 			library = record.native.library = _NativeLibrary(
 				host,
