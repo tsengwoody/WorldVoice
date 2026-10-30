@@ -3,7 +3,6 @@
 from collections.abc import Callable, MutableMapping
 
 from synthDrivers.WorldVoice.runtime.voiceSettings import PARAMETER_NAMES
-from synthDrivers.WorldVoice.voices.roles import prune_assignments
 
 
 class RolePanelPresenter:
@@ -123,6 +122,7 @@ class RolePanelPresenter:
 			manager.preview_voice_parameter_consistent(manager.default_voice_instance)
 		self._edit.apply()  # A failure leaves everything below unsaved.
 
+		# Only the locales the user changed are written; the rest, other engines' roles included, stay.
 		assignments = manager.roles.assignments()
 		for locale, name in self._pending.items():
 			if name:
@@ -133,7 +133,7 @@ class RolePanelPresenter:
 		manager.engine_consistency.preview = None
 		manager.voice_consistency.enabled = self.keepVoice
 		manager.parameter_consistency.enabled = self.keepParameters
-		manager.roles.save(prune_assignments(assignments, manager.locale_to_voices_map))
+		manager.roles.save(assignments)
 
 		if self.keepVoice:
 			chosen = self._pending.get(manager.voice_consistency.main_locale(manager.default_voice_instance))

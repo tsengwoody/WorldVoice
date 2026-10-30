@@ -128,10 +128,36 @@ def test_engine_consistency_preview_cancel_and_apply(env):
 	env.presenter.setEngineConsistency(True)
 	env.presenter.apply()
 	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleEngineConsistent"] is True
-	assert "fr" not in env.conf["WorldVoice"]["role"]
+	# The other engine's role is kept, and only skipped while engine consistency is on.
+	assert env.conf["WorldVoice"]["role"]["fr"] == {"voice": env.b.name}
+	assert env.manager.get_voice_name_for_language("fr") == env.a.name
 	env.presenter.discard()
 	assert env.manager.engine_consistency.enabled is True
 	assert env.manager.engine_consistency.preview is None
+
+
+def keep_engine_saved(env):
+	env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleEngineConsistent"] = True
+	env.presenter.discard()  # re-read pending flags from config
+
+
+def test_apply_keeps_an_untouched_role_of_another_engine(env):
+	keep_engine_saved(env)
+	env.conf["WorldVoice"]["role"]["fr"] = {"voice": env.b.name}
+	# The panel lists only the main engine's voices, so fr shows no selection.
+	assert env.presenter.voices("fr") == []
+	assert env.presenter.selectedVoice("fr") == env.b.name
+	env.presenter.selectVoice("en", env.c.name)
+	env.presenter.apply()
+	assert env.conf["WorldVoice"]["role"] == {"en": {"voice": env.c.name}, "fr": {"voice": env.b.name}}
+
+
+def test_apply_writes_only_the_changed_locales(env):
+	keep_engine_saved(env)
+	env.conf["WorldVoice"]["role"]["fr"] = {"voice": env.b.name}
+	env.presenter.selectVoice("fr", "")
+	env.presenter.apply()
+	assert env.conf["WorldVoice"]["role"] == {"en": {"voice": env.a.name}}
 
 
 def test_discard_after_apply_rereads_saved_flags(env):

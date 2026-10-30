@@ -170,6 +170,16 @@ def test_locale_without_an_assignment_selects_no_voice(ui):
 	assert not any(slider.enabled for slider in sliders(panel))
 
 
+def test_a_stored_voice_the_locale_does_not_list_shows_no_select(ui):
+	# For example another engine's role while engine consistency is on: shown, not changed.
+	panel = ui.panel
+	ui.presenter.assigned["zh"] = "gone"
+	choose(panel, panel._localesChoice, 1)
+	assert panel._voicesChoice.selection == 0
+	assert not any(slider.enabled for slider in sliders(panel))
+	assert ui.presenter.calls == []
+
+
 def test_choosing_a_voice_assigns_it_and_shows_what_it_supports(ui):
 	panel = ui.panel
 	choose(panel, panel._localesChoice, 0)
