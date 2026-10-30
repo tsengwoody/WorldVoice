@@ -1,10 +1,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: WorldVoice 5.2.1\n"
+"Project-Id-Version: 'WorldVoice' '7.0'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
 "POT-Creation-Date: 2026-10-26 02:26+0000\n"
-"PO-Revision-Date: 2026-05-13 07:23+0300\n"
+"PO-Revision-Date: 2026-10-30 09:52+0300\n"
 "Last-Translator: \n"
 "Language-Team: Russian translation team <nvda.ru>, Danil Kostenkov "
 "<danilkostenkov38@gmail.com>\n"
@@ -366,6 +366,12 @@ msgstr "Настройки"
 #, python-format
 msgid "WorldVoice - %s"
 msgstr "%s - WorldVoice"
+
+#. Translators: Label for a setting in voice settings dialog: the speech engine whose voices
+#. the Voice list and the settings ring offer. Choosing one switches to a voice of that engine.
+#: addon/synthDrivers/WorldVoice/__init__.py:130
+msgid "Speec&h engine"
+msgstr "Р&ечевой движок"
 
 #: addon/synthDrivers/WorldVoice/__init__.py:147
 #: addon/synthDrivers/WorldVoice/__init__.py:150
