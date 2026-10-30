@@ -85,6 +85,14 @@ def test_a_skipped_full_locale_role_falls_back_to_the_primary_role(monkeypatch):
 	assert manager.get_voice_name_for_language("fr_CA") == "A:c"
 
 
+def test_initial_voice_is_the_available_role_of_any_engine(monkeypatch):
+	# Before NVDA sets a voice there is no main engine to keep consistent with (spec D3).
+	_, _conf, manager = make_manager(monkeypatch, engine=True)
+	assert manager.initial_voice_name("fr_CA") == "B:b"
+	assert manager.get_voice_name_for_language("fr_CA") == "A:a"
+	assert manager.initial_voice_name("en") == "A:a"  # X:gone is not available
+
+
 ROLE_LOCALES = ("en", "fr", "fr_CA", "de")
 ROLE_VOICES = ("A:a", "B:b", "A:c", "X:gone")
 

@@ -454,7 +454,7 @@ class SynthDriver(BaseSynthDriver):
 
 	def _get_voice(self):
 		if self._voice is None:
-			return self._voiceManager.get_voice_name_for_language(languageHandler.getLanguage())
+			return self._voiceManager.initial_voice_name(languageHandler.getLanguage())
 		return self._voiceManager.default_voice_name
 
 	def _set_voice(self, voiceName):

@@ -315,6 +315,16 @@ class VoiceManager:
 			return configured
 		return self.default_voice_name
 
+	def initial_voice_name(self, language: str) -> str:
+		"""The voice the synth reports before NVDA sets one: language's available role voice, else the main voice.
+
+		Any engine's role voice counts: no main voice is chosen yet, so there is no engine to keep consistent with.
+		"""
+		configured = self.roles.voice_for(language, self.catalog.by_name.__contains__)
+		if configured is not None:
+			return configured
+		return self.default_voice_name
+
 	def get_voice_locale_for_language(self, language) -> str | None:
 		"""The locale of the voice get_voice_name_for_language picks; None when that voice has no spec."""
 		spec = self.catalog.by_name.get(self.get_voice_name_for_language(language))
