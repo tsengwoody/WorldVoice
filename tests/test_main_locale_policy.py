@@ -41,6 +41,22 @@ def test_engine_consistency_reads_config_and_previews_without_saving(monkeypatch
 	assert [v.name for v in policy.visible(table, "A")] == ["a", "b"]
 
 
+def test_engine_consistency_admits_other_engines_only_when_saved_off(monkeypatch):
+	module = load_policy(monkeypatch)
+	conf = flags(engine=True)
+	policy = module.EngineConsistency(lambda: conf)
+	assert policy.admits("A", "A") is True
+	assert policy.admits("B", "A") is False
+	# A settings panel's unsaved choice only changes the lists, not which role voices speak.
+	policy.preview = False
+	assert policy.admits("B", "A") is False
+	policy.preview = None
+	policy.enabled = False
+	assert policy.admits("B", "A") is True
+	policy.preview = True
+	assert policy.admits("B", "A") is True
+
+
 def test_engine_consistency_follows_a_profile_switch(monkeypatch):
 	module = load_policy(monkeypatch)
 	profiles = {"normal": flags(engine=False), "app": flags(engine=True)}

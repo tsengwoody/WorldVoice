@@ -14,6 +14,7 @@ def _flags(conf_provider: Callable[[], Any]) -> Any:
 class EngineConsistency:
 	"""keepMainLocaleEngineConsistent: role choices come from the main voice's engine.
 
+	Only the main voice's engine's roles speak (``admits``); other engines' roles stay stored.
 	``enabled`` is the saved flag; ``preview`` is a settings panel's unsaved choice,
 	which the visible voice list follows until it is cleared.
 	"""
@@ -37,6 +38,10 @@ class EngineConsistency:
 		if active:
 			return [voice for voice in table if voice.engine == default_engine]
 		return list(table)
+
+	def admits(self, engine: str, default_engine: str) -> bool:
+		"""Whether a role voice of engine speaks beside a main voice of default_engine (saved flag)."""
+		return not self.enabled or engine == default_engine
 
 
 class VoiceConsistency:
