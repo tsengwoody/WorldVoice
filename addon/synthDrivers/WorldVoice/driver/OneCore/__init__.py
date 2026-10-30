@@ -243,14 +243,34 @@ class SynthDriver(BaseOneCoreSynthDriver, SegmentHostSpeaker):
 				del self._callback
 		except BaseException:
 			# VoiceClassAdapter.open gets no core to terminate when the
-			# constructor raises. Only the segment host is the wrapper's to
-			# release: a native token NVDA's constructor left cannot be.
+			# constructor raises: release what was built, newest first. NVDA's
+			# constructor may raise after it created its native callback and
+			# token (e.g. setting the default voice).
+			releases = [self._segmentHost.terminate]
+			if getattr(self, "_callbackInst", None) is not None:
+				releases.append(self._releaseParentNative)
 			release_newest_first(
-				[self._segmentHost.terminate],
+				releases,
 				logger=log,
 				message="WorldVoice OneCore initialization cleanup failed",
 			)
 			raise
+
+	def _releaseParentNative(self):
+		"""Release the native callback and token a failed NVDA constructor left, as its terminate does."""
+		# Block callbacks first. The trampoline stays alive for the process, as
+		# in terminate(): the helper may keep calling it.
+		self._earlyExitCB = True
+		self._segmentCallback.detach()
+		_TERMINATED_CALLBACKS.append(self._callbackInst)
+		token = getattr(self, "_ocSpeechToken", None)
+		try:
+			# A token ocSpeech_initialize never filled (it raised or returned null) has nothing to end.
+			if token is not None and token.value:
+				self._dll.ocSpeech_terminate(token)
+		finally:
+			self._ocSpeechToken = None
+			self._callbackInst = None
 
 	@property
 	def _player(self):

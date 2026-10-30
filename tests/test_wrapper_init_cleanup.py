@@ -2,9 +2,10 @@
 
 VoiceClassAdapter.open gets no core to terminate when SynthDriver() raises, so the constructor itself
 releases, newest first, what the wrapper built: the parent driver once its constructor has returned
-(RHVoice, eSpeak), SAPI5's sink, worker and player, and always the segment delivery thread. A failing
-release step is logged and the rest still run. What a parent constructor left half-built stays out of
-reach: it cannot be released safely.
+(RHVoice, eSpeak), SAPI5's sink, worker and player, OneCore's native callback and token once NVDA's
+constructor created them, and always the segment delivery thread. A failing release step is logged and
+the rest still run. Anything else a parent constructor left half-built stays out of reach: it cannot be
+released safely.
 """
 
 import sys
@@ -12,7 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 from espeak_drain_harness import Player as EspeakPlayer, finish as finish_espeak, load_espeak
-from onecore_drain_harness import load_onecore
+from onecore_drain_harness import load_onecore, native_release_state
 from rhvoice_drain_harness import NativeFunction as RHVoiceFunction, finish as finish_rhvoice, load_rhvoice
 from runtime_harness import delivery_thread, segment_lifecycle
 from sapi5_drain_harness import Native as SapiNative, Player as SapiPlayer, load_sapi5
@@ -286,13 +287,91 @@ def _fail_onecore_initialize(env):
 	env.native.ocSpeech_initialize = env.native.ocSpeech_initialize.__class__(initialize)
 
 
+def _fail_onecore_set_voice(env):
+	# NVDA's constructor sets its default voice after it created the native token.
+	def setVoice(token, index):
+		raise Boom("ocSpeech_setVoice failed")
+
+	env.native.ocSpeech_setVoice = env.native.ocSpeech_setVoice.__class__(setVoice)
+
+
+def _record_token_release(env, record, built, error=None):
+	"""Record each ocSpeech_terminate: the token value and the driver's callback state then."""
+	released = []
+
+	def terminate(token):
+		record.calls.append("token")
+		state = native_release_state(built[0])
+		released.append((token.value, state.early_exit, state.detached))
+		if error is not None:
+			raise error
+
+	env.native.ocSpeech_terminate = env.native.ocSpeech_terminate.__class__(terminate)
+	return released
+
+
+def _onecore_probe(env):
+	"""A SynthDriver subclass that keeps the half-built driver its constructor raised from."""
+	built = []
+
+	class Probe(env.outer.SynthDriver):
+		def __init__(self):
+			built.append(self)
+			super().__init__()
+
+	return Probe, built
+
+
 def test_onecore_a_failing_nvda_constructor_releases_the_host(onecore):
 	env, record = onecore
+	probe, built = _onecore_probe(env)
+	_record_token_release(env, record, built)
 	_fail_onecore_initialize(env)
 	with pytest.raises(Boom, match="ocSpeech_initialize failed"):
-		env.outer.SynthDriver()
+		probe()
 	_assert_host_released(record)
 	assert record.calls == ["host"]
+
+
+def test_onecore_a_failing_step_after_the_token_terminates_it_and_releases_the_host(onecore):
+	env, record = onecore
+	probe, built = _onecore_probe(env)
+	released = _record_token_release(env, record, built)
+	_fail_onecore_set_voice(env)
+	with pytest.raises(Boom, match="ocSpeech_setVoice failed"):
+		probe()
+	# Callbacks are blocked before the token ends; then the token, then the host.
+	assert released == [(123, True, True)]
+	assert record.calls == ["token", "host"]
+	_assert_host_released(record)
+	assert env.outer._TERMINATED_CALLBACKS[-1] is env.native.callback
+	state = native_release_state(built[0])
+	assert state.token is None
+	assert state.callback is None
+
+
+def test_onecore_a_null_token_is_not_terminated(onecore):
+	env, record = onecore
+	probe, built = _onecore_probe(env)
+	_record_token_release(env, record, built)
+	env.native.ocSpeech_initialize = env.native.ocSpeech_initialize.__class__(lambda callback: 0)
+	_fail_onecore_set_voice(env)
+	with pytest.raises(Boom, match="ocSpeech_setVoice failed"):
+		probe()
+	assert record.calls == ["host"]
+	_assert_host_released(record)
+
+
+def test_onecore_a_failing_token_release_is_logged_and_the_original_error_raised(onecore):
+	env, record = onecore
+	probe, built = _onecore_probe(env)
+	_record_token_release(env, record, built, error=RuntimeError("terminate failed"))
+	_fail_onecore_set_voice(env)
+	with pytest.raises(Boom, match="ocSpeech_setVoice failed"):
+		probe()
+	assert record.calls == ["token", "host"]
+	_assert_host_released(record)
+	_assert_one_cleanup_error_logged(record, "OneCore")
 
 
 def test_onecore_a_failing_wrapper_step_before_the_parent_releases_the_host(onecore, monkeypatch):

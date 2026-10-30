@@ -330,3 +330,13 @@ def queued_segment_jobs(driver):
 def segment_worker(driver):
 	"""The wrapper's worker thread that feeds the native queue, or None before it started."""
 	return driver._segmentWorker
+
+
+def native_release_state(driver):
+	"""What the wrapper and NVDA's constructor hold of the native callback and token."""
+	return SimpleNamespace(
+		token=getattr(driver, "_ocSpeechToken", None),
+		callback=getattr(driver, "_callbackInst", None),
+		early_exit=getattr(driver, "_earlyExitCB", None),
+		detached=driver._segmentCallback._driver is None,
+	)
