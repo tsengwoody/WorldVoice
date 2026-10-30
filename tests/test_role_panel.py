@@ -93,6 +93,12 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 	current = [synth]
 	speech = {"WorldVoice": {}}
 	hooks = {}
+	changes = []
+
+	def changeVoice(target, voice):
+		# NVDA's synthDriverHandler.changeVoice sets the voice, then rebuilds the ring and dictionary.
+		changes.append((target, voice))
+		target.voice = voice
 
 	class Presenter:
 		def __init__(self, manager, **kwargs):
@@ -135,6 +141,7 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 				),
 			),
 			"RolePanelPresenter": Presenter,
+			"synthDriverHandler": types.SimpleNamespace(changeVoice=changeVoice),
 		},
 	)
 	panel = object.__new__(panel_type)
@@ -150,9 +157,11 @@ def test_panel_opens_its_presenter_for_the_worldvoice_manager():
 	# The dialog is not modal: setting the main voice asks for the current synth when it runs.
 	hooks["setMainVoice"]("b")
 	assert synth.voice == "b" and speech["WorldVoice"]["voice"] == "b"
+	assert changes == [(synth, "b")]
 	current[0] = None
 	hooks["setMainVoice"]("c")
 	assert synth.voice == "b" and speech["WorldVoice"]["voice"] == "c"
+	assert changes == [(synth, "b")]
 
 
 def test_save_does_nothing_after_the_synth_was_switched_away():

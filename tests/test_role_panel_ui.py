@@ -18,6 +18,7 @@ VOICES = {
 class Presenter:
 	def __init__(self, manager, *, speechSection, setMainVoice):
 		self.manager = manager
+		self.setMainVoice = setMainVoice
 		self.calls = []
 		self.keepEngine, self.keepVoice, self.keepParameters = True, False, True
 		self.assigned = {"en": "tom"}
@@ -112,6 +113,20 @@ def test_panel_for_another_synth_only_says_so(monkeypatch):
 	assert info.value == "Your current speech synthesizer is not WorldVoice."
 	assert panel.disable is True
 	assert env.shown == []
+
+
+def test_setting_the_main_voice_goes_through_nvdas_change_voice(ui):
+	# changeVoice also rebuilds the settings ring and loads the voice dictionary (spec §3.6).
+	ui.presenter.setMainVoice("eva")
+	assert ui.env.voice_changes == [(ui.synth, "eva")]
+	assert ui.env.conf["speech"]["WorldVoice"]["voice"] == "eva"
+
+
+def test_setting_the_main_voice_without_worldvoice_only_writes_the_config(ui):
+	ui.env.current[0] = SimpleNamespace(name="espeak")
+	ui.presenter.setMainVoice("eva")
+	assert ui.env.voice_changes == []
+	assert ui.env.conf["speech"]["WorldVoice"]["voice"] == "eva"
 
 
 def test_opened_panel_shows_locales_and_consistency_flags_with_no_voice_yet(ui):

@@ -3,6 +3,7 @@
 import addonHandler
 import config
 import gui
+import synthDriverHandler
 import wx
 from gui import guiHelper
 from gui.settingsDialogs import SettingsPanel
@@ -39,7 +40,8 @@ class SpeechRoleSettingsPanel(SettingsPanel):
 		def setMainVoice(name):
 			current = worldvoice_synth()
 			if current is not None:
-				current.voice = name
+				# NVDA's changeVoice: the settings ring and the voice dictionary follow the new voice.
+				synthDriverHandler.changeVoice(current, name)
 			config.conf["speech"][synth.name]["voice"] = name
 
 		self._presenter = RolePanelPresenter(

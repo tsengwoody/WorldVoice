@@ -786,7 +786,12 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 		eventQueue="event queue",
 		queueFunction=lambda queue, function: env.queued.append((queue, function)),
 	)
-	stubs.module("synthDriverHandler", getSynth=lambda: env.current[0])
+	env.voice_changes = []
+	stubs.module(
+		"synthDriverHandler",
+		getSynth=lambda: env.current[0],
+		changeVoice=lambda synth, voice: env.voice_changes.append((synth, voice)),
+	)
 	env.settings, env.controls = _pipeline_ui(monkeypatch, stubs, env.conf)
 	env.pipeline_settings = env.settings.pipeline_settings
 	load_source(
