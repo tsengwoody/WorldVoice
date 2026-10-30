@@ -81,3 +81,16 @@ spec 說「feed 與 idle 的失敗在傳出前就已記在 record 上」，這�
 2. **其他四個引擎的跨引擎窗口不處理**（spec §6.2）：eSpeak、SAPI5、OneCore、VE／Cerence 的 `cancel()` 在已准入的 feed 還在飛時就返回。要補等待會改它們的 cancel 延遲；本 phase 不做。
 3. **C6 只在 Linux fake 上驗證**：Windows 上 OneCore 啟動失敗的 token 釋放未實測（spec §2 說明沒有實用的手動項目）。
 4. **不加 changelog／readme**（spec §4）：三項都沒有 NVDA 使用者可察覺的變化。
+
+## 修正記錄
+
+日期：2026-10-30。修正者：Opus 5.5（一般流程 §3.4）。只有 Minor，依 §3.4 不做修正 review。
+
+| 發現 | commit | 修正 |
+| --- | --- | --- |
+| M1 | `42a3cc9` docs: call RHVoice's cancel wait bounded rather than short | `driver/RHVoice/__init__.py` 的 cancel 註解改成「The wait is bounded: every callback is refused now, so RHVoice_speak aborts at its next callback (how soon it returns is unmeasured)」，和 spec §3.3(d)、§3.4 用語一致。 |
+| M2 | `cd8e855` docs: note that RHVoice segments now fail on player creation errors | spec §1 Errors 段改寫：`_WavePlayer.feed`／`idle` 的失敗結果不變；`AudioPlayer.do_get_player()`（建 `nvwave.WavePlayer`、讀 `outputDeviceSection`）的錯誤以前被內層吞掉、段落可能 `SEGMENT_DRAINED` 但最後一個 chunk 沒播，現在記在 record 上而回報 `SEGMENT_FAILED`，是更正確的結果。`segmentDone` docstring 補「including player creation failures, which the inner callback swallowed」。無行為變更。 |
+| M3 | `71e4638` test: pin the vendored RHVoice DoneCallback that segmentDone mirrors | `tests/test_native_strategy_guards.py` 新增 `test_rhvoice_segment_done_mirrors_the_pinned_inner_done_callback`：以 `ast.unparse` 正規化內層 `DoneCallback.__call__`，和 `RHVOICE_DONE_CALLBACK_CALL` 比對（照同檔其他 guard 用 AST 讀原始碼、不 import）；失敗訊息要求重核 `_RHVoiceInner.segmentDone()` 再更新常數。驗證：暫時從預期文字拿掉 `self.__player.idle()` 一行 → 1 failed（訊息如上）；還原後同檔 50 passed。 |
+| M4 | `6b95ea4` test: use snake_case locals in the RHVoice cancel tests | `tests/test_rhvoice_segment_drain.py` 的 `atReturn`、`recordedFeed`、`recordedStop`、`failingOnceStop`、`firstStop` 改成 `at_return`、`recorded_feed`、`recorded_stop`、`failing_once_stop`、`first_stop`；39 passed。`tests/test_wrapper_init_cleanup.py` 的 `setVoice` 不改：該檔既有的替身函式都沿用被替換的 native 名稱（`deleteEngine`、`stopGate`、`sonicInitialize`），`setVoice` 對應 `ocSpeech_setVoice`，和該檔一致（見帳本 Ruling）。 |
+
+驗證（head `6b95ea4`）：`python3 -m pytest -q -p no:cacheprovider tests` 3638 passed、0 skipped（3637 + M3 的 1 個 guard；MemAvailable 6.3 GB，單一 process）；`prek run --all-files` 8 個 hook 全 Passed；`git diff --check master` 無輸出；受保護路徑與 `git ls-files …/Neural` 皆無輸出。未做 Windows／NVDA 實機驗證（本輪只有註解、spec、測試變更）。
