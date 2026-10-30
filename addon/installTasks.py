@@ -48,6 +48,45 @@ def _extractCoreArchive(archivePath, workspacePath):
 			)
 
 
+def _isRoleSection(value):
+	# A dict here, NVDA's AggregatedSection (a mapping, but not a dict) in NVDA.
+	return hasattr(value, "items") and hasattr(value, "get")
+
+
+def _plainSection(value):
+	return {key: _plainSection(item) if _isRoleSection(item) else item for key, item in value.items()}
+
+
+def _removeLegacyRoleKeys():
+	"""Drop the speech roles stored under a full locale (zh_TW, pt-br), once per install.
+
+	Versions before 2026-07-28 also wrote the main voice's full locale; the speech role panel
+	shows and writes only primary languages (zh, en), and the lookup prefers a full-locale key,
+	so such a key would speak instead of the panel's role, with no way to remove it.
+	Only the configuration active now is cleaned; NVDA saves it on exit.
+	"""
+	try:
+		if "WorldVoice" not in config.conf or "role" not in config.conf["WorldVoice"]:
+			return
+		roles = config.conf["WorldVoice"]["role"]
+		legacy = [
+			locale
+			for locale, value in roles.items()
+			if ("_" in locale or "-" in locale) and _isRoleSection(value)
+		]
+		if not legacy:
+			return
+		# Assigning a section replaces it in the profile NVDA writes to.
+		config.conf["WorldVoice"]["role"] = {
+			locale: _plainSection(value) if _isRoleSection(value) else value
+			for locale, value in roles.items()
+			if locale not in legacy
+		}
+		log.info(f"Removed legacy speech role keys: {legacy}")
+	except Exception:
+		log.exception("Could not remove legacy speech role keys")
+
+
 def onInstall():
 	"""
 	Handles the installation of core components from zip archives.
@@ -67,6 +106,8 @@ def onInstall():
 		# document markup on top. Turn it off once; users may turn it back on, and WorldVoice
 		# honours both command types.
 		config.conf["speech"]["autoLanguageSwitching"] = False
+	else:
+		_removeLegacyRoleKeys()
 
 	coreDir = os.path.join(os.path.dirname(__file__), "core")
 	if not os.path.isdir(coreDir):

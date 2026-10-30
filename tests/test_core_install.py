@@ -108,6 +108,73 @@ def test_an_update_keeps_the_users_language_switching(install):
 	assert install.conf["speech"]["autoLanguageSwitching"] is True
 
 
+class Section:
+	"""Stands in for NVDA's AggregatedSection: a mapping, but not a dict."""
+
+	def __init__(self, **values):
+		self._values = values
+
+	def items(self):
+		return self._values.items()
+
+	def get(self, key, default=None):
+		return self._values.get(key, default)
+
+
+def test_an_update_removes_legacy_full_locale_role_keys(install):
+	# Versions before 2026-07-28 also wrote the full locale (zh_TW); the panel shows and writes
+	# only primary languages, so such a key would shadow the panel's role for good.
+	install.conf["WorldVoice"]["role"] = {
+		"zh_TW": {"voice": "A:old"},
+		"pt-br": {"voice": "B:br"},
+		"zh": {"voice": "A:new"},
+		"en": Section(voice="A:en"),
+	}
+	install.module.onInstall()
+	assert install.conf["WorldVoice"]["role"] == {"zh": {"voice": "A:new"}, "en": {"voice": "A:en"}}
+	assert all(type(value) is dict for value in install.conf["WorldVoice"]["role"].values())
+	assert ("info", "Removed legacy speech role keys: ['zh_TW', 'pt-br']") in install.logged
+
+
+def test_legacy_role_cleanup_keeps_scalars_and_odd_sections(install):
+	install.conf["WorldVoice"]["role"] = {
+		"zh_TW": "not a role",
+		"fr_CA": Section(voice="B:ca"),
+		"de": {},
+		"en": {"voice": "A:en"},
+	}
+	install.module.onInstall()
+	assert install.conf["WorldVoice"]["role"] == {"zh_TW": "not a role", "de": {}, "en": {"voice": "A:en"}}
+
+
+def test_roles_without_legacy_keys_are_not_rewritten(install):
+	roles = {"zh": {"voice": "A:zh"}, "en": {"voice": "A:en"}}
+	install.conf["WorldVoice"]["role"] = roles
+	install.module.onInstall()
+	assert install.conf["WorldVoice"]["role"] is roles
+
+
+def test_an_update_without_roles_adds_none(install):
+	install.module.onInstall()
+	assert install.conf["WorldVoice"] == {}
+
+
+def test_a_failing_role_cleanup_is_logged_and_the_install_goes_on(install):
+	class Broken:
+		def items(self):
+			raise RuntimeError("broken config")
+
+		def get(self, key, default=None):
+			return default
+
+	install.conf["WorldVoice"]["role"] = Broken()
+	install.core.mkdir()
+	make_zip(install.core / "a.zip", **{"a.txt": "a"})
+	install.module.onInstall()
+	assert install.logged.count(("exception", "Could not remove legacy speech role keys")) == 1
+	assert (install.workspace / "a.txt").read_text() == "a"
+
+
 def test_install_extracts_every_core_archive_in_order_and_removes_it(install):
 	install.core.mkdir()
 	make_zip(install.core / "b.zip", **{"Engine/shared.txt": "from b"})
