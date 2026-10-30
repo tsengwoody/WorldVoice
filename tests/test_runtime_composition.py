@@ -113,6 +113,28 @@ def test_an_unpublished_engine_is_never_visible(composition):
 		manager.get_voice_variants("second:a")
 
 
+def test_engine_queries_follow_the_catalog(composition):
+	c = composition
+	c.engine("first"), c.engine("second")
+	manager = c.create()
+	assert manager.engines == ("first", "second")
+	assert manager.engine_of("second:b") == "second"
+	assert list(manager.voice_infos_for_engine("second")) == ["second:a", "second:b"]
+	with pytest.raises(LookupError):
+		manager.voice_infos_for_engine("missing")
+
+
+def test_voice_name_for_engine_uses_the_configured_role(composition):
+	c = composition
+	c.engine("first"), c.engine("second")
+	manager = c.create()
+	c.config.conf["WorldVoice"]["role"]["zh"] = {"voice": "second:b"}
+	assert manager.voice_name_for_engine("second", "zh") == "second:b"
+	# The role voice of another engine is ignored; the engine's own zh voice is picked.
+	assert manager.voice_name_for_engine("first", "zh") == "first:b"
+	assert manager.voice_name_for_engine("first", "en_US") == "first:a"
+
+
 def test_after_terminate_nothing_resolves(composition):
 	c = composition
 	c.engine("ok")

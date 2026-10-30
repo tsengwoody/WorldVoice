@@ -27,6 +27,9 @@ class VoiceCatalog:
 	# Mutable on purpose: NVDA's SynthDriver.availableVoices is an OrderedDict.
 	voice_infos: "OrderedDict[str, VoiceInfo]"
 	all_languages: tuple[str, ...]
+	# The engines in table order, and each engine's entries of voice_infos (the same objects).
+	engines: tuple[str, ...]
+	engine_voice_infos: "Mapping[str, OrderedDict[str, VoiceInfo]]"
 
 	@classmethod
 	def from_specs(cls, specs: Iterable[VoiceSpec]) -> "VoiceCatalog":
@@ -34,11 +37,17 @@ class VoiceCatalog:
 		for spec in specs:
 			by_name[spec.name] = spec
 		table = tuple(sorted(by_name.values(), key=attrgetter("engine", "language", "name")))
+		voice_infos = OrderedDict((v.name, VoiceInfo(v.name, v.description, v.language)) for v in table)
+		engine_voice_infos: dict[str, OrderedDict[str, VoiceInfo]] = {}
+		for spec in table:
+			engine_voice_infos.setdefault(spec.engine, OrderedDict())[spec.name] = voice_infos[spec.name]
 		return cls(
 			table=table,
 			by_name=MappingProxyType(by_name),
-			voice_infos=OrderedDict((v.name, VoiceInfo(v.name, v.description, v.language)) for v in table),
+			voice_infos=voice_infos,
 			all_languages=tuple(sorted(group_by_primary_locale(table))),
+			engines=tuple(engine_voice_infos),
+			engine_voice_infos=MappingProxyType(engine_voice_infos),
 		)
 
 	def readable_name(self, locale: str) -> str:

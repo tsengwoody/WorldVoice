@@ -65,6 +65,28 @@ def test_catalog_is_immutable(catalog_module, spec):
 		catalog.table = ()
 	with pytest.raises(TypeError):
 		catalog.by_name["z"] = None
+	with pytest.raises(dataclasses.FrozenInstanceError):
+		catalog.engines = ()
+	with pytest.raises(TypeError):
+		catalog.engine_voice_infos["Z"] = None
+
+
+def test_catalog_groups_voices_by_engine_in_table_order(catalog_module, spec):
+	catalog = catalog_module.VoiceCatalog.from_specs(
+		[spec("x", "B:x", "B", "de"), spec("y", "A:y", "A", "en_US"), spec("w", "B:w", "B", "de")]
+		+ [spec("z", "A:z", "A", "en_GB")],
+	)
+	assert catalog.engines == ("A", "B")
+	assert {engine: list(infos) for engine, infos in catalog.engine_voice_infos.items()} == {
+		"A": ["A:z", "A:y"],
+		"B": ["B:w", "B:x"],
+	}
+	for infos in catalog.engine_voice_infos.values():
+		assert isinstance(infos, OrderedDict)
+		for name, info in infos.items():
+			# The same entry, so the voice text keeps its engine suffix.
+			assert info is catalog.voice_infos[name]
+	assert list(catalog.voice_infos) == ["A:z", "A:y", "B:w", "B:x"]
 
 
 def test_empty_catalog_has_no_voices(catalog_module):
@@ -75,6 +97,12 @@ def test_empty_catalog_has_no_voices(catalog_module):
 		[],
 		(),
 	)
+
+
+def test_empty_catalog_has_no_engines(catalog_module):
+	empty = catalog_module.EMPTY_CATALOG
+	assert empty.engines == ()
+	assert dict(empty.engine_voice_infos) == {}
 
 
 def test_group_by_primary_locale(catalog_module, spec):

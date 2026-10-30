@@ -61,6 +61,19 @@ def test_neural_style_plugin_runs_through_the_manager(composition):
 	assert core.terminated
 
 
+def test_a_plugin_is_listed_under_its_engine(composition):
+	composition.engine("ok")
+	Voice = neural_voice(composition.driver.Voice)
+	manager = composition.create(engine_classes={"ok": composition.engines["ok"], "Neural": Voice})
+	assert "Neural" in manager.engines
+	infos = manager.voice_infos_for_engine("Neural")
+	assert list(infos) == ["Neural:v1"]
+	assert infos["Neural:v1"] is manager.voice_infos["Neural:v1"]
+	assert infos["Neural:v1"].description.endswith(" [Neural]")
+	assert "Neural:v1" not in manager.voice_infos_for_engine("ok")
+	manager.terminate(commit=False)
+
+
 def test_plugin_attributes_exist_on_the_base_voice(composition):
 	base = composition.driver.Voice
 	for name in PLUGIN_VOICE_ATTRIBUTES - {"core"}:

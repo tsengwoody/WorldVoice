@@ -14,6 +14,7 @@ from ..runtime.scheduler import TaskManager
 from ..runtime.session import EngineSession, PlaybackPort
 from ..runtime.voiceSettings import VoiceEditSession, VoiceSettingsStore
 from .catalog import EMPTY_CATALOG, VoiceCatalog, group_by_primary_locale
+from .engineFilter import pick_engine_voice
 from .mainLocalePolicy import EngineConsistency, ParameterConsistency, VoiceConsistency
 from .roles import ConfigRoleRepository
 
@@ -272,6 +273,21 @@ class VoiceManager:
 	@property
 	def voice_infos(self):
 		return self.catalog.voice_infos
+
+	@property
+	def engines(self) -> tuple[str, ...]:
+		return self.catalog.engines
+
+	def engine_of(self, voice_name: str) -> str:
+		return self.get_voice_spec(voice_name).engine
+
+	def voice_infos_for_engine(self, engine: str):
+		"""The voice_infos entries of engine, in table order; LookupError for an unknown engine."""
+		return self.catalog.engine_voice_infos[engine]
+
+	def voice_name_for_engine(self, engine: str, language: str) -> str:
+		"""The voice a switch to engine picks for language: its role voice, else by language."""
+		return pick_engine_voice(self.table, engine, language, self.roles.voice_for(language))
 
 	@property
 	def all_languages(self):
