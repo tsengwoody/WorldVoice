@@ -20,6 +20,7 @@ def manager(capabilities=frozenset()):
 
 
 EXPECTED_IDS = [
+	"engine",
 	"voice",
 	"variant",
 	"rate",
@@ -52,10 +53,12 @@ def test_settings_lists_keep_their_order_and_store_pipeline_values_outside_speec
 	]
 	synth._voiceManager = manager(frozenset({"rateBoost", "inflection"}))
 	assert [s.id for s in synth.supportedSettings] == EXPECTED_IDS
-	pipeline_ids = set(EXPECTED_IDS[8:]) - {"numlan"}
+	pipeline_ids = set(EXPECTED_IDS[9:]) - {"numlan"}
+	# The engine follows the voice, so nothing stores it (spec D1).
+	unstored = pipeline_ids | {"engine"}
 	for setting in synth.allSupportedSettings:
-		assert setting.options.get("useConfig", True) is (setting.id not in pipeline_ids)
-	assert all(setting.options["availableInSettingsRing"] for setting in synth.allSupportedSettings[8:])
+		assert setting.options.get("useConfig", True) is (setting.id not in unstored)
+	assert all(setting.options["availableInSettingsRing"] for setting in synth.allSupportedSettings[9:])
 	# The group size is set in the panels only: no synth setting, no descriptor, not in the ring.
 	assert not hasattr(synth_class, "groupsize")
 	wait = next(s for s in synth.allSupportedSettings if s.id == "globalWaitFactor")

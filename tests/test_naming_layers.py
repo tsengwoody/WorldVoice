@@ -486,11 +486,11 @@ def test_data_sections_hold_no_defined_keys():
 
 
 def test_nvda_setting_ids_are_nvdas(monkeypatch):
-	# The synth's settings are NVDA's ids, its own uwv, and the pipeline table's driver ids; each voice
-	# stores NVDA's ids too. Every one of NVDA's is a setting id in NVDA's own SynthDriver.
+	# The synth's settings are NVDA's ids, its own uwv and engine, and the pipeline table's driver ids;
+	# each voice stores NVDA's ids too. Every one of NVDA's is a setting id in NVDA's own SynthDriver.
 	_synth_class, settings = load_synth(monkeypatch, worldvoice_conf())
 	table_ids = {spec.driver_id for spec in settings.PIPELINE_SETTINGS if spec.driver_id}
-	assert set(_driver_setting_ids(monkeypatch)) - table_ids - {"uwv"} == NVDA_SETTING_IDS
+	assert set(_driver_setting_ids(monkeypatch)) - table_ids - {"uwv", "engine"} == NVDA_SETTING_IDS
 	assert set(_voice_parameter_names()) <= NVDA_SETTING_IDS
 	nvda = (REF / "nvda/source/synthDriverHandler.py").read_text(encoding="utf-8")
 	assert [name for name in sorted(NVDA_SETTING_IDS) if f'"{name}"' not in nvda] == []

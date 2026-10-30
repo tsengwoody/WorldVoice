@@ -3,7 +3,7 @@
 import types
 
 import pytest
-from pipeline_harness import load_synth
+from pipeline_harness import Setting, load_synth
 from ui_harness import (
 	BooleanDriverSetting,
 	DriverSetting,
@@ -15,7 +15,7 @@ from ui_harness import (
 	make_panel,
 )
 
-STANDARD = ["voice", "variant", "rate", "rateBoost", "pitch", "inflection", "volume", "uwv"]
+STANDARD = ["engine", "voice", "variant", "rate", "rateBoost", "pitch", "inflection", "volume", "uwv"]
 TABLE_DRIVER_IDS = [
 	"globalWaitFactor",
 	"numlan",
@@ -56,7 +56,38 @@ def test_ring_follows_the_table_after_the_standard_settings(monkeypatch):
 	ring = [
 		setting.id for setting in synth.supportedSettings if setting.options.get("availableInSettingsRing")
 	]
-	assert ring == ["uwv", *TABLE_DRIVER_IDS]
+	# The engine setting is not in the ring (spec D2); the voice's capabilities hide rate boost and inflection.
+	assert ring == ["voice", "variant", "rate", "pitch", "volume", "uwv", *TABLE_DRIVER_IDS]
+
+
+def test_engine_setting_is_first_unstored_and_off_the_ring(monkeypatch):
+	synth, _table = synth_and_table(monkeypatch)
+	engine = synth.supportedSettings[0]
+	assert (engine.kind, engine.id, engine.label) == ("str", "engine", "Speec&h engine")
+	assert engine.options["useConfig"] is False
+	assert engine.options["availableInSettingsRing"] is False
+	assert synth.allSupportedSettings[0].id == "engine"
+
+
+def test_initial_ring_setting_is_rates_place_in_the_ring(monkeypatch):
+	# NVDA's own answer, rate's index in supportedSettings, would be 3: it counts the engine setting.
+	synth, _table = synth_and_table(monkeypatch)
+	ring = [setting.id for setting in synth.supportedSettings if setting.availableInSettingsRing]
+	assert synth._get_initialSettingsRingSetting() == 2
+	assert ring[2] == "rate"
+
+
+@pytest.mark.parametrize(
+	("ids", "expected"),
+	[(["engine", "voice"], 0), (["engine"], None)],
+)
+def test_initial_ring_setting_without_rate(monkeypatch, ids, expected):
+	synth, _table = synth_and_table(monkeypatch)
+	settings = [
+		Setting("str", setting_id, availableInSettingsRing=setting_id != "engine") for setting_id in ids
+	]
+	monkeypatch.setattr(type(synth), "supportedSettings", property(lambda self: settings))
+	assert synth._get_initialSettingsRingSetting() == expected
 
 
 def test_ring_names_follow_the_label_rule(monkeypatch):

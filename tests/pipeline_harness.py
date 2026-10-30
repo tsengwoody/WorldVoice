@@ -305,39 +305,45 @@ class Setting:
 	def __init__(self, kind, id, label=None, **options):
 		self.kind, self.id, self.label, self.options = kind, id, label, options
 
+	@property
+	def availableInSettingsRing(self):
+		# NVDA's DriverSetting default (autoSettingsUtils/driverSetting.py).
+		return self.options.get("availableInSettingsRing", False)
+
 
 def setting_factory(kind):
 	return lambda id, label=None, **options: Setting(kind, id, label, **options)
 
 
 class Base:
+	# NVDA's standard settings are all in the settings ring (synthDriverHandler.py:129-211).
 	@classmethod
 	def VoiceSetting(cls):
-		return Setting("voice", "voice")
+		return Setting("voice", "voice", availableInSettingsRing=True)
 
 	@classmethod
 	def VariantSetting(cls):
-		return Setting("variant", "variant")
+		return Setting("variant", "variant", availableInSettingsRing=True)
 
 	@classmethod
 	def RateSetting(cls):
-		return Setting("rate", "rate")
+		return Setting("rate", "rate", availableInSettingsRing=True)
 
 	@classmethod
 	def RateBoostSetting(cls):
-		return Setting("rateBoost", "rateBoost")
+		return Setting("rateBoost", "rateBoost", availableInSettingsRing=True)
 
 	@classmethod
 	def PitchSetting(cls):
-		return Setting("pitch", "pitch")
+		return Setting("pitch", "pitch", availableInSettingsRing=True)
 
 	@classmethod
 	def InflectionSetting(cls):
-		return Setting("inflection", "inflection")
+		return Setting("inflection", "inflection", availableInSettingsRing=True)
 
 	@classmethod
 	def VolumeSetting(cls):
-		return Setting("volume", "volume")
+		return Setting("volume", "volume", availableInSettingsRing=True)
 
 	def loadSettings(self, *args, **kwargs):
 		self.loaded = True

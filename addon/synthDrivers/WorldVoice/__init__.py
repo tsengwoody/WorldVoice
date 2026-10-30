@@ -114,9 +114,26 @@ class SynthDriver(BaseSynthDriver):
 			)
 		return DriverSetting(spec.driver_id, spec.label, **options)
 
+	@staticmethod
+	def _engineSetting():
+		"""The speech engine whose voices availableVoices lists; it follows the voice, so nothing stores it."""
+		return DriverSetting(
+			"engine",
+			# Translators: Label for a setting in voice settings dialog: the speech engine whose voices
+			# the Voice list and the settings ring offer. Choosing one switches to a voice of that engine.
+			_("Speec&h engine"),
+			availableInSettingsRing=False,
+			useConfig=False,
+		)
+
 	def _driverSettings(self, capabilities):
 		"""The synth settings; ``capabilities`` None lists every optional voice setting."""
-		settings = [SynthDriver.VoiceSetting(), SynthDriver.VariantSetting(), SynthDriver.RateSetting()]
+		settings = [
+			SynthDriver._engineSetting(),
+			SynthDriver.VoiceSetting(),
+			SynthDriver.VariantSetting(),
+			SynthDriver.RateSetting(),
+		]
 		if capabilities is None or "rateBoost" in capabilities:
 			settings.append(SynthDriver.RateBoostSetting())
 		settings.append(SynthDriver.PitchSetting())
@@ -146,6 +163,15 @@ class SynthDriver(BaseSynthDriver):
 	@property
 	def allSupportedSettings(self):
 		return self._driverSettings(None)
+
+	def _get_initialSettingsRingSetting(self):
+		# NVDA's answer is rate's index in supportedSettings (synthDriverHandler.py:417-429), but the
+		# ring indexes its own list, which skips the engine setting; count in the ring's list.
+		ring = [setting for setting in self.supportedSettings if setting.availableInSettingsRing]
+		for index, setting in enumerate(ring):
+			if setting.id == "rate":
+				return index
+		return 0 if ring else None
 
 	_TEARDOWN_ORDER = (
 		"task manager shutdown",

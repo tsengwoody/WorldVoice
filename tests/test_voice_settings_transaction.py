@@ -41,6 +41,7 @@ def _synth_settings_class(config):
 	names = {
 		"supportedSettings",
 		"_driverSettings",
+		"_engineSetting",
 		"_pipelineDriverSetting",
 		"_get_availableVariants",
 		"_set_rate",
