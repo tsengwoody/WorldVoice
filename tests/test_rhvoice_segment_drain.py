@@ -300,11 +300,11 @@ def test_legacy_done_callback_can_cancel_without_deadlocking_worker(env):
 
 	env.inner.synthDoneSpeaking.notify = cancel_from_done
 	env.native.scripts.append({"auto_return": True})
-	_, _, events = speak(env)
+	# Only ordinary (legacy) speech notifies DONE; a segment's end is the runtime's.
+	env.driver.speak(("legacy", env.commands.IndexCommand(7)))
 	call = env.native.wait_call()
 	assert cancelled.wait(WAIT_TIMEOUT)
 	assert call.returned.wait(WAIT_TIMEOUT)
-	assert events == []
 
 
 def test_cancel_waits_for_admitted_feed_and_stops_late_audio_before_successor(env):
@@ -517,7 +517,9 @@ def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
 		successor_events.append(speak(env, segment=2, text="successor")[2])
 		successor_queued.set()
 
-	env.inner.synthDoneSpeaking.notify = enqueue_from_done
+	# A segment notifies no DONE; its done callback's idle still releases the
+	# index on the worker, inside that callback.
+	env.inner.synthIndexReached.notify = enqueue_from_done
 	env.native.scripts.extend(({"auto_return": True}, {"auto_return": True}))
 	speak(env, segment=1, text="old")
 	env.native.wait_call()
@@ -777,7 +779,8 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env):
 	player.idle_release.clear()
 	call.return_release.set()
 	assert player.second_idle_entered.wait(WAIT_TIMEOUT)
-	entries, dones_before = [], len(env.dones)
+	entries = []
+	assert env.dones == []
 	env.native.scripts.append(
 		{
 			"auto_return": True,
@@ -792,11 +795,23 @@ def test_ordinary_speech_waits_for_contextual_final_idle(env):
 	ordinary = env.native.wait_call(2)
 	assert ordinary.returned.wait(WAIT_TIMEOUT)
 	assert entries == [True]
-	eventually(lambda: len(env.dones) != dones_before)
-	assert env.dones[dones_before:] == [env.driver]
+	eventually(lambda: env.dones)
+	assert env.dones == [env.driver]
 	assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert (event.source_id, event.segment_id) == (context.source_id, context.segment_id)
 	assert len(events) == 1
+
+
+def test_a_segment_and_an_ordinary_utterance_notify_exactly_one_done(env):
+	env.native.scripts.append({"auto_return": True})
+	_, _, events = speak(env)
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
+	assert env.dones == []
+	env.native.scripts.append({"auto_return": True})
+	env.driver.speak(("legacy", env.commands.IndexCommand(8)))
+	assert env.native.wait_call(2).returned.wait(WAIT_TIMEOUT)
+	eventually(lambda: env.dones)
+	assert env.dones == [env.driver]
 
 
 def test_completed_ordinary_speech_does_not_stop_the_player(env):

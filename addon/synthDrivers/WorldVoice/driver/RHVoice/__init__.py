@@ -90,6 +90,18 @@ class _RHVoiceInner:
 	def rateBoost(self):
 		return self._driver()._SynthDriver__rate_boost
 
+	def segmentDone(self):
+		"""Run the inner DoneCallback's player steps without its synthDoneSpeaking.
+
+		Mirrors DoneCallback.__call__: a set cancel flag skips the steps; on_done
+		feeds the held-back last chunk, then idle. Errors propagate to the caller.
+		"""
+		if self.cancelFlag.is_set():
+			return
+		player = self.player
+		player.on_done()
+		player.idle()
+
 
 class _NativeCallback:
 	"""Preserve the inner callback's public state, including lastIndex."""
@@ -380,7 +392,12 @@ class SynthDriver(rhvoice.SynthDriver, SegmentHostSpeaker):
 				return refused
 			with host.bound_callback(record):
 				try:
-					result = callback(*args)
+					if isDone and record.operation is not None:
+						# The runtime reports a segment's end: keep the inner done
+						# callback's player steps, not its anonymous DONE.
+						result = self._inner.segmentDone()
+					else:
+						result = callback(*args)
 					if isDone:
 						host.reach(record, ENGINE_DONE)
 					elif not result:
