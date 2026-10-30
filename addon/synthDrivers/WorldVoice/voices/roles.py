@@ -11,7 +11,11 @@ def _is_section(value: Any) -> bool:
 
 
 class ConfigRoleRepository:
-	"""The only reader and writer of config["WorldVoice"]["role"]."""
+	"""The only runtime reader and writer of config["WorldVoice"]["role"].
+
+	installTasks._removeLegacyRoleKeys also rewrites it once, on an update, to drop legacy
+	full-locale keys.
+	"""
 
 	def __init__(self, conf_provider: Callable[[], Any]):
 		self._conf_provider = conf_provider
