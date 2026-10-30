@@ -124,3 +124,18 @@ spec §7 的手動清單 1–10 全部未驗證：真實 NVDA 面板的焦點與
 
 - 主 checkout `/workspace/WorldVoice` 未動；review 開始時主 checkout 既有的未提交變更（`M buildVars.py`、`D docs/superpowers/finish_task.md`、未追蹤的 `DEVELOPMENT_WORKFLOW.md`、`cons.md`、`diff.md`、`syn.md`）與本分支無關。
 - 未打包、未 push。
+
+## 修正記錄
+
+修正範圍：`c76176f..5fdc77f`（一般流程 §3.4；只有 Minor，依 §3.4 不做修正 review）。
+
+| # | 處理 | commit | 說明 |
+| --- | --- | --- | --- |
+| Minor 1 | 已修 | `6088ae3` | `tests/ui_harness.py` 的假 `Choice` 記錄每次 `SetItems`；`test_choosing_an_engine_switches_the_voice_and_rebuilds_the_voice_list` 斷言觸發 `EVT_CHOICE` 後 `engineList` 沒有被 `SetItems`，`voiceList` 恰好一次（`["Bee [B]"]`）。在 worktree 暫時把 `voicePanel.py` 改成 `changedSetting=None` 驗證：新斷言失敗（`engineList.set_items` 多了一次 `['A', 'B']`）；還原後通過，`git diff` 確認原始碼無殘留。 |
+| Minor 2 | 已修（保留篩選、補測試） | `49d750d` | 新增 `test_a_voice_without_language_never_matches_an_empty_request`：引擎 `C` 的語音依序為 `C:a en`、`C:x ""`（刻意不照 table 順序），`pick(specs, "C", "", None)` 期望 `C:a`。暫時把 `spoken` 改成 `list(own)` 時失敗（得到 `C:x`），還原後通過。Ruling 見下。 |
+| Minor 3 | 不修 | — | 依審閱者建議不改：真正的守衛在 synth 的 `_set_engine`，已由 `test_engine_setting.py::test_choosing_the_current_engine_changes_nothing` 守住（M2 會失敗）；面板測試只負責證明面板不會另外改語音，帳本已記錄它在實作前就通過。 |
+| Minor 4 | 已修 | `5fdc77f` | 根目錄 `readme.md` 與 `addon/doc/{ru,uk,zh_CN,zh_HK,zh_TW}/readme.md` 的「注意」與「下一版更新」兩處，改成 spec §1 的說法：快速語音設定沒有語音引擎項目，要切換語音引擎請使用語音設定面板；拿掉「只能在語音設定面板中切換」。 |
+
+Ruling（Minor 2）：保留 `engineFilter.py:32` 的空語言篩選並補測試，不刪除 — 篩選在函式層級可以觀察（輸入不照 table 順序、要求的語言為空字串時），而 docstring 寫明了這條規則；在產品中觀察不到，因為 catalog 會把空語言排在最前面，而 `languageHandler.getLanguage()` 不會回傳空字串 — 錯了的代價：多一行實際上不會觸發的程式碼與一個測試。
+
+修正後驗證：`python3 -m pytest -q tests` 3680 passed、0 skipped（修正前 3679／0，+1 新測試）；`prek run --all-files` 8 個 hook 全部 Passed；`git diff --check master` 無輸出；§7 兩個受保護路徑指令皆無輸出。
