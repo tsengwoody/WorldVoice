@@ -39,3 +39,19 @@ def test_correlated_completion_requires_range(rt, mode):
 def test_legacy_completion_rejects_range(rt):
 	with pytest.raises(ValueError):
 		rt.models.CompletionContract(rt.models.CompletionMode.LEGACY_DONE, rt.models.IndexRange(1, 502))
+
+
+# Runtime values cross threads (scheduler, engine callbacks, bridge), so each one is a frozen dataclass.
+FROZEN_VALUES = (
+	"VoiceSpec",
+	"SelectVoice",
+	"Pause",
+	"PlaybackContext",
+	"CompletionContract",
+	"EngineCapabilities",
+	"PlaybackEvent",
+)
+
+
+def test_runtime_value_classes_are_frozen(rt):
+	assert [name for name in FROZEN_VALUES if not getattr(rt.models, name).__dataclass_params__.frozen] == []
