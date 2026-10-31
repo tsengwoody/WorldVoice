@@ -229,10 +229,13 @@ def test_parameter_getters_read_the_main_voice(monkeypatch, name, value):
 		parameter_consistency=types.SimpleNamespace(enabled=False),
 	)
 	# The AST-loaded class has no NVDA auto-property metaclass; call the accessors themselves.
+	get = getattr(synth, f"_get_{name}")
+	initial = getattr(instance, name)
+	# Two different reads, so a getter returning a constant fails too. The type too: True == 1,
+	# so rateBoost reading volume would otherwise pass.
+	assert (type(get()), get()) == (type(initial), initial)
 	getattr(synth, f"_set_{name}")(value)
-	read = getattr(synth, f"_get_{name}")()
-	# The type too: True == 1, so rateBoost reading volume would otherwise pass.
-	assert (type(read), read) == (type(value), value)
+	assert (type(get()), get()) == (type(value), value)
 
 
 def test_pipeline_settings_are_descriptors_on_the_class(monkeypatch):
