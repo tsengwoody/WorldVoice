@@ -509,3 +509,52 @@ def test_cancel_after_terminate_leaves_nvda_espeak_alone(env):
 	# NVDA's _espeak.terminate() nulls its player; cancel must not reach it.
 	env.inner.player = None
 	env.driver.cancel()
+
+
+def counted_native_cancels(env):
+	"""The native espeak_ng_Cancel calls, which also reset eSpeak's runtime parameters."""
+	cancels = []
+	cancel = env.native.espeak_ng_Cancel.callback
+
+	def counted(*args):
+		cancels.append(args)
+		return cancel(*args)
+
+	env.native.espeak_ng_Cancel.callback = counted
+	return cancels
+
+
+def test_cancel_after_a_control_fault_skips_the_native_cancel(env):
+	cancels = counted_native_cancels(env)
+	segment_host(env.driver).latch_control_error(OSError("stop failed"))
+	# NVDA's stop() and the next _speak call espeak_ng_Cancel; a faulted engine is not touched.
+	assert env.inner.espeakDLL.espeak_ng_Cancel() == env.inner.EE_OK
+	assert cancels == []
+
+
+def test_a_failed_ordinary_conversion_clears_speaking_and_reports_done(env):
+	cancels = counted_native_cancels(env)
+	base = env.outer.BaseSynthDriver
+	speak_commands = base.speak
+
+	def failing_speak(driver, commands):
+		raise ValueError("conversion failed")
+
+	# Not monkeypatch: undoing it mid-test would also drop the harness's NVDA module stubs.
+	base.speak = failing_speak
+	try:
+		# The failure fails the utterance; it does not reach NVDA's speak().
+		assert env.driver.speak(("failed",)) is None
+		eventually(lambda: env.dones == [env.driver])
+		env.inner.bgQueue.join()
+		assert env.inner.isSpeaking is False
+	finally:
+		base.speak = speak_commands
+	# The next utterance starts as after any finished one: _speak resets eSpeak's parameters.
+	before = len(cancels)
+	env.native.next_scripts.append({"auto_return": True})
+	env.player.idle_release.set()
+	env.driver.speak(("next",))
+	eventually(lambda: env.dones == [env.driver, env.driver])
+	assert len(cancels) == before + 1
+	assert "next" in env.native.calls[-1].text
