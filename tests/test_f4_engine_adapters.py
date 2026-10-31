@@ -110,6 +110,36 @@ def test_voice_metadata_keeps_vocalizer_quirks(monkeypatch, engine):
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
+def test_metadata_without_a_language_description_uses_the_locale(monkeypatch, engine):
+	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
+	voice_class = harness.module.Voice
+	language = types.SimpleNamespace(getLanguageDescription=lambda locale: "")
+	monkeypatch.setattr(harness.module, "languageHandler", language, raising=False)
+	metadata = voice_class.voiceInfoToMetadata(
+		types.SimpleNamespace(id="x", language="xx_YY", displayName="Plain"),
+	)
+	assert metadata["langDescription"] == "xx_YY"
+	assert metadata["description"] == f"x - xx_YY [{voice_class.engine}]"
+
+
+def test_cerence_variants_are_empty_without_speech_databases(monkeypatch):
+	harness = load_real_driver_with_native_stubs(monkeypatch, "Cerence")
+	voice = object.__new__(harness.module.Voice)
+	voice.id = "x"
+	voice.core = types.SimpleNamespace(
+		getVoiceInstance=lambda voice_id: f"native:{voice_id}",
+		getParameter=lambda instance, parameter, type_: "enu",
+	)
+
+	def no_databases(language, voice_id):
+		raise OSError("no speech databases")
+
+	monkeypatch.setattr(harness.module.ttsapi, "getSpeechDBList", no_databases)
+	# The voice settings panel lists no variant instead of failing to open.
+	assert voice.variants == []
+
+
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
 @pytest.mark.parametrize(
 	"raw,expected",
 	[

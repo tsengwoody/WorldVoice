@@ -40,6 +40,7 @@ def built(request, monkeypatch):
 	class RecordingPlayer(FakePlayer):
 		def __init__(self, **kwargs):
 			super().__init__(**kwargs)
+			self.options = kwargs
 			record.players.append(self)
 
 		def close(self):
@@ -151,5 +152,18 @@ def test_a_built_core_keeps_its_resources(built):
 		(thread,) = record.threads
 		assert thread.is_alive()
 		assert [player.closes for player in record.players] == [0]
+	finally:
+		core.terminate()
+
+
+def test_nvda_2024_config_opens_the_player_on_the_speech_output_device(built, monkeypatch):
+	# NVDA 2024.x keeps outputDevice in [speech]; config schema 14 (NVDA 2025.1) moved it to [audio].
+	harness, record = built
+	conf = {"audio": {}, "speech": {"outputDevice": "Speakers (2024)"}}
+	monkeypatch.setattr(harness.original_driver.config, "conf", conf)
+	core = harness.new_core()
+	try:
+		(player,) = record.players
+		assert player.options["outputDevice"] == "Speakers (2024)"
 	finally:
 		core.terminate()
