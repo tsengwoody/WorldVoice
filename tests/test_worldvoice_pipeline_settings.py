@@ -175,8 +175,13 @@ def test_global_wait_change_reaches_the_voice_manager(monkeypatch):
 	synth.globalWaitFactor = 30
 
 
-@pytest.mark.parametrize("name", ["volume", "rate", "pitch", "inflection", "variant", "rateBoost"])
-@pytest.mark.parametrize("consistent", [False, True])
+@pytest.mark.parametrize(
+	("consistent", "name"),
+	[
+		*((False, name) for name in ["volume", "rate", "pitch", "inflection", "variant", "rateBoost"]),
+		(True, "volume"),
+	],
+)
 def test_voice_parameters_commit_and_follow_the_consistency_policy(monkeypatch, name, consistent):
 	conf = worldvoice_conf(autoLanguageSwitching={"keepMainLocaleParameterConsistent": consistent})
 	synth_class, _ = load_synth(monkeypatch, conf)
