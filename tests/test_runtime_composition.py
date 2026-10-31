@@ -83,15 +83,7 @@ def test_each_opened_engine_is_one_engine_resource(composition):
 def test_initialization_failure_closes_without_commit(composition, failure):
 	c = composition
 	c.engine("bad", empty=failure == "empty")
-	if failure == "bind":
-		original = c.bridge.bind
-
-		def bind(source, source_id, **kwargs):
-			original(source, source_id, **kwargs)
-			raise RuntimeError("bind failed")
-
-		c.bridge.bind = bind
-	with pytest.raises(RuntimeError, match="No WorldVoice voices|bind failed"):
+	with pytest.raises(RuntimeError, match="No WorldVoice voices"):
 		c.create()
 	assert c.cores[0].closes == 1
 	assert bridge_bindings(c.bridge) == {}
@@ -780,7 +772,7 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 ):
 	c = composition
 	installed = installed_drain_voice(c, monkeypatch, engine)
-	if engine in ("OneCore", "SAPI5"):
+	if engine == "OneCore":
 		installed.driver.useWasapi = True
 	configured = []
 	configure = c.module.VoiceClassAdapter.configureSegmentEvents
@@ -796,7 +788,7 @@ def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 	port = manager.resolve_playback(engine + ":a")
 	assert port.completion.mode is c.models.CompletionMode.DRAIN
 	assert configured == [port_adapter(port)]
-	assert installed.checked == [("synthetic", "wasapi" if engine in ("OneCore", "SAPI5") else "default")]
+	assert installed.checked == [("synthetic", "wasapi" if engine == "OneCore" else "default")]
 	assert logs == []
 	done, indexes = threading.Event(), []
 	c.done.register(lambda synth: done.set() if synth is c.owner else None)
@@ -928,18 +920,6 @@ def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(
 			return voice.opened
 
 		cls.createCore = classmethod(foreign_core)
-	elif failure == "missing_entry":
-		installed.driver.speak_segment = None
-	elif failure == "missing_support":
-		installed.driver.get_segment_drain_support = None
-	elif failure == "invalid_support":
-		installed.driver.get_segment_drain_support = lambda *args, **kwargs: SimpleNamespace(supported=True)
-	elif failure == "truthy_support":
-		installed.driver.get_segment_drain_support = lambda *args, **kwargs: installed.support_type(
-			"yes",
-			"native-test-profile",
-			"Not an explicit boolean support decision",
-		)
 	elif failure == "unsupported":
 		installed.driver.get_segment_drain_support = lambda *args, **kwargs: installed.support_type(
 			False,

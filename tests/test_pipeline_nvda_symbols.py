@@ -72,7 +72,7 @@ def test_symbol_locale(module, monkeypatch, current, language, expected):
 		# NVDA has tables only with a country for these, and none for a country it does not list.
 		("zh", False),
 		("en_US", False),
-		# Never a path outside NVDA's locale directory.
+		# Never an empty locale, nor a path outside NVDA's locale directory.
 		("", False),
 		# This one resolves to locale/en/symbols.dic, which exists: only the guard refuses it.
 		("../locale/en", False),

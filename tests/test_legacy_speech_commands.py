@@ -1,4 +1,4 @@
-"""The legacy command boundary owns NVDA and concrete Voice recognition."""
+"""The legacy command boundary normalizes NVDA's commands and rejects WorldVoice's internal markers."""
 
 import importlib
 import sys

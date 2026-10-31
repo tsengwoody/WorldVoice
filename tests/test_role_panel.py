@@ -1,4 +1,4 @@
-"""The role panel turns a failed apply into NVDA's save-abort signal."""
+"""The role panel opens and closes its presenter with itself and saves nothing once another synth is active."""
 
 import types
 

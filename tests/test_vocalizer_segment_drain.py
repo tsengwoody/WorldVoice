@@ -1067,10 +1067,6 @@ def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 		index = commands.IndexCommand()
 		index.index = 23
 		sequence = (index,)
-	elif kind == "break":
-		pause = commands.BreakCommand()
-		pause.time = 20
-		sequence = (pause,)
 	entered, release = Event(), Event()
 	real_player(env.core).idle = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
 	# A call that produces no audio still ends with ENDPROCESS.

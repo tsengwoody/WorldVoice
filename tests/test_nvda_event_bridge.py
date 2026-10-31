@@ -555,9 +555,7 @@ def test_segment_sink_rejects_unrelated_events(drain_env, mismatch):
 		segment_event(env, source_id=object())
 		if mismatch == "source"
 		else (
-			segment_event(env, segment_id=10)
-			if mismatch == "segment"
-			else segment_event(env, {"done": "DONE", "end": "SEGMENT_END", "index": "INDEX"}[mismatch])
+			segment_event(env, segment_id=10) if mismatch == "segment" else segment_event(env, "SEGMENT_END")
 		)
 	)
 	sink(event)
@@ -591,9 +589,6 @@ def test_segment_sink_requires_correlated_source_binding(drain_env, invalid):
 			),
 		)
 		context = env.models.PlaybackContext(end_index_id, 9)
-	else:
-		env.bridge.unbind(env.source_id)
-		env.bridge.bind(source, env.source_id)
 	with pytest.raises(ValueError):
 		env.bridge.segmentSink(source, context)
 

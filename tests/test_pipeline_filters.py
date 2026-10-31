@@ -221,7 +221,7 @@ def test_number_wait_breaks_after_a_single_language_command(env, kind, lang):
 @pytest.mark.parametrize("blocker", ["index"])
 def test_number_wait_does_not_break_across_other_commands(env, blocker):
 	command = env.module.WVLangChangeCommand
-	blocker = Marker() if blocker == "index" else env.module.BreakCommand(5)
+	blocker = Marker()
 	result = number_wait(env, ["1", command("zh"), blocker, command("en"), "2"])
 	assert not any(isinstance(item, env.module.NumberBreakCommand) for item in result)
 	assert result[2] is blocker

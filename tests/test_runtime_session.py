@@ -220,12 +220,6 @@ class EventToken:
 
 @pytest.mark.parametrize("mode", ["LEGACY_DONE"])
 def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapter, store, mode):
-	if mode != "LEGACY_DONE":
-		contract = rt.models.CompletionContract(
-			getattr(rt.models.CompletionMode, mode),
-			rt.models.IndexRange(1, 9999),
-		)
-		adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
 	store.ensure(make_spec())
 	token = EventToken()
 	assert session.activate("Fake:a") is True
@@ -238,12 +232,6 @@ def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapt
 
 @pytest.mark.parametrize("mode", ["LEGACY_DONE"])
 def test_session_rejects_foreign_context(rt, session, adapter, mode):
-	if mode != "LEGACY_DONE":
-		contract = rt.models.CompletionContract(
-			getattr(rt.models.CompletionMode, mode),
-			rt.models.IndexRange(1, 9999),
-		)
-		adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
 	with pytest.raises(ValueError, match="source"):
 		session.speak(("hello",), EventToken(), context=rt.models.PlaybackContext(object(), 1))
 	assert adapter.spoken == []

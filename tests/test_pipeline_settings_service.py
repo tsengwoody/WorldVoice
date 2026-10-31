@@ -393,7 +393,7 @@ INVALID_KEYS = ["scope", "number_mode", "global_wait_factor", "punctuation_pause
 @pytest.mark.parametrize("key", INVALID_KEYS)
 def test_load_reads_the_default_for_each_invalid_key(monkeypatch, key):
 	# Decided by the user (2026-10-22, decision A): every pipeline key falls back on its own.
-	other = "number_wait_factor" if key == "item_wait_factor" else "item_wait_factor"
+	other = "item_wait_factor"
 	conf = refusing_conf({STORED_KEYS[other]: 40})
 	module = load_settings_module(monkeypatch, conf)
 	wrong_type = sys.modules["configobj.validate"].VdtTypeError
@@ -425,7 +425,7 @@ def nvda_conf(values=(), refused=None):
 def test_a_panel_save_writes_the_default_over_a_refused_value(monkeypatch, key):
 	# Decided by the user (2026-10-22, fix/uniform-settings-save): a save writes every value the
 	# panel shows, and a refused value shows as the default; NVDA writes only what differs.
-	other = "number_wait_factor" if key == "item_wait_factor" else "item_wait_factor"
+	other = "item_wait_factor"
 	stored_key, other_key = STORED_KEYS[key], STORED_KEYS[other]
 	conf, section = nvda_conf({stored_key: "abc", other_key: 40})
 	module = load_settings_module(monkeypatch, conf)
