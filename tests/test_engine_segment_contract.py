@@ -6,7 +6,6 @@ until the mark is removed.
 """
 
 import sys
-from contextlib import suppress
 from threading import Condition, Thread, get_ident
 
 import pytest
@@ -212,7 +211,8 @@ def test_pause_after_terminate_keeps_each_engine_behaviour(engine):
 @pytest.mark.parametrize("engine", _engines(), indirect=True)
 def test_segment_after_player_stop_failure_fails(engine):
 	engine.fail_next_stop()
-	with suppress(Exception):
+	# Cancel reports the failed stop to its caller, and the failure stays latched.
+	with pytest.raises(OSError, match="^player stop failed$"):
 		engine.core.cancel()
 	context = engine.PlaybackContext(object(), 25)
 	events = Events(engine)
