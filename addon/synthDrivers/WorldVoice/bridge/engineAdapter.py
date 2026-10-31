@@ -86,7 +86,6 @@ class VoiceClassAdapter(EngineAdapter):
 	def open(self) -> None:
 		if self._opened:
 			return
-		self._voiceApplied = None
 		# createCore either returns a core this adapter owns or raises without one.
 		self._core = self._voiceClass.createCore()
 		self.notificationSource = self._core

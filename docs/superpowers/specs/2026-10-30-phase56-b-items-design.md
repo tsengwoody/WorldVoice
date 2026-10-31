@@ -138,7 +138,7 @@ Correction to cons.md A10/B14: "two SAPI5 voices alternating rebuild every segme
 
 **Bridge (`bridge/engineAdapter.py`, `VoiceClassAdapter`):**
 
-- New state `self._voiceApplied: tuple[object, str] | None` — the core and voice id of the last apply that fully succeeded. `None` in `__init__`, and reset to `None` in `open()` and `close()` (`adapter:66-72`, `:97-106`), so it never outlives the core it describes (a reopened adapter whose `createCore` returns the same object, as test harnesses do, still sets the voice).
+- New state `self._voiceApplied: tuple[object, str] | None` — the core and voice id of the last apply that fully succeeded. Cleared to `None` in `__init__`, in `close()` (`adapter:97-106`) and at the start of each apply (step 1). `open()` (`adapter:66-72`) does not touch it: it returns early when already open, and otherwise follows `__init__` or `close()`, so the memory is already `None`. It therefore never outlives the core it describes (a reopened adapter whose `createCore` returns the same object, as test harnesses do, still sets the voice).
 - `apply(spec, snapshot)`:
   1. `core = self._core`; take the memory and clear it (`applied, self._voiceApplied = self._voiceApplied, None`), so a raising step leaves it cleared.
   2. Skip `core.voice = spec.id` only when **all** hold: `applied is not None`, `applied[0] is core`, `applied[1] == spec.id`; the core does not ask for a reload (below); and `core.voice == spec.id`. Evaluate in this order (cheap first; the getter may be a COM call). A raising getter or hook counts as "not unchanged": set the voice as today.
@@ -159,7 +159,7 @@ It reads only names already listed (`_thread` is in `NVDA_PRIVATES`, `SAPI5:75-8
 
 **Other core replacements, checked:**
 
-- The adapter's core changes only in `open()`/`close()` (`adapter:66-72`, `:97-106`), both of which reset the memory; the identity check covers any future path. `EngineSession.open`/`close` invalidate the session cache too (`session:104-127`).
+- The adapter's core changes only in `open()`/`close()` (`adapter:66-72`, `:97-106`); `close()` clears the memory, and `open()` runs only after `__init__` or `close()`, so a new core always starts with no memory; the identity check covers any future path. `EngineSession.open`/`close` invalidate the session cache too (`session:104-127`).
 - SAPI5 `ready()` chooses the core class before any core exists (`SAPI5:696-720`, called at engine discovery); it never swaps an opened core.
 - NVDA's `_set_useWasapi` reloads with `self.voice = self.voice` (`sapi5.py:775-779`), but WorldVoice never writes `useWasapi` on a core (it is only read: `bridge/completionPolicies.py:63`, `SAPI5:107`, `:415`, `:427`, `:441`, `:471`; it is not in `APPLY_ORDER`). Even if it happened, it reloads the same voice, so the memory stays true.
 - An output-device change does not rely on the incidental rebuild: NVDA reloads its synth (WorldVoice, with every core) when the device changes (`ref/nvda/source/gui/settingsDialogs.py:3795-3800`).
