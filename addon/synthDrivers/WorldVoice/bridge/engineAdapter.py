@@ -42,6 +42,25 @@ _ENTRIES = {
 }
 
 
+def _voiceIsCurrent(applied: tuple[object, str] | None, core, voiceId: str) -> bool:
+	"""True when re-setting voiceId on core would change nothing.
+
+	applied is the core and voice of the last apply that fully succeeded. A core may define
+	needsVoiceReload() to ask for the voice anyway: SAPI5 replaces a faulted COM voice,
+	player and worker only when its voice is set (its _initTts). Cheap checks first; the
+	getter may be a COM call. A raising hook or getter means "set the voice", as before.
+	"""
+	if applied is None or applied[0] is not core or applied[1] != voiceId:
+		return False
+	try:
+		needsVoiceReload = getattr(core, "needsVoiceReload", None)
+		if callable(needsVoiceReload) and needsVoiceReload():
+			return False
+		return core.voice == voiceId
+	except Exception:  # noqa: BLE001 - only selects re-setting the voice
+		return False
+
+
 class VoiceClassAdapter(EngineAdapter):
 	def __init__(
 		self,
@@ -61,11 +80,13 @@ class VoiceClassAdapter(EngineAdapter):
 		self._sourceId = None
 		self._opened = False
 		self._core = None
+		self._voiceApplied: tuple[object, str] | None = None
 		self.notificationSource = None
 
 	def open(self) -> None:
 		if self._opened:
 			return
+		self._voiceApplied = None
 		# createCore either returns a core this adapter owns or raises without one.
 		self._core = self._voiceClass.createCore()
 		self.notificationSource = self._core
@@ -100,6 +121,7 @@ class VoiceClassAdapter(EngineAdapter):
 		core = self._core
 		self._opened = False
 		self._core = None
+		self._voiceApplied = None
 		self.notificationSource = None
 		self._segmentEvents = None
 		self._spoken = False
@@ -139,12 +161,16 @@ class VoiceClassAdapter(EngineAdapter):
 
 	def apply(self, spec: VoiceSpec, snapshot: VoiceSnapshot) -> None:
 		core = self._core
-		core.voice = spec.id
+		# Cleared first: after a raising step the next apply sets the voice again.
+		applied, self._voiceApplied = self._voiceApplied, None
+		if not _voiceIsCurrent(applied, core, spec.id):
+			core.voice = spec.id
 		supported = self.capabilities.settings
 		for name in APPLY_ORDER:
 			if name in supported:
 				setattr(core, name, getattr(snapshot, name))
 		self._resolveVoice(spec.name).applyEngineSettings(core, snapshot)
+		self._voiceApplied = (core, spec.id)
 
 	def speak(
 		self,

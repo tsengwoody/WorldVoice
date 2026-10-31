@@ -36,7 +36,9 @@ def test_worker_activation_uses_one_snapshot_per_segment(monkeypatch):
 	assert core.rate == 72
 	activate(a)
 	assert core.rate == 81
-	assert len(core.writes) == first_count * 3
+	# The two re-applies of the same voice write every setting but not the voice again.
+	assert len(core.writes) == first_count * 3 - 2
+	assert [write for write in core.writes if write[0] == "voice"] == [("voice", a.id)]
 
 
 def test_consistency_preview_updates_each_voice_in_one_batch(monkeypatch):

@@ -89,6 +89,7 @@ def test_revision_change_reapplies_same_voice(engine):
 	engine.store.state("Fake:a").update(rate=72)
 	assert engine.session.activate("Fake:a") is True
 	assert len(engine.core.writes) > before
+	assert ("voice", "a") not in engine.core.writes[before:]
 	assert engine.core.rate == 72
 
 

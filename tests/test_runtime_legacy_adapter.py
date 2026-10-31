@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 from addon_loader import load_definitions
+from hypothesis import HealthCheck, given, settings, strategies as st
 from legacy_adapter_harness import Core, legacy_class
 from runtime_harness import RUNTIME, MemoryRepository, load_index_support, make_spec
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
@@ -154,6 +155,217 @@ def test_each_adapter_owns_its_own_core(bridge_modules):
 	assert (first_cls.closes, second_cls.closes) == (0, 1)
 	first.close()
 	assert (first_cls.closes, second_cls.closes) == (1, 1)
+
+
+class StepFailed(Exception):
+	pass
+
+
+class ProbeCore(Core):
+	"""A recording core whose voice getter, reload hook and one setter can misbehave on request."""
+
+	def __init__(self):
+		object.__setattr__(self, "fail_on", None)
+		object.__setattr__(self, "getter", "true")
+		super().__init__()
+
+	def configure(self, *, fail_on=None, getter="true", reload=None):
+		object.__setattr__(self, "fail_on", fail_on)
+		object.__setattr__(self, "getter", getter)
+		self.__dict__.pop("needsVoiceReload", None)
+		if reload is not None:
+			object.__setattr__(self, "needsVoiceReload", lambda: _reload(reload))
+
+	def __setattr__(self, name, value):
+		super().__setattr__(name, value)
+		if name == self.fail_on:
+			object.__setattr__(self, "fail_on", None)
+			raise StepFailed(name)
+
+	@property
+	def voice(self):
+		if self.getter == "raise":
+			raise RuntimeError("getter failed")
+		if self.getter == "lie":
+			return "other"
+		return self.__dict__["voice"]
+
+	@voice.setter
+	def voice(self, value):
+		self.__dict__["voice"] = value
+
+
+def _reload(mode):
+	if mode == "raise":
+		raise RuntimeError("reload check failed")
+	return mode
+
+
+def opened_adapter(bridge_modules, core, voices=("a",)):
+	cls = legacy_class(core)
+	cls.voices = classmethod(
+		lambda cls, target: [{"engine": "Fake", "id": voice, "language": "en"} for voice in voices],
+	)
+	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
+	adapter.open()
+	return cls, adapter
+
+
+def apply_voice(rt, adapter, voice="a", **values):
+	state = rt.voice_settings.VoiceState(make_spec(f"Fake:{voice}"), values)
+	adapter.apply(state.spec, state.snapshot())
+
+
+def voice_writes(core):
+	return [write for write in core.writes if write[0] == "voice"]
+
+
+def test_reapplying_the_same_voice_skips_only_the_voice_setter(bridge_modules, rt):
+	core = Core()
+	_, adapter = opened_adapter(bridge_modules, core)
+	apply_voice(rt, adapter)
+	core.writes.clear()
+	apply_voice(rt, adapter, rate=72, variant="bright")
+	assert core.writes == [
+		("rateBoost", False),
+		("rate", 72),
+		("pitch", 50),
+		("volume", 50),
+		("inflection", 50),
+		("hook", "bright"),
+	]
+
+
+def test_another_voice_is_set(bridge_modules, rt):
+	core = Core()
+	_, adapter = opened_adapter(bridge_modules, core, voices=("a", "b"))
+	for voice in ("a", "b", "a"):
+		apply_voice(rt, adapter, voice)
+	assert voice_writes(core) == [("voice", "a"), ("voice", "b"), ("voice", "a")]
+
+
+@pytest.mark.parametrize("step", ["voice", "rate", "hook"])
+def test_after_a_failed_apply_the_same_voice_is_set_again(bridge_modules, rt, step):
+	core = ProbeCore()
+	_, adapter = opened_adapter(bridge_modules, core)
+	core.configure(fail_on=step)
+	with pytest.raises(StepFailed):
+		apply_voice(rt, adapter)
+	assert core.voice == "a"
+	core.writes.clear()
+	apply_voice(rt, adapter, rate=72)
+	assert core.writes[0] == ("voice", "a")
+
+
+@pytest.mark.parametrize("getter", ["raise", "lie"])
+def test_a_core_not_reporting_the_voice_gets_it_set(bridge_modules, rt, getter):
+	core = ProbeCore()
+	_, adapter = opened_adapter(bridge_modules, core)
+	apply_voice(rt, adapter)
+	core.configure(getter=getter)
+	core.writes.clear()
+	apply_voice(rt, adapter, rate=72)
+	assert core.writes[0] == ("voice", "a")
+
+
+def test_reopening_sets_the_voice_even_on_the_same_core_object(bridge_modules, rt):
+	core = Core()
+	_, adapter = opened_adapter(bridge_modules, core)
+	apply_voice(rt, adapter)
+	adapter.close()
+	adapter.open()
+	assert adapter.core is core
+	core.writes.clear()
+	apply_voice(rt, adapter, rate=72)
+	assert core.writes[0] == ("voice", "a")
+
+
+def test_a_new_core_gets_the_voice_set(bridge_modules, rt):
+	cores = [Core(), Core()]
+	cls, adapter = opened_adapter(bridge_modules, cores[0])
+	created = iter(cores[1:])
+	cls.createCore = classmethod(lambda cls: next(created))
+	cls.destroyCore = classmethod(lambda cls, target: None)
+	apply_voice(rt, adapter)
+	adapter.close()
+	adapter.open()
+	apply_voice(rt, adapter, rate=72)
+	assert cores[1].writes[0] == ("voice", "a")
+
+
+def test_a_failed_close_still_forgets_the_voice(bridge_modules, rt):
+	core = Core()
+	cls, adapter = opened_adapter(bridge_modules, core)
+	apply_voice(rt, adapter)
+
+	def fail_destroy(cls, target):
+		raise OSError("cleanup failed")
+
+	cls.destroyCore = classmethod(fail_destroy)
+	with pytest.raises(OSError, match="cleanup failed"):
+		adapter.close()
+	adapter.open()
+	assert adapter.core is core
+	core.writes.clear()
+	apply_voice(rt, adapter, rate=72)
+	assert core.writes[0] == ("voice", "a")
+
+
+@pytest.mark.parametrize(("reload", "written"), [(True, True), ("raise", True), (False, False)])
+def test_a_core_that_needs_a_voice_reload_gets_the_voice_set(bridge_modules, rt, reload, written):
+	core = ProbeCore()
+	_, adapter = opened_adapter(bridge_modules, core)
+	apply_voice(rt, adapter)
+	core.configure(reload=reload)
+	core.writes.clear()
+	apply_voice(rt, adapter, rate=72)
+	assert (("voice", "a") in core.writes) is written
+	assert ("rate", 72) in core.writes
+
+
+APPLY = st.tuples(
+	st.just("apply"),
+	st.sampled_from(["a", "b"]),
+	st.sampled_from([None, "voice", "rate", "hook"]),
+	st.sampled_from(["true", "raise", "lie"]),
+	st.sampled_from([None, False, True, "raise"]),
+)
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(st.lists(st.one_of(APPLY, st.just(("reopen",))), max_size=12))
+def test_property_the_voice_is_set_unless_the_same_healthy_core_already_took_it(
+	bridge_modules,
+	rt,
+	actions,
+):
+	core = ProbeCore()
+	_, adapter = opened_adapter(bridge_modules, core, voices=("a", "b"))
+	everything = {*bridge_modules.adapter.APPLY_ORDER, "hook"}
+	remembered = None
+	for revision, action in enumerate(actions, 1):
+		if action[0] == "reopen":
+			adapter.close()
+			adapter.open()
+			remembered = None
+			continue
+		_, voice, fail, getter, reload = action
+		core.configure(fail_on=fail, getter=getter, reload=reload)
+		core.writes.clear()
+		expect_voice = not (remembered == voice and getter == "true" and reload in (None, False))
+		expect_failure = fail is not None and (fail != "voice" or expect_voice)
+		try:
+			apply_voice(rt, adapter, voice, rate=revision % 101)
+		except StepFailed:
+			failed = True
+		else:
+			failed = False
+		assert failed is expect_failure
+		assert (core.writes[:1] == [("voice", voice)]) is expect_voice
+		assert voice_writes(core) == ([("voice", voice)] if expect_voice else [])
+		if not failed:
+			assert {name for name, _ in core.writes} >= everything
+		remembered = None if failed else voice
 
 
 def test_onecore_cached_a_b_a_restores_language(bridge_modules, rt):
