@@ -756,15 +756,11 @@ def _hold_resource(env):
 class CountingToken:
 	"""A real CancellationToken that counts how often waiters poll it."""
 
-	def __init__(self, inner, start_delay=0):
+	def __init__(self, inner):
 		self._inner = inner
 		self.checks = 0
-		# Holds the waiter's first read, as a thread that starts late would.
-		self._start_delay = start_delay
 
 	def is_cancelled(self):
-		if self.checks == 0:
-			Event().wait(self._start_delay)
 		self.checks += 1
 		return self._inner.is_cancelled()
 
@@ -775,9 +771,9 @@ class CountingToken:
 		self._inner.cancel()
 
 
-def _accept_counting(env, owner, segment, start_delay=0):
+def _accept_counting(env, owner, segment):
 	lifecycle, _hooks, events, _accept = env
-	token = CountingToken(type(owner.work.token)(), start_delay)
+	token = CountingToken(type(owner.work.token)())
 	context = type(owner.work.context)(object(), segment)
 	return lifecycle.accept(context, token, events.append), token
 
@@ -828,11 +824,10 @@ def _assert_not_polled(read_count, window=0.2):
 	assert read_count() - before <= 1, "waiter is polling instead of waiting for a notification"
 
 
-@pytest.mark.parametrize("start_delay", [0])
-def test_queued_run_does_not_poll_its_token(env, start_delay):
+def test_queued_run_does_not_poll_its_token(env):
 	lifecycle, hooks, _events, _accept = env
 	owner, owner_call = _hold_resource(env)
-	queued, token = _accept_counting(env, owner, 2, start_delay)
+	queued, token = _accept_counting(env, owner, 2)
 	observer = _observe_waits(lifecycle)
 	waiting = Call(lambda: lifecycle.run(queued, ("queued",)))
 	_wait_until_waiting(observer, waiting)
