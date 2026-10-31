@@ -52,11 +52,11 @@
 
 | After | Count | | After | Count |
 |---|---|---|---|---|
-| base `1679ce9` | 3243 | | Task 7 VE/Cerence | 3311 |
-| Task 1 deletion | 3243 | | Task 8 SAPI5 | 3324 |
-| Task 2 T1 | 3251 | | Task 9 OneCore | 3334 |
-| Task 3 T2 | 3255 | | Task 10 RHVoice | 3337 |
-| Task 4 T3 | 3268 | | Task 11 eSpeak | 3340 |
+| base `1679ce9` | 3243 | | Task 7 VE/Cerence | 3309 (Ruling-adjusted; planned 3311) |
+| Task 1 deletion | 3243 | | Task 8 SAPI5 | 3320 (planned 3324) |
+| Task 2 T1 | 3251 | | Task 9 OneCore | 3327 (planned 3334) |
+| Task 3 T2 | 3255 | | Task 10 RHVoice | 3330 (planned 3337) |
+| Task 4 T3 | 3268 | | Task 11 eSpeak | 3332 (planned 3340) |
 | Task 5 T4 | 3277 | | | |
 | Task 6 T5 | 3282 | | | |
 
@@ -263,7 +263,7 @@ def test_cerence_variants_are_empty_without_speech_databases        # Cerence on
 
 - [ ] **Step 2: Green:** 29 ids pass.
 - [ ] **Step 3: Red on mutants** (VE file; the Cerence copy at its bracketed line, spec §5 T6): delete 270-271; `if data.cntPcmBufLen:` → `if True:`; delete 278-280; delete 287-288; drop the `eMrkType` check at 289; `elif … ENDPROCESS` → `else`; delete the `except KeyError` at 413-414; skip queued tasks at 554-557; delete `call.admitting = False` at 797; delete the `except` at 806-807; delete the `except` at 844-845; make `if self._terminationError is None` at 884 unconditional; `langDescription = ""` at 942; Cerence 943-944 try/except removed. Mutate VE and Cerence separately; each mutant fails its engine's id.
-- [ ] **Step 4:** Verification block → **3311 passed**; each concurrency test (T6.3–T6.11) 5×.
+- [ ] **Step 4:** Verification block → **3309 passed** (planned 3311; T6.8 dropped); each concurrency test (T6.3–T6.11) 5×.
 - [ ] **Step 5:** Commit (two commits if large: native callback paths T6.1–T6.5; lifecycle/config/metadata T6.6–T6.13).
 
 ### Task 8: SAPI5 (T7)
@@ -293,7 +293,7 @@ def test_a_stream_mismatch_fails_the_request                       # "SAPI5 call
 
 - [ ] **Step 2: Green:** 12 ids pass (a mutant pair split into two tests is a Ruling).
 - [ ] **Step 3: Red on mutants** (spec §5 T7): try/except 103-106; inner try/except 152-156; delete 166-167 and 171-172 (two runs); drop START / BOOKMARK dispatch, `elif` → `else`; drop validity at 319, 321 true; delete 451-453, 328-329, 338-339; ignore `not driver.player` at 328/338; delete 331-332/341-342; delete 343-344; drop `index not in bookmarks` at 348, single pop at 350-352; try/except 582-585; delete 595-596.
-- [ ] **Step 4:** Verification block → **3324 passed**; each test 5×.
+- [ ] **Step 4:** Verification block → **3320 passed** (planned 3324; T7.8 dropped); each test 5×.
 - [ ] **Step 5:** Commit `test: cover the SAPI5 worker, bookmark and purge paths` (split by topic if large).
 
 ### Task 9: OneCore (T8)
@@ -321,7 +321,7 @@ def test_a_callback_for_a_token_cancelled_segment_feeds_nothing    # _feedSegmen
 
 - [ ] **Step 2: Green:** 10 ids pass.
 - [ ] **Step 3: Red on mutants** (spec §5 T8): always `_OcSsmlConverter`; drop `if player:` at 183/188; at 194; delete 355-357; 392-393; drop `or self._earlyExitCB` at 448; delete 472-473; drop `if self._player:` at 498; drop condition at 522; delete 535-536.
-- [ ] **Step 4:** Verification block → **3334 passed**; each concurrency test 5×.
+- [ ] **Step 4:** Verification block → **3327 passed** (planned 3334; T8.3, T8.6, T8.9 dropped); each concurrency test 5×.
 - [ ] **Step 5:** Commit `test: cover the OneCore no-player, cancel and truncated-audio paths`.
 
 ### Task 10: RHVoice (T9)
@@ -342,7 +342,7 @@ def test_a_cancel_stop_failure_latches_and_raises       # cancel raises the stop
 
 - [ ] **Step 2: Green:** 3 ids pass.
 - [ ] **Step 3: Red on mutants:** delete try/except `RHVoice/__init__.py:270-274` (record never retired: the next request's wait fails); delete `error = exc` at 460.
-- [ ] **Step 4:** Verification block → **3337 passed**; each test 5×.
+- [ ] **Step 4:** Verification block → **3330 passed** (planned 3337); each test 5×.
 - [ ] **Step 5:** Commit `test: cover the RHVoice final idle and cancel stop failures`.
 
 ### Task 11: eSpeak (T10)
@@ -363,12 +363,12 @@ def test_a_failed_ordinary_utterance_clears_speaking_and_reports_done  # speak r
 
 - [ ] **Step 2: Green:** 3 ids pass.
 - [ ] **Step 3: Red on mutants:** delete `Espeak/__init__.py:31-32`; delete `self._port.markNotSpeaking()` at 196; delete the `except` at 115-116.
-- [ ] **Step 4:** Verification block → **3340 passed**; each test 5×.
+- [ ] **Step 4:** Verification block → **3332 passed** (planned 3340; T10.2 synth case dropped); each test 5×.
 - [ ] **Step 5:** Commit `test: cover the eSpeak fault cancel and failed utterance paths`.
 
 ### Task 12: Final verification (no code)
 
-- [ ] **Step 1:** Full suite under the watchdog → **3340 passed, 0 skipped** (or the ledger's Ruling-adjusted count).
+- [ ] **Step 1:** Full suite under the watchdog → **3332 passed, 0 skipped** (Ruling-adjusted; planned 3340).
 - [ ] **Step 2:** Coverage run (spec §2 command) under the watchdog; `covcmp.py impl/base-cov.txt <final>` → `COVERAGE GATE OK` (`discovery.py` loses 1 stmt/1 branch by Task 1); TOTAL vs spec §4's 98.67 %, each (a) module vs spec §2's "expected after"; every remaining (a) miss explained by a Ruling. A one-line change in an untouched module counts as noise only if two reruns agree.
 - [ ] **Step 3:** `prek run --all-files` → all Passed; `git diff --check master` → empty.
 - [ ] **Step 4:** `git diff --stat master -- addon` → only `discovery.py | 2 --`; protected paths (`git diff --stat master -- 'addon/synthDrivers/WorldVoice/driver/*/driver/*' addon/synthDrivers/WorldVoice/driver/sonic/ addon/synthDrivers/WorldVoice/unicodeScripts/script_data.py addon/synthDrivers/WorldVoice/unicodeScripts/unspaced_common_data.py`) and `git ls-files addon/synthDrivers/WorldVoice/driver/Neural` → empty.
