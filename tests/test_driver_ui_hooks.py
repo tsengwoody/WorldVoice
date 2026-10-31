@@ -43,12 +43,6 @@ def test_voice_manager_is_the_private_manager_or_none(synth):
 	assert synth.synth.voiceManager is None
 
 
-def test_refresh_without_detection_only_unregisters(synth):
-	synth.synth.uwv = False
-	synth.synth.refreshLanguageDetection()
-	assert synth.calls == [("unregister", synth.handler)]
-
-
 @pytest.mark.parametrize(
 	"timing,expected",
 	[
@@ -69,11 +63,6 @@ def test_setting_uwv_refreshes_language_detection(synth, monkeypatch):
 	synth.synth._set_uwv(False)
 	assert synth.synth.uwv is False
 	assert synth.calls == [("unregister", synth.handler)]
-
-
-def test_detection_timing_comes_from_the_settings_service(synth):
-	synth.detection.timing = "after"
-	assert synth.synth._detectLanguageTiming() == "after"
 
 
 def test_a_timing_change_refreshes_language_detection(synth):

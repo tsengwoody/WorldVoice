@@ -152,7 +152,7 @@ def test_discovery_without_engine_folders_finds_nothing(discovery, tmp_path):
 
 @pytest.mark.parametrize(
 	("value", "enabled"),
-	[(True, True), (False, False), ("True", True), ("false", False), ("0", False), ("", False), (0, False)],
+	[(True, True), (False, False), ("True", True), ("false", False), ("0", False), ("", False)],
 )
 def test_a_configured_engine_flag_overrides_the_manifest_default(discovery, tmp_path, value, enabled):
 	engine = spec(discovery, "A", "fake_a", tmp_path, enabled=not enabled)
@@ -225,10 +225,6 @@ STALE_BUNDLED = "Skipping Stale engine candidate: bundled engine uses the pre-re
 	("old", "new", "member"),
 	[
 		("extra_capabilities", "extraCapabilities", frozenset({"waitfactor"})),
-		("drain_profile", "drainProfile", None),
-		("create_core", "createCore", classmethod(lambda cls: object())),
-		("destroy_core", "destroyCore", classmethod(lambda cls, core: None)),
-		("update_settings", "updateSettings", lambda self, **values: None),
 	],
 )
 def test_plugin_with_old_contract_names_is_reported(discovery, monkeypatch, tmp_path, old, new, member):

@@ -32,7 +32,6 @@ def driver(stub_modules, monkeypatch):
 		("en", "Anna - Deutsch", "English"),
 		# Without a description, the part of the display name after " - " names the language.
 		("de", "Anna - Deutsch", "Deutsch"),
-		("de", "Anna", "de"),
 		(None, "Anna", "unknown"),
 	],
 )

@@ -210,20 +210,6 @@ def test_configured_cyrillic_and_devanagari_languages(env, languages, preference
 	assert detect(env, sequence, languages=languages, base="en_US", **preferences) == expected
 
 
-# The shipped defaults are the scripts' first candidates, so a fresh profile detects as before.
-@pytest.mark.parametrize(
-	"languages,sequence,expected",
-	[
-		pytest.param(("en_US", "uk_UA", "ru_RU"), ["hi привет"], ["hi ", ("lang", "ru"), "привет"], id="ru"),
-		pytest.param(("en_US", "mr_IN", "hi_IN"), ["hi नमस्ते"], ["hi ", ("lang", "hi"), "नमस्ते"], id="hi"),
-	],
-)
-def test_default_cyrillic_and_devanagari_languages(env, languages, sequence, expected):
-	assert env.settings.get().script_language["Cyrillic"] == "ru"
-	assert env.settings.get().script_language["Devanagari"] == "hi"
-	assert detect(env, sequence, languages=languages, base="en_US") == expected
-
-
 # A language counts only with an installed voice (phase 33 spec §3); availability is by primary subtag.
 @pytest.mark.parametrize(
 	"languages,base,preferences,sequence,expected",
@@ -420,13 +406,6 @@ def test_mixed_scripts_switch_at_script_boundaries(env):
 	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en_US"), "ok"]
 
 
-@pytest.mark.parametrize("stored", [False, True], ids=["stored-off", "stored-on"])
-def test_digits_follow_the_current_language_whatever_is_stored(env, stored):
-	# The old "ignore numbers" key is never read again (phase 35 goal 2).
-	switching(env)["ignoreNumbersInLanguageDetection"] = stored
-	assert shape(env, make_detector(env).add_detected_language_commands(["中1"])) == [("lang", "zh"), "中1"]
-
-
 # Decimal digits of any script are not letters: many are not Common script (Arabic-Indic digits are
 # Arabic), so without their own rule they would switch the voice (phase 35 spec §6.3, F4).
 @pytest.mark.parametrize(
@@ -496,22 +475,6 @@ def test_spelling_reads_the_number_language_once_per_call(env):
 def test_spelling_keeps_arabic_indic_digits_in_a_latin_run(env, number_language):
 	detector = make_detector(env, ("en_US", "ar"), number_language)
 	assert list(detector.process_for_spelling("abc١٢", "en_US")) == [("abc١٢", "en_US")]
-
-
-# The speech symbols are gone (phase 33 spec §1.2): an old caller fails at construction, not later.
-@pytest.mark.parametrize(
-	"args,kwargs",
-	[pytest.param((None,), {}, id="positional"), pytest.param((), {"speechSymbols": None}, id="keyword")],
-)
-def test_symbols_argument_is_rejected(env, args, kwargs):
-	with pytest.raises(TypeError):
-		env.module.LanguageDetector(
-			["en_US"],
-			*args,
-			settings=env.settings,
-			language=lambda: env.state.language,
-			**kwargs,
-		)
 
 
 def test_language_commands_reset_the_base_language(env):

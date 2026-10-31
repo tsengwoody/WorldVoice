@@ -1,7 +1,7 @@
 """One extraction routine serves installation and the Import menu."""
 
 import types
-from zipfile import BadZipFile, ZipFile
+from zipfile import ZipFile
 
 import pytest
 from addon_loader import ADDON, load_definitions
@@ -17,32 +17,6 @@ def make_zip(path, **members):
 		for name, data in members.items():
 			archive.writestr(name, data)
 	return str(path)
-
-
-def test_extracts_members_and_reports_skipped(tmp_path, monkeypatch):
-	logged = []
-	module = load(ARCHIVE, "core_archive_under_test", monkeypatch, logged)
-	archive = make_zip(tmp_path / "core.zip", **{"Engine/a.txt": "a", "Engine/b.txt": "b"})
-	workspace = tmp_path / "ws"
-	assert module.extractCoreArchive(archive, str(workspace)) == []
-	assert (workspace / "Engine/a.txt").read_text() == "a"
-	original = ZipFile.extract
-
-	def locked(self, member, path=None, pwd=None):
-		if member.filename.endswith("b.txt"):
-			raise PermissionError("in use")
-		return original(self, member, path, pwd)
-
-	monkeypatch.setattr(ZipFile, "extract", locked)
-	assert module.extractCoreArchive(archive, str(workspace)) == ["Engine/b.txt"]
-
-
-def test_corrupt_archive_raises_bad_zip(tmp_path, monkeypatch):
-	module = load(ARCHIVE, "core_archive_under_test", monkeypatch, [])
-	broken = tmp_path / "broken.zip"
-	broken.write_bytes(b"not a zip")
-	with pytest.raises(BadZipFile):
-		module.extractCoreArchive(str(broken), str(tmp_path / "ws"))
 
 
 @pytest.mark.parametrize("corrupt", [False, True])

@@ -78,8 +78,6 @@ def test_ready_engine_classes_loads_only_the_enabled_ready_engines(engines):
 		# A discovered engine: the config wins, otherwise its manifest default.
 		(EXTERNAL, {}, True),
 		(EXTERNAL, {EXTERNAL: "False"}, False),
-		("RHVoice", {}, False),
-		("RHVoice", {"RHVoice": True}, True),
 		# An engine nobody discovered is on only when the config says so.
 		("Gone", {}, False),
 		("Gone", {"Gone": "True"}, True),

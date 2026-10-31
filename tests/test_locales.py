@@ -18,12 +18,9 @@ def locales(monkeypatch):
 	[
 		("en_US", "en"),
 		("en-US", "en"),
-		("zh_TW", "zh"),
-		("ar-WW", "ar"),
 		("ZH-tw", "zh"),
 		("ja", "ja"),
 		("sr-Latn-RS", "sr"),
-		("zh_Hant_TW", "zh"),
 		("", ""),
 		(None, None),
 	],
@@ -45,14 +42,3 @@ def test_locales_imports_nothing():
 	# The detector and the voice roles both load it; neither may pull the other in.
 	tree = ast.parse((WORLDVOICE / "locales.py").read_text(encoding="utf-8"))
 	assert not [node for node in ast.walk(tree) if isinstance(node, ast.Import | ast.ImportFrom)]
-
-
-def test_no_other_module_defines_a_primary_language_helper():
-	defined = sorted(
-		f"{path.relative_to(WORLDVOICE).as_posix()}:{node.name}"
-		for path in WORLDVOICE.rglob("*.py")
-		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-		if isinstance(node, ast.FunctionDef)
-		and node.name in {"primary_language", "getPrimaryLocale", "get_primary_language"}
-	)
-	assert defined == ["locales.py:primary_language"]

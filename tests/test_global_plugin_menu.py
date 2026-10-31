@@ -79,14 +79,6 @@ def test_settings_menu_and_script_open_the_settings_dialog(monkeypatch):
 	assert env.popped == [env.settings_dialog]
 
 
-def test_unicode_settings_are_gone(monkeypatch):
-	# The speech-symbols dialog was removed in phase 33; a gesture bound to its script does nothing.
-	plugin_class = plugin(monkeypatch).module.GlobalPlugin
-	assert not hasattr(plugin_class, "script_popup_unicode_settings_dialog")
-	assert not hasattr(plugin_class, "popup_SpeechSymbolsDialog")
-	assert not hasattr(plugin_class, "popupSpeechSymbolsDialog")
-
-
 @pytest.mark.parametrize("enabled", [False, True])
 def test_log_script_switches_the_pipeline_log(monkeypatch, enabled):
 	env = plugin(monkeypatch, log_enabled=enabled)

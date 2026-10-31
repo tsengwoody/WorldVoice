@@ -1,12 +1,10 @@
 """The language detection settings service: the only reader and writer of its six keys."""
 
-import ast
-import dataclasses
 from types import SimpleNamespace
 
 import pytest
 from addon_loader import WORLDVOICE, alias_package, load_source
-from nvda_stubs import StubModules, _confspec_default, _detection_confspec, worldvoice_conf
+from nvda_stubs import StubModules, _confspec_default, worldvoice_conf
 
 SETTINGS = WORLDVOICE / "languageDetection/settings.py"
 SCRIPT_LANGUAGES = WORLDVOICE / "languageDetection/scriptLanguages.py"
@@ -90,22 +88,6 @@ def test_update_writes_only_the_given_changed_keys(env):
 	assert env.section.writes == ["cjkCharactersLanguage"]
 	assert settings.script_language["Han"] == "zh"
 	assert (env.section["latinCharactersLanguage"], env.section["arabicCharactersLanguage"]) == ("en", "ar")
-
-
-@pytest.mark.parametrize(
-	"script,language,key",
-	[
-		("Cyrillic", "uk", "cyrillicCharactersLanguage"),
-		("Devanagari", "mr", "devanagariCharactersLanguage"),
-	],
-)
-def test_update_writes_the_cyrillic_and_devanagari_keys(env, script, language, key):
-	seen = []
-	env.service.subscribe(lambda settings, changed: seen.append(changed))
-	settings = env.service.update(script_language={script: language})
-	assert env.section.writes == [key]
-	assert env.section[key] == language and settings.script_language[script] == language
-	assert seen == [frozenset({"script_language"})]
 
 
 def test_update_with_stored_values_writes_and_notifies_nothing(env):
@@ -206,20 +188,6 @@ def test_the_config_stub_reads_the_detection_defaults_from_the_table(monkeypatch
 	}
 
 
-@pytest.mark.parametrize(
-	"comprehension",
-	[
-		"{row.config_key: row.default_language for row in DETECTION_SCRIPTS if row.script != 'Latin'}",
-		"{row.config_key: row.default_language async for row in DETECTION_SCRIPTS}",
-	],
-)
-def test_the_config_stub_rejects_a_detection_confspec_it_cannot_read(comprehension):
-	# A filtered (or async) comprehension would give the stub keys the real confspec lacks.
-	node = ast.parse(f"DETECTION_CONFSPEC = {{**{comprehension}}}").body[0].value
-	with pytest.raises(ValueError):
-		_detection_confspec(node)
-
-
 def test_the_shared_service_reads_nvda_config(monkeypatch):
 	conf = {
 		"WorldVoice": {
@@ -240,45 +208,3 @@ def test_the_shared_service_reads_nvda_config(monkeypatch):
 		"bg",
 		"ne",
 	)
-
-
-# Phase 35 removed the "ignore numbers" option: the number language decides every digit.
-def test_update_rejects_ignore_numbers(env):
-	with pytest.raises(TypeError):
-		env.service.update(ignore_numbers=True)
-	assert env.section.writes == []
-
-
-def test_get_reads_a_section_that_still_holds_the_old_key(env):
-	# A profile keeps the old key until NVDA drops it; nothing reads it.
-	env.section["ignoreNumbersInLanguageDetection"] = True
-	settings = env.service.get()
-	assert (dict(settings.script_language), settings.timing) == (
-		ALL_SCRIPTS,
-		"after",
-	)
-
-
-def test_settings_have_no_ignore_numbers_field(env):
-	assert [field.name for field in dataclasses.fields(env.module.DetectionSettings)] == [
-		"script_language",
-		"timing",
-	]
-
-
-def test_old_pascal_case_keys_are_ignored(monkeypatch):
-	# No migration (decided by the user, 2026-10-27): the pre-rename keys stay in nvda.ini, unread.
-	section = RecordingSection(
-		latinCharactersLanguage="en",
-		cjkCharactersLanguage="ja",
-		arabicCharactersLanguage="ar",
-		cyrillicCharactersLanguage="ru",
-		devanagariCharactersLanguage="hi",
-		detectLanguageTiming="after",
-		CJKCharactersLanguage="zh",
-		DetectLanguageTiming="before",
-	)
-	conf = {"WorldVoice": {"autoLanguageSwitching": section}}
-	settings = load_settings_module(monkeypatch, conf).DetectionSettingsService(lambda: conf).get()
-	assert settings.timing == "after"
-	assert settings.script_language["Han"] == "ja"

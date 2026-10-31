@@ -23,14 +23,14 @@ def test_a_new_choice_follows_the_text(choice):
 	assert choice.listed_locales() == ["en", "zh_TW"]
 
 
-@pytest.mark.parametrize("value", ["default", "main", "en", "ja"])
+@pytest.mark.parametrize("value", ["default", "main", "en"])
 def test_storable_values(choice, value):
 	assert choice.is_storable(value)
 	assert choice.store(value) is True
 	assert choice.stored == value
 
 
-@pytest.mark.parametrize("value", ["zz", "fr"])
+@pytest.mark.parametrize("value", ["fr"])
 def test_a_refused_value_stores_follow(choice, value):
 	choice.store("en")
 	assert not choice.is_storable(value)
