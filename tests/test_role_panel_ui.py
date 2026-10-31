@@ -134,6 +134,8 @@ def test_opened_panel_shows_locales_and_consistency_flags_with_no_voice_yet(ui):
 	assert presenter.manager is ui.synth.voiceManager
 	assert panel._localesChoice.choices == ["English", "Chinese"]
 	assert panel._localesChoice.focused is True
+	assert ("EVT_WINDOW_DESTROY", panel._onDestroy, None) in panel.bindings
+	assert panel.disable is False
 	# No locale chosen yet: nothing to edit.
 	assert panel._voicesChoice.choices == []
 	assert not any(slider.enabled for slider in sliders(ui.panel))
