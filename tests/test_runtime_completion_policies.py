@@ -222,6 +222,84 @@ def test_configure_after_speech_is_rejected(env):
 		adapter.configureCompletion(env.models.CompletionContract())
 
 
+def ledger_adapter(env, core):
+	"""A legacy adapter built as the voice manager builds every adapter: with an index ledger."""
+
+	class Voice:
+		@classmethod
+		def createCore(cls):
+			return core
+
+		@classmethod
+		def supportedSettings(cls):
+			return ()
+
+	ledger = importlib.import_module(env.package + ".bridge.indexLedger").IndexLedger()
+	adapter = env.adapter.VoiceClassAdapter(Voice, lambda key: None, indexLedger=ledger)
+	adapter.open()
+	return adapter
+
+
+class RecordingCore:
+	def __init__(self, error=None):
+		self.spoken = []
+		self.error = error
+
+	def speak(self, commands):
+		self.spoken.append(commands)
+		if self.error is not None:
+			raise self.error
+
+	def speak_segment(self, commands, token, *, context, on_event):
+		pass
+
+
+def test_legacy_speak_with_a_cancelled_token_never_enters_the_core(env):
+	core = RecordingCore()
+	adapter = ledger_adapter(env, core)
+	assert adapter.speak(("hello",), SimpleNamespace(is_cancelled=lambda: True)) is None
+	assert core.spoken == []
+
+
+def test_legacy_speak_cancelled_during_entry_never_enters_the_core(env):
+	core = RecordingCore()
+	adapter = ledger_adapter(env, core)
+	reads = []
+
+	def is_cancelled():
+		# Not cancelled when speak starts, cancelled by the time the core would be entered.
+		reads.append(True)
+		return len(reads) > 1
+
+	assert adapter.speak(("hello",), SimpleNamespace(is_cancelled=is_cancelled)) is None
+	assert core.spoken == []
+	assert len(reads) == 2
+
+
+def test_legacy_core_error_propagates_unchanged(env):
+	error = OSError("engine failed")
+	adapter = ledger_adapter(env, RecordingCore(error))
+	with pytest.raises(OSError) as raised:
+		adapter.speak(("hello",), SimpleNamespace(is_cancelled=lambda: False))
+	assert raised.value is error
+
+
+def test_segment_event_factory_must_be_callable(env):
+	adapter = ledger_adapter(env, RecordingCore())
+	models = env.models
+	adapter.configureCompletion(
+		models.CompletionContract(models.CompletionMode.DRAIN, models.IndexRange(1, 1000)),
+	)
+	with pytest.raises(TypeError, match="Segment event factory must be callable"):
+		adapter.configureSegmentEvents(object())
+	with pytest.raises(RuntimeError, match="Drain completion requires a segment event factory"):
+		adapter.speak(
+			("hello",),
+			SimpleNamespace(is_cancelled=lambda: False),
+			context=models.PlaybackContext(object(), 1),
+		)
+
+
 COMMANDS = (
 	"IndexCommand",
 	"CharacterModeCommand",

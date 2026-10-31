@@ -89,6 +89,30 @@ def drained(s, segment_id, source_id=None):
 	return s.ledger.receiveSegmentEvent(event, bindingToken=s.token)
 
 
+def test_bind_requires_a_correlated_contract(env):
+	# The model refuses a legacy contract with an index range, so a legacy contract has none.
+	ledger = env.module.IndexLedger()
+	try:
+		with pytest.raises(
+			env.module.InvalidIndexContext,
+			match="Index allocation requires a correlated completion contract",
+		):
+			ledger.bind(object(), object(), env.models.CompletionContract())
+	finally:
+		ledger.close()
+
+
+def test_a_non_int_wire_index_decodes_nothing(make_ledger):
+	s = make_ledger("END_INDEX", 1, 10)
+	context = s.models.PlaybackContext(s.source_id, 1)
+	allocation = s.ledger.prepare(context, (123,))
+	assert allocation.wireIndexes == (1,)
+	# True == 1 and hashes alike: only an int is a wire index.
+	assert s.ledger.receiveIndex(s.source_id, True) == ()
+	events = s.ledger.receiveIndex(s.source_id, 1)
+	assert [(event.kind, event.index) for event in events] == [(s.models.EventKind.INDEX, 123)]
+
+
 def test_terminal_marker_replays_missing_originals_before_end(env):
 	allocation = env.ledger.prepare(env.context, (123, 124))
 	assert allocation.wireIndexes == (501, 502)

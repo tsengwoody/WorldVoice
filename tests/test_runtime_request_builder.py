@@ -315,6 +315,48 @@ def test_cancel_during_build_returns_false(builder, runtime, rt, stop, next_comm
 	assert runtime.output.done_count == 0
 
 
+def test_cancel_during_build_stops_at_the_next_voice_change(builder, runtime, rt):
+	resolved = []
+
+	def resolve(key):
+		resolved.append(key)
+		return runtime.port
+
+	def sequence():
+		yield "A"
+		runtime.manager.cancel()
+		yield rt.models.SelectVoice("Fake:b")
+		yield "B"
+
+	assert builder.queue_speech_sequence(runtime.manager, sequence(), "Fake:a", resolve) is False
+	assert resolved == ["Fake:a"]
+	assert runtime.port.spoken == []
+
+
+def test_cancel_during_build_stops_at_the_next_pause(builder, runtime, rt, monkeypatch):
+	breaks = []
+	append_break = runtime.manager.append_break
+
+	def recording_break(request, seconds):
+		breaks.append(seconds)
+		return append_break(request, seconds)
+
+	monkeypatch.setattr(runtime.manager, "append_break", recording_break)
+
+	def sequence():
+		yield "A"
+		runtime.manager.cancel()
+		yield rt.models.Pause(0.1)
+		yield "B"
+
+	assert (
+		builder.queue_speech_sequence(runtime.manager, sequence(), "Fake:a", lambda key: runtime.port)
+		is False
+	)
+	assert breaks == []
+	assert runtime.port.spoken == []
+
+
 def test_shutdown_before_build_returns_false(builder, runtime):
 	runtime.manager.shutdown()
 	assert (
