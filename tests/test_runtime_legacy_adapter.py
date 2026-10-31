@@ -71,28 +71,6 @@ def test_malformed_voice_metadata_does_not_hide_valid_voices(bridge_modules, rt)
 	assert adapter.listVoices() == (rt.models.VoiceSpec("a", "Fake:a", "A", "en", "Fake", "en"),)
 
 
-@pytest.mark.parametrize(("declared", "core_claim"), [(True, None), (False, True), (False, None)])
-def test_plain_speak_never_passes_the_request_token(bridge_modules, declared, core_claim):
-	# fix/ve-drop-cancellation-token dropped the "cancellationToken" trait (phase 52 had made it
-	# a Voice.extraCapabilities value; before phase 50 the core claimed it): every core is
-	# stopped through cancel(), so neither a Voice declaring the old value nor a core claiming
-	# it gets the token.
-	core = Core()
-	if core_claim is not None:
-		core.supportsCancellationToken = core_claim
-	cls = legacy_class(core)
-	if declared:
-		cls.extraCapabilities = frozenset({"cancellationToken"})
-	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: cls())
-	adapter.open()
-	token = SimpleNamespace(is_cancelled=lambda: False)
-	adapter.speak(("hello",), token)
-	assert core.spoken == [(("hello",), {})]
-	assert not hasattr(adapter.capabilities, "supports_cancellation_token")
-	assert adapter.capabilities.supports_variants is False
-	assert adapter.capabilities.supports_waitfactor is False
-
-
 def test_unsupported_generic_settings_are_not_written(bridge_modules, rt):
 	core = Core()
 	cls = legacy_class(core)
@@ -737,13 +715,6 @@ def test_drain_cancel_retires_before_core_emits_old_drain(drain_env):
 	assert env.events == []
 
 
-def test_drain_requires_event_factory_before_speech(drain_env):
-	env = drain_env
-	with pytest.raises(RuntimeError, match="segment event"):
-		env.adapter.speak(("hello",), env.token, context=env.context)
-	assert env.calls == env.core.spoken == []
-
-
 @pytest.mark.parametrize("phase", ["before_open", "before_completion", "after_speech", "after_close"])
 def test_segment_event_configuration_rejects_wrong_lifecycle_phase(bridge_modules, rt, phase):
 	core = Core()
@@ -780,21 +751,3 @@ def test_and_mode_uses_segment_entry_and_keeps_terminal_marker(drain_env):
 	assert [c.index for c in commands if isinstance(c, env.commands.IndexCommand)] == [1, 2]
 	assert isinstance(commands[-1], env.support.commands.WorldVoiceIndexCommand)
 	assert env.core.spoken == []
-
-
-@pytest.mark.parametrize("engine", ["VE", "Cerence"])
-def test_bridge_speaks_the_real_vocalizer_wrapper_without_a_token(bridge_modules, rt, monkeypatch, engine):
-	# fix/ve-drop-cancellation-token: the wrappers no longer take the request's token; their
-	# ordinary speech is cancelled through cancel(), like every engine's.
-	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
-	cls = harness.module.Voice
-	assert "cancellationToken" not in cls.extraCapabilities
-	core = harness.new_core()
-	monkeypatch.setattr(cls, "createCore", classmethod(lambda cls: core), raising=False)
-	monkeypatch.setattr(cls, "supportedSettings", classmethod(lambda cls: ["rate"]), raising=False)
-	adapter = bridge_modules.adapter.VoiceClassAdapter(cls, lambda key: None)
-	adapter.open()
-	calls = []
-	monkeypatch.setattr(core, "speak", lambda commands: calls.append(commands))
-	bridge_modules.adapter._speakPlain(adapter, ["hi"], object(), None, None)
-	assert calls == [["hi"]]

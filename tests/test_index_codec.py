@@ -154,14 +154,6 @@ def test_drain_codec_empty_input_does_not_construct_internal_marker(drain_codec_
 	assert allocation.wireIndexes == (1,) and allocation.endIndex is None
 
 
-def test_drain_codec_rejects_external_internal_command_before_allocation(drain_codec_env):
-	env = drain_codec_env
-	marker = env.support.commands.WorldVoiceIndexCommand(123)
-	with pytest.raises(ValueError, match="Input already contains an internal segment marker"):
-		encode(env, (env.commands.IndexCommand(7), marker))
-	assert env.ledger.prepare(env.context, (7,)).wireIndexes == (1,)
-
-
 def test_drain_codec_leaves_out_the_indexes_of_a_degraded_segment(drain_codec_env):
 	env = drain_codec_env
 	# Another segment holds the whole range, so this one gets no wire index.

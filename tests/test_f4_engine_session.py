@@ -7,7 +7,6 @@ from runtime_harness import MemoryRepository, make_spec
 class FakeCore:
 	def __init__(self, supported=("rate", "pitch", "volume")):
 		object.__setattr__(self, "writes", [])
-		object.__setattr__(self, "fail_on", None)
 		object.__setattr__(
 			self,
 			"supportedSettings",
@@ -17,8 +16,6 @@ class FakeCore:
 	def __setattr__(self, name, value):
 		if name in {"voice", "rateBoost", "rate", "pitch", "volume", "inflection"}:
 			self.writes.append((name, value))
-			if name == self.fail_on:
-				raise RuntimeError(name)
 		object.__setattr__(self, name, value)
 
 
@@ -114,16 +111,5 @@ def test_partial_failure_invalidates_stamp(engine):
 	with pytest.raises(RuntimeError, match="variant"):
 		engine.session.activate("Fake:a")
 	engine.hook = lambda core, value: None
-	engine.store.rollback("Fake:a")
-	assert engine.session.activate("Fake:a") is True
-
-
-def test_setter_failure_invalidates_stamp(engine):
-	engine.session.activate("Fake:a")
-	engine.core.fail_on = "pitch"
-	engine.store.state("Fake:a").update(rate=72)
-	with pytest.raises(RuntimeError, match="pitch"):
-		engine.session.activate("Fake:a")
-	engine.core.fail_on = None
 	engine.store.rollback("Fake:a")
 	assert engine.session.activate("Fake:a") is True

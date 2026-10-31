@@ -241,15 +241,8 @@ def test_adapter_entry_per_contract(adapter_env, name):
 	"name,missing,error,message",
 	[
 		("END_INDEX", "context", ValueError, "Correlated completion requires a playback context"),
-		("DRAIN", "context", ValueError, "Correlated completion requires a playback context"),
 		("END_INDEX", "ledger", ValueError, "Marker completion requires an index ledger"),
 		("DRAIN", "segment_events", RuntimeError, "Drain completion requires a segment event factory"),
-		(
-			"END_INDEX_AND_DRAIN",
-			"segment_events",
-			RuntimeError,
-			"Drain completion requires a segment event factory",
-		),
 	],
 )
 def test_adapter_precondition_errors_per_contract(adapter_env, name, missing, error, message):

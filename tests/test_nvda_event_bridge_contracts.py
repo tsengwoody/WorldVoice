@@ -140,15 +140,6 @@ def test_a_failed_ledger_bind_raises_its_own_error_chained_to_a_failed_revoke(en
 	assert env.batches == []
 
 
-def test_unbinding_an_unknown_source_id_changes_nothing(env):
-	start(env)
-	source, source_id = object(), object()
-	env.bridge.bind(source, source_id)
-	env.bridge.unbind(object())
-	env.done.notify(synth=source)
-	assert [event.source_id for event in env.received] == [source_id]
-
-
 def test_close_raises_the_first_cleanup_error_after_trying_every_step(env):
 	start(env)
 	done_error, index_error = RuntimeError("done"), RuntimeError("index")

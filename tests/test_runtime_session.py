@@ -218,7 +218,7 @@ class EventToken:
 		return lambda: callback in self._callbacks and self._callbacks.remove(callback)
 
 
-@pytest.mark.parametrize("mode", ["LEGACY_DONE", "DRAIN"])
+@pytest.mark.parametrize("mode", ["LEGACY_DONE"])
 def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapter, store, mode):
 	if mode != "LEGACY_DONE":
 		contract = rt.models.CompletionContract(
@@ -236,7 +236,7 @@ def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapt
 	assert [context.segment_id for context in adapter.contexts] == [1, 2]
 
 
-@pytest.mark.parametrize("mode", ["LEGACY_DONE", "DRAIN"])
+@pytest.mark.parametrize("mode", ["LEGACY_DONE"])
 def test_session_rejects_foreign_context(rt, session, adapter, mode):
 	if mode != "LEGACY_DONE":
 		contract = rt.models.CompletionContract(

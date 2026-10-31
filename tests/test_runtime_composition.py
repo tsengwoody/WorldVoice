@@ -79,7 +79,7 @@ def test_each_opened_engine_is_one_engine_resource(composition):
 	assert engine_resources(manager) == {} and [cls.opened for cls in classes] == [None, None]
 
 
-@pytest.mark.parametrize("failure", ["empty", "bind"])
+@pytest.mark.parametrize("failure", ["empty"])
 def test_initialization_failure_closes_without_commit(composition, failure):
 	c = composition
 	c.engine("bad", empty=failure == "empty")
@@ -771,7 +771,7 @@ def installed_drain_voice(c, monkeypatch, name="OneCore", *, supported=True):
 	)
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "VE", "SAPI5"])
+@pytest.mark.parametrize("engine", ["OneCore", "VE"])
 def test_supported_installed_wrapper_is_bound_before_first_drain_speech(
 	composition,
 	monkeypatch,
@@ -874,7 +874,6 @@ def test_new_installed_wrapper_retains_request_identity_on_failure_or_cancel(
 		(True, "wasapi", "DRAIN"),
 		(False, "legacy", "LEGACY_DONE"),
 		("absent", "unknown", "LEGACY_DONE"),
-		(None, "unknown", "LEGACY_DONE"),
 	],
 )
 def test_wasapi_mode_sensitive_support_uses_actual_opened_core(

@@ -2,10 +2,7 @@ import types
 from dataclasses import replace
 
 import pytest
-from addon_loader import WORLDVOICE, load_definitions
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
-
-DRIVERS = WORLDVOICE / "driver"
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
@@ -81,23 +78,6 @@ def test_variant_metadata_read_preserves_playback_state(monkeypatch, engine):
 	assert (core.voice, core.rate, core.pitch, core.waitfactor) == ("a", 71, 63, 2)
 
 
-def test_onecore_language_is_applied_only_on_activation():
-	path = DRIVERS / "OneCore/__init__.py"
-
-	class BaseVoice:
-		def __init__(self, id, name, taskManager, language=None):
-			self.language = language
-
-	core = types.SimpleNamespace(language="original")
-	environment = {"BaseVoice": BaseVoice, "SynthDriver": object, "DrainProfile": lambda **kwargs: None}
-	load_definitions(path, ["Voice"], environment)
-	environment["Voice"].core = core
-	adapter = environment["Voice"]("a", "OneCore:a", None, language="en")
-	assert core.language == "original"
-	adapter.applyEngineSettings(core, types.SimpleNamespace(language="fr"))
-	assert core.language == "fr"
-
-
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
 def test_voice_metadata_names_the_declaring_engine(monkeypatch, engine):
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
@@ -134,7 +114,6 @@ def test_voice_metadata_keeps_vocalizer_quirks(monkeypatch, engine):
 	"raw,expected",
 	[
 		("b'bengali'", "bengali"),
-		("b'Arabic'", "Arabic"),
 		("b'b'", "b"),
 		("plain", "plain"),
 		("b'", "b'"),

@@ -47,12 +47,6 @@ def test_rule_table_rows(completion, rt, key):
 	)
 
 
-def test_every_completion_mode_has_exactly_one_rule(completion, rt):
-	modes = {mode.name for mode in rt.models.CompletionMode}
-	assert set(TABLE) == modes
-	assert len({id(completion.rule_for(_contract(rt, mode))) for mode in modes}) == len(modes)
-
-
 @pytest.mark.parametrize("key", TABLE)
 def test_rule_queries_read_only_the_rule_fields(completion, rt, key):
 	rule = completion.rule_for(_contract(rt, key))

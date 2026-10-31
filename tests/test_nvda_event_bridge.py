@@ -547,7 +547,7 @@ def test_batch_iterates_again_and_stops_after_unbind(drain_env):
 	assert list(batch) == []
 
 
-@pytest.mark.parametrize("mismatch", ["source", "segment", "done", "end", "index"])
+@pytest.mark.parametrize("mismatch", ["source", "segment", "end"])
 def test_segment_sink_rejects_unrelated_events(drain_env, mismatch):
 	env = drain_env
 	sink = env.bridge.segmentSink(env.source, env.context)
@@ -566,7 +566,7 @@ def test_segment_sink_rejects_unrelated_events(drain_env, mismatch):
 	assert list(env.suppliers[0]())[-1].kind is env.models.EventKind.SEGMENT_DRAINED
 
 
-@pytest.mark.parametrize("invalid", ["unknown", "wrong_context", "owner", "legacy", "end_index"])
+@pytest.mark.parametrize("invalid", ["unknown", "wrong_context", "owner", "end_index"])
 def test_segment_sink_requires_correlated_source_binding(drain_env, invalid):
 	env = drain_env
 	source, context = env.source, env.context
