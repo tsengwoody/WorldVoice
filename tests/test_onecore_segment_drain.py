@@ -1,6 +1,9 @@
+import ctypes
 import gc
 import inspect
+import io
 import sys
+import wave
 import weakref
 from threading import Event, current_thread, get_ident
 
@@ -1720,3 +1723,165 @@ def test_cancel_pause_lock_stop_failure_delivers_after_lock_release(env, monkeyp
 	assert pause_lock_free == [True]
 	assert segment_host(env.driver).control_error is error
 	assert stop_gate_clear(env.driver)
+
+
+def test_segment_conversion_without_prosody_options_uses_the_pre_api5_converter(env, monkeypatch):
+	used = []
+
+	def spy(name):
+		converter = getattr(env.base, name)
+
+		class Spy(converter):
+			def __init__(self, *args):
+				used.append(name)
+				super().__init__(*args)
+
+		monkeypatch.setattr(env.base, name, Spy)
+
+	spy("_OcSsmlConverter")
+	spy("_OcPreAPI5SsmlConverter")
+	# NVDA asks the native helper once; older Windows OneCore voices have no prosody options.
+	env.driver.supportsProsodyOptions = False
+	speak(env)
+	env.native.wait_calls(1)
+	assert used == ["_OcPreAPI5SsmlConverter"]
+
+
+def test_cancel_before_any_audio_stops_nothing(env):
+	env.driver._player = None
+	_, _, cancelled = speak(env)
+	env.native.wait_calls(1)
+	env.driver.cancel()
+	# The cancelled utterance's callback still arrives, and creates no player.
+	env.native.respond(markers="")
+	assert segment_host(env.driver).control_error is None
+	assert segment_host(env.driver).faulted is False
+	_, context, events = speak(env, segment=18)
+	env.native.wait_calls(2)
+	env.player.sync_release.set()
+	env.native.respond(markers="")
+	wait_events(events)
+	assert cancelled == []
+	assert [(event.kind, event.segment_id) for event in events] == [
+		(env.rt.models.EventKind.SEGMENT_DRAINED, context.segment_id),
+	]
+
+
+def test_a_token_cancelled_queued_segment_is_abandoned_unopened(env):
+	opens = []
+	original_open = env.player.open
+	env.player.open = lambda: (opens.append(current_thread().name), original_open())[1]
+	env.driver.speak(("alpha",))
+	env.native.wait_calls(1)
+	token, _, cancelled = speak(env, segment=18, commands=("bravo",))
+	eventually(lambda: queued_segment_jobs(env.driver))
+	opened_before = len(opens)
+	# An external token cancels without calling the driver's cancel.
+	token.cancel()
+	env.native.respond(markers="")
+	_, context, events = speak(env, segment=19, commands=("charlie",))
+	env.native.wait_calls(2)
+	env.player.sync_release.set()
+	env.native.respond(markers="")
+	wait_events(events)
+	assert [event.segment_id for event in events] == [context.segment_id]
+	assert cancelled == []
+	assert not any("bravo" in text for text in env.native.calls)
+	# Only charlie's worker opened the player after bravo was queued.
+	assert len(opens) == opened_before + 1
+
+
+def test_a_segment_cancelled_while_the_player_opens_is_never_spoken(env):
+	tokens = []
+	original_open = env.player.open
+
+	def open_and_cancel():
+		original_open()
+		if tokens:
+			tokens.pop().cancel()
+
+	env.player.open = open_and_cancel
+	token, _, cancelled = speak(env, commands=("bravo",))
+	tokens.append(token)
+	_, context, events = speak(env, segment=18, commands=("charlie",))
+	env.native.wait_calls(1)
+	env.player.sync_release.set()
+	env.native.respond(markers="")
+	wait_events(events)
+	assert [event.segment_id for event in events] == [context.segment_id]
+	assert cancelled == []
+	assert len(env.native.calls) == 1 and "charlie" in env.native.calls[0]
+
+
+def wav_response(frames=8):
+	"""A OneCore WAV, as Native.respond builds it: the fixed header, then the PCM."""
+	stream = io.BytesIO()
+	with wave.open(stream, "wb") as wav:
+		wav.setnchannels(1)
+		wav.setsampwidth(2)
+		wav.setframerate(1000)
+		wav.writeframes(b"\x01\x02" * frames)
+	raw = bytearray(stream.getvalue())
+	raw[16:20] = (18).to_bytes(4, "little")
+	raw[36:36] = b"\x00\x00"
+	raw[4:8] = (len(raw) - 8).to_bytes(4, "little")
+	return bytes(raw)
+
+
+@pytest.mark.parametrize("truncation", ["header_before_player", "payload"])
+def test_truncated_wav_fails_the_segment_without_feeding(env, monkeypatch, truncation):
+	# An exception escaping a ctypes callback is only reported as unraisable; collect those.
+	unraisable = []
+	monkeypatch.setattr(sys, "unraisablehook", unraisable.append)
+	header = env.base.WAVE_HEADER_LENGTH
+	if truncation == "header_before_player":
+		env.driver._player = None
+		raw, length = bytes(64), 10
+	else:
+		raw = wav_response(frames=8)
+		length = header + 4
+	_, context, events = speak(env)
+	env.native.wait_calls(1)
+	buffer = ctypes.create_string_buffer(raw, len(raw) + 64)
+	# The native callback must return normally whatever the audio holds.
+	env.native.callback(ctypes.addressof(buffer), length, "")
+	assert unraisable == []
+	wait_events(events)
+	assert [(event.kind, event.segment_id) for event in events] == [
+		(env.rt.models.EventKind.SEGMENT_FAILED, context.segment_id),
+	]
+	assert isinstance(events[0].error, ValueError)
+	assert "truncated" in str(events[0].error)
+	assert env.player.fed == []
+	_, context, following = speak(env, segment=18)
+	env.native.wait_calls(2)
+	env.player.sync_release.set()
+	env.native.respond(markers="")
+	wait_events(following)
+	assert [(event.kind, event.segment_id) for event in following] == [
+		(env.rt.models.EventKind.SEGMENT_DRAINED, context.segment_id),
+	]
+
+
+def test_cancel_during_a_paused_final_idle_publishes_no_done(env):
+	idle_entered, idle_release = Event(), Event()
+	idle = env.player.idle
+
+	def held_idle():
+		idle_entered.set()
+		assert idle_release.wait(HOLD_TIMEOUT)
+		idle()
+
+	env.player.idle = held_idle
+	env.player.sync_release.set()
+	env.driver.speak(("last",))
+	env.native.wait_calls(1)
+	call = in_thread(lambda: env.native.respond(markers=""))
+	assert idle_entered.wait(WAIT_TIMEOUT)
+	# Paused during the final idle: DONE waits for the resume, and a cancel replaces it.
+	env.driver.pause(True)
+	idle_release.set()
+	eventually(lambda: segment_paused(env.driver) and not call.done.is_set())
+	env.driver.cancel()
+	finish(call)
+	assert env.dones == []
