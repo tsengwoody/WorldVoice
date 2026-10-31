@@ -1310,3 +1310,194 @@ def test_the_bridge_rebuilds_sapi5_for_the_same_voice_only_when_it_needs_reload(
 	native.wait_calls(1)
 	native.end()
 	assert wait_event(events).segment_id == 18
+
+
+def test_a_dead_worker_rejects_new_speech(env):
+	driver = env.driver
+	thread = speak_thread(driver)
+	# Not monkeypatch: undoing it would also drop the harness's NVDA module stubs.
+	driver._thread = SimpleNamespace(is_alive=lambda: False, join=lambda *args: None)
+	try:
+		_, context, events = speak(env)
+		event = wait_event(events)
+		assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+		assert event.segment_id == context.segment_id
+		assert str(event.error) == "SAPI5 playback worker is unavailable"
+		with pytest.raises(RuntimeError, match="SAPI5 playback worker is unavailable"):
+			driver.speak(("ordinary",))
+		assert env.native.calls == []
+	finally:
+		driver._thread = thread
+
+
+def test_a_purge_failure_after_an_idle_failure_latches(env):
+	_, _, events = speak(env)
+	env.native.wait_calls(1)
+	env.player.error = "idle"
+	env.native.purge_error = True
+	env.native.end()
+	env.player.idle_release.set()
+	event = wait_event(events)
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	control_error = segment_host(env.driver).control_error
+	assert str(control_error) == "purge failed"
+	# The latched control error names the failure: SAPI's queue is in an unknown state.
+	assert event.error is control_error
+	_, _, rejected = speak(env, segment=18)
+	assert wait_event(rejected).error is control_error
+	assert len(env.native.calls) == 1
+
+
+def test_a_stale_audio_stream_write_is_dropped(env):
+	old_stream = env.native.audio
+	env.driver.voice = "voice"
+	native, player = env.natives[-1], env.players[-1]
+	assert native is not env.native
+	_, _, events = speak(env)
+	native.wait_calls(1)
+	written = [99]
+	assert old_stream.ISequentialStream_RemoteWrite(None, None, 8, written) == 0
+	assert written == [0]
+	# The old voice's PCM never reaches the new voice's request.
+	assert player.fed == []
+	native.end()
+	player.idle_release.set()
+	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def sapi_event(env, kind, stream=1, *, bookmark=None):
+	return SimpleNamespace(
+		eEventId=kind,
+		ulStreamNum=stream,
+		ullAudioStreamOffset=0,
+		wParam=bookmark,
+		getString=lambda: str(bookmark),
+	)
+
+
+def notify(env, monkeypatch, *events):
+	monkeypatch.setattr(env.base._SapiEvent, "enumerateFrom", staticmethod(lambda source: iter(events)))
+	env.native.sink.ISpNotifySink_Notify()
+
+
+def test_notify_dispatches_start_and_bookmark_and_ignores_other_events(env, monkeypatch):
+	kinds = env.base._SPEventEnum
+	_, _, events = speak(env)
+	env.native.wait_calls(1)
+	notify(env, monkeypatch, sapi_event(env, kinds.START_INPUT_STREAM))
+	assert is_speaking(env.driver) is True
+	# An event of another type (5, a word boundary) must not count as a bookmark.
+	notify(env, monkeypatch, sapi_event(env, kinds.TTS_BOOKMARK, bookmark=7), sapi_event(env, 5, bookmark=42))
+	# NVDA queues the bookmark behind the audio already fed; it fires when that audio played.
+	assert len(env.player.callbacks) == 1
+	env.player.callbacks.pop()()
+	assert env.indexes == [7]
+	notify(env, monkeypatch, sapi_event(env, kinds.END_INPUT_STREAM))
+	env.player.idle_release.set()
+	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+	assert env.indexes == [7]
+
+
+def test_start_stream_marks_speaking_only_for_the_current_stream(env):
+	_, _, events = speak(env)
+	env.native.wait_calls(1)
+	env.native.sink.StartStream(2, 0)
+	assert is_speaking(env.driver) is False
+	env.native.sink.StartStream(1, 0)
+	assert is_speaking(env.driver) is True
+	env.native.end()
+	env.player.idle_release.set()
+	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+
+
+def test_legacy_audio_speaks_in_the_caller_and_reports_bookmarks_at_once(env):
+	# NVDA's "use WASAPI" off: _speak_legacy speaks on the calling thread, and a bookmark reports
+	# its index immediately (sapi5.py Bookmark), so say-all keeps tracking.
+	env.driver.useWasapi = False
+	native = env.natives[-1]
+	env.driver.speak(("legacy", env.commands.IndexCommand(7)))
+	assert [thread for _, _, thread in native.calls] == [current_thread()]
+	assert segment_host(env.driver).current() is None
+	native.sink.Bookmark(1, 0, "7", 7)
+	assert env.indexes == [7]
+	native.sink.onIndexReached(1, 9)
+	assert env.indexes == [7, 9]
+
+
+def test_a_bookmark_outside_any_request_on_wasapi_is_ignored(env):
+	assert segment_host(env.driver).current() is None
+	env.native.sink.Bookmark(1, 0, "7", 7)
+	env.native.sink.onIndexReached(1, 7)
+	assert env.indexes == []
+	assert env.player.fed == []
+
+
+def test_an_ordinary_wasapi_bookmark_reports_through_nvda(env):
+	env.driver.speak(("ordinary", env.commands.IndexCommand(7), env.commands.IndexCommand(9)))
+	env.native.wait_calls(1)
+	env.native.sink.Bookmark(1, 0, "7", 7)
+	env.native.sink.Bookmark(1, 0, "9", 9)
+	# The player plays the audio before each bookmark and runs NVDA's queued index callbacks.
+	callbacks, env.player.callbacks = env.player.callbacks, []
+	for callback in callbacks:
+		callback()
+	assert env.indexes == [7, 9]
+	env.player.idle_release.set()
+	env.native.end()
+	eventually(lambda: env.dones == [env.driver])
+	# The end-of-stream tail does not repeat them.
+	assert env.indexes == [7, 9]
+
+
+def test_a_segment_bookmark_reports_once_and_drops_earlier_ones(env):
+	index = env.commands.IndexCommand
+	_, _, events = speak(env, commands=("a", index(7), "b", index(8), "c", index(9)))
+	env.native.wait_calls(1)
+	sink = env.native.sink
+	sink.onIndexReached(1, 8)
+	assert env.indexes == [8]
+	sink.onIndexReached(1, 8)
+	sink.onIndexReached(1, 42)
+	assert env.indexes == [8]
+	env.native.end()
+	env.player.idle_release.set()
+	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
+	assert env.indexes == [8, 9]
+
+
+def test_a_purge_failure_while_cancelling_latches_a_control_fault(env):
+	env.native.purge_error = True
+	# Nothing speaks: the worker handles the cancel itself and purges SAPI's queue.
+	env.driver.cancel()
+	eventually(lambda: segment_host(env.driver).control_error is not None)
+	control_error = segment_host(env.driver).control_error
+	assert str(control_error) == "purge failed"
+	_, _, rejected = speak(env)
+	assert wait_event(rejected).error is control_error
+	assert env.driver.needsVoiceReload() is True
+
+
+def test_a_stream_mismatch_fails_the_request(env, monkeypatch):
+	native = env.native
+	speak_native = native.Speak
+	mismatched = []
+
+	def speak_mismatched(text, flags):
+		if text is None or mismatched:
+			return speak_native(text, flags)
+		mismatched.append(text)
+		# SAPI reported stream 7 starting, but Speak returns stream 8.
+		native.sink.StartStream(7, 0)
+		return 8
+
+	monkeypatch.setattr(native, "Speak", speak_mismatched)
+	_, _, events = speak(env)
+	event = wait_event(events)
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert str(event.error) == "SAPI5 callback stream did not match the admitted request"
+	_, context, following = speak(env, segment=18)
+	native.wait_calls(1)
+	native.end()
+	env.player.idle_release.set()
+	event = wait_event(following)
+	assert (event.kind, event.segment_id) == (env.rt.models.EventKind.SEGMENT_DRAINED, context.segment_id)
