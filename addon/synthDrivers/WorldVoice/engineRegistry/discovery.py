@@ -74,8 +74,6 @@ def _iter_external_candidates(external_root: Path):
 
 def _load_manifest(path: Path, logger: Any = None) -> dict[str, Any] | None:
 	logger = logger or _LOG
-	if not path.is_file():
-		return None
 	try:
 		data = json.loads(path.read_text(encoding="utf-8"))
 	except Exception as error:  # noqa: BLE001 - a broken manifest skips that engine with a warning
