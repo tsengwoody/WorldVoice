@@ -52,9 +52,9 @@ def env(monkeypatch):
 		result.driver.terminate()
 
 
-def speak(env, segment=17, commands=("hello",), events=None):
+def speak(env, segment=17, commands=("hello",), events=None, token=None):
 	events = [] if events is None else events
-	token = env.scheduler.CancellationToken()
+	token = token or env.scheduler.CancellationToken()
 	context = env.rt.models.PlaybackContext(object(), segment)
 	env.driver.speak_segment(commands, token, context=context, on_event=events.append)
 	return token, context, events
@@ -1801,8 +1801,9 @@ def test_a_segment_cancelled_while_the_player_opens_is_never_spoken(env):
 			tokens.pop().cancel()
 
 	env.player.open = open_and_cancel
-	token, _, cancelled = speak(env, commands=("bravo",))
-	tokens.append(token)
+	# The token is in place before the segment can reach the worker's open().
+	tokens.append(env.scheduler.CancellationToken())
+	_, _, cancelled = speak(env, commands=("bravo",), token=tokens[0])
 	_, context, events = speak(env, segment=18, commands=("charlie",))
 	env.native.wait_calls(1)
 	env.player.sync_release.set()
