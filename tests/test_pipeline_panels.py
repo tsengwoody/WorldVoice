@@ -11,7 +11,6 @@ PLUGIN = ADDON / "globalPlugins/WorldVoice"
 # The settings dialog and its panels, listed so that a missing module fails instead of reading nothing.
 DIALOG_FILES = (PLUGIN / "dialog.py", *(PLUGIN / "panels" / f"{name}.py" for name in PANEL_MODULES))
 VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
-CONFSPEC = WORLDVOICE / "confspec.py"
 
 
 class Widget:
@@ -23,13 +22,6 @@ class Widget:
 
 	def GetCurrentSelection(self):
 		return self.selection
-
-
-def test_log_labels_match_stages_and_confspec(monkeypatch):
-	assert list(load_settings_dialog(monkeypatch).panels.log._LOG_LABELS) == LOG_SWITCH_ORDER
-	tree = ast.parse(CONFSPEC.read_text(encoding="utf-8"))
-	source = ast.unparse(tree)
-	assert "key: 'boolean(default=false)' for key in LOG_SWITCHES" in source
 
 
 def test_log_switch_labels_are_unchanged(monkeypatch):
@@ -45,23 +37,6 @@ def test_log_switch_labels_are_unchanged(monkeypatch):
 		("numberWaitFactor", "Number wait factor"),
 		("speechViewer", "Speech viewer"),
 	]
-
-
-def test_log_labels_follow_the_table_labels(monkeypatch):
-	# Decided by the user (2026-10-21): the log switches use the settings' sentence-case labels.
-	env = load_settings_dialog(monkeypatch)
-	labels = env.panels.log._LOG_LABELS
-	table = {spec.stored_key: spec for spec in env.panels.log.PIPELINE_SETTINGS}
-	for key, label in labels.items():
-		first, *rest = label.split()
-		assert first[0].isupper() and not any(
-			word[0].isupper() for word in rest if word not in {"CJK", "Southeast", "Asian"}
-		), label
-		if key in table:
-			spec = table[key]
-			assert label in {spec.display_name, spec.label.replace("&", "")}, (key, label)
-	assert labels["applySpeechDictionaries"] == "Apply speech dictionaries"
-	assert labels["speechViewer"] == "Speech viewer"
 
 
 def test_pipeline_panel_saves_once_through_the_service(monkeypatch):

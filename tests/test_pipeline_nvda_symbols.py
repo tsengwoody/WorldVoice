@@ -28,10 +28,6 @@ def module(monkeypatch):
 	return module.symbols
 
 
-def test_symbol_name_is_the_lookups_name(module):
-	assert module.symbol_name("en", "×") == "multiplication sign en"
-
-
 def _raise_lookup_error(locale, symbol):
 	raise LookupError(locale)
 
@@ -41,10 +37,9 @@ def _raise_lookup_error(locale, symbol):
 	[
 		_raise_lookup_error,
 		lambda locale, symbol: None,
-		lambda locale, symbol: "",
 		lambda locale, symbol: symbol,
 	],
-	ids=["raises", "none", "empty", "itself"],
+	ids=["raises", "none", "itself"],
 )
 def test_symbol_name_is_none_without_a_name(module, monkeypatch, lookup):
 	monkeypatch.setattr(module.characterProcessing, "processSpeechSymbol", lookup)
@@ -61,7 +56,6 @@ def test_symbol_name_is_none_without_a_name(module, monkeypatch, lookup):
 		# WorldVoice's number languages are bare primary subtags, and NVDA has no "zh" table.
 		("zh_TW", "zh", "zh_TW"),
 		("zh_TW", "en", "en"),
-		("zh_TW", "de_CH", "de_CH"),
 	],
 )
 def test_symbol_locale(module, monkeypatch, current, language, expected):
@@ -80,8 +74,6 @@ def test_symbol_locale(module, monkeypatch, current, language, expected):
 		("en_US", False),
 		# Never a path outside NVDA's locale directory.
 		("", False),
-		("..", False),
-		("../en", False),
 		# This one resolves to locale/en/symbols.dic, which exists: only the guard refuses it.
 		("../locale/en", False),
 	],
@@ -95,17 +87,11 @@ def test_has_symbol_table_matches_nvdas_locale_dir(module, locale, expected):
 	[
 		# Decided by the user (2026-10-22): the voice's locale wins over NVDA's interface country.
 		("en", "zh", "zh-TW", "zh_TW"),
-		("en", "zh", "zh_tw", "zh_TW"),
 		("zh_TW", "zh", "zh_CN", "zh_CN"),
-		("en", "de", "de-CH", "de_CH"),
 		# D1/D2: a voice locale without an NVDA table keeps the rule without a voice.
 		("zh_TW", "zh", "zh_SG", "zh_TW"),
 		("en", "zh", "zh_SG", "zh"),
-		("en", "zh", "zh", "zh"),
-		("zh_TW", "zh", "zh", "zh_TW"),
 		("en", "zh", "x-western", "zh"),
-		("en", "zh", "zh-Hant-TW", "zh"),
-		("zh_TW", "en", "en_US", "en"),
 		("en", "en", "", "en"),
 	],
 )

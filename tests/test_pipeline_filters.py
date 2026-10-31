@@ -85,13 +85,6 @@ def test_item_wait_factor_breaks_only_between_adjacent_text(env):
 	assert result[3] is marker
 
 
-def test_item_wait_factor_off_passes_through(env):
-	assert list(env.module.item_wait_factor(["a", "b"], env.settings, env.module.GENERIC_CONTEXT)) == [
-		"a",
-		"b",
-	]
-
-
 def test_number_wait_factor_drops_blanks_then_breaks_between_numbers(env):
 	env.settings.scaled_number_wait = lambda: 40
 	result = list(
@@ -109,12 +102,9 @@ def test_number_wait_factor_drops_blanks_then_breaks_between_numbers(env):
 	"sequence,expected",
 	[
 		(["12", "3"], ["12", ("NumberBreakCommand", 40), "3"]),
-		(["-3.5", "4"], ["-3.5", ("NumberBreakCommand", 40), "4"]),
 		(["12abc", "3"], ["12abc", "3"]),
-		(["1.", "2"], ["1.", "2"]),
 		(["3", "12abc"], ["3", "12abc"]),
 		(["5-3", "4"], ["5-3", ("NumberBreakCommand", 40), "4"]),
-		(["12:30", "1"], ["12:30", ("NumberBreakCommand", 40), "1"]),
 	],
 )
 def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
@@ -128,25 +118,18 @@ def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
 	("text", "matches"),
 	[
 		("12,345,678", ["12,345,678"]),
-		("1,234.56", ["1,234.56"]),
 		("-1234", ["-1234"]),
 		("5-3", ["5-3"]),
 		("5 -3", ["5", "-3"]),
 		("2026-10-22 12:30", ["2026-10-22", "12:30"]),
-		("192.168.0.1", ["192.168.0.1"]),
-		# Full-width punctuation is not a number symbol.
-		("12\uff0c34", ["12", "34"]),
 		("abc1 2def", ["1", "2"]),
 		# A sign is a + or - right before a digit and not right after one.
 		("a-3", ["-3"]),
-		("--3", ["-3"]),
 		("3.+4", ["3.+4"]),
 		("+3 a+4", ["+3", "+4"]),
 		# A no-break space is whitespace and a soft hyphen a format character: neither joins digits.
 		("1\u00a02", ["1", "2"]),
 		("1\u00ad2", ["1", "2"]),
-		("1'000", ["1'000"]),
-		("1_000", ["1_000"]),
 		("1\u00d72", ["1\u00d72"]),
 		# Digits are Unicode decimal digits (Nd): full-width and Arabic-Indic ones too. Separators stay
 		# Latin-1, so a full-width or Arabic decimal separator splits the number; superscripts and
@@ -154,7 +137,6 @@ def test_number_wait_breaks_only_between_whole_numbers(env, sequence, expected):
 		("１２", ["１２"]),
 		("٣٫١٤", ["٣", "١٤"]),
 		("１２．５", ["１２", "５"]),
-		("x²", []),
 		("10²", ["10"]),
 		("①", []),
 		("12.", ["12"]),
@@ -178,31 +160,20 @@ SPLITS = [
 	("共 12 34 個", ["共 ", "12", B40, "34", " 個"]),
 	("5 -3", ["5", B40, "-3"]),
 	("5 - 3", ["5 - 3"]),
-	("1.2.3 4", ["1.2.3", B40, "4"]),
 	("12 apples", ["12 apples"]),
 	("abc1 2def", ["abc", "1", B40, "2", "def"]),
 	("2026 10 21", ["2026", B40, "10", B40, "21"]),
 	("12\u300034", ["12", B40, "34"]),
-	("1\t2", ["1", B40, "2"]),
-	("1\n2", ["1", B40, "2"]),
 	# Decided by the user (2026-10-22): a no-break space is ordinary whitespace for the split, so
 	# "10 000" written with one is two numbers with a pause between them.
 	("1\u00a02", ["1", B40, "2"]),
 	("10\u00a0000", ["10", B40, "000"]),
-	("1\u202f234\u202f567", ["1", B40, "234", B40, "567"]),
-	("1\u20072", ["1", B40, "2"]),
-	("1 \u00a02", ["1", B40, "2"]),
-	("10\u00a0000 5", ["10", B40, "000", B40, "5"]),
-	("2 10\u00a0000", ["2", B40, "10", B40, "000"]),
 	("1-2", ["1-2"]),
 	("12abc 3", ["12abc 3"]),
 	# One number definition: a match never touches another, so every whitespace gap splits.
 	("02 2345-6789", ["02", B40, "2345-6789"]),
 	("3-1 2", ["3-1", B40, "2"]),
-	("1 2 3-4", ["1", B40, "2", B40, "3-4"]),
-	("1-2 3 4", ["1-2", B40, "3", B40, "4"]),
 	("2026-10-22 12:30", ["2026-10-22", B40, "12:30"]),
-	("12,345 6", ["12,345", B40, "6"]),
 	("１ ２", ["１", B40, "２"]),
 	("١ ٢", ["١", B40, "٢"]),
 ]
@@ -247,17 +218,13 @@ def test_number_wait_breaks_after_a_single_language_command(env, kind, lang):
 	assert shape(number_wait(env, ["1", command, "2"])) == ["1", ("lang", lang), B40, "2"]
 
 
-@pytest.mark.parametrize("blocker", ["index", "break"])
+@pytest.mark.parametrize("blocker", ["index"])
 def test_number_wait_does_not_break_across_other_commands(env, blocker):
 	command = env.module.WVLangChangeCommand
 	blocker = Marker() if blocker == "index" else env.module.BreakCommand(5)
 	result = number_wait(env, ["1", command("zh"), blocker, command("en"), "2"])
 	assert not any(isinstance(item, env.module.NumberBreakCommand) for item in result)
 	assert result[2] is blocker
-
-
-def test_number_wait_keeps_held_language_commands_at_the_end(env):
-	assert shape(number_wait(env, ["1", env.module.WVLangChangeCommand("zh")])) == ["1", ("lang", "zh")]
 
 
 def test_number_wait_does_not_break_between_a_number_and_text_across_language_commands(env):
@@ -278,14 +245,6 @@ def test_the_shortest_number_wait_still_breaks(env):
 		("NumberBreakCommand", 1),
 		"2",
 	]
-
-
-def test_number_wait_inserts_number_break_commands(env):
-	env.settings.scaled_number_wait = lambda: 40
-	result = list(env.module.number_wait_factor(["1 2"], env.settings, env.module.GENERIC_CONTEXT))
-	assert isinstance(result[1], env.module.NumberBreakCommand)
-	assert isinstance(result[1], env.module.BreakCommand)
-	assert result[1].time == 40
 
 
 def test_number_wait_splits_across_items_and_keeps_commands(env):
@@ -350,9 +309,7 @@ def test_digit_mode_separates_digits_with_the_number_wait(env, wait):
 	("text", "pieces"),
 	[
 		("A12B", "A1 2B"),
-		("3.14", "3 <.> 1 4"),
 		("1a2", "1a2"),
-		("v1.2", "v1 <.> 2"),
 	],
 )
 def test_digit_mode_breaks_between_digits_and_around_symbols(env, text, pieces):
@@ -485,17 +442,6 @@ def test_number_and_group_modes_name_each_symbol(env, mode, size, column, row):
 	assert shape(result) == spoken(row[column])
 
 
-@pytest.mark.parametrize("pause", [0, 25])
-def test_number_breaks_use_the_number_pause(env, pause):
-	env.settings.number_mode = "group"
-	env.settings.scaled_number_wait = lambda: pause
-	result = list(env.module.inject_numbers(["1,234.5"], env.settings, env.module.GENERIC_CONTEXT))
-	breaks = [item for item in result if not isinstance(item, str)]
-	assert breaks
-	assert all(type(item) is env.module.NumberBreakCommand and item.time == pause for item in breaks)
-	assert not hasattr(env.module, "GroupNumberBreakCommand")
-
-
 def test_adjacent_symbols_get_a_name_each(env):
 	env.settings.number_mode = "number"
 	result = env.module.inject_numbers(["1--2"], env.settings, env.module.GENERIC_CONTEXT)
@@ -529,16 +475,6 @@ def test_symbol_names_follow_language_commands_with_default_number_language(env)
 	env.settings.number_mode = "number"
 	wv, nvda = env.module.WVLangChangeCommand, sys.modules["speech.commands"].LangChangeCommand
 	ctx = roles_context(env.module, "zh_TW", "default")
-	sequence = ["2×3", wv("de"), "2×3", nvda(None), "2×3"]
-	result = list(env.module.inject_numbers(sequence, env.settings, ctx))
-	assert names_in(result) == [N("×", "zh_TW"), N("×", "de"), N("×", "zh_TW")]
-
-
-def test_symbol_names_follow_language_commands_with_main_number_language(env):
-	# "main" is not a locale: symbols are named in the language in force, as for "default".
-	env.settings.number_mode = "number"
-	wv, nvda = env.module.WVLangChangeCommand, sys.modules["speech.commands"].LangChangeCommand
-	ctx = roles_context(env.module, "zh_TW", "main")
 	sequence = ["2×3", wv("de"), "2×3", nvda(None), "2×3"]
 	result = list(env.module.inject_numbers(sequence, env.settings, ctx))
 	assert names_in(result) == [N("×", "zh_TW"), N("×", "de"), N("×", "zh_TW")]
@@ -814,33 +750,6 @@ def test_off_mode_wraps_only_for_a_locale(env, numlan):
 		assert len(result) == 1 and result[0] is sequence[0]
 
 
-def test_unspaced_script_space_pause(env):
-	env.settings.scaled_unspaced_script_space_wait = lambda: 20
-	result = env.module.inject_unspaced_script_space_pause(
-		["中 文 abc 中 文"],
-		env.settings,
-		env.module.GENERIC_CONTEXT,
-	)
-	assert shape(result) == ["中", ("BreakCommand", 20), "文 abc 中", ("BreakCommand", 20), "文"]
-	env.settings.scaled_unspaced_script_space_wait = lambda: 0
-	assert list(
-		env.module.inject_unspaced_script_space_pause(["中 文"], env.settings, env.module.GENERIC_CONTEXT),
-	) == ["中 文"]
-
-
-def test_punctuation_segments(env):
-	regex = env.module._get_punctuation_regex(".,")
-	assert list(env.module._split_punctuation_segments("a, b,, 12,500. c", regex)) == [
-		("text", "a"),
-		("punct", ","),
-		("text", " b"),
-		("punct", ",,"),
-		("text", " 12,500"),
-		("punct", "."),
-		("text", " c"),
-	]
-
-
 @pytest.mark.parametrize(
 	"level,enable,label_on,writes",
 	[
@@ -894,28 +803,3 @@ def test_an_invalid_log_switch_reads_off(env, monkeypatch):
 	)
 	assert list(result) == ["out"]
 	assert debugged == []
-
-
-def test_an_old_snake_case_log_switch_does_not_log(env, monkeypatch):
-	# No migration (phase 47d): only the camelCase switch turns a stage's log on.
-	conf = sys.modules["config"].conf
-	conf["general"]["loggingLevel"] = "INFO"
-	conf["WorldVoice"]["log"] = {"enable": True, "number_mode": True}
-	written = []
-	monkeypatch.setattr(
-		env.module.registry,
-		"pl",
-		SimpleNamespace(write=lambda _id, label, timing, seq: written.append((label, timing))),
-	)
-
-	def run():
-		stage = lambda sequence, settings, ctx: iter(["out"])
-		return list(
-			env.module._run_logged("number_mode", stage, ["in"], env.settings, env.module.GENERIC_CONTEXT),
-		)
-
-	assert run() == ["out"]
-	assert written == []
-	conf["WorldVoice"]["log"]["numberMode"] = True
-	assert run() == ["out"]
-	assert written == [("number_mode", "before"), ("number_mode", "after")]

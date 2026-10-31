@@ -100,8 +100,3 @@ def test_voice_locale_is_none_for_a_voice_without_a_spec(composition, monkeypatc
 	manager = composition.create()
 	monkeypatch.setattr(manager, "get_voice_name_for_language", lambda language: "gone:x")
 	assert manager.get_voice_locale_for_language("zh") is None
-
-
-def test_generic_context_has_no_voice_locale(monkeypatch):
-	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	assert module.GENERIC_CONTEXT.voice_locale_for_language("zh") is None

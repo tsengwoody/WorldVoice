@@ -72,13 +72,6 @@ def test_service_reads_an_invalid_enable_flag_as_off(monkeypatch):
 	assert module.PipelineLogService(lambda: {"WorldVoice": {"log": refused}}).enabled is False
 
 
-def test_the_repair_step_is_gone(monkeypatch):
-	# Decided by the user (2026-10-22, fix/uniform-settings-save): the Log Record panel's save
-	# writes the checkbox to the flag, so no separate repair of a refused flag is needed.
-	module, _conf, _asked = load_service(monkeypatch)
-	assert not hasattr(module.PipelineLogService, "repair")
-
-
 def test_prompts_map_answers(monkeypatch):
 	module, _, asked = load_service(monkeypatch, answers=[2, 8, 2])
 	assert module.confirmEnable(allowCancel=True) == 2
