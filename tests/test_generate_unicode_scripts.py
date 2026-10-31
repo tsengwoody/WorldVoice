@@ -109,8 +109,10 @@ def test_with_source_reads_the_file_and_does_not_download(tool, downloads, tmp_p
 def test_downloaded_bytes_must_match_the_checksum(tool, downloads, tmp_path):
 	destination = tmp_path / "script_data.py"
 	with pytest.raises(SystemExit, match=SOURCE_SHA256):
-		tool.main([str(destination), "--unicode-version", "16.0.0", "--expected-sha256", "0" * 64])
+		tool.main([str(destination), "--unicode-version", "15.1.0", "--expected-sha256", "0" * 64])
 	assert not destination.exists()
+	# The URL names the requested version, not a fixed one.
+	assert downloads == ["https://www.unicode.org/Public/15.1.0/ucd/Scripts.txt"]
 
 
 @pytest.mark.parametrize("missing", ["--unicode-version", "--expected-sha256"])
