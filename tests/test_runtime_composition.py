@@ -50,6 +50,48 @@ def test_default_voice_follows_the_injected_language(composition):
 	assert composition.create(get_language=lambda: "en").default_voice_name == "x:a"
 
 
+def test_default_voice_falls_back_to_the_first_voice(composition):
+	composition.engine("x")
+	assert composition.create(get_language=lambda: "fr").default_voice_name == "x:a"
+
+
+def test_all_languages_lists_each_primary_language_once(composition):
+	c = composition
+	c.engine("first", locales={"a": "en_US", "b": "zh_TW"})
+	c.engine("second", locales={"a": "en_GB", "b": "zh_TW"})
+	assert c.create().all_languages == ["en", "zh"]
+
+
+def test_cancel_after_terminate_does_nothing(composition):
+	c = composition
+	c.engine("x")
+	manager = c.create()
+	manager.terminate(commit=False)
+	manager.cancel()
+	assert [core.cancels for core in c.cores] == [0]
+
+
+def test_no_voice_instance_is_created_while_terminating(composition, monkeypatch):
+	c = composition
+	c.engine("x")
+	manager = c.create()
+	unbind = c.bridge.unbind
+	raised = []
+
+	def unbind_resolving_a_voice(source_id):
+		# Publication and the instance cache are gone before the engines unbind.
+		for _ in range(2):
+			try:
+				manager.get_voice_instance("x:b")
+			except KeyError as error:
+				raised.append(error.args)
+		unbind(source_id)
+
+	monkeypatch.setattr(c.bridge, "unbind", unbind_resolving_a_voice)
+	manager.terminate(commit=False)
+	assert raised == [("x",), ("x",)]
+
+
 def test_manager_keeps_the_injected_policy_and_roles(composition):
 	c = composition
 	c.engine("ok")
@@ -445,6 +487,7 @@ def test_waitfactor_updates_declared_capability_without_activating(composition):
 	capable.extraCapabilities = frozenset({"waitfactor", "variant"})
 	manager = c.create()
 	manager.waitfactor = 4
+	assert manager.waitfactor == 4
 	assert manager.get_voice_instance("extension:b").waitfactor == 4
 	assert manager.get_voice_instance("plain:a").waitfactor == 0
 	assert manager.get_voice_capabilities("extension:b").supports_variants

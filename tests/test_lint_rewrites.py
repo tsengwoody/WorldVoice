@@ -52,3 +52,18 @@ def test_worldvoice_synth_returns_only_worldvoice(stub_modules):
 		module = _context_module(stub_modules, other)
 		assert module.worldvoice_synth() is None
 		assert module.current_context() is module.GENERIC_CONTEXT
+
+
+def test_current_context_without_a_synth_is_generic(stub_modules):
+	# During NVDA start-up getSynth can raise before any synth exists.
+	def no_synth():
+		raise RuntimeError("no synth yet")
+
+	stub_modules.module("synthDriverHandler", getSynth=no_synth)
+	module = load_source(
+		None,
+		"pipeline_context_under_test",
+		WORLDVOICE / "pipeline/context.py",
+		register=False,
+	)
+	assert module.current_context() is module.GENERIC_CONTEXT
