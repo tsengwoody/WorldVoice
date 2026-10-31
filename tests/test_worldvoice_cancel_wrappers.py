@@ -205,6 +205,8 @@ def test_cancellation_does_not_restart_at_next_piece(engine_harness, monkeypatch
 
 
 def test_cancelled_request_drops_index_and_done_notifications(engine_harness, monkeypatch):
+	# A LEGACY_DONE DONE names no request: the scheduler cancels a request before it stops the
+	# core, so a DONE published after that stop could only end the next request's task.
 	core = ready_core(engine_harness)
 	indexes, dones = record_notifications(engine_harness, monkeypatch)
 
@@ -220,26 +222,11 @@ def test_cancelled_request_drops_index_and_done_notifications(engine_harness, mo
 	speak_now(core, ["live"])
 	assert indexes == [6]
 	assert dones == [core]
+	idles = real_player(core).idles
 	speak_now(core, ["cancelled"])
 	assert indexes == [6]
 	assert dones == [core]
-
-
-def test_core_cancel_reports_neither_index_nor_done(engine_harness, monkeypatch):
-	# A LEGACY_DONE DONE names no request: the scheduler cancels a request before it stops the
-	# core, so a DONE published after that stop could only end the next request's task.
-	core = ready_core(engine_harness)
-	indexes, dones = record_notifications(engine_harness, monkeypatch)
-
-	def native(instance, text):
-		core.cancel()
-		core._onIndexReached(7)
-
-	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["old"])
-	assert indexes == []
-	assert dones == []
-	assert real_player(core).idles == 0
+	assert real_player(core).idles == idles
 
 
 def test_new_request_drops_old_callback_buffer_and_sonic_tail(engine_harness, monkeypatch):
