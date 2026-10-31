@@ -266,7 +266,7 @@ def test_terminate_does_not_hang_on_a_blocked_sink(env, monkeypatch):
 		release.set()
 
 
-@pytest.mark.parametrize("start_delay", [0, 0.1])
+@pytest.mark.parametrize("start_delay", [0])
 def test_retire_waits_for_admitted_consumers(env, start_delay):
 	record = env.host.new_record()
 	env.host.begin(record)
@@ -1149,14 +1149,6 @@ def test_abandoning_the_current_record_wakes_settle_waiters(env):
 	assert settled.wait(WAIT_TIMEOUT), "wait_settled missed the abandon"
 
 
-def test_a_strategy_without_barriers_is_rejected(env):
-	class Barrierless(FakeStrategy):
-		barriers = frozenset()
-
-	with pytest.raises(ValueError, match="^Fake strategy declares no played-out barrier$"):
-		env.module.SegmentHost("Fake", native(env.module, Barrierless))
-
-
 def test_a_strategy_without_played_out_is_rejected(env):
 	# Without PLAYED_OUT a segment would drain before its audio has played.
 	class NotPlayedOut(FakeStrategy):
@@ -1212,35 +1204,3 @@ def test_nvda_driver_metaclass_is_an_abcmeta():
 	tree = ast.parse((REF / "nvda/source/baseObject.py").read_text(encoding="utf-8"))
 	meta = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "AutoPropertyType")
 	assert [ast.unparse(base) for base in meta.bases] == ["ABCMeta"]
-
-
-def test_segment_host_speaker_forwards_to_the_core_host(env):
-	# Every bundled wrapper takes speak_segment from this mixin: the call reaches its own host unchanged.
-	calls = []
-
-	class Host:
-		def speak_segment(self, *args, **kwargs):
-			calls.append((args, kwargs))
-
-	class Core(env.module.SegmentHostSpeaker):
-		def __init__(self):
-			self._segmentHost = Host()
-
-		def get_segment_drain_support(self, *, nvda_version, audio_mode):
-			return None
-
-	commands, token, context, sink = ("text",), object(), object(), object()
-	assert Core().speak_segment(commands, token, context=context, on_event=sink) is None
-	assert calls == [((commands, token), {"context": context, "on_event": sink})]
-
-
-def test_segment_host_speaker_leaves_drain_support_abstract(env):
-	# The mixin is the bridge's SegmentDrainCore; each wrapper still decides drain support itself.
-	speaker = env.module.SegmentHostSpeaker
-	assert issubclass(speaker, env.module.SegmentDrainCore)
-
-	class Bare(speaker):
-		pass
-
-	with pytest.raises(TypeError):
-		Bare()

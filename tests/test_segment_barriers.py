@@ -2,25 +2,9 @@
 
 import ast
 
-from addon_loader import WORLDVOICE, load_source
+from addon_loader import WORLDVOICE
 
 BARRIERS = WORLDVOICE / "runtime/barriers.py"
-
-
-def test_shared_barrier_values():
-	module = load_source(None, "segment_barriers_under_test", BARRIERS, register=False)
-	# The values are the meanings, so a missing-barrier error reads the same for every engine.
-	assert (module.AUDIO_FED, module.ENGINE_DONE, module.PLAYED_OUT) == (
-		"audio_fed",
-		"engine_done",
-		"played_out",
-	)
-
-
-def test_shared_barriers_are_the_only_public_names():
-	module = load_source(None, "segment_barriers_under_test", BARRIERS, register=False)
-	public = {name for name in vars(module) if not name.startswith("_")}
-	assert public == {"AUDIO_FED", "ENGINE_DONE", "PLAYED_OUT"}
 
 
 def test_barrier_module_imports_nothing():

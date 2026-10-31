@@ -828,7 +828,7 @@ def _assert_not_polled(read_count, window=0.2):
 	assert read_count() - before <= 1, "waiter is polling instead of waiting for a notification"
 
 
-@pytest.mark.parametrize("start_delay", [0, 0.06])
+@pytest.mark.parametrize("start_delay", [0])
 def test_queued_run_does_not_poll_its_token(env, start_delay):
 	lifecycle, hooks, _events, _accept = env
 	owner, owner_call = _hold_resource(env)

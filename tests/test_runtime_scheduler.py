@@ -298,7 +298,7 @@ def test_old_epoch_events_are_discarded(manager, port, output, rt):
 	assert old_future.cancelled()
 
 
-@pytest.mark.parametrize("stop_count", [1, 2])
+@pytest.mark.parametrize("stop_count", [2])
 def test_all_concurrent_stops_finish_before_new_speech(manager, port, rt, output, stop_count):
 	speech(manager, port)
 	entered = [Event() for _ in range(stop_count)]

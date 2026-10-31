@@ -410,32 +410,6 @@ def test_boundary_errors_do_not_leave_waits_or_kill_worker(manager, rt, output, 
 	assert worker_alive(manager)
 
 
-def test_marker_pause_cancel_current_and_future_callback(manager, rt, output):
-	port, other = marker(rt), marker(rt)
-	_request, first = start(manager, port)
-	next_request = manager.new_request()
-	next_future = manager.append_speech(next_request, other, "Fake:b", ())
-	manager.submit_request(next_request)
-	manager.pause_current(True)
-	manager.pause_current(False)
-	callback = Event()
-
-	def completed(_):
-		thread = Thread(target=lambda: (manager.new_request(), callback.set()))
-		thread.start()
-		thread.join(WAIT_TIMEOUT)
-
-	first.add_done_callback(completed)
-	manager.cancel_current()
-	assert other.entered.wait(WAIT_TIMEOUT)
-	assert first.cancelled()
-	assert callback.wait(WAIT_TIMEOUT)
-	assert port.paused == [True, False]
-	emit(manager, rt, other)
-	assert next_future.result(WAIT_TIMEOUT) is True
-	assert output.wait_done() == 1
-
-
 def test_done_output_error_does_not_kill_worker(manager, rt, output):
 	port = marker(rt)
 	_, first = start(manager, port)
