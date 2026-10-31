@@ -155,7 +155,7 @@ Correction to cons.md A10/B14: "two SAPI5 voices alternating rebuild every segme
 - `self.tts is None`;
 - WASAPI audio (`self.useWasapi`) with `self.player is None`, `self._thread is None` or a dead `self._thread` (the condition `_checkWorker` raises on, `SAPI5:426-428`).
 
-It reads only names already listed (`_thread` is in `NVDA_PRIVATES`, `SAPI5:75-88`; `tts`, `player`, `useWasapi` are public), so `ready()` and the guard tests need no list change. NVDA's own driver on NVDA < 2025.3 has no hook; it latches nothing (its worker logs and continues, `sapi5.py:854-867`), and a failed `_initTts` is still covered by the cleared memory.
+It reads only names already listed (`_thread` is in `NVDA_PRIVATES`, `SAPI5:75-88`; `tts`, `player`, `useWasapi` are public), so `ready()` and the guard tests need no list change. NVDA's own driver on NVDA < 2025.3 has no hook; it latches nothing (its worker logs and continues, `sapi5.py:854-867`), and a failed `_initTts` is still covered by the cleared memory. Consequence: on NVDA < 2025.3 a broken-but-unlatched WASAPI player or worker (for example `player.stop()` raising every time, or a dead worker thread) no longer heals incidentally when a setting changes; it recovers only on a switch to another SAPI5 voice, an output-device change (NVDA `setSynth`, `ref/nvda/source/gui/settingsDialogs.py:3795-3800`) or a WorldVoice reload, the same as plain NVDA, whose own setting changes never re-set the voice (open question 7).
 
 **Other core replacements, checked:**
 
@@ -177,6 +177,7 @@ It reads only names already listed (`_thread` is in `NVDA_PRIVATES`, `SAPI5:75-8
 
 - SAPI5 (wrapper on NVDA ≥ 2025.3, and NVDA's own driver on older NVDA): after changing a setting of the current SAPI5 voice, the next utterance no longer waits for a COM voice / player / worker rebuild. Unmeasured on Windows; expected to be noticeable when stepping the rate with the synth settings ring.
 - A faulted SAPI5 voice still recovers when one of its settings changes (as today), or when another SAPI5 voice is used.
+- NVDA < 2025.3 (NVDA's own SAPI5 driver: no hook, no latch): a broken WASAPI player or worker no longer recovers when a setting changes; switching to another SAPI5 voice, changing the output device or reloading WorldVoice recovers it, as with plain NVDA (open question 7).
 - Other engines: no audible change.
 
 ### Tests
@@ -229,6 +230,7 @@ No UI, configuration or string change, so no zh_TW translations. No readme or ch
 4. **B12 test helper vocabulary.** `tests/nvda_releases.py` keeps `EngineNames.port` and `port_names()` although two of the three entries now name `*HostNames` classes ("port" there means "the class listing the names"; eSpeak's is still a port). Renaming them would widen the rename for no reader of the add-on. Decided by orchestrator with the recommended default; user may override before merge.
 5. **B8 ordering.** Accept that a conversion error can now surface instead of the terminated / control error, and the wider ordinary cancel window (§1); both match OneCore. Decided by orchestrator with the recommended default; user may override before merge.
 6. **Readme.** No changelog line for B14's latency gain. Decided by orchestrator with the recommended default; user may override before merge.
+7. **B14 on NVDA < 2025.3.** NVDA's own SAPI5 driver has no `needsVoiceReload` and latches no fault, so a broken-but-unlatched WASAPI player or worker no longer heals incidentally on a setting change; recovery needs a voice switch, an output-device change (NVDA `setSynth`) or reloading WorldVoice, the same as plain NVDA. Default: accept it (only NVDA 2025.2 and older; matches NVDA). Alternative: always set the voice on NVDA's own SAPI5 core (keeps the incidental heal, loses the B14 gain on old NVDA). Decided by orchestrator with the recommended default; user may override before merge.
 
 ## 7. Verification
 
