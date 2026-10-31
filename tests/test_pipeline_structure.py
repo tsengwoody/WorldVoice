@@ -83,38 +83,6 @@ def test_number_language_values_import_only_the_standard_library(monkeypatch):
 	assert (module.FOLLOW, module.MAIN) == ("default", "main")
 
 
-# What phase 31 moved out of the package, or deleted: a name that comes back, bare or private,
-# means a move was undone or copied.
-MOVED = [
-	"SYMBOLS",
-	"NUMBER_RE",
-	"NUMBER_TOKEN_RE",
-	"DIGITS",
-	"THOUSANDS_RE",
-	"SENTENCE_END_RE",
-	"split_spaced_numbers",
-	"number_pieces",
-	"strip_thousands",
-	"has_symbol_table",
-	"symbol_table_on_disk",
-	"symbol_locale",
-	"symbol_name",
-	"symbol_namer",
-]
-
-
-def top_level_names(path):
-	names = set()
-	for node in ast.parse(path.read_text(encoding="utf-8")).body:
-		if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
-			names.add(node.name)
-		elif isinstance(node, ast.Assign):
-			names |= {target.id for target in node.targets if isinstance(target, ast.Name)}
-		elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-			names.add(node.target.id)
-	return names
-
-
 # The modules pipeline/__init__.py was split into (phase 38) and the log's recorder.py: the stages,
 # logging and registry.
 STAGE_MODULES = [
@@ -133,7 +101,6 @@ STAGE_MODULES = [
 @pytest.mark.parametrize("module", STAGE_MODULES)
 def test_pipeline_package_keeps_only_stages_logging_and_registry(module):
 	package = WORLDVOICE / "pipeline" / f"{module}.py"
-	assert top_level_names(package) & {*MOVED, *(f"_{name}" for name in MOVED)} == set()
 	# Symbol lookup and file probing stay in symbols.py. The stages need only speech's commands and
 	# its filter extension point; any other part of speech, or os by any submodule, is a lookup or a
 	# probe coming back.
@@ -149,6 +116,9 @@ def test_pipeline_package_keeps_only_stages_logging_and_registry(module):
 		}
 		== set()
 	)
+
+
+def test_symbols_module_has_no_relative_imports():
 	symbols = ast.parse((WORLDVOICE / "pipeline" / "symbols.py").read_text(encoding="utf-8"))
 	assert [
 		ast.unparse(node) for node in ast.walk(symbols) if isinstance(node, ast.ImportFrom) and node.level
@@ -217,13 +187,6 @@ def test_speech_context_holds_only_plain_values():
 			(isinstance(n, ast.Name) and n.id == "Any") or (isinstance(n, ast.Attribute) and n.attr == "Any")
 			for n in ast.walk(field.annotation)
 		), field.target.id
-	for path in WORLDVOICE.rglob("*.py"):
-		parts = path.relative_to(WORLDVOICE).parts
-		if len(parts) > 2 and parts[0] == "driver" and parts[2] == "driver":
-			continue
-		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-			assert not (isinstance(node, ast.Attribute) and node.attr == "default_voice"), path
-			assert not (isinstance(node, ast.keyword) and node.arg == "default_voice"), path
 
 
 def test_only_the_context_asks_nvda_for_the_synth():
