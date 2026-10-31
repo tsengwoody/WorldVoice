@@ -244,6 +244,17 @@ def test_another_voice_is_set(bridge_modules, rt):
 	assert voice_writes(core) == [("voice", "a"), ("voice", "b"), ("voice", "a")]
 
 
+def test_another_voice_is_set_even_when_the_core_already_reports_it(bridge_modules, rt):
+	core = Core()
+	_, adapter = opened_adapter(bridge_modules, core, voices=("a", "b"))
+	apply_voice(rt, adapter, "a")
+	# The engine switched by itself (or its getter echoes); the bridge last applied "a".
+	object.__setattr__(core, "voice", "b")
+	core.writes.clear()
+	apply_voice(rt, adapter, "b")
+	assert core.writes[0] == ("voice", "b")
+
+
 @pytest.mark.parametrize("step", ["voice", "rate", "hook"])
 def test_after_a_failed_apply_the_same_voice_is_set_again(bridge_modules, rt, step):
 	core = ProbeCore()
