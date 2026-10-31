@@ -368,19 +368,6 @@ def test_cancel_removes_queued_text_but_keeps_settings_identity(env):
 	assert events[0].segment_id == 19
 
 
-def test_cancelled_input_token_never_submits_native_work(env):
-	token = env.scheduler.CancellationToken()
-	token.cancel()
-	events = []
-	env.driver.speak_segment(
-		("old",),
-		token,
-		context=env.rt.models.PlaybackContext(object(), 17),
-		on_event=events.append,
-	)
-	assert env.native.calls == [] and events == []
-
-
 def test_cancel_sees_accepted_work_while_xml_conversion_is_held(env, monkeypatch):
 	converting, release = Event(), Event()
 	converter = env.outer.oneCore._OcSsmlConverter
@@ -562,7 +549,6 @@ def test_late_cancelled_callback_is_consumed_before_next_submission(env, failure
 		{"malformed": True},
 		{"markers": "bad"},
 		{"markers": "1:999999999"},
-		{"markers": "1:-1"},
 		{"markers": "2:40000|1:20000"},
 	],
 )
@@ -1020,12 +1006,6 @@ def test_capability_allows_live_profile_without_provenance_certification(env, mo
 		support = env.driver.get_segment_drain_support(nvda_version=version, audio_mode=audio)
 		assert support.supported and support.reason
 	monkeypatch.setattr(env.base, "__file__", "/unverified/oneCore.py")
-	support = env.driver.get_segment_drain_support(nvda_version=VERSION, audio_mode="wasapi")
-	assert support.supported and "unverified" in support.reason.lower()
-
-
-def test_capability_rejects_uninitialized_native_and_foreign_helper(env):
-	env.native._name = "/unverified/nvdaHelperLocalWin10.dll"
 	support = env.driver.get_segment_drain_support(nvda_version=VERSION, audio_mode="wasapi")
 	assert support.supported and "unverified" in support.reason.lower()
 

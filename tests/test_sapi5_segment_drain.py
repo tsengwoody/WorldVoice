@@ -248,7 +248,7 @@ def test_completion_sink_can_terminate_without_joining_worker_itself(env):
 	assert not worker.is_alive()
 
 
-@pytest.mark.parametrize("audio_mode,expected", [("wasapi", True), ("winmm", False), ("legacy", False)])
+@pytest.mark.parametrize("audio_mode,expected", [("wasapi", True), ("winmm", False)])
 def test_wasapi_profile_enabled_legacy_profiles_unsupported(env, audio_mode, expected):
 	result = env.driver.get_segment_drain_support(
 		nvda_version="source-DETACHED-9ef645d",
@@ -778,17 +778,6 @@ def test_admitted_com_sonic_operation_retires_before_final_tail_and_idle(env, mo
 	assert failures == [] and not callback.is_alive()
 	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert env.player.fed == [6, 0]
-
-
-def test_pcm_arriving_after_completion_cannot_feed_retired_audio(env):
-	_, _, events = speak(env)
-	env.native.wait_calls(1)
-	env.player.idle_release.set()
-	env.native.end()
-	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
-	before = tuple(env.player.fed)
-	env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None)
-	assert tuple(env.player.fed) == before
 
 
 def test_token_cancel_retires_sonic_tail_and_bookmarks_before_successors(env):

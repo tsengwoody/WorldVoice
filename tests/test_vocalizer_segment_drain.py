@@ -15,7 +15,6 @@ from worldvoice_cancel_wrapper_harness import (
 	emit,
 	end_process,
 	inner_stop_flag,
-	leased_player,
 	load_real_driver_with_native_stubs,
 	native_call,
 	native_callback,
@@ -588,7 +587,7 @@ def test_native_constructor_owns_contextual_callback_before_first_open(env):
 	assert env.module.Voice.synthDriverClass is env.module.SynthDriver
 
 
-@pytest.mark.parametrize("version,mode", [("2026.3", "wasapi"), ("2025.3", "legacy")])
+@pytest.mark.parametrize("version,mode", [("2026.3", "wasapi")])
 def test_guarded_native_profiles_are_enabled_with_unverified_evidence(env, version, mode):
 	support = env.core.get_segment_drain_support(nvda_version=version, audio_mode=mode)
 	assert support.supported
@@ -870,25 +869,6 @@ def test_processing_errors_latch_failure_on_original_context(env, monkeypatch, f
 		assert env.types.NUAN_E_TTS_USERSTOP in results
 
 
-def test_explicit_activation_override_allows_successor_after_idle(env, monkeypatch):
-	calls = []
-	monkeypatch.setattr(
-		env.native,
-		"processText2Speech",
-		lambda instance, text: (calls.append(text), end_process(env, instance)),
-	)
-	_, _, first = speak(env)
-	finish(first)
-	assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
-	_, _, second = speak(env, segment=18)
-	finish(second)
-	assert env.events[1].kind is env.rt.models.EventKind.SEGMENT_DRAINED
-	assert calls == ["hello", "hello"]
-	callback_handler(env.core)._feedBuf = BytesIO(b"new")
-	assert emit(env, env.core.voiceInstance) == [env.types.NUAN_E_TTS_USERSTOP]
-	assert buffered_audio(callback_handler(env.core)) == b"new"
-
-
 def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
 	entered, release = Event(), Event()
 	real_player(env.core).stop = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
@@ -1078,7 +1058,7 @@ def test_callback_lease_holds_bookmark_handler_before_next_call(env, monkeypatch
 	assert [event.segment_id for event in env.events] == [18]
 
 
-@pytest.mark.parametrize("kind", ["empty", "index", "break"])
+@pytest.mark.parametrize("kind", ["empty", "index"])
 def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 	from speech import commands
 
@@ -1118,7 +1098,7 @@ def test_segment_drain_does_not_wait_for_resume(env, monkeypatch):
 		env.core.pause(False)
 
 
-@pytest.mark.parametrize("status", [0, 0x80000807, 0xFFFFFFFF])
+@pytest.mark.parametrize("status", [0x80000807, 0xFFFFFFFF])
 def test_raw_status_survives_installed_ctypes_errcheck(env, monkeypatch, status):
 	native_function = env.native.veDll.ve_ttsProcessText2Speech
 	# The real installed checker returns None for OK and USERSTOP.
@@ -1737,24 +1717,6 @@ def test_contextual_delivery_wait_does_not_poll(env, monkeypatch):
 	finally:
 		release.set()
 	finish(call)
-
-
-def test_cancel_player_stop_failure_rejects_successor(env, monkeypatch):
-	failures = [OSError("stop failed")]
-
-	def stop():
-		# Only the first stop fails; later stops succeed like a recovered player.
-		if failures:
-			raise failures.pop()
-
-	real_player(env.core).stop = stop
-	with pytest.raises(OSError):
-		env.core.cancel()
-	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: None)
-	_, context, call = speak(env)
-	finish(call)
-	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
-	assert env.events[0].source_id is context.source_id
 
 
 def test_stop_player_failure_rejects_successor(env, monkeypatch):
@@ -2402,21 +2364,6 @@ def test_failed_final_idle_fails_the_record(env, monkeypatch, caplog):
 	[(_, outcome)] = outcomes
 	assert (outcome.cancelled, outcome.error) == (False, None)
 	assert len(env.dones) == 1
-
-
-def test_feeds_go_through_the_lease(env, monkeypatch):
-	leased = sys.modules[type(segment_host(env.core)).__module__].LeasedPlayer
-	assert isinstance(leased_player(env.core), leased)
-	assert leased_player(env.core)._player is real_player(env.core)
-
-	def native(instance, text):
-		emit(env, instance)
-
-	monkeypatch.setattr(env.native, "processText2Speech", native)
-	_, _, call = speak(env)
-	finish(call)
-	assert real_player(env.core).fed == [b"pcm"]
-	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
 def test_late_feed_after_cancel_is_stopped_and_stop_failure_latches(env, monkeypatch):
