@@ -148,3 +148,25 @@ harness 的 `Native.Speak`（`sapi5_drain_harness.py:108-123`）在 `calls.appen
 | 計畫數字 | `272b0a2` | 計畫的 running counts 改成實際數字（Task 7–11：3309／3320／3327／3330／3332），並註明原本計畫的數字與被重新分類的項目。 | — |
 
 重跑結果：兩個修好的測試各連跑 30 次 0 紅；`tests/test_onecore_segment_drain.py` 與 `tests/test_sapi5_segment_drain.py` 一起連跑 5 次，每次 165 passed；完整測試 **3332 passed、0 skipped**（記憶體看門狗下，`rc=0 killed=0`）；`prek run --all-files` 全部 Passed；`git diff --check master` 乾淨；`git diff --stat master -- addon` 只有 `engineRegistry/discovery.py | 2 --`；受保護路徑與 Neural 兩個指令都沒有輸出。
+
+### 修正 review（Opus 5.5 xHigh）
+
+範圍：`156fb5b..e8b8fc4`（`0b635c9` I1、`05c2e1a` M1、`272b0a2` 計畫數字、`e8b8fc4` 修正記錄）。唯讀；實驗都在暫時 worktree `scratchpad/p58/fixrev/wt`（detached `e8b8fc4`，自己的 `ref` symlink，結束後已移除），腳本在 `scratchpad/p58/fixrev/tools/`（`guard.sh` 記憶體看門狗只砍自己的 pytest PID、`exp.py` 以精確字串替換套用延遲或 mutant，跑完 `git checkout --` 還原並確認 `git status` 乾淨），輸出在 `scratchpad/p58/fixrev/out/`（`summary.txt` 是總表）。所有 pytest 一次只跑一個，看門狗全程未觸發。
+
+**結論：通過。** I1、M1 都真的修好；兩個測試仍殺得死 spec 指名的 mutant；沒有新的 Critical／Important，也沒有新的 Minor。
+
+| 項目 | 結果 | 依據 |
+| --- | --- | --- |
+| I1（`0b635c9`） | 通過 | 先確認注入有效：舊測試（`156fb5b` 版）在 `speak()` 與 `tokens.append` 之間插 20 ms → 3／3 紅（"Segment event was not delivered"）。修正後在原本的競爭點與修法可能新增的競爭點各插 20 ms，每處 10 次全綠：bravo 的 `speak()` 之後、helper 內 `speak_segment` 之前、helper 內 `speak_segment` 之後、`tokens.append` 與 `speak()` 之間、`open_and_cancel` 的 `original_open()` 之前、`original_open()` 與取消之間、charlie 的 `speak()` 之後、helper 之後＋`open` 之前同時延遲。token 在 `speak_segment` 送出前就已放進 `tokens`，而 `player.open()` 唯一的呼叫點是 worker 的 `_speakRecord`（OneCore:378），所以取消一定發生在 bravo 自己的 `open()` 裡，順序由程式強制，不再靠排程。spec mutant（OneCore 392-393 刪除，以 `if False: pass` 保留 `else`）5／5 紅，再加 bravo 後延遲 2／2 紅。 |
+| M1（`05c2e1a`） | 通過 | 先確認注入有效：舊測試在 SAPI5 worker 的 `tts.Speak` 回來與 `with self._threadCond` 之間插 20 ms（只改 scratch 複本）→ 3／3 紅；harness `Speak` 在離開 `condition` 鎖之後、`return stream` 之前插 20 ms（與實作者 `impl/m/d2.py` 相同）→ 3／3 紅（`assert True is False`）。修正後每處 10 次全綠：上述兩處、`Speak` 在 `calls.append` 之前、worker 寫完 `native.stream` 後在 `_threadCond` 內 `wait_for` 之前、鎖內延遲（5 次）；harness 延遲下整個 SAPI5 檔 74 passed。`eventually` 讀的 `current()` 在 `Speak` 之前已由 `host.begin(record)` 設好、到 `end()` 之前不會換掉，lambda 不會碰到 `None`。mutant 319 條件→True、321→True 各 5／5 紅（`assert True is False`，舊 stream 被標成 speaking）。 |
+| helper 的 `token=None` | 不影響其他測試 | `CancellationToken` 沒有 `__bool__`／`__len__`，`token or …` 在沒傳 token 時與原本完全相同；新參數加在最後，檔內 82 處 `speak(env…)` 全用關鍵字傳參，只有 I1 的測試傳 `token=`；helper 沒有被其他檔 import。整個 OneCore 檔連跑 5 次，每次 91 passed。寫法與 `test_segment_host.py:103`、`test_vocalizer_segment_drain.py:107` 既有的 helper 一致（vocalizer 的 `token` 是 keyword-only，這裡不是，但沒有呼叫點受影響）。 |
+| 計畫數字（`272b0a2`） | 正確 | 在各 task 的 commit 上 `pytest --collect-only`：`3742c8a` 3309、`f6bbe83` 3320、`6dafb56` 3327、`6b6d4b3` 3330、`3ba0e10` 3332，`e8b8fc4` 仍是 3332（修正沒有增減 id）；`6742675`／`ab02901` 都是 3282，批次 1 修正不改數量。各列括號裡的被刪項目和帳本的 `Ruling:` 一致（T6.8 兩個 id、T7.8、T8.3／T8.6／T8.9、T10.2 的 synth case），差額都對得上。 |
+| 修正記錄（`e8b8fc4`） | 正確 | 只在檔尾新增，沒有改審閱者的原文；所列 commit、驗證與重跑數字都和我獨立重跑的結果一致。 |
+
+其他檢查：兩個修好的測試各用獨立的 pytest 行程連跑 30 次，0 紅；完整測試 **3332 passed、0 skipped**（120 s，`rc=0 killed=0`）；`prek run --all-files` 全部 Passed；`git diff --check master..e8b8fc4` 與 `156fb5b..e8b8fc4` 都乾淨；修正範圍沒有改 `addon/`，`git diff --stat master -- addon` 只有 `engineRegistry/discovery.py | 2 --`；受保護路徑與 Neural 兩個指令都沒有輸出；4 個 commit 的 message 都是英文、`<type>: <summary>` 格式，沒有 `Co-Authored-By`；測試裡新增的註解是英文。
+
+補充（不需處理）：
+
+1. M1 的 harness 延遲一定要放在 `with self.condition` 之外。放在鎖內時舊測試 0／3 紅：`wait_calls` 要等 `Speak` 離開鎖才能回來，這時 worker 已經接著寫入 stream。實作者的 `d2.py` 放在鎖外，所以修正記錄裡「修正前紅」的證明成立；最直接的重現點是 worker 端 `tts.Speak` 回來之後（見上表）。
+2. mutant 392 的紅燈是 3 s 後的 "Segment event was not delivered"，和原本 race 的訊息相同，而不是最後的明確斷言。現在 race 已經排除，這個紅燈只會來自 mutant；這是原本測試的寫法，不是修正造成的。
+3. Fable 第 9 點提到「若要補，連同 spec §4 的目標數字一起改」。這次只改了 plan，spec §4 的 98.67 % 沒有改；第 7 點已經說明差額，屬於文件選項，不影響 merge。
