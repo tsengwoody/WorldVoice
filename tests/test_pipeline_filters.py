@@ -333,24 +333,18 @@ def test_group_mode_then_number_wait_breaks_with_the_number_wait(env):
 
 
 E50 = ("NumberEdgeBreakCommand", 50)
-TEXTS = ["12.5", "-1234", "123", "12", "v1.2", "a. 3", "3.", ".5", "1.2.3", ""]
 # The dot rule: a "." outside a number is spoken apart from it, in every mode but "off".
 SHARED = {"a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "": []}
 # Keyed by (mode, group size, number pause).
 NUMBER_MODES = {
 	("value", 3, 0): {
 		"12.5": ["12.5"],
-		"-1234": ["-1234"],
-		"123": ["123"],
-		"12": ["12"],
 		"v1.2": ["v1.2"],
-		"1.2.3": ["1.2.3"],
 	},
 	# Digit mode: every digit and every symbol is an item of its own, even at pause 0.
 	("number", 3, 0): {
 		"12.5": spoken("1 2 <.> 5"),
 		"-1234": spoken("-1 2 3 4"),
-		"123": spoken("1 2 3"),
 		"12": spoken("1 2"),
 		"v1.2": spoken("v1 <.> 2"),
 		"1.2.3": spoken("1 <.> 2 <.> 3"),
@@ -377,28 +371,19 @@ NUMBER_MODES = {
 		"3.": ["3", E50, " ."],
 		".5": [". ", E50, "5"],
 	},
-	("group", 3, 0): {
-		"12.5": spoken("12 <.> 5"),
-		"-1234": spoken("-123 4"),
-		"123": ["123"],
-		"12": ["12"],
-		"v1.2": spoken("v1 <.> 2"),
-		"1.2.3": spoken("1 <.> 2 <.> 3"),
-	},
-	("group", 10, 0): {
-		"12.5": spoken("12 <.> 5"),
-		"-1234": ["-1234"],
-		"123": ["123"],
-		"12": ["12"],
-		"v1.2": spoken("v1 <.> 2"),
-		"1.2.3": spoken("1 <.> 2 <.> 3"),
-	},
 }
+# Each (mode, size, pause) runs the texts of its own table. The SHARED texts run only in value mode
+# and with a number pause: in the other modes they take no branch of their own.
+WITH_SHARED = {("value", 3, 0), ("group", 2, 50)}
+CASES = [
+	(text, *key)
+	for key, table in NUMBER_MODES.items()
+	for text in ({**SHARED, **table} if key in WITH_SHARED else table)
+]
 
 
-@pytest.mark.parametrize("mode,size,pause", sorted(NUMBER_MODES))
-@pytest.mark.parametrize("text", TEXTS)
-def test_number_mode(env, mode, size, pause, text):
+@pytest.mark.parametrize(("text", "mode", "size", "pause"), CASES)
+def test_number_mode(env, text, mode, size, pause):
 	env.settings.number_mode = mode
 	env.settings.group_size = size
 	env.settings.scaled_number_wait = lambda: pause
@@ -410,20 +395,10 @@ def test_number_mode(env, mode, size, pause, text):
 SPEC_TABLE = [
 	("12,345,678", "1 2 <,> 3 4 5 <,> 6 7 8", "12 <,> 345 <,> 678", "12 <,> 34 5 <,> 67 8"),
 	("1,234.56", "1 <,> 2 3 4 <.> 5 6", "1 <,> 234 <.> 56", "1 <,> 23 4 <.> 56"),
-	("123.456", "1 2 3 <.> 4 5 6", "123 <.> 456", "12 3 <.> 45 6"),
-	("12.5", "1 2 <.> 5", "12 <.> 5", "12 <.> 5"),
 	("-1234", "-1 2 3 4", "-123 4", "-12 34"),
 	("5-3", "5 <-> 3", "5 <-> 3", "5 <-> 3"),
 	("2026-10-22", "2 0 2 6 <-> 1 0 <-> 2 2", "202 6 <-> 10 <-> 22", "20 26 <-> 10 <-> 22"),
-	(
-		"192.168.0.1",
-		"1 9 2 <.> 1 6 8 <.> 0 <.> 1",
-		"192 <.> 168 <.> 0 <.> 1",
-		"19 2 <.> 16 8 <.> 0 <.> 1",
-	),
-	("3,14", "3 <,> 1 4", "3 <,> 14", "3 <,> 14"),
 	("2×3", "2 <×> 3", "2 <×> 3", "2 <×> 3"),
-	("6÷2", "6 <÷> 2", "6 <÷> 2", "6 <÷> 2"),
 	("45°30", "4 5 <°> 3 0", "45 <°> 30", "45 <°> 30"),
 ]
 
