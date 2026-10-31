@@ -136,3 +136,15 @@ harness 的 `Native.Speak`（`sapi5_drain_harness.py:108-123`）在 `calls.appen
 9. **plan 的計數落後**：plan 表預期 3340，實際 3332（上述重新分類少 8 個 id）；plan Task 8 的運行計數 +13 與它自己列的 12 個測試不一致。只是文件，不影響合併；若要補，連同 spec §4 的目標數字一起改。
 10. **I1、M1 若不修**：兩個新測試在排程不利時會偶發紅燈；本次 10× 重跑沒有碰到，但 I1 在我的 session 已紅過一次。
 11. **只在 Linux 驗證**：所有結論來自 fake／stub 測試；Windows 的 NVDA、音訊裝置、引擎 SDK 都沒有驗證到。
+
+## 修正記錄
+
+依協調者決定（DEVELOPMENT_WORKFLOW.md §3.4），I1 與 M1 都修。兩項都先在暫時 worktree（`scratchpad/p58/impl/mut-*`，自己的 `ref` symlink，跑完即移除）重現審閱者的 20 ms 延遲注入，確認紅燈，再改測試，最後確認注入延遲後轉綠。
+
+| 項目 | commit | 修法 | 驗證 |
+| --- | --- | --- | --- |
+| I1 | `0b635c9` | `tests/test_onecore_segment_drain.py` 的 `speak()` helper 新增 `token=None` 參數（與 vocalizer helper 相同）；`test_a_segment_cancelled_while_the_player_opens_is_never_spoken` 先建立 token、放進 `tokens`，再用它呼叫 `speak()`，worker 的 `player.open()` 一定看得到 token。 | 修正前：在 `speak()` 與 `tokens.append` 之間插入 `sleep(0.02)` → 紅（"Segment event was not delivered"）。修正後：在 `speak()` 之後插入同樣延遲 → 綠。spec 指名的 mutant（OneCore 392-393）仍然紅。 |
+| M1 | `05c2e1a` | `test_start_stream_marks_speaking_only_for_the_current_stream` 在 `StartStream(2, 0)` 之前加 `eventually(lambda: segment_host(env.driver).current().native.stream == 1)`，等 worker 記下 Speak 回傳的 stream 編號。 | 修正前：scratch 複本的 `sapi5_drain_harness.py` 讓 fake `Speak` 在 `notify_all` 後延遲 20 ms 才回傳 → 紅（`assert True is False`）。修正後同樣注入 → 綠。mutant（319 條件→True、321→True）仍然紅。 |
+| 計畫數字 | `272b0a2` | 計畫的 running counts 改成實際數字（Task 7–11：3309／3320／3327／3330／3332），並註明原本計畫的數字與被重新分類的項目。 | — |
+
+重跑結果：兩個修好的測試各連跑 30 次 0 紅；`tests/test_onecore_segment_drain.py` 與 `tests/test_sapi5_segment_drain.py` 一起連跑 5 次，每次 165 passed；完整測試 **3332 passed、0 skipped**（記憶體看門狗下，`rc=0 killed=0`）；`prek run --all-files` 全部 Passed；`git diff --check master` 乾淨；`git diff --stat master -- addon` 只有 `engineRegistry/discovery.py | 2 --`；受保護路徑與 Neural 兩個指令都沒有輸出。
