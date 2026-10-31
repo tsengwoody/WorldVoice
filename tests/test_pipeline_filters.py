@@ -218,8 +218,7 @@ def test_number_wait_breaks_after_a_single_language_command(env, kind, lang):
 	assert shape(number_wait(env, ["1", command, "2"])) == ["1", ("lang", lang), B40, "2"]
 
 
-@pytest.mark.parametrize("blocker", ["index"])
-def test_number_wait_does_not_break_across_other_commands(env, blocker):
+def test_number_wait_does_not_break_across_other_commands(env):
 	command = env.module.WVLangChangeCommand
 	blocker = Marker()
 	result = number_wait(env, ["1", command("zh"), blocker, command("en"), "2"])

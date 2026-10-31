@@ -218,8 +218,7 @@ class EventToken:
 		return lambda: callback in self._callbacks and self._callbacks.remove(callback)
 
 
-@pytest.mark.parametrize("mode", ["LEGACY_DONE"])
-def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapter, store, mode):
+def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapter, store):
 	store.ensure(make_spec())
 	token = EventToken()
 	assert session.activate("Fake:a") is True
@@ -230,8 +229,7 @@ def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapt
 	assert [context.segment_id for context in adapter.contexts] == [1, 2]
 
 
-@pytest.mark.parametrize("mode", ["LEGACY_DONE"])
-def test_session_rejects_foreign_context(rt, session, adapter, mode):
+def test_session_rejects_foreign_context(rt, session, adapter):
 	with pytest.raises(ValueError, match="source"):
 		session.speak(("hello",), EventToken(), context=rt.models.PlaybackContext(object(), 1))
 	assert adapter.spoken == []

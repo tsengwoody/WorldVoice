@@ -79,10 +79,9 @@ def test_each_opened_engine_is_one_engine_resource(composition):
 	assert engine_resources(manager) == {} and [cls.opened for cls in classes] == [None, None]
 
 
-@pytest.mark.parametrize("failure", ["empty"])
-def test_initialization_failure_closes_without_commit(composition, failure):
+def test_initialization_failure_closes_without_commit(composition):
 	c = composition
-	c.engine("bad", empty=failure == "empty")
+	c.engine("bad", empty=True)
 	with pytest.raises(RuntimeError, match="No WorldVoice voices"):
 		c.create()
 	assert c.cores[0].closes == 1
