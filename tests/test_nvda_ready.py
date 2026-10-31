@@ -95,8 +95,8 @@ def ready(engine, monkeypatch, version):
 	return result, logger.records
 
 
-def test_ready_on_ref_nvda_is_true_and_silent(engine, monkeypatch):
-	assert ready(engine, monkeypatch, UnreadVersion()) == (True, [])
+def test_ready_on_ref_nvda_is_true_and_silent(skipped_engine, monkeypatch):
+	assert ready(skipped_engine, monkeypatch, UnreadVersion()) == (True, [])
 
 
 def test_ready_skips_with_one_warning_when_a_module_name_is_missing(skipped_engine, monkeypatch):
