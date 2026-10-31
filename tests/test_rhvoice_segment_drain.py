@@ -1030,3 +1030,73 @@ def test_a_failing_ordinary_conversion_raises_and_leaks_nothing(env, monkeypatch
 	env.driver.speak(("good",))
 	assert env.native.wait_call().returned.wait(WAIT_TIMEOUT)
 	eventually(lambda: env.dones == [env.driver])
+
+
+@pytest.mark.parametrize("kind", ["ordinary", "segment"])
+def test_a_final_idle_failure_fails_only_that_record(env, kind):
+	error = OSError("final idle failed")
+	env.native.scripts.append({})
+	if kind == "segment":
+		_, _, events = speak(env)
+	else:
+		host, retired = segment_host(env.driver), []
+		retire = host.retire
+
+		def recording_retire(record, **kwargs):
+			retired.append(record)
+			return retire(record, **kwargs)
+
+		host.retire = recording_retire
+		env.driver.speak(("ordinary", env.commands.IndexCommand(11)))
+	call = env.native.wait_call()
+	assert call.done.wait(WAIT_TIMEOUT)
+	player = env.players[0]
+	idle = player.idle
+
+	def final_idle_fails():
+		# The inner callback and the inner SpeakText idle first; the third idle is the worker's
+		# final idle, after the native call returned.
+		idle()
+		if player.idle_count == 3:
+			raise error
+
+	player.idle = final_idle_fails
+	call.return_release.set()
+	if kind == "segment":
+		event = events.wait_one()
+		assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+		assert event.error is error
+	else:
+		eventually(lambda: retired)
+		assert retired[0].error is error
+	# The worker survived: the next request speaks and drains.
+	player.idle = idle
+	env.native.scripts.append({"auto_return": True})
+	_, context, following = speak(env, segment=2, text="next")
+	event = following.wait_one()
+	assert (event.kind, event.segment_id) == (env.rt.models.EventKind.SEGMENT_DRAINED, context.segment_id)
+
+
+def test_a_cancel_stop_failure_latches_and_raises(env):
+	speak(env, text="old")
+	call = env.native.wait_call()
+	assert call.done.wait(WAIT_TIMEOUT)
+	player = env.players[0]
+	canceller = current_thread()
+	stop, first_stop, error = player.stop, Event(), OSError("final stop failed")
+
+	def stop_failing_after_settle():
+		stop()
+		if current_thread() is canceller:
+			first_stop.set()
+			# Only the stop cancel() makes once the worker settled fails; the inner cancel's succeeded.
+			if call.returned.is_set():
+				raise error
+
+	player.stop = stop_failing_after_settle
+	Thread(target=lambda: first_stop.wait(WAIT_TIMEOUT) and call.return_release.set(), daemon=True).start()
+	with pytest.raises(OSError) as raised:
+		env.driver.cancel()
+	player.stop = stop
+	assert raised.value is error
+	assert segment_host(env.driver).control_error is error
