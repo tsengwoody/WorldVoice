@@ -89,3 +89,12 @@ NVDA 自己的 `sapi5.SynthDriver` 沒有 `needsVoiceReload`、也不 latch 任�
 5. **B12 測試 helper 的用語不改**（spec §6.4）：`tests/nvda_releases.py` 的 `EngineNames.port`／`port_names()` 保留，雖然三個條目中兩個現在指向 `*HostNames`。只影響開發者。
 6. **不加 readme／changelog**（spec §6.6）：B14 只是 SAPI5 改設定後下一句少一次重建的延遲；Windows 上未量測。
 7. **只在 Linux fake 上驗證**：SAPI5 COM／WASAPI 的實際重建成本與復原、RHVoice 混合語言切換 profile，都未在 Windows 實測。
+
+## 修正記錄
+
+日期：2026-10-31。修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4 一般流程）。只有 Minor，依 §3.4 不做修正 review。
+
+- **M1** → `18a99c2` `refactor: drop the redundant voice-memory reset in open()`。刪掉 `open()` 的 `self._voiceApplied = None`；spec §3 第一點改成「在 `__init__`、`close()` 與每次 apply 開頭清掉，`open()` 不動它（已開啟就返回，否則必在 `__init__` 或 `close()` 之後）」，「Other core replacements」第一點同步改寫。純重構、行為不變，無法先寫失敗的測試；改以既有測試證明：`test_reopening_sets_the_voice_even_on_the_same_core_object`、`test_a_new_core_gets_the_voice_set`、`test_a_failed_close_still_forgets_the_voice`、性質測試（含 `reopen` 動作）與 `test_after_a_failed_apply_the_same_voice_is_set_again[voice|rate|hook]` 刪除後全綠，沒有測試需要修改。附帶影響：帳本 Task 6 說 `__init__`／`close` 的 `None→""` mutant 等價，理由是「`open()` 會先重設」；這行刪掉後該理由不再成立（`""[0]` 會在 `_voiceIsCurrent` 的 `try` 外 raise `IndexError`，apply 失敗，應該會被殺），未重跑 mutmut，記在帳本。
+- **M2** → `ca28698` `docs: note that old-NVDA SAPI5 no longer heals on a setting change`。spec §3 SAPI5 wrapper 段「NVDA's own driver……latches nothing」後補上後果；「What NVDA users hear or see」加一點；§6 加第 7 個 open question（預設接受，替代方案是對 NVDA 自己的 SAPI5 core 一律設聲音），標 `Decided by orchestrator with the recommended default; user may override before merge.`。readme 依 spec §6.6 不加。
+
+驗證（head `ca28698`）：`python3 -m pytest -q -p no:cacheprovider tests`（setsid watchdog，MemAvailable < 3 GB 只殺自己的 process group；未觸發）3727 passed、0 skipped，與 review 時相同（沒有測試增減）；`prek run --all-files` 8 個 hook 全 Passed；`git diff --check master` 無輸出；受保護路徑 `git diff --stat master -- …` 與 `git ls-files …/driver/Neural` 皆無輸出。
