@@ -639,8 +639,9 @@ def test_token_name_detection():
 
 def test_no_add_on_code_names_the_request_token():
 	# Every core is stopped through cancel(); plain speak passes no token and no Voice declares
-	# one (fix/ve-drop-cancellation-token). This is the one check on that rule: it keeps the
-	# keyword and the trait from coming back in any add-on source, vendored inner drivers included.
+	# one (fix/ve-drop-cancellation-token). This keeps the keyword and the trait from coming back
+	# in any add-on source, vendored inner drivers included. The VE and Cerence Voice capabilities
+	# are also pinned by test_vocalizer_voice_declares_waitfactor_and_variant.
 	found = sorted(
 		f"{path.relative_to(ROOT)}:{line}"
 		for path in ROOT.rglob("*.py")
