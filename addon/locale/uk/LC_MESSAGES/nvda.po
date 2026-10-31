@@ -495,5 +495,5 @@ msgstr ""
 #. Brief changelog for this version
 #. Translators: what's new content for the add-on version to be shown in the add-on store
 #: buildVars.py:29
-msgid "Improved language detection, speech segmentation, and number parsing."
-msgstr "Покращено визначення мови, сегментацію мовлення та розбір чисел."
+msgid "Punctuation pauses, more number reading modes, and an Engine list to group voices by engine."
+msgstr "Паузи на розділових знаках, більше режимів читання чисел і список «Рушій» для групування голосів за рушієм."

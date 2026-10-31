@@ -486,5 +486,5 @@ msgstr ""
 #. Brief changelog for this version
 #. Translators: what's new content for the add-on version to be shown in the add-on store
 #: buildVars.py:29
-msgid "Improved language detection, speech segmentation, and number parsing."
-msgstr "改进了语言检测、语音分段和数字解析。"
+msgid "Punctuation pauses, more number reading modes, and an Engine list to group voices by engine."
+msgstr "新增标点停顿、扩充数字模式，新增“引擎”层级，按引擎分组语音。"
