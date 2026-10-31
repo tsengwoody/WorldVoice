@@ -370,6 +370,38 @@ def test_a_host_cancelled_ordinary_record_retires_cancelled(env, caplog, case):
 	assert record not in pending_records(env.host)
 
 
+@pytest.mark.parametrize("case", ["cancelled", "failed"])
+def test_ordinary_retire_survives_a_failing_stop(env, caplog, case):
+	# The stop runs on the engine worker: a raising stop must not escape retire and kill it.
+	caplog.set_level(logging.ERROR, logger=env.module.log.name)
+	stop_error = OSError("stop failed")
+
+	def failing_stop(host):
+		raise stop_error
+
+	env.strategy.stop_player = failing_stop
+	env.host.enqueue(("ordinary",))
+	record = env.strategy.wait_submitted()
+	env.host.begin(record)
+	if case == "cancelled":
+		env.host.cancel()
+	outcome = env.host.retire(record)
+	# A failed record also logs its missing barriers first.
+	logged = host_errors(env, caplog)[-1]
+	assert logged.exc_info is not None
+	assert len(host_errors(env, caplog)) == (1 if case == "cancelled" else 2)
+	if case == "cancelled":
+		assert outcome == env.module.OrdinaryOutcome(cancelled=True, error=None)
+		assert logged.getMessage() == "Error stopping cancelled Fake playback"
+	else:
+		assert outcome.cancelled is False
+		assert isinstance(outcome.error, RuntimeError)
+		assert "returned" in str(outcome.error)
+		# The record keeps the stop error: the first error it records.
+		assert record.error is stop_error
+		assert logged.getMessage() == "Error stopping failed Fake playback"
+
+
 def test_ordinary_speech_raises_after_a_control_error(env):
 	error = OSError("stop failed")
 	env.host.latch_control_error(error)
@@ -576,6 +608,20 @@ def test_reset_recovers_from_a_control_error(env):
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
 
 
+def test_reset_after_terminate_keeps_the_host_terminated(env):
+	error = OSError("stop failed")
+	env.host.latch_control_error(error)
+	assert env.host.terminate() is True
+	with env.host.admission():
+		env.host.reset()
+	assert env.host.control_error is error
+	assert env.host.faulted is True
+	_, _, rejected = env.speak(segment=18)
+	event = rejected.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert str(event.error) == "Fake driver has terminated"
+
+
 def test_reset_recovers_from_a_lifecycle_fault(env, monkeypatch):
 	boundary = env.host.wait_native_boundary
 
@@ -620,6 +666,30 @@ def test_faulted_reports_a_control_error_or_lifecycle_fault_until_reset(env, mon
 	with env.host.admission():
 		env.host.reset()
 	assert env.host.faulted is False
+
+
+@pytest.mark.parametrize("case", ["plain", "chained"])
+def test_a_raising_lifecycle_run_fails_the_segment(env, monkeypatch, case):
+	inner = OSError("inner")
+	if case == "plain":
+		error = RuntimeError("run failed")
+	else:
+		error = RuntimeError("outer")
+		error.__cause__ = inner
+
+	def failing_run(operation, commands):
+		raise error
+
+	monkeypatch.setattr(env.host._lifecycle, "run", failing_run)
+	_, context, failed = env.speak()
+	event = failed.wait_one()
+	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert event.segment_id == context.segment_id
+	assert event.error is (error if case == "plain" else inner)
+	monkeypatch.undo()
+	_, _, events = env.speak(segment=18)
+	env.run_native(env.strategy.wait_submitted())
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
 
 
 def test_hook_fault_stops_the_player_and_releases_the_worker(env, monkeypatch):

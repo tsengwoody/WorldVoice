@@ -690,6 +690,64 @@ def test_retirement_callback_runs_when_cancel_suppresses_delivery(env):
 	assert hooks.submitted == []
 
 
+def test_a_raising_retirement_callback_does_not_stop_delivery(env, caplog):
+	lifecycle, hooks, events, accept = env
+	caplog.set_level(logging.ERROR)
+
+	def broken(owner):
+		raise RuntimeError("retirement failed")
+
+	retired, _ = accept(18, on_retired=broken)
+	retired.work.token.cancel()
+	lifecycle.fail(retired, RuntimeError("never submitted"))
+	hooks.release_boundary.set()
+	operation, _ = accept(19)
+	Call(lambda: lifecycle.run(operation, ("next",))).finish()
+	events.wait_for_count(1)
+	assert [(event.segment_id, event.error) for event in events] == [(19, None)]
+	assert "segment retirement callback failed for segment 18" in caplog.text
+
+
+def test_an_operation_of_another_lifecycle_is_refused(env):
+	lifecycle, hooks, events, accept = env
+	other_hooks = Hooks()
+	other_hooks.release_boundary.set()
+	other = type(lifecycle)(other_hooks)
+	operation, _ = accept(18)
+	with pytest.raises(ValueError, match="operation does not belong to this lifecycle"):
+		other.admit_producer(operation)
+	with pytest.raises(ValueError, match="operation does not belong to this lifecycle"):
+		other.run(operation, ("elsewhere",))
+	assert other_hooks.submitted == []
+	other.terminate()
+	hooks.release_boundary.set()
+	Call(lambda: lifecycle.run(operation, ("own",))).finish()
+	events.wait_for_count(1)
+	assert [(event.segment_id, event.error) for event in events] == [(18, None)]
+	assert hooks.submitted == [(operation, ("own",))]
+
+
+def test_a_child_producer_is_refused_after_a_faulted_operation_retired(env):
+	lifecycle, hooks, events, accept = env
+	leases = []
+	error = RuntimeError("submit failed")
+
+	def submit_native(operation, commands):
+		# The fault is latched while this lease is still out: run() does not wait for it.
+		leases.append(lifecycle.admit_producer(operation))
+		raise error
+
+	hooks.submit_native = submit_native
+	operation, _ = accept(18)
+	Call(lambda: lifecycle.run(operation, ("faulted",))).finish()
+	events.wait_for_count(1)
+	assert events[0].error is error
+	eventually(lambda: operation not in live_operations(lifecycle))
+	[lease] = leases
+	assert lease is not None
+	assert lifecycle.admit_producer(operation, parent=lease) is None
+
+
 def test_idle_delivery_thread_releases_a_retired_operation(env):
 	lifecycle, _hooks, events, accept = env
 	retired = Event()
