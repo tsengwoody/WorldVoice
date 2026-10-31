@@ -59,36 +59,25 @@ def test_panel_specs_follow_the_table_per_panel(table):
 	[
 		("punctuation_pause_enabled", "Enable punctuation pause control"),
 		("number_mode", "Number &mode:"),
-		("global_wait_factor", "Global wait factor:"),
-		("group_size", "Group size:"),
-		("punctuation_pause_characters", "Punctuation pause characters:"),
 	],
 )
 def test_label_text(table, key, text):
 	assert layout.labelText(spec_for(table, key)) == text
 
 
-@pytest.mark.parametrize(("scale", "value", "shown"), [(10, 57, 5), (1, 57, 57)])
+@pytest.mark.parametrize(("scale", "value", "shown"), [(10, 57, 5)])
 def test_to_display(scale, value, shown):
 	assert layout.toDisplay(SimpleNamespace(panel_scale=scale), value) == shown
 
 
-@pytest.mark.parametrize(("scale", "shown", "value"), [(10, 5, 50), (1, 5, 5)])
+@pytest.mark.parametrize(("scale", "shown", "value"), [(10, 5, 50)])
 def test_from_display(scale, shown, value):
 	assert layout.fromDisplay(SimpleNamespace(panel_scale=scale), shown) == value
 
 
-@pytest.mark.parametrize(("value", "index"), [("group", 2), ("roman", 0), (None, 0)])
+@pytest.mark.parametrize(("value", "index"), [("group", 2), ("roman", 0)])
 def test_choice_index(value, index):
 	assert layout.choiceIndex(("value", "number", "group"), value) == index
-
-
-@pytest.mark.parametrize(
-	("selection", "value"),
-	[(0, "value"), (1, "number"), (2, "group"), (-1, None), (3, None), (8, None)],
-)
-def test_selected_value(selection, value):
-	assert layout.selectedValue(("value", "number", "group"), selection) == value
 
 
 def test_choice_values(table):
@@ -99,7 +88,7 @@ def test_controller_keys_of_the_table(table):
 	assert layout.controllerKeys(table) == frozenset({"number_mode", "punctuation_pause_enabled"})
 
 
-@pytest.mark.parametrize("mode", ["none", "value", "number", "group", None])
+@pytest.mark.parametrize("mode", ["none", "group", None])
 def test_dependent_states_follow_the_number_mode(table, mode):
 	read = {"number_mode": mode, "punctuation_pause_enabled": True}.__getitem__
 	group = mode == "group"

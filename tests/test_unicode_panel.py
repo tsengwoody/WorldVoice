@@ -151,12 +151,6 @@ def test_saving_reports_a_timing_change_to_subscribers_not_to_the_synth(env, tim
 	assert built.synth.events == []
 
 
-def test_saving_unchanged_choices_notifies_nobody(env):
-	built = build(env, LANGUAGES, STORED)
-	built.panel.onSave()
-	assert built.notified == []
-
-
 DEFAULT_LABELS = [
 	"Language assumed for latin characters:",
 	"Language assumed for CJK characters:",

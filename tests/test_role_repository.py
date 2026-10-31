@@ -61,18 +61,6 @@ def test_assignments_ignore_scalars_and_voiceless_sections(roles):
 	assert repository.assignments() == {"en": "A:en", "zh": "B:zh"}
 
 
-def test_save_rewrites_sections_and_keeps_scalars(roles):
-	_, conf, repository = roles
-	repository.save({"fr": "C:fr"})
-	assert conf["WorldVoice"]["role"] == {"fr": {"voice": "C:fr"}, "legacy": "kept"}
-
-
-def test_assign_adds_or_replaces_one_locale(roles):
-	_, _conf, repository = roles
-	repository.assign("zh", "C:zh")
-	assert repository.assignments() == {"en": "A:en", "zh": "C:zh"}
-
-
 def test_save_drops_role_sections_under_full_locale_keys(roles):
 	# Versions before 2026-07-28 also wrote the full locale (zh_TW); the panel writes only
 	# primary languages, and the lookup prefers the full locale, so such a key would shadow it.

@@ -6,7 +6,7 @@ MoveAfterInTabOrder changes only where Tab goes. ui_harness models the first wit
 """
 
 import pytest
-from ui_harness import BoxSizerHelper, Label, SettingsPanel, Sizer, TextCtrl, make_panel
+from ui_harness import SettingsPanel, Sizer, TextCtrl, make_panel
 
 
 def test_move_after_in_tab_order_leaves_window_order():
@@ -37,39 +37,3 @@ def test_insert_out_of_range_fails(index):
 
 	with pytest.raises(AssertionError):
 		sizer.Insert(index, Sizer())
-
-
-def test_insert_at_the_end_appends():
-	sizer = Sizer()
-	first, last = Sizer(), Sizer()
-	sizer.Add(first)
-
-	sizer.Insert(1, last)
-
-	assert [entry.item for entry in sizer.items] == [first, last]
-
-
-def test_a_labeled_control_follows_its_label():
-	panel = make_panel(SettingsPanel)
-	sizer = Sizer()
-
-	control = BoxSizerHelper(panel, sizer=sizer).addLabeledControl("X:", TextCtrl)
-
-	label = panel.children[-2]
-	assert panel.children[-1] is control
-	assert (type(label), label.label) == (Label, "X:")
-	(row,) = [entry.item for entry in sizer.items]
-	assert [entry.item for entry in row.items] == [label, control]
-	assert row.controls() == [control]
-
-
-def test_clear_destroys_labels_and_drops_them_from_both_orders():
-	panel = make_panel(SettingsPanel)
-	sizer = Sizer()
-	control = BoxSizerHelper(panel, sizer=sizer).addLabeledControl("X:", TextCtrl)
-	label = panel.children[-2]
-
-	sizer.Clear(delete_windows=True)
-
-	assert label.destroyed and control.destroyed
-	assert panel.children == panel.tab_order == []

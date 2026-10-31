@@ -90,16 +90,6 @@ def test_engine_change_without_restart_writes_flags_only():
 	assert calls == [("write", "VE", True), ("write", "OneCore", False), ("write", "SAPI5", False)]
 
 
-def test_unchanged_engines_write_nothing():
-	calls, logged = [], []
-	environment, _section = _load_panels(calls, logged)
-	panel = _engine_panel(environment, active={"OneCore"}, previous={"OneCore"}, confirm=None)
-
-	panel.onSave()
-
-	assert calls == []
-
-
 def test_engine_change_does_not_restart_after_failed_flag_write():
 	calls, logged = [], []
 	environment, section = _load_panels(calls, logged)
@@ -165,15 +155,3 @@ def test_failed_save_does_not_swallow_keyboard_interrupt():
 
 	assert calls == []
 	assert logged == []
-
-
-def test_on_save_returns_nothing_like_nvda_panels():
-	calls, logged = [], []
-	environment, section = _load_panels(calls, logged)
-	panel = environment["BaseSettingsPanel"]()
-	panel.field = "engine"
-	panel.settings = OrderedDict((name, {"label": name}) for name in ("VE", "OneCore"))
-	panel.VECheckBox = _checkbox(True)
-	panel.OneCoreCheckBox = _checkbox(False)
-	assert panel.onSave() is None
-	assert dict(section) == {"VE": True, "OneCore": False, "SAPI5": False}

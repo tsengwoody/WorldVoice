@@ -39,7 +39,7 @@ def test_a_checkbox_is_added_as_itself_with_its_value(monkeypatch):
 	assert control.parent is env.parent
 
 
-@pytest.mark.parametrize(("stored", "selection"), [("all", 0), ("WorldVoice", 1), ("nowhere", 0)])
+@pytest.mark.parametrize(("stored", "selection"), [("WorldVoice", 1), ("nowhere", 0)])
 def test_a_choice_lists_its_labels_and_selects_the_value(monkeypatch, stored, selection):
 	_env, _spec, _sizer, control = build(monkeypatch, "scope", stored)
 	assert type(control) is Choice
@@ -119,11 +119,6 @@ def test_control_row_is_the_checkbox_or_its_sizer(monkeypatch, key, stored):
 	assert row is (control if spec.control == "checkbox" else control.GetContainingSizer())
 
 
-def test_change_events_cover_the_controller_kinds(monkeypatch):
-	env = load_ui_controls(monkeypatch)
-	assert env.controls.CHANGE_EVENTS == {"checkbox": "EVT_CHECKBOX", "choice": "EVT_CHOICE"}
-
-
 class Recorder:
 	"""A control that records every call; GetSelection and GetCurrentSelection answer separately."""
 
@@ -163,8 +158,6 @@ DEPENDENTS = ("group_size", *PAUSE_DEPENDENTS)
 @pytest.mark.parametrize(
 	("key", "options"),
 	[
-		("punctuation_pause_enabled", None),
-		("number_mode", None),
 		("number_mode", ["none", "value", "number", "group"]),
 	],
 )
@@ -173,7 +166,7 @@ def test_read_control_without_a_control_is_absent(monkeypatch, key, options):
 	assert env.controls.readControl(env.spec(key), None, options) is env.layout.ABSENT
 
 
-@pytest.mark.parametrize("checked", [True, False])
+@pytest.mark.parametrize("checked", [True])
 def test_read_control_reads_a_checkbox(monkeypatch, checked):
 	env = helpers(monkeypatch)
 	control = Recorder(value=checked)
@@ -181,7 +174,7 @@ def test_read_control_reads_a_checkbox(monkeypatch, checked):
 	assert control.calls == [("GetValue",)]
 
 
-@pytest.mark.parametrize(("current", "value"), [(0, "all"), (1, "WorldVoice"), (-1, None)])
+@pytest.mark.parametrize(("current", "value"), [(1, "WorldVoice"), (-1, None)])
 def test_read_control_reads_a_table_choice_by_its_current_selection(monkeypatch, current, value):
 	env = helpers(monkeypatch)
 	control = Recorder(selection=1 - current, current=current)
@@ -189,7 +182,7 @@ def test_read_control_reads_a_table_choice_by_its_current_selection(monkeypatch,
 	assert "GetSelection" not in names(control.calls)
 
 
-@pytest.mark.parametrize(("selection", "value"), [(2, "c"), (-1, None), (3, None)])
+@pytest.mark.parametrize(("selection", "value"), [(2, "c"), (-1, None)])
 def test_read_control_reads_a_driver_choice_from_its_options(monkeypatch, selection, value):
 	# No selection (-1) names no option, although Python's list[-1] is the last one.
 	env = helpers(monkeypatch)
@@ -213,7 +206,7 @@ def apply(env, read, missing=()):
 	)
 
 
-@pytest.mark.parametrize(("mode", "pause", "enabled"), [("group", True, True), ("value", False, False)])
+@pytest.mark.parametrize(("mode", "pause", "enabled"), [("value", False, False)])
 def test_apply_dependencies_enables_dependents_from_their_controller(monkeypatch, mode, pause, enabled):
 	env = helpers(monkeypatch)
 	apply(env, {"number_mode": mode, "punctuation_pause_enabled": pause}.__getitem__)

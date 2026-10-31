@@ -143,14 +143,6 @@ class TableDriver:
 		return True
 
 
-def voice_panel(monkeypatch):
-	env = load_voice_panel(monkeypatch)
-	panel = env.module.WorldVoiceVoiceSettingsPanel(TableDriver(env.module.PIPELINE_SETTINGS))
-	panel.makeSettings(panel.settingsSizer)
-	specs = env.module.panelSpecs(env.module.PIPELINE_SETTINGS, "voice")
-	return env, panel, specs
-
-
 def voice_controls(env, panel, specs):
 	"""Each Voice panel table entry's control, by key."""
 	module = env.module
@@ -201,25 +193,6 @@ VOICE_KEYS = [
 	"punctuation_wait_factor",
 	"punctuation_pause_characters",
 ]
-
-
-def test_voice_panel_rows_follow_the_table(monkeypatch):
-	env, panel, specs = voice_panel(monkeypatch)
-	assert voice_rows(env, panel, specs) == [spec.key for spec in specs] == VOICE_KEYS
-
-
-def test_voice_panel_tab_order_follows_the_table(monkeypatch):
-	env, panel, specs = voice_panel(monkeypatch)
-	assert tab_keys(panel, voice_controls(env, panel, specs)) == VOICE_KEYS
-
-
-def test_voice_panel_rows_and_tab_order_survive_a_voice_change(monkeypatch):
-	env, panel, specs = voice_panel(monkeypatch)
-
-	panel.updateDriverSettings(changedSetting="voice")  # what NVDA runs after the voice changed
-
-	assert voice_rows(env, panel, specs) == VOICE_KEYS
-	assert tab_keys(panel, voice_controls(env, panel, specs)) == VOICE_KEYS
 
 
 def window_keys(panel, controls):

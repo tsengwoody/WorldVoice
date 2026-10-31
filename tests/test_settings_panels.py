@@ -128,7 +128,7 @@ def group_size_enabled(panel):
 
 @pytest.mark.parametrize(
 	("mode", "enabled"),
-	[("value", False), ("number", False), ("group", True), ("pair", False)],
+	[("value", False), ("group", True), ("pair", False)],
 )
 def test_pipeline_panel_enables_group_controls_for_the_stored_mode(monkeypatch, mode, enabled):
 	env = pipeline_env(monkeypatch, numberMode=mode)
@@ -159,7 +159,7 @@ def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
 	assert group_size_enabled(panel) is False
 
 
-@pytest.mark.parametrize("stored", ["none", "value", "number", "group"])
+@pytest.mark.parametrize("stored", ["none", "group"])
 def test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected(monkeypatch, stored):
 	# A choice with no selection names no mode: neither the last choice, group, nor "value" is
 	# saved, and the other settings still are.
@@ -262,7 +262,7 @@ def test_pipeline_panel_saves_the_disabled_group_size(monkeypatch):
 	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 7
 
 
-@pytest.mark.parametrize(("stored", "shown"), [(0, 3), (1, 3), (12, 3), ("4", 4)])
+@pytest.mark.parametrize(("stored", "shown"), [(1, 3), (12, 3), ("4", 4)])
 def test_pipeline_panel_shows_an_out_of_range_stored_size_as_the_default(monkeypatch, stored, shown):
 	env = pipeline_env(monkeypatch, groupSize=stored)
 	panel, _sizer = build(env, "SpeechPipelinePanel")

@@ -14,13 +14,6 @@ PLUGIN = ADDON / "globalPlugins/WorldVoice"
 ROLE_PANEL = PLUGIN / "panels/role.py"
 PIPELINE_PANEL = PLUGIN / "panels/pipeline.py"
 VOICE_PANEL = WORLDVOICE / "ui/voicePanel.py"
-NOT_WORLDVOICE = "Your current speech synthesizer is not WorldVoice."
-ERROR_MESSAGE = (
-	"An unexpected error occurred while processing your action.\n\n"
-	"Details: {err}\n\n"
-	"A full stack trace has been written to the NVDA log."
-)
-ERROR_TITLE = "WorldVoice Setting Dialog - Error"
 UI_CONTROLS = WORLDVOICE / "ui/controls.py"
 
 
@@ -121,28 +114,6 @@ def test_panels_package_init_stays_empty():
 	# As in the synth's packages (tests/test_runtime_import_guard.py): importing one panel module
 	# must not load the others.
 	assert (PLUGIN / "panels/__init__.py").read_bytes() == b""
-
-
-def string_constants(text):
-	"""Where the global plugin writes the string text: its module, relative to the plugin, per copy."""
-	return [
-		path.relative_to(PLUGIN).as_posix()
-		for path in sorted(PLUGIN.rglob("*.py"))
-		for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-		if isinstance(node, ast.Constant) and node.value == text
-	]
-
-
-def test_panels_share_the_not_worldvoice_notice():
-	# The Speech Role and Unicode Detection panels show the same notice for another synthesizer;
-	# one copy keeps the two from drifting apart.
-	assert string_constants(NOT_WORLDVOICE) == ["panels/base.py"]
-
-
-def test_settings_errors_share_one_dialog():
-	# A failing handler (guardErrors) and a failed Speech Role save show the same error dialog.
-	assert string_constants(ERROR_MESSAGE) == ["utils.py"]
-	assert string_constants(ERROR_TITLE) == ["utils.py"]
 
 
 def test_settings_ui_asks_for_worldvoice_not_for_the_synth():

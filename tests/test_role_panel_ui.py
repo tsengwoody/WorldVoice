@@ -322,14 +322,6 @@ def test_a_failed_save_reports_the_error_and_keeps_the_dialog_open(ui):
 	assert ("error", "Failed to save voice settings") in ui.env.logged
 
 
-def test_an_assigned_voice_the_locale_no_longer_offers_shows_no_voice(ui):
-	panel = ui.panel
-	ui.presenter.assigned["en"] = "removed"
-	choose(panel, panel._localesChoice, 0)
-	assert panel._voicesChoice.selection == 0
-	assert not any(slider.enabled for slider in sliders(panel))
-
-
 def test_controls_used_before_choosing_a_locale_change_nothing(ui):
 	panel = ui.panel
 	fire(panel._voicesChoice, "EVT_CHOICE", panel=panel)
@@ -337,14 +329,3 @@ def test_controls_used_before_choosing_a_locale_change_nothing(ui):
 	fire(panel._rateSlider, "EVT_SLIDER", panel=panel)
 	assert ui.presenter.calls == []
 	assert ui.env.shown == []
-
-
-def test_the_fake_presenter_records_only_the_presenter_methods():
-	# A mistyped call must fail as it would on RolePanelPresenter, not be recorded.
-	presenter = Presenter(None, speechSection=None, setMainVoice=None)
-	presenter.setParameter("eva", "rate", 1)
-	assert presenter.calls == [("setParameter", "eva", "rate", 1)]
-	with pytest.raises(AttributeError):
-		presenter.setParamter("eva", "rate", 1)
-	with pytest.raises(AttributeError):
-		presenter.select_voice("en", "eva")

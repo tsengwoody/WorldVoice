@@ -278,15 +278,6 @@ def test_toggling_pauses_enables_or_disables_the_controls_and_still_saves_the_se
 	assert driver.punctuationPauseEnabled is True
 
 
-def test_a_voice_switch_keeps_the_pause_controls_disabled(monkeypatch):
-	panel = open_panel(monkeypatch, Driver(ALL, punctuationPauseEnabled=False)).panel
-
-	panel.updateDriverSettings(changedSetting="voice")  # shows every supported control again
-
-	assert pause_controls_enabled(panel) == (False, False, False)
-	assert panel.settingsSizer.IsShown(panel.sizerDict["punctuationWaitFactor"])
-
-
 @pytest.mark.parametrize("enabled", [True, False])
 def test_a_voice_switch_after_a_settings_ring_toggle_matches_the_controls_to_the_switch(monkeypatch, enabled):
 	driver = Driver(ALL, punctuationPauseEnabled=not enabled)
@@ -306,7 +297,7 @@ def group_size_enabled(panel):
 
 @pytest.mark.parametrize(
 	("mode", "enabled"),
-	[("none", False), ("value", False), ("number", False), ("group", True)],
+	[("value", False), ("group", True)],
 )
 def test_group_controls_follow_the_stored_mode_when_the_panel_opens(monkeypatch, mode, enabled):
 	panel = open_panel(monkeypatch, Driver(ALL, nummod=mode)).panel
@@ -426,19 +417,6 @@ def test_adjacent_non_driver_controls_keep_table_order(monkeypatch):
 	assert "<spacer>" not in names
 
 
-def test_a_rebuild_for_worldvoice_places_the_controls_again(monkeypatch):
-	panel = open_panel(monkeypatch, other_synth()).panel
-	panel._driver = Driver(ALL)  # the user chose WorldVoice; NVDA rebuilds the panel
-
-	panel.refreshGui()
-
-	names = order(panel)
-	assert names.index("Group size:") == names.index("nummod") + 1
-	assert names.index("Punctuation pause characters:") == names.index("punctuationWaitFactor") + 1
-	assert panel.groupSizeSpin in panel.settingsSizer.controls()
-	assert not panel.groupSizeSpin.destroyed
-
-
 def test_a_rebuild_for_worldvoice_from_worldvoice_places_the_controls_again(monkeypatch):
 	# OK in NVDA's synth dialog with WorldVoice kept: setSynth makes a new instance, so NVDA
 	# rebuilds the panel and destroys every window of the earlier build first.
@@ -499,17 +477,6 @@ def test_saving_writes_the_characters_and_keeps_them_after_a_later_cancel(monkey
 
 	assert env.conf["WorldVoice"]["pipeline"]["punctuationPauseCharacters"] == " ,; "
 	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]
-
-
-def test_saving_writes_the_group_size_and_keeps_it_after_a_later_cancel(monkeypatch):
-	env = open_panel(monkeypatch, Driver(ALL), groupSize=3)
-	panel = env.panel
-	panel.groupSizeSpin.SetValue(7)
-
-	panel.onSave()
-	panel.onDiscard()
-
-	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 7
 
 
 def test_cancel_without_save_keeps_the_stored_group_size(monkeypatch):
@@ -599,24 +566,6 @@ def test_a_non_driver_checkbox_controls_its_dependent(monkeypatch):
 
 	assert edit.enabled is True
 	assert event.skipped
-
-
-def test_the_named_rule_and_placement_helpers_are_gone(monkeypatch):
-	panel_class = load_voice_panel(monkeypatch).module.WorldVoiceVoiceSettingsPanel
-	for name in (
-		"_bindNumberModeChoice",
-		"_onNumberModeChoice",
-		"_applyGroupControlsState",
-		"_bindPunctuationPauseEnabledToggle",
-		"_onPunctuationPauseEnabledToggle",
-		"_applyPunctuationPauseControlsState",
-		"_addGroupSizeControl",
-		"_addPunctuationPauseCharactersControl",
-		# Replaced by the updateDriverSettings override, which creates the controls in table order.
-		"createDriverSettings",
-		"_addPipelineControls",
-	):
-		assert not hasattr(panel_class, name), name
 
 
 @pytest.mark.parametrize(

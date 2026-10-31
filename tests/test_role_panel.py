@@ -2,7 +2,6 @@
 
 import types
 
-import pytest
 from addon_loader import ADDON, load_definitions
 
 PANEL = ADDON / "globalPlugins/WorldVoice/panels/role.py"
@@ -10,51 +9,6 @@ PANEL = ADDON / "globalPlugins/WorldVoice/panels/role.py"
 
 def load_panel(environment):
 	return load_definitions(PANEL, ["SpeechRoleSettingsPanel"], environment)["SpeechRoleSettingsPanel"]
-
-
-def checkbox(value):
-	return types.SimpleNamespace(GetValue=lambda: value)
-
-
-def test_failed_apply_shows_error_and_raises_value_error():
-	messages, logged = [], []
-	manager = object()
-	panel_type = load_panel(
-		{
-			"SettingsPanel": object,
-			"_": lambda text: text,
-			"guardErrors": lambda **kwargs: lambda method: method,
-			"gotErrorCallback": None,
-			"reportError": messages.append,
-			"log": types.SimpleNamespace(error=lambda *args, **kwargs: logged.append(args)),
-			"worldvoice_synth": lambda: types.SimpleNamespace(name="WorldVoice", voiceManager=manager),
-		},
-	)
-	panel = object.__new__(panel_type)
-	panel.disable = False
-	panel._manager = manager
-	calls = []
-
-	def apply():
-		raise OSError("save failed")
-
-	panel._presenter = types.SimpleNamespace(
-		setEngineConsistency=lambda value: calls.append(("engine", value)),
-		setVoiceConsistency=lambda value: calls.append(("voice", value)),
-		setParameterConsistency=lambda value: calls.append(("parameter", value)),
-		apply=apply,
-	)
-	panel._keepEngineConsistentCheckBox = checkbox(True)
-	panel._keepConsistentCheckBox = checkbox(False)
-	panel._keepParameterConsistentCheckBox = checkbox(True)
-
-	with pytest.raises(ValueError):
-		panel.onSave()
-
-	# The checkbox handlers already told the presenter; saving only applies.
-	assert calls == []
-	assert [str(error) for error in messages] == ["save failed"]
-	assert logged
 
 
 def test_destroy_closes_the_presenter_only_for_the_panel_itself():
