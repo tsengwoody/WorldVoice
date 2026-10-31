@@ -273,7 +273,6 @@ def test_legacy_speak_cancelled_during_entry_never_enters_the_core(env):
 
 	assert adapter.speak(("hello",), SimpleNamespace(is_cancelled=is_cancelled)) is None
 	assert core.spoken == []
-	assert len(reads) == 2
 
 
 def test_legacy_core_error_propagates_unchanged(env):

@@ -37,8 +37,8 @@ def test_spelling_passes_through_otherwise():
 		assert calls == [(("ab", "fr", False), {"priority": 1})]
 
 
-def _context_module(stub_modules, synth):
-	stub_modules.module("synthDriverHandler", getSynth=lambda: synth)
+def _context_module(stub_modules, synth, get_synth=None):
+	stub_modules.module("synthDriverHandler", getSynth=get_synth or (lambda: synth))
 	path = WORLDVOICE / "pipeline/context.py"
 	return load_source(None, "pipeline_context_under_test", path, register=False)
 
@@ -59,11 +59,5 @@ def test_current_context_without_a_synth_is_generic(stub_modules):
 	def no_synth():
 		raise RuntimeError("no synth yet")
 
-	stub_modules.module("synthDriverHandler", getSynth=no_synth)
-	module = load_source(
-		None,
-		"pipeline_context_under_test",
-		WORLDVOICE / "pipeline/context.py",
-		register=False,
-	)
+	module = _context_module(stub_modules, None, get_synth=no_synth)
 	assert module.current_context() is module.GENERIC_CONTEXT
