@@ -393,6 +393,33 @@ def test_parameter_read_never_reorders_queued_speech(env, monkeypatch):
 	assert env.dones == []
 
 
+def test_a_parameter_read_returns_the_queued_value(env, monkeypatch):
+	types, native_reads = env.types, []
+	monkeypatch.setattr(
+		env.native,
+		"getParamList",
+		lambda instance, *ids: native_reads.append(instance) or [50] * len(ids),
+	)
+	core, hold = env.core, Event()
+	core._bgQueue.put(lambda: hold.wait(HOLD_TIMEOUT))
+	try:
+		instance = core.voiceInstance
+		set_params = env.original_driver.TtsSetParamList
+		core._bgQueue.put(set_params(instance, (types.VE_PARAM_SPEECHRATE, 77)))
+		core._bgQueue.put(set_params(instance, (types.VE_PARAM_PITCH, 88)))
+		wanted = ((types.VE_PARAM_SPEECHRATE, int), (types.VE_PARAM_PITCH, int))
+		# NVDA's settings ring reads back the rate it just set, before the worker applied it.
+		assert core.getParameters(instance, *wanted) == [77, 88]
+		assert native_reads == []
+		other = types.VE_HSAFE()
+		other.pHandleData = 99
+		assert core.getParameters(other, *wanted) == [50, 50]
+		assert native_reads == [other]
+	finally:
+		hold.set()
+		settle_worker(env)
+
+
 def _ending_native(env, monkeypatch):
 	def native(instance, text):
 		end_process(env, instance)
@@ -867,6 +894,154 @@ def test_processing_errors_latch_failure_on_original_context(env, monkeypatch, f
 	assert env.dones == []
 	if fault not in ("idle", "native"):
 		assert env.types.NUAN_E_TTS_USERSTOP in results
+
+
+def _out_data_done(env, instance, fill):
+	"""OUTBUFREQ, then OUTBUFDONE after ``fill(data)`` wrote the engine's output; both results."""
+	callback, types = callback_handler(env.core), env.types
+	data = types.VE_OUTDATA()
+	results = [callback(instance, None, native_message(types, types.VE_MSG_OUTBUFREQ, data))]
+	fill(data)
+	results.append(callback(instance, None, native_message(types, types.VE_MSG_OUTBUFDONE, data)))
+	return results
+
+
+def _set_mark(env, mark, kind, value):
+	mark.eMrkType = kind
+	if env.engine == "VE":
+		mark.ulMrkId = value
+	else:
+		mark.szValue = str(value).encode("ascii")
+
+
+@pytest.mark.parametrize("overflow", ["pcm", "markers"])
+def test_output_beyond_the_allocated_buffers_fails_the_segment(env, monkeypatch, overflow):
+	# A memory-safety guard: on Windows string_at and the marker loop would read past the buffers.
+	results, calls = [], []
+
+	def fill(data):
+		if overflow == "pcm":
+			data.cntPcmBufLen = env.original_driver.pcmBufLen + 1
+		else:
+			data.cntPcmBufLen = 0
+			data.cntMrkListLen = env.original_driver.markBufSize + 1
+
+	def native(instance, text):
+		calls.append(text)
+		if len(calls) == 1:
+			results.extend(_out_data_done(env, instance, fill))
+			end_process(env, instance)
+		else:
+			emit(env, instance)
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	_, _, first = speak(env)
+	finish(first)
+	assert results == [env.types.NUAN_OK, env.types.NUAN_E_TTS_USERSTOP]
+	assert real_player(env.core).fed == []
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
+	assert isinstance(env.events[0].error, ValueError)
+	assert "exceeds allocated" in str(env.events[0].error)
+	_, _, second = speak(env, segment=18)
+	finish(second)
+	assert real_player(env.core).fed == [b"pcm"]
+	assert [event.kind for event in env.events][1:] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_marker_only_output_feeds_no_audio(env, monkeypatch):
+	results = []
+	monkeypatch.setattr(
+		env.native,
+		"processText2Speech",
+		lambda instance, text: results.extend(emit(env, instance, payload=b"", index=5)),
+	)
+	_, _, call = speak(env)
+	finish(call)
+	assert results == [env.types.NUAN_OK] * 3
+	assert env.indexes == [5]
+	assert real_player(env.core).fed == []
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_sonic_feeds_a_full_buffer_during_the_call(env, monkeypatch):
+	full = b"\x01" * env.original_driver.pcmBufLen
+
+	class Sonic:
+		def writeShort(self, *args):
+			pass
+
+		def readShort(self):
+			return full
+
+		def flush(self):
+			pass
+
+	callback = callback_handler(env.core)
+
+	def sonic():
+		callback.sonicStream = Sonic()
+		callback._sonicEnabled = True
+		return True
+
+	callback._ensureSonicStream = sonic
+	fed_before_end = []
+
+	def native(instance, text):
+		emit(env, instance, end=False)
+		fed_before_end.extend(real_player(env.core).fed)
+		end_process(env, instance)
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	_, _, call = speak(env)
+	finish(call)
+	# Long text is heard while the engine still synthesizes, not only after ENDPROCESS.
+	assert fed_before_end == [full]
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_a_marker_list_reports_only_bookmarks_until_cancelled(env, monkeypatch):
+	types, results = env.types, []
+
+	def index(**kwargs):
+		env.indexes.append(kwargs["index"])
+		if kwargs["index"] == 5:
+			env.core.cancel()
+
+	monkeypatch.setattr(env.original_driver.synthIndexReached, "notify", index)
+
+	def fill(data):
+		data.cntPcmBufLen = 0
+		data.cntMrkListLen = 3
+		_set_mark(env, data.pMrkList[0], types.VE_MRK_WORD, 4)
+		_set_mark(env, data.pMrkList[1], types.VE_MRK_BOOKMARK, 5)
+		_set_mark(env, data.pMrkList[2], types.VE_MRK_BOOKMARK, 6)
+
+	def native(instance, text):
+		results.extend(_out_data_done(env, instance, fill))
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	_, _, call = speak(env)
+	finish(call)
+	# Neither the word mark nor the bookmark after the cancel moves NVDA's say-all cursor.
+	assert env.indexes == [5]
+	assert results == [types.NUAN_OK, types.NUAN_E_TTS_USERSTOP]
+	assert env.events == []
+
+
+def test_other_native_messages_do_not_end_the_call(env, monkeypatch):
+	types, results = env.types, []
+
+	def native(instance, text):
+		emit(env, instance, end=False)
+		message = native_message(types, types.VE_MSG_BEGINPROCESS, types.VE_OUTDATA())
+		results.append(callback_handler(env.core)(instance, None, message))
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	_, _, call = speak(env)
+	finish(call)
+	assert results == [types.NUAN_OK]
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
+	assert "engine_done" in str(env.events[0].error)
 
 
 def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
@@ -1591,6 +1766,87 @@ def test_terminate_waits_for_pause_fault_stop_without_active_speech(env, monkeyp
 		pausing[0].join(1)
 		for call in shutting_down:
 			call[0].join(1)
+
+
+def logged_errors(env, monkeypatch):
+	"""The wrapper's log.error messages (the harness's NVDA log stub drops them otherwise)."""
+	messages = []
+	monkeypatch.setattr(env.module.log, "error", lambda message, *args, **kwargs: messages.append(message))
+	return messages
+
+
+def test_a_pause_failure_cleanup_stop_error_is_logged(env, monkeypatch):
+	logged = logged_errors(env, monkeypatch)
+	player = real_player(env.core)
+	pause_error, stop_error = OSError("pause failed"), OSError("stop failed")
+	stop = player.stop
+
+	def pause(switch):
+		raise pause_error
+
+	def failing_stop():
+		raise stop_error
+
+	player.pause, player.stop = pause, failing_stop
+	with pytest.raises(OSError) as raised:
+		env.core.pause(True)
+	assert raised.value is pause_error
+	assert "WorldVoice pause failure cleanup failed" in logged
+	# The stop gate was released: terminate does not wait for it.
+	player.stop = stop
+	monkeypatch.setattr(env.native, "terminate", lambda: None)
+	finish(run_thread(env.core.terminate))
+	assert player.closes == 1
+
+
+def failing_cancel(env, monkeypatch, error):
+	"""terminate()'s own cancel() fails before it reaches the player (whose cleanup would
+	otherwise finish the termination from cancel's finally); later cancels, such as the inner
+	driver's terminate makes, work."""
+	cancel, calls = env.core.cancel, []
+
+	def cancel_once():
+		calls.append(True)
+		if len(calls) == 1:
+			raise error
+		cancel()
+
+	monkeypatch.setattr(env.core, "cancel", cancel_once)
+
+
+def test_terminate_finishes_and_then_raises_a_cancel_error(env, monkeypatch):
+	player, error = real_player(env.core), OSError("cancel failed")
+	terminations = []
+	monkeypatch.setattr(env.native, "terminate", lambda: terminations.append(True))
+	failing_cancel(env, monkeypatch, error)
+	with pytest.raises(OSError) as raised:
+		env.core.terminate()
+	assert raised.value is error
+	# The inner terminate still released the player and the native library.
+	assert (player.closes, terminations) == (1, [True])
+	assert termination_done(env.core).is_set()
+	second = run_thread(env.core.terminate)
+	assert second[1].wait(WAIT_TIMEOUT)
+	assert (player.closes, terminations) == (1, [True])
+
+
+@pytest.mark.parametrize("failure", ["close", "cancel_and_close"])
+def test_terminate_reports_its_first_cleanup_error(env, monkeypatch, failure):
+	logged = logged_errors(env, monkeypatch)
+	close_error, cancel_error = OSError("close failed"), OSError("cancel failed")
+
+	def failing_terminate():
+		raise close_error
+
+	monkeypatch.setattr(env.native, "terminate", failing_terminate)
+	if failure == "cancel_and_close":
+		failing_cancel(env, monkeypatch, cancel_error)
+	with pytest.raises(OSError) as raised:
+		env.core.terminate()
+	assert raised.value is (close_error if failure == "close" else cancel_error)
+	assert f"WorldVoice {env.engine} termination failed" in logged
+	second = run_thread(env.core.terminate)
+	assert second[1].wait(WAIT_TIMEOUT)
 
 
 @pytest.mark.parametrize("operation", ["pause", "cancel", "fault_stop"])
