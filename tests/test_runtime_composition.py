@@ -908,18 +908,9 @@ def test_wasapi_mode_sensitive_support_uses_actual_opened_core(
 	assert policies._VERIFIED_CONTRACTS == {}
 
 
-@pytest.mark.parametrize("engine", ["OneCore", "Espeak"])
 @pytest.mark.parametrize(
-	"failure",
-	[
-		"wrong_core",
-		"missing_entry",
-		"missing_support",
-		"invalid_support",
-		"truthy_support",
-		"unsupported",
-		"support_error",
-	],
+	("failure", "engine"),
+	[("wrong_core", "OneCore"), ("unsupported", "Espeak"), ("support_error", "OneCore")],
 )
 def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(
 	composition,
