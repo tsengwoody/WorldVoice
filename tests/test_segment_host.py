@@ -400,6 +400,16 @@ def test_ordinary_retire_survives_a_failing_stop(env, caplog, case):
 		# The record keeps the stop error: the first error it records.
 		assert record.error is stop_error
 		assert logged.getMessage() == "Error stopping failed Fake playback"
+	# An ordinary stop failure is only logged: it latches no fault, and the next utterance speaks.
+	env.host.forget(record)
+	assert env.host.control_error is None
+	assert env.host.faulted is False
+	env.host.enqueue(("next",))
+	following = env.strategy.wait_submitted(2)
+	env.host.begin(following)
+	env.host.reach(following, "returned")
+	env.host.reach(following, PLAYED_OUT)
+	assert env.host.retire(following) == env.module.OrdinaryOutcome(cancelled=False, error=None)
 
 
 def test_ordinary_speech_raises_after_a_control_error(env):
