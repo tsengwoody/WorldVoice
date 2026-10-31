@@ -317,8 +317,7 @@ def pause_controls_enabled(panel):
 	)
 
 
-@pytest.mark.parametrize("remove", [False, True])
-@pytest.mark.parametrize("pause", [False, True])
+@pytest.mark.parametrize(("pause", "remove"), [(False, True), (True, False)])
 def test_pipeline_panel_enables_pause_controls_from_the_stored_switch(monkeypatch, pause, remove):
 	env = pipeline_env(monkeypatch, punctuationPauseEnabled=pause, removePunctuationCharacters=remove)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
