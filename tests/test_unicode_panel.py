@@ -127,6 +127,11 @@ def test_stored_language_not_offered_selects_the_first(env):
 	assert built.added[0].selection == 0
 
 
+def test_stored_timing_not_offered_selects_the_first(env):
+	built = build(env, LANGUAGES, {"detectLanguageTiming": "later"})
+	assert built.added[TIMING].selection == 0
+
+
 def test_script_without_candidates_is_disabled_and_not_saved(env):
 	stored = {
 		"arabicCharactersLanguage": "fa",

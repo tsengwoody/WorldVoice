@@ -88,6 +88,45 @@ def test_parameter_preview_is_undone_by_discard(env):
 	assert env.conf["WorldVoice"]["voices"][env.b.name]["rate"] == 50
 
 
+def test_set_variant_previews_and_discard_restores(env):
+	before = env.b.variant
+	env.presenter.setVariant(env.b.name, "v2")
+	assert env.b.variant == "v2"
+	env.presenter.discard()
+	assert env.b.variant == before != "v2"
+
+
+def test_a_parameter_without_consistency_changes_only_that_voice(env):
+	assert env.presenter.keepParameters is False
+	env.presenter.setParameter(env.b.name, "rate", 70)
+	assert (env.a.rate, env.b.rate, env.c.rate) == (50, 70, 50)
+
+
+def test_enabling_parameter_consistency_twice_keeps_the_first_snapshot(env):
+	env.b.rate = 64
+	env.presenter.setParameterConsistency(True)
+	env.presenter.setParameter(env.a.name, "rate", 72)
+	assert (env.b.rate, env.c.rate) == (72, 72)
+	env.presenter.setParameterConsistency(True)
+	assert env.presenter.keepParameters is True
+	env.presenter.setParameterConsistency(False)
+	# Back to the values from before the first enable, not the previewed ones.
+	assert (env.b.rate, env.c.rate) == (64, 50)
+
+
+def test_apply_without_a_speech_section_still_saves(env):
+	# The presenter's speechSection reads conf["speech"]["WorldVoice"]: without it, it raises KeyError.
+	del env.conf["speech"]
+	env.a.rate = 72
+	env.presenter.selectVoice("fr", env.b.name)
+	env.presenter.setVoiceConsistency(True)
+	env.presenter.apply()
+	assert env.conf["WorldVoice"]["role"]["fr"] == {"voice": env.b.name}
+	assert env.conf["WorldVoice"]["autoLanguageSwitching"]["keepMainLocaleVoiceConsistent"] is True
+	assert env.conf["WorldVoice"]["voices"][env.a.name]["rate"] == 72
+	assert "speech" not in env.conf
+
+
 def test_unticking_parameter_consistency_restores_the_previewed_voices(env):
 	env.b.rate = 64
 	env.presenter.setParameterConsistency(True)
