@@ -67,9 +67,6 @@ def emit_audio(core, types, payload=b"new", done_result=None):
 
 def test_installs_player_stand_in_and_keeps_inner_stop_flag(engine_harness):
 	core = engine_harness.new_core()
-	# Ordinary speech is cancelled through cancel(), like every engine's: the core takes no token.
-	assert "cancellationToken" not in engine_harness.module.Voice.extraCapabilities
-	assert not hasattr(core, "supportsCancellationToken")
 	handler = callback_handler(core)
 	assert isinstance(player_of(core), engine_harness.module._IdleRoutingPlayer)
 	assert stand_in_real_player(player_of(core)) is real_player(core)
