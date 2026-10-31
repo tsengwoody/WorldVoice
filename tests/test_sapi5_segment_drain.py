@@ -1,5 +1,6 @@
 """Exercise the real SAPI5 outer and pinned NVDA driver at COM/audio boundaries."""
 
+import importlib
 import sys
 from threading import Condition, Event, Thread, current_thread
 from types import SimpleNamespace
@@ -1219,3 +1220,104 @@ def test_segment_feed_admits_the_record_it_read(env, monkeypatch):
 	monkeypatch.setattr(host, "consumer", consumer)
 	assert env.driver.player.feed(b"pcm", 3) is None
 	assert asked == [stale]
+
+
+def latch_worker_stop_fault(env):
+	player = env.players[-1]
+	player.stop_error = True
+	with pytest.raises(OSError):
+		env.driver._stopThread()
+	player.stop_error = None
+
+
+def test_needs_voice_reload_reports_faults_and_missing_playback(env):
+	driver = env.driver
+	assert driver.needsVoiceReload() is False
+	latch_worker_stop_fault(env)
+	assert driver.needsVoiceReload() is True
+	driver.voice = "voice"
+	assert driver.needsVoiceReload() is False
+	for name, value in (
+		("player", None),
+		("_thread", None),
+		("_thread", SimpleNamespace(is_alive=lambda: False)),
+		("tts", None),
+	):
+		# Not monkeypatch: undoing it would also drop the harness's NVDA module stubs.
+		saved = getattr(driver, name)
+		setattr(driver, name, value)
+		try:
+			assert driver.needsVoiceReload() is True, name
+		finally:
+			setattr(driver, name, saved)
+	assert driver.needsVoiceReload() is False
+	# Legacy audio has no player or worker by design; a healthy one needs no reload.
+	driver.useWasapi = False
+	assert driver.player is None
+	assert driver.needsVoiceReload() is False
+
+
+def sapi5_adapter(env, monkeypatch):
+	"""The bridge's VoiceClassAdapter over the harness driver, as the add-on drives a core."""
+	for name in ("synthDrivers.WorldVoice.bridge", "synthDrivers.WorldVoice.bridge.engineAdapter"):
+		monkeypatch.delitem(sys.modules, name, raising=False)
+	engineAdapter = importlib.import_module("synthDrivers.WorldVoice.bridge.engineAdapter")
+	driver = env.driver
+
+	class Voice:
+		@classmethod
+		def createCore(cls):
+			return driver
+
+		@classmethod
+		def destroyCore(cls, core):
+			pass
+
+		@classmethod
+		def supportedSettings(cls):
+			return ["voice", "rate", "pitch", "volume"]
+
+		def applyEngineSettings(self, core, snapshot):
+			pass
+
+	adapter = engineAdapter.VoiceClassAdapter(Voice, lambda key: Voice())
+	adapter.open()
+	spec = env.rt.models.VoiceSpec("voice", "SAPI5:voice", "Voice", "en", "SAPI5", "en")
+
+	def apply(revision, rate):
+		snapshot = env.rt.models.VoiceSnapshot(
+			voice_id="voice",
+			revision=revision,
+			language="en",
+			rate=rate,
+			pitch=50,
+			volume=50,
+			variant="default",
+			inflection=50,
+			rateBoost=False,
+			waitfactor=0,
+		)
+		adapter.apply(spec, snapshot)
+
+	return apply
+
+
+def test_the_bridge_rebuilds_sapi5_for_the_same_voice_only_when_it_needs_reload(env, monkeypatch):
+	apply = sapi5_adapter(env, monkeypatch)
+	apply(1, 50)
+	natives, player = len(env.natives), env.players[-1]
+	apply(2, 70)
+	assert len(env.natives) == natives
+	assert player.closed is False
+	assert env.driver.rate == 70
+	latch_worker_stop_fault(env)
+	apply(3, 70)
+	assert len(env.natives) == natives + 1
+	assert player.closed is True
+	assert segment_host(env.driver).control_error is None
+	native, player = env.natives[-1], env.players[-1]
+	player.idle_release.set()
+	_, _, events = speak(env, segment=18)
+	native.wait_calls(1)
+	native.end()
+	assert wait_event(events).segment_id == 18

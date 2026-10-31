@@ -427,6 +427,16 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 		if self.useWasapi and (self._thread is None or not self._thread.is_alive()):
 			raise RuntimeError("SAPI5 playback worker is unavailable")
 
+	def needsVoiceReload(self):
+		"""Ask the bridge to set the voice even when it is unchanged (bridge.engineAdapter).
+
+		Setting the voice is how this driver recovers: _initTts replaces the COM voice, the
+		player and the worker, and resets the segment host's latched faults.
+		"""
+		if self._segmentHost.faulted or self.tts is None:
+			return True
+		return self.useWasapi and (self.player is None or self._thread is None or not self._thread.is_alive())
+
 	def _checkSpeechAdmission(self):
 		host = self._segmentHost
 		if host.terminated:

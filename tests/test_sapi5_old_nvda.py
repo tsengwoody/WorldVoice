@@ -244,6 +244,39 @@ def test_old_nvda_sapi5_driver_runs_through_the_bridge_as_a_legacy_done_core(mon
 	assert core.tts is None
 
 
+@pytest.mark.parametrize("version", OLD_RELEASES)
+def test_old_nvda_sapi5_same_voice_reapply_keeps_the_com_voice(monkeypatch, tmp_path, version):
+	env = load_release(monkeypatch, tmp_path, version)
+	voice = env.outer.Voice
+	assert voice.ready() is True
+	adapter = env.engineAdapter.VoiceClassAdapter(voice, lambda key: object.__new__(voice))
+	adapter.open()
+	try:
+		core = adapter.core
+		[spec] = adapter.listVoices()
+		for revision, rate in ((1, 70), (2, 30)):
+			snapshot = env.models.VoiceSnapshot(
+				voice_id="v1",
+				revision=revision,
+				language="en",
+				rate=rate,
+				pitch=50,
+				volume=40,
+				variant="default",
+				inflection=50,
+				rateBoost=False,
+				waitfactor=0,
+			)
+			adapter.apply(spec, snapshot)
+			if revision == 1:
+				created = len(env.spVoices)
+		# NVDA's own driver rebuilds its COM voice on every voice set; the second apply skips it.
+		assert len(env.spVoices) == created
+		assert env.spVoices[-1].Rate == core._percentToRate(30)
+	finally:
+		adapter.close()
+
+
 @pytest.mark.parametrize("version", WRAPPER_RELEASES)
 def test_nvda_2025_3_and_later_choose_the_wrapper_silently(monkeypatch, tmp_path, version):
 	env = load_release(monkeypatch, tmp_path, version)
