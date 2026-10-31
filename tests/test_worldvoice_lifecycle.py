@@ -260,7 +260,7 @@ def test_check_reports_the_driver_available():
 	assert load_synth_class(_construction_environment(None, []).environment).check() is True
 
 
-def test_a_second_terminate_does_nothing():
+def test_a_terminate_reached_during_teardown_keeps_the_first_commit():
 	changes = []
 	built = _construction_environment(None, changes)
 	drivers = []
@@ -269,7 +269,8 @@ def test_a_second_terminate_does_nothing():
 	class ReenteringBridge(bridge_class):
 		def close(self):
 			super().close()
-			# A terminate reached from inside teardown must not change how the first one ends.
+			# The guard's only observable effect: a terminate reached from inside teardown must not
+			# change how the first one ends (Teardown.run itself already runs each step once).
 			drivers[0].terminate(commit=False)
 
 	built.environment["NvdaEventBridge"] = ReenteringBridge

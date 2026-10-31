@@ -198,7 +198,7 @@ def test_current_context_without_a_synth_is_generic(...)         # current_conte
 
 ```python
 def test_check_reports_the_driver_available(...):   # SynthDriver.check() is True
-def test_a_second_terminate_does_nothing(...):      # event bridge close and task manager shutdown called once each
+def test_a_terminate_reached_during_teardown_keeps_the_first_commit(...):  # a second terminate (sequential and re-entered from the bridge close) changes nothing; the voice manager still commits
 @pytest.mark.parametrize(("name", "value"), [("volume", ...), ("rate", ...), ("pitch", ...), ("inflection", ...), ("variant", ...), ("rateBoost", ...)])
 def test_parameter_getters_read_the_main_voice(...):  # distinct value per parameter; getattr(synth, name) == value
 def test_pipeline_settings_are_descriptors_on_the_class(...):  # getattr(SynthDriver, driver_id) is the _PipelineSetting; pipeline_settings.get not called
