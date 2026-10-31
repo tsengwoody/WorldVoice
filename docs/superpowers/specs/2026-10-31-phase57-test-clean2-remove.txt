@@ -1,0 +1,486 @@
+tests/test_completion_characterization.py::test_adapter_precondition_errors_per_contract[DRAIN-context-ValueError-Correlated completion requires a playback context]
+tests/test_completion_characterization.py::test_adapter_precondition_errors_per_contract[END_INDEX_AND_DRAIN-segment_events-RuntimeError-Drain completion requires a segment event factory]
+tests/test_completion_rules.py::test_every_completion_mode_has_exactly_one_rule
+tests/test_core_archive.py::test_corrupt_archive_raises_bad_zip
+tests/test_core_archive.py::test_extracts_members_and_reports_skipped
+tests/test_detection_settings.py::test_get_reads_a_section_that_still_holds_the_old_key
+tests/test_detection_settings.py::test_old_pascal_case_keys_are_ignored
+tests/test_detection_settings.py::test_settings_have_no_ignore_numbers_field
+tests/test_detection_settings.py::test_the_config_stub_rejects_a_detection_confspec_it_cannot_read[{row.config_key: row.default_language async for row in DETECTION_SCRIPTS}]
+tests/test_detection_settings.py::test_the_config_stub_rejects_a_detection_confspec_it_cannot_read[{row.config_key: row.default_language for row in DETECTION_SCRIPTS if row.script != 'Latin'}]
+tests/test_detection_settings.py::test_update_rejects_ignore_numbers
+tests/test_detection_settings.py::test_update_writes_the_cyrillic_and_devanagari_keys[Cyrillic-uk-cyrillicCharactersLanguage]
+tests/test_detection_settings.py::test_update_writes_the_cyrillic_and_devanagari_keys[Devanagari-mr-devanagariCharactersLanguage]
+tests/test_driver_ui_hooks.py::test_detection_timing_comes_from_the_settings_service
+tests/test_driver_ui_hooks.py::test_refresh_without_detection_only_unregisters
+tests/test_driver_voice_base.py::test_voice_metadata_finds_a_language_description[de-Anna-de]
+tests/test_engine_discovery.py::test_a_configured_engine_flag_overrides_the_manifest_default[0-False1]
+tests/test_engine_discovery.py::test_plugin_with_old_contract_names_is_reported[create_core-createCore-<lambda>]
+tests/test_engine_discovery.py::test_plugin_with_old_contract_names_is_reported[destroy_core-destroyCore-<lambda>]
+tests/test_engine_discovery.py::test_plugin_with_old_contract_names_is_reported[drain_profile-drainProfile-None]
+tests/test_engine_discovery.py::test_plugin_with_old_contract_names_is_reported[update_settings-updateSettings-<lambda>]
+tests/test_engine_filter.py::test_a_role_voice_outside_the_engine_is_ignored[A:gone]
+tests/test_engine_filter.py::test_a_role_voice_outside_the_engine_is_ignored[None]
+tests/test_engine_registry.py::test_engine_enabled_reads_the_config_then_the_manifest[RHVoice-config2-False]
+tests/test_engine_registry.py::test_engine_enabled_reads_the_config_then_the_manifest[RHVoice-config3-True]
+tests/test_f4_engine_adapters.py::test_bytes_repr_loses_only_its_wrapper[b'Arabic'-Arabic-Cerence]
+tests/test_f4_engine_adapters.py::test_bytes_repr_loses_only_its_wrapper[b'Arabic'-Arabic-VE]
+tests/test_f4_engine_adapters.py::test_onecore_language_is_applied_only_on_activation
+tests/test_f4_engine_session.py::test_setter_failure_invalidates_stamp
+tests/test_generate_unicode_scripts.py::test_an_unreadable_source_names_the_path_and_option[directory]
+tests/test_generate_unicode_scripts.py::test_network_errors_name_the_url_and_suggest_a_local_file[error1]
+tests/test_generate_unicode_scripts.py::test_network_errors_name_the_url_and_suggest_a_local_file[error3]
+tests/test_generate_unicode_scripts.py::test_parse_rejects_malformed_lines[0041]
+tests/test_generate_unicode_scripts.py::test_source_url_names_the_version[15.1.0]
+tests/test_generate_unicode_scripts.py::test_source_url_names_the_version[16.0.0]
+tests/test_generate_unspaced_common.py::test_an_unreadable_local_file_names_the_path_and_option[--source-ScriptExtensions.txt-directory]
+tests/test_generate_unspaced_common.py::test_an_unreadable_local_file_names_the_path_and_option[--unicode-data-UnicodeData.txt-directory]
+tests/test_generate_unspaced_common.py::test_network_errors_name_the_url_and_suggest_a_local_file[ScriptExtensions.txt---source-error1]
+tests/test_generate_unspaced_common.py::test_network_errors_name_the_url_and_suggest_a_local_file[ScriptExtensions.txt---source-error3]
+tests/test_generate_unspaced_common.py::test_network_errors_name_the_url_and_suggest_a_local_file[UnicodeData.txt---unicode-data-error1]
+tests/test_generate_unspaced_common.py::test_network_errors_name_the_url_and_suggest_a_local_file[UnicodeData.txt---unicode-data-error3]
+tests/test_generate_unspaced_common.py::test_parse_rejects_malformed_lines[02C7]
+tests/test_generate_unspaced_common.py::test_select_drops_characters_that_are_not_common[Han]
+tests/test_generate_unspaced_common.py::test_select_drops_characters_that_are_not_common[Latin]
+tests/test_generate_unspaced_common.py::test_select_drops_characters_without_an_unspaced_script[extension0]
+tests/test_generate_unspaced_common.py::test_select_drops_characters_without_an_unspaced_script[extension2]
+tests/test_generate_unspaced_common.py::test_select_drops_other_categories[Cf]
+tests/test_generate_unspaced_common.py::test_select_drops_other_categories[Cn]
+tests/test_generate_unspaced_common.py::test_select_drops_other_categories[Mn]
+tests/test_generate_unspaced_common.py::test_select_drops_other_categories[Pd]
+tests/test_generate_unspaced_common.py::test_select_drops_other_categories[Ps]
+tests/test_generate_unspaced_common.py::test_ucd_url_names_the_version_and_file[ScriptExtensions.txt-16.0.0]
+tests/test_generate_unspaced_common.py::test_ucd_url_names_the_version_and_file[ScriptExtensions.txt-18.0.0]
+tests/test_generate_unspaced_common.py::test_ucd_url_names_the_version_and_file[UnicodeData.txt-16.0.0]
+tests/test_generate_unspaced_common.py::test_ucd_url_names_the_version_and_file[UnicodeData.txt-18.0.0]
+tests/test_generated_unicode_data.py::test_a_hand_edit_of_script_data_is_caught["""Generated Unicode Script ranges. Do not edit by hand."""-"""Unicode Script ranges."""]
+tests/test_generated_unicode_data.py::test_a_hand_edit_of_script_data_is_caught[\t(0x41, 0x5a, "Latin"),-\t(0x41, 0x5A, "Latin"),]
+tests/test_generated_unicode_data.py::test_a_hand_edit_of_script_data_is_caught[\t(0x41, 0x5a, "Latin"),-\t(0x41, 0x5a, "Latin"),  # A..Z]
+tests/test_generated_unicode_data.py::test_a_hand_edit_of_unspaced_common_data_is_caught[\t(0x2BC, 0x2BC),  # \u02bc Lm\n-\t(0x2BC, 0x2BC), # \u02bc Lm\n]
+tests/test_generated_unicode_data.py::test_a_hand_edit_of_unspaced_common_data_is_caught[\t(0x2BC, 0x2BC),  # \u02bc Lm\n-\t(0x2bc, 0x2bc),  # \u02bc Lm\n]
+tests/test_global_plugin_menu.py::test_unicode_settings_are_gone
+tests/test_hygiene_guards.py::test_the_ignore_numbers_option_is_gone
+tests/test_hygiene_guards.py::test_the_speech_symbols_feature_is_gone
+tests/test_index_codec.py::test_drain_codec_rejects_external_internal_command_before_allocation
+tests/test_language_detector.py::test_default_cyrillic_and_devanagari_languages[hi]
+tests/test_language_detector.py::test_default_cyrillic_and_devanagari_languages[ru]
+tests/test_language_detector.py::test_digits_follow_the_current_language_whatever_is_stored[stored-off]
+tests/test_language_detector.py::test_digits_follow_the_current_language_whatever_is_stored[stored-on]
+tests/test_language_detector.py::test_symbols_argument_is_rejected[keyword]
+tests/test_language_detector.py::test_symbols_argument_is_rejected[positional]
+tests/test_legacy_speech_commands.py::test_normalizer_passes_voice_objects_through_unchanged
+tests/test_lint_rewrites.py::test_number_modes_are_a_plain_dict_in_order
+tests/test_locales.py::test_no_other_module_defines_a_primary_language_helper
+tests/test_locales.py::test_primary_language_is_the_first_subtag[ar-WW-ar]
+tests/test_locales.py::test_primary_language_is_the_first_subtag[zh_Hant_TW-zh]
+tests/test_locales.py::test_primary_language_is_the_first_subtag[zh_TW-zh]
+tests/test_main_locale_policy.py::test_old_pascal_case_flags_are_ignored
+tests/test_native_strategy_guards.py::test_drain_support_requires_keywords[Espeak]
+tests/test_native_strategy_guards.py::test_drain_support_requires_keywords[RHVoice]
+tests/test_native_strategy_guards.py::test_every_bundled_wrapper_uses_the_segment_host_speaker
+tests/test_native_strategy_guards.py::test_onecore_uses_the_stop_gate_and_declares_voice_last
+tests/test_native_strategy_guards.py::test_rhvoice_uses_shared_player_and_stop_gate
+tests/test_native_strategy_guards.py::test_sapi5_uses_the_shared_engine_controls
+tests/test_number_language_choice.py::test_a_refused_value_stores_follow[zz]
+tests/test_number_language_choice.py::test_storable_values[ja]
+tests/test_nvda_event_bridge.py::test_segment_sink_rejects_unrelated_events[done]
+tests/test_nvda_event_bridge.py::test_segment_sink_rejects_unrelated_events[index]
+tests/test_nvda_event_bridge.py::test_segment_sink_requires_correlated_source_binding[legacy]
+tests/test_nvda_event_bridge_contracts.py::test_unbinding_an_unknown_source_id_changes_nothing
+tests/test_nvda_ready.py::test_one_nvda_label_names_the_running_nvda
+tests/test_nvda_ready.py::test_ready_on_ref_nvda_is_true_and_silent[SAPI5]
+tests/test_onecore_segment_drain.py::test_cancelled_input_token_never_submits_native_work
+tests/test_onecore_segment_drain.py::test_capability_rejects_uninitialized_native_and_foreign_helper
+tests/test_onecore_segment_drain.py::test_native_and_parse_errors_fail_original_work_without_drain[response4]
+tests/test_panel_layout.py::test_choice_index[None-0]
+tests/test_panel_layout.py::test_dependent_states_follow_the_number_mode[number]
+tests/test_panel_layout.py::test_dependent_states_follow_the_number_mode[value]
+tests/test_panel_layout.py::test_from_display[1-5-5]
+tests/test_panel_layout.py::test_label_text[global_wait_factor-Global wait factor:]
+tests/test_panel_layout.py::test_label_text[group_size-Group size:]
+tests/test_panel_layout.py::test_label_text[punctuation_pause_characters-Punctuation pause characters:]
+tests/test_panel_layout.py::test_selected_value[-1-None]
+tests/test_panel_layout.py::test_selected_value[0-value]
+tests/test_panel_layout.py::test_selected_value[1-number]
+tests/test_panel_layout.py::test_selected_value[2-group]
+tests/test_panel_layout.py::test_selected_value[3-None]
+tests/test_panel_layout.py::test_selected_value[8-None]
+tests/test_panel_layout.py::test_to_display[1-57-57]
+tests/test_pipeline_filters.py::test_an_old_snake_case_log_switch_does_not_log
+tests/test_pipeline_filters.py::test_digit_mode_breaks_between_digits_and_around_symbols[3.14-3 <.> 1 4]
+tests/test_pipeline_filters.py::test_digit_mode_breaks_between_digits_and_around_symbols[v1.2-v1 <.> 2]
+tests/test_pipeline_filters.py::test_item_wait_factor_off_passes_through
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[12.5-group-2-3]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[12.5-group-3-2]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[12.5-number-1-1]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[123.456-group-2-3]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[123.456-group-3-2]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[123.456-number-1-1]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[192.168.0.1-group-2-3]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[192.168.0.1-group-3-2]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[192.168.0.1-number-1-1]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[3,14-group-2-3]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[3,14-group-3-2]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[3,14-number-1-1]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[6U+00F72-group-2-3]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[6U+00F72-group-3-2]
+tests/test_pipeline_filters.py::test_number_and_group_modes_name_each_symbol[6U+00F72-number-1-1]
+tests/test_pipeline_filters.py::test_number_breaks_use_the_number_pause[0]
+tests/test_pipeline_filters.py::test_number_breaks_use_the_number_pause[25]
+tests/test_pipeline_filters.py::test_number_mode[-1234-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[-1234-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[-1234-value-3-0]
+tests/test_pipeline_filters.py::test_number_mode[-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[-group-2-0]
+tests/test_pipeline_filters.py::test_number_mode[-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[-number-3-0]
+tests/test_pipeline_filters.py::test_number_mode[.5-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[.5-group-2-0]
+tests/test_pipeline_filters.py::test_number_mode[.5-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[.5-number-3-0]
+tests/test_pipeline_filters.py::test_number_mode[1.2.3-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[1.2.3-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[1.2.3-value-3-0]
+tests/test_pipeline_filters.py::test_number_mode[12-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[12-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[12-value-3-0]
+tests/test_pipeline_filters.py::test_number_mode[12.5-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[12.5-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[123-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[123-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[123-number-3-0]
+tests/test_pipeline_filters.py::test_number_mode[123-value-3-0]
+tests/test_pipeline_filters.py::test_number_mode[3.-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[3.-group-2-0]
+tests/test_pipeline_filters.py::test_number_mode[3.-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[3.-number-3-0]
+tests/test_pipeline_filters.py::test_number_mode[a. 3-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[a. 3-group-2-0]
+tests/test_pipeline_filters.py::test_number_mode[a. 3-group-3-0]
+tests/test_pipeline_filters.py::test_number_mode[a. 3-number-3-0]
+tests/test_pipeline_filters.py::test_number_mode[v1.2-group-10-0]
+tests/test_pipeline_filters.py::test_number_mode[v1.2-group-3-0]
+tests/test_pipeline_filters.py::test_number_re_finds_whole_numbers[--3-matches10]
+tests/test_pipeline_filters.py::test_number_re_finds_whole_numbers[1'000-matches15]
+tests/test_pipeline_filters.py::test_number_re_finds_whole_numbers[1,234.56-matches1]
+tests/test_pipeline_filters.py::test_number_re_finds_whole_numbers[12\uff0c34-matches7]
+tests/test_pipeline_filters.py::test_number_re_finds_whole_numbers[192.168.0.1-matches6]
+tests/test_pipeline_filters.py::test_number_re_finds_whole_numbers[1_000-matches16]
+tests/test_pipeline_filters.py::test_number_re_finds_whole_numbers[x\xb2-matches21]
+tests/test_pipeline_filters.py::test_number_wait_breaks_only_between_whole_numbers[sequence1-expected1]
+tests/test_pipeline_filters.py::test_number_wait_breaks_only_between_whole_numbers[sequence3-expected3]
+tests/test_pipeline_filters.py::test_number_wait_breaks_only_between_whole_numbers[sequence6-expected6]
+tests/test_pipeline_filters.py::test_number_wait_does_not_break_across_other_commands[break]
+tests/test_pipeline_filters.py::test_number_wait_inserts_number_break_commands
+tests/test_pipeline_filters.py::test_number_wait_keeps_held_language_commands_at_the_end
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[1 2 3-4-expected22]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[1 \xa02-expected15]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[1-2 3 4-expected23]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[1.2.3 4-expected4]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[10\xa0000 5-expected16]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[12,345 6-expected25]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[1\n2-expected10]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[1\t2-expected9]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[1\u20072-expected14]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[1\u202f234\u202f567-expected13]
+tests/test_pipeline_filters.py::test_number_wait_splits_numbers_separated_only_by_whitespace[2 10\xa0000-expected17]
+tests/test_pipeline_filters.py::test_punctuation_segments
+tests/test_pipeline_filters.py::test_symbol_names_follow_language_commands_with_main_number_language
+tests/test_pipeline_filters.py::test_unspaced_script_space_pause
+tests/test_pipeline_log.py::test_the_repair_step_is_gone
+tests/test_pipeline_number_edges.py::test_no_edge_break_at_the_sequence_start_or_end[alone]
+tests/test_pipeline_number_edges.py::test_no_edge_break_at_the_sequence_start_or_end[blank-ideographic]
+tests/test_pipeline_number_edges.py::test_no_edge_break_at_the_sequence_start_or_end[end]
+tests/test_pipeline_number_edges.py::test_no_edge_break_at_the_sequence_start_or_end[ideographic-space-after]
+tests/test_pipeline_number_edges.py::test_no_edge_break_at_the_sequence_start_or_end[no-break-space-after]
+tests/test_pipeline_number_edges.py::test_no_edge_break_at_the_sequence_start_or_end[spaces-around]
+tests/test_pipeline_number_edges.py::test_no_edge_break_at_the_sequence_start_or_end[start]
+tests/test_pipeline_number_edges.py::test_no_edge_break_without_a_number_pause[group--5]
+tests/test_pipeline_number_edges.py::test_no_edge_break_without_a_number_pause[group-0]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[1g]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[alone-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[blank-item-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[command-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[end-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[end-item20]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[end-item5]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[first-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[inside-item0]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[inside-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[last-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[numbers-item0]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[numbers-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[sequence-end-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[sequence-start-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[space-end-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[space-start-item10]
+tests/test_pipeline_number_edges.py::test_number_stage_worked_examples[whole-numbers-item10]
+tests/test_pipeline_number_edges.py::test_off_mode_yields_the_same_objects
+tests/test_pipeline_number_edges.py::test_one_break_between_numbers_that_only_whitespace_separates[digits]
+tests/test_pipeline_number_edges.py::test_one_break_between_numbers_that_only_whitespace_separates[space]
+tests/test_pipeline_number_edges.py::test_one_break_between_numbers_that_only_whitespace_separates[value]
+tests/test_pipeline_number_edges.py::test_one_break_between_numbers_that_only_whitespace_separates[wrapper]
+tests/test_pipeline_number_edges.py::test_worked_examples_through_every_stage[1g]
+tests/test_pipeline_number_edges.py::test_worked_examples_through_every_stage[inside-item0]
+tests/test_pipeline_number_edges.py::test_worked_examples_through_every_stage[numbers-item0]
+tests/test_pipeline_nvda_ssml.py::test_nvda_ssml_keeps_every_word_and_pause_of_the_scope_all_output[group-pauses2]
+tests/test_pipeline_nvda_symbols.py::test_has_symbol_table_matches_nvdas_locale_dir[..-False]
+tests/test_pipeline_nvda_symbols.py::test_has_symbol_table_matches_nvdas_locale_dir[../en-False]
+tests/test_pipeline_nvda_symbols.py::test_symbol_locale[zh_TW-de_CH-de_CH]
+tests/test_pipeline_nvda_symbols.py::test_symbol_locale_prefers_the_voice_locale_with_a_table[en-de-de-CH-de_CH]
+tests/test_pipeline_nvda_symbols.py::test_symbol_locale_prefers_the_voice_locale_with_a_table[en-zh-zh-Hant-TW-zh]
+tests/test_pipeline_nvda_symbols.py::test_symbol_locale_prefers_the_voice_locale_with_a_table[en-zh-zh-zh]
+tests/test_pipeline_nvda_symbols.py::test_symbol_locale_prefers_the_voice_locale_with_a_table[en-zh-zh_tw-zh_TW]
+tests/test_pipeline_nvda_symbols.py::test_symbol_locale_prefers_the_voice_locale_with_a_table[zh_TW-en-en_US-en]
+tests/test_pipeline_nvda_symbols.py::test_symbol_locale_prefers_the_voice_locale_with_a_table[zh_TW-zh-zh-zh_TW]
+tests/test_pipeline_nvda_symbols.py::test_symbol_name_is_none_without_a_name[empty]
+tests/test_pipeline_nvda_symbols.py::test_symbol_name_is_the_lookups_name
+tests/test_pipeline_panels.py::test_log_labels_follow_the_table_labels
+tests/test_pipeline_panels.py::test_log_labels_match_stages_and_confspec
+tests/test_pipeline_passthrough.py::test_punctuation_pause_without_characters_changes_nothing
+tests/test_pipeline_passthrough.py::test_thousands_step_passes_through_other_modes[group]
+tests/test_pipeline_passthrough.py::test_thousands_step_passes_through_other_modes[none]
+tests/test_pipeline_passthrough.py::test_unspaced_script_space_pause_passes_commands
+tests/test_pipeline_passthrough.py::test_value_mode_removes_only_valid_thousands_separators[1,000,000,000-1000000000]
+tests/test_pipeline_passthrough.py::test_value_mode_removes_only_valid_thousands_separators[3,14-3,14]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[False-0-  ]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[False-0-.,]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[False-0-]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[False-250-  ]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[False-250-.,]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[False-250-]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[True-0-  ]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[True-0-.,]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[True-0-]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[True-250-  ]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[True-250-.,]
+tests/test_pipeline_punctuation_pause.py::test_a_disabled_switch_changes_nothing[True-250-]
+tests/test_pipeline_punctuation_pause.py::test_a_space_in_the_list_pauses_at_every_such_space[ideographic space]
+tests/test_pipeline_punctuation_pause.py::test_an_empty_list_changes_nothing[False]
+tests/test_pipeline_punctuation_pause.py::test_an_empty_list_changes_nothing[True]
+tests/test_pipeline_punctuation_pause.py::test_is_edge_break
+tests/test_pipeline_punctuation_pause.py::test_positive_punctuation_wait_factor_inserts_a_punctuation_break
+tests/test_pipeline_punctuation_pause.py::test_removal_applies_to_pause_between_text_items
+tests/test_pipeline_punctuation_pause.py::test_removing_configured_punctuation_preserves_existing_breaks
+tests/test_pipeline_settings_service.py::test_a_panel_save_writes_the_default_over_a_refused_value[item_wait_factor]
+tests/test_pipeline_settings_service.py::test_a_panel_save_writes_the_default_over_a_refused_value[number_wait_factor]
+tests/test_pipeline_settings_service.py::test_a_panel_save_writes_the_default_over_a_refused_value[punctuation_pause_characters]
+tests/test_pipeline_settings_service.py::test_a_panel_save_writes_the_default_over_a_refused_value[punctuation_wait_factor]
+tests/test_pipeline_settings_service.py::test_a_panel_save_writes_the_default_over_a_refused_value[remove_punctuation_characters]
+tests/test_pipeline_settings_service.py::test_a_panel_save_writes_the_default_over_a_refused_value[sayall_wait_factor]
+tests/test_pipeline_settings_service.py::test_a_panel_save_writes_the_default_over_a_refused_value[unspaced_script_space_wait_factor]
+tests/test_pipeline_settings_service.py::test_convert_clamps_ints_to_their_bounds[global_wait_factor-150-100]
+tests/test_pipeline_settings_service.py::test_group_settings_add_the_size_without_a_wait
+tests/test_pipeline_settings_service.py::test_group_size_outside_its_range_reads_as_the_default[-5-3]
+tests/test_pipeline_settings_service.py::test_group_size_outside_its_range_reads_as_the_default[0-3]
+tests/test_pipeline_settings_service.py::test_group_size_outside_its_range_reads_as_the_default[99-3]
+tests/test_pipeline_settings_service.py::test_group_wait_setting_is_gone
+tests/test_pipeline_settings_service.py::test_ignore_comma_option_is_gone
+tests/test_pipeline_settings_service.py::test_load_reads_the_default_for_each_invalid_key[item_wait_factor]
+tests/test_pipeline_settings_service.py::test_load_reads_the_default_for_each_invalid_key[number_wait_factor]
+tests/test_pipeline_settings_service.py::test_load_reads_the_default_for_each_invalid_key[punctuation_pause_characters]
+tests/test_pipeline_settings_service.py::test_load_reads_the_default_for_each_invalid_key[punctuation_wait_factor]
+tests/test_pipeline_settings_service.py::test_load_reads_the_default_for_each_invalid_key[remove_punctuation_characters]
+tests/test_pipeline_settings_service.py::test_load_reads_the_default_for_each_invalid_key[sayall_wait_factor]
+tests/test_pipeline_settings_service.py::test_load_reads_the_default_for_each_invalid_key[unspaced_script_space_wait_factor]
+tests/test_pipeline_settings_service.py::test_number_mode_reads_and_writes_only_known_modes[-value]
+tests/test_pipeline_settings_service.py::test_number_mode_reads_and_writes_only_known_modes[number-number]
+tests/test_pipeline_settings_service.py::test_number_mode_reads_and_writes_only_known_modes[roman-value]
+tests/test_pipeline_settings_service.py::test_punctuation_wait_has_no_unit_or_cap_of_its_own
+tests/test_pipeline_settings_service.py::test_scaled_waits_are_the_global_units_times_the_factor[changes1-scaled_item_wait-12]
+tests/test_pipeline_settings_service.py::test_scaled_waits_are_the_global_units_times_the_factor[changes2-scaled_sayall_wait-0]
+tests/test_pipeline_settings_service.py::test_scaled_waits_are_the_global_units_times_the_factor[changes3-scaled_unspaced_script_space_wait-6]
+tests/test_pipeline_settings_service.py::test_scaled_waits_are_the_global_units_times_the_factor[changes4-scaled_unspaced_script_space_wait-0]
+tests/test_pipeline_settings_service.py::test_scaled_waits_are_the_global_units_times_the_factor[changes5-scaled_punctuation_wait-0]
+tests/test_pipeline_settings_service.py::test_scaled_waits_are_the_global_units_times_the_factor[changes6-scaled_punctuation_wait-0]
+tests/test_pipeline_settings_service.py::test_scaled_waits_are_the_global_units_times_the_factor[changes7-scaled_punctuation_wait-30]
+tests/test_pipeline_settings_service.py::test_scaled_waits_are_the_global_units_times_the_factor[changes8-scaled_punctuation_wait-14]
+tests/test_pipeline_settings_service.py::test_stored_key_is_nvda_camel_case_of_the_field[number_mode-numberMode]
+tests/test_pipeline_settings_service.py::test_stored_key_is_nvda_camel_case_of_the_field[sayall_wait_factor-sayAllWaitFactor]
+tests/test_pipeline_settings_service.py::test_stored_key_is_nvda_camel_case_of_the_field[scope-scope]
+tests/test_pipeline_settings_service.py::test_stored_key_is_nvda_camel_case_of_the_field[unspaced_script_space_wait_factor-unspacedScriptSpaceWaitFactor]
+tests/test_pipeline_settings_service.py::test_the_characters_are_stored_and_read_exactly_as_typed[ideographic space]
+tests/test_pipeline_settings_service.py::test_the_characters_are_stored_and_read_exactly_as_typed[leading space]
+tests/test_pipeline_settings_service.py::test_the_characters_are_stored_and_read_exactly_as_typed[newline]
+tests/test_pipeline_settings_service.py::test_the_characters_are_stored_and_read_exactly_as_typed[no-break space]
+tests/test_pipeline_settings_service.py::test_the_characters_are_stored_and_read_exactly_as_typed[tab]
+tests/test_pipeline_settings_service.py::test_the_refused_key_bookkeeping_is_gone
+tests/test_pipeline_stages.py::test_a_stage_logs_under_each_of_its_switches[both]
+tests/test_pipeline_stages.py::test_another_synth_keeps_the_punctuation_pause_next_to_an_edge[3-comma-remove]
+tests/test_pipeline_stages.py::test_another_synth_keeps_the_punctuation_pause_next_to_an_edge[total]
+tests/test_pipeline_stages.py::test_handler_logs_before_and_after_when_enabled
+tests/test_pipeline_stages.py::test_number_language_pauses_at_a_no_break_space[\u2007]
+tests/test_pipeline_stages.py::test_number_language_pauses_at_a_no_break_space[\u202f]
+tests/test_pipeline_stages.py::test_other_synths_get_no_worldvoice_language_commands[default]
+tests/test_pipeline_stages.py::test_other_synths_get_no_worldvoice_language_commands[main]
+tests/test_pipeline_stages.py::test_other_synths_get_only_plain_breaks_from_the_stages[group-expected2]
+tests/test_pipeline_stages.py::test_positive_number_wait_breaks_between_numbers
+tests/test_pipeline_stages.py::test_the_log_confspec_has_every_log_switch
+tests/test_pipeline_stages.py::test_worldvoice_keeps_the_break_subclasses_from_the_stages[group-expected2]
+tests/test_pipeline_stages.py::test_wrap_numbers_for_detection_wraps_every_match[group]
+tests/test_pipeline_stages.py::test_zero_number_wait_keeps_spaces
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\u02c7]
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\u02c9]
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\u02ca]
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\u02cb]
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\u02d9]
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\u3006]
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\u309b]
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\u30fc]
+tests/test_pipeline_unspaced_space.py::test_common_characters_of_unspaced_scripts_are_unspaced[\uff70]
+tests/test_pipeline_unspaced_space.py::test_common_punctuation_and_ascii_are_not_unspaced[0]
+tests/test_pipeline_unspaced_space.py::test_common_punctuation_and_ascii_are_not_unspaced[\u3002]
+tests/test_pipeline_unspaced_space.py::test_common_punctuation_and_ascii_are_not_unspaced[\u300c]
+tests/test_pipeline_unspaced_space.py::test_common_punctuation_and_ascii_are_not_unspaced[\u300d]
+tests/test_pipeline_unspaced_space.py::test_common_punctuation_and_ascii_are_not_unspaced[\u30a0]
+tests/test_pipeline_unspaced_space.py::test_common_punctuation_and_ascii_are_not_unspaced[\u30fb]
+tests/test_pipeline_unspaced_space.py::test_common_punctuation_and_ascii_are_not_unspaced[a]
+tests/test_pipeline_unspaced_space.py::test_is_not_unspaced[A]
+tests/test_pipeline_unspaced_space.py::test_is_unspaced[\u3007]
+tests/test_pipeline_unspaced_space.py::test_is_unspaced[\u31a0]
+tests/test_pipeline_unspaced_space.py::test_is_unspaced[\u3400]
+tests/test_pipeline_unspaced_space.py::test_is_unspaced[\u9fff]
+tests/test_pipeline_unspaced_space.py::test_is_unspaced[\uf900]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[   -expected11]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[ \u4e2d -expected10]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[\U00020000 \u304b-expected15]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[\u304b\u3099 \u304b-expected1]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[\u30fc\u30fc \u304b-expected13]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[\u4e2d \u3099\u304b-expected7]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[\u4e2d\n\t \u6587-expected20]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[\u4e2d\u200c \u6587-expected5]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[\u4e2d\ufe00 \u6587-expected3]
+tests/test_pipeline_unspaced_space.py::test_pauses_between[\u845b\U000e0100 \u4e2d-expected2]
+tests/test_pipeline_unspaced_space.py::test_pipeline_harness_loads_the_script_lookup_fresh
+tests/test_pipeline_unspaced_space.py::test_stages_script_digits[group-0]
+tests/test_pipeline_unspaced_space.py::test_stages_script_digits[group-10]
+tests/test_pipeline_unspaced_space.py::test_wait_zero_yields_the_same_objects
+tests/test_pipeline_unspaced_space.py::test_worked_examples[1 2-same]
+tests/test_pipeline_unspaced_space.py::test_worked_examples[\U00020000 \U00020001-expected12]
+tests/test_pipeline_unspaced_space.py::test_worked_examples[\u304b\u306a \u30ab\u30ca-expected2]
+tests/test_pipeline_unspaced_space.py::test_worked_examples[\u310b\u3127\u02c7 \u310f\u3120\u02c7-expected25]
+tests/test_pipeline_unspaced_space.py::test_worked_examples[\u3231 \u516c\u53f8-expected26]
+tests/test_pipeline_unspaced_space.py::test_worked_examples[\u3400 \u3401-expected11]
+tests/test_pipeline_unspaced_space.py::test_worked_examples[\u4e2d abc-same]
+tests/test_pipeline_unspaced_space.py::test_worked_examples[\u4e2d\u6587 \u0e20\u0e32\u0e29\u0e32\u0e44\u0e17\u0e22-expected5]
+tests/test_pipeline_unspaced_space.py::test_worked_examples[\uff7a\uff70\uff8b\uff70 \uff78\uff80\uff9e\uff7b\uff72-expected10]
+tests/test_pipeline_voice_lookup.py::test_generic_context_has_no_voice_locale
+tests/test_plugin_voice_contract.py::test_no_bundled_voice_defines_a_pre_rename_name
+tests/test_rhvoice_segment_drain.py::test_player_stop_failure_goes_through_the_control_fault_policy
+tests/test_role_guards.py::test_error_callback_finds_its_dialog_without_a_class_registry
+tests/test_role_panel.py::test_failed_apply_shows_error_and_raises_value_error
+tests/test_role_panel.py::test_panel_opens_its_presenter_for_the_worldvoice_manager
+tests/test_role_panel_ui.py::test_an_assigned_voice_the_locale_no_longer_offers_shows_no_voice
+tests/test_role_panel_ui.py::test_the_fake_presenter_records_only_the_presenter_methods
+tests/test_role_repository.py::test_assign_adds_or_replaces_one_locale
+tests/test_role_repository.py::test_save_rewrites_sections_and_keeps_scalars
+tests/test_runtime_composition.py::test_initialization_failure_closes_without_commit[bind]
+tests/test_runtime_composition.py::test_supported_installed_wrapper_is_bound_before_first_drain_speech[SAPI5]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[invalid_support-Espeak]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[invalid_support-OneCore]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[missing_entry-Espeak]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[missing_entry-OneCore]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[missing_support-Espeak]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[missing_support-OneCore]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[support_error-Espeak]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[truthy_support-Espeak]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[truthy_support-OneCore]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[unsupported-OneCore]
+tests/test_runtime_composition.py::test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once[wrong_core-Espeak]
+tests/test_runtime_composition.py::test_wasapi_mode_sensitive_support_uses_actual_opened_core[None-unknown-LEGACY_DONE]
+tests/test_runtime_legacy_adapter.py::test_bridge_speaks_the_real_vocalizer_wrapper_without_a_token[Cerence]
+tests/test_runtime_legacy_adapter.py::test_bridge_speaks_the_real_vocalizer_wrapper_without_a_token[VE]
+tests/test_runtime_legacy_adapter.py::test_drain_requires_event_factory_before_speech
+tests/test_runtime_legacy_adapter.py::test_plain_speak_never_passes_the_request_token[False-None]
+tests/test_runtime_legacy_adapter.py::test_plain_speak_never_passes_the_request_token[False-True]
+tests/test_runtime_legacy_adapter.py::test_plain_speak_never_passes_the_request_token[True-None]
+tests/test_runtime_playback_context.py::test_completion_contract_defaults_to_legacy_and_is_frozen
+tests/test_runtime_playback_context.py::test_correlated_completion_requires_range[DRAIN]
+tests/test_runtime_playback_context.py::test_correlated_completion_requires_range[END_INDEX_AND_DRAIN]
+tests/test_runtime_playback_context.py::test_engine_capabilities_preserve_old_positional_arguments
+tests/test_runtime_playback_context.py::test_index_range_accepts_inclusive_positive_bounds_and_is_frozen[1-502]
+tests/test_runtime_playback_context.py::test_index_range_accepts_inclusive_positive_bounds_and_is_frozen[502-503]
+tests/test_runtime_playback_context.py::test_index_range_rejects_invalid_bounds[-1-5]
+tests/test_runtime_playback_context.py::test_playback_context_is_frozen
+tests/test_runtime_playback_context.py::test_playback_event_preserves_old_positional_arguments
+tests/test_runtime_playback_context.py::test_segment_events_carry_identity_and_error[SEGMENT_DRAINED]
+tests/test_runtime_playback_context.py::test_segment_events_carry_identity_and_error[SEGMENT_END]
+tests/test_runtime_playback_context.py::test_segment_events_carry_identity_and_error[SEGMENT_FAILED]
+tests/test_runtime_scheduler.py::test_all_concurrent_stops_finish_before_new_speech[1]
+tests/test_runtime_segment_completion.py::test_marker_pause_cancel_current_and_future_callback
+tests/test_runtime_session.py::test_cached_activation_still_speaks_two_distinct_segments[DRAIN]
+tests/test_runtime_session.py::test_session_rejects_foreign_context[DRAIN]
+tests/test_runtime_voice_state.py::test_boolean_preserves_existing_config_conversion[0-False]
+tests/test_runtime_voice_state.py::test_boolean_preserves_existing_config_conversion[True-True]
+tests/test_runtime_voice_state.py::test_runtime_values_are_immutable_and_preserve_event_source
+tests/test_sapi5_segment_drain.py::test_pcm_arriving_after_completion_cannot_feed_retired_audio
+tests/test_sapi5_segment_drain.py::test_wasapi_profile_enabled_legacy_profiles_unsupported[legacy-False]
+tests/test_script_languages.py::test_script_config_keys_are_written_only_in_the_table
+tests/test_segment_barriers.py::test_shared_barrier_values
+tests/test_segment_barriers.py::test_shared_barriers_are_the_only_public_names
+tests/test_segment_host.py::test_a_strategy_without_barriers_is_rejected
+tests/test_segment_host.py::test_retire_waits_for_admitted_consumers[0.1]
+tests/test_segment_host.py::test_segment_host_speaker_forwards_to_the_core_host
+tests/test_segment_host.py::test_segment_host_speaker_leaves_drain_support_abstract
+tests/test_segment_lifecycle.py::test_queued_run_does_not_poll_its_token[0.06]
+tests/test_settings_order.py::test_voice_panel_rows_and_tab_order_survive_a_voice_change
+tests/test_settings_order.py::test_voice_panel_rows_follow_the_table
+tests/test_settings_order.py::test_voice_panel_tab_order_follows_the_table
+tests/test_settings_panel_save.py::test_on_save_returns_nothing_like_nvda_panels
+tests/test_settings_panel_save.py::test_unchanged_engines_write_nothing
+tests/test_settings_panels.py::test_pipeline_panel_enables_group_controls_for_the_stored_mode[number-False]
+tests/test_settings_panels.py::test_pipeline_panel_enables_pause_controls_from_the_stored_switch[False-False]
+tests/test_settings_panels.py::test_pipeline_panel_enables_pause_controls_from_the_stored_switch[True-True]
+tests/test_settings_panels.py::test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected[number]
+tests/test_settings_panels.py::test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected[value]
+tests/test_settings_panels.py::test_pipeline_panel_shows_an_out_of_range_stored_size_as_the_default[0-3]
+tests/test_translator_comments.py::test_group_strings_have_translator_comments
+tests/test_ui_controls.py::test_a_choice_lists_its_labels_and_selects_the_value[all-0]
+tests/test_ui_controls.py::test_apply_dependencies_enables_dependents_from_their_controller[group-True-True]
+tests/test_ui_controls.py::test_change_events_cover_the_controller_kinds
+tests/test_ui_controls.py::test_read_control_reads_a_checkbox[False]
+tests/test_ui_controls.py::test_read_control_reads_a_driver_choice_from_its_options[3-None]
+tests/test_ui_controls.py::test_read_control_reads_a_table_choice_by_its_current_selection[0-all]
+tests/test_ui_controls.py::test_read_control_without_a_control_is_absent[number_mode-None]
+tests/test_ui_controls.py::test_read_control_without_a_control_is_absent[punctuation_pause_enabled-None]
+tests/test_ui_harness.py::test_a_labeled_control_follows_its_label
+tests/test_ui_harness.py::test_clear_destroys_labels_and_drops_them_from_both_orders
+tests/test_ui_harness.py::test_insert_at_the_end_appends
+tests/test_ui_structure.py::test_panels_share_the_not_worldvoice_notice
+tests/test_ui_structure.py::test_settings_errors_share_one_dialog
+tests/test_unicode_panel.py::test_saving_unchanged_choices_notifies_nobody
+tests/test_vocalizer_segment_drain.py::test_cancel_player_stop_failure_rejects_successor[Cerence]
+tests/test_vocalizer_segment_drain.py::test_cancel_player_stop_failure_rejects_successor[VE]
+tests/test_vocalizer_segment_drain.py::test_explicit_activation_override_allows_successor_after_idle[Cerence]
+tests/test_vocalizer_segment_drain.py::test_explicit_activation_override_allows_successor_after_idle[VE]
+tests/test_vocalizer_segment_drain.py::test_feeds_go_through_the_lease[Cerence]
+tests/test_vocalizer_segment_drain.py::test_feeds_go_through_the_lease[VE]
+tests/test_vocalizer_segment_drain.py::test_guarded_native_profiles_are_enabled_with_unverified_evidence[Cerence-2025.3-legacy]
+tests/test_vocalizer_segment_drain.py::test_guarded_native_profiles_are_enabled_with_unverified_evidence[VE-2025.3-legacy]
+tests/test_vocalizer_segment_drain.py::test_raw_status_survives_installed_ctypes_errcheck[Cerence-0]
+tests/test_vocalizer_segment_drain.py::test_raw_status_survives_installed_ctypes_errcheck[VE-0]
+tests/test_vocalizer_segment_drain.py::test_zero_audio_segments_still_wait_for_real_idle[Cerence-break]
+tests/test_vocalizer_segment_drain.py::test_zero_audio_segments_still_wait_for_real_idle[VE-break]
+tests/test_voice_settings_panel.py::test_a_rebuild_for_worldvoice_places_the_controls_again
+tests/test_voice_settings_panel.py::test_a_voice_switch_keeps_the_pause_controls_disabled
+tests/test_voice_settings_panel.py::test_group_controls_follow_the_stored_mode_when_the_panel_opens[none-False]
+tests/test_voice_settings_panel.py::test_group_controls_follow_the_stored_mode_when_the_panel_opens[number-False]
+tests/test_voice_settings_panel.py::test_saving_writes_the_group_size_and_keeps_it_after_a_later_cancel
+tests/test_voice_settings_panel.py::test_the_named_rule_and_placement_helpers_are_gone
+tests/test_workspace.py::test_install_tasks_load_the_same_module_by_path
+tests/test_workspace.py::test_install_without_core_files_does_not_load_the_workspace
+tests/test_workspace.py::test_workspace_lives_in_nvdas_config_directory
+tests/test_worldvoice_cancel_wrappers.py::test_core_cancel_reports_neither_index_nor_done[Cerence]
+tests/test_worldvoice_cancel_wrappers.py::test_core_cancel_reports_neither_index_nor_done[VE]
+tests/test_worldvoice_index_command.py::test_marker_is_an_index_command
+tests/test_worldvoice_index_command.py::test_marker_rejects_non_integer
+tests/test_worldvoice_pipeline_settings.py::test_voice_parameters_commit_and_follow_the_consistency_policy[True-inflection]
+tests/test_worldvoice_pipeline_settings.py::test_voice_parameters_commit_and_follow_the_consistency_policy[True-pitch]
+tests/test_worldvoice_pipeline_settings.py::test_voice_parameters_commit_and_follow_the_consistency_policy[True-rateBoost]
+tests/test_worldvoice_pipeline_settings.py::test_voice_parameters_commit_and_follow_the_consistency_policy[True-rate]
+tests/test_worldvoice_pipeline_settings.py::test_voice_parameters_commit_and_follow_the_consistency_policy[True-variant]
+tests/test_worldvoice_speak.py::test_a_locale_of_an_uninstalled_voice_is_refused_on_load
+tests/test_worldvoice_speak.py::test_an_unknown_number_language_reads_as_follow[zz]
+tests/test_worldvoice_speak.py::test_known_number_languages_are_kept[default]
+tests/test_worldvoice_speak.py::test_known_number_languages_are_kept[en]
+tests/test_worldvoice_speak.py::test_known_number_languages_are_kept[main]

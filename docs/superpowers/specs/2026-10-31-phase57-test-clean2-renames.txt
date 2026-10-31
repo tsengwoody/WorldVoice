@@ -1,0 +1,11 @@
+# Phase 57: explicit node-id changes of kept tests (old -> new), and new ids (+ new).
+# Auto-generated index ids that renumber when rows are deleted (sequence2 -> sequence1, 0-False0 -> 0-False, ...)
+# are not listed: the collection proof pairs them by (function, parameter values) (spec section 6.1).
+tests/test_core_archive.py::test_install_always_removes_the_archive[False] -> tests/test_core_install.py::test_install_always_removes_the_archive[False]
+tests/test_core_archive.py::test_install_always_removes_the_archive[True] -> tests/test_core_install.py::test_install_always_removes_the_archive[True]
+tests/test_core_archive.py::test_menu_import_reports_a_corrupt_archive -> tests/test_core_install.py::test_menu_import_reports_a_corrupt_archive
+tests/test_native_strategy_guards.py::test_vocalizer_wrapper_has_no_guard_fallback[VE] -> tests/test_native_strategy_guards.py::test_vocalizer_voice_declares_waitfactor_and_variant[VE]
+tests/test_native_strategy_guards.py::test_vocalizer_wrapper_has_no_guard_fallback[Cerence] -> tests/test_native_strategy_guards.py::test_vocalizer_voice_declares_waitfactor_and_variant[Cerence]
+tests/test_segment_host.py::test_retire_waits_for_admitted_consumers[0] -> tests/test_segment_host.py::test_retire_waits_for_admitted_consumers
+tests/test_segment_lifecycle.py::test_queued_run_does_not_poll_its_token[0] -> tests/test_segment_lifecycle.py::test_queued_run_does_not_poll_its_token
++ tests/test_pipeline_structure.py::test_symbols_module_has_no_relative_imports
