@@ -1401,6 +1401,8 @@ def test_notify_dispatches_start_and_bookmark_and_ignores_other_events(env, monk
 def test_start_stream_marks_speaking_only_for_the_current_stream(env):
 	_, _, events = speak(env)
 	env.native.wait_calls(1)
+	# The worker records the stream Speak returned before an old stream's start is told apart.
+	eventually(lambda: segment_host(env.driver).current().native.stream == 1)
 	env.native.sink.StartStream(2, 0)
 	assert is_speaking(env.driver) is False
 	env.native.sink.StartStream(1, 0)
