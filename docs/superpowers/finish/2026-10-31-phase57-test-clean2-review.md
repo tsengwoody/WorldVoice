@@ -143,3 +143,15 @@ spec §5.2 說「只剩一列的 parametrize 保留」，而 `2ae55ac` 又把讀
 6. **M1 若不修**：三個單列 parametrize 的參數留著沒人讀。
 7. **時序 case 刪除後的檢查方式改變**（spec §7.5）：`[0.1]`、`[0.06]`、`[1]` 刪掉後，`_wait_until_waiting` 之類的 helper 若被弱化，會變成偶發失敗而不是確定失敗；現在靠的是 5× 重跑（實作者）／3× 重跑（審閱者）。
 8. **只在 Linux 驗證**：所有結論都來自 Linux 的 fake／stub 測試，和基準相同。
+
+## 修正記錄
+
+協調者決定在 merge 前修好兩項 Minor（DEVELOPMENT_WORKFLOW.md §3.4）。
+
+| 項目 | commit | 修法 | 驗證 |
+|---|---|---|---|
+| M1 | `4a765f1` | 拿掉四個測試裡沒人讀的單列 parametrize：`test_runtime_session.py` 的兩個 `mode`、`test_pipeline_filters.py::test_number_wait_does_not_break_across_other_commands` 的 `blocker`（函式本體會覆寫它）、`test_runtime_composition.py::test_initialization_failure_closes_without_commit` 的 `failure`（`empty=failure == "empty"` 恆為真，直接寫成 `empty=True`）。這四個 id 不再帶 `[...]` 後綴。 | 這個 commit 的收集證明（4 組改名）PROOF OK；`test_runtime_session.py` 與 `test_pipeline_filters.py` 的部分通過純刪除 token 檢查；三個檔案單獨跑都通過；完整測試 3243 passed |
+| M1（清單） | `4a864e5` | 把四組 `舊 id -> 新 id` 加進 spec 的 `-renames.txt`，讓端到端證明預期這些改名。 | 端到端收集證明（基準 3727、移除 486、改名 11、新增 2）PROOF OK，69 組改號配對都在 spec §5.2 列出的函式；收集 3243 |
+| M2 | `69c20a3` | 改寫 `test_no_add_on_code_names_the_request_token` 的註解，不再說它是唯一的檢查，並註明 `test_vocalizer_voice_declares_waitfactor_and_variant` 也釘住 VE、Cerence 的 Voice 能力宣告。 | 收集不變（PROOF OK）；檔案單獨跑 44 passed |
+
+修完後在 `69c20a3` 重跑：完整測試 **3243 passed、0 skipped**；`prek run --all-files` 全部 Passed；`git diff --check master` 乾淨；`git diff --stat master -- addon` 沒有輸出；受保護路徑兩個指令都沒有輸出。
