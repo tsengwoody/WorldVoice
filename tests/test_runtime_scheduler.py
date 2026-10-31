@@ -331,6 +331,7 @@ def test_a_task_error_after_cancellation_leaves_the_request_cancelled(
 	port,
 	output,
 	scheduler,
+	rt,
 ):
 	manager, logger = logged_manager
 
@@ -344,6 +345,12 @@ def test_a_task_error_after_cancellation_leaves_the_request_cancelled(
 	assert logger.errors == ["Speech scheduler task error"]
 	assert request.state is scheduler.RequestState.CANCELLED
 	stays_false(output.condition, lambda: output.done_count > 0)
+	# The worker survived the error: the next request speaks and completes.
+	fresh = FakePlayback()
+	fresh.on_speak = lambda: event(manager, rt, fresh)
+	_request, fresh_future = speech(manager, fresh)
+	assert fresh_future.result(WAIT_TIMEOUT) is True
+	assert output.wait_done() == 1
 
 
 def test_old_epoch_events_are_discarded(manager, port, output, rt):
