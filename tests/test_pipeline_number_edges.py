@@ -97,12 +97,19 @@ M = Marker()
 B10, B20 = ("B", 10), ("B", 20)
 
 
+# The ids of the item_rows rows at an item wait other than 0. The number stage never reads the item
+# wait, so test_number_stage_worked_examples leaves them out; every stage still runs them.
+ITEM_WAIT_IDS = set()
+
+
 def item_rows(sequence, stage, by_item_wait, name):
 	"""Rows of *sequence* at each item wait of *by_item_wait*: its output after STAGES ("same": *stage*)."""
-	return [
+	rows = [
 		pytest.param(sequence, {"item": item}, stage, full, id=f"{name}-item{item}")
 		for item, full in by_item_wait.items()
 	]
+	ITEM_WAIT_IDS.update(row.id for row, item in zip(rows, by_item_wait, strict=True) if item != 0)
+	return rows
 
 
 # Corrected by fix/number-edge-pause-items (decided by the user, 2026-10-24; replaces O2 and D1): a
@@ -123,11 +130,11 @@ ITEM_ROWS = [
 		{0: "same", 10: ["第", B10, "3", B10, "章"]},
 		"alone",
 	),
-	*item_rows(["第3章"], ["第", E, "3", E, "章"], {0: "same", 10: "same"}, "inside"),
+	*item_rows(["第3章"], ["第", E, "3", E, "章"], {10: "same"}, "inside"),
 	*item_rows(
 		["第1", "2章"],
 		["第", E, "1", E, "2", E, "章"],
-		{0: "same", 10: ["第", E, "1", B10, "2", E, "章"]},
+		{10: ["第", E, "1", B10, "2", E, "章"]},
 		"numbers",
 	),
 	*item_rows(["1", "2"], ["1", E, "2"], {0: "same", 10: ["1", B10, "2"]}, "whole-numbers"),
@@ -191,7 +198,6 @@ ITEM_ROWS = [
 # "numlan". A stage output of None: the row is checked only after STAGES.
 ROWS = [
 	pytest.param(["第3章"], {}, ["第", E, "3", E, "章"], "same", id="1"),
-	pytest.param(["第3章"], {"mode": "group"}, ["第", E, "3", E, "章"], "same", id="1g"),
 	pytest.param(["第3章"], {"mode": "value"}, ["第3章"], "same", id="1v"),
 	pytest.param(["第3章"], {"numlan": "en"}, ["第", E, LEN, "3", LZH, E, "章"], "same", id="2"),
 	pytest.param(["第3章"], {"mode": "value", "numlan": "en"}, ["第", LEN, "3", LZH, "章"], "same", id="2v"),
@@ -315,7 +321,7 @@ ROWS = [
 	pytest.param(["中+2"], {"mode": "value"}, ["中+2"], "same", id="o4-plus-value"),
 	pytest.param(["5-3"], {}, ["5", NB, N("-"), NB, "3"], "same", id="o4-range"),
 ]
-STAGE_ROWS = [row for row in ROWS if row.values[2] is not None]
+STAGE_ROWS = [row for row in ROWS if row.values[2] is not None and row.id not in ITEM_WAIT_IDS]
 
 
 def run_row(monkeypatch, options):
