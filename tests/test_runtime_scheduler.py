@@ -6,7 +6,7 @@ from threading import Event, Lock, Thread
 
 import pytest
 from runtime_harness import FakePlayback, RecordingOutput, load_scheduler, tracked_requests, worker_alive
-from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_unset
+from waiting import HOLD_TIMEOUT, WAIT_TIMEOUT, eventually, stays_false, stays_unset
 
 
 @pytest.fixture
@@ -281,6 +281,69 @@ def test_shutdown_rejects_new_request(manager, scheduler, port):
 	with pytest.raises(scheduler.InvalidRequestState):
 		manager.new_request()
 	assert manager.submit_request(request) is False
+
+
+class ErrorLog:
+	"""A scheduler logger that keeps its error messages."""
+
+	def __init__(self):
+		self.errors = []
+
+	def error(self, message, *args, exc_info=False):
+		self.errors.append(message % args if args else message)
+
+	def debug(self, message, *args, exc_info=False):
+		pass
+
+
+@pytest.fixture
+def logged_manager(scheduler, output):
+	logger = ErrorLog()
+	manager = scheduler.TaskManager(output, logger=logger)
+	yield manager, logger
+	manager.shutdown()
+
+
+def test_an_event_batch_error_between_tasks_is_logged_not_raised(logged_manager, port, output, rt):
+	manager, logger = logged_manager
+
+	def broken():
+		raise RuntimeError("supplier failed")
+
+	manager.on_events(broken)
+	assert logger.errors == ["Speech event delivery error"]
+	port.on_speak = lambda: event(manager, rt, port)
+	_request, future = speech(manager, port)
+	assert future.result(WAIT_TIMEOUT) is True
+	assert output.wait_done() == 1
+
+
+def test_shutdown_from_the_worker_thread_does_not_join_itself(logged_manager, port):
+	manager, logger = logged_manager
+	port.on_speak = manager.shutdown
+	speech(manager, port)
+	eventually(lambda: not worker_alive(manager), message="the worker thread did not exit")
+	assert logger.errors == []
+
+
+def test_a_task_error_after_cancellation_leaves_the_request_cancelled(
+	logged_manager,
+	port,
+	output,
+	scheduler,
+):
+	manager, logger = logged_manager
+
+	def cancel_then_fail():
+		manager.cancel([port])
+		raise RuntimeError("speak failed")
+
+	port.on_speak = cancel_then_fail
+	request, future = speech(manager, port)
+	assert done_event(future).wait(WAIT_TIMEOUT)
+	assert logger.errors == ["Speech scheduler task error"]
+	assert request.state is scheduler.RequestState.CANCELLED
+	stays_false(output.condition, lambda: output.done_count > 0)
 
 
 def test_old_epoch_events_are_discarded(manager, port, output, rt):
@@ -918,6 +981,29 @@ def test_failed_pause_restores_unpaused_state(manager, rt):
 		manager.pause_current(True)
 	drained(manager, rt, port)
 	assert future.result(WAIT_TIMEOUT) is True
+
+
+def test_a_pause_failing_after_a_cancel_does_not_restore_the_old_pause(manager, rt, output):
+	port = drain_port(rt)
+	_request, future = drain_speech(manager, port)
+	manager.pause_current(True)
+	assert port.paused == [True]
+
+	def cancel_then_fail(switch):
+		manager.cancel([port])
+		raise RuntimeError("pause failed")
+
+	port.pause = cancel_then_fail
+	with pytest.raises(RuntimeError, match="pause failed"):
+		manager.pause_current(True)
+	assert done_event(future).wait(WAIT_TIMEOUT)
+	assert future.cancelled()
+	# The cancel cleared the pause: the next request runs without a resume.
+	fresh = drain_port(rt)
+	_request, fresh_future = drain_speech(manager, fresh)
+	drained(manager, rt, fresh)
+	assert fresh_future.result(WAIT_TIMEOUT) is True
+	assert output.wait_done() == 1
 
 
 def test_failed_resume_keeps_the_pause(manager, rt):
