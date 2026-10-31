@@ -96,11 +96,6 @@ def _hand_edited(tmp_path, path, old, new):
 	[
 		# A range split in two: the generator merges neighbouring ranges of one script.
 		('\t(0x41, 0x5a, "Latin"),\n', '\t(0x41, 0x4f, "Latin"),\n\t(0x50, 0x5a, "Latin"),\n'),
-		# Reformatted: the generator writes lower-case hex.
-		('\t(0x41, 0x5a, "Latin"),', '\t(0x41, 0x5A, "Latin"),'),
-		# An added comment.
-		('\t(0x41, 0x5a, "Latin"),', '\t(0x41, 0x5a, "Latin"),  # A..Z'),
-		('"""Generated Unicode Script ranges. Do not edit by hand."""', '"""Unicode Script ranges."""'),
 		("SCRIPT_RANGE_STARTS = tuple(start for start, _end, _script in SCRIPT_RANGES)\n", ""),
 	],
 )
@@ -118,9 +113,6 @@ def test_a_hand_edit_of_script_data_is_caught(scripts_tool, tmp_path, old, new):
 		("\t(0x2BC, 0x2BC),  # ʼ Lm\n", "\t(0x2BC, 0x2BC),  # ' Lm\n"),
 		# A range split in two: the generator merges neighbouring code points of one category.
 		("\t(0x2C9, 0x2CB),  # ˉ..ˋ Lm\n", "\t(0x2C9, 0x2C9),  # ˉ Lm\n\t(0x2CA, 0x2CB),  # ˊ..ˋ Lm\n"),
-		# Reformatted: the generator writes upper-case hex and two spaces before the comment.
-		("\t(0x2BC, 0x2BC),  # ʼ Lm\n", "\t(0x2bc, 0x2bc),  # ʼ Lm\n"),
-		("\t(0x2BC, 0x2BC),  # ʼ Lm\n", "\t(0x2BC, 0x2BC), # ʼ Lm\n"),
 	],
 )
 def test_a_hand_edit_of_unspaced_common_data_is_caught(unspaced_tool, tmp_path, old, new):

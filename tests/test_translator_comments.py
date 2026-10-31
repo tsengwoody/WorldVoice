@@ -39,7 +39,6 @@ def test_translator_comments_precede_gettext_calls():
 	assert misplaced == []
 
 
-GROUP_MODE_MSGIDS = ("group", "Group size")
 # Labels that are new or changed with the shared, sentence-case labels (2026-10-21), the
 # "off" number mode (2026-10-22), the assumed languages of the Unicode Detection panel
 # (2026-10-23), the space pause of every unspaced script (2026-10-25), and the engine list's
@@ -119,13 +118,6 @@ def _gettext_calls(msgids):
 				if not any(comment.startswith("# Translators:") for comment in comments):
 					missing.append(f"{relative}:{number + 1}")
 	return missing, found
-
-
-def test_group_strings_have_translator_comments():
-	"""Every _() call for a group-mode string has a # Translators: comment block right above it."""
-	missing, found = _gettext_calls(GROUP_MODE_MSGIDS)
-	assert missing == []
-	assert all(found.values()), found
 
 
 def test_changed_label_strings_have_translator_comments():

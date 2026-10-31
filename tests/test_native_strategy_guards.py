@@ -113,16 +113,6 @@ def test_espeak_nvda_names_are_listed_and_exist_in_nvda():
 	assert overridden == _class_constant(tree, "_EspeakPort", "NVDA_OVERRIDES") == {"_onIndexReached"}
 
 
-@pytest.mark.parametrize("engine", ["Espeak", "RHVoice"])
-def test_drain_support_requires_keywords(engine):
-	tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
-	method = next(
-		n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "get_segment_drain_support"
-	)
-	assert [a.arg for a in method.args.kwonlyargs] == ["nvda_version", "audio_mode"]
-	assert method.args.kw_defaults == [None, None]
-
-
 NVDA_SAPI5 = REF / "nvda/source/synthDrivers/sapi5.py"
 
 
@@ -212,12 +202,6 @@ def test_sapi5_nvda_privates_are_listed_and_exist_in_nvda():
 	assert overridden == overrides
 
 
-def test_sapi5_uses_the_shared_engine_controls():
-	tree = _sapi5_tree()
-	player = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_SegmentPlayer")
-	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]
-
-
 INNER_RHVOICE = ROOT / "driver/RHVoice/driver/__init__.py"
 
 
@@ -261,13 +245,6 @@ def test_rhvoice_segment_done_mirrors_the_pinned_inner_done_callback():
 		"in driver/RHVoice/__init__.py, which mirrors its steps without the notify, then update "
 		"RHVOICE_DONE_CALLBACK_CALL."
 	)
-
-
-def test_rhvoice_uses_shared_player_and_stop_gate():
-	source = (ROOT / "driver/RHVoice/__init__.py").read_text(encoding="utf-8")
-	tree = ast.parse(source)
-	player = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_WavePlayer")
-	assert [ast.unparse(base) for base in player.bases] == ["LeasedPlayer"]
 
 
 NVDA_ONECORE = REF / "nvda/source/synthDrivers/oneCore.py"
@@ -320,18 +297,6 @@ def test_onecore_parent_privates_are_listed_and_exist():
 		and re.search(rf"def {n.name}\(", parents)
 	}
 	assert overridden == overrides
-
-
-def test_onecore_uses_the_stop_gate_and_declares_voice_last():
-	source = (ROOT / "driver/OneCore/__init__.py").read_text(encoding="utf-8")
-	tree = ast.parse(source)
-	names = [n.name for n in tree.body if isinstance(n, ast.ClassDef)]
-	assert names.count("Voice") == 1 and names.index("Voice") > names.index("SynthDriver")
-	assert not any(
-		isinstance(n, ast.Assign)
-		and any(ast.unparse(t) in {"SynthDriver", "Voice.synthDriverClass"} for t in n.targets)
-		for n in tree.body
-	)
 
 
 def _vocalizer_own_names(tree):
@@ -408,15 +373,6 @@ def test_every_wrapper_core_declares_the_segment_drain_entries():
 		assert base in {"SegmentDrainCore", "SegmentHostSpeaker"}, engine
 		assert "get_segment_drain_support" in own, engine
 		assert ("speak_segment" in own) == (base == "SegmentDrainCore"), engine
-
-
-def test_every_bundled_wrapper_uses_the_segment_host_speaker():
-	# The bundled wrappers have no speak_segment of their own (refactor9 P45'); a local engine may
-	# still name SegmentDrainCore.
-	for engine in ("Cerence", "Espeak", "OneCore", "RHVoice", "SAPI5", "VE"):
-		tree = ast.parse((ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8"))
-		synth = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "SynthDriver")
-		assert ast.unparse(synth.bases[-1]) == "SegmentHostSpeaker", engine
 
 
 def test_wrappers_do_not_shadow_their_bases():

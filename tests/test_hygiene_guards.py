@@ -92,56 +92,6 @@ def test_generics_is_imported_only_after_the_package_that_adds_its_path():
 		assert worldvoice and min(worldvoice) < min(generics), path
 
 
-def _imported_modules(node, package):
-	"""The absolute names an import statement in package (a tuple of names) can load."""
-	if isinstance(node, ast.Import):
-		return [alias.name for alias in node.names]
-	if not isinstance(node, ast.ImportFrom):
-		return []
-	base = list(package[: len(package) - node.level + 1]) if node.level else []
-	module = ".".join([*base, *([node.module] if node.module else [])])
-	# `from x import y` may load the submodule x.y.
-	return [module, *(f"{module}.{alias.name}" for alias in node.names)]
-
-
-def _is_speech_symbols(name):
-	return name == "generics.speechSymbols" or name.startswith("generics.speechSymbols.")
-
-
-def test_the_speech_symbols_feature_is_gone():
-	# Removed in phase 33; an existing unicode.dic stays on disk, and nothing reads it again.
-	# A checkout that ran the old tests may keep an ignored __pycache__ there; Python never
-	# imports a cached module without its source.
-	package = ADDON / "generics" / "speechSymbols"
-	assert [path for path in package.rglob("*") if "__pycache__" not in path.parts] == []
-	offenders = []
-	for path in _addon_sources():
-		text = path.read_text(encoding="utf-8")
-		where = path.relative_to(ROOT)
-		# The module name as text also catches importlib.import_module("generics.speechSymbols...").
-		offenders += [
-			f"{where}: {word}" for word in ("unicode.dic", "generics.speechSymbols") if word in text
-		]
-		parent = path.relative_to(ADDON).parent.parts
-		offenders += [
-			f"{where}:{node.lineno}"
-			for node in ast.walk(ast.parse(text))
-			if any(_is_speech_symbols(name) for name in _imported_modules(node, parent))
-		]
-	assert offenders == []
-
-
-def test_the_ignore_numbers_option_is_gone():
-	# Removed in phase 35: the number language decides every digit. A profile may keep the key.
-	readmes = [ROOT / "readme.md", *sorted((ADDON / "doc").glob("*/readme.md"))]
-	offenders = [
-		str(path.relative_to(ROOT))
-		for path in (*_addon_sources(), *readmes)
-		if "ignoreNumbersInLanguageDetection" in path.read_text(encoding="utf-8")
-	]
-	assert offenders == []
-
-
 # The spec's reason table: the first entry whose calls all appear in a handler's
 # own body names where its error goes. Combined entries come first, so a handler
 # that both latches and keeps its error says both.

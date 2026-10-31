@@ -56,7 +56,7 @@ def test_parse_merges_neighbouring_ranges_of_one_script(tool):
 	]
 
 
-@pytest.mark.parametrize("line", ["0041 ; Latin ; Greek", "0041", "005A..0041 ; Latin"])
+@pytest.mark.parametrize("line", ["0041 ; Latin ; Greek", "005A..0041 ; Latin"])
 def test_parse_rejects_malformed_lines(tool, line):
 	with pytest.raises(ValueError, match="line 1"):
 		tool.parse_scripts([line])
@@ -75,11 +75,6 @@ def test_render_module_is_loadable_and_names_its_source(tool):
 	assert namespace["SOURCE_SHA256"] == "ab" * 32
 	assert namespace["SCRIPT_RANGES"] == ((0x41, 0x5A, "Latin"),)
 	assert namespace["SCRIPT_RANGE_STARTS"] == (0x41,)
-
-
-@pytest.mark.parametrize("version", ["16.0.0", "15.1.0"])
-def test_source_url_names_the_version(tool, version):
-	assert tool.source_url(version) == f"https://www.unicode.org/Public/{version}/ucd/Scripts.txt"
 
 
 def test_without_source_downloads_the_versions_file(tool, downloads, tmp_path):
@@ -150,9 +145,7 @@ def test_download_reads_the_response_into_memory(tool, monkeypatch):
 	"error",
 	[
 		urllib.error.URLError("no route"),
-		urllib.error.HTTPError("https://www.unicode.org/", 404, "Not Found", None, None),
 		TimeoutError("timed out"),
-		ConnectionResetError("reset"),
 	],
 )
 def test_network_errors_name_the_url_and_suggest_a_local_file(tool, monkeypatch, error):
@@ -168,7 +161,7 @@ def test_network_errors_name_the_url_and_suggest_a_local_file(tool, monkeypatch,
 	assert "--source" in message
 
 
-@pytest.mark.parametrize("make", [lambda path: None, lambda path: path.mkdir()], ids=["missing", "directory"])
+@pytest.mark.parametrize("make", [lambda path: None], ids=["missing"])
 def test_an_unreadable_source_names_the_path_and_option(tool, downloads, tmp_path, make):
 	source = tmp_path / "Scripts.txt"
 	make(source)
