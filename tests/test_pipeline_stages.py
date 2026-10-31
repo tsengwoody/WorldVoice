@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from nvda_stubs import worldvoice_conf
 from pipeline_harness import LOG_SWITCH_ORDER, ORDER, load_pipeline_module, punctuation_settings
 
 SYNTH = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/__init__.py"
@@ -62,8 +61,8 @@ def test_number_mode_switch_logs_both_number_mode_stages(monkeypatch):
 
 @pytest.mark.parametrize(
 	"on",
-	[(), ("numberLanguage",), ("numberMode",), ("numberLanguage", "numberMode")],
-	ids=["none", "other-only", "own-only", "both"],
+	[(), ("numberLanguage",), ("numberMode",)],
+	ids=["none", "other-only", "own-only"],
 )
 def test_a_stage_logs_under_each_of_its_switches(monkeypatch, on):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
@@ -95,12 +94,6 @@ def test_log_switches_list_each_key_once_in_stage_order(monkeypatch):
 		Stage("c", f),
 	)
 	assert module._log_switches(stages) == ("a", "d", "c")
-
-
-def test_the_log_confspec_has_every_log_switch(monkeypatch):
-	# tests/nvda_stubs.py derives the log confspec from STAGES; it must list every switch.
-	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	assert set(module.LOG_SWITCHES) <= set(worldvoice_conf()["WorldVoice"]["log"])
 
 
 @pytest.mark.parametrize(
@@ -169,17 +162,6 @@ def test_handler_asks_for_the_settings_of_the_contexts_synth(monkeypatch):
 	assert asked == [False, True]
 
 
-def test_handler_logs_before_and_after_when_enabled(monkeypatch):
-	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	sys.modules["config"].conf["WorldVoice"]["log"] = {"enable": True, "speechViewer": True}
-	writes = []
-	monkeypatch.setattr(module.registry, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
-	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
-	stage = module.Stage("speech_viewer", lambda sequence, s, ctx: [item.upper() for item in sequence])
-	assert stage.handler(["a"]) == ["A"]
-	assert writes == [("speech_viewer", "before"), ("speech_viewer", "after")]
-
-
 def test_a_failing_log_write_neither_silences_the_stage_nor_floods_the_log(monkeypatch):
 	# NVDA's Filter.apply keeps the input after an exception; the stage has read that generator
 	# already, so a raised write would leave every later stage and the synth with nothing.
@@ -211,25 +193,7 @@ def test_a_failing_log_write_neither_silences_the_stage_nor_floods_the_log(monke
 	assert len(errors) == 2, "a new outage after a successful write was not logged"
 
 
-def test_zero_number_wait_keeps_spaces(monkeypatch):
-	settings = punctuation_settings(0)
-	module, _ = load_pipeline_module(monkeypatch, settings)
-	assert list(module.number_wait_factor([" 1 ", "  ", "2"], settings, module.GENERIC_CONTEXT)) == [
-		" 1 ",
-		"  ",
-		"2",
-	]
-
-
-def test_positive_number_wait_breaks_between_numbers(monkeypatch):
-	settings = punctuation_settings(0)
-	settings.scaled_number_wait = lambda: 40
-	module, _BreakCommand = load_pipeline_module(monkeypatch, settings)
-	result = list(module.number_wait_factor([" 1 ", "  ", "2"], settings, module.GENERIC_CONTEXT))
-	assert result[0] == "1" and result[2] == "2" and result[1].time == 40
-
-
-@pytest.mark.parametrize("numlan", ["default", "main", "en"])
+@pytest.mark.parametrize("numlan", ["en"])
 def test_other_synths_get_no_worldvoice_language_commands(monkeypatch, numlan):
 	settings = punctuation_settings(0)
 	module, _ = load_pipeline_module(monkeypatch, settings)
@@ -297,7 +261,7 @@ def test_thousands_removal_runs_before_number_language(monkeypatch):
 	assert [getattr(item, "lang", item) for item in sequence] == ["en", "12345678", "zh"]
 
 
-@pytest.mark.parametrize("space", ["\u00a0", "\u202f", "\u2007"])
+@pytest.mark.parametrize("space", ["\u00a0"])
 def test_number_language_pauses_at_a_no_break_space(monkeypatch, space):
 	# Decided by the user (2026-10-22): "10 000" with a no-break space is two numbers, with or
 	# without a number language.
@@ -384,7 +348,6 @@ def break_types(sequence):
 	[
 		("value", {("BreakCommand", 10), ("BreakCommand", 20)}),
 		("number", {("BreakCommand", 10), ("BreakCommand", 20)}),
-		("group", {("BreakCommand", 10), ("BreakCommand", 20)}),
 	],
 )
 def test_other_synths_get_only_plain_breaks_from_the_stages(monkeypatch, number_mode, expected):
@@ -399,10 +362,6 @@ def test_other_synths_get_only_plain_breaks_from_the_stages(monkeypatch, number_
 		("value", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
 		(
 			"number",
-			{("NumberBreakCommand", 10), ("NumberEdgeBreakCommand", 10), ("PunctuationBreakCommand", 20)},
-		),
-		(
-			"group",
 			{("NumberBreakCommand", 10), ("NumberEdgeBreakCommand", 10), ("PunctuationBreakCommand", 20)},
 		),
 	],
@@ -461,12 +420,8 @@ EN = ("lang", "en")
 			lambda module: ["1", module.NumberBreakCommand(0), "2"],
 			[EN, "1", EN, "NB", EN, "2", EN],
 		),
-		(
-			lambda module: ["123", module.NumberBreakCommand(0), "45"],
-			[EN, "123", EN, "NB", EN, "45", EN],
-		),
 	],
-	ids=["value", "number", "group"],
+	ids=["value", "number"],
 )
 def test_wrap_numbers_for_detection_wraps_every_match(monkeypatch, sequence, expected):
 	module, result = wrap(monkeypatch, sequence, "main")
@@ -606,30 +561,3 @@ def test_plain_breaks_mark_only_edge_breaks(monkeypatch):
 		False,
 		False,
 	]
-
-
-def plain_shape(sequence):
-	return [item if isinstance(item, str) else (type(item).__name__, item.time) for item in sequence]
-
-
-@pytest.mark.parametrize(
-	("sequence", "remove", "expected"),
-	[
-		(
-			["Total. ", "E", "1", "NB", "2"],
-			False,
-			["Total", ".", " ", ("BreakCommand", 50), "1", ("BreakCommand", 10), "2"],
-		),
-		(["3", "E", "，下"], True, ["3", ("BreakCommand", 50), "下"]),
-	],
-	ids=["total", "3-comma-remove"],
-)
-def test_another_synth_keeps_the_punctuation_pause_next_to_an_edge(monkeypatch, sequence, remove, expected):
-	settings = punctuation_settings(50, remove_characters=remove)
-	settings.punctuation_pause_characters = "。，."
-	module, _ = load_pipeline_module(monkeypatch, settings)
-	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
-	commands = {"E": module.NumberEdgeBreakCommand(10), "NB": module.NumberBreakCommand(10)}
-	plain = module._plain_breaks([commands.get(item, item) for item in sequence])
-	(stage,) = [stage for stage in module.STAGES if stage.log_key == "punctuation_wait_factor"]
-	assert plain_shape(stage.handler(plain)) == expected

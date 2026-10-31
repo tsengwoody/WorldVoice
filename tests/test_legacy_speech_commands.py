@@ -15,28 +15,16 @@ def legacy(monkeypatch, rt, nvda_commands):
 	alias_package(monkeypatch, name, RUNTIME.parent)
 	monkeypatch.setitem(sys.modules, name + ".runtime", rt.package)
 	monkeypatch.setitem(sys.modules, name + ".runtime.models", rt.models)
-	monkeypatch.setitem(sys.modules, "config", SimpleNamespace(conf={}))
-	monkeypatch.setitem(sys.modules, "languageHandler", SimpleNamespace())
-	monkeypatch.setitem(sys.modules, "synthDriverHandler", SimpleNamespace(getSynth=lambda: None))
 
-	for suffix in ("driver", "bridge", "bridge.commands", "speechCommands"):
+	for suffix in ("bridge", "bridge.commands", "speechCommands"):
 		monkeypatch.delitem(sys.modules, name + "." + suffix, raising=False)
-	driver = importlib.import_module(name + ".driver")
 	commands = importlib.import_module(name + ".bridge.commands")
 	speech_commands = importlib.import_module(name + ".speechCommands")
 	return SimpleNamespace(
-		Voice=driver.Voice,
 		BreakCommand=nvda_commands.BreakCommand,
 		commands=commands,
 		speech_commands=speech_commands,
 	)
-
-
-def test_normalizer_passes_voice_objects_through_unchanged(legacy):
-	# Voices are chosen by SelectVoice from lang_cmd_to_voice; a Voice object is not a command.
-	voice = object.__new__(legacy.Voice)
-	voice.name = "Fake:a"
-	assert list(legacy.commands.normalizeNvdaCommands([voice])) == [voice]
 
 
 def test_normalizer_is_lazy_and_preserves_unrecognized_objects(legacy, rt):

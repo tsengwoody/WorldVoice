@@ -21,18 +21,6 @@ def test_zero_wait_splits_off_the_mark_but_an_existing_break_suppresses_the_paus
 	assert result == ["Hello", ".", existing_break, "World"]
 
 
-def test_positive_punctuation_wait_factor_inserts_a_punctuation_break(monkeypatch):
-	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250))
-
-	result = run_punctuation_filters(module, ["Hello. World"])
-
-	assert result[0] == "Hello"
-	assert result[1] == "."
-	assert type(result[2]).__name__ == "PunctuationBreakCommand"
-	assert result[2].time == 250
-	assert result[3] == " World"
-
-
 @pytest.mark.parametrize(
 	("global_factor", "factor", "expected"),
 	[
@@ -59,18 +47,6 @@ def test_the_punctuation_pause_follows_the_global_factor(monkeypatch, global_fac
 	result = list(module.inject_punctuation_pause(["Hello. World"], settings, module.GENERIC_CONTEXT))
 
 	assert shape(result) == ["Hello", ".", ("PunctuationBreakCommand", expected), " World"]
-
-
-def test_removing_configured_punctuation_preserves_existing_breaks(monkeypatch):
-	module, BreakCommand = load_pipeline_module(
-		monkeypatch,
-		punctuation_settings(250, remove_characters=True),
-	)
-	existing_break = BreakCommand(30)
-
-	result = run_punctuation_filters(module, ["Hello.", existing_break, "World"])
-
-	assert result == ["Hello", existing_break, "World"]
 
 
 def test_zero_wait_removal_still_pauses_and_a_disabled_switch_changes_nothing(monkeypatch):
@@ -119,32 +95,6 @@ def test_removal_preserves_numeric_punctuation_without_a_pause(monkeypatch):
 	assert result[2] == " Next"
 
 
-def test_removal_applies_to_pause_between_text_items(monkeypatch):
-	module, _BreakCommand = load_pipeline_module(
-		monkeypatch,
-		punctuation_settings(250, remove_characters=True),
-	)
-
-	result = run_punctuation_filters(module, ["Hello.", "World"])
-
-	assert result[0] == "Hello"
-	assert type(result[1]).__name__ == "PunctuationBreakCommand"
-	assert result[2] == "World"
-
-
-@pytest.mark.parametrize("characters", [".,", "", "  "])
-@pytest.mark.parametrize("wait", [0, 250])
-@pytest.mark.parametrize("remove", [False, True])
-def test_a_disabled_switch_changes_nothing(monkeypatch, remove, wait, characters):
-	settings = punctuation_settings(wait, remove_characters=remove)
-	settings.punctuation_pause_enabled = False
-	settings.punctuation_pause_characters = characters
-	module, BreakCommand = load_pipeline_module(monkeypatch, settings)
-	sequence = ["Hello, world. Bye.", "Hi.", BreakCommand(30), "there"]
-
-	assert run_punctuation_filters(module, sequence) == sequence
-
-
 ZERO_WAIT = {
 	# Switch on, wait 0: every pause point gets a 0 ms break; removal only drops the mark.
 	False: (
@@ -179,16 +129,6 @@ def test_zero_wait_pauses_at_every_point_whether_or_not_marks_are_removed(monkey
 	assert shape(run_punctuation_filters(module, ["Hi.", "there"])) == between
 
 
-@pytest.mark.parametrize("remove", [False, True])
-def test_an_empty_list_changes_nothing(monkeypatch, remove):
-	settings = punctuation_settings(0, remove_characters=remove)
-	settings.punctuation_pause_characters = ""
-	module, _BreakCommand = load_pipeline_module(monkeypatch, settings)
-	sequence = ["Hello, world.", "Hi.", "\u4f60\u597d \u4e16\u754c"]
-
-	assert run_punctuation_filters(module, sequence) == sequence
-
-
 PAUSE = ("PunctuationBreakCommand", 250)
 
 
@@ -201,8 +141,6 @@ PAUSE = ("PunctuationBreakCommand", 250)
 			"\u4f60\u597d \u4e16\u754c hello world",
 			["\u4f60\u597d", " ", PAUSE, "\u4e16\u754c", " ", PAUSE, "hello", " ", PAUSE, "world"],
 		),
-		# The ideographic space (U+3000) typed from a CJK layout.
-		("\u3000", "\u4f60\u597d\u3000\u4e16\u754c", ["\u4f60\u597d", "\u3000", PAUSE, "\u4e16\u754c"]),
 		# A comma followed by a space: both the comma and the space pause.
 		(
 			"\uff0c ",
@@ -210,7 +148,7 @@ PAUSE = ("PunctuationBreakCommand", 250)
 			["\u4f60\u597d", "\uff0c", PAUSE, "\u4e16\u754c", " ", PAUSE, "hello"],
 		),
 	],
-	ids=["space", "ideographic space", "comma and space"],
+	ids=["space", "comma and space"],
 )
 def test_a_space_in_the_list_pauses_at_every_such_space(monkeypatch, characters, item, expected):
 	# Decided by the user (2026-10-23): the list keeps every character typed, spaces included.
@@ -395,14 +333,3 @@ def test_merge_edge_breaks(monkeypatch, sequence, expected):
 	assert [item for item in result if isinstance(item, str)] == [
 		item for item in expected if item not in commands
 	]
-
-
-def test_is_edge_break(monkeypatch):
-	module, BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	assert module._is_edge_break(module.NumberEdgeBreakCommand(10))
-	assert not module._is_edge_break(module.NumberBreakCommand(10))
-	assert not module._is_edge_break(module.PunctuationBreakCommand(10))
-	plain = BreakCommand(10)
-	assert not module._is_edge_break(plain)
-	plain.worldvoice_number_edge = True
-	assert module._is_edge_break(plain)

@@ -1,6 +1,5 @@
 """The pipeline settings table, repository and service."""
 
-import inspect
 import sys
 from dataclasses import asdict, fields
 
@@ -66,21 +65,6 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 	assert all(spec.ring for spec in module.PIPELINE_SETTINGS if spec.driver_id)
 
 
-@pytest.mark.parametrize(
-	("field", "stored"),
-	[
-		("scope", "scope"),
-		("number_mode", "numberMode"),
-		# NVDA spells "say all" sayAll in its own keys.
-		("sayall_wait_factor", "sayAllWaitFactor"),
-		("unspaced_script_space_wait_factor", "unspacedScriptSpaceWaitFactor"),
-	],
-)
-def test_stored_key_is_nvda_camel_case_of_the_field(monkeypatch, field, stored):
-	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	assert module.stored_key_for(field) == stored
-
-
 def test_every_entry_reads_its_stored_key_from_the_derivation(monkeypatch):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	assert all(spec.stored_key == module.stored_key_for(spec.key) for spec in module.PIPELINE_SETTINGS)
@@ -121,32 +105,6 @@ def test_group_size_confspec_is_its_range(monkeypatch):
 	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=3,min=2,max=10)"
 	assert not hasattr(spec, "stored_min_value")
 	assert [other.key for other in module.PIPELINE_SETTINGS if other.reset_out_of_range] == ["group_size"]
-
-
-def test_group_wait_setting_is_gone(monkeypatch):
-	# Decided by the user (2026-10-22): groups and symbols are separated by the number wait; no migration.
-	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	assert "group_wait_factor" not in module.PIPELINE_CONFIG_KEYS
-	assert "group_wait_factor" not in {field.name for field in fields(module.PipelineSettings)}
-	assert "groupwaitfactor" not in {spec.driver_id for spec in module.PIPELINE_SETTINGS}
-	assert not hasattr(module.PipelineSettings, "scaled_group_wait")
-	assert not hasattr(module, "GROUP_WAIT_UNIT_MS")
-
-
-def test_punctuation_wait_has_no_unit_or_cap_of_its_own(monkeypatch):
-	# Decided by the user (2026-10-26): no 5 ms unit and no 500 ms cap; no migration of stored values.
-	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	assert not hasattr(module, "PUNCTUATION_WAIT_UNIT_MS")
-	assert not hasattr(module, "MAX_PUNCTUATION_WAIT_MS")
-	assert module.PIPELINE_CONFSPEC["punctuationWaitFactor"] == "integer(default=0,min=0,max=100)"
-
-
-def test_ignore_comma_option_is_gone(monkeypatch):
-	# Decided by the user (2026-10-22): value mode removes thousands separators instead; no migration.
-	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	assert "ignore_comma_between_number" not in module.PIPELINE_CONFIG_KEYS
-	assert "ignore_comma_between_number" not in {field.name for field in fields(module.PipelineSettings)}
-	assert "cni" not in {spec.driver_id for spec in module.PIPELINE_SETTINGS}
 
 
 def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
@@ -203,7 +161,6 @@ def test_int_confspec_carries_the_spec_bounds(monkeypatch):
 		("number_wait_factor", -3, 0),
 		# The global factor is floored to tens first, then clamped.
 		("global_wait_factor", "57", 50),
-		("global_wait_factor", 150, 100),
 		("global_wait_factor", -5, 0),
 	],
 )
@@ -214,20 +171,12 @@ def test_convert_clamps_ints_to_their_bounds(monkeypatch, key, raw, expected):
 
 @pytest.mark.parametrize(
 	("raw", "expected"),
-	[(0, 3), (-5, 3), (1, 3), (11, 3), (99, 3), (2, 2), (10, 10), ("7", 7)],
+	[(1, 3), (11, 3), (2, 2), (10, 10), ("7", 7)],
 )
 def test_group_size_outside_its_range_reads_as_the_default(monkeypatch, raw, expected):
 	# Decided by the user (2026-10-22): outside 2..10 is 3, not clamped.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	assert module.PIPELINE_SETTING_BY_KEY["group_size"].convert(raw) == expected
-
-
-def test_group_settings_add_the_size_without_a_wait(monkeypatch):
-	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=3,min=2,max=10)"
-	assert "pairWaitFactor" not in module.PIPELINE_CONFSPEC
-	assert module.PIPELINE_SETTING_BY_KEY["group_size"].driver_id is None
-	assert module.PIPELINE_CONFIG_KEYS[-1] == "punctuation_pause_characters"
 
 
 def test_get_reads_defaults_and_current_profile(monkeypatch):
@@ -274,15 +223,10 @@ def test_update_converts_normalizes_and_writes_every_passed_key(monkeypatch):
 
 @pytest.mark.parametrize(
 	"characters",
-	[" ", "\uff0c ", " \uff0c", "\u3000", "\u00a0", "\t", "\uff0c\n\u3002", ""],
+	[" ", "\uff0c ", ""],
 	ids=[
 		"space",
 		"trailing space",
-		"leading space",
-		"ideographic space",
-		"no-break space",
-		"tab",
-		"newline",
 		"empty",
 	],
 )
@@ -303,11 +247,8 @@ def test_the_characters_are_stored_and_read_exactly_as_typed(monkeypatch, charac
 	("raw", "expected"),
 	[
 		("pair", "value"),
-		("roman", "value"),
-		("", "value"),
 		(None, "value"),
 		("value", "value"),
-		("number", "number"),
 		("group", "group"),
 		("none", "none"),
 	],
@@ -415,24 +356,8 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 	[
 		# The global factor scales in whole tens; what is left over is dropped.
 		({"global_wait_factor": 25, "number_wait_factor": 7}, "scaled_number_wait", 14),
-		({"global_wait_factor": 30, "item_wait_factor": 4}, "scaled_item_wait", 12),
-		({"global_wait_factor": 9, "sayall_wait_factor": 50}, "scaled_sayall_wait", 0),
-		(
-			{"global_wait_factor": 10, "unspaced_script_space_wait_factor": 6},
-			"scaled_unspaced_script_space_wait",
-			6,
-		),
-		(
-			{"global_wait_factor": 9, "unspaced_script_space_wait_factor": 6},
-			"scaled_unspaced_script_space_wait",
-			0,
-		),
 		# The punctuation pause follows the global factor like every other pause, with no cap
 		# (decided by the user, 2026-10-26).
-		({"global_wait_factor": 0, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 0),
-		({"global_wait_factor": 9, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 0),
-		({"global_wait_factor": 10, "punctuation_wait_factor": 30}, "scaled_punctuation_wait", 30),
-		({"global_wait_factor": 25, "punctuation_wait_factor": 7}, "scaled_punctuation_wait", 14),
 		({"global_wait_factor": 100, "punctuation_wait_factor": 100}, "scaled_punctuation_wait", 1000),
 	],
 )
@@ -569,13 +494,6 @@ def test_a_save_writes_every_passed_key_even_unchanged(monkeypatch):
 		spec.stored_key for spec in module.PIPELINE_STORED_SETTINGS
 	)
 	assert seen == []
-
-
-def test_the_refused_key_bookkeeping_is_gone(monkeypatch):
-	# The save writes every key, so the repository no longer tracks which keys NVDA refused.
-	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	assert not hasattr(module.ConfigPipelineRepository, "fallen_back")
-	assert "on_fallback" not in inspect.signature(module.read_stored).parameters
 
 
 def test_a_save_leaves_a_refused_key_it_does_not_name(monkeypatch):

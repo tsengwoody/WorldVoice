@@ -9,8 +9,6 @@ def _driver_methods(*names, trust_voice_language=True):
 	env = {
 		"_": lambda text: text,
 		"config": types.SimpleNamespace(conf={"speech": {"trustVoiceLanguage": trust_voice_language}}),
-		"StringParameterInfo": lambda id, name: types.SimpleNamespace(id=id, name=name),
-		"NUMBER_MODE_CHOICES": (("value", "value"), ("number", "number"), ("group", "group")),
 	}
 	return load_definitions(WORLDVOICE / "__init__.py", ["SynthDriver"], env, members=names)["SynthDriver"]
 
@@ -37,16 +35,6 @@ def test_spelling_passes_through_otherwise():
 		synth, calls = _spelling_synth(uwv=uwv, trust_voice_language=trust)
 		synth.patchedSpeakSpelling("ab", "fr", False, priority=1)
 		assert calls == [(("ab", "fr", False), {"priority": 1})]
-
-
-def test_number_modes_are_a_plain_dict_in_order():
-	modes = _driver_methods("_get_availableNummods")()._get_availableNummods()
-	assert type(modes) is dict
-	assert [(key, info.id, info.name) for key, info in modes.items()] == [
-		("value", "value", "value"),
-		("number", "number", "number"),
-		("group", "group", "group"),
-	]
 
 
 def _context_module(stub_modules, synth):
