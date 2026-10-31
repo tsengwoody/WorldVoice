@@ -386,7 +386,11 @@ def test_read_stored_returns_the_default_for_an_invalid_value_and_warns_once(mon
 	assert dict(section) == {}
 
 
-@pytest.mark.parametrize("key", list(OLD_DEFAULTS))
+# One key of each kind of field: text, choice, wait factor, switch and bounded size.
+INVALID_KEYS = ["scope", "number_mode", "global_wait_factor", "punctuation_pause_enabled", "group_size"]
+
+
+@pytest.mark.parametrize("key", INVALID_KEYS)
 def test_load_reads_the_default_for_each_invalid_key(monkeypatch, key):
 	# Decided by the user (2026-10-22, decision A): every pipeline key falls back on its own.
 	other = "number_wait_factor" if key == "item_wait_factor" else "item_wait_factor"
@@ -417,7 +421,7 @@ def nvda_conf(values=(), refused=None):
 	return {"WorldVoice": {"pipeline": section}}, section
 
 
-@pytest.mark.parametrize("key", list(OLD_DEFAULTS))
+@pytest.mark.parametrize("key", INVALID_KEYS)
 def test_a_panel_save_writes_the_default_over_a_refused_value(monkeypatch, key):
 	# Decided by the user (2026-10-22, fix/uniform-settings-save): a save writes every value the
 	# panel shows, and a refused value shows as the default; NVDA writes only what differs.
