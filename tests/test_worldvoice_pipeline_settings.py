@@ -199,6 +199,61 @@ def test_voice_parameters_commit_and_follow_the_consistency_policy(monkeypatch, 
 	assert calls == ["commit"] + ([("consistent", instance)] if consistent else [])
 
 
+@pytest.mark.parametrize(
+	("name", "value"),
+	[
+		("volume", 11),
+		("rate", 22),
+		("pitch", 33),
+		("inflection", 44),
+		("variant", "v55"),
+		("rateBoost", True),
+	],
+)
+def test_parameter_getters_read_the_main_voice(monkeypatch, name, value):
+	conf = worldvoice_conf()
+	synth_class, _ = load_synth(monkeypatch, conf)
+	synth = object.__new__(synth_class)
+	# Every parameter starts with a value of its own, so a getter reading another one fails.
+	instance = types.SimpleNamespace(
+		volume=1,
+		rate=2,
+		pitch=3,
+		inflection=4,
+		variant="v5",
+		rateBoost=False,
+		commit=lambda: None,
+	)
+	synth._voiceManager = types.SimpleNamespace(
+		default_voice_instance=instance,
+		parameter_consistency=types.SimpleNamespace(enabled=False),
+	)
+	# The AST-loaded class has no NVDA auto-property metaclass; call the accessors themselves.
+	getattr(synth, f"_set_{name}")(value)
+	read = getattr(synth, f"_get_{name}")()
+	# The type too: True == 1, so rateBoost reading volume would otherwise pass.
+	assert (type(read), read) == (type(value), value)
+
+
+def test_pipeline_settings_are_descriptors_on_the_class(monkeypatch):
+	conf = {"WorldVoice": {"pipeline": {}}}
+	synth_class, settings_module = load_synth(monkeypatch, conf)
+	reads = []
+	get = settings_module.pipeline_settings.get
+	monkeypatch.setattr(settings_module.pipeline_settings, "get", lambda: reads.append("get") or get())
+	stored = [
+		spec
+		for spec in settings_module.PIPELINE_SETTINGS
+		if spec.driver_id is not None and spec.pipeline_config
+	]
+	assert stored
+	for spec in stored:
+		descriptor = getattr(synth_class, spec.driver_id)
+		assert descriptor is vars(synth_class)[spec.driver_id]
+		assert type(descriptor).__name__ == "_PipelineSetting"
+	assert reads == []
+
+
 def test_speech_context_falls_back_while_the_synth_is_not_running(monkeypatch):
 	conf = {"WorldVoice": {"pipeline": {}}}
 	synth_class, _ = load_synth(monkeypatch, conf)

@@ -255,6 +255,36 @@ def test_entry_points_are_silent_after_terminate():
 	driver.pause(True)
 
 
+def test_check_reports_the_driver_available():
+	# NVDA lists only synths whose check() is true.
+	assert load_synth_class(_construction_environment(None, []).environment).check() is True
+
+
+def test_a_second_terminate_does_nothing():
+	changes = []
+	built = _construction_environment(None, changes)
+	drivers = []
+	bridge_class = built.environment["NvdaEventBridge"]
+
+	class ReenteringBridge(bridge_class):
+		def close(self):
+			super().close()
+			# A terminate reached from inside teardown must not change how the first one ends.
+			drivers[0].terminate(commit=False)
+
+	built.environment["NvdaEventBridge"] = ReenteringBridge
+	driver = load_synth_class(built.environment)()
+	drivers.append(driver)
+	driver.terminate()
+	after_first = list(changes)
+	driver.terminate()
+	assert changes == after_first
+	for step in ("task stopped", "bridge stopped", "engine stopped", "ledger stopped", "end"):
+		assert changes.count(step) == 1, step
+	# The voice manager still saved (commit=True): its fake asserts the flag before it logs a stop.
+	assert built.logged == []
+
+
 def test_terminate_drops_the_number_language_choice():
 	# Phase 40 review M1: the choice holds the voice manager, which terminate drops with the rest.
 	driver = load_synth_class(_construction_environment(None, []).environment)()
