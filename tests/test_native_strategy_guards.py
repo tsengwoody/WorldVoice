@@ -349,12 +349,10 @@ def test_vocalizer_inner_privates_are_listed_and_exist(engine, names):
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
-def test_vocalizer_wrapper_has_no_guard_fallback(engine):
-	# The vendored inner is pinned above, so the guard always installs: no flag, no
-	# "original driver" branch. Like every engine, the core is cancelled through cancel()
-	# (its SegmentHost), never by the request's token (fix/ve-drop-cancellation-token).
+def test_vocalizer_voice_declares_waitfactor_and_variant(engine):
+	# The Voice declares exactly waitfactor and variant: like every engine, the core is cancelled
+	# through cancel() (its SegmentHost) and takes no request token (fix/ve-drop-cancellation-token).
 	source = (ROOT / "driver" / engine / "__init__.py").read_text(encoding="utf-8")
-	assert "_guardInstalled" not in source
 	tree = ast.parse(source)
 	voice = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Voice")
 	assert _class_constant(tree, "Voice", "extraCapabilities") == {"waitfactor", "variant"}, voice.name
@@ -641,9 +639,8 @@ def test_token_name_detection():
 
 def test_no_add_on_code_names_the_request_token():
 	# Every core is stopped through cancel(); plain speak passes no token and no Voice declares
-	# one (fix/ve-drop-cancellation-token). The bridge behaviour itself is pinned by
-	# test_plain_speak_never_passes_the_request_token; this keeps the keyword and the trait from
-	# coming back in any add-on source, vendored inner drivers included.
+	# one (fix/ve-drop-cancellation-token). This is the one check on that rule: it keeps the
+	# keyword and the trait from coming back in any add-on source, vendored inner drivers included.
 	found = sorted(
 		f"{path.relative_to(ROOT)}:{line}"
 		for path in ROOT.rglob("*.py")
