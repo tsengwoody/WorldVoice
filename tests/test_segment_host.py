@@ -599,6 +599,31 @@ def test_reset_recovers_from_a_lifecycle_fault(env, monkeypatch):
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
 
 
+def test_faulted_reports_a_control_error_or_lifecycle_fault_until_reset(env, monkeypatch):
+	assert env.host.faulted is False
+	env.host.latch_control_error(OSError("stop failed"))
+	assert env.host.faulted is True
+	with env.host.admission():
+		env.host.reset()
+	assert env.host.faulted is False
+	boundary = env.host.wait_native_boundary
+
+	def broken(operation):
+		boundary(operation)
+		raise RuntimeError("hook failed")
+
+	monkeypatch.setattr(env.host, "wait_native_boundary", broken)
+	_, _, failed = env.speak()
+	env.run_native(env.strategy.wait_submitted())
+	assert failed.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
+	assert env.host.control_error is None
+	assert env.host.faulted is True
+	monkeypatch.undo()
+	with env.host.admission():
+		env.host.reset()
+	assert env.host.faulted is False
+
+
 def test_hook_fault_stops_the_player_and_releases_the_worker(env, monkeypatch):
 	boundary = env.host.wait_native_boundary
 

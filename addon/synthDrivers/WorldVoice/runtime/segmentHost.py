@@ -205,6 +205,11 @@ class SegmentHost:
 		with self._condition:
 			return self._control_error
 
+	@property
+	def faulted(self) -> bool:
+		"""True while a control error or a lifecycle fault is latched: what reset() clears."""
+		return self.control_error is not None or self._lifecycle.fault is not None
+
 	def on_delivery_thread(self) -> bool:
 		return self._lifecycle.on_delivery_thread()
 
