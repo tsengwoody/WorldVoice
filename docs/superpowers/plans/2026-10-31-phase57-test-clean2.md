@@ -236,7 +236,7 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 
 ### Task 14: Merges M1, M2, M3
 
-**Files:** Modify `tests/test_worldvoice_cancel_wrappers.py:210-245`, `tests/test_role_panel_ui.py:132-145`, `tests/test_role_panel.py`, `tests/test_core_install.py`; delete `tests/test_role_panel.py` if emptied (it is not: one kept test remains — check) and `tests/test_core_archive.py`.
+**Files:** Modify `tests/test_worldvoice_cancel_wrappers.py:210-245`, `tests/test_role_panel_ui.py:132-145`, `tests/test_role_panel.py` (two kept tests remain), `tests/test_core_install.py`; delete `tests/test_core_archive.py`.
 
 **Interfaces:** Consumes `M1.txt`, `M2.txt`, `c13c`. Produces `c14a`…`c14c`; `impl/movecheck.py`.
 
