@@ -22,9 +22,9 @@ Appendix files, committed next to this spec:
 | Removed: decide items that lean remove | 31 |
 | **Removed in total** | **486** |
 | Kept decide items | 90 (76 unchanged, 14 edited) |
-| New ids | 1 (an assertion moved out of a parametrize, §5.4 E2) |
+| New ids | 2 (an assertion moved out of a parametrize, §5.4 E2; the frozen-values guard of the batch 1 review, m2) |
 | Renamed or moved ids | 7 (§5.5, `-renames.txt`) |
-| **Collected and passed after** | **3242** (= 3727 − 486 + 1), 0 skipped |
+| **Collected and passed after** | **3243** (= 3727 − 486 + 2), 0 skipped |
 | Test files deleted | 4: `test_role_guards.py`, `test_workspace.py`, `test_worldvoice_index_command.py` (emptied by removals); `test_core_archive.py` (its 3 kept tests move to `test_core_install.py`) |
 | Changes under `addon/` | none |
 
@@ -287,7 +287,7 @@ At the end of the branch: `BASE` = the baseline, `REMOVED` = `2026-10-31-phase57
 
 ### 6.2 Test count
 
-`python3 -m pytest -q tests`: **3242 passed, 0 skipped** (3727 − 486 + 1). Also run each test file this phase touches on its own (`python3 -m pytest -q tests/<file>`), so that a kept test that only passed because a deleted test ran before it in the same module shows up.
+`python3 -m pytest -q tests`: **3243 passed, 0 skipped** (3727 − 486 + 2). Also run each test file this phase touches on its own (`python3 -m pytest -q tests/<file>`), so that a kept test that only passed because a deleted test ran before it in the same module shows up.
 
 ### 6.3 Coverage gate
 
@@ -338,7 +338,7 @@ Each implementation commit carries its own id list (a subset of the final list; 
 
 - **Phase 58, the coverage gaps** (audit §4.3 and the groups' 覆蓋缺口), listed for traceability only: `runtime/segmentHost.py:546-547`, `:562-564` (`stop_player` raising when an ordinary record retires or fails), `:637-638` (`lifecycle.run` raising falls back to `reject_new`); `runtime/_segmentLifecycle.py:451-452` (`on_retired` raising), `:514`; RHVoice `RHVoice_new_message` raising (`driver/RHVoice/__init__.py:148-150`) and the submit-failure cleanup (`:319-322`); VE/Cerence output-buffer overflow guard (`driver/VE/__init__.py:271`, `driver/Cerence/__init__.py:271`), the Sonic early feed (`:279-280`), `:288`, queued `getParameter` (VE `:550-557`), `_terminationError` (VE `:883-886`, Cerence `:892-895`); SAPI5 legacy audio Bookmark/index (`driver/SAPI5/__init__.py:328-330`, `:338-340`) and `:153-156`; OneCore `:356-357`; `runtime/requestBuilder.py:39`, `:46`; `bridge/engineAdapter.py` legacy-mode cancel and raise paths (`192->194`, `203->205`, `208->210`); `rolePresenter.setVariant` (`globalPlugins/WorldVoice/rolePresenter.py:85`) and `:145-146`; `panels/detection.py:59-60`; `voices/manager.py:212-213`; `pipeline/context.py:39-40`; and the dead line `engineRegistry/discovery.py:78` (an `addon/` change).
 - No change under `addon/`.
-- No new tests, except the one assertion moved out of a parametrize (E2) and the assertions moved by M1 and M2.
+- No new tests, except the one assertion moved out of a parametrize (E2), the assertions moved by M1 and M2, and the batch review fixes the orchestrator accepted: the contract test's `cancel()` stop-failure assertion (batch 1 I1), the frozen-values guard `test_runtime_playback_context.py::test_runtime_value_classes_are_frozen` (batch 1 m2), and the requested-version URL assertion in `test_generate_unicode_scripts.py::test_downloaded_bytes_must_match_the_checksum` (batch 2 m1).
 - The deferred merges and suggestions of §5.6.
 - No translation, readme or packaging work (no strings change).
 

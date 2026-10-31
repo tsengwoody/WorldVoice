@@ -4,7 +4,7 @@
 > WorldVoice normal flow: one implementer runs every task in order; the
 > orchestrator dispatches the final Fable 5.1 review (DEVELOPMENT_WORKFLOW.md §3.3).
 
-**Goal:** Delete the 486 test ids in the spec's removal list, do the restructures, renames, edits and merges the spec fixes (§5.2–§5.7), and end at 3242 passed, 0 skipped, with no `addon/` change and no coverage loss per module.
+**Goal:** Delete the 486 test ids in the spec's removal list, do the restructures, renames, edits and merges the spec fixes (§5.2–§5.7), and end at 3243 passed, 0 skipped, with no `addon/` change and no coverage loss per module.
 
 **Architecture:** Test-only phase. Every commit is one kind (pure deletion, restructure, rename, edit, merge) and carries its own id list, a slice of the final list. After every commit a scripted collection proof compares the collection with the previous commit's: exactly that commit's ids are gone, every renumbered index id pairs with a kept id of the same function and parameters, and nothing else changes. Deletion commits must also pass a token check that proves they only remove tokens.
 
@@ -77,15 +77,17 @@
 
 | After | Count | | After | Count |
 |---|---|---|---|---|
-| base (spec commit) | 3727 | | T10 R12 / R3 | 3298 / 3277 |
-| T2 G1 | 3710 | | T11 R4 / R5 / R6 / R7 / F | 3266 / 3252 / 3247 / 3245 / 3244 |
-| T3 G2 | 3700 | | T12 renames | 3244 |
-| T4 G3 | 3662 | | T13 E1 / E2+E3 / E4+E5 | 3244 / 3245 / 3245 |
-| T5 G4a | 3593 | | T14 M1 / M2 / M3 | 3243 / 3242 / 3242 |
-| T6 G4b | 3484 | | | |
-| T7 G5 | 3428 | | | |
-| T8 G6 | 3385 | | | |
-| T9 G7 | 3346 | | | |
+| base (spec commit) | 3727 | | T10 R12 / R3 | 3299 / 3278 |
+| T2 G1 | 3710 | | T11 R4 / R5 / R6 / R7 / F | 3267 / 3253 / 3248 / 3246 / 3245 |
+| T3 G2 | 3700 | | T12 renames | 3245 |
+| T4 G3 | 3662 | | T13 E1 / E2+E3 / E4+E5 | 3245 / 3246 / 3246 |
+| T5 G4a | 3593 | | T14 M1 / M2 / M3 | 3244 / 3243 / 3243 |
+| T6 G4b | 3485 | | | |
+| T7 G5 | 3429 | | | |
+| T8 G6 | 3386 | | | |
+| T9 G7 | 3347 | | | |
+
+From Task 6 on, every count includes the frozen-values guard the batch 1 review added after Task 5 (`test_runtime_playback_context.py::test_runtime_value_classes_are_frozen`, 3594 after it), so the final count is 3243.
 
 Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11–15**; stop and report after Tasks 5 and 10.
 
@@ -155,7 +157,7 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 - [ ] **Step 1:** Delete the `G4b.txt` ids and the §5.7 orphans. `legacy` fixture: drop the `driver` import `:24`, `Voice=driver.Voice` `:28`, `"driver"` in the loop `:22`.
 - [ ] **Step 2: Fixture probe (Review Focus 2).** Delete the three stubs `:18-20` (`config`, `languageHandler`, `synthDriverHandler`); run `tests/test_legacy_speech_commands.py` alone and in the full suite. Keep the deletion only if both pass; otherwise restore them and log `Ruling:`.
 - [ ] **Step 3:** `_driver_methods` in `test_lint_rewrites.py`: drop `StringParameterInfo`, `NUMBER_MODE_CHOICES`; the file alone passes.
-- [ ] **Step 4:** Proof block. Expected: 3484; pairs only in `test_scaled_waits_are_the_global_units_times_the_factor`, `test_other_synths_get_only_plain_breaks_from_the_stages`, `test_worldvoice_keeps_the_break_subclasses_from_the_stages`, `test_pauses_between`, `test_worked_examples`; `TOKCHECK OK`.
+- [ ] **Step 4:** Proof block. Expected: 3485; pairs only in `test_scaled_waits_are_the_global_units_times_the_factor`, `test_other_synths_get_only_plain_breaks_from_the_stages`, `test_worldvoice_keeps_the_break_subclasses_from_the_stages`, `test_pauses_between`, `test_worked_examples`; `TOKCHECK OK`.
 - [ ] **Step 5:** Commit `test: remove the G4 pause, settings and stage duplicates`.
 
 ### Task 7: G5 deletions (driver, panels, UI)
@@ -165,7 +167,7 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 **Interfaces:** Consumes `G5.txt`, `c06`. Produces `c07-g5.jsonl`.
 
 - [ ] **Step 1:** Delete the `G5.txt` ids, the two emptied files, and the orphans; orphans of `test_role_panel.py` that M2's source test still uses wait for Task 14.
-- [ ] **Step 2:** Proof block. Expected: 3428; pairs only in `test_read_control_without_a_control_is_absent`; `TOKCHECK OK` (deleted files allowed).
+- [ ] **Step 2:** Proof block. Expected: 3429; pairs only in `test_read_control_without_a_control_is_absent`; `TOKCHECK OK` (deleted files allowed).
 - [ ] **Step 3:** Commit `test: remove the G5 panel and UI duplicates`.
 
 ### Task 8: G6 deletions (guards, generators)
@@ -175,7 +177,7 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 **Interfaces:** Consumes `G6.txt`, `c07`. Produces `c08-g6.jsonl`.
 
 - [ ] **Step 1:** Delete the `G6.txt` ids and orphans (`test_an_unreadable_…`: drop the `directory` maker, keep `ids=["missing"]`).
-- [ ] **Step 2:** Proof block. Expected: 3385; pairs only in `test_network_errors_name_the_url_and_suggest_a_local_file` (both generator files), `test_select_drops_characters_without_an_unspaced_script`; `TOKCHECK OK`.
+- [ ] **Step 2:** Proof block. Expected: 3386; pairs only in `test_network_errors_name_the_url_and_suggest_a_local_file` (both generator files), `test_select_drops_characters_without_an_unspaced_script`; `TOKCHECK OK`.
 - [ ] **Step 3:** Commit `test: remove the G6 guard and generator duplicates`.
 
 ### Task 9: G7 deletions (detection, install, registry)
@@ -185,7 +187,7 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 **Interfaces:** Consumes `G7.txt`, `c08`. Produces `c09-g7.jsonl`.
 
 - [ ] **Step 1:** Delete the `G7.txt` ids, `test_workspace.py`, and the orphans. `test_core_archive.py` keeps `test_install_always_removes_the_archive` and `test_menu_import_reports_a_corrupt_archive` with their loader (N4).
-- [ ] **Step 2:** Proof block. Expected: 3346; pairs only in `test_a_configured_engine_flag_overrides_the_manifest_default`, `test_plugin_with_old_contract_names_is_reported`, `test_engine_enabled_reads_the_config_then_the_manifest`; `TOKCHECK OK`.
+- [ ] **Step 2:** Proof block. Expected: 3347; pairs only in `test_a_configured_engine_flag_overrides_the_manifest_default`, `test_plugin_with_old_contract_names_is_reported`, `test_engine_enabled_reads_the_config_then_the_manifest`; `TOKCHECK OK`.
 - [ ] **Step 3:** Commit `test: remove the G7 detection, install and registry pins`.
 
 ### Task 10: Restructures R1–R3 (pipeline number tables)
@@ -195,10 +197,10 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 **Interfaces:** Consumes `R12-filters.txt`, `R3-edges.txt`, `c09`. Produces `c10a-r12.jsonl`, `c10b-r3.jsonl`.
 
 - [ ] **Step 1 (R1, R2):** Replace `test_number_mode`'s two stacked decorators by `@pytest.mark.parametrize(("text", "mode", "size", "pause"), CASES)`; `CASES` built from the tables so each `(mode, size, pause)` runs exactly its texts (spec §5.3 R1: no `("group",3,0)`/`("group",10,0)`; `SHARED` only for `("value",3,0)` and `("group",2,50)`; `-1234`, `123`, `12`, `1.2.3` out of `("value",3,0)`; `123` out of `("number",3,0)`). Delete the five `SPEC_TABLE` rows (R2).
-- [ ] **Step 2:** Proof block without step 3 (restructure). Expected: 3298; the 27 `[R]` ids of `test_number_mode` in `-edited.txt` kept with the same strings; no pairs.
+- [ ] **Step 2:** Proof block without step 3 (restructure). Expected: 3299; the 27 `[R]` ids of `test_number_mode` in `-edited.txt` kept with the same strings; no pairs.
 - [ ] **Step 3:** Commit `test: trim the number-mode tables to the cases with their own branch`.
 - [ ] **Step 4 (R3):** Delete the `id="1g"` row; drop the item-wait-0 entry from the `"inside"` and `"numbers"` `item_rows` calls; make `STAGE_ROWS` leave out every `item_rows` row made at an item wait other than 0 (expression is free; non-`item_rows` rows unaffected).
-- [ ] **Step 5:** Proof block without step 3. Expected: 3277; no pairs (all `ROWS` ids are explicit).
+- [ ] **Step 5:** Proof block without step 3. Expected: 3278; no pairs (all `ROWS` ids are explicit).
 - [ ] **Step 6:** Commit `test: run each number-edge worked example once per distinct input`.
 - [ ] **Step 7: Batch 2 boundary.** Report and wait.
 
@@ -208,11 +210,11 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 
 **Interfaces:** Consumes `R4…R7`, `F-nvda-ready` lists, `c10b`. Produces `c11a`…`c11e` collections.
 
-- [ ] **Step 1 (R4):** one `@pytest.mark.parametrize(("failure", "engine"), [("wrong_core", "OneCore"), ("unsupported", "Espeak"), ("support_error", "OneCore")])`. Proof → 3266. Commit `test: keep the three legacy-fallback cases that differ`.
-- [ ] **Step 2 (R5):** both tests parametrize over a new list `scope`, `number_mode`, `global_wait_factor`, `punctuation_pause_enabled`, `group_size`; `OLD_DEFAULTS` untouched. Proof → 3252. Commit `test: check the invalid-key default once per kind of field`.
-- [ ] **Step 3 (R6):** one `("consistent", "name")` parametrize: the six `False-*` and `True-volume`. Proof → 3247. Commit.
-- [ ] **Step 4 (R7):** one `("pause", "remove")` parametrize: `(False, True)`, `(True, False)`. Proof → 3245. Commit.
-- [ ] **Step 5 (F):** `def test_ready_on_ref_nvda_is_true_and_silent(skipped_engine, monkeypatch)`; `engine` fixture stays (used by `test_live_and_static_views_agree_on_ref_nvda`). Proof → 3244, ids `[Espeak]`, `[OneCore]` unchanged. Commit `test: check NVDA readiness only for the engines it skips`.
+- [ ] **Step 1 (R4):** one `@pytest.mark.parametrize(("failure", "engine"), [("wrong_core", "OneCore"), ("unsupported", "Espeak"), ("support_error", "OneCore")])`. Proof → 3267. Commit `test: keep the three legacy-fallback cases that differ`.
+- [ ] **Step 2 (R5):** both tests parametrize over a new list `scope`, `number_mode`, `global_wait_factor`, `punctuation_pause_enabled`, `group_size`; `OLD_DEFAULTS` untouched. Proof → 3253. Commit `test: check the invalid-key default once per kind of field`.
+- [ ] **Step 3 (R6):** one `("consistent", "name")` parametrize: the six `False-*` and `True-volume`. Proof → 3248. Commit.
+- [ ] **Step 4 (R7):** one `("pause", "remove")` parametrize: `(False, True)`, `(True, False)`. Proof → 3246. Commit.
+- [ ] **Step 5 (F):** `def test_ready_on_ref_nvda_is_true_and_silent(skipped_engine, monkeypatch)`; `engine` fixture stays (used by `test_live_and_static_views_agree_on_ref_nvda`). Proof → 3245, ids `[Espeak]`, `[OneCore]` unchanged. Commit `test: check NVDA readiness only for the engines it skips`.
 - [ ] Each step: the file alone passes (Review Focus 2); proof block without step 3; ids equal to the kept ids, no pairs.
 
 ### Task 12: Renames of the two single-row timing parametrizes
@@ -221,8 +223,8 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 
 **Interfaces:** Consumes `c11e`; renames `impl/renames-t12.txt` (the two `[0] -> no-param` lines of `-renames.txt`). Produces `c12a`, `c12b`.
 
-- [ ] **Step 1:** `test_retire_waits_for_admitted_consumers`: delete the parametrize, the `start_delay` parameter and `Event().wait(start_delay)` with its comment; drop `Event` import if unused. Proof (REMOVED `/dev/null`, RENAMES one line) → 3244. Run the file 5× → all pass. Commit `test: drop the delay parameter left with one value`.
-- [ ] **Step 2:** `test_queued_run_does_not_poll_its_token`: delete the parametrize and `start_delay` argument; `CountingToken.__init__` and `_accept_counting` lose `start_delay`; delete the `if self.checks == 0: Event().wait(...)` lines (grep: `test_wait_idle_wakes_on_token_cancel_without_polling` passes no delay). Proof → 3244. File 5× → pass. Commit.
+- [ ] **Step 1:** `test_retire_waits_for_admitted_consumers`: delete the parametrize, the `start_delay` parameter and `Event().wait(start_delay)` with its comment; drop `Event` import if unused. Proof (REMOVED `/dev/null`, RENAMES one line) → 3245. Run the file 5× → all pass. Commit `test: drop the delay parameter left with one value`.
+- [ ] **Step 2:** `test_queued_run_does_not_poll_its_token`: delete the parametrize and `start_delay` argument; `CountingToken.__init__` and `_accept_counting` lose `start_delay`; delete the `if self.checks == 0: Event().wait(...)` lines (grep: `test_wait_idle_wakes_on_token_cancel_without_polling` passes no delay). Proof → 3245. File 5× → pass. Commit.
 
 ### Task 13: Edits E1–E5
 
@@ -230,9 +232,11 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 
 **Interfaces:** Consumes `c12b`. Produces `c13a`…`c13c`.
 
-- [ ] **Step 1 (E1):** delete the token comment and two token assertions. Proof (empty lists) → 3244; `TOKCHECK OK`. Commit `test: leave the request-token rule to the one AST guard`.
-- [ ] **Step 2 (E2, E3):** delete `MOVED` (+comment), `top_level_names` and the `:136` assertion after `grep -rnw` shows no other user; move the `symbols.py` relative-import assertion (with the comment `:137-139`) unchanged into `def test_symbols_module_has_no_relative_imports():` right after the parametrized test; delete the `default_voice` scan `:219-225`. Red/green: the new test fails if `addon/.../pipeline/symbols.py` gains `from . import x` (check in a scratch copy only), passes as is. Proof (RENAMES `+ tests/test_pipeline_structure.py::test_symbols_module_has_no_relative_imports`) → 3245. Commit `test: check the symbols module's imports once, not per pipeline module`.
-- [ ] **Step 3 (E4, E5):** delete `assert "_guardInstalled" not in source`; rename to `test_vocalizer_voice_declares_waitfactor_and_variant`; reword `:388-390` to what is left; reword `:687-690` so it names this guard as the one check on the token keyword and trait (no reference to the removed test). Proof (RENAMES the two `[VE|Cerence]` lines) → 3245. Commit `test: name the vocalizer guard after what it still checks`.
+- [ ] **Step 1 (E1):** delete the token comment and two token assertions. Proof (empty lists) → 3245; `TOKCHECK OK`. Commit `test: leave the request-token rule to the one AST guard`.
+- [ ] **Step 2 (E2, E3):** delete `MOVED` (+comment), `top_level_names` and the `:136` assertion after `grep -rnw` shows no other user; move the `symbols.py` relative-import assertion (with the comment `:137-139`) unchanged into `def test_symbols_module_has_no_relative_imports():` right after the parametrized test; delete the `default_voice` scan `:219-225`. Red/green: the new test fails if `addon/.../pipeline/symbols.py` gains `from . import x` (check in a scratch copy only), passes as is. Proof (RENAMES `+ tests/test_pipeline_structure.py::test_symbols_module_has_no_relative_imports`) → 3246. Commit `test: check the symbols module's imports once, not per pipeline module`.
+- [ ] **Step 3 (E4, E5):** delete `assert "_guardInstalled" not in source`; rename to `test_vocalizer_voice_declares_waitfactor_and_variant`; reword `:388-390` to what is left; reword `:687-690` so it names this guard as the one check on the token keyword and trait (no reference to the removed test). Proof (RENAMES the two `[VE|Cerence]` lines) → 3246. Commit `test: name the vocalizer guard after what it still checks`.
+
+- [ ] **Step 4 (review cleanup, batch 1 m1/m3, batch 2 m3):** one `test:` commit that drops the branches and entries the removed rows left unreached (ledger list) and rewords the comment at `test_pipeline_nvda_symbols.py` (`# Never a path …`) and the stale module docstrings of `test_role_panel.py` and `test_legacy_speech_commands.py`. Proof (empty lists) → collection unchanged; full suite passes.
 
 ### Task 14: Merges M1, M2, M3
 
@@ -240,9 +244,9 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 
 **Interfaces:** Consumes `M1.txt`, `M2.txt`, `c13c`. Produces `c14a`…`c14c`; `impl/movecheck.py`.
 
-- [ ] **Step 1 (M1):** in `test_cancelled_request_drops_index_and_done_notifications` add the LEGACY_DONE comment and `idles_before = real_player(core).idles` after the live request, `assert real_player(core).idles == idles_before` after the cancelled one; red check in a scratch copy: the merged assertion fails if the cancelled request records an idle (e.g. force `idles += 1` in the harness player). Delete the source test. Proof → 3243. Concurrency file 5× → pass. Commit `test: fold the core-cancel idle check into the cancelled-request test`.
-- [ ] **Step 2 (M2):** add `assert ("EVT_WINDOW_DESTROY", panel._onDestroy, None) in panel.bindings` and `assert panel.disable is False`; red check in a scratch copy with `role.py:52` removed → fails. Delete D21 and the `test_role_panel.py` orphans (`pytest`, `checkbox()`, `class Control`). Proof → 3242. Commit `test: check the role panel's destroy binding in the UI test`.
-- [ ] **Step 3 (M3):** move `test_core_archive.py:48-106` verbatim to the end of `test_core_install.py`, add `import types`, `load_definitions` from `addon_loader`, `PLUGIN = ADDON / "globalPlugins/WorldVoice/__init__.py"`, one docstring sentence (these two tests load the real files so coverage sees `coreArchive.py`); delete `test_core_archive.py`. `movecheck.py`: the moved blocks appear byte-identical and in order in the new file; `new − old` is exactly moved blocks + the listed additions → `MOVE OK`. Proof (RENAMES the three `test_core_archive` lines) → 3242. `python3 -m pytest -q --cov=addon/generics --cov-branch tests/test_core_install.py` → `coreArchive.py` 100%. Commit `test: move the archive tests next to the install tests`.
+- [ ] **Step 1 (M1):** in `test_cancelled_request_drops_index_and_done_notifications` add the LEGACY_DONE comment and `idles_before = real_player(core).idles` after the live request, `assert real_player(core).idles == idles_before` after the cancelled one; red check in a scratch copy: the merged assertion fails if the cancelled request records an idle (e.g. force `idles += 1` in the harness player). Delete the source test. Proof → 3244. Concurrency file 5× → pass. Commit `test: fold the core-cancel idle check into the cancelled-request test`.
+- [ ] **Step 2 (M2):** add `assert ("EVT_WINDOW_DESTROY", panel._onDestroy, None) in panel.bindings` and `assert panel.disable is False`; red check in a scratch copy with `role.py:52` removed → fails. Delete D21 and the `test_role_panel.py` orphans (`pytest`, `checkbox()`, `class Control`). Proof → 3243. Commit `test: check the role panel's destroy binding in the UI test`.
+- [ ] **Step 3 (M3):** move `test_core_archive.py:48-106` verbatim to the end of `test_core_install.py`, add `import types`, `load_definitions` from `addon_loader`, `PLUGIN = ADDON / "globalPlugins/WorldVoice/__init__.py"`, one docstring sentence (these two tests load the real files so coverage sees `coreArchive.py`); delete `test_core_archive.py`. `movecheck.py`: the moved blocks appear byte-identical and in order in the new file; `new − old` is exactly moved blocks + the listed additions → `MOVE OK`. Proof (RENAMES the three `test_core_archive` lines) → 3243. `python3 -m pytest -q --cov=addon/generics --cov-branch tests/test_core_install.py` → `coreArchive.py` 100%. Commit `test: move the archive tests next to the install tests`.
 
 ### Task 15: Final verification
 
@@ -251,7 +255,7 @@ Batches (DEVELOPMENT_WORKFLOW.md §3.2, 15 tasks): **1–5**, **6–10**, **11�
 **Interfaces:** Consumes everything above; `impl/covcmp.py`.
 
 - [ ] **Step 1:** End-to-end proof: `proof.py $SP/base-params.jsonl impl/c14c.jsonl <…-remove.txt> <…-renames.txt>` → `PROOF OK`; every pair is in a spec §5.2 function (or D4). Also the base check from `c00-spec.jsonl`.
-- [ ] **Step 2:** Full suite → `3242 passed`, 0 skipped. Every touched test file run alone → pass.
+- [ ] **Step 2:** Full suite → `3243 passed`, 0 skipped. Every touched test file run alone → pass.
 - [ ] **Step 3:** `COVERAGE_FILE=$SP/impl/p57.coverage impl/runpy.sh $SP/impl/p57-coverage.txt tests -q -p no:cacheprovider --cov=addon --cov-branch --cov-report=term`; `covcmp.py` against `…-coverage-before.txt`: Stmts/Branch equal per module, Miss/BrPart not higher (TOTAL Miss ≤ 180, BrPart ≤ 157); an increase only in `runtime/scheduler.py`, `runtime/segmentHost.py`, `runtime/_segmentLifecycle.py` is accepted after a second full run puts it back at or below baseline; `addon/generics/coreArchive.py` 100%.
 - [ ] **Step 4:** 5× each: `tests/test_segment_host.py`, `tests/test_segment_lifecycle.py`, `tests/test_runtime_scheduler.py`, `tests/test_worldvoice_cancel_wrappers.py`, `tests/test_vocalizer_segment_drain.py` → all pass.
 - [ ] **Step 5:** `prek run --all-files` all Passed; `git diff --check master`; `git diff --stat master -- addon` empty; the two protected-path commands of DEVELOPMENT_WORKFLOW.md §7 print nothing.
