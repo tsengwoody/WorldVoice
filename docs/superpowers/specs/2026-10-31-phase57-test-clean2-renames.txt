@@ -9,3 +9,4 @@ tests/test_native_strategy_guards.py::test_vocalizer_wrapper_has_no_guard_fallba
 tests/test_segment_host.py::test_retire_waits_for_admitted_consumers[0] -> tests/test_segment_host.py::test_retire_waits_for_admitted_consumers
 tests/test_segment_lifecycle.py::test_queued_run_does_not_poll_its_token[0] -> tests/test_segment_lifecycle.py::test_queued_run_does_not_poll_its_token
 + tests/test_pipeline_structure.py::test_symbols_module_has_no_relative_imports
++ tests/test_runtime_playback_context.py::test_runtime_value_classes_are_frozen
