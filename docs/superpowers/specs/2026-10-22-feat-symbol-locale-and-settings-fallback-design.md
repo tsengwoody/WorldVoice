@@ -82,10 +82,10 @@ Non-goals:
   - the Log Record and engine panels' checkbox read (`speechSettingsDialog.py:103`).
   These read the `log` (and `engine`) section directly and raise the same error. They use `read_stored` with the confspec default `False`. The panels' choice read (`:91-95`) already catches every error. Every other panel reads through `pipeline_settings.get()`.
 - **`group_size`:**
-  - the confspec becomes `integer(default=3,min=2,max=10)`;
+  - the confspec becomes `integer(default=3,~~min=2~~,max=10)` (Corrected by `feat/number-mode-spaces` (2026-11-01): `min=1`; the range is 1..10 and a value outside it reads as 3);
   - `stored_min_value` is removed: the field, its confspec branch, the guard checks and the tests;
   - a new field `reset_out_of_range: bool = False` is set only on `group_size`.
-- **The clamp in `convert`.** For `group_size`, `convert` returns the default 3 for an int outside 2..10 instead of clamping. Other ints keep their clamp.
+- **The clamp in `convert`.** For `group_size`, `convert` returns the default 3 for an int outside ~~2..10~~ 1..10 (Corrected by `feat/number-mode-spaces` (2026-11-01)) instead of clamping. Other ints keep their clamp.
   - Why: through NVDA, a stored value outside the confspec never reaches `convert`, because validation refuses it first and `read_stored` gives the default.
   - So `convert` only meets out-of-range values written through `update` (the slider ring, the panels) or read from a non-validating section. For the 0..100 sliders, clamping a written value is the existing, expected behaviour.
   - For the group size the user's rule is "outside 2..10 reads as 3, not clamped", and `convert` applies it the same way on both paths. The spin control cannot produce such a value on Windows.

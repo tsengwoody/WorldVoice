@@ -35,12 +35,13 @@ All are **Decided by the user (2026-10-22)** except V5.
   - A `+` or `-` directly before a digit and not preceded by a digit is a sign. It is spoken with the first group: `"-12"` is "minus twelve".
   - A `+` or `-` after a digit is a symbol.
 - ~~**Q4 (option A).** A symbol is sent in character mode. The result depends on NVDA's symbol level and the engine, and is to be verified on Windows.~~ **Superseded by F1 (option D), decided by the user (2026-10-22).**
-- **Q5.** Every break inside a match is NB, the same pause as between space-separated numbers.
+- **Q5.** Every break inside a match is NB, the same pause as between space-separated numbers. (Corrected by `feat/number-mode-spaces` (2026-11-01): this now holds for "group" only; "number" joins the pieces of a match with spaces in one item, with no break between them.)
 - **Q6.** The digit translate table (`get_translate_table`) is no longer applied in any mode.
 - **Q7.**
-  - The dropdown keeps "number", which is group size 1 internally.
-  - "group" has sizes 2..10, default 3.
-  - A stored `group_size = 1` clamps to 2.
+  - The dropdown keeps "number", ~~which is group size 1 internally~~.
+  - "group" has sizes ~~2..10~~, default 3.
+  - ~~A stored `group_size = 1` clamps to 2.~~
+  - Corrected by `feat/number-mode-spaces` (2026-11-01): "number" reads the digits joined with spaces, without the number pause between them; "group" has sizes 1..10, and size 1 is the old digits-with-pauses reading; a stored 1 reads as 1.
 - **Remove the group wait setting entirely, with no migration:** `group_wait_factor`, driver id `groupwaitfactor`, `scaled_group_wait`, `GROUP_WAIT_UNIT_MS`, `GroupNumberBreakCommand`, its panel and ring controls, and its msgids.
 - **Value mode is otherwise unchanged.**
 - **V1.** Value mode removes thousands-separator commas only when the whole comma/digit run is valid: groups of three counted from the right, and a leftmost group of 1–3 digits. Otherwise the run is unchanged. The de/fr risk that `"1,234"` means a decimal is accepted.
