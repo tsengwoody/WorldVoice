@@ -374,7 +374,7 @@ def items_of(numbers):
 	return [*items, current]
 
 
-@settings(SHARED_ENV, max_examples=300)
+@SHARED_ENV
 @given(
 	numbers=SPACED_NUMBERS,
 	mode=st.sampled_from(MODES),
