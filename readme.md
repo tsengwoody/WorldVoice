@@ -46,13 +46,13 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
 * Number mode:
   * Off: Numbers are left as they are.
   * Numeric mode: Reads numbers as values. For example, "12345" is read as "twelve thousand three hundred forty-five." Commas used as thousands separators, as in "12,345,678", are removed so the number is read as one value; other commas, as in "3,14", are kept.
-  * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five." Symbols between digits, as in "12.5" or "5-3", are read separately by their names, such as "dot" or "dash", in the number language.
-  * Group mode: Reads the digits of a number in groups counted from the left. The group size (2–10, default 3) is set in the Speech Pipeline panel or the Voice settings panel; groups and symbols are separated by the pause of the number wait factor. For example, with size 3, "12345" is read as "123", "45", and "123.456" as "123", "dot", "456".
+  * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five." Symbols between digits, as in "12.5" or "5-3", are read separately by their names, such as "dot" or "dash", in the number language. The digits and symbols of a number are separated by spaces and read without the number pause between them.
+  * Group mode: Reads the digits of a number in groups counted from the left. The group size (1–10, default 3) is set in the Speech Pipeline panel or the Voice settings panel; groups and symbols are separated by the pause of the number wait factor. For example, with size 3, "12345" is read as "123", "45", and "123.456" as "123", "dot", "456". With size 1, every digit is read separately, with the pause between them.
 * Speech pause adjustment: Sets the length of each of the following pauses. Smaller values mean shorter pauses, and 0 means no pause.
   * Global wait factor: The multiplier of the wait factors below. The actual pause is "global wait factor ÷ 10 × that wait factor" milliseconds; for example, with a global wait factor of 20 and a number wait factor of 10, the number pause is 20 ms. In the NVDA voice settings panel it ranges from 0 to 100 in steps of 10; the Speech Pipeline panel shows it as 0 to 10.
   * Number wait factor:
     * Two numbers separated only by whitespace get the pause, as in "123 456".
-    * In digit mode, the pause goes between every two digits; in group mode, between every group and symbol.
+    * In group mode, the pause goes between every group and symbol; in digit mode, the digits and symbols of a number get no pause between them.
     * In digit mode and group mode, the pause also goes before and after a number, as in "第3章", even when the number is read in the same language as the text.
   * Item wait factor: NVDA often speaks an utterance as several items, such as an object's name, role, and state; this pause goes between two adjacent items. Where it falls at the same place as a pause around a number, only the longer of the two is heard.
   * Space wait factor between CJK and Southeast Asian characters: Han, kana, Bopomofo, Thai, Lao, Khmer, and Myanmar text is written without spaces between words, so a space with characters of these scripts on both sides gets the pause; Korean and Latin text separate words with spaces, so spaces between such characters get no pause.
