@@ -140,7 +140,9 @@ def test_property_no_edge_without_a_group_or_a_pause(env, sequence, mode, numlan
 			for index, item in enumerate(spoken):
 				if is_edge(env, item):
 					before, after = spoken[index - 1], spoken[index + 1]
-					assert before.rstrip()[-1:].isdecimal() and after.lstrip("+- ")[:1].isdecimal(), result
+					assert before.strip()[-1:].isdecimal() and after.strip().lstrip("+-")[:1].isdecimal(), (
+						result
+					)
 	at_zero = list(module.inject_numbers(items, stage_settings("value", 0, 0), ctx))
 	at_wait = list(module.inject_numbers(items, stage_settings("value", 0, wait), ctx))
 	assert shape(at_wait) == shape(at_zero)

@@ -328,3 +328,125 @@ def test_number_mode_without_groups_takes_the_longer_item_pause(env, item, expec
 	# The item stage keeps the longer of its break and the item edge break (items.py), as before.
 	result = every_stage(env, ["10", "20"], stage_settings("number", 0, item=item), context(env.module))
 	assert shape(env, result) == expected
+
+
+# Properties of spec §9.3 (Hypothesis).
+
+PAUSES = st.integers(0, 60)
+
+
+@SHARED_ENV
+@given(raw=RAW_NUMBERS, mode=st.sampled_from(MODES), size=st.integers(1, 12), wait=PAUSES)
+def test_property_lone_number_is_its_pieces_with_one_break_between_each_two(env, raw, mode, size, wait):
+	# P-G3: a lone number is its rendered pieces, in order, with one number break of the pause
+	# between each two, in every mode, at any pause (O1).
+	module = env.module
+	result = list(module.inject_numbers([raw], stage_settings(mode, size, wait), context(module)))
+	pieces = module.numbers.number_pieces(raw, mode, size, N)
+	assert result[0::2] == pieces, (raw, result)
+	breaks = result[1::2]
+	assert len(breaks) == len(pieces) - 1
+	assert all(type(item) is module.NumberBreakCommand and item.time == wait for item in breaks)
+	assert all(item is breaks[0] for item in breaks)
+
+
+ITEM = object()
+SEPARATORS = st.sampled_from([" ", "  ", " ", "　", ITEM])
+SPACED_NUMBERS = st.lists(
+	st.tuples(st.text(alphabet="0123456789", min_size=1, max_size=7), SEPARATORS),
+	min_size=2,
+	max_size=4,
+)
+
+
+def items_of(numbers):
+	"""The text items of *numbers*, a list of (number, separator after it): ITEM starts a new item."""
+	items, current = [], ""
+	for index, (number, separator) in enumerate(numbers):
+		current += number
+		if index == len(numbers) - 1:
+			break
+		if separator is ITEM:
+			items.append(current)
+			current = ""
+		else:
+			current += separator
+	return [*items, current]
+
+
+@settings(SHARED_ENV, max_examples=300)
+@given(
+	numbers=SPACED_NUMBERS,
+	mode=st.sampled_from(MODES),
+	size=st.integers(0, 10),
+	item=st.sampled_from([0, 10, 30]),
+	numlan=st.sampled_from(["default", "main", "en"]),
+	wait=st.integers(1, 60),
+)
+def test_property_two_numbers_never_share_a_run(env, numbers, mode, size, item, numlan, wait):
+	# P-U5 (decided by the user, 2026-11-01, U5): after every stage, no break-free run of text holds
+	# digits of two source numbers; without groups every run is one whole source number, so number
+	# mode's own spaces never split a number.
+	owners = [index for index, (number, _separator) in enumerate(numbers) for _digit in number]
+	result = every_stage(
+		env,
+		items_of(numbers),
+		stage_settings(mode, size, wait, item),
+		context(env.module, numlan),
+	)
+	runs, current, position = [], [], 0
+	for entry in result:
+		if isinstance(entry, env.BreakCommand):
+			runs.append(current)
+			current = []
+		elif isinstance(entry, str):
+			for character in entry:
+				if character.isdecimal():
+					current.append(owners[position])
+					position += 1
+	runs.append(current)
+	runs = [run for run in runs if run]
+	assert position == len(owners), (numbers, result)
+	assert all(len(set(run)) == 1 for run in runs), (numbers, result)
+	if size == 0:
+		assert [(run[0], len(run)) for run in runs] == [
+			(index, len(number)) for index, (number, _s) in enumerate(numbers)
+		], (
+			numbers,
+			result,
+		)
+
+
+THOUSANDS_TEXT = st.text(alphabet="0123456789,.a -", max_size=16)
+
+
+@SHARED_ENV
+@given(text=THOUSANDS_TEXT, size=st.integers(1, 10), wait=PAUSES)
+def test_property_value_groups_after_the_thousands_step(env, text, size, wait):
+	# P-U3: value mode with groups strips valid thousands separators first, then cuts.
+	module = env.module
+	run_settings, ctx = stage_settings("value", size, wait), context(module)
+	stripped = module.remove_thousands_separators([text], run_settings, ctx)
+	both = shape(env, module.inject_numbers(list(stripped), run_settings, ctx))
+	alone = shape(env, module.inject_numbers([module.numbers.strip_thousands(text)], run_settings, ctx))
+	assert both == alone
+
+
+NONE_TEXT = st.text(alphabet="0123456789+-.,:aZ共第章。  　", max_size=16)
+
+
+@SHARED_ENV
+@given(text=NONE_TEXT, size=st.integers(1, 10), wait=PAUSES)
+def test_property_off_with_groups_keeps_every_character(env, text, size, wait):
+	# P-none: off with a group size cuts but changes no character; only with a pause above 0 does
+	# the whitespace that only separates two numbers become the gap break (G1).
+	module = env.module
+	result = list(module.inject_numbers([text], stage_settings("none", size, wait), context(module)))
+	parts = list(module._split_numbers_for_language(text))
+	gaps = {
+		index for index, (_kind, value) in enumerate(parts) if 0 < index < len(parts) - 1 and value.isspace()
+	}
+	expected = "".join(
+		value for index, (_kind, value) in enumerate(parts) if not (wait > 0 and index in gaps)
+	)
+	assert "".join(item for item in result if isinstance(item, str)) == expected, (text, result)

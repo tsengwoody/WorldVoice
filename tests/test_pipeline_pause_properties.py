@@ -4,7 +4,6 @@ The stages are pure functions of their arguments, so one pipeline module per tes
 example: settings are fresh per example and no state carries over.
 """
 
-import math
 import re
 import unicodedata
 from itertools import pairwise
@@ -259,36 +258,7 @@ def test_property_zero_number_wait_changes_nothing(env, data):
 	assert all(after is before for after, before in zip(result, sequence))
 
 
-def run_group_mode(env, text, size, pause=0):
-	# The old group mode is value mode with a group size (decided by the user, 2026-11-01, U1).
-	stage_settings = punctuation_settings(0)
-	stage_settings.number_mode = "value"
-	stage_settings.group_size = size
-	stage_settings.scaled_number_wait = lambda: pause
-	return list(env.module.inject_numbers([text], stage_settings, env.module.GENERIC_CONTEXT))
-
-
-@SHARED_ENV
-@given(
-	sign=st.sampled_from(["", "+", "-"]),
-	digits=st.text(alphabet=ANY_DIGITS, min_size=1, max_size=30),
-	size=st.integers(1, 10),
-	pause=st.integers(0, 1000),
-)
-def test_property_groups_are_separate_items_of_the_chosen_size(env, sign, digits, size, pause):
-	result = run_group_mode(env, sign + digits, size, pause)
-
-	texts, breaks = result[0::2], result[1::2]
-	assert all(isinstance(item, str) for item in texts)
-	assert all(isinstance(item, env.module.NumberBreakCommand) and item.time == pause for item in breaks)
-	assert len(texts) == len(breaks) + 1
-	assert len(breaks) == math.ceil(len(digits) / size) - 1
-	assert "".join(texts) == sign + digits
-	groups = [texts[0].removeprefix(sign), *texts[1:]]
-	assert all(len(group) == size for group in groups[:-1])
-	assert 1 <= len(groups[-1]) <= size
-	if len(digits) <= size:
-		assert result == [sign + digits]
+# The pieces of a lone number in every mode and group size: test_pipeline_number_groups.py, P-G3.
 
 
 @SHARED_ENV
