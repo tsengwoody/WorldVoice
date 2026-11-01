@@ -19,7 +19,9 @@ class NumberEdgeBreakCommand(NumberBreakCommand):
 
 class NumberItemEdgeBreakCommand(NumberEdgeBreakCommand):
 	"""An edge break at the start or end of the number's item, where the spoken text next to the
-	number is in another item: item_wait_factor's break goes in next to it."""
+	number is in another item: item_wait_factor's break goes in next to it. In number mode with no
+	grouping, it is only the pause between a number that ends one item and a number that starts the
+	next."""
 
 
 # Set on the plain BreakCommand another synth gets for a NumberEdgeBreakCommand (_plain_breaks), so

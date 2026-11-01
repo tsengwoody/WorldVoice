@@ -277,3 +277,54 @@ def test_thousands_then_groups(env, text, expected):
 	# U3: value mode removes the thousands separators first, then groups.
 	result = every_stage(env, [text], stage_settings("value", 3), context(env.module))
 	assert shape(env, result) == expected
+
+
+def language(code):
+	return __import__("sys").modules["speech.commands"].LangChangeCommand(code)
+
+
+def end_utterance():
+	return __import__("sys").modules["speech.commands"].EndUtteranceCommand()
+
+
+MARKER = Marker()
+
+
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[
+		(lambda: ["10", "20"], ["1 0", E, "2 0"]),
+		(lambda: ["10", MARKER, "20"], ["1 0", E, MARKER, "2 0"]),
+		(lambda: ["10", " ", "20"], ["1 0", E, "2 0"]),
+		(lambda: ["10", language("en"), "20"], ["1 0", E, ("L", "en"), "2 0"]),
+		(lambda: ["10", end_utterance(), "20"], ["1 0", "EU", "2 0"]),
+		(lambda: ["第1", "2章"], ["第1", E, "2章"]),
+		(lambda: ["第1", "章"], ["第1", "章"]),
+		(lambda: ["10", "a", "20"], ["1 0", "a", "2 0"]),
+		(lambda: ["a 10", "20 b", "c"], ["a 1 0", E, "2 0 b", "c"]),
+	],
+	ids=[
+		"items",
+		"command",
+		"blank-item",
+		"language",
+		"utterance-end",
+		"text-around",
+		"text-next",
+		"text-between",
+		"three",
+	],
+)
+def test_number_mode_without_groups_keeps_numbers_in_two_items_apart(env, sequence, expected):
+	# Spec §4.3 G2 and O2: one break between a number that ends one spoken item and a number that
+	# starts the next spoken item of the utterance, whatever commands lie between; none next to text
+	# (U4) and none across an utterance end.
+	result = every_stage(env, sequence(), stage_settings("number", 0), context(env.module))
+	assert shape(env, result) == expected
+
+
+@pytest.mark.parametrize(("item", "expected"), [(0, ["1 0", E, "2 0"]), (30, ["1 0", ("B", 30), "2 0"])])
+def test_number_mode_without_groups_takes_the_longer_item_pause(env, item, expected):
+	# The item stage keeps the longer of its break and the item edge break (items.py), as before.
+	result = every_stage(env, ["10", "20"], stage_settings("number", 0, item=item), context(env.module))
+	assert shape(env, result) == expected

@@ -279,7 +279,8 @@ def inject_numbers(
 
 	Without groups, number mode adds no edge pause, but it puts the break between two numbers that
 	only whitespace separates itself, as number_wait_factor cannot split the spaces it reads digits
-	with (U5).
+	with (U5), and one item edge break between a number that ends a spoken item and one that starts
+	the next spoken item of the utterance (spec G2, O2), so two numbers never run together.
 	"""
 	mode = settings.number_mode
 	group_size = settings.group_size
@@ -296,7 +297,7 @@ def inject_numbers(
 	if pause > 0 and group_size > 0:
 		edges = (NumberEdgeBreakCommand(pause), NumberBreakCommand(pause), NumberItemEdgeBreakCommand(pause))
 	elif pause > 0 and mode == "number":
-		edges = (None, NumberBreakCommand(pause), None)
+		edges = (None, NumberBreakCommand(pause), NumberItemEdgeBreakCommand(pause))
 	else:
 		yield from _inject_item_numbers(speech_sequence, settings, ctx, wraps, None)
 		return
@@ -317,8 +318,14 @@ def _ends_utterance(item: SpeechCmd) -> bool:
 	return isinstance(item, (EndUtteranceCommand, ConfigProfileTriggerCommand))
 
 
-def _spoken_later(speech_sequence: list[SpeechCmd]) -> list[bool]:
-	"""For each index, whether a spoken item comes after it in its utterance."""
+def _spoken_kinds(text: str) -> list[str]:
+	"""The kinds ("text" or "number") of the spoken parts of *text*, in order."""
+	return [kind for kind, value in _split_numbers_for_language(text) if value.strip()]
+
+
+def _spoken_later(speech_sequence: list[SpeechCmd], *, numbers_only: bool = False) -> list[bool]:
+	"""For each index, whether a spoken item comes after it in its utterance; with *numbers_only*,
+	whether the next spoken item of its utterance starts with a number."""
 	later = [False] * len(speech_sequence)
 	spoken = False
 	for index in range(len(speech_sequence) - 1, -1, -1):
@@ -327,7 +334,7 @@ def _spoken_later(speech_sequence: list[SpeechCmd]) -> list[bool]:
 		if _ends_utterance(item):
 			spoken = False
 		elif _is_spoken(item):
-			spoken = True
+			spoken = not numbers_only or _spoken_kinds(item)[:1] == ["number"]
 	return later
 
 
@@ -342,16 +349,21 @@ def _inject_item_numbers(
 
 	*edges* is None, or the edge break, the break between two numbers that only whitespace
 	separates, and the edge break at an item's start or end; with it, *speech_sequence* is a list.
-	The first and last are None where no edge break is added (number mode without groups).
+	The edge break is None in number mode without groups: there the item edge break only goes
+	between a number that ends a spoken item and one that starts the next (spec G2, O2).
 	"""
 	mode = settings.number_mode
 	group_size = settings.group_size
 	pause = settings.scaled_number_wait()
 	edge, gap_break, item_edge = edges or (None, None, None)
+	numbers_only = edge is None
 	# Whether a spoken item comes before this one in its utterance, and after it (review I1: an
-	# utterance, what the synth gets, is the sequence the rule speaks of).
+	# utterance, what the synth gets, is the sequence the rule speaks of); with *numbers_only*,
+	# whether the previous spoken item ends, and the next starts, with a number.
 	spoken_before = False
-	spoken_after = _spoken_later(speech_sequence) if edges is not None else None
+	spoken_after = (
+		_spoken_later(speech_sequence, numbers_only=numbers_only) if item_edge is not None else None
+	)
 	number_language = ctx.number_language if wraps else None
 	# Symbols are named for the number language, the language of the wrapper around every number;
 	# with no number language, for the language in force at that point of the sequence. The locale
@@ -390,7 +402,8 @@ def _inject_item_numbers(
 			edge_before=item_edge if spoken_before else None,
 			edge_after=item_edge if spoken_after and spoken_after[index] else None,
 		)
-		spoken_before = spoken_before or _is_spoken(item)
+		if _is_spoken(item):
+			spoken_before = not numbers_only or _spoken_kinds(item)[-1:] == ["number"]
 		if wraps:
 			# The language in force here may not be the context's (phase 30 item 6).
 			segments = deduplicate_language_command(segments, ctx, start_language=language)

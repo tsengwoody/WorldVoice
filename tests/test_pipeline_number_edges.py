@@ -412,6 +412,17 @@ INDEPENDENT_ROWS = [
 	pytest.param(["10 20"], {"size": 0}, ["1 0", NB, "2 0"], "same", id="i13"),
 	pytest.param(["10 20"], {"mode": "value", "size": 0}, ["10 20"], ["10", NB, "20"], id="i14"),
 	pytest.param(["a 10 20 b"], {"size": 0}, ["a 1 0", NB, "2 0 b"], "same", id="i15"),
+	# O2: number mode without groups keeps one break between a number that ends an item and one that
+	# starts the next spoken item, and only there.
+	pytest.param(["10", "20"], {"size": 0}, ["1 0", E, "2 0"], "same", id="i16"),
+	pytest.param(
+		["10", "20"],
+		{"size": 0, "item": 30},
+		["1 0", E, "2 0"],
+		["1 0", ("B", 30), "2 0"],
+		id="i17",
+	),
+	pytest.param(["第1", "2章"], {"size": 0}, ["第1", E, "2章"], "same", id="i18"),
 	pytest.param(
 		["第1", "2章"],
 		{"mode": "value", "size": 3},
@@ -434,6 +445,7 @@ INDEPENDENT_ROWS = [
 	pytest.param(["Total. 12"], {"size": 0, "chars": "."}, None, ["Total", ".", PB, "1 2"], id="i26"),
 	pytest.param(["123"], {"mode": "value", "size": 10}, ["123"], "same", id="i27"),
 	pytest.param(["第123章"], {"mode": "value", "size": 10}, ["第", E, "123", E, "章"], "same", id="i28"),
+	pytest.param(["1", M, "2"], {"size": 0}, ["1", E, M, "2"], "same", id="i29"),
 ]
 ROWS += INDEPENDENT_ROWS
 STAGE_ROWS = [row for row in ROWS if row.values[2] is not None and row.id not in ITEM_WAIT_IDS]
@@ -785,6 +797,9 @@ SPACED_ROWS = [
 		id="two-numbers-wrapper",
 	),
 	pytest.param(["12", "34"], {"size": 3}, ["1 2", E, "3 4"], id="two-items"),
+	# Without groups only two numbers of two items keep the break between them (spec O2).
+	pytest.param(["12", "34"], {}, ["1 2", E, "3 4"], id="two-items-0"),
+	pytest.param(["12", "a"], {}, ["1 2", "a"], id="number-then-text-items-0"),
 	pytest.param(["35."], {}, ["3 5 ."], id="dot-rule"),
 	pytest.param(["35."], {"size": 3}, ["3 5", E, "."], id="dot-rule-edges"),
 	pytest.param(
