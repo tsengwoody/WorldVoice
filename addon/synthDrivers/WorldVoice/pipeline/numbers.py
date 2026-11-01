@@ -71,7 +71,9 @@ def number_pieces(
 	Value mode keeps it whole. Number and group modes cut each digit run from the left into
 	pieces of 1 or *group_size* digits (a leading sign joins the first piece) and make each symbol
 	a piece of its own: its name, or the symbol itself when NVDA has no name for it, so NVDA's
-	symbol processing decides how it sounds (decided by the user, 2026-10-22).
+	symbol processing decides how it sounds (decided by the user, 2026-10-22). Number mode speaks
+	its pieces joined with spaces, group mode with a number break between each two
+	(numberStages._translate_number, decided by the user, 2026-11-01).
 	"""
 	if mode == "value":
 		return [raw]

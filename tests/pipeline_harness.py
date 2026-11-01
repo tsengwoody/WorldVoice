@@ -3,6 +3,7 @@
 import ast
 import builtins
 import importlib
+import re
 import sys
 import types
 import unicodedata
@@ -21,6 +22,16 @@ def symbol_name(locale, symbol):
 	symbol_name("en", ".") == "full stop en"; symbol_name("zh_TW", "×") == "multiplication sign zh tw".
 	"""
 	return " ".join([*unicodedata.name(symbol).lower().replace("-", " ").split(), *locale.lower().split("_")])
+
+
+def read_back_names(text, symbols):
+	"""*text* with each name of *symbols* (a name -> symbol dict) in it read back as its symbol.
+
+	Number mode speaks the names inside one item, between the digits (decided by the user, 2026-11-01).
+	The longest name wins where two start at the same place.
+	"""
+	pattern = "|".join(re.escape(name) for name in sorted(symbols, key=len, reverse=True))
+	return re.sub(pattern, lambda match: symbols[match.group()], text)
 
 
 class FakeSpeechSequenceFilter:

@@ -196,10 +196,11 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		3,
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Group size"),
-		# "number" is the digit-by-digit mode. NVDA refuses a stored size outside 2..10 on read, so it
-		# reads as 3 (read_stored); convert resets one written outside them the same way, where the
-		# wait factors clamp (decided by the user, 2026-10-22).
-		min_value=2,
+		# A size of 1 reads the digits apart, with the number pause between them; "number" reads them
+		# joined with spaces, without it (decided by the user, 2026-11-01). NVDA refuses a stored size
+		# outside 1..10 on read, so it reads as 3 (read_stored); convert resets one written outside
+		# them the same way, where the wait factors clamp (decided by the user, 2026-10-22).
+		min_value=1,
 		max_value=10,
 		reset_out_of_range=True,
 		control="spin",

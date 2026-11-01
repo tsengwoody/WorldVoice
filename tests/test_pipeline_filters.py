@@ -1,5 +1,6 @@
 """The pipeline filters' output, pinned before their loops were shared."""
 
+import re
 import sys
 import time
 from dataclasses import replace
@@ -257,15 +258,12 @@ def test_number_wait_splits_across_items_and_keeps_commands(env):
 	assert result[5] is marker
 
 
-def test_digit_mode_then_number_wait_pauses_between_digits(env):
+def test_digit_mode_then_number_wait_keeps_the_digits_together(env):
+	# Decided by the user (2026-11-01): number mode reads the digits of a number without a pause.
 	env.settings.number_mode = "number"
 	env.settings.scaled_number_wait = lambda: 40
 	digits = env.module.inject_numbers(["12"], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(env.module.number_wait_factor(digits, env.settings, env.module.GENERIC_CONTEXT)) == [
-		"1",
-		B40,
-		"2",
-	]
+	assert shape(env.module.number_wait_factor(digits, env.settings, env.module.GENERIC_CONTEXT)) == ["1 2"]
 
 
 def N(symbol, locale="en"):
@@ -283,38 +281,42 @@ def broken(pause, *items):
 	return result
 
 
-def spoken(pieces, pause=0):
+def named(pieces):
 	"""Space-separated pieces, where "<x>" stands for the name of the symbol x."""
-	return broken(pause, *(N(piece[1:-1]) if piece.startswith("<") else piece for piece in pieces.split()))
+	return [N(piece[1:-1]) if piece.startswith("<") else piece for piece in pieces.split()]
+
+
+def spoken(pieces, pause=0):
+	"""The pieces as group mode speaks them: a number break of *pause* between each two."""
+	return broken(pause, *named(pieces))
+
+
+def joined(pieces):
+	"""The pieces as number mode speaks them: one item, joined with spaces (decided by the user, 2026-11-01)."""
+	return [" ".join(named(pieces))]
 
 
 @pytest.mark.parametrize("wait", [0, 40])
-def test_digit_mode_separates_digits_with_the_number_wait(env, wait):
+def test_digit_mode_joins_digits_with_spaces_at_any_number_wait(env, wait):
+	# Decided by the user (2026-11-01): no break between the pieces of one number.
 	env.settings.number_mode = "number"
 	env.settings.scaled_number_wait = lambda: wait
 	generic = env.module.GENERIC_CONTEXT
-	assert shape(env.module.inject_numbers(["12"], env.settings, generic)) == [
-		"1",
-		("NumberBreakCommand", wait),
-		"2",
-	]
-	result = list(env.module.inject_numbers(["-1234"], env.settings, generic))
-	assert result[0::2] == ["-1", "2", "3", "4"]
-	first, *others = result[1::2]
-	assert all(other is first for other in others)
+	assert shape(env.module.inject_numbers(["12"], env.settings, generic)) == ["1 2"]
+	assert shape(env.module.inject_numbers(["-1234"], env.settings, generic)) == ["-1 2 3 4"]
 
 
 @pytest.mark.parametrize(
-	("text", "pieces"),
+	("text", "expected"),
 	[
-		("A12B", "A1 2B"),
-		("1a2", "1a2"),
+		("A12B", ["A1 2B"]),
+		("1a2", ["1a2"]),
 	],
 )
-def test_digit_mode_breaks_between_digits_and_around_symbols(env, text, pieces):
+def test_digit_mode_at_pause_0_keeps_the_text_around_the_digits(env, text, expected):
 	env.settings.number_mode = "number"
 	result = env.module.inject_numbers([text], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(result) == spoken(pieces)
+	assert shape(result) == expected
 
 
 def test_group_mode_then_number_wait_breaks_with_the_number_wait(env):
@@ -332,6 +334,7 @@ def test_group_mode_then_number_wait_breaks_with_the_number_wait(env):
 
 
 E50 = ("NumberEdgeBreakCommand", 50)
+B50 = ("NumberBreakCommand", 50)
 # The dot rule: a "." outside a number is spoken apart from it, in every mode but "off".
 SHARED = {"a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "": []}
 # Keyed by (mode, group size, number pause).
@@ -340,13 +343,27 @@ NUMBER_MODES = {
 		"12.5": ["12.5"],
 		"v1.2": ["v1.2"],
 	},
-	# Digit mode: every digit and every symbol is an item of its own, even at pause 0.
+	# Digit mode: every digit and every symbol, joined with spaces in one item (decided by the user,
+	# 2026-11-01).
 	("number", 3, 0): {
+		"12.5": joined("1 2 <.> 5"),
+		"-1234": joined("-1 2 3 4"),
+		"12": joined("1 2"),
+		"v1.2": joined("v1 <.> 2"),
+		"1.2.3": joined("1 <.> 2 <.> 3"),
+	},
+	("number", 3, 50): {
+		"12.5": joined("1 2 <.> 5"),
+		"-1234": joined("-1 2 3 4"),
+		"v1.2": ["v", E50, *joined("1 <.> 2")],
+		"12 34": ["1 2", B50, "3 4"],
+		"3.": ["3", E50, " ."],
+	},
+	# A group size of 1 reads every digit apart, as number mode did before 2026-11-01.
+	("group", 1, 0): {
 		"12.5": spoken("1 2 <.> 5"),
 		"-1234": spoken("-1 2 3 4"),
-		"12": spoken("1 2"),
-		"v1.2": spoken("v1 <.> 2"),
-		"1.2.3": spoken("1 <.> 2 <.> 3"),
+		"12 34": ["1", NB0, "2 3", NB0, "4"],
 	},
 	# Groups are cut from the left, the sign joins the first, and a symbol is named apart.
 	("group", 2, 0): {
@@ -407,19 +424,23 @@ SPEC_TABLE = [
 SPEC_IDS = ["".join(c if c.isascii() else f"U+{ord(c):04X}" for c in row[0]) for row in SPEC_TABLE]
 
 
-@pytest.mark.parametrize(("mode", "size", "column"), [("number", 1, 1), ("group", 3, 2), ("group", 2, 3)])
+@pytest.mark.parametrize(
+	("mode", "size", "column"),
+	[("number", 3, 1), ("group", 1, 1), ("group", 3, 2), ("group", 2, 3)],
+)
 @pytest.mark.parametrize("row", SPEC_TABLE, ids=SPEC_IDS)
 def test_number_and_group_modes_name_each_symbol(env, mode, size, column, row):
+	# Number mode joins the pieces with spaces; group mode, a size of 1 included, breaks between them.
 	env.settings.number_mode = mode
 	env.settings.group_size = size
 	result = env.module.inject_numbers([row[0]], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(result) == spoken(row[column])
+	assert shape(result) == (joined if mode == "number" else spoken)(row[column])
 
 
 def test_adjacent_symbols_get_a_name_each(env):
 	env.settings.number_mode = "number"
 	result = env.module.inject_numbers(["1--2"], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(result) == spoken("1 <-> <-> 2")
+	assert shape(result) == joined("1 <-> <-> 2")
 
 
 def roles_context(module, language, number_language):
@@ -433,8 +454,13 @@ def roles_context(module, language, number_language):
 	)
 
 
+# A name of "×" from the harness: "multiplication sign", then the words of its locale.
+MULTIPLICATION_NAME_RE = re.compile(r"multiplication sign(?: [a-z]+)+?(?= \d|$)")
+
+
 def names_in(result):
-	return [item for item in result if isinstance(item, str) and item.startswith("multiplication sign")]
+	"""The names of "×" in *result*: number mode speaks them inside its items, between digits."""
+	return [name for item in result if isinstance(item, str) for name in MULTIPLICATION_NAME_RE.findall(item)]
 
 
 def test_symbol_names_follow_the_number_language(env):
@@ -507,15 +533,17 @@ def test_a_symbol_without_a_name_is_its_own_item(env, monkeypatch):
 	generic = env.module.GENERIC_CONTEXT
 	env.settings.number_mode = "group"
 	assert shape(env.module.inject_numbers(["123.456"], env.settings, generic)) == spoken("123 . 456")
+	# Number mode joins it with the other pieces, with spaces (decided by the user, 2026-11-01).
 	env.settings.number_mode = "number"
-	assert shape(env.module.inject_numbers(["12.5"], env.settings, generic)) == spoken("1 2 . 5")
-	assert shape(env.module.inject_numbers(["1-.2"], env.settings, generic)) == spoken("1 <-> . 2")
+	assert shape(env.module.inject_numbers(["12.5"], env.settings, generic)) == joined("1 2 . 5")
+	assert shape(env.module.inject_numbers(["1-.2"], env.settings, generic)) == joined("1 <-> . 2")
 
 
 def test_an_unnamed_symbol_and_a_named_one_are_two_items(env, monkeypatch):
 	# The batch 2 review I1 input: no name ever takes the next digits.
 	counting_lookup(env, monkeypatch, unnamed=".")
-	env.settings.number_mode = "number"
+	env.settings.number_mode = "group"
+	env.settings.group_size = 1
 	result = env.module.inject_numbers(["1.-2"], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(result) == spoken("1 . <-> 2")
 
@@ -553,6 +581,36 @@ def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch, ro
 	assert shape(sequence) == expected
 
 
+@pytest.mark.parametrize(
+	("remove", "expected"),
+	[
+		(False, ["1 2", ".", ("PunctuationBreakCommand", 50), "5"]),
+		(True, ["1 2", ("PunctuationBreakCommand", 50), "5"]),
+	],
+	ids=["pause", "remove"],
+)
+def test_an_unnamed_symbol_in_number_mode_is_left_to_the_punctuation_stage(
+	env,
+	monkeypatch,
+	remove,
+	expected,
+):
+	# Number mode joins its pieces with spaces (decided by the user, 2026-11-01), an unnamed symbol
+	# included; the punctuation stage still pauses at it, and removes it, as at any other mark.
+	counting_lookup(env, monkeypatch, unnamed=".")
+	env.settings.number_mode = "number"
+	env.settings.scaled_number_wait = lambda: 10
+	env.settings.scaled_punctuation_wait = lambda: 50
+	env.settings.punctuation_pause_characters = "."
+	env.settings.remove_punctuation_characters = remove
+	context = roles_context(env.module, "zh_TW", "default")
+	monkeypatch.setattr(env.module.registry, "current_context", lambda: context)
+	sequence = ["12.5"]
+	for stage in env.module.STAGES:
+		sequence = stage.handler(sequence)
+	assert shape(sequence) == expected
+
+
 def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
 	# Review Focus 3: an IP list or a version string must not cost one NVDA lookup per symbol.
 	calls = counting_lookup(env, monkeypatch)
@@ -569,7 +627,7 @@ def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
 	)
 	assert time.perf_counter() - start < 2
 	assert (calls, len(languages)) == (["."], 1)
-	assert result.count(N(".")) == 3000
+	assert result == [" ".join(["1", N(".")] * 3000 + ["1"])]
 
 
 @pytest.mark.parametrize(
@@ -621,7 +679,11 @@ def test_thousands_separators_of_other_digits(env, text, expected):
 
 @pytest.mark.parametrize(
 	("mode", "size", "text", "expected"),
-	[("group", 3, "１２３４５", ["１２３", NB0, "４５"]), ("number", 1, "٣٤", ["٣", NB0, "٤"])],
+	[
+		("group", 3, "１２３４５", ["１２３", NB0, "４５"]),
+		("group", 1, "٣٤", ["٣", NB0, "٤"]),
+		("number", 3, "٣٤", ["٣ ٤"]),
+	],
 )
 def test_group_and_number_modes_keep_the_original_digits(env, mode, size, text, expected):
 	# Decided by the user (2026-10-23): pieces keep the characters they were written with.
@@ -683,9 +745,9 @@ def test_number_language_leaves_a_sign_after_a_word_with_it(env):
 	("mode", "voice", "expected"),
 	[
 		("value", "E", [("lang", "en"), "12", ("lang", "zh_TW"), ". Next"]),
-		("number", "E", [("lang", "en"), "1", ("NumberBreakCommand", 0), "2", ("lang", "zh_TW"), ". Next"]),
+		("number", "E", [("lang", "en"), "1 2", ("lang", "zh_TW"), ". Next"]),
 		("value", "Z", ["12 . Next"]),
-		("number", "Z", ["1", ("NumberBreakCommand", 0), "2 . Next"]),
+		("number", "Z", ["1 2 . Next"]),
 	],
 	ids=["value-kept", "number-pause-0-kept", "value-dropped", "number-pause-0-dropped"],
 )

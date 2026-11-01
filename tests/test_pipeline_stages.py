@@ -307,7 +307,7 @@ def test_symbol_names_without_a_number_language_voice_use_the_default_voice_loca
 	sequence = ["2\u00d73"]
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)
-	assert [item for item in sequence if isinstance(item, str)] == ["2", "multiplication sign zh tw", "3"]
+	assert [item for item in sequence if isinstance(item, str)] == ["2 multiplication sign zh tw 3"]
 	assert not any(hasattr(item, "lang") for item in sequence)
 
 

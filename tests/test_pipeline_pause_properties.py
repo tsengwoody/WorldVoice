@@ -12,7 +12,13 @@ from types import SimpleNamespace
 
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
-from pipeline_harness import load_pipeline_module, load_settings_module, punctuation_settings, symbol_name
+from pipeline_harness import (
+	load_pipeline_module,
+	load_settings_module,
+	punctuation_settings,
+	read_back_names,
+	symbol_name,
+)
 
 SHARED_ENV = settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 
@@ -290,17 +296,14 @@ def test_property_groups_are_separate_items_of_the_chosen_size(env, sign, digits
 	digits=st.text(alphabet=ANY_DIGITS, min_size=1, max_size=30),
 	wait=st.integers(0, 1000),
 )
-def test_property_digit_mode_separates_every_digit(env, sign, digits, wait):
+def test_property_digit_mode_joins_every_digit_with_spaces(env, sign, digits, wait):
+	# Decided by the user (2026-11-01): one item, the digits joined with spaces, at any number wait.
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = "number"
 	stage_settings.scaled_number_wait = lambda: wait
 	result = list(env.module.inject_numbers([sign + digits], stage_settings, env.module.GENERIC_CONTEXT))
 
-	texts, breaks = result[0::2], result[1::2]
-	assert all(isinstance(item, str) for item in texts)
-	assert all(isinstance(item, env.module.NumberBreakCommand) and item.time == wait for item in breaks)
-	assert len(breaks) == len(digits) - 1
-	assert texts == [sign + digits[0], *digits[1:]]
+	assert result == [" ".join([sign + digits[0], *digits[1:]])]
 
 
 # Number and group modes name each symbol (spec 6.4, P5-P7)
@@ -308,7 +311,8 @@ def test_property_digit_mode_separates_every_digit(env, sign, digits, wait):
 SHAPED_SYMBOLS = ".,:/-+\u00d7\u00b0"
 # Numbers with runs of symbols between digit runs, where named and unnamed symbols meet.
 NUMBER_SHAPED = st.from_regex(r"[+-]?[0-9]{1,3}(?:[.,:/+\u00d7\u00b0-]{1,3}[0-9]{1,3}){0,4}", fullmatch=True)
-MODE_SIZES = st.sampled_from([("number", 1), *(("group", size) for size in range(2, 11))])
+GROUP_SIZES = st.sampled_from([("group", size) for size in range(1, 11)])
+MODE_SIZES = st.one_of(st.just(("number", 1)), GROUP_SIZES)
 
 
 def run_number_mode(env, text, mode, size):
@@ -329,7 +333,7 @@ def test_property_number_modes_keep_the_text(env, text, mode_size):
 	# P5: with each name read back as its symbol, the text is the input; only the dot rule adds spaces.
 	symbols = symbol_of_name(env)
 	result = run_number_mode(env, text, *mode_size)
-	texts = [symbols.get(item, item) for item in result if isinstance(item, str)]
+	texts = [read_back_names(item, symbols) for item in result if isinstance(item, str)]
 	assert "".join(texts).replace(" ", "") == text.replace(" ", "")
 
 
@@ -346,13 +350,15 @@ def test_property_no_digit_run_is_longer_than_the_size(env, text, mode_size):
 @SHARED_ENV
 @given(text=NUMBER_TEXT, mode_size=MODE_SIZES)
 def test_property_breaks_and_names_stay_inside_numbers(env, text, mode_size):
-	# P7: a break sits between two pieces of one number; a name has a break on each side; every
-	# symbol inside a number, and only those, is named.
+	# P7: in group mode a break sits between two pieces of one number and a name has a break on
+	# each side; number mode has no break (decided by the user, 2026-11-01). Every symbol inside a
+	# number, and only those, is named.
 	symbols = symbol_of_name(env)
 	result = run_number_mode(env, text, *mode_size)
 	is_break = lambda item: isinstance(item, env.module.NumberBreakCommand)
 	for index, item in enumerate(result):
 		if is_break(item):
+			assert mode_size[0] == "group", (text, result)
 			assert 0 < index < len(result) - 1, (text, result)
 			before, after = result[index - 1], result[index + 1]
 			assert before in symbols or before[-1].isdecimal(), (text, result)
@@ -366,7 +372,14 @@ def test_property_breaks_and_names_stay_inside_numbers(env, text, mode_size):
 		for c in match.group().removeprefix("+").removeprefix("-")
 		if is_number_symbol(c)
 	]
-	assert sorted(symbols[item] for item in result if item in symbols) == sorted(inside), (text, result)
+	read = [symbols[name] for item in result if isinstance(item, str) for name in names_of(item, symbols)]
+	assert sorted(read) == sorted(inside), (text, result)
+
+
+def names_of(text, symbols):
+	"""The names of *symbols* (a name -> symbol dict) in *text*, the longest where two start at one place."""
+	pattern = "|".join(re.escape(name) for name in sorted(symbols, key=len, reverse=True))
+	return re.findall(pattern, text)
 
 
 # One number definition (spec 6.1); a digit is a Unicode decimal digit (phase 35 spec §6.1).
@@ -456,7 +469,7 @@ def test_property_off_mode_is_the_identity_for_the_thousands_and_number_stages(e
 	sequence = data.draw(st.lists(st.one_of(NUMBER_TEXT, st.builds(lambda: env.BreakCommand(5))), max_size=6))
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = "none"
-	stage_settings.group_size = data.draw(st.integers(2, 10))
+	stage_settings.group_size = data.draw(st.integers(1, 10))
 	for stage in (env.module.remove_thousands_separators, env.module.inject_numbers):
 		result = list(stage(sequence, stage_settings, env.module.GENERIC_CONTEXT))
 		assert len(result) == len(sequence)
@@ -464,11 +477,11 @@ def test_property_off_mode_is_the_identity_for_the_thousands_and_number_stages(e
 
 
 @SHARED_ENV
-@given(data=st.data(), text=NUMBER_SHAPED, mode_size=MODE_SIZES)
+@given(data=st.data(), text=NUMBER_SHAPED, mode_size=GROUP_SIZES)
 def test_property_every_symbol_is_its_own_item_when_some_have_no_name(env, data, text, mode_size):
 	# Decided by the user (2026-10-22): a symbol with no name is sent as itself, between number
-	# breaks like a name. No item mixes digits with a symbol or a name; only the first piece may
-	# start with the number's sign.
+	# breaks like a name, in group mode. No item mixes digits with a symbol or a name; only the first
+	# piece may start with the number's sign.
 	unnamed = data.draw(st.sets(st.sampled_from(env.module.numbers.SYMBOLS)))
 	symbols = symbol_of_name(env)
 	lookup = env.module.symbols.characterProcessing.processSpeechSymbol
@@ -490,6 +503,32 @@ def test_property_every_symbol_is_its_own_item_when_some_have_no_name(env, data,
 			assert digits.isdigit() and digits.isascii(), (text, unnamed, result)
 	texts = [symbols.get(item, item) for item in result if isinstance(item, str)]
 	assert "".join(texts) == text, (text, unnamed, result)
+
+
+@SHARED_ENV
+@given(data=st.data(), text=NUMBER_SHAPED, wait=st.integers(0, 60))
+def test_property_number_mode_joins_digits_and_symbols_with_spaces(env, data, text, wait):
+	# Decided by the user (2026-11-01): number mode speaks one number as one item, each digit and
+	# each symbol a piece (a leading sign joins the first digit), joined with single spaces; a
+	# symbol with no name is the symbol itself (decided by the user, 2026-10-22).
+	unnamed = data.draw(st.sets(st.sampled_from(env.module.numbers.SYMBOLS)))
+	lookup = env.module.symbols.characterProcessing.processSpeechSymbol
+	env.module.symbols.characterProcessing.processSpeechSymbol = lambda locale, symbol: (
+		symbol if symbol in unnamed else symbol_name(locale, symbol)
+	)
+	stage_settings = punctuation_settings(0)
+	stage_settings.number_mode = "number"
+	stage_settings.scaled_number_wait = lambda: wait
+	try:
+		result = list(env.module.inject_numbers([text], stage_settings, env.module.GENERIC_CONTEXT))
+	finally:
+		env.module.symbols.characterProcessing.processSpeechSymbol = lookup
+	sign = text[0] if text[0] in "+-" else ""
+	pieces = [
+		character if character.isdecimal() or character in unnamed else symbol_name("en", character)
+		for character in text[len(sign) :]
+	]
+	assert result == [" ".join([sign + pieces[0], *pieces[1:]])], (text, unnamed, result)
 
 
 # Value-mode thousands separators (spec 6.3, V1)
@@ -704,7 +743,7 @@ def test_property_number_breaks_never_touch_another_break(env, data):
 	)
 	stage_settings.punctuation_pause_characters = ".,/"
 	stage_settings.number_mode = data.draw(st.sampled_from(["none", "value", "number", "group"]))
-	stage_settings.group_size = data.draw(st.integers(2, 10))
+	stage_settings.group_size = data.draw(st.integers(1, 10))
 	number_wait, item_wait = (data.draw(st.integers(0, 60)) for _ in range(2))
 	stage_settings.scaled_number_wait = lambda: number_wait
 	stage_settings.scaled_item_wait = lambda: item_wait
@@ -758,7 +797,7 @@ def spoken_between_number_breaks(env, sequence):
 		if isinstance(item, env.module.NumberBreakCommand):
 			segments.append("")
 		elif isinstance(item, str):
-			segments[-1] += "".join(symbols.get(item, item).split())
+			segments[-1] += "".join(read_back_names(item, symbols).split())
 	return segments
 
 
@@ -776,7 +815,7 @@ def test_property_the_number_language_changes_no_words_or_breaks(env, data, text
 	stage_settings = punctuation_settings(0)
 	stage_settings.punctuation_pause_enabled = False
 	stage_settings.number_mode = data.draw(st.sampled_from(["none", "value", "number", "group"]))
-	stage_settings.group_size = data.draw(st.integers(2, 10))
+	stage_settings.group_size = data.draw(st.integers(1, 10))
 	number_wait = data.draw(st.integers(0, 60))
 	stage_settings.scaled_number_wait = lambda: number_wait
 	outputs = []
@@ -794,8 +833,14 @@ def test_property_the_number_language_changes_no_words_or_breaks(env, data, text
 @SHARED_ENV
 @given(text=NUMBER_TEXT, mode_size=MODE_SIZES, wait=st.integers(0, 300))
 def test_property_punctuation_never_touches_a_name(env, text, mode_size, wait):
+	# Number mode speaks its names inside its items (decided by the user, 2026-11-01).
 	symbols = symbol_of_name(env)
-	named = [item for item in run_number_mode(env, text, *mode_size) if item in symbols]
+	named = [
+		name
+		for item in run_number_mode(env, text, *mode_size)
+		if isinstance(item, str)
+		for name in names_of(item, symbols)
+	]
 	stage_settings = punctuation_settings(wait, remove_characters=True)
 	stage_settings.punctuation_pause_characters = ".,:-"
 	result = list(
@@ -805,4 +850,5 @@ def test_property_punctuation_never_touches_a_name(env, text, mode_size, wait):
 			env.module.GENERIC_CONTEXT,
 		),
 	)
-	assert [item for item in result if item in symbols] == named, (text, result)
+	read = [name for item in result if isinstance(item, str) for name in names_of(item, symbols)]
+	assert read == named, (text, result)

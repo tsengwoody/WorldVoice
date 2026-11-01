@@ -97,12 +97,13 @@ def test_number_mode_choices_put_off_first(monkeypatch):
 
 
 def test_group_size_confspec_is_its_range(monkeypatch):
-	# Decided by the user (2026-10-22): integer(default=3,min=2,max=10); NVDA refuses a stored
-	# value outside it, so it reads as 3 (read_stored), and convert resets it the same way.
+	# Decided by the user (2026-11-01, was 2..10 since 2026-10-22): integer(default=3,min=1,max=10);
+	# NVDA refuses a stored value outside it, so it reads as 3 (read_stored), and convert resets it
+	# the same way. A size of 1 reads the digits apart, with a number break between them.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	spec = module.PIPELINE_SETTING_BY_KEY["group_size"]
-	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (2, 10, 3, True)
-	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=3,min=2,max=10)"
+	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (1, 10, 3, True)
+	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=3,min=1,max=10)"
 	assert not hasattr(spec, "stored_min_value")
 	assert [other.key for other in module.PIPELINE_SETTINGS if other.reset_out_of_range] == ["group_size"]
 
@@ -171,10 +172,10 @@ def test_convert_clamps_ints_to_their_bounds(monkeypatch, key, raw, expected):
 
 @pytest.mark.parametrize(
 	("raw", "expected"),
-	[(1, 3), (11, 3), (2, 2), (10, 10), ("7", 7)],
+	[(0, 3), (-1, 3), (11, 3), (1, 1), (2, 2), (10, 10), ("7", 7), ("1", 1)],
 )
 def test_group_size_outside_its_range_reads_as_the_default(monkeypatch, raw, expected):
-	# Decided by the user (2026-10-22): outside 2..10 is 3, not clamped.
+	# Decided by the user (2026-10-22, range 1..10 since 2026-11-01): outside the range is 3, not clamped.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	assert module.PIPELINE_SETTING_BY_KEY["group_size"].convert(raw) == expected
 

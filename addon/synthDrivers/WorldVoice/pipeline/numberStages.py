@@ -114,15 +114,19 @@ def number_wait_factor(
 	with language commands between them, and between numbers that only whitespace
 	separates inside one item, which become items of their own. Blank text items
 	are dropped and the others stripped.
+
+	Number mode keeps its items whole: there the spaces join the digits of one number
+	(inject_numbers), and the number stage already put a break wherever only whitespace
+	separated two numbers (decided by the user, 2026-11-01).
 	"""
 	wait_factor = settings.scaled_number_wait()
 	if wait_factor <= 0:
 		yield from speech_sequence
 		return
-	yield from _insert_number_breaks(
-		_split_numbers(_remove_space(speech_sequence)),
-		NumberBreakCommand(wait_factor),
-	)
+	speech_sequence = _remove_space(speech_sequence)
+	if settings.number_mode != "number":
+		speech_sequence = _split_numbers(speech_sequence)
+	yield from _insert_number_breaks(speech_sequence, NumberBreakCommand(wait_factor))
 
 
 def _insert_number_breaks(speech_sequence: Iterable[SpeechCmd], break_cmd: SpeechCmd) -> Iterator[SpeechCmd]:
@@ -228,9 +232,16 @@ def _translate_number(
 	number_pause: int,
 	name_of: Callable[[str], str | None],
 ) -> Iterator[SpeechCmd]:
-	"""Speak one number match in *mode*: its pieces (numbers.number_pieces), with a number break
-	between every two, even at pause 0, so each reaches the synth as an item of its own."""
+	"""Speak one number match in *mode*: its pieces (numbers.number_pieces).
+
+	Number mode joins them with spaces into one item, read without a pause (decided by the
+	user, 2026-11-01). The other modes put a number break between every two, even at pause 0,
+	so each reaches the synth as an item of its own.
+	"""
 	pieces = number_pieces(raw, mode, group_size, name_of)
+	if mode == "number":
+		yield " ".join(pieces)
+		return
 	# One break instance per number, as the synth only reads its time.
 	separator = NumberBreakCommand(number_pause)
 	for index, piece in enumerate(pieces):
@@ -249,8 +260,9 @@ def inject_numbers(
 
 	Numbers are found once, with the number-language rule (_split_numbers_for_language), and each
 	gets, in order: its edge pauses, the wrapper of its number language, and the pieces of its
-	number mode (decided by the user, 2026-10-24, U5). A synth without roles gets no wrapper, and
-	the WVLangChangeCommands it was sent are dropped.
+	number mode (decided by the user, 2026-10-24, U5): one item of digits joined with spaces in
+	number mode, pieces apart with number breaks in group mode (_translate_number). A synth without
+	roles gets no wrapper, and the WVLangChangeCommands it was sent are dropped.
 
 	Two cases pass the sequence on as it is: "off" without a locale number language leaves numbers
 	alone, without even the dot rule, and "default" and "main" wrap a number in the language in

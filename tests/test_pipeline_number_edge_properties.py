@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
-from pipeline_harness import load_pipeline_module, punctuation_settings, symbol_name
+from pipeline_harness import load_pipeline_module, punctuation_settings, read_back_names, symbol_name
 
 SHARED_ENV = settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 
@@ -95,7 +95,7 @@ def numbers_and_gaps(env, text):
 @given(
 	text=TEXT,
 	mode=SPACED_MODES,
-	size=st.integers(2, 10),
+	size=st.integers(1, 10),
 	numlan=NUMBER_LANGUAGES,
 	wait=st.integers(-5, 60),
 )
@@ -103,7 +103,7 @@ def test_property_edges_keep_the_text(env, text, mode, size, numlan, wait):
 	# P-E1: only the whitespace between two numbers goes, and only with a pause; the dot rule adds spaces.
 	names = symbol_of_name(env.module)
 	result = env.module.inject_numbers([text], stage_settings(mode, size, wait), context(env.module, numlan))
-	spoken = "".join(names.get(item, item) for item in result if isinstance(item, str))
+	spoken = "".join(read_back_names(item, names) for item in result if isinstance(item, str))
 	parts, gaps = numbers_and_gaps(env, text)
 	expected = "".join(
 		value for index, (_kind, value) in enumerate(parts) if not (wait > 0 and index in gaps)
@@ -136,13 +136,14 @@ def test_property_no_edge_outside_digit_and_group_modes(env, sequence, mode, num
 @given(
 	text=TEXT,
 	mode=SPACED_MODES,
-	size=st.integers(2, 10),
+	size=st.integers(1, 10),
 	numlan=NUMBER_LANGUAGES,
 	wait=st.integers(1, 60),
 )
 def test_property_one_break_between_numbers(env, text, mode, size, numlan, wait):
 	# P-E3: no two breaks meet, and between numbers that only whitespace separates there is one
-	# number break; the others are the separators between a number's pieces.
+	# number break; the others are the separators between a number's pieces, in group mode only
+	# (number mode joins them with spaces, decided by the user, 2026-11-01).
 	module = env.module
 	result = list(module.inject_numbers([text], stage_settings(mode, size, wait), context(module, numlan)))
 	is_break = lambda item: isinstance(item, env.BreakCommand)
@@ -153,7 +154,7 @@ def test_property_one_break_between_numbers(env, text, mode, size, numlan, wait)
 	separators = sum(
 		len(module.numbers.number_pieces(value, mode, size, name_of)) - 1
 		for kind, value in parts
-		if kind == "number"
+		if kind == "number" and mode == "group"
 	)
 	plain = [item for item in result if type(item) is module.NumberBreakCommand]
 	assert len(plain) == separators + len(gaps), (text, result)
@@ -163,7 +164,7 @@ def test_property_one_break_between_numbers(env, text, mode, size, numlan, wait)
 @given(
 	text=TEXT,
 	mode=SPACED_MODES,
-	size=st.integers(2, 10),
+	size=st.integers(1, 10),
 	numlan=NUMBER_LANGUAGES,
 	wait=st.integers(1, 60),
 )
@@ -218,7 +219,7 @@ def draw_sequence(env, data, *, remove=None):
 	sequence = data.draw(st.lists(item, max_size=5))
 	run_settings = stage_settings(
 		mode=data.draw(MODES),
-		size=data.draw(st.integers(2, 10)),
+		size=data.draw(st.integers(1, 10)),
 		wait=data.draw(st.integers(0, 60)),
 		chars=data.draw(st.sampled_from(["", ".,", "。，", ". ,"])),
 		remove=data.draw(st.booleans()) if remove is None else remove,
@@ -321,7 +322,7 @@ TOKENS = st.builds(
 @given(
 	items=TOKENS,
 	mode=SPACED_MODES,
-	size=st.integers(2, 10),
+	size=st.integers(1, 10),
 	numlan=NUMBER_LANGUAGES,
 	wait=st.integers(1, 60),
 	roles=st.booleans(),

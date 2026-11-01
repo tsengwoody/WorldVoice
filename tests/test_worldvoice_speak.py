@@ -426,7 +426,7 @@ MAIN_ROWS = [
 	pytest.param(
 		["中12.5 ok"],
 		{"settings": NUMBER_MODE},
-		[(ZH, "中"), (EN, "1"), "|", (EN, "2"), "|", (EN, "full stop en"), "|", (EN, "5 ok")],
+		[(ZH, "中"), (EN, "1 2 full stop en 5 ok")],
 		id="number-mode",
 	),
 	pytest.param(["Total. 12"], {"settings": PUNCTUATION}, [(EN, "Total."), "|", (EN, " 12")], id="total"),
@@ -460,7 +460,9 @@ FOLLOW_ROWS = [
 	pytest.param(
 		["中12.5 ok"],
 		{"settings": NUMBER_MODE},
-		[(ZH, "中1"), "|", (ZH, "2"), "|", (EN, "full stop en"), "|", (EN, "5 ok")],
+		# Number mode joins the pieces with spaces (decided by the user, 2026-11-01); detection reads
+		# the harness's English name of "." as English.
+		[(ZH, "中1 2 "), (EN, "full stop en 5 ok")],
 		id="number-mode",
 	),
 ]
@@ -652,16 +654,16 @@ EDGE_ROWS = [
 		["中12"],
 		"main",
 		"en",
-		[(ZH, "中"), (EN, "1"), "|", (EN, "2")],
-		[(ZH, "中"), "|", (EN, "1"), "|", (EN, "2")],
+		[(ZH, "中"), (EN, "1 2")],
+		[(ZH, "中"), "|", (EN, "1 2")],
 		id="zh12-main",
 	),
 	pytest.param(
 		["中12"],
 		"default",
 		"en",
-		[(ZH, "中1"), "|", (ZH, "2")],
-		[(ZH, "中"), "|", (ZH, "1"), "|", (ZH, "2")],
+		[(ZH, "中1 2")],
+		[(ZH, "中"), "|", (ZH, "1 2")],
 		id="zh12-follow",
 	),
 	pytest.param(
@@ -676,24 +678,25 @@ EDGE_ROWS = [
 		["中 COVID-19 中"],
 		"main",
 		"zh",
-		[(ZH, "中 "), (EN, "COVID-"), (ZH, "1"), "|", (ZH, "9 中")],
-		[(ZH, "中 "), (EN, "COVID-"), "|", (ZH, "1"), "|", (ZH, "9"), "|", (ZH, "中")],
+		[(ZH, "中 "), (EN, "COVID-"), (ZH, "1 9 中")],
+		[(ZH, "中 "), (EN, "COVID-"), "|", (ZH, "1 9"), "|", (ZH, "中")],
 		id="covid-main",
 	),
 	pytest.param(
 		["中 -12 34"],
 		"main",
 		"en",
-		[(ZH, "中 "), (EN, "-1"), "|", (EN, "2 3"), "|", (EN, "4")],
-		[(ZH, "中"), "|", (EN, "-1"), "|", (EN, "2"), "|", (EN, "3"), "|", (EN, "4")],
+		# At a number pause of 0 nothing adds a break, so the two numbers run together.
+		[(ZH, "中 "), (EN, "-1 2 3 4")],
+		[(ZH, "中"), "|", (EN, "-1 2"), "|", (EN, "3 4")],
 		id="sign-main",
 	),
 	pytest.param(
 		["abc 123 def"],
 		"zh_TW",
 		"zh",
-		[(EN, "abc "), (ZH, "1"), "|", (ZH, "2"), "|", (ZH, "3 "), (EN, "def")],
-		[(EN, "abc"), "|", (ZH, "1"), "|", (ZH, "2"), "|", (ZH, "3"), "|", (EN, "def")],
+		[(EN, "abc "), (ZH, "1 2 3 "), (EN, "def")],
+		[(EN, "abc"), "|", (ZH, "1 2 3"), "|", (EN, "def")],
 		id="zh-locale",
 	),
 ]
