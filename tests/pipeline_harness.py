@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 from addon_loader import REF, WORLDVOICE, alias_package, load_definitions, load_source
-from nvda_stubs import StubModules, configobj_stub, worldvoice_conf
+from nvda_stubs import StubModules, configobj_stub, pristine_stored_key_for, worldvoice_conf
 
 CHARACTER_PROCESSING = REF / "nvda/source/characterProcessing.py"
 
@@ -218,11 +218,7 @@ def load_pipeline_module(monkeypatch, settings):
 	settingsModule.pipeline_settings = SimpleNamespace(effective=lambda supports_roles: settings)
 	settingsModule.read_stored = lambda section, key, default: section.get(key, default)
 	# The real derivation, so the stages read their log switches under the stored keys.
-	settingsModule.stored_key_for = load_definitions(
-		WORLDVOICE / "pipeline/settings.py",
-		["STORED_WORDS", "stored_key_for"],
-		{},
-	)["stored_key_for"]
+	settingsModule.stored_key_for = pristine_stored_key_for()
 
 	load_source(monkeypatch, "synthDrivers.WorldVoice.pipeline", WORLDVOICE / "pipeline/__init__.py")
 	# The stage table imports every stage module.

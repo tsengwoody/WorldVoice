@@ -8,7 +8,7 @@ import re
 import sys
 from types import ModuleType
 
-from addon_loader import WORLDVOICE, load_definitions
+from addon_loader import PRISTINE_WORLDVOICE, WORLDVOICE, load_definitions
 
 # The file whose installConfspec(conf) assigns conf.spec["WorldVoice"].
 CONFSPEC_SOURCE = WORLDVOICE / "confspec.py"
@@ -94,9 +94,9 @@ def _value_default(node):
 
 
 @functools.cache
-def _stored_key_for():
-	"""pipeline/settings.py's stored_key_for, run from the source with the STORED_WORDS it reads."""
-	path = WORLDVOICE / "pipeline/settings.py"
+def pristine_stored_key_for():
+	"""pipeline/settings.py's stored_key_for as written, run with the STORED_WORDS it reads."""
+	path = PRISTINE_WORLDVOICE / "pipeline/settings.py"
 	return load_definitions(path, ["STORED_WORDS", "stored_key_for"], {})["stored_key_for"]
 
 
@@ -109,7 +109,7 @@ def _spread_defaults(node):
 		# Built from the PipelineSettingSpec(key, kind, default, ...) table, under each key's stored
 		# key, without the ordering-only entries (pipeline_config=False) NVDA stores as driver settings.
 		table = _top_level_value(WORLDVOICE / "pipeline/settings.py", "PIPELINE_SETTINGS")
-		stored_key_for = _stored_key_for()
+		stored_key_for = pristine_stored_key_for()
 		return {
 			stored_key_for(ast.literal_eval(spec.args[0])): ast.literal_eval(spec.args[2])
 			for spec in table.elts
@@ -127,7 +127,7 @@ def _spread_defaults(node):
 		# and one per key of a stage's also_logged_by, each under its stored key.
 		stages = _top_level_value(WORLDVOICE / "pipeline/registry.py", "STAGES")
 		value = _value_default(node.value)
-		stored_key_for = _stored_key_for()
+		stored_key_for = pristine_stored_key_for()
 		keys = {}
 		for stage in stages.elts:
 			options = {keyword.arg: ast.literal_eval(keyword.value) for keyword in stage.keywords}

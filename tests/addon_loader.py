@@ -19,6 +19,10 @@ WORLDVOICE = ADDON / "synthDrivers/WorldVoice"
 # The NVDA and Neural sources some tests compare against. mutmut runs the tests from a copy of
 # the project in mutants/, which does not copy this large tree, so look beside the copy too.
 REF = ROOT / "ref" if (ROOT / "ref").exists() or ROOT.name != "mutants" else ROOT.parent / "ref"
+# The add-on as written, for a helper that runs one of its functions to build a fixture. Under
+# mutmut WORLDVOICE is the rewritten copy, whose mutated functions need names mutmut generates
+# elsewhere in the file, and a fixture built from a mutant would follow the mutant it should catch.
+PRISTINE_WORLDVOICE = WORLDVOICE if ROOT.name != "mutants" else ROOT.parent / WORLDVOICE.relative_to(ROOT)
 
 
 def load_source(monkeypatch, name, path, *, register=True):

@@ -44,6 +44,7 @@ from pathlib import Path
 
 import pytest
 from addon_loader import REF
+from mutation_support import running_under_mutmut
 from nvda_stubs import worldvoice_conf
 from pipeline_harness import load_synth
 
@@ -372,6 +373,9 @@ def test_every_add_on_module_has_a_layer():
 	assert [path for path in paths if layer(path) is None] == []
 
 
+# mutmut's rewritten copy adds its own snake_case mutant functions to every mutated module; the
+# guard judges the source, as the hygiene guards do, so it stands aside on that copy.
+@pytest.mark.skipif(running_under_mutmut(), reason="mutmut's copy adds its mutant functions")
 def test_naming_follows_layer(addon_violations):
 	listed = _listed(INTERFACE_NAMES)
 	assert [
