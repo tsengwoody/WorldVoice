@@ -75,9 +75,9 @@ def test_from_display(scale, shown, value):
 	assert layout.fromDisplay(SimpleNamespace(panel_scale=scale), shown) == value
 
 
-@pytest.mark.parametrize(("value", "index"), [("group", 2), ("roman", 0)])
+@pytest.mark.parametrize(("value", "index"), [("number", 2), ("group", 0), ("roman", 0)])
 def test_choice_index(value, index):
-	assert layout.choiceIndex(("value", "number", "group"), value) == index
+	assert layout.choiceIndex(("none", "value", "number"), value) == index
 
 
 def test_choice_values(table):
@@ -85,22 +85,19 @@ def test_choice_values(table):
 
 
 def test_controller_keys_of_the_table(table):
-	assert layout.controllerKeys(table) == frozenset({"number_mode", "punctuation_pause_enabled"})
+	# Decided by the user (2026-11-01, U1): the group size no longer depends on the number mode.
+	assert layout.controllerKeys(table) == frozenset({"punctuation_pause_enabled"})
 
 
-@pytest.mark.parametrize("mode", ["none", "group", None])
-def test_dependent_states_follow_the_number_mode(table, mode):
+@pytest.mark.parametrize("mode", ["none", "value", "number", "group", None])
+def test_the_number_mode_controls_no_other_setting(table, mode):
 	read = {"number_mode": mode, "punctuation_pause_enabled": True}.__getitem__
-	group = mode == "group"
-	assert layout.dependentStates(table, read) == {
-		"group_size": group,
-		**dict.fromkeys(PAUSE_DEPENDENTS, True),
-	}
+	assert layout.dependentStates(table, read) == dict.fromkeys(PAUSE_DEPENDENTS, True)
 
 
 @pytest.mark.parametrize("switch", [True, False])
 def test_dependent_states_follow_the_switch(table, switch):
-	read = {"number_mode": "group", "punctuation_pause_enabled": switch}.__getitem__
+	read = {"number_mode": "number", "punctuation_pause_enabled": switch}.__getitem__
 	states = layout.dependentStates(table, read)
 	assert {key: states[key] for key in PAUSE_DEPENDENTS} == dict.fromkeys(PAUSE_DEPENDENTS, switch)
 

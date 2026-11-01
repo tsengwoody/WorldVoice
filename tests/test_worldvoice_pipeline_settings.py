@@ -100,13 +100,13 @@ def test_descriptors_read_and_write_through_the_service(monkeypatch):
 	assert synth.itemWaitFactor == 10
 	synth.itemWaitFactor = 30
 	synth.globalWaitFactor = 57
-	synth.nummod = "group"
+	synth.nummod = "number"
 	assert conf["WorldVoice"]["pipeline"] == {
 		"itemWaitFactor": 30,
 		"globalWaitFactor": 50,
-		"numberMode": "group",
+		"numberMode": "number",
 	}
-	assert (synth.itemWaitFactor, synth.globalWaitFactor, synth.nummod) == (30, 50, "group")
+	assert (synth.itemWaitFactor, synth.globalWaitFactor, synth.nummod) == (30, 50, "number")
 	assert "speech" not in conf
 
 
@@ -130,6 +130,17 @@ def test_an_unknown_number_mode_is_stored_and_read_as_value(monkeypatch):
 	synth.nummod = "pair"
 	assert conf["WorldVoice"]["pipeline"]["numberMode"] == "value"
 	assert synth.nummod == "value"
+
+
+def test_synth_nummod_group_stores_value(monkeypatch):
+	# Decided by the user (2026-11-01, U7): group mode is gone; a stored "group" reads as value and
+	# writing it stores value, so the settings ring never meets an unknown mode.
+	conf = {"WorldVoice": {"pipeline": {"numberMode": "group"}}}
+	synth_class, _ = load_synth(monkeypatch, conf)
+	synth = object.__new__(synth_class)
+	assert synth.nummod == "value"
+	synth.nummod = "group"
+	assert conf["WorldVoice"]["pipeline"]["numberMode"] == "value"
 
 
 def test_load_settings_reapplies_waitfactor_without_writing_pipeline(monkeypatch):

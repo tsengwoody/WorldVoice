@@ -19,7 +19,7 @@ OLD_DEFAULTS = {
 	"punctuation_pause_enabled": True,
 	"remove_punctuation_characters": False,
 	"punctuation_pause_characters": "",
-	"group_size": 3,
+	"group_size": 0,
 }
 # Where nvda.ini stores each of them: NVDA camelCase (phase 47d).
 STORED_KEYS = {
@@ -91,19 +91,18 @@ def test_number_mode_choices_put_off_first(monkeypatch):
 		("none", "off"),
 		("value", "value"),
 		("number", "number"),
-		("group", "group"),
 	)
 	assert module.PIPELINE_SETTING_BY_KEY["number_mode"].default == "value"
 
 
 def test_group_size_confspec_is_its_range(monkeypatch):
-	# Decided by the user (2026-11-01, was 2..10 since 2026-10-22): integer(default=3,min=1,max=10);
-	# NVDA refuses a stored value outside it, so it reads as 3 (read_stored), and convert resets it
-	# the same way. A size of 1 reads the digits apart, with a number break between them.
+	# Decided by the user (2026-11-01, U6; was 1..10, default 3): 0 is no grouping, and there is no
+	# practical maximum; the largest value a wx spin control holds is the bound (O4). NVDA refuses a
+	# stored value outside it, so it reads as 0 (read_stored), and convert resets it the same way.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	spec = module.PIPELINE_SETTING_BY_KEY["group_size"]
-	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (1, 10, 3, True)
-	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=3,min=1,max=10)"
+	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (0, 2**31 - 1, 0, True)
+	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=0,min=0,max=2147483647)"
 	assert not hasattr(spec, "stored_min_value")
 	assert [other.key for other in module.PIPELINE_SETTINGS if other.reset_out_of_range] == ["group_size"]
 
@@ -126,7 +125,7 @@ def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
 		"punctuation_wait_factor",
 		"punctuation_pause_characters",
 	]
-	assert module.NUMBER_MODES == ("none", "value", "number", "group")
+	assert module.NUMBER_MODES == ("none", "value", "number")
 
 
 def test_number_language_is_ordering_only(monkeypatch):
@@ -172,10 +171,20 @@ def test_convert_clamps_ints_to_their_bounds(monkeypatch, key, raw, expected):
 
 @pytest.mark.parametrize(
 	("raw", "expected"),
-	[(0, 3), (-1, 3), (11, 3), (1, 1), (2, 2), (10, 10), ("7", 7), ("1", 1)],
+	[
+		(0, 0),
+		(1, 1),
+		(11, 11),
+		(2**31 - 1, 2**31 - 1),
+		("7", 7),
+		(-1, 0),
+		(2**31, 0),
+		(10**20, 0),
+	],
 )
 def test_group_size_outside_its_range_reads_as_the_default(monkeypatch, raw, expected):
-	# Decided by the user (2026-10-22, range 1..10 since 2026-11-01): outside the range is 3, not clamped.
+	# Decided by the user (2026-10-22; range 0..2**31-1 since 2026-11-01, U6): outside the range is
+	# the default 0, not clamped.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	assert module.PIPELINE_SETTING_BY_KEY["group_size"].convert(raw) == expected
 
@@ -250,7 +259,8 @@ def test_the_characters_are_stored_and_read_exactly_as_typed(monkeypatch, charac
 		("pair", "value"),
 		(None, "value"),
 		("value", "value"),
-		("group", "group"),
+		# Decided by the user (2026-11-01, U7): group mode is gone; a stored one reads as value.
+		("group", "value"),
 		("none", "none"),
 	],
 )
@@ -404,6 +414,37 @@ def test_load_reads_the_default_for_each_invalid_key(monkeypatch, key):
 	assert getattr(loaded, other) == 40
 
 
+@pytest.mark.parametrize(
+	("error", "stored"),
+	[
+		("VdtValueTooSmallError", "-1"),
+		("VdtTypeError", "abc"),
+		("VdtTypeError", "3.5"),
+		("VdtValueTooBigError", "2147483648"),
+	],
+)
+def test_a_refused_stored_group_size_reads_as_zero(monkeypatch, error, stored):
+	# Spec F3 and §7: NVDA refuses each of these on read; WorldVoice reads the default 0 and warns once.
+	warnings = []
+	conf = refusing_conf({"groupSize": stored})
+	module = load_settings_module(monkeypatch, conf, warnings=warnings)
+	conf["WorldVoice"]["pipeline"].refused["groupSize"] = getattr(sys.modules["configobj.validate"], error)(
+		stored,
+	)
+	repository = module.ConfigPipelineRepository(lambda: conf)
+	assert repository.load().group_size == 0
+	assert repository.load().group_size == 0
+	assert len(warnings) == 1 and f'"{stored}"' in warnings[0][0]
+
+
+def test_a_stored_group_mode_reads_as_value_and_keeps_the_stored_size(monkeypatch):
+	# Decided by the user (2026-11-01, U7): no migration; the old group mode's size groups in value mode.
+	conf = {"WorldVoice": {"pipeline": {"numberMode": "group", "groupSize": 4}}}
+	module = load_settings_module(monkeypatch, conf)
+	settings = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf)).get()
+	assert (settings.number_mode, settings.group_size) == ("value", 4)
+
+
 def test_a_new_invalid_value_warns_again(monkeypatch):
 	warnings = []
 	conf = refusing_conf()
@@ -412,7 +453,7 @@ def test_a_new_invalid_value_warns_again(monkeypatch):
 	repository = module.ConfigPipelineRepository(lambda: conf)
 	for value in (11, 11, 12):
 		conf["WorldVoice"]["pipeline"].refused["groupSize"] = too_big(value)
-		assert repository.load().group_size == 3
+		assert repository.load().group_size == 0
 	assert [('"11"' in args[0], '"12"' in args[0]) for args in warnings] == [(True, False), (False, True)]
 
 
@@ -503,13 +544,13 @@ def test_a_save_writes_every_passed_key_even_unchanged(monkeypatch):
 
 def test_a_save_leaves_a_refused_key_it_does_not_name(monkeypatch):
 	# The settings ring saves one key; only a save that names the refused key rewrites it.
-	conf, section = nvda_conf({"groupSize": 11})
+	conf, section = nvda_conf({"groupSize": -1})
 	module = load_settings_module(monkeypatch, conf)
-	section.refused["groupSize"] = sys.modules["configobj.validate"].VdtValueTooBigError(11)
+	section.refused["groupSize"] = sys.modules["configobj.validate"].VdtValueTooSmallError(-1)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
-	assert service.update(item_wait_factor=30).group_size == 3
+	assert service.update(item_wait_factor=30).group_size == 0
 	assert section.written == ["itemWaitFactor"]
-	assert dict(section) == {"groupSize": 11, "itemWaitFactor": 30}
+	assert dict(section) == {"groupSize": -1, "itemWaitFactor": 30}
 
 
 @pytest.mark.parametrize("source", ["configobj.validate", "validate"])
@@ -536,11 +577,11 @@ def test_without_configobj_a_read_error_is_not_hidden(monkeypatch):
 
 def test_repository_reads_and_writes_stored_keys(monkeypatch):
 	# nvda.ini holds the NVDA camelCase keys; the settings keep their snake_case fields (phase 47d).
-	conf = {"WorldVoice": {"pipeline": {"numberMode": "group", "sayAllWaitFactor": 30}}}
+	conf = {"WorldVoice": {"pipeline": {"numberMode": "none", "sayAllWaitFactor": 30}}}
 	module = load_settings_module(monkeypatch, conf)
 	service = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf))
 	settings = service.get()
-	assert (settings.number_mode, settings.sayall_wait_factor) == ("group", 30)
+	assert (settings.number_mode, settings.sayall_wait_factor) == ("none", 30)
 	service.update(number_mode="number")
 	section = conf["WorldVoice"]["pipeline"]
 	assert section["numberMode"] == "number"

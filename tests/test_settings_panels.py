@@ -34,7 +34,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	env = pipeline_env(
 		monkeypatch,
 		scope="all",
-		numberMode="group",
+		numberMode="number",
 		globalWaitFactor=30,
 		numberWaitFactor=11,
 		groupSize=4,
@@ -64,7 +64,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	]
 	assert panel._scope_choice.choices == ["All Synthesizers (Global)", "Only WorldVoice Synthesizer"]
 	assert panel._scope_choice.selection == 0
-	assert panel._number_mode_choice.selection == 3
+	assert panel._number_mode_choice.selection == 2
 	# The global factor is stored in tens and shown in units.
 	assert panel._global_wait_factor_slider.value == 3
 	assert [
@@ -75,7 +75,7 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._remove_punctuation_characters_checkbox.value is True
 	assert panel._punctuation_pause_characters_edit.value == "。，"
 	spin = panel._group_size_spin
-	assert (spin.GetValue(), spin.GetMin(), spin.GetMax()) == (4, 1, 10)
+	assert (spin.GetValue(), spin.GetMin(), spin.GetMax()) == (4, 0, 2147483647)
 	# NVDA's select-on-focus spin control, as its own Voice panel uses, not a plain wx.SpinCtrl.
 	assert type(spin) is env.gui.nvdaControls.SelectOnFocusSpinCtrl is not env.wx.SpinCtrl
 
@@ -114,10 +114,12 @@ def test_number_modes_match_the_driver_and_the_panel(monkeypatch):
 		members=("_get_availableNummods",),
 	)["SynthDriver"]
 	spec = settings_module.PIPELINE_SETTING_BY_KEY["number_mode"]
+	# The settings ring lists the driver's modes: off, value, number, no "group" (2026-11-01, U1).
 	assert (
 		list(settings_module.NUMBER_MODES)
 		== list(driver()._get_availableNummods())
 		== [value for value, _label in spec.choices]
+		== ["none", "value", "number"]
 	)
 	assert panel._number_mode_choice.choices == [label for _value, label in spec.choices]
 
@@ -126,40 +128,28 @@ def group_size_enabled(panel):
 	return panel._group_size_spin.enabled
 
 
-@pytest.mark.parametrize(
-	("mode", "enabled"),
-	[("value", False), ("group", True), ("pair", False)],
-)
-def test_pipeline_panel_enables_group_controls_for_the_stored_mode(monkeypatch, mode, enabled):
+@pytest.mark.parametrize("mode", ["none", "value", "number", "group", "pair"])
+def test_pipeline_panel_group_size_is_enabled_for_every_stored_mode(monkeypatch, mode):
+	# Decided by the user (2026-11-01, U1): the group size applies in every number mode.
 	env = pipeline_env(monkeypatch, numberMode=mode)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
-	assert group_size_enabled(panel) is enabled
+	assert group_size_enabled(panel) is True
 
 
-def test_pipeline_panel_group_controls_follow_the_mode_choice(monkeypatch):
+def test_pipeline_panel_group_size_stays_enabled_after_every_mode_choice(monkeypatch):
 	env = pipeline_env(monkeypatch, numberMode="value")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	choice = panel._number_mode_choice
-
-	choice.Select(3)
-	fire(choice, "EVT_CHOICE", panel=panel)
-	assert group_size_enabled(panel) is True
-
-	choice.Select(1)
-	fire(choice, "EVT_CHOICE", panel=panel)
-	assert group_size_enabled(panel) is False
-
-
-def test_pipeline_panel_counts_no_selection_as_not_group(monkeypatch):
-	# Index -1 would be the last choice, group: a choice with no selection must not enable the group controls.
-	env = pipeline_env(monkeypatch, numberMode="group")
-	panel, _sizer = build(env, "SpeechPipelinePanel")
-	panel._number_mode_choice.Select(-1)
-	fire(panel._number_mode_choice, "EVT_CHOICE", panel=panel)
-	assert group_size_enabled(panel) is False
+	assert choice.choices == ["off", "value", "number"]
+	for index in (0, 1, 2, -1):
+		choice.Select(index)
+		# Nothing listens to the mode any more, so nothing can disable the group size.
+		with pytest.raises(LookupError, match="nothing handles EVT_CHOICE"):
+			fire(choice, "EVT_CHOICE", panel=panel)
+		assert group_size_enabled(panel) is True
 
 
-@pytest.mark.parametrize("stored", ["none", "group"])
+@pytest.mark.parametrize("stored", ["none", "number"])
 def test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected(monkeypatch, stored):
 	# A choice with no selection names no mode: neither the last choice, group, nor "value" is
 	# saved, and the other settings still are.
@@ -221,8 +211,8 @@ def test_pipeline_panel_global_wait_slider_shows_tens_and_saves_units(monkeypatc
 def test_pipeline_panel_binds_only_the_controllers(monkeypatch):
 	env = pipeline_env(monkeypatch)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
+	# The number mode controls nothing since the group size became independent (2026-11-01, U1).
 	assert [source for _event, _handler, source in panel.bindings] == [
-		panel._number_mode_choice,
 		panel._punctuation_pause_enabled_checkbox,
 	]
 
@@ -241,7 +231,10 @@ def test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid(monk
 	assert env.conf["WorldVoice"]["pipeline"]["globalWaitFactor"] == 50
 
 
-@pytest.mark.parametrize(("typed", "saved"), [(0, 3), (1, 1), (11, 3), (42, 3)])
+@pytest.mark.parametrize(
+	("typed", "saved"),
+	[(0, 0), (1, 1), (11, 11), (2147483647, 2147483647), (-1, 0), (2147483648, 0)],
+)
 def test_pipeline_panel_saves_an_out_of_range_group_size_as_the_default(monkeypatch, typed, saved):
 	env = pipeline_env(monkeypatch)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
@@ -252,7 +245,7 @@ def test_pipeline_panel_saves_an_out_of_range_group_size_as_the_default(monkeypa
 	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == saved
 
 
-def test_pipeline_panel_saves_the_disabled_group_size(monkeypatch):
+def test_pipeline_panel_saves_the_group_size_in_value_mode(monkeypatch):
 	env = pipeline_env(monkeypatch, numberMode="value")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	panel._group_size_spin.SetValue(7)
@@ -262,7 +255,10 @@ def test_pipeline_panel_saves_the_disabled_group_size(monkeypatch):
 	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 7
 
 
-@pytest.mark.parametrize(("stored", "shown"), [(0, 3), (1, 1), (11, 3), (12, 3), ("4", 4)])
+@pytest.mark.parametrize(
+	("stored", "shown"),
+	[(0, 0), (1, 1), (12, 12), ("4", 4), (-1, 0), (2147483648, 0)],
+)
 def test_pipeline_panel_shows_an_out_of_range_stored_size_as_the_default(monkeypatch, stored, shown):
 	env = pipeline_env(monkeypatch, groupSize=stored)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
@@ -279,19 +275,19 @@ def nvda_pipeline_section(env, refused=None):
 
 def test_pipeline_panel_save_fixes_a_refused_stored_size(monkeypatch):
 	# Decided by the user (2026-10-22, Q3 and fix/uniform-settings-save): NVDA refuses a stored
-	# 11, the panel shows 3, and saving the panel untouched writes every shown value; NVDA writes
-	# only the 3, the one value that differs from what is stored.
-	env = pipeline_env(monkeypatch, groupSize=11, numberWaitFactor=40)
-	error = sys.modules["configobj.validate"].VdtValueTooBigError(11)
+	# -1, the panel shows the default 0, and saving the panel untouched writes every shown value;
+	# NVDA writes only the 0, the one value that differs from what is stored.
+	env = pipeline_env(monkeypatch, groupSize=-1, numberWaitFactor=40)
+	error = sys.modules["configobj.validate"].VdtValueTooSmallError(-1)
 	section = nvda_pipeline_section(env, {"groupSize": error})
 	panel, _sizer = build(env, "SpeechPipelinePanel")
-	assert panel._group_size_spin.GetValue() == 3
+	assert panel._group_size_spin.GetValue() == 0
 
 	panel.onSave()
 
 	assert section.written == ["groupSize"]
-	assert (dict(section)["groupSize"], dict(section)["numberWaitFactor"]) == (3, 40)
-	assert env.pipeline_settings.get().group_size == 3
+	assert (dict(section)["groupSize"], dict(section)["numberWaitFactor"]) == (0, 40)
+	assert env.pipeline_settings.get().group_size == 0
 
 
 def test_pipeline_panel_save_passes_every_value_it_shows(monkeypatch):

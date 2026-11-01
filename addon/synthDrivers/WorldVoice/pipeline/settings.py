@@ -39,6 +39,11 @@ SCOPE_CHOICES: tuple[tuple[str, str], ...] = (
 	("WorldVoice", _("Only WorldVoice Synthesizer")),
 )
 
+# The largest value a wx SpinCtrl holds, a signed 32-bit int: a larger one silently shows as
+# something else (spec feat/number-group-independent F4, O4), so a spin entry's maximum stays at or
+# below it and its confspec refuses anything larger.
+SPIN_MAX = 2**31 - 1
+
 # The number modes: (stored value, label), in display order.
 NUMBER_MODE_CHOICES: tuple[tuple[str, str], ...] = (
 	# Translators: A number mode: numbers are left as they are.
@@ -47,8 +52,6 @@ NUMBER_MODE_CHOICES: tuple[tuple[str, str], ...] = (
 	("value", _("value")),
 	# Translators: A number mode: the digits of a number are read one by one.
 	("number", _("number")),
-	# Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
-	("group", _("group")),
 )
 
 # The number languages that are not locales: (stored value, label), listed before the locales.
@@ -60,7 +63,8 @@ NUMBER_LANGUAGE_CHOICES: tuple[tuple[str, str], ...] = (
 	(MAIN, _("Follow main language")),
 )
 
-# The number modes the pipeline knows; any other stored or written mode reads as "value".
+# The number modes the pipeline knows; any other stored or written mode reads as "value", the old
+# "group" mode included (decided by the user, 2026-11-01, U7: no migration).
 NUMBER_MODES: tuple[str, ...] = tuple(value for value, _label in NUMBER_MODE_CHOICES)
 
 
@@ -189,22 +193,21 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		control="choice",
 		choices=NUMBER_MODE_CHOICES,
 	),
-	# Digits per group in group number mode; set in the panels only, so no synth setting.
+	# Digits per group, in every number mode (0: no grouping); set in the panels only, so no synth setting.
 	PipelineSettingSpec(
 		"group_size",
 		int,
-		3,
+		0,
 		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 		label=_("Group size"),
-		# A size of 1 reads the digits apart, with the number pause between them; "number" reads them
-		# joined with spaces, without it (decided by the user, 2026-11-01). NVDA refuses a stored size
-		# outside 1..10 on read, so it reads as 3 (read_stored); convert resets one written outside
-		# them the same way, where the wait factors clamp (decided by the user, 2026-10-22).
-		min_value=1,
-		max_value=10,
+		# Grouping is independent of the number mode, and 0 is no grouping (decided by the user,
+		# 2026-11-01, U1, U6). NVDA refuses a stored value outside 0..SPIN_MAX, or one that is not an
+		# integer, on read, so it reads as 0 (read_stored); convert resets one written outside the
+		# range the same way, where the wait factors clamp (decided by the user, 2026-10-22).
+		min_value=0,
+		max_value=SPIN_MAX,
 		reset_out_of_range=True,
 		control="spin",
-		depends_on=("number_mode", "group"),
 	),
 	PipelineSettingSpec(
 		"number_wait_factor",

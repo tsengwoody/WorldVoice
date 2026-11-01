@@ -23,6 +23,9 @@ DRIVER_CONTROLS = {"checkbox", "slider", "choice"}
 PANELS = {"voice", "pipeline"}
 # Words that keep their capital letter inside a sentence-case label.
 PROPER_NOUNS = {"Unicode", "CJK", "Southeast", "Asian", "WorldVoice"}
+# The range of a wx SpinCtrl, a signed 32-bit int: a value outside it silently shows as something
+# else (spec feat/number-group-independent F4).
+WX_SPIN_RANGE = (-(2**31), 2**31 - 1)
 
 
 @pytest.fixture
@@ -165,6 +168,15 @@ def check_bounds(specs):
 	return problems
 
 
+def check_spin_fits_wx(specs):
+	low, high = WX_SPIN_RANGE
+	return [
+		f"{spec.key}: the spin range {spec.min_value}..{spec.max_value} is outside {low}..{high}"
+		for spec in specs
+		if spec.control == "spin" and not low <= spec.min_value <= spec.max_value <= high
+	]
+
+
 def check_voice_anchor(specs):
 	voice = [spec for spec in specs if "voice" in spec.panels]
 	if voice and voice[0].driver_id is None:
@@ -263,6 +275,7 @@ CHECKS = [
 	check_dependencies,
 	check_scale,
 	check_bounds,
+	check_spin_fits_wx,
 	check_voice_anchor,
 	check_sentence_case,
 	check_ordering_only,
@@ -322,7 +335,7 @@ BROKEN = {
 	),
 	"controller depends": (
 		check_dependencies,
-		lambda m: _with(m, "punctuation_pause_enabled", depends_on=("number_mode", "group")),
+		lambda m: _with(m, "punctuation_pause_enabled", depends_on=("number_mode", "number")),
 	),
 	"controller later": (
 		check_dependencies,
@@ -330,7 +343,7 @@ BROKEN = {
 	),
 	"controller missing from a panel": (
 		check_dependencies,
-		lambda m: _with(m, "number_mode", panels=("voice",)),
+		lambda m: _with(m, "punctuation_pause_enabled", panels=("voice",)),
 	),
 	"slider controller": (
 		check_dependencies,
@@ -357,8 +370,10 @@ BROKEN = {
 	"bound off the scale": (check_scale, lambda m: _with(m, "global_wait_factor", max_value=95)),
 	"scaled slider steps by one": (check_scale, lambda m: _with(m, "global_wait_factor", min_step=1)),
 	"unscaled slider steps by ten": (check_scale, lambda m: _with(m, "number_wait_factor", min_step=10)),
-	"default above the bounds": (check_bounds, lambda m: _with(m, "group_size", default=500)),
-	"default below the bounds": (check_bounds, lambda m: _with(m, "group_size", default=0)),
+	"default above the bounds": (check_bounds, lambda m: _with(m, "group_size", default=2**31)),
+	"default below the bounds": (check_bounds, lambda m: _with(m, "group_size", default=-1)),
+	"spin above the wx range": (check_spin_fits_wx, lambda m: _with(m, "group_size", max_value=2**31)),
+	"spin below the wx range": (check_spin_fits_wx, lambda m: _with(m, "group_size", min_value=-(2**31) - 1)),
 	"max below min": (check_bounds, lambda m: _with(m, "number_wait_factor", min_value=50, max_value=10)),
 	"empty range": (check_bounds, lambda m: _with(m, "group_size", min_value=3, max_value=3, default=3)),
 	"reset on a non-int": (check_bounds, lambda m: _with(m, "scope", reset_out_of_range=True)),
@@ -405,6 +420,23 @@ BROKEN = {
 		lambda m: _with(m, "number_mode", driver_id="numberMode"),
 	),
 }
+
+
+def test_group_size_is_an_independent_panel_only_spin(module):
+	# Decided by the user (2026-11-01, U1, U6) and O4: no dependency, no synth setting (so no ring
+	# entry), 0 (no grouping) to the largest value a wx spin holds, default 0.
+	spec = module.PIPELINE_SETTING_BY_KEY["group_size"]
+	assert (spec.control, spec.depends_on, spec.driver_id) == ("spin", None, None)
+	assert (spec.min_value, spec.max_value, spec.default) == (0, 2**31 - 1, 0)
+	assert spec.max_value == module.SPIN_MAX == WX_SPIN_RANGE[1]
+
+
+def test_no_entry_depends_on_the_number_mode(module):
+	assert [
+		spec.key
+		for spec in module.PIPELINE_SETTINGS
+		if spec.depends_on and spec.depends_on[0] == "number_mode"
+	] == []
 
 
 @pytest.mark.parametrize(("check", "make_broken"), BROKEN.values(), ids=BROKEN.keys())

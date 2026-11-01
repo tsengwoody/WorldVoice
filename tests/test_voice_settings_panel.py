@@ -45,7 +45,7 @@ class Driver:
 		self.availableVoices = {"eva": SimpleNamespace(id="eva", displayName="Eva")}
 		self.availableVariants = {"v1": SimpleNamespace(id="v1", displayName="Variant 1")}
 		self.availableNummods = {
-			mode: SimpleNamespace(id=mode, displayName=mode) for mode in ("none", "value", "number", "group")
+			mode: SimpleNamespace(id=mode, displayName=mode) for mode in ("none", "value", "number")
 		}
 		defaults = {
 			"voice": "eva",
@@ -241,7 +241,7 @@ def test_group_size_follows_the_number_mode_list(monkeypatch):
 	names = order(panel)
 	assert names.index("Group size:") == names.index("nummod") + 1
 	assert before(panel.children, spin) is before(panel.tab_order, spin) is panel.nummodList
-	assert (spin.label, spin.GetValue(), spin.GetMin(), spin.GetMax()) == ("Group size:", 5, 1, 10)
+	assert (spin.label, spin.GetValue(), spin.GetMin(), spin.GetMax()) == ("Group size:", 5, 0, 2147483647)
 
 
 def pause_controls_enabled(panel):
@@ -295,58 +295,39 @@ def group_size_enabled(panel):
 	return panel.groupSizeSpin.enabled
 
 
-@pytest.mark.parametrize(
-	("mode", "enabled"),
-	[("value", False), ("group", True)],
-)
-def test_group_controls_follow_the_stored_mode_when_the_panel_opens(monkeypatch, mode, enabled):
+# Decided by the user (2026-11-01, U1): the group size applies in every number mode, so it is
+# always enabled and nothing in the panel listens to the mode list for it.
+@pytest.mark.parametrize("mode", ["none", "value", "number"])
+def test_group_size_is_enabled_for_every_stored_mode_when_the_panel_opens(monkeypatch, mode):
 	panel = open_panel(monkeypatch, Driver(ALL, nummod=mode)).panel
-	assert group_size_enabled(panel) is enabled
-	# Disabled, not hidden.
+	assert group_size_enabled(panel) is True
 	assert panel.groupSizeSpin in panel.settingsSizer.controls()
 
 
-def test_choosing_a_mode_updates_the_group_controls_and_still_saves_the_setting(monkeypatch):
+def test_choosing_a_mode_keeps_the_group_size_enabled_and_still_saves_the_setting(monkeypatch):
 	driver = Driver(ALL, nummod="value")
 	panel = open_panel(monkeypatch, driver).panel
 	choice = panel.nummodList
+	assert choice.choices == ["none", "value", "number"]
 
-	choice.Select(3)
-	fire(choice, "EVT_CHOICE")
-	assert group_size_enabled(panel) is True
-	# WorldVoice's handler skips the event, so NVDA's own handler still writes the setting.
-	assert driver.nummod == "group"
-
-	choice.Select(1)
-	fire(choice, "EVT_CHOICE")
-	assert group_size_enabled(panel) is False
-	assert driver.nummod == "value"
+	for index, mode in enumerate(["none", "value", "number"]):
+		choice.Select(index)
+		fire(choice, "EVT_CHOICE")
+		assert group_size_enabled(panel) is True
+		# NVDA's own handler writes the setting.
+		assert driver.nummod == mode
 
 
-@pytest.mark.parametrize("mode", ["group", "value"])
-def test_a_voice_switch_after_a_settings_ring_mode_change_matches_the_group_controls(monkeypatch, mode):
-	driver = Driver(ALL, nummod="value" if mode == "group" else "group")
+@pytest.mark.parametrize("mode", ["number", "value", "gone"])
+def test_a_voice_switch_after_a_settings_ring_mode_change_keeps_the_group_size_enabled(monkeypatch, mode):
+	driver = Driver(ALL, nummod="none")
 	panel = open_panel(monkeypatch, driver).panel
 	driver.nummod = mode  # changed with the settings ring while the dialog is open
 
-	# SetSelection on the list fires no EVT_CHOICE, so the panel must apply the state itself.
 	panel.updateDriverSettings(changedSetting="voice")
 
-	assert panel.nummodList.selection == ["none", "value", "number", "group"].index(mode)
-	enabled = mode == "group"
-	assert group_size_enabled(panel) is enabled
-
-
-def test_a_mode_missing_from_the_list_counts_as_not_group(monkeypatch):
-	# _nummods[-1] is the group entry: a list with no selection must not enable the group controls.
-	driver = Driver(ALL, nummod="group")
-	panel = open_panel(monkeypatch, driver).panel
-	driver.nummod = "gone"
-
-	panel.updateDriverSettings(changedSetting="voice")
-
-	assert panel.nummodList.selection == -1
-	assert group_size_enabled(panel) is False
+	assert panel.nummodList.selection == {"number": 2, "value": 1, "gone": -1}[mode]
+	assert group_size_enabled(panel) is True
 
 
 OTHER_SETTINGS = (DriverSetting("voice"), NumericDriverSetting("rate"))
@@ -420,7 +401,7 @@ def test_adjacent_non_driver_controls_keep_table_order(monkeypatch):
 def test_a_rebuild_for_worldvoice_from_worldvoice_places_the_controls_again(monkeypatch):
 	# OK in NVDA's synth dialog with WorldVoice kept: setSynth makes a new instance, so NVDA
 	# rebuilds the panel and destroys every window of the earlier build first.
-	panel = open_panel(monkeypatch, Driver(ALL, nummod="group")).panel
+	panel = open_panel(monkeypatch, Driver(ALL, nummod="number")).panel
 	oldSpin, oldList = panel.groupSizeSpin, panel.nummodList
 	panel._driver = Driver(ALL, nummod="value")
 
@@ -431,7 +412,7 @@ def test_a_rebuild_for_worldvoice_from_worldvoice_places_the_controls_again(monk
 	assert names.index("Punctuation pause characters:") == names.index("punctuationWaitFactor") + 1
 	assert panel.groupSizeSpin is not oldSpin and panel.nummodList is not oldList
 	assert oldSpin.destroyed and not panel.groupSizeSpin.destroyed
-	assert group_size_enabled(panel) is False
+	assert group_size_enabled(panel) is True
 	spin = panel.groupSizeSpin
 	assert before(panel.children, spin) is before(panel.tab_order, spin) is panel.nummodList
 
@@ -450,7 +431,7 @@ def test_a_rebuild_for_another_synth_drops_the_worldvoice_controls(monkeypatch):
 	assert (panel.groupSizeSpin, panel.punctuationPauseCharactersEdit) == (None, None)
 	assert spin.destroyed and edit.destroyed
 	pipeline = env.conf["WorldVoice"]["pipeline"]
-	assert (pipeline["groupSize"], pipeline["punctuationPauseCharacters"]) == (3, "")
+	assert (pipeline["groupSize"], pipeline["punctuationPauseCharacters"]) == (0, "")
 	assert panel.base_calls[-1] == "onSave"
 
 
@@ -463,7 +444,7 @@ def test_saving_after_the_synth_changed_writes_no_pipeline_setting(monkeypatch):
 
 	panel.onSave()
 
-	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 3
+	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 0
 	assert panel.base_calls[-1] == "onSave"
 
 
@@ -498,7 +479,7 @@ def test_another_synth_saves_and_cancels_without_touching_pipeline_settings(monk
 	panel.onDiscard()
 
 	pipeline = env.conf["WorldVoice"]["pipeline"]
-	assert (pipeline["punctuationPauseCharacters"], pipeline["groupSize"]) == ("", 3)
+	assert (pipeline["punctuationPauseCharacters"], pipeline["groupSize"]) == ("", 0)
 	assert pipeline["itemWaitFactor"] == 90
 	assert pipeline_snapshot(panel) is None
 	assert panel.base_calls == ["makeSettings", "onSave", "onDiscard"]

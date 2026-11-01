@@ -702,8 +702,12 @@ def test_property_int_convert_is_bounded_and_idempotent(settings_module, data):
 @SHARED_ENV
 @given(value=st.integers())
 def test_property_group_size_convert_keeps_or_resets(settings_module, value):
+	# P-S (decided by the user, 2026-11-01, U6, O4): 0..2**31-1 is kept, anything else is the default 0,
+	# whether it comes as an int or as the text nvda.ini holds.
 	spec = settings_module.PIPELINE_SETTING_BY_KEY["group_size"]
-	assert spec.convert(value) == (value if 2 <= value <= 10 else 3)
+	expected = value if 0 <= value <= 2**31 - 1 else 0
+	assert spec.convert(value) == expected
+	assert spec.convert(str(value)) == expected
 
 
 @SHARED_ENV

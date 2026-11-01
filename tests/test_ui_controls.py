@@ -67,7 +67,7 @@ def test_a_spin_uses_nvdas_select_on_focus_control(monkeypatch):
 	_env, _spec, _sizer, control = build(monkeypatch, "group_size", 4)
 	assert type(control) is SelectOnFocusSpinCtrl
 	assert control.label == "Group size:"
-	assert (control.GetValue(), control.GetMin(), control.GetMax()) == (4, 1, 10)
+	assert (control.GetValue(), control.GetMin(), control.GetMax()) == (4, 0, 2147483647)
 
 
 def test_a_text_edit_holds_the_value(monkeypatch):
@@ -152,13 +152,14 @@ PAUSE_DEPENDENTS = (
 	"punctuation_wait_factor",
 	"punctuation_pause_characters",
 )
-DEPENDENTS = ("group_size", *PAUSE_DEPENDENTS)
+# The group size depends on nothing since 2026-11-01 (U1); the punctuation controls are the dependents.
+DEPENDENTS = PAUSE_DEPENDENTS
 
 
 @pytest.mark.parametrize(
 	("key", "options"),
 	[
-		("number_mode", ["none", "value", "number", "group"]),
+		("number_mode", ["none", "value", "number"]),
 	],
 )
 def test_read_control_without_a_control_is_absent(monkeypatch, key, options):
@@ -220,28 +221,31 @@ def test_apply_dependencies_leaves_dependents_of_an_absent_controller_alone(monk
 	assert {key: recorder.calls for key, recorder in env.recorders.items() if recorder.calls} == {}
 
 
-def test_apply_dependencies_counts_no_selection_as_not_expected(monkeypatch):
+def test_apply_dependencies_counts_no_value_as_not_expected(monkeypatch):
 	env = helpers(monkeypatch)
-	apply(env, {"number_mode": None, "punctuation_pause_enabled": True}.__getitem__)
-	assert env.recorders["group_size"].calls == [("Enable", False)]
+	apply(env, {"number_mode": "number", "punctuation_pause_enabled": None}.__getitem__)
+	for key in PAUSE_DEPENDENTS:
+		assert env.recorders[key].calls == [("Enable", False)], key
 
 
 def test_apply_dependencies_skips_a_dependent_without_a_control(monkeypatch):
 	env = helpers(monkeypatch)
 	apply(
 		env,
-		{"number_mode": "group", "punctuation_pause_enabled": True}.__getitem__,
-		missing={"group_size"},
+		{"number_mode": "number", "punctuation_pause_enabled": True}.__getitem__,
+		missing={"remove_punctuation_characters"},
 	)
-	assert env.recorders["group_size"].calls == []
-	for key in PAUSE_DEPENDENTS:
+	assert env.recorders["remove_punctuation_characters"].calls == []
+	for key in ("punctuation_wait_factor", "punctuation_pause_characters"):
 		assert env.recorders[key].calls == [("Enable", True)], key
 
 
 def test_apply_dependencies_only_enables_dependents(monkeypatch):
-	# Disabled controls keep their values because nothing but Enable is called on them.
+	# Disabled controls keep their values because nothing but Enable is called on them; the group
+	# size is not a dependent any more (decided by the user, 2026-11-01, U1).
 	env = helpers(monkeypatch)
-	apply(env, {"number_mode": "group", "punctuation_pause_enabled": True}.__getitem__)
+	apply(env, {"number_mode": "number", "punctuation_pause_enabled": True}.__getitem__)
+	assert env.recorders["group_size"].calls == []
 	for key, recorder in env.recorders.items():
 		if key in DEPENDENTS:
 			assert recorder.calls == [("Enable", True)], key
