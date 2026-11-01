@@ -125,3 +125,11 @@ pytest 一次只跑一個行程，沒有平行 worker。突變由 `mut.py` 以�
 
 - spec §9.5 M1–M7（Windows NVDA 面板、ring、升級 profile、無效值、OneCore／eSpeak 聽感、wx 4.3.2 的 spin 上限）都沒有在真 NVDA 裡做；本 review 只到測試 stub 與 NVDA 的 configobj／`ref/nvda` 原始碼。
 - 未打包。
+
+## 修正記錄
+
+修正者：Opus 5.5（DEVELOPMENT_WORKFLOW.md §3.4），在分支 worktree 上，從 `bf252ab3` 開始。
+
+- **M1：已修，`9163cf10`**（`refactor: drop the dead edge_before of number mode without groups`）。採建議 (a)：`_inject_item_numbers` 在 number＋每組位數 0（`numbers_only`）時不再放 `edge_before`（`edge_before=item_edge if spoken_before and not numbers_only else None`），`spoken_before` 還原成 `master` 的 `spoken_before = spoken_before or _is_spoken(item)`；docstring、註解與 spec §4.3 的表格列和實作說明一併更新。行為不變的理由：`edge_after`（第一個 item 尾端）與 `edge_before`（第二個 item 開頭）的條件是同一個合取（前一個有聲 item 以數字結尾 ∧ 下一個有聲 item 以數字開頭），兩個旗標在 utterance 結尾的歸零方式一樣；兩者之間只有指令與空白文字，所以落在 `_merge_edge_breaks` 的同一個 run，是同一個物件、同一個時間，`edge_before` 一定在 `edge_after` 之後。run 裡的保留規則是「最長；平手時第一個非 edge break，否則第一個 edge break」，`edge_before` 永遠不會勝過它前面的 `edge_after`，所以拿掉它不改變 run 的結果，後面的 item／punctuation 階段看到的序列也相同。沒有新增只釘這條死路徑的測試；既有的 G2 測試、i29、`test_number_mode_without_groups_takes_the_longer_item_pause` 都綠，P-U5 在 deep profile 下 20000 個例子通過。
+- **M2：已修，`6d50afa8`**（`test: let the Hypothesis profile set P-U5's example count`）。拿掉 P-U5 的 `max_examples=300`，改成和這個檔案其他性質一樣的 `@SHARED_ENV`，例子數由 profile 決定（spec §9.3：預設 200，review 用 deep）。驗證：預設 profile `--hypothesis-show-statistics` 顯示 `Stopped because settings.max_examples=200`（0.5 s）；`HYPOTHESIS_PROFILE=deep` 顯示 `20000 passing, 0 failing` 與 `Stopped because settings.max_examples=20000`（約 39 s）。附帶發現：`test_pipeline_number_edge_properties.py:256`、`:270` 也有 `max_examples=400` 的同樣寫法（不在本分支的 review 範圍，未改）。
+- **M3：未修。** 審閱者已經用 NVDA 自己的 configobj（`D:/NVDA/nvda/.venv`，5.1.0）手動驗證過 `integer(default=0,min=0,max=2147483647)` 對 8 個值的結果，與 spec F3 一致。自動化的測試要依賴 NVDA 的開發 venv，container 與其他 checkout 都沒有這個 venv，在那些環境只會 skip，提供的保證有限。列為未確認的預設：confspec 字串之後若改寫，只有 stub 的測試會跑到，真 Validator 的行為要靠人工再確認一次。
