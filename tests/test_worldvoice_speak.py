@@ -343,7 +343,7 @@ EN, ZH = VOICES["en"], VOICES["zh"]
 L = LangChangeCommand
 
 
-def stage_settings(*, number_mode="value", punctuation=False, number_wait=0, group_size=3):
+def stage_settings(*, number_mode="value", punctuation=False, number_wait=0, group_size=0):
 	"""The pipeline settings the stages read: only the given pauses and modes, every other wait 0."""
 	return SimpleNamespace(
 		number_mode=number_mode,
@@ -706,7 +706,9 @@ EDGE_ROWS = [
 @pytest.mark.parametrize("wait", [0, 10])
 @pytest.mark.parametrize(("sequence", "numlan", "main", "wait0", "wait10"), EDGE_ROWS)
 def test_number_mode_edges_with_detection(monkeypatch, sequence, numlan, main, wait0, wait10, wait, timing):
-	settings = stage_settings(number_mode="number", number_wait=wait)
+	# The edge pause comes with a group size above 0 (decided by the user, 2026-11-01, U4); every
+	# number of these rows has at most 3 digits, so a size of 3 cuts none of them.
+	settings = stage_settings(number_mode="number", number_wait=wait, group_size=3)
 	result = speak_through_stages(
 		monkeypatch,
 		sequence,
@@ -716,6 +718,34 @@ def test_number_mode_edges_with_detection(monkeypatch, sequence, numlan, main, w
 		settings=settings,
 	)
 	assert result == (wait0 if wait == 0 else wait10)
+
+
+# Without groups number mode adds no edge pause (U4), so at a number pause of 10 it speaks as at 0,
+# except that two numbers that only whitespace separates still get the pause (U5).
+NO_GROUP_WAIT10 = {(("中 -12 34",), "main"): [(ZH, "中 "), (EN, "-1 2"), "|", (EN, "3 4")]}
+
+
+@TIMINGS
+@pytest.mark.parametrize(("sequence", "numlan", "main", "wait0", "wait10"), EDGE_ROWS)
+def test_number_mode_without_groups_has_no_edges_with_detection(
+	monkeypatch,
+	sequence,
+	numlan,
+	main,
+	wait0,
+	wait10,
+	timing,
+):
+	settings = stage_settings(number_mode="number", number_wait=10, group_size=0)
+	result = speak_through_stages(
+		monkeypatch,
+		sequence,
+		numlan=numlan,
+		main=main,
+		timing=timing,
+		settings=settings,
+	)
+	assert result == NO_GROUP_WAIT10.get((tuple(sequence), numlan), wait0)
 
 
 @TIMINGS

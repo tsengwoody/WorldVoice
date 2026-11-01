@@ -241,7 +241,7 @@ def punctuation_settings(wait_factor, remove_characters=False):
 		scaled_number_wait=lambda: 0,
 		scaled_unspaced_script_space_wait=lambda: 0,
 		scaled_punctuation_wait=lambda: wait_factor,
-		group_size=3,
+		group_size=0,
 	)
 
 

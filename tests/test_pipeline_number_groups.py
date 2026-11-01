@@ -145,3 +145,135 @@ def test_property_render_keeps_the_digits_and_names_the_symbols(env, raw, size):
 		assert read_back_names(number, names).replace(" ", "") == piece, (piece, number)
 		assert not re.search(r"\d\d", number) and "  " not in number, (piece, number)
 		assert number == number.strip(), (piece, number)
+
+
+@pytest.mark.parametrize(("raw", "size", "cut", "value", "number"), PIECES)
+def test_number_pieces_by_mode_and_size(env, raw, size, cut, value, number):
+	# Spec §4.1: number_pieces keeps its signature; it cuts by the size, then renders by the mode.
+	pieces = env.numbers.number_pieces
+	assert [pieces(raw, mode, size, name_of) for mode in MODES] == [cut, value, number]
+
+
+class Marker:
+	"""A speech command no stage knows, such as NVDA's IndexCommand."""
+
+
+def stage_settings(mode, size, wait=10, item=0, chars=""):
+	return SimpleNamespace(
+		number_mode=mode,
+		scope="WorldVoice",
+		punctuation_pause_characters=chars,
+		punctuation_pause_enabled=bool(chars),
+		remove_punctuation_characters=False,
+		scaled_item_wait=lambda: item,
+		scaled_number_wait=lambda: wait,
+		scaled_unspaced_script_space_wait=lambda: 0,
+		scaled_punctuation_wait=lambda: 50,
+		group_size=size,
+	)
+
+
+def context(module, numlan="default"):
+	return module.SpeechContext(
+		supports_roles=True,
+		language="zh",
+		number_language=numlan,
+		default_voice_name="Z",
+		default_voice_language="zh",
+		voice_name_for_language={"zh": "Z", "en": "E"}.get,
+	)
+
+
+def shape(env, sequence):
+	module = env.module
+	commands = __import__("sys").modules["speech.commands"]
+	result = []
+	for item in sequence:
+		if isinstance(item, str):
+			result.append(item)
+		elif isinstance(item, module.NumberEdgeBreakCommand):
+			result.append(("E", item.time))
+		elif isinstance(item, module.NumberBreakCommand):
+			result.append(("NB", item.time))
+		elif isinstance(item, env.BreakCommand):
+			result.append(("B", item.time))
+		elif isinstance(item, commands.EndUtteranceCommand):
+			result.append("EU")
+		elif hasattr(item, "lang"):
+			result.append(("L", item.lang))
+		else:
+			result.append(item)
+	return result
+
+
+def every_stage(env, sequence, settings, ctx):
+	for stage in env.module.STAGES:
+		sequence = list(stage.fn(sequence, settings, ctx))
+	return sequence
+
+
+E, NB, NB0 = ("E", 10), ("NB", 10), ("NB", 0)
+
+
+def test_off_without_groups_or_wrapper_is_the_identity(env):
+	# Spec §4.3 "Pass-through": off with a group size of 0 leaves the sequence as it is.
+	sequence = ["第1,234.5章", Marker(), "10 20"]
+	result = list(env.module.inject_numbers(sequence, stage_settings("none", 0), context(env.module)))
+	assert len(result) == len(sequence) and all(a is b for a, b in zip(result, sequence, strict=True))
+
+
+def test_off_with_a_group_size_runs_the_stage(env):
+	# Decided by the user (2026-11-01, U2): off groups too, and leaves the pieces as they are.
+	result = env.module.inject_numbers(["1234"], stage_settings("none", 3), context(env.module))
+	assert shape(env, result) == ["123", NB, "4"]
+
+
+@pytest.mark.parametrize("text", ["第1,234.5章", "a 10 20 b", "1.,2", "COVID-19"])
+def test_value_without_groups_does_not_depend_on_the_pause(env, text):
+	# U8: value mode with a group size of 0 is today's output, with no break at any pause.
+	ctx = context(env.module)
+	results = [
+		shape(env, env.module.inject_numbers([text], stage_settings("value", 0, wait), ctx))
+		for wait in (0, 10)
+	]
+	assert results[0] == results[1]
+	assert all(isinstance(item, str) for item in results[0])
+
+
+@pytest.mark.parametrize("wait", [0, 10])
+@pytest.mark.parametrize("size", [0, 3])
+@pytest.mark.parametrize("mode", MODES)
+def test_edges_appear_iff_a_group_and_a_pause(env, mode, size, wait):
+	# Decided by the user (2026-11-01, U4): the edge pause follows the group size, whatever the mode.
+	module = env.module
+	result = list(module.inject_numbers(["第123章"], stage_settings(mode, size, wait), context(module)))
+	edges = [item for item in result if isinstance(item, module.NumberEdgeBreakCommand)]
+	assert len(edges) == (2 if size and wait else 0), result
+
+
+@pytest.mark.parametrize("space", [" ", "  ", " ", "　"], ids=["space", "two", "nbsp", "ideographic"])
+@pytest.mark.parametrize("size", [0, 3])
+@pytest.mark.parametrize(
+	("mode", "first", "second"),
+	[("none", "10", "20"), ("value", "10", "20"), ("number", "1 0", "2 0")],
+)
+def test_numbers_that_only_whitespace_separates_get_one_break(env, mode, first, second, size, space):
+	# U5, G1: one break of the number pause, in every mode and with any group size; number mode's own
+	# spaces stay inside the number.
+	result = every_stage(env, [f"10{space}20"], stage_settings(mode, size), context(env.module))
+	assert shape(env, result) == [first, NB, second]
+
+
+@pytest.mark.parametrize(
+	("text", "expected"),
+	[
+		("1,234,567", ["123", NB, "456", NB, "7"]),
+		("12,345.678", ["123", NB, "45", NB, N("."), NB, "678"]),
+		# Not a valid thousands run: the comma stays, a named piece of its own.
+		("1,23", ["1", NB, N(","), NB, "23"]),
+	],
+)
+def test_thousands_then_groups(env, text, expected):
+	# U3: value mode removes the thousands separators first, then groups.
+	result = every_stage(env, [text], stage_settings("value", 3), context(env.module))
+	assert shape(env, result) == expected

@@ -116,27 +116,13 @@ def number_pieces(
 	group_size: int,
 	name_of: Callable[[str], str | None],
 ) -> list[str]:
-	"""The spoken pieces of one number match in *mode*.
+	"""The spoken pieces of one number match: cut by *group_size*, each rendered in *mode*.
 
-	Value mode keeps it whole. Number and group modes cut each digit run from the left into
-	pieces of 1 or *group_size* digits (a leading sign joins the first piece) and make each symbol
-	a piece of its own: its name, or the symbol itself when NVDA has no name for it, so NVDA's
-	symbol processing decides how it sounds (decided by the user, 2026-10-22). Number mode speaks
-	its pieces joined with spaces, group mode with a number break between each two
-	(numberStages._translate_number, decided by the user, 2026-11-01).
+	Grouping and the number mode are independent (decided by the user, 2026-11-01, U1, U2): a group
+	size of 0 keeps the match as one piece; above 0 its digit runs are cut into groups and every
+	symbol is a piece of its own (group_pieces). Each piece is then spoken as the mode says
+	(render_piece): "none" as it is, "value" with symbols named, "number" digit by digit with
+	single spaces. The number stage puts a number break between every two pieces
+	(numberStages._translate_number).
 	"""
-	if mode == "value":
-		return [raw]
-	size = 1 if mode == "number" else group_size
-	pieces: list[str] = []
-	for token in NUMBER_TOKEN_RE.findall(raw):
-		if token[-1].isdecimal():
-			sign = token[0] if token[0] in "+-" else ""
-			digits = token[len(sign) :]
-			groups = [digits[index : index + size] for index in range(0, len(digits), size)]
-			groups[0] = sign + groups[0]
-			pieces.extend(groups)
-		else:
-			name = name_of(token)
-			pieces.append(token if name is None else name)
-	return pieces
+	return [render_piece(piece, mode, name_of) for piece in group_pieces(raw, group_size)]

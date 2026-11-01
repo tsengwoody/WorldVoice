@@ -1,9 +1,12 @@
-"""The number edge pause: a pause before and after a number in number and group modes.
+"""The number edge pause: a pause before and after a number, with a group size above 0.
 
-The rows are the worked examples of the number-edge-pause spec (§5): the output of the number
-stage, and the output after every stage of STAGES ("same" when the two are equal). Decided by the
-user (2026-10-24): only the number and group modes get the pause, with a number pause above 0,
-whatever text is next to the number, in its item or another (fix/number-edge-pause-items).
+The rows are the worked examples of the number-edge-pause spec (§5) and of the
+feat/number-group-independent spec (§5, rows i1-i30): the output of the number stage, and the output
+after every stage of STAGES ("same" when the two are equal). Decided by the user (2026-10-24): the
+pause goes with a number pause above 0, whatever text is next to the number, in its item or another
+(fix/number-edge-pause-items); since 2026-11-01 (U4) it follows the group size, in every mode, not
+the number mode. make_settings keeps number mode with a group size of 3 as its default, so the rows
+of the earlier spec keep their expectations; rows meant without groups say "size": 0.
 """
 
 import sys
@@ -161,13 +164,19 @@ ITEM_ROWS = [
 	),
 	pytest.param(
 		["第", "3", "章"],
-		{"mode": "group", "item": 10},
+		{"mode": "value", "item": 10},
 		None,
 		["第", B10, "3", B10, "章"],
-		id="group",
+		id="value-size3",
 	),
 	*[
-		pytest.param(sequence, {"mode": mode, "item": item}, None, full, id=f"{name}-{mode}-item{item}")
+		pytest.param(
+			sequence,
+			{"mode": mode, "size": 0, "item": item},
+			None,
+			full,
+			id=f"{name}-{mode}-item{item}",
+		)
 		for sequence, full, name in [
 			(["第3", "章"], ["第3", "章"], "end"),
 			(["第", "3", "章"], ["第", "3", "章"], "alone"),
@@ -198,14 +207,20 @@ ITEM_ROWS = [
 # "numlan". A stage output of None: the row is checked only after STAGES.
 ROWS = [
 	pytest.param(["第3章"], {}, ["第", E, "3", E, "章"], "same", id="1"),
-	pytest.param(["第3章"], {"mode": "value"}, ["第3章"], "same", id="1v"),
+	pytest.param(["第3章"], {"mode": "value", "size": 0}, ["第3章"], "same", id="1v"),
 	pytest.param(["第3章"], {"numlan": "en"}, ["第", E, LEN, "3", LZH, E, "章"], "same", id="2"),
-	pytest.param(["第3章"], {"mode": "value", "numlan": "en"}, ["第", LEN, "3", LZH, "章"], "same", id="2v"),
+	pytest.param(
+		["第3章"],
+		{"mode": "value", "numlan": "en", "size": 0},
+		["第", LEN, "3", LZH, "章"],
+		"same",
+		id="2v",
+	),
 	# Number mode joins the digits of a number with spaces (decided by the user, 2026-11-01).
 	pytest.param(["第123章"], {}, ["第", E, "1 2 3", E, "章"], "same", id="3"),
 	pytest.param(
 		["第123章"],
-		{"mode": "group", "size": 2},
+		{"mode": "value", "size": 2},
 		["第", E, "12", NB, "3", E, "章"],
 		"same",
 		id="4",
@@ -217,17 +232,23 @@ ROWS = [
 		"same",
 		id="5",
 	),
-	pytest.param(["第3章"], {"mode": "none"}, ["第3章"], "same", id="6"),
-	pytest.param(["第3章"], {"mode": "none", "numlan": "en"}, ["第", LEN, "3", LZH, "章"], "same", id="7"),
+	pytest.param(["第3章"], {"mode": "none", "size": 0}, ["第3章"], "same", id="6"),
+	pytest.param(
+		["第3章"],
+		{"mode": "none", "numlan": "en", "size": 0},
+		["第", LEN, "3", LZH, "章"],
+		"same",
+		id="7",
+	),
 	pytest.param(["共 3 章"], {}, ["共 ", E, "3", E, " 章"], ["共", E, "3", E, "章"], id="8"),
-	pytest.param(["共 3 章"], {"mode": "value"}, ["共 3 章"], "same", id="8v"),
+	pytest.param(["共 3 章"], {"mode": "value", "size": 0}, ["共 3 章"], "same", id="8v"),
 	pytest.param(["1 2"], {}, ["1", NB, "2"], "same", id="9"),
-	pytest.param(["1 2"], {"mode": "value"}, ["1 2"], ["1", NB, "2"], id="9v"),
+	pytest.param(["1 2"], {"mode": "value", "size": 0}, ["1 2"], ["1", NB, "2"], id="9v"),
 	pytest.param(["1 2"], {"numlan": "en"}, [LEN, "1", LZH, NB, LEN, "2", LZH], "same", id="10"),
 	pytest.param(["12 34"], {}, ["1 2", NB, "3 4"], "same", id="11"),
 	pytest.param(["COVID-19"], {}, ["COVID-", E, "1 9"], "same", id="13"),
-	pytest.param(["COVID-19"], {"mode": "group"}, ["COVID-", E, "19"], "same", id="13g"),
-	pytest.param(["COVID-19"], {"mode": "value"}, ["COVID-19"], "same", id="13v"),
+	pytest.param(["COVID-19"], {"mode": "value"}, ["COVID-", E, "19"], "same", id="13g"),
+	pytest.param(["COVID-19"], {"mode": "value", "size": 0}, ["COVID-19"], "same", id="13v"),
 	pytest.param(["-5"], {}, ["-5"], "same", id="15"),
 	pytest.param(["a -5"], {}, ["a ", E, "-5"], ["a", E, "-5"], id="16"),
 	pytest.param(["x-5"], {}, ["x-", E, "5"], "same", id="17"),
@@ -266,7 +287,7 @@ ROWS = [
 	),
 	pytest.param(["MP3"], {}, ["MP", E, "3"], "same", id="26a"),
 	pytest.param(["10am"], {}, ["1 0", E, "am"], "same", id="26b"),
-	pytest.param(["the 1st item"], {"mode": "value"}, ["the 1st item"], "same", id="26v"),
+	pytest.param(["the 1st item"], {"mode": "value", "size": 0}, ["the 1st item"], "same", id="26v"),
 	pytest.param(["Is it 5?"], {}, ["Is it ", E, "5", E, "?"], ["Is it", E, "5", E, "?"], id="27"),
 	pytest.param(["第", M, "3", M, "章"], {}, ["第", M, E, "3", E, M, "章"], "same", id="28"),
 	pytest.param(["第3。"], {"chars": "。"}, None, ["第", E, "3", E, "。"], id="31"),
@@ -291,12 +312,24 @@ ROWS = [
 	pytest.param(["3，下"], {"chars": "，"}, None, ["3", E, "，", PB, "下"], id="36"),
 	pytest.param(["3，下"], {"chars": "，", "remove": True}, None, ["3", PB, "下"], id="37"),
 	pytest.param(["Total. 12"], {"chars": "."}, None, ["Total", ".", PB, "1 2"], id="38"),
-	pytest.param(["Total. 12"], {"chars": ".", "mode": "value"}, None, ["Total", ".", PB, "12"], id="38v"),
+	pytest.param(
+		["Total. 12"],
+		{"chars": ".", "mode": "value", "size": 0},
+		None,
+		["Total", ".", PB, "12"],
+		id="38v",
+	),
 	pytest.param(["Total. 12"], {"chars": ".", "remove": True}, None, ["Total", PB, "1 2"], id="39"),
 	pytest.param(["1，2"], {}, ["1", E, "，", E, "2"], "same", id="40"),
 	pytest.param(["1，2"], {"chars": "，"}, None, ["1", E, "，", PB, "2"], id="41"),
 	pytest.param(["1，2"], {"chars": "，", "remove": True}, None, ["1", PB, "2"], id="42"),
-	pytest.param(["1，2"], {"chars": "，", "remove": True, "mode": "value"}, ["1，2"], "same", id="42v"),
+	pytest.param(
+		["1，2"],
+		{"chars": "，", "remove": True, "mode": "value", "size": 0},
+		["1，2"],
+		"same",
+		id="42v",
+	),
 	pytest.param(["1 "], {}, ["1 "], ["1"], id="43"),
 	pytest.param(
 		["Total. 12"],
@@ -312,16 +345,97 @@ ROWS = [
 		["3", ("B", 30), "下"],
 		id="45",
 	),
-	pytest.param(["12,345元"], {"mode": "value"}, None, ["12345元"], id="46"),
+	pytest.param(["12,345元"], {"mode": "value", "size": 0}, None, ["12345元"], id="46"),
 	# Review M1: whole numbers that an edge break leaves at the end and start of two items get the
 	# number pause between them, as ["1", "2"] does.
 	pytest.param(["第1", "2章"], {}, ["第", E, "1", E, "2", E, "章"], "same", id="m1-items"),
 	*ITEM_ROWS,
 	# O4: a sign after a word stays with the word; a number with a symbol inside is one number.
 	pytest.param(["中+2"], {}, ["中+", E, "2"], "same", id="o4-plus"),
-	pytest.param(["中+2"], {"mode": "value"}, ["中+2"], "same", id="o4-plus-value"),
-	pytest.param(["5-3"], {}, [f"5 {N('-')} 3"], "same", id="o4-range"),
+	pytest.param(["中+2"], {"mode": "value", "size": 0}, ["中+2"], "same", id="o4-plus-value"),
+	# With a group size every symbol is a piece of its own (decided by the user, 2026-11-01, U2).
+	pytest.param(["5-3"], {}, ["5", NB, N("-"), NB, "3"], "same", id="o4-range"),
+	pytest.param(["5-3"], {"size": 0}, [f"5 {N('-')} 3"], "same", id="o4-range-0"),
 ]
+# The worked examples of the independent group size (feat/number-group-independent spec §5, decided
+# by the user, 2026-11-01): the group size cuts in every mode, and the edge pauses follow it.
+NB0 = ("NB", 0)
+INDEPENDENT_ROWS = [
+	pytest.param(["123456"], {"size": 3}, ["1 2 3", NB, "4 5 6"], "same", id="i1"),
+	pytest.param(["123456"], {"mode": "value", "size": 3}, ["123", NB, "456"], "same", id="i2"),
+	pytest.param(
+		["123456.78"],
+		{"mode": "none", "size": 3},
+		["123", NB, "456", NB, ".", NB, "78"],
+		"same",
+		id="i3",
+	),
+	pytest.param(
+		["1234.5678"],
+		{"mode": "value", "size": 3},
+		["123", NB, "4", NB, N("."), NB, "567", NB, "8"],
+		"same",
+		id="i4",
+	),
+	pytest.param(
+		["1234.5678"],
+		{"size": 3},
+		["1 2 3", NB, "4", NB, N("."), NB, "5 6 7", NB, "8"],
+		"same",
+		id="i5",
+	),
+	pytest.param(
+		["1,234,567"],
+		{"mode": "value", "size": 3},
+		["1", NB, N(","), NB, "234", NB, N(","), NB, "567"],
+		["123", NB, "456", NB, "7"],
+		id="i6",
+	),
+	pytest.param(
+		["1,234,567"],
+		{"mode": "none", "size": 3},
+		["1", NB, ",", NB, "234", NB, ",", NB, "567"],
+		"same",
+		id="i7",
+	),
+	pytest.param(["-123456"], {"size": 3}, ["-1 2 3", NB, "4 5 6"], "same", id="i8"),
+	pytest.param(["共123元"], {"size": 0}, ["共1 2 3元"], "same", id="i9"),
+	pytest.param(["共123元"], {"mode": "value", "size": 3}, ["共", E, "123", E, "元"], "same", id="i10"),
+	pytest.param(
+		["共123元"],
+		{"mode": "none", "size": 3, "numlan": "en"},
+		["共", E, LEN, "123", LZH, E, "元"],
+		"same",
+		id="i11",
+	),
+	pytest.param(["共123元"], {"size": 0, "numlan": "en"}, ["共", LEN, "1 2 3", LZH, "元"], "same", id="i12"),
+	pytest.param(["10 20"], {"size": 0}, ["1 0", NB, "2 0"], "same", id="i13"),
+	pytest.param(["10 20"], {"mode": "value", "size": 0}, ["10 20"], ["10", NB, "20"], id="i14"),
+	pytest.param(["a 10 20 b"], {"size": 0}, ["a 1 0", NB, "2 0 b"], "same", id="i15"),
+	pytest.param(
+		["第1", "2章"],
+		{"mode": "value", "size": 3},
+		["第", E, "1", E, "2", E, "章"],
+		"same",
+		id="i19",
+	),
+	pytest.param(["5-3"], {"size": 3}, ["5", NB, N("-"), NB, "3"], "same", id="i20"),
+	pytest.param(["COVID-19"], {"size": 0}, ["COVID-1 9"], "same", id="i21"),
+	pytest.param(["12. Next"], {"size": 0}, ["1 2 . Next"], "same", id="i22"),
+	pytest.param(
+		["12. Next"],
+		{"mode": "value", "size": 3},
+		["12", E, " . Next"],
+		["12", E, ". Next"],
+		id="i23",
+	),
+	pytest.param(["123456"], {"mode": "none", "size": 3, "wait": 0}, ["123", NB0, "456"], "same", id="i24"),
+	pytest.param(["10 20"], {"size": 3, "wait": 0}, ["1 0 2 0"], "same", id="i25"),
+	pytest.param(["Total. 12"], {"size": 0, "chars": "."}, None, ["Total", ".", PB, "1 2"], id="i26"),
+	pytest.param(["123"], {"mode": "value", "size": 10}, ["123"], "same", id="i27"),
+	pytest.param(["第123章"], {"mode": "value", "size": 10}, ["第", E, "123", E, "章"], "same", id="i28"),
+]
+ROWS += INDEPENDENT_ROWS
 STAGE_ROWS = [row for row in ROWS if row.values[2] is not None and row.id not in ITEM_WAIT_IDS]
 
 
@@ -342,8 +456,8 @@ def test_number_stage_worked_examples(monkeypatch, sequence, options, stage, ful
 @pytest.mark.parametrize("wait", [0, -5])
 def test_no_edge_break_without_a_number_pause(monkeypatch, wait):
 	# Decided by the user (2026-10-24, U4): a number pause of 0 means no edge break at all; the
-	# pieces of a number still reach the synth apart in group mode.
-	module, settings, ctx = run_row(monkeypatch, {"mode": "group", "size": 2, "wait": wait})
+	# pieces of a number still reach the synth apart with a group size (2026-11-01, O1).
+	module, settings, ctx = run_row(monkeypatch, {"mode": "value", "size": 2, "wait": wait})
 	result = list(module.inject_numbers(["第123章"], settings, ctx))
 	breaks = [item for item in result if not isinstance(item, str)]
 	assert breaks
@@ -353,8 +467,10 @@ def test_no_edge_break_without_a_number_pause(monkeypatch, wait):
 @pytest.mark.parametrize("wait", [0, -5])
 def test_no_break_at_all_in_number_mode_without_a_number_pause(monkeypatch, wait):
 	# Number mode joins the digits with spaces (decided by the user, 2026-11-01), so at a number
-	# pause of 0 the number stays in the text of its item.
-	module, settings, ctx = run_row(monkeypatch, {"mode": "number", "wait": wait})
+	# pause of 0 the number stays in the text of its item, without and with a group size.
+	module, settings, ctx = run_row(monkeypatch, {"mode": "number", "size": 0, "wait": wait})
+	assert list(module.inject_numbers(["第123章"], settings, ctx)) == ["第1 2 3章"]
+	module, settings, ctx = run_row(monkeypatch, {"mode": "number", "size": 3, "wait": wait})
 	assert list(module.inject_numbers(["第123章"], settings, ctx)) == ["第1 2 3章"]
 
 
@@ -608,7 +724,7 @@ def test_the_shortest_number_wait_adds_edge_breaks(monkeypatch):
 def test_off_mode_with_a_locale_keeps_the_dots_as_they_are(monkeypatch, numlan, expected):
 	# "Off" wraps a number for a locale number language but adds no dot-rule space (mutmut), also
 	# where the wrapper goes: zh is the voice in force, fr has no voice here (review M4).
-	module, settings, ctx = run_row(monkeypatch, {"mode": "none", "numlan": numlan})
+	module, settings, ctx = run_row(monkeypatch, {"mode": "none", "size": 0, "numlan": numlan})
 	ctx = replace(ctx, voice_name_for_language={"zh": "Z", "en": "E"}.get)
 	result = module.inject_numbers(["a.1. b"], settings, ctx)
 	assert shape(result) == expected
@@ -633,10 +749,11 @@ def test_the_dot_rule_adds_no_pause_point_where_the_wrapper_stays(monkeypatch, t
 
 
 # Decided by the user (2026-11-01): number mode reads the pieces of one number as one item, joined
-# with spaces, with no break between them at any number pause. The number language wrapper, the dot
-# rule, the edge pauses and the break between two numbers that only whitespace separates stay.
-# Group mode keeps a number break between its pieces; with a group size of 1 it reads the digits
-# apart, as number mode did before.
+# with spaces, with no break between them at any number pause. Without groups (the rows run at group
+# size 0 unless they say otherwise) it has no edge pause either (feat/number-group-independent, U4);
+# the number language wrapper, the dot rule and the break between two numbers that only whitespace
+# separates stay. A group size puts a number break between the pieces; value mode with a group size
+# of 1 reads the digits apart, as number mode did before.
 SPACED_ROWS = [
 	pytest.param(["123"], {}, ["1 2 3"], id="digits"),
 	pytest.param(["123"], {"wait": 0}, ["1 2 3"], id="digits-pause0"),
@@ -644,9 +761,16 @@ SPACED_ROWS = [
 	pytest.param(["-123"], {"wait": 0}, ["-1 2 3"], id="sign-pause0"),
 	pytest.param(["12.5"], {}, [f"1 2 {N('.')} 5"], id="symbol"),
 	pytest.param(["5-3"], {"wait": 0}, [f"5 {N('-')} 3"], id="symbol-pause0"),
-	pytest.param(["第123章"], {}, ["第", E, "1 2 3", E, "章"], id="edges"),
-	pytest.param(["第123章"], {"wait": 0}, ["第1 2 3章"], id="edges-pause0"),
-	pytest.param(["第123章"], {"numlan": "en"}, ["第", E, LEN, "1 2 3", LZH, E, "章"], id="wrapper"),
+	pytest.param(["第123章"], {}, ["第1 2 3章"], id="no-edges"),
+	pytest.param(["第123章"], {"wait": 0}, ["第1 2 3章"], id="no-edges-pause0"),
+	pytest.param(["第123章"], {"size": 3}, ["第", E, "1 2 3", E, "章"], id="edges"),
+	pytest.param(["第123章"], {"numlan": "en"}, ["第", LEN, "1 2 3", LZH, "章"], id="wrapper"),
+	pytest.param(
+		["第123章"],
+		{"numlan": "en", "size": 3},
+		["第", E, LEN, "1 2 3", LZH, E, "章"],
+		id="wrapper-edges",
+	),
 	pytest.param(
 		["第123章"],
 		{"numlan": "en", "wait": 0},
@@ -660,32 +784,39 @@ SPACED_ROWS = [
 		[LEN, "1 2", LZH, NB, LEN, "3 4", LZH],
 		id="two-numbers-wrapper",
 	),
-	pytest.param(["12", "34"], {}, ["1 2", E, "3 4"], id="two-items"),
-	pytest.param(["35."], {}, ["3 5", E, "."], id="dot-rule"),
+	pytest.param(["12", "34"], {"size": 3}, ["1 2", E, "3 4"], id="two-items"),
+	pytest.param(["35."], {}, ["3 5 ."], id="dot-rule"),
+	pytest.param(["35."], {"size": 3}, ["3 5", E, "."], id="dot-rule-edges"),
 	pytest.param(
 		["第123章"],
-		{"mode": "group", "size": 1},
+		{"mode": "value", "size": 1},
 		["第", E, "1", NB, "2", NB, "3", E, "章"],
-		id="group-size1",
+		id="value-size1",
 	),
 	pytest.param(
 		["-123"],
-		{"mode": "group", "size": 1, "wait": 0},
+		{"mode": "value", "size": 1, "wait": 0},
 		["-1", ("NB", 0), "2", ("NB", 0), "3"],
-		id="group-size1-pause0",
+		id="value-size1-pause0",
 	),
 	pytest.param(
 		["12 34"],
-		{"mode": "group", "size": 1},
+		{"mode": "value", "size": 1},
 		["1", NB, "2", NB, "3", NB, "4"],
-		id="group-size1-two-numbers",
+		id="value-size1-two-numbers",
+	),
+	pytest.param(
+		["12 34"],
+		{"size": 1},
+		["1", NB, "2", NB, "3", NB, "4"],
+		id="number-size1-two-numbers",
 	),
 ]
 
 
 @pytest.mark.parametrize(("sequence", "options", "expected"), SPACED_ROWS)
 def test_number_mode_joins_the_pieces_of_a_number_with_spaces(monkeypatch, sequence, options, expected):
-	module, settings, ctx = run_row(monkeypatch, options)
+	module, settings, ctx = run_row(monkeypatch, {"size": 0, **options})
 	for stage in module.STAGES:
 		sequence = list(stage.fn(sequence, settings, ctx))
 	assert shape(sequence) == expected
@@ -696,7 +827,6 @@ def test_number_mode_joins_the_pieces_of_a_number_with_spaces(monkeypatch, seque
 	[
 		("number", ["1 2 3"]),
 		("value", ["1", NB, "2", NB, "3"]),
-		("group", ["1", NB, "2", NB, "3"]),
 		("none", ["1", NB, "2", NB, "3"]),
 	],
 )

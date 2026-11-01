@@ -319,8 +319,9 @@ def test_digit_mode_at_pause_0_keeps_the_text_around_the_digits(env, text, expec
 	assert shape(result) == expected
 
 
-def test_group_mode_then_number_wait_breaks_with_the_number_wait(env):
-	env.settings.number_mode = "group"
+def test_value_groups_then_number_wait_break_with_the_number_wait(env):
+	# The old group mode is value mode with a group size (decided by the user, 2026-11-01, U1).
+	env.settings.number_mode = "value"
 	env.settings.group_size = 2
 	env.settings.scaled_number_wait = lambda: 40
 	groups = env.module.inject_numbers(["1234 5678"], env.settings, env.module.GENERIC_CONTEXT)
@@ -337,36 +338,38 @@ E50 = ("NumberEdgeBreakCommand", 50)
 B50 = ("NumberBreakCommand", 50)
 # The dot rule: a "." outside a number is spoken apart from it, in every mode but "off".
 SHARED = {"a. 3": ["a. 3"], "3.": ["3 ."], ".5": [". 5"], "": []}
-# Keyed by (mode, group size, number pause).
+# Keyed by (mode, group size, number pause). The group size is independent of the mode (decided by
+# the user, 2026-11-01, U1, U2): 0 keeps a number whole, above 0 cuts it in every mode.
 NUMBER_MODES = {
-	("value", 3, 0): {
+	("value", 0, 0): {
 		"12.5": ["12.5"],
 		"v1.2": ["v1.2"],
 	},
 	# Digit mode: every digit and every symbol, joined with spaces in one item (decided by the user,
 	# 2026-11-01).
-	("number", 3, 0): {
+	("number", 0, 0): {
 		"12.5": joined("1 2 <.> 5"),
 		"-1234": joined("-1 2 3 4"),
 		"12": joined("1 2"),
 		"v1.2": joined("v1 <.> 2"),
 		"1.2.3": joined("1 <.> 2 <.> 3"),
 	},
-	("number", 3, 50): {
+	# Without groups digit mode adds no edge pause (U4); two numbers still get the pause (U5).
+	("number", 0, 50): {
 		"12.5": joined("1 2 <.> 5"),
 		"-1234": joined("-1 2 3 4"),
-		"v1.2": ["v", E50, *joined("1 <.> 2")],
+		"v1.2": joined("v1 <.> 2"),
 		"12 34": ["1 2", B50, "3 4"],
-		"3.": ["3", E50, " ."],
+		"3.": ["3 ."],
 	},
-	# A group size of 1 reads every digit apart, as number mode did before 2026-11-01.
-	("group", 1, 0): {
+	# A group size of 1 in value mode reads every digit apart, as number mode did before 2026-11-01.
+	("value", 1, 0): {
 		"12.5": spoken("1 2 <.> 5"),
 		"-1234": spoken("-1 2 3 4"),
 		"12 34": ["1", NB0, "2 3", NB0, "4"],
 	},
 	# Groups are cut from the left, the sign joins the first, and a symbol is named apart.
-	("group", 2, 0): {
+	("value", 2, 0): {
 		"12.5": spoken("12 <.> 5"),
 		"-1234": spoken("-12 34"),
 		"123": spoken("12 3"),
@@ -375,8 +378,8 @@ NUMBER_MODES = {
 		"1.2.3": spoken("1 <.> 2 <.> 3"),
 	},
 	# A number pause above 0 also sets a number apart from the text of its item (number-edge-pause
-	# spec, decided by the user 2026-10-24).
-	("group", 2, 50): {
+	# spec, decided by the user 2026-10-24), with a group size above 0 (2026-11-01, U4).
+	("value", 2, 50): {
 		"12.5": spoken("12 <.> 5", 50),
 		"-1234": spoken("-12 34", 50),
 		"123": spoken("12 3", 50),
@@ -387,10 +390,25 @@ NUMBER_MODES = {
 		"3.": ["3", E50, " ."],
 		".5": [". ", E50, "5"],
 	},
+	# Off with a group size cuts too, and leaves the pieces and symbols as they are (U2); no dot rule.
+	("none", 2, 0): {
+		"12.5": ["12", NB0, ".", NB0, "5"],
+		"-1234": ["-12", NB0, "34"],
+		"v1.2": ["v1", NB0, ".", NB0, "2"],
+		"3.": ["3."],
+	},
+	# Digit mode with a group size reads each piece digit by digit, with breaks between the pieces.
+	("number", 2, 50): {
+		"12.5": ["1 2", B50, N("."), B50, "5"],
+		"-1234": ["-1 2", B50, "3 4"],
+		"v1.2": ["v", E50, "1", B50, N("."), B50, "2"],
+		"12 34": ["1 2", B50, "3 4"],
+		"3.": ["3", E50, " ."],
+	},
 }
 # Each (mode, size, pause) runs the texts of its own table. The SHARED texts run only in value mode
 # and with a number pause: in the other modes they take no branch of their own.
-WITH_SHARED = {("value", 3, 0), ("group", 2, 50)}
+WITH_SHARED = {("value", 0, 0), ("value", 2, 50)}
 CASES = [
 	(text, *key)
 	for key, table in NUMBER_MODES.items()
@@ -424,17 +442,46 @@ SPEC_TABLE = [
 SPEC_IDS = ["".join(c if c.isascii() else f"U+{ord(c):04X}" for c in row[0]) for row in SPEC_TABLE]
 
 
+def digit_by_digit(piece):
+	"""A digit piece as number mode reads it: every digit apart, the sign on the first."""
+	sign = piece[0] if piece[0] in "+-" else ""
+	return sign + " ".join(piece[len(sign) :])
+
+
+def pieces_in(mode, pieces):
+	"""The space-separated *pieces* of a group column as *mode* speaks them, with breaks between."""
+	symbol = lambda piece: piece.startswith("<")
+	if mode == "none":
+		return broken(0, *(piece[1:-1] if symbol(piece) else piece for piece in pieces.split()))
+	if mode == "number":
+		return broken(
+			0,
+			*(N(piece[1:-1]) if symbol(piece) else digit_by_digit(piece) for piece in pieces.split()),
+		)
+	return spoken(pieces)
+
+
 @pytest.mark.parametrize(
 	("mode", "size", "column"),
-	[("number", 3, 1), ("group", 1, 1), ("group", 3, 2), ("group", 2, 3)],
+	[
+		("number", 0, 1),
+		("value", 1, 1),
+		("value", 3, 2),
+		("value", 2, 3),
+		("none", 3, 2),
+		("none", 2, 3),
+		("number", 3, 2),
+		("number", 2, 3),
+	],
 )
 @pytest.mark.parametrize("row", SPEC_TABLE, ids=SPEC_IDS)
-def test_number_and_group_modes_name_each_symbol(env, mode, size, column, row):
-	# Number mode joins the pieces with spaces; group mode, a size of 1 included, breaks between them.
+def test_number_modes_and_group_sizes_name_each_symbol(env, mode, size, column, row):
+	# Without groups number mode joins the pieces with spaces; with a group size every mode breaks
+	# between them, value and number name the symbols, off leaves them (decided by the user, 2026-11-01).
 	env.settings.number_mode = mode
 	env.settings.group_size = size
 	result = env.module.inject_numbers([row[0]], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(result) == (joined if mode == "number" else spoken)(row[column])
+	assert shape(result) == (joined(row[column]) if size == 0 else pieces_in(mode, row[column]))
 
 
 def test_adjacent_symbols_get_a_name_each(env):
@@ -531,10 +578,13 @@ def test_a_symbol_without_a_name_is_its_own_item(env, monkeypatch):
 	# replacement) is sent as itself, between number breaks like a name; NVDA then decides its sound.
 	counting_lookup(env, monkeypatch, unnamed=".")
 	generic = env.module.GENERIC_CONTEXT
-	env.settings.number_mode = "group"
+	env.settings.number_mode = "value"
+	env.settings.group_size = 3
 	assert shape(env.module.inject_numbers(["123.456"], env.settings, generic)) == spoken("123 . 456")
-	# Number mode joins it with the other pieces, with spaces (decided by the user, 2026-11-01).
+	# Number mode without groups joins it with the other pieces, with spaces (decided by the user,
+	# 2026-11-01).
 	env.settings.number_mode = "number"
+	env.settings.group_size = 0
 	assert shape(env.module.inject_numbers(["12.5"], env.settings, generic)) == joined("1 2 . 5")
 	assert shape(env.module.inject_numbers(["1-.2"], env.settings, generic)) == joined("1 <-> . 2")
 
@@ -542,7 +592,7 @@ def test_a_symbol_without_a_name_is_its_own_item(env, monkeypatch):
 def test_an_unnamed_symbol_and_a_named_one_are_two_items(env, monkeypatch):
 	# The batch 2 review I1 input: no name ever takes the next digits.
 	counting_lookup(env, monkeypatch, unnamed=".")
-	env.settings.number_mode = "group"
+	env.settings.number_mode = "value"
 	env.settings.group_size = 1
 	result = env.module.inject_numbers(["1.-2"], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(result) == spoken("1 . <-> 2")
@@ -564,11 +614,14 @@ NB10, B10 = ("NumberBreakCommand", 10), ("BreakCommand", 10)
 		(False, True, ["12", B10, B10, "5"]),
 	],
 )
-def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch, roles, remove, expected):
+@pytest.mark.parametrize("mode", ["value", "none"])
+def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch, mode, roles, remove, expected):
 	# Accepted by the user (2026-10-22): an unnamed symbol is an item of its own, so the punctuation
-	# stage may pause at it and remove it; the digits around it still reach the synth apart.
+	# stage may pause at it and remove it; the digits around it still reach the synth apart. Off with
+	# a group size sends every symbol as itself, the same way (2026-11-01, U2; spec risk 5).
 	counting_lookup(env, monkeypatch, unnamed=".")
-	env.settings.number_mode = "group"
+	env.settings.number_mode = mode
+	env.settings.group_size = 3
 	env.settings.scaled_number_wait = lambda: 10
 	env.settings.punctuation_pause_enabled = True
 	env.settings.punctuation_pause_characters = "."
@@ -638,15 +691,17 @@ def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
 		(3, "+0012", spoken("+001 2")),
 	],
 )
-def test_group_mode_keeps_leading_zeros_and_every_digit(env, size, text, expected):
-	env.settings.number_mode = "group"
+@pytest.mark.parametrize("mode", ["value", "none"])
+def test_groups_keep_leading_zeros_and_every_digit(env, mode, size, text, expected):
+	env.settings.number_mode = mode
 	env.settings.group_size = size
 	assert shape(env.module.inject_numbers([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
 
 
+@pytest.mark.parametrize("mode", ["value", "none"])
 @pytest.mark.parametrize("pause", [0, 50])
-def test_group_separator_is_one_instance_per_number(env, pause):
-	env.settings.number_mode = "group"
+def test_group_separator_is_one_instance_per_number(env, mode, pause):
+	env.settings.number_mode = mode
 	env.settings.group_size = 2
 	env.settings.scaled_number_wait = lambda: pause
 	result = list(env.module.inject_numbers(["123456"], env.settings, env.module.GENERIC_CONTEXT))
@@ -656,10 +711,18 @@ def test_group_separator_is_one_instance_per_number(env, pause):
 	assert first.time == pause
 
 
-def test_a_stored_pair_mode_reads_numbers_as_values(env, monkeypatch):
-	conf = {"WorldVoice": {"pipeline": {"numberMode": "pair", "groupSize": 2}}}
+@pytest.mark.parametrize("mode", ["pair", "group"])
+@pytest.mark.parametrize(
+	("size", "expected"),
+	[({}, ["1234"]), ({"groupSize": 2}, ["12", ("NumberBreakCommand", 10), "34"])],
+	ids=["no-size", "size-2"],
+)
+def test_a_stored_pair_mode_reads_numbers_as_values(env, monkeypatch, mode, size, expected):
+	# An unknown stored mode, the old group mode included, reads as value; a stored group size groups
+	# in value mode, with no migration (decided by the user, 2026-11-01, U7).
+	conf = {"WorldVoice": {"pipeline": {"numberMode": mode, **size}}}
 	stored = load_settings_module(monkeypatch, conf).pipeline_settings.get()
-	assert list(env.module.inject_numbers(["1234"], stored, env.module.GENERIC_CONTEXT)) == ["1234"]
+	assert shape(env.module.inject_numbers(["1234"], stored, env.module.GENERIC_CONTEXT)) == expected
 
 
 @pytest.mark.parametrize(
@@ -680,12 +743,14 @@ def test_thousands_separators_of_other_digits(env, text, expected):
 @pytest.mark.parametrize(
 	("mode", "size", "text", "expected"),
 	[
-		("group", 3, "１２３４５", ["１２３", NB0, "４５"]),
-		("group", 1, "٣٤", ["٣", NB0, "٤"]),
-		("number", 3, "٣٤", ["٣ ٤"]),
+		("value", 3, "１２３４５", ["１２３", NB0, "４５"]),
+		("value", 1, "٣٤", ["٣", NB0, "٤"]),
+		("number", 0, "٣٤", ["٣ ٤"]),
+		("number", 3, "１２３４５", ["１ ２ ３", NB0, "４ ５"]),
+		("none", 1, "٣٤", ["٣", NB0, "٤"]),
 	],
 )
-def test_group_and_number_modes_keep_the_original_digits(env, mode, size, text, expected):
+def test_every_mode_keeps_the_original_digits(env, mode, size, text, expected):
 	# Decided by the user (2026-10-23): pieces keep the characters they were written with.
 	env.settings.number_mode = mode
 	env.settings.group_size = size

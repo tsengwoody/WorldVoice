@@ -72,7 +72,8 @@ def test_nvda_ssml_speaks_a_symbol_name_as_words_between_breaks(monkeypatch):
 	# F1 option D: another synth gets the name as plain text, never in character mode.
 	if not SPEECH_XML.is_file():
 		pytest.skip("ref/nvda is not checked out")
-	module, _ = load_pipeline_module(monkeypatch, pause_settings("group"))
+	# The old group mode is value mode with a group size (decided by the user, 2026-11-01, U1).
+	module, _ = load_pipeline_module(monkeypatch, pause_settings("value"))
 	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
 	sequence = ["12.5"]
 	for stage in module.STAGES:

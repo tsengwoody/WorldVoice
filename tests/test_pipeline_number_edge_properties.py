@@ -15,8 +15,10 @@ from pipeline_harness import load_pipeline_module, punctuation_settings, read_ba
 SHARED_ENV = settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 
 TEXT = st.text(alphabet="0123456789+-.,:aZ共第章。，，  　", max_size=16)
-MODES = st.sampled_from(["none", "value", "number", "group"])
-SPACED_MODES = st.sampled_from(["number", "group"])
+MODES = st.sampled_from(["none", "value", "number"])
+# The edge pause follows the group size in every mode (decided by the user, 2026-11-01, U4): the
+# edge properties run every mode with a group size of 1 to 10.
+SPACED_MODES = MODES
 NUMBER_LANGUAGES = st.sampled_from(["default", "main", "en"])
 
 
@@ -119,17 +121,29 @@ def test_property_edges_keep_the_text(env, text, mode, size, numlan, wait):
 	roles=st.booleans(),
 	wait=st.integers(-5, 60),
 )
-def test_property_no_edge_outside_digit_and_group_modes(env, sequence, mode, numlan, roles, wait):
-	# P-E2, decided by the user (2026-10-24, U1, U4).
+def test_property_no_edge_without_a_group_or_a_pause(env, sequence, mode, numlan, roles, wait):
+	# P-U4 (decided by the user, 2026-11-01, U4; was P-E2): with a group size of 0 or a number pause
+	# of 0 the number stage adds no edge break next to spoken text that is not a number; value mode
+	# without groups does not depend on the pause.
 	module = env.module
 	items = [item if isinstance(item, str) else module.WVLangChangeCommand(item) for item in sequence]
 	ctx = context(module, numlan, roles)
-	result = list(module.inject_numbers(items, stage_settings(mode, wait=wait), ctx))
-	if mode in ("value", "none") or wait <= 0:
-		assert not any(is_edge(env, item) for item in result), result
-	if mode == "value":
-		at_zero = list(module.inject_numbers(items, stage_settings(mode, wait=0), ctx))
-		assert shape(result) == shape(at_zero)
+	for size in (0, 3):
+		result = list(module.inject_numbers(items, stage_settings(mode, size, wait), ctx))
+		if wait <= 0 or (size == 0 and mode != "number"):
+			assert not any(is_edge(env, item) for item in result), result
+		elif size == 0:
+			# Number mode without groups: an edge-class break only between two numbers of two items.
+			spoken = [
+				item for item in without_language(env, result) if not isinstance(item, str) or item.strip()
+			]
+			for index, item in enumerate(spoken):
+				if is_edge(env, item):
+					before, after = spoken[index - 1], spoken[index + 1]
+					assert before.rstrip()[-1:].isdecimal() and after.lstrip("+- ")[:1].isdecimal(), result
+	at_zero = list(module.inject_numbers(items, stage_settings("value", 0, 0), ctx))
+	at_wait = list(module.inject_numbers(items, stage_settings("value", 0, wait), ctx))
+	assert shape(at_wait) == shape(at_zero)
 
 
 @SHARED_ENV
@@ -142,8 +156,8 @@ def test_property_no_edge_outside_digit_and_group_modes(env, sequence, mode, num
 )
 def test_property_one_break_between_numbers(env, text, mode, size, numlan, wait):
 	# P-E3: no two breaks meet, and between numbers that only whitespace separates there is one
-	# number break; the others are the separators between a number's pieces, in group mode only
-	# (number mode joins them with spaces, decided by the user, 2026-11-01).
+	# number break; the others are the separators between a number's pieces, one fewer than its
+	# pieces in every mode with a group size (decided by the user, 2026-11-01, U2).
 	module = env.module
 	result = list(module.inject_numbers([text], stage_settings(mode, size, wait), context(module, numlan)))
 	is_break = lambda item: isinstance(item, env.BreakCommand)
@@ -154,7 +168,7 @@ def test_property_one_break_between_numbers(env, text, mode, size, numlan, wait)
 	separators = sum(
 		len(module.numbers.number_pieces(value, mode, size, name_of)) - 1
 		for kind, value in parts
-		if kind == "number" and mode == "group"
+		if kind == "number"
 	)
 	plain = [item for item in result if type(item) is module.NumberBreakCommand]
 	assert len(plain) == separators + len(gaps), (text, result)

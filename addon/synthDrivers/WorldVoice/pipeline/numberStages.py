@@ -115,9 +115,10 @@ def number_wait_factor(
 	separates inside one item, which become items of their own. Blank text items
 	are dropped and the others stripped.
 
-	Number mode keeps its items whole: there the spaces join the digits of one number
-	(inject_numbers), and the number stage already put a break wherever only whitespace
-	separated two numbers (decided by the user, 2026-11-01).
+	Number mode keeps its items whole, whatever the group size: there the spaces join the digits
+	of one piece (inject_numbers), and the number stage places every break between two numbers
+	that only whitespace separated (decided by the user, 2026-11-01, U5). In the other modes
+	with a group size above 0 the number stage has done the same, so the split finds nothing.
 	"""
 	wait_factor = settings.scaled_number_wait()
 	if wait_factor <= 0:
@@ -232,16 +233,14 @@ def _translate_number(
 	number_pause: int,
 	name_of: Callable[[str], str | None],
 ) -> Iterator[SpeechCmd]:
-	"""Speak one number match in *mode*: its pieces (numbers.number_pieces).
+	"""Speak one number match: its pieces (numbers.number_pieces), cut by *group_size* and
+	rendered in *mode*.
 
-	Number mode joins them with spaces into one item, read without a pause (decided by the
-	user, 2026-11-01). The other modes put a number break between every two, even at pause 0,
-	so each reaches the synth as an item of its own.
+	A group size of 0 makes one piece. Above 0, a number break goes between every two pieces in
+	every mode, even at pause 0, so each reaches the synth as an item of its own (decided by the
+	user, 2026-11-01, U2; O1).
 	"""
 	pieces = number_pieces(raw, mode, group_size, name_of)
-	if mode == "number":
-		yield " ".join(pieces)
-		return
 	# One break instance per number, as the synth only reads its time.
 	separator = NumberBreakCommand(number_pause)
 	for index, piece in enumerate(pieces):
@@ -259,42 +258,49 @@ def inject_numbers(
 	Speak each number of a text item in its number language and number mode.
 
 	Numbers are found once, with the number-language rule (_split_numbers_for_language), and each
-	gets, in order: its edge pauses, the wrapper of its number language, and the pieces of its
-	number mode (decided by the user, 2026-10-24, U5): one item of digits joined with spaces in
-	number mode, pieces apart with number breaks in group mode (_translate_number). A synth without
-	roles gets no wrapper, and the WVLangChangeCommands it was sent are dropped.
+	gets, in order: its edge pauses, the wrapper of its number language, and its pieces, cut by the
+	group size and rendered by the number mode, with number breaks between them (_translate_number;
+	decided by the user, 2026-11-01, U1, U2). A synth without roles gets no wrapper, and the
+	WVLangChangeCommands it was sent are dropped.
 
-	Two cases pass the sequence on as it is: "off" without a locale number language leaves numbers
-	alone, without even the dot rule, and "default" and "main" wrap a number in the language in
-	force, which deduplicate_language_command would drop again. With detection on, "main" numbers
-	are wrapped where detection runs (detect_with_number_language).
+	Two cases pass the sequence on as it is: "off" with a group size of 0 and without a locale
+	number language leaves numbers alone, without even the dot rule, and "default" and "main" wrap
+	a number in the language in force, which deduplicate_language_command would drop again. With
+	detection on, "main" numbers are wrapped where detection runs (detect_with_number_language).
 
-	The edge pauses go on each side of a number with spoken text anywhere in the sequence, in its
+	With a group size above 0 and a number pause above 0, in every mode (U4), the edge pauses go on
+	each side of a number with spoken text anywhere in the sequence, in its
 	item or another, whatever commands lie between; none before the first spoken item or after the
 	last (corrected by fix/number-edge-pause-items, decided by the user, 2026-10-24). The sequence
 	here is one utterance: NVDA splits the filtered sequence at an EndUtteranceCommand or a
 	ConfigProfileTriggerCommand (_ends_utterance, review I1). Where breaks
 	meet around an edge break, only one stays (_merge_edge_breaks): two numbers at the end and start
 	of two items get one pause, and so does a number next to a break of the sequence.
+
+	Without groups, number mode adds no edge pause, but it puts the break between two numbers that
+	only whitespace separates itself, as number_wait_factor cannot split the spaces it reads digits
+	with (U5).
 	"""
 	mode = settings.number_mode
+	group_size = settings.group_size
 	wraps = ctx.supports_roles and ctx.number_language not in (FOLLOW, MAIN)
 	if not ctx.supports_roles:
 		speech_sequence = remove_language_command(speech_sequence)
-	if mode == "none" and not wraps:
+	if mode == "none" and group_size <= 0 and not wraps:
 		yield from speech_sequence
 		return
 	pause = settings.scaled_number_wait()
-	# Decided by the user (2026-10-24, U1, U4): the number pause also goes before and after a number
-	# in number and group modes, and a pause of 0 adds no break at all. One instance each per run,
-	# as the synth only reads their time.
-	if mode in ("number", "group") and pause > 0:
+	# Decided by the user (2026-11-01, U4, U5): the number pause goes before and after a number when
+	# the group size is above 0, whatever the mode; a pause of 0 adds no break at all. One instance
+	# each per run, as the synth only reads their time.
+	if pause > 0 and group_size > 0:
 		edges = (NumberEdgeBreakCommand(pause), NumberBreakCommand(pause), NumberItemEdgeBreakCommand(pause))
-		yield from _merge_edge_breaks(
-			_inject_item_numbers(list(speech_sequence), settings, ctx, wraps, edges),
-		)
+	elif pause > 0 and mode == "number":
+		edges = (None, NumberBreakCommand(pause), None)
 	else:
 		yield from _inject_item_numbers(speech_sequence, settings, ctx, wraps, None)
+		return
+	yield from _merge_edge_breaks(_inject_item_numbers(list(speech_sequence), settings, ctx, wraps, edges))
 
 
 def _is_spoken(item: SpeechCmd) -> bool:
@@ -330,12 +336,13 @@ def _inject_item_numbers(
 	settings: "PipelineSettings",
 	ctx: SpeechContext,
 	wraps: bool,
-	edges: tuple[SpeechCmd, SpeechCmd, SpeechCmd] | None,
+	edges: tuple[SpeechCmd | None, SpeechCmd, SpeechCmd | None] | None,
 ) -> Iterator[SpeechCmd]:
 	"""inject_numbers, item by item, without the merge of the breaks around an edge break.
 
 	*edges* is None, or the edge break, the break between two numbers that only whitespace
 	separates, and the edge break at an item's start or end; with it, *speech_sequence* is a list.
+	The first and last are None where no edge break is added (number mode without groups).
 	"""
 	mode = settings.number_mode
 	group_size = settings.group_size
@@ -412,8 +419,9 @@ def _number_item_segments(
 	one, is spoken apart from it.
 
 	With an *edge* break, a number gets it on each side where its item has spoken text, whatever
-	that text is (U3), outside the wrapper (O1). Whitespace between two numbers becomes *gap_break*,
-	one pause between two numbers (O3). Text parts and numbers alternate, so the text next to a
+	that text is (U3), outside the wrapper (O1). With a *gap_break*, whitespace between two numbers
+	becomes it, one pause between two numbers (O3; with or without an edge break since
+	feat/number-group-independent, U5). Text parts and numbers alternate, so the text next to a
 	number decides. An item that a number begins, or ends, with only whitespace before it, or after
 	it, starts with *edge_before*, or ends with *edge_after*, when that is not None: inject_numbers
 	passes one where spoken text comes before or after the item (corrected by
@@ -426,7 +434,7 @@ def _number_item_segments(
 		yield edge_before
 	for index, (kind, value) in enumerate(parts):
 		if kind == "text":
-			if edge is not None and 0 < index < last and value.isspace():
+			if gap_break is not None and 0 < index < last and value.isspace():
 				yield gap_break
 				continue
 			if dot_rule and index > 0 and value[0] == ".":
@@ -439,10 +447,7 @@ def _number_item_segments(
 			yield edge
 		if number_language is not None:
 			yield WVLangChangeCommand(number_language)
-		if mode == "none":
-			yield value
-		else:
-			yield from _translate_number(value, mode, group_size, pause, name_of)
+		yield from _translate_number(value, mode, group_size, pause, name_of)
 		if number_language is not None:
 			yield WVLangChangeCommand(language)
 		if edge is not None and index < last and parts[index + 1][1].strip():

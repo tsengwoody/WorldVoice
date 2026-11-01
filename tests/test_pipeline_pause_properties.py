@@ -260,8 +260,9 @@ def test_property_zero_number_wait_changes_nothing(env, data):
 
 
 def run_group_mode(env, text, size, pause=0):
+	# The old group mode is value mode with a group size (decided by the user, 2026-11-01, U1).
 	stage_settings = punctuation_settings(0)
-	stage_settings.number_mode = "group"
+	stage_settings.number_mode = "value"
 	stage_settings.group_size = size
 	stage_settings.scaled_number_wait = lambda: pause
 	return list(env.module.inject_numbers([text], stage_settings, env.module.GENERIC_CONTEXT))
@@ -306,13 +307,13 @@ def test_property_digit_mode_joins_every_digit_with_spaces(env, sign, digits, wa
 	assert result == [" ".join([sign + digits[0], *digits[1:]])]
 
 
-# Number and group modes name each symbol (spec 6.4, P5-P7)
+# Number modes name each symbol (spec 6.4, P5-P7), with and without a group size (2026-11-01, U1, U2)
 
 SHAPED_SYMBOLS = ".,:/-+\u00d7\u00b0"
 # Numbers with runs of symbols between digit runs, where named and unnamed symbols meet.
 NUMBER_SHAPED = st.from_regex(r"[+-]?[0-9]{1,3}(?:[.,:/+\u00d7\u00b0-]{1,3}[0-9]{1,3}){0,4}", fullmatch=True)
-GROUP_SIZES = st.sampled_from([("group", size) for size in range(1, 11)])
-MODE_SIZES = st.one_of(st.just(("number", 1)), GROUP_SIZES)
+GROUP_SIZES = st.sampled_from([(mode, size) for mode in ("value", "number") for size in range(1, 11)])
+MODE_SIZES = st.one_of(st.just(("number", 0)), GROUP_SIZES)
 
 
 def run_number_mode(env, text, mode, size):
@@ -340,25 +341,26 @@ def test_property_number_modes_keep_the_text(env, text, mode_size):
 @SHARED_ENV
 @given(text=NUMBER_TEXT, mode_size=MODE_SIZES)
 def test_property_no_digit_run_is_longer_than_the_size(env, text, mode_size):
-	# P6
-	size = mode_size[1]
+	# P6: number mode reads every digit apart, whatever the size.
+	mode, size = mode_size
+	longest = 1 if mode == "number" else size
 	for item in run_number_mode(env, text, *mode_size):
 		if isinstance(item, str):
-			assert all(len(run) <= size for run in re.findall(r"\d+", item)), (text, item)
+			assert all(len(run) <= longest for run in re.findall(r"\d+", item)), (text, item)
 
 
 @SHARED_ENV
 @given(text=NUMBER_TEXT, mode_size=MODE_SIZES)
 def test_property_breaks_and_names_stay_inside_numbers(env, text, mode_size):
-	# P7: in group mode a break sits between two pieces of one number and a name has a break on
-	# each side; number mode has no break (decided by the user, 2026-11-01). Every symbol inside a
-	# number, and only those, is named.
+	# P7: with a group size a break sits between two pieces of one number and a name has a break on
+	# each side; number mode without groups has no break (decided by the user, 2026-11-01). Every
+	# symbol inside a number, and only those, is named.
 	symbols = symbol_of_name(env)
 	result = run_number_mode(env, text, *mode_size)
 	is_break = lambda item: isinstance(item, env.module.NumberBreakCommand)
 	for index, item in enumerate(result):
 		if is_break(item):
-			assert mode_size[0] == "group", (text, result)
+			assert mode_size[1] > 0, (text, result)
 			assert 0 < index < len(result) - 1, (text, result)
 			before, after = result[index - 1], result[index + 1]
 			assert before in symbols or before[-1].isdecimal(), (text, result)
@@ -469,7 +471,8 @@ def test_property_off_mode_is_the_identity_for_the_thousands_and_number_stages(e
 	sequence = data.draw(st.lists(st.one_of(NUMBER_TEXT, st.builds(lambda: env.BreakCommand(5))), max_size=6))
 	stage_settings = punctuation_settings(0)
 	stage_settings.number_mode = "none"
-	stage_settings.group_size = data.draw(st.integers(1, 10))
+	# Off cuts a number with a group size (decided by the user, 2026-11-01, U2), so only size 0.
+	stage_settings.group_size = 0
 	for stage in (env.module.remove_thousands_separators, env.module.inject_numbers):
 		result = list(stage(sequence, stage_settings, env.module.GENERIC_CONTEXT))
 		assert len(result) == len(sequence)
@@ -477,11 +480,16 @@ def test_property_off_mode_is_the_identity_for_the_thousands_and_number_stages(e
 
 
 @SHARED_ENV
-@given(data=st.data(), text=NUMBER_SHAPED, mode_size=GROUP_SIZES)
+@given(
+	data=st.data(),
+	text=NUMBER_SHAPED,
+	mode_size=st.tuples(st.sampled_from(["none", "value", "number"]), st.integers(1, 10)),
+)
 def test_property_every_symbol_is_its_own_item_when_some_have_no_name(env, data, text, mode_size):
 	# Decided by the user (2026-10-22): a symbol with no name is sent as itself, between number
-	# breaks like a name, in group mode. No item mixes digits with a symbol or a name; only the first
-	# piece may start with the number's sign.
+	# breaks like a name, with a group size, in every mode (2026-11-01, U2). No item mixes digits with
+	# a symbol or a name; only the first piece may start with the number's sign; number mode spaces
+	# the digits of a piece.
 	unnamed = data.draw(st.sets(st.sampled_from(env.module.numbers.SYMBOLS)))
 	symbols = symbol_of_name(env)
 	lookup = env.module.symbols.characterProcessing.processSpeechSymbol
@@ -500,8 +508,11 @@ def test_property_every_symbol_is_its_own_item_when_some_have_no_name(env, data,
 			assert is_break(result[index - 1]) and is_break(result[index + 1]), (text, unnamed, result)
 		else:
 			digits = item.removeprefix("+").removeprefix("-") if index == 0 else item
+			if mode_size[0] == "number":
+				assert digits == " ".join(digits.replace(" ", "")), (text, unnamed, result)
+				digits = digits.replace(" ", "")
 			assert digits.isdigit() and digits.isascii(), (text, unnamed, result)
-	texts = [symbols.get(item, item) for item in result if isinstance(item, str)]
+	texts = [symbols.get(item, item).replace(" ", "") for item in result if isinstance(item, str)]
 	assert "".join(texts) == text, (text, unnamed, result)
 
 

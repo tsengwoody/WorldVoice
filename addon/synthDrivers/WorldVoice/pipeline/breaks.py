@@ -9,12 +9,12 @@ from .sequence import SpeechCmd
 
 
 class NumberBreakCommand(BreakCommand):
-	"""Pause between numbers, and, in number and group modes, between two numbers that only whitespace
-	separates; in group mode also between the pieces and symbol names of a number."""
+	"""Pause between numbers, between two numbers that only whitespace separates, and, with a group
+	size above 0, between the pieces of a number."""
 
 
 class NumberEdgeBreakCommand(NumberBreakCommand):
-	"""Pause between a number and the spoken text next to it (number and group modes)."""
+	"""Pause between a number and the spoken text next to it (group size above 0)."""
 
 
 class NumberItemEdgeBreakCommand(NumberEdgeBreakCommand):

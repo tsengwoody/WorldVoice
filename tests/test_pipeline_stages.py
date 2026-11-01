@@ -323,11 +323,11 @@ def test_stage_handlers_bind_like_nvda_filter_dispatch(monkeypatch):
 		assert stage.handler.__doc__ == stage.fn.__doc__
 
 
-def pause_settings(number_mode):
+def pause_settings(number_mode, group_size=2):
 	settings = punctuation_settings(20)
 	settings.number_mode = number_mode
 	settings.scaled_number_wait = lambda: 10
-	settings.group_size = 2
+	settings.group_size = group_size
 	return settings
 
 
@@ -356,18 +356,27 @@ def test_other_synths_get_only_plain_breaks_from_the_stages(monkeypatch, number_
 	assert break_types(run_stages(module, ["共 12 34 個. 5678 and 3"])) == expected
 
 
+EDGES = {("NumberBreakCommand", 10), ("NumberEdgeBreakCommand", 10), ("PunctuationBreakCommand", 20)}
+NO_EDGES = {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}
+
+
+# The edge pause follows the group size, whatever the mode (decided by the user, 2026-11-01, U4).
 @pytest.mark.parametrize(
-	("number_mode", "expected"),
+	("number_mode", "group_size", "expected"),
 	[
-		("value", {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}),
-		(
-			"number",
-			{("NumberBreakCommand", 10), ("NumberEdgeBreakCommand", 10), ("PunctuationBreakCommand", 20)},
-		),
+		("value", 0, NO_EDGES),
+		("value", 2, EDGES),
+		("number", 0, NO_EDGES),
+		("number", 2, EDGES),
 	],
 )
-def test_worldvoice_keeps_the_break_subclasses_from_the_stages(monkeypatch, number_mode, expected):
-	module, _ = load_pipeline_module(monkeypatch, pause_settings(number_mode))
+def test_worldvoice_keeps_the_break_subclasses_from_the_stages(
+	monkeypatch,
+	number_mode,
+	group_size,
+	expected,
+):
+	module, _ = load_pipeline_module(monkeypatch, pause_settings(number_mode, group_size))
 	ctx = module.SpeechContext(supports_roles=True, language="zh", number_language="default")
 	monkeypatch.setattr(module.registry, "current_context", lambda: ctx)
 	assert break_types(run_stages(module, ["共 12 34 個. 5678 and 3"])) == expected

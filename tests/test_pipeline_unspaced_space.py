@@ -181,7 +181,7 @@ def make_settings(*, space=20, mode="value", wait=0, chars="", remove=False, pwa
 		scaled_number_wait=lambda: wait,
 		scaled_unspaced_script_space_wait=lambda: space,
 		scaled_punctuation_wait=lambda: pwait,
-		group_size=3,
+		group_size=0,
 	)
 
 
