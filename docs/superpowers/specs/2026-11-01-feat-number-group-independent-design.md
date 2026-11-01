@@ -231,7 +231,7 @@ Where each break comes from:
 | Setting | G1 | G2 |
 |---|---|---|
 | group > 0, any mode, pause > 0 | the number stage's `gap_break` (a `NumberBreakCommand`), as group mode today (`stages:429-431`) | the item-edge breaks, merged into one (`stages:383-384`, `breaks:52-77`), as today |
-| group 0, number, pause > 0 | the number stage's `gap_break` | one `NumberItemEdgeBreakCommand` (O2): `edge_after` on the first item only when the next spoken item starts with a number, `edge_before` on the second only when the previous spoken item ended with one; `_merge_edge_breaks` keeps one |
+| group 0, number, pause > 0 | the number stage's `gap_break` | one `NumberItemEdgeBreakCommand` (O2): `edge_after` on the first item only when the next spoken item starts with a number; no `edge_before` (corrected by the review, M1: it would sit in the same run as `edge_after`, with the same time, after it, so `_merge_edge_breaks` always dropped it) |
 | group 0, value or none, pause > 0 | `number_wait_factor`'s `split_spaced_numbers` (`stages:126-129`), unchanged | only for two whole-number items, `_insert_number_breaks` (`stages:132-154`), unchanged (U8) |
 | any setting, pause ≤ 0 | none (`stages:122-125`; the stage adds no gap) | none |
 
@@ -239,7 +239,7 @@ Implementation of the group-0 number row:
 
 - `_number_item_segments` puts `gap_break` in where `gap_break is not None` (was `edge is not None`, `stages:429`), and `edge` stays None, so no edge next to text is added.
 - `inject_numbers` passes `edges = (None, NumberBreakCommand(pause), NumberItemEdgeBreakCommand(pause))` and runs the list path with `_merge_edge_breaks` for `mode == "number" and group_size == 0 and pause > 0`.
-- `_inject_item_numbers` computes, in that case, "the next spoken item of the utterance starts with a number" (a reverse pass like `_spoken_later`, `stages:314-325`, reading the first spoken kind of `_split_numbers_for_language`) and "the previous spoken item ended with a number" (tracked forward and reset at an utterance end, like `spoken_before`, `stages:346`, `:360-361`, `:386`), and passes those as `edge_after` / `edge_before`. The existing checks `spoken_kinds[:1] == ["number"]` and `spoken_kinds[-1:] == ["number"]` (`stages:425`, `:450`) still decide that the item's own side is a number.
+- `_inject_item_numbers` computes, in that case, "the next spoken item of the utterance starts with a number" (a reverse pass like `_spoken_later`, `stages:314-325`, reading the first spoken kind of `_split_numbers_for_language`) and passes it as `edge_after`; it passes no `edge_before` (corrected by the review, M1: a forward "the previous spoken item ended with a number" held under the same condition, and `_merge_edge_breaks` always kept the `edge_after` before it). The existing check `spoken_kinds[-1:] == ["number"]` (`stages:450`) still decides that the first item ends with a number.
 - Why the item-edge class: the item stage puts its break in before such a break and keeps the longer of the two (`items.py:16-51`), which gives today's `"1 0"`, B30, `"2 0"` at an item wait of 30; a plain `NumberBreakCommand` there would hide the item break (`items.py:45`). The punctuation stage's edge rules (an edge break does not suppress a boundary pause, `punctuation.py:195`) never apply, because the text before it ends with a number, not a mark.
 
 Number mode's joining spaces are never split:

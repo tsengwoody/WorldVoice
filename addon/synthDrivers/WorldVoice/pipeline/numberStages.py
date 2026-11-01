@@ -350,7 +350,9 @@ def _inject_item_numbers(
 	*edges* is None, or the edge break, the break between two numbers that only whitespace
 	separates, and the edge break at an item's start or end; with it, *speech_sequence* is a list.
 	The edge break is None in number mode without groups: there the item edge break only goes
-	between a number that ends a spoken item and one that starts the next (spec G2, O2).
+	between a number that ends a spoken item and one that starts the next (spec G2, O2), at the end
+	of the first item: an edge_before at the start of the second would sit in the same run, with the
+	same time, after it, so _merge_edge_breaks would always drop it (review M1).
 	"""
 	mode = settings.number_mode
 	group_size = settings.group_size
@@ -359,7 +361,7 @@ def _inject_item_numbers(
 	numbers_only = edge is None
 	# Whether a spoken item comes before this one in its utterance, and after it (review I1: an
 	# utterance, what the synth gets, is the sequence the rule speaks of); with *numbers_only*,
-	# whether the previous spoken item ends, and the next starts, with a number.
+	# whether the next spoken item starts with a number, and no edge_before (review M1).
 	spoken_before = False
 	spoken_after = (
 		_spoken_later(speech_sequence, numbers_only=numbers_only) if item_edge is not None else None
@@ -399,11 +401,10 @@ def _inject_item_numbers(
 			language=language,
 			edge=edge,
 			gap_break=gap_break,
-			edge_before=item_edge if spoken_before else None,
+			edge_before=item_edge if spoken_before and not numbers_only else None,
 			edge_after=item_edge if spoken_after and spoken_after[index] else None,
 		)
-		if _is_spoken(item):
-			spoken_before = not numbers_only or _spoken_kinds(item)[-1:] == ["number"]
+		spoken_before = spoken_before or _is_spoken(item)
 		if wraps:
 			# The language in force here may not be the context's (phase 30 item 6).
 			segments = deduplicate_language_command(segments, ctx, start_language=language)
