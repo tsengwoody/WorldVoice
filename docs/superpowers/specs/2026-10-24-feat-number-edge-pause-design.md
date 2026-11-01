@@ -1,4 +1,6 @@
-# Number edge pause: a pause before and after every number in digit and group modes
+# Number edge pause: a pause before and after every number ~~in digit and group modes~~
+
+Corrected by `feat/number-group-independent` (2026-11-01): the edge pause comes with a group size above 0, in every number mode (none, value, number), and never with group size 0; there is no group mode.
 
 Date: 2026-10-24.
 Baseline: `master` `8612c3d`. Branch: `feat/number-edge-pause`, worktree `/workspace/WorldVoice-number-edge-pause` (`ref` symlinked to `/workspace/WorldVoice/ref`).
@@ -89,7 +91,7 @@ The design (§4) was prototyped in a scratch copy of the worktree, which was not
 
 ### 2.1 Goals (decided by the user, 2026-10-24)
 
-- **U1 (amended by the user, 2026-10-24, in answer to Q1).** Every number gets a pause before and after it, but only when the number mode is "number" (digit by digit) or "group". In value mode and "none" there is no edge pause. In those two modes, number-language handling, the dot rule (value) and the thousands step (value) run as today.
+- **U1 (amended by the user, 2026-10-24, in answer to Q1).** Every number gets a pause before and after it, ~~but only when the number mode is "number" (digit by digit) or "group". In value mode and "none" there is no edge pause.~~ (Corrected by `feat/number-group-independent` (2026-11-01): only when the group size is above 0, in every number mode; never with group size 0, whatever the mode.) In those two modes, number-language handling, the dot rule (value) and the thousands step (value) run as today.
 - **U2.** The pause time is the existing number pause, `settings.scaled_number_wait()` (`psettings:312-313`). There is no new setting.
 - **U3.** The pause is added whatever the neighbour is: text, whitespace or punctuation, letters included (confirmed by the Q1 answer). `"共 3 章"` and `"第3。"` both get it on both sides.
 - **U4.** A pause time of 0 means no edge break at all.
@@ -112,8 +114,9 @@ The design (§4) was prototyped in a scratch copy of the worktree, which was not
 
   Corrected by `fix/number-edge-pause-items` (decided by the user, 2026-10-24): the premise failed when the item wait is 0. `["第3", "章"]` gave `第` E `3` `章` (no pause after 3) and `["第", "3", "章"]` no pause at all, while `["第1", "2章"]` got a number break between 1 and 2 across the items. The rule is now: a number gets an edge break on each side where spoken (non-whitespace) text lies anywhere in the speech sequence, in its own item or in another, whatever commands (index, language, other) lie between; the only exception is the very start or end of ~~the whole sequence~~ the utterance (Corrected by `fix/number-edge-pause-items` (review I1), §4.3), where nothing is spoken before or after it. Where an item break or any other break meets an edge break with nothing spoken between, E2 keeps one break (the longest; on a tie the one that is not an edge break).
 - **O3.** Two numbers separated only by whitespace (`"1 2"`) get exactly one `NumberBreakCommand` between them, never two or three.
-  - In the number and group modes, the number stage does this (§4.3).
-  - In value and "none" modes, `number_wait_factor` does it, as today.
+  - ~~In the number and group modes, the number stage does this (§4.3).~~
+  - ~~In value and "none" modes, `number_wait_factor` does it, as today.~~
+  - Corrected by `feat/number-group-independent` (2026-11-01): with a group size above 0, in every number mode, and in number mode with group size 0, the number stage does this; in value and "none" with group size 0, `number_wait_factor` does it.
   - The output is today's in every mode (§4.6.4).
 - **O4.** The number and group modes now use the hyphen-rule spans. See F2 and §3 for the effect.
 - **O5.** The punctuation pause keeps working, and a number break never stacks on it (§4.6.3; extended by F3/D2).
@@ -222,8 +225,8 @@ STAGES = (
 
 ### 4.3 The edge rule (U1, U3, U4, O1, O2, O3, D1, D6)
 
-- **Where.** In the number and group modes, with a pause above 0, an edge break goes on each side of a span where the item has content on that side (§4.1). There is no edge break:
-  - in value mode or "none";
+- **Where.** ~~In the number and group modes~~ (Corrected by `feat/number-group-independent` (2026-11-01): with a group size above 0, in every number mode), with a pause above 0, an edge break goes on each side of a span where the item has content on that side (§4.1). There is no edge break:
+  - ~~in value mode or "none";~~ with group size 0, in every number mode (Corrected by `feat/number-group-independent` (2026-11-01));
   - when `pause <= 0`;
   - ~~at the start or end of an item;~~
   - ~~where only whitespace lies between the span and the item's end (D1).~~

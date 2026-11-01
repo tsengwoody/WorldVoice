@@ -82,10 +82,10 @@ Non-goals:
   - the Log Record and engine panels' checkbox read (`speechSettingsDialog.py:103`).
   These read the `log` (and `engine`) section directly and raise the same error. They use `read_stored` with the confspec default `False`. The panels' choice read (`:91-95`) already catches every error. Every other panel reads through `pipeline_settings.get()`.
 - **`group_size`:**
-  - the confspec becomes `integer(default=3,~~min=2~~,max=10)` (Corrected by `feat/number-mode-spaces` (2026-11-01): `min=1`; the range is 1..10 and a value outside it reads as 3);
+  - the confspec becomes `integer(default=3,~~min=2~~,max=10)` (Corrected by `feat/number-mode-spaces` (2026-11-01): `min=1`; the range is 1..10 and a value outside it reads as 3) (Corrected by `feat/number-group-independent` (2026-11-01): `integer(default=0,min=0,max=2147483647)`; a value outside 0..2147483647, or not an integer, reads as 0);
   - `stored_min_value` is removed: the field, its confspec branch, the guard checks and the tests;
   - a new field `reset_out_of_range: bool = False` is set only on `group_size`.
-- **The clamp in `convert`.** For `group_size`, `convert` returns the default 3 for an int outside ~~2..10~~ 1..10 (Corrected by `feat/number-mode-spaces` (2026-11-01)) instead of clamping. Other ints keep their clamp.
+- **The clamp in `convert`.** For `group_size`, `convert` returns ~~the default 3~~ for an int outside ~~2..10~~ 1..10 (Corrected by `feat/number-mode-spaces` (2026-11-01)) (Corrected by `feat/number-group-independent` (2026-11-01): the default 0 for an int outside 0..2147483647) instead of clamping. Other ints keep their clamp.
   - Why: through NVDA, a stored value outside the confspec never reaches `convert`, because validation refuses it first and `read_stored` gives the default.
   - So `convert` only meets out-of-range values written through `update` (the slider ring, the panels) or read from a non-validating section. For the 0..100 sliders, clamping a written value is the existing, expected behaviour.
   - For the group size the user's rule is "outside 2..10 reads as 3, not clamped", and `convert` applies it the same way on both paths. The spin control cannot produce such a value on Windows.
@@ -104,8 +104,8 @@ The examples assume number mode, `2×3`, and NVDA's tables at `7d25bc76e`.
 | number language en, no en voice, default voice zh_TW | `times` (spoken by the zh voice) | the default voice's locale `zh_TW`: `乘以` |
 | number language en, en_US voice | `times` | no en_US table, so the current rule: `"en"`, `times` |
 | scope "all", another synth | NVDA `LangChangeCommand` language, else `getCurrentLanguage()` | unchanged |
-| stored `group_size` 1 | validates (min 1), clamped to 2 | refused by NVDA, reads 3, one debug warning |
-| stored `group_size` 11 or `"abc"` | NVDA raises, so WorldVoice fails to load | reads 3, one debug warning |
+| stored `group_size` 1 | validates (min 1), clamped to 2 | ~~refused by NVDA, reads 3, one debug warning~~ (Corrected by `feat/number-group-independent` (2026-11-01): valid, reads 1) |
+| stored `group_size` 11 or `"abc"` | NVDA raises, so WorldVoice fails to load | ~~reads 3, one debug warning~~ (Corrected by `feat/number-group-independent` (2026-11-01): 11 is valid and reads 11; `"abc"` reads 0, one debug warning) |
 | stored `number_wait_factor` 150 or `"x"` | NVDA raises, so WorldVoice fails to load | reads 10, one debug warning; the other keys keep their stored values |
 | stored log switch `"maybe"` | every logged stage raises, and the Log Record panel fails to open | reads off |
 

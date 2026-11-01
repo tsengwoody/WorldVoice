@@ -35,20 +35,21 @@ All are **Decided by the user (2026-10-22)** except V5.
   - A `+` or `-` directly before a digit and not preceded by a digit is a sign. It is spoken with the first group: `"-12"` is "minus twelve".
   - A `+` or `-` after a digit is a symbol.
 - ~~**Q4 (option A).** A symbol is sent in character mode. The result depends on NVDA's symbol level and the engine, and is to be verified on Windows.~~ **Superseded by F1 (option D), decided by the user (2026-10-22).**
-- **Q5.** Every break inside a match is NB, the same pause as between space-separated numbers. (Corrected by `feat/number-mode-spaces` (2026-11-01): this now holds for "group" only; "number" joins the pieces of a match with spaces in one item, with no break between them.)
+- **Q5.** Every break inside a match is NB, the same pause as between space-separated numbers. (Corrected by `feat/number-mode-spaces` (2026-11-01): this now holds for "group" only; "number" joins the pieces of a match with spaces in one item, with no break between them.) (Corrected by `feat/number-group-independent` (2026-11-01): there is no "group" mode; a break inside a match is NB only with a group size above 0, in every number mode; with group size 0 the match is one piece, with no break inside.)
 - **Q6.** The digit translate table (`get_translate_table`) is no longer applied in any mode.
 - **Q7.**
   - The dropdown keeps "number", ~~which is group size 1 internally~~.
-  - "group" has sizes ~~2..10~~, default 3.
+  - ~~"group" has sizes~~ ~~2..10~~, ~~default 3~~.
   - ~~A stored `group_size = 1` clamps to 2.~~
   - Corrected by `feat/number-mode-spaces` (2026-11-01): "number" reads the digits joined with spaces, without the number pause between them; "group" has sizes 1..10, and size 1 is the old digits-with-pauses reading; a stored 1 reads as 1.
+  - Corrected by `feat/number-group-independent` (2026-11-01): the dropdown is off, value, number; "group" is no longer a mode, and a stored "group" reads as "value", with no migration. The group size is a setting of its own, 0..2147483647, default 0 (0 = no grouping), applied in every number mode; with a group size above 0, NB goes between the pieces of a number in every mode.
 - **Remove the group wait setting entirely, with no migration:** `group_wait_factor`, driver id `groupwaitfactor`, `scaled_group_wait`, `GROUP_WAIT_UNIT_MS`, `GroupNumberBreakCommand`, its panel and ring controls, and its msgids.
 - **Value mode is otherwise unchanged.**
 - **V1.** Value mode removes thousands-separator commas only when the whole comma/digit run is valid: groups of three counted from the right, and a leftmost group of 1–3 digits. Otherwise the run is unchanged. The de/fr risk that `"1,234"` means a decimal is accepted.
 - **V2 (option A).** Only value mode removes thousands commas. Number and group modes treat `","` as a symbol.
 - **V3.** "none" skips number-mode processing and thousands removal only. Number-language wrapping and the number pause still apply.
-- **V4.** `depends_on` is not extended. Group size is enabled only while the mode is "group" (existing rule). Number language and number wait stay enabled.
-- **V5.** Value `"none"`, label `"off"` (zh_TW 不處理), first in the list: off, value, number, group. The default stays value. **Decided by orchestrator with the recommended default; user may override before merge.**
+- **V4.** `depends_on` is not extended. ~~Group size is enabled only while the mode is "group" (existing rule).~~ (Corrected by `feat/number-group-independent` (2026-11-01): group size has no `depends_on` and is enabled in every number mode.) Number language and number wait stay enabled.
+- **V5.** Value `"none"`, label `"off"` (zh_TW 不處理), first in the list: off, value, number~~, group~~ (Corrected by `feat/number-group-independent` (2026-11-01): "group" is no longer a mode). The default stays value. **Decided by orchestrator with the recommended default; user may override before merge.**
 - **V6.** Drop the scope-"all" global-wait coupling (`settings.py:347-349`). With scope "all", other synthesizers get value-mode removal regardless of the global wait. With scope "WorldVoice", the stages are not registered for other synthesizers (`pipeline/scope.py:52`), as today.
 - **V7.** Thousands removal has no separate log stage or label. It is part of value-mode number processing and is logged under the `number_mode` switch, but it runs before `number_language` internally.
 - **Remove "Ignore commas between numbers" with no migration:** the setting, driver id `cni`, panel controls, ring entry, log switch, msgids, and `_COMMA_NUMBER_RE` with its stage.
@@ -74,7 +75,7 @@ All are **Decided by the user (2026-10-22)** except V5.
 Goals:
 
 - **One number definition (`_NUMBER_RE`)** shared by `number_language`, `number_mode`, the number-pause split and `_both_numbers` (Q1–Q3, L1, N).
-- **Number and group modes** as one algorithm with a size: 1 for "number", 2..10 for "group". Every break is NB. Every symbol is spoken by its name in the number language, ⟨x⟩ (Q1, Q5–Q7, F1, F2).
+- **Number and group modes** ~~as one algorithm with a size: 1 for "number", 2..10 for "group". Every break is NB.~~ Every symbol is spoken by its name in the number language, ⟨x⟩ (Q1, Q5–Q7, F1, F2). (Corrected by `feat/number-group-independent` (2026-11-01): there is no group mode; the group size (0 = no grouping) cuts a number into pieces in every number mode, every symbol a piece of its own, with NB between the pieces; "number" reads each piece digit by digit, joined with spaces.)
 - **A new "off" mode** (V3, V5).
 - **Value mode:**
   - removes thousands separators from fully valid runs (V1, V2, V7);
@@ -223,8 +224,8 @@ _NUMBER_RE = re.compile(rf"(?:(?<![0-9])[+-])?[0-9]+(?:{_SYMBOL_CLASS}+[0-9]+)*"
 | --- | --- | --- | --- |
 | `none` | `off` (new) | 不處理 | No number-mode processing, no thousands removal |
 | `value` | `value` | 數值 | Default. Thousands removal, the dot rule, and the match kept as is |
-| `number` | `number` | 數字 | Group size 1 |
-| `group` | `group` | 群組 | Group size `settings.group_size` (2..10) |
+| `number` | `number` | 數字 | ~~Group size 1~~ Digit by digit, joined with spaces, with any group size (Corrected by `feat/number-group-independent` (2026-11-01)) |
+| ~~`group`~~ | ~~`group`~~ | ~~群組~~ | ~~Group size `settings.group_size` (2..10)~~ (Corrected by `feat/number-group-independent` (2026-11-01): removed; the group size is a setting of its own, applied in every mode; a stored "group" reads as "value") |
 
 - **Translator comment** for "off": `# Translators: A number mode: numbers are left as they are.`
 - **Normalisation.** `NUMBER_MODES` and `_number_mode` (`:56-61`) follow automatically. An unknown stored value still reads as "value".
@@ -334,13 +335,13 @@ _THOUSANDS_RE = re.compile(r"(?<![0-9,])[0-9]{1,3}(?:,[0-9]{3})+(?!,*[0-9])")
   - scope not "all" → `replace(self, number_wait_factor=0, item_wait_factor=0, sayall_wait_factor=0, chinesespace_wait_factor=0, punctuation_wait_factor=0, punctuation_pause_enabled=False, remove_punctuation_characters=False)`;
   - otherwise → `self`.
   - `number_mode` is not reset in the non-"all" branch, as today. That branch only runs while WorldVoice owns the registration (`scope.py:48-61`).
-- **`group_size`: `min_value=2`, `max_value=10`, default 3.**
+- **`group_size`: ~~`min_value=2`, `max_value=10`, default 3~~.** (Corrected by `feat/number-group-independent` (2026-11-01): `min_value=0`, `max_value=2147483647`, default 0; a value outside the range reads as 0.)
   - With `min=2` in the confspec, NVDA would validate a stored 1 on read and raise (`config/__init__.py:1269-1273`; the earlier group-mode spec F1, `2026-10-21-feat-number-group-mode-design.md:650-664`). WorldVoice would then fail to load. Q7 asks for a clamp instead (F6).
   - So `PipelineSettingSpec` gets `stored_min_value: int | None = None`, described as "the confspec's lower bound when an older range stored smaller values; `convert` raises them".
   - `confspec` uses it when set: `group_size` stays `integer(default=3,min=1,max=10)`. `convert` clamps to `min_value=2`.
-  - The spin control's range is 2..10 (`pipelineControls.py:56-57`).
+  - The spin control's range is ~~2..10~~ (`pipelineControls.py:56-57`) (Corrected by `feat/number-group-independent` (2026-11-01): 0..2147483647).
   - A guard check (`check_bounds`) requires `stored_min_value < min_value` when set, and only for int specs.
-- **`depends_on` is unchanged (V4).** Group size depends on ("number_mode", "group"). No other entry depends on the mode.
+- **`depends_on` is unchanged (V4).** ~~Group size depends on ("number_mode", "group").~~ No other entry depends on the mode. (Corrected by `feat/number-group-independent` (2026-11-01): group size has no `depends_on` either; it is enabled in every number mode.)
 - **Table order after the removals:** scope, global wait, number language, number mode, group size, number wait, item wait, say-all wait, Chinese space wait, punctuation pause, remove punctuation, punctuation wait, punctuation characters.
   - Number language now follows Global wait factor directly. It followed "Ignore commas" before.
   - Group size still follows Number mode on the Voice panel (`panelLayout.creation_followers`, `:95-113`).
@@ -432,13 +433,13 @@ Inside the wrapper, the number-language voice speaks the symbol names from the n
 - **NVDA Voice panel (WorldVoice):**
   - The "Ignore commas between numbers" checkbox is gone.
   - The "Group wait factor" slider is gone.
-  - The "Number mode" list reads "off, value, number, group" (zh_TW 不處理, 數值, 數字, 群組).
-  - "Group size" is a spin box from 2 to 10, enabled only when "group" is selected.
+  - The "Number mode" list reads ~~"off, value, number, group" (zh_TW 不處理, 數值, 數字, 群組)~~ (Corrected by `feat/number-group-independent` (2026-11-01): "off, value, number" (zh_TW 不處理, 數值, 數字)).
+  - "Group size" is a spin box ~~from 2 to 10, enabled only when "group" is selected~~ (Corrected by `feat/number-group-independent` (2026-11-01): from 0 to 2147483647, enabled in every number mode).
   - Tab order follows the table (6.7): … Global wait factor, Number language, Number mode, Group size, Number wait factor, ….
 - **Speech Pipeline panel:** the same removals and list. It shows the stored mode. An unknown stored mode shows "value", the normalised value, not the first entry "off".
 - **Settings ring:**
   - "Group wait factor" is gone. "Ignore commas" was never in the ring (`ring=False`).
-  - "Number mode" cycles off → value → number → group, and NVDA announces "Number mode off".
+  - "Number mode" cycles off → value → number ~~→ group~~ (Corrected by `feat/number-group-independent` (2026-11-01): no "group"), and NVDA announces "Number mode off".
 - **Log Record panel:** the "Ignore commas between numbers" switch is gone. "Number mode" also logs the thousands step.
 
 ## 8. Interactions

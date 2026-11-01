@@ -19,8 +19,8 @@ All `file:line` references are to `4c5183e`. NVDA references are to `ref/nvda` a
 
 Goals:
 
-- Replace pair mode by a **group** mode with a user-chosen group size of 1–10, default 3 (G1–G3).
-- Show the group size and the group wait in both settings panels, enabled only in group mode (G4).
+- Replace pair mode ~~by a **group** mode with a user-chosen group size of 1–10, default 3~~ (G1–G3). (Corrected by `feat/number-group-independent` (2026-11-01): there is no group mode; the number modes are none, value and number, and the group size is a setting of its own, 0..2147483647, default 0 (0 = no grouping), applied in every number mode.)
+- Show the group size and the group wait in both settings panels, ~~enabled only in group mode~~ (G4). (Corrected by `feat/number-group-independent` (2026-11-01): the group size is enabled in every number mode.)
 - Rename pair → group everywhere, with no compatibility layer (G5, G7).
 - Digit mode always separates digits with a `NumberBreakCommand` carrying the number wait, also at 0 and also for translated digits (U1).
 - The number pause stage inserts `NumberBreakCommand` (U2).
@@ -170,7 +170,7 @@ Decided by the user (2026-10-21), except where a line says otherwise.
 | --- | --- | --- | --- | --- | --- | --- |
 | `number_mode` | str | `"value"` | — | `nummod` (unchanged) | unchanged | yes (unchanged) |
 | `group_wait_factor` (was `pair_wait_factor`) | int | 0 | 0–100 | `groupwaitfactor` (was `pairwaitfactor`) | `_("Group wait factor")` (was `"Pair wait factor"`) | yes, same position |
-| `group_size` (new) | int | 3 | 1–10 | none | none | no |
+| `group_size` (new) | int | ~~3~~ 0 | ~~1–10~~ 0–2147483647 (Corrected by `feat/number-group-independent` (2026-11-01)) | none | none | no |
 
 - The driver id `groupwaitfactor` and the label are Decided by orchestrator with the recommended default; user may override before merge (Q10).
 - `group_wait_factor` keeps the position of `pair_wait_factor` in `PIPELINE_SETTINGS`, so the Voice panel and ring order do not change.
@@ -181,7 +181,7 @@ Decided by the user (2026-10-21), except where a line says otherwise.
 - New confspec entries: `group_wait_factor = integer(default=0,min=0,max=100)`, `group_size = integer(default=3,min=1,max=10)`. `pair_wait_factor` disappears from the confspec.
 
 **U3: unknown number modes.**
-- `number_mode` gets `normalize=_number_mode`. It maps `str(value)` to itself when it is one of `NUMBER_MODES = ("value", "number", "group")`, else to `"value"`.
+- `number_mode` gets `normalize=_number_mode`. It maps `str(value)` to itself when it is one of ~~`NUMBER_MODES = ("value", "number", "group")`~~ (Corrected by `feat/number-group-independent` (2026-11-01): `NUMBER_MODES = ("none", "value", "number")`; a stored "group" reads as "value", with no migration), else to `"value"`.
 - `NUMBER_MODES` lives in `pipeline/settings.py`. `_get_availableNummods` and the Speech Pipeline panel keep their own ordered lists. A test checks that both lists equal `NUMBER_MODES`.
 - The normalisation runs on read (`load`) and on write (`update`). So:
   - a stored `"pair"` reads as `"value"`;
