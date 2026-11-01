@@ -60,6 +60,56 @@ def split_spaced_numbers(text: str) -> Iterator[str]:
 		yield text[position:]
 
 
+def group_pieces(raw: str, group_size: int) -> list[str]:
+	"""The pieces of one number match *raw* cut by *group_size*; joined, they give *raw* back.
+
+	A size of 0 (or less) keeps the match whole. A size above 0 cuts every digit run from the left
+	into runs of that many digits, a leading sign joining the first, and makes every symbol a piece
+	of its own. The cut is the same in every number mode (decided by the user, 2026-11-01, U1, U2).
+	"""
+	if group_size <= 0:
+		return [raw]
+	pieces: list[str] = []
+	for token in NUMBER_TOKEN_RE.findall(raw):
+		if token[-1].isdecimal():
+			sign = token[0] if token[0] in "+-" else ""
+			digits = token[len(sign) :]
+			groups = [digits[index : index + group_size] for index in range(0, len(digits), group_size)]
+			groups[0] = sign + groups[0]
+			pieces.extend(groups)
+		else:
+			pieces.append(token)
+	return pieces
+
+
+def _symbol(symbol: str, name_of: Callable[[str], str | None]) -> str:
+	# Its name, or the symbol itself when NVDA has none, so NVDA's symbol processing decides how it
+	# sounds (decided by the user, 2026-10-22).
+	name = name_of(symbol)
+	return symbol if name is None else name
+
+
+def render_piece(piece: str, mode: str, name_of: Callable[[str], str | None]) -> str:
+	"""One piece of a number (group_pieces) as *mode* speaks it (decided by the user, 2026-11-01, U2).
+
+	"none" leaves it as it is. "value" names a piece that is a symbol and leaves digits as they are.
+	"number" reads every digit apart, the sign on the first, and every symbol by its name, joined
+	with single spaces.
+	"""
+	if mode == "number":
+		spoken = []
+		for token in NUMBER_TOKEN_RE.findall(piece):
+			if token[-1].isdecimal():
+				sign = token[0] if token[0] in "+-" else ""
+				spoken.append(sign + " ".join(token[len(sign) :]))
+			else:
+				spoken.append(_symbol(token, name_of))
+		return " ".join(spoken)
+	if mode == "value" and not any(character.isdecimal() for character in piece):
+		return _symbol(piece, name_of)
+	return piece
+
+
 def number_pieces(
 	raw: str,
 	mode: str,
