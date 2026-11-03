@@ -208,3 +208,102 @@ spec §9.5 的 7 項 Windows／NVDA 手動項目（真實 VE/Cerence 一通長�
 修正 review：I1 是 Important，依 §3.4 要由協調者派 Opus 5.5（xHigh）review `6ecb014..` 之後的修正 diff。
 
 未在本平台驗證：Windows 上的 NVDA、VE/Cerence 實際聽感（同 review 的「未在本平台驗證」）。
+
+## 修正 review（Opus 5.5 xHigh）
+
+日期：2026-11-03。審閱者：Opus 5.5（effort xHigh；DEVELOPMENT_WORKFLOW.md §3.4「修正 review」）。範圍：`git diff 6ecb014..866b54e`（`6733731` I1、`131f4d2`＋`896bf68` M1、`2c0c720` M4、`d260101` M2、`c8d99ca` M3、`866b54e` 修正記錄），對照本檔的發現與修正記錄、spec，以及進度帳本裡 review 修正的三行 `Ruling:`。唯讀；實驗都在暫時 detached worktree `<scratchpad>/fx`（`866b54e`，`ref` 以符號連結指到 `/workspace/WorldVoice/ref`）做，結束後以 `git worktree remove` 移除，每次突變後 `git status --porcelain` 都為空。分支 worktree 只跑了測試與 prek，`git status` 仍乾淨。Linux、Python 3.14.4，單一 pytest 行程。行號以 `866b54e` 為準，簡稱同上（`chunker:`、`bcommands:`、`veinner:`）。
+
+### 結論
+
+**可以 merge。** I1、M1–M4 都確實修好；每項修正還原後，對應的新測試都會失敗。沒有新的 Critical 或 Important，只有一項新的 Minor（N1：使用手冊的一句說明沒跟上 I1／M1 的新規則），所以不需要再做一輪修正 review。
+
+### 逐項判定
+
+| 發現 | 判定 | 依據 |
+| --- | --- | --- |
+| I1 | 已修正 | `chunker:100` 改成 `last - piece_start < max_length`。還原成 `len(text) - piece_start <= max_length`：第一個紅燈是 `test_segment_cuts_without_a_cut[fits-before-a-newline]`。`cut > last`（`:110`）保留，仍是 `_end_of_marks` 越過最後一個有聲字元時唯一的出口。 |
+| M1 | 已修正；Ruling 合理 | 見下一節。 |
+| M2 | 已修正 | `bcommands:45` 加了 `command.strip()`。還原：`test_blank_text_does_not_take_the_replay` 紅燈。這個條件和 VE/Cerence 內層 `speak` 判斷空白的方式相同（`veinner` 的 `command = command.strip()`、`if not command: continue`），所以橋接當成空白的文字，正好就是內層會跳過的文字，兩邊不會判斷不一致而少一次重播。空白文字走到 `else: yield command`，原位輸出，pending 不變；索引指令走同一條路徑，所以 `[p, "a", Break, " ", Index, "b"]` 得到 `…, Pause, " ", Index, p, "b"`，重播一定緊貼在下一個有聲文字之前；序列以空白文字結尾時不重播（`test_no_replay_before_blank_text_at_the_end`）。另一個變形「空白文字結束 pending 但不重播」同樣被 `test_blank_text_does_not_take_the_replay` 抓到；P7 用預設的 200 例第一次沒抓到，用 `deep` 才抓到（之後 Hypothesis 資料庫會重播這個例子）。所以這類回歸靠的是單元測試，P7 只是機率性的第二道防線，不算問題。 |
+| M3 | 已修正 | `readme.md:97` 改成「音調」，全檔已經沒有「音高」。 |
+| M4 | 已修正 | `chunker:113-114`。拿掉 raise：`test_a_cut_that_does_not_advance_fails` 掛住，40 秒 timeout 後被殺；保留 raise、套用審閱者的 m17（`>` 改 `>=`）：0.6 秒內 `test_segment_cuts_pieces[leading-spaces-hard-cut]` 以 RuntimeError 紅燈；同時拿掉 raise 又套用 m17：再度失控。合法輸入不可能觸發這個 RuntimeError：候選分支要求 `candidates[best] > piece_start`；硬切分支的 `_cut_before_marks` 結果至少是 `piece_start`，等於 `piece_start` 時改用 `_end_of_marks`，結果至少是 `piece_start + 1`。30 萬個隨機案例與 22 組對抗輸入都沒有觸發。 |
+
+### M1 與它的 Ruling
+
+- **Ruling 的理由成立。** 在 scratch 複本只套用審閱者原本的建議（候選限於一段空白的結尾，仍用 `_attached`，bisect 仍比對 `candidates`）：`crlf` 仍是紅燈（`["abc\r\ndef"]`、N 4 仍切在 `\r` 和 `\n` 之間），`blank-item-whole` 與映射列的結果也不同。所以 spoken end 確實是必要的。
+- **每一部分都有測試釘住。** 四個部分分別還原（候選、`_cut_before_marks`、`_end_of_marks` 改回 `_attached`；bisect 改回比對 `candidates`），第一個紅燈依序是 `hard-cut-before-a-run`、`hard-cut-before-a-run`、`cluster-ends-after-its-run`、`fox`。四個一起還原：13 個測試紅燈，包含 `crlf`、`whitespace-run`、`blank-item-whole`、`fits-before-a-newline`、映射列 `(["one two", "  ", "three"], 8)`、`test_a_blank_item_is_never_split`、`test_worked_examples` 與性質測試。
+- **和 spec 一致。** 我照修正後的 spec §4.1 另寫了一份暴力參考實作：候選、`e(b)`、步驟 2–4 逐句翻成程式，不 import 產品程式的 helper。30 萬個隨機案例裡，參考實作和產品程式的結果 0 個不同。字元集含 `\r\n`、NBSP、U+3000、U+2003、U+1680、U+2028、U+0085、ZWSP、組合符號、泰文 AM、ZWJ／ZWNJ、膚色、漢字、天城文；每例 0–5 個項目，含空項目；N 1–15。同時檢查了以下不變量，都是 0 個違反：切點有序、兩側都有有聲文字、不切開 `_attached`、不落在一段空白中間、每段去掉頭尾空白後 ≤ N（或只是單一不可分字叢）、有聲文字 ≤ N 時不切。
+- **bisect 合法。** `spoken_end` 只會往前，所以 `spoken_ends` 單調不減，可以用 `bisect_right`。由 `e(b) <= last` 可以推得 `b <= last`，所以候選切點之後一定有有聲文字，spec 說的「then b <= last too」成立。
+- **終止。** 每一輪不是 break，就是 `cut > piece_start >= start`，所以 `start` 嚴格遞增，迴圈一定結束。
+- **硬切不會分開字母與附加符號。** `_inseparable` 包含 `_attached`；參考實作檢查 `not _attached(T, c)`，0 個違反。
+- **退化情況。**
+  - N 個字元後接很長的一段空白再接文字（`"aaaa" + " " × 10⁶ + "bbbb"`、N 4）：候選分支選空白段的結尾，這一段 = 4 個有聲字元加上整段空白。
+  - 硬切本身不會落到 `limit` 之後；只有「退回片段開頭、改用 `_end_of_marks`」這條單一字叢的路徑會越過 `limit`。`_end_of_marks` 現在也會走過空白段，但它從非空白的片段開頭出發，只有經過 ZWJ 後面那個被附加的空白，才進得了空白段（`"a‍\r\n"`／`"b"`）。一路走過的有聲字元全都是附加字元，所以仍然是單一字叢。
+  - 兩種情況多出來的都只有空白。spec 的保證本來就不算頭尾的空白，引擎也不唸空白，聽起來沒有差別，可以接受。
+- **效能。** 22 組約 10⁶ 字元的對抗輸入：全空白、`\r\n` × 5×10⁵、一個字母加 10⁶ 個空白、空白段後接組合符號而完全沒有候選、ZWJ 後接空白段、10⁶ 個組合符號、`"中" × 10⁶`、10⁵ 個空白項目、NBSP 段等。最慢 1.38 秒（`"a" × 10⁶`、N 1，99 萬個切點）。和 `6ecb014` 跑同一組輸入相比，最多慢約 2.2 倍（ZWJ 加空白段，0.45 → 1.0 秒，因為 `_end_of_marks` 現在要走完整段空白），其餘約 1.1–1.8 倍，都是線性。NVDA 一次朗讀的文字遠小於這個量。
+
+觀察（不列為問題）：
+
+- 項目邊界如果落在一段空白中間，現在不是候選。所以 `["one two ", " three"]`、N 8 的結果由 `6ecb014` 的 `"one two "`、SB、`" three"` 變成 `"one two "`、`" "`、SB、`"three"`，是另一種形式的「多一個項目」。這是「不在一段空白中間切」的必然代價，Ruling 已經寫明（"a boundary inside a whitespace run is no longer a candidate"），聽不出差別。多出來的 `" "` 和前一段在同一次引擎呼叫裡，有了 M2 也不會吃掉重播。不需要修。
+- `_cut_before_marks`／`_end_of_marks` 的名稱說的是 marks，但現在也會跨過空白段。docstring 已經說明，不改也無妨。
+
+### 新發現
+
+#### Critical
+
+無。
+
+#### Important
+
+無。
+
+#### Minor
+
+##### N1. 使用手冊「分段字數」的說明沒跟上 I1／M1：切點的空白不算字數，剛好在 N 個字元之後的空白也可以是切點（`addon/doc/zh_TW/readme.md:70`；spec §6 的同一句在 `docs/superpowers/specs/2026-11-03-feat-segment-pause-design.md:258`）
+
+readme 寫「每一段最多幾個字元，空白與標點也算。WorldVoice 在這個字數內最後一個空白處切開」。I1 之後，最後一段結尾的空白不算；M1 之後，每一段頭尾的空白都不算，而且判斷候選時看的是「它前面的有聲文字在 N 個字元內」。實測 `"aaaa bbbb cccc"`、N 9：`866b54e` 得到 `"aaaa bbbb "`／`"cccc"`，`6ecb014` 得到 `"aaaa "`／`"bbbb cccc"`。照 readme 的字面，9 個字元內最後一個空白在 `aaaa` 之後，讀者會預期後者。
+
+失敗情境：使用者照手冊設定分段字數、對照實際的停頓位置，會發現停頓常常落在「第 N+1 個字元的空白」之後，與說明不符。新行為比較好（每一段放得更滿，`\r\n` 也不會被切開），只是說明要跟上。
+
+建議修法：readme 和 spec 的同一句一起改成「分段字數：每一段最多幾個字元，中間的空白與標點也算，頭尾的空白不算。WorldVoice 在空白處切開，讓每一段盡量放滿這個字數；沒有空白時（例如中文）就在剛好這個字數處切開，但不會把字母和它的附加符號分開。」句子其餘部分不變。依 §3.4，便宜的 Minor 在 merge 前一起修；只動 zh_TW readme 與 spec，不需要再做修正 review。
+
+### spec、plan、修正記錄與程式的對照
+
+- spec §4.1：`_inseparable` 的定義、候選、`e(b)`、步驟 2（`last + 1 - s0 <= max_length`）、步驟 3（`s0 < b` 且 `e(b) <= min(limit, last)`）、步驟 4（往回跨過不可分位置、改用 `_end_of_marks`、`c > last` 時停止）、保證、helper 說明，逐句和程式一致。依據是參考實作與產品程式 0 個不同。
+- spec §4.6：空白文字原位輸出、pending 保留、結尾不重播，和 `bcommands:36-54` 一致。
+- spec §5：表的 9 列和 `test_worked_examples` 的 8 列加上 `test_nothing_changes_without_a_pause` 逐列對得上。只有 fox 列改變，48／50／34 個有聲字元我重算過；其他列在 `6ecb014` 與 `866b54e` 的輸出相同。
+- spec §9.3 P2：和兩個性質測試的斷言一致。
+- plan Review Focus 1：「`\r\n` 在 `\n` 之後切」現在成立（`crlf`）。
+- 修正記錄的測試數：新增 21 個（I1 3 個；M1 15 個 = `test_segment_cuts_pieces` 新增 7 列、映射 1 列、階段 1 個、`_inseparable` 6 列；M4 1 個；M2 2 個）。3699 + 21 = 3720，和我跑出來的數字相同。「三個 `_attached` 突變原本只有 Hypothesis 抓得到，`896bf68` 用兩列固定抓住」和我的 M1 分部還原結果一致。
+- 進度帳本三行 review `Ruling:`（M1、M4、M2）都和程式一致，評估見上。
+
+### 審閱者自行驗證的項目
+
+| 項目 | 指令／方法 | 結果 |
+| --- | --- | --- |
+| 全套測試 | `python3 -m pytest -q -p no:cacheprovider tests`（分支 worktree，單一行程，MemAvailable < 3 GB 守衛） | 3720 passed、0 skipped，126.1 s |
+| prek | `prek run --all-files`（分支 worktree） | 8 個 hook 全部 Passed，沒有修改檔案 |
+| 空白與格式 | `git diff --check master` | 無輸出 |
+| 受保護路徑 | §7 的兩個指令；`git diff --stat 6ecb014..866b54e -- addon/synthDrivers/WorldVoice/driver/ addon/locale` | 都無輸出 |
+| commit 訊息 | `git log --format=%B 6ecb014..866b54e \| grep -ci co-authored-by` | 0；7 個主旨都是 `<type>: <summary>`，內文說明原因 |
+| 還原 I1 | `chunker:100` 改回 `len(text) - piece_start <= max_length` | KILLED：`test_segment_cuts_without_a_cut[fits-before-a-newline]` |
+| 還原 M1（分部） | 候選、`_cut_before_marks`、`_end_of_marks` 各自改回 `_attached`；bisect 改回比對 `candidates` | KILLED：`hard-cut-before-a-run`、`hard-cut-before-a-run`、`cluster-ends-after-its-run`、`fox` |
+| 還原 M1（全部） | 四個一起還原，不加 `-x` | 13 個紅燈（含 `crlf`、`whitespace-run`、`blank-item-whole`、映射列、`test_a_blank_item_is_never_split`、性質測試） |
+| 只套審閱者原建議 | 候選限於一段空白的結尾，其餘維持 `6ecb014` | `crlf`、`blank-item-whole`、映射列紅燈：Ruling 的理由成立 |
+| 還原 M2 | 拿掉 `command.strip() and` | KILLED：`test_blank_text_does_not_take_the_replay` |
+| M2 變形 | 空白文字結束 pending 但不重播 | KILLED：同上；P7 用預設 profile 第一次沒抓到，`deep` 抓到 |
+| 還原 M4 | 拿掉 raise | `test_a_cut_that_does_not_advance_fails` 掛住，40 s timeout 後被殺 |
+| m17 加守衛 | `candidates[best] >= piece_start` | KILLED：`leading-spaces-hard-cut`，0.6 s，RuntimeError |
+| m17 不加守衛 | 同上，並拿掉 raise | 失控，40 s timeout 後被殺（M4 原本的情況） |
+| spec 參考實作 | 照 §4.1 另寫暴力實作，30 萬個隨機案例 | 0 個不同；不變量 0 個違反；RuntimeError 0 次 |
+| 效能 | 22 組約 10⁶ 字元的對抗輸入，`866b54e` 與 `6ecb014` 對照 | 最慢 1.38 s；最多慢 2.2 倍（ZWJ 加空白段）；線性 |
+| 性質測試 deep | `HYPOTHESIS_PROFILE=deep` 跑三個檔案的 8 個性質測試 | 8 passed（每個 20 000 例），597 s |
+| N1 重現 | 直接載入 `chunker.py`：`["aaaa bbbb cccc"]`、N 9 | `866b54e`：`"aaaa bbbb "`／`"cccc"`；`6ecb014`：`"aaaa "`／`"bbbb cccc"` |
+| 資源 | 突變用看門狗（timeout、RSS > 1.5 GB、MemAvailable < 3 GB）；全套測試用 MemAvailable 守衛；`ulimit -c 0` | 記憶體守衛沒有觸發；只有預期中的 timeout（M4 的兩例） |
+| scratch worktree | `git worktree add --detach <scratchpad>/fx 866b54e`，結束後 `git worktree remove` | 已移除 |
+
+### 使用者還沒確認的使用者可見預設（修正帶來的）
+
+- M1：非最後一段可以有 N 個有聲字元，再加上它結尾的空白；一段文字裡頭尾的空白都不算字數（fox 例子的第二段因此多一個字）。
+- M1：項目邊界落在一段空白中間時不是切點，停頓改放在這段空白的結尾（聽不出差別）。
+
+未在本平台驗證：同 review（Windows 上的 NVDA、VE/Cerence 實際聽感）。
