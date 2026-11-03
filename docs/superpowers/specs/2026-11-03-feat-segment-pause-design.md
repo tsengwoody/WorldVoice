@@ -255,16 +255,20 @@ Why the bridge and not the stage: the loss comes from WorldVoice's segmenting at
   ```
   * 分段停頓：在很長、中間沒有停頓的文字中切出停頓。
    * 分段停頓參數：每個分段處的停頓長度，計算方式與其他停頓參數相同（全域停頓參數 ÷ 10 × 分段停頓參數 毫秒）。0（預設）為不分段。
-   * 分段字數：每一段最多幾個字元，空白與標點也算。WorldVoice 在這個字數內最後一個空白處切開；沒有空白時（例如中文）就在剛好這個字數處切開，但不會把字母和它的附加符號分開。其他停頓或一段朗讀的開頭都會重新計算字數。0（預設）為不分段。
+   * 分段字數：每一段最多幾個字元，中間的空白與標點也算，頭尾的空白不算。WorldVoice 在空白處切開，讓每一段盡量放滿這個字數；沒有空白時（例如中文）就在剛好這個字數處切開，但不會把字母和它的附加符號分開。其他停頓或一段朗讀的開頭都會重新計算字數。0（預設）為不分段。
    * 分段字數、分段停頓參數或全域停頓參數為 0 時都不分段。使用 WorldVoice 時，每一段會分別送給語音引擎，所以即使停頓很短，每段結尾聽起來也像句尾。
   ```
+
+  (Corrected by fix review N1, 2026-11-03: the 分段字數 line said whitespace counts and the cut goes after the last space within N; after review I1 and M1, whitespace at a piece's ends is not counted and a space right after N characters can be the cut.)
 
 - New `## 下一版更新` directly below `# WorldVoice 更新日誌` (O12):
 
   ```
   * **長文字不再在句子中間停頓：** WorldVoice 7.0 使用 Vocalizer Expressive 或 Cerence 時，會把超過 100 個字元的文字在空白處切開，因此即使關閉標點停頓，長句中間也會明顯停頓。現在預設不再切開，與 6.2 相同。需要時可以用新的「分段停頓參數」與「分段字數」分段，所有語音引擎都適用。
-  * **停頓後保留音調與拼讀設定：** WorldVoice 停頓或切換語音之後，停頓前的音高、語速、音量與逐字拼讀設定會繼續作用，不再回到預設值。
+  * **停頓後保留音調與拼讀設定：** WorldVoice 停頓或切換語音之後，停頓前的音調、語速、音量與逐字拼讀設定會繼續作用，不再回到預設值。
   ```
+
+  (Corrected by review M3, 2026-11-03: 音高 → 音調, as in the readme.)
 
 ## 7. Settings, data, compatibility and errors
 
