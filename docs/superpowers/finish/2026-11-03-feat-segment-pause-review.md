@@ -307,3 +307,11 @@ readme 寫「每一段最多幾個字元，空白與標點也算。WorldVoice �
 - M1：項目邊界落在一段空白中間時不是切點，停頓改放在這段空白的結尾（聽不出差別）。
 
 未在本平台驗證：同 review（Windows 上的 NVDA、VE/Cerence 實際聽感）。
+
+## 修正記錄（修正 review）
+
+| 發現 | commit | 修正 |
+| --- | --- | --- |
+| N1 | `e42f98a` docs: describe the segment length rule after the cut fixes | `addon/doc/zh_TW/readme.md:70` 與 spec §6.4 的同一句改成審閱者的說法：「分段字數：每一段最多幾個字元，中間的空白與標點也算，頭尾的空白不算。WorldVoice 在空白處切開，讓每一段盡量放滿這個字數；沒有空白時（例如中文）就在剛好這個字數處切開，但不會把字母和它的附加符號分開。」段落其餘部分不變。spec 標「Corrected by fix review N1」。spec §6.4 的更新日誌副本也照 M3 把「音高」改成「音調」（標「Corrected by review M3」），和 readme 一致。 |
+
+驗證：`prek run --all-files` 全部 Passed、`git diff --check master` 無輸出。這次只改文件，沒有重跑 pytest（上一次全套是 `896bf68` 的 3720 passed、0 skipped，之後沒有改程式或測試）。
