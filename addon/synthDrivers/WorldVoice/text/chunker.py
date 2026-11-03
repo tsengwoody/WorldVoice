@@ -109,6 +109,9 @@ def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]
 				cut = _end_of_marks(text, piece_start)
 			if cut > last:
 				break
+		if cut <= piece_start:
+			# Every cut passes the piece's start; one that does not would loop forever (review M4).
+			raise RuntimeError(f"segment cut {cut} does not advance past {piece_start}")
 		cuts.append(cut)
 		start = cut
 	return _item_offsets(texts, cuts)

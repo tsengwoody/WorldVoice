@@ -233,6 +233,15 @@ def test_inseparable_marks_and_whitespace_runs(chunker, text, index, inseparable
 	assert chunker._inseparable(text, index) is inseparable
 
 
+def test_a_cut_that_does_not_advance_fails(chunker, monkeypatch):
+	# Review M4: a regression that keeps a cut at the piece's start would loop forever and grow the
+	# cut list until the test run is killed; the guard makes it a plain failure.
+	monkeypatch.setattr(chunker, "_cut_before_marks", lambda token, cut, start=0: start)
+	monkeypatch.setattr(chunker, "_end_of_marks", lambda token, start: start)
+	with pytest.raises(RuntimeError, match="does not advance"):
+		chunker.segment_cuts(["abcdef"], 2)
+
+
 def test_segment_cuts_stay_fast(chunker):
 	for texts, n in (
 		(["a" * 100_000], 1),
