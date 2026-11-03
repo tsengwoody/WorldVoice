@@ -158,6 +158,9 @@ def test_segment_cuts_pieces(chunker, texts, n, pieces):
 		(["   "], 2),
 		(["", " \n"], 1),
 		(["abc"], 3),
+		pytest.param(["Hello world\r\n"], 11, id="fits-before-a-newline"),
+		pytest.param(["Hello world "], 11, id="fits-before-a-space"),
+		pytest.param(["abc d" + " " * 10], 5, id="fits-before-spaces"),
 		pytest.param(["a b" * 1000], 2**31 - 1, id="n-max"),
 	],
 )
@@ -254,6 +257,8 @@ def test_property_segment_cuts_keep_the_rules(chunker, texts, n):
 		assert 0 < offset <= len(texts[index]), "a cut outside its item"
 		positions.append(starts[index] + offset)
 	assert positions == sorted(set(positions)), "cuts out of order"
+	if len(text.strip()) <= n:
+		assert cuts == [], "a cut in text that fits"
 	pieces = cut_pieces(chunker, texts, n)
 	assert "".join(pieces) == text
 	for cut in positions:

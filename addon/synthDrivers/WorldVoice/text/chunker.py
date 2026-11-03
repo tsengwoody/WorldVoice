@@ -54,9 +54,10 @@ def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]
 	character or item boundary within *max_length* characters; with none, at *max_length*, moved
 	back so no attached character (_attached) loses the one it belongs to. A single letter whose
 	marks pass the limit stays whole. Every cut has non-blank text before and after it, so no piece
-	is only whitespace and no cut lands before trailing whitespace. Concatenating the pieces gives
-	back the joined text. *max_length* 0 or less: no cut (spec feat/segment-pause §4.1; decided by
-	the user, 2026-11-03, Q2, Q3).
+	is only whitespace and no cut lands before trailing whitespace: the rest is not cut once its
+	non-blank text fits in *max_length*. Concatenating the pieces gives back the joined text.
+	*max_length* 0 or less: no cut (spec feat/segment-pause §4.1; decided by the user, 2026-11-03,
+	Q2, Q3).
 	"""
 	text = "".join(texts)
 	if max_length <= 0:
@@ -82,7 +83,7 @@ def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]
 		if first == len(spoken):
 			break
 		piece_start = spoken[first]
-		if len(text) - piece_start <= max_length:
+		if last - piece_start < max_length:
 			break
 		limit = piece_start + max_length
 		best = bisect_right(candidates, min(limit, last)) - 1

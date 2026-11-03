@@ -134,7 +134,7 @@ def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]
 Let `T` be `"".join(texts)` and `L = len(T)` (code points; an astral character counts once). Candidates are positions `b` in `T` with `T[b - 1].isspace()`, or `b` the end of an item that is followed by another item (an item boundary), provided `not _attached(T, b)`. Then:
 
 1. `max_length <= 0`, or `T` is blank: no cut.
-2. Start with `start = 0`. Let `s0` be the first non-blank position at or after `start`; if there is none, or `L - s0 <= max_length`, stop.
+2. Start with `start = 0`. Let `s0` be the first non-blank position at or after `start`; if there is none, or `last + 1 - s0 <= max_length` (the rest's non-blank text fits; trailing whitespace is not counted), stop. (Corrected by review I1, 2026-11-03: was `L - s0 <= max_length`, which counted trailing whitespace, so a line that fits but ends in `\r\n` was cut.)
 3. `limit = s0 + max_length`. Take the largest candidate `b` with `s0 < b <= min(limit, last)`, where `last` is the last non-blank position of `T`.
 4. If there is none, hard-cut: `c = limit`, moved back while `c > s0 and _attached(T, c)` (`_cut_before_marks` with a lower bound); if it reaches `s0`, `c` is the end of the cluster at `s0` (`_end_of_marks`), which may pass `limit`. If `c > last`, stop (only whitespace would follow).
 5. Record the cut, set `start` to it, and repeat from 2.
