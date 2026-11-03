@@ -648,6 +648,7 @@ SCALED_WAITS = {
 	"sayall_wait_factor": "scaled_sayall_wait",
 	"unspaced_script_space_wait_factor": "scaled_unspaced_script_space_wait",
 	"punctuation_wait_factor": "scaled_punctuation_wait",
+	"segment_wait_factor": "scaled_segment_wait",
 }
 
 
@@ -686,6 +687,16 @@ def test_property_group_size_convert_keeps_or_resets(settings_module, value):
 	# P-S (decided by the user, 2026-11-01, U6, O4): 0..2**31-1 is kept, anything else is the default 0,
 	# whether it comes as an int or as the text nvda.ini holds.
 	spec = settings_module.PIPELINE_SETTING_BY_KEY["group_size"]
+	expected = value if 0 <= value <= 2**31 - 1 else 0
+	assert spec.convert(value) == expected
+	assert spec.convert(str(value)) == expected
+
+
+@SHARED_ENV
+@given(value=st.integers())
+def test_property_segment_length_convert_keeps_or_resets(settings_module, value):
+	# Decided by the user (2026-11-03, U2): reset like the group size, 0..2**31-1 kept, else 0.
+	spec = settings_module.PIPELINE_SETTING_BY_KEY["segment_length"]
 	expected = value if 0 <= value <= 2**31 - 1 else 0
 	assert spec.convert(value) == expected
 	assert spec.convert(str(value)) == expected

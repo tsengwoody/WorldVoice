@@ -47,12 +47,13 @@ def test_pipeline_panel_saves_once_through_the_service(monkeypatch):
 	panel._scope_choice = Widget(selection=0)
 	panel._number_mode_choice = Widget(selection=2)
 	panel._global_wait_factor_slider = Widget(3)
-	for name in ("number", "item", "sayall", "unspaced_script_space", "punctuation"):
+	for name in ("number", "item", "sayall", "unspaced_script_space", "punctuation", "segment"):
 		setattr(panel, f"_{name}_wait_factor_slider", Widget(7))
 	panel._punctuation_pause_enabled_checkbox = Widget(False)
 	panel._remove_punctuation_characters_checkbox = Widget(True)
 	panel._punctuation_pause_characters_edit = Widget(" .,")
 	panel._group_size_spin = Widget(5)
+	panel._segment_length_spin = Widget(60)
 
 	panel.onSave()
 
@@ -70,6 +71,8 @@ def test_pipeline_panel_saves_once_through_the_service(monkeypatch):
 			"remove_punctuation_characters": True,
 			"punctuation_pause_characters": " .,",
 			"group_size": 5,
+			"segment_wait_factor": 7,
+			"segment_length": 60,
 		},
 	]
 	for name in (

@@ -27,6 +27,8 @@ Q1 = [
 	"remove_punctuation_characters",
 	"punctuation_wait_factor",
 	"punctuation_pause_characters",
+	"segment_wait_factor",
+	"segment_length",
 ]
 PAUSE_DEPENDENTS = (
 	"remove_punctuation_characters",
@@ -114,6 +116,7 @@ def test_creation_followers_of_the_table(table):
 	assert layout.creationFollowers(voice(table), lambda driver_id: True) == {
 		"nummod": ("group_size",),
 		"punctuationWaitFactor": ("punctuation_pause_characters",),
+		"segmentWaitFactor": ("segment_length",),
 	}
 
 
@@ -122,6 +125,7 @@ def test_creation_followers_skip_an_unlisted_driver(table):
 	assert layout.creationFollowers(voice(table), lambda driver_id: driver_id not in unlisted) == {
 		"numlan": ("group_size",),
 		"removePunctuationCharacters": ("punctuation_pause_characters",),
+		"segmentWaitFactor": ("segment_length",),
 	}
 
 
@@ -167,6 +171,13 @@ def test_creation_followers_without_an_earlier_listed_driver():
 			"_punctuation_pause_characters_edit",
 			"punctuationPauseCharactersEdit",
 			None,
+		),
+		("segment_length", "_segment_length_spin", "segmentLengthSpin", None),
+		(
+			"segment_wait_factor",
+			"_segment_wait_factor_slider",
+			"segmentWaitFactorSlider",
+			"segmentWaitFactorSlider",
 		),
 	],
 )

@@ -20,6 +20,8 @@ OLD_DEFAULTS = {
 	"remove_punctuation_characters": False,
 	"punctuation_pause_characters": "",
 	"group_size": 0,
+	"segment_wait_factor": 0,
+	"segment_length": 0,
 }
 # Where nvda.ini stores each of them: NVDA camelCase (phase 47d).
 STORED_KEYS = {
@@ -35,6 +37,8 @@ STORED_KEYS = {
 	"remove_punctuation_characters": "removePunctuationCharacters",
 	"punctuation_pause_characters": "punctuationPauseCharacters",
 	"group_size": "groupSize",
+	"segment_wait_factor": "segmentWaitFactor",
+	"segment_length": "segmentLength",
 }
 STORED_DEFAULTS = {STORED_KEYS[key]: value for key, value in OLD_DEFAULTS.items()}
 
@@ -61,6 +65,7 @@ def test_table_drives_fields_defaults_keys_and_confspec(monkeypatch):
 		"punctuationPauseEnabled",
 		"removePunctuationCharacters",
 		"punctuationWaitFactor",
+		"segmentWaitFactor",
 	]
 	assert all(spec.ring for spec in module.PIPELINE_SETTINGS if spec.driver_id)
 
@@ -81,6 +86,8 @@ def test_every_entry_reads_its_stored_key_from_the_derivation(monkeypatch):
 		"removePunctuationCharacters",
 		"punctuationWaitFactor",
 		"punctuationPauseCharacters",
+		"segmentWaitFactor",
+		"segmentLength",
 	]
 
 
@@ -104,7 +111,20 @@ def test_group_size_confspec_is_its_range(monkeypatch):
 	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (0, 2**31 - 1, 0, True)
 	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=0,min=0,max=2147483647)"
 	assert not hasattr(spec, "stored_min_value")
-	assert [other.key for other in module.PIPELINE_SETTINGS if other.reset_out_of_range] == ["group_size"]
+	assert [other.key for other in module.PIPELINE_SETTINGS if other.reset_out_of_range] == [
+		"group_size",
+		"segment_length",
+	]
+
+
+def test_segment_length_confspec_is_its_range(monkeypatch):
+	# Decided by the user (2026-11-03, U2): a spin like the group size, 0 (the default) is no segments;
+	# the segment wait factor is a 0..100 slider like the other wait factors.
+	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
+	spec = module.PIPELINE_SETTING_BY_KEY["segment_length"]
+	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (0, 2**31 - 1, 0, True)
+	assert module.PIPELINE_CONFSPEC["segmentLength"] == "integer(default=0,min=0,max=2147483647)"
+	assert module.PIPELINE_CONFSPEC["segmentWaitFactor"] == "integer(default=0,min=0,max=100)"
 
 
 def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
@@ -124,6 +144,8 @@ def test_table_lists_every_setting_in_the_canonical_order(monkeypatch):
 		"remove_punctuation_characters",
 		"punctuation_wait_factor",
 		"punctuation_pause_characters",
+		"segment_wait_factor",
+		"segment_length",
 	]
 	assert module.NUMBER_MODES == ("none", "value", "number")
 
@@ -150,7 +172,7 @@ def test_int_confspec_carries_the_spec_bounds(monkeypatch):
 	assert bounded.confspec == "integer(default=3,min=1,max=10)"
 	# Every int key that existed before the group size keeps its exact confspec string.
 	for spec in module.PIPELINE_SETTINGS:
-		if spec.kind is int and spec.key != "group_size":
+		if spec.kind is int and spec.key not in ("group_size", "segment_length"):
 			assert spec.confspec == f"integer(default={spec.default},min=0,max=100)"
 
 
@@ -326,6 +348,8 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 			"remove_punctuation_characters": True,
 			"punctuation_wait_factor": 30,
 			"group_size": 5,
+			"segment_wait_factor": 20,
+			"segment_length": 6,
 			"global_wait_factor": 0,
 		},
 	)
@@ -340,6 +364,8 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		scoped.punctuation_pause_enabled,
 		scoped.remove_punctuation_characters,
 		scoped.group_size,
+		scoped.segment_wait_factor,
+		scoped.segment_length,
 	) == (
 		0,
 		0,
@@ -349,6 +375,8 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		False,
 		False,
 		5,
+		0,
+		6,
 	)
 	# Scope "all": other synthesizers get the settings as stored, whatever the global wait (V6).
 	global_scope = module.PipelineSettings(
@@ -357,6 +385,8 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 			"scope": "all",
 			"global_wait_factor": 0,
 			"remove_punctuation_characters": True,
+			"segment_wait_factor": 20,
+			"segment_length": 6,
 		},
 	)
 	assert global_scope.effective(False) is global_scope
@@ -370,6 +400,8 @@ def test_effective_matches_the_old_synth_scoping(monkeypatch):
 		# The punctuation pause follows the global factor like every other pause, with no cap
 		# (decided by the user, 2026-10-26).
 		({"global_wait_factor": 100, "punctuation_wait_factor": 100}, "scaled_punctuation_wait", 1000),
+		# The segment pause too (decided by the user, 2026-11-03, U2).
+		({"global_wait_factor": 30, "segment_wait_factor": 7}, "scaled_segment_wait", 21),
 	],
 )
 def test_scaled_waits_are_the_global_units_times_the_factor(monkeypatch, changes, method, expected):

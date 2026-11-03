@@ -431,6 +431,19 @@ def test_group_size_is_an_independent_panel_only_spin(module):
 	assert spec.max_value == module.SPIN_MAX == WX_SPIN_RANGE[1]
 
 
+def test_segment_length_is_an_independent_panel_only_spin(module):
+	# Decided by the user (2026-11-03, U2, U6) and O1, O2: like the group size, no dependency and no
+	# synth setting (so no ring entry), 0 (no segments) to the largest value a wx spin holds, default 0,
+	# in both panels; the segment wait factor is a slider that depends on nothing either.
+	spec = module.PIPELINE_SETTING_BY_KEY["segment_length"]
+	assert (spec.control, spec.depends_on, spec.driver_id) == ("spin", None, None)
+	assert (spec.min_value, spec.max_value, spec.default) == (0, 2**31 - 1, 0)
+	assert spec.panels == ("voice", "pipeline")
+	wait = module.PIPELINE_SETTING_BY_KEY["segment_wait_factor"]
+	assert (wait.control, wait.depends_on, wait.driver_id) == ("slider", None, "segmentWaitFactor")
+	assert (wait.min_value, wait.max_value, wait.default) == (0, 100, 0)
+
+
 def test_no_entry_depends_on_the_number_mode(module):
 	assert [
 		spec.key

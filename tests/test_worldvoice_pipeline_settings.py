@@ -39,6 +39,7 @@ EXPECTED_IDS = [
 	"punctuationPauseEnabled",
 	"removePunctuationCharacters",
 	"punctuationWaitFactor",
+	"segmentWaitFactor",
 ]
 
 

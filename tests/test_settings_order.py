@@ -27,6 +27,7 @@ TABLE_DRIVER_IDS = [
 	"punctuationPauseEnabled",
 	"removePunctuationCharacters",
 	"punctuationWaitFactor",
+	"segmentWaitFactor",
 ]
 
 
@@ -109,6 +110,7 @@ def test_ring_names_follow_the_label_rule(monkeypatch):
 		"punctuationPauseEnabled": "Punctuation pauses",
 		"removePunctuationCharacters": "Remove punctuation at pause points",
 		"punctuationWaitFactor": "Punctuation wait factor",
+		"segmentWaitFactor": "Segment wait factor",
 	}
 
 
@@ -192,6 +194,8 @@ VOICE_KEYS = [
 	"remove_punctuation_characters",
 	"punctuation_wait_factor",
 	"punctuation_pause_characters",
+	"segment_wait_factor",
+	"segment_length",
 ]
 
 

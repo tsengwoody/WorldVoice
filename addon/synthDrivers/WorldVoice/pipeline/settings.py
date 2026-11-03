@@ -292,6 +292,33 @@ PIPELINE_SETTINGS: tuple[PipelineSettingSpec, ...] = (
 		control="text",
 		depends_on=("punctuation_pause_enabled", True),
 	),
+	PipelineSettingSpec(
+		"segment_wait_factor",
+		int,
+		0,
+		driver_id="segmentWaitFactor",
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+		# also the label of the setting's pipeline log switch in the Log Record panel.
+		label=_("Segment wait factor"),
+		control="slider",
+	),
+	# The most characters spoken before a segment pause (0: no segments); set in the panels only, so
+	# no synth setting.
+	PipelineSettingSpec(
+		"segment_length",
+		int,
+		0,
+		# Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel:
+		# the most characters spoken before a segment pause (0: no segments).
+		label=_("Segment length"),
+		# A spin like the group size, reset the same way: a stored value NVDA refuses reads as 0
+		# (read_stored), and convert turns one written outside 0..SPIN_MAX into 0 (decided by the
+		# user, 2026-11-03, U2).
+		min_value=0,
+		max_value=SPIN_MAX,
+		reset_out_of_range=True,
+		control="spin",
+	),
 )
 
 # The entries stored in the pipeline config section; ordering-only entries are left out.
@@ -316,6 +343,8 @@ class PipelineSettings:
 	remove_punctuation_characters: bool
 	punctuation_pause_characters: str
 	group_size: int
+	segment_wait_factor: int
+	segment_length: int
 
 	@property
 	def global_factor_units(self) -> int:
@@ -336,6 +365,9 @@ class PipelineSettings:
 	def scaled_punctuation_wait(self) -> int:
 		return self.global_factor_units * self.punctuation_wait_factor
 
+	def scaled_segment_wait(self) -> int:
+		return self.global_factor_units * self.segment_wait_factor
+
 	def effective(self, supports_roles: bool) -> "PipelineSettings":
 		"""The settings a synthesizer actually speaks with.
 
@@ -354,6 +386,7 @@ class PipelineSettings:
 				punctuation_wait_factor=0,
 				punctuation_pause_enabled=False,
 				remove_punctuation_characters=False,
+				segment_wait_factor=0,
 			)
 		return self
 

@@ -45,6 +45,8 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		punctuationPauseEnabled=False,
 		removePunctuationCharacters=True,
 		punctuationPauseCharacters="。，",
+		segmentWaitFactor=17,
+		segmentLength=40,
 	)
 	panel, sizer = build(env, "SpeechPipelinePanel")
 
@@ -61,6 +63,8 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 		"Remove configured punctuation at pause points",
 		"Punctuation wait factor:",
 		"Punctuation pause characters:",
+		"Segment wait factor:",
+		"Segment length:",
 	]
 	assert panel._scope_choice.choices == ["All Synthesizers (Global)", "Only WorldVoice Synthesizer"]
 	assert panel._scope_choice.selection == 0
@@ -69,8 +73,8 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert panel._global_wait_factor_slider.value == 3
 	assert [
 		getattr(panel, f"_{name}_wait_factor_slider").value
-		for name in ("number", "item", "sayall", "unspaced_script_space", "punctuation")
-	] == [11, 13, 14, 15, 16]
+		for name in ("number", "item", "sayall", "unspaced_script_space", "punctuation", "segment")
+	] == [11, 13, 14, 15, 16, 17]
 	assert panel._punctuation_pause_enabled_checkbox.value is False
 	assert panel._remove_punctuation_characters_checkbox.value is True
 	assert panel._punctuation_pause_characters_edit.value == "。，"
@@ -78,6 +82,9 @@ def test_pipeline_panel_shows_the_stored_settings(monkeypatch):
 	assert (spin.GetValue(), spin.GetMin(), spin.GetMax()) == (4, 0, 2147483647)
 	# NVDA's select-on-focus spin control, as its own Voice panel uses, not a plain wx.SpinCtrl.
 	assert type(spin) is env.gui.nvdaControls.SelectOnFocusSpinCtrl is not env.wx.SpinCtrl
+	segment = panel._segment_length_spin
+	assert (segment.GetValue(), segment.GetMin(), segment.GetMax()) == (40, 0, 2147483647)
+	assert type(segment) is env.gui.nvdaControls.SelectOnFocusSpinCtrl
 
 
 def is_spacer(entry):
@@ -88,7 +95,7 @@ def test_pipeline_panel_rows_are_spaced_as_nvda_spaces_them(monkeypatch):
 	# One BoxSizerHelper for the panel: NVDA adds a spacer before every row but the first.
 	env = pipeline_env(monkeypatch)
 	_panel, sizer = build(env, "SpeechPipelinePanel")
-	assert [is_spacer(entry) for entry in sizer.items] == [False, *[True, False] * 11]
+	assert [is_spacer(entry) for entry in sizer.items] == [False, *[True, False] * 13]
 
 
 def test_pipeline_panel_shows_an_unknown_stored_value_as_its_normal_form(monkeypatch):
