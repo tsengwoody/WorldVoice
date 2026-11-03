@@ -141,6 +141,8 @@ def cut_pieces(chunker, texts, n):
 		pytest.param(["e\u0301\u0301\u0301x"], 2, ["e\u0301\u0301\u0301", "x"], id="long-cluster"),
 		pytest.param(["abcdefgh"], 3, ["abc", "def", "gh"], id="hard-cuts"),
 		pytest.param(["aaaa", "  ", "bbbb"], 6, ["aaaa  ", "bbbb"], id="blank-item"),
+		pytest.param(["aa", "bb", "cccc"], 5, ["aabb", "cccc"], id="later-boundary"),
+		pytest.param(["a", "bcd"], 2, ["a", "bc", "d"], id="boundary-after-one"),
 	],
 )
 def test_segment_cuts_pieces(chunker, texts, n, pieces):
@@ -180,6 +182,30 @@ def test_segment_cuts_map_a_cut_to_the_first_item_ending_there(chunker, texts, n
 def test_cut_before_marks_stops_at_its_start(chunker):
 	assert chunker._cut_before_marks("ae\u0301\u0301", 3, 1) == 1
 	assert chunker._cut_before_marks("e\u0301", 1) == 0
+	assert chunker._cut_before_marks("ab", 2) == 2
+
+
+@pytest.mark.parametrize(
+	("text", "attached"),
+	[
+		("a\u0301", True),
+		("a\u0e33", True),
+		("a\u0eb3", True),
+		("a\U0001f3fb", True),
+		("a\U0001f3ff", True),
+		("a\U0001f3fa", False),
+		("a\U0001f400", False),
+		("a\u200c", True),
+		("a\u200d", True),
+		("\u200db", True),
+		("ab", False),
+		("a ", False),
+	],
+)
+def test_attached_marks_tones_and_joiners(chunker, text, attached):
+	# What segment_cuts never cuts before: a mark, Thai or Lao AM, a skin tone, a zero-width
+	# non-joiner, and both sides of a zero-width joiner.
+	assert chunker._attached(text, 1) is attached
 
 
 def test_segment_cuts_stay_fast(chunker):

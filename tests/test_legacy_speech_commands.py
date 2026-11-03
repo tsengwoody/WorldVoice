@@ -55,7 +55,7 @@ def test_normalizer_rejects_external_marker(legacy):
 	marker = legacy.speech_commands.WorldVoiceIndexCommand(502)
 	normalized = legacy.commands.normalizeNvdaCommands(["before", marker, "after"])
 	assert next(normalized) == "before"
-	with pytest.raises(ValueError):
+	with pytest.raises(ValueError, match="^Internal segment markers cannot be supplied externally$"):
 		next(normalized)
 
 
@@ -148,6 +148,23 @@ def test_a_parameter_after_the_pause_is_replayed_once(legacy, rt, nvda_commands)
 	result = normalized(legacy, [Pitch(30), "a", legacy.BreakCommand(10), later, "c"])
 	assert result[2:] == [rt.models.Pause(0.01), later, "c"]
 	assert result[3] is later
+
+
+def test_commands_before_the_first_text_pass_unchanged(legacy, nvda_commands):
+	# The first segment needs no replay; a default command there still reaches the engine.
+	Pitch, _ = param_classes(nvda_commands)
+	reset, raised = Pitch(0), Pitch(30)
+	result = normalized(legacy, [reset, raised, "a"])
+	assert result == [reset, raised, "a"]
+	assert result[0] is reset
+
+
+def test_a_reset_after_the_replay_is_passed_on(legacy, rt, nvda_commands):
+	Pitch, _ = param_classes(nvda_commands)
+	pitch, reset = Pitch(30), Pitch(0)
+	result = normalized(legacy, [pitch, "a", legacy.BreakCommand(10), "b", reset, "c"])
+	assert result == [pitch, "a", rt.models.Pause(0.01), pitch, "b", reset, "c"]
+	assert result[5] is reset
 
 
 def test_no_replay_at_the_end_of_a_sequence(legacy, rt, nvda_commands):

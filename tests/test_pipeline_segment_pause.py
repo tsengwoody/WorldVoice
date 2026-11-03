@@ -191,6 +191,10 @@ def test_every_cut_shares_one_break(env):
 	assert breaks[0].time == 7
 
 
+def test_a_one_millisecond_pause_still_cuts(env):
+	assert shape(stage(env, ["Hello world"], 8, 1)) == ["Hello ", ("SegmentBreakCommand", 1), "world"]
+
+
 def test_a_blank_item_keeps_the_break_after_it(env):
 	assert shape(stage(env, ["aaaa", "  ", "bbbb"], 6)) == ["aaaa", "  ", SB, "bbbb"]
 
