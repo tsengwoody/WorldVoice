@@ -80,7 +80,8 @@ def nvda_commands(monkeypatch):
 		pass
 
 	class SynthParamCommand(SynthCommand):
-		pass
+		# NVDA's ParamChangeTracker reads it (speech/commands.py).
+		isDefault = False
 
 	class IndexCommand(SynthCommand):
 		def __init__(self, index):
@@ -92,11 +93,17 @@ def nvda_commands(monkeypatch):
 		def __init__(self, time):
 			self.time = time
 
+	class LangChangeCommand(SynthParamCommand):
+		def __init__(self, lang):
+			self.lang = lang
+			self.isDefault = not lang
+
 	commands = ModuleType("speech.commands")
 	commands.SynthCommand = SynthCommand
 	commands.SynthParamCommand = SynthParamCommand
 	commands.IndexCommand = IndexCommand
 	commands.BreakCommand = BreakCommand
+	commands.LangChangeCommand = LangChangeCommand
 	monkeypatch.setitem(sys.modules, "speech", ModuleType("speech"))
 	monkeypatch.setitem(sys.modules, "speech.commands", commands)
 	return commands
