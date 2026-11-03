@@ -150,7 +150,6 @@ def load_real_driver_with_native_stubs(
 	)
 	package("synthDrivers.WorldVoice.text", root.parent / "text")
 	module("synthDrivers.WorldVoice.text.arabic", break_repeated_runs=lambda text: text)
-	module("synthDrivers.WorldVoice.text.chunker", split_speech_text_pieces=lambda text: [text])
 	monkeypatch.setattr(builtins, "_", lambda value: value, raising=False)
 
 	# Both files are package __init__ modules, so each loads as a package.

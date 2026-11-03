@@ -1,19 +1,9 @@
-# A part of the WorldVoice add-on.
-# Split long speech text into smaller pieces so that speech synthesis
-# engines never receive an oversized text in a single call.
+"""The segment cut rule the speech pipeline uses (pipeline/segments.py): where a long run of text is
+cut, never between a letter and what is attached to it. NVDA-free."""
 
-import re
 import unicodedata
 from bisect import bisect_left, bisect_right
 from collections.abc import Sequence
-
-# Maximum number of plain characters per piece. Control escape sequences
-# (e.g. \x1b\pause=100\) are not counted, so a piece with many of them is longer.
-MAX_TEXT_LENGTH = 100
-
-# Vocalizer control escape: ESC + backslash + content + backslash.
-_ESCAPE_RE = re.compile(r"\x1b\\.*?\\")
-
 
 _ZWJ = "\u200d"
 # Spacing vowels written after their consonant whose category is Lo, not M: Thai and Lao AM.
@@ -54,82 +44,6 @@ def _end_of_marks(token, start):
 	while end < len(token) and _attached(token, end):
 		end += 1
 	return end
-
-
-def _break(pieces, current, end):
-	"""End the piece at end, where its last text stops, and return what starts the next one.
-
-	The escapes after that text go with the next piece, so an inline setting such as a
-	rate change reaches the text it was placed before.
-	"""
-	pieces.append(current[:end])
-	return current[end:]
-
-
-def split_speech_text_pieces(text, max_length=MAX_TEXT_LENGTH):
-	"""Split *text* into pieces of at most *max_length* plain characters.
-
-	Pieces are split at whitespace boundaries when possible, otherwise at
-	character boundaries, never between a letter and its combining marks (a
-	letter whose marks alone pass the limit stays whole; an escape between a
-	letter and its marks counts as a boundary). Control escape sequences are
-	not counted, never split and never form a piece of their own; escapes
-	where the text breaks go with the text after them.
-	Concatenating all returned pieces in order reproduces the original *text*.
-	"""
-	if not text:
-		return []
-	if len(_ESCAPE_RE.sub("", text)) <= max_length:
-		return [text]
-	pieces = []
-	current = ""
-	plain = 0
-	pos = 0
-	tokens = []
-	for match in _ESCAPE_RE.finditer(text):
-		if match.start() > pos:
-			tokens.append((False, text[pos : match.start()]))
-		tokens.append((True, match.group()))
-		pos = match.end()
-	if pos < len(text):
-		tokens.append((False, text[pos:]))
-	# Where the text in current ends; only escapes follow it.
-	end = 0
-	for is_escape, token in tokens:
-		if is_escape:
-			current += token
-			continue
-		while token:
-			remaining = max_length - plain
-			if remaining <= 0:
-				current, plain = _break(pieces, current, end), 0
-				remaining = max_length
-			if len(token) <= remaining:
-				current += token
-				plain += len(token)
-				end = len(current)
-				token = ""
-				continue
-			head = token[:remaining]
-			cut = head.rfind(" ")
-			cut = _cut_before_marks(token, cut + 1 if cut > 0 else remaining)
-			if cut == 0:
-				if plain:
-					# The letter fits after a break; try again on a new piece.
-					current, plain = _break(pieces, current, end), 0
-					continue
-				cut = _end_of_marks(token, 0)
-			current += token[:cut]
-			token = token[cut:]
-			pieces.append(current)
-			current, plain = "", 0
-	if current:
-		if plain or not pieces:
-			pieces.append(current)
-		else:
-			# Escapes after the last cut stay with the last piece.
-			pieces[-1] += current
-	return pieces
 
 
 def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]:

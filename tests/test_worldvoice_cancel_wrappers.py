@@ -136,18 +136,22 @@ def test_core_cancel_rejects_real_callbacks_of_the_held_native_call(engine_harne
 	assert real_player(core).idles == 0
 
 
+def two_pieces(core, monkeypatch):
+	"""A sequence the inner driver speaks in two native calls, "first" and "second": a language
+	change to another voice between them (veinner:380-402)."""
+	change = __import__("speech.commands", fromlist=["LangChangeCommand"]).LangChangeCommand()
+	change.lang = "fr"
+	monkeypatch.setattr(core, "getVoiceNameForLanguage", lambda language: language, raising=False)
+	return ["first", change, "second"]
+
+
 def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(engine_harness, monkeypatch):
 	core, cancelled = ready_core(engine_harness), threading.Event()
 	native_entered = threading.Event()
 	release_native = threading.Event()
 	spoken_after_cancel = []
 	callback_results = []
-	monkeypatch.setattr(
-		engine_harness.module,
-		"split_speech_text_pieces",
-		lambda text: ["first", "second"],
-		raising=False,
-	)
+	pieces = two_pieces(core, monkeypatch)
 
 	def native(instance, text):
 		if cancelled.is_set():
@@ -168,7 +172,7 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 		)
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	worker = threading.Thread(target=speak_now, args=(core, ["old"]))
+	worker = threading.Thread(target=speak_now, args=(core, pieces))
 	worker.start()
 	assert native_entered.wait(WAIT_TIMEOUT)
 	core.cancel()
@@ -185,19 +189,14 @@ def test_cancelled_native_piece_rejects_callback_and_never_starts_next_piece(eng
 def test_cancellation_does_not_restart_at_next_piece(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	called = []
-	monkeypatch.setattr(
-		engine_harness.module,
-		"split_speech_text_pieces",
-		lambda text: ["first", "second"],
-		raising=False,
-	)
+	pieces = two_pieces(core, monkeypatch)
 
 	def native(instance, text):
 		called.append(text)
 		core.cancel()
 
 	monkeypatch.setattr(engine_harness.native, "processText2Speech", native)
-	speak_now(core, ["old"])
+	speak_now(core, pieces)
 	assert called == ["first"]
 	assert real_player(core).idles == 0
 	core._speak("voice", ["later chunk"])

@@ -798,11 +798,25 @@ def test_terminate_during_contextual_final_idle_with_waiting_ordinary(
 	assert env.events == []
 
 
-def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
+def language_change(code):
 	change = __import__("speech.commands", fromlist=["LangChangeCommand"]).LangChangeCommand()
-	change.lang = "fr"
+	change.lang = code
+	return change
+
+
+def switching(env, monkeypatch, texts):
+	"""*texts* with a language change between every two, each language its own voice: the inner
+	driver makes one native call per text, on its own instance (veinner:380-402)."""
+	monkeypatch.setattr(env.core, "getVoiceNameForLanguage", lambda language: language, raising=False)
+	sequence = [texts[0]]
+	for number, text in enumerate(texts[1:], 1):
+		sequence += [language_change(f"l{number}"), text]
+	return tuple(sequence)
+
+
+def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
+	change = language_change("fr")
 	monkeypatch.setattr(env.core, "getVoiceNameForLanguage", lambda language: "fr", raising=False)
-	monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: [text + "1", text + "2"])
 	calls, works = [], []
 
 	def native(instance, text):
@@ -813,10 +827,9 @@ def test_multichunk_langchange_has_one_work_and_final_drain(env, monkeypatch):
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	_, _, call = speak(env, ("hello", change, "bonjour"))
 	finish(call)
-	assert len(calls) == 4
-	assert [item[0] for item in calls] == [1, 1, 2, 2]
+	assert calls == [(1, "hello"), (2, "bonjour")]
 	assert all(work is works[0] for work in works)
-	assert env.indexes == [1, 2, 3, 4]
+	assert env.indexes == [1, 2]
 	assert len(env.opened) == 2
 	assert all(opened[2] is native_callback(env.core) for opened in env.opened)
 	assert len(env.events) == 1
@@ -2036,8 +2049,9 @@ def test_cancel_releases_the_stop_gate_when_abandon_fails(env, monkeypatch):
 
 
 def speak_pieces(env, monkeypatch, pieces, ends):
-	"""Speak one segment of ``pieces``; native call i delivers ENDPROCESS when ends[i] says so."""
-	monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: list(pieces))
+	"""Speak one segment of ``pieces``, one native call each; native call i delivers ENDPROCESS when
+	ends[i] says so."""
+	sequence = switching(env, monkeypatch, pieces)
 	calls = []
 
 	def native(instance, text):
@@ -2045,7 +2059,7 @@ def speak_pieces(env, monkeypatch, pieces, ends):
 		emit(env, instance, end=ends[len(calls) - 1])
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
-	_, _, call = speak(env)
+	_, _, call = speak(env, sequence)
 	finish(call)
 	wait_for(lambda: len(env.events) == 1)
 	return calls
@@ -2091,10 +2105,55 @@ def test_refused_endprocess_does_not_reach_engine_done(env, monkeypatch):
 
 
 def test_segment_without_native_call_reaches_engine_done(env, monkeypatch):
-	monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: [])
+	# The inner driver skips blank text (veinner:357-360), so nothing reaches the wrapper's _speak.
 	calls = []
 	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: calls.append(args))
-	_, _, call = speak(env)
+	_, _, call = speak(env, ("   ",))
+	finish(call)
+	wait_for(lambda: len(env.events) == 1)
+	assert calls == []
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+# One native call per segment (spec feat/segment-pause §4.7, U5): the segment pause stage, not the
+# wrapper, decides where long text is cut.
+
+
+def recording_native(env, monkeypatch):
+	calls = []
+
+	def native(instance, text):
+		calls.append(text)
+		emit(env, instance)
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
+	return calls
+
+
+def test_a_long_segment_is_one_native_call(env, monkeypatch):
+	text = " ".join(["word"] * 60)
+	assert len(text) == 299
+	calls = recording_native(env, monkeypatch)
+	_, _, call = speak(env, (text,))
+	finish(call)
+	wait_for(lambda: len(env.events) == 1)
+	assert calls == [text]
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+
+
+def test_break_repeated_runs_still_runs(env, monkeypatch):
+	monkeypatch.setattr(env.module, "break_repeated_runs", str.upper)
+	calls = recording_native(env, monkeypatch)
+	_, _, call = speak(env, ("hello",))
+	finish(call)
+	wait_for(lambda: len(env.events) == 1)
+	assert calls == ["HELLO"]
+
+
+def test_empty_wrapper_text_makes_no_native_call(env, monkeypatch):
+	monkeypatch.setattr(env.module, "break_repeated_runs", lambda text: "")
+	calls = recording_native(env, monkeypatch)
+	_, _, call = speak(env, ("hello",))
 	finish(call)
 	wait_for(lambda: len(env.events) == 1)
 	assert calls == []
@@ -2123,11 +2182,12 @@ def record_retires(env, monkeypatch):
 
 
 def speak_ordinary_pieces(env, monkeypatch, pieces, native):
-	"""Speak one ordinary request of ``pieces`` through ``native``; return the recorded retires."""
-	monkeypatch.setattr(env.module, "split_speech_text_pieces", lambda text: list(pieces))
+	"""Speak one ordinary request of ``pieces``, one native call each, through ``native``; return the
+	recorded retires."""
+	sequence = switching(env, monkeypatch, pieces)
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	outcomes = record_retires(env, monkeypatch)
-	speak_ordinary(env, ("ordinary",))
+	speak_ordinary(env, sequence)
 	return outcomes
 
 

@@ -10,7 +10,6 @@ import languageHandler
 from logHandler import log
 from synthDrivers.WorldVoice.driver import Voice as BaseVoice, getVoiceKey
 from synthDrivers.WorldVoice.text.arabic import break_repeated_runs
-from synthDrivers.WorldVoice.text.chunker import split_speech_text_pieces
 
 from ...runtime.barriers import AUDIO_FED, ENGINE_DONE, PLAYED_OUT
 from ...runtime.engineControl import ControlFaultPolicy, StopGate, release_newest_first
@@ -542,8 +541,11 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 		record = self._submitting
 		if record is None:
 			return
-		for piece in split_speech_text_pieces(break_repeated_runs("".join(chunks))):
-			self._bgQueue.put(_NativeTask(self, record, voiceInstance, piece))
+		# One native call for the whole segment: the segment pause stage, not the wrapper, cuts long
+		# text (spec feat/segment-pause §4.7, U5).
+		text = break_repeated_runs("".join(chunks))
+		if text:
+			self._bgQueue.put(_NativeTask(self, record, voiceInstance, text))
 
 	def getParameters(self, instance, *idAndTypes):
 		# Read pending settings like the inner driver, but without draining and
