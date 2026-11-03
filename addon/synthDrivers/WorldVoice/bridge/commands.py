@@ -23,11 +23,12 @@ def normalizeNvdaCommands(sequence: Iterable[object]) -> Iterator[object]:
 	The request builder ends a segment at every Pause and SelectVoice, and each segment is its own
 	engine call, which starts from the defaults. So, like NVDA's ParamChangeTracker at the start of
 	every utterance (ref/nvda/source/speech/manager.py:83-112), the parameter commands in effect
-	(the last of each type that is not a default) are yielded again before the first text after a
-	Pause or SelectVoice. Until that text, a parameter command only updates them, so none is yielded
-	twice; other commands keep their place. Nothing is yielded for parameters no text follows: a
-	segment of parameter commands alone would make an engine call with no text (spec
-	feat/segment-pause §4.6; decided by the user, 2026-11-03, Q1).
+	(the last of each type that is not a default) are yielded again before the first non-blank text
+	after a Pause or SelectVoice. Until that text, a parameter command only updates them, so none is
+	yielded twice; other commands and blank text keep their place. Nothing is yielded for parameters
+	no spoken text follows: a segment of parameter commands and blank text alone would make an
+	engine call that speaks nothing (spec feat/segment-pause §4.6; decided by the user, 2026-11-03,
+	Q1; blank text, review M2).
 	"""
 	changed: dict[type, object] = {}
 	pending = False
@@ -41,7 +42,7 @@ def normalizeNvdaCommands(sequence: Iterable[object]) -> Iterator[object]:
 				changed[type(command)] = command
 			if pending:
 				continue
-		elif isinstance(command, str) and pending:
+		elif isinstance(command, str) and command.strip() and pending:
 			yield from changed.values()
 			pending = False
 		if isinstance(command, BreakCommand):

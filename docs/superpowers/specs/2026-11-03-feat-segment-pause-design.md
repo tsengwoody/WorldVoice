@@ -189,8 +189,8 @@ number_wait_factor, segment_wait_factor, speech_viewer
 
 - After it yields a `Pause` (from a `BreakCommand`) or passes a `SelectVoice` on, a replay is pending.
 - While a replay is pending, a parameter command only updates the tracker and is not yielded; other commands (index, beep, wave) are yielded in place.
-- At the next text item, if a replay is pending, it yields the tracker's commands first, then the text, and the replay is done.
-- If the sequence ends with a replay pending, nothing more is yielded: no text follows, and a segment of parameter commands alone would make an engine call with no text.
+- At the next non-blank text item, if a replay is pending, it yields the tracker's commands first, then the text, and the replay is done. Blank text (`""`, `"  "`) is yielded in place and leaves the replay pending. (Corrected by review M2, 2026-11-03: the replay fired before any text, so `[Pitch, "Hello", ""]` with an item pause gave VE/Cerence a native call of escapes alone.)
+- If the sequence ends with a replay pending, nothing more is yielded: no spoken text follows, and a segment of parameter commands alone would make an engine call that speaks nothing.
 - The `WorldVoiceIndexCommand` check (`bcommands:13-14`) is unchanged.
 
 Why the bridge and not the stage: the loss comes from WorldVoice's segmenting at a pause or voice switch (F2), not from the stage. Fixing it where a pause becomes a segment boundary fixes every pause (punctuation, item, number, CJK space, a break from NVDA or an add-on) and never touches another synth, whose break stays inside one SSML call. A stage-local re-emit would leave the other pauses broken and add redundant SSML for other synths; "never cut inside a character-mode region" would not cover prosody.

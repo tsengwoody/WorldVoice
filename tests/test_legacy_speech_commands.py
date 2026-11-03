@@ -177,6 +177,26 @@ def test_no_replay_at_the_end_of_a_sequence(legacy, rt, nvda_commands):
 	]
 
 
+def test_blank_text_does_not_take_the_replay(legacy, rt, nvda_commands):
+	# Review M2: a replay before "" gave VE/Cerence a native call of escapes alone.
+	Pitch, _ = param_classes(nvda_commands)
+	pitch = Pitch(30)
+	result = normalized(legacy, [pitch, "a", legacy.BreakCommand(10), "", " \n", "b"])
+	assert result == [pitch, "a", rt.models.Pause(0.01), "", " \n", pitch, "b"]
+	assert result[5] is pitch
+
+
+def test_no_replay_before_blank_text_at_the_end(legacy, rt, nvda_commands):
+	Pitch, _ = param_classes(nvda_commands)
+	pitch = Pitch(30)
+	assert normalized(legacy, [pitch, "a", legacy.BreakCommand(10), ""]) == [
+		pitch,
+		"a",
+		rt.models.Pause(0.01),
+		"",
+	]
+
+
 def test_index_commands_keep_their_place_while_a_replay_is_pending(legacy, rt, nvda_commands):
 	Pitch, _ = param_classes(nvda_commands)
 	pitch, index = Pitch(30), nvda_commands.IndexCommand(1)
@@ -203,7 +223,8 @@ def tracked(state, command):
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(data=st.data())
 def test_property_every_segment_speaks_with_nvdas_parameters(legacy, rt, nvda_commands, data):
-	# P7: the parameters in effect at every text item of every engine call are NVDA's at that item.
+	# P7: the parameters in effect at every spoken text item of every engine call are NVDA's at that
+	# item; blank text speaks nothing, and the replay waits for spoken text (review M2).
 	Pitch, CharMode = param_classes(nvda_commands)
 	items = st.one_of(
 		st.sampled_from(["a", "b c", " "]),
@@ -218,7 +239,7 @@ def test_property_every_segment_speaks_with_nvdas_parameters(legacy, rt, nvda_co
 	for item in sequence:
 		if isinstance(item, nvda_commands.SynthParamCommand):
 			tracked(state, item)
-		elif isinstance(item, str):
+		elif isinstance(item, str) and item.strip():
 			expected.append((item, dict(state)))
 	seen, state = [], {}
 	for item in normalized(legacy, sequence):
@@ -226,6 +247,6 @@ def test_property_every_segment_speaks_with_nvdas_parameters(legacy, rt, nvda_co
 			state = {}
 		elif isinstance(item, nvda_commands.SynthParamCommand):
 			tracked(state, item)
-		elif isinstance(item, str):
+		elif isinstance(item, str) and item.strip():
 			seen.append((item, dict(state)))
 	assert seen == expected
