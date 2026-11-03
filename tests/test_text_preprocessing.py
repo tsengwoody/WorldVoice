@@ -137,6 +137,8 @@ def cut_pieces(chunker, texts, n):
 		pytest.param(["ab  \r\n cd"], 3, ["ab  \r\n ", "cd"], id="whitespace-run"),
 		pytest.param(["Hello world\r\nfoo"], 11, ["Hello world\r\n", "foo"], id="fits-before-a-newline"),
 		pytest.param(["one two", "  ", "three"], 8, ["one two  ", "three"], id="blank-item-whole"),
+		pytest.param(["a \r\n\u0301"], 2, ["a", " \r\n\u0301"], id="hard-cut-before-a-run"),
+		pytest.param(["a\u200d\r\nb"], 1, ["a\u200d\r\n", "b"], id="cluster-ends-after-its-run"),
 		pytest.param(["ab\ncd\tef"], 5, ["ab\ncd\t", "ef"], id="newline-tab"),
 		pytest.param(["中文\u3000中文"], 3, ["中文\u3000", "中文"], id="ideographic"),
 		pytest.param(["ab\u00a0cd"], 3, ["ab\u00a0", "cd"], id="nbsp"),
