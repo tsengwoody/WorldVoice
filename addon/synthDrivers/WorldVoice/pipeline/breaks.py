@@ -51,6 +51,10 @@ class PunctuationBreakCommand(BreakCommand):
 	"""Pause after a configured punctuation mark."""
 
 
+class SegmentBreakCommand(BreakCommand):
+	"""Pause at a segment cut: after at most segment_length characters with no other pause."""
+
+
 def _merge_edge_breaks(speech_sequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:
 	"""Yield *speech_sequence* with each run that holds an edge break and another break cut to one break.
 

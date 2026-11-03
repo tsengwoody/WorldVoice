@@ -5,7 +5,7 @@ import re
 from collections.abc import Callable, Iterable, Iterator
 from typing import TYPE_CHECKING
 
-from speech.commands import ConfigProfileTriggerCommand, EndUtteranceCommand, LangChangeCommand
+from speech.commands import LangChangeCommand
 
 from ..numberLanguage import FOLLOW, MAIN
 from ..speechCommands import WVLangChangeCommand
@@ -13,7 +13,7 @@ from .breaks import NumberBreakCommand, NumberEdgeBreakCommand, NumberItemEdgeBr
 from .context import SpeechContext
 from .languageCommands import deduplicate_language_command, remove_language_command
 from .numbers import NUMBER_RE, number_pieces, split_spaced_numbers, strip_thousands
-from .sequence import _MISSING, SpeechCmd, _both_text
+from .sequence import _MISSING, SpeechCmd, _both_text, _ends_utterance
 from .symbols import symbol_namer
 
 if TYPE_CHECKING:
@@ -306,16 +306,6 @@ def inject_numbers(
 
 def _is_spoken(item: SpeechCmd) -> bool:
 	return isinstance(item, str) and bool(item.strip())
-
-
-def _ends_utterance(item: SpeechCmd) -> bool:
-	"""Whether NVDA's speech manager ends the utterance at *item*, after the filters ran.
-
-	It splits the sequence at an EndUtteranceCommand (speakSpelling puts one after every character,
-	the speech of a text range one at the end of a block), and before a ConfigProfileTriggerCommand of a trigger with a
-	profile; one without a profile counts too, as the pipeline cannot know.
-	"""
-	return isinstance(item, (EndUtteranceCommand, ConfigProfileTriggerCommand))
 
 
 def _spoken_kinds(text: str) -> list[str]:

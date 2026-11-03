@@ -132,6 +132,9 @@ def load_pipeline_module(monkeypatch, settings):
 		"synthDrivers.WorldVoice.pipeline.scope",
 		"synthDrivers.WorldVoice.pipeline.numbers",
 		"synthDrivers.WorldVoice.pipeline.symbols",
+		"synthDrivers.WorldVoice.pipeline.segments",
+		"synthDrivers.WorldVoice.text",
+		"synthDrivers.WorldVoice.text.chunker",
 		"synthDrivers.WorldVoice.unicodeScripts.unspaced_common_data",
 	]:
 		sys.modules.pop(name, None)
