@@ -8,8 +8,8 @@ Flow: normal flow (`DEVELOPMENT_WORKFLOW.md` §3.1). This is the spec only; plan
 Status:
 
 - U1–U7 were decided by the user (2026-11-03) and are not reopened here (§2.1).
-- O1–O12 are orchestrator defaults: `Decided by orchestrator with the recommended default; user may override before merge` (§2.2, §11.1).
-- Three questions are open for the user (§11.2). Q1 widens the scope beyond U1–U7; Q2 and Q3 refine U4. Each has a recommended answer that this spec already assumes, so implementation can start.
+- O1–O12 are orchestrator defaults: `Decided by orchestrator with the recommended default; user may override before merge` (§2.2, §11.1), except O7 and O10, which the user decided (§11.2).
+- Q1–Q3 were answered by the user (2026-11-03), each with the recommended answer (§11.2): O10 stays in this branch, O4 stands, and leading whitespace is not counted.
 
 References used throughout (`<alias>:<line>`):
 
@@ -84,7 +84,7 @@ Some users may still want long text broken into shorter engine calls, with a pau
 - U3. If the segment length is 0, or the computed pause is 0 ms (segment wait factor 0 or global wait factor below 10), the stage leaves the sequence completely untouched; it never inserts a 0 ms break (as `pipeline/unspaced.py:60-63`, `pipeline/items.py:29-32`). With both defaults 0 nothing is split: VE/Cerence behave as in 6.2.
 - U4. The cut rule is today's chunker rule, parameterized: cut after the last space within N plain characters; if none, hard-cut at N but never between a letter and its combining marks (`_attached`, `_cut_before_marks`, `chunker:21-47`); non-text commands do not count toward N. (Refinements: O4, Q2, Q3.)
 - U5. Remove `split_speech_text_pieces` from the VE and Cerence outer wrappers' `_speak`; keep `break_repeated_runs` (the Arabic run breaker, `text/arabic.py:18`).
-- U6. UI order: the two items come right after "Punctuation pause characters": segment wait factor first, then segment length.
+- U6. UI order: the two items come right after "Punctuation pause characters": segment wait factor (slider) first, then segment length (spin) (confirmed by the user, 2026-11-03).
 - U7. Docs: only `addon/locale/zh_TW/LC_MESSAGES/nvda.po` and `addon/doc/zh_TW/readme.md` (with its `## 下一版更新` changelog). Other languages later, in a separate pass. Readme text concise and user-facing. Labels carry `# Translators:` comments.
 
 ### 2.2 Orchestrator defaults (Decided by orchestrator with the recommended default; user may override before merge)
@@ -92,13 +92,13 @@ Some users may still want long text broken into shorter engine calls, with a pau
 - O1. Keys and mirrors: `segment_wait_factor` mirrors `punctuation_wait_factor` (`psettings:274-284`): `driver_id="segmentWaitFactor"`, shown in the Voice panel, the Speech Pipeline panel and the settings ring, slider 0..100. `segment_length` mirrors `group_size` (`psettings:197-211`): no `driver_id`, so no synth setting and no ring entry; spin in both panels. Checked: both mirrors fit. The UI is table-driven (`ui/panelLayout.py:35-37`, `ui/controls.py:48-63`, `addon/globalPlugins/WorldVoice/panels/pipeline.py:44`), a driver setting gets its NVDA slider and a ring entry through `synth:101-121`, `:159-162` and a descriptor through `synth:555-558`, and a non-driver entry is made right after the row of the nearest earlier driver setting (`ui/panelLayout.py:95-113`), the same chain as `number_mode` → `group_size` → `number_wait_factor` today.
 - O2. Neither setting depends on `punctuation_pause_enabled` (no `depends_on`), and neither depends on the other.
 - O3. `PipelineSettings.effective()` zeroes `segment_wait_factor` for a synth without roles unless scope is "all", like the other waits (`psettings:339-358`); `segment_length` is kept, like `group_size`.
-- O4. Cut candidates (refines U4): a position right after any whitespace character (`str.isspace`, not only U+0020), and the boundary between two text items (F4). Counting for a piece starts at its first non-blank character. A cut needs non-blank text on both sides within the run. See §4.1 and Q2, Q3.
+- O4 (Decided by the user, 2026-11-03, Q2 (a) and Q3 (a)). Cut candidates (refines U4): a position right after any whitespace character (`str.isspace`, not only U+0020), and the boundary between two text items (F4). Counting for a piece starts at its first non-blank character. A cut needs non-blank text on both sides within the run. See §4.1.
 - O5. The count resets at every `BreakCommand` (any subclass, any time, 0 ms included: in WorldVoice each one flushes a segment) and at every utterance end (`_ends_utterance`, F7). It does not reset at a language command, so N means the same for every synth.
 - O6. The stage runs after `number_wait_factor` and before `speech_viewer` (§4.3).
-- O7. Delete `split_speech_text_pieces`, `MAX_TEXT_LENGTH`, `_ESCAPE_RE` and `_break` with their tests; keep the module path `text/chunker.py`, which now holds the sequence cut rule and the mark helpers (§4.8, F6).
+- O7 (Decided by the user, 2026-11-03: delete, no compatibility shim). Delete `split_speech_text_pieces`, `MAX_TEXT_LENGTH`, `_ESCAPE_RE` and `_break` with their tests; keep the module path `text/chunker.py`, which now holds the sequence cut rule and the mark helpers (§4.8, F6).
 - O8. The inserted break is a new `SegmentBreakCommand(BreakCommand)` in `breaks.py`, like `PunctuationBreakCommand` (`breaks:50-51`); another synth gets a plain `BreakCommand` through `_plain_breaks` as for every stage (`registry:117`, `breaks:82-91`).
 - O9. The stage's log key is `segment_wait_factor`; its Log Record switch is `segmentWaitFactor`, labelled with the setting's label, as for `punctuation_wait_factor` (`registry:148-168`, `addon/globalPlugins/WorldVoice/panels/log.py:25-26`). `segment_length` gets no switch of its own.
-- O10. In WorldVoice, the bridge replays the synth parameter commands in effect at the start of every segment after a pause or a voice switch (§4.6). This fixes F2 for every pause, not only the new one. See Q1.
+- O10 (Decided by the user, 2026-11-03, Q1 (a)). In WorldVoice, the bridge replays the synth parameter commands in effect at the start of every segment after a pause or a voice switch (§4.6). This fixes F2 for every pause, not only the new one.
 - O11. `_ends_utterance` moves from `numberStages.py` to `pipeline/sequence.py` ("the checks several stages share", `pipeline/sequence.py:1`) and both stages import it.
 - O12. The changelog entry goes under a new `## 下一版更新`, directly below `# WorldVoice 更新日誌` (F8).
 
@@ -266,8 +266,6 @@ Why the bridge and not the stage: the loss comes from WorldVoice's segmenting at
   * **停頓後保留音調與拼讀設定：** WorldVoice 停頓或切換語音之後，停頓前的音高、語速、音量與逐字拼讀設定會繼續作用，不再回到預設值。
   ```
 
-  The second bullet is written only if Q1 keeps O10.
-
 ## 7. Settings, data, compatibility and errors
 
 - New keys in `[WorldVoice][pipeline]`: `segmentWaitFactor` (default 0, 0..100), `segmentLength` (default 0, 0..2147483647); new `[WorldVoice][log]` switch `segmentWaitFactor` (default false). No existing key changes; no migration: a missing key reads its default, which keeps the 6.2 behavior (U3).
@@ -346,9 +344,19 @@ Add `text/chunker.py`, `pipeline/segments.py` and `bridge/commands.py` to `[tool
 
 ### 11.1 Orchestrator defaults (Decided by orchestrator with the recommended default; user may override before merge)
 
-O1–O12 of §2.2.
+O1–O12 of §2.2, except O4, O7 and O10, which the user decided (§11.2).
 
-### 11.2 Open questions for the user
+### 11.2 Questions answered by the user (Decided by the user, 2026-11-03)
+
+Answers:
+
+- Q1: (a). The parameter replay of §4.6 (O10) stays in this branch, for every pause and voice switch.
+- Q2: (a). Cut after any whitespace character and at the boundary between two text items (O4).
+- Q3: (a). Leading whitespace of a piece is not counted, no piece is whitespace only, and no pause lands before trailing spaces (O4, §4.1).
+- O7: delete `split_speech_text_pieces`, `MAX_TEXT_LENGTH`, `_ESCAPE_RE`, `_break` and their tests; no compatibility shim.
+- UI order (U6): segment wait factor (slider), then segment length (spin), right after "Punctuation pause characters".
+
+The questions as asked:
 
 - Q1 (scope; widens U1–U7). Keep the parameter replay of §4.6 in this branch? It fixes F2 for every WorldVoice pause, so it also changes, slightly, what is heard after today's punctuation, item and number pauses. Options: (a) keep it here, for every pause and voice switch (recommended; the spec assumes it); (b) split it into its own branch after this one; (c) drop it and accept the loss after a cut, as today.
 - Q2 (refines U4). The chunker looked only for U+0020 within one text token. The spec also cuts after any whitespace (newline, tab, ideographic space) and at the boundary between two text items, which NVDA and the VE/Cerence inner drivers speak as a space (F4). Options: (a) both (recommended; the spec assumes it); (b) U+0020 only, item boundaries not candidates (a long item after a short one is then hard-cut inside a word).
