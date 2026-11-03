@@ -160,3 +160,51 @@ pytest 一次只跑一個行程；突變由 `mut_runner.py` 以精確字串替�
 ## 未在本平台驗證
 
 spec §9.5 的 7 項 Windows／NVDA 手動項目（真實 VE/Cerence 一通長呼叫的聽感、eSpeak／OneCore／RHVoice／SAPI5 的分段、面板 Tab 順序與 NVDA 朗讀、拼讀與 MathCAT 的重播、Log Record）都沒有驗證；Linux 只驗證到受控的 native 與音訊邊界。
+
+## 修正記錄
+
+日期：2026-11-03。修正者：Opus 5.5（一般流程 §3.4）。每項先寫會失敗的測試、確認紅燈，再修正；一項一個 commit，都在 review commit `6ecb014` 之後。
+
+| 發現 | commit | 修正 |
+| --- | --- | --- |
+| I1 | `6733731` fix: stop cutting a segment whose spoken text fits | `chunker` 的停止條件改成 `last - piece_start < max_length`（`cut > last` 保留）。`test_segment_cuts_without_a_cut` 加 `fits-before-a-newline`（`["Hello world\r\n"]`，11）、`fits-before-a-space`、`fits-before-spaces`（`["abc d" + " " × 10]`，5）三列；性質測試加「`len(text.strip()) <= n` 時無切點」。修正前三列與性質測試都是紅燈。spec §4.1 步驟 2 改成 `last + 1 - s0 <= max_length`，標「Corrected by review I1」。 |
+| M1 | `131f4d2` fix: never cut a segment inside a whitespace run | 見下方說明：只照建議改候選條件不夠，另外加了 `_inseparable` 與「spoken end」。新增 `crlf`（`["abc\r\ndef"]`，4 → `"abc\r\n"`／`"def"`，plan Review Focus 1 聲稱的測試）、`whitespace-run`、`fits-before-a-newline`（非最後一段）、`space-after-the-limit`、`blank-item-whole` 列；映射測試加 `(["one two", "  ", "three"], 8, [(1, 2)])`；階段測試 `test_a_blank_item_is_never_split`；`test_inseparable_marks_and_whitespace_runs` 6 列；兩個性質測試改成每段都去掉頭尾空白計數、檢查「切點不在一段空白中間」，例外改用 `_inseparable`。spec §4.1（候選定義、步驟 3、4、保證、helper 說明）、§9.3 P2 與 plan Review Focus 1 一併更新。 |
+| M2 | `d260101` fix: replay synth parameters only before spoken text | `bcommands` 改成 `isinstance(command, str) and command.strip() and pending`。新增 `test_blank_text_does_not_take_the_replay`（`[p, "a", Break(10), "", " \n", "b"]` → `[p, "a", Pause, "", " \n", p, "b"]`）與 `test_no_replay_before_blank_text_at_the_end`，修正前都是紅燈；P7 只比對有聲文字項目。docstring 與 spec §4.6 更新，標「Corrected by review M2」。 |
+| M3 | `c8d99ca` docs: call pitch 音調 in the zh_TW changelog entry | `addon/doc/zh_TW/readme.md:97` 的「音高」改成「音調」；全檔已無「音高」。純文字，沒有測試。 |
+| M4 | `2c0c720` fix: fail a segment cut that does not advance | `segment_cuts` 在 `cut <= piece_start` 時 `raise RuntimeError`（每個切點一次比較）。新增 `test_a_cut_that_does_not_advance_fails`（monkeypatch 讓 helper 回傳片段開頭）：修正前在 8 秒 timeout 內掛住、被殺；修正後通過。另外在分支上暫時套用審閱者的 m17（`candidates[best] >= piece_start`）：現在以 `RuntimeError: segment cut 3 does not advance past 3` 失敗，不再失控；已還原。 |
+
+### M1 的修法比建議多一步（Ruling，已記入進度帳本）
+
+照建議只把候選改成「一段空白的結尾」之後，在 scratch 複本實測 `["abc\r\ndef"]`、N 4 仍得到 `(0, 4)`，也就是仍在 `\r` 與 `\n` 之間切：空白的結尾 5 超過上限 4，沒有候選，硬切落在 4。所以另外做兩件事：
+
+1. 新增 `_inseparable(token, index)`：`_attached`，或位置在一段空白中間（前後都是空白）。候選、`_cut_before_marks`、`_end_of_marks` 都改用它，所以任何切點都不會落在一段空白中間（項目邊界若在空白中間也不再是候選；同一段空白的結尾有相同的 spoken end，原本就會勝出）。
+2. 候選以「spoken end」（往回跳過它前面的空白）和 `min(limit, last)` 比較，也就是 I1「尾端空白不算」套用到每一段。
+
+使用者聽得到的差別：非最後一段現在可以有 N 個有聲字元再加上它結尾的空白。`["Hello world\r\nfoo"]`、N 11 → `"Hello world\r\n"`／`"foo"`（原本 `"Hello "`／`"world\r\nfoo"`），也就是 I1 描述的逐行情境在多行文字的中間幾行也修好了。
+
+### spec §5 例子表
+
+重新對照程式：只有第一列（fox，N 50）的輸出改變，已更新為 `"The quick brown fox jumps over the lazy dog. The "`、SB、`"quick brown fox jumps over the lazy dog. The quick "`、SB、`"brown fox jumps over the lazy dog."`（有聲字元 48、50、34；原本 49、45、40 個字元），並標「corrected by review M1」。原因：第二段結尾的空白不再計入，所以多放一個字。其他列不變（`test_worked_examples` 對照 §5 全部列，通過）。`test_segment_cuts_pieces` 也改了兩列：`newline-tab` 的 N 5 現在得到 `"ab\ncd\t"`／`"ef"`；`leading-spaces-hard-cut` 換成 `["   aaaaaaaaab"]`，讓它仍走硬切，原本的輸入改成新列 `space-after-the-limit`（`"   aaaaaaaa "`／`"b"`）。
+
+### M4 的選擇（Ruling）
+
+選 `RuntimeError`，不用 `assert`（ruff S101，WorldVoice 的產品程式沒有 `assert`），也不用 `faulthandler_timeout`（只會印 traceback，迴圈仍繼續吃記憶體，不會讓測試失敗）。
+
+### 驗證
+
+| 項目 | 結果 |
+| --- | --- |
+| 全套測試 `python3 -m pytest -q -p no:cacheprovider tests`（head `896bf68`） | 3720 passed、0 skipped（review 時 3699；+21：I1 3、M1 15、M4 1、M2 2） |
+| `prek run --all-files` | 8 個 hook 全部 Passed |
+| `git diff --check master` | 無輸出 |
+| §7 受保護路徑兩個指令 | 都無輸出 |
+| 隨機檢查（scratch，200 000 例，`SEGMENT_PARTS` 字元集、0–5 個項目、N 1–15） | 切點有序、兩側有有聲文字、不切字叢、不落在空白中間、去頭尾空白後 ≤ N（或單一不可分字叢）、有聲文字 ≤ N 時無切點：0 個違反 |
+| 線性時間 | 10 萬字元的長空白段、空白後接附加符號、ZWJ 後接空白等 5 組對抗輸入都在 0.1 秒內 |
+| 手動突變（新改的 9 行：`spoken_ends`→`candidates`、三處 `_inseparable`→`_attached`、`and`→`or`、`spoken_end - 1`、I1 的 `<`→`<=`、M4 的 `<=`→`<`、M2 拿掉 `command.strip()`） | 9 個全部被抓到（M4 的那個是 guard 測試掛住、被 timeout 殺掉）。其中三個 `_attached` 突變原本只有 Hypothesis 抓得到，`896bf68` 加了 `hard-cut-before-a-run`、`cluster-ends-after-its-run` 兩列固定抓住 |
+| mutmut | 沒有跑：只跑了上面便宜的手動突變。之前的 mutmut 曾出現失控 mutant，跑完整一輪很耗時 |
+
+另外一個 commit：`896bf68` test: pin the whitespace-run cuts the property test alone caught（只加兩列測試）。
+
+修正 review：I1 是 Important，依 §3.4 要由協調者派 Opus 5.5（xHigh）review `6ecb014..` 之後的修正 diff。
+
+未在本平台驗證：Windows 上的 NVDA、VE/Cerence 實際聽感（同 review 的「未在本平台驗證」）。
