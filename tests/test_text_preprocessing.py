@@ -4,6 +4,7 @@ The drain harnesses replace both with stubs, so these are their only tests.
 """
 
 import re
+import time
 
 import pytest
 from addon_loader import WORLDVOICE, load_source
@@ -257,3 +258,156 @@ def test_property_arabic_runs_only_gain_spaces(arabic, parts):
 	assert broken.count(" ") - text.count(" ") == needed
 	assert not re.search(rf"([{AIN}{BEH}\u0651])\1{{3}}", TOKEN.sub("|", broken)), "a run of four was left"
 	assert arabic.break_repeated_runs(broken) == broken
+
+
+# Segment cuts (feat/segment-pause spec §4.1): where the segment pause stage cuts a run of text items.
+# A cut goes after the last whitespace or item boundary within N characters, counted from the piece's
+# first non-blank character; otherwise at N, never before an attached character.
+
+FOX = ("The quick brown fox jumps over the lazy dog. " * 3).strip()
+E_ACUTE = "e\u0301"
+
+
+def cut_pieces(chunker, texts, n):
+	"""The joined text of *texts* split at the cuts segment_cuts returns."""
+	text = "".join(texts)
+	starts = [0]
+	for item in texts:
+		starts.append(starts[-1] + len(item))
+	pieces, previous = [], 0
+	for index, offset in chunker.segment_cuts(texts, n):
+		cut = starts[index] + offset
+		pieces.append(text[previous:cut])
+		previous = cut
+	pieces.append(text[previous:])
+	return pieces
+
+
+@pytest.mark.parametrize(
+	("texts", "n", "pieces"),
+	[
+		pytest.param(
+			[FOX],
+			50,
+			[
+				"The quick brown fox jumps over the lazy dog. The ",
+				"quick brown fox jumps over the lazy dog. The ",
+				"quick brown fox jumps over the lazy dog.",
+			],
+			id="fox",
+		),
+		pytest.param(["Hello world"], 8, ["Hello ", "world"], id="space"),
+		pytest.param(["foo bar baz"], 8, ["foo bar ", "baz"], id="last-space"),
+		pytest.param(["one two", "three"], 8, ["one two", "three"], id="item-boundary"),
+		pytest.param(["a" * 30, "b" * 30], 40, ["a" * 30, "b" * 30], id="boundary-beats-hard-cut"),
+		pytest.param(["中文語音合成" * 3], 5, ["中文語音合", "成中文語音", "合成中文語", "音合成"], id="han"),
+		pytest.param([E_ACUTE * 3], 3, [E_ACUTE, E_ACUTE, E_ACUTE], id="marks"),
+		pytest.param(["x" * 10 + "   "], 10, ["x" * 10 + "   "], id="trailing-spaces"),
+		pytest.param(["  ab cd"], 5, ["  ab cd"], id="leading-spaces-uncounted"),
+		pytest.param(["   aaaaaaaa b"], 8, ["   aaaaaaaa", " b"], id="leading-spaces-hard-cut"),
+		pytest.param(["ab\ncd\tef"], 5, ["ab\n", "cd\tef"], id="newline-tab"),
+		pytest.param(["中文\u3000中文"], 3, ["中文\u3000", "中文"], id="ideographic"),
+		pytest.param(["ab\u00a0cd"], 3, ["ab\u00a0", "cd"], id="nbsp"),
+		pytest.param(["abcd\u200befgh"], 6, ["abcd\u200be", "fgh"], id="zwsp"),
+		pytest.param(["abc", "\u0301def"], 4, ["abc\u0301", "def"], id="mark-item"),
+		pytest.param(["\U00020000" * 6], 3, ["\U00020000" * 3] * 2, id="astral"),
+		pytest.param(["e\u0301\u0301\u0301x"], 2, ["e\u0301\u0301\u0301", "x"], id="long-cluster"),
+		pytest.param(["abcdefgh"], 3, ["abc", "def", "gh"], id="hard-cuts"),
+		pytest.param(["aaaa", "  ", "bbbb"], 6, ["aaaa  ", "bbbb"], id="blank-item"),
+	],
+)
+def test_segment_cuts_pieces(chunker, texts, n, pieces):
+	assert cut_pieces(chunker, texts, n) == pieces
+
+
+@pytest.mark.parametrize(
+	("texts", "n"),
+	[
+		(["abc"], 0),
+		(["abc"], -1),
+		([], 5),
+		(["   "], 2),
+		(["", " \n"], 1),
+		(["abc"], 3),
+		pytest.param(["a b" * 1000], 2**31 - 1, id="n-max"),
+	],
+)
+def test_segment_cuts_without_a_cut(chunker, texts, n):
+	assert chunker.segment_cuts(texts, n) == []
+
+
+@pytest.mark.parametrize(
+	("texts", "n", "cuts"),
+	[
+		(["ab ", "", "cd"], 3, [(0, 3)]),
+		(["ab", "", "cd"], 2, [(0, 2)]),
+		(["one two", "three"], 8, [(0, 7)]),
+		(["abc", "\u0301def"], 4, [(1, 1)]),
+		(["aaaa", "  ", "bbbb"], 6, [(1, 2)]),
+	],
+)
+def test_segment_cuts_map_a_cut_to_the_first_item_ending_there(chunker, texts, n, cuts):
+	assert chunker.segment_cuts(texts, n) == cuts
+
+
+def test_cut_before_marks_stops_at_its_start(chunker):
+	assert chunker._cut_before_marks("ae\u0301\u0301", 3, 1) == 1
+	assert chunker._cut_before_marks("e\u0301", 1) == 0
+
+
+def test_segment_cuts_stay_fast(chunker):
+	for texts, n in (
+		(["a" * 100_000], 1),
+		(["ab " * 33_000], 1),
+		(["word " * 20_000], 7),
+		(["x" * 100_000], 2**31 - 1),
+	):
+		start = time.perf_counter()
+		chunker.segment_cuts(texts, n)
+		assert time.perf_counter() - start < 2
+
+
+SEGMENT_PARTS = st.sampled_from(
+	[
+		"a",
+		"b",
+		" ",
+		"\n",
+		"\r\n",
+		"\t",
+		"\u00a0",
+		"\u3000",
+		"\u200b",
+		"\u0301",
+		"\u0e33",
+		"\u200d",
+		"\U0001f3fd",
+		"中",
+		"ก",
+	],
+)
+SEGMENT_ITEMS = st.lists(st.lists(SEGMENT_PARTS, max_size=12).map("".join), max_size=5)
+
+
+@given(texts=SEGMENT_ITEMS, n=st.integers(1, 15))
+def test_property_segment_cuts_keep_the_rules(chunker, texts, n):
+	text = "".join(texts)
+	cuts = chunker.segment_cuts(texts, n)
+	starts = [0]
+	for item in texts:
+		starts.append(starts[-1] + len(item))
+	positions = []
+	for index, offset in cuts:
+		assert 0 < offset <= len(texts[index]), "a cut outside its item"
+		positions.append(starts[index] + offset)
+	assert positions == sorted(set(positions)), "cuts out of order"
+	pieces = cut_pieces(chunker, texts, n)
+	assert "".join(pieces) == text
+	for cut in positions:
+		assert text[:cut].strip() and text[cut:].strip(), "a cut without spoken text on one side"
+		assert not chunker._attached(text, cut), "a cut split a character"
+	for number, piece in enumerate(pieces):
+		counted = piece.strip() if number == len(pieces) - 1 else piece.lstrip()
+		if len(counted) > n:
+			# Only one character with everything attached to it may pass the limit.
+			assert all(chunker._attached(counted, index) for index in range(1, len(counted))), piece

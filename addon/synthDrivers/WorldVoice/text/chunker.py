@@ -4,6 +4,8 @@
 
 import re
 import unicodedata
+from bisect import bisect_left, bisect_right
+from collections.abc import Sequence
 
 # Maximum number of plain characters per piece. Control escape sequences
 # (e.g. \x1b\pause=100\) are not counted, so a piece with many of them is longer.
@@ -37,12 +39,12 @@ def _attached(token, index):
 	)
 
 
-def _cut_before_marks(token, cut):
-	"""Move a cut back so it never leaves a mark without its letter.
+def _cut_before_marks(token, cut, start=0):
+	"""Move a cut back so it never leaves a mark without its letter, and never before *start*.
 
-	Returns 0 when the whole head is one letter and its marks.
+	Returns *start* when everything from there to the cut is one letter and its marks.
 	"""
-	while 0 < cut < len(token) and _attached(token, cut):
+	while start < cut < len(token) and _attached(token, cut):
 		cut -= 1
 	return cut
 
@@ -128,3 +130,68 @@ def split_speech_text_pieces(text, max_length=MAX_TEXT_LENGTH):
 			# Escapes after the last cut stay with the last piece.
 			pieces[-1] += current
 	return pieces
+
+
+def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]:
+	"""Where to cut the text items of one run: (item index, offset), the piece ending after
+	texts[index][:offset], with 0 < offset <= len(texts[index]); in order.
+
+	A piece is counted from its first non-blank character and ends after the last whitespace
+	character or item boundary within *max_length* characters; with none, at *max_length*, moved
+	back so no attached character (_attached) loses the one it belongs to. A single letter whose
+	marks pass the limit stays whole. Every cut has non-blank text before and after it, so no piece
+	is only whitespace and no cut lands before trailing whitespace. Concatenating the pieces gives
+	back the joined text. *max_length* 0 or less: no cut (spec feat/segment-pause §4.1; decided by
+	the user, 2026-11-03, Q2, Q3).
+	"""
+	text = "".join(texts)
+	if max_length <= 0:
+		return []
+	spoken = [index for index, char in enumerate(text) if not char.isspace()]
+	if not spoken:
+		return []
+	last = spoken[-1]
+	boundaries = set()
+	end = 0
+	for item in texts[:-1]:
+		end += len(item)
+		boundaries.add(end)
+	candidates = [
+		position
+		for position in range(1, len(text))
+		if (text[position - 1].isspace() or position in boundaries) and not _attached(text, position)
+	]
+	cuts = []
+	start = 0
+	while True:
+		first = bisect_left(spoken, start)
+		if first == len(spoken):
+			break
+		piece_start = spoken[first]
+		if len(text) - piece_start <= max_length:
+			break
+		limit = piece_start + max_length
+		best = bisect_right(candidates, min(limit, last)) - 1
+		if best >= 0 and candidates[best] > piece_start:
+			cut = candidates[best]
+		else:
+			cut = _cut_before_marks(text, limit, piece_start)
+			if cut == piece_start:
+				cut = _end_of_marks(text, piece_start)
+			if cut > last:
+				break
+		cuts.append(cut)
+		start = cut
+	return _item_offsets(texts, cuts)
+
+
+def _item_offsets(texts, cuts):
+	"""Each cut position of the joined text as (item index, offset) of the first item ending at or after it."""
+	result = []
+	index, item_start = 0, 0
+	for cut in cuts:
+		while item_start + len(texts[index]) < cut:
+			item_start += len(texts[index])
+			index += 1
+		result.append((index, cut - item_start))
+	return result
