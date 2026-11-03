@@ -24,6 +24,7 @@ from .items import item_wait_factor
 from .numberStages import inject_numbers, number_wait_factor, remove_thousands_separators
 from .punctuation import inject_punctuation_pause
 from .recorder import PipelineLog
+from .segments import inject_segment_pause
 from .sequence import SpeechCmd
 from .settings import pipeline_settings, read_stored, stored_key_for
 from .unspaced import inject_unspaced_script_space_pause
@@ -153,6 +154,9 @@ STAGES: tuple[Stage, ...] = (
 	Stage("item_wait_factor", item_wait_factor),
 	Stage("punctuation_wait_factor", inject_punctuation_pause),
 	Stage("number_wait_factor", number_wait_factor),
+	# After every stage that adds a pause, so the segment count restarts at each one (spec
+	# feat/segment-pause §4.3, O6).
+	Stage("segment_wait_factor", inject_segment_pause),
 	Stage("speech_viewer", speech_viewer),
 )
 

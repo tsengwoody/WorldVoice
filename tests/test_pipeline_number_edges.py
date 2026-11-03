@@ -44,6 +44,8 @@ def make_settings(
 		scaled_unspaced_script_space_wait=lambda: 0,
 		scaled_punctuation_wait=lambda: pwait,
 		group_size=size,
+		segment_length=0,
+		scaled_segment_wait=lambda: 0,
 	)
 
 

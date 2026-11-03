@@ -6,7 +6,6 @@ segment_cuts says (tests/test_text_preprocessing.py), and puts one shared Segmen
 after each cut piece. With a segment length or a pause of 0 it leaves the sequence alone (U3).
 """
 
-import importlib
 import sys
 from types import SimpleNamespace
 
@@ -30,10 +29,9 @@ class CallbackCommand:
 @pytest.fixture
 def env(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	segments = importlib.import_module("synthDrivers.WorldVoice.pipeline.segments")
 	return SimpleNamespace(
 		module=module,
-		segments=segments,
+		segments=module.segments,
 		commands=sys.modules["speech.commands"],
 		chunker=sys.modules["synthDrivers.WorldVoice.text.chunker"],
 	)
@@ -341,3 +339,45 @@ def test_property_no_cut_splits_a_character(env, data, length):
 		elif is_reset(env, item):
 			assert not any(env.chunker._attached(text, cut) for cut in cuts), (text, cuts)
 			text, cuts = "", []
+
+
+# The stage in the stage table (spec §4.3, O9).
+
+
+def segment_stage(module):
+	(stage,) = [stage for stage in module.STAGES if stage.log_key == "segment_wait_factor"]
+	return stage
+
+
+def scoped_settings(scope, length=8, pause=7):
+	settings = punctuation_settings(0)
+	settings.scope = scope
+	settings.segment_length = length
+	settings.scaled_segment_wait = lambda: pause
+	return settings
+
+
+def test_another_synth_gets_plain_breaks_at_the_cuts(monkeypatch):
+	module, BreakCommand = load_pipeline_module(monkeypatch, scoped_settings("all"))
+	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
+	result = segment_stage(module).handler(["Hello world"])
+	assert [item for item in result if isinstance(item, str)] == ["Hello ", "world"]
+	(pause,) = [item for item in result if not isinstance(item, str)]
+	assert type(pause) is BreakCommand
+	assert pause.time == 7
+
+
+def test_the_segment_switch_logs_its_stage(monkeypatch):
+	module, _ = load_pipeline_module(monkeypatch, scoped_settings("all"))
+	sys.modules["config"].conf["WorldVoice"]["log"] = {
+		"enable": True,
+		**dict.fromkeys(module.LOG_SWITCHES, False),
+		"segmentWaitFactor": True,
+	}
+	writes = []
+	monkeypatch.setattr(module.registry, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
+	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
+	sequence = ["Hello world"]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	assert writes == [("segment_wait_factor", "before"), ("segment_wait_factor", "after")]

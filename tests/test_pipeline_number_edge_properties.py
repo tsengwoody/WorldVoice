@@ -40,6 +40,8 @@ def stage_settings(mode="number", size=3, wait=10, chars="", remove=False, pwait
 		scaled_unspaced_script_space_wait=lambda: unspaced,
 		scaled_punctuation_wait=lambda: pwait,
 		group_size=size,
+		segment_length=0,
+		scaled_segment_wait=lambda: 0,
 	)
 
 

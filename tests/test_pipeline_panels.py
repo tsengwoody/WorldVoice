@@ -35,6 +35,7 @@ def test_log_switch_labels_are_unchanged(monkeypatch):
 		("itemWaitFactor", "Item wait factor"),
 		("punctuationWaitFactor", "Punctuation wait factor"),
 		("numberWaitFactor", "Number wait factor"),
+		("segmentWaitFactor", "Segment wait factor"),
 		("speechViewer", "Speech viewer"),
 	]
 

@@ -68,6 +68,30 @@ def test_nvda_ssml_keeps_every_word_and_pause_of_the_scope_all_output(monkeypatc
 	assert warnings == []
 
 
+def test_nvda_ssml_keeps_every_word_at_the_segment_cuts(monkeypatch):
+	# Scope "all" (U1): another synth gets the segment cuts as SSML breaks inside one call.
+	if not SPEECH_XML.is_file():
+		pytest.skip("ref/nvda is not checked out")
+	settings = punctuation_settings(0)
+	settings.scope = "all"
+	settings.segment_length = 10
+	settings.scaled_segment_wait = lambda: 30
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
+	text = "The quick brown fox jumps over the lazy dog"
+	sequence = [text]
+	for stage in module.STAGES:
+		sequence = stage.handler(sequence)
+	warnings = []
+	speech_xml = load_speech_xml(monkeypatch, warnings)
+
+	xml = speech_xml.SsmlConverter("en").convertToXml(list(sequence))
+
+	assert re.sub(r"<[^>]*>|\s", "", xml) == text.replace(" ", "")
+	assert xml.count('<break time="30ms"/>') == 4
+	assert warnings == []
+
+
 def test_nvda_ssml_speaks_a_symbol_name_as_words_between_breaks(monkeypatch):
 	# F1 option D: another synth gets the name as plain text, never in character mode.
 	if not SPEECH_XML.is_file():

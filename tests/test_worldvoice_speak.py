@@ -356,6 +356,8 @@ def stage_settings(*, number_mode="value", punctuation=False, number_wait=0, gro
 		scaled_unspaced_script_space_wait=lambda: 0,
 		scaled_punctuation_wait=lambda: 0,
 		group_size=group_size,
+		segment_length=0,
+		scaled_segment_wait=lambda: 0,
 	)
 
 

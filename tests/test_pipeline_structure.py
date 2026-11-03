@@ -95,6 +95,7 @@ STAGE_MODULES = [
 	"unspaced",
 	"languageCommands",
 	"recorder",
+	"segments",
 ]
 
 

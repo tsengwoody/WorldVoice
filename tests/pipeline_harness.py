@@ -69,6 +69,7 @@ PIPELINE_MODULES = (
 	"numbers",
 	"symbols",
 	"speechDictionary",
+	"segments",
 )
 
 
@@ -241,6 +242,8 @@ def punctuation_settings(wait_factor, remove_characters=False):
 		scaled_unspaced_script_space_wait=lambda: 0,
 		scaled_punctuation_wait=lambda: wait_factor,
 		group_size=0,
+		segment_length=0,
+		scaled_segment_wait=lambda: 0,
 	)
 
 
@@ -254,6 +257,7 @@ ORDER = [
 	"item_wait_factor",
 	"punctuation_wait_factor",
 	"number_wait_factor",
+	"segment_wait_factor",
 	"speech_viewer",
 ]
 # One log switch per label, in the order of the stage that owns it.
@@ -265,6 +269,7 @@ LOG_SWITCH_ORDER = [
 	"itemWaitFactor",
 	"punctuationWaitFactor",
 	"numberWaitFactor",
+	"segmentWaitFactor",
 	"speechViewer",
 ]
 
