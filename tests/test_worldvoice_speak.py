@@ -343,7 +343,15 @@ EN, ZH = VOICES["en"], VOICES["zh"]
 L = LangChangeCommand
 
 
-def stage_settings(*, number_mode="value", punctuation=False, number_wait=0, group_size=0):
+def stage_settings(
+	*,
+	number_mode="value",
+	punctuation=False,
+	number_wait=0,
+	group_size=0,
+	segment_length=0,
+	segment_wait=0,
+):
 	"""The pipeline settings the stages read: only the given pauses and modes, every other wait 0."""
 	return SimpleNamespace(
 		number_mode=number_mode,
@@ -356,8 +364,8 @@ def stage_settings(*, number_mode="value", punctuation=False, number_wait=0, gro
 		scaled_unspaced_script_space_wait=lambda: 0,
 		scaled_punctuation_wait=lambda: 0,
 		group_size=group_size,
-		segment_length=0,
-		scaled_segment_wait=lambda: 0,
+		segment_length=segment_length,
+		scaled_segment_wait=lambda: segment_wait,
 	)
 
 
@@ -413,6 +421,38 @@ def speak_through_stages(
 
 
 TIMINGS = pytest.mark.parametrize("timing", ["after", "before"])
+
+# The segment pause end to end (spec feat/segment-pause §9.2): each piece is its own engine segment.
+SENTENCE = "The quick brown fox jumps over the lazy dog, then it sleeps."
+
+
+def test_a_long_sentence_is_spoken_in_segments(monkeypatch):
+	assert len(SENTENCE) == 60
+	settings = stage_settings(segment_length=20, segment_wait=10)
+	synth_calls = []
+	original = _synth
+
+	def recording_synth(*args, **kwargs):
+		synth, modules = original(*args, **kwargs)
+		synth_calls.append(synth)
+		return synth, modules
+
+	monkeypatch.setattr(sys.modules[__name__], "_synth", recording_synth)
+	assert speak_through_stages(monkeypatch, [SENTENCE], numlan="default", settings=settings) == [
+		(EN, "The quick brown fox "),
+		"|",
+		(EN, "jumps over the lazy "),
+		"|",
+		(EN, "dog, then it sleeps."),
+	]
+	(synth,) = synth_calls
+	assert [call for call in synth._taskManager.calls if call[0] == "break"] == [("break", 0.01)] * 2
+
+
+def test_by_default_a_long_sentence_is_one_segment(monkeypatch):
+	assert speak_through_stages(monkeypatch, [SENTENCE], numlan="default") == [(EN, SENTENCE)]
+
+
 PUNCTUATION = stage_settings(punctuation=True)
 NUMBER_MODE = stage_settings(number_mode="number")
 # "Follow main language" reads digits as today's "ignore numbers" off did.
