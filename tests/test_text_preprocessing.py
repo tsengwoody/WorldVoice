@@ -118,8 +118,8 @@ def cut_pieces(chunker, texts, n):
 			50,
 			[
 				"The quick brown fox jumps over the lazy dog. The ",
-				"quick brown fox jumps over the lazy dog. The ",
-				"quick brown fox jumps over the lazy dog.",
+				"quick brown fox jumps over the lazy dog. The quick ",
+				"brown fox jumps over the lazy dog.",
 			],
 			id="fox",
 		),
@@ -131,8 +131,13 @@ def cut_pieces(chunker, texts, n):
 		pytest.param([E_ACUTE * 3], 3, [E_ACUTE, E_ACUTE, E_ACUTE], id="marks"),
 		pytest.param(["x" * 10 + "   "], 10, ["x" * 10 + "   "], id="trailing-spaces"),
 		pytest.param(["  ab cd"], 5, ["  ab cd"], id="leading-spaces-uncounted"),
-		pytest.param(["   aaaaaaaa b"], 8, ["   aaaaaaaa", " b"], id="leading-spaces-hard-cut"),
-		pytest.param(["ab\ncd\tef"], 5, ["ab\n", "cd\tef"], id="newline-tab"),
+		pytest.param(["   aaaaaaaaab"], 8, ["   aaaaaaaa", "ab"], id="leading-spaces-hard-cut"),
+		pytest.param(["   aaaaaaaa b"], 8, ["   aaaaaaaa ", "b"], id="space-after-the-limit"),
+		pytest.param(["abc\r\ndef"], 4, ["abc\r\n", "def"], id="crlf"),
+		pytest.param(["ab  \r\n cd"], 3, ["ab  \r\n ", "cd"], id="whitespace-run"),
+		pytest.param(["Hello world\r\nfoo"], 11, ["Hello world\r\n", "foo"], id="fits-before-a-newline"),
+		pytest.param(["one two", "  ", "three"], 8, ["one two  ", "three"], id="blank-item-whole"),
+		pytest.param(["ab\ncd\tef"], 5, ["ab\ncd\t", "ef"], id="newline-tab"),
 		pytest.param(["中文\u3000中文"], 3, ["中文\u3000", "中文"], id="ideographic"),
 		pytest.param(["ab\u00a0cd"], 3, ["ab\u00a0", "cd"], id="nbsp"),
 		pytest.param(["abcd\u200befgh"], 6, ["abcd\u200be", "fgh"], id="zwsp"),
@@ -176,6 +181,7 @@ def test_segment_cuts_without_a_cut(chunker, texts, n):
 		(["one two", "three"], 8, [(0, 7)]),
 		(["abc", "\u0301def"], 4, [(1, 1)]),
 		(["aaaa", "  ", "bbbb"], 6, [(1, 2)]),
+		(["one two", "  ", "three"], 8, [(1, 2)]),
 	],
 )
 def test_segment_cuts_map_a_cut_to_the_first_item_ending_there(chunker, texts, n, cuts):
@@ -209,6 +215,22 @@ def test_attached_marks_tones_and_joiners(chunker, text, attached):
 	# What segment_cuts never cuts before: a mark, Thai or Lao AM, a skin tone, a zero-width
 	# non-joiner, and both sides of a zero-width joiner.
 	assert chunker._attached(text, 1) is attached
+
+
+@pytest.mark.parametrize(
+	("text", "index", "inseparable"),
+	[
+		("a\r\nb", 2, True),
+		("a  b", 2, True),
+		("a \u0301", 2, True),
+		("a b", 1, False),
+		("a b", 2, False),
+		("ab", 1, False),
+	],
+)
+def test_inseparable_marks_and_whitespace_runs(chunker, text, index, inseparable):
+	# No cut lands inside a whitespace run either (review M1).
+	assert chunker._inseparable(text, index) is inseparable
 
 
 def test_segment_cuts_stay_fast(chunker):
@@ -264,8 +286,9 @@ def test_property_segment_cuts_keep_the_rules(chunker, texts, n):
 	for cut in positions:
 		assert text[:cut].strip() and text[cut:].strip(), "a cut without spoken text on one side"
 		assert not chunker._attached(text, cut), "a cut split a character"
-	for number, piece in enumerate(pieces):
-		counted = piece.strip() if number == len(pieces) - 1 else piece.lstrip()
+		assert not (text[cut - 1].isspace() and text[cut].isspace()), "a cut inside a whitespace run"
+	for piece in pieces:
+		counted = piece.strip()
 		if len(counted) > n:
-			# Only one character with everything attached to it may pass the limit.
-			assert all(chunker._attached(counted, index) for index in range(1, len(counted))), piece
+			# Only one character with everything inseparable from it may pass the limit.
+			assert all(chunker._inseparable(counted, index) for index in range(1, len(counted))), piece

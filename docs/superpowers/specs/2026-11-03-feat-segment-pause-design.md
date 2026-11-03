@@ -131,19 +131,19 @@ def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]
     after texts[index][:offset], with 0 < offset <= len(texts[index]); in order."""
 ```
 
-Let `T` be `"".join(texts)` and `L = len(T)` (code points; an astral character counts once). Candidates are positions `b` in `T` with `T[b - 1].isspace()`, or `b` the end of an item that is followed by another item (an item boundary), provided `not _attached(T, b)`. Then:
+Let `T` be `"".join(texts)` and `L = len(T)` (code points; an astral character counts once). A position `b` is inseparable (`_inseparable(T, b)`) when `_attached(T, b)` or `b` is inside a whitespace run (`T[b - 1]` and `T[b]` both whitespace), so a run such as `\r\n` or a blank item is never split. Candidates are positions `b` in `T` with `T[b - 1].isspace()`, or `b` the end of an item that is followed by another item (an item boundary), provided `b` is not inseparable; so a candidate after whitespace ends its whitespace run. A candidate's spoken end `e(b)` is `b` moved back over the whitespace before it: the whitespace a piece ends with is not counted. (Corrected by review M1, 2026-11-03: candidates were every position after a whitespace character, so `\r\n` could be cut between `\r` and `\n` and a blank item `"  "` split in two; the spoken end extends review I1's rule to every piece, which is also what keeps a hard cut out of a `\r\n`.) Then:
 
 1. `max_length <= 0`, or `T` is blank: no cut.
 2. Start with `start = 0`. Let `s0` be the first non-blank position at or after `start`; if there is none, or `last + 1 - s0 <= max_length` (the rest's non-blank text fits; trailing whitespace is not counted), stop. (Corrected by review I1, 2026-11-03: was `L - s0 <= max_length`, which counted trailing whitespace, so a line that fits but ends in `\r\n` was cut.)
-3. `limit = s0 + max_length`. Take the largest candidate `b` with `s0 < b <= min(limit, last)`, where `last` is the last non-blank position of `T`.
-4. If there is none, hard-cut: `c = limit`, moved back while `c > s0 and _attached(T, c)` (`_cut_before_marks` with a lower bound); if it reaches `s0`, `c` is the end of the cluster at `s0` (`_end_of_marks`), which may pass `limit`. If `c > last`, stop (only whitespace would follow).
+3. `limit = s0 + max_length`. Take the largest candidate `b` with `s0 < b` and `e(b) <= min(limit, last)`, where `last` is the last non-blank position of `T` (then `b <= last` too).
+4. If there is none, hard-cut: `c = limit`, moved back while `c > s0` and `c` is inseparable (`_cut_before_marks` with a lower bound); if it reaches `s0`, `c` is the end of the inseparable run at `s0` (`_end_of_marks`), which may pass `limit`. If `c > last`, stop (only whitespace would follow).
 5. Record the cut, set `start` to it, and repeat from 2.
 
 A cut position is mapped to the first item whose span ends at or after it (`acc < c <= acc + len(item)`), so an item-boundary cut is `(i, len(texts[i]))` and an empty item never owns a cut.
 
-Guarantees (pinned by §9.3): the pieces concatenate to `T`; every cut has non-blank text before and after it; no cut separates a character from what `_attached` attaches to it; each piece, without its leading whitespace (and, for the last piece, its trailing whitespace), has at most `max_length` characters, except a single cluster longer than `max_length`. Running time is linear in `L` (precomputed candidates and non-blank positions; the old chunker once had a quadratic case, phase 30 notes).
+Guarantees (pinned by §9.3): the pieces concatenate to `T`; every cut has non-blank text before and after it; no cut separates a character from what `_attached` attaches to it; no cut lands inside a whitespace run; each piece, without its leading and trailing whitespace, has at most `max_length` characters, except a single cluster (a character and everything inseparable from it) longer than `max_length`. Running time is linear in `L` (precomputed candidates and non-blank positions; the old chunker once had a quadratic case, phase 30 notes).
 
-`_cut_before_marks(token, cut)` gains a lower bound (`start`, default 0) so it never moves before the piece's start; `_attached` and `_end_of_marks` stay as they are (`chunker:21-37`, `:50-54`).
+`_cut_before_marks(token, cut)` gains a lower bound (`start`, default 0) so it never moves before the piece's start; `_attached` stays as it is (`chunker:21-37`); `_cut_before_marks` and `_end_of_marks` (`:50-54`) step over inseparable positions instead of attached ones (review M1).
 
 ### 4.2 The stage (`pipeline/segments.py`, new; snake_case)
 
@@ -215,7 +215,7 @@ Why the bridge and not the stage: the loss comes from WorldVoice's segmenting at
 
 | Input (run) | N | Output |
 | --- | --- | --- |
-| `"The quick brown fox jumps over the lazy dog. " × 3`, stripped | 50 | `"The quick brown fox jumps over the lazy dog. The "`, SB, `"quick brown fox jumps over the lazy dog. The "`, SB, `"quick brown fox jumps over the lazy dog."` (49, 45, 40 chars) |
+| `"The quick brown fox jumps over the lazy dog. " × 3`, stripped | 50 | `"The quick brown fox jumps over the lazy dog. The "`, SB, `"quick brown fox jumps over the lazy dog. The quick "`, SB, `"brown fox jumps over the lazy dog."` (48, 50, 34 spoken chars; corrected by review M1: the trailing space no longer counts, so the second piece takes one more word) |
 | `["Hello world", BreakCommand(10), "foo bar baz"]` | 8 | `["Hello ", SB, "world", BreakCommand(10), "foo bar ", SB, "baz"]`: the existing break restarts the count |
 | `["one two", IndexCommand(1), "three"]` | 8 | `["one two", SB, IndexCommand(1), "three"]`: item-boundary cut, break before the command |
 | `["a" × 30, "b" × 30]` | 40 | `["a" × 30, SB, "b" × 30]`: the boundary beats a hard cut inside `b` |
@@ -312,7 +312,7 @@ Why the bridge and not the stage: the loss comes from WorldVoice's segmenting at
 ### 9.3 Property tests (Hypothesis; text from Latin letters, spaces, newlines, Han, Thai, combining marks, ZWJ, skin tones; commands from Index, Pitch, Break subclasses, utterance ends)
 
 - P1. Concatenating the text pieces reproduces the original text, item by item, with every command in its original order.
-- P2. Each piece, without its leading whitespace (and the last piece's trailing whitespace), has at most N characters, unless it is one letter with its attached marks.
+- P2. Each piece, without its leading and trailing whitespace, has at most N characters, unless it is one letter with everything inseparable from it; no cut lands inside a whitespace run; text whose non-blank part fits in N is not cut (corrected by review I1 and M1: trailing whitespace was counted for every piece but the last).
 - P3. Length 0, factor 0 or global below 10 → output identical (same objects, same order) to the input.
 - P4. No inserted break at the start or end of the output, next to an utterance end, or with only blank text and commands between it and another break: between an inserted break and any other break, sequence edge or utterance end there is non-blank text.
 - P5. No cut separates a character from what `_attached` attaches to it.

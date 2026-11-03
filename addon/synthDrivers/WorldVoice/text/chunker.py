@@ -29,19 +29,26 @@ def _attached(token, index):
 	)
 
 
+def _inseparable(token, index):
+	"""Whether a cut before token[index] is not allowed: token[index] is attached (_attached), or it
+	is inside a whitespace run, so a run such as "\r\n" or a blank item is never split."""
+	return _attached(token, index) or (token[index - 1].isspace() and token[index].isspace())
+
+
 def _cut_before_marks(token, cut, start=0):
-	"""Move a cut back so it never leaves a mark without its letter, and never before *start*.
+	"""Move a cut back so it never leaves a mark without its letter, never lands inside a
+	whitespace run (_inseparable), and never goes before *start*.
 
 	Returns *start* when everything from there to the cut is one letter and its marks.
 	"""
-	while start < cut < len(token) and _attached(token, cut):
+	while start < cut < len(token) and _inseparable(token, cut):
 		cut -= 1
 	return cut
 
 
 def _end_of_marks(token, start):
 	end = start + 1
-	while end < len(token) and _attached(token, end):
+	while end < len(token) and _inseparable(token, end):
 		end += 1
 	return end
 
@@ -50,9 +57,10 @@ def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]
 	"""Where to cut the text items of one run: (item index, offset), the piece ending after
 	texts[index][:offset], with 0 < offset <= len(texts[index]); in order.
 
-	A piece is counted from its first non-blank character and ends after the last whitespace
-	character or item boundary within *max_length* characters; with none, at *max_length*, moved
-	back so no attached character (_attached) loses the one it belongs to. A single letter whose
+	A piece is counted from its first to its last non-blank character and ends after the last
+	whitespace run or at the last item boundary whose spoken text before it fits in *max_length*
+	characters; with none, at *max_length*, moved back so no attached character (_attached) loses
+	the one it belongs to. No cut lands inside a whitespace run (_inseparable). A single letter whose
 	marks pass the limit stays whole. Every cut has non-blank text before and after it, so no piece
 	is only whitespace and no cut lands before trailing whitespace: the rest is not cut once its
 	non-blank text fits in *max_length*. Concatenating the pieces gives back the joined text.
@@ -71,11 +79,17 @@ def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]
 	for item in texts[:-1]:
 		end += len(item)
 		boundaries.add(end)
-	candidates = [
-		position
-		for position in range(1, len(text))
-		if (text[position - 1].isspace() or position in boundaries) and not _attached(text, position)
-	]
+	# A candidate follows whitespace or is an item boundary, and is not _inseparable, so it ends a
+	# whitespace run; it fits when the spoken text before it does (spoken_ends): the whitespace it
+	# ends is not counted.
+	candidates, spoken_ends = [], []
+	spoken_end = 0
+	for position in range(1, len(text)):
+		if not text[position - 1].isspace():
+			spoken_end = position
+		if (text[position - 1].isspace() or position in boundaries) and not _inseparable(text, position):
+			candidates.append(position)
+			spoken_ends.append(spoken_end)
 	cuts = []
 	start = 0
 	while True:
@@ -86,7 +100,7 @@ def segment_cuts(texts: Sequence[str], max_length: int) -> list[tuple[int, int]]
 		if last - piece_start < max_length:
 			break
 		limit = piece_start + max_length
-		best = bisect_right(candidates, min(limit, last)) - 1
+		best = bisect_right(spoken_ends, min(limit, last)) - 1
 		if best >= 0 and candidates[best] > piece_start:
 			cut = candidates[best]
 		else:

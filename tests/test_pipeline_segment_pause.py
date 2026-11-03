@@ -69,9 +69,9 @@ def test_worked_examples(env):
 			[
 				"The quick brown fox jumps over the lazy dog. The ",
 				SB,
-				"quick brown fox jumps over the lazy dog. The ",
+				"quick brown fox jumps over the lazy dog. The quick ",
 				SB,
-				"quick brown fox jumps over the lazy dog.",
+				"brown fox jumps over the lazy dog.",
 			],
 		),
 		(
@@ -199,6 +199,11 @@ def test_a_blank_item_keeps_the_break_after_it(env):
 	assert shape(stage(env, ["aaaa", "  ", "bbbb"], 6)) == ["aaaa", "  ", SB, "bbbb"]
 
 
+def test_a_blank_item_is_never_split(env):
+	# Review M1: a cut inside "  " gave "one two", " ", SB, " ", "three".
+	assert shape(stage(env, ["one two", "  ", "three"], 8)) == ["one two", "  ", SB, "three"]
+
+
 def test_number_stages_and_segments_share_ends_utterance(env):
 	ends = env.module.sequence._ends_utterance
 	assert env.module.numberStages._ends_utterance is ends
@@ -279,26 +284,26 @@ def test_property_removing_the_breaks_gives_back_the_input(env, data, length, pa
 
 
 def pieces(env, result):
-	"""The text between two inserted breaks, resets or the sequence edges, and whether an inserted
-	break ends it."""
+	"""The text between two inserted breaks, resets or the sequence edges."""
 	text, found = "", []
 	for item in result:
 		if isinstance(item, str):
 			text += item
 		elif is_reset(env, item):
-			found.append((text, is_inserted(env, item)))
+			found.append(text)
 			text = ""
-	found.append((text, False))
+	found.append(text)
 	return found
 
 
 @SHARED_ENV
 @given(data=st.data(), length=st.integers(1, 15))
 def test_property_pieces_stay_within_the_length(env, data, length):
-	for text, cut in pieces(env, stage(env, data.draw(sequences(env)), length)):
-		counted = text.lstrip() if cut else text.strip()
+	# A piece's whitespace at either end is not counted (review I1 and M1).
+	for text in pieces(env, stage(env, data.draw(sequences(env)), length)):
+		counted = text.strip()
 		if len(counted) > length:
-			assert all(env.chunker._attached(counted, index) for index in range(1, len(counted))), text
+			assert all(env.chunker._inseparable(counted, index) for index in range(1, len(counted))), text
 
 
 @SHARED_ENV
