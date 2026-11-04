@@ -39,6 +39,9 @@ class ConfigVoiceSettingsRepository:
 			value = voices[spec.name].get(name, None)
 			if value is not None:
 				values[name] = convert(value)
+		# WorldVoice 3.x stored "" for the default variant.
+		if values["variant"] == "":
+			values["variant"] = "default"
 		return values
 
 	def save(self, spec: VoiceSpec, values: Mapping[str, SettingValue]) -> None:

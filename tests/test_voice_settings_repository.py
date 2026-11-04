@@ -51,6 +51,12 @@ def test_load_converts_existing_values_and_defaults_missing_fields(repository, c
 	assert repository.load(make_spec()) == dict(DEFAULTS, rate=72)
 
 
+def test_load_reads_the_legacy_empty_variant_as_default(repository, conf):
+	# WorldVoice 3.x stored "" for the default variant.
+	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "variant": ""}
+	assert repository.load(make_spec()) == dict(DEFAULTS, rate=72)
+
+
 def test_save_converts_six_values_and_does_not_add_waitfactor(repository, conf):
 	repository.save(make_spec(), dict(DEFAULTS, rate="72", variant=42, rateBoost="False", waitfactor=8))
 	assert conf["WorldVoice"]["voices"]["Fake:a"] == dict(DEFAULTS, rate=72, variant="42")
