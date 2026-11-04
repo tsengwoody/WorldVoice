@@ -908,6 +908,9 @@ class Voice(BaseVoice):
 	# The engine's own default variant, cached on each voice and re-read when its core changes.
 	_defaultVariant = None
 	_defaultVariantCore = None
+	# Unavailable variants already logged for this voice; replaced, never mutated, so the class
+	# default stays empty.
+	_warnedVariants = frozenset()
 
 	def applyEngineSettings(self, core, snapshot):
 		instance = core.getVoiceInstance(snapshot.voice_id)
@@ -918,9 +921,18 @@ class Voice(BaseVoice):
 				type_=str,
 			)
 			self._defaultVariantCore = core
-		if snapshot.variant != "default" and snapshot.variant not in core.availableVariants:
-			raise ValueError(f"Unavailable variant: {snapshot.variant}")
-		selected = self._defaultVariant if snapshot.variant == "default" else snapshot.variant
+		variant = snapshot.variant
+		if variant != "default" and variant not in core.availableVariants:
+			# A stale stored variant (WorldVoice 3.x saved "" for the default) must not drop speech.
+			if variant not in self._warnedVariants:
+				self._warnedVariants = self._warnedVariants | {variant}
+				log.warning(
+					"WorldVoice Cerence variant %r is unavailable for voice %s; using the default variant",
+					variant,
+					snapshot.voice_id,
+				)
+			variant = "default"
+		selected = self._defaultVariant if variant == "default" else variant
 		# Like every inner setting: applied in order on the BgThread, never
 		# beside an in-flight synthesis on the same instance.
 		core._bgQueue.put(TtsSetParamList(instance, (VE_PARAM_VOICE_OPERATING_POINT, selected)))

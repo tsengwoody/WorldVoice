@@ -33,9 +33,49 @@ def test_wrapper_settings_are_pending_until_activation(monkeypatch, engine, snap
 	adapter.applyEngineSettings(core, replace(snap("a", 2), variant="default", waitfactor=2))
 	assert writes[-1] == ("native:a", "plain")
 	assert core.waitfactor == 2
-	with pytest.raises(ValueError, match="Unavailable variant: missing"):
-		adapter.applyEngineSettings(core, replace(snap("a", 3), variant="missing"))
+	adapter.applyEngineSettings(core, replace(snap("a", 3), variant="missing", waitfactor=6))
 	assert writes[-1] == ("native:a", "plain")
+	assert core.waitfactor == 6
+
+
+@pytest.mark.parametrize("engine", ["VE", "Cerence"])
+@pytest.mark.parametrize("stored", ["", "missing"])
+def test_unavailable_variant_falls_back_to_the_engine_default(monkeypatch, engine, stored, snap):
+	# WorldVoice 3.x stored "" as the default variant; such voices must still speak.
+	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
+	adapter = object.__new__(harness.module.Voice)
+	writes = []
+	warnings = []
+	core = types.SimpleNamespace(waitfactor=0, _bgQueue=types.SimpleNamespace(put=lambda task: task()))
+	core.getVoiceInstance = lambda voice_id: f"native:{voice_id}"
+	core.getParameter = lambda instance, parameter, type_: "plain"
+	core.availableVariants = {"plain": object(), "bright": object()}
+	monkeypatch.setattr(
+		harness.module,
+		"TtsSetParamList",
+		lambda instance, pair: lambda: writes.append((instance, pair[1])),
+	)
+	monkeypatch.setattr(
+		harness.module,
+		"log",
+		types.SimpleNamespace(warning=lambda *args, **kwargs: warnings.append(args)),
+	)
+
+	adapter.applyEngineSettings(core, replace(snap("a", 1), variant="bright", waitfactor=1))
+	for waitfactor in (3, 5):
+		adapter.applyEngineSettings(core, replace(snap("a", 2), variant=stored, waitfactor=waitfactor))
+		assert writes[-1] == ("native:a", "plain")
+		assert core.waitfactor == waitfactor
+	assert len(warnings) == 1
+	assert repr(stored) in warnings[0][0] % warnings[0][1:]
+	adapter.applyEngineSettings(core, replace(snap("a", 3), variant="other", waitfactor=2))
+	assert writes == [("native:a", "bright")] + [("native:a", "plain")] * 3
+	assert len(warnings) == 2
+	# Another voice of the same engine warns for its own stored value.
+	other = object.__new__(harness.module.Voice)
+	other.applyEngineSettings(core, replace(snap("b", 1), variant=stored))
+	assert writes[-1] == ("native:b", "plain")
+	assert len(warnings) == 3
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
