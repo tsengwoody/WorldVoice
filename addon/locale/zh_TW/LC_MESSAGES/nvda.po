@@ -415,7 +415,7 @@ msgstr "數字模式"
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
 #: addon/synthDrivers/WorldVoice/pipeline/settings.py:202
 msgid "Group size"
-msgstr "每組位數"
+msgstr "數字分組位數"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
