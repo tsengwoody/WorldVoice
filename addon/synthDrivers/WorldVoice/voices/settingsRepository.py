@@ -22,7 +22,7 @@ def _confspec(convert, default) -> str:
 # save writes satisfies it.
 VOICE_CONFSPEC = {name: _confspec(convert, default) for name, convert, default in VOICE_PARAMETERS}
 
-# The bounds load clamps an int parameter to, as the confspec above states them.
+# The bounds of an int parameter, as the confspec above states them; load refuses a value outside.
 _INT_MIN = 0
 _INT_MAX = 100
 
@@ -58,30 +58,35 @@ class ConfigVoiceSettingsRepository:
 		return values
 
 	def _convert(self, voice: str, name: str, convert, default, value) -> SettingValue:
-		"""*value* converted like pipeline's convert: an int clamped to its bounds without a log.
+		"""*value* converted; the default for a value the conversion refuses or outside the bounds.
 
-		A value the conversion refuses, such as "abc" or "50.0" for an int, gives the default, and
-		each voice, key and stored value is reported once as a debug warning, like the pipeline's
-		read_stored. Nothing is written back: the next save of the voice replaces the value.
+		A refused value, such as "abc" or "50.0" for an int, and an int outside the confspec bounds,
+		such as 150, are both invalid: there is no intent to approximate (decided by the user,
+		2026-11-05). Each voice, key and stored value is reported once as a debug warning, like the
+		pipeline's read_stored. Nothing is written back: the next save of the voice replaces the value.
 		"""
 		try:
 			result = convert(value)
 		except (TypeError, ValueError):
-			report = (voice, name, repr(value))
-			if report not in _reported:
-				_reported.add(report)
-				self._logger.log(
-					_DEBUG_WARNING,
-					"WorldVoice: stored voice setting %r of %r is invalid (%r); using its default %r",
-					name,
-					voice,
-					value,
-					default,
-				)
-			return convert(default)
-		if convert is int:
-			return min(max(result, _INT_MIN), _INT_MAX)
+			return self._invalid(voice, name, convert, default, value)
+		if convert is int and not _INT_MIN <= result <= _INT_MAX:
+			return self._invalid(voice, name, convert, default, value)
 		return result
+
+	def _invalid(self, voice: str, name: str, convert, default, value) -> SettingValue:
+		"""The default for an invalid stored *value*, reported the first time it is seen."""
+		report = (voice, name, repr(value))
+		if report not in _reported:
+			_reported.add(report)
+			self._logger.log(
+				_DEBUG_WARNING,
+				"WorldVoice: stored voice setting %r of %r is invalid (%r); using its default %r",
+				name,
+				voice,
+				value,
+				default,
+			)
+		return convert(default)
 
 	def save(self, spec: VoiceSpec, values: Mapping[str, SettingValue]) -> None:
 		converted = {name: convert(values[name]) for name, convert, _ in VOICE_PARAMETERS}

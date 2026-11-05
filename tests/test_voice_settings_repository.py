@@ -112,15 +112,28 @@ def test_each_invalid_stored_value_is_reported_once(tolerant, conf, logger):
 	assert len(logger.records) == 4
 
 
-@pytest.mark.parametrize(
-	("stored", "expected"),
-	[("150", 100), ("101", 100), ("-5", 0), ("0", 0), ("100", 100), (250, 100), (-1, 0)],
-)
-def test_load_clamps_the_int_parameters_silently(tolerant, conf, logger, stored, expected):
-	# Like pipeline's convert, which clamps an int setting to its bounds without a log.
+@pytest.mark.parametrize("stored", ["150", "101", "-5", "-1", 250, -1])
+def test_load_uses_the_default_for_a_stored_int_outside_the_bounds(tolerant, conf, logger, stored):
+	# An out-of-range value is invalid, not a request to approximate (decided by the user, 2026-11-05).
+	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": stored, "pitch": "61", "inflection": stored}
+	for _ in range(3):
+		assert tolerant.load(make_spec()) == dict(DEFAULTS, pitch=61)
+	assert logger.records == [
+		(
+			15,
+			f"WorldVoice: stored voice setting {name!r} of 'Fake:a' is invalid ({stored!r}); using its default 50",
+		)
+		for name in ("rate", "inflection")
+	]
+	assert conf["WorldVoice"]["voices"]["Fake:a"]["rate"] == stored
+
+
+@pytest.mark.parametrize("stored", ["0", "100", 0, 100])
+def test_load_keeps_the_bounds_of_the_int_parameters_without_a_log(tolerant, conf, logger, stored):
 	conf["WorldVoice"]["voices"]["Fake:a"] = {
 		name: stored for name in ("rate", "pitch", "volume", "inflection")
 	}
+	expected = int(stored)
 	assert tolerant.load(make_spec()) == dict(
 		DEFAULTS,
 		rate=expected,
