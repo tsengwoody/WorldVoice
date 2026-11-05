@@ -305,12 +305,13 @@ def test_the_detector_reads_the_drivers_number_language():
 	assert providers["number_language"]() == "main"
 
 
-def test_the_driver_gives_the_voice_settings_repository_a_conf_provider():
+def test_the_driver_gives_the_voice_settings_repository_a_conf_provider_and_nvda_log():
 	built = _construction_environment(None, [])
 	load_synth_class(built.environment)()
 	((args, kwargs),) = built.repositories
 	(provider,) = args
-	assert kwargs == {}
+	# NVDA's log, so an invalid stored voice value is reported in NVDA's log as a debug warning.
+	assert kwargs == {"logger": built.environment["nvdaLog"]}
 	config = built.environment["config"]
 	assert provider() is config.conf
 	config.conf = worldvoice_conf()

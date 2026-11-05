@@ -1,6 +1,7 @@
 import builtins
 
 import pytest
+from hypothesis import HealthCheck, given, settings, strategies as st
 from nvda_stubs import worldvoice_conf
 from runtime_harness import load_settings_repository, make_spec
 
@@ -55,6 +56,100 @@ def test_load_reads_the_legacy_empty_variant_as_default(repository, conf):
 	# WorldVoice 3.x stored "" for the default variant.
 	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "72", "variant": ""}
 	assert repository.load(make_spec()) == dict(DEFAULTS, rate=72)
+
+
+class RecordingLogger:
+	def __init__(self):
+		self.records = []
+
+	def log(self, level, message, *args):
+		self.records.append((level, message % args))
+
+
+@pytest.fixture
+def logger():
+	return RecordingLogger()
+
+
+@pytest.fixture
+def tolerant(monkeypatch, rt, conf, logger):
+	module = load_settings_repository(monkeypatch, rt)
+	return module.ConfigVoiceSettingsRepository(lambda: conf, logger=logger)
+
+
+@pytest.mark.parametrize("stored", ["abc", "", "50.0", "1e2", ["1", "2"]])
+def test_load_uses_the_default_for_a_stored_value_int_refuses(tolerant, conf, logger, stored):
+	# "50.0" is refused like pipeline's int convert and NVDA's integer validator refuse it;
+	# a list is what configobj makes of "rate = 1, 2".
+	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": stored, "pitch": "61", "variant": "bright"}
+	assert tolerant.load(make_spec()) == dict(DEFAULTS, pitch=61, variant="bright")
+	assert logger.records == [
+		(
+			15,
+			f"WorldVoice: stored voice setting 'rate' of 'Fake:a' is invalid ({stored!r}); using its default 50",
+		),
+	]
+
+
+def test_load_leaves_an_invalid_stored_value_in_the_config(tolerant, conf):
+	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "abc"}
+	tolerant.load(make_spec())
+	assert conf["WorldVoice"]["voices"]["Fake:a"] == {"rate": "abc"}
+
+
+def test_each_invalid_stored_value_is_reported_once(tolerant, conf, logger):
+	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "abc", "volume": "x"}
+	for _ in range(3):
+		assert tolerant.load(make_spec()) == DEFAULTS
+	assert [message.split(" is ")[0] for _, message in logger.records] == [
+		"WorldVoice: stored voice setting 'rate' of 'Fake:a'",
+		"WorldVoice: stored voice setting 'volume' of 'Fake:a'",
+	]
+	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "xyz"}
+	conf["WorldVoice"]["voices"]["Fake:b"] = {"rate": "abc"}
+	tolerant.load(make_spec())
+	tolerant.load(make_spec("Fake:b"))
+	assert len(logger.records) == 4
+
+
+@pytest.mark.parametrize(
+	("stored", "expected"),
+	[("150", 100), ("101", 100), ("-5", 0), ("0", 0), ("100", 100), (250, 100), (-1, 0)],
+)
+def test_load_clamps_the_int_parameters_silently(tolerant, conf, logger, stored, expected):
+	# Like pipeline's convert, which clamps an int setting to its bounds without a log.
+	conf["WorldVoice"]["voices"]["Fake:a"] = {
+		name: stored for name in ("rate", "pitch", "volume", "inflection")
+	}
+	assert tolerant.load(make_spec()) == dict(
+		DEFAULTS,
+		rate=expected,
+		pitch=expected,
+		volume=expected,
+		inflection=expected,
+	)
+	assert logger.records == []
+
+
+def test_the_default_logger_is_the_modules_stdlib_logger(repository, conf, caplog):
+	conf["WorldVoice"]["voices"]["Fake:a"] = {"pitch": "high"}
+	with caplog.at_level(15):
+		assert repository.load(make_spec()) == DEFAULTS
+	assert [(record.levelno, record.name.rsplit(".", 1)[-1]) for record in caplog.records] == [
+		(15, "settingsRepository"),
+	]
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(st.dictionaries(st.sampled_from(list(DEFAULTS)), st.text() | st.integers() | st.none()))
+def test_load_never_raises_and_keeps_ints_in_range(tolerant, conf, stored):
+	# Each example replaces the voice's section, so the shared fixtures carry nothing over.
+	conf["WorldVoice"]["voices"]["Fake:a"] = stored
+	values = tolerant.load(make_spec())
+	assert set(values) == set(DEFAULTS)
+	assert all(0 <= values[name] <= 100 for name in ("rate", "pitch", "volume", "inflection"))
+	assert isinstance(values["variant"], str) and values["variant"] != ""
+	assert isinstance(values["rateBoost"], bool)
 
 
 def test_save_converts_six_values_and_does_not_add_waitfactor(repository, conf):
