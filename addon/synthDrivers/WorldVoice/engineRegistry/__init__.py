@@ -12,6 +12,7 @@ from logHandler import log
 
 from ..workspace import workspace_path
 from .discovery import (
+	EngineSpec,
 	coerce_bool,
 	discover_engine_specs,
 	get_engine_enabled as _get_engine_enabled,
@@ -43,7 +44,7 @@ def ready_engine_classes(engine_config) -> dict[str, type]:
 	return load_enabled_engine_classes(list(ENGINE_SPECS), engine_config, logger=log)
 
 
-def available_engine_specs() -> tuple:
+def available_engine_specs() -> tuple[EngineSpec, ...]:
 	"""The discovered engines whose ready check passes, enabled or not, in discovery order.
 
 	Not cached: each call asks every engine again (each module imports once per process), so an
