@@ -8,7 +8,7 @@ import core
 import gui
 import queueHandler
 import wx
-from synthDrivers.WorldVoice.engineRegistry import ENGINE_SPECS, get_engine_enabled
+from synthDrivers.WorldVoice.engineRegistry import available_engine_specs, get_engine_enabled
 
 from .base import BaseSettingsPanel
 
@@ -35,16 +35,17 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 		)
 		sizer.Add(groupSizer, proportion=1, flag=wx.EXPAND)
 
+		# An engine that cannot load gets no checkbox; its stored flag is left as it is.
+		available = available_engine_specs()
 		self.settings = OrderedDict(
-			{eng.name: {"label": eng.label, "default": eng.default_enabled} for eng in ENGINE_SPECS},
+			{eng.name: {"label": eng.label, "default": eng.default_enabled} for eng in available},
 		)
 
 		super().makeSettings(groupSizer)
 
+		# Hidden engines are left out, so one still enabled never prompts a restart.
 		self.previousActiveEngine = {
-			eng.name
-			for eng in ENGINE_SPECS
-			if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
+			eng.name for eng in available if get_engine_enabled(eng.name, config.conf["WorldVoice"]["engine"])
 		}
 
 	def isValid(self) -> bool:
@@ -53,7 +54,8 @@ class SpeechEngineSettingsPanel(BaseSettingsPanel):
 			if getattr(self, k + "CheckBox").IsChecked():
 				self.activeEngine.add(k)
 
-		if len(self.activeEngine) == 0:
+		# With no engine available there is nothing to enable, and nothing is saved.
+		if not self.activeEngine and self.settings:
 			gui.messageBox(
 				# Translators: The message displayed
 				_("Changes to speech-engine settings can’t be saved because no speech engine is enabled."),

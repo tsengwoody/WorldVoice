@@ -771,9 +771,10 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 	``env.panels.<name>`` is each panel module of PANEL_MODULES, where a test replaces a name the
 	panel looks up. conf defaults to a fresh WorldVoice profile plus an empty speech section;
 	synth is what getSynth returns (``env.current[0]`` changes it later). engines are (name,
-	label, default) for ENGINE_SPECS, and get_engine_enabled reads the stored flag. The pipeline
-	log service and its prompts are recorded in ``env.log_calls``; tests replace
-	RolePanelPresenter on ``env.panels.role``.
+	label, default) for ENGINE_SPECS; available_engine_specs leaves out the names in
+	``env.unavailable_engines``, and get_engine_enabled reads the stored flag. The pipeline log
+	service and its prompts are recorded in ``env.log_calls``; tests replace RolePanelPresenter on
+	``env.panels.role``.
 	"""
 	env = gui_stubs(monkeypatch, answers=answers)
 	stubs = env.stubs
@@ -821,9 +822,14 @@ def load_settings_dialog(monkeypatch, *, conf=None, synth=None, engines=(), answ
 		(spec,) = [spec for spec in env.engine_specs if spec.name == name]
 		return discovery.get_engine_enabled(section, spec)
 
+	# A test names the engines whose ready check fails; the panel lists only the others.
+	env.unavailable_engines = set()
 	stubs.module(
 		"synthDrivers.WorldVoice.engineRegistry",
 		ENGINE_SPECS=env.engine_specs,
+		available_engine_specs=lambda: tuple(
+			spec for spec in env.engine_specs if spec.name not in env.unavailable_engines
+		),
 		get_engine_enabled=get_engine_enabled,
 	)
 	stubs.module("synthDrivers.WorldVoice.pipeline.registry").LOG_SWITCHES = tuple(LOG_SWITCH_ORDER)

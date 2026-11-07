@@ -412,9 +412,11 @@ def test_pipeline_panel_saved_unchanged_keeps_the_stored_settings(monkeypatch):
 ENGINES = (("OneCore", "OneCore voices", True), ("SAPI5", "SAPI5 voices", False), ("VE", "Vocalizer", False))
 
 
-def engine_env(monkeypatch, stored, answers=None):
+def engine_env(monkeypatch, stored, answers=None, unavailable=()):
 	conf = {**worldvoice_conf(engine=stored), "speech": {"WorldVoice": {}}}
-	return load_settings_dialog(monkeypatch, conf=conf, engines=ENGINES, answers=answers)
+	env = load_settings_dialog(monkeypatch, conf=conf, engines=ENGINES, answers=answers)
+	env.unavailable_engines = set(unavailable)
+	return env
 
 
 def test_engine_panel_lists_every_engine_with_its_stored_flag(monkeypatch):
@@ -476,6 +478,54 @@ def test_engine_panel_change_confirmed_saves_and_restarts(monkeypatch):
 	assert env.conf["WorldVoice"]["engine"] == {"OneCore": True, "SAPI5": False, "VE": True}
 	assert env.popped == ["save configuration"]
 	assert env.queued == [("event queue", env.restart)]
+
+
+# Spec 2026-11-07-hide-unavailable-engines: an engine that cannot load has no checkbox at all.
+
+
+def test_engine_panel_hides_an_unavailable_engine(monkeypatch):
+	env = engine_env(monkeypatch, {"VE": True}, unavailable={"VE"})
+	panel, sizer = build(env, "SpeechEngineSettingsPanel")
+	assert [box.label for box in sizer.items[1].item.controls()] == ["OneCore voices", "SAPI5 voices"]
+	assert not hasattr(panel, "VECheckBox")
+	assert list(panel.settings) == ["OneCore", "SAPI5"]
+	# Still on in the stored config, but hidden: not counted, so OK alone never asks to restart.
+	assert panel.previousActiveEngine == {"OneCore"}
+
+
+def test_engine_panel_keeps_a_hidden_engine_flag_on_save(monkeypatch):
+	# Stored as a string: a write of the hidden engine's flag would turn it into True.
+	env = engine_env(monkeypatch, {"VE": "True"}, answers=[0x2], unavailable={"VE"})  # wx.YES
+	panel, _sizer = build(env, "SpeechEngineSettingsPanel")
+	assert panel.isValid() is True
+	panel.onSave()
+	assert env.shown == []
+	assert env.conf["WorldVoice"]["engine"] == {"VE": "True"}
+	assert env.queued == []
+
+	panel.SAPI5CheckBox.SetValue(True)
+	assert panel.isValid() is True
+	panel.onSave()
+	assert env.conf["WorldVoice"]["engine"] == {"OneCore": True, "SAPI5": True, "VE": "True"}
+
+
+def test_engine_panel_refuses_when_only_a_hidden_engine_is_enabled(monkeypatch):
+	env = engine_env(monkeypatch, {"VE": True}, unavailable={"VE"})
+	panel, _sizer = build(env, "SpeechEngineSettingsPanel")
+	panel.OneCoreCheckBox.SetValue(False)
+	assert panel.isValid() is False
+	assert [caption for _message, caption, _style in env.shown] == ["No Speech Engine Enabled"]
+
+
+def test_engine_panel_without_available_engines_saves_without_asking(monkeypatch):
+	env = engine_env(monkeypatch, {"VE": True}, unavailable={"OneCore", "SAPI5", "VE"})
+	panel, sizer = build(env, "SpeechEngineSettingsPanel")
+	assert sizer.items[1].item.controls() == []
+	assert panel.isValid() is True
+	panel.onSave()
+	assert env.shown == []
+	assert env.conf["WorldVoice"]["engine"] == {"VE": True}
+	assert env.queued == []
 
 
 # LogSettingsPanel
