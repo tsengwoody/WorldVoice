@@ -157,6 +157,68 @@ def _pre_rename_contract_names(voice: Any) -> list[str]:
 	return [name for name in PRE_RENAME_CONTRACT_NAMES if hasattr(voice, name)]
 
 
+def load_engine_class(spec: EngineSpec, logger: Any = None) -> type | None:
+	"""The spec's Voice class if it imports, matches the spec and is ready, else None.
+
+	The enabled flag is not read here. Never raises: a failure is logged and gives None.
+	"""
+	logger = logger or _LOG
+	with timed(logger, f"ready check {spec.name} total"):
+		try:
+			with timed(logger, f"ready check {spec.name} module import"):
+				module = _load_module(spec.module_name, spec.import_root)
+			with timed(logger, f"ready check {spec.name} Voice lookup"):
+				voice = getattr(module, "Voice", None)
+			if voice is None:
+				logger.warning("Skipping %s engine candidate: Voice export missing", spec.name)
+				return None
+			voice_engine = getattr(voice, "engine", None)
+			if voice_engine is not None and voice_engine != spec.name:
+				logger.warning(
+					"Skipping %s engine candidate: Voice.engine mismatch (%s)",
+					spec.name,
+					voice_engine,
+				)
+				return None
+			stale = _pre_rename_contract_names(voice)
+			# A workspace engine is a plugin its author updates; a bundled one is WorldVoice's own.
+			owner, remedy = (
+				("plugin", "update the plugin")
+				if spec.source == "external"
+				else ("bundled engine", "update WorldVoice")
+			)
+			if stale == [MAPPED_CONTRACT_NAME]:
+				new_name = PRE_RENAME_CONTRACT_NAMES[MAPPED_CONTRACT_NAME]
+				# A plugin that also sets the new name supports both contracts; the new one wins.
+				if not getattr(voice, new_name, None):
+					setattr(voice, new_name, getattr(voice, MAPPED_CONTRACT_NAME))
+					logger.warning(
+						"Mapping %s engine candidate's pre-rename contract name %s onto %s for now; %s",
+						spec.name,
+						MAPPED_CONTRACT_NAME,
+						new_name,
+						remedy,
+					)
+				stale = []
+			if stale:
+				logger.error(
+					"Skipping %s engine candidate: %s uses the pre-rename contract name(s) %s; %s",
+					spec.name,
+					owner,
+					", ".join(f"{name} (now {PRE_RENAME_CONTRACT_NAMES[name]})" for name in stale),
+					remedy,
+				)
+				return None
+			with timed(logger, f"ready check {spec.name} voice.ready"):
+				is_ready = voice.ready()
+			if not is_ready:
+				return None
+			return voice
+		except Exception as error:  # noqa: BLE001 - one engine failing to load is logged and skipped
+			logger.error("Failed to load ready state for %s: %s", spec.name, error)
+			return None
+
+
 def load_enabled_engine_classes(
 	engine_specs: list[EngineSpec],
 	engine_config: dict[str, Any],
@@ -167,59 +229,9 @@ def load_enabled_engine_classes(
 	for spec in engine_specs:
 		if not get_engine_enabled(engine_config, spec):
 			continue
-		with timed(logger, f"ready check {spec.name} total"):
-			try:
-				with timed(logger, f"ready check {spec.name} module import"):
-					module = _load_module(spec.module_name, spec.import_root)
-				with timed(logger, f"ready check {spec.name} Voice lookup"):
-					voice = getattr(module, "Voice", None)
-				if voice is None:
-					logger.warning("Skipping %s engine candidate: Voice export missing", spec.name)
-					continue
-				voice_engine = getattr(voice, "engine", None)
-				if voice_engine is not None and voice_engine != spec.name:
-					logger.warning(
-						"Skipping %s engine candidate: Voice.engine mismatch (%s)",
-						spec.name,
-						voice_engine,
-					)
-					continue
-				stale = _pre_rename_contract_names(voice)
-				# A workspace engine is a plugin its author updates; a bundled one is WorldVoice's own.
-				owner, remedy = (
-					("plugin", "update the plugin")
-					if spec.source == "external"
-					else ("bundled engine", "update WorldVoice")
-				)
-				if stale == [MAPPED_CONTRACT_NAME]:
-					new_name = PRE_RENAME_CONTRACT_NAMES[MAPPED_CONTRACT_NAME]
-					# A plugin that also sets the new name supports both contracts; the new one wins.
-					if not getattr(voice, new_name, None):
-						setattr(voice, new_name, getattr(voice, MAPPED_CONTRACT_NAME))
-						logger.warning(
-							"Mapping %s engine candidate's pre-rename contract name %s onto %s for now; %s",
-							spec.name,
-							MAPPED_CONTRACT_NAME,
-							new_name,
-							remedy,
-						)
-					stale = []
-				if stale:
-					logger.error(
-						"Skipping %s engine candidate: %s uses the pre-rename contract name(s) %s; %s",
-						spec.name,
-						owner,
-						", ".join(f"{name} (now {PRE_RENAME_CONTRACT_NAMES[name]})" for name in stale),
-						remedy,
-					)
-					continue
-				with timed(logger, f"ready check {spec.name} voice.ready"):
-					is_ready = voice.ready()
-				if not is_ready:
-					continue
-				ready[spec.name] = voice
-			except Exception as error:  # noqa: BLE001 - one engine failing to load is logged and skipped
-				logger.error("Failed to load ready state for %s: %s", spec.name, error)
+		voice = load_engine_class(spec, logger=logger)
+		if voice is not None:
+			ready[spec.name] = voice
 	return ready
 
 

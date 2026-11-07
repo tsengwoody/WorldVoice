@@ -359,3 +359,45 @@ def test_old_contract_names_are_listed_together_and_inherited_ones_count(discove
 	assert [message for level, message in log.lines if level == "error"] == [
 		STALE_BUNDLED.format("drain_profile (now drainProfile), create_core (now createCore)"),
 	]
+
+
+def test_load_engine_class_returns_the_ready_voice_whatever_the_flag(discovery, monkeypatch, tmp_path):
+	ready = type("Voice", (), {"engine": "Off", "ready": classmethod(lambda cls: True)})
+	engine_module(monkeypatch, "fake_off_ready", ready)
+	log = Log()
+	off = spec(discovery, "Off", "fake_off_ready", tmp_path, enabled=False)
+	assert discovery.load_engine_class(off, logger=log) is ready
+	# Only the four timing lines: module import, Voice lookup, voice.ready and total.
+	assert [level for level, _message in log.lines] == ["debug"] * 4
+
+
+def _divide_by_zero(cls):
+	return 1 / 0
+
+
+@pytest.mark.parametrize(
+	("voice", "line"),
+	[
+		pytest.param(None, ("warning", "Skipping X engine candidate: Voice export missing"), id="no-voice"),
+		pytest.param(
+			type("Voice", (), {"engine": "Y", "ready": classmethod(lambda cls: True)}),
+			("warning", "Skipping X engine candidate: Voice.engine mismatch (Y)"),
+			id="mismatch",
+		),
+		pytest.param(
+			type("Voice", (), {"engine": "X", "ready": classmethod(lambda cls: False)}),
+			None,
+			id="unready",
+		),
+		pytest.param(
+			type("Voice", (), {"engine": "X", "ready": classmethod(_divide_by_zero)}),
+			("error", "Failed to load ready state for X: division by zero"),
+			id="raises",
+		),
+	],
+)
+def test_load_engine_class_gives_none_for_each_failure(discovery, monkeypatch, tmp_path, voice, line):
+	engine_module(monkeypatch, "fake_x", voice)
+	log = Log()
+	assert discovery.load_engine_class(spec(discovery, "X", "fake_x", tmp_path), logger=log) is None
+	assert [entry for entry in log.lines if entry[0] != "debug"] == ([line] if line else [])
