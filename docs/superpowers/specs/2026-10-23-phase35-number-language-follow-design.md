@@ -208,7 +208,7 @@ Rules that stay (decided earlier and kept):
 
 ### 6.3 Detector
 
-- `_language_for_character` (`detection:135-143`): replace the digit branch with `if character.isdecimal(): return current_language`. The branch must stay: many Nd digits are not Common script (Arabic-Indic and Extended Arabic-Indic are Arabic; Devanagari, Bengali, Thai, Myanmar and others carry their own scripts, checked against `script_data.py`). Without the branch, `abc ١٢٣` would switch to an Arabic voice.
+- `_language_for_character` (`detection:135-143`): replace the digit branch with `if character.isdecimal(): return current_language`. The branch must stay: many Nd digits are not Common script (Arabic-Indic and Extended Arabic-Indic are Arabic; Devanagari, Bengali, Thai, Myanmar and others carry their own scripts, checked against `script_data.py`). ~~Without the branch, `abc ١٢٣` would switch to an Arabic voice.~~ Corrected by `fix/script-digit-language`: under "Follow surrounding text language" a digit with a script now follows the letter rule, so `abc ١٢٣` switches to Arabic when an Arabic voice is installed; the branch stays for "main" and locales.
 - The `ignore_numbers` read and the `base_language` use for digits go.
 - `process_for_spelling` (`detection:178`): `isdigit()` becomes `isdecimal()` and the digit rule of §5 applies.
 
