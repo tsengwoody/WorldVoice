@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '7.0'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
-"POT-Creation-Date: 2026-10-30 07:41+0000\n"
+"POT-Creation-Date: 2026-11-07 23:10+0000\n"
 "PO-Revision-Date: 2026-10-30 15:55+0800\n"
 "Last-Translator: Alan <alanzhangmw@outlook.com>\n"
 "Language-Team: \n"
@@ -223,18 +223,18 @@ msgid "Select Speech Engines to Enable"
 msgstr "选择要启用的语音引擎"
 
 #. Translators: The message displayed
-#: addon/globalPlugins/WorldVoice/panels/engine.py:59
+#: addon/globalPlugins/WorldVoice/panels/engine.py:61
 msgid ""
 "Changes to speech-engine settings can’t be saved because no speech engine is "
 "enabled."
 msgstr "无法保存对语音引擎设置的更改，因为未启用语音引擎。"
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/panels/engine.py:61
+#: addon/globalPlugins/WorldVoice/panels/engine.py:63
 msgid "No Speech Engine Enabled"
 msgstr "未启用语音引擎"
 
-#: addon/globalPlugins/WorldVoice/panels/engine.py:70
+#: addon/globalPlugins/WorldVoice/panels/engine.py:72
 msgid ""
 "To enable or disable the speech engine, NVDA needs to save your "
 "configuration and restart. Would you like to restart now?"
@@ -242,7 +242,7 @@ msgstr ""
 "要启用或禁用语音引擎，NVDA 需要保存你的配置并重新启动。你要立即重新启动吗？"
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/panels/engine.py:73
+#: addon/globalPlugins/WorldVoice/panels/engine.py:75
 msgid "Speech Engine Change"
 msgstr "语音引擎更改"
 
@@ -337,7 +337,7 @@ msgstr "引擎(&E)"
 msgid "Detect language based on Unicode characters"
 msgstr "根据 Unicode 字符检测语言"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:471
+#: addon/synthDrivers/WorldVoice/__init__.py:473
 msgid "default"
 msgstr "默认"
 
@@ -352,126 +352,133 @@ msgid "Only WorldVoice Synthesizer"
 msgstr "仅 WorldVoice 合成器"
 
 #. Translators: A number mode: numbers are left as they are.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:45
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:50
 msgid "off"
 msgstr "不处理"
 
 #. Translators: A number mode: a number is read as a value, for example "one hundred twenty-three".
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:47
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:52
 msgid "value"
 msgstr "数值"
 
 #. Translators: A number mode: the digits of a number are read one by one.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:49
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:54
 msgid "number"
 msgstr "数字"
 
-#. Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:51
-msgid "group"
-msgstr "分组"
-
 #. Translators: A number language choice: numbers are read in the language of the text around them.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:57
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
 msgid "Follow surrounding text language"
 msgstr "跟随上下文语言"
 
 #. Translators: A number language choice: numbers are read in the main language, the language the
 #. document marks or the main voice's language.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:63
 msgid "Follow main language"
 msgstr "跟随主要语言"
 
 #. Translators: Label for a pipeline setting in the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:149
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:153
 msgid "Effect scope"
 msgstr "作用范围"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:157
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:161
 msgid "Global wait factor"
 msgstr "全局停顿"
 
 #. Translators: Label for a pipeline setting in the voice settings panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:170
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:174
 msgid "Number &language"
 msgstr "数字语言(&L)"
 
 #. Translators: Label for a setting in synth settings ring; also the label of the setting's
 #. pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:173
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:177
 msgid "Number language"
 msgstr "数字语言"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:184
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:188
 msgid "Number &mode"
 msgstr "数字模式(&M)"
 
 #. Translators: Label for a setting in synth settings ring; also the label of the setting's
 #. pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:187
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:191
 msgid "Number mode"
 msgstr "数字模式"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:198
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:202
 msgid "Group size"
-msgstr "每组位数"
+msgstr "数字分组位数"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:215
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:219
 msgid "Number wait factor"
 msgstr "数字停顿"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:225
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:229
 msgid "Item wait factor"
 msgstr "语音序列停顿"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:234
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:238
 msgid "Say all wait factor"
 msgstr "全文朗读停顿"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:244
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:248
 msgid "Space wait factor between CJK and Southeast Asian characters"
 msgstr "中日文及东南亚文字间空格停顿"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:253
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:257
 msgid "Enable punctuation pause control"
 msgstr "启用标点停顿控制"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:255
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:259
 msgid "Punctuation pauses"
 msgstr "标点停顿控制"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:264
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:268
 msgid "Remove configured punctuation at pause points"
 msgstr "移除停顿位置的指定标点符号"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:266
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:270
 msgid "Remove punctuation at pause points"
 msgstr "移除停顿位置的标点符号"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:277
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:281
 msgid "Punctuation wait factor"
 msgstr "标点停顿"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:286
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:290
 msgid "Punctuation pause characters"
 msgstr "标点停顿字符"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:302
+msgid "Segment wait factor"
+msgstr "分段停顿"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel:
+#. the most characters spoken before a segment pause (0: no segments).
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:313
+msgid "Segment length"
+msgstr "分段字数"
 
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-on store
@@ -486,5 +493,7 @@ msgstr ""
 #. Brief changelog for this version
 #. Translators: what's new content for the add-on version to be shown in the add-on store
 #: buildVars.py:29
-msgid "Punctuation pauses, more number reading modes, and an Engine list to group voices by engine."
+msgid ""
+"Punctuation pauses, more number reading modes, and an Engine list to group "
+"voices by engine."
 msgstr "新增标点停顿、扩充数字模式，新增“引擎”层级，按引擎分组语音。"

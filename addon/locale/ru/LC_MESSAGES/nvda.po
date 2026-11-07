@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '7.0'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
-"POT-Creation-Date: 2026-10-30 07:41+0000\n"
+"POT-Creation-Date: 2026-11-07 23:10+0000\n"
 "PO-Revision-Date: 2026-10-30 10:41+0300\n"
 "Last-Translator: \n"
 "Language-Team: Russian translation team <nvda.ru>, Danil Kostenkov "
@@ -256,7 +256,7 @@ msgid "Select Speech Engines to Enable"
 msgstr "Выберите, какие речевые движки вы хотите включить"
 
 #. Translators: The message displayed
-#: addon/globalPlugins/WorldVoice/panels/engine.py:59
+#: addon/globalPlugins/WorldVoice/panels/engine.py:61
 msgid ""
 "Changes to speech-engine settings can’t be saved because no speech engine is "
 "enabled."
@@ -265,11 +265,11 @@ msgstr ""
 "речевой движок отключен."
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/panels/engine.py:61
+#: addon/globalPlugins/WorldVoice/panels/engine.py:63
 msgid "No Speech Engine Enabled"
 msgstr "Нет включённых речевых движков"
 
-#: addon/globalPlugins/WorldVoice/panels/engine.py:70
+#: addon/globalPlugins/WorldVoice/panels/engine.py:72
 msgid ""
 "To enable or disable the speech engine, NVDA needs to save your "
 "configuration and restart. Would you like to restart now?"
@@ -278,7 +278,7 @@ msgstr ""
 "конфигурацию и перезапустить NVDA. Хотите сделать это сейчас?"
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/panels/engine.py:73
+#: addon/globalPlugins/WorldVoice/panels/engine.py:75
 msgid "Speech Engine Change"
 msgstr "Изменение речевого движка"
 
@@ -373,7 +373,7 @@ msgstr "Дви&жок"
 msgid "Detect language based on Unicode characters"
 msgstr "Определять язык текста на основе символов Unicode"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:471
+#: addon/synthDrivers/WorldVoice/__init__.py:473
 msgid "default"
 msgstr "по умолчанию"
 
@@ -388,126 +388,133 @@ msgid "Only WorldVoice Synthesizer"
 msgstr "Только синтезатор WorldVoice"
 
 #. Translators: A number mode: numbers are left as they are.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:45
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:50
 msgid "off"
 msgstr "не обрабатывать"
 
 #. Translators: A number mode: a number is read as a value, for example "one hundred twenty-three".
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:47
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:52
 msgid "value"
 msgstr "целым числом"
 
 #. Translators: A number mode: the digits of a number are read one by one.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:49
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:54
 msgid "number"
 msgstr "по цифрам"
 
-#. Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:51
-msgid "group"
-msgstr "группами"
-
 #. Translators: A number language choice: numbers are read in the language of the text around them.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:57
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
 msgid "Follow surrounding text language"
 msgstr "Следовать языку окружающего текста"
 
 #. Translators: A number language choice: numbers are read in the main language, the language the
 #. document marks or the main voice's language.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:63
 msgid "Follow main language"
 msgstr "Следовать основному языку"
 
 #. Translators: Label for a pipeline setting in the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:149
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:153
 msgid "Effect scope"
 msgstr "Область применения"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:157
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:161
 msgid "Global wait factor"
 msgstr "Общая длительность пауз"
 
 #. Translators: Label for a pipeline setting in the voice settings panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:170
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:174
 msgid "Number &language"
 msgstr "&Язык чисел"
 
 #. Translators: Label for a setting in synth settings ring; also the label of the setting's
 #. pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:173
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:177
 msgid "Number language"
 msgstr "Язык чисел"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:184
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:188
 msgid "Number &mode"
 msgstr "&Режим проговаривания чисел"
 
 #. Translators: Label for a setting in synth settings ring; also the label of the setting's
 #. pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:187
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:191
 msgid "Number mode"
 msgstr "Режим проговаривания чисел"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:198
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:202
 msgid "Group size"
 msgstr "Размер группы"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:215
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:219
 msgid "Number wait factor"
 msgstr "Длительность пауз между цифрами"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:225
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:229
 msgid "Item wait factor"
 msgstr "Длительность пауз между элементами"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:234
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:238
 msgid "Say all wait factor"
 msgstr "Длительность пауз в режиме непрерывного чтения"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:244
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:248
 msgid "Space wait factor between CJK and Southeast Asian characters"
 msgstr "Длительность пауз на пробелах между символами CJK и Юго-Восточной Азии"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:253
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:257
 msgid "Enable punctuation pause control"
 msgstr "Включить управление паузами на знаках препинания"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:255
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:259
 msgid "Punctuation pauses"
 msgstr "Паузы на знаках препинания"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:264
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:268
 msgid "Remove configured punctuation at pause points"
 msgstr "Удалять указанные знаки препинания в местах пауз"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:266
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:270
 msgid "Remove punctuation at pause points"
 msgstr "Удалять знаки препинания в местах пауз"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:277
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:281
 msgid "Punctuation wait factor"
 msgstr "Длительность пауз на знаках препинания"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:286
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:290
 msgid "Punctuation pause characters"
 msgstr "Знаки препинания для пауз"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:302
+msgid "Segment wait factor"
+msgstr "Длительность пауз между сегментами"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel:
+#. the most characters spoken before a segment pause (0: no segments).
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:313
+msgid "Segment length"
+msgstr "Длина сегмента"
 
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-on store
@@ -523,5 +530,9 @@ msgstr ""
 #. Brief changelog for this version
 #. Translators: what's new content for the add-on version to be shown in the add-on store
 #: buildVars.py:29
-msgid "Punctuation pauses, more number reading modes, and an Engine list to group voices by engine."
-msgstr "Паузы на знаках препинания, больше режимов проговаривания чисел и список «Движок» для группировки голосов по движку."
+msgid ""
+"Punctuation pauses, more number reading modes, and an Engine list to group "
+"voices by engine."
+msgstr ""
+"Паузы на знаках препинания, больше режимов проговаривания чисел и список "
+"«Движок» для группировки голосов по движку."

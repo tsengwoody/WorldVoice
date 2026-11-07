@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '7.0'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
-"POT-Creation-Date: 2026-11-03 04:52+0000\n"
+"POT-Creation-Date: 2026-11-07 23:10+0000\n"
 "PO-Revision-Date: 2026-10-30 15:55+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -226,18 +226,18 @@ msgid "Select Speech Engines to Enable"
 msgstr "選擇要啟用的語音引擎"
 
 #. Translators: The message displayed
-#: addon/globalPlugins/WorldVoice/panels/engine.py:59
+#: addon/globalPlugins/WorldVoice/panels/engine.py:61
 msgid ""
 "Changes to speech-engine settings can’t be saved because no speech engine is "
 "enabled."
 msgstr "語音引擎設定變更將無法儲存，因為未啟用任何語音引擎。"
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/panels/engine.py:61
+#: addon/globalPlugins/WorldVoice/panels/engine.py:63
 msgid "No Speech Engine Enabled"
 msgstr "未啟用任何語音引擎"
 
-#: addon/globalPlugins/WorldVoice/panels/engine.py:70
+#: addon/globalPlugins/WorldVoice/panels/engine.py:72
 msgid ""
 "To enable or disable the speech engine, NVDA needs to save your "
 "configuration and restart. Would you like to restart now?"
@@ -245,7 +245,7 @@ msgstr ""
 "若要啟用或停用語音引擎，NVDA 需要先儲存設定並重新啟動。要立即重新啟動嗎？"
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/panels/engine.py:73
+#: addon/globalPlugins/WorldVoice/panels/engine.py:75
 msgid "Speech Engine Change"
 msgstr "語音引擎變更"
 
@@ -340,7 +340,7 @@ msgstr "引擎(&E)"
 msgid "Detect language based on Unicode characters"
 msgstr "根據 Unicode 字元偵測語言"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:471
+#: addon/synthDrivers/WorldVoice/__init__.py:473
 msgid "default"
 msgstr "預設"
 

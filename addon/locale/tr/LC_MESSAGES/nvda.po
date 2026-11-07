@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 'WorldVoice' '7.0'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
-"POT-Creation-Date: 2026-10-30 07:41+0000\n"
+"POT-Creation-Date: 2026-11-07 23:10+0000\n"
 "PO-Revision-Date: 2026-10-30 10:41+0300\n"
 "Last-Translator: Umut KORKMAZ <umutkork@gmail.com>\n"
 "Language-Team: Umut KORKMAZ <umutkork@gmail.com>\n"
@@ -230,7 +230,7 @@ msgid "Select Speech Engines to Enable"
 msgstr "Etkinleştirmek için konuşma motorlarını seçin"
 
 #. Translators: The message displayed
-#: addon/globalPlugins/WorldVoice/panels/engine.py:59
+#: addon/globalPlugins/WorldVoice/panels/engine.py:61
 msgid ""
 "Changes to speech-engine settings can’t be saved because no speech engine is "
 "enabled."
@@ -239,11 +239,11 @@ msgstr ""
 "kaydedilemiyor."
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/panels/engine.py:61
+#: addon/globalPlugins/WorldVoice/panels/engine.py:63
 msgid "No Speech Engine Enabled"
 msgstr "Konuşma Motoru Etkin Değil"
 
-#: addon/globalPlugins/WorldVoice/panels/engine.py:70
+#: addon/globalPlugins/WorldVoice/panels/engine.py:72
 msgid ""
 "To enable or disable the speech engine, NVDA needs to save your "
 "configuration and restart. Would you like to restart now?"
@@ -253,7 +253,7 @@ msgstr ""
 "başlatmak ister misiniz?"
 
 #. Translators: The title of the dialog
-#: addon/globalPlugins/WorldVoice/panels/engine.py:73
+#: addon/globalPlugins/WorldVoice/panels/engine.py:75
 msgid "Speech Engine Change"
 msgstr "Konuşma Motoru Değişikliği"
 
@@ -348,7 +348,7 @@ msgstr "Moto&r"
 msgid "Detect language based on Unicode characters"
 msgstr "Unicode karakterlere dayalı metin dilini tespit ed"
 
-#: addon/synthDrivers/WorldVoice/__init__.py:471
+#: addon/synthDrivers/WorldVoice/__init__.py:473
 msgid "default"
 msgstr "varsayılan"
 
@@ -363,126 +363,133 @@ msgid "Only WorldVoice Synthesizer"
 msgstr "Sadece WorldVoice sentezleyici"
 
 #. Translators: A number mode: numbers are left as they are.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:45
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:50
 msgid "off"
 msgstr "kapalı"
 
 #. Translators: A number mode: a number is read as a value, for example "one hundred twenty-three".
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:47
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:52
 msgid "value"
 msgstr "değer"
 
 #. Translators: A number mode: the digits of a number are read one by one.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:49
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:54
 msgid "number"
 msgstr "sayı"
 
-#. Translators: A number mode: the digits of a number are read in groups of the chosen size, counted from the left.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:51
-msgid "group"
-msgstr "grup"
-
 #. Translators: A number language choice: numbers are read in the language of the text around them.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:57
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
 msgid "Follow surrounding text language"
 msgstr "Çevredeki metnin dilini takip et"
 
 #. Translators: A number language choice: numbers are read in the main language, the language the
 #. document marks or the main voice's language.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:60
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:63
 msgid "Follow main language"
 msgstr "Ana dili takip et"
 
 #. Translators: Label for a pipeline setting in the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:149
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:153
 msgid "Effect scope"
 msgstr "Etki Kapsamı"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:157
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:161
 msgid "Global wait factor"
 msgstr "Global Bekleme Faktörü"
 
 #. Translators: Label for a pipeline setting in the voice settings panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:170
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:174
 msgid "Number &language"
 msgstr "Sayı &Dili"
 
 #. Translators: Label for a setting in synth settings ring; also the label of the setting's
 #. pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:173
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:177
 msgid "Number language"
 msgstr "Sayı Dili"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:184
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:188
 msgid "Number &mode"
 msgstr "Sayı &Modu"
 
 #. Translators: Label for a setting in synth settings ring; also the label of the setting's
 #. pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:187
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:191
 msgid "Number mode"
 msgstr "Sayı Modu"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:198
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:202
 msgid "Group size"
 msgstr "Grup boyutu"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:215
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:219
 msgid "Number wait factor"
 msgstr "Sayı bekleme faktörü"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:225
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:229
 msgid "Item wait factor"
 msgstr "Öğe bekleme faktörü"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:234
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:238
 msgid "Say all wait factor"
 msgstr "Tümünü oku bekleme faktörü"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:244
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:248
 msgid "Space wait factor between CJK and Southeast Asian characters"
 msgstr "CJK ve Güneydoğu Asya karakterleri arasındaki boşluk bekleme faktörü"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:253
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:257
 msgid "Enable punctuation pause control"
 msgstr "Noktalama duraklama kontrolünü etkinleştir"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:255
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:259
 msgid "Punctuation pauses"
 msgstr "Noktalama duraklamaları"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:264
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:268
 msgid "Remove configured punctuation at pause points"
 msgstr "Duraklama noktalarındaki belirtilen noktalama işaretlerini kaldır"
 
 #. Translators: Label for a setting in synth settings ring.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:266
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:270
 msgid "Remove punctuation at pause points"
 msgstr "Duraklama noktalarındaki noktalama işaretlerini kaldır"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
 #. also the label of the setting's pipeline log switch in the Log Record panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:277
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:281
 msgid "Punctuation wait factor"
 msgstr "Noktalama bekleme faktörü"
 
 #. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel.
-#: addon/synthDrivers/WorldVoice/pipeline/settings.py:286
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:290
 msgid "Punctuation pause characters"
 msgstr "Duraklama için noktalama karakterleri"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel;
+#. also the label of the setting's pipeline log switch in the Log Record panel.
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:302
+msgid "Segment wait factor"
+msgstr "Parça bekleme faktörü"
+
+#. Translators: Label for a pipeline setting in the voice settings panel and the Speech Pipeline panel:
+#. the most characters spoken before a segment pause (0: no segments).
+#: addon/synthDrivers/WorldVoice/pipeline/settings.py:313
+msgid "Segment length"
+msgstr "Parça uzunluğu"
 
 #. Add-on description
 #. Translators: Long description to be shown for this add-on on add-on information from add-on store
@@ -497,5 +504,9 @@ msgstr ""
 #. Brief changelog for this version
 #. Translators: what's new content for the add-on version to be shown in the add-on store
 #: buildVars.py:29
-msgid "Punctuation pauses, more number reading modes, and an Engine list to group voices by engine."
-msgstr "Noktalama duraklamaları, daha fazla sayı okuma modu ve sesleri motora göre gruplayan Motor listesi."
+msgid ""
+"Punctuation pauses, more number reading modes, and an Engine list to group "
+"voices by engine."
+msgstr ""
+"Noktalama duraklamaları, daha fazla sayı okuma modu ve sesleri motora göre "
+"gruplayan Motor listesi."
