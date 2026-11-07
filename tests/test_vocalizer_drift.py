@@ -4,7 +4,16 @@ import ast
 from pathlib import Path
 
 DRIVERS = Path(__file__).resolve().parents[1] / "addon/synthDrivers/WorldVoice/driver"
-ALLOWED = {"_PROFILE", "_ContextualVECallback._process", "SynthDriver._callbackAdmission", "Voice.variants"}
+ALLOWED = {
+	"_PROFILE",
+	"_ContextualVECallback._process",
+	"SynthDriver._callbackAdmission",
+	"Voice.variants",
+	# Each inner initialize loads its own DLLs from its own architecture folder.
+	"_nativeFiles",
+}
+# Cerence names its architecture folder from sys.maxsize, as its inner initialize does.
+CERENCE_ONLY = {"import:import sys"}
 
 
 def _definitions(source):
@@ -34,6 +43,8 @@ def test_cerence_differs_from_ve_only_where_allowed():
 	cerence = (DRIVERS / "Cerence/__init__.py").read_text(encoding="utf-8")
 	cerence = cerence.replace("Cerence", "VE").replace("ttsapi", "ve2")
 	left, right = _definitions(ve), _definitions(cerence)
+	assert CERENCE_ONLY <= right.keys()
+	right = {name: value for name, value in right.items() if name not in CERENCE_ONLY}
 	assert left.keys() == right.keys()
 	differing = {name for name in left if left[name] != right[name]}
 	assert differing == ALLOWED

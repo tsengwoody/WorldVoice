@@ -1,4 +1,6 @@
+import os
 import queue
+import sys
 import threading
 import weakref
 from contextlib import contextmanager
@@ -900,6 +902,24 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 			self._terminationDone.set()
 
 
+def _engineWorkspace():
+	"""WorldVoice-workspace/Cerence as the inner ttsapi.initialize derives it, not from workspace_path().
+
+	initialize takes NVDA's config directory as the folder nine levels above ttsapi/__init__.py;
+	following it keeps ready() and LoadLibrary on the same files.
+	"""
+	root = ttsapi.__file__
+	for _ in range(9):
+		root = os.path.dirname(root)
+	return os.path.join(root, "WorldVoice-workspace", "Cerence")
+
+
+def _nativeFiles():
+	"""The DLLs ttsapi.initialize loads, in its order (driver/Cerence/driver/ttsapi/__init__.py:82-91)."""
+	libDir = os.path.join(_engineWorkspace(), "lib", "x64" if sys.maxsize > 2**32 else "x32")
+	return [os.path.join(libDir, name) for name in ("ve.dll", "vplatform.dll")]
+
+
 class Voice(BaseVoice):
 	extraCapabilities = frozenset({"waitfactor", "variant"})
 	engine = "Cerence"
@@ -911,6 +931,18 @@ class Voice(BaseVoice):
 	# Unavailable variants already logged for this voice; replaced, never mutated, so the class
 	# default stays empty.
 	_warnedVariants = frozenset()
+
+	@classmethod
+	def ready(cls):
+		"""Whether the DLLs createCore loads are on disk; checks the files, never loads them.
+
+		Without one, createCore fails, so the engine is skipped at synth load and hidden in the
+		Speech Engine panel, with one log line naming the missing files.
+		"""
+		missing = [path for path in _nativeFiles() if not os.path.isfile(path)]
+		if missing:
+			log.info("WorldVoice %s engine is unavailable: missing %s", cls.engine, ", ".join(missing))
+		return not missing
 
 	def applyEngineSettings(self, core, snapshot):
 		instance = core.getVoiceInstance(snapshot.voice_id)

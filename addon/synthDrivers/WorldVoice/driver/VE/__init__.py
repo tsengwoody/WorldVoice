@@ -1,3 +1,4 @@
+import os
 import queue
 import threading
 import weakref
@@ -891,6 +892,27 @@ class SynthDriver(BaseSynthDriver, SegmentHostSpeaker):
 			self._terminationDone.set()
 
 
+def _engineWorkspace():
+	"""WorldVoice-workspace/VE as the inner ve2.initialize derives it, not from workspace_path().
+
+	initialize takes NVDA's config directory as the folder nine levels above ve2/__init__.py;
+	following it keeps ready() and LoadLibrary on the same files.
+	"""
+	root = ve2.__file__
+	for _ in range(9):
+		root = os.path.dirname(root)
+	return os.path.join(root, "WorldVoice-workspace", "VE")
+
+
+def _nativeFiles():
+	"""The DLLs ve2.initialize loads, in its order (driver/VE/driver/ve2/__init__.py:86-97).
+
+	Reads PROCESSOR_ARCHITECTURE as initialize does, so it raises KeyError where initialize would.
+	"""
+	libDir = os.path.join(_engineWorkspace(), "lib", os.environ["PROCESSOR_ARCHITECTURE"])
+	return [os.path.join(libDir, name) for name in ("msvcr110.dll", "ve.dll", "vplatform.dll")]
+
+
 class Voice(BaseVoice):
 	extraCapabilities = frozenset({"waitfactor", "variant"})
 	engine = "VE"
@@ -902,6 +924,18 @@ class Voice(BaseVoice):
 	# Unavailable variants already logged for this voice; replaced, never mutated, so the class
 	# default stays empty.
 	_warnedVariants = frozenset()
+
+	@classmethod
+	def ready(cls):
+		"""Whether the DLLs createCore loads are on disk; checks the files, never loads them.
+
+		Without one, createCore fails, so the engine is skipped at synth load and hidden in the
+		Speech Engine panel, with one log line naming the missing files.
+		"""
+		missing = [path for path in _nativeFiles() if not os.path.isfile(path)]
+		if missing:
+			log.info("WorldVoice %s engine is unavailable: missing %s", cls.engine, ", ".join(missing))
+		return not missing
 
 	def applyEngineSettings(self, core, snapshot):
 		instance = core.getVoiceInstance(snapshot.voice_id)
