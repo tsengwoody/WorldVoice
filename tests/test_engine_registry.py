@@ -8,6 +8,7 @@ internal driver is imported.
 
 import importlib
 import sys
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -96,3 +97,32 @@ def test_labels_and_defaults_come_from_the_manifest(engines):
 	assert module.get_engine_default_enabled(EXTERNAL) is True
 	assert module.get_engine_default_enabled("RHVoice") is False
 	assert module.get_engine_default_enabled("Gone") is False
+
+
+def test_available_engine_specs_keeps_ready_engines_in_order_enabled_or_not(engines, monkeypatch):
+	module = engines.module
+	external = module.ENGINE_SPEC_INDEX[EXTERNAL]
+	error = RuntimeError("boom")
+
+	def broken(cls):
+		raise error
+
+	voices = {
+		"Off": type("Voice", (), {"engine": "Off", "ready": classmethod(lambda cls: True)}),
+		"Unready": type("Voice", (), {"engine": "Unready", "ready": classmethod(lambda cls: False)}),
+		"Broken": type("Voice", (), {"engine": "Broken", "ready": classmethod(broken)}),
+	}
+	specs = {}
+	for name, voice in voices.items():
+		module_name = f"wv_registry_{name.lower()}"
+		monkeypatch.setitem(sys.modules, module_name, SimpleNamespace(Voice=voice))
+		specs[name] = replace(external, name=name, module_name=module_name, default_enabled=name != "Off")
+	monkeypatch.setattr(
+		module,
+		"ENGINE_SPECS",
+		(specs["Off"], specs["Unready"], specs["Broken"], external),
+	)
+
+	# Not cached: each call asks again, and the enabled flag plays no part.
+	assert module.available_engine_specs() == (specs["Off"], external)
+	assert engines.logged == [("error", "Failed to load ready state for %s: %s", "Broken", error)]

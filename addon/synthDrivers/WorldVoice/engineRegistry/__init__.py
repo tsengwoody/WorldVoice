@@ -16,6 +16,7 @@ from .discovery import (
 	discover_engine_specs,
 	get_engine_enabled as _get_engine_enabled,
 	load_enabled_engine_classes,
+	load_engine_class,
 )
 
 addonHandler.initTranslation()
@@ -40,6 +41,15 @@ ENGINE_SPEC_INDEX = {spec.name: spec for spec in ENGINE_SPECS}
 def ready_engine_classes(engine_config) -> dict[str, type]:
 	"""Load the enabled, ready Voice classes in discovery order."""
 	return load_enabled_engine_classes(list(ENGINE_SPECS), engine_config, logger=log)
+
+
+def available_engine_specs() -> tuple:
+	"""The discovered engines whose ready check passes, enabled or not, in discovery order.
+
+	Not cached: each call asks every engine again (each module imports once per process), so an
+	engine whose files come back is listed at the next call without restarting NVDA.
+	"""
+	return tuple(spec for spec in ENGINE_SPECS if load_engine_class(spec, logger=log) is not None)
 
 
 def get_engine_enabled(engine_name: str, engine_config) -> bool:
