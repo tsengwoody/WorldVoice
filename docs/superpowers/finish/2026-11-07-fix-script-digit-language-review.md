@@ -108,3 +108,10 @@ plan Task 1 Step 1 預告「`("lang","en")` 若和 stub 預設不同要記 Rulin
 ## 未在 Linux 驗證的項目
 
 spec §7.6 的 M1–M3（IBM 英文＋eSpeak 尼泊爾語朗讀 `२०८१`、拼讀 `२`、阿拉伯文語音下的 `abc ١٢٣`）需要在 Windows／NVDA 上做；IBM 驅動對天城文數字是跳過還是唸替代字元也沒有驗證。另外一個值得順手看的情境：若回報者有勾「主要語音引擎一致」而 eSpeak 的尼泊爾語音被隱藏，偵測器仍會把數字（和字母一樣）交給 `ne`，但 `get_voice_name_for_language` 會退回主要語音——這不是這個分支造成的，但會讓修正看起來沒效，回覆時可一併提醒。未打包。
+
+## 修正記錄
+
+- **M1（已修，`376cd59`）：** `readme:100` 的「若前面沒有同一種文字」改為「若目前的語言不使用這種文字書寫」，和 `:42` 的功能說明用同一種說法。
+- **M2（不修）：** 數位模式的符號名稱在偵測前命名，是 `master` 就有的限制，不在這個分支的範圍；新規則沒有讓它變差。spec §2.3 已記錄，使用者希望手冊保持簡潔，所以也不在手冊加說明。
+- **M3（只加測試，不改行為，`8c35693`）：** 在 `test_script_digits_go_to_their_scripts_language` 加 `script-then-common`（`["२1"]` → 整段 ne）與 `common-then-script`（`["1२"]` → en 再 ne），在 `test_spelling_script_digits` 加 `script-then-common`（`"२1"` → `[("२1","ne")]`；`"1२"` 已由 `mixed` 覆蓋）。這是 G2 逐字判斷的結果。另在暫時的 worktree 把「Common 數字改回基準語言／拼讀 locale」套進 detector，兩個 `script-then-common` 案例都失敗，確認測試抓得到這種改變。
+- **M4（不修）：** 每個序列讀兩次 `spoken` 是 spec D1 的刻意選擇（沿用偵測器已有的提供者，拼讀路徑原本也這樣讀），成本小，只記錄。
