@@ -442,6 +442,9 @@ MARKER = object()
 		(["abc １２３"], ["abc １２３"]),
 		# Decided by the user (2026-11-07, G2): a mixed-script number is read per character.
 		(["1२3"], ["1", ("lang", "ne"), "२3"]),
+		# A Common digit continues the run it is in, also one a script digit opened (review M3).
+		(["२1"], [("lang", "ne"), "२1"]),
+		(["1२"], ["1", ("lang", "ne"), "२"]),
 		([L("ne_NP"), "२०८१"], [("lang", "ne_NP"), "२०८१"]),
 		(["नेपाल", "२०८१"], [("lang", "ne"), "नेपाल", "२०८१"]),
 		(["२", MARKER, "०"], [("lang", "ne"), "२", MARKER, "०"]),
@@ -455,6 +458,8 @@ MARKER = object()
 		"ascii",
 		"full-width",
 		"mixed",
+		"script-then-common",
+		"common-then-script",
 		"covering-document-language",
 		"after-nepali-item",
 		"other-command-between",
@@ -583,10 +588,12 @@ def test_spelling_arabic_indic_digits_follow_the_number_language(env, number_lan
 		# Runs split only when the primary language changes, so "en" keeps the locale's run.
 		("en", "२", [("२", "en_US")]),
 		("default", "1२", [("1", "en_US"), ("२", "ne")]),
+		# A Common digit continues the run of the script digit before it (review M3).
+		("default", "२1", [("२1", "ne")]),
 		("default", "नेपाल५", [("नेपाल५", "ne")]),
 		("default", "२ ३", [("२", "ne"), (" ", "en_US"), ("३", "ne")]),
 	],
-	ids=["alone", "main", "locale", "mixed", "nepali-text", "space-between"],
+	ids=["alone", "main", "locale", "mixed", "script-then-common", "nepali-text", "space-between"],
 )
 def test_spelling_script_digits(env, number_language, text, expected):
 	detector = make_detector(env, ("en_US", "ne_NP"), number_language)
