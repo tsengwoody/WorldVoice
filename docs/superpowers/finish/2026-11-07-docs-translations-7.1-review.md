@@ -149,3 +149,13 @@ scratch clone 與 `.po` 比對檔都在 scratchpad，審閱結束後已刪除。
 3. readme 的群組標題：zh_CN「分段停顿设置」、ru「Паузы между сегментами」、uk「Паузи між сегментами」、en「Segment pause」。
 4. 英文 readme 新段落的措辭，例如「Cuts pauses into long text that has no pause in it」、「A letter is never separated from its combining marks」、「Script digits go to their script's language」、「Speech continues with invalid voice settings」。
 5. M1～M3 是否要修。
+
+## 修正記錄
+
+依 DEVELOPMENT_WORKFLOW §3.4 處理。三項都是 Minor，只改文件，因此沒有先寫會失敗的測試，也不做修正 review。
+
+- M1：已修，`ad6292b`。英文、ru、uk readme 第 49 行刪掉符號名稱的例子（"dot"／"dash"、"точка"／"дефис"、"крапка"／"дефіс"），採用審閱建議的句子，與 zh_TW 第 49 行一致。
+- M2：已修，`4b69144`。zh_CN readme 第 27 行「也只会使用」改為「并只会使用」，與 zh_TW 第 27 行一致。
+- M3：不修。zh_TW 自己也沒有照 NVDA zh_TW 介面的核取方塊名稱，而是改寫成「處理字元與符號時信任語音的語言」，zh_CN 是否改用 NVDA zh_CN 的「处理字符和标点时信任语音的语言」由使用者決定。列為未確認的用詞。
+
+修正後確認：六份 readme 仍為 144 行、逐行簽章與 zh_TW 相同；`cmp addon/doc/zh_TW/readme.md addon/doc/zh_HK/readme.md` 相同；`prek run --all-files` 全部 Passed。只改文件，依指示未重跑測試。
