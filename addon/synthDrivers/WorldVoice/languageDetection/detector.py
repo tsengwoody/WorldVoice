@@ -98,11 +98,9 @@ class LanguageDetector:
 			else:
 				yield command
 
-	def _spelling_language_for_digit(self, number_language, current_language, default_language):
-		"""The language a decimal digit is spelled in: the current one when it follows the text, the
-		spelling locale for "main", or the number language when it has a voice."""
-		if number_language == FOLLOW:
-			return current_language
+	def _spelling_language_for_digit(self, number_language, default_language):
+		"""The language a decimal digit is spelled in under "main" or a locale: the spelling locale for
+		"main", or the number language when it has a voice."""
 		if number_language != MAIN and primary_language(number_language) in self.available_languages:
 			return number_language
 		return default_language
@@ -116,23 +114,16 @@ class LanguageDetector:
 		for character in text:
 			if character.isspace():
 				target_language = default_language
-			elif character.isdecimal():
-				target_language = self._spelling_language_for_digit(
-					number_language,
+			elif character.isdecimal() and number_language != FOLLOW:
+				target_language = self._spelling_language_for_digit(number_language, default_language)
+			else:
+				# Under "Follow surrounding text language" a digit is spelled as detection reads it.
+				target_language = self._script_language(
+					character,
 					current_language,
 					default_language,
+					settings,
 				)
-			else:
-				script = get_script(ord(character))
-				if script in (None, "Common", "Inherited"):
-					target_language = current_language
-				else:
-					target_language = self.find_language_for_script(
-						script,
-						current_language,
-						settings,
-						base_language=default_language,
-					)
 
 			if primary_language(target_language) != primary_language(current_language):
 				if buffer:

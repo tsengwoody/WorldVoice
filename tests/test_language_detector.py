@@ -564,10 +564,33 @@ def test_spelling_reads_the_number_language_once_per_call(env):
 	assert reads == [1]
 
 
-@pytest.mark.parametrize("number_language", ["default", "main"])
-def test_spelling_keeps_arabic_indic_digits_in_a_latin_run(env, number_language):
+# Spelling reads a digit with a script by its script under "default" (spec fix/script-digit-language
+# D3), and in the spelling locale under "main".
+@pytest.mark.parametrize(
+	("number_language", "expected"),
+	[("default", [("abc", "en_US"), ("١٢", "ar")]), ("main", [("abc١٢", "en_US")])],
+)
+def test_spelling_arabic_indic_digits_follow_the_number_language(env, number_language, expected):
 	detector = make_detector(env, ("en_US", "ar"), number_language)
-	assert list(detector.process_for_spelling("abc١٢", "en_US")) == [("abc١٢", "en_US")]
+	assert list(detector.process_for_spelling("abc١٢", "en_US")) == expected
+
+
+@pytest.mark.parametrize(
+	("number_language", "text", "expected"),
+	[
+		("default", "२", [("२", "ne")]),
+		("main", "२", [("२", "en_US")]),
+		# Runs split only when the primary language changes, so "en" keeps the locale's run.
+		("en", "२", [("२", "en_US")]),
+		("default", "1२", [("1", "en_US"), ("२", "ne")]),
+		("default", "नेपाल५", [("नेपाल५", "ne")]),
+		("default", "२ ३", [("२", "ne"), (" ", "en_US"), ("३", "ne")]),
+	],
+	ids=["alone", "main", "locale", "mixed", "nepali-text", "space-between"],
+)
+def test_spelling_script_digits(env, number_language, text, expected):
+	detector = make_detector(env, ("en_US", "ne_NP"), number_language)
+	assert list(detector.process_for_spelling(text, "en_US")) == expected
 
 
 def test_language_commands_reset_the_base_language(env):
@@ -871,8 +894,11 @@ def test_property_spelling_digits_carry_the_number_language(env, scenario, text,
 		if not any(character.isdecimal() for character in part):
 			continue
 		if number_language == "default":
-			# A digit follows the run it is in, so it never opens one.
-			assert index == 0 or not part[0].isdecimal(), (text, runs)
+			# Only a digit with a script opens a run, in a language of its script
+			# (fix/script-digit-language D3); other digits follow the run they are in.
+			if index > 0 and part[0].isdecimal():
+				assert has_script(env, part[0]), (text, runs)
+				assert covers(env, scenario, language, env.module.get_script(ord(part[0]))), (text, runs)
 		elif number_language == "main" or primary(number_language) not in installed:
 			assert primary(language) == primary(base), (text, runs)
 		else:
