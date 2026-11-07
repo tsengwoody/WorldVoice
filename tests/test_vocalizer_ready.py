@@ -90,10 +90,15 @@ def test_ready_without_the_workspace_names_every_file(engine, monkeypatch):
 
 
 def test_ready_never_loads_a_library(engine, monkeypatch):
-	def load_library(path):
-		raise AssertionError(f"ready() loaded {path}")
+	def load_library(*args, **kwargs):
+		raise AssertionError(f"ready() loaded {args}")
 
-	monkeypatch.setattr(ctypes.cdll, "LoadLibrary", load_library)
+	# Every way ctypes opens a library: the loaders, the classes, and the primitive they share.
+	for loader in ("cdll", "pydll", "windll", "oledll"):
+		if hasattr(ctypes, loader):
+			monkeypatch.setattr(getattr(ctypes, loader), "LoadLibrary", load_library)
+	for name in ("CDLL", "PyDLL", "WinDLL", "OleDLL", "_dlopen"):
+		monkeypatch.setattr(ctypes, name, load_library, raising=False)
 	for present in (engine.paths, []):
 		_present(monkeypatch, present)
 		engine.module.Voice.ready()
