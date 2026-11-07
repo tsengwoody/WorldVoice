@@ -159,3 +159,11 @@ scratch clone 與 `.po` 比對檔都在 scratchpad，審閱結束後已刪除。
 - M3：不修。zh_TW 自己也沒有照 NVDA zh_TW 介面的核取方塊名稱，而是改寫成「處理字元與符號時信任語音的語言」，zh_CN 是否改用 NVDA zh_CN 的「处理字符和标点时信任语音的语言」由使用者決定。列為未確認的用詞。
 
 修正後確認：六份 readme 仍為 144 行、逐行簽章與 zh_TW 相同；`cmp addon/doc/zh_TW/readme.md addon/doc/zh_HK/readme.md` 相同；`prek run --all-files` 全部 Passed。只改文件，依指示未重跑測試。
+
+### M3 後續（2026-11-07，使用者決定）
+
+使用者要求各語言 readme 一律引用 NVDA 該語言 .po 的原文。英文、ru、uk 原本就相符；zh_TW、zh_HK、zh_CN 改為 NVDA 的翻譯（分支 `docs/nvda-trust-voice-label`）：
+
+- zh_TW：「處理字元及符號時依靠語音的語言」
+- zh_HK：「根據字符語言讓所屬語音進行處理」（NVDA zh_HK 的用詞和 zh_TW 不同，因此 zh_HK readme 這一行不再和 zh_TW 相同）
+- zh_CN：“处理字符和标点时信任语音的语言”（不含快速鍵 `(&T)`）
