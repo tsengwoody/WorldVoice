@@ -406,20 +406,113 @@ def test_mixed_scripts_switch_at_script_boundaries(env):
 	assert shape(env, result) == ["hello ", ("lang", "zh"), "中文 ", ("lang", "en_US"), "ok"]
 
 
-# Decimal digits of any script are not letters: many are not Common script (Arabic-Indic digits are
-# Arabic), so without their own rule they would switch the voice (phase 35 spec §6.3, F4).
+# Under "Follow surrounding text language" a decimal digit with a script (Arabic-Indic digits are
+# Arabic) follows the letter rule of its script; Common digits stay in the run (spec
+# fix/script-digit-language G1, decided by the user 2026-11-07, superseding phase 35 spec §6.3).
 @pytest.mark.parametrize(
 	("sequence", "expected"),
 	[
-		(["abc ١٢٣"], ["abc ١٢٣"]),
+		(["abc ١٢٣"], ["abc ", ("lang", "ar"), "١٢٣"]),
 		(["مرحبا ١٢٣"], [("lang", "ar"), "مرحبا ١٢٣"]),
 		(["中１２３"], [("lang", "zh"), "中１２３"]),
 	],
 	ids=["abc-arabic-indic", "arabic-arabic-indic", "han-full-width"],
 )
-def test_decimal_digits_never_switch_the_language(env, sequence, expected):
+def test_decimal_digits_follow_the_letter_rule_of_their_script(env, sequence, expected):
 	detector = make_detector(env, ("en_US", "zh_TW", "ar"))
 	assert shape(env, detector.add_detected_language_commands(sequence)) == expected
+
+
+NE = ("en_US", "ne_NP")
+# A command detection passes through as itself.
+MARKER = object()
+
+
+# The reported case (spec fix/script-digit-language §3): Devanagari digits with no Devanagari letter
+# before them go to Nepali, not to the English main voice.
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[
+		(["२०८१ साल"], [("lang", "ne"), "२०८१ साल"]),
+		(["२०८१"], [("lang", "ne"), "२०८१"]),
+		(["link", "२०८१"], ["link", ("lang", "ne"), "२०८१"]),
+		(["२०८१ link"], [("lang", "ne"), "२०८१ ", ("lang", "en_US"), "link"]),
+		(["नेपालमा ५० जिल्ला"], [("lang", "ne"), "नेपालमा ५० जिल्ला"]),
+		(["abc 123"], ["abc 123"]),
+		(["abc １２３"], ["abc １２３"]),
+		# Decided by the user (2026-11-07, G2): a mixed-script number is read per character.
+		(["1२3"], ["1", ("lang", "ne"), "२3"]),
+		([L("ne_NP"), "२०८१"], [("lang", "ne_NP"), "२०८१"]),
+		(["नेपाल", "२०८१"], [("lang", "ne"), "नेपाल", "२०८१"]),
+		(["२", MARKER, "०"], [("lang", "ne"), "२", MARKER, "०"]),
+	],
+	ids=[
+		"year-then-word",
+		"year-alone",
+		"after-english-item",
+		"back-to-english",
+		"nepali-text",
+		"ascii",
+		"full-width",
+		"mixed",
+		"covering-document-language",
+		"after-nepali-item",
+		"other-command-between",
+	],
+)
+def test_script_digits_go_to_their_scripts_language(env, sequence, expected):
+	assert detect(env, sequence, languages=NE, base="en_US") == expected
+
+
+def test_script_digits_without_a_voice_for_their_script_stay(env):
+	assert detect(env, ["२०८१"], languages=("en_US", "zh_TW"), base="en_US") == ["२०८१"]
+
+
+# "main" and a locale wrap every number before detection (detect_with_number_language): the digits
+# stay in the wrapper's language, and the rule reads the number language, not the wrapper.
+@pytest.mark.parametrize(
+	("number_language", "wrapped"),
+	[("main", True), ("en_US", True), ("main", False)],
+	ids=["main-wrapped", "locale-wrapped", "main-unwrapped"],
+)
+def test_other_number_languages_keep_digits_in_the_current_run(env, number_language, wrapped):
+	env.state.language = "en_US"
+	sequence = [env.WV("en_US"), "२०८१", env.WV("en_US")] if wrapped else ["२०८१"]
+	detector = make_detector(env, NE, number_language)
+	result = list(detector.add_detected_language_commands(sequence))
+	assert [
+		item for item in result if isinstance(item, env.WV) and all(item is not c for c in sequence)
+	] == []
+	assert "".join(item for item in result if isinstance(item, str)) == "२०८१"
+
+
+@pytest.mark.parametrize("assumed", ["ne", "hi"])
+def test_the_devanagari_assumed_language_picks_the_digit_language(env, assumed):
+	result = detect(env, ["२०८१"], languages=("en_US", "hi_IN", "ne_NP"), base="en_US", devanagari=assumed)
+	assert result == [("lang", assumed), "२०८१"]
+
+
+def test_a_script_digit_prefers_a_covering_base_language(env):
+	result = detect(
+		env,
+		[L("hi_IN"), "abc २"],
+		languages=("en_US", "hi_IN", "ne_NP"),
+		base="en_US",
+		devanagari="ne",
+	)
+	assert result == [("lang", "hi_IN"), ("lang", "en"), "abc ", ("lang", "hi_IN"), "२"]
+
+
+def test_detection_reads_the_number_language_once_per_sequence(env):
+	reads = []
+	detector = env.module.LanguageDetector(
+		list(NE),
+		settings=env.settings,
+		language=lambda: env.state.language,
+		number_language=lambda: reads.append(1) or "default",
+	)
+	list(detector.add_detected_language_commands(["१ a २", "३"]))
+	assert reads == [1]
 
 
 def test_superscripts_are_not_digits(env):
@@ -564,7 +657,9 @@ SCRIPT_SAMPLES = st.sampled_from(
 	["hello", " ", "中文", "日本語", "عربي", "123", ",", "é", "\U0001f600", "\n"]
 	+ ["漢字", "привет", "한국", "かな", "Ελληνικά", "12", "，", "नमस्ते"]
 	# Phase 35: decimal digits of other scripts, and characters that only look like digits.
-	+ ["١٢", "１２", "²", "①"],
+	+ ["١٢", "１２", "²", "①"]
+	# Devanagari digits, which go to a Devanagari language (fix/script-digit-language).
+	+ ["२०"],
 )
 TEXTS = st.lists(st.one_of(SCRIPT_SAMPLES, st.characters()), max_size=12).map("".join)
 VOICES = (
@@ -580,6 +675,7 @@ VOICES = (
 	"fr_FR",
 	"hi_IN",
 	"mr_IN",
+	"ne_NP",
 	"el_GR",
 )
 # Document languages: none, without a voice, hyphenated, a regional variant, primary only, unknown.
@@ -602,7 +698,7 @@ def scenarios(draw):
 			"latin": draw(st.sampled_from(["en", "fr", "de"])),
 			"arabic": draw(st.sampled_from(["ar", "fa"])),
 			"cyrillic": draw(st.sampled_from(["ru", "uk", "bg"])),
-			"devanagari": draw(st.sampled_from(["hi", "mr"])),
+			"devanagari": draw(st.sampled_from(["hi", "mr", "ne"])),
 		},
 		locale=draw(st.one_of(st.none(), st.sampled_from(COMMAND_LANGUAGES[1:] + tuple(installed)))),
 	)
@@ -615,8 +711,10 @@ def scenario_detector(env, scenario):
 	return make_detector(env, scenario.installed)
 
 
-def is_letter(env, character):
-	return not character.isdecimal() and env.module.get_script(ord(character)) not in (
+def has_script(env, character):
+	"""Whether detection reads character by its script under "Follow surrounding text language":
+	letters, and decimal digits of a script (fix/script-digit-language G1)."""
+	return env.module.get_script(ord(character)) not in (
 		None,
 		"Common",
 		"Inherited",
@@ -631,7 +729,7 @@ def covers(env, scenario, language, script):
 
 
 def spoken_letters(env, scenario, items, result):
-	"""Each letter of the output: its script, the language in effect, the base, and the language of
+	"""Each letter or script digit of the output: its script, the language in effect, the base, and the language of
 	the command detection inserted right before it (None if there is none)."""
 	given = [item for item in items if not isinstance(item, str)]
 	base = language = scenario.base
@@ -639,7 +737,7 @@ def spoken_letters(env, scenario, items, result):
 	for item in result:
 		if isinstance(item, str):
 			for character in item:
-				if is_letter(env, character):
+				if has_script(env, character):
 					yield env.module.get_script(ord(character)), language, base, inserted
 				inserted = None
 		elif not any(item is command for command in given):
@@ -715,16 +813,45 @@ def merge_texts(sequence):
 	return [item for item in merged if item != ""]
 
 
-# Phase 35 spec §11.4 item 4: digits never start a run that detection opens.
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-@given(scenario=scenarios(), items=ITEMS)
-def test_property_digits_never_start_a_detected_run(env, scenario, items):
-	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
+def runs_opened_by_digits(env, items, result):
+	"""(inserted language, first character) for each run detection opens with a decimal digit."""
 	given = [item for item in items if not isinstance(item, str)]
 	for command, following in pairwise(result):
 		inserted = isinstance(command, env.WV) and all(command is not item for item in given)
-		if inserted and isinstance(following, str):
-			assert not following[0].isdecimal(), (items, result)
+		if inserted and isinstance(following, str) and following[0].isdecimal():
+			yield command.lang, following[0]
+
+
+# Under "Follow surrounding text language" only a digit with a script opens a run, and only in a
+# language of that script (fix/script-digit-language G1, superseding phase 35 spec §11.4 item 4).
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(scenario=scenarios(), items=ITEMS)
+@example(scenario=plain_scenario(("en_US", "ne_NP"), "en_US"), items=["link", "२०८१ 12"])
+def test_property_only_script_digits_start_a_detected_run(env, scenario, items):
+	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
+	for language, digit in runs_opened_by_digits(env, items, result):
+		assert has_script(env, digit), (items, result)
+		assert covers(env, scenario, language, env.module.get_script(ord(digit))), (items, result)
+
+
+# "main" and a locale keep every digit in the run it is in (phase 35 spec §11.4 item 4).
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(scenario=scenarios(), items=ITEMS, number_language=st.sampled_from(("main", "en", "zh_TW", "fr")))
+@example(
+	scenario=plain_scenario(("en_US", "ne_NP"), "en_US"),
+	items=["link", "२०८१"],
+	number_language="main",
+)
+def test_property_digits_never_start_a_detected_run_under_other_number_languages(
+	env,
+	scenario,
+	items,
+	number_language,
+):
+	detector = scenario_detector(env, scenario)
+	detector._number_language = lambda: number_language
+	result = list(detector.add_detected_language_commands(items))
+	assert list(runs_opened_by_digits(env, items, result)) == [], (items, result)
 
 
 SPELLING_NUMBER_LANGUAGES = ("default", "main", "en", "zh_TW", "fr")

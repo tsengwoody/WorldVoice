@@ -13,7 +13,8 @@ class LanguageDetector:
 
 	def __init__(self, available_languages, *, settings, language, number_language=lambda: FOLLOW):
 		"""settings.get() returns the detection settings; language returns the synth's current language;
-		number_language returns the stored number language, which spelling follows."""
+		number_language returns the number language speech uses (the driver's spoken choice), which
+		decides how digits are detected and spelled."""
 		self._settings = settings
 		self._language = language
 		self._number_language = number_language
@@ -44,20 +45,29 @@ class LanguageDetector:
 				return candidate
 		return current_language
 
-	def _language_for_character(self, character, current_language, base_language, settings):
-		# A decimal digit of any script stays in the current run: the pipeline wraps a number for
-		# its number language. Many decimal digits are not Common script (Arabic-Indic ones are
-		# Arabic), so they need this rule.
-		if character.isdecimal():
-			return current_language
+	def _script_language(self, character, current_language, base_language, settings):
+		"""The language for character by its script; the current language for a character of no
+		script of its own (Common, Inherited or unknown)."""
 		script = get_script(ord(character))
 		if script in (None, "Common", "Inherited"):
 			return current_language
 		return self.find_language_for_script(script, current_language, settings, base_language=base_language)
 
+	def _language_for_character(self, character, current_language, base_language, settings, digits_by_script):
+		# "main" and a locale wrap every number in its number language before detection
+		# (pipeline.numberStages.detect_with_number_language), so a decimal digit of any script stays
+		# in the run. Under "Follow surrounding text language" (digits_by_script) a digit with a
+		# script, such as a Devanagari one, follows the letter rule of its script, as a voice of
+		# another script may not read it (spec fix/script-digit-language G1).
+		if character.isdecimal() and not digits_by_script:
+			return current_language
+		return self._script_language(character, current_language, base_language, settings)
+
 	def add_detected_language_commands(self, speech_sequence):
-		# Read the settings once, so the whole sequence is detected with the same values.
+		# Read the settings and the number language once, so the whole sequence is detected with the
+		# same values.
 		settings = self._settings.get()
+		digits_by_script = self._number_language() == FOLLOW
 		default_lang = self._language()
 		cur_lang = default_lang
 		tmp_lang = cur_lang
@@ -69,7 +79,13 @@ class LanguageDetector:
 			elif isinstance(command, str):
 				buffer = []
 				for c in command:
-					target_lang = self._language_for_character(c, tmp_lang, cur_lang, settings)
+					target_lang = self._language_for_character(
+						c,
+						tmp_lang,
+						cur_lang,
+						settings,
+						digits_by_script,
+					)
 					if primary_language(target_lang) != primary_language(tmp_lang):
 						if buffer:
 							yield "".join(buffer)
