@@ -208,10 +208,12 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 	synth._taskManager = RecordingTasks(ports)
 	synth._voiceManager = VoiceManager(ports)
 	synth._numberLanguageChoice = number_language_choice_class()(synth._voiceManager)
+	# Wired as the driver wires it: the detector reads the number language speech uses.
 	detector = modules.detection.LanguageDetector(
 		list(VOICES),
 		settings=detection_settings,
 		language=lambda: synth.language,
+		number_language=synth._numberLanguage,
 	)
 	synth._languageDetector = detector
 	synth.addDetectedLanguageCommands = pipeline.listable(synth._detectLanguages)
@@ -340,6 +342,8 @@ def test_pause_and_cancel_reach_the_runtime_until_the_synth_terminates(monkeypat
 # Which voice reads a number (phase 35). Every row was recorded on da7f791, before phase 35.
 
 EN, ZH = VOICES["en"], VOICES["zh"]
+# A Nepali voice, added by the tests of digits with a script (fix/script-digit-language).
+NE = "C:ne"
 L = LangChangeCommand
 
 
@@ -514,6 +518,42 @@ FOLLOW_ROWS = [
 @pytest.mark.parametrize(("sequence", "options", "expected"), FOLLOW_ROWS)
 def test_follow_language_numbers(monkeypatch, sequence, options, expected, timing):
 	assert speak_through_stages(monkeypatch, sequence, timing=timing, **FOLLOW, **options) == expected
+
+
+# Under "Follow surrounding text language" a Devanagari digit goes to the Nepali voice
+# (spec fix/script-digit-language §7.4).
+@TIMINGS
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[(["२०८१"], [(NE, "२०८१")]), (["link", "२०८१"], [(EN, "link"), (NE, "२०८१")])],
+	ids=["alone", "after-english-item"],
+)
+def test_follow_gives_script_digits_to_their_language(monkeypatch, sequence, expected, timing):
+	monkeypatch.setitem(VOICES, "ne", NE)
+	assert speak_through_stages(monkeypatch, sequence, numlan="default", timing=timing) == expected
+
+
+@TIMINGS
+def test_main_keeps_script_digits_in_the_main_voice(monkeypatch, timing):
+	monkeypatch.setitem(VOICES, "ne", NE)
+	assert speak_through_stages(monkeypatch, ["२०८१"], numlan="main", timing=timing) == [(EN, "२०८१")]
+
+
+@TIMINGS
+def test_a_hidden_number_language_reads_script_digits_as_follow(monkeypatch, timing):
+	# A stored locale that no offered voice speaks is spoken as "default" (NumberLanguageChoice.spoken).
+	monkeypatch.setitem(VOICES, "ne", NE)
+	monkeypatch.setattr(VoiceManager, "all_languages", ("en", "zh_TW", "ne"))
+	assert speak_through_stages(monkeypatch, ["२०८१"], numlan="ne", timing=timing) == [(NE, "२०८१")]
+
+
+@TIMINGS
+def test_digit_mode_names_the_symbol_before_detection(monkeypatch, timing):
+	# A known limitation (spec fix/script-digit-language §2.3): the symbol is named in the language
+	# in force before detection, which then reads the name by its own letters.
+	monkeypatch.setitem(VOICES, "ne", NE)
+	result = speak_through_stages(monkeypatch, ["५.५"], numlan="default", timing=timing, settings=NUMBER_MODE)
+	assert result == [(NE, "५ "), (EN, "full stop en "), (NE, "५")]
 
 
 OFF_ROWS = [
@@ -977,7 +1017,7 @@ def test_a_digit_in_a_symbol_name_takes_the_number_language_after_nvda(
 
 
 # Phase 35 spec §11.4 item 5: the voice of every decimal digit, end to end, per number language.
-SPOKEN_PIECES = st.lists(st.sampled_from(["abc", "中文", "12", "٣", "１", " "]), max_size=8).map("".join)
+SPOKEN_PIECES = st.lists(st.sampled_from(["abc", "中文", "12", "٣", "１", " ", "२"]), max_size=8).map("".join)
 
 
 def voice_of_each_character(result):
@@ -995,20 +1035,27 @@ def voice_of_each_character(result):
 @example(text="中文12", main="en", numlan="main")
 @example(text="abc 12", main="zh", numlan="zh_TW")
 @example(text="中文 12", main="en", numlan="default")
+@example(text="abc२ 12", main="en", numlan="default")
+@example(text="२", main="en", numlan="main")
 def test_property_each_digit_is_read_by_the_number_language_voice(monkeypatch, timing, text, main, numlan):
 	with monkeypatch.context() as patch:
+		patch.setitem(VOICES, "ne", NE)
 		result = speak_through_stages(patch, [text], numlan=numlan, main=main, timing=timing)
 	characters = voice_of_each_character(result)
 	assert "".join(character for character, _voice in characters) == text
 	main_voice = ZH if main == "zh" else EN
-	letter_voice = None
+	run_voice = None
 	for character, voice in characters:
 		if character.isalpha():
-			# Both voices are installed: Latin letters are English, Han characters Chinese.
-			letter_voice = voice
+			# Every voice is installed: Latin letters are English, Han characters Chinese.
+			run_voice = voice
+		elif character == "२" and numlan == "default":
+			# A Devanagari digit goes to the Nepali voice and opens its run (fix/script-digit-language).
+			assert voice == NE, (text, result)
+			run_voice = NE
 		elif character.isdecimal():
 			expected = {
-				"default": letter_voice or main_voice,
+				"default": run_voice or main_voice,
 				"main": main_voice,
 				"en": EN,
 				"zh_TW": ZH,
