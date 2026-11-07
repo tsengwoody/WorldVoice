@@ -12,7 +12,7 @@ Different types of digital content, such as language-learning material, mathemat
 * Configure rate, pitch, and volume independently for each speech role, so different languages can keep their own reading settings.
 * Switch number reading modes as needed, choosing whether numbers are read as values or digit by digit.
 * Adjust the pause lengths for numbers, items, punctuation, spaces in Chinese, Japanese and Southeast Asian text, and say all, so the reading rhythm better matches user preference.
-* Detect language automatically from Unicode characters, reducing the need to switch voices manually when reading multilingual content.
+* Detect the script of each character from Unicode and, where the script changes, switch automatically to the speech role of the matching language.
 
 ## Speech Roles
 
@@ -20,13 +20,13 @@ In the WorldVoice speech role settings panel, you can assign dedicated speech ro
 
 * After selecting a locale, the voice list shows the speech roles available for that locale. Selecting a speech role maps that locale to the speech role.
 * After selecting a speech role, each setting control in the panel is enabled or disabled according to the settings that role supports; settings it does not support cannot be adjusted.
-* After a speech role is selected, setting controls such as the rate, pitch, and volume sliders and the rate boost checkbox switch to that role's values. Changing a value affects only the currently selected speech role, not the settings of other speech roles.
+* After a speech role is selected, setting controls such as the rate, pitch, and volume sliders switch to that role's values. Changing a value affects only the currently selected speech role, not the settings of other speech roles.
 
 ### Consistency Settings
 
 * Keep main engine and locale engine consistent: When enabled, a locale speech role can only be chosen from the speech engine of the main speech role, and only locale speech roles of that engine are used. When the main speech role switches to another engine, the locale speech roles of the original engine are kept: those locales are read by the main speech role for the time being and show no selection in the speech role settings panel, and they take effect again when you switch back to the original engine. Pressing OK in the speech role settings panel changes only the locales you modified.
 * Keep main speech role and locale speech role consistent: When enabled, the main speech role stays the same as the speech role of the locale of its language (for example, a Chinese voice corresponds to the zh locale and an English voice to the en locale). When you change the main speech role in the NVDA voice settings panel, that locale's speech role changes to the same voice; conversely, when you change that locale's speech role in the WorldVoice speech role settings panel, the main speech role changes with it.
-* Keep parameter settings consistent between different speech roles: When enabled, rate, pitch, volume, and rate boost parameters remain consistent across all speech roles. Changing the settings for any speech role updates the settings for all other speech roles as well.
+* Keep parameter settings consistent between different speech roles: When enabled, rate, pitch, and volume parameters remain consistent across all speech roles. Changing the settings for any speech role updates the settings for all other speech roles as well.
 
 In WorldVoice, the main speech role is the voice set in the NVDA voice settings panel, while locale speech roles are the voices set in the WorldVoice speech role settings panel.
 
@@ -34,12 +34,12 @@ In WorldVoice, the main speech role is the voice set in the NVDA voice settings 
 
 Speech pipeline settings control reading behavior related to numbers, pauses, and language processing. The "Effect scope" setting in the Speech Pipeline panel decides which synthesizers the globally supported settings apply to: "All Synthesizers (Global)" applies them to every synthesizer, and "Only WorldVoice Synthesizer" (the default) uses them only in WorldVoice.
 
-* Globally supported speech pipeline settings: number mode, group size, global wait factor, number wait factor, item wait factor, space wait factor between CJK and Southeast Asian characters, say all wait factor, punctuation pause settings
+* Globally supported speech pipeline settings: number mode, group size, global wait factor, number wait factor, item wait factor, space wait factor between CJK and Southeast Asian characters, say all wait factor, punctuation pause settings, segment pause settings
 * WorldVoice-only speech pipeline settings: detect language based on Unicode characters, number language
 
-* Detect language based on Unicode characters: When enabled, WorldVoice determines the language from the Unicode characters of the text and switches speech roles accordingly.
+* Detect language based on Unicode characters: When enabled, WorldVoice determines the language from the Unicode script of the text and switches speech roles accordingly.
 * Number language: Chooses the language that reads numbers.
-  * Follow surrounding text language (default): numbers are read in the language of the text around them.
+  * Follow surrounding text language (default): numbers are read in the language of the text around them. Digits that belong to a particular script (such as Devanagari or Arabic-Indic digits) are handed, when the current language is not written in that script, to a language written in it, in the order of "Assumed language for character sets".
   * Follow main language: numbers are read in the main language, that is, the language the document marks or the main speech role's language.
   * A specific language: numbers are always read by the speech role of that language.
   * Numbers include full-width digits (０–９) and other Unicode decimal digits, such as Arabic-Indic digits.
@@ -47,7 +47,7 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
   * Off: Numbers are left as they are.
   * Numeric mode: Reads numbers as values. For example, "12345" is read as "twelve thousand three hundred forty-five." Commas used as thousands separators, as in "12,345,678", are removed so the number is read as one value; other commas, as in "3,14", are kept.
   * Digit mode: Reads numbers digit by digit. For example, "12345" is read as "one two three four five." Symbols between digits, as in "12.5" or "5-3", are read by their names, such as "dot" or "dash", in the number language. The digits and symbols of a piece are separated by spaces and read without the number pause between them.
-* Group size: Cuts the digits of every number into groups counted from the left, in every number mode. 0 (the default) means no grouping: each number is read as one piece. With a size above 0, every symbol between digits is a piece of its own, and the pieces are separated by the pause of the number wait factor. For example, with size 3, "1234.5678" is read as "123", "4", "dot", "567", "8" in numeric mode and as "1 2 3", "4", "dot", "5 6 7", "8" in digit mode. Numeric mode removes thousands separators first, so "1,234,567" is read as "123", "456", "7". With Off and a size above 0, the groups and symbols are left as they are and NVDA reads them as usual; to leave numbers completely alone, choose Off and a group size of 0. A size larger than the longest number keeps numbers whole but still pauses before and after them. The group size is set in the Speech Pipeline panel or the Voice settings panel.
+* Group size: Cuts the digits of every number into groups counted from the left, in every number mode. 0 (the default) means no grouping: each number is read as one piece. With a size above 0, every symbol between digits is a piece of its own, and the pieces are separated by the pause of the number wait factor. For example, with size 3, "1234.5678" is read as "123", "4", "dot", "567", "8" in numeric mode and as "1 2 3", "4", "dot", "5 6 7", "8" in digit mode. To leave numbers completely alone, choose Off and set the group size to 0.
 * Speech pause adjustment: Sets the length of each of the following pauses. Smaller values mean shorter pauses, and 0 means no pause.
   * Global wait factor: The multiplier of the wait factors below. The actual pause is "global wait factor ÷ 10 × that wait factor" milliseconds; for example, with a global wait factor of 20 and a number wait factor of 10, the number pause is 20 ms. In the NVDA voice settings panel it ranges from 0 to 100 in steps of 10; the Speech Pipeline panel shows it as 0 to 10.
   * Number wait factor:
@@ -65,6 +65,9 @@ Speech pipeline settings control reading behavior related to numbers, pauses, an
     * Typing: Type the marks next to each other; do not separate them with spaces.
     * Spaces: A space also counts as a character, and adding one makes every space a pause point; spaces between CJK and Southeast Asian characters, however, still pause by the space wait factor between CJK and Southeast Asian characters.
     * Full-width and no-break spaces: Do not put a full-width space (U+3000) or a no-break space at the very start or end of the list: NVDA's configuration file drops these two kinds of spaces there when NVDA restarts.
+* Segment pause: Cuts pauses into long text that has no pause in it.
+  * Segment wait factor: The pause at each segment point. 0 (the default) means no segments.
+  * Segment length: The most characters in a segment, counting the spaces and punctuation inside it but not the spaces at its start and end. A letter is never separated from its combining marks. The count starts again after any other pause and at the start of an utterance. 0 (the default) means no segments.
 
 Globally supported speech pipeline settings can be adjusted through the NVDA voice settings panel or the WorldVoice Speech Pipeline panel. Speech pipeline settings that are not globally supported can only be adjusted through the NVDA voice settings panel.
 
@@ -86,6 +89,14 @@ These options adjust how WorldVoice handles character sets shared by multiple la
 * If you need to use a speech engine other than eSpeak, OneCore, RHVoice, or SAPI5, download the corresponding driver or voice package separately.
 
 # WorldVoice Changelog
+
+## WorldVoice 7.1 Update
+
+* **Long text no longer pauses mid-sentence:** WorldVoice 7.0 split text longer than 100 characters at spaces, so long sentences paused noticeably in the middle even with punctuation pauses off. Text is no longer split by default, as in 6.2. When needed, the new "Segment wait factor" and "Segment length" cut text into segments, with every speech engine.
+* **Pitch and spelling settings kept after a pause:** After WorldVoice pauses or switches voices, the pitch, rate, volume and character spelling settings in effect before the pause keep applying instead of going back to their defaults.
+* **Speech engines that cannot load are hidden:** The WorldVoice speech engine panel no longer shows speech engines that cannot load. Their enable settings are kept, and they show again when you reopen the panel after adding the missing files. The NVDA log also states in a single line which files are missing instead of logging an error.
+* **Script digits go to their script's language:** With number language set to "Follow surrounding text language", digits that belong to a particular script, such as Devanagari or Arabic-Indic digits, are now handed, when the current language is not written in that script, to a language written in it instead of to the main voice, which may not be able to read them. For example, with an English main voice, "२०८१" on its own is read by a Nepali or Hindi voice (following the language assumed for Devanagari characters). Spelling works the same way. Ordinary digits (0–9) and full-width digits are not affected.
+* **Speech continues with invalid voice settings:** When a value a voice has saved (such as rate, pitch or variant) is invalid, the default is now used, and speech no longer fails.
 
 ## WorldVoice 7 Update
 
