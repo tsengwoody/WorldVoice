@@ -5,7 +5,7 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 'WorldVoice' '7.0'\n"
+"Project-Id-Version: 'WorldVoice' '7.1'\n"
 "Report-Msgid-Bugs-To: nvda-translations@groups.io\n"
 "POT-Creation-Date: 2026-11-07 23:10+0000\n"
 "PO-Revision-Date: 2026-10-30 15:55+0800\n"
