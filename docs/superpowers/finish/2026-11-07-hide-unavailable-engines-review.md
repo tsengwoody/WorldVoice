@@ -106,3 +106,14 @@ spec §2.2 的 D1–D8 都是協調者預設；審閱後我認為值得使用者
 ## 未在本平台驗證
 
 Linux 上只驗證了受控的檔案系統與 import 邊界。spec §8 的 Windows／NVDA 手動項目 M1–M5（沒有 `WorldVoice-workspace/VE` 時面板沒有 VE 核取方塊且日誌只有 info 行；檔案齊全時 VE 正常出現並發聲；刪掉 `msvcr110.dll` 後隱藏、補回後重新開面板恢復原本勾選狀態；64 位元 NVDA 上 Cerence 用 `lib/x64` 同樣行為；隱藏但設定檔啟用的 VE 按確定不提示重新啟動）都還沒有在 NVDA 上做過；`PROCESSOR_ARCHITECTURE` 在 32 位元 NVDA／64 位元 Windows 上是 `x86` 這一點也只從 Windows 文件推論，沒有實機確認（內外層讀同一個變數，就算值不同也只會一起對或一起錯）。
+
+## 修正記錄
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| M1 zh_TW readme 用詞與位置 | 已修。「注意」那一條移到「請額外下載相應的驅動語音包」之後，資料夾寫成「NVDA 使用者組態目錄中的 WorldVoice-workspace 資料夾」；更新日誌的「NVDA 記錄檔」改成「NVDA 的事件記錄」。用詞沒有照建議用「使用者設定資料夾」與「日誌」，改用 NVDA zh_TW 介面本身的名稱：開始選單的「開啟 NVDA 使用者組態目錄」、工具選單的「檢視事件記錄」（`ref/nvda/source/locale/zh_TW/LC_MESSAGES/nvda.po`），讓使用者照選單名稱就找得到；手冊與 WorldVoice `.po` 的「日誌」指的是 WorldVoice 自己的語音流程日誌，混用容易誤會。記為 Ruling，使用者可再改。 | `3306acb` |
+| M2 面板開啟時的「WorldVoice init timing: ready check …」debug 行 | 不修。標籤來自 `bringup.timed`，和合成器載入時的計時日誌共用；改標籤會一併改掉合成器載入的日誌行。只有 debug 等級，spec D5 已列為已知成本。 | — |
+| M3 `available_engine_specs()` 的型別註記 | 已修。從 `.discovery` import `EngineSpec`，回傳型別改成 `tuple[EngineSpec, ...]`。只有註記，沒有行為變更，不另寫測試。 | `1566646` |
+| M4 `test_ready_never_loads_a_library` 只攔 `ctypes.cdll.LoadLibrary` | 已修（TDD）。測試另外把 `ctypes.CDLL`、`PyDLL`、`WinDLL`、`OleDLL`、`ctypes._dlopen` 以及各 loader（`cdll`、`pydll`，Windows 上另有 `windll`、`oledll`）的 `LoadLibrary` 換成會 raise 的函式。紅燈：在 scratch worktree（`git worktree add --detach`，未用 stash）讓兩個 `ready()` 呼叫 `ctypes.CDLL(path)` 並吞掉 `OSError`，舊測試 2 passed、新測試 2 failed（`AssertionError: ready() loaded (...msvcr110.dll,)`）；綠燈：分支上 `tests/test_vocalizer_ready.py` 15 passed。scratch worktree 已移除。 | `1396873` |
+
+只有 Minor，依 §3.4 不做修正 review。
