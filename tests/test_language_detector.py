@@ -828,6 +828,14 @@ def test_each_stretch_of_a_run_takes_its_own_target(env):
 	assert result == [("lang", "ne_NP"), '"', ("lang", "en"), ("lang", "hi"), '"नेपाल']
 
 
+def test_a_run_across_two_document_languages_adds_no_switch(env):
+	# Review I2: the middle stretch keeps its covering Nepali, so the stretch before it keeps today's
+	# rule instead of taking Hindi, which would go Hindi, Nepali, Hindi (spec D6, D10).
+	sequence = [L("de_DE"), '"', L("ne_NP"), "(", L("hi_IN"), "नेपाल"]
+	result = detect(env, sequence, languages=("en_US", "zh_TW", "ne_NP", "hi_IN"), base="ne_NP")
+	assert result == [("lang", "de_DE"), '"', ("lang", "ne_NP"), "(", ("lang", "hi_IN"), "नेपाल"]
+
+
 def test_a_generator_input_with_utterance_ends_keeps_every_command(env):
 	counting = CountingSettings(env.settings)
 	detector = env.module.LanguageDetector(

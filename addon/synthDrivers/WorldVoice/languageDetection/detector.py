@@ -188,10 +188,12 @@ class _SequenceDetection:
 	def stretch_targets(self, character, stretch_languages, tmp_lang, cur_lang):
 		"""The target of each stretch of a run that the deciding character ends (spec D2, D10).
 
-		target is what the character gets with the state it meets. A stretch whose language in force
-		already covers the character's script keeps it, and every stretch keeps its language when target
-		does not cover the script (no installed voice reads it: nothing changes, spec §4.4). Within one
-		item, where a run has one stretch, this is D2.
+		target is what the character gets with the state it meets. Every stretch keeps its language when
+		target does not cover the script (no installed voice reads it: nothing changes, spec §4.4).
+		Otherwise the stretches are decided from the last one back: a stretch whose language in force
+		covers the script keeps it, and once one keeps a language of another primary than target, every
+		stretch before it keeps today's rule too, so the run never goes target, that language, target
+		(spec D6, review I2). Within one item, where a run has one stretch, this is D2.
 		"""
 		if self.is_stop(character):
 			return [None] * len(stretch_languages)
@@ -204,10 +206,16 @@ class _SequenceDetection:
 			self.digits_by_script,
 		)
 		covers = self.detector._covers
-		return [
-			None if covers(language, script) or not covers(target, script) else target
-			for language in stretch_languages
-		]
+		targets = [None] * len(stretch_languages)
+		if not covers(target, script):
+			return targets
+		for index in range(len(stretch_languages) - 1, -1, -1):
+			language = stretch_languages[index]
+			if not covers(language, script):
+				targets[index] = target
+			elif primary_language(language) != primary_language(target):
+				break
+		return targets
 
 	def detect(self, commands):
 		"""Detect one utterance."""
