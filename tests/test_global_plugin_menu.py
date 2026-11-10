@@ -49,6 +49,10 @@ def test_secure_mode_adds_no_menu(monkeypatch):
 	assert env.tray.menu.items == env.nvda_items
 	assert env.plugin.submenuItem is None
 	assert env.wx.called_after == []
+	# Terminating in secure mode, with no menu, still runs every cleanup step.
+	env.calls.clear()
+	env.plugin.terminate()
+	assert env.calls == [("unpatch",), ("detach",)]
 
 
 def test_terminating_removes_and_destroys_the_menu(monkeypatch):
@@ -71,6 +75,22 @@ def test_a_menu_nvda_already_dismantled_is_still_destroyed(monkeypatch):
 
 	assert item.destroyed is True
 	assert env.calls[-1] == ("detach",)
+
+
+def test_a_dead_menu_runtime_error_does_not_stop_cleanup(monkeypatch):
+	env = plugin(monkeypatch)
+	item = env.plugin.submenuItem
+
+	def dead(menu_item):
+		raise RuntimeError("wrapped C/C++ object deleted")
+
+	monkeypatch.setattr(env.tray.menu, "Remove", dead)
+
+	env.plugin.terminate()
+
+	# The RuntimeError leaves removeMenu before Destroy; terminate swallows it and cleans up.
+	assert env.calls[-2:] == [("unpatch",), ("detach",)]
+	assert item.destroyed is False
 
 
 def test_settings_menu_and_script_open_the_settings_dialog(monkeypatch):
