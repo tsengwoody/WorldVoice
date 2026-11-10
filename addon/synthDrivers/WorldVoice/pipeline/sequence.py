@@ -17,6 +17,8 @@ _MISSING = object()
 # the item and punctuation stages still see the item boundary on the other side of it: without the
 # wrapper the two items would be adjacent texts (review I1 of fix/leading-punctuation-language, decided
 # by the user, 2026-11-10, option b). NVDA's commands have no __slots__, and the synths never read it.
+# A stage that reads two adjacent texts as an item boundary must read a marked wrapper as one too;
+# tests/test_pipeline_stages.py test_a_number_at_an_item_edge_keeps_the_items_apart runs every stage.
 _ITEM_EDGE_WRAPPER = "worldvoice_item_edge_wrapper"
 
 
