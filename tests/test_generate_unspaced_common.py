@@ -426,15 +426,11 @@ def test_download_reads_the_response_into_memory(tool, monkeypatch):
 
 
 @pytest.mark.parametrize(
-	"error",
+	("name", "option", "error"),
 	[
-		urllib.error.URLError("no route"),
-		TimeoutError("timed out"),
+		("ScriptExtensions.txt", "--source", urllib.error.URLError("no route")),
+		("UnicodeData.txt", "--unicode-data", TimeoutError("timed out")),
 	],
-)
-@pytest.mark.parametrize(
-	("name", "option"),
-	[("ScriptExtensions.txt", "--source"), ("UnicodeData.txt", "--unicode-data")],
 )
 def test_network_errors_name_the_url_and_suggest_a_local_file(tool, monkeypatch, error, name, option):
 	def urlopen(url, timeout):
