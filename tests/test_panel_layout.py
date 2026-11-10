@@ -67,14 +67,12 @@ def test_label_text(table, key, text):
 	assert layout.labelText(spec_for(table, key)) == text
 
 
-@pytest.mark.parametrize(("scale", "value", "shown"), [(10, 57, 5)])
-def test_to_display(scale, value, shown):
-	assert layout.toDisplay(SimpleNamespace(panel_scale=scale), value) == shown
+def test_to_display():
+	assert layout.toDisplay(SimpleNamespace(panel_scale=10), 57) == 5
 
 
-@pytest.mark.parametrize(("scale", "shown", "value"), [(10, 5, 50)])
-def test_from_display(scale, shown, value):
-	assert layout.fromDisplay(SimpleNamespace(panel_scale=scale), shown) == value
+def test_from_display():
+	assert layout.fromDisplay(SimpleNamespace(panel_scale=10), 5) == 50
 
 
 @pytest.mark.parametrize(("value", "index"), [("number", 2), ("group", 0), ("roman", 0)])
@@ -91,6 +89,7 @@ def test_controller_keys_of_the_table(table):
 	assert layout.controllerKeys(table) == frozenset({"punctuation_pause_enabled"})
 
 
+# One stored mode stands for all: no entry of the table is controlled by the number mode (above).
 @pytest.mark.parametrize("mode", ["none"])
 def test_the_number_mode_controls_no_other_setting(table, mode):
 	read = {"number_mode": mode, "punctuation_pause_enabled": True}.__getitem__
