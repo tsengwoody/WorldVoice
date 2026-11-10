@@ -51,7 +51,7 @@ def _catalog(path):
 	"""msgid -> msgstr of the catalog's active entries (obsolete #~ entries and the header left out).
 
 	A fuzzy entry's msgstr reads as "": msgfmt leaves fuzzy translations out, so NVDA would show it in
-	English.
+	English. A plural entry reads as its singular msgid and msgstr[0], so a stale one is still seen.
 	"""
 	entries, field, parts, fuzzy = {}, None, {"msgid": [], "msgstr": []}, False
 	for line in [*path.read_text(encoding="utf-8").splitlines(), ""]:
@@ -61,12 +61,13 @@ def _catalog(path):
 			if msgid:
 				entries[msgid] = "" if fuzzy else "".join(eval(part) for part in parts["msgstr"])
 			field, parts, fuzzy = None, {"msgid": [], "msgstr": []}, False
-		if not line.strip():
-			fuzzy = False  # a flag above an obsolete #~ entry ends with it
+		if line.startswith("#~"):
+			fuzzy = False  # a flag above an obsolete #~ entry belongs to it
 		elif line.startswith("#,") and "fuzzy" in line:
 			fuzzy = True
-		elif line.startswith(("msgid ", "msgstr ")):
+		elif line.startswith(("msgid ", "msgstr ", "msgstr[0] ")):
 			field, text = line.split(" ", 1)
+			field = field[:6]  # msgstr[0] is the msgstr of a plural entry
 			parts[field] = [text]
 		elif line.startswith('"') and field is not None:
 			parts[field].append(line)
@@ -79,7 +80,11 @@ def _catalog(path):
 		('msgid "a"\nmsgstr "A"\nmsgid "b"\nmsgstr "B"\n', {"a": "A", "b": "B"}),
 		('msgid "a"\nmsgstr "A"\n#, fuzzy\nmsgid "b"\nmsgstr "B"\n', {"a": "A", "b": ""}),
 		('#, fuzzy\n#~ msgid "old"\n#~ msgstr "OLD"\n\nmsgid "a"\nmsgstr "A"\n', {"a": "A"}),
-		('msgid ""\nmsgstr "header"\n\n#, fuzzy\nmsgid "a"\nmsgstr "A"\n', {"a": ""}),
+		# A flag belongs to the next entry even across a blank line.
+		(
+			'msgid ""\nmsgstr "header"\n\n#, fuzzy\nmsgid "a"\nmsgstr "A"\n\n#, fuzzy\n\nmsgid "b"\nmsgstr "B"\n',
+			{"a": "", "b": ""},
+		),
 	],
 	ids=["no-blank-between", "fuzzy-without-blank", "fuzzy-obsolete-then-active", "fuzzy-active"],
 )
@@ -139,9 +144,10 @@ def _source_msgids():
 
 	The sources are the add-on modules (the excluded vendored and generated files left out) and
 	buildVars.py, whose summary, description and changelog are in the catalog too
-	(buildVars.i18nSources). Calls are found as xgettext finds them: by name, plain or as an
-	attribute (x._(), x.gettext()). Only _("literal") and gettext("literal") are read; any other
-	gettext call is unsupported, because _catalog reads neither msgctxt nor plurals.
+	(buildVars.i18nSources). A call is found by its name, _, gettext, pgettext, ngettext or
+	npgettext, called plain or as an attribute (x._(), x.gettext()). Only _("literal") and
+	gettext("literal") are read; any other such call is unsupported, because _catalog reads neither
+	msgctxt nor plural forms.
 	"""
 	build_vars = ast.parse((ADDON.parent / "buildVars.py").read_text(encoding="utf-8"))
 	modules = [
