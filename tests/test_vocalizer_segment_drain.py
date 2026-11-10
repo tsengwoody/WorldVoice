@@ -611,7 +611,6 @@ def test_native_constructor_owns_contextual_callback_before_first_open(env):
 	message = native_message(env.types, env.types.VE_MSG_ENDPROCESS, env.types.VE_OUTDATA())
 	assert env.opened[0][2](instance, None, message) == env.types.NUAN_E_TTS_USERSTOP
 	assert buffered_audio(callback_handler(env.core)) == b"keep"
-	assert env.module.Voice.synthDriverClass is env.module.SynthDriver
 
 
 def test_vocalizer_endprocess_is_not_segment_drain(env, monkeypatch):

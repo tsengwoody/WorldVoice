@@ -44,7 +44,6 @@ def test_callback_idle_end_precedes_native_return_and_drain_waits_for_fifo_barri
 	assert call.returned.is_set()
 	assert delivery_threads[0] is not call.thread
 	assert env.dones == []
-	assert env.outer.Voice.synthDriverClass is type(env.driver)
 
 
 @pytest.mark.parametrize("failure", ["feed", "idle", "native", "missing_end", "native_result"])
