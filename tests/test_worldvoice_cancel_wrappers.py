@@ -277,22 +277,6 @@ def test_failed_sonic_init_is_not_retried_on_next_speak(engine_harness, monkeypa
 	assert callback._ensureSonicStream() is False
 
 
-def test_speech_and_cancel_remain_usable(engine_harness, monkeypatch):
-	core = ready_core(engine_harness)
-	callback_handler(core)._ensureSonicStream = lambda: False
-	monkeypatch.setattr(
-		engine_harness.native,
-		"processText2Speech",
-		lambda instance, text: emit_audio(core, engine_harness.types, text.encode()),
-	)
-	speak_now(core, ["first"])
-	core.cancel()
-	speak_now(core, ["second"])
-	assert real_player(core).fed == [b"first", b"second"]
-	assert real_player(core).stops == 1
-	assert real_player(core).idles == 2
-
-
 def test_guard_keeps_original_normalization_and_rate_settings(engine_harness, monkeypatch):
 	core = ready_core(engine_harness)
 	core.availableNormalizations = {"OFF": object(), "NFC": object()}
@@ -595,6 +579,8 @@ def test_guarded_speech_never_touches_inner_stop_flag(engine_harness, monkeypatc
 	speak_now(core, ["second"])
 	assert flag.calls == []
 	assert real_player(core).fed == [b"first", b"second"]
+	assert real_player(core).stops == 1
+	assert real_player(core).idles == 2
 	core.pause(True)
 	core.pause(False)
 	assert real_player(core).pauses == [True, False]
