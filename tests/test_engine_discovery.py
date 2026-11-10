@@ -83,8 +83,11 @@ def test_failures_are_logged_and_timed(discovery, monkeypatch, tmp_path):
 		spec(discovery, "Broken", "fake_broken", tmp_path),
 	]
 	assert discovery.load_enabled_engine_classes(specs, {}, logger=log) == {}
-	assert ("warning", "Skipping Missing engine candidate: Voice export missing") in log.lines
-	assert ("error", "Failed to load ready state for Broken: boom") in log.lines
+	# Each failure gives exactly one record and leaves its engine out.
+	assert [entry for entry in log.lines if entry[0] != "debug"] == [
+		("warning", "Skipping Missing engine candidate: Voice export missing"),
+		("error", "Failed to load ready state for Broken: boom"),
+	]
 	timings = [message.rsplit(" ", 1)[0] for level, message in log.lines if level == "debug"]
 	assert "WorldVoice init timing: ready check Broken voice.ready" in timings
 	assert timings[-1] == "WorldVoice init timing: ready check Broken total"
@@ -369,25 +372,3 @@ def test_load_engine_class_returns_the_ready_voice_whatever_the_flag(discovery, 
 	assert discovery.load_engine_class(off, logger=log) is ready
 	# Only the four timing lines: module import, Voice lookup, voice.ready and total.
 	assert [level for level, _message in log.lines] == ["debug"] * 4
-
-
-def _divide_by_zero(cls):
-	return 1 / 0
-
-
-@pytest.mark.parametrize(
-	("voice", "line"),
-	[
-		pytest.param(None, ("warning", "Skipping X engine candidate: Voice export missing"), id="no-voice"),
-		pytest.param(
-			type("Voice", (), {"engine": "X", "ready": classmethod(_divide_by_zero)}),
-			("error", "Failed to load ready state for X: division by zero"),
-			id="raises",
-		),
-	],
-)
-def test_load_engine_class_gives_none_for_each_failure(discovery, monkeypatch, tmp_path, voice, line):
-	engine_module(monkeypatch, "fake_x", voice)
-	log = Log()
-	assert discovery.load_engine_class(spec(discovery, "X", "fake_x", tmp_path), logger=log) is None
-	assert [entry for entry in log.lines if entry[0] != "debug"] == ([line] if line else [])
