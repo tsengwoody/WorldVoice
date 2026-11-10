@@ -182,7 +182,13 @@ def test_punctuation_pause_passes_a_leading_command(env):
 	result = list(
 		env.module.inject_punctuation_pause([marker, "a. b"], punctuation_settings(250), env.generic),
 	)
-	assert kinds(result, env.BreakCommand) == [marker, "a", ".", ("PunctuationBreakCommand", 250), " b"]
+	assert kinds(result, env.BreakCommand) == [
+		marker,
+		"a",
+		".",
+		("InternalPunctuationBreakCommand", 250),
+		" b",
+	]
 
 
 def test_a_number_break_counts_as_an_existing_pause_for_punctuation(env):

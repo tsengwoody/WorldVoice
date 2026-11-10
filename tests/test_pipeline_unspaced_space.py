@@ -289,7 +289,7 @@ def test_stages_space_among_punctuation_characters(env, remove):
 	# F3, Q3 = A: the space stage runs first, so a space between unspaced characters gets the space
 	# pause, and only the Latin spaces reach the punctuation stage.
 	result = every_stage(env, ["ภาษา ไทย hello world"], space=10, chars=" ", remove=remove)
-	PB = ("PunctuationBreakCommand", 250)
+	PB = ("InternalPunctuationBreakCommand", 250)
 	space = [] if remove else [" "]
 	assert result == ["ภาษา", B10, "ไทย", *space, PB, "hello", *space, PB, "world"]
 

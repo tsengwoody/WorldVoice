@@ -88,8 +88,9 @@ def test_property_the_wait_changes_only_the_break_time(env, data):
 	wait = data.draw(st.integers(1, 1000))
 	at_zero = shape(run_punctuation(env, sequence, remove=remove, wait=0))
 	at_wait = shape(run_punctuation(env, sequence, remove=remove, wait=wait))
-	zero_break = ("PunctuationBreakCommand", 0)
-	assert [("PunctuationBreakCommand", wait) if item == zero_break else item for item in at_zero] == at_wait
+	# Both punctuation classes: the internal one stands where text of the item follows (D12).
+	zero_breaks = {("PunctuationBreakCommand", 0), ("InternalPunctuationBreakCommand", 0)}
+	assert [(item[0], wait) if item in zero_breaks else item for item in at_zero] == at_wait
 
 
 def chunks(sequence):

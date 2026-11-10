@@ -637,8 +637,8 @@ def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch, mo
 @pytest.mark.parametrize(
 	("remove", "expected"),
 	[
-		(False, ["1 2", ".", ("PunctuationBreakCommand", 50), "5"]),
-		(True, ["1 2", ("PunctuationBreakCommand", 50), "5"]),
+		(False, ["1 2", ".", ("InternalPunctuationBreakCommand", 50), "5"]),
+		(True, ["1 2", ("InternalPunctuationBreakCommand", 50), "5"]),
 	],
 	ids=["pause", "remove"],
 )

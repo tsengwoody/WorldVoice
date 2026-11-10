@@ -7,7 +7,14 @@ from typing import TYPE_CHECKING, Literal
 
 from speech.commands import BreakCommand
 
-from .breaks import NumberBreakCommand, PunctuationBreakCommand, _is_edge_break, _merge_edge_breaks
+from .breaks import (
+	InternalPunctuationBreakCommand,
+	NumberBreakCommand,
+	PunctuationBreakCommand,
+	_is_edge_break,
+	_is_item_edge_break,
+	_merge_edge_breaks,
+)
 from .context import SpeechContext
 from .sequence import SpeechCmd
 
@@ -76,7 +83,11 @@ def inject_punctuation_pause(
 	  unchanged.
 	* With the switch on, every pause point gets a PunctuationBreakCommand,
 	  even when its duration is 0 ms; a 0 ms break still separates the text
-	  on either side of it.
+	  on either side of it. A pause that text of the same item follows is an
+	  InternalPunctuationBreakCommand, and so is the pause at an item's last
+	  mark where a number edge break inside the item stands beside it:
+	  language detection reads through those (spec
+	  fix/leading-punctuation-language D12).
 	* Works both between consecutive text items and *inside* a single text
 	  item, because a screen reader usually sends a whole sentence as one
 	  command.
@@ -132,13 +143,20 @@ def _punctuation_pauses(
 ) -> Iterator[SpeechCmd]:
 	"""inject_punctuation_pause without the merge of the breaks around an edge break."""
 	remove_punctuation = settings.remove_punctuation_characters
-	pause_cmd = PunctuationBreakCommand(settings.scaled_punctuation_wait())
+	wait = settings.scaled_punctuation_wait()
+	pause_cmd = PunctuationBreakCommand(wait)
+	internal_pause_cmd = InternalPunctuationBreakCommand(wait)
 	regex = _get_punctuation_regex(chars)
 
 	def is_non_blank_text(command: SpeechCmd) -> bool:
 		return isinstance(command, str) and bool(command.strip())
 
-	def emit(item: SpeechCmd, pause_text_follows: bool, removal_text_follows: bool) -> Iterator[SpeechCmd]:
+	def emit(
+		item: SpeechCmd,
+		pause_text_follows: bool,
+		removal_text_follows: bool,
+		boundary_cmd: PunctuationBreakCommand = pause_cmd,
+	) -> Iterator[SpeechCmd]:
 		if not isinstance(item, str):
 			yield item
 			return
@@ -171,11 +189,11 @@ def _punctuation_pauses(
 			):
 				yield value
 			if eligible_here:
-				yield pause_cmd
+				yield internal_pause_cmd
 		# The item ends with a punctuation mark (its last significant
 		# character is a configured one); pause before the next text item.
 		if boundary_pause:
-			yield pause_cmd
+			yield boundary_cmd
 
 	it = iter(speech_sequence)
 	try:
@@ -193,7 +211,11 @@ def _punctuation_pauses(
 		text_follows = is_non_blank_text(current)
 		# An edge break alone does not suppress the boundary pause; _merge_edge_breaks keeps one of the two.
 		pause_follows = text_follows and all(map(_is_edge_break, pending_breaks))
-		emitted = list(emit(previous, pause_follows, text_follows))
+		# Beside an edge break inside the item, the pause stands inside the item too (spec F11).
+		in_item = any(_is_edge_break(item) and not _is_item_edge_break(item) for item in pending_breaks)
+		emitted = list(
+			emit(previous, pause_follows, text_follows, internal_pause_cmd if in_item else pause_cmd),
+		)
 		removed = is_non_blank_text(previous) and not any(map(is_non_blank_text, emitted))
 		if (
 			removed

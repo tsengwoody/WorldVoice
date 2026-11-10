@@ -356,8 +356,9 @@ def test_other_synths_get_only_plain_breaks_from_the_stages(monkeypatch, number_
 	assert break_types(run_stages(module, ["共 12 34 個. 5678 and 3"])) == expected
 
 
-EDGES = {("NumberBreakCommand", 10), ("NumberEdgeBreakCommand", 10), ("PunctuationBreakCommand", 20)}
-NO_EDGES = {("NumberBreakCommand", 10), ("PunctuationBreakCommand", 20)}
+# "個." pauses inside its item: the internal class (spec fix/leading-punctuation-language D12).
+EDGES = {("NumberBreakCommand", 10), ("NumberEdgeBreakCommand", 10), ("InternalPunctuationBreakCommand", 20)}
+NO_EDGES = {("NumberBreakCommand", 10), ("InternalPunctuationBreakCommand", 20)}
 
 
 # The edge pause follows the group size, whatever the mode (decided by the user, 2026-11-01, U4).

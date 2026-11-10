@@ -46,7 +46,7 @@ def test_the_punctuation_pause_follows_the_global_factor(monkeypatch, global_fac
 
 	result = list(module.inject_punctuation_pause(["Hello. World"], settings, module.GENERIC_CONTEXT))
 
-	assert shape(result) == ["Hello", ".", ("PunctuationBreakCommand", expected), " World"]
+	assert shape(result) == ["Hello", ".", ("InternalPunctuationBreakCommand", expected), " World"]
 
 
 def test_zero_wait_removal_still_pauses_and_a_disabled_switch_changes_nothing(monkeypatch):
@@ -54,7 +54,7 @@ def test_zero_wait_removal_still_pauses_and_a_disabled_switch_changes_nothing(mo
 	module, _BreakCommand = load_pipeline_module(monkeypatch, settings)
 	assert shape(run_punctuation_filters(module, ["Hello, world."])) == [
 		"Hello",
-		("PunctuationBreakCommand", 0),
+		("InternalPunctuationBreakCommand", 0),
 		" world",
 		".",
 	]
@@ -74,7 +74,7 @@ def test_removal_applies_at_pause_points_with_or_without_new_breaks(monkeypatch)
 	result = run_punctuation_filters(module, ["Hello. World.", existing_break, "."])
 
 	assert result[0] == "Hello"
-	assert type(result[1]).__name__ == "PunctuationBreakCommand"
+	assert type(result[1]).__name__ == "InternalPunctuationBreakCommand"
 	assert result[1].time == 250
 	assert result[2] == " World"
 	assert result[3] is existing_break
@@ -91,27 +91,29 @@ def test_removal_preserves_numeric_punctuation_without_a_pause(monkeypatch):
 	result = run_punctuation_filters(module, ["Value 3.5 and 12,500. Next"])
 
 	assert result[0] == "Value 3.5 and 12,500"
-	assert type(result[1]).__name__ == "PunctuationBreakCommand"
+	assert type(result[1]).__name__ == "InternalPunctuationBreakCommand"
 	assert result[2] == " Next"
 
 
+# A pause after a mark that text of the same item follows (spec fix/leading-punctuation-language D12).
+INTERNAL_0 = ("InternalPunctuationBreakCommand", 0)
 ZERO_WAIT = {
 	# Switch on, wait 0: every pause point gets a 0 ms break; removal only drops the mark.
 	False: (
 		[
 			"Hello",
 			",",
-			("PunctuationBreakCommand", 0),
+			("InternalPunctuationBreakCommand", 0),
 			" world",
 			".",
-			("PunctuationBreakCommand", 0),
+			("InternalPunctuationBreakCommand", 0),
 			" Bye",
 			".",
 		],
 		["Hi", ".", ("PunctuationBreakCommand", 0), "there"],
 	),
 	True: (
-		["Hello", ("PunctuationBreakCommand", 0), " world", ("PunctuationBreakCommand", 0), " Bye", "."],
+		["Hello", INTERNAL_0, " world", INTERNAL_0, " Bye", "."],
 		["Hi", ("PunctuationBreakCommand", 0), "there"],
 	),
 }
@@ -129,7 +131,7 @@ def test_zero_wait_pauses_at_every_point_whether_or_not_marks_are_removed(monkey
 	assert shape(run_punctuation_filters(module, ["Hi.", "there"])) == between
 
 
-PAUSE = ("PunctuationBreakCommand", 250)
+PAUSE = ("InternalPunctuationBreakCommand", 250)
 
 
 @pytest.mark.parametrize(
@@ -166,10 +168,10 @@ def test_a_space_in_the_list_pauses_at_every_such_space(monkeypatch, characters,
 		(
 			False,
 			["Value 3.5 and 12,500. Next"],
-			["Value 3.5 and 12,500", ".", ("PunctuationBreakCommand", 0), " Next"],
+			["Value 3.5 and 12,500", ".", INTERNAL_0, " Next"],
 		),
 		# Rule 2: one point per run of marks.
-		(False, ["Hi.,  there"], ["Hi", ".,", ("PunctuationBreakCommand", 0), "  there"]),
+		(False, ["Hi.,  there"], ["Hi", ".,", INTERNAL_0, "  there"]),
 		# Rule 5: never at the end.
 		(False, ["Bye."], ["Bye", "."]),
 		# Rule 3: an internal point needs non-blank text after it in the item.
@@ -242,6 +244,11 @@ def P(time):
 	return ("PunctuationBreakCommand", time)
 
 
+def IP(time):
+	"""An internal punctuation pause: text of the item follows, or an in-item edge break stands beside it (D12)."""
+	return ("InternalPunctuationBreakCommand", time)
+
+
 # ASCII ids: pytest escapes a non-ASCII id, and mutmut's second collection escapes it again.
 @pytest.mark.parametrize(
 	("sequence", "remove", "wait", "expected"),
@@ -249,21 +256,21 @@ def P(time):
 		# Nothing follows: the mark at the end is never a pause point.
 		(["第", "E", "3", "E", "。"], False, 50, ["第", E, "3", E, "。"]),
 		(["第", "E", "3", "E", "。"], True, 50, ["第", E, "3", E, "。"]),
-		(["第", "E", "3", "E", "。下一章"], False, 50, ["第", E, "3", E, "。", P(50), "下一章"]),
+		(["第", "E", "3", "E", "。下一章"], False, 50, ["第", E, "3", E, "。", IP(50), "下一章"]),
 		# Removal brings the edge break and the punctuation break together: the longer stays.
-		(["第", "E", "3", "E", "。下一章"], True, 50, ["第", E, "3", P(50), "下一章"]),
-		(["3", "E", "，下"], False, 50, ["3", E, "，", P(50), "下"]),
-		(["3", "E", "，下"], True, 50, ["3", P(50), "下"]),
+		(["第", "E", "3", "E", "。下一章"], True, 50, ["第", E, "3", IP(50), "下一章"]),
+		(["3", "E", "，下"], False, 50, ["3", E, "，", IP(50), "下"]),
+		(["3", "E", "，下"], True, 50, ["3", IP(50), "下"]),
 		# E1: the edge break before the number does not suppress the boundary pause.
-		(["Total. ", "E", "1", "NB", "2"], False, 50, ["Total", ".", " ", P(50), "1", NB, "2"]),
-		(["Total. ", "E", "1", "NB", "2"], True, 50, ["Total", " ", P(50), "1", NB, "2"]),
-		(["1", "E", "，", "E", "2"], False, 50, ["1", E, "，", P(50), "2"]),
-		(["1", "E", "，", "E", "2"], True, 50, ["1", P(50), "2"]),
+		(["Total. ", "E", "1", "NB", "2"], False, 50, ["Total", ".", " ", IP(50), "1", NB, "2"]),
+		(["Total. ", "E", "1", "NB", "2"], True, 50, ["Total", " ", IP(50), "1", NB, "2"]),
+		(["1", "E", "，", "E", "2"], False, 50, ["1", E, "，", IP(50), "2"]),
+		(["1", "E", "，", "E", "2"], True, 50, ["1", IP(50), "2"]),
 		# A 0 ms punctuation pause leaves the number apart by its edge break.
 		(["第", "E", "3", "E", "。下一章"], True, 0, ["第", E, "3", E, "下一章"]),
 		(["Total. ", "E", "1", "NB", "2"], False, 0, ["Total", ".", " ", E, "1", NB, "2"]),
 		# A tie keeps the punctuation break.
-		(["a.", "E50", "b"], False, 50, ["a", ".", P(50), "b"]),
+		(["a.", "E50", "b"], False, 50, ["a", ".", IP(50), "b"]),
 	],
 	ids=[
 		"zh-3-end-off",
@@ -333,3 +340,36 @@ def test_merge_edge_breaks(monkeypatch, sequence, expected):
 	assert [item for item in result if isinstance(item, str)] == [
 		item for item in expected if item not in commands
 	]
+
+
+# The two punctuation classes (spec fix/leading-punctuation-language D12): language detection reads
+# through a pause inside an item and stops at one between items.
+def test_internal_points_emit_the_internal_class(monkeypatch):
+	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250))
+	result = run_punctuation_filters(module, ["Hello. World"])
+	assert shape(result) == ["Hello", ".", IP(250), " World"]
+	assert isinstance(result[2], module.PunctuationBreakCommand)
+
+
+def test_the_end_of_item_pause_keeps_the_punctuation_class(monkeypatch):
+	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250))
+	result = run_punctuation_filters(module, ["Hello.", "World"])
+	assert shape(result) == ["Hello", ".", P(250), "World"]
+	assert type(result[2]) is module.PunctuationBreakCommand
+
+
+@pytest.mark.parametrize(
+	("edge", "expected"),
+	[("NumberEdgeBreakCommand", IP(20)), ("NumberItemEdgeBreakCommand", P(20))],
+	ids=["in-item", "item-edge"],
+)
+def test_the_end_of_item_pause_beside_an_in_item_number_edge_is_internal(monkeypatch, edge, expected):
+	# Spec F11: the pause from the end-of-item path stands inside the NVDA item in place of the edge break.
+	settings = punctuation_settings(20)
+	settings.punctuation_pause_characters = ","
+	module, _BreakCommand = load_pipeline_module(monkeypatch, settings)
+	result = run_punctuation_filters(
+		module,
+		["\u0928\u0947\u092a\u093e\u0932,", getattr(module, edge)(10), "12"],
+	)
+	assert shape(result) == ["\u0928\u0947\u092a\u093e\u0932", ",", expected, "12"]
