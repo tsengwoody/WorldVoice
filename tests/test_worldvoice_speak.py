@@ -357,18 +357,22 @@ def stage_settings(
 	group_size=0,
 	segment_length=0,
 	segment_wait=0,
+	item_wait=0,
+	unspaced_wait=0,
+	punctuation_characters=".,",
+	punctuation_wait=0,
 ):
 	"""The pipeline settings the stages read: only the given pauses and modes, every other wait 0."""
 	return SimpleNamespace(
 		number_mode=number_mode,
 		scope="WorldVoice",
-		punctuation_pause_characters=".,",
+		punctuation_pause_characters=punctuation_characters,
 		punctuation_pause_enabled=punctuation,
 		remove_punctuation_characters=False,
-		scaled_item_wait=lambda: 0,
+		scaled_item_wait=lambda: item_wait,
 		scaled_number_wait=lambda: number_wait,
-		scaled_unspaced_script_space_wait=lambda: 0,
-		scaled_punctuation_wait=lambda: 0,
+		scaled_unspaced_script_space_wait=lambda: unspaced_wait,
+		scaled_punctuation_wait=lambda: punctuation_wait,
 		group_size=group_size,
 		segment_length=segment_length,
 		scaled_segment_wait=lambda: segment_wait,
@@ -408,10 +412,11 @@ def speak_through_stages(
 	speak() does to the filtered sequence), then speak; what is heard."""
 	synth, modules = _synth(monkeypatch, timing=timing, uwv=uwv)
 	synth._set_numlan(numlan)
-	if main == "zh":
-		synth.language = "zh_TW"
-		synth._voiceManager.default_voice_name = ZH
-		synth._voiceManager.default_voice_instance = SimpleNamespace(name=ZH, language="zh_TW")
+	if main in ("zh", "ne"):
+		voice, language = {"zh": (ZH, "zh_TW"), "ne": (NE, "ne_NP")}[main]
+		synth.language = language
+		synth._voiceManager.default_voice_name = voice
+		synth._voiceManager.default_voice_instance = SimpleNamespace(name=voice, language=language)
 	monkeypatch.setattr(sys.modules["speech"], "getCurrentLanguage", lambda: synth.language, raising=False)
 	monkeypatch.setattr(sys.modules["characterProcessing"], "processSpeechSymbol", symbol_name)
 	ctx = synth.speechContext()
@@ -653,12 +658,12 @@ def test_a_number_language_with_the_main_voice_still_reads_numbers_in_the_text(m
 
 # NVDA's speak() runs processText on each text item after the filters, and appends its chunk
 # separator: symbol rules that read the text around a symbol see only that item.
-def nvda_processes_each_item(character_processing, locale):
+def nvda_processes_each_item(character_processing, locale, level="SOME"):
 	"""What NVDA's speak() does to the filtered sequence, with WorldVoice's default of NVDA's own
 	language switching off: each text item through the symbol step of processText in the synth's
-	language, at symbol level "some", then the chunk separator; empty items dropped.
+	language, at symbol *level* ("some" by default), then the chunk separator; empty items dropped.
 	"""
-	level = character_processing.SymbolLevel.SOME
+	level = getattr(character_processing.SymbolLevel, level)
 
 	def process(sequence):
 		return [
@@ -914,9 +919,9 @@ def test_a_hidden_locale_survives_loading_and_saving_and_comes_back(monkeypatch,
 # hyphen, as in "COVID-19" or "中-1", and stays with the text before it, in both number-language
 # wrappers; after a space, punctuation or at the start it is a sign and moves with the number. NVDA's
 # own negative-number rule reads it the same way (ref/nvda/source/locale/en/symbols.dic:19).
-def heard_through_nvda(monkeypatch, tmp_path, text, *, main, **options):
+def heard_through_nvda(monkeypatch, tmp_path, text, *, main, level="SOME", **options):
 	character_processing = load_nvda_character_processing(monkeypatch, tmp_path)
-	nvda = nvda_processes_each_item(character_processing, "zh_TW" if main == "zh" else "en")
+	nvda = nvda_processes_each_item(character_processing, "zh_TW" if main == "zh" else "en", level)
 	return speak_through_stages(monkeypatch, [text], main=main, nvda=nvda, **options)
 
 
@@ -1075,3 +1080,172 @@ def test_property_each_digit_is_read_by_the_number_language_voice(monkeypatch, t
 				"zh_TW": ZH,
 			}[numlan]
 			assert voice == expected, (text, result)
+
+
+# Leading punctuation follows the text after it (spec fix/leading-punctuation-language §3, §7.4). Main
+# voice English, a Nepali voice installed, the item pause on (10 ms) unless a test says otherwise.
+ITEM = stage_settings(item_wait=10)
+
+
+def spoken(result):
+	"""What each voice reads, without pauses and blank text: (voice, text) with each text stripped and
+	neighbours of one voice joined."""
+	voices = []
+	for entry in result:
+		if entry == "|" or not entry[1].strip():
+			continue
+		voice, text = entry[0], entry[1].strip()
+		if voices and voices[-1][0] == voice:
+			voices[-1] = (voice, voices[-1][1] + text)
+		else:
+			voices.append((voice, text))
+	return voices
+
+
+def voice_changes(result):
+	"""The voices in the order they speak, blank text included, each change once."""
+	voices = [entry[0] for entry in result if entry != "|"]
+	return [voice for index, voice in enumerate(voices) if index == 0 or voices[index - 1] != voice]
+
+
+def heard_with_nepali(monkeypatch, sequence, *, numlan="default", settings=ITEM, **options):
+	with monkeypatch.context() as patch:
+		patch.setitem(VOICES, "ne", NE)
+		return spoken(speak_through_stages(patch, sequence, numlan=numlan, settings=settings, **options))
+
+
+@TIMINGS
+@pytest.mark.parametrize(
+	("text", "numlan", "main", "expected"),
+	[
+		pytest.param("(नेपाल)", "default", "en", [(NE, "(नेपाल)")], id="paren"),
+		pytest.param("- नेपाल", "default", "en", [(NE, "- नेपाल")], id="dash"),
+		pytest.param('" २०८१', "default", "en", [(NE, '" २०८१')], id="quote-script-digits"),
+		pytest.param("(2024) नेपाल", "default", "en", [(NE, "(2024) नेपाल")], id="paren-digits"),
+		pytest.param("「中文」", "default", "en", [(ZH, "「中文」")], id="corner-bracket"),
+		pytest.param("（中文）", "default", "en", [(ZH, "（中文）")], id="full-width-paren"),
+		pytest.param("(中文)", "default", "en", [(ZH, "(中文)")], id="paren-han"),
+		pytest.param("2024年", "default", "en", [(ZH, "2024年")], id="digits-han"),
+		pytest.param("2024年", "main", "en", [(EN, "2024"), (ZH, "年")], id="digits-han-main"),
+		pytest.param('abc "नेपाल"', "default", "en", [(EN, 'abc "'), (NE, 'नेपाल"')], id="mid-line"),
+		pytest.param("「中文」", "default", "zh", [(ZH, "「中文」")], id="corner-bracket-zh"),
+		# The harness's value mode spaces "1." (as in FOLLOW_ROWS "next").
+		pytest.param("1. Introduction", "default", "zh", [(EN, "1 . Introduction")], id="digits-latin-zh"),
+		pytest.param('"Hello"', "default", "ne", [(EN, '"Hello"')], id="mirror"),
+	],
+)
+def test_leading_punctuation_is_read_by_the_voice_of_the_text(
+	monkeypatch,
+	timing,
+	text,
+	numlan,
+	main,
+	expected,
+):
+	assert heard_with_nepali(monkeypatch, [text], numlan=numlan, main=main, timing=timing) == expected
+
+
+@NVDA_WARNINGS
+@pytest.mark.parametrize(
+	("text", "timing", "level", "expected"),
+	[
+		pytest.param('"नेपाल"', "before", "SOME", [(NE, "नेपाल")], id="quote-before-some"),
+		pytest.param('"नेपाल"', "after", "SOME", [(NE, "नेपाल")], id="quote-after-some"),
+		pytest.param('"नेपाल"', "before", "MOST", [(NE, "quote नेपाल quote")], id="quote-before-most"),
+		pytest.param("(नेपाल)", "after", "SOME", [(NE, "(नेपाल)")], id="paren-after-some"),
+		# NVDA has already turned the marks into English names: unchanged from master (spec F4).
+		pytest.param(
+			"(नेपाल)",
+			"after",
+			"MOST",
+			[(EN, "left paren("), (NE, "नेपाल"), (EN, "right paren)")],
+			id="paren-after-most",
+		),
+	],
+)
+def test_a_marked_line_through_nvda(monkeypatch, tmp_path, text, timing, level, expected):
+	with monkeypatch.context() as patch:
+		patch.setitem(VOICES, "ne", NE)
+		result = heard_through_nvda(
+			patch,
+			tmp_path,
+			text,
+			main="en",
+			level=level,
+			numlan="default",
+			timing=timing,
+			settings=ITEM,
+		)
+	assert spoken(result) == expected
+	# A voice given only blank text still costs a switch (spec §3): none is left.
+	assert voice_changes(result) == [voice for voice, _text in expected]
+
+
+@TIMINGS
+@pytest.mark.parametrize(
+	("text", "pauses"),
+	[
+		pytest.param('abc, "नेपाल"', {"punctuation": True, "punctuation_characters": ","}, id="punctuation-0"),
+		pytest.param(
+			'abc, "नेपाल"',
+			{"punctuation": True, "punctuation_characters": ",", "punctuation_wait": 30},
+			id="punctuation-30",
+		),
+		pytest.param("abc 12 34 (नेपाल)", {"number_wait": 10}, id="number-pause"),
+	],
+)
+def test_pause_settings_keep_the_voices(monkeypatch, timing, text, pauses):
+	# Spec U5: the pauses a stage puts inside an item do not end it. The stages cut the text at their
+	# pauses, so only the characters that are no whitespace are compared.
+	off = heard_with_nepali(monkeypatch, [text], timing=timing)
+	on = heard_with_nepali(
+		monkeypatch,
+		[text],
+		timing=timing,
+		settings=stage_settings(item_wait=10, **pauses),
+	)
+	assert [(voice, "".join(text.split())) for voice, text in on] == [
+		(voice, "".join(text.split())) for voice, text in off
+	]
+	assert [voice for voice, _text in on] == [EN, NE]
+	assert off[0][1].endswith(('"', "("))
+
+
+@TIMINGS
+def test_adjacent_items_without_an_item_pause(monkeypatch, timing):
+	# The limitation of spec U5: with the item pause at 0 the boundary is invisible.
+	result = heard_with_nepali(monkeypatch, ["link", '"नेपाल"'], timing=timing, settings=stage_settings())
+	assert result == [(EN, 'link"'), (NE, 'नेपाल"')]
+
+
+@TIMINGS
+def test_an_item_pause_ends_the_item(monkeypatch, timing):
+	assert heard_with_nepali(monkeypatch, ["link", '"नेपाल"'], timing=timing) == [(EN, "link"), (NE, '"नेपाल"')]
+
+
+@TIMINGS
+@pytest.mark.parametrize(
+	("sequence", "numlan", "options", "expected"),
+	[
+		pytest.param(
+			["(नेपाल)"],
+			"default",
+			{"settings": stage_settings(item_wait=10, punctuation=True, punctuation_characters="(")},
+			[(NE, "(नेपाल)")],
+			id="configured-paren",
+		),
+		pytest.param(["-", "नेपाल"], "default", {}, [(NE, "-नेपाल")], id="dash-item"),
+		pytest.param(["(", "1", "नेपाल"], "default", {}, [(NE, "(1नेपाल")], id="paren-digit-items"),
+		pytest.param(["(", "1", "नेपाल"], "main", {}, [(EN, "(1"), (NE, "नेपाल")], id="paren-digit-items-main"),
+		pytest.param(["Price", "100", "नेपाल"], "default", {}, [(EN, "Price100"), (NE, "नेपाल")], id="price"),
+	],
+)
+def test_an_utterance_start_looks_ahead(monkeypatch, timing, sequence, numlan, options, expected):
+	assert heard_with_nepali(monkeypatch, sequence, numlan=numlan, timing=timing, **options) == expected
+
+
+@TIMINGS
+def test_a_main_number_after_leading_punctuation_keeps_its_item(monkeypatch, timing):
+	# Spec D3: the wrapped number and the text around it keep master's languages.
+	result = heard_with_nepali(monkeypatch, ["नेपाल (2024) नेपाल"], numlan="main", timing=timing)
+	assert result == [(NE, "नेपाल ("), (EN, "2024)"), (NE, "नेपाल")]
