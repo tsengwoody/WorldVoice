@@ -226,8 +226,9 @@ def every_stage(module, sequence, **options):
 	return shape(module, sequence)
 
 
-B = ("BreakCommand", 20)
-B10 = ("BreakCommand", 10)
+# The space pause has a class of its own (spec fix/leading-punctuation-language U6).
+B = ("UnspacedSpaceBreakCommand", 20)
+B10 = ("UnspacedSpaceBreakCommand", 10)
 
 
 @pytest.mark.parametrize(
@@ -281,7 +282,9 @@ def test_stages_pause_between_han_and_kana(env):
 def test_stages_digit_neighbour_has_no_space_pause(env):
 	# A digit is Common, so the space after "第3" never pauses, as today.
 	result = every_stage(env, ["第3 章"], space=10, mode="number")
-	assert all(not isinstance(item, tuple) or item[0] != "BreakCommand" for item in result), result
+	assert all(not isinstance(item, tuple) or item[0] != "UnspacedSpaceBreakCommand" for item in result), (
+		result
+	)
 
 
 @pytest.mark.parametrize("remove", [False, True])
@@ -336,3 +339,9 @@ def test_long_text_stays_fast(env):
 		result = space_stage(env, [text])
 		assert time.perf_counter() - start < 2
 		assert sum(isinstance(item, str) for item in result) == pieces
+
+
+def test_the_space_pause_is_an_unspaced_space_break(env):
+	(_, pause, _) = space_stage(env, ["中 文"])
+	assert isinstance(pause, env.UnspacedSpaceBreakCommand)
+	assert isinstance(pause, env.BreakCommand)

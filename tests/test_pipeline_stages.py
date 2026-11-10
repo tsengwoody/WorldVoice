@@ -420,6 +420,15 @@ def test_the_new_breaks_keep_their_parents(monkeypatch):
 	assert not any(hasattr(item, module.breaks._EDGE_MARKER) for item in plain)
 
 
+def test_a_synth_without_roles_gets_a_plain_space_pause(monkeypatch):
+	settings = pause_settings("value", 0)
+	settings.scaled_unspaced_script_space_wait = lambda: 10
+	module, BreakCommand = load_pipeline_module(monkeypatch, settings)
+	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
+	result = run_stages(module, ["中文 日本"])
+	assert [(type(item), item.time) for item in result if not isinstance(item, str)] == [(BreakCommand, 10)]
+
+
 # Numbers wrapped for detection (phase 35 spec §4.4, batch 1 review C1).
 
 

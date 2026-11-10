@@ -5,10 +5,9 @@ import re
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING
 
-from speech.commands import BreakCommand
-
 from ..unicodeScripts.lookup import get_script
 from ..unicodeScripts.unspaced_common_data import UNSPACED_COMMON
+from .breaks import UnspacedSpaceBreakCommand
 from .context import SpeechContext
 from .sequence import SpeechCmd
 
@@ -62,7 +61,7 @@ def inject_unspaced_script_space_pause(
 		yield from speech_sequence
 		return
 
-	pause_cmd = BreakCommand(waitfactor)
+	pause_cmd = UnspacedSpaceBreakCommand(waitfactor)
 
 	for item in speech_sequence:
 		# non-string commands flow through untouched
