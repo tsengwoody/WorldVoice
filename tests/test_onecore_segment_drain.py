@@ -684,21 +684,17 @@ def test_drain_stop_failure_after_sync_failure_latches(env):
 	assert len(env.native.calls) == 1
 
 
-@pytest.mark.parametrize("terminated", [False, True])
-def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env, terminated):
-	if terminated:
-		env.driver.terminate()
-	else:
-		speak(env)
-		env.native.wait_calls(1)
-		original_stop = env.player.stop
-		env.player.stop = lambda: (_ for _ in ()).throw(OSError("stop failed"))
-		try:
-			with pytest.raises(OSError):
-				env.driver.cancel()
-		finally:
-			env.player.stop = original_stop
-		eventually(lambda: segment_host(env.driver).control_error is not None)
+def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env):
+	speak(env)
+	env.native.wait_calls(1)
+	original_stop = env.player.stop
+	env.player.stop = lambda: (_ for _ in ()).throw(OSError("stop failed"))
+	try:
+		with pytest.raises(OSError):
+			env.driver.cancel()
+	finally:
+		env.player.stop = original_stop
+	eventually(lambda: segment_host(env.driver).control_error is not None)
 	caller = get_ident()
 	received, events, threads = Event(), [], []
 	token = env.scheduler.CancellationToken()
@@ -719,7 +715,7 @@ def test_onecore_rejected_segment_uses_async_lifecycle_delivery(env, terminated)
 	assert events[0].segment_id == 19
 	assert threads == [delivery_thread(segment_lifecycle(segment_host(env.driver))).ident]
 	assert threads[0] != caller
-	assert len(env.native.calls) == (0 if terminated else 1)
+	assert len(env.native.calls) == 1
 
 
 def test_onecore_acceptance_is_atomic_with_terminate(env):

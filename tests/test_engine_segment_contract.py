@@ -1,8 +1,6 @@
 """Segment contract every outer engine wrapper must keep for the scheduler.
 
-The adapters in engine_contract_harness drive each engine's own fakes. Known
-gaps are strict xfails: fixing one turns it into XPASS, which fails the run
-until the mark is removed.
+The adapters in engine_contract_harness drive each engine's own fakes.
 """
 
 import sys
@@ -29,20 +27,15 @@ ADAPTERS = {
 }
 
 
-class C3Blocking(AssertionError):
-	"""speak_segment stayed blocked until delivery (refactor.md C3)."""
+# The name a terminated driver gives in its error, where it differs from the adapter's engine name.
+DISPLAY_NAMES = {"Espeak": "eSpeak"}
 
 
-def _engines(**xfails):
-	"""Every engine; ``xfails`` maps an engine to its known gap as (reason, raised type)."""
+def _engines():
+	"""Every engine."""
 	params = []
 	for name in ADAPTERS:
-		marks = []
-		if name in xfails:
-			reason, raises = xfails[name]
-			# Only the known gap may xfail; any other failure still fails the run.
-			marks.append(pytest.mark.xfail(strict=True, raises=raises, reason=reason))
-		params.append(pytest.param(name, marks=marks, id=name))
+		params.append(pytest.param(name, id=name))
 	return params
 
 
@@ -96,24 +89,6 @@ def _start_speak(adapter, token, context, events):
 
 
 @pytest.mark.parametrize("engine", _engines(), indirect=True)
-def test_completed_segment_drains_once_on_the_delivery_thread(engine):
-	context = engine.PlaybackContext(object(), 17)
-	events = Events(engine)
-	caller, errors = _start_speak(engine, engine.new_token(), context, events)
-
-	engine.complete()
-	event = events.wait_one()
-	caller.join(WAIT_TIMEOUT)
-
-	assert not caller.is_alive() and errors == []
-	assert event.kind is engine.EventKind.SEGMENT_DRAINED
-	assert event.source_id is context.source_id
-	assert event.segment_id == 17
-	assert events.on_delivery_thread == [True]
-	assert events.threads[0] != caller.ident
-
-
-@pytest.mark.parametrize("engine", _engines(), indirect=True)
 def test_segment_after_terminate_fails_once_without_native_call(engine):
 	engine.terminate()
 	context = engine.PlaybackContext(object(), 19)
@@ -127,6 +102,9 @@ def test_segment_after_terminate_fails_once_without_native_call(engine):
 	assert event.kind is engine.EventKind.SEGMENT_FAILED
 	assert event.source_id is context.source_id
 	assert event.segment_id == 19
+	assert str(event.error) == f"{DISPLAY_NAMES.get(engine.engine, engine.engine)} driver has terminated"
+	assert events.on_delivery_thread == [True]
+	assert events.threads[0] != caller.ident
 	assert engine.native_call_count() == 0
 
 
@@ -159,10 +137,12 @@ def test_speak_segment_returns_before_delivery(engine):
 	assert delivered_early == []
 	assert errors == []
 	assert event.kind is engine.EventKind.SEGMENT_DRAINED
+	assert event.source_id is context.source_id
 	assert event.segment_id == 23
-	# Checked last so every other assertion still applies to the C3 engines.
-	if not returned_early:
-		raise C3Blocking("speak_segment did not return before the segment completed")
+	assert events.on_delivery_thread == [True]
+	assert events.threads[0] != caller.ident
+	# Checked last so every other assertion still applies when speak_segment blocks (refactor.md C3).
+	assert returned_early, "speak_segment did not return before the segment completed"
 
 
 @pytest.mark.parametrize("engine", _engines(), indirect=True)
