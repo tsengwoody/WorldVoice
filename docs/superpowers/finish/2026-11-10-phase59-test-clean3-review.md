@@ -13,9 +13,9 @@ Everything else holds: all whole-branch invariants pass, batch 3 loses no assert
 | Important | 1 |
 | Minor | 3 |
 
-All paths below are relative to the branch unless absolute. My scratch area is
-`/tmp/claude-0/-workspace-WorldVoice/9e65e0e5-7706-45c2-8166-5a831b64aee2/scratchpad/p59-final/` (called `$F`):
-worktrees `base` (f1bbec0), `head` (5dd619a), `mut` (5dd619a, mutants applied and restored; clean now), `premerge` (34a58a4).
+All paths below are relative to the branch. `$F` names the reviewer's scratch area (worktrees
+`base` at f1bbec0, `head` at 5dd619a, `mut` for mutants, `premerge` at 34a58a4, and helper scripts
+such as `mutate.py`, `pocheck.py`, `arcs.py`); that scratch evidence was not kept in the repository.
 
 ---
 
@@ -143,7 +143,7 @@ obsolete: SAME  obsolete-multiline: SAME  no-final-newline: SAME  untranslated: 
 ```
 
 - **Source side.** `_("literal")` with one positional `str` constant is read (implicit concatenation is one constant). `ngettext`, `pgettext`, a non-literal argument, an f-string, keywords or extra arguments are all reported as unsupported with `file:line`. `buildVars.py`'s three calls are included. The inner drivers' `_()` calls are correctly left out: `buildVars.pythonSources` does not reach `driver/<Engine>/driver/`, so `scons pot` never extracts them.
-- **Catalog side.** Multi-line strings, escapes, obsolete `#~` entries, `#| msgid` lines and the header are handled. `msgctxt` and plural entries are not parsed, but both fail loudly (X2 reports the msgid as unused or X1 as untranslated), and the source side already rejects those forms. Limits: M1 and M3.
+- **Catalog side.** Multi-line strings, escapes, obsolete `#~` entries, `#| msgid` lines and the header are handled. `msgctxt` and plural entries are not parsed, but both fail loudly (X2 reports the msgid as unused or X1 as untranslated), and the source side already rejects those forms. Limits: M1 and M3. *(Fix-result note: since `dcc9fb0` a plural entry is read by its singular msgid and `msgstr[0]`, so X2 reports a stale one again.)*
 - **Platform-neutral.** Paths are built with `pathlib` and compared as `as_posix()`; every read names `encoding="utf-8"`; `read_text` uses universal newlines, and the CRLF copy of a catalog parses the same (`crlf: SAME`). Nothing depends on the working directory.
 - **Replaces D10.** X1 is a superset of "each changed label has a zh_TW msgstr"; X2 is a superset of "no dead msgid in the catalog" and of "each listed label is still used". What is gone is only the `# Translators:` presence check for 18 labels, which spec N8 records as the user's decision.
 
@@ -238,6 +238,9 @@ One mutant of mine for G7-M1 (comparing UnicodeData with the other option's dige
 | Final review | I1：G6-M4 仍抓不到「存第一個選項」 | `b6c638d` | 已修。同一個測試依序存第一個與最後一個選項；`onSave` 存第一個選項、最後一個選項、預設值三種突變都讓兩個案例失敗。id 與數量不變。 |
 | Final review | M1：`_catalog` 在兩種合法的 .po 版面讀錯 | `8df2386` | 已修。遇到空白行、註解或下一個 `msgid` 就結束一筆，fuzzy 標記在每個空白行結束；新增四列的 `_catalog` 表格測試（舊版讀法其中三列失敗）。測試數 3646 → 3650。 |
 | Final review | M2：spec 與分支不一致 | `a8cfccd` | 已修。G6-M4、G1-M13 舊值以刪除線保留，新增 §15「Corrections after review」。 |
-| Final review | M3：X1/X2 只看裸名稱的 gettext 呼叫 | `ac12bbf` | 已修。依 xgettext 的方式找 `_`、`gettext`、`pgettext`、`ngettext`、`npgettext`（裸名稱或屬性呼叫），掃描所有非排除的 add-on 模組；在 scratch 複本加入 `x.gettext("…")`、`gettext("…")`、`x._("…")` 都會被 X1 指出位置，`x.ngettext(…)` 列為 unsupported。 |
+| Final review | M3：X1/X2 只看裸名稱的 gettext 呼叫 | `ac12bbf` | 已修。依名稱找 NVDA add-on 用的 gettext 呼叫：`_`、`gettext`、`pgettext`、`ngettext`、`npgettext`（裸名稱或屬性呼叫），掃描所有非排除的 add-on 模組；在 scratch 複本加入 `x.gettext("…")`、`gettext("…")`、`x._("…")` 都會被 X1 指出位置，`x.ngettext(…)` 列為 unsupported。 |
+| 最後修正 review | m1：`#, fuzzy` 與它的 msgid 之間有空白行時，`_catalog` 讀成已翻譯（msgfmt 會丟掉） | `dcc9fb0` | 已修。fuzzy 標記只在遇到過時的 `#~` 條目時清除，不再於空白行清除；`fuzzy-active` 列加上這種版面（msgfmt 結果相同）。79cfd21 的讀法讓這列失敗；在真實 zh_TW 目錄的 Group size 上方加 `#, fuzzy` 與空白行，X1 失敗，舊讀法通過。 |
+| 最後修正 review | m2：plural 條目被整筆略過，X2 抓不到過時的 plural 條目 | `dcc9fb0` | 已修。`msgstr[0] ` 也開始 msgstr 欄位，plural 條目以單數 msgid 與 `msgstr[0]` 讀入；在真實目錄末尾加一筆過時的 plural 條目，X2 失敗並指出 `one`，舊讀法通過。真實目錄的讀法與 msgfmt 一致（92 筆，0 筆未翻譯）。 |
+| 最後修正 review | m3：spec 與紀錄的用詞 | 本 docs commit | 已修。spec 摘要表、§8、§9.2 加上指向 §15 的說明（審查修正後為 3650）；測試與 spec 改成描述實際比對的名稱，不再寫「as xgettext does」；本紀錄的 scratch 路徑改成一句說明（scratch 證據未保留）。 |
 
 最後驗證：完整測試 3650 passed、0 skipped；`prek run --all-files` 全部 Passed；`git diff --check master` 乾淨；受保護路徑指令無輸出；`git diff --stat master -- addon/` 為空；arc gate（對 `cov-before.db`）只失去 N3 允許的三個 fragment arc。

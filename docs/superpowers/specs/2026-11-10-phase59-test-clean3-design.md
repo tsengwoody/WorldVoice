@@ -27,7 +27,7 @@ All four lists were checked by script against `python3 -m pytest tests --collect
 | Ids replaced by merges | 132 |
 | Ids the merges produce | 72 (net **−60**, §6.9) |
 | New translator tests | 2 (§8) |
-| **Collected and passed after** | **3646** (= 3998 − 294 − 60 + 2), 0 skipped |
+| **Collected and passed after** | **3646** (= 3998 − 294 − 60 + 2), 0 skipped; **3650** after the review fixes (§15) |
 | Test files deleted | 2: `test_f4_engine_session.py` (emptied by removals), `test_global_plugin_lifecycle.py` (moved into `test_global_plugin_menu.py` by G8-M4) |
 | Changes under `addon/` | none |
 
@@ -324,7 +324,7 @@ Not done (they are in the audit's 保留但值得一提, not 連帶可刪): the 
 
 In `tests/test_translator_comments.py`:
 
-- **Helper** `_source_msgids()` → `({msgid: [locations]}, [unsupported locations])`. Sources: the modules of `_translated_modules()` (`:157-168`, the add-on modules with a gettext call, `EXCLUDED` `:9` applied) and `buildVars.py` at the repository root (read as `test_every_translated_module_is_a_pot_source` reads it, `:186-187`). These are the files `scons pot` hands to xgettext (`buildVars.py:60-70`, `sconstruct:130-137`), minus modules without a gettext call; `test_every_translated_module_is_a_pot_source` (`:183-194`) keeps the two sets aligned. For each `ast.Call` whose `func` is an `ast.Name` in `GETTEXT_NAMES` (`:154`): when it is `_` with exactly one positional argument that is a `str` constant (implicit concatenation is already one constant), record that string with `relative:lineno`; any other form (`pgettext`, `ngettext`, `npgettext`, a non-literal or extra argument) is recorded as unsupported, because `_catalog` (`:131-145`) reads neither `msgctxt` nor plurals. None exists at `f1bbec0` (N6).
+- (Sources and call forms corrected after review, see §15.) **Helper** `_source_msgids()` → `({msgid: [locations]}, [unsupported locations])`. Sources: the modules of `_translated_modules()` (`:157-168`, the add-on modules with a gettext call, `EXCLUDED` `:9` applied) and `buildVars.py` at the repository root (read as `test_every_translated_module_is_a_pot_source` reads it, `:186-187`). These are the files `scons pot` hands to xgettext (`buildVars.py:60-70`, `sconstruct:130-137`), minus modules without a gettext call; `test_every_translated_module_is_a_pot_source` (`:183-194`) keeps the two sets aligned. For each `ast.Call` whose `func` is an `ast.Name` in `GETTEXT_NAMES` (`:154`): when it is `_` with exactly one positional argument that is a `str` constant (implicit concatenation is already one constant), record that string with `relative:lineno`; any other form (`pgettext`, `ngettext`, `npgettext`, a non-literal or extra argument) is recorded as unsupported, because `_catalog` (`:131-145`) reads neither `msgctxt` nor plurals. None exists at `f1bbec0` (N6).
 - **X1** `test_every_source_msgid_has_a_zh_tw_translation`: `unsupported == []`, and `{msgid: locations for msgid, locations in source.items() if not catalog.get(msgid)} == {}` with `catalog = _catalog(ZH_TW_CATALOG)` (`:95`).
 - **X2** `test_the_zh_tw_catalog_has_no_unused_entry`: `sorted(set(catalog) - set(source)) == []`. `_catalog` leaves out the header and obsolete `#~` entries (`:132`), so those are allowed. X2 also guards X1 against an empty extraction (the catalog has 92 entries).
 - Module docstring (`:1`): add that the zh_TW catalog must translate exactly the source strings.
@@ -354,7 +354,7 @@ Per commit: run the proof with `BASE` = the previous commit's collection and tha
 
 ### 9.2 Test count
 
-`python3 -m pytest -q tests`: **3646 passed, 0 skipped**. Expected after each stage of §10:
+`python3 -m pytest -q tests`: **3646 passed, 0 skipped** (3650 after the review fixes, see §15). Expected after each stage of §10:
 
 | After | Collected |
 |---|---|
@@ -488,5 +488,5 @@ Corrected by `phase59-test-clean3` after the batch reviews and the final review 
 - **G6-M4 (§6.6).** One stored value per control cannot tell a correct panel from one that saves the first choice, the last choice (what an index of -1 picks) or the default when nothing is selected: `"WorldVoice"` is both the last scope choice and the default, `"number"` is the last mode, and `"none"`/`"all"` (the first fix, `742424f`) are the first choices. The test now stores the first and then the last choice of each control in turn (`b6c638d`); all three faulty panels fail both cases. Ids unchanged.
 - **G1-M13 (§6.1).** The empty case's `fed` is `[0]`: the wrapper feeds one empty tail chunk; the source test made no claim about `fed`.
 - **Ids (§6.2, §6.4, §7).** G2-M7's ids are `[cancel|fail|complete_drained]` and G4-M3's are `<mode>-<roles|generic>-<pause|remove>` (explicit ids, `0a3e906`). After the deletions two kept tests were renamed after what they still run: `test_a_stored_pair_mode_reads_numbers_as_values` → `test_a_stored_group_mode_reads_numbers_as_values`, `test_group_pieces_of_size_zero_is_the_whole_match` → `test_group_pieces_of_a_negative_size_is_the_whole_match` (`421f4bf`).
-- **Translator checks (§8).** `_catalog` reads a `#, fuzzy` entry as untranslated (msgfmt drops it), ends an entry at a blank line, a comment or the next `msgid`, and ends a fuzzy flag at every blank line (`8df2386`, with a four-row table test of `_catalog`). X1/X2 find gettext calls as xgettext does: `_`, `gettext`, `pgettext`, `ngettext`, `npgettext`, plain or as an attribute, in every add-on module outside `EXCLUDED`; a literal `_()` or `gettext()` is a source string, any other form is unsupported (`ac12bbf`).
+- **Translator checks (§8).** `_catalog` reads a `#, fuzzy` entry as untranslated (msgfmt drops it), ends an entry at a blank line, a comment or the next `msgid` (`8df2386`, with a four-row table test of `_catalog`), keeps a fuzzy flag across a blank line up to its entry and drops it at an obsolete `#~` entry, and reads a plural entry by its singular `msgid` and `msgstr[0]`, so a stale one is still reported (final fix round). X1/X2 find calls by the gettext names NVDA add-ons use, `_`, `gettext`, `pgettext`, `ngettext` and `npgettext`, called plain or as an attribute, in every add-on module outside `EXCLUDED`; a literal `_()` or `gettext()` is a source string, any other form is unsupported (`ac12bbf`).
 - **Count (§9.2).** The `_catalog` table test adds four ids: the branch ends at **3650 passed, 0 skipped** (3646 + 4).
