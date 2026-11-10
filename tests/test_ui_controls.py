@@ -152,26 +152,20 @@ PAUSE_DEPENDENTS = (
 	"punctuation_wait_factor",
 	"punctuation_pause_characters",
 )
-# The group size depends on nothing since 2026-11-01 (U1); the punctuation controls are the dependents.
-DEPENDENTS = PAUSE_DEPENDENTS
 
 
-@pytest.mark.parametrize(
-	("key", "options"),
-	[
-		("number_mode", ["none", "value", "number"]),
-	],
-)
-def test_read_control_without_a_control_is_absent(monkeypatch, key, options):
+def test_read_control_without_a_control_is_absent(monkeypatch):
 	env = helpers(monkeypatch)
-	assert env.controls.readControl(env.spec(key), None, options) is env.layout.ABSENT
+	assert (
+		env.controls.readControl(env.spec("number_mode"), None, ["none", "value", "number"])
+		is env.layout.ABSENT
+	)
 
 
-@pytest.mark.parametrize("checked", [True])
-def test_read_control_reads_a_checkbox(monkeypatch, checked):
+def test_read_control_reads_a_checkbox(monkeypatch):
 	env = helpers(monkeypatch)
-	control = Recorder(value=checked)
-	assert env.controls.readControl(env.spec("punctuation_pause_enabled"), control) is checked
+	control = Recorder(value=True)
+	assert env.controls.readControl(env.spec("punctuation_pause_enabled"), control) is True
 	assert control.calls == [("GetValue",)]
 
 
@@ -207,12 +201,13 @@ def apply(env, read, missing=()):
 	)
 
 
-@pytest.mark.parametrize(("mode", "pause", "enabled"), [("value", False, False)])
-def test_apply_dependencies_enables_dependents_from_their_controller(monkeypatch, mode, pause, enabled):
+def test_apply_dependencies_enables_dependents_from_their_controller(monkeypatch):
+	# The group size depends on nothing since 2026-11-01 (U1); the punctuation controls are the
+	# dependents, and the number mode no longer changes the result.
 	env = helpers(monkeypatch)
-	apply(env, {"number_mode": mode, "punctuation_pause_enabled": pause}.__getitem__)
-	for key in DEPENDENTS:
-		assert env.recorders[key].calls == [("Enable", enabled)], key
+	apply(env, {"number_mode": "value", "punctuation_pause_enabled": False}.__getitem__)
+	for key in PAUSE_DEPENDENTS:
+		assert env.recorders[key].calls == [("Enable", False)], key
 
 
 def test_apply_dependencies_leaves_dependents_of_an_absent_controller_alone(monkeypatch):
@@ -240,7 +235,7 @@ def test_apply_dependencies_only_enables_dependents(monkeypatch):
 	apply(env, {"number_mode": "number", "punctuation_pause_enabled": True}.__getitem__)
 	assert env.recorders["group_size"].calls == []
 	for key, recorder in env.recorders.items():
-		if key in DEPENDENTS:
+		if key in PAUSE_DEPENDENTS:
 			assert recorder.calls == [("Enable", True)], key
 		else:
 			assert recorder.calls == [], key
