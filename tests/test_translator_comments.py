@@ -137,25 +137,29 @@ def test_every_translated_module_is_a_pot_source():
 def _source_msgids():
 	"""(msgid -> its call locations, unsupported call locations) of every string scons pot extracts.
 
-	The sources are the add-on modules with a gettext call and buildVars.py, whose summary,
-	description and changelog are in the catalog too (buildVars.i18nSources). Only _("literal") is
-	read; any other gettext call is unsupported, because _catalog reads neither msgctxt nor plurals.
+	The sources are the add-on modules (the excluded vendored and generated files left out) and
+	buildVars.py, whose summary, description and changelog are in the catalog too
+	(buildVars.i18nSources). Calls are found as xgettext finds them: by name, plain or as an
+	attribute (x._(), x.gettext()). Only _("literal") and gettext("literal") are read; any other
+	gettext call is unsupported, because _catalog reads neither msgctxt nor plurals.
 	"""
 	build_vars = ast.parse((ADDON.parent / "buildVars.py").read_text(encoding="utf-8"))
-	sources = [(relative, tree) for relative, _path, tree in _translated_modules()]
+	modules = [
+		(path.relative_to(ADDON).as_posix(), ast.parse(path.read_text(encoding="utf-8")))
+		for path in sorted(ADDON.rglob("*.py"))
+		if not EXCLUDED.search(path.relative_to(ADDON).as_posix())
+	]
 	source, unsupported = {}, []
-	for relative, tree in [*sources, ("buildVars.py", build_vars)]:
+	for relative, tree in [*modules, ("buildVars.py", build_vars)]:
 		for node in ast.walk(tree):
-			if not (
-				isinstance(node, ast.Call)
-				and isinstance(node.func, ast.Name)
-				and node.func.id in GETTEXT_NAMES
-			):
+			func = node.func if isinstance(node, ast.Call) else None
+			name = getattr(func, "id", None) or getattr(func, "attr", None)
+			if name not in {*GETTEXT_NAMES, "gettext"}:
 				continue
 			location = f"{relative}:{node.lineno}"
 			(literal,) = node.args if len(node.args) == 1 else (None,)
 			if (
-				node.func.id == "_"
+				name in ("_", "gettext")
 				and not node.keywords
 				and isinstance(literal, ast.Constant)
 				and isinstance(literal.value, str)
