@@ -43,22 +43,6 @@ def test_log_switches_list_each_label_once_in_stage_order(monkeypatch):
 	assert module.LOG_SWITCHES == tuple(LOG_SWITCH_ORDER)
 
 
-def test_number_mode_switch_logs_both_number_mode_stages(monkeypatch):
-	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
-	sys.modules["config"].conf["WorldVoice"]["log"] = {
-		"enable": True,
-		**dict.fromkeys(LOG_SWITCH_ORDER, False),
-		"numberMode": True,
-	}
-	writes = []
-	monkeypatch.setattr(module.registry, "pl", SimpleNamespace(write=lambda *args: writes.append(args[1:3])))
-	monkeypatch.setattr(module.registry, "current_context", lambda: module.GENERIC_CONTEXT)
-	sequence = ["12,345"]
-	for stage in module.STAGES:
-		sequence = stage.handler(sequence)
-	assert writes == [("number_mode", "before"), ("number_mode", "after")] * 2
-
-
 @pytest.mark.parametrize(
 	"on",
 	[(), ("numberLanguage",), ("numberMode",)],
@@ -98,10 +82,10 @@ def test_log_switches_list_each_key_once_in_stage_order(monkeypatch):
 
 @pytest.mark.parametrize(
 	("on", "pairs"),
-	[(("numberLanguage",), 1)],
-	ids=["language-only"],
+	[(("numberMode",), 2), (("numberLanguage",), 1)],
+	ids=["mode", "language"],
 )
-def test_the_number_language_switch_logs_the_number_stage(monkeypatch, on, pairs):
+def test_a_number_switch_logs_its_number_stages(monkeypatch, on, pairs):
 	# Number-edge-pause spec D4: one number stage, logged by either number switch, labelled "number_mode".
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
 	sys.modules["config"].conf["WorldVoice"]["log"] = {
@@ -222,7 +206,14 @@ def test_number_language_wraps_numbers_for_worldvoice_only(monkeypatch):
 	assert list(module.inject_numbers([command, "x"], settings, module.GENERIC_CONTEXT)) == ["x"]
 
 
-def test_number_language_and_number_wait_pause_between_numbers(monkeypatch):
+@pytest.mark.parametrize(
+	("text", "numbers"),
+	[("1 2", ("1", "2")), ("10\u00a0000", ("10", "000"))],
+	ids=["space", "no-break-space"],
+)
+def test_number_language_and_number_wait_pause_between_numbers(monkeypatch, text, numbers):
+	# Decided by the user (2026-10-22): "10 000" with a no-break space is two numbers, with or
+	# without a number language.
 	settings = punctuation_settings(0)
 	settings.scaled_number_wait = lambda: 10
 	module, _ = load_pipeline_module(monkeypatch, settings)
@@ -235,13 +226,14 @@ def test_number_language_and_number_wait_pause_between_numbers(monkeypatch):
 		voice_name_for_language={"zh": "Z", "en": "E"}.get,
 	)
 	monkeypatch.setattr(module.registry, "current_context", lambda: ctx)
-	sequence = ["1 2"]
+	sequence = [text]
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)
+	first, second = numbers
 	assert [
 		getattr(item, "lang", item) if not isinstance(item, module.NumberBreakCommand) else ("NB", item.time)
 		for item in sequence
-	] == ["en", "1", "zh", ("NB", 10), "en", "2", "zh"]
+	] == ["en", first, "zh", ("NB", 10), "en", second, "zh"]
 
 
 def test_thousands_removal_runs_before_number_language(monkeypatch):
@@ -259,31 +251,6 @@ def test_thousands_removal_runs_before_number_language(monkeypatch):
 	for stage in module.STAGES:
 		sequence = stage.handler(sequence)
 	assert [getattr(item, "lang", item) for item in sequence] == ["en", "12345678", "zh"]
-
-
-@pytest.mark.parametrize("space", ["\u00a0"])
-def test_number_language_pauses_at_a_no_break_space(monkeypatch, space):
-	# Decided by the user (2026-10-22): "10 000" with a no-break space is two numbers, with or
-	# without a number language.
-	settings = punctuation_settings(0)
-	settings.scaled_number_wait = lambda: 10
-	module, _ = load_pipeline_module(monkeypatch, settings)
-	ctx = module.SpeechContext(
-		supports_roles=True,
-		language="zh",
-		number_language="en",
-		default_voice_name="Z",
-		default_voice_language="zh",
-		voice_name_for_language={"zh": "Z", "en": "E"}.get,
-	)
-	monkeypatch.setattr(module.registry, "current_context", lambda: ctx)
-	sequence = [f"10{space}000"]
-	for stage in module.STAGES:
-		sequence = stage.handler(sequence)
-	assert [
-		("NB", item.time) if isinstance(item, module.NumberBreakCommand) else getattr(item, "lang", item)
-		for item in sequence
-	] == ["en", "10", "zh", ("NB", 10), "en", "000", "zh"]
 
 
 def test_symbol_names_without_a_number_language_voice_use_the_default_voice_locale(monkeypatch):
