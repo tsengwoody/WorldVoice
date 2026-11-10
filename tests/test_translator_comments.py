@@ -1,4 +1,7 @@
-"""Translator comments must sit directly above a gettext call (NVDA codingStandards.md)."""
+"""Translator comments must sit directly above a gettext call (NVDA codingStandards.md).
+
+The zh_TW catalog must translate exactly the source strings: every one, and nothing else.
+"""
 
 import ast
 import re
@@ -129,10 +132,16 @@ def test_changed_label_strings_have_translator_comments():
 
 
 def _catalog(path):
-	"""msgid -> msgstr of the catalog's active entries (obsolete #~ entries and the header left out)."""
-	entries, field, parts = {}, None, {"msgid": [], "msgstr": []}
+	"""msgid -> msgstr of the catalog's active entries (obsolete #~ entries and the header left out).
+
+	A fuzzy entry's msgstr reads as "": msgfmt leaves fuzzy translations out, so NVDA would show it in
+	English.
+	"""
+	entries, field, parts, fuzzy = {}, None, {"msgid": [], "msgstr": []}, False
 	for line in [*path.read_text(encoding="utf-8").splitlines(), ""]:
-		if line.startswith(("msgid ", "msgstr ")):
+		if line.startswith("#,") and "fuzzy" in line:
+			fuzzy = True
+		elif line.startswith(("msgid ", "msgstr ")):
 			field, text = line.split(" ", 1)
 			parts[field] = [text]
 		elif line.startswith('"') and field is not None:
@@ -140,8 +149,8 @@ def _catalog(path):
 		elif not line.strip() and field is not None:
 			msgid = "".join(eval(part) for part in parts["msgid"])
 			if msgid:
-				entries[msgid] = "".join(eval(part) for part in parts["msgstr"])
-			field, parts = None, {"msgid": [], "msgstr": []}
+				entries[msgid] = "" if fuzzy else "".join(eval(part) for part in parts["msgstr"])
+			field, parts, fuzzy = None, {"msgid": [], "msgstr": []}, False
 	return entries
 
 
@@ -192,3 +201,47 @@ def test_every_translated_module_is_a_pot_source():
 	]
 	covered = {path for pattern in ast.literal_eval(sources) for path in root.glob(pattern)}
 	assert [relative for relative, path, _tree in _translated_modules() if path not in covered] == []
+
+
+def _source_msgids():
+	"""(msgid -> its call locations, unsupported call locations) of every string scons pot extracts.
+
+	The sources are the add-on modules with a gettext call and buildVars.py, whose summary,
+	description and changelog are in the catalog too (buildVars.i18nSources). Only _("literal") is
+	read; any other gettext call is unsupported, because _catalog reads neither msgctxt nor plurals.
+	"""
+	build_vars = ast.parse((ADDON.parent / "buildVars.py").read_text(encoding="utf-8"))
+	sources = [(relative, tree) for relative, _path, tree in _translated_modules()]
+	source, unsupported = {}, []
+	for relative, tree in [*sources, ("buildVars.py", build_vars)]:
+		for node in ast.walk(tree):
+			if not (
+				isinstance(node, ast.Call)
+				and isinstance(node.func, ast.Name)
+				and node.func.id in GETTEXT_NAMES
+			):
+				continue
+			location = f"{relative}:{node.lineno}"
+			(literal,) = node.args if len(node.args) == 1 else (None,)
+			if (
+				node.func.id == "_"
+				and not node.keywords
+				and isinstance(literal, ast.Constant)
+				and isinstance(literal.value, str)
+			):
+				source.setdefault(literal.value, []).append(location)
+			else:
+				unsupported.append(location)
+	return source, unsupported
+
+
+def test_every_source_msgid_has_a_zh_tw_translation():
+	source, unsupported = _source_msgids()
+	catalog = _catalog(ZH_TW_CATALOG)
+	assert unsupported == []
+	assert {msgid: locations for msgid, locations in source.items() if not catalog.get(msgid)} == {}
+
+
+def test_the_zh_tw_catalog_has_no_unused_entry():
+	source, _unsupported = _source_msgids()
+	assert sorted(set(_catalog(ZH_TW_CATALOG)) - set(source)) == []
