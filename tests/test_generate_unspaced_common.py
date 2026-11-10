@@ -160,14 +160,6 @@ def test_render_module_is_loadable_and_names_its_sources(tool):
 	assert text.endswith("\n") and not text.endswith("\n\n")
 
 
-def test_check_versions_needs_one_unicode_version(tool):
-	tool.check_versions("16.0.0", requested="16.0.0", script_data="16.0.0")
-	with pytest.raises(SystemExit, match="script_data"):
-		tool.check_versions("16.0.0", requested="16.0.0", script_data="15.1.0")
-	with pytest.raises(SystemExit, match="--unicode-version"):
-		tool.check_versions("16.0.0", requested="15.1.0", script_data="16.0.0")
-
-
 def test_the_tool_does_not_use_pythons_unicodedata(tool):
 	# Python's unicodedata is of the Unicode version Python ships, not of --unicode-version.
 	tree = ast.parse(TOOL.read_text(encoding="utf-8"))

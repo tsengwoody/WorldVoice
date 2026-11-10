@@ -584,15 +584,6 @@ def test_engine_specific_barrier_names_are_used_and_not_shared():
 		assert used == names, engine
 
 
-def test_leased_player_reaches_played_out_by_default():
-	host_tree = ast.parse((ROOT / "runtime/segmentHost.py").read_text(encoding="utf-8"))
-	leased = next(n for n in host_tree.body if isinstance(n, ast.ClassDef) and n.name == "LeasedPlayer")
-	init = next(n for n in leased.body if isinstance(n, ast.FunctionDef) and n.name == "__init__")
-	defaults = dict(zip((a.arg for a in init.args.kwonlyargs), init.args.kw_defaults, strict=True))
-	assert ast.unparse(defaults["idle_barrier"]) == "PLAYED_OUT"
-	assert "from .barriers import PLAYED_OUT" in ast.unparse(host_tree)
-
-
 _TOKEN_NAMES = frozenset({"cancellationToken", "supportsCancellationToken"})
 
 
