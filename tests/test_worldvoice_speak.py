@@ -1345,13 +1345,16 @@ def heard_for_property(monkeypatch, items, **options):
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=100)
 @given(
 	items=INVARIANT_ITEMS,
-	numlan=st.sampled_from(["default", "main"]),
+	# Specific number languages too: their wrappers keep the item boundary (review I1).
+	numlan=st.sampled_from(["default", "main", "zh_TW", "en"]),
 	main=st.sampled_from(["en", "zh"]),
 	group_size=st.sampled_from([0, 3]),
 	pauses=pauses_on(),
 )
 @example(items=['abc, "नेपाल"'], numlan="default", main="en", group_size=0, pauses={"punctuation": True})
 @example(items=["abc 12 34 (नेपाल)"], numlan="default", main="en", group_size=0, pauses={"number_wait": 10})
+@example(items=["abc 12", '"नेपाल"'], numlan="zh_TW", main="en", group_size=3, pauses={"number_wait": 10})
+@example(items=["Total 12", '"नेपाल"'], numlan="zh_TW", main="en", group_size=0, pauses={"number_wait": 10})
 def test_property_pause_settings_do_not_change_voices(
 	monkeypatch,
 	timing,
@@ -1382,7 +1385,8 @@ def test_property_pause_settings_do_not_change_voices(
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=100)
 @given(
 	items=INVARIANT_ITEMS,
-	numlan=st.sampled_from(["default", "main"]),
+	# Specific number languages too: their wrappers keep the item boundary (review I1).
+	numlan=st.sampled_from(["default", "main", "zh_TW", "en"]),
 	main=st.sampled_from(["en", "zh"]),
 	item_wait=st.sampled_from([0, 10]),
 	pauses=pauses_on(),
