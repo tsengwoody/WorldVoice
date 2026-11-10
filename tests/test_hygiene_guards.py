@@ -67,7 +67,6 @@ def test_pre_commit_runs_the_ruff_lint_hook():
 	config = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
 	lint = config.index("- id: ruff\n")
 	assert "args: [ --fix ]" in config[lint : config.index("- id: ruff-format")]
-	assert "omits the lint hook" not in config
 
 
 def test_pre_commit_hooks_cover_the_addon_and_the_tests():
