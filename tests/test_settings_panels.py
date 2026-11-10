@@ -9,7 +9,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
-from addon_loader import WORLDVOICE, load_definitions, load_source
+from addon_loader import load_source
 from nvda_stubs import RefusingSection, worldvoice_conf
 from pipeline_harness import LOG_SWITCH_ORDER
 from ui_harness import PLUGIN_DIR, Sizer, TextCtrl, fire, load_settings_dialog, make_panel
@@ -106,31 +106,6 @@ def test_pipeline_panel_shows_an_unknown_stored_value_as_its_normal_form(monkeyp
 	assert panel._number_mode_choice.selection == 1
 
 
-def test_number_modes_match_the_driver_and_the_panel(monkeypatch):
-	env = pipeline_env(monkeypatch)
-	panel, _sizer = build(env, "SpeechPipelinePanel")
-	settings_module = sys.modules[type(env.pipeline_settings).__module__]
-	driver = load_definitions(
-		WORLDVOICE / "__init__.py",
-		["SynthDriver"],
-		{
-			"_": lambda text: text,
-			"NUMBER_MODE_CHOICES": settings_module.NUMBER_MODE_CHOICES,
-			"StringParameterInfo": lambda id, name: SimpleNamespace(id=id, name=name),
-		},
-		members=("_get_availableNummods",),
-	)["SynthDriver"]
-	spec = settings_module.PIPELINE_SETTING_BY_KEY["number_mode"]
-	# The settings ring lists the driver's modes: off, value, number, no "group" (2026-11-01, U1).
-	assert (
-		list(settings_module.NUMBER_MODES)
-		== list(driver()._get_availableNummods())
-		== [value for value, _label in spec.choices]
-		== ["none", "value", "number"]
-	)
-	assert panel._number_mode_choice.choices == [label for _value, label in spec.choices]
-
-
 def group_size_enabled(panel):
 	return panel._group_size_spin.enabled
 
@@ -147,7 +122,8 @@ def test_pipeline_panel_group_size_stays_enabled_after_every_mode_choice(monkeyp
 	env = pipeline_env(monkeypatch, numberMode="value")
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	choice = panel._number_mode_choice
-	assert choice.choices == ["off", "value", "number"]
+	spec = sys.modules[type(env.pipeline_settings).__module__].PIPELINE_SETTING_BY_KEY["number_mode"]
+	assert choice.choices == [label for _value, label in spec.choices] == ["off", "value", "number"]
 	for index in (0, 1, 2, -1):
 		choice.Select(index)
 		# Nothing listens to the mode any more, so nothing can disable the group size.

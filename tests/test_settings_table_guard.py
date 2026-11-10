@@ -441,6 +441,11 @@ def test_driver_choices_match_the_driver_options(module):
 	)["SynthDriver"]()
 	driver_choices = [spec for spec in module.PIPELINE_SETTINGS if spec.driver_id and spec.choices]
 	assert [spec.driver_id for spec in driver_choices] == ["nummod"]
+	# The settings ring lists the driver's modes: off, value, number, no "group" (2026-11-01, U1).
+	spec = module.PIPELINE_SETTING_BY_KEY["number_mode"]
+	assert (
+		list(module.NUMBER_MODES) == [value for value, _label in spec.choices] == ["none", "value", "number"]
+	)
 	for spec in driver_choices:
 		options = getattr(driver, f"_get_available{spec.driver_id.capitalize()}s")()
 		assert [(key, info.id, info.name) for key, info in options.items()] == [
