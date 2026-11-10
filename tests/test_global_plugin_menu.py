@@ -4,6 +4,8 @@ The real globalPlugins/WorldVoice/__init__.py runs against ui_harness's GUI stub
 collaborators record their calls in env.calls.
 """
 
+import zipfile
+
 import pytest
 from ui_harness import MenuItem, load_global_plugin
 
@@ -190,7 +192,8 @@ def test_failed_extraction_reports_and_logs_the_archive_name(monkeypatch, tmp_pa
 	env.wx.FileDialog = FileDialog(env.wx.ID_OK, "C:/cores/broken.zip")
 
 	def fail(*args):
-		raise OSError("bad archive")
+		# A corrupt archive: the real extractCoreArchive raises BadZipFile for one (test_core_install.py).
+		raise zipfile.BadZipFile("bad archive")
 
 	monkeypatch.setattr(env.module, "extractCoreArchive", fail)
 	env.plugin.onFileImport(None)

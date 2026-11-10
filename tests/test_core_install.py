@@ -2,22 +2,20 @@
 
 onInstall finds the core folder next to installTasks.py and loads coreArchive.py and
 workspace.py by path from there. These tests copy those two files into a temporary add-on
-folder and point the real installTasks module's __file__ into it. The last two tests load the
+folder and point the real installTasks module's __file__ into it. The last test loads the
 real files instead, so coverage sees coreArchive.py.
 """
 
 import shutil
-import types
 from types import SimpleNamespace
 from zipfile import ZIP_STORED, BadZipFile, ZipFile
 
 import pytest
-from addon_loader import ADDON, load_definitions
+from addon_loader import ADDON
 from core_archive_harness import INSTALL, load
 from nvda_stubs import StubModules
 
 ARCHIVE = ADDON / "generics/coreArchive.py"
-PLUGIN = ADDON / "globalPlugins/WorldVoice/__init__.py"
 
 
 def make_zip(path, **members):
@@ -179,47 +177,3 @@ def test_install_always_removes_the_archive(tmp_path, monkeypatch, corrupt):
 	module._extractCoreArchive(str(archive), str(tmp_path / "ws"))
 	assert not archive.exists()
 	assert any(entry[0] == "error" for entry in logged) is corrupt
-
-
-def test_menu_import_reports_a_corrupt_archive(monkeypatch, tmp_path):
-	broken = tmp_path / "broken.zip"
-	broken.write_bytes(b"not a zip")
-	shown = []
-
-	class FileDialog:
-		def __init__(self, *args, **kwargs):
-			pass
-
-		def __enter__(self):
-			return self
-
-		def __exit__(self, *args):
-			return False
-
-		def ShowModal(self):
-			return 1
-
-		def GetPath(self):
-			return str(broken)
-
-	environment = {
-		"wx": types.SimpleNamespace(FileDialog=FileDialog, ID_OK=1, OK=4, CANCEL=16, ICON_WARNING=0),
-		"gui": types.SimpleNamespace(mainFrame=None, messageBox=lambda *args: shown.append(args) or 16),
-		"_": lambda text: text,
-		"os": __import__("os"),
-		"workspace_path": lambda: str(tmp_path / "workspace"),
-		"log": types.SimpleNamespace(
-			exception=lambda *a: None,
-			info=lambda *a: None,
-			warning=lambda *a: None,
-		),
-		"extractCoreArchive": load(
-			ARCHIVE,
-			"core_archive_for_plugin",
-			monkeypatch,
-			[],
-		).extractCoreArchive,
-	}
-	load_definitions(PLUGIN, ["GlobalPlugin.onFileImport"], environment)
-	environment["onFileImport"](None, None)
-	assert shown and shown[0][0] == "Import fail"
