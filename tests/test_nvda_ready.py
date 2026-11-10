@@ -99,28 +99,30 @@ def test_ready_on_ref_nvda_is_true_and_silent(skipped_engine, monkeypatch):
 	assert ready(skipped_engine, monkeypatch, UnreadVersion()) == (True, [])
 
 
-def test_ready_skips_with_one_warning_when_a_module_name_is_missing(skipped_engine, monkeypatch):
+def remove_a_name(engine, kind, patch):
+	"""Delete the engine's listed module or class name through *patch*; return its full dotted name."""
+	if kind == "module":
+		patch.delattr(engine.module, engine.module_name)
+		return f"{engine.module.__name__}.{engine.module_name}"
+	patch.delattr(engine.host_class, engine.class_name)
+	return f"{engine.host_class.__module__}.{engine.host_class.__qualname__}.{engine.class_name}"
+
+
+@pytest.mark.parametrize(
+	("kind", "version"),
+	[("module", "2025.1.0"), ("class", "2026.3.0")],
+	ids=["module", "class"],
+)
+def test_ready_skips_with_one_warning_when_a_name_is_missing(skipped_engine, monkeypatch, kind, version):
 	engine = skipped_engine
 	with monkeypatch.context() as patch:
-		patch.delattr(engine.module, engine.module_name)
-		result, records = ready(engine, monkeypatch, SimpleNamespace(version="2025.1.0"))
+		missing = remove_a_name(engine, kind, patch)
+		result, records = ready(engine, monkeypatch, SimpleNamespace(version=version))
 	assert result is False
 	message = (
-		f"Skipping {engine.name} engine candidate: NVDA 2025.1.0 lacks names this engine needs: "
-		f"{engine.module.__name__}.{engine.module_name}"
+		f"Skipping {engine.name} engine candidate: NVDA {version} lacks names this engine needs: {missing}"
 	)
 	assert records == [("warning", message)]
-
-
-def test_ready_skips_when_a_class_name_is_missing(skipped_engine, monkeypatch):
-	engine = skipped_engine
-	owner = f"{engine.host_class.__module__}.{engine.host_class.__qualname__}"
-	with monkeypatch.context() as patch:
-		patch.delattr(engine.host_class, engine.class_name)
-		result, records = ready(engine, monkeypatch, SimpleNamespace(version="2026.3.0"))
-	assert result is False
-	assert [level for level, _message in records] == ["warning"]
-	assert records[0][1].endswith(f"NVDA 2026.3.0 lacks names this engine needs: {owner}.{engine.class_name}")
 
 
 def sapi5_fallback_message(version, *missing):
@@ -147,25 +149,20 @@ def test_sapi5_on_ref_nvda_uses_the_wrapper(sapi5, monkeypatch):
 	assert_sapi5_uses_the_wrapper(sapi5)
 
 
-def test_sapi5_uses_nvdas_driver_with_one_info_line_when_a_module_name_is_missing(sapi5, monkeypatch):
+@pytest.mark.parametrize(
+	("kind", "version"),
+	[("module", "2025.1.0"), ("class", "2025.2.0")],
+	ids=["module", "class"],
+)
+def test_sapi5_uses_nvdas_driver_with_one_info_line_when_a_name_is_missing(sapi5, monkeypatch, kind, version):
 	with monkeypatch.context() as patch:
-		patch.delattr(sapi5.module, sapi5.module_name)
-		result, records = ready(sapi5, monkeypatch, SimpleNamespace(version="2025.1.0"))
+		missing = remove_a_name(sapi5, kind, patch)
+		result, records = ready(sapi5, monkeypatch, SimpleNamespace(version=version))
 	assert result is True
 	assert_sapi5_uses_nvdas_driver(sapi5)
-	assert records == [
-		("info", sapi5_fallback_message("2025.1.0", f"synthDrivers.sapi5.{sapi5.module_name}")),
-	]
-
-
-def test_sapi5_uses_nvdas_driver_when_a_class_name_is_missing(sapi5, monkeypatch):
-	with monkeypatch.context() as patch:
-		patch.delattr(sapi5.host_class, sapi5.class_name)
-		result, records = ready(sapi5, monkeypatch, SimpleNamespace(version="2025.2.0"))
-	assert result is True
-	assert_sapi5_uses_nvdas_driver(sapi5)
-	missing = f"synthDrivers.sapi5.SynthDriver.{sapi5.class_name}"
-	assert records == [("info", sapi5_fallback_message("2025.2.0", missing))]
+	name = sapi5.module_name if kind == "module" else f"SynthDriver.{sapi5.class_name}"
+	assert missing == f"synthDrivers.sapi5.{name}"
+	assert records == [("info", sapi5_fallback_message(version, missing))]
 
 
 def test_sapi5_choice_follows_each_ready_call(sapi5, monkeypatch):
