@@ -202,3 +202,18 @@ Linux 上的測試只驗證受控的邊界。Windows 上的 NVDA、IBM TTS、eSp
 8. **偵測在 NVDA 之前、符號等級「多數」或「全部」。** 開頭引號的名稱（英文的「quote」）現在由尼泊爾語語音朗讀（7.1 是主要語音先讀「quote」再切換）。spec §2.3 列為非目標，結尾與行中的引號在 7.1 已經如此，但回報者聽得到這個改變。
 9. **M1 的限制**（若不修）：指定語言、偵測在 NVDA 之後、同一次朗讀的後一個 utterance。
 10. **readme 的文字**（M4 的四處）在使用者定稿前都還可以改。
+
+## 修正記錄
+
+修正依 DEVELOPMENT_WORKFLOW §3.4 進行：每項先寫會失敗的測試，再修正。修正後完整驗證：`python3 -m pytest -q tests` 3942 passed，0 skipped（3940 加上 2 個新測試）；`prek run --all-files` 全部 Passed；`git diff --check master` 沒有輸出；兩個受保護路徑指令都沒有輸出。
+
+| 項目 | 處理 | commit |
+| --- | --- | --- |
+| I1 | **待使用者決定**。產品程式碼、property 的指定語言抽樣與 readme 的相關限制說明都還沒改 | — |
+| I2 | 照建議修正：`stretch_targets` 從最後一段往前決定，某一段保留了涵蓋該文字、且主要語言和 target 不同的語言後，它前面的每一段都照舊規則。新增 `test_a_run_across_two_document_languages_adds_no_switch`（審閱者的三段序列），修正前失敗（印地、尼泊爾、印地），修正後通過 | `27d349e` |
+| M1 | 不修。結果和 `master` 相同，依協調者指示保留，列為未確認的限制 | — |
+| M2 | 偵測器層的 Invariant 1 改為也數語音切換（沒有語音的語言由主要語音朗讀，含空白），數字語言加抽 `zh_TW`，例數 300，並把 I2 的三段序列加成 `@example`（在修正前的程式碼會失敗）。端到端的兩個 property 加抽文件語言指令與 index 指令，只拿到空白的語音也算一次切換，每個時間點 100 例。utterance 結尾只在偵測器層抽（`heard()` 讀不了 `EndUtteranceCommand`）。指定數字語言的抽樣等 I1 決定後再加；這次加寬沒有遇到 I1 形狀的反例，所以沒有排除任何形狀 | `5fe506f` |
+| M3 | 修 I2 後，「plan 33」的 mutant（`stretch_languages.append(None)`）會被 `test_a_run_across_two_document_languages_adds_no_switch` 殺掉（scratch 複本驗證：1 failed）。帳本原本「等價」的判斷已更正 | `27d349e` |
+| M4 | 更新日誌刪掉不正確的「各種停頓設定不再影響標點由哪個語音朗讀」，改寫成「項目停頓參數」大於 0 時，開啟這些停頓也不影響新規則；保證的句子補上「項目停頓參數」大於 0 的條件；「NVDA 已換成名稱」的例外限定在「在 NVDA 處理語音指令後」；長項目拆成子項目，「一段朗讀項目」改為「每個項目」。和 I1 有關的限制說明等使用者決定 | `dc74500` |
+| M5 | 新增 `test_detection_ends_an_utterance_where_the_pipeline_does`：偵測器的 `_utterances` 和 `pipeline.sequence._ends_utterance` 對同一組指令（兩種 utterance 結尾、各種停頓、index、wrapper、文件語言、其他物件）切法一致。把偵測器的判斷縮成只看 `EndUtteranceCommand` 時測試失敗 | `34c8e9e` |
+| M6 | 拿掉 `plan` 的 `offset` 參數，每個字串從頭掃（`Ruling:` 已記在帳本：run 只在項目的第一個字元開始，offset 恆為 0）。行為不變，plan 10–14 的 mutant 隨之消失 | `9c76c5e` |
