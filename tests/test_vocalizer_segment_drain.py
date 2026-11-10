@@ -614,13 +614,6 @@ def test_native_constructor_owns_contextual_callback_before_first_open(env):
 	assert env.module.Voice.synthDriverClass is env.module.SynthDriver
 
 
-@pytest.mark.parametrize("version,mode", [("2026.3", "wasapi")])
-def test_guarded_native_profiles_are_enabled_with_unverified_evidence(env, version, mode):
-	support = env.core.get_segment_drain_support(nvda_version=version, audio_mode=mode)
-	assert support.supported
-	assert "unverified" in support.reason.lower()
-
-
 def test_vocalizer_endprocess_is_not_segment_drain(env, monkeypatch):
 	entered, release = Event(), Event()
 

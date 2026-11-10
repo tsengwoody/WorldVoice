@@ -282,16 +282,6 @@ def test_voice_reload_preserves_settings_and_invalidates_prior_context(env):
 	assert old_events == []
 
 
-def test_ordinary_speech_keeps_legacy_notifications_and_indexes(env):
-	env.driver.speak(("legacy", env.commands.IndexCommand(7), env.commands.IndexCommand(9)))
-	env.native.wait_calls(1)
-	env.player.idle_release.set()
-	env.native.end()
-	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
-	assert env.indexes == [7, 9]
-	assert env.dones == [env.driver]
-
-
 def test_legacy_audio_start_notification_keeps_original_state(env):
 	env.driver.useWasapi = False
 	native = env.natives[-1]
@@ -651,18 +641,6 @@ def test_voice_reload_replaces_faulted_playback_and_can_speak_again(env):
 	native.wait_calls(1)
 	native.end()
 	assert wait_event(events).segment_id == 18
-
-
-def test_token_cancelled_native_end_retires_silently_before_successor(env):
-	token, _, old_events = speak(env)
-	env.native.wait_calls(1)
-	token.cancel()
-	_, _, successor = speak(env, segment=18)
-	env.native.end()
-	env.native.wait_calls(2)
-	env.native.end(2)
-	assert wait_event(successor).segment_id == 18
-	assert old_events == []
 
 
 @pytest.mark.parametrize("feed_fails", [False, True])

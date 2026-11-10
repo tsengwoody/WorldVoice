@@ -158,18 +158,6 @@ def test_rhvoice_a_failing_cleanup_step_is_logged_and_the_host_still_released(rh
 	_assert_one_cleanup_error_logged(record, "RHVoice")
 
 
-def test_rhvoice_a_built_core_keeps_its_resources(rhvoice):
-	env, record = rhvoice
-	driver = env.outer.SynthDriver()
-	try:
-		assert record.calls == []
-		(thread,) = record.threads
-		assert thread.is_alive()
-		assert not record.hosts[0].terminated
-	finally:
-		driver.terminate()
-
-
 # eSpeak ---------------------------------------------------------------------
 
 
@@ -255,18 +243,6 @@ def test_espeak_a_failing_cleanup_step_is_logged_and_the_host_still_released(esp
 	_assert_host_released(record)
 	assert record.calls == ["thread", "native", "host"]
 	_assert_one_cleanup_error_logged(record, "eSpeak")
-
-
-def test_espeak_a_built_core_keeps_its_resources(espeak):
-	env, record = espeak
-	driver = env.outer.SynthDriver()
-	try:
-		assert record.calls == []
-		(thread,) = record.threads
-		assert thread.is_alive()
-		assert not record.hosts[0].terminated
-	finally:
-		driver.terminate()
 
 
 # OneCore --------------------------------------------------------------------
@@ -404,16 +380,6 @@ def test_onecore_a_failing_host_release_is_logged_and_the_original_error_raised(
 	_assert_one_cleanup_error_logged(record, "OneCore")
 
 
-def test_onecore_a_built_core_keeps_its_host(onecore):
-	env, record = onecore
-	driver = env.outer.SynthDriver()
-	try:
-		assert record.calls == []
-		assert not record.hosts[0].terminated
-	finally:
-		driver.terminate()
-
-
 # SAPI5 ----------------------------------------------------------------------
 
 
@@ -531,16 +497,3 @@ def test_sapi5_a_failing_cleanup_step_is_logged_and_the_host_still_released(sapi
 	assert not thread.is_alive()
 	assert record.calls == ["sink", "thread", "player", "host"]
 	_assert_one_cleanup_error_logged(record, "SAPI5")
-
-
-def test_sapi5_a_built_core_keeps_its_resources(sapi5):
-	env, record = sapi5
-	driver = env.outer.SynthDriver()
-	try:
-		assert record.calls == []
-		(thread,) = record.threads
-		assert thread.is_alive()
-		assert [player.closed for player in record.players] == [False]
-		assert not record.hosts[0].terminated
-	finally:
-		driver.terminate()

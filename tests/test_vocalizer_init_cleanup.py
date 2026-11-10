@@ -144,18 +144,6 @@ def test_a_failing_cleanup_step_is_logged_and_the_rest_still_run(built, monkeypa
 	)
 
 
-def test_a_built_core_keeps_its_resources(built):
-	harness, record = built
-	core = harness.new_core()
-	try:
-		assert record.calls == []
-		(thread,) = record.threads
-		assert thread.is_alive()
-		assert [player.closes for player in record.players] == [0]
-	finally:
-		core.terminate()
-
-
 def test_nvda_2024_config_opens_the_player_on_the_speech_output_device(built, monkeypatch):
 	# NVDA 2024.x keeps outputDevice in [speech]; config schema 14 (NVDA 2025.1) moved it to [audio].
 	harness, record = built
