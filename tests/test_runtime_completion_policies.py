@@ -345,77 +345,20 @@ def test_synth_policy_uses_actual_opened_core(env, profile, use_wasapi, expected
 		assert len(warnings) == 1 and warnings[0][1:4] == ("test-engine", "2026.1", expected)
 
 
-@pytest.mark.parametrize(
-	"engine,audio_modes",
-	[
-		("SAPI5", (("wasapi", True), ("legacy", False), ("unknown", False))),
-		("Espeak", (("default", True), ("legacy", True), ("unknown", True))),
-		("RHVoice", (("default", True), ("wasapi", True), ("unknown", True))),
-	],
-)
-def test_actual_outer_voice_and_core_select_enabled_drain_profiles(
-	monkeypatch,
-	tmp_path,
-	engine,
-	audio_modes,
-):
-	if engine == "SAPI5":
-		installed = load_sapi5(monkeypatch)
-	elif engine == "Espeak":
-		from espeak_drain_harness import load_espeak
-
-		installed = load_espeak(monkeypatch, tmp_path)
-	else:
-		from rhvoice_drain_harness import load_rhvoice
-
-		installed = load_rhvoice(monkeypatch, tmp_path)
-	try:
-		policies = fresh_policies(monkeypatch)
-		policy = policies.CompletionPolicy()
-		assert installed.outer.Voice.synthDriverClass is type(installed.driver)
-		for audio_mode, expected in audio_modes:
-			contract, support = policy.contractFor(
-				installed.outer.Voice,
-				installed.driver,
-				nvdaVersion="2026.1",
-				audioMode=audio_mode,
-			)
-			assert support.supported is expected and support.reason
-			expected_mode = (
-				installed.rt.models.CompletionMode.DRAIN
-				if expected
-				else installed.rt.models.CompletionMode.LEGACY_DONE
-			)
-			assert contract.mode is expected_mode
-		warnings = []
-		selected = real_completion_selector(policies, warnings)(installed.outer.Voice, installed.driver)
-		assert selected.mode is installed.rt.models.CompletionMode.DRAIN
-		assert selected.index_range is not None
-		if engine == "RHVoice":
-			assert warnings == []
-	finally:
-		if engine == "SAPI5":
-			installed.driver.terminate()
-		else:
-			if engine == "Espeak":
-				from espeak_drain_harness import finish
-			else:
-				from rhvoice_drain_harness import finish
-			finish(installed)
-
-
 def test_sapi5_legacy_first_segment_remains_legacy_done(monkeypatch):
 	installed = load_sapi5(monkeypatch)
 	try:
 		installed.driver.useWasapi = False
 		policies = fresh_policies(monkeypatch)
-		support = policies.CompletionPolicy().drainSupport(
-			installed.outer.Voice,
-			installed.driver,
-			nvdaVersion="2026.1",
-			audioMode="legacy",
-		)
-		assert support.supported is False
+		for force in (True, False):
+			support = policies.CompletionPolicy(forceUnverifiedDrain=force).drainSupport(
+				installed.outer.Voice,
+				installed.driver,
+				nvdaVersion="2026.1",
+				audioMode="legacy",
+			)
+			assert support.supported is False
+			assert support.reason == "SAPI5 legacy audio has no owned player idle barrier"
 		contract = real_completion_selector(policies, [])(installed.outer.Voice, installed.driver)
 		assert contract.mode is installed.rt.models.CompletionMode.LEGACY_DONE
 		assert contract.index_range is None
@@ -458,6 +401,18 @@ def load_installed_engine(monkeypatch, tmp_path, engine):
 	return SimpleNamespace(outer=outer, core=core, close=close, mode=mode, control=control, rt=rt)
 
 
+# Each engine's audio modes with whether drain is supported in it: the shared-lifecycle test checks
+# every one. The three engines with a fixed mode list only the mode load_installed_engine opens.
+AUDIO_MODES = {
+	"OneCore": (("wasapi", True),),
+	"VE": (("default", True),),
+	"Cerence": (("default", True),),
+	"SAPI5": (("wasapi", True), ("legacy", False), ("unknown", False)),
+	"Espeak": (("default", True), ("legacy", True), ("unknown", True)),
+	"RHVoice": (("default", True), ("wasapi", True), ("unknown", True)),
+}
+
+
 def fresh_policies(monkeypatch):
 	monkeypatch.delitem(sys.modules, "synthDrivers.WorldVoice.bridge.completionPolicies", raising=False)
 	return importlib.import_module("synthDrivers.WorldVoice.bridge.completionPolicies")
@@ -489,6 +444,25 @@ def test_six_enabled_profiles_use_shared_lifecycle(monkeypatch, tmp_path, engine
 		if control is not None:
 			assert control.session.completion.mode is installed.rt.models.CompletionMode.DRAIN
 			assert control.calls == []
+		for audio_mode, expected in AUDIO_MODES[engine]:
+			contract, support = policy.contractFor(
+				outer.Voice,
+				core,
+				nvdaVersion="2026.1",
+				audioMode=audio_mode,
+			)
+			assert support.supported is expected and support.reason
+			if expected:
+				# Every wrapper's drain profile is enabled on unverified evidence.
+				assert "unverified" in support.reason
+			modes = installed.rt.models.CompletionMode
+			assert contract.mode is (modes.DRAIN if expected else modes.LEGACY_DONE)
+		warnings = []
+		selected = real_completion_selector(policies, warnings)(outer.Voice, core)
+		assert selected.mode is installed.rt.models.CompletionMode.DRAIN
+		assert selected.index_range is not None
+		if engine == "RHVoice":
+			assert warnings == []
 	finally:
 		installed.close()
 
@@ -542,24 +516,6 @@ def test_disabled_force_switch_restores_legacy_done(monkeypatch, tmp_path, engin
 		assert enabled(outer.Voice, core).mode is installed.rt.models.CompletionMode.DRAIN
 	finally:
 		installed.close()
-
-
-def test_disabled_force_switch_keeps_structural_fallback_reason(monkeypatch):
-	installed = load_sapi5(monkeypatch)
-	try:
-		installed.driver.useWasapi = False
-		policies = fresh_policies(monkeypatch)
-		disabled = policies.CompletionPolicy(forceUnverifiedDrain=False)
-		support = disabled.drainSupport(
-			installed.outer.Voice,
-			installed.driver,
-			nvdaVersion="2026.1",
-			audioMode="legacy",
-		)
-		assert support.supported is False
-		assert support.reason == "SAPI5 legacy audio has no owned player idle barrier"
-	finally:
-		installed.driver.terminate()
 
 
 def test_select_warns_once_per_distinct_fallback_profile(env):
