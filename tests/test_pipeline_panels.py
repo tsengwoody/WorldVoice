@@ -190,20 +190,6 @@ def dialog_msgids():
 	}
 
 
-def test_dialog_msgids_come_from_the_dialog_and_every_panel():
-	# The overlap check below would pass on an empty set; each module's title shows it was read.
-	titles = {
-		"Settings",
-		"WorldVoice",
-		"Speech Pipeline",
-		"Speech Role",
-		"Unicode Detection",
-		"Speech Engine",
-		"Log Record",
-	}
-	assert titles <= dialog_msgids()
-
-
 def test_log_labels_come_from_the_table(monkeypatch):
 	# A log switch named after a pipeline setting shows that setting's name, translated once in the
 	# table; only stages without a setting have a label of their own in the dialog.
@@ -218,6 +204,17 @@ def test_log_labels_come_from_the_table(monkeypatch):
 	strings = {spec.label for spec in table.values()} | (
 		{spec.display_name for spec in table.values()} - {None}
 	)
+	# The overlap check below would pass on an empty set; each module's title shows it was read.
+	titles = {
+		"Settings",
+		"WorldVoice",
+		"Speech Pipeline",
+		"Speech Role",
+		"Unicode Detection",
+		"Speech Engine",
+		"Log Record",
+	}
+	assert titles <= dialog_msgids()
 	assert dialog_msgids() & strings == set()
 
 
