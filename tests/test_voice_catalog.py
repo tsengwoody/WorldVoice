@@ -89,7 +89,7 @@ def test_catalog_groups_voices_by_engine_in_table_order(catalog_module, spec):
 	assert list(catalog.voice_infos) == ["A:z", "A:y", "B:w", "B:x"]
 
 
-def test_empty_catalog_has_no_voices(catalog_module):
+def test_empty_catalog_is_empty(catalog_module):
 	empty = catalog_module.EMPTY_CATALOG
 	assert (empty.table, dict(empty.by_name), list(empty.voice_infos), empty.all_languages) == (
 		(),
@@ -97,10 +97,6 @@ def test_empty_catalog_has_no_voices(catalog_module):
 		[],
 		(),
 	)
-
-
-def test_empty_catalog_has_no_engines(catalog_module):
-	empty = catalog_module.EMPTY_CATALOG
 	assert empty.engines == ()
 	assert dict(empty.engine_voice_infos) == {}
 
