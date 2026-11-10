@@ -154,7 +154,8 @@ def test_concurrent_terminal_calls_notify_only_once(work_env):
 	assert len(events) == 1
 
 
-def test_direct_cancel_notifies_owner_after_releasing_the_work_lock(work_env):
+@pytest.mark.parametrize(("finish", "published"), [("cancel", 0), ("fail", 1), ("complete_drained", 1)])
+def test_owner_is_notified_after_releasing_the_work_lock(work_env, finish, published):
 	rt, token, context, events, _ = work_env
 	seen = []
 	work = rt.playback_work.PlaybackWork(
@@ -164,25 +165,13 @@ def test_direct_cancel_notifies_owner_after_releasing_the_work_lock(work_env):
 		on_cancel=lambda: seen.append(work.is_valid()),
 	)
 	finished = Event()
-	Thread(target=lambda: (work.cancel(), finished.set()), daemon=True).start()
-	assert finished.wait(WAIT_TIMEOUT), "on_cancel ran while the work lock was held"
-	assert seen == [False]
-	assert events == []
-
-
-@pytest.mark.parametrize("finish", ["fail", "complete_drained"])
-def test_terminal_event_notifies_owner_after_releasing_the_work_lock(work_env, finish):
-	rt, token, context, events, _ = work_env
-	seen = []
-	work = rt.playback_work.PlaybackWork(
-		context,
-		token,
-		events.append,
-		on_cancel=lambda: seen.append(work.is_valid()),
-	)
-	finished = Event()
-	action = (lambda: work.fail(RuntimeError("failed"))) if finish == "fail" else work.complete_drained
+	if finish == "cancel":
+		action = work.cancel
+	elif finish == "fail":
+		action = lambda: work.fail(RuntimeError("failed"))
+	else:
+		action = work.complete_drained
 	Thread(target=lambda: (action(), finished.set()), daemon=True).start()
 	assert finished.wait(WAIT_TIMEOUT), "on_cancel ran while the work lock was held"
 	assert seen == [False]
-	assert len(events) == 1
+	assert len(events) == published
