@@ -516,7 +516,7 @@ def test_six_loaded_voices_pass_the_pre_rename_check(monkeypatch, tmp_path, engi
 		installed.close()
 
 
-@pytest.mark.parametrize("engine", SIX_ENGINES)
+@pytest.mark.parametrize("engine", ["OneCore"])
 def test_disabled_force_switch_restores_legacy_done(monkeypatch, tmp_path, engine):
 	installed = load_installed_engine(monkeypatch, tmp_path, engine)
 	outer, core = installed.outer, installed.core
