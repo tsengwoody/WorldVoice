@@ -380,16 +380,9 @@ def test_spelling_with_an_unavailable_locale(env):
 # Under "Follow surrounding text language" a decimal digit with a script (Arabic-Indic digits are
 # Arabic) follows the letter rule of its script; Common digits stay in the run (spec
 # fix/script-digit-language G1, decided by the user 2026-11-07, superseding phase 35 spec §6.3).
-@pytest.mark.parametrize(
-	("sequence", "expected"),
-	[
-		(["abc ١٢٣"], ["abc ", ("lang", "ar"), "١٢٣"]),
-	],
-	ids=["abc-arabic-indic"],
-)
-def test_decimal_digits_follow_the_letter_rule_of_their_script(env, sequence, expected):
+def test_decimal_digits_follow_the_letter_rule_of_their_script(env):
 	detector = make_detector(env, ("en_US", "zh_TW", "ar"))
-	assert shape(env, detector.add_detected_language_commands(sequence)) == expected
+	assert shape(env, detector.add_detected_language_commands(["abc ١٢٣"])) == ["abc ", ("lang", "ar"), "١٢٣"]
 
 
 NE = ("en_US", "ne_NP")
