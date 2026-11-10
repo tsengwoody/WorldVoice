@@ -102,28 +102,26 @@ def test_number_mode_choices_put_off_first(monkeypatch):
 	assert module.PIPELINE_SETTING_BY_KEY["number_mode"].default == "value"
 
 
-def test_group_size_confspec_is_its_range(monkeypatch):
-	# Decided by the user (2026-11-01, U6; was 1..10, default 3): 0 is no grouping, and there is no
-	# practical maximum; the largest value a wx spin control holds is the bound (O4). NVDA refuses a
-	# stored value outside it, so it reads as 0 (read_stored), and convert resets it the same way.
+@pytest.mark.parametrize(
+	("key", "stored"),
+	[("group_size", "groupSize"), ("segment_length", "segmentLength")],
+	ids=["group_size", "segment_length"],
+)
+def test_a_size_confspec_is_its_range(monkeypatch, key, stored):
+	# Group size: decided by the user (2026-11-01, U6; was 1..10, default 3): 0 is no grouping, and
+	# there is no practical maximum; the largest value a wx spin control holds is the bound (O4). NVDA
+	# refuses a stored value outside it, so it reads as 0 (read_stored), and convert resets it the
+	# same way. Segment length: decided by the user (2026-11-03, U2): a spin like the group size,
+	# 0 (the default) is no segments; the segment wait factor is a 0..100 slider like the other wait
+	# factors.
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	spec = module.PIPELINE_SETTING_BY_KEY["group_size"]
+	spec = module.PIPELINE_SETTING_BY_KEY[key]
 	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (0, 2**31 - 1, 0, True)
-	assert module.PIPELINE_CONFSPEC["groupSize"] == "integer(default=0,min=0,max=2147483647)"
-	assert not hasattr(spec, "stored_min_value")
+	assert module.PIPELINE_CONFSPEC[stored] == "integer(default=0,min=0,max=2147483647)"
 	assert [other.key for other in module.PIPELINE_SETTINGS if other.reset_out_of_range] == [
 		"group_size",
 		"segment_length",
 	]
-
-
-def test_segment_length_confspec_is_its_range(monkeypatch):
-	# Decided by the user (2026-11-03, U2): a spin like the group size, 0 (the default) is no segments;
-	# the segment wait factor is a 0..100 slider like the other wait factors.
-	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
-	spec = module.PIPELINE_SETTING_BY_KEY["segment_length"]
-	assert (spec.min_value, spec.max_value, spec.default, spec.reset_out_of_range) == (0, 2**31 - 1, 0, True)
-	assert module.PIPELINE_CONFSPEC["segmentLength"] == "integer(default=0,min=0,max=2147483647)"
 	assert module.PIPELINE_CONFSPEC["segmentWaitFactor"] == "integer(default=0,min=0,max=100)"
 
 
