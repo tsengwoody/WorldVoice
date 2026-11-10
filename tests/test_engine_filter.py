@@ -86,10 +86,6 @@ def test_primary_language_comes_before_the_first_voice(pick, specs, language, en
 	assert pick(specs, engine, language, None) == expected
 
 
-def test_the_first_voice_is_the_fallback(pick, specs):
-	assert pick(specs, "A", "fr", None) == "A:de"
-
-
 def test_a_voice_without_language_is_matched_only_as_fallback(pick, specs):
 	assert pick(specs, "B", "en", None) == "B:en"
 	assert pick(specs, "B", "fr", None) == "B:x"

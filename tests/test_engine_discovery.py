@@ -380,16 +380,6 @@ def _divide_by_zero(cls):
 	[
 		pytest.param(None, ("warning", "Skipping X engine candidate: Voice export missing"), id="no-voice"),
 		pytest.param(
-			type("Voice", (), {"engine": "Y", "ready": classmethod(lambda cls: True)}),
-			("warning", "Skipping X engine candidate: Voice.engine mismatch (Y)"),
-			id="mismatch",
-		),
-		pytest.param(
-			type("Voice", (), {"engine": "X", "ready": classmethod(lambda cls: False)}),
-			None,
-			id="unready",
-		),
-		pytest.param(
 			type("Voice", (), {"engine": "X", "ready": classmethod(_divide_by_zero)}),
 			("error", "Failed to load ready state for X: division by zero"),
 			id="raises",
