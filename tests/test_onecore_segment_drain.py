@@ -116,6 +116,14 @@ def test_onecore_shared_handoff_waits_for_callback_feed_and_stop(env):
 	_, old_context, old_events = speak(env)
 	env.native.wait_calls(1)
 	old_operation = native_call(env.driver).operation
+	original_open = env.player.open
+	opened = []
+
+	def observed_open():
+		opened.append(True)
+		original_open()
+
+	env.player.open = observed_open
 	env.player.feed_release.clear()
 	stop_entered, release_stop = Event(), Event()
 	original_stop = env.player.stop
@@ -131,15 +139,18 @@ def test_onecore_shared_handoff_waits_for_callback_feed_and_stop(env):
 	cancel = in_thread(env.driver.cancel)
 	assert stop_entered.wait(WAIT_TIMEOUT)
 	_, new_context, new_events = speak(env, segment=18)
+	assert opened == []
 	assert len(env.native.calls) == 1
 	assert old_events == [] and new_events == []
 	assert old_operation.work.context is old_context
 	env.player.feed_release.set()
 	stays_false(env.native.condition, lambda: len(env.native.calls) >= 2)
+	stays_false(env.native.condition, lambda: bool(opened))
 	release_stop.set()
 	finish(response)
 	finish(cancel)
 	env.native.wait_calls(2)
+	assert opened == [True]
 	assert native_call(env.driver).operation is not old_operation
 	env.player.sync_release.set()
 	env.native.respond(markers="")
@@ -208,45 +219,6 @@ def test_onecore_retirement_return_precedes_drain_and_successor_native_call(env)
 	wait_events(second_events)
 	assert first_events[0].source_id is first.source_id
 	assert second_events[0].source_id is second.source_id
-
-
-def test_onecore_successor_player_open_waits_for_old_feed_and_stop(env):
-	speak(env)
-	env.native.wait_calls(1)
-	original_open = env.player.open
-	opened = []
-
-	def observed_open():
-		opened.append(True)
-		original_open()
-
-	env.player.open = observed_open
-	env.player.feed_release.clear()
-	stop_entered, release_stop = Event(), Event()
-	original_stop = env.player.stop
-
-	def blocked_stop():
-		stop_entered.set()
-		assert release_stop.wait(HOLD_TIMEOUT)
-		original_stop()
-
-	env.player.stop = blocked_stop
-	response = in_thread(env.native.respond)
-	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
-	cancel = in_thread(env.driver.cancel)
-	assert stop_entered.wait(WAIT_TIMEOUT)
-	speak(env, segment=18)
-	assert opened == []
-	assert len(env.native.calls) == 1
-	env.player.feed_release.set()
-	stays_false(env.native.condition, lambda: bool(opened))
-	release_stop.set()
-	finish(response)
-	finish(cancel)
-	env.native.wait_calls(2)
-	assert opened == [True]
-	env.player.sync_release.set()
-	env.native.respond(markers="")
 
 
 def test_onecore_waits_for_tail_sync_before_drain(env, monkeypatch):
@@ -578,54 +550,23 @@ def test_observable_player_errors_fail_without_drain(env):
 	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_FAILED]
 
 
-def test_sync_failure_fails_only_its_segment(env):
+@pytest.mark.parametrize("fault", ["sync", "idle"])
+def test_a_player_failure_fails_only_its_segment(env, fault):
 	_, original, failed = speak(env)
 	env.native.wait_calls(1)
-	env.player.error = "sync"
+	env.player.error = fault
 	env.player.sync_release.set()
-	env.native.respond()
+	if fault == "sync":
+		env.native.respond()
+	else:
+		env.native.respond(markers="")
 	wait_events(failed)
 	assert [(event.kind, event.source_id) for event in failed] == [
 		(env.rt.models.EventKind.SEGMENT_FAILED, original.source_id),
 	]
-	assert str(failed[0].error) == "sync failed"
+	assert str(failed[0].error) == f"{fault} failed"
 	# The drain (and the lifecycle after it) stopped the player before reporting; a successor
 	# may use it. The drain's own stop is defensive: the lifecycle's stops alone pass this test.
-	assert env.player.stops >= 1
-	assert segment_host(env.driver).control_error is None
-	env.player.error = None
-	_, successor, drained = speak(env, segment=18)
-	env.native.wait_calls(2)
-	env.native.respond(markers="")
-	wait_events(drained)
-	assert [(event.kind, event.source_id) for event in drained] == [
-		(env.rt.models.EventKind.SEGMENT_DRAINED, successor.source_id),
-	]
-
-
-def test_segment_drain_idles_the_real_player(env):
-	# C4 (phase 54): the drain idles the real player, not the lease, whose idle
-	# admits only the current record and would skip it after retirement.
-	_, _, events = speak(env)
-	env.native.wait_calls(1)
-	env.player.sync_release.set()
-	env.native.respond(markers="")
-	wait_events(events)
-	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
-	assert env.player.idles == 1
-
-
-def test_idle_failure_fails_only_its_segment(env):
-	_, original, failed = speak(env)
-	env.native.wait_calls(1)
-	env.player.error = "idle"
-	env.player.sync_release.set()
-	env.native.respond(markers="")
-	wait_events(failed)
-	assert [(event.kind, event.source_id) for event in failed] == [
-		(env.rt.models.EventKind.SEGMENT_FAILED, original.source_id),
-	]
-	assert str(failed[0].error) == "idle failed"
 	assert env.player.stops >= 1
 	assert segment_host(env.driver).control_error is None
 	env.player.error = None
@@ -897,6 +838,9 @@ def test_empty_index_and_break_segments_drain_at_known_end(env, commands, frames
 	env.native.respond(frames=frames, markers=markers)
 	wait_events(events)
 	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+	# C4 (phase 54): the drain idles the real player, not the lease, whose idle
+	# admits only the current record and would skip it after retirement.
+	assert env.player.idles == 1
 
 
 def test_segment_drain_does_not_wait_for_resume(env):
@@ -1208,46 +1152,6 @@ def test_control_error_fails_queued_contexts_and_allows_reentrant_cancel(env):
 	assert len(queued_events) == 1 and queued_events[0].error is error
 	assert queued_events[0].source_id is queued_context.source_id
 	assert len(env.native.calls) == 1
-
-
-def test_cancelled_legacy_feed_retires_only_after_its_final_stop(env):
-	speak(env)
-	env.native.wait_calls(1)
-	env.player.sync_release.set()
-	env.native.respond()
-	env.driver.speak(("legacy",))
-	env.native.wait_calls(2)
-	env.player.feed_entered.clear()
-	env.player.feed_release.clear()
-	call = in_thread(lambda: env.native.respond(markers=""))
-	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
-	env.driver.cancel()
-	speak(env, segment=18)
-	assert len(env.native.calls) == 2
-	final_stop = Event()
-	release_stop = Event()
-	original_stop = env.player.stop
-	stop_threads = []
-
-	def blocked_final_stop():
-		stop_threads.append(current_thread())
-		final_stop.set()
-		assert release_stop.wait(HOLD_TIMEOUT)
-		original_stop()
-
-	env.player.stop = blocked_final_stop
-	env.player.feed_release.set()
-	stopped = final_stop.wait(WAIT_TIMEOUT)
-	advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 3)
-	release_stop.set()
-	finish(call)
-	assert stopped, "The legacy feed queued audio after cancel without a final stop"
-	assert not advanced, "New native work started before the cancelled legacy feed's final stop"
-	# The worker's retire also stops the cancelled sentence; the lease's stop is the one on the
-	# callback thread that fed, before the callback returns.
-	assert call.thread in stop_threads, "The lease did not stop again after the late legacy feed"
-	env.native.wait_calls(3)
-	assert env.dones == []
 
 
 def test_cancelled_legacy_sync_does_not_emit_done(env):
@@ -1651,16 +1555,19 @@ def test_index_fires_after_the_record_retired(env):
 	assert [event.kind for event in events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
-def test_cancelled_segment_feed_is_stopped_by_the_lease_before_successor(env):
-	speak(env)
-	env.native.wait_calls(1)
+@pytest.mark.parametrize("mode", ["segment", "legacy_after_segment"])
+def test_a_cancelled_late_feed_is_stopped_before_its_successor(env, mode):
+	legacy = mode == "legacy_after_segment"
+	feed = "legacy feed" if legacy else "segment feed"
+	base = 2 if legacy else 1
+	start_controlled_playback(env, mode)
 	env.player.feed_entered.clear()
 	env.player.feed_release.clear()
 	call = in_thread(lambda: env.native.respond(markers=""))
 	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
 	env.driver.cancel()
 	speak(env, segment=18)
-	assert len(env.native.calls) == 1
+	assert len(env.native.calls) == base
 	final_stop, release_stop = Event(), Event()
 	original_stop = env.player.stop
 	stop_threads = []
@@ -1674,15 +1581,17 @@ def test_cancelled_segment_feed_is_stopped_by_the_lease_before_successor(env):
 	env.player.stop = blocked_final_stop
 	env.player.feed_release.set()
 	stopped = final_stop.wait(WAIT_TIMEOUT)
-	advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= 2)
+	advanced = holds_within(env.native.condition, lambda: len(env.native.calls) >= base + 1)
 	release_stop.set()
 	finish(call)
-	assert stopped, "The segment feed queued audio after cancel without a final stop"
-	assert not advanced, "New native work started before the cancelled feed's final stop"
-	# The lifecycle also stops the cancelled segment; the lease's stop is the one on the
-	# callback thread that fed, before the callback returns.
-	assert call.thread in stop_threads, "The lease did not stop again after the late feed"
-	env.native.wait_calls(2)
+	assert stopped, f"The {feed} queued audio after cancel without a final stop"
+	assert not advanced, f"New native work started before the cancelled {feed}'s final stop"
+	# The lifecycle (segment) or the worker's retire (legacy) also stops the cancelled speech; the
+	# lease's stop is the one on the callback thread that fed, before the callback returns.
+	assert call.thread in stop_threads, f"The lease did not stop again after the late {feed}"
+	env.native.wait_calls(base + 1)
+	if legacy:
+		assert env.dones == []
 
 
 def test_cancel_pause_lock_stop_failure_delivers_after_lock_release(env, monkeypatch):
