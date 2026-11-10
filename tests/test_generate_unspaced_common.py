@@ -124,9 +124,8 @@ def test_select_drops_characters_that_are_not_common(tool, script):
 	assert _select(tool, {0x10: {"Hani"}}, {0x10: script}, {0x10: "Lo"}) == []
 
 
-@pytest.mark.parametrize("extension", [{"Hang", "Yiii"}])
-def test_select_drops_characters_without_an_unspaced_script(tool, extension):
-	assert _select(tool, {0x10: extension}, {0x10: "Common"}, {0x10: "So"}) == []
+def test_select_drops_characters_without_an_unspaced_script(tool):
+	assert _select(tool, {0x10: {"Hang", "Yiii"}}, {0x10: "Common"}, {0x10: "So"}) == []
 
 
 def test_select_returns_code_points_in_order(tool):
@@ -463,7 +462,6 @@ def test_main_reports_a_download_failure(tool, script_data, monkeypatch, tmp_pat
 		_run(tool, tmp_path / "unspaced_common_data.py", script_data)
 
 
-@pytest.mark.parametrize("make", [lambda path: None], ids=["missing"])
 @pytest.mark.parametrize(
 	("option", "name"),
 	[("--source", "ScriptExtensions.txt"), ("--unicode-data", "UnicodeData.txt")],
@@ -473,12 +471,10 @@ def test_an_unreadable_local_file_names_the_path_and_option(
 	script_data,
 	served,
 	tmp_path,
-	make,
 	option,
 	name,
 ):
-	given = tmp_path / name
-	make(given)
+	given = tmp_path / name  # missing
 	destination = tmp_path / "unspaced_common_data.py"
 	with pytest.raises(SystemExit) as raised:
 		_run(tool, destination, script_data, option, str(given))
