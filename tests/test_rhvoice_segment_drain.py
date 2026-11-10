@@ -103,13 +103,17 @@ def test_message_delete_failure_fails_closed_for_contextual_and_legacy_successor
 	assert len(env.native.calls) == 1
 
 
-def test_terminal_sink_can_terminate_outside_native_and_worker_stacks(env):
+def test_terminal_sink_can_terminate_from_the_delivery_thread(env):
+	# The sink runs outside the native and worker stacks, so it may terminate the driver.
 	delivered = Event()
-	threads = []
+	threads, errors = [], []
 
 	def sink(event):
 		threads.append(current_thread())
-		env.driver.terminate()
+		try:
+			env.driver.terminate()
+		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
+			errors.append(error)
 		delivered.set()
 
 	env.native.scripts.append({"auto_return": True})
@@ -118,6 +122,9 @@ def test_terminal_sink_can_terminate_outside_native_and_worker_stacks(env):
 	assert delivered.wait(WAIT_TIMEOUT)
 	assert threads[0] is not call.thread
 	assert threads[0] is not tts_thread(env.driver)
+	assert call.returned.is_set()
+	assert errors == []
+	assert env.native.engine_deleted
 
 
 @pytest.mark.parametrize("fault", ["native", "result", "feed", "idle"])
@@ -533,26 +540,6 @@ def test_rhvoice_shared_token_cancel_clears_native_flag_before_successor(env):
 	env.native.wait_call(2)
 	assert next_events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert old_events == []
-
-
-def test_rhvoice_shared_sink_reenters_terminate(env):
-	delivered = Event()
-	errors = []
-
-	def sink(event):
-		try:
-			env.driver.terminate()
-		except Exception as error:  # noqa: BLE001 - collected and asserted in the test thread
-			errors.append(error)
-		delivered.set()
-
-	env.native.scripts.append({"auto_return": True})
-	speak(env, sink=sink)
-	call = env.native.wait_call()
-	assert delivered.wait(WAIT_TIMEOUT)
-	assert call.returned.is_set()
-	assert errors == []
-	assert env.native.engine_deleted
 
 
 def test_reentrant_successor_during_concurrent_cancel_does_not_deadlock(env):
