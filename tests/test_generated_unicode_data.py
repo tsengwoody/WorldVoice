@@ -73,14 +73,17 @@ def _rerender_unspaced_common_data(tool, path):
 	)
 
 
-def test_script_data_is_the_generators_output(scripts_tool):
-	assert _rerender_script_data(scripts_tool, SCRIPT_DATA) == SCRIPT_DATA.read_bytes().decode("utf-8")
+# Each generated file: (its generator's fixture, the re-render function, the committed file).
+GENERATED = [
+	("scripts_tool", _rerender_script_data, SCRIPT_DATA),
+	("unspaced_tool", _rerender_unspaced_common_data, UNSPACED_COMMON_DATA),
+]
+GENERATED_IDS = ["script_data", "unspaced_common_data"]
 
 
-def test_unspaced_common_data_is_the_generators_output(unspaced_tool):
-	assert _rerender_unspaced_common_data(unspaced_tool, UNSPACED_COMMON_DATA) == (
-		UNSPACED_COMMON_DATA.read_bytes().decode("utf-8")
-	)
+@pytest.mark.parametrize(("tool_fixture", "rerender", "path"), GENERATED, ids=GENERATED_IDS)
+def test_generated_file_is_the_generators_output(request, tool_fixture, rerender, path):
+	assert rerender(request.getfixturevalue(tool_fixture), path) == path.read_bytes().decode("utf-8")
 
 
 def _hand_edited(tmp_path, path, old, new):
@@ -126,13 +129,8 @@ def test_a_range_without_its_category_comment_is_caught(unspaced_tool, tmp_path)
 		_rerender_unspaced_common_data(unspaced_tool, copy)
 
 
-def test_other_line_endings_in_script_data_are_caught(scripts_tool, tmp_path):
-	copy = tmp_path / SCRIPT_DATA.name
-	copy.write_bytes(SCRIPT_DATA.read_bytes().replace(b"\n", b"\r\n"))
-	assert _rerender_script_data(scripts_tool, copy) != copy.read_bytes().decode("utf-8")
-
-
-def test_other_line_endings_in_unspaced_common_data_are_caught(unspaced_tool, tmp_path):
-	copy = tmp_path / UNSPACED_COMMON_DATA.name
-	copy.write_bytes(UNSPACED_COMMON_DATA.read_bytes().replace(b"\n", b"\r\n"))
-	assert _rerender_unspaced_common_data(unspaced_tool, copy) != copy.read_bytes().decode("utf-8")
+@pytest.mark.parametrize(("tool_fixture", "rerender", "path"), GENERATED, ids=GENERATED_IDS)
+def test_other_line_endings_in_a_generated_file_are_caught(request, tmp_path, tool_fixture, rerender, path):
+	copy = tmp_path / path.name
+	copy.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+	assert rerender(request.getfixturevalue(tool_fixture), copy) != copy.read_bytes().decode("utf-8")
