@@ -361,17 +361,26 @@ def test_unlisted_code_points_are_never_selected(tool, script_data, served, tmp_
 	assert _load_generated(destination)["UNSPACED_COMMON_RANGES"] == ((0x02C7, 0x02C7), (0x3220, 0x3229))
 
 
-def test_downloaded_source_must_match_its_checksum(tool, script_data, served, tmp_path):
+@pytest.mark.parametrize(
+	("keyword", "name", "digest"),
+	[
+		("sha256", "ScriptExtensions.txt", SOURCE_SHA256),
+		("unicode_data_sha256", "UnicodeData.txt", UNICODE_DATA_SHA256),
+	],
+	ids=["ScriptExtensions.txt", "UnicodeData.txt"],
+)
+def test_a_downloaded_file_must_match_its_checksum(
+	tool,
+	script_data,
+	served,
+	tmp_path,
+	keyword,
+	name,
+	digest,
+):
 	destination = tmp_path / "unspaced_common_data.py"
-	with pytest.raises(SystemExit, match=f"ScriptExtensions.txt checksum mismatch: actual {SOURCE_SHA256}"):
-		_run(tool, destination, script_data, sha256="0" * 64)
-	assert not destination.exists()
-
-
-def test_downloaded_unicode_data_must_match_its_checksum(tool, script_data, served, tmp_path):
-	destination = tmp_path / "unspaced_common_data.py"
-	with pytest.raises(SystemExit, match=f"UnicodeData.txt checksum mismatch: actual {UNICODE_DATA_SHA256}"):
-		_run(tool, destination, script_data, unicode_data_sha256="0" * 64)
+	with pytest.raises(SystemExit, match=f"{name} checksum mismatch: actual {digest}"):
+		_run(tool, destination, script_data, **{keyword: "0" * 64})
 	assert not destination.exists()
 
 
