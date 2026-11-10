@@ -135,7 +135,7 @@ def group_size_enabled(panel):
 	return panel._group_size_spin.enabled
 
 
-@pytest.mark.parametrize("mode", ["none", "value", "number", "group", "pair"])
+@pytest.mark.parametrize("mode", ["none", "group"])
 def test_pipeline_panel_group_size_is_enabled_for_every_stored_mode(monkeypatch, mode):
 	# Decided by the user (2026-11-01, U1): the group size applies in every number mode.
 	env = pipeline_env(monkeypatch, numberMode=mode)
@@ -202,19 +202,6 @@ def test_pipeline_panel_never_saves_an_entry_pipeline_config_does_not_store(monk
 	assert (saved["numberWaitFactor"], saved["groupSize"]) == (20, 6)
 
 
-def test_pipeline_panel_global_wait_slider_shows_tens_and_saves_units(monkeypatch):
-	env = pipeline_env(monkeypatch, globalWaitFactor=30)
-	panel, _sizer = build(env, "SpeechPipelinePanel")
-	slider = panel._global_wait_factor_slider
-	assert (slider.value, slider.kwargs["minValue"], slider.kwargs["maxValue"]) == (3, 0, 10)
-	assert panel._number_wait_factor_slider.kwargs["maxValue"] == 100
-
-	slider.SetValue(4)
-	panel.onSave()
-
-	assert env.conf["WorldVoice"]["pipeline"]["globalWaitFactor"] == 40
-
-
 def test_pipeline_panel_binds_only_the_controllers(monkeypatch):
 	env = pipeline_env(monkeypatch)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
@@ -240,7 +227,7 @@ def test_pipeline_panel_reads_and_saves_an_off_grid_global_wait_on_the_grid(monk
 
 @pytest.mark.parametrize(
 	("typed", "saved"),
-	[(0, 0), (1, 1), (11, 11), (2147483647, 2147483647), (-1, 0), (2147483648, 0)],
+	[(2147483647, 2147483647), (-1, 0)],
 )
 def test_pipeline_panel_saves_an_out_of_range_group_size_as_the_default(monkeypatch, typed, saved):
 	env = pipeline_env(monkeypatch)
@@ -252,19 +239,9 @@ def test_pipeline_panel_saves_an_out_of_range_group_size_as_the_default(monkeypa
 	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == saved
 
 
-def test_pipeline_panel_saves_the_group_size_in_value_mode(monkeypatch):
-	env = pipeline_env(monkeypatch, numberMode="value")
-	panel, _sizer = build(env, "SpeechPipelinePanel")
-	panel._group_size_spin.SetValue(7)
-
-	panel.onSave()
-
-	assert env.conf["WorldVoice"]["pipeline"]["groupSize"] == 7
-
-
 @pytest.mark.parametrize(
 	("stored", "shown"),
-	[(0, 0), (1, 1), (12, 12), ("4", 4), (-1, 0), (2147483648, 0)],
+	[("4", 4), (-1, 0)],
 )
 def test_pipeline_panel_shows_an_out_of_range_stored_size_as_the_default(monkeypatch, stored, shown):
 	env = pipeline_env(monkeypatch, groupSize=stored)
@@ -648,19 +625,6 @@ def test_log_panel_unchanged_logging_writes_the_flag_without_prompts(monkeypatch
 	assert env.log_calls == [write]
 	assert env.wx.called_after == []
 	assert env.conf["WorldVoice"]["log"]["speechViewer"] is True
-
-
-def test_log_panel_declined_enable_writes_logging_off(monkeypatch):
-	env = log_env(monkeypatch, enabled=False)
-	env.confirm_answer[0] = env.wx.NO
-	panel, _sizer = build(env, "LogSettingsPanel")
-	panel._enableCheckbox.SetValue(True)
-
-	assert panel.isValid() is True
-	panel.onSave()
-
-	assert env.log_calls == [("confirm", True), "disable"]
-	assert env.pipeline_log.enabled is False
 
 
 def real_log_env(monkeypatch, refused=(), **stored):

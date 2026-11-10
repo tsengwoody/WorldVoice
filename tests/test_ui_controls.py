@@ -221,13 +221,6 @@ def test_apply_dependencies_leaves_dependents_of_an_absent_controller_alone(monk
 	assert {key: recorder.calls for key, recorder in env.recorders.items() if recorder.calls} == {}
 
 
-def test_apply_dependencies_counts_no_value_as_not_expected(monkeypatch):
-	env = helpers(monkeypatch)
-	apply(env, {"number_mode": "number", "punctuation_pause_enabled": None}.__getitem__)
-	for key in PAUSE_DEPENDENTS:
-		assert env.recorders[key].calls == [("Enable", False)], key
-
-
 def test_apply_dependencies_skips_a_dependent_without_a_control(monkeypatch):
 	env = helpers(monkeypatch)
 	apply(

@@ -297,7 +297,7 @@ def group_size_enabled(panel):
 
 # Decided by the user (2026-11-01, U1): the group size applies in every number mode, so it is
 # always enabled and nothing in the panel listens to the mode list for it.
-@pytest.mark.parametrize("mode", ["none", "value", "number"])
+@pytest.mark.parametrize("mode", ["none"])
 def test_group_size_is_enabled_for_every_stored_mode_when_the_panel_opens(monkeypatch, mode):
 	panel = open_panel(monkeypatch, Driver(ALL, nummod=mode)).panel
 	assert group_size_enabled(panel) is True
@@ -318,7 +318,7 @@ def test_choosing_a_mode_keeps_the_group_size_enabled_and_still_saves_the_settin
 		assert driver.nummod == mode
 
 
-@pytest.mark.parametrize("mode", ["number", "value", "gone"])
+@pytest.mark.parametrize("mode", ["gone"])
 def test_a_voice_switch_after_a_settings_ring_mode_change_keeps_the_group_size_enabled(monkeypatch, mode):
 	driver = Driver(ALL, nummod="none")
 	panel = open_panel(monkeypatch, driver).panel

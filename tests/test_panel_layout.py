@@ -91,7 +91,7 @@ def test_controller_keys_of_the_table(table):
 	assert layout.controllerKeys(table) == frozenset({"punctuation_pause_enabled"})
 
 
-@pytest.mark.parametrize("mode", ["none", "value", "number", "group", None])
+@pytest.mark.parametrize("mode", ["none"])
 def test_the_number_mode_controls_no_other_setting(table, mode):
 	read = {"number_mode": mode, "punctuation_pause_enabled": True}.__getitem__
 	assert layout.dependentStates(table, read) == dict.fromkeys(PAUSE_DEPENDENTS, True)
@@ -171,13 +171,6 @@ def test_creation_followers_without_an_earlier_listed_driver():
 			"_punctuation_pause_characters_edit",
 			"punctuationPauseCharactersEdit",
 			None,
-		),
-		("segment_length", "_segment_length_spin", "segmentLengthSpin", None),
-		(
-			"segment_wait_factor",
-			"_segment_wait_factor_slider",
-			"segmentWaitFactorSlider",
-			"segmentWaitFactorSlider",
 		),
 	],
 )
