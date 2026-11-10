@@ -654,7 +654,7 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
 	if not feed_fails:
 		# The drain still waits for the real idle after the feed.
 		assert env.player.idle_entered.wait(WAIT_TIMEOUT)
-		assert events == []
+		stays_false(events.condition, lambda: bool(events), message="Published before idle returned")
 	env.player.idle_release.set()
 	event = wait_event(events)
 	assert event.source_id is context.source_id
