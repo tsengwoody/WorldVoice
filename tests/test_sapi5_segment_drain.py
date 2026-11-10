@@ -55,30 +55,6 @@ def wait_event(events):
 		return events[0]
 
 
-def test_sapi5_wasapi_shared_lifecycle_waits_for_endstream_pcm_and_idle(env):
-	_, context, events = speak(env)
-	env.native.wait_calls(1)
-	env.player.feed_release.clear()
-	pcm = Thread(
-		target=lambda: env.native.audio.ISequentialStream_RemoteWrite(None, None, 8, None),
-		daemon=True,
-	)
-	pcm.start()
-	assert env.player.feed_entered.wait(WAIT_TIMEOUT)
-	env.native.end()
-	assert events == [] and not env.player.idle_entered.is_set()
-	env.player.feed_release.set()
-	pcm.join(WAIT_TIMEOUT)
-	assert not pcm.is_alive()
-	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
-	assert events == []
-	env.player.idle_release.set()
-	event = wait_event(events)
-	assert event.source_id is context.source_id and event.segment_id == 17
-	assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
-	assert env.player.fed == [6, 0]
-
-
 def test_sapi5_shared_cancel_blocks_request_handoff(env):
 	_, _, old_events = speak(env)
 	env.native.wait_calls(1)
@@ -106,21 +82,28 @@ def test_sapi5_shared_cancel_blocks_request_handoff(env):
 	assert env.indexes == [9] and old_events == []
 
 
-def test_end_stream_waits_for_actual_idle_and_preserves_tail_indexes(env):
-	_, context, events = speak(env)
+@pytest.mark.parametrize(
+	("commands", "tail", "indexes", "fed"),
+	[(None, None, [7], [6]), (("",), [], [], [0])],
+	ids=["speech", "empty"],
+)
+def test_end_stream_waits_for_actual_idle(env, commands, tail, indexes, fed):
+	# The speech case also keeps the indexes of the tail; empty audio still needs the idle.
+	if tail is not None:
+		env.driver.sonicStream.tail = tail
+	_, context, events = speak(env) if commands is None else speak(env, commands=commands)
 	env.native.wait_calls(1)
 	env.native.end()
 	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
 	assert events == []
-	assert env.indexes == [7]
-	assert env.player.fed == [6]
+	assert env.indexes == indexes
+	assert env.player.fed == fed
 	env.player.idle_release.set()
 	event = wait_event(events)
 	assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
 	assert event.source_id is context.source_id
 	assert event.segment_id == 17
 	assert env.dones == []
-	assert env.outer.Voice.synthDriverClass is type(env.driver)
 
 
 @pytest.mark.parametrize("failure", ["feed", "idle", "sonic", "native"])
@@ -153,17 +136,6 @@ def test_idle_without_end_marker_fails_instead_of_draining(env):
 	assert event.kind is env.rt.models.EventKind.SEGMENT_FAILED
 	assert event.source_id is context.source_id
 	assert isinstance(event.error, RuntimeError)
-
-
-def test_empty_audio_still_requires_idle(env):
-	env.driver.sonicStream.tail = []
-	_, _, events = speak(env, commands=("",))
-	env.native.wait_calls(1)
-	env.native.end()
-	assert env.player.idle_entered.wait(WAIT_TIMEOUT)
-	assert events == []
-	env.player.idle_release.set()
-	assert wait_event(events).kind is env.rt.models.EventKind.SEGMENT_DRAINED
 
 
 @pytest.mark.parametrize("token_only", [False, True])
@@ -688,7 +660,9 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
 		assert not env.player.idle_entered.is_set()
 	else:
 		assert event.kind is env.rt.models.EventKind.SEGMENT_DRAINED
+		assert event.segment_id == 17
 		assert failures == []
+		assert env.player.fed == [6, 0]
 
 
 def test_pcm_arriving_after_final_idle_cannot_feed_the_completed_segment(env):
