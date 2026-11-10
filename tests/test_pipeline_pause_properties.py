@@ -571,51 +571,32 @@ def walk(result, stripped):
 
 @SHARED_ENV
 @given(text=NUMBER_TEXT)
-def test_property_the_split_keeps_the_text_and_replaces_only_whitespace(env, text):
+def test_property_the_number_split(env, text):
 	result, stripped = split_once(env, text)
-	assert all(walk(result, stripped).values()), "every break must replace whitespace"
-
-
-@SHARED_ENV
-@given(text=NUMBER_TEXT)
-def test_property_every_whitespace_gap_between_numbers_gets_one_break(env, text):
+	number = env.module.numbers.NUMBER_RE.fullmatch
+	# The split keeps the text and replaces only whitespace.
+	taken = walk(result, stripped)
+	assert all(taken.values()), "every break must replace whitespace"
+	# Every whitespace gap between numbers gets one break.
 	# Decided by the user (2026-10-22): any whitespace, a no-break space included, pairs two numbers.
-	result, stripped = split_once(env, text)
 	matches = list(env.module.numbers.NUMBER_RE.finditer(stripped))
 	gaps = [stripped[left.end() : right.start()] for left, right in pairwise(matches)]
 	assert sum(not isinstance(item, str) for item in result) == sum(gap.isspace() for gap in gaps), (
 		text,
 		result,
 	)
-
-
-@SHARED_ENV
-@given(text=NUMBER_TEXT)
-def test_property_no_text_item_keeps_two_numbers_apart_by_whitespace(env, text):
-	result, _stripped = split_once(env, text)
+	# No text item keeps two numbers apart by whitespace.
 	for item in result:
 		if not isinstance(item, str):
 			continue
-		matches = list(env.module.numbers.NUMBER_RE.finditer(item))
-		for left, right in pairwise(matches):
+		for left, right in pairwise(env.module.numbers.NUMBER_RE.finditer(item)):
 			gap = item[left.end() : right.start()]
 			assert not gap.isspace(), (item, gap)
-
-
-@SHARED_ENV
-@given(text=NUMBER_TEXT)
-def test_property_no_digits_are_glued_together(env, text):
-	result, _stripped = split_once(env, text)
+	# No digits are glued together.
 	for before, after in pairwise(result):
 		if isinstance(before, str) and isinstance(after, str):
 			assert not (before[-1].isdecimal() and after[0].isdecimal())
-
-
-@SHARED_ENV
-@given(text=NUMBER_TEXT)
-def test_property_breaks_sit_exactly_between_whole_numbers(env, text):
-	result, _stripped = split_once(env, text)
-	number = env.module.numbers.NUMBER_RE.fullmatch
+	# Breaks sit exactly between whole numbers.
 	breaks = [item for item in result if not isinstance(item, str)]
 	assert all(item is breaks[0] for item in breaks)
 	for index, item in enumerate(result):
@@ -625,20 +606,13 @@ def test_property_breaks_sit_exactly_between_whole_numbers(env, text):
 	for before, after in pairwise(result):
 		if isinstance(before, str) and isinstance(after, str):
 			assert not (number(before) and number(after))
-
-
-@SHARED_ENV
-@given(text=NUMBER_TEXT)
-def test_property_leftover_text_is_never_a_number(env, text):
+	# Leftover text is never a number.
 	# A text item that is a whole number was split out at whitespace: a break that took
 	# whitespace is next to it. The only other way is the input itself being that number.
-	result, stripped = split_once(env, text)
-	if result == ([stripped] if stripped else []):
-		return
-	taken = walk(result, stripped)
-	for index, item in enumerate(result):
-		if isinstance(item, str) and env.module.numbers.NUMBER_RE.fullmatch(item):
-			assert taken.get(index - 1) or taken.get(index + 1), (text, result)
+	if result != ([stripped] if stripped else []):
+		for index, item in enumerate(result):
+			if isinstance(item, str) and number(item):
+				assert taken.get(index - 1) or taken.get(index + 1), (text, result)
 
 
 # Settings (S1)
@@ -682,22 +656,14 @@ def test_property_int_convert_is_bounded_and_idempotent(settings_module, data):
 	assert spec.convert(result) == result
 
 
+@pytest.mark.parametrize("key", ["group_size", "segment_length"])
 @SHARED_ENV
 @given(value=st.integers())
-def test_property_group_size_convert_keeps_or_resets(settings_module, value):
+def test_property_a_size_convert_keeps_or_resets(settings_module, key, value):
 	# P-S (decided by the user, 2026-11-01, U6, O4): 0..2**31-1 is kept, anything else is the default 0,
-	# whether it comes as an int or as the text nvda.ini holds.
-	spec = settings_module.PIPELINE_SETTING_BY_KEY["group_size"]
-	expected = value if 0 <= value <= 2**31 - 1 else 0
-	assert spec.convert(value) == expected
-	assert spec.convert(str(value)) == expected
-
-
-@SHARED_ENV
-@given(value=st.integers())
-def test_property_segment_length_convert_keeps_or_resets(settings_module, value):
-	# Decided by the user (2026-11-03, U2): reset like the group size, 0..2**31-1 kept, else 0.
-	spec = settings_module.PIPELINE_SETTING_BY_KEY["segment_length"]
+	# whether it comes as an int or as the text nvda.ini holds. The segment length resets like the
+	# group size (decided by the user, 2026-11-03, U2).
+	spec = settings_module.PIPELINE_SETTING_BY_KEY[key]
 	expected = value if 0 <= value <= 2**31 - 1 else 0
 	assert spec.convert(value) == expected
 	assert spec.convert(str(value)) == expected
