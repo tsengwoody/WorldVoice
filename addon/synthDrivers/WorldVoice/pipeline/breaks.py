@@ -51,8 +51,27 @@ class PunctuationBreakCommand(BreakCommand):
 	"""Pause after a configured punctuation mark."""
 
 
+class InternalPunctuationBreakCommand(PunctuationBreakCommand):
+	"""Pause after a configured punctuation mark that text of the same item follows, or the pause at
+	an item's last mark where it stands beside a number edge break inside the item."""
+
+
 class SegmentBreakCommand(BreakCommand):
 	"""Pause at a segment cut: after at most segment_length characters with no other pause."""
+
+
+class UnspacedSpaceBreakCommand(BreakCommand):
+	"""Pause in place of a space between two characters of scripts written without spaces."""
+
+
+def is_internal_break(command: SpeechCmd) -> bool:
+	"""Whether *command* is a pause a stage put inside one NVDA item, which language detection reads
+	through (spec fix/leading-punctuation-language U5): the internal punctuation, segment, number,
+	number edge and unspaced space pauses, but not a number edge break at an item's start or end."""
+	return isinstance(
+		command,
+		(InternalPunctuationBreakCommand, SegmentBreakCommand, NumberBreakCommand, UnspacedSpaceBreakCommand),
+	) and not isinstance(command, NumberItemEdgeBreakCommand)
 
 
 def _merge_edge_breaks(speech_sequence: Iterable[SpeechCmd]) -> Iterator[SpeechCmd]:

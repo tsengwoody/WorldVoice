@@ -382,6 +382,43 @@ def test_worldvoice_keeps_the_break_subclasses_from_the_stages(
 	assert break_types(run_stages(module, ["共 12 34 個. 5678 and 3"])) == expected
 
 
+# Which breaks language detection reads through: the pauses a stage puts inside one NVDA item
+# (spec fix/leading-punctuation-language U5, U6, D8, D12).
+@pytest.mark.parametrize(
+	("name", "expected"),
+	[
+		("InternalPunctuationBreakCommand", True),
+		("SegmentBreakCommand", True),
+		("NumberBreakCommand", True),
+		("NumberEdgeBreakCommand", True),
+		("UnspacedSpaceBreakCommand", True),
+		("NumberItemEdgeBreakCommand", False),
+		("PunctuationBreakCommand", False),
+		("BreakCommand", False),
+	],
+)
+def test_is_internal_break(monkeypatch, name, expected):
+	module, _ = load_pipeline_module(monkeypatch, pause_settings("value", 0))
+	assert module.is_internal_break(getattr(module, name)(10)) is expected
+
+
+def test_a_command_that_is_no_break_is_not_internal(monkeypatch):
+	module, _ = load_pipeline_module(monkeypatch, pause_settings("value", 0))
+	assert module.is_internal_break(Marker()) is False
+
+
+def test_the_new_breaks_keep_their_parents(monkeypatch):
+	module, BreakCommand = load_pipeline_module(monkeypatch, pause_settings("value", 0))
+	internal = module.InternalPunctuationBreakCommand(5)
+	space = module.UnspacedSpaceBreakCommand(7)
+	assert isinstance(internal, module.PunctuationBreakCommand)
+	assert isinstance(internal, BreakCommand)
+	assert isinstance(space, BreakCommand)
+	plain = module._plain_breaks([internal, space])
+	assert [(type(item), item.time) for item in plain] == [(BreakCommand, 5), (BreakCommand, 7)]
+	assert not any(hasattr(item, module.breaks._EDGE_MARKER) for item in plain)
+
+
 # Numbers wrapped for detection (phase 35 spec §4.4, batch 1 review C1).
 
 
