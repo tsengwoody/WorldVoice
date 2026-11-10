@@ -8,10 +8,12 @@ test reads the voice, chunks and pauses that would reach the engines, in order.
 
 import importlib
 import sys
+from itertools import pairwise
 from types import SimpleNamespace
 
 import pytest
 from addon_loader import REF, WORLDVOICE, alias_package
+from detector_harness import master_detection
 from hypothesis import HealthCheck, example, given, settings, strategies as st
 from nvda_stubs import StubModules, worldvoice_conf
 from pipeline_harness import load_nvda_character_processing, nvda_normalize_language, symbol_name
@@ -407,10 +409,15 @@ def speak_through_stages(
 	main="en",
 	settings=None,
 	nvda=None,
+	oracle=False,
 ):
 	"""Run the pipeline stages, then detection when it runs before NVDA, then *nvda* (what NVDA's
-	speak() does to the filtered sequence), then speak; what is heard."""
+	speak() does to the filtered sequence), then speak; what is heard. With *oracle*, detection is the
+	rule before fix/leading-punctuation-language (detector_harness.master_detection)."""
 	synth, modules = _synth(monkeypatch, timing=timing, uwv=uwv)
+	if oracle:
+		detector = synth._languageDetector
+		detector.add_detected_language_commands = lambda sequence: master_detection(detector, sequence)
 	synth._set_numlan(numlan)
 	if main in ("zh", "ne"):
 		voice, language = {"zh": (ZH, "zh_TW"), "ne": (NE, "ne_NP")}[main]
@@ -1249,3 +1256,111 @@ def test_a_main_number_after_leading_punctuation_keeps_its_item(monkeypatch, tim
 	# Spec D3: the wrapped number and the text around it keep master's languages.
 	result = heard_with_nepali(monkeypatch, ["नेपाल (2024) नेपाल"], numlan="main", timing=timing)
 	assert result == [(NE, "नेपाल ("), (EN, "2024)"), (NE, "नेपाल")]
+
+
+# The two invariants end to end (spec fix/leading-punctuation-language §4.3, §7.3).
+INVARIANT_PIECES = ["abc", "नेपाल", "中文", "12", "34", " ", ",", ".", "(", ")", '"', "「", "-", "२", "ー"]
+INVARIANT_ITEMS = st.lists(
+	st.lists(st.sampled_from(INVARIANT_PIECES), min_size=1, max_size=5).map("".join),
+	min_size=1,
+	max_size=3,
+)
+
+
+@st.composite
+def pauses_on(draw):
+	"""A random configuration of the four pauses that are inside an item."""
+	return {
+		"punctuation": draw(st.booleans()),
+		"punctuation_characters": ',.("',
+		"punctuation_wait": draw(st.sampled_from((0, 5, 30))),
+		"number_wait": draw(st.sampled_from((0, 10))),
+		"segment_length": draw(st.sampled_from((0, 4))),
+		"segment_wait": 10,
+		"unspaced_wait": draw(st.sampled_from((0, 10))),
+	}
+
+
+def voiced_characters(result):
+	"""(character, voice) for each character that is no whitespace."""
+	return [
+		(character, voice) for character, voice in voice_of_each_character(result) if not character.isspace()
+	]
+
+
+def voice_change_count(result):
+	voices = [voice for _character, voice in voiced_characters(result)]
+	return sum(1 for before, after in pairwise(voices) if before != after)
+
+
+def heard_for_property(monkeypatch, items, **options):
+	with monkeypatch.context() as patch:
+		patch.setitem(VOICES, "ne", NE)
+		return [entry for entry in speak_through_stages(patch, items, **options) if entry != "|"]
+
+
+# Invariant 2 (U5, U6): with the item pause on, the pauses inside an item never change a voice.
+@TIMINGS
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=50)
+@given(
+	items=INVARIANT_ITEMS,
+	numlan=st.sampled_from(["default", "main"]),
+	main=st.sampled_from(["en", "zh"]),
+	group_size=st.sampled_from([0, 3]),
+	pauses=pauses_on(),
+)
+@example(items=['abc, "नेपाल"'], numlan="default", main="en", group_size=0, pauses={"punctuation": True})
+@example(items=["abc 12 34 (नेपाल)"], numlan="default", main="en", group_size=0, pauses={"number_wait": 10})
+def test_property_pause_settings_do_not_change_voices(
+	monkeypatch,
+	timing,
+	items,
+	numlan,
+	main,
+	group_size,
+	pauses,
+):
+	common = {"numlan": numlan, "main": main, "timing": timing}
+	off = heard_for_property(
+		monkeypatch,
+		items,
+		settings=stage_settings(item_wait=10, group_size=group_size),
+		**common,
+	)
+	on_settings = stage_settings(
+		item_wait=10,
+		group_size=group_size,
+		**{"punctuation_characters": ',.("', **pauses},
+	)
+	on = heard_for_property(monkeypatch, items, settings=on_settings, **common)
+	assert voiced_characters(on) == voiced_characters(off), (items, on, off)
+
+
+# Invariant 1 (D6) end to end: never more voice changes than the rule before, whatever the pauses.
+@TIMINGS
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=50)
+@given(
+	items=INVARIANT_ITEMS,
+	numlan=st.sampled_from(["default", "main"]),
+	main=st.sampled_from(["en", "zh"]),
+	item_wait=st.sampled_from([0, 10]),
+	pauses=pauses_on(),
+)
+@example(items=['"नेपाल"'], numlan="default", main="en", item_wait=10, pauses={})
+def test_property_never_more_voice_changes_than_today(
+	monkeypatch,
+	timing,
+	items,
+	numlan,
+	main,
+	item_wait,
+	pauses,
+):
+	settings = stage_settings(item_wait=item_wait, **{"punctuation_characters": ',.("', **pauses})
+	common = {"numlan": numlan, "main": main, "timing": timing, "settings": settings}
+	new = heard_for_property(monkeypatch, items, **common)
+	old = heard_for_property(monkeypatch, items, oracle=True, **common)
+	assert [character for character, _ in voiced_characters(new)] == [
+		character for character, _ in voiced_characters(old)
+	], (items, new, old)
+	assert voice_change_count(new) <= voice_change_count(old), (items, new, old)

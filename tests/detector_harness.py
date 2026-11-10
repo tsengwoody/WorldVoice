@@ -68,3 +68,40 @@ def load_language_detection(stub_modules, monkeypatch):
 		breaks=importlib.import_module(PACKAGE + ".pipeline.breaks"),
 		IndexCommand=sys.modules["speech.commands"].IndexCommand,
 	)
+
+
+def master_detection(detector, speech_sequence):
+	"""The oracle: detection as it was before fix/leading-punctuation-language, each character by
+	today's per-character rule (detector.py:66-99 at 6ea5665), with the detector's own unchanged
+	_language_for_character, settings and providers."""
+	module = sys.modules[type(detector).__module__]
+	settings = detector._settings.get()
+	digits_by_script = detector._number_language() == module.FOLLOW
+	default_lang = detector._language()
+	cur_lang = tmp_lang = default_lang
+	for command in speech_sequence:
+		if isinstance(command, (module.LangChangeCommand, module.WVLangChangeCommand)):
+			cur_lang = command.lang or default_lang
+			tmp_lang = cur_lang
+			yield command
+		elif isinstance(command, str):
+			buffer = []
+			for character in command:
+				target = detector._language_for_character(
+					character,
+					tmp_lang,
+					cur_lang,
+					settings,
+					digits_by_script,
+				)
+				if module.primary_language(target) != module.primary_language(tmp_lang):
+					if buffer:
+						yield "".join(buffer)
+						buffer = []
+					yield module.WVLangChangeCommand(target)
+					tmp_lang = target
+				buffer.append(character)
+			if buffer:
+				yield "".join(buffer)
+		else:
+			yield command

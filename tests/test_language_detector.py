@@ -11,6 +11,7 @@ from detector_harness import (
 	EndUtteranceCommand,
 	LangChangeCommand,
 	load_language_detection,
+	master_detection,
 )
 from hypothesis import HealthCheck, example, given, settings, strategies as st
 
@@ -1006,7 +1007,9 @@ SCRIPT_SAMPLES = st.sampled_from(
 	# Phase 35: decimal digits of other scripts, and characters that only look like digits.
 	+ ["١٢", "１２", "²", "①"]
 	# Devanagari digits, which go to a Devanagari language (fix/script-digit-language).
-	+ ["२०"],
+	+ ["२०"]
+	# Leading marks (fix/leading-punctuation-language).
+	+ ['"', "(", "「", "- "],
 )
 TEXTS = st.lists(st.one_of(SCRIPT_SAMPLES, st.characters()), max_size=12).map("".join)
 VOICES = (
@@ -1027,10 +1030,68 @@ VOICES = (
 )
 # Document languages: none, without a voice, hyphenated, a regional variant, primary only, unknown.
 COMMAND_LANGUAGES = (None, "de_DE", "ar-WW", "zh_TW", "en_GB", "ja", "fr", "xx_YY")
+
+
+class Token:
+	"""A command drawn before the test has its env: materialize() makes it."""
+
+	def __init__(self, *spec):
+		self.spec = spec
+
+	def __repr__(self):
+		return f"Token{self.spec}"
+
+
+BREAK_NAMES = (
+	"InternalPunctuationBreakCommand",
+	"PunctuationBreakCommand",
+	"SegmentBreakCommand",
+	"NumberBreakCommand",
+	"NumberEdgeBreakCommand",
+	"NumberItemEdgeBreakCommand",
+	"UnspacedSpaceBreakCommand",
+)
+# Breaks of every class, number wrappers, index commands and utterance ends
+# (spec fix/leading-punctuation-language §7.3).
+COMMAND_TOKENS = st.one_of(
+	st.sampled_from([*BREAK_NAMES, "plain", "index", "end", "trigger"]).map(Token),
+	st.tuples(st.sampled_from(("en_US", "zh_TW", "ne_NP")), st.sampled_from(("12", "२०", "-3"))).map(
+		lambda drawn: Token("wrap", *drawn),
+	),
+)
 ITEMS = st.lists(
-	st.one_of(TEXTS, st.sampled_from(COMMAND_LANGUAGES).map(LangChangeCommand), st.builds(object)),
+	st.one_of(
+		TEXTS,
+		st.sampled_from(COMMAND_LANGUAGES).map(LangChangeCommand),
+		st.builds(object),
+		COMMAND_TOKENS,
+	),
 	max_size=8,
 )
+
+
+def materialize(env, items):
+	"""items with each Token made into its command; a wrapper becomes opening, number, closing."""
+	made = []
+	for item in items:
+		if not isinstance(item, Token):
+			made.append(item)
+			continue
+		kind, *rest = item.spec
+		if kind == "wrap":
+			language, number = rest
+			made += [env.WV(language), number, env.WV(language)]
+		elif kind == "plain":
+			made.append(BreakCommand(10))
+		elif kind == "index":
+			made.append(env.IndexCommand(1))
+		elif kind == "end":
+			made.append(EndUtteranceCommand())
+		elif kind == "trigger":
+			made.append(ConfigProfileTriggerCommand())
+		else:
+			made.append(getattr(env.breaks, kind)(10))
+	return made
 
 
 @st.composite
@@ -1089,7 +1150,8 @@ def spoken_letters(env, scenario, items, result):
 				inserted = None
 		elif not any(item is command for command in given):
 			language = inserted = item.lang
-		elif isinstance(item, LangChangeCommand):
+		elif isinstance(item, (LangChangeCommand, env.WV)):
+			# A given number wrapper sets the language and the base, as a document language does.
 			base = language = item.lang or scenario.base
 
 
@@ -1097,6 +1159,7 @@ def spoken_letters(env, scenario, items, result):
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(scenario=scenarios(), items=ITEMS)
 def test_property_detection_only_inserts_language_changes(env, scenario, items):
+	items = materialize(env, items)
 	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
 	assert all(item != "" for item in result), "an empty text was yielded"
 	given = [item for item in items if not isinstance(item, str)]
@@ -1118,6 +1181,7 @@ def plain_scenario(installed, base):
 @given(scenario=scenarios(), items=ITEMS)
 @example(scenario=plain_scenario(("en_US", "zh_TW"), "en_US"), items=[L("de_DE"), "hallo"])
 def test_property_letters_go_to_installed_languages(env, scenario, items):
+	items = materialize(env, items)
 	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
 	installed = {env.module.primary_language(voice) for voice in scenario.installed}
 	for script, language, _base, inserted in spoken_letters(env, scenario, items, result):
@@ -1132,6 +1196,7 @@ def test_property_letters_go_to_installed_languages(env, scenario, items):
 @given(scenario=scenarios(), items=ITEMS)
 @example(scenario=plain_scenario(("en_US", "zh_TW"), "en_US"), items=["中文hello"])
 def test_property_inserted_commands_prefer_a_covering_base(env, scenario, items):
+	items = materialize(env, items)
 	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
 	for script, _language, base, inserted in spoken_letters(env, scenario, items, result):
 		if inserted is not None and covers(env, scenario, base, script):
@@ -1181,6 +1246,7 @@ def runs_opened_by_digits(env, items, result):
 @example(scenario=plain_scenario(("en_US", "ne_NP"), "en_US"), items=["link", "२०८१ 12"])
 @example(scenario=plain_scenario(("en_US", "zh_TW"), "en_US"), items=["2024年"])
 def test_property_only_script_digits_start_a_detected_run(env, scenario, items):
+	items = materialize(env, items)
 	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
 	for language, digit, decider in runs_opened_by_digits(env, items, result):
 		character = digit if has_script(env, digit) else decider
@@ -1202,6 +1268,7 @@ def test_property_digits_never_start_a_detected_run_under_other_number_languages
 	items,
 	number_language,
 ):
+	items = materialize(env, items)
 	detector = scenario_detector(env, scenario)
 	detector._number_language = lambda: number_language
 	result = list(detector.add_detected_language_commands(items))
@@ -1234,3 +1301,61 @@ def test_property_spelling_digits_carry_the_number_language(env, scenario, text,
 			assert primary(language) == primary(base), (text, runs)
 		else:
 			assert primary(language) == primary(number_language), (text, runs)
+
+
+def character_languages(env, scenario, sequence):
+	"""(character, language in effect) for every character of the sequence: every language command,
+	inserted or given, sets the language."""
+	language = scenario.base
+	for item in sequence:
+		if isinstance(item, str):
+			for character in item:
+				yield character, language
+		elif isinstance(item, (LangChangeCommand, env.WV)):
+			language = item.lang or scenario.base
+
+
+def primary_changes(env, pairs):
+	"""How often the primary language changes between two characters that are no whitespace."""
+	primaries = [
+		env.module.primary_language(language) for character, language in pairs if not character.isspace()
+	]
+	return sum(1 for before, after in pairwise(primaries) if before != after)
+
+
+def inserted_languages(items, result):
+	given = [item for item in items if not isinstance(item, str)]
+	return [item.lang for item in result if not isinstance(item, str) and all(item is not c for c in given)]
+
+
+# Invariant 1 (spec fix/leading-punctuation-language §4.3, D6): the rule only moves where the language
+# changes to the start of a run and never adds a change.
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(scenario=scenarios(), items=ITEMS, number_language=st.sampled_from(("default", "main")))
+@example(scenario=plain_scenario(NE, "en_US"), items=['"नेपाल"'], number_language="default")
+# A run after a deciding character keeps the run language when the text after it is in that language.
+@example(scenario=plain_scenario(ZH, "zh_TW"), items=["abc", "12abc"], number_language="default")
+@example(
+	scenario=plain_scenario(NE, "en_US"),
+	items=["(", Token("end"), '"', "नेपाल"],
+	number_language="default",
+)
+@example(scenario=plain_scenario(HI_NE, "en_US"), items=['"', L("hi_IN"), "नेपाल"], number_language="default")
+def test_property_never_more_language_changes_than_today(env, scenario, items, number_language):
+	items = materialize(env, items)
+	detector = scenario_detector(env, scenario)
+	detector._number_language = lambda: number_language
+	result = list(detector.add_detected_language_commands(items))
+	oracle = list(master_detection(detector, items))
+	new, old = (
+		list(character_languages(env, scenario, result)),
+		list(character_languages(env, scenario, oracle)),
+	)
+	assert [character for character, _ in new] == [character for character, _ in old], (items, result)
+	assert primary_changes(env, new) <= primary_changes(env, old), (items, result, oracle)
+	for (character, language), (_, expected) in zip(new, old):
+		if has_script(env, character) or (character.isdecimal() and number_language != "default"):
+			# A character that decides keeps today's language; only the runs before them move.
+			assert language == expected, (character, items, result, oracle)
+	if not any(isinstance(item, LangChangeCommand) for item in items):
+		assert inserted_languages(items, result) == inserted_languages(items, oracle), (items, result, oracle)
