@@ -163,10 +163,8 @@ def test_network_errors_name_the_url_and_suggest_a_local_file(tool, monkeypatch,
 	assert "--source" in message
 
 
-@pytest.mark.parametrize("make", [lambda path: None], ids=["missing"])
-def test_an_unreadable_source_names_the_path_and_option(tool, downloads, tmp_path, make):
-	source = tmp_path / "Scripts.txt"
-	make(source)
+def test_an_unreadable_source_names_the_path_and_option(tool, downloads, tmp_path):
+	source = tmp_path / "Scripts.txt"  # missing
 	argv = [
 		str(tmp_path / "script_data.py"),
 		"--source",
