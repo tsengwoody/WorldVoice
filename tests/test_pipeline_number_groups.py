@@ -61,7 +61,7 @@ PIECES = [
 
 
 @pytest.mark.parametrize(("raw", "size"), [("-12", -1)])
-def test_group_pieces_of_size_zero_is_the_whole_match(env, raw, size):
+def test_group_pieces_of_a_negative_size_is_the_whole_match(env, raw, size):
 	assert env.numbers.group_pieces(raw, size) == [raw]
 
 

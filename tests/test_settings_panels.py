@@ -112,7 +112,8 @@ def group_size_enabled(panel):
 
 @pytest.mark.parametrize("mode", ["none", "group"])
 def test_pipeline_panel_group_size_is_enabled_for_every_stored_mode(monkeypatch, mode):
-	# Decided by the user (2026-11-01, U1): the group size applies in every number mode.
+	# Decided by the user (2026-11-01, U1): the group size applies in every number mode. Off and the
+	# old group mode stand for all: the panel never reads the mode to enable the group size.
 	env = pipeline_env(monkeypatch, numberMode=mode)
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	assert group_size_enabled(panel) is True

@@ -686,7 +686,7 @@ def test_groups_keep_leading_zeros_and_every_digit(env, mode, size, text, expect
 	[({}, ["1234"]), ({"groupSize": 2}, ["12", ("NumberBreakCommand", 10), "34"])],
 	ids=["no-size", "size-2"],
 )
-def test_a_stored_pair_mode_reads_numbers_as_values(env, monkeypatch, mode, size, expected):
+def test_a_stored_group_mode_reads_numbers_as_values(env, monkeypatch, mode, size, expected):
 	# An unknown stored mode, the old group mode included, reads as value; a stored group size groups
 	# in value mode, with no migration (decided by the user, 2026-11-01, U7).
 	conf = {"WorldVoice": {"pipeline": {"numberMode": mode, **size}}}

@@ -296,7 +296,8 @@ def group_size_enabled(panel):
 
 
 # Decided by the user (2026-11-01, U1): the group size applies in every number mode, so it is
-# always enabled and nothing in the panel listens to the mode list for it.
+# always enabled and nothing in the panel listens to the mode list for it; one stored mode stands
+# for all.
 @pytest.mark.parametrize("mode", ["none"])
 def test_group_size_is_enabled_for_every_stored_mode_when_the_panel_opens(monkeypatch, mode):
 	panel = open_panel(monkeypatch, Driver(ALL, nummod=mode)).panel
