@@ -815,6 +815,19 @@ def test_the_lookahead_keeps_the_language_when_no_voice_reads_the_text(env):
 	]
 
 
+def test_a_run_reads_the_first_character_of_every_string(env):
+	# The deciding character may open the string after an internal break (mutation testing).
+	pause = env.breaks.InternalPunctuationBreakCommand(0)
+	assert detect(env, ["(", pause, "中"], languages=ZH, base="en_US") == [("lang", "zh"), "(", pause, "中"]
+
+
+def test_each_stretch_of_a_run_takes_its_own_target(env):
+	# The first stretch is covered by its document language and keeps it; the one after "en" takes the
+	# assumed Devanagari language (spec D10, D2).
+	result = detect(env, [L("ne_NP"), '"', L("en"), '"नेपाल'], languages=HI_NE, base="en_US")
+	assert result == [("lang", "ne_NP"), '"', ("lang", "en"), ("lang", "hi"), '"नेपाल']
+
+
 def test_a_generator_input_with_utterance_ends_keeps_every_command(env):
 	counting = CountingSettings(env.settings)
 	detector = env.module.LanguageDetector(
