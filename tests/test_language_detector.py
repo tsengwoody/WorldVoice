@@ -4,7 +4,11 @@ from itertools import pairwise
 from types import SimpleNamespace
 
 import pytest
-from detector_harness import LangChangeCommand, load_language_detection
+from detector_harness import (
+	BreakCommand,
+	LangChangeCommand,
+	load_language_detection,
+)
 from hypothesis import HealthCheck, example, given, settings, strategies as st
 
 
@@ -13,10 +17,14 @@ def env(stub_modules, monkeypatch):
 	return load_language_detection(stub_modules, monkeypatch)
 
 
-def make_detector(env, languages=("en_US", "zh_TW", "ja"), number_language=None):
+def make_detector(env, languages=("en_US", "zh_TW", "ja"), number_language=None, *, internal_breaks=True):
 	"""The one place the detector is built; its dependencies come from env. Without a number language
-	the detector's own default applies (digits follow the text)."""
+	the detector's own default applies (digits follow the text). It reads through the pipeline's
+	internal breaks, as the driver wires it (spec fix/leading-punctuation-language D13), unless
+	internal_breaks is False."""
 	providers = {} if number_language is None else {"number_language": lambda: number_language}
+	if internal_breaks:
+		providers["is_internal_break"] = env.breaks.is_internal_break
 	return env.module.LanguageDetector(
 		list(languages),
 		settings=env.settings,
@@ -46,12 +54,14 @@ PREFERENCE_KEYS = {
 }
 
 
-def detect(env, sequence, *, languages, base, **preferences):
-	"""Detect with the given installed languages, synth language and detection preferences."""
+def detect(env, sequence, *, languages, base, number_language=None, **preferences):
+	"""Detect with the given installed languages, synth language, number language and detection
+	preferences."""
 	env.state.language = base
 	for name, value in preferences.items():
 		switching(env)[PREFERENCE_KEYS[name]] = value
-	return shape(env, make_detector(env, languages=languages).add_detected_language_commands(sequence))
+	detector = make_detector(env, languages=languages, number_language=number_language)
+	return shape(env, detector.add_detected_language_commands(sequence))
 
 
 # Outputs that phase 33 must not change (its spec §10.1).
@@ -227,7 +237,8 @@ def test_configured_cyrillic_and_devanagari_languages(env, languages, preference
 			"en_US",
 			{},
 			[L("de_DE"), ", hallo"],
-			[("lang", "de_DE"), ", ", ("lang", "en"), "hallo"],
+			# The leading ", " follows "hallo" (spec fix/leading-punctuation-language D5).
+			[("lang", "de_DE"), ("lang", "en"), ", hallo"],
 			id="C2",
 		),
 		pytest.param(
@@ -243,7 +254,8 @@ def test_configured_cyrillic_and_devanagari_languages(env, languages, preference
 			"en_US",
 			{},
 			[L("de_DE"), "12 hallo"],
-			[("lang", "de_DE"), "12 ", ("lang", "en"), "hallo"],
+			# Leading Common digits follow the text after them (spec fix/leading-punctuation-language U2).
+			[("lang", "de_DE"), ("lang", "en"), "12 hallo"],
 			id="digits-ignored",
 		),
 		pytest.param(
@@ -440,11 +452,12 @@ MARKER = object()
 		(["नेपालमा ५० जिल्ला"], [("lang", "ne"), "नेपालमा ५० जिल्ला"]),
 		(["abc 123"], ["abc 123"]),
 		(["abc １２３"], ["abc １２３"]),
-		# Decided by the user (2026-11-07, G2): a mixed-script number is read per character.
-		(["1२3"], ["1", ("lang", "ne"), "२3"]),
+		# At an item's start the leading "1" follows "२" (spec fix/leading-punctuation-language U9,
+		# superseding G2 of fix/script-digit-language there).
+		(["1२3"], [("lang", "ne"), "1२3"]),
 		# A Common digit continues the run it is in, also one a script digit opened (review M3).
 		(["२1"], [("lang", "ne"), "२1"]),
-		(["1२"], ["1", ("lang", "ne"), "२"]),
+		(["1२"], [("lang", "ne"), "1२"]),
 		([L("ne_NP"), "२०८१"], [("lang", "ne_NP"), "२०८१"]),
 		(["नेपाल", "२०८१"], [("lang", "ne"), "नेपाल", "२०८१"]),
 		(["२", MARKER, "०"], [("lang", "ne"), "२", MARKER, "०"]),
@@ -518,6 +531,180 @@ def test_detection_reads_the_number_language_once_per_sequence(env):
 	)
 	list(detector.add_detected_language_commands(["१ a २", "३"]))
 	assert reads == [1]
+
+
+# Leading punctuation follows the text after it (spec fix/leading-punctuation-language U1, U2, D1, D2):
+# the Common and Inherited characters before an item's first deciding character take its language.
+ZH = ("en_US", "zh_TW")
+BREAK = BreakCommand(10)
+
+
+@pytest.mark.parametrize(
+	("sequence", "languages", "base", "expected"),
+	[
+		(['"नेपाल"'], NE, "en_US", [("lang", "ne"), '"नेपाल"']),
+		(["(नेपाल)"], NE, "en_US", [("lang", "ne"), "(नेपाल)"]),
+		(["“नेपाल”"], NE, "en_US", [("lang", "ne"), "“नेपाल”"]),
+		(["- नेपाल"], NE, "en_US", [("lang", "ne"), "- नेपाल"]),
+		(['" २०८१'], NE, "en_US", [("lang", "ne"), '" २०८१']),
+		(["link", BREAK, '"नेपाल"'], NE, "en_US", ["link", BREAK, ("lang", "ne"), '"नेपाल"']),
+		([L("en"), '"नेपाल"'], NE, "en_US", [("lang", "en"), ("lang", "ne"), '"नेपाल"']),
+		(["「中文」"], ZH, "en_US", [("lang", "zh"), "「中文」"]),
+		(["（中文）"], ZH, "en_US", [("lang", "zh"), "（中文）"]),
+		(["(中文)"], ZH, "en_US", [("lang", "zh"), "(中文)"]),
+		(['"Hello"'], NE, "ne_NP", [("lang", "en"), '"Hello"']),
+		(["2024年"], ZH, "en_US", [("lang", "zh"), "2024年"]),
+		(["3 apples"], ZH, "zh_TW", [("lang", "en"), "3 apples"]),
+	],
+	ids=[
+		"quote",
+		"paren",
+		"curly-quote",
+		"dash",
+		"quote-script-digits",
+		"after-an-item",
+		"after-a-document-language",
+		"corner-bracket",
+		"full-width-paren",
+		"paren-han",
+		"mirror",
+		"leading-digits-han",
+		"leading-digits-latin",
+	],
+)
+def test_a_leading_run_follows_the_text_after_it(env, sequence, languages, base, expected):
+	assert detect(env, sequence, languages=languages, base=base) == expected
+
+
+@pytest.mark.parametrize(
+	("sequence", "languages", "base", "number_language", "expected"),
+	[
+		(['abc "नेपाल"'], NE, "en_US", None, ['abc "', ("lang", "ne"), 'नेपाल"']),
+		(['नेपाल "नेपाल"'], NE, "en_US", None, [("lang", "ne"), 'नेपाल "नेपाल"']),
+		(['"'], NE, "en_US", None, ['"']),
+		(["link", BREAK, "("], NE, "en_US", None, ["link", BREAK, "("]),
+		([L("ne_NP"), '"नेपाल"'], NE, "en_US", None, [("lang", "ne_NP"), '"नेपाल"']),
+		(['"नेपाल"'], ZH, "en_US", None, ['"नेपाल"']),
+		(['"ᏣᎳᎩ'], NE, "en_US", None, ['"ᏣᎳᎩ']),
+		(["「中文」"], ZH, "zh_TW", None, ["「中文」"]),
+		(["(中文)"], ZH, "zh_TW", None, ["(中文)"]),
+		(["2024年"], ZH, "en_US", "main", ["2024", ("lang", "zh"), "年"]),
+	],
+	ids=[
+		"mid-line",
+		"after-nepali",
+		"mark-alone",
+		"mark-alone-after-an-item",
+		"covering-document-language",
+		"no-devanagari-voice",
+		"cherokee",
+		"corner-bracket-zh",
+		"paren-zh",
+		"main-unwrapped-digits",
+	],
+)
+def test_detection_keeps_these_as_today(env, sequence, languages, base, number_language, expected):
+	assert detect(env, sequence, languages=languages, base=base, number_language=number_language) == expected
+
+
+INTERNAL_BREAKS = [
+	"InternalPunctuationBreakCommand",
+	"SegmentBreakCommand",
+	"NumberBreakCommand",
+	"NumberEdgeBreakCommand",
+	"UnspacedSpaceBreakCommand",
+]
+
+
+# Option H (spec U5): a pause a stage puts inside an item does not end it, so ' "' stays mid-line.
+@pytest.mark.parametrize("name", INTERNAL_BREAKS)
+def test_internal_breaks_continue_the_item(env, name):
+	pause = getattr(env.breaks, name)(0)
+	result = detect(env, ["abc", ",", pause, ' "नेपाल"'], languages=NE, base="en_US")
+	assert result == ["abc", ",", pause, ' "', ("lang", "ne"), 'नेपाल"']
+
+
+@pytest.mark.parametrize(
+	"name",
+	["PunctuationBreakCommand", "NumberItemEdgeBreakCommand", "IndexCommand", "plain"],
+)
+def test_boundaries_end_the_item(env, name):
+	if name == "plain":
+		boundary = BreakCommand(10)
+	elif name == "IndexCommand":
+		boundary = env.IndexCommand(1)
+	else:
+		boundary = getattr(env.breaks, name)(0)
+	result = detect(env, ["abc", ",", boundary, ' "नेपाल"'], languages=NE, base="en_US")
+	assert result == ["abc", ",", boundary, ("lang", "ne"), ' "नेपाल"']
+
+
+def test_adjacent_strings_are_one_item(env):
+	# With the item pause at 0 the item boundary is invisible: the limitation of spec U5.
+	assert detect(env, ["link", '"नेपाल"'], languages=NE, base="en_US") == [
+		"link",
+		'"',
+		("lang", "ne"),
+		'नेपाल"',
+	]
+	pause = env.breaks.NumberBreakCommand(10)
+	assert detect(env, ["abc ", "12", pause, "34", " (नेपाल)"], languages=NE, base="en_US") == [
+		"abc ",
+		"12",
+		pause,
+		"34",
+		" (",
+		("lang", "ne"),
+		"नेपाल)",
+	]
+
+
+def test_a_wrapped_number_keeps_its_item(env):
+	# Spec D3: the wrappers continue the item and the wrapped number stops every search.
+	opening, closing = env.WV("en_US"), env.WV("en_US")
+	result = detect(
+		env,
+		["नेपाल (", opening, "2024", closing, ") नेपाल"],
+		languages=NE,
+		base="en_US",
+		number_language="main",
+	)
+	assert result == [
+		("lang", "ne"),
+		"नेपाल (",
+		("lang", "en_US"),
+		"2024",
+		("lang", "en_US"),
+		") ",
+		("lang", "ne"),
+		"नेपाल",
+	]
+
+
+def test_without_the_internal_break_check_every_break_ends_an_item(env):
+	# Spec D13: the detector's own default reads through no break.
+	pause = env.breaks.InternalPunctuationBreakCommand(0)
+	detector = make_detector(env, NE, internal_breaks=False)
+	result = shape(env, detector.add_detected_language_commands(["abc", ",", pause, ' "नेपाल"']))
+	assert result == ["abc", ",", pause, ("lang", "ne"), ' "नेपाल"']
+
+
+def test_blank_text_joins_the_leading_run(env):
+	assert detect(env, ["", '"नेपाल"'], languages=NE, base="en_US") == [("lang", "ne"), '"नेपाल"']
+	assert detect(env, [" ", "(नेपाल"], languages=NE, base="en_US") == [("lang", "ne"), " ", "(नेपाल"]
+
+
+def test_inherited_marks_join_the_leading_run(env):
+	assert detect(env, ["\u0301नेपाल"], languages=NE, base="en_US") == [("lang", "ne"), "\u0301नेपाल"]
+	assert detect(env, ["\u094dनेपाल"], languages=NE, base="en_US") == [("lang", "ne"), "\u094dनेपाल"]
+
+
+def test_spelling_keeps_a_leading_mark_in_the_locale(env):
+	# Spec D7: spelling is unchanged.
+	assert list(make_detector(env, NE).process_for_spelling('"नेपाल', "en_US")) == [
+		('"', "en_US"),
+		("नेपाल", "ne"),
+	]
 
 
 def test_superscripts_are_not_digits(env):
@@ -844,24 +1031,31 @@ def merge_texts(sequence):
 
 
 def runs_opened_by_digits(env, items, result):
-	"""(inserted language, first character) for each run detection opens with a decimal digit."""
+	"""(inserted language, first character, the first character with a script after it or None) for
+	each run detection opens with a decimal digit."""
 	given = [item for item in items if not isinstance(item, str)]
-	for command, following in pairwise(result):
+	for index, (command, following) in enumerate(pairwise(result)):
 		inserted = isinstance(command, env.WV) and all(command is not item for item in given)
 		if inserted and isinstance(following, str) and following[0].isdecimal():
-			yield command.lang, following[0]
+			later = "".join(item for item in result[index + 1 :] if isinstance(item, str))
+			decider = next((character for character in later if has_script(env, character)), None)
+			yield command.lang, following[0], decider
 
 
-# Under "Follow surrounding text language" only a digit with a script opens a run, and only in a
-# language of that script (fix/script-digit-language G1, superseding phase 35 spec §11.4 item 4).
+# Under "Follow surrounding text language" a digit with a script opens a run only in a language of
+# that script (fix/script-digit-language G1, superseding phase 35 spec §11.4 item 4). A Common digit
+# opens one only at the start of a leading run, in the language of the character with a script it
+# leads to (spec fix/leading-punctuation-language U2).
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(scenario=scenarios(), items=ITEMS)
 @example(scenario=plain_scenario(("en_US", "ne_NP"), "en_US"), items=["link", "२०८१ 12"])
+@example(scenario=plain_scenario(("en_US", "zh_TW"), "en_US"), items=["2024年"])
 def test_property_only_script_digits_start_a_detected_run(env, scenario, items):
 	result = list(scenario_detector(env, scenario).add_detected_language_commands(items))
-	for language, digit in runs_opened_by_digits(env, items, result):
-		assert has_script(env, digit), (items, result)
-		assert covers(env, scenario, language, env.module.get_script(ord(digit))), (items, result)
+	for language, digit, decider in runs_opened_by_digits(env, items, result):
+		character = digit if has_script(env, digit) else decider
+		assert character is not None, (items, result)
+		assert covers(env, scenario, language, env.module.get_script(ord(character))), (items, result)
 
 
 # "main" and a locale keep every digit in the run it is in (phase 35 spec §11.4 item 4).

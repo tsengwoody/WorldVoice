@@ -152,6 +152,7 @@ def _load_modules(monkeypatch, conf):
 		number_language=load("numberLanguage"),
 		context=load("pipeline.context"),
 		detection=load("languageDetection.detector"),
+		breaks=load("pipeline.breaks"),
 		detection_settings=load("languageDetection.settings"),
 		builder=load("runtime.requestBuilder"),
 		commands=load("bridge.commands"),
@@ -214,6 +215,7 @@ def _synth(monkeypatch, *, timing="after", uwv=True):
 		settings=detection_settings,
 		language=lambda: synth.language,
 		number_language=synth._numberLanguage,
+		is_internal_break=modules.breaks.is_internal_break,
 	)
 	synth._languageDetector = detector
 	synth.addDetectedLanguageCommands = pipeline.listable(synth._detectLanguages)
@@ -1020,6 +1022,12 @@ def test_a_digit_in_a_symbol_name_takes_the_number_language_after_nvda(
 SPOKEN_PIECES = st.lists(st.sampled_from(["abc", "中文", "12", "٣", "１", " ", "२"]), max_size=8).map("".join)
 
 
+def has_own_script(character):
+	"""Whether a character of SPOKEN_PIECES has a script of its own: letters, "٣" and "२", not the
+	ASCII and full-width digits or the space."""
+	return character.isalpha() or character in "٣२"
+
+
 def voice_of_each_character(result):
 	return [(character, voice) for voice, text in result for character in text]
 
@@ -1044,8 +1052,14 @@ def test_property_each_digit_is_read_by_the_number_language_voice(monkeypatch, t
 	characters = voice_of_each_character(result)
 	assert "".join(character for character, _voice in characters) == text
 	main_voice = ZH if main == "zh" else EN
+	# Under "default" a digit before the first character with a script of its own takes that
+	# character's voice (spec fix/leading-punctuation-language U2); with none, the main voice.
+	deciders = [voice for character, voice in characters if has_own_script(character)]
+	leading_voice = deciders[0] if deciders else main_voice
+	seen_decider = False
 	run_voice = None
 	for character, voice in characters:
+		seen_decider = seen_decider or has_own_script(character)
 		if character.isalpha():
 			# Every voice is installed: Latin letters are English, Han characters Chinese.
 			run_voice = voice
@@ -1055,7 +1069,7 @@ def test_property_each_digit_is_read_by_the_number_language_voice(monkeypatch, t
 			run_voice = NE
 		elif character.isdecimal():
 			expected = {
-				"default": run_voice or main_voice,
+				"default": run_voice or (main_voice if seen_decider else leading_voice),
 				"main": main_voice,
 				"en": EN,
 				"zh_TW": ZH,

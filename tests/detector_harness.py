@@ -1,4 +1,4 @@
-"""Load the real language detector, its settings and speechCommands under NVDA stubs."""
+"""Load the real language detector, its settings, speechCommands and the pipeline's breaks under NVDA stubs."""
 
 import importlib
 import sys
@@ -16,6 +16,19 @@ class LangChangeCommand:
 		self.lang = lang
 
 
+class BreakCommand:
+	def __init__(self, time):
+		self.time = time
+
+
+class EndUtteranceCommand:
+	"""NVDA's speech manager ends an utterance here."""
+
+
+class ConfigProfileTriggerCommand:
+	"""NVDA's speech manager ends an utterance before it."""
+
+
 def load_language_detection(stub_modules, monkeypatch):
 	for name in tuple(sys.modules):
 		if name.startswith(PACKAGE + "."):
@@ -27,6 +40,9 @@ def load_language_detection(stub_modules, monkeypatch):
 	stub_modules.module(
 		"speech.commands",
 		LangChangeCommand=LangChangeCommand,
+		BreakCommand=BreakCommand,
+		EndUtteranceCommand=EndUtteranceCommand,
+		ConfigProfileTriggerCommand=ConfigProfileTriggerCommand,
 		IndexCommand=type(
 			"IndexCommand",
 			(),
@@ -47,4 +63,8 @@ def load_language_detection(stub_modules, monkeypatch):
 		settings=settings_module.DetectionSettingsService(lambda: conf),
 		script_languages=importlib.import_module(PACKAGE + ".languageDetection.scriptLanguages"),
 		WV=importlib.import_module(PACKAGE + ".speechCommands").WVLangChangeCommand,
+		# The breaks the stages emit and the check the driver hands to the detector (spec
+		# fix/leading-punctuation-language D13).
+		breaks=importlib.import_module(PACKAGE + ".pipeline.breaks"),
+		IndexCommand=sys.modules["speech.commands"].IndexCommand,
 	)

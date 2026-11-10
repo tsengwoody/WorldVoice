@@ -41,6 +41,7 @@ from .engineRegistry import ready_engine_classes
 from .languageDetection.detector import LanguageDetector
 from .languageDetection.settings import detection_settings
 from .numberLanguage import FOLLOW
+from .pipeline.breaks import is_internal_break
 from .pipeline.context import GENERIC_CONTEXT, SpeechContext
 from .pipeline.languageCommands import (
 	deduplicate_language_command,
@@ -289,6 +290,7 @@ class SynthDriver(BaseSynthDriver):
 					settings=detection_settings,
 					language=lambda: self.language,
 					number_language=self._numberLanguage,
+					is_internal_break=is_internal_break,
 				)
 				self.addDetectedLanguageCommands = listable(self._detectLanguages)
 				self._teardown.add(

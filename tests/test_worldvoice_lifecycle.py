@@ -92,7 +92,7 @@ def _construction_environment(failure, changes, close_error=None):
 
 	class LanguageDetector:
 		def __init__(self, languages, **providers):
-			assert set(providers) == {"settings", "language", "number_language"}
+			assert set(providers) == {"settings", "language", "number_language", "is_internal_break"}
 			detectors.append(providers)
 			if failure == "detector":
 				raise RuntimeError("detector failure")
@@ -184,6 +184,7 @@ def _construction_environment(failure, changes, close_error=None):
 			unregister=lambda handler: changes.append("filter unregistered"),
 		),
 		"LanguageDetector": LanguageDetector,
+		"is_internal_break": lambda command: "pipeline check",
 		"detection_settings": types.SimpleNamespace(
 			subscribe=lambda listener: changes.append("detection subscribed"),
 			unsubscribe=lambda listener: changes.append("detection unsubscribed"),
@@ -303,6 +304,14 @@ def test_the_detector_reads_the_drivers_number_language():
 	assert providers["number_language"]() == "default"
 	driver._set_numlan("main")
 	assert providers["number_language"]() == "main"
+
+
+def test_the_detector_reads_through_the_pipelines_internal_breaks():
+	# Spec fix/leading-punctuation-language D13: the driver hands the pipeline's check to the detector.
+	built = _construction_environment(None, [])
+	load_synth_class(built.environment)()
+	(providers,) = built.detectors
+	assert providers["is_internal_break"] is built.environment["is_internal_break"]
 
 
 def test_the_driver_gives_the_voice_settings_repository_a_conf_provider_and_nvda_log():
