@@ -78,58 +78,6 @@ def test_same_source_late_events_do_not_finish_next_segment(manager, rt, output)
 	assert future_b.result(WAIT_TIMEOUT) is True
 
 
-def test_duplicate_end_cannot_advance_next_task(manager, rt):
-	port, second = marker(rt), marker(rt)
-	second.source_id = port.source_id
-	request, _ = start(manager, port, second)
-	old = make_event(rt, port)
-	manager.on_event(old)
-	assert second.entered.wait(WAIT_TIMEOUT)
-	manager.on_event(old)
-	assert not request.tasks[1].future.done()
-	emit(manager, rt, second)
-	assert request.tasks[1].future.result(WAIT_TIMEOUT) is True
-
-
-def test_end_then_speak_error_is_failure(manager, rt, scheduler, output):
-	port, second = marker(rt), marker(rt)
-	error = ValueError("after END")
-
-	def speak():
-		emit(manager, rt, port)
-		raise error
-
-	port.on_speak = speak
-	request, first = start(manager, port, second)
-	assert first.exception(WAIT_TIMEOUT) is error
-	with pytest.raises(CancelledError):
-		request.tasks[1].future.result(WAIT_TIMEOUT)
-	assert request.state is scheduler.RequestState.FAILED
-	assert not second.entered.is_set()
-	assert output.wait_done() == 1
-
-
-def test_end_waits_for_speak_return(manager, rt):
-	port, next_port = marker(rt), marker(rt)
-	ended, release = Event(), Event()
-
-	def speak():
-		emit(manager, rt, port)
-		ended.set()
-		assert release.wait(HOLD_TIMEOUT)
-
-	port.on_speak = speak
-	try:
-		_, first = start(manager, port, next_port)
-		assert ended.wait(WAIT_TIMEOUT)
-		assert not first.done()
-		assert not next_port.entered.is_set()
-	finally:
-		release.set()
-	assert next_port.entered.wait(WAIT_TIMEOUT)
-	emit(manager, rt, next_port)
-
-
 def test_drain_rejects_wrong_source_and_segment(manager, rt):
 	class EqualSource:
 		def __eq__(self, other):
@@ -154,11 +102,16 @@ def test_drain_rejects_wrong_source_and_segment(manager, rt):
 	assert future.result(WAIT_TIMEOUT) is True
 
 
-def test_duplicate_drain_cannot_advance_next_segment(manager, rt, output):
-	port, second = marker(rt, "DRAIN"), marker(rt, "DRAIN")
+# Each completion mode with the event that ends its segment.
+MODES = [("END_INDEX", "SEGMENT_END"), ("DRAIN", "SEGMENT_DRAINED")]
+
+
+@pytest.mark.parametrize(("mode", "kind"), MODES)
+def test_duplicate_completion_cannot_advance_next_segment(manager, rt, output, mode, kind):
+	port, second = marker(rt, mode), marker(rt, mode)
 	second.source_id = port.source_id
 	request, first = start(manager, port, second)
-	old = make_event(rt, port, "SEGMENT_DRAINED")
+	old = make_event(rt, port, kind)
 	manager.on_events(
 		lambda: (
 			make_event(rt, port, "INDEX", index=123),
@@ -172,16 +125,17 @@ def test_duplicate_drain_cannot_advance_next_segment(manager, rt, output):
 	manager.on_events(lambda: (old, make_event(rt, port, "INDEX", index=789)))
 	assert not request.tasks[1].future.done()
 	assert output.indexes == [123]
-	emit(manager, rt, second, "SEGMENT_DRAINED")
+	emit(manager, rt, second, kind)
 	assert request.tasks[1].future.result(WAIT_TIMEOUT) is True
 
 
-def test_drain_waits_for_speak_return_and_rejects_late_index(manager, rt, output):
-	port, second = marker(rt, "DRAIN"), marker(rt, "DRAIN")
+@pytest.mark.parametrize(("mode", "kind"), MODES)
+def test_completion_waits_for_speak_return_and_rejects_late_index(manager, rt, output, mode, kind):
+	port, second = marker(rt, mode), marker(rt, mode)
 	drained, release = Event(), Event()
 
 	def speak():
-		emit(manager, rt, port, "SEGMENT_DRAINED")
+		emit(manager, rt, port, kind)
 		drained.set()
 		assert release.wait(HOLD_TIMEOUT)
 
@@ -197,16 +151,24 @@ def test_drain_waits_for_speak_return_and_rejects_late_index(manager, rt, output
 		release.set()
 	assert future.result(WAIT_TIMEOUT) is True
 	assert second.entered.wait(WAIT_TIMEOUT)
-	emit(manager, rt, second, "SEGMENT_DRAINED")
+	emit(manager, rt, second, kind)
 
 
-@pytest.mark.parametrize("outcome", ["speak_error", "segment_failure", "cancel"])
-def test_drain_does_not_override_failure_or_cancellation(manager, rt, scheduler, output, outcome):
-	port, second = marker(rt, "DRAIN"), marker(rt, "DRAIN")
+@pytest.mark.parametrize(
+	("mode", "outcome"),
+	[
+		pytest.param("DRAIN", "speak_error", id="speak_error"),
+		pytest.param("DRAIN", "segment_failure", id="segment_failure"),
+		pytest.param("DRAIN", "cancel", id="cancel"),
+		pytest.param("END_INDEX", "speak_error", id="END_INDEX-speak_error"),
+	],
+)
+def test_drain_does_not_override_failure_or_cancellation(manager, rt, scheduler, output, mode, outcome):
+	port, second = marker(rt, mode), marker(rt, mode)
 	error = ValueError("after drain")
 
 	def speak():
-		emit(manager, rt, port, "SEGMENT_DRAINED")
+		emit(manager, rt, port, dict(MODES)[mode])
 		if outcome == "speak_error":
 			raise error
 		if outcome == "segment_failure":
