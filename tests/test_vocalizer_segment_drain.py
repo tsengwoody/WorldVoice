@@ -1065,27 +1065,6 @@ def test_cancel_stop_in_progress_blocks_next_native_call(env, monkeypatch):
 	assert len(env.events) == 1
 
 
-def test_foreign_instance_endprocess_does_not_touch_current_buffer(env, monkeypatch):
-	callback = callback_handler(env.core)
-
-	def native(instance, text):
-		callback._feedBuf = BytesIO(b"current")
-		foreign = env.types.VE_HSAFE()
-		foreign.pHandleData = 123
-		result = callback(
-			foreign,
-			None,
-			native_message(env.types, env.types.VE_MSG_ENDPROCESS, env.types.VE_OUTDATA()),
-		)
-		assert result == env.types.NUAN_E_TTS_USERSTOP
-		assert buffered_audio(callback) == b"current"
-
-	monkeypatch.setattr(env.native, "processText2Speech", native)
-	_, _, call = speak(env)
-	finish(call)
-	assert real_player(env.core).fed == []
-
-
 def test_anonymous_done_never_completes_context(env, monkeypatch):
 
 	def native(instance, text):
@@ -1239,7 +1218,7 @@ def test_callback_lease_holds_bookmark_handler_before_next_call(env, monkeypatch
 	assert [event.segment_id for event in env.events] == [18]
 
 
-@pytest.mark.parametrize("kind", ["empty", "index"])
+@pytest.mark.parametrize("kind", ["empty", "index", "blank"])
 def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 	from speech import commands
 
@@ -1248,16 +1227,28 @@ def test_zero_audio_segments_still_wait_for_real_idle(env, monkeypatch, kind):
 		index = commands.IndexCommand()
 		index.index = 23
 		sequence = (index,)
+	elif kind == "blank":
+		# The inner driver skips blank text (veinner:357-360), so nothing reaches the wrapper's _speak.
+		sequence = ("   ",)
 	entered, release = Event(), Event()
 	real_player(env.core).idle = lambda: (entered.set(), release.wait(HOLD_TIMEOUT))
-	# A call that produces no audio still ends with ENDPROCESS.
-	monkeypatch.setattr(env.native, "processText2Speech", lambda instance, text: end_process(env, instance))
+	calls = []
+
+	def native(instance, text):
+		calls.append(text)
+		# A call that produces no audio still ends with ENDPROCESS.
+		return end_process(env, instance)
+
+	monkeypatch.setattr(env.native, "processText2Speech", native)
 	_, _, call = speak(env, sequence)
 	assert entered.wait(WAIT_TIMEOUT)
 	assert env.events == []
 	release.set()
 	finish(call)
-	assert env.events[0].kind is env.rt.models.EventKind.SEGMENT_DRAINED
+	wait_for(lambda: len(env.events) == 1)
+	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+	if kind in ("empty", "blank"):
+		assert calls == []
 
 
 def test_segment_drain_does_not_wait_for_resume(env, monkeypatch):
@@ -2058,24 +2049,25 @@ def speak_pieces(env, monkeypatch, pieces, ends):
 	return calls
 
 
-def test_segment_whose_every_call_ends_reaches_engine_done(env, monkeypatch):
-	calls = speak_pieces(env, monkeypatch, ["a", "b", "c"], [True, True, True])
-	assert calls == ["a", "b", "c"]
-	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
-
-
-def test_last_call_without_endprocess_fails_the_segment(env, monkeypatch):
-	calls = speak_pieces(env, monkeypatch, ["a", "b"], [True, False])
-	assert calls == ["a", "b"]
-	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
-	assert "engine_done" in str(env.events[0].error)
-
-
-def test_only_the_last_call_needs_endprocess(env, monkeypatch):
-	# A middle call's tail stays in Sonic and the feed buffer and goes out with the next call.
-	calls = speak_pieces(env, monkeypatch, ["a", "b", "c"], [True, False, True])
-	assert calls == ["a", "b", "c"]
-	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
+@pytest.mark.parametrize(
+	("pieces", "ends", "drained"),
+	[
+		(["a", "b", "c"], [True, True, True], True),
+		(["a", "b"], [True, False], False),
+		# A middle call's tail stays in Sonic and the feed buffer and goes out with the next call.
+		(["a", "b", "c"], [True, False, True], True),
+	],
+	ids=["every-call-ends", "last-call-unended", "middle-call-unended"],
+)
+def test_engine_done_needs_the_last_native_call_to_end(env, monkeypatch, pieces, ends, drained):
+	calls = speak_pieces(env, monkeypatch, pieces, ends)
+	assert calls == pieces
+	kinds = env.rt.models.EventKind
+	assert [event.kind for event in env.events] == [
+		kinds.SEGMENT_DRAINED if drained else kinds.SEGMENT_FAILED,
+	]
+	if not drained:
+		assert "engine_done" in str(env.events[0].error)
 
 
 def test_refused_endprocess_does_not_reach_engine_done(env, monkeypatch):
@@ -2083,10 +2075,16 @@ def test_refused_endprocess_does_not_reach_engine_done(env, monkeypatch):
 
 	def native(instance, text):
 		emit(env, instance, end=False)
-		# Admission refuses a callback for another instance: it proves nothing for this call.
+		# Admission refuses a callback for another instance: it proves nothing for this call, and it
+		# must not touch the current call's buffer or what the player was fed.
+		callback = callback_handler(env.core)
+		callback._feedBuf = BytesIO(b"current")
+		buffered, fed = buffered_audio(callback), list(real_player(env.core).fed)
 		foreign = env.types.VE_HSAFE()
 		foreign.pHandleData = 123
 		results.append(end_process(env, foreign))
+		assert buffered_audio(callback) == buffered
+		assert real_player(env.core).fed == fed
 
 	monkeypatch.setattr(env.native, "processText2Speech", native)
 	_, _, call = speak(env)
@@ -2095,17 +2093,6 @@ def test_refused_endprocess_does_not_reach_engine_done(env, monkeypatch):
 	assert results == [env.types.NUAN_E_TTS_USERSTOP]
 	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_FAILED]
 	assert "engine_done" in str(env.events[0].error)
-
-
-def test_segment_without_native_call_reaches_engine_done(env, monkeypatch):
-	# The inner driver skips blank text (veinner:357-360), so nothing reaches the wrapper's _speak.
-	calls = []
-	monkeypatch.setattr(env.native, "processText2Speech", lambda *args: calls.append(args))
-	_, _, call = speak(env, ("   ",))
-	finish(call)
-	wait_for(lambda: len(env.events) == 1)
-	assert calls == []
-	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
 # One native call per segment (spec feat/segment-pause §4.7, U5): the segment pause stage, not the
@@ -2123,33 +2110,23 @@ def recording_native(env, monkeypatch):
 	return calls
 
 
-def test_a_long_segment_is_one_native_call(env, monkeypatch):
-	text = " ".join(["word"] * 60)
-	assert len(text) == 299
+LONG = " ".join(["word"] * 60)
+
+
+@pytest.mark.parametrize(
+	("text", "transform", "expected"),
+	[(LONG, None, [LONG]), ("hello", str.upper, ["HELLO"]), ("hello", lambda text: "", [])],
+	ids=["long", "transformed", "emptied"],
+)
+def test_a_segment_is_at_most_one_native_call(env, monkeypatch, text, transform, expected):
+	assert len(LONG) == 299
+	if transform is not None:
+		monkeypatch.setattr(env.module, "break_repeated_runs", transform)
 	calls = recording_native(env, monkeypatch)
 	_, _, call = speak(env, (text,))
 	finish(call)
 	wait_for(lambda: len(env.events) == 1)
-	assert calls == [text]
-	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
-
-
-def test_break_repeated_runs_still_runs(env, monkeypatch):
-	monkeypatch.setattr(env.module, "break_repeated_runs", str.upper)
-	calls = recording_native(env, monkeypatch)
-	_, _, call = speak(env, ("hello",))
-	finish(call)
-	wait_for(lambda: len(env.events) == 1)
-	assert calls == ["HELLO"]
-
-
-def test_empty_wrapper_text_makes_no_native_call(env, monkeypatch):
-	monkeypatch.setattr(env.module, "break_repeated_runs", lambda text: "")
-	calls = recording_native(env, monkeypatch)
-	_, _, call = speak(env, ("hello",))
-	finish(call)
-	wait_for(lambda: len(env.events) == 1)
-	assert calls == []
+	assert calls == expected
 	assert [event.kind for event in env.events] == [env.rt.models.EventKind.SEGMENT_DRAINED]
 
 
