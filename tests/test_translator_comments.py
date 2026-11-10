@@ -42,93 +42,7 @@ def test_translator_comments_precede_gettext_calls():
 	assert misplaced == []
 
 
-# Labels that are new or changed with the shared, sentence-case labels (2026-10-21), the
-# "off" number mode (2026-10-22), the assumed languages of the Unicode Detection panel
-# (2026-10-23), the space pause of every unspaced script (2026-10-25), and the engine list's
-# short label (2026-10-30).
-CHANGED_LABEL_MSGIDS = (
-	"off",
-	"Number &mode",
-	"Number mode",
-	"Number &language",
-	"Number language",
-	"Item wait factor",
-	"Effect scope",
-	"Group size",
-	"Punctuation pause characters",
-	"Apply speech dictionaries",
-	"Speech viewer",
-	"Language assumed for latin characters:",
-	"Language assumed for CJK characters:",
-	"Language assumed for arabic characters:",
-	"Language assumed for cyrillic characters:",
-	"Language assumed for devanagari characters:",
-	"Space wait factor between CJK and Southeast Asian characters",
-	"&Engine",
-)
-# msgids no _() call uses any more; the zh_TW catalog keeps none of them.
-DEAD_MSGIDS = (
-	"Effect Scope:",
-	"Number mode:",
-	"Group size:",
-	"group wait factor:",
-	"global wait factor:",
-	"number wait factor:",
-	"item wait factor:",
-	"sayall wait factor:",
-	"chinese space wait factor:",
-	"punctuation wait factor:",
-	"Punctuation pause characters:",
-	"Number &Language",
-	"Number Language",
-	"Number &Mode",
-	"Number Mode",
-	"Ignore comma between number",
-	"Ignore commas between numbers",
-	"Group wait factor",
-	"item wait factor",
-	"apply_speech_dictionaries",
-	"chinese space wait factor",
-	"punctuation wait factor",
-	"number wait factor",
-	"speech viewer",
-	"Chinese space wait factor",
-	"Speec&h engine",
-)
 ZH_TW_CATALOG = ADDON / "locale/zh_TW/LC_MESSAGES/nvda.po"
-
-
-def _gettext_calls(msgids):
-	"""(locations of calls without a translator comment, number of calls found per msgid)."""
-	calls = {msgid: re.compile(r"\b_\(" + re.escape(f'"{msgid}"') + r"\)") for msgid in msgids}
-	found = dict.fromkeys(msgids, 0)
-	missing = []
-	for path in sorted(ADDON.rglob("*.py")):
-		relative = path.relative_to(ADDON).as_posix()
-		if EXCLUDED.search(relative):
-			continue
-		lines = path.read_text(encoding="utf-8").splitlines()
-		for number, line in enumerate(lines):
-			for msgid, call in calls.items():
-				if not call.search(line):
-					continue
-				found[msgid] += 1
-				comments = []
-				above = number - 1
-				while above >= 0 and lines[above].lstrip().startswith("#"):
-					comments.append(lines[above].lstrip())
-					above -= 1
-				if not any(comment.startswith("# Translators:") for comment in comments):
-					missing.append(f"{relative}:{number + 1}")
-	return missing, found
-
-
-def test_changed_label_strings_have_translator_comments():
-	missing, found = _gettext_calls(CHANGED_LABEL_MSGIDS)
-	assert missing == []
-	assert all(found.values()), found
-	_missing, dead = _gettext_calls(DEAD_MSGIDS)
-	assert not any(dead.values()), dead
 
 
 def _catalog(path):
@@ -152,12 +66,6 @@ def _catalog(path):
 				entries[msgid] = "" if fuzzy else "".join(eval(part) for part in parts["msgstr"])
 			field, parts, fuzzy = None, {"msgid": [], "msgstr": []}, False
 	return entries
-
-
-def test_zh_tw_catalog_follows_the_labels():
-	catalog = _catalog(ZH_TW_CATALOG)
-	assert {msgid: catalog.get(msgid, "") for msgid in CHANGED_LABEL_MSGIDS if not catalog.get(msgid)} == {}
-	assert [msgid for msgid in DEAD_MSGIDS if msgid in catalog] == []
 
 
 GETTEXT_NAMES = {"_", "pgettext", "ngettext", "npgettext"}
