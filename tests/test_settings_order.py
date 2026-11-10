@@ -265,17 +265,9 @@ def test_voice_panel_orders_follow_the_table(monkeypatch, scenario):
 	assert labels_out_of_place(panel, specs, controls) == []
 	if scenario == "voice switch":
 		assert panel.children == before
-
-
-@pytest.mark.parametrize(
-	"scenario",
-	["first build", "voice switch", "worldvoice rebuild", "other synth rebuild"],
-)
-def test_voice_panel_rows_are_spaced_like_nvdas_driver_rows(monkeypatch, scenario):
 	# NVDA inserts each driver row with a 10px bottom border (settingsDialogs.py:1585-1590). A
 	# WorldVoice row without it touches the next one: the last, Punctuation pause characters,
 	# would touch NVDA's Automatic language switching checkbox.
-	env, panel, specs, _before = build_then(monkeypatch, scenario)
 	spacing = {key: (item.GetBorder(), item.GetFlag()) for key, item in voice_row_items(env, panel, specs)}
 	assert spacing == dict.fromkeys(VOICE_KEYS, (10, env.wx.BOTTOM))
 
