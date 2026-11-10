@@ -6,6 +6,7 @@
   - U1 and U2 (§2.1) are `Decided by the user (2026-11-09)`.
   - U3 is also from 2026-11-09 and is replaced by U4.
   - U4–U9 are `Decided by the user (2026-11-10)`.
+  - U10 is `Decided by the user (2026-11-10): I1 option (b)`, from the final review (`docs/superpowers/finish/2026-11-09-fix-leading-punctuation-language-review.md`, I1).
   - D1–D13 (§2.2) are `Decided by orchestrator with the recommended default; user may override before merge`.
   - No open question remains (§8).
 - Baseline: `python3 -m pytest -q tests` 3808 passed, 0 skipped; `prek run --all-files` all Passed; protected paths unchanged.
@@ -215,6 +216,7 @@ Every such line costs one extra synthesizer switch and its pause.
     - any other command: `IndexCommand`, NVDA `LangChangeCommand`, callbacks, and so on;
     - and the utterance ends (U8).
   - **Guarantee.** With the item pause above 0 (the default, 10 ms), the voice of every spoken character is the same whether the punctuation pause, the number pauses, the segment pause and the CJK space pause are on or off.
+    - For a specific number language this holds only with U10: before it, the wrapper of a number at an item's end hid the item break, and the number pause decided the next item's leading marks (review I1).
     - The exception is characters a stage removes: marks removed by "remove configured punctuation at pause points", and whitespace a stage strips or turns into a pause.
   - **Limitation, accepted.** With the item pause at 0, the boundary between two adjacent items is invisible after the stages. A mark at the start of an item right after another item may then still follow the previous item's voice.
     - Checked: `["link", '"नेपाल"']` gives `link"` to English.
@@ -243,6 +245,11 @@ Every such line costs one extra synthesizer switch and its pause.
   - No lookahead crosses an utterance end. With that reset, the rule has the same scope in both timings, although "before" sees a whole `speak()` sequence and "after" one utterance (F3).
   - The user's reason: in say all, a new line starting with `(` must not follow the previous line's language.
 - **U9. `1२3` at the start of an item.** `Decided by the user (2026-11-10)`. Under "Follow surrounding text language" it goes entirely to Nepali. This supersedes the 7.1 spec's G2 at item start only. The note on that spec stays (§5).
+- **U10. A number language's wrapper does not hide an item boundary.** `Decided by the user (2026-11-10): I1 option (b)`.
+  - With a specific number language, `inject_numbers` wraps each number in `WVLangChangeCommand`s (`pipeline/numberStages.py`, `_number_item_segments`). A number at an item's end or start left its wrapper between the two items, and the item stage pauses only between adjacent texts (`pipeline/items.py`), so the item pause went missing. This was already so on `master`.
+  - Now `inject_numbers` marks the wrapper of a number at its item's start or end (`pipeline/sequence.py`, `_mark_item_edge_wrapper`). The item stage puts its break after a closing one and before an opening one, and the punctuation stage reads past an opening one for its end-of-item pause. With the wrappers taken out, the stages give what the same items give under "Follow main language".
+  - So an item that ends with a number now gets the item pause before the next item, as without a number language, and detection sees the boundary: `["Total 12", '"नेपाल"']` with number language `zh_TW` reads the quote with the Nepali voice.
+  - Rejected: (a), accepting it as a limitation. Changing only the detector cannot work: a wrapper inside an item and one at its edge look the same after the stages.
 
 ### 2.2 Orchestrator defaults (Decided by orchestrator with the recommended default; user may override before merge)
 
@@ -273,11 +280,13 @@ Every such line costs one extra synthesizer switch and its pause.
 - **D8. `NumberBreakCommand` is transparent.** It stands between number pieces, between spaced numbers in one item, and, from `number_wait_factor`, between two whole-number strings (F7).
   - The number pause splits an item only when the pause is on (`numberStages.py:123-126`), so U5's guarantee needs the break to be transparent.
   - Between two whole-number items, both sides are digits: a Common digit never decides, and a wrapped one stops. So item start or continuation gives the same languages there (U7 decides).
-  - With the item pause above 0, two items are separated by the item break anyway (`_insert_number_breaks` keeps numbers apart at any other command, `numberStages.py:133-150`).
+  - With the item pause above 0, two items are separated by the item break anyway (`_insert_number_breaks` keeps numbers apart at any other command, `numberStages.py:133-150`). ~~This held for every number language.~~ For a specific number language it holds only since U10 (Corrected by review I1).
 - **D9. Wrapped numbers and the lookahead.** Under "main" and a locale:
   - **A wrapped number stops the utterance-start lookahead** of U7 without deciding: its first digit is a stop (D2), and the lookahead does not skip past it. Skipping it would give `(` to Nepali, the number to English, then Nepali again: an extra switch.
   - **A wrapped number counts as "came before".** So "main" and locale numbers, and the text after them, keep today's behaviour.
 - **D10. The lookahead language across a document `LangChangeCommand`.** When the lookahead of U7 crosses an NVDA `LangChangeCommand`, the leading characters take the language the deciding character actually gets. The exception: if the language in force at the leading characters already covers that character's script, they keep it.
+  - They also keep it when the language the deciding character gets has no installed voice for its script: nothing changes then, as §4.4 says (implementation Ruling, accepted by the final review).
+  - The stretches between the document commands are decided from the last one back: once a stretch keeps a covering language of another primary than the deciding character's, every stretch before it keeps today's rule, so a run never goes back and forth (review I2, D6).
   - Within one item (no document command inside, D5) this is the same as D2.
   - Checked: `['"', L("hi"), "नेपाल"]` with no Hindi voice is heard all Nepali.
 - **D11. The utterance reset does not reset the run language.** It bounds only the came-before check and the lookahead (U8). `tmp_lang` and `cur_lang` keep today's carry-over, because in "before" the speech manager replays the last switch at the next utterance (F13). A reset in the detector alone would no longer match what the voice uses. The start-of-utterance difference between the timings (F13) stays as today, and it matters only for text that nothing in the utterance decides.
@@ -352,8 +361,9 @@ No settings panel, UI string or stored value changes.
 - `pipeline/punctuation.py`: emits `InternalPunctuationBreakCommand` at internal points, and at the end-of-item path when the pending breaks hold a non-item number edge break (F11). Otherwise it emits `PunctuationBreakCommand` as today.
 - `pipeline/unspaced.py`: emits `UnspacedSpaceBreakCommand` (U6).
 - `__init__.py`: passes the transparency check to the detector (D13).
+- `pipeline/sequence.py`, `pipeline/numberStages.py`, `pipeline/items.py` and `pipeline/punctuation.py`: the item-edge wrapper mark of U10.
 
-No other stage changes behaviour: the items, numbers, number pause, segment, say-all and dictionary stages emit what they do today. The punctuation and unspaced stages change only the class of breaks they already emit; their times and positions are unchanged (F12). Spelling, settings, panels and engines are unchanged.
+~~No other stage changes behaviour: the items, numbers, number pause, segment, say-all and dictionary stages emit what they do today.~~ No other stage changes behaviour: the number pause, segment, say-all and dictionary stages emit what they do today; the items and numbers stages change only as U10 says (Corrected by review I1). The punctuation and unspaced stages change only the class of breaks they already emit; their times and positions are unchanged (F12). Spelling, settings, panels and engines are unchanged.
 
 ### 4.2 The rule
 
@@ -550,3 +560,5 @@ None. The first version's Q1–Q4 are resolved:
 - Q2 by U5 (option H) and U6;
 - Q3 by U7;
 - Q4 by U9.
+
+The final review's I1 is resolved by U10.
