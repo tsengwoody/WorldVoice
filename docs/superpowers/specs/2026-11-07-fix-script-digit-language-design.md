@@ -51,7 +51,7 @@ Under "Follow surrounding text language", a digit of a script other than Common 
 ### 2.1 Goals (Decided by the user, 2026-11-07)
 
 - G1. **Supersede phase 35 §6.3's rationale.** Under number language `FOLLOW`, a decimal digit whose Unicode script is not Common, Inherited or unknown is treated like a letter of its script: it goes through `find_language_for_script` (current language → base language → configured assumed language → first installed language → current language). When the current language does not cover the digit's script, the digit goes to that script's language. This includes `abc ١٢٣` switching to Arabic when an Arabic voice is installed.
-- G2. **Mixed-script numbers stay per character**, no special case: in `1२3`, `1` stays in the current language and `२3` goes to Nepali (`3` is Common and follows the run).
+- G2. **Mixed-script numbers stay per character**, no special case: in `1२3`, ~~`1` stays in the current language and~~ `२3` goes to Nepali (`3` is Common and follows the run). At the start of a text item the leading `1` now follows `२` (Corrected by `fix/leading-punctuation-language`, U9); in the middle of an item it still follows the run.
 
 ### 2.2 Orchestrator defaults (Decided by orchestrator with the recommended default; user may override before merge)
 
@@ -83,7 +83,7 @@ Main voice English (IBM), Nepali installed (eSpeak), number language "Follow sur
 | `abc ١٢٣`, Arabic voice installed | English | `abc ` English, `١٢٣` Arabic |
 | `२०८१`, no Devanagari voice | English | English (no voice for the script) |
 | `२०८१`, number language "Follow main language" | English | English |
-| `1२3` | English | `1` English, `२3` Nepali |
+| `1२3` | English | ~~`1` English, `२3` Nepali~~ all Nepali at an item's start (Corrected by `fix/leading-punctuation-language`, U9) |
 | Spelling `२` (English locale) | English | Nepali |
 
 No settings panel, string, or stored value changes.
@@ -143,7 +143,7 @@ Installed `en_US`, `ne_NP` unless stated; base `en_US`; number language `FOLLOW`
 - `MAIN` and a locale keep wrapped digits: number language `"main"` with `[WV("en_US"), "२०८१", WV("en_US")]`, and number language `"en_US"` with the same, give no `ne` command; `"main"` with an unwrapped `["२०८१"]` gives none either (the rule depends on the number language, not on the wrapper).
 - Assumed language decides the target: installed `en_US`, `hi_IN`, `ne_NP`; Devanagari preference `ne` → `ne`, `hi` → `hi`.
 - Base language before the assumed language: installed `en_US`, `hi_IN`, `ne_NP`, Devanagari preference `ne`, `[L("hi_IN"), "abc २"]` → the digit goes to `hi_IN` (the base), not `ne`.
-- Mixed `["1२3"]` → `["1", ("lang","ne"), "२3"]`.
+- Mixed `["1२3"]` → ~~`["1", ("lang","ne"), "२3"]`~~ `[("lang","ne"), "1२3"]` (Corrected by `fix/leading-punctuation-language`, U9).
 - Arabic: installed `en_US`, `ar`: `["abc ١٢٣"]` → `["abc ", ("lang","ar"), "١٢٣"]`.
 - The number language is read once per sequence: a counting provider, `list(detect(["१ a २", "३"]))`, reads == 1.
 - Spelling: `process_for_spelling("२", "en_US")` → `[("२","ne")]` under `"default"`, `[("२","en_US")]` under `"main"`, `[("२","en")]` under `"en"` (installed `en_US`, `ne_NP`); `"1२"` under `"default"` → `[("1","en_US"), ("२","ne")]`; `"नेपाल५"` → one `ne` run.
