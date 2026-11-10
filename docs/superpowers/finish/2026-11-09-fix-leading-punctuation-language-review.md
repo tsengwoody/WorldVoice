@@ -217,3 +217,170 @@ Linux 上的測試只驗證受控的邊界。Windows 上的 NVDA、IBM TTS、eSp
 | M4 | 更新日誌刪掉不正確的「各種停頓設定不再影響標點由哪個語音朗讀」，改寫成「項目停頓參數」大於 0 時，開啟這些停頓也不影響新規則；保證的句子補上「項目停頓參數」大於 0 的條件；「NVDA 已換成名稱」的例外限定在「在 NVDA 處理語音指令後」；長項目拆成子項目，「一段朗讀項目」改為「每個項目」。和 I1 有關的限制說明等使用者決定 | `dc74500` |
 | M5 | 新增 `test_detection_ends_an_utterance_where_the_pipeline_does`：偵測器的 `_utterances` 和 `pipeline.sequence._ends_utterance` 對同一組指令（兩種 utterance 結尾、各種停頓、index、wrapper、文件語言、其他物件）切法一致。把偵測器的判斷縮成只看 `EndUtteranceCommand` 時測試失敗 | `34c8e9e` |
 | M6 | 拿掉 `plan` 的 `offset` 參數，每個字串從頭掃（`Ruling:` 已記在帳本：run 只在項目的第一個字元開始，offset 恆為 0）。行為不變，plan 10–14 的 mutant 隨之消失 | `9c76c5e` |
+
+## 修正 review（Opus 5.5 xHigh）
+
+日期：2026-11-10。範圍：`baeb975..6b2a6c0` 的 11 個 commit（2 個 `fix:`、1 個 `refactor:`、3 個 `test:`、5 個 `docs:`），對照本檔的發現與「修正記錄」、spec 的 U10 與 U5／D8／D10／§4.1 的更正，以及帳本的 `Ruling:`。審閱者：Opus 5.5 xHigh（唯讀；只新增本節）。流程：DEVELOPMENT_WORKFLOW §3.4「修正 review」。
+
+- 做法：用暫時的 index（`GIT_INDEX_FILE`）把 `6b2a6c0`、`baeb975`、`master`（`6ea5665`）各 checkout 一份到 scratchpad，另一份 `mut` 用來還原修正與做突變；`ref` 以符號連結指到 `/workspace/WorldVoice/ref`。沒有用 `git stash`，沒有修改 worktree 或主 checkout 的原始碼。同時最多 3 個 pytest 行程，全程記憶體監控（MemAvailable < 3 GB 即停，實際最低約 8.9 GB）。複本與腳本在結束時刪除。
+- 行號以 `6b2a6c0` 為準，前綴沿用上文（`detector:`、`breaks:`、`punct:`、`items:`、`stages:`、`readme:`、`t-det:`、`t-speak:`），另加 `seq:` = `…/pipeline/sequence.py`、`spec:` = spec 檔、`t-stages:` = `tests/test_pipeline_stages.py`。
+
+### 結論
+
+**可以 merge。** 沒有新的 Critical／Important。I1、I2、M2–M6 都確實修好，各項的測試在還原修正後會失敗（I1 的標點部分只有一半有測試，見 N2）；M1 依指示不修，修正沒有碰到它。
+
+新發現 Minor 4 項：
+
+- N1、N2 和這次的修正有關，是文件與測試的缺口，修法便宜，建議 merge 前一起修。
+- N3、N4 是修正前就存在的 U5 保證漏洞，這次的寬 fuzz 才找到；N4 在 `master` 也一樣。兩者都不是這次修正造成的，和 `master` 相比也沒有變差。
+
+依 §3.4，只有 Minor 時不需要再一輪修正 review。
+
+### 各項修正的確認
+
+- **I1（`1277d63`）：確實修好，沒有回歸。**
+  - 標記只在 `_number_item_segments` 設定（`stages:453-459`）。`_split_numbers_for_language` 不產生空的片段，所以 `index == 0`／`index == last` 正好是「數字前後沒有文字」。同一個項目的開頭與收尾 wrapper 由 `deduplicate_language_command` 一起保留或一起丟掉（兩者比較的是同一對語音）。
+  - 標記從 `inject_numbers` 到項目、標點階段之間不會遺失，也不會被加到別的 wrapper 上。中間的階段都原樣傳遞物件：
+    - 空白停頓階段只處理字串；
+    - `_merge_edge_breaks` 與 `_run_logged`／`listable` 保留原物件；
+    - `_plain_breaks` 只換停頓；
+    - 沒有角色的合成器由 `remove_language_command` 拿掉 wrapper，而且 `wraps` 為假，不會產生標記。
+  - 各階段之後沒有程式讀這個標記，之後遺失或重播都不影響：
+    - 偵測器不讀它；
+    - `detect_with_number_language` 重新包數字時用的是新物件；
+    - `speak()` 的 dedupe 與 `lang_cmd_to_voice` 把 wrapper 換成 `SelectVoice`；
+    - speech manager 重播發生在 filter 之後；
+    - 讀出全部的停頓是另一個序列。
+  - 項目停頓不會出現在項目裡面：開頭 wrapper 之前的字串、收尾 wrapper 之後的字串都屬於別的項目（`items:49-56`）。fuzz 中 HEAD 的項目停頓數從不少於「跟隨主要語言」。22 組比它多，全是下面「既有差異」的第二種：「跟隨主要語言」把項目停頓併進較長的內部標點停頓。
+  - 和 `baeb975`、`master` 比較的隨機語料（20000 組 × 5 種數字語言，見驗證表）：
+    - `default`／`main`：全部和 `baeb975` 逐項相同；把兩個新子類別還原後也和 `master` 相同。
+    - 指定語言而輸出沒有標記的組：和 `baeb975`、`master` 相同。
+    - 有標記的組（`zh_TW` 8526、`en` 4633、`ne_NP` 12590）：拿掉 wrapper 後和「跟隨主要語言」不同的組，是 `baeb975` 不同的組的真子集（`zh_TW` 3250 對 4890，其他兩種比例相近），沒有新的不同。
+    - 和 `baeb975` 不同的地方都在含標記 wrapper 的那一段。例外是 169 組分段停頓的計數在新的項目停頓處重新開始，都在分段字數大於 0 時，結果和「跟隨主要語言」相同。
+    - 文字不同的 410 組，全是開啟移除標點時，前一個項目最後的標點現在會被移除（見 N1）。
+  - 既有差異，`baeb975` 與 `master` 也一樣，項目停頓大於 0 時不影響語音：
+    1. 下一個項目以空白開頭、接著是數字時，開頭 wrapper 沒有標記。空白是空字串項目，所以項目停頓為 0 時前一個項目沒有結尾的標點停頓。項目停頓本身仍然正確。
+    2. 項目中間緊接在數字前的標點（例如 `.1,234`），在指定語言下不是停頓點。
+  - 標點階段的 `pending_breaks[0]` 刪除改用 identity。同一個停頓物件不會在 `pending` 裡連續出現兩次：含邊緣停頓的段落已經合併成一個，其他停頓之間一定隔著文字。所以這個改動和原本相同（上面的逐項相同涵蓋）。
+- **I2（`27d349e`）：確實修好。**
+  - 推理：target 依最後一段的狀態算出。從最後一段往前，在第一個「涵蓋該文字、主要語言和 target 不同」的段落 k 停下。k 之後每段不是取 target，就是保留和 target 主要語言相同的語言；k 以前不變。所以主要語言序列是 `L0…Lk, T`，對照 `master` 的 `L0…Ln, T`，切換次數不會變多；沒有停下時整段都是 T。
+  - WorldVoice 的語音只由主要語言決定：角色只存在主要語言底下（`voices/roles.py:20-23`），沒有角色的語言由主要語音朗讀。所以語音切換也不會變多。
+  - 偵測器層 fuzz：30000 組，2–5 段文件語言（涵蓋、不涵蓋、沒有語音的 de／fr／ja、`None`、`en_GB`），一半前面有 utterance 結尾，主要語音英／中／尼。語音切換變多（含空白或不含）的組：0。
+  - 觀察，不列為發現：只有 2026-07-28 以前留下、尚未重新儲存的完整地區角色鍵，才可能讓 `zh_CN` 和 `zh_TW` 對到不同語音。那時「同主要語言就繼續」仍會來回，例如 `[結尾, L(de), '"', L(zh_CN), '(', L(zh_TW), '中文']` 得到 `zh_TW、zh_CN、zh_TW`，和 `baeb975` 相同。把條件改成 `language != target` 可以完全避免，目標測試 1240 個全過。
+- **M2（`5fe506f`、`73e3598`）：** 加寬有效。
+  - 偵測器層的 property 加上 `@example` 後，抓得到「逐段判斷」的突變。
+  - 端到端 Invariant 2 的兩個 I1 `@example` 抓得到「沒有標記」與「項目階段不處理收尾 wrapper」。
+  - 我另跑的 18000 組端到端 Invariant 1 沒有反例；Invariant 2 的反例見 N3、N4，都和指定數字語言、wrapper 無關。
+- **M3：** `append(None)` 的突變被 `test_a_run_across_two_document_languages_adds_no_switch` 殺掉。帳本已更正。
+- **M5：** 把偵測器的判斷縮成只看 `EndUtteranceCommand` 時，新的守門測試與 `test_utterances_bound_the_lookahead[profile-trigger]` 失敗。
+- **M6：** `offset` 恆為 0，拿掉後行為不變。上面的偵測器 fuzz 與全套測試都通過。
+- **M4、I1 的 readme：** 見下方「readme」。
+- **M1：** 不修。修正沒有改偵測器處理 wrapper 的方式，行為和 `master` 相同。
+
+### 新發現
+
+#### N1（Minor）spec §4.1 與 readme 沒有記下 U10 也改變了標點階段（`spec:366`、`spec:250`、`readme:102`）
+
+- `spec:366` 仍寫「The punctuation and unspaced stages change only the class of breaks they already emit; their times and positions are unchanged (F12)」。U10 之後，指定數字語言下，以標點結尾的項目接著以數字開頭的項目時，有兩處不再成立：
+  - 項目停頓為 0、標點停頓開啟：多了一個項目結尾的標點停頓。`["abc.", "12"]` 在 `baeb975` 與 `master` 是 `abc. 12` 中間沒有停頓，現在是 `abc . | 12`（`tests/test_pipeline_filters.py:132` 的 `[0-True]`）。
+  - 開啟「移除停頓位置的指定標點符號」，項目停頓為任何值：這個標點現在會被移除。我的語料有 278 組，結果都和「跟隨主要語言」相同。
+- `spec:250` 的「With the wrappers taken out, the stages give what the same items give under "Follow main language"」只在數字正好位於項目邊緣時成立，上面 I1 的兩種既有差異不成立。
+- `readme:102` 只提到項目停頓。
+- 兩處改變都讓指定語言和其他數字語言一致，方向正確，只是文件沒寫。
+- 建議修法：
+  - `spec:366` 的那一句用刪除線保留，改寫成「…unchanged, except U10's end-of-item pause and removal before a number language's wrapper (Corrected by fix review N1)」；
+  - `spec:250` 補上「for a number right at the item's edge」；
+  - `readme:102` 可以補半句，例如「…現在也會依「項目停頓參數」停頓，項目結尾的標點停頓也和其他數字語言相同。」。
+
+#### N2（Minor）U10 標點階段的「移除標點」效果沒有測試（`punct:210`、`punct:230`；`t-stages:467-471`）
+
+- 把 `punctuation.py` 還原成 `baeb975` 的版本，目標的 10 個測試檔只有 `test_the_punctuation_pause_reads_past_the_wrapper_that_opens_an_item[0-True]` 失敗（1240 個測試中的 1 個）。移除標點的效果沒有任何測試釘住。30 組對照的 `punctuation` 欄沒有開啟移除，而項目停頓 10 時 `pause_follows` 本來就是假。
+- 我在 scratch 複本照 `test_a_number_at_an_item_edge_keeps_the_items_apart` 加了一欄（`remove_punctuation_characters=True`，項目停頓 0 與 10）：
+  - HEAD 12 組全過；
+  - 還原 `punctuation.py` 後，`mark-before` 在兩個項目停頓下都失敗。
+- 建議修法：在 `t-stages:467-471` 的參數加一欄「punctuation-remove」。
+
+#### N3（Minor；分支原本就有，不是修正造成的）項目開頭的內部標點停頓和項目停頓、數字邊緣停頓落在同一段時，項目界線消失，U5 的保證不成立（`breaks:96-102`、`punct:171`；`spec:401`、`readme:88`）
+
+- **原因。** 一段裡有邊緣停頓時，`_merged_run` 只留最長的停頓（`breaks:101`）。若留下的是 `InternalPunctuationBreakCommand`，而同一段裡還有項目停頓，偵測器就讀穿過去，下一個項目不算項目開頭。
+- **什麼時候發生。** 內部停頓點前面的標點是空白（「標點停頓」的字元可以輸入空白），或已被「移除停頓位置的指定標點符號」移除。這時這個點前面沒有同一個項目的非空白文字，段落就一路接回項目界線。
+- **重現**（兩個時間點相同；主要語音英文，已安裝尼泊爾語音；項目停頓 10，分組位數 2，數字停頓 10 或 30，標點停頓 30）：
+
+  | 輸入與設定 | 標點停頓關閉 | 標點停頓開啟 |
+  | --- | --- | --- |
+  | `["abc 12", ' "नेपाल"']`，標點字元 `. `（含空白），數字語言 `main` 或 `zh_TW` | `C:'"नेपाल"'` | `A:'"' C:'नेपाल"'` |
+  | `["abc", ".12नेपाल"]`，`default`，開啟移除 | `C:'.' C:'12' C:'नेपाल'` | `A:'12' C:'नेपाल'` |
+  | `["Total 12", '.34"नेपाल"']`，`default`，開啟移除 | `C:'.' C:'34' C:'"नेपाल"'` | `A:'34' A:'"' C:'नेपाल"'`（回報的形狀） |
+
+  第一列的階段輸出是 `abc NEB(30) 12 IPB(30) "नेपाल"`：項目停頓被併掉了。
+- **和 `master` 比較。** `master` 的引號一律由前一個語音朗讀，所以不是回歸。但這違反 `spec:401` 的「no run holds both kinds」，也和 `readme:88` 的保證不符（例外只寫了被移除的字元本身）。
+- **為什麼測試沒抓到。** property 的 `stage_settings` 固定不移除標點（`t-speak:373`），標點字元固定是 `,.("`（`t-speak:1311`），不含空白。我的 18000 組端到端 Invariant 2 抽到 1 組。
+- **建議修法（擇一）：**
+  - 標點階段只在同一字串裡、停頓點前面有「保留下來」的非空白文字時，才把它當成內部停頓（就是 `spec:401` 自己的前提）；
+  - `_merged_run` 在段落裡有非內部停頓時，保留界線類別。例如改用和最長停頓同樣時間的 `PunctuationBreakCommand`。
+
+  並在 property 加抽「移除標點」與含空白的字元。若不修，在 U5 與 `readme:88` 補上這個例外，列為未確認的限制。
+
+#### N4（Minor；`master` 也一樣，分段停頓與連字號規則的交互）分段停頓切在連字號前面時，連字號改由數字語言朗讀（`stages:55`、`stages:158`；`readme:88`）
+
+- **原因。** 偵測時 `wrap_numbers_for_detection` 對每個字串重新切數字。字串開頭的正負號算數字的一部分（`stages:55`）。分段階段在偵測之前執行，可能剛好切在字詞與「-」之間。
+- **重現**（HEAD 與 `master` 相同，兩個時間點相同）：`["नेपाल-4"]`，數字語言 `main`，主要語音英文：
+  - 分段字數 0：`C:'नेपाल-' A:'4'`；
+  - 分段字數 5：`C:'नेपाल' | A:'-4'`。
+
+  主要語音中文、數字語言 `zh_TW`（數字與文字語音相同，階段不包 wrapper）時也一樣。
+- 我的端到端 Invariant 2 反例 7 組中有 6 組是這一類。這和 U5／`readme:88` 列出的「分段停頓」不符，但起因在分段停頓與 phase 35 的連字號規則，不在這個分支的範圍。
+- **建議修法。** 另開分支，讓 `segment_cuts`（`text/chunker.py:56`）不在「字詞字元之後、數字之前的正負號」前面切；或在 U5 與 readme 列為例外。
+
+### 帳本 Ruling（I1 用標記修正）的評估
+
+- **合理，代價可以接受。**
+  - 只有 `inject_numbers` 知道 wrapper 在項目邊緣，資訊必須在那裡留下。`breaks._EDGE_MARKER` 是同樣做法的前例，NVDA 的指令類別沒有 `__slots__`。
+  - 被否決的三個做法理由都成立：項目裡的 wrapper 形狀相同；調整 STAGES 順序會改變使用者看到的記錄開關順序；空字串標記會影響其他階段。
+- **代價。**
+  - 「之後加入的階段要學會這個標記」目前只涉及項目與標點兩個階段，它們把相鄰的文字當成項目界線。
+  - 其他階段不需要：數字停頓把語言指令當成透明；分段只依停頓計數；偵測器看得到新的項目停頓。
+  - `test_a_number_at_an_item_edge_keeps_the_items_apart` 依序執行整個 `STAGES`，之後加入、卻忽略標記的階段，會在這 6 種形狀上失敗，等於有部分守門。
+- **建議（可選）。** 在 `seq:16-19` 的註解補一句：「把兩段相鄰文字當成項目界線的階段，也要把標記的 wrapper 當成界線；`test_a_number_at_an_item_edge_keeps_the_items_apart` 會檢查。」
+
+### readme（`readme:84-89`、`:101-102`）
+
+- 只有 zh_TW 的 readme 有改動；其他 readme 與所有 `.po` 自 `master` 起都沒有改動。
+- 介面名稱都正確：
+  - 附加元件：「數字語言」（`addon/locale/zh_TW/LC_MESSAGES/nvda.po:402`）、「項目停頓參數」（`:430`）、「語言偵測時間點」（`:188`，去掉冒號）、「在 NVDA 處理語音指令後」（`:184`）、「跟隨前後文語言」（`:375`）；
+  - NVDA：「標點及符號等級」（NVDA `nvda.po:13907`，去掉加速鍵與冒號）、「多數」「全部」（`:1288`、`:1294`，`msgctxt "symbolLevel"`）；
+  - 「指定語言」和 `readme:44` 的選項名稱一致。
+- M4 的四點都已處理，用語自然，條件寫得精確。
+- `readme:102` 內容正確、簡潔；可以照 N1 補半句。
+- 小地方：這一行把「數字語言」加了引號，同一節的 `readme:101` 與 `:86` 沒有加。兩種都可以，同一節統一較好。
+
+### 審閱者自行驗證的項目
+
+| 項目 | 指令或做法 | 結果 |
+| --- | --- | --- |
+| 全套測試 | scratch 複本 `6b2a6c0`：`python3 -m pytest -q -p no:cacheprovider tests`（記憶體監控） | 3986 passed，0 skipped（169 秒），和修正記錄相同 |
+| hook | worktree：`prek run --all-files` | 全部 Passed，沒有修改檔案 |
+| 空白、受保護路徑、Neural | `git diff --check master`；DEVELOPMENT_WORKFLOW §7 的兩個指令 | 都沒有輸出 |
+| commit 規範 | `git log master..HEAD`（grep `co-authored`）；`git diff --name-only master -- addon/doc readme.md addon/locale`；`git ls-files ref` | 0 個 `Co-Authored-By`；11 個 commit 都是英文 `<type>: <summary>`；只有 `addon/doc/zh_TW/readme.md`；`ref` 未追蹤 |
+| 階段輸出的回歸語料 | 自寫 fuzz：20000 組隨機序列（1–4 項，含 `LangChangeCommand`、`IndexCommand`、NVDA 的 `BreakCommand`、`EndUtteranceCommand`）× 數字語言 `default`／`main`／`zh_TW`／`en`／`ne_NP`；語言 en／zh_TW；數字模式三種、分組 0／2／3、數字停頓、項目停頓 0／10／30、標點開關（含空白字元）、移除標點、空白停頓、分段。`6b2a6c0`、`baeb975`、`master` 各跑一次 | 見上方 I1：`default`／`main` 與無標記的組完全相同；有標記的組只更接近「跟隨主要語言」；差異都可解釋 |
+| 端到端 Invariant 1 | 自寫 fuzz：18000 組（3 個種子），數字語言 `zh_TW`／`en`／`main`／`default`，主要語音英／中／尼，兩個時間點，項目停頓 0／10，隨機停頓（含空白字元、分段），文件語言指令與 index | 0 組切換變多，文字都相同 |
+| 端到端 Invariant 2 | 同上，項目停頓 10／30，停頓全關與隨機開啟對照 | 7 組不同：6 組是 N4，1 組是 N3；沒有任何一組和指定數字語言的 wrapper 有關 |
+| I2 的偵測器 fuzz | 30000 組 2–5 段文件語言的開頭 run（見上） | 0 組語音切換變多 |
+| 還原修正：項目階段 | `mut` 複本，`items.py` 換回 `baeb975` 的版本，跑 10 個相關測試檔（1240 個測試） | 42 failed（單元 5、30 組對照、`wrapper-item10`、端到端 4、兩個 Invariant 2 property） |
+| 只拿掉收尾 wrapper／只拿掉開頭 wrapper 的處理 | 同上 | 30 failed（含兩個 Invariant 2 property）／28 failed |
+| 拿掉標記、只標開頭、只標結尾 | `stages:455`、`:459` | 37／27／25 failed |
+| 標點階段還原 | `punctuation.py` 換回 `baeb975` 的版本 | 1 failed（N2） |
+| 加了移除欄的對照 | scratch 測試（30 組對照的寫法，開啟移除，項目停頓 0／10） | HEAD 12 passed；標點階段還原後 2 failed（`mark-before`） |
+| 還原 I2 | 拿掉 `detector:216-217` 的 `break`（逐段判斷） | 2 failed（`test_a_run_across_two_document_languages_adds_no_switch`、偵測器層 Invariant 1 的 `@example`） |
+| M3 的突變 | `stretch_languages.append(None)` | 1 failed |
+| M5 的突變 | 偵測器的 `_utterances` 只看 `EndUtteranceCommand` | 2 failed |
+| 完整地區比較 | `detector:216` 改成 `language != target` | 1240 passed（只供參考，見 I2 的觀察） |
+| N3、N4 的重現 | 自寫端到端探針，兩個時間點；N4 另在 `master` 複本跑 | 如 N3、N4 所述；N4 在 `master` 相同 |
+
+Linux 上的測試只驗證受控的邊界。Windows 上的 NVDA、實際的 speech manager、IBM TTS／eSpeak 與音訊都沒有驗證到。
+
+### 使用者還沒確認的使用者可見預設（這次新增）
+
+1. **U10 對標點階段的影響**（N1）：指定數字語言下，以數字開頭的項目前面現在也有項目結尾的標點停頓，開啟移除時前一個項目最後的標點也會被移除，和其他數字語言相同。
+2. **N3 若不修**：標點字元含空白，或開啟「移除停頓位置的指定標點符號」，而且分組位數與數字停頓都大於 0 時，開頭的標點可能仍由前一個語音朗讀。
+3. **N4 若不修**：分段停頓切在連字號前面時，連字號改由數字語言朗讀（`master` 已經如此）。
