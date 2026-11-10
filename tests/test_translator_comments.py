@@ -7,6 +7,8 @@ import ast
 import re
 from pathlib import Path
 
+import pytest
+
 ADDON = Path(__file__).resolve().parents[1] / "addon"
 # Same exclusions as pyproject.toml and .pre-commit-config.yaml.
 EXCLUDED = re.compile(r"^synthDrivers/WorldVoice/(driver/[^/]+/driver/|unicodeScripts/script_data\.py$)")
@@ -53,19 +55,40 @@ def _catalog(path):
 	"""
 	entries, field, parts, fuzzy = {}, None, {"msgid": [], "msgstr": []}, False
 	for line in [*path.read_text(encoding="utf-8").splitlines(), ""]:
-		if line.startswith("#,") and "fuzzy" in line:
+		# An entry ends at a blank line, a comment or the next msgid, as msgfmt reads it.
+		if field == "msgstr" and (not line.strip() or line.startswith(("#", "msgid "))):
+			msgid = "".join(eval(part) for part in parts["msgid"])
+			if msgid:
+				entries[msgid] = "" if fuzzy else "".join(eval(part) for part in parts["msgstr"])
+			field, parts, fuzzy = None, {"msgid": [], "msgstr": []}, False
+		if not line.strip():
+			fuzzy = False  # a flag above an obsolete #~ entry ends with it
+		elif line.startswith("#,") and "fuzzy" in line:
 			fuzzy = True
 		elif line.startswith(("msgid ", "msgstr ")):
 			field, text = line.split(" ", 1)
 			parts[field] = [text]
 		elif line.startswith('"') and field is not None:
 			parts[field].append(line)
-		elif not line.strip() and field is not None:
-			msgid = "".join(eval(part) for part in parts["msgid"])
-			if msgid:
-				entries[msgid] = "" if fuzzy else "".join(eval(part) for part in parts["msgstr"])
-			field, parts, fuzzy = None, {"msgid": [], "msgstr": []}, False
 	return entries
+
+
+@pytest.mark.parametrize(
+	("text", "expected"),
+	[
+		('msgid "a"\nmsgstr "A"\nmsgid "b"\nmsgstr "B"\n', {"a": "A", "b": "B"}),
+		('msgid "a"\nmsgstr "A"\n#, fuzzy\nmsgid "b"\nmsgstr "B"\n', {"a": "A", "b": ""}),
+		('#, fuzzy\n#~ msgid "old"\n#~ msgstr "OLD"\n\nmsgid "a"\nmsgstr "A"\n', {"a": "A"}),
+		('msgid ""\nmsgstr "header"\n\n#, fuzzy\nmsgid "a"\nmsgstr "A"\n', {"a": ""}),
+	],
+	ids=["no-blank-between", "fuzzy-without-blank", "fuzzy-obsolete-then-active", "fuzzy-active"],
+)
+def test_catalog_reads_entries_as_msgfmt_does(tmp_path, text, expected):
+	# Entries may follow each other without a blank line, and msgmerge writes "#, fuzzy" above
+	# obsolete #~ entries; a fuzzy active entry reads as untranslated (msgfmt leaves it out).
+	path = tmp_path / "nvda.po"
+	path.write_text(text, encoding="utf-8")
+	assert _catalog(path) == expected
 
 
 GETTEXT_NAMES = {"_", "pgettext", "ngettext", "npgettext"}
