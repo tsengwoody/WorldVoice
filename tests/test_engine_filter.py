@@ -60,8 +60,8 @@ def test_the_role_voice_of_the_engine_wins(pick, specs):
 	assert pick(specs, "A", "de", "A:tw") == "A:tw"
 
 
-@pytest.mark.parametrize("role", ["B:en"])
-def test_a_role_voice_outside_the_engine_is_ignored(pick, specs, role):
+def test_a_role_voice_outside_the_engine_is_ignored(pick, specs):
+	role = "B:en"
 	assert pick(specs, "A", "de", role) == "A:de"
 
 
