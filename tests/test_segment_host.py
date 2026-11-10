@@ -412,10 +412,23 @@ def test_ordinary_retire_survives_a_failing_stop(env, caplog, case):
 	assert env.host.retire(following) == env.module.OrdinaryOutcome(cancelled=False, error=None)
 
 
-def test_ordinary_speech_raises_after_a_control_error(env):
-	error = OSError("stop failed")
-	env.host.latch_control_error(error)
-	with pytest.raises(OSError, match="stop failed"):
+@pytest.mark.parametrize(
+	("cause", "error", "match"),
+	[
+		("control_error", OSError, "stop failed"),
+		("terminated", RuntimeError, "Fake driver has terminated"),
+		("submit_error", RuntimeError, "queue rejected"),
+	],
+	ids=["control_error", "terminated", "submit_error"],
+)
+def test_ordinary_enqueue_raises_without_submitting(env, cause, error, match):
+	if cause == "control_error":
+		env.host.latch_control_error(OSError("stop failed"))
+	elif cause == "terminated":
+		env.host.terminate()
+	else:
+		env.strategy.submit_error = RuntimeError("queue rejected")
+	with pytest.raises(error, match=match):
 		env.host.enqueue(("ordinary",))
 	assert env.strategy.submitted == []
 
@@ -607,12 +620,15 @@ def test_abandon_retires_a_dropped_record_without_handoff(env):
 
 
 def test_reset_recovers_from_a_control_error(env):
+	assert env.host.faulted is False
 	env.host.latch_control_error(OSError("stop failed"))
+	assert env.host.faulted is True
 	_, _, rejected = env.speak()
 	assert rejected.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 	with env.host.admission():
 		env.host.reset()
 	assert env.host.control_error is None
+	assert env.host.faulted is False
 	_, _, events = env.speak(segment=18)
 	env.run_native(env.strategy.wait_submitted())
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
@@ -632,50 +648,33 @@ def test_reset_after_terminate_keeps_the_host_terminated(env):
 	assert str(event.error) == "Fake driver has terminated"
 
 
+def break_boundary_hook(env, monkeypatch):
+	"""Make the host's native boundary hook fail after it ran, through ``monkeypatch``."""
+	boundary = env.host.wait_native_boundary
+
+	def broken(operation):
+		boundary(operation)
+		raise RuntimeError("hook failed")
+
+	monkeypatch.setattr(env.host, "wait_native_boundary", broken)
+
+
 def test_reset_recovers_from_a_lifecycle_fault(env, monkeypatch):
-	boundary = env.host.wait_native_boundary
-
-	def broken(operation):
-		boundary(operation)
-		raise RuntimeError("hook failed")
-
-	monkeypatch.setattr(env.host, "wait_native_boundary", broken)
-	_, _, failed = env.speak()
-	env.run_native(env.strategy.wait_submitted())
-	assert failed.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
-	_, _, rejected = env.speak(segment=18)
-	assert rejected.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
-	monkeypatch.undo()
-	with env.host.admission():
-		env.host.reset()
-	_, _, events = env.speak(segment=19)
-	env.run_native(env.strategy.wait_submitted(2))
-	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
-
-
-def test_faulted_reports_a_control_error_or_lifecycle_fault_until_reset(env, monkeypatch):
-	assert env.host.faulted is False
-	env.host.latch_control_error(OSError("stop failed"))
-	assert env.host.faulted is True
-	with env.host.admission():
-		env.host.reset()
-	assert env.host.faulted is False
-	boundary = env.host.wait_native_boundary
-
-	def broken(operation):
-		boundary(operation)
-		raise RuntimeError("hook failed")
-
-	monkeypatch.setattr(env.host, "wait_native_boundary", broken)
+	break_boundary_hook(env, monkeypatch)
 	_, _, failed = env.speak()
 	env.run_native(env.strategy.wait_submitted())
 	assert failed.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 	assert env.host.control_error is None
 	assert env.host.faulted is True
+	_, _, rejected = env.speak(segment=18)
+	assert rejected.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
 	monkeypatch.undo()
 	with env.host.admission():
 		env.host.reset()
 	assert env.host.faulted is False
+	_, _, events = env.speak(segment=19)
+	env.run_native(env.strategy.wait_submitted(2))
+	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_DRAINED
 
 
 @pytest.mark.parametrize("case", ["plain", "chained"])
@@ -703,13 +702,7 @@ def test_a_raising_lifecycle_run_fails_the_segment(env, monkeypatch, case):
 
 
 def test_hook_fault_stops_the_player_and_releases_the_worker(env, monkeypatch):
-	boundary = env.host.wait_native_boundary
-
-	def broken(operation):
-		boundary(operation)
-		raise RuntimeError("hook failed")
-
-	monkeypatch.setattr(env.host, "wait_native_boundary", broken)
+	break_boundary_hook(env, monkeypatch)
 	_, _, events = env.speak()
 	native, _ = env.run_native(env.strategy.wait_submitted())
 	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
@@ -746,12 +739,6 @@ def test_segment_submit_error_is_recorded_not_raised(env):
 	record = native_record(env.host, operation)
 	assert isinstance(record.error, RuntimeError)
 	assert record.retired.is_set()
-
-
-def test_ordinary_submit_error_is_raised(env):
-	env.strategy.submit_error = RuntimeError("queue rejected")
-	with pytest.raises(RuntimeError, match="queue rejected"):
-		env.host.enqueue(("ordinary",))
 
 
 def test_boundary_hook_ignores_an_operation_without_a_record(env):
@@ -960,28 +947,12 @@ def test_wait_settled_from_a_callback_does_not_wait_for_sinks(env):
 		release.set()
 
 
-def test_control_error_fails_an_unpublished_drain(env):
-	entered, release = Event(), Event()
-
-	def blocking(event):
-		entered.set()
-		assert release.wait(HOLD_TIMEOUT)
-
-	env.speak(segment=17, sink=blocking)
-	env.run_native(env.strategy.wait_submitted())
-	assert entered.wait(WAIT_TIMEOUT)
-	_, _, events = env.speak(segment=18)
-	env.run_native(env.strategy.wait_submitted(2))
-	env.host.wait_idle()
-	env.host.latch_control_error(OSError("stop failed"))
-	release.set()
-	assert events.wait_one().kind is env.rt.models.EventKind.SEGMENT_FAILED
-
-
-def test_control_error_relabels_a_drain_the_lifecycle_already_committed(env, monkeypatch):
-	# lifecycle.fail() can land after the delivery thread read the result; the
-	# host itself must not publish success once the control error is latched.
-	monkeypatch.setattr(env.host._lifecycle, "fail", lambda operation, error: None)
+@pytest.mark.parametrize("lifecycle_fail", ["lands", "lost"])
+def test_control_error_fails_an_unpublished_drain(env, monkeypatch, lifecycle_fail):
+	if lifecycle_fail == "lost":
+		# lifecycle.fail() can land after the delivery thread read the result; the
+		# host itself must not publish success once the control error is latched.
+		monkeypatch.setattr(env.host._lifecycle, "fail", lambda operation, error: None)
 	entered, release = Event(), Event()
 
 	def blocking(event):
@@ -1135,13 +1106,6 @@ def test_default_hooks_finish_a_segment(env):
 	finally:
 		worker.join(2)
 		host.terminate()
-
-
-def test_terminated_host_rejects_new_ordinary_speech(env):
-	env.host.terminate()
-	with pytest.raises(RuntimeError, match="Fake driver has terminated"):
-		env.host.enqueue(("late",))
-	assert env.strategy.submitted == []
 
 
 def test_leased_player_hooks_can_be_overridden(env):
