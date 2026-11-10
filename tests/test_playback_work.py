@@ -50,15 +50,6 @@ class ThreadCall:
 		return self.result
 
 
-def new_work(rt, previous, segment_id=18):
-	token = type(previous.token)()
-	return rt.playback_work.PlaybackWork(
-		rt.models.PlaybackContext(object(), segment_id),
-		token,
-		lambda event: None,
-	)
-
-
 def test_unverified_drain_support_helpers(work_env):
 	rt, *_ = work_env
 	assert rt.playback_work.runtime_profile("RHVoice", None, "wasapi") == "RHVoice/unknown/wasapi"
