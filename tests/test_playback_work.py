@@ -154,7 +154,11 @@ def test_concurrent_terminal_calls_notify_only_once(work_env):
 	assert len(events) == 1
 
 
-@pytest.mark.parametrize(("finish", "published"), [("cancel", 0), ("fail", 1), ("complete_drained", 1)])
+@pytest.mark.parametrize(
+	("finish", "published"),
+	[("cancel", 0), ("fail", 1), ("complete_drained", 1)],
+	ids=["cancel", "fail", "complete_drained"],
+)
 def test_owner_is_notified_after_releasing_the_work_lock(work_env, finish, published):
 	rt, token, context, events, _ = work_env
 	seen = []

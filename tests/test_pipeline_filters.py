@@ -601,14 +601,21 @@ UNNAMED_SYMBOL_ROWS = [
 ]
 
 
+UNNAMED_SYMBOL_CASES = [
+	*[(mode, 3, *row) for mode in ("value", "none") for row in UNNAMED_SYMBOL_ROWS],
+	# Number mode joins its pieces with spaces (decided by the user, 2026-11-01), an unnamed symbol
+	# included; the punctuation stage still pauses at it, and removes it, as at any other mark.
+	("number", 0, True, False, ["1 2", ".", ("InternalPunctuationBreakCommand", 50), "5"]),
+	("number", 0, True, True, ["1 2", ("InternalPunctuationBreakCommand", 50), "5"]),
+]
+
+
 @pytest.mark.parametrize(
 	("mode", "size", "roles", "remove", "expected"),
-	[
-		*[(mode, 3, *row) for mode in ("value", "none") for row in UNNAMED_SYMBOL_ROWS],
-		# Number mode joins its pieces with spaces (decided by the user, 2026-11-01), an unnamed symbol
-		# included; the punctuation stage still pauses at it, and removes it, as at any other mark.
-		("number", 0, True, False, ["1 2", ".", ("InternalPunctuationBreakCommand", 50), "5"]),
-		("number", 0, True, True, ["1 2", ("InternalPunctuationBreakCommand", 50), "5"]),
+	UNNAMED_SYMBOL_CASES,
+	ids=[
+		f"{mode}-{'roles' if roles else 'generic'}-{'remove' if remove else 'pause'}"
+		for mode, _size, roles, remove, _expected in UNNAMED_SYMBOL_CASES
 	],
 )
 def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(
