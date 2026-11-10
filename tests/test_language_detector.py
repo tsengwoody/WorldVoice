@@ -1357,6 +1357,19 @@ def primary_changes(env, pairs):
 	return sum(1 for before, after in pairwise(primaries) if before != after)
 
 
+def voice_changes(env, scenario, pairs):
+	"""How often the voice changes between two characters, whitespace included (a voice given only a
+	space still costs a switch): a language with an installed voice is read by it, any other by the
+	main voice (review M2)."""
+	primary = env.module.primary_language
+	installed = {primary(voice) for voice in scenario.installed}
+	voices = [
+		primary(language) if primary(language) in installed else primary(scenario.base)
+		for _, language in pairs
+	]
+	return sum(1 for before, after in pairwise(voices) if before != after)
+
+
 def inserted_languages(items, result):
 	given = [item for item in items if not isinstance(item, str)]
 	return [item.lang for item in result if not isinstance(item, str) and all(item is not c for c in given)]
@@ -1364,9 +1377,15 @@ def inserted_languages(items, result):
 
 # Invariant 1 (spec fix/leading-punctuation-language §4.3, D6): the rule only moves where the language
 # changes to the start of a run and never adds a change.
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-@given(scenario=scenarios(), items=ITEMS, number_language=st.sampled_from(("default", "main")))
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=300)
+@given(scenario=scenarios(), items=ITEMS, number_language=st.sampled_from(("default", "main", "zh_TW")))
 @example(scenario=plain_scenario(NE, "en_US"), items=['"नेपाल"'], number_language="default")
+# Review I2: across two document languages the middle one keeps its covering language.
+@example(
+	scenario=plain_scenario(("en_US", "zh_TW", "ne_NP", "hi_IN"), "ne_NP"),
+	items=[L("de_DE"), '"', L("ne_NP"), "(", L("hi_IN"), "नेपाल"],
+	number_language="default",
+)
 # A run after a deciding character keeps the run language when the text after it is in that language.
 @example(scenario=plain_scenario(ZH, "zh_TW"), items=["abc", "12abc"], number_language="default")
 @example(
@@ -1387,6 +1406,7 @@ def test_property_never_more_language_changes_than_today(env, scenario, items, n
 	)
 	assert [character for character, _ in new] == [character for character, _ in old], (items, result)
 	assert primary_changes(env, new) <= primary_changes(env, old), (items, result, oracle)
+	assert voice_changes(env, scenario, new) <= voice_changes(env, scenario, old), (items, result, oracle)
 	for (character, language), (_, expected) in zip(new, old):
 		if has_script(env, character) or (character.isdecimal() and number_language != "default"):
 			# A character that decides keeps today's language; only the runs before them move.

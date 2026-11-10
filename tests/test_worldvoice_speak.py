@@ -1260,10 +1260,19 @@ def test_a_main_number_after_leading_punctuation_keeps_its_item(monkeypatch, tim
 
 # The two invariants end to end (spec fix/leading-punctuation-language §4.3, §7.3).
 INVARIANT_PIECES = ["abc", "नेपाल", "中文", "12", "34", " ", ",", ".", "(", ")", '"', "「", "-", "२", "ー"]
+# Index markers are told apart from the text by their number.
+INVARIANT_INDEX = 7
+# Text items with document language commands and index commands among them (review M2). Utterance ends
+# are left to the detector's properties: heard() cannot read an EndUtteranceCommand (spec F9).
 INVARIANT_ITEMS = st.lists(
-	st.lists(st.sampled_from(INVARIANT_PIECES), min_size=1, max_size=5).map("".join),
+	st.one_of(
+		st.lists(st.sampled_from(INVARIANT_PIECES), min_size=1, max_size=5).map("".join),
+		st.lists(st.sampled_from(INVARIANT_PIECES), min_size=1, max_size=5).map("".join),
+		st.builds(LangChangeCommand, st.sampled_from([None, "de_DE", "en", "zh_TW", "ne_NP"])),
+		st.builds(IndexCommand, st.just(INVARIANT_INDEX)),
+	),
 	min_size=1,
-	max_size=3,
+	max_size=4,
 )
 
 
@@ -1289,19 +1298,24 @@ def voiced_characters(result):
 
 
 def voice_change_count(result):
-	voices = [voice for _character, voice in voiced_characters(result)]
+	"""How often the voice changes, a voice given only whitespace included (spec §3)."""
+	voices = [voice for voice, _text in result]
 	return sum(1 for before, after in pairwise(voices) if before != after)
 
 
 def heard_for_property(monkeypatch, items, **options):
+	"""What is heard, without pauses and index markers; an entry that only held markers is dropped."""
 	with monkeypatch.context() as patch:
 		patch.setitem(VOICES, "ne", NE)
-		return [entry for entry in speak_through_stages(patch, items, **options) if entry != "|"]
+		result = speak_through_stages(patch, items, **options)
+	marker = f"[{INVARIANT_INDEX}]"
+	entries = [(entry[0], entry[1].replace(marker, "")) for entry in result if entry != "|"]
+	return [(voice, text) for voice, text in entries if text]
 
 
 # Invariant 2 (U5, U6): with the item pause on, the pauses inside an item never change a voice.
 @TIMINGS
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=50)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=100)
 @given(
 	items=INVARIANT_ITEMS,
 	numlan=st.sampled_from(["default", "main"]),
@@ -1338,7 +1352,7 @@ def test_property_pause_settings_do_not_change_voices(
 
 # Invariant 1 (D6) end to end: never more voice changes than the rule before, whatever the pauses.
 @TIMINGS
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=50)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None, max_examples=100)
 @given(
 	items=INVARIANT_ITEMS,
 	numlan=st.sampled_from(["default", "main"]),
