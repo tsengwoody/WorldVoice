@@ -224,13 +224,8 @@ STALE_PLUGIN = (
 STALE_BUNDLED = "Skipping Stale engine candidate: bundled engine uses the pre-rename contract name(s) {}; update WorldVoice"
 
 
-@pytest.mark.parametrize(
-	("old", "new", "member"),
-	[
-		("extra_capabilities", "extraCapabilities", frozenset({"waitfactor"})),
-	],
-)
-def test_plugin_with_old_contract_names_is_reported(discovery, monkeypatch, tmp_path, old, new, member):
+def test_plugin_with_old_contract_names_is_reported(discovery, monkeypatch, tmp_path):
+	old, new, member = "extra_capabilities", "extraCapabilities", frozenset({"waitfactor"})
 	# A plugin built for the contract before phase 47c would fail when its core is created, or
 	# silently lose its drain profile or capabilities: discovery skips it before asking ready().
 	asked = []
