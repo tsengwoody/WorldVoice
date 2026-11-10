@@ -7,7 +7,7 @@ presenter stands in for RolePanelPresenter, which has its own tests.
 from types import SimpleNamespace
 
 import pytest
-from ui_harness import Sizer, TextCtrl, fire, load_settings_dialog, make_panel
+from ui_harness import Sizer, fire, load_settings_dialog, make_panel
 
 VOICES = {
 	"en": [("eva", "Eva (OneCore)"), ("tom", "Tom (SAPI5)")],
@@ -96,23 +96,6 @@ def choose(panel, choice, index):
 
 def sliders(panel):
 	return [panel._rateSlider, panel._pitchSlider, panel._volumeSlider, panel._inflectionSlider]
-
-
-def test_panel_for_another_synth_only_says_so(monkeypatch):
-	env = load_settings_dialog(monkeypatch, synth=SimpleNamespace(name="espeak"))
-	panel = make_panel(env.module.SpeechRoleSettingsPanel)
-	sizer = Sizer()
-
-	panel.makeSettings(sizer)
-	panel.postInit()
-	panel.onDiscard()
-	panel.onSave()
-
-	(info,) = sizer.contents()
-	assert isinstance(info, TextCtrl)
-	assert info.value == "Your current speech synthesizer is not WorldVoice."
-	assert panel.disable is True
-	assert env.shown == []
 
 
 def test_setting_the_main_voice_goes_through_nvdas_change_voice(ui):

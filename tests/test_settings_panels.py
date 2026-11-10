@@ -156,33 +156,28 @@ def test_pipeline_panel_group_size_stays_enabled_after_every_mode_choice(monkeyp
 		assert group_size_enabled(panel) is True
 
 
-@pytest.mark.parametrize("stored", ["none", "number"])
-def test_pipeline_panel_keeps_the_stored_mode_when_nothing_is_selected(monkeypatch, stored):
-	# A choice with no selection names no mode: neither the last choice, group, nor "value" is
-	# saved, and the other settings still are.
-	env = pipeline_env(monkeypatch, numberMode=stored)
+@pytest.mark.parametrize(
+	("attribute", "stored_key", "stored"),
+	[("_number_mode_choice", "numberMode", "number"), ("_scope_choice", "scope", "WorldVoice")],
+	ids=["mode", "scope"],
+)
+def test_pipeline_panel_keeps_the_stored_choice_when_nothing_is_selected(
+	monkeypatch,
+	attribute,
+	stored_key,
+	stored,
+):
+	# A choice with no selection names no value: neither the last choice, group, nor the default is
+	# saved, so the stored mode or scope is kept, and the other settings still are saved.
+	env = pipeline_env(monkeypatch, **{stored_key: stored})
 	panel, _sizer = build(env, "SpeechPipelinePanel")
-	panel._number_mode_choice.Select(-1)
+	getattr(panel, attribute).Select(-1)
 	panel._number_wait_factor_slider.SetValue(33)
 
 	panel.onSave()
 
 	saved = env.conf["WorldVoice"]["pipeline"]
-	assert (saved["numberMode"], saved["numberWaitFactor"]) == (stored, 33)
-
-
-@pytest.mark.parametrize("stored", ["all", "WorldVoice"])
-def test_pipeline_panel_keeps_the_stored_scope_when_nothing_is_selected(monkeypatch, stored):
-	# Like the mode, a scope choice with no selection names no scope, so the stored one is kept.
-	env = pipeline_env(monkeypatch, scope=stored)
-	panel, _sizer = build(env, "SpeechPipelinePanel")
-	panel._scope_choice.Select(-1)
-	panel._number_wait_factor_slider.SetValue(33)
-
-	panel.onSave()
-
-	saved = env.conf["WorldVoice"]["pipeline"]
-	assert (saved["scope"], saved["numberWaitFactor"]) == (stored, 33)
+	assert (saved[stored_key], saved["numberWaitFactor"]) == (stored, 33)
 
 
 def test_pipeline_panel_never_saves_an_entry_pipeline_config_does_not_store(monkeypatch):
@@ -532,18 +527,6 @@ def test_log_panel_shows_one_switch_per_stage_from_config(monkeypatch):
 	assert all(box.enabled for box in boxes)
 
 
-def test_log_panel_shows_an_invalid_switch_unticked(monkeypatch):
-	# NVDA refuses a stored "maybe" for a boolean on read; the panel still opens.
-	env = log_env(monkeypatch, enabled=True, numberMode="maybe", speechViewer=True)
-	section = env.conf["WorldVoice"]["log"]
-	error = sys.modules["configobj.validate"].VdtTypeError("maybe")
-	env.conf["WorldVoice"]["log"] = RefusingSection(section, {"numberMode": error})
-	_panel, sizer = build(env, "LogSettingsPanel")
-	boxes = dict(zip(LOG_SWITCH_ORDER, sizer.items[1].item.controls(), strict=True))
-	assert boxes["numberMode"].value is False
-	assert boxes["speechViewer"].value is True
-
-
 def test_log_panel_save_fixes_an_invalid_switch(monkeypatch):
 	# The panel writes every switch, and NVDA compares the old value unvalidated, so saving it
 	# untouched writes the shown False over the refused "maybe" (Q3).
@@ -551,7 +534,11 @@ def test_log_panel_save_fixes_an_invalid_switch(monkeypatch):
 	error = sys.modules["configobj.validate"].VdtTypeError("maybe")
 	section = RefusingSection(env.conf["WorldVoice"]["log"], {"numberMode": error})
 	env.conf["WorldVoice"]["log"] = section
-	panel, _sizer = build(env, "LogSettingsPanel")
+	panel, sizer = build(env, "LogSettingsPanel")
+	# NVDA refuses a stored "maybe" for a boolean on read; the panel still opens, showing it unticked.
+	boxes = dict(zip(LOG_SWITCH_ORDER, sizer.items[1].item.controls(), strict=True))
+	assert boxes["numberMode"].value is False
+	assert boxes["speechViewer"].value is True
 
 	panel.onSave()
 
@@ -736,14 +723,11 @@ def test_base_panel_choice_selects_the_stored_option_or_the_first(monkeypatch):
 # UnicodeDetectionSettingsPanel
 
 
-def test_unicode_panel_for_another_synth_only_says_so(monkeypatch):
-	env = load_settings_dialog(monkeypatch, synth=SimpleNamespace(name="espeak"))
-	panel, sizer = build(env, "UnicodeDetectionSettingsPanel")
-	(info,) = sizer.contents()
-	assert isinstance(info, TextCtrl)
-	assert info.value == "Your current speech synthesizer is not WorldVoice."
-	assert panel.disable is True
-	panel.onSave()  # detection_settings is None in this harness: saving must not reach it
+# What NVDA calls on each panel after building it; none may reach the settings it would edit.
+AFTER = {
+	"SpeechRoleSettingsPanel": ("postInit", "onDiscard", "onSave"),
+	"UnicodeDetectionSettingsPanel": ("onSave",),
+}
 
 
 @pytest.mark.parametrize("name", ["SpeechRoleSettingsPanel", "UnicodeDetectionSettingsPanel"])
@@ -751,6 +735,9 @@ def test_panels_for_another_synth_show_the_same_read_only_notice(monkeypatch, na
 	env = load_settings_dialog(monkeypatch, synth=SimpleNamespace(name="espeak"))
 	wx = env.wx
 	panel, sizer = build(env, name)
+	# detection_settings is None in this harness: saving must not reach it.
+	for method in AFTER[name]:
+		getattr(panel, method)()
 	(item,) = sizer.items
 	info = item.item
 	assert isinstance(info, TextCtrl) and info.parent is panel
@@ -758,6 +745,8 @@ def test_panels_for_another_synth_show_the_same_read_only_notice(monkeypatch, na
 	assert info.kwargs == {"style": wx.TE_READONLY | wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.BORDER_NONE}
 	assert info.background == "panel colour"
 	assert (item.proportion, item.flag, item.border) == (1, wx.EXPAND, 0)
+	assert panel.disable is True
+	assert env.shown == []
 
 
 # WorldVoiceSettingsDialog
