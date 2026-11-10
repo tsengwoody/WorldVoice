@@ -1,5 +1,6 @@
 """Language detection: which language each run of text is spoken in."""
 
+import sys
 import time
 from itertools import pairwise
 from types import SimpleNamespace
@@ -834,6 +835,18 @@ def test_a_run_across_two_document_languages_adds_no_switch(env):
 	sequence = [L("de_DE"), '"', L("ne_NP"), "(", L("hi_IN"), "नेपाल"]
 	result = detect(env, sequence, languages=("en_US", "zh_TW", "ne_NP", "hi_IN"), base="ne_NP")
 	assert result == [("lang", "de_DE"), '"', ("lang", "ne_NP"), "(", ("lang", "hi_IN"), "नेपाल"]
+
+
+def test_detection_ends_an_utterance_where_the_pipeline_does(env):
+	# Review M5: the detector keeps its own copy of pipeline.sequence._ends_utterance (spec D13 keeps
+	# the pipeline out of it); the two must agree on every command.
+	sequence = sys.modules[env.breaks.__package__ + ".sequence"]
+	commands = [EndUtteranceCommand(), ConfigProfileTriggerCommand(), BreakCommand(1), env.IndexCommand(1)]
+	commands += [env.WV("en"), L("en"), env.breaks.SegmentBreakCommand(1), object()]
+	for command in commands:
+		utterances = list(env.module._utterances(["a", command, "b"]))
+		assert (utterances == [["a", command], ["b"]]) is sequence._ends_utterance(command), command
+		assert utterances in ([["a", command], ["b"]], [["a", command, "b"]]), command
 
 
 def test_a_generator_input_with_utterance_ends_keeps_every_command(env):
