@@ -119,34 +119,21 @@ def test_variant_metadata_read_preserves_playback_state(monkeypatch, engine):
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
-def test_voice_metadata_names_the_declaring_engine(monkeypatch, engine):
-	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
-	voice_class = harness.module.Voice
-	monkeypatch.setattr(voice_class, "ready", classmethod(lambda cls: True), raising=False)
-	monkeypatch.setattr(voice_class, "engine", "Renamed")
-	monkeypatch.setattr(
-		harness.module,
-		"languageHandler",
-		types.SimpleNamespace(getLanguageDescription=lambda locale: "English"),
-	)
-	# The harness Voice base is a plain object; the base voices() just maps this hook.
-	metadata = voice_class.voiceInfoToMetadata(types.SimpleNamespace(id="x", language="en", displayName="x"))
-	assert metadata["engine"] == "Renamed"
-
-
-@pytest.mark.parametrize("engine", ["VE", "Cerence"])
 def test_voice_metadata_keeps_vocalizer_quirks(monkeypatch, engine):
 	harness = load_real_driver_with_native_stubs(monkeypatch, engine)
 	voice_class = harness.module.Voice
 	monkeypatch.setattr(voice_class, "ready", classmethod(lambda cls: True), raising=False)
+	# The metadata names the declaring Voice's engine, whatever it is called.
+	monkeypatch.setattr(voice_class, "engine", "Renamed")
 	language = types.SimpleNamespace(getLanguageDescription=lambda locale: "")
 	monkeypatch.setattr(harness.module, "languageHandler", language, raising=False)
 	metadata = voice_class.voiceInfoToMetadata(
 		types.SimpleNamespace(id="x", language="en", displayName="Display - b'English'"),
 	)
+	assert metadata["engine"] == "Renamed"
 	assert metadata["langDescription"] == "English"
-	assert metadata["description"] == f"x - English [{voice_class.engine}]"
-	assert metadata["name"] == f"{voice_class.engine}:x"
+	assert metadata["description"] == "x - English [Renamed]"
+	assert metadata["name"] == "Renamed:x"
 
 
 @pytest.mark.parametrize("engine", ["VE", "Cerence"])
