@@ -74,12 +74,22 @@ def test_next_engine_starts_only_after_segment_drain(composition, engines):
 	)
 	first, second = c.controls[a], c.controls[b]
 	barrier = first.tail()
+	context = first.contexts[0]
+	assert c.output.drains == []
 	stays_unset(second.started)
 	assert second.calls == []
 	assert c.output.dones == []
+	assert not request.tasks[0].future.done()
 	barrier.release.set()
 	second.wait_call()
 	assert len(second.calls) == 1
+	assert len(c.output.drains) == 1
+	event = c.output.drains[0]
+	assert event.source_id is context.source_id
+	assert event.segment_id == context.segment_id
+	assert event.kind is c.rt.models.EventKind.SEGMENT_DRAINED
+	assert second.contexts[0].source_id is not context.source_id
+	assert second.contexts[0].segment_id != context.segment_id
 	barrier = second.tail()
 	assert len(first.calls) == 1
 	assert c.output.dones == []
@@ -119,41 +129,6 @@ def test_a_degraded_index_only_segment_still_drains_and_reports_its_indexes(monk
 		assert nvda == [("index", 701), ("index", 702), ("done", None)]
 	finally:
 		c.close()
-
-
-@pytest.mark.parametrize("first,successor", [("VE", "Cerence")])
-def test_switch_waits_for_original_correlated_drain(composition, first, successor):
-	c = composition
-	request = c.submit(
-		(
-			"original",
-			c.rt.models.SelectVoice(c.key(successor)),
-			"successor",
-		),
-		first,
-	)
-	original = c.controls[first]
-	following = c.controls[successor]
-	barrier = original.tail()
-	context = original.contexts[0]
-	assert c.output.drains == []
-	stays_unset(following.started)
-	assert following.calls == []
-	assert not request.tasks[0].future.done()
-	barrier.release.set()
-	following.wait_call()
-	assert len(c.output.drains) == 1
-	event = c.output.drains[0]
-	assert event.source_id is context.source_id
-	assert event.segment_id == context.segment_id
-	assert event.kind is c.rt.models.EventKind.SEGMENT_DRAINED
-	assert following.contexts[0].source_id is not context.source_id
-	assert following.contexts[0].segment_id != context.segment_id
-	following.tail().release.set()
-	c.wait_done()
-	assert request.state is c.scheduler.RequestState.COMPLETED
-	assert len(c.output.drains) == 2
-	assert len(c.output.dones) == 1
 
 
 @pytest.mark.parametrize("engine", ENGINES)
