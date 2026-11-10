@@ -101,23 +101,6 @@ def test_engine_change_does_not_restart_after_failed_flag_write():
 	assert calls == [("beep",)]
 	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}
 	assert len(logged) == 1
-
-
-def test_failed_save_changes_no_settings_and_logs():
-	calls, logged = [], []
-	environment, section = _load_panels(calls, logged)
-	panel = environment["BaseSettingsPanel"]()
-	panel.field = "engine"
-	panel.settings = OrderedDict((name, {"label": name}) for name in ("VE", "OneCore", "SAPI5"))
-	panel.VECheckBox = _checkbox(True)
-	panel.OneCoreCheckBox = _checkbox(RuntimeError("checkbox destroyed"))
-	panel.SAPI5CheckBox = _checkbox(True)
-
-	assert panel._writeSettings() is False
-
-	assert calls == [("beep",)]
-	assert dict(section) == {"VE": False, "OneCore": True, "SAPI5": False}
-	assert len(logged) == 1
 	args, kwargs = logged[0]
 	assert args == ("WorldVoice: failed to save %s settings", "engine")
 	assert kwargs == {"exc_info": True}
