@@ -134,7 +134,7 @@ def test_pipeline_panel_group_size_stays_enabled_after_every_mode_choice(monkeyp
 
 @pytest.mark.parametrize(
 	("attribute", "stored_key", "stored"),
-	[("_number_mode_choice", "numberMode", "number"), ("_scope_choice", "scope", "WorldVoice")],
+	[("_number_mode_choice", "numberMode", "none"), ("_scope_choice", "scope", "all")],
 	ids=["mode", "scope"],
 )
 def test_pipeline_panel_keeps_the_stored_choice_when_nothing_is_selected(
@@ -144,7 +144,8 @@ def test_pipeline_panel_keeps_the_stored_choice_when_nothing_is_selected(
 	stored,
 ):
 	# A choice with no selection names no value: neither the last choice, group, nor the default is
-	# saved, so the stored mode or scope is kept, and the other settings still are saved.
+	# saved, so the stored mode or scope is kept, and the other settings still are saved. The stored
+	# values are neither the default nor the last choice, which an index of -1 would pick.
 	env = pipeline_env(monkeypatch, **{stored_key: stored})
 	panel, _sizer = build(env, "SpeechPipelinePanel")
 	getattr(panel, attribute).Select(-1)
