@@ -89,12 +89,8 @@ def test_load_uses_the_default_for_a_stored_value_int_refuses(tolerant, conf, lo
 			f"WorldVoice: stored voice setting 'rate' of 'Fake:a' is invalid ({stored!r}); using its default 50",
 		),
 	]
-
-
-def test_load_leaves_an_invalid_stored_value_in_the_config(tolerant, conf):
-	conf["WorldVoice"]["voices"]["Fake:a"] = {"rate": "abc"}
-	tolerant.load(make_spec())
-	assert conf["WorldVoice"]["voices"]["Fake:a"] == {"rate": "abc"}
+	# Loading leaves the invalid stored value, and the whole entry, in the config.
+	assert conf["WorldVoice"]["voices"]["Fake:a"] == {"rate": stored, "pitch": "61", "variant": "bright"}
 
 
 def test_each_invalid_stored_value_is_reported_once(tolerant, conf, logger):
