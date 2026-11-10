@@ -1,4 +1,4 @@
-from speech.commands import LangChangeCommand
+from speech.commands import ConfigProfileTriggerCommand, EndUtteranceCommand, LangChangeCommand
 
 from ..locales import primary_language
 from ..numberLanguage import FOLLOW, MAIN
@@ -86,7 +86,8 @@ class LanguageDetector:
 			self._number_language() == FOLLOW,
 			self._language(),
 		)
-		yield from detection.detect(list(speech_sequence))
+		for utterance in _utterances(speech_sequence):
+			yield from detection.detect(utterance)
 
 	def _spelling_language_for_digit(self, number_language, default_language):
 		"""The language a decimal digit is spelled in under "main" or a locale: the spelling locale for
@@ -129,9 +130,9 @@ class _SequenceDetection:
 	"""One add_detected_language_commands call: the values read once for it, and the language state.
 
 	cur_lang is the language of the last language command (the base), tmp_lang the language of the run
-	in progress. Leading punctuation follows the text after it (spec fix/leading-punctuation-language):
-	the characters at the start of an item that decide nothing take the language of the item's first
-	character that decides.
+	in progress; both carry from one utterance to the next (spec fix/leading-punctuation-language D11).
+	Leading punctuation follows the text after it: the characters at an item's start that decide
+	nothing take the language of the first character that decides.
 	"""
 
 	def __init__(self, detector, settings, digits_by_script, default_lang):
@@ -143,80 +144,112 @@ class _SequenceDetection:
 		self.tmp_lang = default_lang
 
 	def decides(self, character):
-		"""Whether character decides the language of the characters before it in its item (spec D1): a
-		character with a script of its own, or a decimal digit under "main" or a locale, which keeps
-		them in the current language (a stop)."""
-		if character.isdecimal() and not self.digits_by_script:
-			return True
-		return get_script(ord(character)) not in _NO_SCRIPT
+		"""Whether character decides the language of the characters before it (spec D1): a character
+		with a script of its own, or a decimal digit under "main" or a locale (a stop)."""
+		return self.is_stop(character) or get_script(ord(character)) not in _NO_SCRIPT
 
 	def is_stop(self, character):
+		"""A decimal digit under "main" or a locale: it keeps the run before it in the current language
+		(spec D2, D9); such numbers are wrapped before detection."""
 		return character.isdecimal() and not self.digits_by_script
 
-	def language_for(self, character):
-		"""Today's language for character at the current state (detector.py before the rule)."""
-		return self.detector._language_for_character(
-			character,
-			self.tmp_lang,
-			self.cur_lang,
-			self.settings,
-			self.digits_by_script,
-		)
+	def ends_item(self, command):
+		"""Whether command, which is no text and no number wrapper, ends an item (spec U5, D5)."""
+		return isinstance(command, LangChangeCommand) or not self.detector._is_internal_break(command)
 
-	def plan(self, commands, index, offset):
-		"""The run of characters that decide nothing, from commands[index][offset].
+	def plan(self, commands, index, offset, came_before):
+		"""The run of characters that decide nothing, from commands[index][offset] at an item's start.
+
+		The run ends at the item's first deciding character. When nothing decided earlier in the
+		utterance (came_before is False), an item with no deciding character looks ahead across items
+		and commands to the first one in the utterance (spec U7). A number wrapper or a stop ends the
+		run without deciding (D2, D3, D9), and so does the utterance's end.
 
 		Returns where the run ends, as (index, offset) of the first position after it, and the target
-		language of each stretch of it between NVDA language commands, None for today's rule.
+		of each stretch of the run between NVDA language commands (None: today's rule).
 		"""
+		# The language in force at the start of each stretch, and the state the deciding character meets.
+		stretch_languages = [self.tmp_lang]
+		tmp_lang, cur_lang = self.tmp_lang, self.cur_lang
 		for i in range(index, len(commands)):
 			command = commands[i]
 			if isinstance(command, str):
 				for k in range(offset if i == index else 0, len(command)):
 					character = command[k]
 					if self.decides(character):
-						return (i, k), [self.run_language(character)]
-			elif isinstance(
-				command,
-				(LangChangeCommand, WVLangChangeCommand),
-			) or not self.detector._is_internal_break(
-				command,
-			):
-				# A number wrapper stops the search (D3); anything else that is no internal break ends the item.
-				return (i, 0), [None]
-		return (len(commands), 0), [None]
+						return (i, k), self.stretch_targets(character, stretch_languages, tmp_lang, cur_lang)
+			elif isinstance(command, WVLangChangeCommand) or (came_before and self.ends_item(command)):
+				return (i, 0), [None] * len(stretch_languages)
+			elif isinstance(command, LangChangeCommand):
+				tmp_lang = cur_lang = command.lang or self.default_lang
+				stretch_languages.append(tmp_lang)
+		return (len(commands), 0), [None] * len(stretch_languages)
 
-	def run_language(self, character):
-		"""The language of a leading run whose item's deciding character is character (spec D2): what
-		that character gets with today's inputs; None (today's rule) for a stop."""
+	def stretch_targets(self, character, stretch_languages, tmp_lang, cur_lang):
+		"""The target of each stretch of a run that the deciding character ends (spec D2, D10).
+
+		target is what the character gets with the state it meets. A stretch whose language in force
+		already covers the character's script keeps it, and every stretch keeps its language when target
+		does not cover the script (no installed voice reads it: nothing changes, spec §4.4). Within one
+		item, where a run has one stretch, this is D2.
+		"""
 		if self.is_stop(character):
-			return None
-		return self.language_for(character)
+			return [None] * len(stretch_languages)
+		script = get_script(ord(character))
+		target = self.detector._language_for_character(
+			character,
+			tmp_lang,
+			cur_lang,
+			self.settings,
+			self.digits_by_script,
+		)
+		covers = self.detector._covers
+		return [
+			None if covers(language, script) or not covers(target, script) else target
+			for language in stretch_languages
+		]
 
 	def detect(self, commands):
+		"""Detect one utterance."""
 		at_item_start = True
-		run_end, run_languages = (0, 0), [None]
+		# Whether a deciding character or a number wrapper came earlier in the utterance (spec U7, D9).
+		came_before = False
+		# The planned run: where it ends and the targets of its stretches still to come.
+		run_end, run_targets = (0, 0), [None]
 		for index, command in enumerate(commands):
 			if isinstance(command, (LangChangeCommand, WVLangChangeCommand)):
 				self.cur_lang = command.lang or self.default_lang
 				self.tmp_lang = self.cur_lang
-				# A number wrapper continues the item, but what follows it is no longer at its start (D3).
-				at_item_start = not isinstance(command, WVLangChangeCommand)
+				if isinstance(command, WVLangChangeCommand):
+					# A number wrapper continues the item; what follows it is no longer at its start (D3).
+					at_item_start = False
+					came_before = True
+				else:
+					at_item_start = True
+					if (index, 0) < run_end:
+						run_targets.pop(0)
 				yield command
 			elif isinstance(command, str):
 				buffer = []
 				for offset, character in enumerate(command):
 					if (index, offset) < run_end:
-						target = run_languages[0]
+						target = run_targets[0]
 					elif at_item_start and not self.decides(character):
-						run_end, run_languages = self.plan(commands, index, offset)
-						target = run_languages[0]
+						run_end, run_targets = self.plan(commands, index, offset, came_before)
+						target = run_targets[0]
 					else:
 						if self.decides(character):
 							at_item_start = False
+							came_before = True
 						target = None
 					if target is None:
-						target = self.language_for(character)
+						target = self.detector._language_for_character(
+							character,
+							self.tmp_lang,
+							self.cur_lang,
+							self.settings,
+							self.digits_by_script,
+						)
 					if primary_language(target) != primary_language(self.tmp_lang):
 						if buffer:
 							yield "".join(buffer)
@@ -227,6 +260,20 @@ class _SequenceDetection:
 				if buffer:
 					yield "".join(buffer)
 			else:
-				if not self.detector._is_internal_break(command):
+				if self.ends_item(command):
 					at_item_start = True
 				yield command
+
+
+def _utterances(speech_sequence):
+	"""The sequence cut into utterances, each with the command that ends it (spec U8): NVDA's speech
+	manager ends one at an EndUtteranceCommand and before a ConfigProfileTriggerCommand, as
+	pipeline.sequence._ends_utterance reads them (this package imports no pipeline module)."""
+	utterance = []
+	for command in speech_sequence:
+		utterance.append(command)
+		if isinstance(command, (EndUtteranceCommand, ConfigProfileTriggerCommand)):
+			yield utterance
+			utterance = []
+	if utterance:
+		yield utterance

@@ -1,11 +1,14 @@
 """Language detection: which language each run of text is spoken in."""
 
+import time
 from itertools import pairwise
 from types import SimpleNamespace
 
 import pytest
 from detector_harness import (
 	BreakCommand,
+	ConfigProfileTriggerCommand,
+	EndUtteranceCommand,
 	LangChangeCommand,
 	load_language_detection,
 )
@@ -529,7 +532,7 @@ def test_detection_reads_the_number_language_once_per_sequence(env):
 		language=lambda: env.state.language,
 		number_language=lambda: reads.append(1) or "default",
 	)
-	list(detector.add_detected_language_commands(["१ a २", "३"]))
+	list(detector.add_detected_language_commands(["१ a २", "३", '"', EndUtteranceCommand(), "("]))
 	assert reads == [1]
 
 
@@ -705,6 +708,133 @@ def test_spelling_keeps_a_leading_mark_in_the_locale(env):
 		('"', "en_US"),
 		("नेपाल", "ne"),
 	]
+
+
+# Items with nothing that decides: at an utterance's start they look ahead to the first deciding
+# character; after one they keep the language before them (spec U7, U8, D9-D11).
+END = EndUtteranceCommand()
+TRIGGER = ConfigProfileTriggerCommand()
+
+
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[
+		(
+			["(", "IPB", "नेपाल)"],
+			[("lang", "ne"), "(", "IPB", "नेपाल)"],
+		),
+		(["-", BREAK, "नेपाल"], [("lang", "ne"), "-", BREAK, "नेपाल"]),
+		(["(", BREAK, "1", BREAK, "नेपाल"], [("lang", "ne"), "(", BREAK, "1", BREAK, "नेपाल"]),
+		(["Price", BREAK, "100", BREAK, "नेपाल"], ["Price", BREAK, "100", BREAK, ("lang", "ne"), "नेपाल"]),
+		(["(", BREAK], ["(", BREAK]),
+	],
+	ids=["internal-punctuation", "dash-item", "paren-and-digit-items", "price", "mark-alone"],
+)
+def test_an_utterance_start_looks_ahead(env, sequence, expected):
+	pause = env.breaks.InternalPunctuationBreakCommand(0)
+	sequence = [pause if item == "IPB" else item for item in sequence]
+	expected = [pause if item == "IPB" else item for item in expected]
+	assert detect(env, sequence, languages=NE, base="en_US") == expected
+
+
+def test_a_wrapped_number_stops_the_lookahead(env):
+	opening, closing = env.WV("en_US"), env.WV("en_US")
+	result = detect(
+		env,
+		["(", BREAK, opening, "1", closing, BREAK, "नेपाल"],
+		languages=NE,
+		base="en_US",
+		number_language="main",
+	)
+	assert result == ["(", BREAK, ("lang", "en_US"), "1", ("lang", "en_US"), BREAK, ("lang", "ne"), "नेपाल"]
+	result = detect(
+		env,
+		[opening, "2024", closing, BREAK, "(", BREAK, "नेपाल"],
+		languages=NE,
+		base="en_US",
+		number_language="main",
+	)
+	assert result == [("lang", "en_US"), "2024", ("lang", "en_US"), BREAK, "(", BREAK, ("lang", "ne"), "नेपाल"]
+
+
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[
+		(
+			["नेपाल", END, "(", BREAK, "abc"],
+			[("lang", "ne"), "नेपाल", END, ("lang", "en_US"), "(", BREAK, "abc"],
+		),
+		(
+			["नेपाल", TRIGGER, "(", BREAK, "abc"],
+			[("lang", "ne"), "नेपाल", TRIGGER, ("lang", "en_US"), "(", BREAK, "abc"],
+		),
+		(
+			["नेपाल", "(", BREAK, "abc"],
+			[("lang", "ne"), "नेपाल", "(", BREAK, ("lang", "en_US"), "abc"],
+		),
+		(["(", END, "नेपाल"], ["(", END, ("lang", "ne"), "नेपाल"]),
+		(["नेपाल", END, "100"], [("lang", "ne"), "नेपाल", END, "100"]),
+	],
+	ids=["utterance-end", "profile-trigger", "no-utterance-end", "no-lookahead-across", "run-carries-over"],
+)
+def test_utterances_bound_the_lookahead(env, sequence, expected):
+	assert detect(env, sequence, languages=NE, base="en_US") == expected
+
+
+HI_NE = ("en_US", "hi_IN", "ne_NP")
+
+
+@pytest.mark.parametrize(
+	("sequence", "preferences", "expected"),
+	[
+		(['"', L("hi_IN"), "नेपाल"], {}, [("lang", "hi_IN"), '"', ("lang", "hi_IN"), "नेपाल"]),
+		(
+			[L("ne_NP"), '"', L("hi_IN"), "नेपाल"],
+			{},
+			[("lang", "ne_NP"), '"', ("lang", "hi_IN"), "नेपाल"],
+		),
+		(
+			[L("hi_IN"), "abc", BREAK, '"नेपाल"'],
+			{"devanagari": "ne"},
+			[("lang", "hi_IN"), ("lang", "en"), "abc", BREAK, ("lang", "hi_IN"), '"नेपाल"'],
+		),
+	],
+	ids=["across-a-document-language", "covered", "base-before-the-assumed-language"],
+)
+def test_the_lookahead_across_a_document_language(env, sequence, preferences, expected):
+	assert detect(env, sequence, languages=HI_NE, base="en_US", **preferences) == expected
+
+
+def test_the_lookahead_keeps_the_language_when_no_voice_reads_the_text(env):
+	# Spec §4.4: across a document language with no voice for the script, nothing changes.
+	assert detect(env, ['"', L("hi_IN"), "नेपाल"], languages=ZH, base="en_US") == [
+		'"',
+		("lang", "hi_IN"),
+		"नेपाल",
+	]
+
+
+def test_a_generator_input_with_utterance_ends_keeps_every_command(env):
+	counting = CountingSettings(env.settings)
+	detector = env.module.LanguageDetector(
+		list(NE),
+		settings=counting,
+		language=lambda: env.state.language,
+		is_internal_break=env.breaks.is_internal_break,
+	)
+	commands = [BREAK, END, TRIGGER]
+	result = list(detector.add_detected_language_commands(iter(["(", BREAK, END, '"नेपाल"', TRIGGER, "x"])))
+	assert [item for item in result if any(item is command for command in commands)] == commands
+	assert "".join(item for item in result if isinstance(item, str)) == '("नेपाल"x'
+	assert counting.reads == 1
+
+
+def test_a_long_common_only_utterance_stays_linear(env):
+	sequence = [item for _ in range(20000) for item in (".", BreakCommand(1))]
+	start = time.perf_counter()
+	result = list(make_detector(env, NE).add_detected_language_commands(sequence))
+	assert time.perf_counter() - start < 2
+	assert result == sequence
 
 
 def test_superscripts_are_not_digits(env):
