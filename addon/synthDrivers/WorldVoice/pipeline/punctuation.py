@@ -16,7 +16,7 @@ from .breaks import (
 	_merge_edge_breaks,
 )
 from .context import SpeechContext
-from .sequence import SpeechCmd
+from .sequence import SpeechCmd, _opens_item
 
 if TYPE_CHECKING:
 	from .settings import PipelineSettings
@@ -201,13 +201,16 @@ def _punctuation_pauses(
 	except StopIteration:
 		return
 
-	pending_breaks = []
+	# The breaks after the previous item, and the wrapper of a number the next item starts with, which
+	# leaves the next text the one that follows (review I1).
+	pending = []
 	# The last break sent since the last non-blank text, if any.
 	last_break = None
 	for current in it:
-		if isinstance(current, BreakCommand):
-			pending_breaks.append(current)
+		if isinstance(current, BreakCommand) or _opens_item(current):
+			pending.append(current)
 			continue
+		pending_breaks = [item for item in pending if isinstance(item, BreakCommand)]
 		text_follows = is_non_blank_text(current)
 		# An edge break alone does not suppress the boundary pause; _merge_edge_breaks keeps one of the two.
 		pause_follows = text_follows and all(map(_is_edge_break, pending_breaks))
@@ -224,15 +227,15 @@ def _punctuation_pauses(
 			and isinstance(pending_breaks[0], NumberBreakCommand)
 		):
 			# Removal left the number breaks around the item next to each other: keep the earlier.
-			del pending_breaks[0]
-		for command in (*emitted, *pending_breaks):
+			pending = [item for item in pending if item is not pending_breaks[0]]
+		for command in (*emitted, *pending):
 			if is_non_blank_text(command):
 				last_break = None
 			elif isinstance(command, BreakCommand):
 				last_break = command
 			yield command
-		pending_breaks.clear()
+		pending.clear()
 		previous = current
 
 	yield from emit(previous, False, False)
-	yield from pending_breaks
+	yield from pending

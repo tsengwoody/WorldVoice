@@ -1258,6 +1258,33 @@ def test_a_main_number_after_leading_punctuation_keeps_its_item(monkeypatch, tim
 	assert result == [(NE, "नेपाल ("), (EN, "2024)"), (NE, "नेपाल")]
 
 
+# Review I1, decided by the user (2026-11-10, option b): with a specific number language, an item that
+# ends with a number keeps the item pause before the next item, and the next item's leading marks
+# follow its own text, whatever the number pause.
+@TIMINGS
+@pytest.mark.parametrize(
+	("items", "pauses"),
+	[
+		pytest.param(["abc 12", '"नेपाल"'], {"group_size": 3, "number_wait": 0}, id="groups-no-number-pause"),
+		pytest.param(["abc 12", '"नेपाल"'], {"group_size": 3, "number_wait": 10}, id="groups-number-pause"),
+		pytest.param(["Total 12", '"नेपाल"'], {"group_size": 0, "number_wait": 10}, id="near-default"),
+	],
+)
+def test_an_item_ending_with_a_number_language_number_keeps_its_boundary(monkeypatch, timing, items, pauses):
+	with monkeypatch.context() as patch:
+		patch.setitem(VOICES, "ne", NE)
+		result = speak_through_stages(
+			patch,
+			items,
+			numlan="zh_TW",
+			timing=timing,
+			settings=stage_settings(item_wait=10, **pauses),
+		)
+	assert spoken(result) == [(EN, items[0].split()[0]), (ZH, "12"), (NE, '"नेपाल"')]
+	voices = [entry if entry == "|" else entry[0] for entry in result]
+	assert voices[voices.index(ZH) + 1] == "|"
+
+
 # The two invariants end to end (spec fix/leading-punctuation-language §4.3, §7.3).
 INVARIANT_PIECES = ["abc", "नेपाल", "中文", "12", "34", " ", ",", ".", "(", ")", '"', "「", "-", "२", "ー"]
 # Index markers are told apart from the text by their number.

@@ -157,11 +157,14 @@ ITEM_ROWS = [
 		"blank-item",
 	),
 	*item_rows(["第3", M, "章"], ["第", E, "3", E, M, "章"], {0: "same", 10: "same"}, "command"),
+	# The number language's wrapper no longer hides the item boundary: the item break meets the edge
+	# break as in "end-item10" (review I1 of fix/leading-punctuation-language, decided by the user,
+	# 2026-11-10, option b).
 	pytest.param(
 		["第3", "章"],
 		{"numlan": "en", "item": 10},
 		["第", E, LEN, "3", LZH, E, "章"],
-		"same",
+		["第", E, LEN, "3", LZH, B10, "章"],
 		id="wrapper-item10",
 	),
 	pytest.param(

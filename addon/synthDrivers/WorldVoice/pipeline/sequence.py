@@ -13,6 +13,28 @@ SpeechCmd = Union[str, "SpeechCommand"]
 _MISSING = object()
 
 
+# Set by inject_numbers on the wrapper of a number at the start ("start") or end ("end") of its item, so
+# the item and punctuation stages still see the item boundary on the other side of it: without the
+# wrapper the two items would be adjacent texts (review I1 of fix/leading-punctuation-language, decided
+# by the user, 2026-11-10, option b). NVDA's commands have no __slots__, and the synths never read it.
+_ITEM_EDGE_WRAPPER = "worldvoice_item_edge_wrapper"
+
+
+def _mark_item_edge_wrapper(command: SpeechCmd, side: str) -> SpeechCmd:
+	setattr(command, _ITEM_EDGE_WRAPPER, side)
+	return command
+
+
+def _opens_item(command: SpeechCmd) -> bool:
+	"""Whether *command* is the wrapper that opens the number an item starts with."""
+	return getattr(command, _ITEM_EDGE_WRAPPER, None) == "start"
+
+
+def _closes_item(command: SpeechCmd) -> bool:
+	"""Whether *command* is the wrapper that closes the number an item ends with."""
+	return getattr(command, _ITEM_EDGE_WRAPPER, None) == "end"
+
+
 def _both_text(previous: SpeechCmd, current: SpeechCmd) -> bool:
 	return isinstance(previous, str) and isinstance(current, str)
 

@@ -86,6 +86,61 @@ def test_item_wait_factor_breaks_only_between_adjacent_text(env):
 	assert result[3] is marker
 
 
+def edge_wrapper(module, language, side):
+	"""A number wrapper as inject_numbers marks it at its item's start or end (review I1)."""
+	return module.sequence._mark_item_edge_wrapper(module.WVLangChangeCommand(language), side)
+
+
+@pytest.mark.parametrize(
+	("sequence", "expected"),
+	[
+		(["abc ", "open", "12", "end", "x"], ["abc ", ("lang", "zh"), "12", ("lang", "en"), "B", "x"]),
+		(["x", "start", "12", "close"], ["x", "B", ("lang", "zh"), "12", ("lang", "en")]),
+		(["12", "end", "start", "34"], ["12", ("lang", "en"), "B", ("lang", "zh"), "34"]),
+		(["abc ", "open", "12", "close", " def"], ["abc ", ("lang", "zh"), "12", ("lang", "en"), " def"]),
+	],
+	ids=["number-ends-the-item", "number-starts-the-item", "both", "inside-the-item"],
+)
+def test_the_item_pause_goes_past_a_number_wrapper_at_an_item_edge(env, sequence, expected):
+	# Review I1 (decided by the user, 2026-11-10, option b): where the items meet without the wrappers.
+	env.settings.scaled_item_wait = lambda: 30
+	commands = {
+		"open": env.module.WVLangChangeCommand("zh"),
+		"close": env.module.WVLangChangeCommand("en"),
+		"start": edge_wrapper(env.module, "zh", "start"),
+		"end": edge_wrapper(env.module, "en", "end"),
+	}
+	result = env.module.item_wait_factor(
+		[commands.get(item, item) for item in sequence],
+		env.settings,
+		env.module.GENERIC_CONTEXT,
+	)
+	assert shape(result) == [("BreakCommand", 30) if item == "B" else item for item in expected]
+
+
+@pytest.mark.parametrize(("wait", "kept"), [(10, "NumberItemEdgeBreakCommand"), (30, "BreakCommand")])
+def test_the_item_pause_past_a_wrapper_still_meets_the_item_edge_break(env, wait, kept):
+	# Only the longer of the item break and the number's item edge break stays, on a tie the item break.
+	env.settings.scaled_item_wait = lambda: wait
+	sequence = ["12", edge_wrapper(env.module, "en", "end"), env.module.NumberItemEdgeBreakCommand(20), "x"]
+	result = shape(env.module.item_wait_factor(sequence, env.settings, env.module.GENERIC_CONTEXT))
+	time = 20 if kept == "NumberItemEdgeBreakCommand" else 30
+	assert result == ["12", ("lang", "en"), (kept, time), "x"]
+
+
+@pytest.mark.parametrize(("item_wait", "expected_pause"), [(0, True), (30, False)])
+def test_the_punctuation_pause_reads_past_the_wrapper_that_opens_an_item(env, item_wait, expected_pause):
+	# The boundary pause after "abc." sees the number the next item starts with, as without wrappers.
+	env.settings.scaled_item_wait = lambda: item_wait
+	env.settings.scaled_punctuation_wait = lambda: 50
+	sequence = ["abc.", edge_wrapper(env.module, "zh", "start"), "12"]
+	sequence = list(env.module.item_wait_factor(sequence, env.settings, env.module.GENERIC_CONTEXT))
+	result = shape(env.module.inject_punctuation_pause(sequence, env.settings, env.module.GENERIC_CONTEXT))
+	pause = [("PunctuationBreakCommand", 50)] if expected_pause else []
+	item = [] if item_wait == 0 else [("BreakCommand", 30)]
+	assert result == ["abc", ".", *pause, *item, ("lang", "zh"), "12"]
+
+
 def test_number_wait_factor_drops_blanks_then_breaks_between_numbers(env):
 	env.settings.scaled_number_wait = lambda: 40
 	result = list(

@@ -429,6 +429,67 @@ def test_a_synth_without_roles_gets_a_plain_space_pause(monkeypatch):
 	assert [(type(item), item.time) for item in result if not isinstance(item, str)] == [(BreakCommand, 10)]
 
 
+# Review I1, decided by the user (2026-11-10, option b): a number wrapped for a specific number language
+# at its item's edge does not hide the item boundary. With the wrappers taken out, the stages give what
+# the same items give under "main", where the stages wrap nothing.
+ITEM_EDGE_ITEMS = [
+	["abc 12", '"x"'],
+	['"x"', "12 abc"],
+	["abc 12", "34 def"],
+	["a", "12", "b"],
+	["abc.", "12"],
+	["12", "34"],
+]
+
+
+def without_wrappers(module, sequence):
+	"""*sequence* without WVLangChangeCommands, the texts they separated joined, whitespace dropped."""
+	result = []
+	for item in sequence:
+		if isinstance(item, module.WVLangChangeCommand):
+			continue
+		if isinstance(item, str) and result and isinstance(result[-1], str):
+			result[-1] += item
+		else:
+			result.append(item)
+	return [
+		"".join(item.split()) if isinstance(item, str) else (type(item).__name__, item.time)
+		for item in result
+		if not isinstance(item, str) or item.strip()
+	]
+
+
+@pytest.mark.parametrize(
+	"items",
+	ITEM_EDGE_ITEMS,
+	ids=["end", "start", "end-start", "alone", "mark-before", "numbers"],
+)
+@pytest.mark.parametrize(
+	("group_size", "number_wait", "punctuation"),
+	[(0, 0, False), (0, 10, False), (3, 10, False), (3, 0, True), (0, 10, True)],
+	ids=["plain", "number-pause", "groups", "groups-punctuation", "number-pause-punctuation"],
+)
+def test_a_number_at_an_item_edge_keeps_the_items_apart(
+	monkeypatch,
+	items,
+	group_size,
+	number_wait,
+	punctuation,
+):
+	settings = pause_settings("value", group_size)
+	settings.scaled_item_wait = lambda: 10
+	settings.scaled_number_wait = lambda: number_wait
+	settings.punctuation_pause_enabled = punctuation
+	module, _ = load_pipeline_module(monkeypatch, settings)
+	results = {}
+	for numlan in ("zh_TW", "main"):
+		context = number_context(module, numlan)
+		monkeypatch.setattr(module.registry, "current_context", lambda context=context: context)
+		results[numlan] = run_stages(module, list(items))
+	assert any(isinstance(item, module.WVLangChangeCommand) for item in results["zh_TW"])
+	assert without_wrappers(module, results["zh_TW"]) == without_wrappers(module, results["main"])
+
+
 # Numbers wrapped for detection (phase 35 spec §4.4, batch 1 review C1).
 
 

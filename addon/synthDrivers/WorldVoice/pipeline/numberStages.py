@@ -13,7 +13,7 @@ from .breaks import NumberBreakCommand, NumberEdgeBreakCommand, NumberItemEdgeBr
 from .context import SpeechContext
 from .languageCommands import deduplicate_language_command, remove_language_command
 from .numbers import NUMBER_RE, number_pieces, split_spaced_numbers, strip_thousands
-from .sequence import _MISSING, SpeechCmd, _both_text, _ends_utterance
+from .sequence import _MISSING, SpeechCmd, _both_text, _ends_utterance, _mark_item_edge_wrapper
 from .symbols import symbol_namer
 
 if TYPE_CHECKING:
@@ -449,11 +449,14 @@ def _number_item_segments(
 			continue
 		if edge is not None and index > 0 and parts[index - 1][1].strip():
 			yield edge
+		# A wrapper at the item's start or end is marked, so the item boundary stays visible (review I1).
 		if number_language is not None:
-			yield WVLangChangeCommand(number_language)
+			opening = WVLangChangeCommand(number_language)
+			yield _mark_item_edge_wrapper(opening, "start") if index == 0 else opening
 		yield from _translate_number(value, mode, group_size, pause, name_of)
 		if number_language is not None:
-			yield WVLangChangeCommand(language)
+			closing = WVLangChangeCommand(language)
+			yield _mark_item_edge_wrapper(closing, "end") if index == last else closing
 		if edge is not None and index < last and parts[index + 1][1].strip():
 			yield edge
 	if edge_after is not None and spoken_kinds[-1:] == ["number"]:

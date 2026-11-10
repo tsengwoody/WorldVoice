@@ -7,7 +7,7 @@ from speech.commands import BreakCommand
 
 from .breaks import _is_item_edge_break, _merge_edge_breaks
 from .context import SpeechContext
-from .sequence import _MISSING, SpeechCmd, _both_text
+from .sequence import _MISSING, SpeechCmd, _both_text, _closes_item, _opens_item
 
 if TYPE_CHECKING:
 	from .settings import PipelineSettings
@@ -35,14 +35,24 @@ def item_wait_factor(
 
 def _insert_item_breaks(speech_sequence: Iterable[SpeechCmd], break_cmd: SpeechCmd) -> Iterator[SpeechCmd]:
 	"""Yield *speech_sequence* with *break_cmd* between two adjacent text items, or two text items
-	that only item edge breaks separate: before those breaks."""
+	that only item edge breaks separate: before those breaks.
+
+	The wrapper of a number at an item's end belongs to that item, and the one of a number at an
+	item's start to the next: the break goes after the first and before the second, where it goes
+	without them (review I1 of fix/leading-punctuation-language, decided by the user, 2026-11-10).
+	"""
 	previous = _MISSING
 	held: list[SpeechCmd] = []
 	for current in speech_sequence:
 		if isinstance(previous, str) and _is_item_edge_break(current):
 			held.append(current)
 			continue
-		if _both_text(previous, current):
+		if isinstance(previous, str) and _closes_item(current):
+			yield from held
+			held.clear()
+			yield current
+			continue
+		if _both_text(previous, current) or (isinstance(previous, str) and _opens_item(current)):
 			yield break_cmd
 		yield from held
 		held.clear()
