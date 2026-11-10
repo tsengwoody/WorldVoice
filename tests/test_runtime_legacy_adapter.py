@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 from addon_loader import load_definitions
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, example, given, settings, strategies as st
 from legacy_adapter_harness import Core, legacy_class
 from runtime_harness import RUNTIME, MemoryRepository, load_index_support, make_spec
 from worldvoice_cancel_wrapper_harness import load_real_driver_with_native_stubs
@@ -214,14 +214,6 @@ def test_reapplying_the_same_voice_skips_only_the_voice_setter(bridge_modules, r
 	]
 
 
-def test_another_voice_is_set(bridge_modules, rt):
-	core = Core()
-	_, adapter = opened_adapter(bridge_modules, core, voices=("a", "b"))
-	for voice in ("a", "b", "a"):
-		apply_voice(rt, adapter, voice)
-	assert voice_writes(core) == [("voice", "a"), ("voice", "b"), ("voice", "a")]
-
-
 def test_another_voice_is_set_even_when_the_core_already_reports_it(bridge_modules, rt):
 	core = Core()
 	_, adapter = opened_adapter(bridge_modules, core, voices=("a", "b"))
@@ -231,42 +223,6 @@ def test_another_voice_is_set_even_when_the_core_already_reports_it(bridge_modul
 	core.writes.clear()
 	apply_voice(rt, adapter, "b")
 	assert core.writes[0] == ("voice", "b")
-
-
-@pytest.mark.parametrize("step", ["voice", "rate", "hook"])
-def test_after_a_failed_apply_the_same_voice_is_set_again(bridge_modules, rt, step):
-	core = ProbeCore()
-	_, adapter = opened_adapter(bridge_modules, core)
-	core.configure(fail_on=step)
-	with pytest.raises(StepFailed):
-		apply_voice(rt, adapter)
-	assert core.voice == "a"
-	core.writes.clear()
-	apply_voice(rt, adapter, rate=72)
-	assert core.writes[0] == ("voice", "a")
-
-
-@pytest.mark.parametrize("getter", ["raise", "lie"])
-def test_a_core_not_reporting_the_voice_gets_it_set(bridge_modules, rt, getter):
-	core = ProbeCore()
-	_, adapter = opened_adapter(bridge_modules, core)
-	apply_voice(rt, adapter)
-	core.configure(getter=getter)
-	core.writes.clear()
-	apply_voice(rt, adapter, rate=72)
-	assert core.writes[0] == ("voice", "a")
-
-
-def test_reopening_sets_the_voice_even_on_the_same_core_object(bridge_modules, rt):
-	core = Core()
-	_, adapter = opened_adapter(bridge_modules, core)
-	apply_voice(rt, adapter)
-	adapter.close()
-	adapter.open()
-	assert adapter.core is core
-	core.writes.clear()
-	apply_voice(rt, adapter, rate=72)
-	assert core.writes[0] == ("voice", "a")
 
 
 def test_a_failed_close_still_forgets_the_voice(bridge_modules, rt):
@@ -287,18 +243,6 @@ def test_a_failed_close_still_forgets_the_voice(bridge_modules, rt):
 	assert core.writes[0] == ("voice", "a")
 
 
-@pytest.mark.parametrize(("reload", "written"), [(True, True), ("raise", True), (False, False)])
-def test_a_core_that_needs_a_voice_reload_gets_the_voice_set(bridge_modules, rt, reload, written):
-	core = ProbeCore()
-	_, adapter = opened_adapter(bridge_modules, core)
-	apply_voice(rt, adapter)
-	core.configure(reload=reload)
-	core.writes.clear()
-	apply_voice(rt, adapter, rate=72)
-	assert (("voice", "a") in core.writes) is written
-	assert ("rate", 72) in core.writes
-
-
 APPLY = st.tuples(
 	st.just("apply"),
 	st.sampled_from(["a", "b"]),
@@ -310,6 +254,27 @@ APPLY = st.tuples(
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(st.lists(st.one_of(APPLY, st.just(("reopen",))), max_size=12))
+# Another voice is set.
+@example(
+	actions=[
+		("apply", "a", None, "true", None),
+		("apply", "b", None, "true", None),
+		("apply", "a", None, "true", None),
+	],
+)
+# After a failed apply the same voice is set again, whichever step failed.
+@example(actions=[("apply", "a", "voice", "true", None), ("apply", "a", None, "true", None)])
+@example(actions=[("apply", "a", "rate", "true", None), ("apply", "a", None, "true", None)])
+@example(actions=[("apply", "a", "hook", "true", None), ("apply", "a", None, "true", None)])
+# A core whose voice getter raises or lies gets the voice set.
+@example(actions=[("apply", "a", None, "true", None), ("apply", "a", None, "raise", None)])
+@example(actions=[("apply", "a", None, "true", None), ("apply", "a", None, "lie", None)])
+# Reopening sets the voice even on the same core object.
+@example(actions=[("apply", "a", None, "true", None), ("reopen",), ("apply", "a", None, "true", None)])
+# A core that needs a voice reload (or whose check raises) gets the voice set; False skips it.
+@example(actions=[("apply", "a", None, "true", None), ("apply", "a", None, "true", True)])
+@example(actions=[("apply", "a", None, "true", None), ("apply", "a", None, "true", "raise")])
+@example(actions=[("apply", "a", None, "true", None), ("apply", "a", None, "true", False)])
 def test_property_the_voice_is_set_unless_the_same_healthy_core_already_took_it(
 	bridge_modules,
 	rt,
@@ -323,6 +288,7 @@ def test_property_the_voice_is_set_unless_the_same_healthy_core_already_took_it(
 		if action[0] == "reopen":
 			adapter.close()
 			adapter.open()
+			assert adapter.core is core
 			remembered = None
 			continue
 		_, voice, fail, getter, reload = action
@@ -339,6 +305,8 @@ def test_property_the_voice_is_set_unless_the_same_healthy_core_already_took_it(
 		assert failed is expect_failure
 		assert (core.writes[:1] == [("voice", voice)]) is expect_voice
 		assert voice_writes(core) == ([("voice", voice)] if expect_voice else [])
+		# The stored voice, not the getter (which may raise or lie).
+		assert core.__dict__["voice"] == voice
 		if not failed:
 			assert {name for name, _ in core.writes} >= everything
 		remembered = None if failed else voice
