@@ -589,62 +589,49 @@ def test_an_unnamed_symbol_and_a_named_one_are_two_items(env, monkeypatch):
 NB10, B10 = ("NumberBreakCommand", 10), ("BreakCommand", 10)
 
 
+UNNAMED_SYMBOL_ROWS = [
+	# Pause only: the mark stays; the number breaks around it already pause, so no punctuation pause.
+	(True, False, ["12", NB10, ".", NB10, "5"]),
+	# Removal drops the mark and the number break after it (final review M2): one pause, not two.
+	(True, True, ["12", NB10, "5"]),
+	# Another synthesizer (scope "all") gets plain breaks from every stage, so the punctuation
+	# stage cannot tell the number breaks from any other break: a known limit (spec 6.4.1).
+	(False, False, ["12", B10, ".", B10, "5"]),
+	(False, True, ["12", B10, B10, "5"]),
+]
+
+
 @pytest.mark.parametrize(
-	("roles", "remove", "expected"),
+	("mode", "size", "roles", "remove", "expected"),
 	[
-		# Pause only: the mark stays; the number breaks around it already pause, so no punctuation pause.
-		(True, False, ["12", NB10, ".", NB10, "5"]),
-		# Removal drops the mark and the number break after it (final review M2): one pause, not two.
-		(True, True, ["12", NB10, "5"]),
-		# Another synthesizer (scope "all") gets plain breaks from every stage, so the punctuation
-		# stage cannot tell the number breaks from any other break: a known limit (spec 6.4.1).
-		(False, False, ["12", B10, ".", B10, "5"]),
-		(False, True, ["12", B10, B10, "5"]),
+		*[(mode, 3, *row) for mode in ("value", "none") for row in UNNAMED_SYMBOL_ROWS],
+		# Number mode joins its pieces with spaces (decided by the user, 2026-11-01), an unnamed symbol
+		# included; the punctuation stage still pauses at it, and removes it, as at any other mark.
+		("number", 0, True, False, ["1 2", ".", ("InternalPunctuationBreakCommand", 50), "5"]),
+		("number", 0, True, True, ["1 2", ("InternalPunctuationBreakCommand", 50), "5"]),
 	],
 )
-@pytest.mark.parametrize("mode", ["value", "none"])
-def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(env, monkeypatch, mode, roles, remove, expected):
+def test_an_unnamed_symbol_is_left_to_the_punctuation_stage(
+	env,
+	monkeypatch,
+	mode,
+	size,
+	roles,
+	remove,
+	expected,
+):
 	# Accepted by the user (2026-10-22): an unnamed symbol is an item of its own, so the punctuation
 	# stage may pause at it and remove it; the digits around it still reach the synth apart. Off with
 	# a group size sends every symbol as itself, the same way (2026-11-01, U2; spec risk 5).
 	counting_lookup(env, monkeypatch, unnamed=".")
 	env.settings.number_mode = mode
-	env.settings.group_size = 3
+	env.settings.group_size = size
 	env.settings.scaled_number_wait = lambda: 10
+	env.settings.scaled_punctuation_wait = lambda: 50
 	env.settings.punctuation_pause_enabled = True
 	env.settings.punctuation_pause_characters = "."
 	env.settings.remove_punctuation_characters = remove
 	context = roles_context(env.module, "zh_TW", "default") if roles else env.module.GENERIC_CONTEXT
-	monkeypatch.setattr(env.module.registry, "current_context", lambda: context)
-	sequence = ["12.5"]
-	for stage in env.module.STAGES:
-		sequence = stage.handler(sequence)
-	assert shape(sequence) == expected
-
-
-@pytest.mark.parametrize(
-	("remove", "expected"),
-	[
-		(False, ["1 2", ".", ("InternalPunctuationBreakCommand", 50), "5"]),
-		(True, ["1 2", ("InternalPunctuationBreakCommand", 50), "5"]),
-	],
-	ids=["pause", "remove"],
-)
-def test_an_unnamed_symbol_in_number_mode_is_left_to_the_punctuation_stage(
-	env,
-	monkeypatch,
-	remove,
-	expected,
-):
-	# Number mode joins its pieces with spaces (decided by the user, 2026-11-01), an unnamed symbol
-	# included; the punctuation stage still pauses at it, and removes it, as at any other mark.
-	counting_lookup(env, monkeypatch, unnamed=".")
-	env.settings.number_mode = "number"
-	env.settings.scaled_number_wait = lambda: 10
-	env.settings.scaled_punctuation_wait = lambda: 50
-	env.settings.punctuation_pause_characters = "."
-	env.settings.remove_punctuation_characters = remove
-	context = roles_context(env.module, "zh_TW", "default")
 	monkeypatch.setattr(env.module.registry, "current_context", lambda: context)
 	sequence = ["12.5"]
 	for stage in env.module.STAGES:
