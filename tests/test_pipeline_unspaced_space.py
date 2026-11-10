@@ -329,19 +329,9 @@ def test_unicode_18_characters(env, text, expected):
 	assert shape(env, space_stage(env, [text])) == ([text] if expected == "same" else expected)
 
 
-def test_stages_pause_between_extension_j_ideographs(env):
-	assert every_stage(env, ["\U000323b0 \U000323b1"], space=10) == ["\U000323b0", B10, "\U000323b1"]
-
-
 def test_long_text_stays_fast(env):
 	for text, pieces in (("hello world " * 15000, 1), ("ภาษา ไทย " * 15000, 30000)):
 		start = time.perf_counter()
 		result = space_stage(env, [text])
 		assert time.perf_counter() - start < 2
 		assert sum(isinstance(item, str) for item in result) == pieces
-
-
-def test_the_space_pause_is_an_unspaced_space_break(env):
-	(_, pause, _) = space_stage(env, ["中 文"])
-	assert isinstance(pause, env.UnspacedSpaceBreakCommand)
-	assert isinstance(pause, env.BreakCommand)

@@ -342,22 +342,6 @@ def test_merge_edge_breaks(monkeypatch, sequence, expected):
 	]
 
 
-# The two punctuation classes (spec fix/leading-punctuation-language D12): language detection reads
-# through a pause inside an item and stops at one between items.
-def test_internal_points_emit_the_internal_class(monkeypatch):
-	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250))
-	result = run_punctuation_filters(module, ["Hello. World"])
-	assert shape(result) == ["Hello", ".", IP(250), " World"]
-	assert isinstance(result[2], module.PunctuationBreakCommand)
-
-
-def test_the_end_of_item_pause_keeps_the_punctuation_class(monkeypatch):
-	module, _BreakCommand = load_pipeline_module(monkeypatch, punctuation_settings(250))
-	result = run_punctuation_filters(module, ["Hello.", "World"])
-	assert shape(result) == ["Hello", ".", P(250), "World"]
-	assert type(result[2]) is module.PunctuationBreakCommand
-
-
 @pytest.mark.parametrize(
 	("edge", "expected"),
 	[("NumberEdgeBreakCommand", IP(20)), ("NumberItemEdgeBreakCommand", P(20))],

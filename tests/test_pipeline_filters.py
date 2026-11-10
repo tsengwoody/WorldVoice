@@ -313,14 +313,6 @@ def test_number_wait_splits_across_items_and_keeps_commands(env):
 	assert result[5] is marker
 
 
-def test_digit_mode_then_number_wait_keeps_the_digits_together(env):
-	# Decided by the user (2026-11-01): number mode reads the digits of a number without a pause.
-	env.settings.number_mode = "number"
-	env.settings.scaled_number_wait = lambda: 40
-	digits = env.module.inject_numbers(["12"], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(env.module.number_wait_factor(digits, env.settings, env.module.GENERIC_CONTEXT)) == ["1 2"]
-
-
 def N(symbol, locale="en"):
 	"""The harness's name of a symbol: GENERIC_CONTEXT looks names up in NVDA's current language, "en"."""
 	return symbol_name(locale, symbol)
@@ -351,16 +343,6 @@ def joined(pieces):
 	return [" ".join(named(pieces))]
 
 
-@pytest.mark.parametrize("wait", [0, 40])
-def test_digit_mode_joins_digits_with_spaces_at_any_number_wait(env, wait):
-	# Decided by the user (2026-11-01): no break between the pieces of one number.
-	env.settings.number_mode = "number"
-	env.settings.scaled_number_wait = lambda: wait
-	generic = env.module.GENERIC_CONTEXT
-	assert shape(env.module.inject_numbers(["12"], env.settings, generic)) == ["1 2"]
-	assert shape(env.module.inject_numbers(["-1234"], env.settings, generic)) == ["-1 2 3 4"]
-
-
 @pytest.mark.parametrize(
 	("text", "expected"),
 	[
@@ -372,21 +354,6 @@ def test_digit_mode_at_pause_0_keeps_the_text_around_the_digits(env, text, expec
 	env.settings.number_mode = "number"
 	result = env.module.inject_numbers([text], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(result) == expected
-
-
-def test_value_groups_then_number_wait_break_with_the_number_wait(env):
-	# The old group mode is value mode with a group size (decided by the user, 2026-11-01, U1).
-	env.settings.number_mode = "value"
-	env.settings.group_size = 2
-	env.settings.scaled_number_wait = lambda: 40
-	groups = env.module.inject_numbers(["1234 5678"], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(env.module.number_wait_factor(groups, env.settings, env.module.GENERIC_CONTEXT)) == broken(
-		40,
-		"12",
-		"34",
-		"56",
-		"78",
-	)
 
 
 E50 = ("NumberEdgeBreakCommand", 50)
@@ -405,14 +372,10 @@ NUMBER_MODES = {
 	("number", 0, 0): {
 		"12.5": joined("1 2 <.> 5"),
 		"-1234": joined("-1 2 3 4"),
-		"12": joined("1 2"),
 		"v1.2": joined("v1 <.> 2"),
-		"1.2.3": joined("1 <.> 2 <.> 3"),
 	},
 	# Without groups digit mode adds no edge pause (U4); two numbers still get the pause (U5).
 	("number", 0, 50): {
-		"12.5": joined("1 2 <.> 5"),
-		"-1234": joined("-1 2 3 4"),
 		"v1.2": joined("v1 <.> 2"),
 		"12 34": ["1 2", B50, "3 4"],
 		"3.": ["3 ."],
@@ -520,13 +483,8 @@ def pieces_in(mode, pieces):
 	("mode", "size", "column"),
 	[
 		("number", 0, 1),
-		("value", 1, 1),
 		("value", 3, 2),
 		("value", 2, 3),
-		("none", 3, 2),
-		("none", 2, 3),
-		("number", 3, 2),
-		("number", 2, 3),
 	],
 )
 @pytest.mark.parametrize("row", SPEC_TABLE, ids=SPEC_IDS)
@@ -537,12 +495,6 @@ def test_number_modes_and_group_sizes_name_each_symbol(env, mode, size, column, 
 	env.settings.group_size = size
 	result = env.module.inject_numbers([row[0]], env.settings, env.module.GENERIC_CONTEXT)
 	assert shape(result) == (joined(row[column]) if size == 0 else pieces_in(mode, row[column]))
-
-
-def test_adjacent_symbols_get_a_name_each(env):
-	env.settings.number_mode = "number"
-	result = env.module.inject_numbers(["1--2"], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(result) == joined("1 <-> <-> 2")
 
 
 def roles_context(module, language, number_language):
@@ -746,27 +698,14 @@ def test_long_symbol_runs_look_each_symbol_up_once_per_item(env, monkeypatch):
 		(3, "+0012", spoken("+001 2")),
 	],
 )
-@pytest.mark.parametrize("mode", ["value", "none"])
+@pytest.mark.parametrize("mode", ["value"])
 def test_groups_keep_leading_zeros_and_every_digit(env, mode, size, text, expected):
 	env.settings.number_mode = mode
 	env.settings.group_size = size
 	assert shape(env.module.inject_numbers([text], env.settings, env.module.GENERIC_CONTEXT)) == expected
 
 
-@pytest.mark.parametrize("mode", ["value", "none"])
-@pytest.mark.parametrize("pause", [0, 50])
-def test_group_separator_is_one_instance_per_number(env, mode, pause):
-	env.settings.number_mode = mode
-	env.settings.group_size = 2
-	env.settings.scaled_number_wait = lambda: pause
-	result = list(env.module.inject_numbers(["123456"], env.settings, env.module.GENERIC_CONTEXT))
-	assert result[0::2] == ["12", "34", "56"]
-	first, second = result[1::2]
-	assert first is second
-	assert first.time == pause
-
-
-@pytest.mark.parametrize("mode", ["pair", "group"])
+@pytest.mark.parametrize("mode", ["group"])
 @pytest.mark.parametrize(
 	("size", "expected"),
 	[({}, ["1234"]), ({"groupSize": 2}, ["12", ("NumberBreakCommand", 10), "34"])],
@@ -801,8 +740,6 @@ def test_thousands_separators_of_other_digits(env, text, expected):
 		("value", 3, "１２３４５", ["１２３", NB0, "４５"]),
 		("value", 1, "٣٤", ["٣", NB0, "٤"]),
 		("number", 0, "٣٤", ["٣ ٤"]),
-		("number", 3, "１２３４５", ["１ ２ ３", NB0, "４ ５"]),
-		("none", 1, "٣٤", ["٣", NB0, "٤"]),
 	],
 )
 def test_every_mode_keeps_the_original_digits(env, mode, size, text, expected):

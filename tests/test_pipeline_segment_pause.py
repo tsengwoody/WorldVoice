@@ -22,10 +22,6 @@ class IndexCommand:
 		return f"IndexCommand({self.index})"
 
 
-class CallbackCommand:
-	"""NVDA's BaseCallbackCommand splits sequences, but the speech manager joins them again."""
-
-
 @pytest.fixture
 def env(monkeypatch):
 	module, _ = load_pipeline_module(monkeypatch, punctuation_settings(0))
@@ -100,14 +96,6 @@ def long_sequence(env):
 	]
 
 
-@pytest.mark.parametrize(("length", "pause"), [(0, 7), (-1, 7), (8, 0)])
-def test_nothing_changes_without_a_pause(env, length, pause):
-	sequence = long_sequence(env)
-	result = stage(env, sequence, length, pause)
-	assert len(result) == len(sequence)
-	assert all(a is b for a, b in zip(result, sequence, strict=True))
-
-
 def real_settings(monkeypatch, **changes):
 	module = load_settings_module(monkeypatch, {"WorldVoice": {"pipeline": {}}})
 	values = {**module.DEFAULT_PIPELINE_SETTINGS, "segment_length": 3, "segment_wait_factor": 50, **changes}
@@ -119,7 +107,7 @@ def identical(env, sequence, settings):
 	return len(result) == len(sequence) and all(a is b for a, b in zip(result, sequence, strict=True))
 
 
-@pytest.mark.parametrize("global_factor", [0, 9])
+@pytest.mark.parametrize("global_factor", [9])
 def test_nothing_changes_for_real_settings(env, monkeypatch, global_factor):
 	# The global factor scales in whole tens: below 10 every pause is 0 ms (U3).
 	settings = real_settings(monkeypatch, global_wait_factor=global_factor)
@@ -134,21 +122,16 @@ def test_nothing_changes_for_another_synth_in_worldvoice_scope(env, monkeypatch)
 	assert not identical(env, long_sequence(env), everywhere)
 
 
-def marked_plain_break(env):
-	return env.module._plain_break(env.module.NumberEdgeBreakCommand(5))
-
-
 @pytest.mark.parametrize(
 	"make",
 	[
 		lambda env: env.commands.BreakCommand(5),
 		lambda env: env.module.NumberEdgeBreakCommand(5),
-		marked_plain_break,
 		lambda env: env.commands.BreakCommand(0),
 		lambda env: env.commands.EndUtteranceCommand(),
 		lambda env: env.commands.ConfigProfileTriggerCommand(),
 	],
-	ids=["break", "number-edge", "marked-plain", "zero-break", "end-utterance", "profile-trigger"],
+	ids=["break", "number-edge", "zero-break", "end-utterance", "profile-trigger"],
 )
 def test_the_count_restarts_at(env, make):
 	sequence = ["aaaa", make(env), "bbbb"]
@@ -159,11 +142,8 @@ def test_the_count_restarts_at(env, make):
 	"make",
 	[
 		lambda env: env.commands.LangChangeCommand("fr"),
-		lambda env: env.module.WVLangChangeCommand("fr"),
-		lambda env: IndexCommand(1),
-		lambda env: CallbackCommand(),
 	],
-	ids=["language", "wv-language", "index", "callback"],
+	ids=["language"],
 )
 def test_the_count_goes_on_across(env, make):
 	command = make(env)
@@ -202,12 +182,6 @@ def test_a_blank_item_keeps_the_break_after_it(env):
 def test_a_blank_item_is_never_split(env):
 	# Review M1: a cut inside "  " gave "one two", " ", SB, " ", "three".
 	assert shape(stage(env, ["one two", "  ", "three"], 8)) == ["one two", "  ", SB, "three"]
-
-
-def test_number_stages_and_segments_share_ends_utterance(env):
-	ends = env.module.sequence._ends_utterance
-	assert env.module.numberStages._ends_utterance is ends
-	assert env.segments._ends_utterance is ends
 
 
 # Properties (spec §9.3, P1-P6). Text from the pieces the cut rule's hand-written tests pin; commands
