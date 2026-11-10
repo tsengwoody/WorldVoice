@@ -465,9 +465,26 @@ def without_wrappers(module, sequence):
 	ids=["end", "start", "end-start", "alone", "mark-before", "numbers"],
 )
 @pytest.mark.parametrize(
-	("group_size", "number_wait", "punctuation"),
-	[(0, 0, False), (0, 10, False), (3, 10, False), (3, 0, True), (0, 10, True)],
-	ids=["plain", "number-pause", "groups", "groups-punctuation", "number-pause-punctuation"],
+	("group_size", "number_wait", "punctuation", "remove", "item_wait"),
+	[
+		(0, 0, False, False, 10),
+		(0, 10, False, False, 10),
+		(3, 10, False, False, 10),
+		(3, 0, True, False, 10),
+		(0, 10, True, False, 10),
+		# Removal drops the last mark of the item before a number language's wrapper too (fix review N2).
+		(0, 0, True, True, 10),
+		(0, 0, True, True, 0),
+	],
+	ids=[
+		"plain",
+		"number-pause",
+		"groups",
+		"groups-punctuation",
+		"number-pause-punctuation",
+		"punctuation-remove",
+		"punctuation-remove-item0",
+	],
 )
 def test_a_number_at_an_item_edge_keeps_the_items_apart(
 	monkeypatch,
@@ -475,11 +492,14 @@ def test_a_number_at_an_item_edge_keeps_the_items_apart(
 	group_size,
 	number_wait,
 	punctuation,
+	remove,
+	item_wait,
 ):
 	settings = pause_settings("value", group_size)
-	settings.scaled_item_wait = lambda: 10
+	settings.scaled_item_wait = lambda: item_wait
 	settings.scaled_number_wait = lambda: number_wait
 	settings.punctuation_pause_enabled = punctuation
+	settings.remove_punctuation_characters = remove
 	module, _ = load_pipeline_module(monkeypatch, settings)
 	results = {}
 	for numlan in ("zh_TW", "main"):
