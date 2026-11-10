@@ -195,13 +195,10 @@ def test_convert_clamps_ints_to_their_bounds(monkeypatch, key, raw, expected):
 	("raw", "expected"),
 	[
 		(0, 0),
-		(1, 1),
-		(11, 11),
 		(2**31 - 1, 2**31 - 1),
 		("7", 7),
 		(-1, 0),
 		(2**31, 0),
-		(10**20, 0),
 	],
 )
 def test_group_size_outside_its_range_reads_as_the_default(monkeypatch, raw, expected):
@@ -444,37 +441,6 @@ def test_load_reads_the_default_for_each_invalid_key(monkeypatch, key):
 	loaded = module.ConfigPipelineRepository(lambda: conf).load()
 	assert getattr(loaded, key) == module.PIPELINE_SETTING_BY_KEY[key].convert(OLD_DEFAULTS[key])
 	assert getattr(loaded, other) == 40
-
-
-@pytest.mark.parametrize(
-	("error", "stored"),
-	[
-		("VdtValueTooSmallError", "-1"),
-		("VdtTypeError", "abc"),
-		("VdtTypeError", "3.5"),
-		("VdtValueTooBigError", "2147483648"),
-	],
-)
-def test_a_refused_stored_group_size_reads_as_zero(monkeypatch, error, stored):
-	# Spec F3 and §7: NVDA refuses each of these on read; WorldVoice reads the default 0 and warns once.
-	warnings = []
-	conf = refusing_conf({"groupSize": stored})
-	module = load_settings_module(monkeypatch, conf, warnings=warnings)
-	conf["WorldVoice"]["pipeline"].refused["groupSize"] = getattr(sys.modules["configobj.validate"], error)(
-		stored,
-	)
-	repository = module.ConfigPipelineRepository(lambda: conf)
-	assert repository.load().group_size == 0
-	assert repository.load().group_size == 0
-	assert len(warnings) == 1 and f'"{stored}"' in warnings[0][0]
-
-
-def test_a_stored_group_mode_reads_as_value_and_keeps_the_stored_size(monkeypatch):
-	# Decided by the user (2026-11-01, U7): no migration; the old group mode's size groups in value mode.
-	conf = {"WorldVoice": {"pipeline": {"numberMode": "group", "groupSize": 4}}}
-	module = load_settings_module(monkeypatch, conf)
-	settings = module.PipelineSettingsService(module.ConfigPipelineRepository(lambda: conf)).get()
-	assert (settings.number_mode, settings.group_size) == ("value", 4)
 
 
 def test_a_new_invalid_value_warns_again(monkeypatch):

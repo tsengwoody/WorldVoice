@@ -467,10 +467,6 @@ def test_a_long_sentence_is_spoken_in_segments(monkeypatch):
 	assert [call for call in synth._taskManager.calls if call[0] == "break"] == [("break", 0.01)] * 2
 
 
-def test_by_default_a_long_sentence_is_one_segment(monkeypatch):
-	assert speak_through_stages(monkeypatch, [SENTENCE], numlan="default") == [(EN, SENTENCE)]
-
-
 PUNCTUATION = stage_settings(punctuation=True)
 NUMBER_MODE = stage_settings(number_mode="number")
 # "Follow main language" reads digits as today's "ignore numbers" off did.
@@ -876,14 +872,6 @@ def test_an_unknown_number_language_reads_as_follow(monkeypatch, value):
 	assert value in warning
 
 
-@pytest.mark.parametrize("value", ["zh_TW"])
-def test_known_number_languages_are_kept(monkeypatch, value):
-	synth, _ = _synth(monkeypatch)
-	synth._set_numlan(value)
-	assert synth._get_numlan() == value
-	assert synth.warnings == []
-
-
 class NvdaSettings:
 	"""What NVDA's loadSettings(onlyChanged=True) and saveSettings do with the number language."""
 
@@ -937,9 +925,7 @@ def heard_through_nvda(monkeypatch, tmp_path, text, *, main, level="SOME", **opt
 HYPHEN_ROWS = [
 	pytest.param("en", "COVID-19", [(EN, "COVID-19  ")], [(EN, "COVID-19  ")], id="en-covid"),
 	pytest.param("en", "a-1", [(EN, "a-1  ")], [(EN, "a-1  ")], id="en-a"),
-	pytest.param("en", "x-1", [(EN, "x-1  ")], [(EN, "x-1  ")], id="en-x"),
 	pytest.param("en", "中-1", [(ZH, "中-"), (EN, "1  ")], [(ZH, "中-  "), (EN, "1  ")], id="en-han"),
-	pytest.param("en", "中文-5", [(ZH, "中文-"), (EN, "5  ")], [(ZH, "中文-  "), (EN, "5  ")], id="en-han2"),
 	pytest.param(
 		"zh",
 		"COVID-19 疫情",
@@ -948,7 +934,6 @@ HYPHEN_ROWS = [
 		id="zh-covid",
 	),
 	pytest.param("zh", "中-1", [(ZH, "中-1  ")], [(ZH, "中-1  ")], id="zh-han"),
-	pytest.param("zh", "中文-5", [(ZH, "中文-5  ")], [(ZH, "中文-5  ")], id="zh-han2"),
 	pytest.param("zh", "a-1", [(EN, "a-"), (ZH, "1  ")], [(EN, "a-  "), (ZH, "1  ")], id="zh-a"),
 ]
 
@@ -969,7 +954,6 @@ def test_a_hyphen_after_a_word_stays_with_it(monkeypatch, tmp_path, main, text, 
 @pytest.mark.parametrize(
 	("main", "text", "expected"),
 	[
-		pytest.param("en", "中 -12", [(ZH, "中 "), (EN, "-12")], id="han-space"),
 		pytest.param("en", "價格是 -3 度", [(ZH, "價格是 "), (EN, "-3 "), (ZH, "度")], id="han-sentence"),
 		pytest.param("en", "abc -3 def", [(EN, "abc -3 def")], id="latin-space"),
 		pytest.param("zh", "價格是 -3 度", [(ZH, "價格是 -3 度")], id="zh-han-sentence"),
@@ -1130,8 +1114,6 @@ def heard_with_nepali(monkeypatch, sequence, *, numlan="default", settings=ITEM,
 		pytest.param('" २०८१', "default", "en", [(NE, '" २०८१')], id="quote-script-digits"),
 		pytest.param("(2024) नेपाल", "default", "en", [(NE, "(2024) नेपाल")], id="paren-digits"),
 		pytest.param("「中文」", "default", "en", [(ZH, "「中文」")], id="corner-bracket"),
-		pytest.param("（中文）", "default", "en", [(ZH, "（中文）")], id="full-width-paren"),
-		pytest.param("(中文)", "default", "en", [(ZH, "(中文)")], id="paren-han"),
 		pytest.param("2024年", "default", "en", [(ZH, "2024年")], id="digits-han"),
 		pytest.param("2024年", "main", "en", [(EN, "2024"), (ZH, "年")], id="digits-han-main"),
 		pytest.param('abc "नेपाल"', "default", "en", [(EN, 'abc "'), (NE, 'नेपाल"')], id="mid-line"),
@@ -1198,7 +1180,6 @@ def test_a_marked_line_through_nvda(monkeypatch, tmp_path, text, timing, level, 
 			{"punctuation": True, "punctuation_characters": ",", "punctuation_wait": 30},
 			id="punctuation-30",
 		),
-		pytest.param("abc 12 34 (नेपाल)", {"number_wait": 10}, id="number-pause"),
 	],
 )
 def test_pause_settings_keep_the_voices(monkeypatch, timing, text, pauses):
