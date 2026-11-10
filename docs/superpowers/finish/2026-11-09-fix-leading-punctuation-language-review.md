@@ -205,11 +205,11 @@ Linux 上的測試只驗證受控的邊界。Windows 上的 NVDA、IBM TTS、eSp
 
 ## 修正記錄
 
-修正依 DEVELOPMENT_WORKFLOW §3.4 進行：每項先寫會失敗的測試，再修正。修正後完整驗證：`python3 -m pytest -q tests` 3942 passed，0 skipped（3940 加上 2 個新測試）；`prek run --all-files` 全部 Passed；`git diff --check master` 沒有輸出；兩個受保護路徑指令都沒有輸出。
+修正依 DEVELOPMENT_WORKFLOW §3.4 進行：每項先寫會失敗的測試，再修正。I1 以外各項修正後的完整驗證：`python3 -m pytest -q tests` 3942 passed，0 skipped（3940 加上 2 個新測試）；I1 修正後：3986 passed，0 skipped（再加 44 個新測試）；兩次的 `prek run --all-files` 都全部 Passed；`git diff --check master` 沒有輸出；兩個受保護路徑指令都沒有輸出。
 
 | 項目 | 處理 | commit |
 | --- | --- | --- |
-| I1 | **待使用者決定**。產品程式碼、property 的指定語言抽樣與 readme 的相關限制說明都還沒改 | — |
+| I1 | 使用者選 (b)（2026-11-10）。`inject_numbers` 為項目開頭或結尾那個數字的 wrapper 加上標記；項目階段把項目停頓放在結尾 wrapper 之後、開頭 wrapper 之前，標點階段計算項目結尾的停頓時越過開頭 wrapper。拿掉 wrapper 後，各階段的輸出和「跟隨主要語言」相同（30 組對照）。審閱者的 `["abc 12", '"नेपाल"']`、`["Total 12", '"नेपाल"']`（數字語言 `zh_TW`、項目停頓 10，兩個時間點）現在引號由尼泊爾語朗讀、有項目停頓、數字停頓開或關的語音相同。改動的既有期望：`test_worked_examples_through_every_stage[wrapper-item10]`（原本釘住缺少的項目停頓）。端到端 property 加抽 `zh_TW`、`en`（`73e3598`），spec 記為 U10 並更正 U5、D8、§4.1（`70814d1`），readme 加一行更新日誌（`f64aaae`） | `1277d63` |
 | I2 | 照建議修正：`stretch_targets` 從最後一段往前決定，某一段保留了涵蓋該文字、且主要語言和 target 不同的語言後，它前面的每一段都照舊規則。新增 `test_a_run_across_two_document_languages_adds_no_switch`（審閱者的三段序列），修正前失敗（印地、尼泊爾、印地），修正後通過 | `27d349e` |
 | M1 | 不修。結果和 `master` 相同，依協調者指示保留，列為未確認的限制 | — |
 | M2 | 偵測器層的 Invariant 1 改為也數語音切換（沒有語音的語言由主要語音朗讀，含空白），數字語言加抽 `zh_TW`，例數 300，並把 I2 的三段序列加成 `@example`（在修正前的程式碼會失敗）。端到端的兩個 property 加抽文件語言指令與 index 指令，只拿到空白的語音也算一次切換，每個時間點 100 例。utterance 結尾只在偵測器層抽（`heard()` 讀不了 `EndUtteranceCommand`）。指定數字語言的抽樣等 I1 決定後再加；這次加寬沒有遇到 I1 形狀的反例，所以沒有排除任何形狀 | `5fe506f` |
