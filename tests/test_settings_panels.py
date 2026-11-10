@@ -134,28 +134,34 @@ def test_pipeline_panel_group_size_stays_enabled_after_every_mode_choice(monkeyp
 
 
 @pytest.mark.parametrize(
-	("attribute", "stored_key", "stored"),
-	[("_number_mode_choice", "numberMode", "none"), ("_scope_choice", "scope", "all")],
+	("attribute", "stored_key", "values"),
+	[
+		("_number_mode_choice", "numberMode", ("none", "number")),
+		("_scope_choice", "scope", ("all", "WorldVoice")),
+	],
 	ids=["mode", "scope"],
 )
 def test_pipeline_panel_keeps_the_stored_choice_when_nothing_is_selected(
 	monkeypatch,
 	attribute,
 	stored_key,
-	stored,
+	values,
 ):
-	# A choice with no selection names no value: neither the last choice, group, nor the default is
-	# saved, so the stored mode or scope is kept, and the other settings still are saved. The stored
-	# values are neither the default nor the last choice, which an index of -1 would pick.
-	env = pipeline_env(monkeypatch, **{stored_key: stored})
-	panel, _sizer = build(env, "SpeechPipelinePanel")
-	getattr(panel, attribute).Select(-1)
-	panel._number_wait_factor_slider.SetValue(33)
+	# A choice with no selection names no value, so the stored mode or scope is kept and the other
+	# settings still are saved. The first and the last choice are both stored in turn: one stored
+	# value alone is what a panel saving the first choice, the last choice (index -1) or the default
+	# would also leave.
+	for stored in values:
+		with monkeypatch.context() as patch:
+			env = pipeline_env(patch, **{stored_key: stored})
+			panel, _sizer = build(env, "SpeechPipelinePanel")
+			getattr(panel, attribute).Select(-1)
+			panel._number_wait_factor_slider.SetValue(33)
 
-	panel.onSave()
+			panel.onSave()
 
-	saved = env.conf["WorldVoice"]["pipeline"]
-	assert (saved[stored_key], saved["numberWaitFactor"]) == (stored, 33)
+			saved = env.conf["WorldVoice"]["pipeline"]
+			assert (saved[stored_key], saved["numberWaitFactor"]) == (stored, 33)
 
 
 def test_pipeline_panel_never_saves_an_entry_pipeline_config_does_not_store(monkeypatch):
