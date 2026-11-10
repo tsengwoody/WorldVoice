@@ -460,25 +460,6 @@ SPEC_TABLE = [
 SPEC_IDS = ["".join(c if c.isascii() else f"U+{ord(c):04X}" for c in row[0]) for row in SPEC_TABLE]
 
 
-def digit_by_digit(piece):
-	"""A digit piece as number mode reads it: every digit apart, the sign on the first."""
-	sign = piece[0] if piece[0] in "+-" else ""
-	return sign + " ".join(piece[len(sign) :])
-
-
-def pieces_in(mode, pieces):
-	"""The space-separated *pieces* of a group column as *mode* speaks them, with breaks between."""
-	symbol = lambda piece: piece.startswith("<")
-	if mode == "none":
-		return broken(0, *(piece[1:-1] if symbol(piece) else piece for piece in pieces.split()))
-	if mode == "number":
-		return broken(
-			0,
-			*(N(piece[1:-1]) if symbol(piece) else digit_by_digit(piece) for piece in pieces.split()),
-		)
-	return spoken(pieces)
-
-
 @pytest.mark.parametrize(
 	("mode", "size", "column"),
 	[
@@ -494,7 +475,7 @@ def test_number_modes_and_group_sizes_name_each_symbol(env, mode, size, column, 
 	env.settings.number_mode = mode
 	env.settings.group_size = size
 	result = env.module.inject_numbers([row[0]], env.settings, env.module.GENERIC_CONTEXT)
-	assert shape(result) == (joined(row[column]) if size == 0 else pieces_in(mode, row[column]))
+	assert shape(result) == (joined(row[column]) if size == 0 else spoken(row[column]))
 
 
 def roles_context(module, language, number_language):

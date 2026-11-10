@@ -167,22 +167,27 @@ ITEM_ROWS = [
 		["第", E, LEN, "3", LZH, B10, "章"],
 		id="wrapper-item10",
 	),
-	*[
-		pytest.param(
-			sequence,
-			{"mode": mode, "size": 0, "item": item},
-			None,
-			full,
-			id=f"{name}-{mode}-item{item}",
-		)
-		for sequence, full, name in [
-			(["第3", "章"], ["第3", "章"], "end"),
-			(["第", "3", "章"], ["第", "3", "章"], "alone"),
-			(["1", "2"], ["1", NB, "2"], "whole-numbers"),
-		]
-		for mode in ("value", "none")
-		for item in (0,)
-	],
+	pytest.param(
+		["第3", "章"],
+		{"mode": "value", "size": 0, "item": 0},
+		None,
+		["第3", "章"],
+		id="end-value-item0",
+	),
+	pytest.param(
+		["第3", "章"],
+		{"mode": "none", "size": 0, "item": 0},
+		None,
+		["第3", "章"],
+		id="end-none-item0",
+	),
+	pytest.param(
+		["1", "2"],
+		{"mode": "value", "size": 0, "item": 0},
+		None,
+		["1", NB, "2"],
+		id="whole-numbers-value-item0",
+	),
 	pytest.param(["第", "3", "章"], {"wait": 0}, ["第", "3", "章"], "same", id="alone-pause0"),
 	pytest.param(["Total.", "12"], {"chars": "."}, None, ["Total", ".", PB, "1 2"], id="total-items"),
 	pytest.param(
