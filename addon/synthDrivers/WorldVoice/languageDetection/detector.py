@@ -157,8 +157,9 @@ class _SequenceDetection:
 		"""Whether command, which is no text and no number wrapper, ends an item (spec U5, D5)."""
 		return isinstance(command, LangChangeCommand) or not self.detector._is_internal_break(command)
 
-	def plan(self, commands, index, offset, came_before):
-		"""The run of characters that decide nothing, from commands[index][offset] at an item's start.
+	def plan(self, commands, index, came_before):
+		"""The run of characters that decide nothing, from the start of commands[index], the first text
+		of an item (a run starts at its item's first character).
 
 		The run ends at the item's first deciding character. When nothing decided earlier in the
 		utterance (came_before is False), an item with no deciding character looks ahead across items
@@ -174,8 +175,7 @@ class _SequenceDetection:
 		for i in range(index, len(commands)):
 			command = commands[i]
 			if isinstance(command, str):
-				for k in range(offset if i == index else 0, len(command)):
-					character = command[k]
+				for k, character in enumerate(command):
 					if self.decides(character):
 						return (i, k), self.stretch_targets(character, stretch_languages, tmp_lang, cur_lang)
 			elif isinstance(command, WVLangChangeCommand) or (came_before and self.ends_item(command)):
@@ -243,7 +243,7 @@ class _SequenceDetection:
 					if (index, offset) < run_end:
 						target = run_targets[0]
 					elif at_item_start and not self.decides(character):
-						run_end, run_targets = self.plan(commands, index, offset, came_before)
+						run_end, run_targets = self.plan(commands, index, came_before)
 						target = run_targets[0]
 					else:
 						if self.decides(character):
