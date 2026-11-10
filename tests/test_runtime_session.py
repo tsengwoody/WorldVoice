@@ -222,11 +222,16 @@ def test_cached_activation_still_speaks_two_distinct_segments(rt, session, adapt
 	store.ensure(make_spec())
 	token = EventToken()
 	assert session.activate("Fake:a") is True
-	session.speak(("one",), token, context=rt.models.PlaybackContext(session.source_id, 1))
+	first_context, commands = rt.models.PlaybackContext(session.source_id, 1), ("one",)
+	session.speak(commands, token, context=first_context)
 	assert session.activate("Fake:a") is False
 	session.speak(("two",), token, context=rt.models.PlaybackContext(session.source_id, 2))
 	assert len(adapter.applied) == 1
 	assert [context.segment_id for context in adapter.contexts] == [1, 2]
+	# The session passes the original context, commands and token through.
+	assert adapter.contexts[0] is first_context
+	assert adapter.spoken[0][0] is commands
+	assert adapter.spoken[0][1] is token
 
 
 def test_session_rejects_foreign_context(rt, session, adapter):
@@ -282,20 +287,6 @@ def test_correlated_session_requires_context(rt, session, adapter):
 	with pytest.raises(ValueError, match="context"):
 		session.speak(("hello",), EventToken())
 	assert adapter.spoken == []
-
-
-def test_drain_session_passes_original_context_commands_and_token(rt, session, adapter):
-	contract = rt.models.CompletionContract(
-		rt.models.CompletionMode.DRAIN,
-		rt.models.IndexRange(1, 9999),
-	)
-	adapter.capabilities = rt.models.EngineCapabilities(frozenset(), completion=contract)
-	context = rt.models.PlaybackContext(session.source_id, 17)
-	commands, token = ("hello",), EventToken()
-	session.speak(commands, token, context=context)
-	assert adapter.contexts[0] is context
-	assert adapter.spoken[0][0] is commands
-	assert adapter.spoken[0][1] is token
 
 
 def test_session_rejects_finishing_foreign_context(rt, session, adapter):
