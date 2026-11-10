@@ -643,7 +643,6 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
 	callback_thread = Thread(target=write, daemon=True)
 	callback_thread.start()
 	assert admitted.wait(WAIT_TIMEOUT)
-	env.player.idle_release.set()
 	env.native.end()
 	try:
 		stays_unset(env.player.idle_entered, message="Idle overtook an admitted PCM feed")
@@ -652,6 +651,11 @@ def test_admitted_pcm_feed_retires_before_final_tail_and_idle(env, monkeypatch, 
 		release.set()
 		callback_thread.join(WAIT_TIMEOUT)
 	assert not callback_thread.is_alive()
+	if not feed_fails:
+		# The drain still waits for the real idle after the feed.
+		assert env.player.idle_entered.wait(WAIT_TIMEOUT)
+		assert events == []
+	env.player.idle_release.set()
 	event = wait_event(events)
 	assert event.source_id is context.source_id
 	if feed_fails:
