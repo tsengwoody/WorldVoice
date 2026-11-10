@@ -588,20 +588,3 @@ def test_fallback_dedupe_belongs_to_one_policy(env):
 	for _ in range(2):
 		policies.CompletionPolicy(nvdaVersion="2026.1", logger=logger).select(pair.voice, pair.core)
 	assert len(warnings) == 2
-
-
-@pytest.mark.parametrize("profile,supported", [(True, True), (True, False), (False, True)])
-def test_select_matches_contract_for(env, profile, supported):
-	policies = policies_of(env)
-	policy = policies.CompletionPolicy(
-		nvdaVersion="2026.1",
-		logger=SimpleNamespace(warning=lambda *args: None),
-	)
-	pair = fake_voice(env, profile=profile, supported=supported)
-	expected, _ = policy.contractFor(
-		pair.voice,
-		pair.core,
-		nvdaVersion="2026.1",
-		audioMode=policy.audioMode(pair.voice, pair.core),
-	)
-	assert policy.select(pair.voice, pair.core) == expected

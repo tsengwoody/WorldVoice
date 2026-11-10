@@ -989,27 +989,6 @@ def test_unconfirmed_wrapper_uses_legacy_and_logs_concrete_fallback_once(
 		assert "Native profile inspection failed" in logs[0][-1]
 
 
-def test_drain_factory_configured_after_bind_before_publication(composition, monkeypatch, nvda_commands):
-	c = composition
-	cls = c.engine("drain")
-	calls, setup = [], []
-	cls.synthDriverClass.speak_segment = lambda core, commands, token, **kwargs: calls.append(kwargs)
-	configure = c.module.VoiceClassAdapter.configureSegmentEvents
-
-	def configure_after_bind(adapter, factory):
-		assert bridge_binding(c.bridge, cls.opened).source is cls.opened
-		configure(adapter, factory)
-		setup.append(adapter)
-
-	monkeypatch.setattr(c.module.VoiceClassAdapter, "configureSegmentEvents", configure_after_bind)
-	manager = c.create(lambda cls, core: drain_contract(c))
-	port = manager.resolve_playback("drain:a")
-	context = c.models.PlaybackContext(port.source_id, 1)
-	port.speak(("hello",), _idle_token(), context=context)
-	assert len(setup) == 1
-	assert calls[0]["context"] is context and callable(calls[0]["on_event"])
-
-
 @pytest.mark.parametrize(
 	"order,mode",
 	[

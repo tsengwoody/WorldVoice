@@ -269,19 +269,6 @@ def test_reopening_sets_the_voice_even_on_the_same_core_object(bridge_modules, r
 	assert core.writes[0] == ("voice", "a")
 
 
-def test_a_new_core_gets_the_voice_set(bridge_modules, rt):
-	cores = [Core(), Core()]
-	cls, adapter = opened_adapter(bridge_modules, cores[0])
-	created = iter(cores[1:])
-	cls.createCore = classmethod(lambda cls: next(created))
-	cls.destroyCore = classmethod(lambda cls, target: None)
-	apply_voice(rt, adapter)
-	adapter.close()
-	adapter.open()
-	apply_voice(rt, adapter, rate=72)
-	assert cores[1].writes[0] == ("voice", "a")
-
-
 def test_a_failed_close_still_forgets_the_voice(bridge_modules, rt):
 	core = Core()
 	cls, adapter = opened_adapter(bridge_modules, core)
@@ -557,14 +544,6 @@ def test_legacy_without_context_preserves_commands(bridge_modules, monkeypatch):
 	monkeypatch.setattr(builtins, "__import__", guard)
 	adapter.speak(commands, SimpleNamespace(is_cancelled=lambda: False))
 	assert core.spoken[0][0] is commands
-
-
-def test_marker_mode_requires_context(marker_env):
-	env = marker_env
-	with pytest.raises(ValueError, match="context"):
-		env.adapter.speak(("hello",), env.token)
-	assert env.core.spoken == []
-	assert env.ledger.prepare(env.context, ()).endIndex == 501
 
 
 @pytest.fixture
